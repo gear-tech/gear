@@ -26,7 +26,7 @@ use anyhow::{Result, anyhow, ensure};
 use async_trait::async_trait;
 use ethexe_common::{
     Address, Digest, SimpleBlockData, ToDigest,
-    db::BlockMetaStorageRead,
+    db::{AnnounceStorageRead, BlockMetaStorageRead},
     ecdsa::PublicKey,
     gear::{
         BatchCommitment, ChainCommitment, CodeCommitment, RewardsCommitment, ValidatorsCommitment,
@@ -202,25 +202,15 @@ impl ValidatorCore {
         );
 
         let chain_commitment = if let Some(head) = head {
-            let local_announces = self.db.block_meta(block.hash).announces.ok_or_else(|| {
-                anyhow!(
-                    "Cannot get from db block announces for block {}",
-                    block.hash
-                )
-            })?;
-            assert_eq!(
-                local_announces.len(),
-                1,
-                "There should be only one announce in the current block"
-            );
-            let local_announce = local_announces
-                .first()
-                .copied()
-                .expect("Just checked, that there is one announce");
+            let head_block_hash = self
+                .db
+                .announce(head)
+                .ok_or_else(|| anyhow!("Cannot get from db announce for head announce {head}"))?
+                .block_hash;
 
-            // TODO #4791: support head != current block hash, have to check head is predecessor of current block
+            // TODO #4791: support head_block_hash != block.hash - check that head_block_hash is predecessor of block.hash
             ensure!(
-                head == local_announce,
+                block.hash == head_block_hash,
                 "Head cannot be different from current block hash"
             );
 

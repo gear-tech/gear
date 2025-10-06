@@ -23,14 +23,14 @@ use crate::{
 };
 use ethexe_common::{
     Announce, AnnounceHash, BlockHeader, ScheduledTask,
-    db::{AnnounceMeta, AnnounceStorageRead, BlockMeta, BlockMetaStorageRead, OnChainStorageRead},
+    db::{AnnounceStorageRead, BlockMeta, BlockMetaStorageRead, OnChainStorageRead},
 };
 use ethexe_runtime_common::state::{HashOf, MessageQueue, MessageQueueHashWithSize};
-use gear_core::code::CodeMetadata;
+use gear_core::{code::CodeMetadata, ids::prelude::CodeIdExt};
 use gprimitives::{CodeId, H256};
 use parity_scale_codec::Encode;
 use std::{
-    collections::{BTreeSet, HashSet},
+    collections::{BTreeSet, HashMap, HashSet},
     hash::Hash,
 };
 
@@ -88,7 +88,7 @@ pub enum IntegrityVerifierError {
 pub struct IntegrityVerifier {
     db: Database,
     errors: Vec<IntegrityVerifierError>,
-    message_queue_size: Option<u8>,
+    cached_queue_sizes: HashMap<H256, u8>,
     original_code: Option<Vec<u8>>,
     bottom: Option<H256>,
 }
@@ -98,7 +98,7 @@ impl IntegrityVerifier {
         Self {
             db,
             errors: Vec::new(),
-            message_queue_size: None,
+            cached_queue_sizes: Default::default(),
             original_code: None,
             bottom: None,
         }
@@ -146,6 +146,8 @@ impl DatabaseVisitor for IntegrityVerifier {
     }
 
     fn visit_block_meta(&mut self, block: H256, meta: BlockMeta) {
+        log::trace!("verify block {block} {meta:?}");
+
         if !meta.prepared {
             self.errors
                 .push(IntegrityVerifierError::BlockIsNotPrepared(block));
@@ -158,11 +160,8 @@ impl DatabaseVisitor for IntegrityVerifier {
             self.errors
                 .push(IntegrityVerifierError::NoBlockLastCommittedAnnounce(block));
         }
-        if let Some(announces) = meta.announces {
-            if announces.len() != 1 {
-                self.errors
-                    .push(IntegrityVerifierError::BlockAnnouncesLenNotOne(block));
-            }
+        if let Some(_announces) = meta.announces {
+            // TODO +_+_+: check announces somehow
         } else {
             self.errors
                 .push(IntegrityVerifierError::NoBlockAnnounces(block));
@@ -170,6 +169,8 @@ impl DatabaseVisitor for IntegrityVerifier {
     }
 
     fn visit_announce(&mut self, announce_hash: AnnounceHash, announce: Announce) {
+        log::trace!("verify announce {announce_hash}: {announce}");
+
         if !announce.off_chain_transactions.is_empty() {
             self.errors
                 .push(IntegrityVerifierError::AnnounceOffChainTransactionsNotEmpty(announce_hash));
@@ -186,14 +187,9 @@ impl DatabaseVisitor for IntegrityVerifier {
         }
     }
 
-    fn visit_announce_meta(&mut self, announce_hash: AnnounceHash, announce_meta: AnnounceMeta) {
-        if !announce_meta.computed {
-            self.errors
-                .push(IntegrityVerifierError::AnnounceIsNotComputed(announce_hash));
-        }
-    }
-
     fn visit_block_synced(&mut self, block: H256, block_synced: bool) {
+        log::trace!("verify block {block} synced {block_synced:?}");
+
         if !block_synced {
             self.errors
                 .push(IntegrityVerifierError::BlockIsNotSynced(block));
@@ -201,6 +197,8 @@ impl DatabaseVisitor for IntegrityVerifier {
     }
 
     fn visit_block_header(&mut self, block: H256, header: BlockHeader) {
+        log::trace!("verify block {block} {header:?}");
+
         let Some(parent_header) = self.db().block_header(header.parent_hash) else {
             if self.bottom == Some(block) {
                 // it's not guaranteed bottom parent block has header
@@ -231,17 +229,23 @@ impl DatabaseVisitor for IntegrityVerifier {
         }
     }
 
-    fn visit_code_valid(&mut self, _code_id: CodeId, code_valid: bool) {
+    fn visit_code_valid(&mut self, code_id: CodeId, code_valid: bool) {
+        log::trace!("verify code {code_id} valid {code_valid:?}");
+
         if !code_valid {
             self.errors.push(IntegrityVerifierError::CodeIsNotValid);
         }
     }
 
     fn visit_original_code(&mut self, original_code: Vec<u8>) {
+        log::trace!("verify original code {}", CodeId::generate(&original_code));
+
         self.original_code = Some(original_code.to_vec());
     }
 
     fn visit_code_metadata(&mut self, code_id: CodeId, metadata: CodeMetadata) {
+        log::trace!("verify code {code_id} {metadata:?}");
+
         let original_code = self.original_code.take();
         if let Some(original_code) = original_code
             && metadata.original_code_len() != original_code.len() as u32
@@ -261,6 +265,8 @@ impl DatabaseVisitor for IntegrityVerifier {
         height: u32,
         tasks: BTreeSet<ScheduledTask>,
     ) {
+        log::trace!("verify announce {announce_hash} at {height} scheduler {tasks:?}");
+
         let Some(announce) = self.db.announce(announce_hash) else {
             self.errors
                 .push(IntegrityVerifierError::AnnounceNotFound(announce_hash));
@@ -285,17 +291,22 @@ impl DatabaseVisitor for IntegrityVerifier {
         &mut self,
         queue_hash_with_size: MessageQueueHashWithSize,
     ) {
-        if let Some(_hash) = queue_hash_with_size.hash.to_inner() {
-            self.message_queue_size = Some(queue_hash_with_size.cached_queue_size);
+        log::trace!("verify {queue_hash_with_size:?}");
+
+        if let Some(hash) = queue_hash_with_size.hash.to_inner() {
+            self.cached_queue_sizes
+                .insert(hash.hash(), queue_hash_with_size.cached_queue_size);
         }
     }
 
     fn visit_message_queue(&mut self, queue: MessageQueue) {
+        log::trace!("verify {queue:?}");
+
         let encoded_queue = queue.encode();
         let hash = crate::hash(&encoded_queue);
         let hash = unsafe { HashOf::new(hash) };
 
-        let cached_queue_size = self.message_queue_size.take().expect(
+        let cached_queue_size = self.cached_queue_sizes.remove(&hash.hash()).expect(
             "`visit_message_queue_hash_with_size` must be called before `visit_message_queue`",
         );
         if cached_queue_size != queue.len() as u8 {
@@ -640,7 +651,7 @@ mod tests {
             },
         );
 
-        assert_eq!(verifier.message_queue_size, None);
+        assert!(verifier.cached_queue_sizes.is_empty());
         assert_eq!(verifier.errors, []);
     }
 

@@ -48,15 +48,12 @@ pub(crate) async fn compute_and_include<P: ProcessorExt>(
     }
 
     if db.announce_meta(announce_hash).computed {
-        log::warn!("{announce:?} is already computed");
+        log::warn!("{announce} is already computed");
         return Ok(ComputationStatus::Computed(announce_hash));
     }
 
     if !db.announce_meta(announce.parent).computed {
-        log::warn!(
-            "{announce:?} is from unknown branch: parent {}",
-            announce.parent
-        );
+        log::warn!("{announce} is from unknown branch",);
         return Ok(ComputationStatus::Rejected(announce_hash));
     }
 

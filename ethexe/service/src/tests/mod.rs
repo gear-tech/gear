@@ -29,12 +29,12 @@ use crate::{
     },
 };
 use alloy::providers::{Provider as _, ext::AnvilApi};
+use core::panic;
 use ethexe_common::{
     ScheduledTask,
     db::*,
     events::{BlockEvent, MirrorEvent, RouterEvent},
     gear::Origin,
-    mock::*,
 };
 use ethexe_db::{Database, verifier::IntegrityVerifier};
 use ethexe_observer::EthereumConfig;
@@ -395,69 +395,84 @@ async fn mailbox() {
         .unwrap();
     assert_eq!(init_res.code, ReplyCode::Success(SuccessReplyReason::Auto));
 
-    let pid = res.program_id;
+    let async_pid = res.program_id;
 
-    env.approve_wvara(pid).await;
+    env.approve_wvara(async_pid).await;
 
-    let res = env
-        .send_message(pid, &demo_async::Command::Mutex.encode(), 0)
+    let mut listener = env.observer_events_publisher().subscribe().await;
+
+    let wait_for_mutex_request_command_reply = env
+        .send_message(async_pid, &demo_async::Command::Mutex.encode(), 0)
         .await
         .unwrap();
 
-    let original_mid = res.message_id;
-    let mid_expected_message = MessageId::generate_outgoing(original_mid, 0);
-    let ping_expected_message = MessageId::generate_outgoing(original_mid, 1);
+    let original_mid = wait_for_mutex_request_command_reply.message_id;
+    let mid_expected_message_id = MessageId::generate_outgoing(original_mid, 0);
+    let ping_expected_message_id = MessageId::generate_outgoing(original_mid, 1);
 
-    let mut listener = env.observer_events_publisher().subscribe().await;
-    let block_data = listener
+    log::info!("📗 Waiting for announce with PING message committed");
+    let (mut block, mut announce_hash) = (None, None);
+    listener
         .apply_until_block_event_with_header(|event, block_data| match event {
-            BlockEvent::Mirror { actor_id, event } if actor_id == pid => {
-                if let MirrorEvent::Message {
-                    id,
-                    destination,
-                    payload,
-                    ..
-                } = event
-                {
-                    assert_eq!(destination, env.sender_id);
+            BlockEvent::Mirror {
+                actor_id,
+                event:
+                    MirrorEvent::Message {
+                        id,
+                        destination,
+                        payload,
+                        ..
+                    },
+            } if actor_id == async_pid => {
+                assert_eq!(destination, env.sender_id);
 
-                    if id == mid_expected_message {
-                        assert_eq!(payload, res.message_id.encode());
-                        Ok(None)
-                    } else if id == ping_expected_message {
-                        assert_eq!(payload, b"PING");
-                        Ok(Some(block_data.clone()))
-                    } else {
-                        unreachable!()
-                    }
+                if id == mid_expected_message_id {
+                    assert_eq!(payload, original_mid.encode());
+                } else if id == ping_expected_message_id {
+                    assert_eq!(payload, b"PING");
+                    block = Some(block_data.clone());
                 } else {
-                    Ok(None)
+                    panic!("Unexpected message id {id}");
                 }
+
+                Ok(None)
+            }
+            BlockEvent::Router(RouterEvent::AnnouncesCommitted(ah)) if block.is_some() => {
+                announce_hash = Some(ah);
+                Ok(Some(()))
             }
             _ => Ok(None),
         })
         .await
         .unwrap();
 
+    let block = block.expect("must be set");
+    let announce_hash = announce_hash.expect("must be set");
+
     // -1 bcs execution took place in previous block, not the one that emits events.
-    let wake_expiry = block_data.header.height - 1 + 100; // 100 is default wait for.
-    let expiry = block_data.header.height - 1 + ethexe_runtime_common::state::MAILBOX_VALIDITY;
+    let wake_expiry = block.header.height - 1 + 100; // 100 is default wait for.
+    let expiry = block.header.height - 1 + ethexe_runtime_common::state::MAILBOX_VALIDITY;
 
     let expected_schedule = BTreeMap::from_iter([
         (
             wake_expiry,
-            BTreeSet::from_iter([ScheduledTask::WakeMessage(pid, original_mid)]),
+            BTreeSet::from_iter([ScheduledTask::WakeMessage(async_pid, original_mid)]),
         ),
         (
             expiry,
             BTreeSet::from_iter([
-                ScheduledTask::RemoveFromMailbox((pid, env.sender_id), mid_expected_message),
-                ScheduledTask::RemoveFromMailbox((pid, env.sender_id), ping_expected_message),
+                ScheduledTask::RemoveFromMailbox(
+                    (async_pid, env.sender_id),
+                    mid_expected_message_id,
+                ),
+                ScheduledTask::RemoveFromMailbox(
+                    (async_pid, env.sender_id),
+                    ping_expected_message_id,
+                ),
             ]),
         ),
     ]);
 
-    let announce_hash = node.db.top_announce_hash(block_data.header.parent_hash);
     let schedule = node
         .db
         .announce_schedule(announce_hash)
@@ -472,7 +487,7 @@ async fn mailbox() {
         env.sender_id,
         BTreeMap::from_iter([
             (
-                mid_expected_message,
+                mid_expected_message_id,
                 Expiring {
                     value: MailboxMessage {
                         payload: mid_payload.clone(),
@@ -483,7 +498,7 @@ async fn mailbox() {
                 },
             ),
             (
-                ping_expected_message,
+                ping_expected_message_id,
                 Expiring {
                     value: MailboxMessage {
                         payload: ping_payload,
@@ -496,7 +511,7 @@ async fn mailbox() {
         ]),
     )]);
 
-    let mirror = env.ethereum.mirror(pid.try_into().unwrap());
+    let mirror = env.ethereum.mirror(async_pid.try_into().unwrap());
     let state_hash = mirror.query().state_hash().await.unwrap();
 
     let state = node.db.program_state(state_hash).unwrap();
@@ -508,17 +523,19 @@ async fn mailbox() {
     assert_eq!(mailbox.into_values(&node.db), expected_mailbox);
 
     mirror
-        .send_reply(ping_expected_message, "PONG", 0)
+        .send_reply(ping_expected_message_id, "PONG", 0)
         .await
         .unwrap();
 
-    let initial_message = res.message_id;
-    let reply_info = res.wait_for().await.unwrap();
+    let reply_info = wait_for_mutex_request_command_reply
+        .wait_for()
+        .await
+        .unwrap();
     assert_eq!(
         reply_info.code,
         ReplyCode::Success(SuccessReplyReason::Manual)
     );
-    assert_eq!(reply_info.payload, initial_message.encode());
+    assert_eq!(reply_info.payload, original_mid.encode());
 
     let state_hash = mirror.query().state_hash().await.unwrap();
 
@@ -531,7 +548,7 @@ async fn mailbox() {
     let expected_mailbox = BTreeMap::from_iter([(
         env.sender_id,
         BTreeMap::from_iter([(
-            mid_expected_message,
+            mid_expected_message_id,
             Expiring {
                 value: MailboxMessage {
                     payload: mid_payload,
@@ -545,29 +562,31 @@ async fn mailbox() {
 
     assert_eq!(mailbox.into_values(&node.db), expected_mailbox);
 
-    mirror.claim_value(mid_expected_message).await.unwrap();
+    log::info!("📗 Claiming value for message {mid_expected_message_id}");
+    mirror.claim_value(mid_expected_message_id).await.unwrap();
 
-    let block_data = listener
-        .apply_until_block_event_with_header(|event, block_data| match event {
-            BlockEvent::Mirror { actor_id, event } if actor_id == pid => match event {
-                MirrorEvent::ValueClaimed { claimed_id, .. }
-                    if claimed_id == mid_expected_message =>
-                {
-                    Ok(Some(block_data.clone()))
-                }
-                _ => Ok(None),
-            },
+    let mut claimed = false;
+    let announce_hash = listener
+        .apply_until_block_event(|event| match event {
+            BlockEvent::Mirror {
+                actor_id,
+                event: MirrorEvent::ValueClaimed { claimed_id, .. },
+            } if actor_id == async_pid && claimed_id == mid_expected_message_id => {
+                claimed = true;
+                Ok(None)
+            }
+            BlockEvent::Router(RouterEvent::AnnouncesCommitted(ah)) if claimed => Ok(Some(ah)),
             _ => Ok(None),
         })
         .await
         .unwrap();
+    assert!(claimed, "Value must be claimed");
 
     let state_hash = mirror.query().state_hash().await.unwrap();
 
     let state = node.db.program_state(state_hash).unwrap();
     assert!(state.mailbox_hash.is_empty());
 
-    let announce_hash = node.db.top_announce_hash(block_data.header.parent_hash);
     let schedule = node
         .db
         .announce_schedule(announce_hash)
@@ -1158,25 +1177,49 @@ async fn fast_sync() {
             }
 
             log::trace!("assert block {block}");
-            assert_eq!(alice.db.block_meta(block), bob.db.block_meta(block));
 
-            let announce_hash = alice.db.top_announce_hash(block);
-            assert_eq!(
-                alice.db.announce_meta(announce_hash),
-                bob.db.announce_meta(announce_hash)
+            // Check block meta, exclude codes_queue and announces, which can vary, and it's ok
+            let alice_meta = alice.db.block_meta(block);
+            let bob_meta = bob.db.block_meta(block);
+            assert!(
+                alice_meta.prepared && bob_meta.prepared,
+                "Block {block} is not prepared for alice or bob"
             );
             assert_eq!(
-                alice.db.announce_program_states(announce_hash),
-                bob.db.announce_program_states(announce_hash)
+                alice_meta.last_committed_announce,
+                bob_meta.last_committed_announce
             );
             assert_eq!(
-                alice.db.announce_outcome(announce_hash),
-                bob.db.announce_outcome(announce_hash)
+                alice_meta.last_committed_batch,
+                bob_meta.last_committed_batch
             );
-            assert_eq!(
-                alice.db.announce_outcome(announce_hash),
-                bob.db.announce_outcome(announce_hash)
-            );
+
+            let Some((alice_announces, bob_announces)) =
+                alice_meta.announces.zip(bob_meta.announces)
+            else {
+                panic!("alice or bob has no announces");
+            };
+
+            for &announce_hash in alice_announces.intersection(&bob_announces) {
+                if alice.db.announce_meta(announce_hash).computed
+                    != bob.db.announce_meta(announce_hash).computed
+                {
+                    continue;
+                }
+
+                assert_eq!(
+                    alice.db.announce_program_states(announce_hash),
+                    bob.db.announce_program_states(announce_hash)
+                );
+                assert_eq!(
+                    alice.db.announce_outcome(announce_hash),
+                    bob.db.announce_outcome(announce_hash)
+                );
+                assert_eq!(
+                    alice.db.announce_outcome(announce_hash),
+                    bob.db.announce_outcome(announce_hash)
+                );
+            }
 
             assert_eq!(alice.db.block_header(block), bob.db.block_header(block));
             assert_eq!(alice.db.block_events(block), bob.db.block_events(block));
@@ -1232,10 +1275,11 @@ async fn fast_sync() {
     }
 
     let latest_block: H256 = env.latest_block().await.hash.0.into();
-    alice
+    let (_, accepted) = alice
         .listener()
         .wait_for_announce_computed(latest_block)
         .await;
+    assert!(accepted);
 
     log::info!("Starting Bob (fast-sync)");
     let mut bob = env.new_node(NodeConfig::named("Bob").fast_sync());
@@ -1259,13 +1303,16 @@ async fn fast_sync() {
     }
 
     let latest_block = env.latest_block().await.hash.0.into();
-    alice
+    let (_, accepted) = alice
         .listener()
         .wait_for_announce_computed(latest_block)
         .await;
-    bob.listener()
+    assert!(accepted);
+    let (_, accepted) = bob
+        .listener()
         .wait_for_announce_computed(latest_block)
         .await;
+    assert!(accepted);
 
     log::info!("Stopping Bob");
     bob.stop_service().await;
@@ -1313,26 +1360,49 @@ async fn fast_sync() {
     env.skip_blocks(100).await;
 
     let latest_block: H256 = env.latest_block().await.hash.0.into();
-    alice
+    let (_, accepted) = alice
         .listener()
         .wait_for_announce_computed(latest_block)
         .await;
+    assert!(accepted);
 
     log::info!("Starting Bob again to check how it handles partially empty database");
     bob.start_service().await;
 
-    // mine a block so Bob can produce the event we will wait for
-    env.skip_blocks(1).await;
+    // Mine some blocks so Bob can produce the event we will wait for.
+    // We mine several blocks here to ensure that Bob and Alice would converge to the same chain of announces.
+    // Why do we need that? Because Bob was disabled he missed some announces that Alice produced,
+    // this announces was not committed, so Bob would not see them during fast-sync
+    // and would not have them in his database. This is normal situation, after a few blocks Bob and Alice should
+    // converge to the same chain of announces.
+    let mut was_accepted = false;
+    for _ in 0..4 {
+        // Use skip_blocks to ensure that we need to wait for announce from this block
+        env.skip_blocks(1).await;
+
+        let latest_block: H256 = env.latest_block().await.hash.0.into();
+
+        let (announce_hash, accepted) = alice
+            .listener()
+            .wait_for_announce_computed(latest_block)
+            .await;
+        assert!(accepted);
+
+        let (_, accepted) = bob
+            .listener()
+            .wait_for_announce_computed(announce_hash)
+            .await;
+
+        if accepted {
+            log::info!("📗 Bob accepted announce from Alice - finish skipping blocks");
+            was_accepted = true;
+            break;
+        }
+    }
+
+    assert!(was_accepted, "Bob never accepted announce from Alice");
 
     let latest_block = env.latest_block().await.hash.0.into();
-    alice
-        .listener()
-        .wait_for_announce_computed(latest_block)
-        .await;
-    bob.listener()
-        .wait_for_announce_computed(latest_block)
-        .await;
-
     assert_chain(
         latest_block,
         bob.latest_fast_synced_block.take().unwrap(),

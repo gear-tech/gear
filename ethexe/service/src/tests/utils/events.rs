@@ -154,22 +154,28 @@ impl ServiceEventsListener<'_> {
             .await
     }
 
-    pub async fn wait_for_announce_computed(&mut self, id: impl Into<AnnounceId>) {
+    #[must_use]
+    pub async fn wait_for_announce_computed(
+        &mut self,
+        id: impl Into<AnnounceId>,
+    ) -> (AnnounceHash, bool) {
         let id = id.into();
         loop {
             let event = self.next_event().await.unwrap();
-            let TestingEvent::Compute(ComputeEvent::AnnounceComputed(announce_hash)) = event else {
+            let TestingEvent::Compute(ComputeEvent::AnnounceComputed(announce_hash, accepted)) =
+                event
+            else {
                 continue;
             };
 
             match id {
                 AnnounceId::Any => {
-                    return;
+                    return (announce_hash, accepted);
                 }
                 AnnounceId::AnnounceHash(waited_announce_hash)
                     if waited_announce_hash == announce_hash =>
                 {
-                    return;
+                    return (announce_hash, accepted);
                 }
                 AnnounceId::BlockHash(waited_block_hash) => {
                     if self
@@ -180,7 +186,7 @@ impl ServiceEventsListener<'_> {
                         .block_hash
                         == waited_block_hash
                     {
-                        return;
+                        return (announce_hash, accepted);
                     }
                 }
                 _ => continue,

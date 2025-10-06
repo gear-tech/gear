@@ -75,7 +75,6 @@ pub fn not_computed_chain<DB: AnnounceStorageRead>(
 ) -> Result<VecDeque<Announce>> {
     let mut not_computed_chain = VecDeque::new();
     while !db.announce_meta(announce_hash).computed {
-        log::trace!("+_+_+ announce {announce_hash} not computed yet, adding to chain");
         let announce = db
             .announce(announce_hash)
             .ok_or(ComputeError::AnnounceNotFound(announce_hash))?;

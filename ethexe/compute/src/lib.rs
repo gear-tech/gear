@@ -42,8 +42,7 @@ pub enum ComputeEvent {
     RequestData(DataRequest),
     CodeProcessed(CodeId),
     BlockPrepared(H256),
-    AnnounceComputed(AnnounceHash),
-    AnnounceRejected(AnnounceHash),
+    AnnounceComputed(AnnounceHash, bool),
 }
 
 #[derive(thiserror::Error, Debug)]

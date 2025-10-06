@@ -497,10 +497,6 @@ fn calculate_announces_common_predecessor(
         .into_iter()
         .collect::<HashSet<_>>();
 
-    log::trace!(
-        "+_+_+ starting common predecessor search for block {block_hash} from announces: {announces:?}",
-    );
-
     for _ in 0..commitment_delay_limit {
         if announces.len() == 1 && announces.contains(&start_announce) {
             return Ok(start_announce);
@@ -509,7 +505,6 @@ fn calculate_announces_common_predecessor(
         announces = announces
             .into_iter()
             .map(|announce_hash| {
-                log::trace!("+_+_+ checking predecessor {announce_hash} for common predecessor");
                 db.announce(announce_hash)
                     .map(|a| a.parent)
                     .ok_or(ComputeError::AnnounceNotFound(announce_hash))

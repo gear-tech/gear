@@ -198,8 +198,8 @@ impl TestEnv {
             .unwrap()
             .expect("expect block will be processing");
 
-        let processed_announce = event.unwrap_announce_computed();
-        assert_eq!(processed_announce, announce_hash);
+        let event = event.unwrap_announce_computed();
+        assert_eq!(event, (announce_hash, true));
     }
 }
 

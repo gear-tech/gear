@@ -559,14 +559,20 @@ where
         }: &AnnounceNode,
     ) {
         let announce_hash = *announce_hash;
-        try_push_node!(with_hash: self.announce_schedule(announce_hash));
-        try_push_node!(with_hash: self.announce_outcome(announce_hash));
-        try_push_node!(with_hash: self.announce_program_states(announce_hash));
+
+        let announce_meta = self.storage.announce_meta(announce_hash);
+        let computed = announce_meta.computed;
 
         self.push_node(AnnounceMetaNode {
             announce_hash,
-            announce_meta: self.storage.announce_meta(announce_hash),
+            announce_meta,
         });
+
+        if computed {
+            try_push_node!(with_hash: self.announce_schedule(announce_hash));
+            try_push_node!(with_hash: self.announce_outcome(announce_hash));
+            try_push_node!(with_hash: self.announce_program_states(announce_hash));
+        }
 
         // TODO #4830: offchain transactions
     }

@@ -68,7 +68,7 @@ pub enum Event {
 // TODO #4176: consider to move this to another module
 #[derive(Debug, Clone, Encode, Decode, derive_more::From)]
 pub enum NetworkMessage {
-    ProducerBlock(SignedAnnounce),
+    Announce(SignedAnnounce),
     RequestBatchValidation(SignedValidationRequest),
     ApproveBatch(BatchCommitmentValidationReply),
     OffchainTransaction {
@@ -432,12 +432,14 @@ impl Service {
                                 network.db_sync().request(DBSyncRequest::Announces(request));
                         }
                     }
-                    ComputeEvent::AnnounceComputed(announce_hash) => {
-                        consensus.receive_computed_announce(announce_hash)?
-                    }
-                    ComputeEvent::AnnounceRejected(announce_hash) => {
-                        // TODO: #4811 we should handle this case properly inside consensus service
-                        log::warn!("Announce {announce_hash:?} was rejected");
+                    ComputeEvent::AnnounceComputed(announce_hash, accepted) => {
+                        if accepted {
+                            log::info!("✅ Announce {announce_hash:?} was accepted");
+                            consensus.receive_computed_announce(announce_hash)?
+                        } else {
+                            // TODO: #4811 we should handle this case properly inside consensus service
+                            log::warn!("❌ Announce {announce_hash:?} was rejected");
+                        }
                     }
                     ComputeEvent::BlockPrepared(block_hash) => {
                         consensus.receive_prepared_block(block_hash)?
@@ -463,7 +465,7 @@ impl Service {
                             };
 
                             match message {
-                                NetworkMessage::ProducerBlock(block) => {
+                                NetworkMessage::Announce(block) => {
                                     consensus.receive_announce(block)?
                                 }
                                 NetworkMessage::RequestBatchValidation(request) => {

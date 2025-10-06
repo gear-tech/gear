@@ -19,7 +19,7 @@
 use super::{
     StateHandler, ValidatorContext, ValidatorState, coordinator::Coordinator, initial::Initial,
 };
-use crate::{ConsensusEvent, utils, validator::DefaultProcessing};
+use crate::{ConsensusEvent, validator::DefaultProcessing};
 use anyhow::{Result, anyhow};
 use derive_more::{Debug, Display};
 use ethexe_common::{
@@ -205,16 +205,61 @@ impl Producer {
             ));
         }
 
+        let mut parent = None;
+        for &announce_hash in self
+            .ctx
+            .core
+            .db
+            .block_meta(self.block.hash)
+            .announces
+            .iter()
+            .flatten()
+        {
+            let announce = self.ctx.core.db.announce(announce_hash).ok_or(anyhow!(
+                "Announce {announce_hash} for prepared block {} not found in db",
+                self.block.hash
+            ))?;
+
+            if !announce.is_base() {
+                log::warn!(
+                    "Found non-base announce {announce_hash} for prepared block {}, ignoring it",
+                    self.block.hash
+                );
+                continue;
+            }
+
+            if parent.is_none() {
+                parent = Some(announce.parent);
+                continue;
+            }
+
+            let parent_announce = self.ctx.core.db.announce(announce.parent).ok_or(anyhow!(
+                "Parent announce {} not found in db",
+                announce.parent
+            ))?;
+
+            if !parent_announce.is_base() {
+                parent = Some(announce.parent);
+                break;
+            }
+        }
+
+        let parent = parent.ok_or_else(|| {
+            anyhow!(
+                "No base announce found for prepared block {} in db",
+                self.block.hash
+            )
+        })?;
+
         let announce = Announce {
             block_hash: self.block.hash,
-            parent: utils::last_not_base_or_top_announce(
-                &self.ctx.core.db,
-                self.block.header.parent_hash,
-            )?,
+            parent,
             gas_allowance: Some(self.ctx.core.block_gas_limit),
             // TODO #4639: append off-chain transactions
             off_chain_transactions: Vec::new(),
         };
+
+        log::info!("🛠 Producing new announce {announce}");
 
         let signed = self
             .ctx

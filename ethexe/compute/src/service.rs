@@ -221,10 +221,10 @@ impl<P: ProcessorExt> Stream for ComputeService<P> {
             self.blocks_state = State::WaitForBlock;
             return Poll::Ready(Some(res.map(|status| match status {
                 ComputationStatus::Computed(announce_hash) => {
-                    ComputeEvent::AnnounceComputed(announce_hash)
+                    ComputeEvent::AnnounceComputed(announce_hash, true)
                 }
                 ComputationStatus::Rejected(announce_hash) => {
-                    ComputeEvent::AnnounceRejected(announce_hash)
+                    ComputeEvent::AnnounceComputed(announce_hash, false)
                 }
             })));
         }
@@ -339,7 +339,7 @@ mod tests {
 
         // Poll service to process the block
         let event = service.next().await.unwrap().unwrap();
-        assert_eq!(event, ComputeEvent::AnnounceComputed(announce_hash));
+        assert_eq!(event, ComputeEvent::AnnounceComputed(announce_hash, true));
 
         // Verify block is marked as computed in DB
         assert!(db.announce_meta(announce_hash).computed);

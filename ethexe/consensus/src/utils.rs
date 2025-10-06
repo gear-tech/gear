@@ -358,7 +358,6 @@ pub fn last_not_base_or_top_announce<DB: AnnounceStorageRead + BlockMetaStorageR
     let mut result = None;
 
     for announce_hash in db.block_meta(block_hash).announces.into_iter().flatten() {
-        log::trace!("+_+_+ considering announce {announce_hash} for block {block_hash}");
         if result.is_some() {
             // Prefer not base announce if there are multiple announces in the parent block
             if !db
@@ -366,11 +365,9 @@ pub fn last_not_base_or_top_announce<DB: AnnounceStorageRead + BlockMetaStorageR
                 .ok_or_else(|| anyhow!("No announce found for {announce_hash} in db"))?
                 .is_base()
             {
-                log::trace!("+_+_+ selected announce {announce_hash} for block {block_hash}");
                 result = Some(announce_hash);
             }
         } else {
-            log::trace!("+_+_+ selected announce {announce_hash} for block {block_hash}");
             result = Some(announce_hash);
         }
     }
