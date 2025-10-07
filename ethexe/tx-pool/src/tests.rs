@@ -24,10 +24,7 @@
 use crate::{
     OffchainTransaction, RawOffchainTransaction, SignedOffchainTransaction, TxPoolService,
 };
-use ethexe_common::{
-    BlockHeader,
-    db::{BlockMetaStorageRead, BlockMetaStorageWrite, OnChainStorageWrite},
-};
+use ethexe_common::{AnnounceHash, BlockHeader, db::*};
 use ethexe_db::Database;
 use gprimitives::{H160, H256};
 
@@ -55,8 +52,11 @@ impl BlocksManager {
     pub(crate) fn add_block(&self) -> (H256, BlockHeader) {
         let block_hash = H256::random();
 
-        match self.db.latest_computed_block() {
-            Some((parent_hash, parent_header)) => {
+        match self.db.latest_data() {
+            Some(latest) => {
+                let parent_hash = latest.prepared_block_hash;
+                let parent_header = self.db.block_header(latest.prepared_block_hash).unwrap();
+
                 let header = BlockHeader {
                     height: parent_header.height + 1,
                     timestamp: now(),
@@ -64,7 +64,11 @@ impl BlocksManager {
                 };
 
                 self.db.set_block_header(block_hash, header);
-                self.db.set_latest_computed_block(block_hash, header);
+                self.db
+                    .mutate_latest_data(|data| {
+                        data.prepared_block_hash = block_hash;
+                    })
+                    .unwrap();
 
                 (block_hash, header)
             }
@@ -76,7 +80,15 @@ impl BlocksManager {
                 };
 
                 self.db.set_block_header(block_hash, header);
-                self.db.set_latest_computed_block(block_hash, header);
+                self.db.set_latest_data(LatestData {
+                    prepared_block_hash: block_hash,
+                    synced_block_height: header.height,
+                    computed_announce_hash: AnnounceHash::zero(),
+                    genesis_block_hash: block_hash,
+                    genesis_announce_hash: AnnounceHash::zero(),
+                    start_block_hash: block_hash,
+                    start_announce_hash: AnnounceHash::zero(),
+                });
 
                 (block_hash, header)
             }

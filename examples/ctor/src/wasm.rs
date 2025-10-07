@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2024-2025 Gear Technologies Inc.
+// Copyright (C) 2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -16,21 +16,35 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use anyhow::Result;
-use hyper::header::HeaderValue;
-use tower_http::cors::{AllowOrigin, CorsLayer};
+use gstd::{prelude::*, static_mut, static_ref};
 
-pub(crate) fn try_into_cors(maybe_cors: Option<Vec<String>>) -> Result<CorsLayer> {
-    if let Some(cors) = maybe_cors {
-        let mut list = Vec::new();
+static mut CTORS: u64 = 0;
+static mut DTORS: u64 = 0;
 
-        for origin in cors {
-            list.push(HeaderValue::from_str(&origin)?)
-        }
+gstd::ctor! {
+    unsafe extern "C" fn() {
+        *static_mut!(CTORS) += 1;
+    }
+}
 
-        Ok(CorsLayer::new().allow_origin(AllowOrigin::list(list)))
-    } else {
-        // allow all cors
-        Ok(CorsLayer::permissive())
+gstd::dtor! {
+    unsafe extern "C" fn() {
+        *static_mut!(DTORS) += 1;
+    }
+}
+
+#[unsafe(no_mangle)]
+extern "C" fn init() {
+    unsafe {
+        assert_eq!(*static_mut!(CTORS), 1);
+        assert_eq!(*static_ref!(DTORS), 0);
+    }
+}
+
+#[unsafe(no_mangle)]
+extern "C" fn handle() {
+    unsafe {
+        assert_eq!(*static_ref!(CTORS), 2);
+        assert_eq!(*static_ref!(DTORS), 1);
     }
 }

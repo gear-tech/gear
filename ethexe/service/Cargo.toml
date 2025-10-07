@@ -18,7 +18,7 @@ ethexe-processor.workspace = true
 ethexe-signer.workspace = true
 ethexe-consensus.workspace = true
 ethexe-ethereum.workspace = true
-ethexe-common = { workspace = true, features = ["std"] }
+ethexe-common = { workspace = true, features = ["std", "mock"] }
 ethexe-runtime-common.workspace = true
 ethexe-prometheus.workspace = true
 ethexe-rpc.workspace = true

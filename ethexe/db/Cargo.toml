@@ -17,6 +17,7 @@ anyhow.workspace = true
 dashmap = "5.5.3"
 parity-scale-codec.workspace = true
 log = { workspace = true, features = ["std"] }
+tracing.workspace = true
 paste.workspace = true
 derive_more.workspace = true
 auto_impl.workspace = true

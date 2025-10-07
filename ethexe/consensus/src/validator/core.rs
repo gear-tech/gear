@@ -61,6 +61,7 @@ pub struct ValidatorCore {
     pub validate_chain_deepness_limit: u32,
     /// Minimum deepness threshold to create chain commitment even if there are no transitions.
     pub chain_deepness_threshold: u32,
+    pub block_gas_limit: u64,
 }
 
 impl Clone for ValidatorCore {
@@ -76,6 +77,7 @@ impl Clone for ValidatorCore {
             middleware: self.middleware.clone(),
             validate_chain_deepness_limit: self.validate_chain_deepness_limit,
             chain_deepness_threshold: self.chain_deepness_threshold,
+            block_gas_limit: self.block_gas_limit,
         }
     }
 }
@@ -101,9 +103,18 @@ impl ValidatorCore {
     }
 
     pub fn aggregate_chain_commitment(&self, block_hash: H256) -> Result<Option<ChainCommitment>> {
+        let head_announce = self
+            .db
+            .block_meta(block_hash)
+            .announces
+            .into_iter()
+            .flat_map(|a| a.into_iter())
+            .next()
+            .ok_or_else(|| anyhow!("No announces found for {block_hash} in block meta storage"))?;
+
         let Some((commitment, deepness)) =
             // Max deepness is ignored here, because we want to create chain commitment (not validate)
-            utils::aggregate_chain_commitment(&self.db, block_hash, false, None)?
+            utils::aggregate_chain_commitment(&self.db, head_announce, false, None)?
         else {
             return Ok(None);
         };
@@ -117,10 +128,10 @@ impl ValidatorCore {
     }
 
     pub fn aggregate_code_commitments(&self, block_hash: H256) -> Result<Vec<CodeCommitment>> {
-        let queue = self
-            .db
-            .block_codes_queue(block_hash)
-            .ok_or_else(|| anyhow!("Computed block {block_hash} codes queue is not in storage"))?;
+        let queue =
+            self.db.block_meta(block_hash).codes_queue.ok_or_else(|| {
+                anyhow!("Computed block {block_hash} codes queue is not in storage")
+            })?;
 
         utils::aggregate_code_commitments(&self.db, queue, false)
     }
@@ -199,7 +210,8 @@ impl ValidatorCore {
         // Check requested codes wait for commitment
         let waiting_codes = self
             .db
-            .block_codes_queue(block.hash)
+            .block_meta(block.hash)
+            .codes_queue
             .ok_or_else(|| {
                 anyhow!(
                     "Cannot get from db block codes queue for block {}",
@@ -214,9 +226,25 @@ impl ValidatorCore {
         );
 
         let chain_commitment = if let Some(head) = head {
+            let local_announces = self.db.block_meta(block.hash).announces.ok_or_else(|| {
+                anyhow!(
+                    "Cannot get from db block announces for block {}",
+                    block.hash
+                )
+            })?;
+            assert_eq!(
+                local_announces.len(),
+                1,
+                "There should be only one announce in the current block"
+            );
+            let local_announce = local_announces
+                .first()
+                .copied()
+                .expect("Just checked, that there is one announce");
+
             // TODO #4791: support head != current block hash, have to check head is predecessor of current block
             ensure!(
-                head == block.hash,
+                head == local_announce,
                 "Head cannot be different from current block hash"
             );
 

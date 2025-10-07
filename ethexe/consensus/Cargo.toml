@@ -32,3 +32,4 @@ hashbrown.workspace = true
 [dev-dependencies]
 tokio.workspace = true
 alloy.workspace = true
+ethexe-common = { workspace = true, features = ["mock"] }

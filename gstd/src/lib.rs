@@ -169,6 +169,8 @@ pub use gcore::{
     ActorId, BlockCount, BlockNumber, CodeId, EnvVars, Gas, GasMultiplier, MessageId, Percent,
     Ss58Address, Value, debug, static_mut, static_ref,
 };
+#[cfg(target_arch = "wasm32")]
+pub use gcore::{ctor, dtor};
 pub use gstd_codegen::{actor_id, async_init, async_main};
 pub use prelude::*;
 

@@ -26,11 +26,15 @@ use hashbrown::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
-#[derive(Clone)]
+#[derive(Clone, derive_more::Debug)]
 pub struct ValidatorsManager<DB> {
-    db: DB,
     /// Stores mapping: first_block_era -> ValidatorsVec
     cached_validators: Arc<RwLock<HashMap<H256, ValidatorsVec>>>,
+
+    #[debug(skip)]
+    db: DB,
+
+    #[debug(skip)]
     validators_provider: Arc<dyn ValidatorsProvider + 'static>,
 }
 

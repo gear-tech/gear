@@ -20,7 +20,9 @@ use super::{core::*, *};
 use crate::utils::MultisignedBatchCommitment;
 use anyhow::anyhow;
 use async_trait::async_trait;
-use ethexe_common::{GearExeTimelines, ValidatorsVec, db::OnChainStorageWrite};
+use ethexe_common::{
+    DEFAULT_BLOCK_GAS_LIMIT, GearExeTimelines, ValidatorsVec, db::OnChainStorageWrite,
+};
 use ethexe_ethereum::router::ValidatorsProvider;
 use hashbrown::HashMap;
 use std::sync::Arc;
@@ -79,7 +81,9 @@ impl MockEthereum {
 #[async_trait]
 pub trait WaitFor {
     async fn wait_for_event(self) -> Result<(ValidatorState, ConsensusEvent)>;
-    async fn wait_for_initial(self) -> Result<ValidatorState>;
+    async fn wait_for_state<F>(self, f: F) -> Result<ValidatorState>
+    where
+        F: Fn(&ValidatorState) -> bool + Unpin + Send;
 }
 
 #[async_trait]
@@ -93,11 +97,14 @@ impl WaitFor for ValidatorState {
             fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
                 let mut event;
                 loop {
+                    println!("i am polling");
                     let (poll, mut state) = self.0.take().unwrap().poll_next_state(cx)?;
+                    println!("my poll: {poll:?}, state is: {state:?}");
                     event = state.context_mut().output.pop_front();
                     self.0 = Some(state);
 
                     if poll.is_pending() || event.is_some() {
+                        println!("i am breaking");
                         break;
                     }
                 }
@@ -107,21 +114,28 @@ impl WaitFor for ValidatorState {
         }
 
         let mut dummy = Dummy(Some(self));
-        let event = (&mut dummy).await?;
+        let event = (&mut dummy).await.unwrap();
+        println!("await end, event: {event:?}");
         Ok((dummy.0.unwrap(), event))
     }
 
-    async fn wait_for_initial(self) -> Result<ValidatorState> {
-        struct Dummy(Option<ValidatorState>);
+    async fn wait_for_state<F>(self, f: F) -> Result<ValidatorState>
+    where
+        F: Fn(&ValidatorState) -> bool + Unpin + Send,
+    {
+        struct Dummy<F>(Option<ValidatorState>, F);
 
-        impl Future for Dummy {
+        impl<F> Future for Dummy<F>
+        where
+            F: Fn(&ValidatorState) -> bool + Unpin + Send,
+        {
             type Output = Result<ValidatorState>;
 
             fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
                 loop {
                     let (poll, state) = self.0.take().unwrap().poll_next_state(cx)?;
 
-                    if state.is_initial() {
+                    if self.1(&state) {
                         return Poll::Ready(Ok(state));
                     }
 
@@ -136,7 +150,7 @@ impl WaitFor for ValidatorState {
             }
         }
 
-        let mut dummy = Dummy(Some(self));
+        let mut dummy = Dummy(Some(self), f);
         (&mut dummy).await
     }
 }
@@ -152,6 +166,7 @@ pub fn mock_validator_context() -> (ValidatorContext, Vec<PublicKey>, MockEthere
             signatures_threshold: 1,
             router_address: 12345.into(),
             pub_key: keys.pop().unwrap(),
+            block_gas_limit: DEFAULT_BLOCK_GAS_LIMIT,
             signer,
             db: db.clone(),
             committer: Box::new(ethereum.clone()),

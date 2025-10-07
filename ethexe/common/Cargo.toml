@@ -17,11 +17,16 @@ serde = { workspace = true, optional = true }
 roast-secp256k1-evm.workspace = true
 derive_more.workspace = true
 nonempty.workspace = true
+anyhow.workspace = true
 auto_impl.workspace = true
 tracing.workspace = true
 
 sha3 = { version = "0.10", default-features = false }
 k256 = { version = "0.13.4", features = ["ecdsa"], default-features = false }
+
+# mock deps
+itertools = { workspace = true, optional = true }
+tap = { workspace = true, optional = true }
 
 [features]
 default = ["std"]
@@ -35,3 +40,4 @@ std = [
     "k256/std",
     "alloy-primitives/std",
 ]
+mock = ["std", "itertools/use_std", "tap"]

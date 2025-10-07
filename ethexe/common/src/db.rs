@@ -21,8 +21,8 @@
 // TODO #4547: move types to another module(s)
 
 use crate::{
-    BlockHeader, BlockMeta, CodeBlobInfo, GearExeTimelines, ProgramStates, Schedule,
-    events::BlockEvent, gear::StateTransition,
+    Announce, AnnounceHash, BlockHeader, CodeBlobInfo, Digest, GearExeTimelines, ProgramStates,
+    Schedule, events::BlockEvent, gear::StateTransition,
 };
 use alloc::{
     collections::{BTreeSet, VecDeque},
@@ -35,29 +35,37 @@ use gear_core::{
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
 
-#[derive(
-    Debug, Clone, Eq, PartialEq, Hash, Encode, Decode, derive_more::From, derive_more::Unwrap,
-)]
-pub enum BlockOutcome {
-    Transitions(Vec<StateTransition>),
-    /// The actual outcome is not available, but it must be considered non-empty.
-    ForcedNonEmpty,
+/// Ethexe metadata associated with an on-chain block.
+#[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq, Hash)]
+pub struct BlockMeta {
+    /// Block has been prepared, meaning:
+    /// all metadata is ready, all predecessors till start block are prepared too.
+    pub prepared: bool,
+    /// Set of announces included in the block.
+    pub announces: Option<BTreeSet<AnnounceHash>>,
+    /// Queue of code ids waiting for validation status commitment on-chain.
+    pub codes_queue: Option<VecDeque<CodeId>>,
+    /// Last committed on-chain batch hash.
+    pub last_committed_batch: Option<Digest>,
+    /// Last committed on-chain announce hash.
+    pub last_committed_announce: Option<AnnounceHash>,
 }
 
-impl BlockOutcome {
-    pub fn is_empty(&self) -> bool {
-        match self {
-            BlockOutcome::Transitions(transitions) => transitions.is_empty(),
-            BlockOutcome::ForcedNonEmpty => false,
+impl BlockMeta {
+    pub fn default_prepared() -> Self {
+        Self {
+            prepared: true,
+            announces: Some(Default::default()),
+            codes_queue: Some(Default::default()),
+            last_committed_batch: Some(Default::default()),
+            last_committed_announce: Some(Default::default()),
         }
     }
+}
 
-    pub fn into_transitions(self) -> Option<Vec<StateTransition>> {
-        match self {
-            BlockOutcome::Transitions(transitions) => Some(transitions),
-            BlockOutcome::ForcedNonEmpty => None,
-        }
-    }
+#[auto_impl::auto_impl(&, Box)]
+pub trait HashStorageRead {
+    fn read_by_hash(&self, hash: H256) -> Option<Vec<u8>>;
 }
 
 /// Static data stored in the database.
@@ -72,27 +80,13 @@ pub struct StaticData {
 pub trait BlockMetaStorageRead {
     /// NOTE: if `BlockMeta` doesn't exist in the database, it will return the default value.
     fn block_meta(&self, block_hash: H256) -> BlockMeta;
-
-    fn block_codes_queue(&self, block_hash: H256) -> Option<VecDeque<CodeId>>;
-    fn block_program_states(&self, block_hash: H256) -> Option<ProgramStates>;
-    fn block_outcome(&self, block_hash: H256) -> Option<BlockOutcome>;
-    fn block_schedule(&self, block_hash: H256) -> Option<Schedule>;
-    fn latest_computed_block(&self) -> Option<(H256, BlockHeader)>;
 }
 
 #[auto_impl::auto_impl(&)]
-pub trait BlockMetaStorageWrite {
+pub trait BlockMetaStorageWrite: BlockMetaStorageRead {
     /// NOTE: if `BlockMeta` doesn't exist in the database,
     /// it will be created with default values and then will be mutated.
-    fn mutate_block_meta<F>(&self, block_hash: H256, f: F)
-    where
-        F: FnOnce(&mut BlockMeta);
-
-    fn set_block_codes_queue(&self, block_hash: H256, queue: VecDeque<CodeId>);
-    fn set_block_program_states(&self, block_hash: H256, map: ProgramStates);
-    fn set_block_outcome(&self, block_hash: H256, outcome: Vec<StateTransition>);
-    fn set_block_schedule(&self, block_hash: H256, map: Schedule);
-    fn set_latest_computed_block(&self, block_hash: H256, header: BlockHeader);
+    fn mutate_block_meta(&self, block_hash: H256, f: impl FnOnce(&mut BlockMeta));
 }
 
 #[auto_impl::auto_impl(&, Box)]
@@ -104,16 +98,16 @@ pub trait CodesStorageRead {
     fn instrumented_code(&self, runtime_id: u32, code_id: CodeId) -> Option<InstrumentedCode>;
     fn code_metadata(&self, code_id: CodeId) -> Option<CodeMetadata>;
     fn code_valid(&self, code_id: CodeId) -> Option<bool>;
+    fn valid_codes(&self) -> BTreeSet<CodeId>;
 }
 
 #[auto_impl::auto_impl(&)]
-pub trait CodesStorageWrite {
+pub trait CodesStorageWrite: CodesStorageRead {
     fn set_original_code(&self, code: &[u8]) -> CodeId;
     fn set_program_code_id(&self, program_id: ActorId, code_id: CodeId);
     fn set_instrumented_code(&self, runtime_id: u32, code_id: CodeId, code: InstrumentedCode);
     fn set_code_metadata(&self, code_id: CodeId, code_metadata: CodeMetadata);
     fn set_code_valid(&self, code_id: CodeId, valid: bool);
-    fn valid_codes(&self) -> BTreeSet<CodeId>;
 }
 
 #[auto_impl::auto_impl(&, Box)]
@@ -121,15 +115,96 @@ pub trait OnChainStorageRead {
     fn block_header(&self, block_hash: H256) -> Option<BlockHeader>;
     fn block_events(&self, block_hash: H256) -> Option<Vec<BlockEvent>>;
     fn code_blob_info(&self, code_id: CodeId) -> Option<CodeBlobInfo>;
-    fn latest_synced_block_height(&self) -> Option<u32>;
+    fn block_synced(&self, block_hash: H256) -> bool;
     fn gear_exe_timelines(&self) -> Option<GearExeTimelines>;
 }
 
 #[auto_impl::auto_impl(&)]
-pub trait OnChainStorageWrite {
+pub trait OnChainStorageWrite: OnChainStorageRead {
     fn set_block_header(&self, block_hash: H256, header: BlockHeader);
     fn set_block_events(&self, block_hash: H256, events: &[BlockEvent]);
     fn set_code_blob_info(&self, code_id: CodeId, code_info: CodeBlobInfo);
-    fn set_latest_synced_block_height(&self, height: u32);
     fn set_gear_exe_timelines(&self, timelines: GearExeTimelines);
+    fn set_block_synced(&self, block_hash: H256);
+}
+
+#[derive(Debug, Clone, Default, Encode, Decode, PartialEq, Eq, Hash)]
+pub struct AnnounceMeta {
+    pub computed: bool,
+}
+
+#[auto_impl::auto_impl(&, Box)]
+pub trait AnnounceStorageRead {
+    fn announce(&self, hash: AnnounceHash) -> Option<Announce>;
+    fn announce_program_states(&self, announce_hash: AnnounceHash) -> Option<ProgramStates>;
+    fn announce_outcome(&self, announce_hash: AnnounceHash) -> Option<Vec<StateTransition>>;
+    fn announce_schedule(&self, announce_hash: AnnounceHash) -> Option<Schedule>;
+    fn announce_meta(&self, announce_hash: AnnounceHash) -> AnnounceMeta;
+}
+
+#[auto_impl::auto_impl(&)]
+pub trait AnnounceStorageWrite: AnnounceStorageRead {
+    fn set_announce(&self, announce: Announce) -> AnnounceHash;
+    fn set_announce_program_states(
+        &self,
+        announce_hash: AnnounceHash,
+        program_states: ProgramStates,
+    );
+    fn set_announce_outcome(&self, announce_hash: AnnounceHash, outcome: Vec<StateTransition>);
+    fn set_announce_schedule(&self, announce_hash: AnnounceHash, schedule: Schedule);
+    fn mutate_announce_meta(&self, announce_hash: AnnounceHash, f: impl FnOnce(&mut AnnounceMeta));
+}
+
+#[derive(Debug, Clone, Default, Encode, Decode, PartialEq, Eq)]
+pub struct LatestData {
+    /// Latest synced block height
+    pub synced_block_height: u32,
+    /// Latest prepared block hash
+    pub prepared_block_hash: H256,
+    /// Latest computed announce hash
+    pub computed_announce_hash: AnnounceHash,
+    /// Genesis block hash
+    pub genesis_block_hash: H256,
+    /// Genesis announce hash
+    pub genesis_announce_hash: AnnounceHash,
+    /// Start block hash: genesis or defined by fast-sync
+    pub start_block_hash: H256,
+    /// Start announce hash: genesis or defined by fast-sync
+    pub start_announce_hash: AnnounceHash,
+}
+
+#[auto_impl::auto_impl(&, Box)]
+pub trait LatestDataStorageRead {
+    fn latest_data(&self) -> Option<LatestData>;
+}
+
+#[auto_impl::auto_impl(&)]
+pub trait LatestDataStorageWrite: LatestDataStorageRead {
+    fn set_latest_data(&self, data: LatestData);
+    fn mutate_latest_data(&self, f: impl FnOnce(&mut LatestData)) -> Option<()> {
+        if let Some(mut latest_data) = self.latest_data() {
+            f(&mut latest_data);
+            self.set_latest_data(latest_data);
+            Some(())
+        } else {
+            None
+        }
+    }
+}
+
+pub struct FullBlockData {
+    pub header: BlockHeader,
+    pub events: Vec<BlockEvent>,
+    // pub validators: NonEmpty<Address>,
+    pub codes_queue: VecDeque<CodeId>,
+    pub announces: BTreeSet<AnnounceHash>,
+    pub last_committed_batch: Digest,
+    pub last_committed_announce: AnnounceHash,
+}
+
+pub struct FullAnnounceData {
+    pub announce: Announce,
+    pub program_states: ProgramStates,
+    pub outcome: Vec<StateTransition>,
+    pub schedule: Schedule,
 }

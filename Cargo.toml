@@ -1,5 +1,5 @@
 [workspace.package]
-version = "1.9.1"
+version = "1.9.2"
 authors = ["Gear Technologies"]
 edition = "2024"
 license = "GPL-3.0"
@@ -42,6 +42,7 @@ members = [
     "examples/compose",
     "examples/constructor",
     "examples/create-program-reentrance",
+    "examples/ctor",
     "examples/delayed-sender",
     "examples/distributor",
     "examples/fungible-token",
@@ -209,6 +210,8 @@ tracing = { version = "0.1.40", default-features = false }
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 assert_matches = "1.5.0"
 nonempty = { version = "0.12.0", default-features = false }
+cc = "1.2.37"
+tap = "1.0.1"
 
 # Published deps
 #
@@ -315,6 +318,7 @@ ethexe-blob-loader = { path = "ethexe/blob-loader", default-features = false }
 wasmi = { version = "0.38" }
 
 # Substrate deps
+bp-header-chain ={ version = "0.18.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
 binary-merkle-tree = { version = "15.0.1", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
 frame-benchmarking = { version = "38.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
 frame-benchmarking-cli = { version = "43.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
@@ -504,7 +508,7 @@ env_logger = "0.11.8"                                        # lazy-pages-fuzzer
 errno = "0.3"                                                # gear-lazy-pages
 nix = "0.26.4"                                               # gear-lazy-pages
 ipc-channel = "0.19.0"                                       # lazy-pages-fuzzer
-itertools = "0.13"                                           # utils/wasm-builder
+itertools = { version = "0.13", default-features = false }   # utils/wasm-builder
 keyring = "1.2.1"                                            # gcli
 libp2p = "=0.51.4"                                           # gcli (same version as sc-consensus)
 mimalloc = { version = "0.1.46", default-features = false }  # node/cli

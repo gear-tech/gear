@@ -381,7 +381,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
 
         bytes32 _transitionsHash = _commitTransitions(router, _commitment.transitions);
 
-        emit HeadCommitted(_commitment.head);
+        emit AnnouncesCommitted(_commitment.head);
 
         return Gear.chainCommitmentHash(_transitionsHash, _commitment.head);
     }
