@@ -40,6 +40,7 @@ use sp_consensus::SelectChain;
 use sp_consensus_babe::BabeApi;
 use sp_keystore::KeystorePtr;
 
+mod gear_events;
 mod runtime_info;
 
 /// Extra dependencies for BABE.
@@ -164,6 +165,9 @@ where
         subscription_executor: gear_subscription_executor,
     } = gear;
 
+    #[cfg(feature = "vara-native")]
+    let events_subscription_executor = gear_subscription_executor.clone();
+
     io.merge(System::new(client.clone(), pool).into_rpc())?;
     io.merge(TransactionPayment::new(client.clone()).into_rpc())?;
     io.merge(
@@ -208,6 +212,16 @@ where
         )
         .into_rpc(),
     )?;
+
+    #[cfg(feature = "vara-native")]
+    {
+        use gear_events::GearEventsApiServer;
+
+        io.merge(
+            gear_events::create_vara_events(client.clone(), events_subscription_executor)
+                .into_rpc(),
+        )?;
+    }
 
     io.merge(RuntimeInfoApi::<C, Block, B>::new(client.clone()).into_rpc())?;
 
