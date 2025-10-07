@@ -675,10 +675,7 @@ where
         });
         let mut stream = self
             .client
-            .storage_changes_notification_stream(
-                program_storage_keys.as_deref(),
-                None,
-            )
+            .storage_changes_notification_stream(program_storage_keys.as_deref(), None)
             .map_err(|e| ErrorObject::owned(8000, e.to_string(), None::<String>))?;
         let executor = self.subscription_executor.clone();
         let prefix_len = prefix.len();
