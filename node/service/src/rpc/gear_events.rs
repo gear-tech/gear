@@ -20,6 +20,7 @@
 
 use std::{collections::HashMap, marker::PhantomData, ops::RangeInclusive, sync::Arc};
 
+use common::ActorId;
 use frame_support::{dispatch::Parameter, storage::storage_prefix};
 use futures::{StreamExt, future::BoxFuture};
 use gear_core::message::UserMessage;
@@ -48,8 +49,8 @@ const MAX_BACKFILL_BLOCKS: u64 = 5_000;
 
 #[derive(Clone, Debug, serde::Deserialize)]
 pub struct UserMsgFilter {
-    pub source: Option<[u8; 32]>,
-    pub dest: Option<[u8; 32]>,
+    pub source: Option<ActorId>,
+    pub dest: Option<ActorId>,
     pub payload_prefix: Option<Vec<u8>>,
     pub from_block: Option<u64>,
     pub finalized_only: Option<bool>,
@@ -200,12 +201,12 @@ where
     }
 
     fn validate_filter(&self, filter: &UserMsgFilter) -> Result<(), ErrorObjectOwned> {
-        if let Some(prefix) = filter.payload_prefix.as_ref() {
-            if prefix.len() > MAX_PAYLOAD_PREFIX {
-                return Err(invalid_params(format!(
-                    "payload_prefix longer than {MAX_PAYLOAD_PREFIX} bytes"
-                )));
-            }
+        if let Some(prefix) = filter.payload_prefix.as_ref()
+            && prefix.len() > MAX_PAYLOAD_PREFIX
+        {
+            return Err(invalid_params(format!(
+                "payload_prefix longer than {MAX_PAYLOAD_PREFIX} bytes"
+            )));
         }
         Ok(())
     }
@@ -299,7 +300,7 @@ where
 
         for number in range {
             let block_number: BlockNumber = number.saturated_into();
-            let Some(hash) = (match self.client.hash(block_number.into()) {
+            let Some(hash) = (match self.client.hash(block_number) {
                 Ok(opt) => opt,
                 Err(error) => {
                     warn!(target: "rpc", "failed to resolve block hash during backfill: {error}");
@@ -350,7 +351,7 @@ where
         let fut: BoxFuture<'static, ()> = Box::pin(async move {
             let mut stream = dispatcher.client.import_notification_stream();
             while let Some(notification) = stream.next().await {
-                let number = notification.header.number().clone().unique_saturated_into();
+                let number = (*notification.header.number()).unique_saturated_into();
                 dispatcher.process_block(StreamKind::Best, notification.hash, number);
             }
         });
@@ -364,7 +365,7 @@ where
         let fut: BoxFuture<'static, ()> = Box::pin(async move {
             let mut stream = dispatcher.client.finality_notification_stream();
             while let Some(notification) = stream.next().await {
-                let number = notification.header.number().clone().unique_saturated_into();
+                let number = (*notification.header.number()).unique_saturated_into();
                 dispatcher.process_block(StreamKind::Finalized, notification.hash, number);
             }
         });
@@ -529,22 +530,22 @@ pub(crate) trait GearEventExtractor: Send + Sync + 'static {
 }
 
 fn matches_filter(filter: &UserMsgFilter, message: &UserMessage) -> bool {
-    if let Some(source) = filter.source {
-        if message.source().into_bytes() != source {
-            return false;
-        }
+    if let Some(source) = filter.source
+        && message.source() != source
+    {
+        return false;
     }
 
-    if let Some(dest) = filter.dest {
-        if message.destination().into_bytes() != dest {
-            return false;
-        }
+    if let Some(dest) = filter.dest
+        && message.destination() != dest
+    {
+        return false;
     }
 
-    if let Some(prefix) = filter.payload_prefix.as_ref() {
-        if !message.payload_bytes().starts_with(prefix) {
-            return false;
-        }
+    if let Some(prefix) = filter.payload_prefix.as_ref()
+        && !message.payload_bytes().starts_with(prefix)
+    {
+        return false;
     }
 
     true

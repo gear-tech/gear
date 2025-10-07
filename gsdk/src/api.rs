@@ -17,8 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    Blocks, Events, ProgramStateChanges, TxInBlock, client::Rpc, config::GearConfig,
-    metadata::Event, signer::Signer,
+    Blocks, Events, ProgramStateChanges, TxInBlock, UserMessageSentFilter,
+    UserMessageSentSubscription, client::Rpc, config::GearConfig, metadata::Event, signer::Signer,
 };
 use anyhow::Result;
 use core::ops::{Deref, DerefMut};
@@ -107,7 +107,7 @@ impl Api {
         Ok(self.client.blocks().subscribe_finalized().await?.into())
     }
 
-    /// Subscribe to program state changes reported by the node.
+    /// Subscribe to program state changes reported.
     pub async fn subscribe_program_state_changes(
         &self,
         program_ids: Option<Vec<H256>>,
@@ -122,6 +122,23 @@ impl Api {
             .await?;
 
         Ok(ProgramStateChanges::new(subscription))
+    }
+
+    /// Subscribe to user message notifications.
+    pub async fn subscribe_user_message_sent(
+        &self,
+        filter: UserMessageSentFilter,
+    ) -> Result<UserMessageSentSubscription> {
+        let subscription = self
+            .rpc()
+            .subscribe(
+                "gear_subscribeUserMessageSent",
+                rpc_params![filter],
+                "gear_unsubscribeUserMessageSent",
+            )
+            .await?;
+
+        Ok(UserMessageSentSubscription::new(subscription))
     }
 
     /// New signer from api

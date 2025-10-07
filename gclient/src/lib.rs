@@ -137,7 +137,8 @@ mod ws;
 
 pub use api::{GearApi, error::*, listener::*};
 pub use gsdk::{
-    ProgramStateChange, ProgramStateChanges, ext,
+    ProgramStateChange, ProgramStateChanges, UserMessageSent, UserMessageSentFilter,
+    UserMessageSentSubscription, ext,
     metadata::{self, errors},
 };
 pub use utils::*;

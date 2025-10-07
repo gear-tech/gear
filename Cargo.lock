@@ -6085,6 +6085,7 @@ dependencies = [
  "demo-constructor",
  "demo-custom",
  "demo-mul-by-const",
+ "demo-ping",
  "demo-reserve-gas",
  "demo-wat",
  "futures",

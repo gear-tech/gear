@@ -27,7 +27,7 @@ use crate::{EventListener, ws::WSAddress};
 use error::*;
 use gear_node_wrapper::{Node, NodeInstance};
 use gsdk::{
-    Api, ApiBuilder, ProgramStateChanges,
+    Api, ApiBuilder, ProgramStateChanges, UserMessageSentFilter, UserMessageSentSubscription,
     ext::{sp_core::sr25519, sp_runtime::AccountId32},
     signer::Signer,
 };
@@ -135,6 +135,18 @@ impl GearApi {
         self.0
             .api()
             .subscribe_program_state_changes(program_ids)
+            .await
+            .map_err(Into::into)
+    }
+
+    /// Subscribe to user messages.
+    pub async fn subscribe_user_message_sent(
+        &self,
+        filter: UserMessageSentFilter,
+    ) -> Result<UserMessageSentSubscription> {
+        self.0
+            .api()
+            .subscribe_user_message_sent(filter)
             .await
             .map_err(Into::into)
     }
