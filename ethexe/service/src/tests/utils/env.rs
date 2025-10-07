@@ -82,7 +82,7 @@ pub struct TestEnv {
     pub provider: RootProvider,
     pub ethereum: Ethereum,
     pub signer: Signer,
-    pub validators: Vec<ValidatorConfig>,
+    pub validators: Vec<ValidatorKeys>,
     pub sender_id: ActorId,
     pub threshold: u64,
     pub block_time: Duration,
@@ -531,7 +531,7 @@ impl TestEnv {
     pub fn define_session_keys(
         signer: &Signer,
         validators: Vec<PublicKey>,
-    ) -> (Vec<ValidatorConfig>, VerifiableSecretSharingCommitment) {
+    ) -> (Vec<ValidatorKeys>, VerifiableSecretSharingCommitment) {
         let max_signers: u16 = validators.len().try_into().expect("conversion failed");
         let min_signers = max_signers
             .checked_mul(2)
@@ -575,7 +575,7 @@ impl TestEnv {
                     let signing_share = *secret_shares[id].signing_share();
                     let private_key =
                         PrivateKey::from(<[u8; 32]>::try_from(signing_share.serialize()).unwrap());
-                    ValidatorConfig {
+                    ValidatorKeys {
                         public_key,
                         session_public_key: signer.storage_mut().add_key(private_key).unwrap(),
                     }
@@ -661,7 +661,7 @@ pub struct NodeConfig {
     /// Database, if not provided, will be created with MemDb.
     pub db: Option<Database>,
     /// Validator configuration, if provided then new node starts as validator.
-    pub validator_config: Option<ValidatorConfig>,
+    pub validator_config: Option<ValidatorKeys>,
     /// RPC configuration, if provided then new node starts with RPC service.
     pub rpc: Option<RpcConfig>,
     /// Do P2P database synchronization before the main loop
@@ -682,7 +682,7 @@ impl NodeConfig {
         self
     }
 
-    pub fn validator(mut self, config: ValidatorConfig) -> Self {
+    pub fn validator(mut self, config: ValidatorKeys) -> Self {
         self.validator_config = Some(config);
         self
     }
@@ -705,7 +705,7 @@ impl NodeConfig {
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub struct ValidatorConfig {
+pub struct ValidatorKeys {
     /// Validator public key.
     pub public_key: PublicKey,
     /// Validator session public key.
@@ -772,7 +772,7 @@ pub struct Node {
     threshold: u64,
     block_time: Duration,
     running_service_handle: Option<JoinHandle<()>>,
-    validator_config: Option<ValidatorConfig>,
+    validator_config: Option<ValidatorKeys>,
     network_address: Option<String>,
     network_bootstrap_address: Option<String>,
     service_rpc_config: Option<RpcConfig>,
@@ -790,27 +790,11 @@ impl Node {
 
         let wait_for_network = self.network_bootstrap_address.is_some();
 
-        let network = self.network_address.as_ref().map(|addr| {
-            let config_path = tempfile::tempdir().unwrap().keep();
-            let multiaddr: Multiaddr = addr.parse().unwrap();
-
-            let mut config = NetworkConfig::new_test(config_path);
-            config.listen_addresses = [multiaddr.clone()].into();
-            config.external_addresses = [multiaddr.clone()].into();
-            if let Some(bootstrap_addr) = self.network_bootstrap_address.as_ref() {
-                let multiaddr = bootstrap_addr.parse().unwrap();
-                config.bootstrap_addresses = [multiaddr].into();
-            }
-            let network = NetworkService::new(
-                config,
-                &self.signer,
-                Box::new(RouterDataProvider(self.router_query.clone())),
-                self.db.clone(),
-            )
-            .unwrap();
-            self.multiaddr = Some(format!("{addr}/p2p/{}", network.local_peer_id()));
-            network
-        });
+        let network = self.construct_network_service();
+        self.multiaddr = self
+            .network_address
+            .as_ref()
+            .map(|addr| format!("{addr}/p2p/{}", network.as_ref().unwrap().local_peer_id()));
 
         let consensus: Pin<Box<dyn ConsensusService>> =
             if let Some(config) = self.validator_config.as_ref() {
@@ -937,6 +921,34 @@ impl Node {
             .wait_for(|e| Ok(f(e)))
             .await
             .expect("infallible; always ok")
+    }
+
+    // NOTE: use with caution, because network service can be already created.
+    pub fn construct_network_service(&self) -> Option<NetworkService> {
+        let Some(addr) = self.network_address.as_ref() else {
+            return None;
+        };
+
+        let config_path = tempfile::tempdir().unwrap().keep();
+        let multiaddr: Multiaddr = addr.parse().unwrap();
+
+        let mut config = NetworkConfig::new_test(config_path);
+        config.listen_addresses = [multiaddr.clone()].into();
+        config.external_addresses = [multiaddr.clone()].into();
+        if let Some(bootstrap_addr) = self.network_bootstrap_address.as_ref() {
+            let multiaddr = bootstrap_addr.parse().unwrap();
+            config.bootstrap_addresses = [multiaddr].into();
+        }
+
+        Some(
+            NetworkService::new(
+                config,
+                &self.signer,
+                Box::new(RouterDataProvider(self.router_query.clone())),
+                self.db.clone(),
+            )
+            .unwrap(),
+        )
     }
 }
 

@@ -21,23 +21,24 @@
 pub(crate) mod utils;
 
 use crate::{
-    Service,
+    NetworkMessage, Service,
     config::{self, Config},
     tests::utils::{
-        EnvNetworkConfig, Node, NodeConfig, TestEnv, TestEnvConfig, TestingEvent, ValidatorsConfig,
-        init_logger,
+        EnvNetworkConfig, NetworkExt, Node, NodeConfig, TestEnv, TestEnvConfig, TestingEvent,
+        ValidatorsConfig, init_logger,
     },
 };
 use alloy::providers::{Provider as _, ext::AnvilApi};
 use core::panic;
 use ethexe_common::{
-    ScheduledTask,
+    Announce, AnnounceHash, ScheduledTask,
     db::*,
     events::{BlockEvent, MirrorEvent, RouterEvent},
     gear::Origin,
+    mock::Tap,
 };
 use ethexe_db::{Database, verifier::IntegrityVerifier};
-use ethexe_observer::EthereumConfig;
+use ethexe_observer::{EthereumConfig, ObserverEvent};
 use ethexe_prometheus::PrometheusConfig;
 use ethexe_rpc::RpcConfig;
 use ethexe_runtime_common::state::{Expiring, MailboxMessage, PayloadLookup, Storage};
@@ -991,7 +992,7 @@ async fn multiple_validators() {
     log::info!("📗 Stop validator 0 and check, that ethexe is still working");
     if env.next_block_producer_index().await == 0 {
         log::info!("📗 Skip one block to be sure validator 0 is not a producer for next block");
-        env.force_new_block().await;
+        env.skip_blocks(1).await;
     }
     validators[0].stop_service().await;
 
@@ -1007,7 +1008,7 @@ async fn multiple_validators() {
     log::info!("📗 Stop validator 1 and check, that ethexe is not working after");
     if env.next_block_producer_index().await == 1 {
         log::info!("📗 Skip one block to be sure validator 1 is not a producer for next block");
-        env.force_new_block().await;
+        env.skip_blocks(1).await;
     }
     validators[1].stop_service().await;
 
@@ -1027,7 +1028,7 @@ async fn multiple_validators() {
 
     if env.next_block_producer_index().await == 1 {
         log::info!("📗 Skip one block to be sure validator 1 is not a producer for next block");
-        env.force_new_block().await;
+        env.skip_blocks(1).await;
     }
 
     // IMPORTANT: mine one block to send a new block event.
@@ -1409,4 +1410,149 @@ async fn fast_sync() {
         &alice,
         &bob,
     );
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ntest::timeout(60_000)]
+async fn consensus_cases() {
+    init_logger();
+
+    let mut env = TestEnv::new(TestEnvConfig {
+        validators: ValidatorsConfig::PreDefined(7),
+        network: EnvNetworkConfig::Enabled,
+        ..Default::default()
+    })
+    .await
+    .unwrap();
+
+    let mut validators = vec![];
+    for (i, v) in env.validators.clone().into_iter().enumerate() {
+        log::info!("📗 Starting validator-{i}");
+        let mut validator = env.new_node(NodeConfig::named(format!("validator-{i}")).validator(v));
+        validator.start_service().await;
+        validators.push(validator);
+    }
+
+    let ping_code_id = env
+        .upload_code(demo_ping::WASM_BINARY)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap()
+        .tap(|res| assert!(res.valid))
+        .code_id;
+
+    let ping_id = env
+        .create_program(ping_code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap()
+        .tap(|res| assert_eq!(res.code_id, ping_code_id))
+        .program_id;
+
+    env.send_message(ping_id, b"", 0)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap()
+        .tap(|res| {
+            assert_eq!(res.program_id, ping_id);
+            assert_eq!(res.payload, b"");
+            assert_eq!(res.value, 0);
+            assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Auto));
+        });
+
+    log::info!("📗 Case 1: all validators works normally");
+    env.send_message(ping_id, b"PING", 0)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap()
+        .tap(|res| {
+            assert_eq!(res.program_id, ping_id);
+            assert_eq!(res.payload, b"PONG");
+            assert_eq!(res.value, 0);
+            assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Manual));
+        });
+
+    log::info!("📗 Case 2: stop validator 0, and publish incorrect announce manually");
+    let mut validator0 = validators.remove(0);
+    while env.next_block_producer_index().await != 0 {
+        log::info!("📗 Skip block to be sure validator 0 is a producer for next block");
+        env.skip_blocks(1).await;
+    }
+    validator0.stop_service().await;
+
+    // New block generated, because ping message is sent
+    // validator 0 is stopped, other validators are waiting for announce from it
+    // we will publish incorrect announce from validator 0 manually.
+    let mut listeners = validators
+        .iter_mut()
+        .map(|node| node.listener())
+        .collect::<Vec<_>>();
+    let mut observer_listener = env.observer_events_publisher().subscribe().await;
+    let _ = env.send_message(ping_id, b"PING", 0).await.unwrap();
+    let block = observer_listener
+        .apply_until(|event| {
+            if let ObserverEvent::Block(block) = event {
+                Ok(Some(block))
+            } else {
+                Ok(None)
+            }
+        })
+        .await
+        .unwrap();
+
+    let signed_announce = env
+        .signer
+        .signed_data(
+            env.validators[0].public_key,
+            Announce {
+                block_hash: block.hash,
+                parent: AnnounceHash::random(),
+                gas_allowance: Some(133),
+                off_chain_transactions: Default::default(),
+            },
+        )
+        .unwrap();
+    let invalid_announce_hash = signed_announce.data().to_hash();
+
+    {
+        let mut network = validator0.construct_network_service().unwrap();
+        network
+            .wait_for_gossipsub_subscription(ethexe_network::commitments_topic().to_string())
+            .await;
+
+        // let mut peer_connected = 0;
+        // while peer_connected != 2 {
+        //     let event = network.select_next_some().await;
+        //     log::trace!("network event: {event:?}");
+        //     if matches!(event, NetworkEvent::PeerConnected(_)) {
+        //         peer_connected += 1;
+        //     }
+        // }
+
+        log::info!(
+            "📗 Publishing invalid announce {invalid_announce_hash} at block {} from stopped validator 0",
+            block.hash
+        );
+        network.publish_message(NetworkMessage::Announce(signed_announce).encode());
+
+        for listener in &mut listeners {
+            let (_, accepted) = listener
+                .wait_for_announce_computed(invalid_announce_hash)
+                .await;
+            assert!(
+                !accepted,
+                "Announce {invalid_announce_hash} must be rejected"
+            );
+        }
+    }
+
+    // let (announce_hash, _) = listener.wait_for_announce_computed(AnnounceId::Any).await;
 }

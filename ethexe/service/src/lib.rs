@@ -493,7 +493,8 @@ impl Service {
                         }
                         NetworkEvent::DbResponse { .. }
                         | NetworkEvent::PeerBlocked(_)
-                        | NetworkEvent::PeerConnected(_) => {}
+                        | NetworkEvent::PeerConnected(_)
+                        | NetworkEvent::GossipsubPeerSubscribed { .. } => {}
                     }
                 }
                 Event::Prometheus(event) => {

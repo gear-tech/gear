@@ -56,6 +56,10 @@ pub(crate) enum TestingNetworkEvent {
     },
     PeerBlocked(PeerId),
     PeerConnected(PeerId),
+    NewGossipsubPeerSubscribed {
+        peer: PeerId,
+        topic: String,
+    },
 }
 
 impl TestingNetworkEvent {
@@ -71,6 +75,12 @@ impl TestingNetworkEvent {
             },
             NetworkEvent::PeerBlocked(peer) => Self::PeerBlocked(*peer),
             NetworkEvent::PeerConnected(peer) => Self::PeerConnected(*peer),
+            NetworkEvent::GossipsubPeerSubscribed { peer_id, topic } => {
+                Self::NewGossipsubPeerSubscribed {
+                    peer: *peer_id,
+                    topic: topic.clone(),
+                }
+            }
         }
     }
 }

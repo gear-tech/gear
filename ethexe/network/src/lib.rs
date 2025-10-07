@@ -79,6 +79,10 @@ pub enum NetworkEvent {
     },
     PeerBlocked(PeerId),
     PeerConnected(PeerId),
+    GossipsubPeerSubscribed {
+        peer_id: PeerId,
+        topic: String,
+    },
 }
 
 impl fmt::Debug for NetworkEvent {
@@ -107,6 +111,11 @@ impl fmt::Debug for NetworkEvent {
             NetworkEvent::PeerConnected(peer_id) => {
                 f.debug_tuple("PeerConnected").field(peer_id).finish()
             }
+            NetworkEvent::GossipsubPeerSubscribed { peer_id, topic } => f
+                .debug_struct("GossipsubPeerSubscribed")
+                .field("peer_id", peer_id)
+                .field("topic", topic)
+                .finish(),
         }
     }
 }
@@ -428,6 +437,12 @@ impl NetworkService {
                     .handle()
                     .unsupported_protocol(peer_id);
             }
+            BehaviourEvent::Gossipsub(gossipsub::Event::Subscribed { peer_id, topic }) => {
+                return Some(NetworkEvent::GossipsubPeerSubscribed {
+                    peer_id,
+                    topic: topic.into_string(),
+                });
+            }
             BehaviourEvent::Gossipsub(_) => {}
             //
             BehaviourEvent::DbSync(db_sync::Event::RequestSucceed {
@@ -623,12 +638,12 @@ impl Behaviour {
     }
 }
 
-fn commitments_topic() -> gossipsub::IdentTopic {
+pub fn commitments_topic() -> gossipsub::IdentTopic {
     // TODO: use router address in topic name to avoid obsolete router
     gossipsub::IdentTopic::new("ethexe-commitments")
 }
 
-fn offchain_tx_topic() -> gossipsub::IdentTopic {
+pub fn offchain_tx_topic() -> gossipsub::IdentTopic {
     gossipsub::IdentTopic::new("ethexe-tx-pool")
 }
 

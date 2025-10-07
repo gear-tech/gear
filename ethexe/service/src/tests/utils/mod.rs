@@ -16,12 +16,15 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use async_trait::async_trait;
 pub use env::*;
+use ethexe_network::NetworkService;
 pub use events::*;
 
 mod env;
 mod events;
 
+use futures::StreamExt;
 use tracing_subscriber::EnvFilter;
 
 pub fn init_logger() {
@@ -29,4 +32,25 @@ pub fn init_logger() {
         .with_env_filter(EnvFilter::from_default_env())
         .without_time()
         .try_init();
+}
+
+#[async_trait]
+pub trait NetworkExt {
+    async fn wait_for_gossipsub_subscription(&mut self, topic: String);
+}
+
+#[async_trait]
+impl NetworkExt for NetworkService {
+    async fn wait_for_gossipsub_subscription(&mut self, topic: String) {
+        loop {
+            match self.select_next_some().await {
+                ethexe_network::NetworkEvent::GossipsubPeerSubscribed { topic: t, .. }
+                    if t == topic =>
+                {
+                    break;
+                }
+                _ => {}
+            }
+        }
+    }
 }
