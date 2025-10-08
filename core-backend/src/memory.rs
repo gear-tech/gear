@@ -293,10 +293,8 @@ where
             "Reading a ZST from memory is likely a bug"
         );
 
-        if core::mem::size_of::<T>() != 0 {
-            self.memory
-                .read(ctx.caller, read.ptr, bytemuck::bytes_of_mut(&mut value))?;
-        }
+        self.memory
+            .read(ctx.caller, read.ptr, bytemuck::bytes_of_mut(&mut value))?;
 
         Ok(value)
     }
