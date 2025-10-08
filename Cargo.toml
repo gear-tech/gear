@@ -42,6 +42,7 @@ members = [
     "examples/compose",
     "examples/constructor",
     "examples/create-program-reentrance",
+    "examples/ctor",
     "examples/delayed-sender",
     "examples/distributor",
     "examples/fungible-token",
@@ -182,13 +183,13 @@ tokio = { version = "1.38.0" }
 uluru = "3.1.0"
 url = "2.5.2"
 wat = "1.0.71"
-wasmer = { version = "6.1.0-rc.5", default-features = false, features = [
+wasmer = { version = "6.1.0", default-features = false, features = [
     "singlepass",
 ] }
-wasmer-cache = "6.1.0-rc.5"
-wasmer-types = "6.1.0-rc.5"
-wasmer-vm = "6.1.0-rc.5"
-wasmer-compiler = "6.1.0-rc.5"
+wasmer-cache = "6.1.0"
+wasmer-types = "6.1.0"
+wasmer-vm = "6.1.0"
+wasmer-compiler = "6.1.0"
 gear-wasmer-cache = { path = "utils/gear-wasmer-cache" }
 wasmtime = "8.0.1"
 wasmparser = { version = "0.230", default-features = false, features = ["validate", "features"] }
@@ -209,6 +210,7 @@ tracing = { version = "0.1.40", default-features = false }
 tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
 assert_matches = "1.5.0"
 nonempty = { version = "0.12.0", default-features = false }
+cc = "1.2.37"
 tap = "1.0.1"
 
 # Published deps

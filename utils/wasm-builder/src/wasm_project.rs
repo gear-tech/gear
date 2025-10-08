@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{code_validator::validate_program, crate_info::CrateInfo, smart_fs};
-use anyhow::{Context, Ok, Result, anyhow};
+use anyhow::{Context, Result, anyhow};
 use chrono::offset::Local as ChronoLocal;
 use gear_wasm_optimizer::{self as optimize, Optimizer};
 use std::{
@@ -400,7 +400,7 @@ pub const WASM_BINARY_OPT: &[u8] = include_bytes!("{}");"#,
             validate_program(code)?;
         }
 
-        if env::var("__GEAR_WASM_BUILDER_NO_FEATURES_TRACKING").is_err() {
+        if env::var("__GEAR_WASM_BUILDER_NO_FEATURES_TRACKING").as_deref() != Ok("1") {
             self.force_rerun_on_next_run(&original_wasm_path)?;
         }
         Ok(wasm_paths)
