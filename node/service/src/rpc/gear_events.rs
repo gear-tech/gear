@@ -39,6 +39,7 @@ use parking_lot::Mutex;
 use sc_client_api::{BlockchainEvents, StorageProvider, backend::Backend as ClientBackend};
 use sc_rpc::SubscriptionTaskExecutor;
 use sp_blockchain::HeaderBackend;
+use sp_core::H256;
 use sp_runtime::traits::{Header, SaturatedConversion, UniqueSaturatedInto};
 use sp_storage::{StorageData, StorageKey};
 
@@ -49,8 +50,8 @@ const MAX_BACKFILL_BLOCKS: u64 = 5_000;
 
 #[derive(Clone, Debug, serde::Deserialize)]
 pub struct UserMsgFilter {
-    pub source: Option<ActorId>,
-    pub dest: Option<ActorId>,
+    pub source: Option<H256>,
+    pub dest: Option<H256>,
     pub payload_prefix: Option<Vec<u8>>,
     pub from_block: Option<u64>,
     pub finalized_only: Option<bool>,
@@ -531,13 +532,13 @@ pub(crate) trait GearEventExtractor: Send + Sync + 'static {
 
 fn matches_filter(filter: &UserMsgFilter, message: &UserMessage) -> bool {
     if let Some(source) = filter.source
-        && message.source() != source
+        && message.source().into_bytes() != source.0
     {
         return false;
     }
 
     if let Some(dest) = filter.dest
-        && message.destination() != dest
+        && message.destination().into_bytes() != dest.0
     {
         return false;
     }

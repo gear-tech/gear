@@ -170,10 +170,10 @@ impl Unpin for ProgramStateChanges {}
 pub struct UserMessageSentFilter {
     /// Only match messages originating from this actor.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub source: Option<ActorId>,
+    pub source: Option<H256>,
     /// Only match messages targeting this actor.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub dest: Option<ActorId>,
+    pub dest: Option<H256>,
     /// Only match messages whose payload starts with this prefix.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub payload_prefix: Option<Vec<u8>>,
@@ -193,13 +193,13 @@ impl UserMessageSentFilter {
 
     /// Restrict events to the provided source actor.
     pub fn with_source(mut self, source: ActorId) -> Self {
-        self.source = Some(source);
+        self.source = Some(source.into());
         self
     }
 
     /// Restrict events to the provided destination actor.
     pub fn with_destination(mut self, destination: ActorId) -> Self {
-        self.dest = Some(destination);
+        self.dest = Some(destination.into());
         self
     }
 
