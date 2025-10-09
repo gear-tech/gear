@@ -17,20 +17,21 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    ToDigest,
-    consensus::{BatchCommitmentValidationReply, SignedAnnounce, SignedValidationRequest},
-    ecdsa::SignedData,
+    Address, Announce, ToDigest,
+    consensus::{
+        BatchCommitmentValidationReply, BatchCommitmentValidationRequest, SignedAnnounce,
+        SignedValidationReply, SignedValidationRequest, VerifiedAnnounce, VerifiedReply,
+        VerifiedRequest,
+    },
+    ecdsa::SignResult,
 };
-use k256::sha2::Digest;
 use parity_scale_codec::{Decode, Encode};
 use sha3::Keccak256;
 
-pub type SignedValidatorMessage = SignedData<ValidatorMessage>;
-
 #[derive(Debug, Clone, Encode, Decode, derive_more::From, Eq, PartialEq, derive_more::Unwrap)]
 pub enum ValidatorMessage {
-    ProducerBlock(SignedAnnounce),
-    RequestBatchValidation(SignedValidationRequest),
+    ProducerBlock(Announce),
+    RequestBatchValidation(BatchCommitmentValidationRequest),
     ApproveBatch(BatchCommitmentValidationReply),
 }
 
@@ -38,15 +39,54 @@ impl ToDigest for ValidatorMessage {
     fn update_hasher(&self, hasher: &mut Keccak256) {
         match self {
             ValidatorMessage::ProducerBlock(announce) => {
-                hasher.update(announce.signature().into_pre_eip155_bytes());
+                announce.update_hasher(hasher);
             }
             ValidatorMessage::RequestBatchValidation(request) => {
-                hasher.update(request.signature().into_pre_eip155_bytes());
+                request.update_hasher(hasher);
             }
             ValidatorMessage::ApproveBatch(reply) => {
-                // TODO: remove verifying in consensus
-                hasher.update(reply.digest.0);
+                reply.update_hasher(hasher);
             }
+        }
+    }
+}
+
+#[derive(Debug, Eq, Encode, Decode, PartialEq, Clone, derive_more::From)]
+pub enum SignedValidatorMessage {
+    ProducerBlock(SignedAnnounce),
+    RequestBatchValidation(SignedValidationRequest),
+    ApproveBatch(SignedValidationReply),
+}
+
+impl SignedValidatorMessage {
+    pub fn verified(self) -> SignResult<VerifiedValidatorMessage> {
+        match self {
+            SignedValidatorMessage::ProducerBlock(announce) => announce
+                .verified()
+                .map(VerifiedValidatorMessage::ProducerBlock),
+            SignedValidatorMessage::RequestBatchValidation(request) => request
+                .verified()
+                .map(VerifiedValidatorMessage::RequestBatchValidation),
+            SignedValidatorMessage::ApproveBatch(reply) => {
+                reply.verified().map(VerifiedValidatorMessage::ApproveBatch)
+            }
+        }
+    }
+}
+
+#[derive(Debug, Eq, PartialEq, Clone)]
+pub enum VerifiedValidatorMessage {
+    ProducerBlock(VerifiedAnnounce),
+    RequestBatchValidation(VerifiedRequest),
+    ApproveBatch(VerifiedReply),
+}
+
+impl VerifiedValidatorMessage {
+    pub fn address(&self) -> Address {
+        match self {
+            VerifiedValidatorMessage::ProducerBlock(announce) => announce.address(),
+            VerifiedValidatorMessage::RequestBatchValidation(request) => request.address(),
+            VerifiedValidatorMessage::ApproveBatch(reply) => reply.address(),
         }
     }
 }

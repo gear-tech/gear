@@ -32,7 +32,7 @@ use anyhow::{Context, anyhow};
 use ethexe_common::{
     Address,
     ecdsa::PublicKey,
-    network::{SignedValidatorMessage, ValidatorMessage},
+    network::{SignedValidatorMessage, VerifiedValidatorMessage},
     tx_pool::SignedOffchainTransaction,
 };
 use ethexe_signer::Signer;
@@ -67,7 +67,7 @@ const MAX_ESTABLISHED_INCOMING_CONNECTIONS: u32 = 100;
 
 #[derive(derive_more::Debug, Eq, PartialEq, Clone)]
 pub enum NetworkEvent {
-    ValidatorMessage(ValidatorMessage),
+    ValidatorMessage(VerifiedValidatorMessage),
     OffchainTransaction(SignedOffchainTransaction),
     PeerBlocked(PeerId),
     PeerConnected(PeerId),
@@ -435,11 +435,11 @@ impl NetworkService {
         self.validators.set_validators(validators);
     }
 
-    pub fn publish_message(&mut self, data: SignedValidatorMessage) {
+    pub fn publish_message(&mut self, data: impl Into<SignedValidatorMessage>) {
         self.swarm
             .behaviour_mut()
             .gossipsub
-            .publish(gossipsub::Message::Commitments(data))
+            .publish(gossipsub::Message::Commitments(data.into()))
     }
 
     pub fn publish_offchain_transaction(&mut self, data: SignedOffchainTransaction) {

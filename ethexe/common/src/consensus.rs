@@ -18,16 +18,21 @@
 
 use crate::{
     Announce, AnnounceHash, Digest, ToDigest,
-    ecdsa::{ContractSignature, SignedData},
+    ecdsa::{ContractSignature, SignedData, VerifiedData},
     gear::BatchCommitment,
 };
 use alloc::vec::Vec;
 use gprimitives::CodeId;
 use k256::sha2::Digest as _;
 use parity_scale_codec::{Decode, Encode};
+use sha3::Keccak256;
 
 pub type SignedAnnounce = SignedData<Announce>;
 pub type SignedValidationRequest = SignedData<BatchCommitmentValidationRequest>;
+pub type SignedValidationReply = SignedData<BatchCommitmentValidationReply>;
+pub type VerifiedAnnounce = VerifiedData<Announce>;
+pub type VerifiedRequest = VerifiedData<BatchCommitmentValidationRequest>;
+pub type VerifiedReply = VerifiedData<BatchCommitmentValidationReply>;
 
 /// Represents a request for validating a batch commitment.
 #[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
@@ -93,4 +98,12 @@ pub struct BatchCommitmentValidationReply {
     pub digest: Digest,
     /// Signature confirming the validation by origin
     pub signature: ContractSignature,
+}
+
+impl ToDigest for BatchCommitmentValidationReply {
+    fn update_hasher(&self, hasher: &mut Keccak256) {
+        let Self { digest, signature } = self;
+        hasher.update(digest.0);
+        hasher.update(signature.into_pre_eip155_bytes())
+    }
 }

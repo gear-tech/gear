@@ -26,7 +26,6 @@ use ethexe_common::{
     Address, Announce, AnnounceHash, SimpleBlockData,
     db::{AnnounceStorageRead, BlockMetaStorageRead},
     gear::BatchCommitment,
-    network::ValidatorMessage,
 };
 use ethexe_service_utils::Timer;
 use futures::{FutureExt, future::BoxFuture};
@@ -225,19 +224,14 @@ impl Producer {
             off_chain_transactions: Vec::new(),
         };
 
-        let signed = self
+        let signed_announce = self
             .ctx
             .core
             .signer
             .signed_data(self.ctx.core.pub_key, announce.clone())?;
 
-        let signed = self.ctx.core.signer.signed_data(
-            self.ctx.core.pub_key,
-            ValidatorMessage::ProducerBlock(signed),
-        )?;
-
         self.state = State::WaitingAnnounceComputed;
-        self.output(ConsensusEvent::PublishAnnounce(signed));
+        self.output(ConsensusEvent::PublishAnnounce(signed_announce));
         self.output(ConsensusEvent::ComputeAnnounce(announce));
 
         Ok(())
@@ -262,7 +256,7 @@ mod tests {
         let block = SimpleBlockData::mock(());
 
         ctx.pending(PendingEvent::ValidationRequest(
-            ctx.core.signer.mock_signed_data(keys[0], ()),
+            ctx.core.signer.mock_verified_data(keys[0], ()),
         ));
 
         let producer = Producer::create(ctx, block, validators.clone()).unwrap();

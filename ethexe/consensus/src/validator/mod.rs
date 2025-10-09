@@ -41,8 +41,7 @@
 //! * Each state can be interrupted by a new chain head -> switches to [`Initial`] immediately.
 
 use crate::{
-    BatchCommitmentValidationReply, ConsensusEvent, ConsensusService, SignedAnnounce,
-    SignedValidationRequest,
+    BatchCommitmentValidationReply, ConsensusEvent, ConsensusService,
     validator::{
         coordinator::Coordinator,
         core::{MiddlewareExt, MiddlewareWrapper, ValidatorCore},
@@ -54,7 +53,11 @@ use crate::{
 };
 use anyhow::Result;
 use derive_more::{Debug, From};
-use ethexe_common::{Address, AnnounceHash, SimpleBlockData, ecdsa::PublicKey};
+use ethexe_common::{
+    Address, AnnounceHash, SimpleBlockData,
+    consensus::{VerifiedAnnounce, VerifiedRequest},
+    ecdsa::PublicKey,
+};
 use ethexe_db::Database;
 use ethexe_ethereum::Ethereum;
 use ethexe_signer::Signer;
@@ -206,12 +209,12 @@ impl ConsensusService for ValidatorService {
         self.update_inner(|inner| inner.process_computed_announce(announce))
     }
 
-    fn receive_announce(&mut self, signed: SignedAnnounce) -> Result<()> {
-        self.update_inner(|inner| inner.process_announce(signed))
+    fn receive_announce(&mut self, announce: VerifiedAnnounce) -> Result<()> {
+        self.update_inner(|inner| inner.process_announce(announce))
     }
 
-    fn receive_validation_request(&mut self, signed: SignedValidationRequest) -> Result<()> {
-        self.update_inner(|inner| inner.process_validation_request(signed))
+    fn receive_validation_request(&mut self, batch: VerifiedRequest) -> Result<()> {
+        self.update_inner(|inner| inner.process_validation_request(batch))
     }
 
     fn receive_validation_reply(&mut self, reply: BatchCommitmentValidationReply) -> Result<()> {
@@ -255,9 +258,9 @@ impl FusedStream for ValidatorService {
 #[derive(Clone, Debug, From, PartialEq, Eq, derive_more::IsVariant)]
 enum PendingEvent {
     /// A block from the producer
-    Announce(SignedAnnounce),
+    Announce(VerifiedAnnounce),
     /// A validation request
-    ValidationRequest(SignedValidationRequest),
+    ValidationRequest(VerifiedRequest),
 }
 
 /// Trait defining the interface for validator inner state and events handler.
@@ -296,14 +299,11 @@ where
         DefaultProcessing::computed_announce(self.into(), announce)
     }
 
-    fn process_announce(self, block: SignedAnnounce) -> Result<ValidatorState> {
+    fn process_announce(self, block: VerifiedAnnounce) -> Result<ValidatorState> {
         DefaultProcessing::block_from_producer(self, block)
     }
 
-    fn process_validation_request(
-        self,
-        request: SignedValidationRequest,
-    ) -> Result<ValidatorState> {
+    fn process_validation_request(self, request: VerifiedRequest) -> Result<ValidatorState> {
         DefaultProcessing::validation_request(self, request)
     }
 
@@ -382,14 +382,11 @@ impl StateHandler for ValidatorState {
         delegate_call!(self => process_computed_announce(announce))
     }
 
-    fn process_announce(self, announce: SignedAnnounce) -> Result<ValidatorState> {
+    fn process_announce(self, announce: VerifiedAnnounce) -> Result<ValidatorState> {
         delegate_call!(self => process_announce(announce))
     }
 
-    fn process_validation_request(
-        self,
-        request: SignedValidationRequest,
-    ) -> Result<ValidatorState> {
+    fn process_validation_request(self, request: VerifiedRequest) -> Result<ValidatorState> {
         delegate_call!(self => process_validation_request(request))
     }
 
@@ -435,19 +432,19 @@ impl DefaultProcessing {
 
     fn block_from_producer(
         s: impl Into<ValidatorState>,
-        signed_announce: SignedAnnounce,
+        announce: VerifiedAnnounce,
     ) -> Result<ValidatorState> {
         let mut s = s.into();
         s.warning(format!(
-            "unexpected block from producer: {signed_announce:?}, saved for later."
+            "unexpected block from producer: {announce:?}, saved for later."
         ));
-        s.context_mut().pending(signed_announce);
+        s.context_mut().pending(announce);
         Ok(s)
     }
 
     fn validation_request(
         s: impl Into<ValidatorState>,
-        request: SignedValidationRequest,
+        request: VerifiedRequest,
     ) -> Result<ValidatorState> {
         let mut s = s.into();
         s.warning(format!(

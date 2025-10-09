@@ -19,7 +19,7 @@
 use crate::{gossipsub::MessageAcceptance, peer_score};
 use ethexe_common::{
     Address,
-    network::{SignedValidatorMessage, ValidatorMessage},
+    network::{SignedValidatorMessage, VerifiedValidatorMessage},
 };
 use libp2p::PeerId;
 use nonempty::NonEmpty;
@@ -46,23 +46,25 @@ impl Validators {
         &self,
         source: PeerId,
         message: SignedValidatorMessage,
-    ) -> (Option<ValidatorMessage>, MessageAcceptance) {
+    ) -> (Option<VerifiedValidatorMessage>, MessageAcceptance) {
         let Some(current_validators) = &self.current_validators else {
             return (None, MessageAcceptance::Ignore);
         };
 
-        if let Err(error) = message.verify() {
-            log::trace!("failed to validate validator message: {error}");
-            self.peer_score.invalid_data(source);
-            return (None, MessageAcceptance::Reject);
-        }
+        let message = match message.verified() {
+            Ok(message) => message,
+            Err(error) => {
+                log::trace!("failed to validate validator message: {error}");
+                self.peer_score.invalid_data(source);
+                return (None, MessageAcceptance::Reject);
+            }
+        };
 
         let validator_address = message.address();
         if !current_validators.contains(&validator_address) {
             return (None, MessageAcceptance::Ignore);
         }
 
-        let (message, _) = message.into_parts();
         (Some(message), MessageAcceptance::Accept)
     }
 }

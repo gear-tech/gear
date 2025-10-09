@@ -37,9 +37,9 @@ use futures::{Stream, stream::FusedStream};
 use gprimitives::H256;
 
 pub use connect::SimpleConnectService;
-use ethexe_common::{
-    consensus::{BatchCommitmentValidationReply, SignedAnnounce, SignedValidationRequest},
-    network::SignedValidatorMessage,
+use ethexe_common::consensus::{
+    BatchCommitmentValidationReply, SignedAnnounce, SignedValidationReply, SignedValidationRequest,
+    VerifiedAnnounce, VerifiedRequest,
 };
 pub use utils::{block_producer_for, block_producer_index};
 pub use validator::{ValidatorConfig, ValidatorService};
@@ -70,26 +70,28 @@ pub trait ConsensusService:
     fn receive_computed_announce(&mut self, announce: AnnounceHash) -> Result<()>;
 
     /// Process a received producer block
-    fn receive_announce(&mut self, block: SignedAnnounce) -> Result<()>;
+    fn receive_announce(&mut self, block: VerifiedAnnounce) -> Result<()>;
 
     /// Process a received validation request
-    fn receive_validation_request(&mut self, request: SignedValidationRequest) -> Result<()>;
+    fn receive_validation_request(&mut self, request: VerifiedRequest) -> Result<()>;
 
     /// Process a received validation reply
     fn receive_validation_reply(&mut self, reply: BatchCommitmentValidationReply) -> Result<()>;
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, derive_more::From, derive_more::IsVariant)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, derive_more::From, derive_more::IsVariant, derive_more::Unwrap,
+)]
 pub enum ConsensusEvent {
     /// Outer service have to compute announce
     #[from]
     ComputeAnnounce(Announce),
     /// Outer service have to publish signed announce
-    PublishAnnounce(SignedValidatorMessage),
+    PublishAnnounce(SignedAnnounce),
     /// Outer service have to publish signed validation request
-    PublishValidationRequest(SignedValidatorMessage),
+    PublishValidationRequest(SignedValidationRequest),
     /// Outer service have to publish signed validation reply
-    PublishValidationReply(SignedValidatorMessage),
+    PublishValidationReply(SignedValidationReply),
     /// Informational event: commitment was successfully submitted, tx hash is provided
     CommitmentSubmitted(H256),
     /// Informational event: during service processing, a warning situation was detected

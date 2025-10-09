@@ -23,7 +23,7 @@ use ethexe_blob_loader::{
     BlobLoader, BlobLoaderEvent, BlobLoaderService, ConsensusLayerConfig,
     local::{LocalBlobLoader, LocalBlobStorage},
 };
-use ethexe_common::{ecdsa::PublicKey, gear::CodeState, network::ValidatorMessage};
+use ethexe_common::{ecdsa::PublicKey, gear::CodeState, network::VerifiedValidatorMessage};
 use ethexe_compute::{ComputeEvent, ComputeService};
 use ethexe_consensus::{
     ConsensusEvent, ConsensusService, SimpleConnectService, ValidatorConfig, ValidatorService,
@@ -435,13 +435,14 @@ impl Service {
                     match event {
                         NetworkEvent::ValidatorMessage(message) => {
                             match message {
-                                ValidatorMessage::ProducerBlock(block) => {
+                                VerifiedValidatorMessage::ProducerBlock(block) => {
                                     consensus.receive_announce(block)?
                                 }
-                                ValidatorMessage::RequestBatchValidation(request) => {
+                                VerifiedValidatorMessage::RequestBatchValidation(request) => {
                                     consensus.receive_validation_request(request)?
                                 }
-                                ValidatorMessage::ApproveBatch(reply) => {
+                                VerifiedValidatorMessage::ApproveBatch(reply) => {
+                                let (reply, _) = reply.into_parts();
                                     consensus.receive_validation_reply(reply)?
                                 }
                             };
