@@ -105,7 +105,9 @@ pub struct SimpleBlockData {
 
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, Hash, derive_more::Display)]
 #[cfg_attr(feature = "std", derive(serde::Serialize))]
-#[display("Announce(block: {block_hash}, parent: {parent}, gas: {gas_allowance:?}, txs: {off_chain_transactions:?})")]
+#[display(
+    "Announce(block: {block_hash}, parent: {parent}, gas: {gas_allowance:?}, txs: {off_chain_transactions:?})"
+)]
 pub struct Announce {
     pub block_hash: H256,
     pub parent: AnnounceHash,

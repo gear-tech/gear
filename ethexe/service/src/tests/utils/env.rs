@@ -30,14 +30,14 @@ use alloy::{
     eips::BlockId,
     node_bindings::{Anvil, AnvilInstance},
     providers::{Provider as _, RootProvider, ext::AnvilApi},
-    rpc::types::{Header as RpcHeader, anvil::MineOptions},
+    rpc::types::anvil::MineOptions,
 };
 use ethexe_blob_loader::{
     BlobLoaderService,
     local::{LocalBlobLoader, LocalBlobStorage},
 };
 use ethexe_common::{
-    Address, CodeAndId, DEFAULT_BLOCK_GAS_LIMIT,
+    Address, BlockHeader, CodeAndId, DEFAULT_BLOCK_GAS_LIMIT, SimpleBlockData,
     ecdsa::{PrivateKey, PublicKey},
     events::{BlockEvent, MirrorEvent, RouterEvent},
 };
@@ -512,20 +512,39 @@ impl TestEnv {
     /// that can produce blocks for the same rpc node,
     /// then the return may be outdated.
     pub async fn next_block_producer_index(&self) -> usize {
-        let timestamp = self.latest_block().await.timestamp;
+        let timestamp = self.latest_block().await.header.timestamp;
         ethexe_consensus::block_producer_index(
             self.validators.len(),
             (timestamp + self.block_time.as_secs()) / self.block_time.as_secs(),
         )
     }
 
-    pub async fn latest_block(&self) -> RpcHeader {
-        self.provider
+    pub async fn wait_for_next_producer_index(&self, index: usize) {
+        loop {
+            let next_index = self.next_block_producer_index().await;
+            if next_index == index {
+                break;
+            }
+            self.skip_blocks(1).await;
+        }
+    }
+
+    pub async fn latest_block(&self) -> SimpleBlockData {
+        let header = self
+            .provider
             .get_block(BlockId::latest())
             .await
             .unwrap()
             .expect("latest block always exist")
-            .header
+            .header;
+        SimpleBlockData {
+            hash: header.hash.0.into(),
+            header: BlockHeader {
+                height: header.number as u32,
+                timestamp: header.timestamp,
+                parent_hash: header.parent_hash.0.into(),
+            },
+        }
     }
 
     pub fn define_session_keys(
@@ -925,9 +944,7 @@ impl Node {
 
     // NOTE: use with caution, because network service can be already created.
     pub fn construct_network_service(&self) -> Option<NetworkService> {
-        let Some(addr) = self.network_address.as_ref() else {
-            return None;
-        };
+        let addr = self.network_address.as_ref()?;
 
         let config_path = tempfile::tempdir().unwrap().keep();
         let multiaddr: Multiaddr = addr.parse().unwrap();

@@ -251,6 +251,19 @@ impl ObserverEventsListener {
     }
 
     #[allow(unused)]
+    pub async fn wait_next_block(&mut self) -> Result<SimpleBlockData> {
+        loop {
+            let event = self.next_event().await?;
+
+            let ObserverEvent::Block(block) = event else {
+                continue;
+            };
+
+            return Ok(block);
+        }
+    }
+
+    #[allow(unused)]
     pub async fn apply_until<R: Sized>(
         &mut self,
         mut f: impl FnMut(ObserverEvent) -> Result<Option<R>>,

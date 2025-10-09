@@ -476,9 +476,10 @@ impl Mock<u32> for BlockChain {
 pub trait DBMockExt {
     fn simple_block_data(&self, block: H256) -> SimpleBlockData;
     fn top_announce_hash(&self, block: H256) -> AnnounceHash;
+    fn base_chain_announce(&self, block: H256) -> Option<AnnounceHash>;
 }
 
-impl<DB: OnChainStorageRead + BlockMetaStorageRead> DBMockExt for DB {
+impl<DB: OnChainStorageRead + BlockMetaStorageRead + AnnounceStorageRead> DBMockExt for DB {
     fn simple_block_data(&self, block: H256) -> SimpleBlockData {
         let header = self.block_header(block).expect("block header not found");
         SimpleBlockData {
@@ -494,5 +495,27 @@ impl<DB: OnChainStorageRead + BlockMetaStorageRead> DBMockExt for DB {
             .into_iter()
             .next()
             .expect("must be at list one announce")
+    }
+
+    /// Returns an announce hash which is base it's predecessors also base until deepness of 3:
+    /// ```text
+    /// P1 <--- P2 <--- block
+    /// A1 <--- A2 <--- A3
+    /// ```
+    /// returns A3 if A3, A2 and A1 are base announces.
+    fn base_chain_announce(&self, block: H256) -> Option<AnnounceHash> {
+        'outer: for mut announce_hash in self.block_meta(block).announces.into_iter().flatten() {
+            for _ in 0..3 {
+                let announce = self.announce(announce_hash).expect("announce not found");
+                if !announce.is_base() {
+                    continue 'outer;
+                }
+                announce_hash = announce.parent;
+            }
+
+            return Some(announce_hash);
+        }
+
+        None
     }
 }

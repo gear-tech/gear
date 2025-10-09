@@ -35,10 +35,10 @@ use ethexe_common::{
     db::*,
     events::{BlockEvent, MirrorEvent, RouterEvent},
     gear::Origin,
-    mock::Tap,
+    mock::{DBMockExt, Tap},
 };
 use ethexe_db::{Database, verifier::IntegrityVerifier};
-use ethexe_observer::{EthereumConfig, ObserverEvent};
+use ethexe_observer::EthereumConfig;
 use ethexe_prometheus::PrometheusConfig;
 use ethexe_rpc::RpcConfig;
 use ethexe_runtime_common::state::{Expiring, MailboxMessage, PayloadLookup, Storage};
@@ -1381,11 +1381,10 @@ async fn fast_sync() {
         // Use skip_blocks to ensure that we need to wait for announce from this block
         env.skip_blocks(1).await;
 
-        let latest_block: H256 = env.latest_block().await.hash.0.into();
-
+        let latest_block = env.latest_block().await;
         let (announce_hash, accepted) = alice
             .listener()
-            .wait_for_announce_computed(latest_block)
+            .wait_for_announce_computed(latest_block.hash)
             .await;
         assert!(accepted);
 
@@ -1481,11 +1480,9 @@ async fn consensus_cases() {
         });
 
     log::info!("📗 Case 2: stop validator 0, and publish incorrect announce manually");
+    env.wait_for_next_producer_index(0).await;
+
     let mut validator0 = validators.remove(0);
-    while env.next_block_producer_index().await != 0 {
-        log::info!("📗 Skip block to be sure validator 0 is a producer for next block");
-        env.skip_blocks(1).await;
-    }
     validator0.stop_service().await;
 
     // New block generated, because ping message is sent
@@ -1495,32 +1492,175 @@ async fn consensus_cases() {
         .iter_mut()
         .map(|node| node.listener())
         .collect::<Vec<_>>();
-    let mut observer_listener = env.observer_events_publisher().subscribe().await;
-    let _ = env.send_message(ping_id, b"PING", 0).await.unwrap();
-    let block = observer_listener
-        .apply_until(|event| {
-            if let ObserverEvent::Block(block) = event {
-                Ok(Some(block))
-            } else {
-                Ok(None)
-            }
-        })
-        .await
-        .unwrap();
+    let wait_for_pong = env.send_message(ping_id, b"PING", 0).await.unwrap();
+    let block = env.latest_block().await;
 
-    let signed_announce = env
+    {
+        let signed_announce = env
+            .signer
+            .signed_data(
+                env.validators[0].public_key,
+                Announce {
+                    block_hash: block.hash,
+                    parent: AnnounceHash::random(),
+                    gas_allowance: Some(133),
+                    off_chain_transactions: Default::default(),
+                },
+            )
+            .unwrap();
+        let announce_hash = signed_announce.data().to_hash();
+
+        let mut network = validator0.construct_network_service().unwrap();
+        network
+            .wait_for_gossipsub_subscription(ethexe_network::commitments_topic().to_string())
+            .await;
+
+        log::info!(
+            "📗 Publishing invalid announce {announce_hash} at block {} from stopped validator 0",
+            block.hash
+        );
+        network.publish_message(NetworkMessage::Announce(signed_announce).encode());
+
+        for listener in &mut listeners {
+            let (_, accepted) = listener.wait_for_announce_computed(announce_hash).await;
+            assert!(!accepted, "Announce {announce_hash} must be rejected");
+        }
+    }
+
+    log::info!(
+        "📗 Case 3: next block producer must be validator 1, so reply PONG must be delivered"
+    );
+    assert_eq!(env.next_block_producer_index().await, 1);
+    env.force_new_block().await;
+    wait_for_pong.wait_for().await.unwrap().tap(|res| {
+        assert_eq!(res.program_id, ping_id);
+        assert_eq!(res.payload, b"PONG");
+        assert_eq!(res.value, 0);
+        assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Manual));
+    });
+
+    // Wait till all validators accept announce for the latest block,
+    // which is from validator 2, because commitment forces anvil to produce new block.
+    let latest_block: H256 = env.latest_block().await.hash.0.into();
+    for listener in &mut listeners {
+        let (_, accepted) = listener.wait_for_announce_computed(latest_block).await;
+        assert!(accepted);
+    }
+
+    // Skip 3 blocks (for validators 2, 3, 4), then stop validators 5 and 6,
+    // and emulate correct announces A5 and A6 publishing from this 5 and 6 in the next two blocks,
+    // but do not aggregate commitments.
+    // After that emulate validators 0 send correct announce A7 for the next block, but
+    // A7 is from different chain, than A5 and A6, so A7. A7 must be accepted, because
+    // A5 and A6 are not committed yet.
+    log::info!("📗 Case 4: announce chains conflict");
+
+    // because of commitment processing from previous step, next producer is 3
+    assert_eq!(env.next_block_producer_index().await, 3);
+
+    // skip 3 and 4 it and go to the block where next producer is validator 5
+    env.skip_blocks(2).await;
+    assert_eq!(env.next_block_producer_index().await, 5);
+
+    // Get access to validator 1 db, to be able to access fresh announces
+    let validator1_db = validators[1].db.clone();
+
+    // Note: index - 1, because validator 0 is already removed
+    let mut validator6 = validators.remove(6 - 1);
+    let mut validator5 = validators.remove(5 - 1);
+    validator5.stop_service().await;
+    validator6.stop_service().await;
+
+    let mut listeners = validators
+        .iter_mut()
+        .map(|node| node.listener())
+        .collect::<Vec<_>>();
+
+    let _wait_for_pong_5 = env.send_message(ping_id, b"PING", 0).await.unwrap();
+    let block_5 = env.latest_block().await;
+
+    let parent = validator1_db
+        .base_chain_announce(block_5.header.parent_hash)
+        .expect("cannot find fully base announces chain");
+
+    let signed_announce_5 = env
+        .signer
+        .signed_data(
+            env.validators[5].public_key,
+            Announce::with_default_gas(block_5.hash, parent),
+        )
+        .unwrap();
+    let announce_5_hash = signed_announce_5.data().to_hash();
+
+    {
+        let mut network = validator5.construct_network_service().unwrap();
+        network
+            .wait_for_gossipsub_subscription(ethexe_network::commitments_topic().to_string())
+            .await;
+
+        log::info!(
+            "📗 Publishing valid announce {announce_5_hash} at block {} from stopped validator 5",
+            block.hash
+        );
+        network.publish_message(NetworkMessage::Announce(signed_announce_5).encode());
+
+        for listener in &mut listeners {
+            let (_, accepted) = listener.wait_for_announce_computed(announce_5_hash).await;
+            assert!(accepted, "Announce {announce_5_hash} must be accepted");
+        }
+    }
+
+    // Commitment does not sent by validator 5, so now next producer is validator 6
+    assert_eq!(env.next_block_producer_index().await, 6);
+
+    let _wait_for_pong_6 = env.send_message(ping_id, b"PING", 0).await.unwrap();
+    let block_6 = env.latest_block().await;
+
+    let signed_announce_6 = env
+        .signer
+        .signed_data(
+            env.validators[6].public_key,
+            Announce::with_default_gas(block_6.hash, announce_5_hash),
+        )
+        .unwrap();
+    let announce_6_hash = signed_announce_6.data().to_hash();
+
+    {
+        let mut network = validator6.construct_network_service().unwrap();
+        network
+            .wait_for_gossipsub_subscription(ethexe_network::commitments_topic().to_string())
+            .await;
+
+        log::info!(
+            "📗 Publishing valid announce {announce_6_hash} at block {} from stopped validator 6",
+            block.hash
+        );
+        network.publish_message(NetworkMessage::Announce(signed_announce_6).encode());
+
+        for listener in &mut listeners {
+            let (_, accepted) = listener.wait_for_announce_computed(announce_6_hash).await;
+            assert!(accepted, "Announce {announce_6_hash} must be accepted");
+        }
+    }
+
+    // Commitment does not sent by validator 6, so now next producer is validator 0
+    assert_eq!(env.next_block_producer_index().await, 0);
+
+    let _wait_for_pong_7 = env.send_message(ping_id, b"PING", 0).await.unwrap();
+    let block_7 = env.latest_block().await;
+
+    // Ignore announce5 and announce6 and build announce7 on top of base announce from block 6
+    let parent = validator1_db
+        .base_chain_announce(block_7.header.parent_hash)
+        .expect("cannot find fully base announces chain");
+    let signed_announce_7 = env
         .signer
         .signed_data(
             env.validators[0].public_key,
-            Announce {
-                block_hash: block.hash,
-                parent: AnnounceHash::random(),
-                gas_allowance: Some(133),
-                off_chain_transactions: Default::default(),
-            },
+            Announce::with_default_gas(block_7.hash, parent),
         )
         .unwrap();
-    let invalid_announce_hash = signed_announce.data().to_hash();
+    let announce_7_hash = signed_announce_7.data().to_hash();
 
     {
         let mut network = validator0.construct_network_service().unwrap();
@@ -1528,31 +1668,15 @@ async fn consensus_cases() {
             .wait_for_gossipsub_subscription(ethexe_network::commitments_topic().to_string())
             .await;
 
-        // let mut peer_connected = 0;
-        // while peer_connected != 2 {
-        //     let event = network.select_next_some().await;
-        //     log::trace!("network event: {event:?}");
-        //     if matches!(event, NetworkEvent::PeerConnected(_)) {
-        //         peer_connected += 1;
-        //     }
-        // }
-
         log::info!(
-            "📗 Publishing invalid announce {invalid_announce_hash} at block {} from stopped validator 0",
+            "📗 Publishing valid announce {announce_7_hash} at block {} from stopped validator 0",
             block.hash
         );
-        network.publish_message(NetworkMessage::Announce(signed_announce).encode());
+        network.publish_message(NetworkMessage::Announce(signed_announce_7).encode());
 
         for listener in &mut listeners {
-            let (_, accepted) = listener
-                .wait_for_announce_computed(invalid_announce_hash)
-                .await;
-            assert!(
-                !accepted,
-                "Announce {invalid_announce_hash} must be rejected"
-            );
+            let (_, accepted) = listener.wait_for_announce_computed(announce_7_hash).await;
+            assert!(accepted, "Announce {announce_7_hash} must be accepted");
         }
     }
-
-    // let (announce_hash, _) = listener.wait_for_announce_computed(AnnounceId::Any).await;
 }
