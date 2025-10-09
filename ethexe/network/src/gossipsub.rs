@@ -285,7 +285,7 @@ impl NetworkBehaviour for Behaviour {
         &mut self,
         cx: &mut Context<'_>,
     ) -> Poll<ToSwarm<Self::ToSwarm, THandlerInEvent<Self>>> {
-        if let Some(message) = self.message_queue.front() {
+        while let Some(message) = self.message_queue.front() {
             let topic = message.topic_hash(self);
             let data = message.encode();
 
@@ -293,7 +293,7 @@ impl NetworkBehaviour for Behaviour {
                 Ok(_msg_id) => {
                     let _ = self.message_queue.pop_front().expect("checked above");
                 }
-                Err(PublishError::InsufficientPeers) => {}
+                Err(PublishError::InsufficientPeers) => break,
                 Err(error) => {
                     let message = self.message_queue.pop_front().expect("checked above");
                     return Poll::Ready(ToSwarm::GenerateEvent(Event::PublishFailure {
