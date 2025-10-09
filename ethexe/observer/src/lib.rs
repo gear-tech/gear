@@ -37,7 +37,6 @@ use gprimitives::H256;
 use nonempty::NonEmpty;
 use std::{
     collections::VecDeque,
-    fmt,
     pin::Pin,
     task::{Context, Poll},
     time::Duration,
@@ -61,21 +60,13 @@ pub struct EthereumConfig {
     pub block_time: Duration,
 }
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ObserverEvent {
     Block(SimpleBlockData),
-    BlockSynced(H256),
-}
-
-impl fmt::Debug for ObserverEvent {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            ObserverEvent::Block(data) => f.debug_tuple("Block").field(data).finish(),
-            ObserverEvent::BlockSynced(synced_block) => {
-                f.debug_tuple("BlockSynced").field(synced_block).finish()
-            }
-        }
-    }
+    BlockSynced {
+        chain_head: H256,
+        new_validator_set: Option<NonEmpty<Address>>,
+    },
 }
 
 #[derive(Clone, Debug)]
@@ -99,7 +90,7 @@ pub struct ObserverService {
     headers_stream: SubscriptionStream<Header>,
 
     block_sync_queue: VecDeque<Header>,
-    sync_future: Option<BoxFuture<'static, Result<H256>>>,
+    sync_future: Option<BoxFuture<'static, Result<ObserverEvent>>>,
     subscription_future: Option<HeadersSubscriptionFuture>,
 }
 
@@ -157,9 +148,7 @@ impl Stream for ObserverService {
             && let Poll::Ready(result) = fut.poll_unpin(cx)
         {
             self.sync_future = None;
-
-            let maybe_event = result.map(ObserverEvent::BlockSynced);
-            return Poll::Ready(Some(maybe_event));
+            return Poll::Ready(Some(result));
         }
 
         Poll::Pending

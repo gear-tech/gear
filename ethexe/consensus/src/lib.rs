@@ -37,8 +37,9 @@ use futures::{Stream, stream::FusedStream};
 use gprimitives::H256;
 
 pub use connect::SimpleConnectService;
-use ethexe_common::consensus::{
-    BatchCommitmentValidationReply, SignedAnnounce, SignedValidationRequest,
+use ethexe_common::{
+    consensus::{BatchCommitmentValidationReply, SignedAnnounce, SignedValidationRequest},
+    network::SignedValidatorMessage,
 };
 pub use utils::{block_producer_for, block_producer_index};
 pub use validator::{ValidatorConfig, ValidatorService};
@@ -81,17 +82,16 @@ pub trait ConsensusService:
 #[derive(Debug, Clone, PartialEq, Eq, derive_more::From, derive_more::IsVariant)]
 pub enum ConsensusEvent {
     /// Outer service have to compute announce
+    #[from]
     ComputeAnnounce(Announce),
     /// Outer service have to publish signed announce
-    PublishAnnounce(SignedAnnounce),
+    PublishAnnounce(SignedValidatorMessage),
     /// Outer service have to publish signed validation request
-    PublishValidationRequest(SignedValidationRequest),
+    PublishValidationRequest(SignedValidatorMessage),
     /// Outer service have to publish signed validation reply
-    PublishValidationReply(BatchCommitmentValidationReply),
+    PublishValidationReply(SignedValidatorMessage),
     /// Informational event: commitment was successfully submitted, tx hash is provided
-    #[from(skip)]
     CommitmentSubmitted(H256),
     /// Informational event: during service processing, a warning situation was detected
-    #[from(skip)]
     Warning(String),
 }

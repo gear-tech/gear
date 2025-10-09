@@ -20,7 +20,10 @@ use super::{StateHandler, ValidatorContext, ValidatorState, submitter::Submitter
 use crate::{BatchCommitmentValidationReply, ConsensusEvent, utils::MultisignedBatchCommitment};
 use anyhow::{Result, anyhow, ensure};
 use derive_more::{Debug, Display};
-use ethexe_common::{Address, consensus::BatchCommitmentValidationRequest, gear::BatchCommitment};
+use ethexe_common::{
+    Address, consensus::BatchCommitmentValidationRequest, gear::BatchCommitment,
+    network::ValidatorMessage,
+};
 use nonempty::NonEmpty;
 use std::collections::BTreeSet;
 
@@ -102,6 +105,11 @@ impl Coordinator {
         let validation_request = ctx.core.signer.signed_data(
             ctx.core.pub_key,
             BatchCommitmentValidationRequest::new(multisigned_batch.batch()),
+        )?;
+
+        let validation_request = ctx.core.signer.signed_data(
+            ctx.core.pub_key,
+            ValidatorMessage::RequestBatchValidation(validation_request),
         )?;
 
         ctx.output(ConsensusEvent::PublishValidationRequest(validation_request));

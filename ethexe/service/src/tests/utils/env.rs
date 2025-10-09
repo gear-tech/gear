@@ -53,6 +53,7 @@ use ethexe_tx_pool::TxPoolService;
 use futures::StreamExt;
 use gear_core_errors::ReplyCode;
 use gprimitives::{ActorId, CodeId, H160, H256, MessageId};
+use nonempty::NonEmpty;
 use rand::{SeedableRng, prelude::StdRng};
 use roast_secp256k1_evm::frost::{
     Identifier, SigningKey, keys,
@@ -163,8 +164,14 @@ impl TestEnv {
                 .collect(),
         };
 
-        let (validators, verifiable_secret_sharing_commitment) =
+        let (validator_configs, verifiable_secret_sharing_commitment) =
             Self::define_session_keys(&signer, validators);
+        let validators = validator_configs
+            .iter()
+            .map(|k| k.public_key.to_address())
+            .collect();
+        let validators =
+            NonEmpty::from_vec(validators).expect("at least one validator is required");
 
         let sender_address = wallets.next().to_address();
 
@@ -179,14 +186,10 @@ impl TestEnv {
             .await?
         } else {
             log::info!("📗 Deploying new router");
-            let validators_addresses = validators
-                .iter()
-                .map(|k| k.public_key.to_address())
-                .collect();
             EthereumDeployer::new(&rpc_url, signer.clone(), sender_address) // verifiable_secret_sharing_commitment,)
                 .await
                 .unwrap()
-                .with_validators(validators_addresses)
+                .with_validators(validators.clone())
                 .with_verifiable_secret_sharing_commitment(verifiable_secret_sharing_commitment)
                 .deploy()
                 .await?
@@ -276,6 +279,7 @@ impl TestEnv {
                 Box::new(db.clone()),
             )
             .unwrap();
+        service.set_validators(validators);
 
             let local_peer_id = service.local_peer_id();
 
@@ -308,7 +312,7 @@ impl TestEnv {
             blobs_storage,
             ethereum,
             signer,
-            validators,
+            validators: validator_configs,
             sender_id: ActorId::from(H160::from(sender_address.0)),
             threshold,
             block_time,

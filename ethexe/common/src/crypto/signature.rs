@@ -33,7 +33,7 @@ use parity_scale_codec::{
 };
 
 /// A recoverable ECDSA signature
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Display)]
+#[derive(Clone, Copy, PartialEq, Eq, derive_more::Debug, derive_more::Display)]
 #[debug("0x{}", hex::encode(self.into_pre_eip155_bytes()))]
 #[display("0x{}", hex::encode(self.into_pre_eip155_bytes()))]
 pub struct Signature {
@@ -173,6 +173,15 @@ impl<T: Sized> SignedData<T> {
     /// Returns the address of the public key used to sign the data.
     pub fn address(&self) -> Address {
         self.public_key.to_address()
+    }
+
+    /// Verifies the data itself using provided public key and signature.
+    pub fn verify(&self) -> SignResult<()>
+    where
+        T: ToDigest,
+    {
+        self.signature
+            .verify(self.public_key, self.data.to_digest())
     }
 }
 

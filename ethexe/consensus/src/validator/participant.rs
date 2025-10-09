@@ -25,6 +25,7 @@ use anyhow::Result;
 use derive_more::{Debug, Display};
 use ethexe_common::{
     Address, Digest, SimpleBlockData, consensus::BatchCommitmentValidationRequest,
+    network::ValidatorMessage,
 };
 use futures::{FutureExt, future::BoxFuture};
 use std::task::Poll;
@@ -94,6 +95,11 @@ impl StateHandler for Participant {
                             digest,
                         )
                         .map(|signature| BatchCommitmentValidationReply { digest, signature })?;
+
+                    let reply = self.ctx.core.signer.signed_data(
+                        self.ctx.core.pub_key,
+                        ValidatorMessage::ApproveBatch(reply),
+                    )?;
 
                     self.output(ConsensusEvent::PublishValidationReply(reply));
                 }
@@ -256,6 +262,7 @@ mod tests {
         let ConsensusEvent::PublishValidationReply(reply) = event else {
             panic!("Expected PublishValidationReply event, got {event:?}");
         };
+        let reply = reply.into_parts().0.unwrap_approve_batch();
         assert_eq!(reply.digest, batch.to_digest());
         reply
             .signature

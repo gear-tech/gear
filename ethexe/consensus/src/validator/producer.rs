@@ -26,6 +26,7 @@ use ethexe_common::{
     Address, Announce, AnnounceHash, SimpleBlockData,
     db::{AnnounceStorageRead, BlockMetaStorageRead},
     gear::BatchCommitment,
+    network::ValidatorMessage,
 };
 use ethexe_service_utils::Timer;
 use futures::{FutureExt, future::BoxFuture};
@@ -229,6 +230,11 @@ impl Producer {
             .core
             .signer
             .signed_data(self.ctx.core.pub_key, announce.clone())?;
+
+        let signed = self.ctx.core.signer.signed_data(
+            self.ctx.core.pub_key,
+            ValidatorMessage::ProducerBlock(signed),
+        )?;
 
         self.state = State::WaitingAnnounceComputed;
         self.output(ConsensusEvent::PublishAnnounce(signed));

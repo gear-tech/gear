@@ -21,15 +21,19 @@ pub mod db_sync;
 mod gossipsub;
 pub mod peer_score;
 mod utils;
+mod validator;
 
 pub mod export {
     pub use libp2p::{Multiaddr, PeerId, multiaddr::Protocol};
 }
 
-use crate::db_sync::DbSyncDatabase;
+use crate::{db_sync::DbSyncDatabase, validator::Validators};
 use anyhow::{Context, anyhow};
 use ethexe_common::{
-    Address, ecdsa::PublicKey, network::NetworkMessage, tx_pool::SignedOffchainTransaction,
+    Address,
+    ecdsa::PublicKey,
+    network::{SignedValidatorMessage, ValidatorMessage},
+    tx_pool::SignedOffchainTransaction,
 };
 use ethexe_signer::Signer;
 use futures::{Stream, future::Either, ready, stream::FusedStream};
@@ -49,6 +53,7 @@ use libp2p::{
 };
 #[cfg(test)]
 use libp2p_swarm_test::SwarmExt;
+use nonempty::NonEmpty;
 use parity_scale_codec::{Decode, Encode};
 use std::{collections::HashSet, pin::Pin, task::Poll, time::Duration};
 
@@ -63,7 +68,7 @@ const MAX_ESTABLISHED_INCOMING_CONNECTIONS: u32 = 100;
 
 #[derive(derive_more::Debug, Eq, PartialEq, Clone)]
 pub enum NetworkEvent {
-    Message(NetworkMessage),
+    Message(ValidatorMessage),
     OffchainTransaction(SignedOffchainTransaction),
     PeerBlocked(PeerId),
     PeerConnected(PeerId),
@@ -122,6 +127,7 @@ pub struct NetworkService {
     listeners: Vec<ListenerId>,
     commitments_topic: gossipsub::IdentTopic,
     offchain_topic: gossipsub::IdentTopic,
+    validators: Validators,
 }
 
 impl Stream for NetworkService {
@@ -205,11 +211,14 @@ impl NetworkService {
             swarm.behaviour_mut().kad.add_address(&peer_id, multiaddr);
         }
 
+        let validators = Validators::new(swarm.behaviour().peer_score.handle());
+
         Ok(Self {
             swarm,
             listeners,
             commitments_topic,
             offchain_topic,
+            validators,
         })
     }
 
@@ -374,30 +383,53 @@ impl NetworkService {
             BehaviourEvent::Kad(_) => {}
             //
             BehaviourEvent::Gossipsub(gossipsub::Event::Message {
-                message_id: _,
-                propagation_source: _,
+                message_id,
+                propagation_source,
                 source,
                 data,
                 topic,
             }) => {
+                enum TopicMessage {
+                    Commitments(SignedValidatorMessage),
+                    Offchain(SignedOffchainTransaction),
+                }
+
                 let peer_score = self.swarm.behaviour().peer_score.handle();
+                let gossipsub = &mut self.swarm.behaviour_mut().gossipsub;
 
                 let res = if topic == self.commitments_topic.hash() {
-                    NetworkMessage::decode(&mut &data[..]).map(NetworkEvent::Message)
+                    SignedValidatorMessage::decode(&mut &data[..]).map(TopicMessage::Commitments)
                 } else if topic == self.offchain_topic.hash() {
-                    SignedOffchainTransaction::decode(&mut &data[..])
-                        .map(NetworkEvent::OffchainTransaction)
+                    SignedOffchainTransaction::decode(&mut &data[..]).map(TopicMessage::Offchain)
                 } else {
                     unreachable!("topic we never subscribed to: {topic:?}");
                 };
 
-                match res {
-                    Ok(event) => return Some(event),
+                let message = match res {
+                    Ok(message) => message,
                     Err(error) => {
-                        log::trace!("failed to decode gossip message from {source:?}: {error}");
+                        log::trace!("failed to decode gossip message from {source}: {error}");
                         peer_score.invalid_data(source);
+                        return None;
                     }
-                }
+                };
+
+                return match message {
+                    TopicMessage::Commitments(message) => {
+                        let (message, acceptance) = self.validators.verify_message(source, message);
+
+                        gossipsub.report_message_validation_result(
+                            &message_id,
+                            &propagation_source,
+                            acceptance,
+                        );
+
+                        message.map(NetworkEvent::Message)
+                    }
+                    TopicMessage::Offchain(transaction) => {
+                        Some(NetworkEvent::OffchainTransaction(transaction))
+                    }
+                };
             }
             BehaviourEvent::Gossipsub(gossipsub::Event::GossipsubNotSupported { peer_id }) => {
                 log::debug!("`gossipsub` protocol is not supported by {peer_id}");
@@ -430,11 +462,15 @@ impl NetworkService {
         self.swarm.behaviour().db_sync.handle()
     }
 
-    pub fn publish_message(&mut self, data: impl Into<NetworkMessage>) {
+    pub fn set_validators(&mut self, validators: NonEmpty<Address>) {
+        self.validators.set_validators(validators);
+    }
+
+    pub fn publish_message(&mut self, data: SignedValidatorMessage) {
         self.swarm
             .behaviour_mut()
             .gossipsub
-            .publish(self.commitments_topic.clone(), data.into().encode())
+            .publish(self.commitments_topic.clone(), data.encode())
     }
 
     pub fn publish_offchain_transaction(&mut self, data: SignedOffchainTransaction) {

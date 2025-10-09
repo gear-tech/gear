@@ -23,7 +23,7 @@ use ethexe_blob_loader::{
     BlobLoader, BlobLoaderEvent, BlobLoaderService, ConsensusLayerConfig,
     local::{LocalBlobLoader, LocalBlobStorage},
 };
-use ethexe_common::{ecdsa::PublicKey, gear::CodeState, network::NetworkMessage};
+use ethexe_common::{ecdsa::PublicKey, gear::CodeState, network::ValidatorMessage};
 use ethexe_compute::{ComputeEvent, ComputeService};
 use ethexe_consensus::{
     ConsensusEvent, ConsensusService, SimpleConnectService, ValidatorConfig, ValidatorService,
@@ -388,13 +388,20 @@ impl Service {
 
                         consensus.receive_new_chain_head(block_data)?
                     }
-                    ObserverEvent::BlockSynced(block_hash) => {
+                    ObserverEvent::BlockSynced {
+                        chain_head,
+                        new_validator_set,
+                    } => {
                         // NOTE: Observer guarantees that, if `BlockSynced` event is emitted,
                         // then from latest synced block and up to `data.block_hash`:
                         // all blocks on-chain data (see OnChainStorage) is loaded and available in database.
 
-                        compute.prepare_block(block_hash);
-                        consensus.receive_synced_block(block_hash)?;
+                        compute.prepare_block(chain_head);
+                        consensus.receive_synced_block(chain_head)?;
+
+                        if let Some(new_validator_set) = new_validator_set {
+                            network.set_validators(new_validator_set);
+                        }
                     }
                 },
                 Event::BlobLoader(event) => match event {
@@ -428,13 +435,13 @@ impl Service {
                     match event {
                         NetworkEvent::Message(message) => {
                             match message {
-                                NetworkMessage::ProducerBlock(block) => {
+                                ValidatorMessage::ProducerBlock(block) => {
                                     consensus.receive_announce(block)?
                                 }
-                                NetworkMessage::RequestBatchValidation(request) => {
+                                ValidatorMessage::RequestBatchValidation(request) => {
                                     consensus.receive_validation_request(request)?
                                 }
-                                NetworkMessage::ApproveBatch(reply) => {
+                                ValidatorMessage::ApproveBatch(reply) => {
                                     consensus.receive_validation_reply(reply)?
                                 }
                             };

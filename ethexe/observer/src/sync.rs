@@ -18,11 +18,11 @@
 
 //! Implementation of the on-chain data synchronization.
 
-use crate::{RuntimeConfig, utils};
+use crate::{ObserverEvent, RuntimeConfig, utils};
 use alloy::{providers::RootProvider, rpc::types::eth::Header};
 use anyhow::{Result, anyhow};
 use ethexe_common::{
-    self, BlockData, BlockHeader, CodeBlobInfo,
+    self, Address, BlockData, BlockHeader, CodeBlobInfo,
     db::{LatestDataStorageWrite, OnChainStorageWrite},
     events::{BlockEvent, RouterEvent},
     gear_core::pages::num_traits::Zero,
@@ -44,7 +44,7 @@ pub(crate) struct ChainSync<DB: SyncDB> {
 }
 
 impl<DB: SyncDB> ChainSync<DB> {
-    pub async fn sync(self, chain_head: Header) -> Result<H256> {
+    pub async fn sync(self, chain_head: Header) -> Result<ObserverEvent> {
         let block: H256 = chain_head.hash.0.into();
         let header = BlockHeader {
             height: chain_head.number as u32,
@@ -56,9 +56,12 @@ impl<DB: SyncDB> ChainSync<DB> {
         let chain = self.load_chain(block, header, blocks_data).await?;
 
         self.mark_chain_as_synced(chain.into_iter().rev());
-        self.propagate_validators(block, header).await?;
+        let new_validator_set = self.propagate_validators(block, header).await?;
 
-        Ok(block)
+        Ok(ObserverEvent::BlockSynced {
+            chain_head: block,
+            new_validator_set,
+        })
     }
 
     async fn load_chain(
@@ -158,7 +161,12 @@ impl<DB: SyncDB> ChainSync<DB> {
     }
 
     // Propagate validators from the parent block. If start new era, fetch new validators from the router.
-    async fn propagate_validators(&self, block: H256, header: BlockHeader) -> Result<()> {
+    async fn propagate_validators(
+        &self,
+        block: H256,
+        header: BlockHeader,
+    ) -> Result<Option<NonEmpty<Address>>> {
+        let mut new_validators = None;
         let validators = match self.db.validators(header.parent_hash) {
             Some(validators) if !self.should_fetch_validators(header)? => validators,
             _ => {
@@ -169,13 +177,15 @@ impl<DB: SyncDB> ChainSync<DB> {
                 .validators_at(block)
                 .await?;
 
-                NonEmpty::from_vec(fetched_validators).ok_or(anyhow!(
+                let validators = NonEmpty::from_vec(fetched_validators).ok_or(anyhow!(
                     "validator set is empty on router for block({block})"
-                ))?
+                ))?;
+                new_validators = Some(validators.clone());
+                validators
             }
         };
         self.db.set_block_validators(block, validators.clone());
-        Ok(())
+        Ok(new_validators)
     }
 
     fn mark_chain_as_synced(&self, chain: impl Iterator<Item = H256>) {
