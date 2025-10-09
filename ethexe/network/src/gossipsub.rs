@@ -33,8 +33,32 @@ use std::{
     task::{Context, Poll, ready},
 };
 
-use gprimitives::utils::ByteSliceFormatter;
+use crate::peer_score;
+use ethexe_common::{Address, network::SignedValidatorMessage, tx_pool::SignedOffchainTransaction};
 pub(crate) use libp2p::gossipsub::*;
+use parity_scale_codec::{Decode, Encode};
+
+#[derive(Debug)]
+pub enum Message {
+    Commitments(SignedValidatorMessage),
+    Offchain(SignedOffchainTransaction),
+}
+
+impl Message {
+    fn topic_hash(&self, behaviour: &Behaviour) -> TopicHash {
+        match self {
+            Message::Commitments(_) => behaviour.commitments_topic.hash(),
+            Message::Offchain(_) => behaviour.offchain_topic.hash(),
+        }
+    }
+
+    fn encode(&self) -> Vec<u8> {
+        match self {
+            Message::Commitments(message) => message.encode(),
+            Message::Offchain(transaction) => transaction.encode(),
+        }
+    }
+}
 
 #[derive(derive_more::Debug)]
 pub(crate) enum Event {
@@ -42,12 +66,11 @@ pub(crate) enum Event {
         message_id: MessageId,
         propagation_source: PeerId,
         source: PeerId,
-        #[debug("{:.8}", ByteSliceFormatter::Dynamic(data))]
-        data: Vec<u8>,
-        topic: TopicHash,
+        message: Message,
     },
     PublishFailure {
         error: PublishError,
+        message: Message,
         topic: TopicHash,
     },
     Subscribed {
@@ -65,11 +88,21 @@ pub(crate) enum Event {
 
 pub(crate) struct Behaviour {
     inner: gossipsub::Behaviour,
-    message_queue: VecDeque<(TopicHash, Vec<u8>)>,
+    peer_score: peer_score::Handle,
+    message_queue: VecDeque<Message>,
+    commitments_topic: IdentTopic,
+    offchain_topic: IdentTopic,
 }
 
 impl Behaviour {
-    pub fn new(keypair: Keypair) -> anyhow::Result<Self> {
+    pub fn new(
+        keypair: Keypair,
+        peer_score: peer_score::Handle,
+        router_address: Address,
+    ) -> anyhow::Result<Self> {
+        let commitments_topic = Self::gossipsub_topic("commitments", router_address);
+        let offchain_topic = Self::gossipsub_topic("offchain", router_address);
+
         let inner = ConfigBuilder::default()
             // dedup messages
             .message_id_fn(|msg| {
@@ -86,19 +119,24 @@ impl Behaviour {
         inner
             .with_peer_score(PeerScoreParams::default(), PeerScoreThresholds::default())
             .map_err(|e| anyhow!("`gossipsub` scoring parameters error: {e}"))?;
+        inner.subscribe(&commitments_topic)?;
+        inner.subscribe(&offchain_topic)?;
 
         Ok(Self {
             inner,
+            peer_score,
             message_queue: VecDeque::new(),
+            commitments_topic,
+            offchain_topic,
         })
     }
 
-    pub fn publish(&mut self, topic: impl Into<TopicHash>, data: Vec<u8>) {
-        self.message_queue.push_back((topic.into(), data));
+    fn gossipsub_topic(name: &'static str, router_address: Address) -> IdentTopic {
+        IdentTopic::new(format!("{name}-{router_address}"))
     }
 
-    pub fn subscribe(&mut self, topic: &IdentTopic) -> Result<bool, SubscriptionError> {
-        self.inner.subscribe(topic)
+    pub fn publish(&mut self, message: Message) {
+        self.message_queue.push_back(message);
     }
 
     pub fn report_message_validation_result(
@@ -117,7 +155,7 @@ impl Behaviour {
                 propagation_source,
                 message_id,
                 message:
-                    Message {
+                    gossipsub::Message {
                         source,
                         data,
                         sequence_number: _,
@@ -127,12 +165,28 @@ impl Behaviour {
                 let source =
                     source.expect("ValidationMode::Strict implies `source` is always present");
 
+                let res = if topic == self.commitments_topic.hash() {
+                    SignedValidatorMessage::decode(&mut &data[..]).map(Message::Commitments)
+                } else if topic == self.offchain_topic.hash() {
+                    SignedOffchainTransaction::decode(&mut &data[..]).map(Message::Offchain)
+                } else {
+                    unreachable!("topic we never subscribed to: {topic:?}");
+                };
+
+                let message = match res {
+                    Ok(message) => message,
+                    Err(error) => {
+                        log::trace!("failed to decode gossip message from {source}: {error}");
+                        self.peer_score.invalid_data(source);
+                        return Poll::Pending;
+                    }
+                };
+
                 Poll::Ready(Event::Message {
                     message_id,
                     propagation_source,
                     source,
-                    data,
-                    topic,
+                    message,
                 })
             }
             gossipsub::Event::Subscribed { peer_id, topic } => {
@@ -231,16 +285,20 @@ impl NetworkBehaviour for Behaviour {
         &mut self,
         cx: &mut Context<'_>,
     ) -> Poll<ToSwarm<Self::ToSwarm, THandlerInEvent<Self>>> {
-        if let Some((topic, data)) = self.message_queue.front() {
-            match self.inner.publish(topic.clone(), data.clone()) {
+        if let Some(message) = self.message_queue.front() {
+            let topic = message.topic_hash(self);
+            let data = message.encode();
+
+            match self.inner.publish(topic.clone(), data) {
                 Ok(_msg_id) => {
                     let _ = self.message_queue.pop_front().expect("checked above");
                 }
                 Err(PublishError::InsufficientPeers) => {}
                 Err(error) => {
-                    let (topic, _data) = self.message_queue.pop_front().expect("checked above");
+                    let message = self.message_queue.pop_front().expect("checked above");
                     return Poll::Ready(ToSwarm::GenerateEvent(Event::PublishFailure {
                         error,
+                        message,
                         topic,
                     }));
                 }

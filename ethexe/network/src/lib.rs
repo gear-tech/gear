@@ -54,7 +54,6 @@ use libp2p::{
 #[cfg(test)]
 use libp2p_swarm_test::SwarmExt;
 use nonempty::NonEmpty;
-use parity_scale_codec::{Decode, Encode};
 use std::{collections::HashSet, pin::Pin, task::Poll, time::Duration};
 
 pub const DEFAULT_LISTEN_PORT: u16 = 20333;
@@ -125,8 +124,6 @@ pub struct NetworkService {
     swarm: Swarm<Behaviour>,
     // `MemoryTransport` doesn't unregister its ports on drop so we do it
     listeners: Vec<ListenerId>,
-    commitments_topic: gossipsub::IdentTopic,
-    offchain_topic: gossipsub::IdentTopic,
     validators: Validators,
 }
 
@@ -173,16 +170,12 @@ impl NetworkService {
 
         let keypair = NetworkService::generate_keypair(signer, public_key)?;
 
-        let commitments_topic = Self::gossipsub_topic("commitments", router_address);
-        let offchain_topic = Self::gossipsub_topic("offchain", router_address);
-
         let behaviour_config = BehaviourConfig {
             keypair: keypair.clone(),
             external_data_provider,
             db,
             enable_mdns: transport_type.mdns_enabled(),
-            commitments_topic: commitments_topic.clone(),
-            offchain_topic: offchain_topic.clone(),
+            router_address,
         };
         let mut swarm = NetworkService::create_swarm(keypair, transport_type, behaviour_config)?;
 
@@ -216,14 +209,8 @@ impl NetworkService {
         Ok(Self {
             swarm,
             listeners,
-            commitments_topic,
-            offchain_topic,
             validators,
         })
-    }
-
-    fn gossipsub_topic(name: &'static str, router_address: Address) -> gossipsub::IdentTopic {
-        gossipsub::IdentTopic::new(format!("{name}-{router_address}"))
     }
 
     fn generate_keypair(signer: &Signer, key: PublicKey) -> anyhow::Result<identity::Keypair> {
@@ -386,36 +373,12 @@ impl NetworkService {
                 message_id,
                 propagation_source,
                 source,
-                data,
-                topic,
+                message,
             }) => {
-                enum TopicMessage {
-                    Commitments(SignedValidatorMessage),
-                    Offchain(SignedOffchainTransaction),
-                }
-
-                let peer_score = self.swarm.behaviour().peer_score.handle();
                 let gossipsub = &mut self.swarm.behaviour_mut().gossipsub;
 
-                let res = if topic == self.commitments_topic.hash() {
-                    SignedValidatorMessage::decode(&mut &data[..]).map(TopicMessage::Commitments)
-                } else if topic == self.offchain_topic.hash() {
-                    SignedOffchainTransaction::decode(&mut &data[..]).map(TopicMessage::Offchain)
-                } else {
-                    unreachable!("topic we never subscribed to: {topic:?}");
-                };
-
-                let message = match res {
-                    Ok(message) => message,
-                    Err(error) => {
-                        log::trace!("failed to decode gossip message from {source}: {error}");
-                        peer_score.invalid_data(source);
-                        return None;
-                    }
-                };
-
                 return match message {
-                    TopicMessage::Commitments(message) => {
+                    gossipsub::Message::Commitments(message) => {
                         let (message, acceptance) = self.validators.verify_message(source, message);
 
                         gossipsub.report_message_validation_result(
@@ -426,7 +389,7 @@ impl NetworkService {
 
                         message.map(NetworkEvent::Message)
                     }
-                    TopicMessage::Offchain(transaction) => {
+                    gossipsub::Message::Offchain(transaction) => {
                         Some(NetworkEvent::OffchainTransaction(transaction))
                     }
                 };
@@ -439,8 +402,14 @@ impl NetworkService {
                     .handle()
                     .unsupported_protocol(peer_id);
             }
-            BehaviourEvent::Gossipsub(gossipsub::Event::PublishFailure { error, topic }) => {
-                log::warn!("failed to publish gossip message to {topic} topic: {error}");
+            BehaviourEvent::Gossipsub(gossipsub::Event::PublishFailure {
+                error,
+                message,
+                topic,
+            }) => {
+                log::warn!(
+                    "failed to publish gossip `{message:?}` message to {topic} topic: {error}"
+                );
             }
             BehaviourEvent::Gossipsub(_) => {}
             //
@@ -470,14 +439,14 @@ impl NetworkService {
         self.swarm
             .behaviour_mut()
             .gossipsub
-            .publish(self.commitments_topic.clone(), data.encode())
+            .publish(gossipsub::Message::Commitments(data))
     }
 
     pub fn publish_offchain_transaction(&mut self, data: SignedOffchainTransaction) {
         self.swarm
             .behaviour_mut()
             .gossipsub
-            .publish(self.offchain_topic.clone(), data.encode())
+            .publish(gossipsub::Message::Offchain(data))
     }
 }
 
@@ -509,8 +478,7 @@ struct BehaviourConfig {
     external_data_provider: Box<dyn db_sync::ExternalDataProvider>,
     db: Box<dyn DbSyncDatabase>,
     enable_mdns: bool,
-    commitments_topic: gossipsub::IdentTopic,
-    offchain_topic: gossipsub::IdentTopic,
+    router_address: Address,
 }
 
 #[derive(NetworkBehaviour)]
@@ -543,8 +511,7 @@ impl Behaviour {
             external_data_provider,
             db,
             enable_mdns,
-            commitments_topic,
-            offchain_topic,
+            router_address,
         } = config;
 
         let peer_id = keypair.public().to_peer_id();
@@ -586,10 +553,9 @@ impl Behaviour {
         let mut kad = kad::Behaviour::new(peer_id, kad::store::MemoryStore::new(peer_id));
         kad.set_mode(Some(kad::Mode::Server));
 
-        let mut gossipsub = gossipsub::Behaviour::new(keypair)
-            .map_err(|e| anyhow!("`gossipsub::Behaviour` error: {e}"))?;
-        gossipsub.subscribe(&commitments_topic)?;
-        gossipsub.subscribe(&offchain_topic)?;
+        let gossipsub =
+            gossipsub::Behaviour::new(keypair, peer_score_handle.clone(), router_address)
+                .map_err(|e| anyhow!("`gossipsub::Behaviour` error: {e}"))?;
 
         let db_sync = db_sync::Behaviour::new(
             db_sync::Config::default(),
