@@ -28,7 +28,7 @@ pub use crate::{
     result::{Error, Result},
     signer::PairSigner,
     subscription::{
-        Blocks, Events, ProgramStateChange, ProgramStateChanges, UserMessageSent,
+        Blocks, Events, PayloadFilter, ProgramStateChange, ProgramStateChanges, UserMessageSent,
         UserMessageSentFilter, UserMessageSentSubscription,
     },
 };

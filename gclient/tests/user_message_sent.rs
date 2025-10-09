@@ -33,7 +33,11 @@ async fn subscribe_user_messages_receives_reply() -> anyhow::Result<()> {
         ActorId::try_from(api.account_id().as_ref()).expect("account id must be a valid ActorId");
 
     let mut subscription = api
-        .subscribe_user_message_sent(UserMessageSentFilter::new().with_destination(destination))
+        .subscribe_user_message_sent(
+            UserMessageSentFilter::new()
+                .with_destination(destination)
+                .with_payload_prefix(b"PONG"),
+        )
         .await?;
 
     let gas_limit = api.block_gas_limit()?;

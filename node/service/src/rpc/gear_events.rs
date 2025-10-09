@@ -44,16 +44,23 @@ use sp_storage::{StorageData, StorageKey};
 
 use runtime_primitives::{Block, BlockNumber, Hash};
 
-const MAX_PAYLOAD_PREFIX: usize = 256;
+const MAX_PAYLOAD_PATTERN: usize = 256;
 const MAX_BACKFILL_BLOCKS: u64 = 5_000;
 
 #[derive(Clone, Debug, serde::Deserialize)]
 pub struct UserMsgFilter {
     pub source: Option<H256>,
     pub dest: Option<H256>,
-    pub payload_prefix: Option<Vec<u8>>,
+    #[serde(default)]
+    pub payload_filters: Vec<PayloadFilter>,
     pub from_block: Option<u64>,
     pub finalized_only: Option<bool>,
+}
+
+#[derive(Clone, Debug, serde::Deserialize)]
+pub struct PayloadFilter {
+    pub offset: u32,
+    pub pattern: Vec<u8>,
 }
 
 #[derive(Clone, Debug, serde::Serialize)]
@@ -201,12 +208,12 @@ where
     }
 
     fn validate_filter(&self, filter: &UserMsgFilter) -> Result<(), ErrorObjectOwned> {
-        if let Some(prefix) = filter.payload_prefix.as_ref()
-            && prefix.len() > MAX_PAYLOAD_PREFIX
-        {
-            return Err(invalid_params(format!(
-                "payload_prefix longer than {MAX_PAYLOAD_PREFIX} bytes"
-            )));
+        for (index, payload_filter) in filter.payload_filters.iter().enumerate() {
+            if payload_filter.pattern.len() > MAX_PAYLOAD_PATTERN {
+                return Err(invalid_params(format!(
+                    "payload_filters[{index}] longer than {MAX_PAYLOAD_PATTERN} bytes"
+                )));
+            }
         }
         Ok(())
     }
@@ -542,10 +549,23 @@ fn matches_filter(filter: &UserMsgFilter, message: &UserMessage) -> bool {
         return false;
     }
 
-    if let Some(prefix) = filter.payload_prefix.as_ref()
-        && !message.payload_bytes().starts_with(prefix)
-    {
-        return false;
+    let payload = message.payload_bytes();
+
+    for payload_filter in &filter.payload_filters {
+        let offset = payload_filter.offset as usize;
+        let pattern = &payload_filter.pattern;
+
+        let Some(end) = offset.checked_add(pattern.len()) else {
+            return false;
+        };
+
+        if end > payload.len() {
+            return false;
+        }
+
+        if &payload[offset..end] != pattern.as_slice() {
+            return false;
+        }
     }
 
     true
@@ -630,4 +650,86 @@ where
     B: ClientBackend<Block> + Send + Sync + 'static,
 {
     GearEvents::new(client, executor)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{PayloadFilter, UserMsgFilter, matches_filter};
+    use core::convert::TryFrom;
+    use gear_core::{
+        buffer::Payload,
+        ids::{ActorId, MessageId},
+        message::UserMessage,
+    };
+
+    fn user_message_with_payload(payload: &[u8]) -> UserMessage {
+        UserMessage::new(
+            MessageId::default(),
+            ActorId::default(),
+            ActorId::from(1u64),
+            Payload::try_from(payload.to_vec()).expect("payload within bounds"),
+            0,
+            None,
+        )
+    }
+
+    #[test]
+    fn payload_filter_matches_at_offset() {
+        let filter = UserMsgFilter {
+            source: None,
+            dest: None,
+            payload_filters: vec![PayloadFilter {
+                offset: 2,
+                pattern: b"cd".to_vec(),
+            }],
+            from_block: None,
+            finalized_only: None,
+        };
+
+        let message = user_message_with_payload(b"abcdef");
+        assert!(matches_filter(&filter, &message));
+    }
+
+    #[test]
+    fn payload_filter_rejects_out_of_bounds() {
+        let filter = UserMsgFilter {
+            source: None,
+            dest: None,
+            payload_filters: vec![PayloadFilter {
+                offset: 5,
+                pattern: b"ghi".to_vec(),
+            }],
+            from_block: None,
+            finalized_only: None,
+        };
+
+        let message = user_message_with_payload(b"abcdef");
+        assert!(!matches_filter(&filter, &message));
+    }
+
+    #[test]
+    fn multiple_payload_filters_must_all_match() {
+        let filter = UserMsgFilter {
+            source: None,
+            dest: None,
+            payload_filters: vec![
+                PayloadFilter {
+                    offset: 3,
+                    pattern: b"de".to_vec(),
+                },
+                PayloadFilter {
+                    offset: 0,
+                    pattern: b"ab".to_vec(),
+                },
+            ],
+            from_block: None,
+            finalized_only: None,
+        };
+
+        let message = user_message_with_payload(b"abcdef");
+        assert!(matches_filter(&filter, &message));
+
+        let mismatched_filter = user_message_with_payload(b"abcxef");
+        assert!(!matches_filter(&filter, &mismatched_filter));
+    }
 }

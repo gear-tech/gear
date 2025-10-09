@@ -174,15 +174,34 @@ pub struct UserMessageSentFilter {
     /// Only match messages targeting this actor.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub dest: Option<H256>,
-    /// Only match messages whose payload starts with this prefix.
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub payload_prefix: Option<Vec<u8>>,
+    /// Only match messages whose payload contains the provided pattern at the specified offset.
+    #[serde(skip_serializing_if = "Vec::is_empty")]
+    pub payload_filters: Vec<PayloadFilter>,
     /// Scan historical blocks starting from this number (inclusive) before switching to live mode.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub from_block: Option<u64>,
     /// When `true`, only finalized blocks are observed.
     #[serde(skip_serializing_if = "Option::is_none")]
     pub finalized_only: Option<bool>,
+}
+
+/// Payload filter that matches a sequence of bytes at a fixed offset.
+#[derive(Clone, Debug, Serialize)]
+pub struct PayloadFilter {
+    /// Starting offset within the payload where the pattern must appear.
+    pub offset: u32,
+    /// Pattern that must be present at the provided offset.
+    pub pattern: Vec<u8>,
+}
+
+impl PayloadFilter {
+    /// Create a new payload filter.
+    pub fn new(offset: u32, pattern: impl Into<Vec<u8>>) -> Self {
+        Self {
+            offset,
+            pattern: pattern.into(),
+        }
+    }
 }
 
 impl UserMessageSentFilter {
@@ -203,10 +222,16 @@ impl UserMessageSentFilter {
         self
     }
 
-    /// Restrict events to payloads that start with the provided bytes prefix.
-    pub fn with_payload_prefix(mut self, prefix: impl Into<Vec<u8>>) -> Self {
-        self.payload_prefix = Some(prefix.into());
+    /// Restrict events to payloads that contain the provided pattern at the given offset.
+    pub fn with_payload_filter(mut self, offset: u32, pattern: impl Into<Vec<u8>>) -> Self {
+        self.payload_filters
+            .push(PayloadFilter::new(offset, pattern));
         self
+    }
+
+    /// Restrict events to payloads that start with the provided bytes prefix.
+    pub fn with_payload_prefix(self, prefix: impl Into<Vec<u8>>) -> Self {
+        self.with_payload_filter(0, prefix)
     }
 
     /// Backfill historical blocks starting from the provided number before switching to live mode.
