@@ -769,6 +769,9 @@ mod tests {
         service1.connect(&mut service2).await;
         tokio::spawn(service2.loop_on_next());
 
+        let _ = service1.next().await.unwrap(); // Subscribe to gossipsub topics
+        let _ = service1.next().await.unwrap(); // Subscribe to gossipsub topics
+
         let request_id = service1
             .db_sync()
             .request(db_sync::Request::hashes([hello, world]));
@@ -822,6 +825,9 @@ mod tests {
 
         alice.connect(&mut bob).await;
         tokio::spawn(bob.loop_on_next());
+
+        let _ = alice.next().await.unwrap(); // Subscribe to gossipsub topics
+        let _ = alice.next().await.unwrap(); // Subscribe to gossipsub topics
 
         let expected_response = fill_data_provider(alice_data_provider, bob_db).await;
 
