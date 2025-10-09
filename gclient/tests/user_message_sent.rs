@@ -16,13 +16,16 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use anyhow::Context;
 use demo_ping::WASM_BINARY;
 use futures::StreamExt;
 use gclient::{GearApi, UserMessageSentFilter};
 use gear_core::ids::ActorId;
 use std::convert::TryFrom;
+use tokio::time::{Duration, timeout};
 
 const GEAR_PATH: &str = "../target/release/gear";
+const SUBSCRIPTION_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// Running this test requires gear node to be built in advance.
 #[tokio::test]
@@ -49,7 +52,11 @@ async fn subscribe_user_messages_receives_reply() -> anyhow::Result<()> {
 
     let mut received = None;
     for _ in 0..10 {
-        match subscription.next().await {
+        let next_event = timeout(SUBSCRIPTION_TIMEOUT, subscription.next())
+            .await
+            .context("timed out waiting for user message event")?;
+
+        match next_event {
             Some(Ok(event)) if event.destination == destination => {
                 if event.payload == b"PONG" {
                     received = Some(event);
