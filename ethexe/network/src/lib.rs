@@ -18,6 +18,7 @@
 
 mod custom_connection_limits;
 pub mod db_sync;
+mod gossipsub;
 pub mod peer_score;
 mod utils;
 
@@ -36,7 +37,7 @@ use libp2p::{
     Multiaddr, PeerId, Swarm, Transport, connection_limits,
     core::{muxing::StreamMuxerBox, transport, transport::ListenerId, upgrade},
     futures::StreamExt,
-    gossipsub, identify, identity, kad, mdns,
+    identify, identity, kad, mdns,
     multiaddr::Protocol,
     ping,
     swarm::{
@@ -49,13 +50,7 @@ use libp2p::{
 #[cfg(test)]
 use libp2p_swarm_test::SwarmExt;
 use parity_scale_codec::{Decode, Encode};
-use std::{
-    collections::HashSet,
-    hash::{DefaultHasher, Hash, Hasher},
-    pin::Pin,
-    task::Poll,
-    time::Duration,
-};
+use std::{collections::HashSet, pin::Pin, task::Poll, time::Duration};
 
 pub const DEFAULT_LISTEN_PORT: u16 = 20333;
 
@@ -379,14 +374,11 @@ impl NetworkService {
             BehaviourEvent::Kad(_) => {}
             //
             BehaviourEvent::Gossipsub(gossipsub::Event::Message {
-                message:
-                    gossipsub::Message {
-                        source,
-                        data,
-                        sequence_number: _,
-                        topic,
-                    },
-                ..
+                message_id: _,
+                propagation_source: _,
+                source,
+                data,
+                topic,
             }) => {
                 let peer_score = self.swarm.behaviour().peer_score.handle();
 
@@ -402,20 +394,21 @@ impl NetworkService {
                 match res {
                     Ok(event) => return Some(event),
                     Err(error) => {
-                        if let Some(peer) = source {
-                            log::trace!("failed to decode gossip message from {source:?}: {error}");
-                            peer_score.invalid_data(peer);
-                        }
+                        log::trace!("failed to decode gossip message from {source:?}: {error}");
+                        peer_score.invalid_data(source);
                     }
                 }
             }
             BehaviourEvent::Gossipsub(gossipsub::Event::GossipsubNotSupported { peer_id }) => {
-                log::debug!("`gossipsub` protocol is not supported");
+                log::debug!("`gossipsub` protocol is not supported by {peer_id}");
                 self.swarm
                     .behaviour()
                     .peer_score
                     .handle()
                     .unsupported_protocol(peer_id);
+            }
+            BehaviourEvent::Gossipsub(gossipsub::Event::PublishFailure { error, topic }) => {
+                log::warn!("failed to publish gossip message to {topic} topic: {error}");
             }
             BehaviourEvent::Gossipsub(_) => {}
             //
@@ -438,25 +431,17 @@ impl NetworkService {
     }
 
     pub fn publish_message(&mut self, data: impl Into<NetworkMessage>) {
-        if let Err(e) = self
-            .swarm
+        self.swarm
             .behaviour_mut()
             .gossipsub
             .publish(self.commitments_topic.clone(), data.into().encode())
-        {
-            log::error!("gossipsub publishing failed: {e}")
-        }
     }
 
     pub fn publish_offchain_transaction(&mut self, data: SignedOffchainTransaction) {
-        if let Err(e) = self
-            .swarm
+        self.swarm
             .behaviour_mut()
             .gossipsub
             .publish(self.offchain_topic.clone(), data.encode())
-        {
-            log::error!("gossipsub publishing failed: {e}")
-        }
     }
 }
 
@@ -565,26 +550,8 @@ impl Behaviour {
         let mut kad = kad::Behaviour::new(peer_id, kad::store::MemoryStore::new(peer_id));
         kad.set_mode(Some(kad::Mode::Server));
 
-        let gossip_config = gossipsub::ConfigBuilder::default()
-            // dedup messages
-            .message_id_fn(|msg| {
-                let mut hasher = DefaultHasher::new();
-                msg.data.hash(&mut hasher);
-                gossipsub::MessageId::from(hasher.finish().to_be_bytes())
-            })
-            .build()
-            .map_err(|e| anyhow!("`gossipsub::ConfigBuilder::build()` error: {e}"))?;
-        let mut gossipsub = gossipsub::Behaviour::new(
-            gossipsub::MessageAuthenticity::Signed(keypair.clone()),
-            gossip_config,
-        )
-        .map_err(|e| anyhow!("`gossipsub::Behaviour` error: {e}"))?;
-        gossipsub
-            .with_peer_score(
-                gossipsub::PeerScoreParams::default(),
-                gossipsub::PeerScoreThresholds::default(),
-            )
-            .map_err(|e| anyhow!("`gossipsub` scoring parameters error: {e}"))?;
+        let mut gossipsub = gossipsub::Behaviour::new(keypair)
+            .map_err(|e| anyhow!("`gossipsub::Behaviour` error: {e}"))?;
         gossipsub.subscribe(&commitments_topic)?;
         gossipsub.subscribe(&offchain_topic)?;
 
