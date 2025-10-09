@@ -433,7 +433,7 @@ impl Service {
                     };
 
                     match event {
-                        NetworkEvent::Message(message) => {
+                        NetworkEvent::ValidatorMessage(message) => {
                             match message {
                                 ValidatorMessage::ProducerBlock(block) => {
                                     consensus.receive_announce(block)?

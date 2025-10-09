@@ -67,7 +67,7 @@ const MAX_ESTABLISHED_INCOMING_CONNECTIONS: u32 = 100;
 
 #[derive(derive_more::Debug, Eq, PartialEq, Clone)]
 pub enum NetworkEvent {
-    Message(ValidatorMessage),
+    ValidatorMessage(ValidatorMessage),
     OffchainTransaction(SignedOffchainTransaction),
     PeerBlocked(PeerId),
     PeerConnected(PeerId),
@@ -387,7 +387,7 @@ impl NetworkService {
                             acceptance,
                         );
 
-                        message.map(NetworkEvent::Message)
+                        message.map(NetworkEvent::ValidatorMessage)
                     }
                     gossipsub::Message::Offchain(transaction) => {
                         Some(NetworkEvent::OffchainTransaction(transaction))
