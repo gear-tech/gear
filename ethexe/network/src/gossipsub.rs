@@ -100,8 +100,8 @@ impl Behaviour {
         peer_score: peer_score::Handle,
         router_address: Address,
     ) -> anyhow::Result<Self> {
-        let commitments_topic = Self::gossipsub_topic("commitments", router_address);
-        let offchain_topic = Self::gossipsub_topic("offchain", router_address);
+        let commitments_topic = Self::topic_with_router("commitments", router_address);
+        let offchain_topic = Self::topic_with_router("offchain", router_address);
 
         let inner = ConfigBuilder::default()
             // dedup messages
@@ -131,7 +131,7 @@ impl Behaviour {
         })
     }
 
-    fn gossipsub_topic(name: &'static str, router_address: Address) -> IdentTopic {
+    fn topic_with_router(name: &'static str, router_address: Address) -> IdentTopic {
         IdentTopic::new(format!("{name}-{router_address}"))
     }
 
