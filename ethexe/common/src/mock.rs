@@ -519,3 +519,16 @@ impl<DB: OnChainStorageRead + BlockMetaStorageRead + AnnounceStorageRead> DBMock
         None
     }
 }
+
+impl SimpleBlockData {
+    pub fn setup<DB>(self, db: &DB) -> Self
+    where
+        DB: OnChainStorageWrite,
+    {
+        db.set_block_header(self.hash, self.header);
+        db.set_block_events(self.hash, &[]);
+        db.set_block_validators(self.hash, nonempty![Address([123; 20])]);
+        db.set_block_synced(self.hash);
+        self
+    }
+}

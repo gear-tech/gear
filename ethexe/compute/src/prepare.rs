@@ -532,7 +532,7 @@ mod tests {
     use crate::utils::announce_is_included;
 
     use super::*;
-    use ethexe_common::{Address, BlockHeader, Digest, db::*, events::BlockEvent};
+    use ethexe_common::{Address, BlockHeader, Digest, db::*, events::BlockEvent, mock::*};
     use ethexe_db::Database as DB;
     use gprimitives::H256;
     use nonempty::nonempty;
@@ -577,47 +577,34 @@ mod tests {
         gear_utils::init_default_logger();
 
         let db = DB::memory();
-        let parent_hash = H256::random();
-        let block = SimpleBlockData {
-            hash: H256::random(),
-            header: BlockHeader {
-                height: 1,
-                timestamp: 1000,
-                parent_hash,
-            },
-        };
-        let last_committed_announce = AnnounceHash::random();
+        let chain = BlockChain::mock(1).setup(&db);
+
         let code1_id = CodeId::from([1u8; 32]);
         let code2_id = CodeId::from([2u8; 32]);
         let batch_committed = Digest::random();
         let validators = nonempty![Address::from([42u8; 20])];
 
-        let parent_announce = Announce::base(parent_hash, last_committed_announce);
-        db.set_announce(parent_announce.clone());
-        db.set_announce_outcome(parent_announce.to_hash(), Default::default());
-        db.set_announce_schedule(parent_announce.to_hash(), Default::default());
-        db.set_announce_program_states(parent_announce.to_hash(), Default::default());
+        let block = SimpleBlockData {
+            hash: H256::random(),
+            header: BlockHeader {
+                height: 2,
+                timestamp: 1000,
+                parent_hash: chain.blocks[1].hash,
+            },
+        };
 
-        db.mutate_block_meta(parent_hash, |meta| {
-            *meta = BlockMeta {
-                prepared: true,
-                announces: Some([parent_announce.to_hash()].into()),
-                codes_queue: Some([code1_id].into()),
-                last_committed_batch: Some(Digest::random()),
-                last_committed_announce: Some(AnnounceHash::random()),
-            }
-        });
-        db.set_block_validators(parent_hash, validators.clone());
-
-        db.set_block_header(block.hash, block.header);
-
-        db.set_latest_data(Default::default());
+        let block1_announce_hash = chain.blocks[1]
+            .as_prepared()
+            .announces
+            .first()
+            .copied()
+            .unwrap();
 
         let events = vec![
             BlockEvent::Router(RouterEvent::BatchCommitted {
                 digest: batch_committed,
             }),
-            BlockEvent::Router(RouterEvent::AnnouncesCommitted(parent_announce.to_hash())),
+            BlockEvent::Router(RouterEvent::AnnouncesCommitted(block1_announce_hash)),
             BlockEvent::Router(RouterEvent::CodeGotValidated {
                 code_id: code1_id,
                 valid: true,
@@ -628,6 +615,8 @@ mod tests {
                 tx_hash: H256::random(),
             }),
         ];
+
+        db.set_block_header(block.hash, block.header);
         db.set_block_events(block.hash, &events);
         db.set_block_validators(block.hash, validators);
         db.set_block_synced(block.hash);
@@ -645,18 +634,12 @@ mod tests {
         assert!(meta.prepared);
         assert_eq!(meta.codes_queue, Some(vec![code2_id].into()),);
         assert_eq!(meta.last_committed_batch, Some(batch_committed),);
-        assert_eq!(
-            meta.last_committed_announce,
-            Some(parent_announce.to_hash())
-        );
+        assert_eq!(meta.last_committed_announce, Some(block1_announce_hash));
         assert_eq!(meta.announces.as_ref().map(|a| a.len()), Some(1));
 
         let announce_hash = meta.announces.unwrap().first().copied().unwrap();
         let announce = db.announce(announce_hash).unwrap();
-        assert_eq!(
-            announce,
-            Announce::base(block.hash, parent_announce.to_hash())
-        );
+        assert_eq!(announce, Announce::base(block.hash, block1_announce_hash));
         assert!(!db.announce_meta(announce_hash).computed);
         assert_eq!(db.announce_outcome(announce_hash), None);
         assert_eq!(db.announce_schedule(announce_hash), None);

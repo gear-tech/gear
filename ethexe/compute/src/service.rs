@@ -243,51 +243,41 @@ impl<P: ProcessorExt> FusedStream for ComputeService<P> {
 mod tests {
     use super::*;
     use crate::tests::MockProcessor;
-    use ethexe_common::{BlockHeader, CodeAndIdUnchecked, SimpleBlockData, db::*};
+    use ethexe_common::{BlockHeader, CodeAndIdUnchecked, SimpleBlockData, db::*, mock::*};
     use ethexe_db::Database as DB;
     use futures::StreamExt;
     use gear_core::ids::prelude::CodeIdExt;
-    use gprimitives::{CodeId, H256};
-    use nonempty::nonempty;
+    use gprimitives::CodeId;
 
     /// Test ComputeService block preparation functionality
     #[tokio::test]
     async fn prepare_block() {
+        gear_utils::init_default_logger();
+
         let db = DB::memory();
         let processor = MockProcessor;
         let mut service = ComputeService::new(db.clone(), processor);
+        let chain = BlockChain::mock(1).setup(&db);
 
-        let parent_hash = H256::from([1; 32]);
-        let block_hash = H256::from([2; 32]);
-
-        ethexe_common::setup_genesis_in_db(
-            &db,
-            SimpleBlockData {
-                hash: parent_hash,
-                header: BlockHeader::default(),
+        let block = SimpleBlockData {
+            hash: [2; 32].into(),
+            header: BlockHeader {
+                height: chain.blocks[1].as_synced().header.height + 1,
+                parent_hash: chain.blocks[1].hash,
+                timestamp: chain.blocks[1].as_synced().header.timestamp + 1000,
             },
-            nonempty![Default::default()],
-        );
-
-        // Setup on chain data for not prepared
-        let header = BlockHeader {
-            height: 2,
-            parent_hash,
-            timestamp: 2000,
-        };
-        db.set_block_header(block_hash, header);
-        db.set_block_events(block_hash, &[]);
-        db.set_block_synced(block_hash);
+        }
+        .setup(&db);
 
         // Request block preparation
-        service.prepare_block(block_hash);
+        service.prepare_block(block.hash);
 
         // Poll service to process the preparation request
         let event = service.next().await.unwrap().unwrap();
-        assert_eq!(event, ComputeEvent::BlockPrepared(block_hash));
+        assert_eq!(event, ComputeEvent::BlockPrepared(block.hash));
 
         // Verify block is marked as prepared in DB
-        assert!(db.block_meta(block_hash).prepared);
+        assert!(db.block_meta(block.hash).prepared);
     }
 
     /// Test ComputeService block processing functionality
@@ -298,39 +288,31 @@ mod tests {
         let db = DB::memory();
         let processor = MockProcessor;
         let mut service = ComputeService::new(db.clone(), processor);
+        let chain = BlockChain::mock(1).setup(&db);
 
-        let parent_hash = H256::from([1; 32]);
-        let block_hash = H256::from([2; 32]);
+        let block = SimpleBlockData {
+            hash: [2; 32].into(),
+            header: BlockHeader {
+                height: chain.blocks[1].as_synced().header.height + 1,
+                parent_hash: chain.blocks[1].hash,
+                timestamp: chain.blocks[1].as_synced().header.timestamp + 1000,
+            },
+        }
+        .setup(&db);
 
-        // Setup parent block and one computed announce inside
-        let parent_announce = Announce::base(parent_hash, Default::default());
-        let parent_announce_hash = db.set_announce(parent_announce.clone());
-        db.mutate_announce_meta(parent_announce_hash, |meta| {
-            meta.computed = true;
-        });
-        db.mutate_block_meta(parent_hash, |meta| {
-            *meta = BlockMeta::default_prepared();
-            meta.announces = Some([parent_announce_hash].into())
-        });
-        db.set_latest_data(Default::default());
-
-        // Setup and prepare block
-        let header = BlockHeader {
-            height: 2,
-            parent_hash,
-            timestamp: 2000,
-        };
-        db.set_block_header(block_hash, header);
-        db.set_block_events(block_hash, &[]);
-        db.set_block_synced(block_hash);
-        service.prepare_block(block_hash);
+        service.prepare_block(block.hash);
         let event = service.next().await.unwrap().unwrap();
-        assert_eq!(event, ComputeEvent::BlockPrepared(block_hash));
+        assert_eq!(event, ComputeEvent::BlockPrepared(block.hash));
 
         // Request computation
         let announce = Announce {
-            block_hash,
-            parent: parent_announce.to_hash(),
+            block_hash: block.hash,
+            parent: chain.blocks[1]
+                .as_prepared()
+                .announces
+                .first()
+                .copied()
+                .unwrap(),
             gas_allowance: Some(42),
             off_chain_transactions: vec![],
         };
@@ -348,6 +330,8 @@ mod tests {
     /// Test ComputeService code processing functionality
     #[tokio::test]
     async fn process_code() {
+        gear_utils::init_default_logger();
+
         let db = DB::memory();
         let processor = MockProcessor;
         let mut service = ComputeService::new(db.clone(), processor);
