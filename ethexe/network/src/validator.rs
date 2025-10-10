@@ -23,9 +23,11 @@ use ethexe_common::{
 };
 use libp2p::PeerId;
 use nonempty::NonEmpty;
+use std::collections::VecDeque;
 
 #[derive(Debug)]
 pub(crate) struct Validators {
+    buffered_messages: VecDeque<(PeerId, SignedValidatorMessage)>,
     current_validators: Option<NonEmpty<Address>>,
     peer_score: peer_score::Handle,
 }
@@ -33,6 +35,7 @@ pub(crate) struct Validators {
 impl Validators {
     pub(crate) fn new(peer_score: peer_score::Handle) -> Self {
         Self {
+            buffered_messages: VecDeque::new(),
             current_validators: None,
             peer_score,
         }
@@ -40,6 +43,8 @@ impl Validators {
 
     pub(crate) fn set_validators(&mut self, validators: NonEmpty<Address>) {
         self.current_validators = Some(validators);
+
+        for (peer, message) in self.buffered_messages.drain(..) {}
     }
 
     pub(crate) fn verify_message(

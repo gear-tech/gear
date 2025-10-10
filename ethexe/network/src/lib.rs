@@ -381,11 +381,11 @@ impl NetworkService {
                     gossipsub::Message::Commitments(message) => {
                         let (message, acceptance) = self.validators.verify_message(source, message);
 
-                        gossipsub.report_message_validation_result(
+                        debug_assert!(gossipsub.report_message_validation_result(
                             &message_id,
                             &propagation_source,
                             acceptance,
-                        );
+                        ));
 
                         message.map(NetworkEvent::ValidatorMessage)
                     }
