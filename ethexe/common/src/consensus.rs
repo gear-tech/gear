@@ -38,10 +38,10 @@ pub struct BatchCommitmentValidationRequest {
     pub head: Option<AnnounceHash>,
     /// List of codes which are part of the batch
     pub codes: Vec<CodeId>,
-    /// Whether validators commitment is part of the batch
-    pub validators: bool,
     /// Whether rewards commitment is part of the batch
     pub rewards: bool,
+    /// Whether validators commitment is part of the batch
+    pub validators: bool,
 }
 
 impl BatchCommitmentValidationRequest {
