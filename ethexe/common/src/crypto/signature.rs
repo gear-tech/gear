@@ -248,12 +248,6 @@ pub struct VerifiedData<T> {
 }
 
 impl<T> VerifiedData<T> {
-    pub fn map<U>(self, f: impl FnOnce(T) -> U) -> VerifiedData<U> {
-        let Self { data, public_key } = self;
-        let data = f(data);
-        VerifiedData { data, public_key }
-    }
-
     pub fn data(&self) -> &T {
         &self.data
     }
