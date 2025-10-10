@@ -394,14 +394,6 @@ impl NetworkService {
                     }
                 };
             }
-            BehaviourEvent::Gossipsub(gossipsub::Event::GossipsubNotSupported { peer_id }) => {
-                log::debug!("`gossipsub` protocol is not supported by {peer_id}");
-                self.swarm
-                    .behaviour()
-                    .peer_score
-                    .handle()
-                    .unsupported_protocol(peer_id);
-            }
             BehaviourEvent::Gossipsub(gossipsub::Event::PublishFailure {
                 error,
                 message,

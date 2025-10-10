@@ -81,9 +81,6 @@ pub(crate) enum Event {
         peer_id: PeerId,
         topic: TopicHash,
     },
-    GossipsubNotSupported {
-        peer_id: PeerId,
-    },
 }
 
 pub(crate) struct Behaviour {
@@ -196,7 +193,9 @@ impl Behaviour {
                 Poll::Ready(Event::Unsubscribed { peer_id, topic })
             }
             gossipsub::Event::GossipsubNotSupported { peer_id } => {
-                Poll::Ready(Event::GossipsubNotSupported { peer_id })
+                log::trace!("peer doesn't support gossipsub: {peer_id}");
+                self.peer_score.unsupported_protocol(peer_id);
+                Poll::Pending
             }
             gossipsub::Event::SlowPeer {
                 peer_id,
