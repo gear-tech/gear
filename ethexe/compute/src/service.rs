@@ -21,13 +21,23 @@ use crate::{
     compute::{self, ComputationStatus},
     prepare::{PrepareContext, PrepareStatus},
 };
-use ethexe_common::{Announce, CheckedAnnouncesResponse, CodeAndIdUnchecked, db::CodesStorageRead};
+use ethexe_common::{
+    Announce, BlockData, CheckedAnnouncesResponse, CodeAndIdUnchecked, SimpleBlockData,
+    db::CodesStorageRead,
+    db::BlockMetaStorageRead,
+    db::OnChainStorageRead,
+};
 use ethexe_db::Database;
 use ethexe_processor::Processor;
-use futures::{FutureExt, Stream, future::BoxFuture, stream::FusedStream};
+use futures::{
+    FutureExt, Stream, channel,
+    future::{BoxFuture, ready},
+    stream::FusedStream,
+};
 use gprimitives::{CodeId, H256};
 use std::{
-    collections::VecDeque,
+    collections::{HashSet, VecDeque},
+    hash::Hash,
     pin::Pin,
     task::{Context, Poll},
 };
@@ -64,6 +74,141 @@ pub struct ComputeService<P: ProcessorExt = Processor> {
     blocks_state: State,
 
     process_codes: JoinSet<Result<CodeId>>,
+}
+
+struct CodesSubService<P: ProcessorExt = Processor> {
+    db: Database,
+    processor: P,
+
+    processions: JoinSet<Result<CodeId>>,
+}
+
+impl<P: ProcessorExt> CodesSubService<P> {
+    pub fn process_code(&mut self, code_and_id: CodeAndIdUnchecked) {
+        let code_id = code_and_id.code_id;
+        if let Some(valid) = self.db.code_valid(code_id) {
+            // TODO: #4712 test this case
+            log::warn!("Code {code_id:?} already processed");
+
+            if valid {
+                debug_assert!(
+                    self.db.original_code_exists(code_id),
+                    "Code {code_id:?} must exist in database"
+                );
+                debug_assert!(
+                    self.db
+                        .instrumented_code_exists(ethexe_runtime_common::VERSION, code_id),
+                    "Instrumented code {code_id:?} must exist in database"
+                );
+            }
+
+            self.processions.spawn(async move { Ok(code_id) });
+        } else {
+            let mut processor = self.processor.clone();
+
+            self.processions.spawn_blocking(move || {
+                processor
+                    .process_upload_code(code_and_id)
+                    .map(|_valid| code_id)
+            });
+        }
+    }
+}
+
+impl Stream for CodesSubService {
+    type Item = Result<CodeId>;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        futures::ready!(self.processions.poll_join_next(cx))
+            .map(|res| res.map_err(|e| ComputeError::CodeProcessJoin(e))?)
+            .map_or(Poll::Pending, |res| Poll::Ready(Some(res)))
+    }
+}
+
+enum PrepareState {
+    WaitingForBlock,
+    WaitingForCodes {
+        codes: HashSet<CodeId>,
+        not_processed_blocks_queue: VecDeque<BlockData>,
+    },
+}
+
+struct PrepareSubService {
+    db: Database,
+
+    blocks_queue: VecDeque<H256>,
+    state: PrepareState,
+}
+
+impl PrepareSubService {
+    pub fn receive_block_to_prepare(&mut self, block: H256) {
+        self.blocks_queue.push_front(block);
+    }
+
+    pub fn receive_processed_code(&mut self, code_id: CodeId) {
+        if let PrepareState::WaitingForCodes { codes, .. } = &mut self.state {
+            codes.remove(&code_id);
+        }
+    }
+
+    fn prepare(queue: VecDeque<BlockData>) -> Result<()> {
+        for _block in queue {
+            todo!();
+        }
+
+        Ok(())
+    }
+}
+
+impl Stream for PrepareSubService {
+    type Item = Result<ComputeEvent>;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        let block_ready_to_prepare = match &mut self.state {
+            PrepareState::WaitingForBlock => {
+                let mut block_hash = match self.blocks_queue.pop_back() {
+                    Some(block_hash) => block_hash,
+                    None => return Poll::Pending,
+                };
+
+                if !self.db.block_synced(block_hash) {
+                    return Poll::Ready(Some(Err(ComputeError::BlockNotSynced(block_hash))));
+                }
+
+                let mut queue = VecDeque::new();
+                loop {
+                    if self.db.block_meta(block_hash).prepared {
+                        break;
+                    }
+
+                    let header = self.db.block_header(block_hash).ok_or({
+                        ComputeError::BlockHeaderNotFound(block_hash)
+                    })?;
+                    let events = self.db.block_events(block_hash).ok_or({
+                        ComputeError::BlockEventsNotFound(block_hash)
+                    })?;
+
+                    queue.push_front(BlockData {
+                        hash: block_hash,
+                        header,
+                        events,
+                    });
+                }
+
+                // collect missing and required codes. if required codes 
+                todo!();
+            },
+            PrepareState::WaitingForCodes { codes, not_processed_blocks_queue } => {
+                if !codes.is_empty() {
+                    return Poll::Pending;
+                }
+
+                
+            }
+        }
+
+        Poll::Pending
+    }
 }
 
 impl<P: ProcessorExt> ComputeService<P> {
