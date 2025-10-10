@@ -20,8 +20,8 @@ use crate::{
     Address, Announce, ToDigest,
     consensus::{
         BatchCommitmentValidationReply, BatchCommitmentValidationRequest, SignedAnnounce,
-        SignedValidationReply, SignedValidationRequest, VerifiedAnnounce, VerifiedReply,
-        VerifiedRequest,
+        SignedValidationReply, SignedValidationRequest, VerifiedAnnounce, VerifiedValidationReply,
+        VerifiedValidationRequest,
     },
     ecdsa::SignResult,
 };
@@ -77,8 +77,8 @@ impl SignedValidatorMessage {
 #[derive(Debug, Eq, PartialEq, Clone)]
 pub enum VerifiedValidatorMessage {
     ProducerBlock(VerifiedAnnounce),
-    RequestBatchValidation(VerifiedRequest),
-    ApproveBatch(VerifiedReply),
+    RequestBatchValidation(VerifiedValidationRequest),
+    ApproveBatch(VerifiedValidationReply),
 }
 
 impl VerifiedValidatorMessage {

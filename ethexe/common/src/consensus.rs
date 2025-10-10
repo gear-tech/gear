@@ -31,8 +31,8 @@ pub type SignedAnnounce = SignedData<Announce>;
 pub type SignedValidationRequest = SignedData<BatchCommitmentValidationRequest>;
 pub type SignedValidationReply = SignedData<BatchCommitmentValidationReply>;
 pub type VerifiedAnnounce = VerifiedData<Announce>;
-pub type VerifiedRequest = VerifiedData<BatchCommitmentValidationRequest>;
-pub type VerifiedReply = VerifiedData<BatchCommitmentValidationReply>;
+pub type VerifiedValidationRequest = VerifiedData<BatchCommitmentValidationRequest>;
+pub type VerifiedValidationReply = VerifiedData<BatchCommitmentValidationReply>;
 
 /// Represents a request for validating a batch commitment.
 #[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]

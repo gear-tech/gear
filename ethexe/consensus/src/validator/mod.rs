@@ -55,7 +55,7 @@ use anyhow::Result;
 use derive_more::{Debug, From};
 use ethexe_common::{
     Address, AnnounceHash, SimpleBlockData,
-    consensus::{VerifiedAnnounce, VerifiedRequest},
+    consensus::{VerifiedAnnounce, VerifiedValidationRequest},
     ecdsa::PublicKey,
 };
 use ethexe_db::Database;
@@ -213,7 +213,7 @@ impl ConsensusService for ValidatorService {
         self.update_inner(|inner| inner.process_announce(announce))
     }
 
-    fn receive_validation_request(&mut self, batch: VerifiedRequest) -> Result<()> {
+    fn receive_validation_request(&mut self, batch: VerifiedValidationRequest) -> Result<()> {
         self.update_inner(|inner| inner.process_validation_request(batch))
     }
 
@@ -260,7 +260,7 @@ enum PendingEvent {
     /// A block from the producer
     Announce(VerifiedAnnounce),
     /// A validation request
-    ValidationRequest(VerifiedRequest),
+    ValidationRequest(VerifiedValidationRequest),
 }
 
 /// Trait defining the interface for validator inner state and events handler.
@@ -303,7 +303,10 @@ where
         DefaultProcessing::block_from_producer(self, block)
     }
 
-    fn process_validation_request(self, request: VerifiedRequest) -> Result<ValidatorState> {
+    fn process_validation_request(
+        self,
+        request: VerifiedValidationRequest,
+    ) -> Result<ValidatorState> {
         DefaultProcessing::validation_request(self, request)
     }
 
@@ -386,7 +389,10 @@ impl StateHandler for ValidatorState {
         delegate_call!(self => process_announce(announce))
     }
 
-    fn process_validation_request(self, request: VerifiedRequest) -> Result<ValidatorState> {
+    fn process_validation_request(
+        self,
+        request: VerifiedValidationRequest,
+    ) -> Result<ValidatorState> {
         delegate_call!(self => process_validation_request(request))
     }
 
@@ -444,7 +450,7 @@ impl DefaultProcessing {
 
     fn validation_request(
         s: impl Into<ValidatorState>,
-        request: VerifiedRequest,
+        request: VerifiedValidationRequest,
     ) -> Result<ValidatorState> {
         let mut s = s.into();
         s.warning(format!(

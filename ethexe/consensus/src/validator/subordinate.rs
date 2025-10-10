@@ -25,7 +25,7 @@ use anyhow::Result;
 use derive_more::{Debug, Display};
 use ethexe_common::{
     Address, Announce, AnnounceHash, SimpleBlockData,
-    consensus::{VerifiedAnnounce, VerifiedRequest},
+    consensus::{VerifiedAnnounce, VerifiedValidationRequest},
 };
 use gprimitives::H256;
 use std::mem;
@@ -144,7 +144,10 @@ impl StateHandler for Subordinate {
         }
     }
 
-    fn process_validation_request(mut self, request: VerifiedRequest) -> Result<ValidatorState> {
+    fn process_validation_request(
+        mut self,
+        request: VerifiedValidationRequest,
+    ) -> Result<ValidatorState> {
         if request.address() == self.producer {
             log::trace!("Receive validation request from producer: {request:?}, saved for later.");
             self.ctx.pending(request);

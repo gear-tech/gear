@@ -25,7 +25,7 @@ use anyhow::Result;
 use derive_more::{Debug, Display};
 use ethexe_common::{
     Address, Digest, SimpleBlockData,
-    consensus::{BatchCommitmentValidationRequest, VerifiedRequest},
+    consensus::{BatchCommitmentValidationRequest, VerifiedValidationRequest},
 };
 use futures::{FutureExt, future::BoxFuture};
 use std::task::Poll;
@@ -65,7 +65,10 @@ impl StateHandler for Participant {
         self.ctx
     }
 
-    fn process_validation_request(self, request: VerifiedRequest) -> Result<ValidatorState> {
+    fn process_validation_request(
+        self,
+        request: VerifiedValidationRequest,
+    ) -> Result<ValidatorState> {
         if request.address() == self.producer {
             self.process_validation_request(request.into_parts().0)
         } else {
