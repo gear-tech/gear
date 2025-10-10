@@ -16,8 +16,14 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::db_sync::{Multiaddr, PeerId};
+pub(crate) use libp2p::gossipsub::*;
+
+use crate::{
+    db_sync::{Multiaddr, PeerId},
+    peer_score,
+};
 use anyhow::anyhow;
+use ethexe_common::{Address, network::SignedValidatorMessage, tx_pool::SignedOffchainTransaction};
 use libp2p::{
     core::{Endpoint, transport::PortUse},
     gossipsub,
@@ -27,16 +33,12 @@ use libp2p::{
         THandlerOutEvent, ToSwarm,
     },
 };
+use parity_scale_codec::{Decode, Encode};
 use std::{
     collections::VecDeque,
     hash::{DefaultHasher, Hash, Hasher},
     task::{Context, Poll, ready},
 };
-
-use crate::peer_score;
-use ethexe_common::{Address, network::SignedValidatorMessage, tx_pool::SignedOffchainTransaction};
-pub(crate) use libp2p::gossipsub::*;
-use parity_scale_codec::{Decode, Encode};
 
 #[derive(Debug)]
 pub enum Message {
