@@ -17,39 +17,14 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    Address, Announce, ToDigest,
+    Address,
     consensus::{
-        BatchCommitmentValidationReply, BatchCommitmentValidationRequest, SignedAnnounce,
-        SignedValidationReply, SignedValidationRequest, VerifiedAnnounce, VerifiedValidationReply,
-        VerifiedValidationRequest,
+        SignedAnnounce, SignedValidationReply, SignedValidationRequest, VerifiedAnnounce,
+        VerifiedValidationReply, VerifiedValidationRequest,
     },
     ecdsa::SignResult,
 };
 use parity_scale_codec::{Decode, Encode};
-use sha3::Keccak256;
-
-#[derive(Debug, Clone, Encode, Decode, derive_more::From, Eq, PartialEq, derive_more::Unwrap)]
-pub enum ValidatorMessage {
-    ProducerBlock(Announce),
-    RequestBatchValidation(BatchCommitmentValidationRequest),
-    ApproveBatch(BatchCommitmentValidationReply),
-}
-
-impl ToDigest for ValidatorMessage {
-    fn update_hasher(&self, hasher: &mut Keccak256) {
-        match self {
-            ValidatorMessage::ProducerBlock(announce) => {
-                announce.update_hasher(hasher);
-            }
-            ValidatorMessage::RequestBatchValidation(request) => {
-                request.update_hasher(hasher);
-            }
-            ValidatorMessage::ApproveBatch(reply) => {
-                reply.update_hasher(hasher);
-            }
-        }
-    }
-}
 
 #[derive(Debug, Eq, Encode, Decode, PartialEq, Clone, derive_more::From)]
 pub enum SignedValidatorMessage {
