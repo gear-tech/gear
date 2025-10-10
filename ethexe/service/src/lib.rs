@@ -426,16 +426,7 @@ impl Service {
                     };
 
                     match event {
-                        NetworkEvent::Message { source: _, data } => {
-                            let Ok(message) = NetworkMessage::decode(&mut data.as_slice())
-                                .inspect_err(|e| {
-                                    log::warn!("Failed to decode network message: {e}")
-                                })
-                            else {
-                                // TODO: use peer scoring for this case
-                                continue;
-                            };
-
+                        NetworkEvent::Message(message) => {
                             match message {
                                 NetworkMessage::ProducerBlock(block) => {
                                     consensus.receive_announce(block)?
@@ -446,16 +437,14 @@ impl Service {
                                 NetworkMessage::ApproveBatch(reply) => {
                                     consensus.receive_validation_reply(reply)?
                                 }
-                                NetworkMessage::OffchainTransaction { transaction } => {
-                                    if let Err(e) =
-                                        tx_pool.process_offchain_transaction(transaction)
-                                    {
-                                        log::warn!(
-                                            "Failed to process offchain transaction received by p2p: {e}"
-                                        );
-                                    }
-                                }
                             };
+                        }
+                        NetworkEvent::OffchainTransaction(transaction) => {
+                            if let Err(e) = tx_pool.process_offchain_transaction(transaction) {
+                                log::warn!(
+                                    "Failed to process offchain transaction received by p2p: {e}"
+                                );
+                            }
                         }
                         NetworkEvent::PeerBlocked(_) | NetworkEvent::PeerConnected(_) => {}
                     }
