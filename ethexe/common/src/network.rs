@@ -19,7 +19,7 @@
 use crate::{
     Address, Announce, ToDigest,
     consensus::{BatchCommitmentValidationReply, BatchCommitmentValidationRequest},
-    ecdsa::{SignResult, SignedData, VerifiedData},
+    ecdsa::{SignedData, VerifiedData},
 };
 use gprimitives::H256;
 use k256::sha2::Digest;
@@ -52,17 +52,13 @@ pub enum SignedValidatorMessage {
 }
 
 impl SignedValidatorMessage {
-    pub fn verified(self) -> SignResult<VerifiedValidatorMessage> {
+    pub fn into_verified(self) -> VerifiedValidatorMessage {
         match self {
-            SignedValidatorMessage::ProducerBlock(announce) => announce
-                .verified()
-                .map(VerifiedValidatorMessage::ProducerBlock),
-            SignedValidatorMessage::RequestBatchValidation(request) => request
-                .verified()
-                .map(VerifiedValidatorMessage::RequestBatchValidation),
-            SignedValidatorMessage::ApproveBatch(reply) => {
-                reply.verified().map(VerifiedValidatorMessage::ApproveBatch)
+            SignedValidatorMessage::ProducerBlock(announce) => announce.into_verified().into(),
+            SignedValidatorMessage::RequestBatchValidation(request) => {
+                request.into_verified().into()
             }
+            SignedValidatorMessage::ApproveBatch(reply) => reply.into_verified().into(),
         }
     }
 }

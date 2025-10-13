@@ -187,17 +187,11 @@ impl<T: Sized> SignedData<T> {
             .verify(self.public_key, self.data.to_digest())
     }
 
-    pub fn verified(self) -> SignResult<VerifiedData<T>>
-    where
-        T: ToDigest,
-    {
-        self.verify()?;
-        let Self {
-            data,
-            signature: _,
-            public_key,
-        } = self;
-        Ok(VerifiedData { data, public_key })
+    pub fn into_verified(self) -> VerifiedData<T> {
+        VerifiedData {
+            data: self.data,
+            public_key: self.public_key,
+        }
     }
 }
 

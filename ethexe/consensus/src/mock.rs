@@ -90,13 +90,12 @@ pub trait SignerMockExt {
         args: T,
     ) -> SignedData<M>;
 
-    #[track_caller]
     fn mock_verified_data<T, M: Mock<T> + ToDigest>(
         &self,
         pub_key: PublicKey,
         args: T,
     ) -> VerifiedData<M> {
-        self.mock_signed_data(pub_key, args).verified().unwrap()
+        self.mock_signed_data(pub_key, args).into_verified()
     }
 
     fn validation_reply(

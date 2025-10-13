@@ -254,8 +254,7 @@ mod tests {
             .signer
             .signed_data(producer, BatchCommitmentValidationRequest::new(&batch))
             .unwrap()
-            .verified()
-            .unwrap();
+            .into_verified();
 
         let state = Participant::create(ctx, block, producer.to_address()).unwrap();
         assert!(state.is_participant());
@@ -317,8 +316,7 @@ mod tests {
             .signer
             .signed_data(producer, request)
             .unwrap()
-            .verified()
-            .unwrap();
+            .into_verified();
 
         let state = Participant::create(ctx, block, producer.to_address()).unwrap();
         assert!(state.is_participant());
@@ -353,8 +351,7 @@ mod tests {
             .signer
             .signed_data(producer, request)
             .unwrap()
-            .verified()
-            .unwrap();
+            .into_verified();
 
         let state = Participant::create(ctx, block, producer.to_address()).unwrap();
         assert!(state.is_participant());
@@ -388,8 +385,7 @@ mod tests {
             .signer
             .signed_data(producer, request)
             .unwrap()
-            .verified()
-            .unwrap();
+            .into_verified();
 
         let state = Participant::create(ctx, block.clone(), producer.to_address()).unwrap();
         assert!(state.is_participant());
@@ -420,8 +416,7 @@ mod tests {
             .signer
             .signed_data(producer, request)
             .unwrap()
-            .verified()
-            .unwrap();
+            .into_verified();
 
         let state = Participant::create(ctx, block, producer.to_address()).unwrap();
         assert!(state.is_participant());

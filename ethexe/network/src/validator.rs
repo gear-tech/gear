@@ -197,14 +197,7 @@ impl Validators {
         source: PeerId,
         message: SignedValidatorMessage,
     ) -> MessageAcceptance {
-        let message = match message.verified() {
-            Ok(message) => message,
-            Err(error) => {
-                log::trace!("failed to validate validator message: {error}");
-                self.peer_score.invalid_data(source);
-                return MessageAcceptance::Reject;
-            }
-        };
+        let message = message.into_verified();
 
         match self.inner_verify(&message) {
             Ok(()) => {
@@ -296,7 +289,7 @@ mod tests {
 
         let (mut alice, alice_db) = new_validators();
         let (bob_address, bob_message, bob_block) = new_validator_message();
-        let bob_verified = bob_message.clone().verified().unwrap();
+        let bob_verified = bob_message.clone().into_verified();
 
         let err = alice.inner_verify(&bob_verified).unwrap_err();
         assert_eq!(err, VerificationError::UnknownBlock { block: bob_block });
@@ -333,7 +326,7 @@ mod tests {
     fn old_era() {
         let (alice, alice_db) = new_validators();
         let (_bob_address, bob_message, bob_block) = new_validator_message();
-        let bob_message = bob_message.verified().unwrap();
+        let bob_message = bob_message.into_verified();
 
         alice_db.set_block_header(
             bob_block,
@@ -362,7 +355,7 @@ mod tests {
 
         let (mut alice, alice_db) = new_validators();
         let (bob_address, bob_message, bob_block) = new_validator_message();
-        let bob_verified = bob_message.clone().verified().unwrap();
+        let bob_verified = bob_message.clone().into_verified();
 
         alice_db.set_block_header(
             bob_block,
@@ -408,7 +401,7 @@ mod tests {
     fn peer_is_not_validator() {
         let (alice, alice_db) = new_validators();
         let (bob_address, bob_message, bob_block) = new_validator_message();
-        let bob_message = bob_message.verified().unwrap();
+        let bob_message = bob_message.into_verified();
 
         alice_db.set_block_header(
             bob_block,
@@ -432,7 +425,7 @@ mod tests {
     fn success() {
         let (mut alice, alice_db) = new_validators();
         let (bob_address, bob_message, bob_block) = new_validator_message();
-        let bob_verified = bob_message.clone().verified().unwrap();
+        let bob_verified = bob_message.clone().into_verified();
 
         alice_db.set_block_validators(H256::zero(), nonempty![bob_address]);
         alice.set_chain_head(H256::zero()).unwrap();
