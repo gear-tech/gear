@@ -27,10 +27,11 @@ pub mod export {
 
 use crate::db_sync::DbSyncDatabase;
 use anyhow::{Context, anyhow};
-use ethexe_common::{Address, ecdsa::PublicKey};
+use ethexe_common::{
+    Address, ecdsa::PublicKey, network::NetworkMessage, tx_pool::SignedOffchainTransaction,
+};
 use ethexe_signer::Signer;
 use futures::{Stream, future::Either, ready, stream::FusedStream};
-use gprimitives::utils::ByteSliceFormatter;
 use libp2p::{
     Multiaddr, PeerId, Swarm, Transport, connection_limits,
     core::{muxing::StreamMuxerBox, transport, transport::ListenerId, upgrade},
@@ -47,6 +48,7 @@ use libp2p::{
 };
 #[cfg(test)]
 use libp2p_swarm_test::SwarmExt;
+use parity_scale_codec::{Decode, Encode};
 use std::{
     collections::HashSet,
     hash::{DefaultHasher, Hash, Hasher},
@@ -64,17 +66,10 @@ const MAX_ESTABLISHED_INCOMING_PER_PEER_CONNECTIONS: u32 = 1;
 const MAX_ESTABLISHED_OUTBOUND_PER_PEER_CONNECTIONS: u32 = 1;
 const MAX_ESTABLISHED_INCOMING_CONNECTIONS: u32 = 100;
 
-#[derive(Eq, PartialEq, derive_more::Debug)]
+#[derive(derive_more::Debug, Eq, PartialEq, Clone)]
 pub enum NetworkEvent {
-    DbResponse {
-        request_id: db_sync::RequestId,
-        result: Result<db_sync::Response, (db_sync::RetriableRequest, db_sync::RequestFailure)>,
-    },
-    Message {
-        #[debug("{:.8} ({} bytes)", ByteSliceFormatter::Dynamic(data), data.len())]
-        data: Vec<u8>,
-        source: Option<PeerId>,
-    },
+    Message(NetworkMessage),
+    OffchainTransaction(SignedOffchainTransaction),
     PeerBlocked(PeerId),
     PeerConnected(PeerId),
 }
@@ -389,11 +384,30 @@ impl NetworkService {
                         source,
                         data,
                         sequence_number: _,
-                        topic: _,
+                        topic,
                     },
                 ..
             }) => {
-                return Some(NetworkEvent::Message { source, data });
+                let peer_score = self.swarm.behaviour().peer_score.handle();
+
+                let res = if topic == self.commitments_topic.hash() {
+                    NetworkMessage::decode(&mut &data[..]).map(NetworkEvent::Message)
+                } else if topic == self.offchain_topic.hash() {
+                    SignedOffchainTransaction::decode(&mut &data[..])
+                        .map(NetworkEvent::OffchainTransaction)
+                } else {
+                    unreachable!("topic we never subscribed to: {topic:?}");
+                };
+
+                match res {
+                    Ok(event) => return Some(event),
+                    Err(error) => {
+                        if let Some(peer) = source {
+                            log::trace!("failed to decode gossip message from {source:?}: {error}");
+                            peer_score.invalid_data(peer);
+                        }
+                    }
+                }
             }
             BehaviourEvent::Gossipsub(gossipsub::Event::GossipsubNotSupported { peer_id }) => {
                 log::debug!("`gossipsub` protocol is not supported");
@@ -405,21 +419,6 @@ impl NetworkService {
             }
             BehaviourEvent::Gossipsub(_) => {}
             //
-            BehaviourEvent::DbSync(db_sync::Event::RequestSucceed {
-                request_id,
-                response,
-            }) => {
-                return Some(NetworkEvent::DbResponse {
-                    request_id,
-                    result: Ok(response),
-                });
-            }
-            BehaviourEvent::DbSync(db_sync::Event::RequestFailed { request, error }) => {
-                return Some(NetworkEvent::DbResponse {
-                    request_id: request.id(),
-                    result: Err((request, error)),
-                });
-            }
             BehaviourEvent::DbSync(_) => {}
         }
 
@@ -434,30 +433,30 @@ impl NetworkService {
         self.swarm.behaviour().peer_score.handle()
     }
 
-    pub fn publish_message(&mut self, data: Vec<u8>) {
+    pub fn db_sync_handle(&self) -> db_sync::Handle {
+        self.swarm.behaviour().db_sync.handle()
+    }
+
+    pub fn publish_message(&mut self, data: impl Into<NetworkMessage>) {
         if let Err(e) = self
             .swarm
             .behaviour_mut()
             .gossipsub
-            .publish(self.commitments_topic.clone(), data)
+            .publish(self.commitments_topic.clone(), data.into().encode())
         {
             log::error!("gossipsub publishing failed: {e}")
         }
     }
 
-    pub fn publish_offchain_transaction(&mut self, data: Vec<u8>) {
+    pub fn publish_offchain_transaction(&mut self, data: SignedOffchainTransaction) {
         if let Err(e) = self
             .swarm
             .behaviour_mut()
             .gossipsub
-            .publish(self.offchain_topic.clone(), data)
+            .publish(self.offchain_topic.clone(), data.encode())
         {
             log::error!("gossipsub publishing failed: {e}")
         }
-    }
-
-    pub fn db_sync(&mut self) -> &mut db_sync::Behaviour {
-        &mut self.swarm.behaviour_mut().db_sync
     }
 }
 
@@ -727,6 +726,7 @@ mod tests {
         init_logger();
 
         let mut service1 = new_service();
+        let service1_handle = service1.db_sync_handle();
 
         // second service
         let db = Database::from_one(&MemDb::default());
@@ -737,24 +737,19 @@ mod tests {
         let mut service2 = new_service_with(db, Default::default());
 
         service1.connect(&mut service2).await;
+        tokio::spawn(service1.loop_on_next());
         tokio::spawn(service2.loop_on_next());
 
-        let request_id = service1
-            .db_sync()
-            .request(db_sync::Request::hashes([hello, world]));
-
-        let event = timeout(Duration::from_secs(5), service1.next())
+        let request = service1_handle.request(db_sync::Request::hashes([hello, world]));
+        let response = timeout(Duration::from_secs(5), request)
             .await
             .expect("time has elapsed")
             .unwrap();
         assert_eq!(
-            event,
-            NetworkEvent::DbResponse {
-                request_id,
-                result: Ok(db_sync::Response::Hashes(
-                    [(hello, b"hello".to_vec()), (world, b"world".to_vec())].into()
-                ))
-            }
+            response,
+            db_sync::Response::Hashes(
+                [(hello, b"hello".to_vec()), (world, b"world".to_vec())].into()
+            )
         );
     }
 
@@ -787,28 +782,21 @@ mod tests {
 
         let alice_data_provider = DataProvider::default();
         let mut alice = new_service_with(Database::memory(), alice_data_provider.clone());
+        let alice_handle = alice.db_sync_handle();
         let bob_db = Database::memory();
         let mut bob = new_service_with(bob_db.clone(), DataProvider::default());
 
         alice.connect(&mut bob).await;
+        tokio::spawn(alice.loop_on_next());
         tokio::spawn(bob.loop_on_next());
 
         let expected_response = fill_data_provider(alice_data_provider, bob_db).await;
 
-        let request_id = alice
-            .db_sync()
-            .request(db_sync::Request::program_ids(H256::zero(), 2));
-
-        let event = timeout(Duration::from_secs(5), alice.next())
+        let request = alice_handle.request(db_sync::Request::program_ids(H256::zero(), 2));
+        let response = timeout(Duration::from_secs(5), request)
             .await
             .expect("time has elapsed")
             .unwrap();
-        assert_eq!(
-            event,
-            NetworkEvent::DbResponse {
-                request_id,
-                result: Ok(expected_response)
-            }
-        );
+        assert_eq!(response, expected_response);
     }
 }

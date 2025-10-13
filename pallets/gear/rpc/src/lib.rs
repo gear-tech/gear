@@ -21,7 +21,7 @@
 #![allow(clippy::too_many_arguments)]
 #![doc(html_logo_url = "https://gear-tech.io/logo.png")]
 #![doc(html_favicon_url = "https://gear-tech.io/favicon.ico")]
-#![cfg_attr(docsrs, feature(doc_auto_cfg))]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 
 use futures::StreamExt;
 use gear_common::Origin;

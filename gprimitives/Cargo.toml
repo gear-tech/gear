@@ -13,6 +13,7 @@ rust-version.workspace = true
 [dependencies]
 alloy-primitives = { workspace = true, optional = true }
 alloy-sol-types = { workspace = true, optional = true }
+bytemuck = { workspace = true, features = ["derive"] }
 derive_more.workspace = true
 primitive-types = { workspace = true, features = ["scale-info", "rustc-hex"] }
 scale-info = { workspace = true, features = ["derive"], optional = true }
