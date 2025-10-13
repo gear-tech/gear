@@ -211,6 +211,7 @@ impl Validators {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use assert_matches::assert_matches;
     use ethexe_common::{Announce, db::OnChainStorageWrite, mock::Mock, network::ValidatorMessage};
     use ethexe_signer::Signer;
     use nonempty::nonempty;
@@ -242,7 +243,7 @@ mod tests {
         (validators, db)
     }
 
-    fn new_validator_message() -> (Address, VerifiedValidatorMessage, H256) {
+    fn new_validator_message() -> (Address, SignedValidatorMessage, H256) {
         let signer = Signer::memory();
         let pub_key = signer.generate_key().unwrap();
 
@@ -256,9 +257,7 @@ mod tests {
                     payload: Announce::mock(()),
                 },
             )
-            .unwrap()
-            .verified()
-            .map(VerifiedValidatorMessage::from)
+            .map(SignedValidatorMessage::from)
             .unwrap();
 
         (pub_key.to_address(), message, block)
@@ -266,17 +265,48 @@ mod tests {
 
     #[test]
     fn unknown_block() {
-        let (alice, _alice_db) = new_validators();
-        let (_bob_address, bob_message, bob_block) = new_validator_message();
+        const BOB_BLOCK_TIMESTAMP: u64 = CHAIN_HEAD_TIMESTAMP + (ERA_DURATION * 100);
 
-        let err = alice.inner_verify(&bob_message).unwrap_err();
+        let (mut alice, alice_db) = new_validators();
+        let (bob_address, bob_message, bob_block) = new_validator_message();
+        let bob_verified = bob_message.clone().verified().unwrap();
+
+        let err = alice.inner_verify(&bob_verified).unwrap_err();
         assert_eq!(err, VerificationError::UnknownBlock { block: bob_block });
+
+        let bob_source = PeerId::random();
+        let acceptance = alice.verify_message_initially(bob_source, bob_message);
+        assert_matches!(acceptance, MessageAcceptance::Ignore);
+        assert_eq!(alice.cached_messages.len(), 1);
+
+        alice_db.set_block_header(
+            bob_block,
+            BlockHeader {
+                height: 0,
+                timestamp: BOB_BLOCK_TIMESTAMP,
+                parent_hash: Default::default(),
+            },
+        );
+        let new_chain_head = H256::random();
+        alice_db.set_block_header(
+            new_chain_head,
+            BlockHeader {
+                height: 0,
+                timestamp: BOB_BLOCK_TIMESTAMP,
+                parent_hash: Default::default(),
+            },
+        );
+        alice_db.set_block_validators(new_chain_head, nonempty![bob_address]);
+        alice.set_chain_head(new_chain_head).unwrap();
+
+        assert_eq!(alice.next_message(), Some(bob_verified));
     }
 
     #[test]
     fn old_era() {
         let (alice, alice_db) = new_validators();
         let (_bob_address, bob_message, bob_block) = new_validator_message();
+        let bob_message = bob_message.verified().unwrap();
 
         alice_db.set_block_header(
             bob_block,
@@ -301,21 +331,24 @@ mod tests {
 
     #[test]
     fn new_era() {
-        let (alice, alice_db) = new_validators();
-        let (_bob_address, bob_message, bob_block) = new_validator_message();
+        const BOB_BLOCK_TIMESTAMP: u64 = CHAIN_HEAD_TIMESTAMP + (ERA_DURATION * 2);
+
+        let (mut alice, alice_db) = new_validators();
+        let (bob_address, bob_message, bob_block) = new_validator_message();
+        let bob_verified = bob_message.clone().verified().unwrap();
 
         alice_db.set_block_header(
             bob_block,
             BlockHeader {
                 height: 1,
-                timestamp: CHAIN_HEAD_TIMESTAMP + (ERA_DURATION * 2),
+                timestamp: BOB_BLOCK_TIMESTAMP,
                 parent_hash: Default::default(),
             },
         );
 
         let chain_head_era = alice.block_era_index(CHAIN_HEAD_TIMESTAMP);
 
-        let err = alice.inner_verify(&bob_message).unwrap_err();
+        let err = alice.inner_verify(&bob_verified).unwrap_err();
         assert_eq!(
             err,
             VerificationError::NewEra {
@@ -323,12 +356,32 @@ mod tests {
                 received_era: chain_head_era + 2
             }
         );
+
+        let bob_source = PeerId::random();
+        let acceptance = alice.verify_message_initially(bob_source, bob_message);
+        assert_matches!(acceptance, MessageAcceptance::Ignore);
+        assert_eq!(alice.cached_messages.len(), 1);
+
+        let new_chain_head = H256::random();
+        alice_db.set_block_header(
+            new_chain_head,
+            BlockHeader {
+                height: 0,
+                timestamp: BOB_BLOCK_TIMESTAMP,
+                parent_hash: Default::default(),
+            },
+        );
+        alice_db.set_block_validators(new_chain_head, nonempty![bob_address]);
+        alice.set_chain_head(new_chain_head).unwrap();
+
+        assert_eq!(alice.next_message(), Some(bob_verified));
     }
 
     #[test]
     fn peer_is_not_validator() {
         let (alice, alice_db) = new_validators();
         let (bob_address, bob_message, bob_block) = new_validator_message();
+        let bob_message = bob_message.verified().unwrap();
 
         alice_db.set_block_header(
             bob_block,
@@ -352,6 +405,7 @@ mod tests {
     fn success() {
         let (mut alice, alice_db) = new_validators();
         let (bob_address, bob_message, bob_block) = new_validator_message();
+        let bob_verified = bob_message.clone().verified().unwrap();
 
         alice_db.set_block_validators(H256::zero(), nonempty![bob_address]);
         alice.set_chain_head(H256::zero()).unwrap();
@@ -365,6 +419,12 @@ mod tests {
             },
         );
 
-        alice.inner_verify(&bob_message).unwrap();
+        alice.inner_verify(&bob_verified).unwrap();
+
+        let bob_source = PeerId::random();
+        let acceptance = alice.verify_message_initially(bob_source, bob_message);
+        assert_matches!(acceptance, MessageAcceptance::Accept);
+
+        assert_eq!(alice.next_message(), Some(bob_verified));
     }
 }
