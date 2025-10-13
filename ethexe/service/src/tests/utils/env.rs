@@ -44,7 +44,9 @@ use ethexe_common::{
 use ethexe_consensus::{ConsensusService, SimpleConnectService, ValidatorService};
 use ethexe_db::Database;
 use ethexe_ethereum::{Ethereum, deploy::EthereumDeployer, router::RouterQuery};
-use ethexe_network::{NetworkConfig, NetworkEvent, NetworkService, export::Multiaddr};
+use ethexe_network::{
+    NetworkConfig, NetworkEvent, NetworkService, ValidatorsRuntimeConfig, export::Multiaddr,
+};
 use ethexe_observer::{EthereumConfig, ObserverEvent, ObserverService};
 use ethexe_processor::Processor;
 use ethexe_rpc::{RpcConfig, RpcService, test_utils::RpcClient};
@@ -198,6 +200,7 @@ impl TestEnv {
         let router = ethereum.router();
         let router_query = router.query();
         let router_address = router.address();
+        let genesis_block_hash = router_query.genesis_block_hash().await.unwrap();
 
         let db = Database::memory();
 
@@ -210,6 +213,8 @@ impl TestEnv {
         let mut observer = ObserverService::new(&eth_cfg, u32::MAX, db.clone())
             .await
             .unwrap();
+        let genesis_timestamp = observer.genesis_timestamp_secs();
+        let era_duration = observer.era_duration_secs();
 
         let blobs_storage = LocalBlobStorage::default();
 
@@ -279,7 +284,11 @@ impl TestEnv {
                 Box::new(db.clone()),
             )
             .unwrap();
-        service.set_validators(validators);
+            service.set_chain_head(genesis_block_hash).unwrap();
+            service.set_runtime_config(ValidatorsRuntimeConfig {
+                genesis_timestamp,
+                era_duration,
+            });
 
             let local_peer_id = service.local_peer_id();
 
@@ -792,30 +801,6 @@ impl Node {
 
         let processor = Processor::new(self.db.clone()).unwrap();
 
-        let wait_for_network = self.network_bootstrap_address.is_some();
-
-        let network = self.network_address.as_ref().map(|addr| {
-            let network_key = self.signer.generate_key().unwrap();
-            let multiaddr: Multiaddr = addr.parse().unwrap();
-
-            let mut config = NetworkConfig::new_test(network_key, self.eth_cfg.router_address);
-            config.listen_addresses = [multiaddr.clone()].into();
-            config.external_addresses = [multiaddr.clone()].into();
-            if let Some(bootstrap_addr) = self.network_bootstrap_address.as_ref() {
-                let multiaddr = bootstrap_addr.parse().unwrap();
-                config.bootstrap_addresses = [multiaddr].into();
-            }
-            let network = NetworkService::new(
-                config,
-                &self.signer,
-                Box::new(RouterDataProvider(self.router_query.clone())),
-                Box::new(self.db.clone()),
-            )
-            .unwrap();
-            self.multiaddr = Some(format!("{addr}/p2p/{}", network.local_peer_id()));
-            network
-        });
-
         let consensus: Pin<Box<dyn ConsensusService>> =
             if let Some(config) = self.validator_config.as_ref() {
                 Box::pin(
@@ -845,6 +830,34 @@ impl Node {
             .unwrap();
 
         let blob_loader = LocalBlobLoader::new(self.blob_storage.clone()).into_box();
+
+        let wait_for_network = self.network_bootstrap_address.is_some();
+
+        let network = self.network_address.as_ref().map(|addr| {
+            let network_key = self.signer.generate_key().unwrap();
+            let multiaddr: Multiaddr = addr.parse().unwrap();
+
+            let mut config = NetworkConfig::new_test(network_key, self.eth_cfg.router_address);
+            config.listen_addresses = [multiaddr.clone()].into();
+            config.external_addresses = [multiaddr.clone()].into();
+            if let Some(bootstrap_addr) = self.network_bootstrap_address.as_ref() {
+                let multiaddr = bootstrap_addr.parse().unwrap();
+                config.bootstrap_addresses = [multiaddr].into();
+            }
+            let mut network = NetworkService::new(
+                config,
+                &self.signer,
+                Box::new(RouterDataProvider(self.router_query.clone())),
+                Box::new(self.db.clone()),
+            )
+            .unwrap();
+            network.set_runtime_config(ValidatorsRuntimeConfig {
+                genesis_timestamp: observer.genesis_timestamp_secs(),
+                era_duration: observer.era_duration_secs(),
+            });
+            self.multiaddr = Some(format!("{addr}/p2p/{}", network.local_peer_id()));
+            network
+        });
 
         let tx_pool_service = TxPoolService::new(self.db.clone());
 

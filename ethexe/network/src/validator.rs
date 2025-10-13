@@ -17,59 +17,181 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{gossipsub::MessageAcceptance, peer_score};
+use anyhow::Context;
 use ethexe_common::{
-    Address,
+    Address, BlockHeader,
+    db::OnChainStorageRead,
     network::{SignedValidatorMessage, VerifiedValidatorMessage},
 };
+use ethexe_db::Database;
+use gprimitives::H256;
 use libp2p::PeerId;
 use nonempty::NonEmpty;
-use std::collections::VecDeque;
+use std::{
+    cmp::Ordering,
+    collections::{HashMap, VecDeque},
+    mem,
+};
 
-#[derive(Debug)]
+#[auto_impl::auto_impl(&, Box)]
+pub trait ValidatorDatabase: Send + OnChainStorageRead {
+    fn clone_boxed(&self) -> Box<dyn ValidatorDatabase>;
+}
+
+impl ValidatorDatabase for Database {
+    fn clone_boxed(&self) -> Box<dyn ValidatorDatabase> {
+        Box::new(self.clone())
+    }
+}
+
+#[derive(Debug, derive_more::Display)]
+enum VerificationError {
+    UnknownBlock,
+    OldEra,
+    NewEra,
+    PeerIsNotValidator,
+}
+
+#[derive(Debug, Copy, Clone)]
+pub struct ValidatorsRuntimeConfig {
+    pub genesis_timestamp: u64,
+    pub era_duration: u64,
+}
+
 pub(crate) struct Validators {
-    buffered_messages: VecDeque<(PeerId, SignedValidatorMessage)>,
-    current_validators: Option<NonEmpty<Address>>,
+    runtime_config: Option<ValidatorsRuntimeConfig>,
+
+    cached_messages: HashMap<PeerId, VerifiedValidatorMessage>,
+    verified_messages: VecDeque<VerifiedValidatorMessage>,
+    db: Box<dyn ValidatorDatabase>,
+    chain_head: Option<(BlockHeader, NonEmpty<Address>)>,
     peer_score: peer_score::Handle,
 }
 
 impl Validators {
-    pub(crate) fn new(peer_score: peer_score::Handle) -> Self {
+    pub(crate) fn new(db: Box<dyn ValidatorDatabase>, peer_score: peer_score::Handle) -> Self {
         Self {
-            buffered_messages: VecDeque::new(),
-            current_validators: None,
+            runtime_config: None,
+            cached_messages: HashMap::new(),
+            verified_messages: VecDeque::new(),
+            db,
+            chain_head: None,
             peer_score,
         }
     }
 
-    pub(crate) fn set_validators(&mut self, validators: NonEmpty<Address>) {
-        self.current_validators = Some(validators);
+    pub(crate) fn set_chain_head(&mut self, chain_head: H256) -> anyhow::Result<()> {
+        let chain_head_header = self
+            .db
+            .block_header(chain_head)
+            .context("chain head not found")?;
+        let validators = self
+            .db
+            .block_validators(chain_head)
+            .context("validators not found")?;
+        self.chain_head = Some((chain_head_header, validators));
 
-        for (peer, message) in self.buffered_messages.drain(..) {}
+        self.verify_on_new_chain_head();
+
+        Ok(())
     }
 
-    pub(crate) fn verify_message(
-        &self,
+    pub(crate) fn set_runtime_config(&mut self, runtime_config: ValidatorsRuntimeConfig) {
+        self.runtime_config = Some(runtime_config);
+    }
+
+    pub(crate) fn next_message(&mut self) -> Option<VerifiedValidatorMessage> {
+        self.verified_messages.pop_front()
+    }
+
+    fn block_era_index(&self, block_ts: u64) -> u64 {
+        let config = self.runtime_config.unwrap();
+        (block_ts - config.genesis_timestamp) / config.era_duration
+    }
+
+    fn inner_verify(&self, message: &VerifiedValidatorMessage) -> Result<(), VerificationError> {
+        let (chain_head, validators) = self
+            .chain_head
+            .as_ref()
+            .expect("chain head should be set by this time");
+        let chain_head_era = self.block_era_index(chain_head.timestamp);
+
+        let block = message.data().block;
+        let address = message.address();
+
+        let Some(block_header) = self.db.block_header(block) else {
+            return Err(VerificationError::UnknownBlock);
+        };
+        let block_era = self.block_era_index(block_header.timestamp);
+        match block_era.cmp(&chain_head_era) {
+            Ordering::Less => {
+                // node may be not synced yet
+                return Err(VerificationError::OldEra);
+            }
+            Ordering::Equal => {
+                // both nodes are in sync
+            }
+            Ordering::Greater => {
+                // node may be synced ahead
+                return Err(VerificationError::NewEra);
+            }
+        }
+
+        if !validators.contains(&address) {
+            return Err(VerificationError::PeerIsNotValidator);
+        }
+
+        Ok(())
+    }
+
+    fn verify_on_new_chain_head(&mut self) {
+        let cached_messages = mem::take(&mut self.cached_messages);
+        for (source, message) in cached_messages {
+            match self.inner_verify(&message) {
+                Ok(()) => {
+                    self.verified_messages.push_back(message);
+                }
+                Err(err) => {
+                    log::trace!("{message:?} message verification {source} peer failed: {err}");
+                    self.peer_score.invalid_data(source);
+                }
+            }
+        }
+    }
+
+    pub(crate) fn verify_message_initially(
+        &mut self,
         source: PeerId,
         message: SignedValidatorMessage,
-    ) -> (Option<VerifiedValidatorMessage>, MessageAcceptance) {
-        let Some(current_validators) = &self.current_validators else {
-            return (None, MessageAcceptance::Ignore);
-        };
-
+    ) -> MessageAcceptance {
         let message = match message.verified() {
             Ok(message) => message,
             Err(error) => {
                 log::trace!("failed to validate validator message: {error}");
                 self.peer_score.invalid_data(source);
-                return (None, MessageAcceptance::Reject);
+                return MessageAcceptance::Reject;
             }
         };
 
-        let validator_address = message.address();
-        if !current_validators.contains(&validator_address) {
-            return (None, MessageAcceptance::Ignore);
+        match self.inner_verify(&message) {
+            Ok(()) => {
+                self.verified_messages.push_back(message);
+                MessageAcceptance::Accept
+            }
+            Err(VerificationError::UnknownBlock) => {
+                self.cached_messages.insert(source, message);
+                MessageAcceptance::Ignore
+            }
+            Err(VerificationError::OldEra) => MessageAcceptance::Ignore,
+            Err(VerificationError::NewEra) => {
+                self.cached_messages.insert(source, message);
+                MessageAcceptance::Ignore
+            }
+            Err(VerificationError::PeerIsNotValidator) => {
+                log::trace!("peer {source} is not in validator set");
+                self.peer_score.invalid_data(source);
+                MessageAcceptance::Reject
+            }
         }
-
-        (Some(message), MessageAcceptance::Accept)
     }
 }

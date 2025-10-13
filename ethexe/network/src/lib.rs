@@ -27,16 +27,22 @@ pub mod export {
     pub use libp2p::{Multiaddr, PeerId, multiaddr::Protocol};
 }
 
-use crate::{db_sync::DbSyncDatabase, validator::Validators};
+pub use validator::ValidatorsRuntimeConfig;
+
+use crate::{
+    db_sync::DbSyncDatabase,
+    validator::{ValidatorDatabase, Validators},
+};
 use anyhow::{Context, anyhow};
 use ethexe_common::{
     Address,
-    ecdsa::PublicKey,
-    network::{SignedValidatorMessage, VerifiedValidatorMessage},
+    ecdsa::{PublicKey, VerifiedData},
+    network::{SignedValidatorMessage, ValidatorMessagePayload},
     tx_pool::SignedOffchainTransaction,
 };
 use ethexe_signer::Signer;
 use futures::{Stream, future::Either, ready, stream::FusedStream};
+use gprimitives::H256;
 use libp2p::{
     Multiaddr, PeerId, Swarm, Transport, connection_limits,
     core::{muxing::StreamMuxerBox, transport, transport::ListenerId, upgrade},
@@ -53,7 +59,6 @@ use libp2p::{
 };
 #[cfg(test)]
 use libp2p_swarm_test::SwarmExt;
-use nonempty::NonEmpty;
 use std::{collections::HashSet, pin::Pin, task::Poll, time::Duration};
 
 pub const DEFAULT_LISTEN_PORT: u16 = 20333;
@@ -65,9 +70,12 @@ const MAX_ESTABLISHED_INCOMING_PER_PEER_CONNECTIONS: u32 = 1;
 const MAX_ESTABLISHED_OUTBOUND_PER_PEER_CONNECTIONS: u32 = 1;
 const MAX_ESTABLISHED_INCOMING_CONNECTIONS: u32 = 100;
 
+pub trait NetworkServiceDatabase: DbSyncDatabase + ValidatorDatabase {}
+impl<T> NetworkServiceDatabase for T where T: DbSyncDatabase + ValidatorDatabase {}
+
 #[derive(derive_more::Debug, Eq, PartialEq, Clone)]
 pub enum NetworkEvent {
-    ValidatorMessage(VerifiedValidatorMessage),
+    ValidatorMessage(VerifiedData<ValidatorMessagePayload>),
     OffchainTransaction(SignedOffchainTransaction),
     PeerBlocked(PeerId),
     PeerConnected(PeerId),
@@ -134,6 +142,11 @@ impl Stream for NetworkService {
         mut self: Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> Poll<Option<Self::Item>> {
+        if let Some(message) = self.validators.next_message() {
+            let message = message.map(|m| m.payload);
+            return Poll::Ready(Some(NetworkEvent::ValidatorMessage(message)));
+        }
+
         loop {
             let Some(event) = ready!(self.swarm.poll_next_unpin(cx)) else {
                 return Poll::Ready(None);
@@ -157,7 +170,7 @@ impl NetworkService {
         config: NetworkConfig,
         signer: &Signer,
         external_data_provider: Box<dyn db_sync::ExternalDataProvider>,
-        db: Box<dyn DbSyncDatabase>,
+        db: Box<dyn NetworkServiceDatabase>,
     ) -> anyhow::Result<NetworkService> {
         let NetworkConfig {
             public_key,
@@ -173,7 +186,7 @@ impl NetworkService {
         let behaviour_config = BehaviourConfig {
             keypair: keypair.clone(),
             external_data_provider,
-            db,
+            db: DbSyncDatabase::clone_boxed(&db),
             enable_mdns: transport_type.mdns_enabled(),
             router_address,
         };
@@ -204,7 +217,10 @@ impl NetworkService {
             swarm.behaviour_mut().kad.add_address(&peer_id, multiaddr);
         }
 
-        let validators = Validators::new(swarm.behaviour().peer_score.handle());
+        let validators = Validators::new(
+            ValidatorDatabase::clone_boxed(&db),
+            swarm.behaviour().peer_score.handle(),
+        );
 
         Ok(Self {
             swarm,
@@ -379,7 +395,7 @@ impl NetworkService {
 
                 return match message {
                     gossipsub::Message::Commitments(message) => {
-                        let (message, acceptance) = self.validators.verify_message(source, message);
+                        let acceptance = self.validators.verify_message_initially(source, message);
 
                         debug_assert!(gossipsub.report_message_validation_result(
                             &message_id,
@@ -387,7 +403,7 @@ impl NetworkService {
                             acceptance,
                         ));
 
-                        message.map(NetworkEvent::ValidatorMessage)
+                        None
                     }
                     gossipsub::Message::Offchain(transaction) => {
                         Some(NetworkEvent::OffchainTransaction(transaction))
@@ -423,8 +439,12 @@ impl NetworkService {
         self.swarm.behaviour().db_sync.handle()
     }
 
-    pub fn set_validators(&mut self, validators: NonEmpty<Address>) {
-        self.validators.set_validators(validators);
+    pub fn set_chain_head(&mut self, chain_head: H256) -> anyhow::Result<()> {
+        self.validators.set_chain_head(chain_head)
+    }
+
+    pub fn set_runtime_config(&mut self, runtime_config: ValidatorsRuntimeConfig) {
+        self.validators.set_runtime_config(runtime_config)
     }
 
     pub fn publish_message(&mut self, data: impl Into<SignedValidatorMessage>) {

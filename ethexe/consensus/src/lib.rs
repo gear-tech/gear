@@ -37,9 +37,9 @@ use futures::{Stream, stream::FusedStream};
 use gprimitives::H256;
 
 pub use connect::SimpleConnectService;
-use ethexe_common::consensus::{
-    BatchCommitmentValidationReply, SignedAnnounce, SignedValidationReply, SignedValidationRequest,
-    VerifiedAnnounce, VerifiedValidationRequest,
+use ethexe_common::{
+    consensus::{BatchCommitmentValidationReply, VerifiedAnnounce, VerifiedValidationRequest},
+    network::SignedValidatorMessage,
 };
 pub use utils::{block_producer_for, block_producer_index};
 pub use validator::{ValidatorConfig, ValidatorService};
@@ -86,12 +86,8 @@ pub enum ConsensusEvent {
     /// Outer service have to compute announce
     #[from]
     ComputeAnnounce(Announce),
-    /// Outer service have to publish signed announce
-    PublishAnnounce(SignedAnnounce),
-    /// Outer service have to publish signed validation request
-    PublishValidationRequest(SignedValidationRequest),
-    /// Outer service have to publish signed validation reply
-    PublishValidationReply(SignedValidationReply),
+    /// Outer service have to publish signed message
+    PublishMessage(SignedValidatorMessage),
     /// Informational event: commitment was successfully submitted, tx hash is provided
     CommitmentSubmitted(H256),
     /// Informational event: during service processing, a warning situation was detected

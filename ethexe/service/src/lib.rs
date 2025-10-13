@@ -23,14 +23,16 @@ use ethexe_blob_loader::{
     BlobLoader, BlobLoaderEvent, BlobLoaderService, ConsensusLayerConfig,
     local::{LocalBlobLoader, LocalBlobStorage},
 };
-use ethexe_common::{ecdsa::PublicKey, gear::CodeState, network::VerifiedValidatorMessage};
+use ethexe_common::{ecdsa::PublicKey, gear::CodeState, network::ValidatorMessagePayload};
 use ethexe_compute::{ComputeEvent, ComputeService};
 use ethexe_consensus::{
     ConsensusEvent, ConsensusService, SimpleConnectService, ValidatorConfig, ValidatorService,
 };
 use ethexe_db::{Database, RocksDatabase};
 use ethexe_ethereum::router::RouterQuery;
-use ethexe_network::{NetworkEvent, NetworkService, db_sync::ExternalDataProvider};
+use ethexe_network::{
+    NetworkEvent, NetworkService, ValidatorsRuntimeConfig, db_sync::ExternalDataProvider,
+};
 use ethexe_observer::{ObserverEvent, ObserverService};
 use ethexe_processor::{Processor, ProcessorConfig};
 use ethexe_prometheus::{PrometheusEvent, PrometheusService};
@@ -224,15 +226,18 @@ impl Service {
         };
 
         let network = if let Some(net_config) = &config.network {
-            Some(
-                NetworkService::new(
-                    net_config.clone(),
-                    &signer,
-                    Box::new(RouterDataProvider(router_query)),
-                    Box::new(db.clone()),
-                )
-                .with_context(|| "failed to create network service")?,
+            let mut network = NetworkService::new(
+                net_config.clone(),
+                &signer,
+                Box::new(RouterDataProvider(router_query)),
+                Box::new(db.clone()),
             )
+            .with_context(|| "failed to create network service")?;
+            network.set_runtime_config(ValidatorsRuntimeConfig {
+                genesis_timestamp: observer.genesis_timestamp_secs(),
+                era_duration: observer.era_duration_secs(),
+            });
+            Some(network)
         } else {
             None
         };
@@ -388,19 +393,15 @@ impl Service {
 
                         consensus.receive_new_chain_head(block_data)?
                     }
-                    ObserverEvent::BlockSynced {
-                        chain_head,
-                        new_validator_set,
-                    } => {
+                    ObserverEvent::BlockSynced(block) => {
                         // NOTE: Observer guarantees that, if `BlockSynced` event is emitted,
                         // then from latest synced block and up to `data.block_hash`:
                         // all blocks on-chain data (see OnChainStorage) is loaded and available in database.
 
-                        compute.prepare_block(chain_head);
-                        consensus.receive_synced_block(chain_head)?;
-
-                        if let Some(new_validator_set) = new_validator_set {
-                            network.set_validators(new_validator_set);
+                        compute.prepare_block(block);
+                        consensus.receive_synced_block(block)?;
+                        if let Some(network) = network.as_mut() {
+                            network.set_chain_head(block)?;
                         }
                     }
                 },
@@ -434,15 +435,19 @@ impl Service {
 
                     match event {
                         NetworkEvent::ValidatorMessage(message) => {
-                            match message {
-                                VerifiedValidatorMessage::ProducerBlock(block) => {
-                                    consensus.receive_announce(block)?
+                            match message.data() {
+                                ValidatorMessagePayload::ProducerBlock(_) => {
+                                    let announce = message.map(|m| m.unwrap_producer_block());
+                                    consensus.receive_announce(announce)?
                                 }
-                                VerifiedValidatorMessage::RequestBatchValidation(request) => {
+                                ValidatorMessagePayload::RequestBatchValidation(_) => {
+                                    let request =
+                                        message.map(|m| m.unwrap_request_batch_validation());
                                     consensus.receive_validation_request(request)?
                                 }
-                                VerifiedValidatorMessage::ApproveBatch(reply) => {
-                                let (reply, _) = reply.into_parts();
+                                ValidatorMessagePayload::ApproveBatch(_) => {
+                                    let (reply, _) =
+                                        message.map(|m| m.unwrap_approve_batch()).into_parts();
                                     consensus.receive_validation_reply(reply)?
                                 }
                             };
@@ -512,26 +517,12 @@ impl Service {
                 }
                 Event::Consensus(event) => match event {
                     ConsensusEvent::ComputeAnnounce(announce) => compute.compute_announce(announce),
-                    ConsensusEvent::PublishAnnounce(block) => {
-                        let Some(n) = network.as_mut() else {
+                    ConsensusEvent::PublishMessage(message) => {
+                        let Some(network) = network.as_mut() else {
                             continue;
                         };
 
-                        n.publish_message(block);
-                    }
-                    ConsensusEvent::PublishValidationRequest(request) => {
-                        let Some(n) = network.as_mut() else {
-                            continue;
-                        };
-
-                        n.publish_message(request);
-                    }
-                    ConsensusEvent::PublishValidationReply(reply) => {
-                        let Some(n) = network.as_mut() else {
-                            continue;
-                        };
-
-                        n.publish_message(reply);
+                        network.publish_message(message);
                     }
                     ConsensusEvent::CommitmentSubmitted(tx) => {
                         log::info!("Commitment submitted, tx: {tx}");

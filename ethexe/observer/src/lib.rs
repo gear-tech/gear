@@ -63,10 +63,7 @@ pub struct EthereumConfig {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ObserverEvent {
     Block(SimpleBlockData),
-    BlockSynced {
-        chain_head: H256,
-        new_validator_set: Option<NonEmpty<Address>>,
-    },
+    BlockSynced(H256),
 }
 
 #[derive(Clone, Debug)]
@@ -276,6 +273,14 @@ impl ObserverService {
 
     pub fn block_time_secs(&self) -> u64 {
         self.config.block_time.as_secs()
+    }
+
+    pub fn genesis_timestamp_secs(&self) -> u64 {
+        self.config.genesis_timestamp
+    }
+
+    pub fn era_duration_secs(&self) -> u64 {
+        self.config.era_duration
     }
 
     pub fn load_block_data(&self, block: H256) -> impl Future<Output = Result<BlockData>> {

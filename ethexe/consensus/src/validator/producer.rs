@@ -26,6 +26,7 @@ use ethexe_common::{
     Address, Announce, AnnounceHash, SimpleBlockData,
     db::{AnnounceStorageRead, BlockMetaStorageRead},
     gear::BatchCommitment,
+    network::{ValidatorMessage, ValidatorMessagePayload},
 };
 use ethexe_service_utils::Timer;
 use futures::{FutureExt, future::BoxFuture};
@@ -224,14 +225,18 @@ impl Producer {
             off_chain_transactions: Vec::new(),
         };
 
-        let signed_announce = self
+        let message = ValidatorMessage {
+            block: self.block.hash,
+            payload: ValidatorMessagePayload::ProducerBlock(announce.clone()),
+        };
+        let message = self
             .ctx
             .core
             .signer
-            .signed_data(self.ctx.core.pub_key, announce.clone())?;
+            .signed_data(self.ctx.core.pub_key, message)?;
 
         self.state = State::WaitingAnnounceComputed;
-        self.output(ConsensusEvent::PublishAnnounce(signed_announce));
+        self.output(ConsensusEvent::PublishMessage(message));
         self.output(ConsensusEvent::ComputeAnnounce(announce));
 
         Ok(())
@@ -357,7 +362,11 @@ mod tests {
             .await
             .unwrap();
         assert!(state.is_coordinator());
-        assert!(event.is_publish_validation_request());
+        event
+            .unwrap_publish_message()
+            .into_data()
+            .payload
+            .unwrap_request_batch_validation();
     }
 
     #[tokio::test]
@@ -436,7 +445,11 @@ mod tests {
 
             let (state, event) = state.wait_for_event().await?;
             assert!(state.is_producer());
-            assert!(event.is_publish_announce());
+            event
+                .unwrap_publish_message()
+                .into_data()
+                .payload
+                .unwrap_producer_block();
 
             let (state, event) = state.wait_for_event().await?;
             assert!(state.is_producer());

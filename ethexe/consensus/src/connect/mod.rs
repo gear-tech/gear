@@ -100,7 +100,7 @@ impl ConsensusService for SimpleConnectService {
         if let State::WaitingForSyncedBlock { block } = &self.state
             && block.hash == block_hash
         {
-            let validators = self.db.validators(block_hash).ok_or(anyhow!(
+            let validators = self.db.block_validators(block_hash).ok_or(anyhow!(
                 "validators not found for synced block({block_hash})"
             ))?;
             let producer = utils::block_producer_for(

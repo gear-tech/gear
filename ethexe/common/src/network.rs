@@ -17,51 +17,47 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    Address,
-    consensus::{
-        SignedAnnounce, SignedValidationReply, SignedValidationRequest, VerifiedAnnounce,
-        VerifiedValidationReply, VerifiedValidationRequest,
-    },
-    ecdsa::SignResult,
+    Announce, ToDigest,
+    consensus::{BatchCommitmentValidationReply, BatchCommitmentValidationRequest},
+    ecdsa::{SignedData, VerifiedData},
 };
+use gprimitives::H256;
+use k256::sha2::Digest;
 use parity_scale_codec::{Decode, Encode};
+use sha3::Keccak256;
 
-#[derive(Debug, Eq, Encode, Decode, PartialEq, Clone, derive_more::From)]
-pub enum SignedValidatorMessage {
-    ProducerBlock(SignedAnnounce),
-    RequestBatchValidation(SignedValidationRequest),
-    ApproveBatch(SignedValidationReply),
+pub type SignedValidatorMessage = SignedData<ValidatorMessage>;
+pub type VerifiedValidatorMessage = VerifiedData<ValidatorMessage>;
+
+#[derive(Debug, Clone, Encode, Decode, Eq, PartialEq)]
+pub struct ValidatorMessage {
+    pub block: H256,
+    pub payload: ValidatorMessagePayload,
 }
 
-impl SignedValidatorMessage {
-    pub fn verified(self) -> SignResult<VerifiedValidatorMessage> {
-        match self {
-            SignedValidatorMessage::ProducerBlock(announce) => announce
-                .verified()
-                .map(VerifiedValidatorMessage::ProducerBlock),
-            SignedValidatorMessage::RequestBatchValidation(request) => request
-                .verified()
-                .map(VerifiedValidatorMessage::RequestBatchValidation),
-            SignedValidatorMessage::ApproveBatch(reply) => {
-                reply.verified().map(VerifiedValidatorMessage::ApproveBatch)
-            }
-        }
+impl ToDigest for ValidatorMessage {
+    fn update_hasher(&self, hasher: &mut Keccak256) {
+        let Self { block, payload } = self;
+        hasher.update(block.0);
+        payload.update_hasher(hasher);
     }
 }
 
-#[derive(Debug, Eq, PartialEq, Clone)]
-pub enum VerifiedValidatorMessage {
-    ProducerBlock(VerifiedAnnounce),
-    RequestBatchValidation(VerifiedValidationRequest),
-    ApproveBatch(VerifiedValidationReply),
+#[derive(Debug, Clone, Encode, Decode, Eq, PartialEq, derive_more::Unwrap)]
+pub enum ValidatorMessagePayload {
+    ProducerBlock(Announce),
+    RequestBatchValidation(BatchCommitmentValidationRequest),
+    ApproveBatch(BatchCommitmentValidationReply),
 }
 
-impl VerifiedValidatorMessage {
-    pub fn address(&self) -> Address {
+impl ToDigest for ValidatorMessagePayload {
+    fn update_hasher(&self, hasher: &mut Keccak256) {
         match self {
-            VerifiedValidatorMessage::ProducerBlock(announce) => announce.address(),
-            VerifiedValidatorMessage::RequestBatchValidation(request) => request.address(),
-            VerifiedValidatorMessage::ApproveBatch(reply) => reply.address(),
+            ValidatorMessagePayload::ProducerBlock(payload) => payload.update_hasher(hasher),
+            ValidatorMessagePayload::RequestBatchValidation(request) => {
+                request.update_hasher(hasher)
+            }
+            ValidatorMessagePayload::ApproveBatch(reply) => reply.update_hasher(hasher),
         }
     }
 }

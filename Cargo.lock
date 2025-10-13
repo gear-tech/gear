@@ -4860,6 +4860,7 @@ dependencies = [
  "anyhow",
  "assert_matches",
  "async-trait",
+ "auto_impl",
  "derive_more 2.0.1",
  "ethexe-common",
  "ethexe-db",

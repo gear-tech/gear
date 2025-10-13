@@ -22,7 +22,7 @@ use crate::{ObserverEvent, RuntimeConfig, utils};
 use alloy::{providers::RootProvider, rpc::types::eth::Header};
 use anyhow::{Result, anyhow};
 use ethexe_common::{
-    self, Address, BlockData, BlockHeader, CodeBlobInfo,
+    self, BlockData, BlockHeader, CodeBlobInfo,
     db::{LatestDataStorageWrite, OnChainStorageWrite},
     events::{BlockEvent, RouterEvent},
     gear_core::pages::num_traits::Zero,
@@ -56,12 +56,9 @@ impl<DB: SyncDB> ChainSync<DB> {
         let chain = self.load_chain(block, header, blocks_data).await?;
 
         self.mark_chain_as_synced(chain.into_iter().rev());
-        let new_validator_set = self.propagate_validators(block, header).await?;
+        self.propagate_validators(block, header).await?;
 
-        Ok(ObserverEvent::BlockSynced {
-            chain_head: block,
-            new_validator_set,
-        })
+        Ok(ObserverEvent::BlockSynced(block))
     }
 
     async fn load_chain(
@@ -161,13 +158,8 @@ impl<DB: SyncDB> ChainSync<DB> {
     }
 
     // Propagate validators from the parent block. If start new era, fetch new validators from the router.
-    async fn propagate_validators(
-        &self,
-        block: H256,
-        header: BlockHeader,
-    ) -> Result<Option<NonEmpty<Address>>> {
-        let mut new_validators = None;
-        let validators = match self.db.validators(header.parent_hash) {
+    async fn propagate_validators(&self, block: H256, header: BlockHeader) -> Result<()> {
+        let validators = match self.db.block_validators(header.parent_hash) {
             Some(validators) if !self.should_fetch_validators(header)? => validators,
             _ => {
                 let fetched_validators = RouterQuery::from_provider(
@@ -177,15 +169,13 @@ impl<DB: SyncDB> ChainSync<DB> {
                 .validators_at(block)
                 .await?;
 
-                let validators = NonEmpty::from_vec(fetched_validators).ok_or(anyhow!(
+                NonEmpty::from_vec(fetched_validators).ok_or(anyhow!(
                     "validator set is empty on router for block({block})"
-                ))?;
-                new_validators = Some(validators.clone());
-                validators
+                ))?
             }
         };
         self.db.set_block_validators(block, validators.clone());
-        Ok(new_validators)
+        Ok(())
     }
 
     fn mark_chain_as_synced(&self, chain: impl Iterator<Item = H256>) {
