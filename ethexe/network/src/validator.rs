@@ -16,6 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Validator-specific networking logic that verifies signed messages
+//! against on-chain state.
+
 use crate::{gossipsub::MessageAcceptance, peer_score};
 use anyhow::Context;
 use ethexe_common::{
@@ -62,6 +65,14 @@ enum VerificationError {
     },
 }
 
+/// Tracks validator-signed messages and admits each one once the on-chain
+/// context confirms it is timely and originates from a legitimate validator.
+///
+/// Legitimacy is checked via the `block` attached to
+/// [`ValidatorMessage`](ethexe_common::network::ValidatorMessage) and the
+/// validator-signed payload it carries. The hinted era must match the current
+/// chain head; eras N-1, N+2, N+3, and so on are dropped when the node is at era N.
+/// Messages from era N+1 are rechecked after a new chain head arrives.
 pub(crate) struct Validators {
     genesis_timestamp: u64,
     era_duration: u64,
@@ -91,6 +102,9 @@ impl Validators {
         }
     }
 
+    /// Refresh the current chain head and validator set snapshot.
+    ///
+    /// Previously cached messages are rechecked once the new context is available.
     pub(crate) fn set_chain_head(&mut self, chain_head: H256) -> anyhow::Result<()> {
         let chain_head_header = self
             .db
@@ -107,6 +121,7 @@ impl Validators {
         Ok(())
     }
 
+    /// Retrieve the next verified message that is ready for further processing.
     pub(crate) fn next_message(&mut self) -> Option<VerifiedValidatorMessage> {
         self.verified_messages.pop_front()
     }
@@ -171,6 +186,10 @@ impl Validators {
         }
     }
 
+    /// Perform signature validation, chain context checks, and peer scoring.
+    ///
+    /// Returns the appropriate gossipsub acceptance outcome while optionally
+    /// caching messages that will become valid after the node catches up.
     pub(crate) fn verify_message_initially(
         &mut self,
         source: PeerId,
