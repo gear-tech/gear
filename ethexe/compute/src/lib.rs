@@ -25,7 +25,8 @@ use std::collections::HashSet;
 mod compute;
 mod prepare;
 mod service;
-mod utils;
+// mod utils;
+mod codes;
 
 #[cfg(test)]
 mod tests;
@@ -68,6 +69,8 @@ pub enum ComputeError {
     PreparedBlockAnnouncesSetMissing(H256),
     #[error("Latest data not found")]
     LatestDataNotFound,
+    #[error("SubService closed")]
+    SubServiceClosed,
 
     #[error(transparent)]
     Processor(#[from] ProcessorError),

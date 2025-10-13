@@ -28,3 +28,4 @@ wat.workspace = true
 wasmparser.workspace = true
 nonempty.workspace = true
 ethexe-common = { workspace = true, features = ["mock"] }
+ntest.workspace = true

@@ -19,8 +19,8 @@
 pub use tap::Tap;
 
 use crate::{
-    Address, Announce, AnnounceHash, BlockHeader, CodeBlobInfo, Digest, ProgramStates, Schedule,
-    SimpleBlockData,
+    Address, Announce, AnnounceHash, BlockData, BlockHeader, CodeBlobInfo, Digest, ProgramStates,
+    Schedule, SimpleBlockData,
     db::*,
     events::BlockEvent,
     gear::{BatchCommitment, ChainCommitment, CodeCommitment, Message, StateTransition},
@@ -154,13 +154,13 @@ pub struct PreparedBlockData {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct BlockData {
+pub struct BlockFullData {
     pub hash: H256,
     pub synced: Option<SyncedBlockData>,
     pub prepared: Option<PreparedBlockData>,
 }
 
-impl BlockData {
+impl BlockFullData {
     pub fn as_synced(&self) -> &SyncedBlockData {
         self.synced.as_ref().expect("block not synced")
     }
@@ -233,7 +233,7 @@ impl CodeData {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BlockChain {
-    pub blocks: VecDeque<BlockData>,
+    pub blocks: VecDeque<BlockFullData>,
     pub announces: BTreeMap<AnnounceHash, AnnounceData>,
     pub codes: BTreeMap<CodeId, CodeData>,
 }
@@ -296,7 +296,7 @@ impl BlockChain {
             }
         }
 
-        for BlockData {
+        for BlockFullData {
             hash,
             synced,
             prepared,
@@ -410,7 +410,7 @@ impl Mock<(u32, NonEmpty<Address>)> for BlockChain {
             .tuple_windows()
             .map(
                 |((parent_hash, _, _), (block_hash, block_height, block_timestamp))| {
-                    BlockData {
+                    BlockFullData {
                         hash: block_hash,
                         synced: Some(SyncedBlockData {
                             header: BlockHeader {
@@ -479,6 +479,7 @@ pub trait DBMockExt {
 }
 
 impl<DB: OnChainStorageRead + BlockMetaStorageRead> DBMockExt for DB {
+    #[track_caller]
     fn simple_block_data(&self, block: H256) -> SimpleBlockData {
         let header = self.block_header(block).expect("block header not found");
         SimpleBlockData {
@@ -487,6 +488,7 @@ impl<DB: OnChainStorageRead + BlockMetaStorageRead> DBMockExt for DB {
         }
     }
 
+    #[track_caller]
     fn top_announce_hash(&self, block: H256) -> AnnounceHash {
         self.block_meta(block)
             .announces
@@ -494,5 +496,42 @@ impl<DB: OnChainStorageRead + BlockMetaStorageRead> DBMockExt for DB {
             .into_iter()
             .next()
             .expect("must be at list one announce")
+    }
+}
+
+impl SimpleBlockData {
+    pub fn setup<DB>(self, db: &DB) -> Self
+    where
+        DB: OnChainStorageWrite,
+    {
+        db.set_block_header(self.hash, self.header);
+        db.set_block_events(self.hash, &[]);
+        db.set_block_validators(self.hash, nonempty![Address([123; 20])]);
+        db.set_block_synced(self.hash);
+        self
+    }
+
+    pub fn next_block(self) -> Self {
+        Self {
+            hash: H256::from_low_u64_be(self.hash.to_low_u64_be() + 1),
+            header: BlockHeader {
+                height: self.header.height + 1,
+                parent_hash: self.hash,
+                timestamp: self.header.timestamp + 10,
+            },
+        }
+    }
+}
+
+impl BlockData {
+    pub fn setup<DB>(self, db: &DB) -> Self
+    where
+        DB: OnChainStorageWrite,
+    {
+        db.set_block_header(self.hash, self.header);
+        db.set_block_events(self.hash, &self.events);
+        db.set_block_validators(self.hash, nonempty![Address([123; 20])]);
+        db.set_block_synced(self.hash);
+        self
     }
 }
