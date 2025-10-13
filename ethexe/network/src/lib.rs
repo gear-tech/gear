@@ -167,6 +167,7 @@ impl NetworkService {
         config: NetworkConfig,
         genesis_timestamp: u64,
         era_duration: u64,
+        genesis_chain_head: H256,
         signer: &Signer,
         external_data_provider: Box<dyn db_sync::ExternalDataProvider>,
         db: Box<dyn NetworkServiceDatabase>,
@@ -219,9 +220,11 @@ impl NetworkService {
         let validators = Validators::new(
             genesis_timestamp,
             era_duration,
+            genesis_chain_head,
             ValidatorDatabase::clone_boxed(&db),
             swarm.behaviour().peer_score.handle(),
-        );
+        )
+        .context("failed to create validators")?;
 
         Ok(Self {
             swarm,
@@ -594,10 +597,11 @@ mod tests {
         utils::tests::init_logger,
     };
     use async_trait::async_trait;
-    use ethexe_common::gear::CodeState;
+    use ethexe_common::{BlockHeader, db::OnChainStorageWrite, gear::CodeState};
     use ethexe_db::{Database, MemDb};
     use ethexe_signer::{FSKeyStorage, Signer};
     use gprimitives::{ActorId, CodeId, H256};
+    use nonempty::nonempty;
     use std::{
         collections::{BTreeSet, HashMap},
         sync::Arc,
@@ -671,6 +675,18 @@ mod tests {
     }
 
     fn new_service_with(db: Database, data_provider: DataProvider) -> NetworkService {
+        const GENESIS_BLOCK: H256 = H256::zero();
+
+        db.set_block_header(
+            GENESIS_BLOCK,
+            BlockHeader {
+                height: 0,
+                timestamp: 0,
+                parent_hash: Default::default(),
+            },
+        );
+        db.set_block_validators(GENESIS_BLOCK, nonempty![Address::default()]);
+
         let key_storage = FSKeyStorage::tmp();
         let signer = Signer::new(key_storage);
         let key = signer.generate_key().unwrap();
@@ -679,6 +695,7 @@ mod tests {
             config.clone(),
             1_000_000,
             1,
+            GENESIS_BLOCK,
             &signer,
             Box::new(data_provider),
             Box::new(db),

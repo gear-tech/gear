@@ -78,7 +78,7 @@ struct ChainHead {
 /// [`ValidatorMessage`](ethexe_common::network::ValidatorMessage) and the
 /// validator-signed payload it carries. The hinted era must match the current
 /// chain head; eras N-1, N+2, N+3, and so on are dropped when the node is at era N.
-/// Messages from era N+1 are rechecked after a new chain head arrives.
+/// Messages from era N+1 are rechecked after the next validator set arrives.
 pub(crate) struct Validators {
     genesis_timestamp: u64,
     era_duration: u64,
@@ -86,7 +86,7 @@ pub(crate) struct Validators {
     cached_messages: HashMap<PeerId, Vec<VerifiedValidatorMessage>>,
     verified_messages: VecDeque<VerifiedValidatorMessage>,
     db: Box<dyn ValidatorDatabase>,
-    chain_head: Option<ChainHead>,
+    chain_head: ChainHead,
     peer_score: peer_score::Handle,
 }
 
@@ -94,37 +94,40 @@ impl Validators {
     pub(crate) fn new(
         genesis_timestamp: u64,
         era_duration: u64,
+        genesis_chain_head: H256,
         db: Box<dyn ValidatorDatabase>,
         peer_score: peer_score::Handle,
-    ) -> Self {
-        Self {
+    ) -> anyhow::Result<Self> {
+        Ok(Self {
             genesis_timestamp,
             era_duration,
             cached_messages: HashMap::new(),
             verified_messages: VecDeque::new(),
+            chain_head: Self::get_chain_head(&db, genesis_chain_head)?,
             db,
-            chain_head: None,
             peer_score,
-        }
+        })
+    }
+
+    fn get_chain_head(db: &impl ValidatorDatabase, chain_head: H256) -> anyhow::Result<ChainHead> {
+        let chain_head_header = db
+            .block_header(chain_head)
+            .context("chain head header not found")?;
+        let validators = db
+            .block_validators(chain_head)
+            .context("validators not found")?;
+        Ok(ChainHead {
+            header: chain_head_header,
+            current_validators: validators,
+            next_validators: None,
+        })
     }
 
     /// Refresh the current chain head and validator set snapshot.
     ///
     /// Previously cached messages are rechecked once the new context is available.
     pub(crate) fn set_chain_head(&mut self, chain_head: H256) -> anyhow::Result<()> {
-        let chain_head_header = self
-            .db
-            .block_header(chain_head)
-            .context("chain head not found")?;
-        let validators = self
-            .db
-            .block_validators(chain_head)
-            .context("validators not found")?;
-        self.chain_head = Some(ChainHead {
-            header: chain_head_header,
-            current_validators: validators,
-            next_validators: None,
-        });
+        self.chain_head = Self::get_chain_head(&self.db, chain_head)?;
 
         self.verify_on_new_chain_head();
 
@@ -149,10 +152,7 @@ impl Validators {
             header: chain_head,
             current_validators,
             next_validators,
-        } = self
-            .chain_head
-            .as_ref()
-            .expect("chain head should be set by this time");
+        } = &self.chain_head;
         let chain_head_era = self.block_era_index(chain_head.timestamp);
 
         let block = message.block();
@@ -261,27 +261,29 @@ mod tests {
 
     const GENESIS_TIMESTAMP: u64 = 1_000_000;
     const ERA_DURATION: u64 = 1_000;
+    const GENESIS_CHAIN_HEAD: H256 = H256::zero();
     const CHAIN_HEAD_TIMESTAMP: u64 = GENESIS_TIMESTAMP + (ERA_DURATION * 10);
 
     fn new_validators() -> (Validators, Database) {
         let db = Database::memory();
         db.set_block_header(
-            H256::zero(),
+            GENESIS_CHAIN_HEAD,
             BlockHeader {
                 height: 0,
                 timestamp: CHAIN_HEAD_TIMESTAMP,
                 parent_hash: H256::random(),
             },
         );
-        db.set_block_validators(H256::zero(), nonempty![Address::default()]);
+        db.set_block_validators(GENESIS_CHAIN_HEAD, nonempty![Address::default()]);
 
-        let mut validators = Validators::new(
+        let validators = Validators::new(
             GENESIS_TIMESTAMP,
             ERA_DURATION,
+            GENESIS_CHAIN_HEAD,
             ValidatorDatabase::clone_boxed(&db),
             peer_score::Handle::new_test(),
-        );
-        validators.set_chain_head(H256::zero()).unwrap();
+        )
+        .unwrap();
 
         (validators, db)
     }
@@ -314,8 +316,8 @@ mod tests {
         let (bob_address, bob_message, bob_block) = new_validator_message();
         let bob_verified = bob_message.clone().into_verified();
 
-        alice_db.set_block_validators(H256::zero(), nonempty![bob_address]);
-        alice.set_chain_head(H256::zero()).unwrap();
+        alice_db.set_block_validators(GENESIS_CHAIN_HEAD, nonempty![bob_address]);
+        alice.set_chain_head(GENESIS_CHAIN_HEAD).unwrap();
 
         let err = alice.inner_verify(&bob_verified).unwrap_err();
         assert_eq!(err, VerificationError::UnknownBlock { block: bob_block });
@@ -362,8 +364,8 @@ mod tests {
                 parent_hash: Default::default(),
             },
         );
-        alice_db.set_block_validators(H256::zero(), nonempty![bob_address]);
-        alice.set_chain_head(H256::zero()).unwrap();
+        alice_db.set_block_validators(GENESIS_CHAIN_HEAD, nonempty![bob_address]);
+        alice.set_chain_head(GENESIS_CHAIN_HEAD).unwrap();
 
         let chain_head_era = alice.block_era_index(CHAIN_HEAD_TIMESTAMP);
 
@@ -393,8 +395,8 @@ mod tests {
                 parent_hash: Default::default(),
             },
         );
-        alice_db.set_block_validators(H256::zero(), nonempty![bob_address]);
-        alice.set_chain_head(H256::zero()).unwrap();
+        alice_db.set_block_validators(GENESIS_CHAIN_HEAD, nonempty![bob_address]);
+        alice.set_chain_head(GENESIS_CHAIN_HEAD).unwrap();
 
         let chain_head_era = alice.block_era_index(CHAIN_HEAD_TIMESTAMP);
 
@@ -448,8 +450,8 @@ mod tests {
         let (bob_address, bob_message, bob_block) = new_validator_message();
         let bob_verified = bob_message.clone().into_verified();
 
-        alice_db.set_block_validators(H256::zero(), nonempty![bob_address]);
-        alice.set_chain_head(H256::zero()).unwrap();
+        alice_db.set_block_validators(GENESIS_CHAIN_HEAD, nonempty![bob_address]);
+        alice.set_chain_head(GENESIS_CHAIN_HEAD).unwrap();
 
         alice_db.set_block_header(
             bob_block,

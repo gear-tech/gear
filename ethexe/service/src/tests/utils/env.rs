@@ -198,7 +198,6 @@ impl TestEnv {
         let router = ethereum.router();
         let router_query = router.query();
         let router_address = router.address();
-        let genesis_block_hash = router_query.genesis_block_hash().await.unwrap();
 
         let db = Database::memory();
 
@@ -213,6 +212,7 @@ impl TestEnv {
             .unwrap();
         let genesis_timestamp = observer.genesis_timestamp_secs();
         let era_duration = observer.era_duration_secs();
+        let genesis_block_hash = observer.genesis_block_hash();
 
         let blobs_storage = LocalBlobStorage::default();
 
@@ -279,6 +279,7 @@ impl TestEnv {
                 config,
                 genesis_timestamp,
                 era_duration,
+                genesis_block_hash,
                 &signer,
                 Box::new(RouterDataProvider(router_query.clone())),
                 Box::new(db.clone()),
@@ -844,6 +845,7 @@ impl Node {
                 config,
                 observer.genesis_timestamp_secs(),
                 observer.era_duration_secs(),
+                observer.genesis_block_hash(),
                 &self.signer,
                 Box::new(RouterDataProvider(self.router_query.clone())),
                 Box::new(self.db.clone()),

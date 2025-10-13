@@ -228,6 +228,7 @@ impl Service {
                 net_config.clone(),
                 observer.genesis_timestamp_secs(),
                 observer.era_duration_secs(),
+                observer.genesis_block_hash(),
                 &signer,
                 Box::new(RouterDataProvider(router_query)),
                 Box::new(db.clone()),
