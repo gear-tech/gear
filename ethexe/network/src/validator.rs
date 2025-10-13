@@ -21,7 +21,10 @@ use anyhow::Context;
 use ethexe_common::{
     Address, BlockHeader,
     db::OnChainStorageRead,
-    network::{SignedValidatorMessage, VerifiedValidatorMessage},
+    ecdsa::VerifiedData,
+    network::{
+        SignedValidatorMessage, ValidatorMessage, ValidatorMessagePayload, VerifiedValidatorMessage,
+    },
 };
 use ethexe_db::Database;
 use gprimitives::H256;
@@ -32,6 +35,8 @@ use std::{
     collections::{HashMap, VecDeque},
     mem,
 };
+
+type InnerValidatorMessage = VerifiedData<ValidatorMessage>;
 
 #[auto_impl::auto_impl(&, Box)]
 pub trait ValidatorDatabase: Send + OnChainStorageRead {
@@ -56,8 +61,8 @@ pub(crate) struct Validators {
     genesis_timestamp: u64,
     era_duration: u64,
 
-    cached_messages: HashMap<PeerId, VerifiedValidatorMessage>,
-    verified_messages: VecDeque<VerifiedValidatorMessage>,
+    cached_messages: HashMap<PeerId, InnerValidatorMessage>,
+    verified_messages: VecDeque<InnerValidatorMessage>,
     db: Box<dyn ValidatorDatabase>,
     chain_head: Option<(BlockHeader, NonEmpty<Address>)>,
     peer_score: peer_score::Handle,
@@ -98,14 +103,31 @@ impl Validators {
     }
 
     pub(crate) fn next_message(&mut self) -> Option<VerifiedValidatorMessage> {
-        self.verified_messages.pop_front()
+        let message = self.verified_messages.pop_front()?;
+        let (message, pub_key) = message.into_parts();
+        let message = unsafe {
+            match message.payload {
+                ValidatorMessagePayload::ProducerBlock(announce) => {
+                    VerifiedValidatorMessage::ProducerBlock(VerifiedData::new(announce, pub_key))
+                }
+                ValidatorMessagePayload::RequestBatchValidation(request) => {
+                    VerifiedValidatorMessage::RequestBatchValidation(VerifiedData::new(
+                        request, pub_key,
+                    ))
+                }
+                ValidatorMessagePayload::ApproveBatch(reply) => {
+                    VerifiedValidatorMessage::ApproveBatch(VerifiedData::new(reply, pub_key))
+                }
+            }
+        };
+        Some(message)
     }
 
     fn block_era_index(&self, block_ts: u64) -> u64 {
         (block_ts - self.genesis_timestamp) / self.era_duration
     }
 
-    fn inner_verify(&self, message: &VerifiedValidatorMessage) -> Result<(), VerificationError> {
+    fn inner_verify(&self, message: &InnerValidatorMessage) -> Result<(), VerificationError> {
         let (chain_head, validators) = self
             .chain_head
             .as_ref()

@@ -34,8 +34,8 @@ use crate::{
 use anyhow::{Context, anyhow};
 use ethexe_common::{
     Address,
-    ecdsa::{PublicKey, VerifiedData},
-    network::{SignedValidatorMessage, ValidatorMessagePayload},
+    ecdsa::PublicKey,
+    network::{SignedValidatorMessage, VerifiedValidatorMessage},
     tx_pool::SignedOffchainTransaction,
 };
 use ethexe_signer::Signer;
@@ -73,7 +73,7 @@ impl<T> NetworkServiceDatabase for T where T: DbSyncDatabase + ValidatorDatabase
 
 #[derive(derive_more::Debug, Eq, PartialEq, Clone)]
 pub enum NetworkEvent {
-    ValidatorMessage(VerifiedData<ValidatorMessagePayload>),
+    ValidatorMessage(VerifiedValidatorMessage),
     OffchainTransaction(SignedOffchainTransaction),
     PeerBlocked(PeerId),
     PeerConnected(PeerId),
@@ -141,7 +141,6 @@ impl Stream for NetworkService {
         cx: &mut std::task::Context<'_>,
     ) -> Poll<Option<Self::Item>> {
         if let Some(message) = self.validators.next_message() {
-            let message = message.map(|m| m.payload);
             return Poll::Ready(Some(NetworkEvent::ValidatorMessage(message)));
         }
 

@@ -248,6 +248,14 @@ pub struct VerifiedData<T> {
 }
 
 impl<T> VerifiedData<T> {
+    /// Creates a new instance of the struct with the given data and public key.
+    ///
+    /// # Safety
+    /// This function is marked as `unsafe` because data may be not signature verified.
+    pub unsafe fn new(data: T, public_key: PublicKey) -> Self {
+        Self { data, public_key }
+    }
+
     pub fn map<U>(self, f: impl FnOnce(T) -> U) -> VerifiedData<U> {
         let Self { data, public_key } = self;
         let data = f(data);

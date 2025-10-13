@@ -18,8 +18,11 @@
 
 use crate::{
     Announce, ToDigest,
-    consensus::{BatchCommitmentValidationReply, BatchCommitmentValidationRequest},
-    ecdsa::{SignedData, VerifiedData},
+    consensus::{
+        BatchCommitmentValidationReply, BatchCommitmentValidationRequest, VerifiedAnnounce,
+        VerifiedValidationReply, VerifiedValidationRequest,
+    },
+    ecdsa::SignedData,
 };
 use gprimitives::H256;
 use k256::sha2::Digest;
@@ -27,7 +30,6 @@ use parity_scale_codec::{Decode, Encode};
 use sha3::Keccak256;
 
 pub type SignedValidatorMessage = SignedData<ValidatorMessage>;
-pub type VerifiedValidatorMessage = VerifiedData<ValidatorMessage>;
 
 #[derive(Debug, Clone, Encode, Decode, Eq, PartialEq)]
 pub struct ValidatorMessage {
@@ -60,4 +62,11 @@ impl ToDigest for ValidatorMessagePayload {
             ValidatorMessagePayload::ApproveBatch(reply) => reply.update_hasher(hasher),
         }
     }
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, derive_more::Unwrap)]
+pub enum VerifiedValidatorMessage {
+    ProducerBlock(VerifiedAnnounce),
+    RequestBatchValidation(VerifiedValidationRequest),
+    ApproveBatch(VerifiedValidationReply),
 }

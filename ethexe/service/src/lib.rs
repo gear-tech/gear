@@ -23,7 +23,7 @@ use ethexe_blob_loader::{
     BlobLoader, BlobLoaderEvent, BlobLoaderService, ConsensusLayerConfig,
     local::{LocalBlobLoader, LocalBlobStorage},
 };
-use ethexe_common::{ecdsa::PublicKey, gear::CodeState, network::ValidatorMessagePayload};
+use ethexe_common::{ecdsa::PublicKey, gear::CodeState, network::VerifiedValidatorMessage};
 use ethexe_compute::{ComputeEvent, ComputeService};
 use ethexe_consensus::{
     ConsensusEvent, ConsensusService, SimpleConnectService, ValidatorConfig, ValidatorService,
@@ -431,19 +431,15 @@ impl Service {
 
                     match event {
                         NetworkEvent::ValidatorMessage(message) => {
-                            match message.data() {
-                                ValidatorMessagePayload::ProducerBlock(_) => {
-                                    let announce = message.map(|m| m.unwrap_producer_block());
+                            match message {
+                                VerifiedValidatorMessage::ProducerBlock(announce) => {
                                     consensus.receive_announce(announce)?
                                 }
-                                ValidatorMessagePayload::RequestBatchValidation(_) => {
-                                    let request =
-                                        message.map(|m| m.unwrap_request_batch_validation());
+                                VerifiedValidatorMessage::RequestBatchValidation(request) => {
                                     consensus.receive_validation_request(request)?
                                 }
-                                ValidatorMessagePayload::ApproveBatch(_) => {
-                                    let (reply, _) =
-                                        message.map(|m| m.unwrap_approve_batch()).into_parts();
+                                VerifiedValidatorMessage::ApproveBatch(reply) => {
+                                    let (reply, _) = reply.into_parts();
                                     consensus.receive_validation_reply(reply)?
                                 }
                             };
