@@ -134,28 +134,27 @@ impl<P: ProcessorExt> ComputeSubService<P> {
 }
 
 impl<P: ProcessorExt> Stream for ComputeSubService<P> {
-    type Item = Result<Option<AnnounceHash>>;
+    type Item = Result<AnnounceHash>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        if let Some(computation) = &mut self.computation {
-            match computation.as_mut().poll(cx) {
-                Poll::Ready(res) => {
-                    self.computation = None;
-                    Poll::Ready(Some(res.map(Some)))
-                }
-                Poll::Pending => Poll::Pending,
-            }
-        } else if let Some(announce) = self.input.pop_front() {
+        if self.computation.is_none()
+            && let Some(announce) = self.input.pop_front()
+        {
             self.computation = Some(Box::pin(Self::compute(
                 self.db.clone(),
                 self.processor.clone(),
                 announce,
             )));
-
-            Poll::Ready(Some(Ok(None)))
-        } else {
-            Poll::Pending
         }
+
+        if let Some(computation) = &mut self.computation
+            && let Poll::Ready(res) = computation.as_mut().poll(cx)
+        {
+            self.computation = None;
+            return Poll::Ready(Some(res));
+        }
+
+        Poll::Pending
     }
 }
 
@@ -199,8 +198,7 @@ mod tests {
         PROCESSOR_RESULT.with_borrow_mut(|r| *r = non_empty_result.clone());
         service.receive_announce_to_compute(announce);
 
-        assert_eq!(service.next().await.unwrap().unwrap(), None); // Computation started
-        assert_eq!(service.next().await.unwrap().unwrap(), Some(announce_hash)); // Computation done
+        assert_eq!(service.next().await.unwrap().unwrap(), announce_hash);
 
         // Verify block was marked as computed
         assert!(db.announce_meta(announce_hash).computed);

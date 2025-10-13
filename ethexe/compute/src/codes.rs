@@ -57,16 +57,12 @@ impl<P: ProcessorExt> CodesSubService<P> {
 }
 
 impl<P: ProcessorExt> Stream for CodesSubService<P> {
-    type Item = Result<Option<CodeId>>;
+    type Item = Result<CodeId>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         futures::ready!(self.processions.poll_join_next(cx))
             .map(|res| res.map_err(ComputeError::CodeProcessJoin)?)
-            .map_or(Poll::Pending, |res| Poll::Ready(Some(res.map(Some))))
-    }
-
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        (0, None)
+            .map_or(Poll::Pending, |res| Poll::Ready(Some(res)))
     }
 }
 
@@ -79,6 +75,7 @@ mod tests {
     use gear_core::code::{InstantiatedSectionSizes, InstrumentedCode};
 
     #[tokio::test]
+    #[ntest::timeout(3000)]
     async fn process_code() {
         let db = Database::memory();
         let mut service = CodesSubService::new(db.clone(), MockProcessor);
@@ -86,11 +83,14 @@ mod tests {
         let code_and_id = CodeAndId::new(vec![1, 2, 3, 4]);
 
         service.receive_code_to_process(code_and_id.clone().into_unchecked());
-        let code_id = service.next().await.unwrap().unwrap().unwrap();
-        assert_eq!(code_id, code_and_id.code_id());
+        assert_eq!(
+            service.next().await.unwrap().unwrap(),
+            code_and_id.code_id()
+        );
     }
 
     #[tokio::test]
+    #[ntest::timeout(3000)]
     async fn process_already_validated_code() {
         let db = Database::memory();
         let mut service = CodesSubService::new(db.clone(), MockProcessor);
@@ -108,15 +108,12 @@ mod tests {
             ),
         );
         service.receive_code_to_process(code_and_id.into_unchecked());
-        let returned_code_id = service.next().await.unwrap().unwrap().unwrap();
-        assert_eq!(returned_code_id, code_id);
+        assert_eq!(service.next().await.unwrap().unwrap(), code_id);
 
         let code_and_id = CodeAndId::new(vec![100, 101, 102, 103]);
         let code_id = code_and_id.code_id();
         db.set_code_valid(code_id, false);
-
         service.receive_code_to_process(code_and_id.into_unchecked());
-        let returned_code_id = service.next().await.unwrap().unwrap().unwrap();
-        assert_eq!(returned_code_id, code_id);
+        assert_eq!(service.next().await.unwrap().unwrap(), code_id);
     }
 }

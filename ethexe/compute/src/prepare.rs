@@ -84,88 +84,87 @@ impl PrepareSubService {
 }
 
 impl Stream for PrepareSubService {
-    type Item = Result<Option<Event>>;
+    type Item = Result<Event>;
 
     fn poll_next(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        log::trace!("Polling");
+        if let State::WaitingForBlock = &self.state {
+            let Some(mut block_hash) = self.input.pop_back() else {
+                return Poll::Pending;
+            };
 
-        match &mut self.state {
-            State::WaitingForBlock => {
-                let mut block_hash = match self.input.pop_back() {
-                    Some(block_hash) => block_hash,
-                    None => return Poll::Pending,
-                };
-
-                if !self.db.block_synced(block_hash) {
-                    return Poll::Ready(Some(Err(ComputeError::BlockNotSynced(block_hash))));
-                }
-
-                let mut not_processed_blocks_chain = VecDeque::new();
-                loop {
-                    if self.db.block_meta(block_hash).prepared {
-                        break;
-                    }
-
-                    let header = self
-                        .db
-                        .block_header(block_hash)
-                        .ok_or(ComputeError::BlockHeaderNotFound(block_hash))?;
-                    let events = self
-                        .db
-                        .block_events(block_hash)
-                        .ok_or(ComputeError::BlockEventsNotFound(block_hash))?;
-
-                    not_processed_blocks_chain.push_front(BlockData {
-                        hash: block_hash,
-                        header,
-                        events,
-                    });
-
-                    block_hash = header.parent_hash;
-                }
-
-                if not_processed_blocks_chain.is_empty() {
-                    // Block is already prepared
-                    return Poll::Ready(Some(Ok(Some(Event::BlockPrepared(block_hash)))));
-                }
-
-                log::trace!("Collected a chain to prepare {not_processed_blocks_chain:?}");
-
-                let MissingData {
-                    codes,
-                    validated_codes,
-                } = missing_data(&self.db, &not_processed_blocks_chain)?;
-
-                self.state = State::WaitingForCodes {
-                    codes: validated_codes,
-                    not_processed_blocks_chain,
-                };
-
-                Poll::Ready(Some(Ok(
-                    (!codes.is_empty()).then_some(Event::RequestCodes(codes))
-                )))
+            if !self.db.block_synced(block_hash) {
+                return Poll::Ready(Some(Err(ComputeError::BlockNotSynced(block_hash))));
             }
-            State::WaitingForCodes {
+
+            let mut not_processed_blocks_chain = VecDeque::new();
+            loop {
+                if self.db.block_meta(block_hash).prepared {
+                    break;
+                }
+
+                let header = self
+                    .db
+                    .block_header(block_hash)
+                    .ok_or(ComputeError::BlockHeaderNotFound(block_hash))?;
+                let events = self
+                    .db
+                    .block_events(block_hash)
+                    .ok_or(ComputeError::BlockEventsNotFound(block_hash))?;
+
+                not_processed_blocks_chain.push_front(BlockData {
+                    hash: block_hash,
+                    header,
+                    events,
+                });
+
+                block_hash = header.parent_hash;
+            }
+
+            if not_processed_blocks_chain.is_empty() {
+                // Block is already prepared
+                return Poll::Ready(Some(Ok(Event::BlockPrepared(block_hash))));
+            }
+
+            log::trace!("Collected a chain to prepare {not_processed_blocks_chain:?}");
+
+            let MissingData {
                 codes,
+                validated_codes,
+            } = missing_data(&self.db, &not_processed_blocks_chain)?;
+
+            self.state = State::WaitingForCodes {
+                codes: validated_codes,
                 not_processed_blocks_chain,
-            } if codes.is_empty() => {
-                log::trace!("All validated codes are processed, preparing blocks");
+            };
 
-                let head = not_processed_blocks_chain
-                    .back()
-                    .unwrap_or_else(|| unreachable!("chain must be non-empty"))
-                    .hash;
-
-                for block in std::mem::take(not_processed_blocks_chain) {
-                    prepare_one_block(&self.db, block.clone())?;
-                }
-
-                self.state = State::WaitingForBlock;
-
-                Poll::Ready(Some(Ok(Some(Event::BlockPrepared(head)))))
+            if !codes.is_empty() {
+                return Poll::Ready(Some(Ok(Event::RequestCodes(codes))));
             }
-            State::WaitingForCodes { .. } => Poll::Pending,
         }
+
+        if let State::WaitingForCodes {
+            codes,
+            not_processed_blocks_chain,
+        } = &mut self.state
+            && codes.is_empty()
+        {
+            log::trace!("All validated codes are processed, preparing blocks");
+
+            let head = not_processed_blocks_chain
+                .back()
+                .unwrap_or_else(|| unreachable!("chain must be non-empty"))
+                .hash;
+
+            for block in std::mem::take(not_processed_blocks_chain) {
+                prepare_one_block(&self.db, block)?;
+            }
+
+            self.state = State::WaitingForBlock;
+
+            return Poll::Ready(Some(Ok(Event::BlockPrepared(head))));
+        }
+
+        Poll::Pending
     }
 }
 
@@ -405,7 +404,7 @@ mod tests {
     }
 
     #[tokio::test]
-    #[ntest::timeout(1_000)]
+    #[ntest::timeout(3000)]
     async fn test_prepare_no_codes() {
         gear_utils::init_default_logger();
 
@@ -418,18 +417,12 @@ mod tests {
 
         assert_eq!(
             service.next().await.unwrap().unwrap(),
-            None,
-            "No codes, so must be ready, but no event"
-        );
-        assert_eq!(
-            service.next().await.unwrap().unwrap(),
-            Some(Event::BlockPrepared(block.hash)),
-            "Must be ready with BlockPrepared event"
+            Event::BlockPrepared(block.hash),
         );
     }
 
     #[tokio::test]
-    #[ntest::timeout(1_000)]
+    #[ntest::timeout(3000)]
     async fn test_prepare_with_codes() {
         gear_utils::init_default_logger();
 
@@ -461,15 +454,13 @@ mod tests {
         service.receive_block_to_prepare(block.hash);
         assert_eq!(
             service.next().await.unwrap().unwrap(),
-            Some(Event::RequestCodes([code1_id, code2_id].into())),
-            "Must request all codes"
+            Event::RequestCodes([code1_id, code2_id].into())
         );
 
         service.receive_processed_code(code1_id);
         assert_eq!(
             service.next().await.unwrap().unwrap(),
-            Some(Event::BlockPrepared(block.hash)),
-            "After code2_id processed, must be ready with BlockPrepared event"
+            Event::BlockPrepared(block.hash),
         );
     }
 }

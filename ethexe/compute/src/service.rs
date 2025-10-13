@@ -88,7 +88,7 @@ impl<P: ProcessorExt> Stream for ComputeService<P> {
     type Item = Result<ComputeEvent>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        if let Poll::Ready(result) = self.codes_sub_service.poll_until_pending_or_result(cx) {
+        if let Poll::Ready(result) = self.codes_sub_service.poll_next_some(cx) {
             match result {
                 Ok(code_id) => {
                     self.prepare_sub_service.receive_processed_code(code_id);
@@ -100,11 +100,11 @@ impl<P: ProcessorExt> Stream for ComputeService<P> {
             }
         };
 
-        if let Poll::Ready(result) = self.prepare_sub_service.poll_until_pending_or_result(cx) {
+        if let Poll::Ready(result) = self.prepare_sub_service.poll_next_some(cx) {
             return Poll::Ready(Some(result.map(ComputeEvent::from)));
         };
 
-        if let Poll::Ready(result) = self.compute_sub_service.poll_until_pending_or_result(cx) {
+        if let Poll::Ready(result) = self.compute_sub_service.poll_next_some(cx) {
             return Poll::Ready(Some(result.map(ComputeEvent::AnnounceComputed)));
         };
 
@@ -118,24 +118,15 @@ impl<P: ProcessorExt> FusedStream for ComputeService<P> {
     }
 }
 
-trait SubService<Output>: Stream<Item = Result<Option<Output>>> + Unpin + Send + 'static {
-    fn poll_until_pending_or_result(&mut self, cx: &mut Context<'_>) -> Poll<Result<Output>> {
-        loop {
-            match self.poll_next_unpin(cx) {
-                Poll::Ready(Some(Ok(Some(output)))) => return Poll::Ready(Ok(output)),
-                Poll::Ready(Some(Ok(None))) => continue,
-                Poll::Ready(Some(Err(e))) => return Poll::Ready(Err(e)),
-                Poll::Ready(None) => {
-                    return Poll::Ready(Err(ComputeError::SubServiceClosed));
-                }
-                Poll::Pending => return Poll::Pending,
-            }
-        }
+trait SubService<Output>: Stream<Item = Result<Output>> + Unpin + Send + 'static {
+    fn poll_next_some(&mut self, cx: &mut Context<'_>) -> Poll<Result<Output>> {
+        self.poll_next_unpin(cx)
+            .map(|e| e.ok_or(ComputeError::SubServiceClosed).flatten())
     }
 }
 
 impl<T, Output> SubService<Output> for T where
-    T: Stream<Item = Result<Option<Output>>> + Unpin + Send + 'static
+    T: Stream<Item = Result<Output>> + Unpin + Send + 'static
 {
 }
 
