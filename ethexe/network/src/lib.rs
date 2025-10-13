@@ -420,7 +420,6 @@ impl NetworkService {
                     "failed to publish gossip `{message:?}` message to {topic} topic: {error}"
                 );
             }
-            BehaviourEvent::Gossipsub(_) => {}
             //
             BehaviourEvent::DbSync(_) => {}
         }

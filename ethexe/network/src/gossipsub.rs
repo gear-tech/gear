@@ -75,14 +75,6 @@ pub(crate) enum Event {
         message: Message,
         topic: TopicHash,
     },
-    Subscribed {
-        peer_id: PeerId,
-        topic: TopicHash,
-    },
-    Unsubscribed {
-        peer_id: PeerId,
-        topic: TopicHash,
-    },
 }
 
 pub(crate) struct Behaviour {
@@ -188,12 +180,14 @@ impl Behaviour {
                     message,
                 })
             }
-            gossipsub::Event::Subscribed { peer_id, topic } => {
-                Poll::Ready(Event::Subscribed { peer_id, topic })
-            }
-            gossipsub::Event::Unsubscribed { peer_id, topic } => {
-                Poll::Ready(Event::Unsubscribed { peer_id, topic })
-            }
+            gossipsub::Event::Subscribed {
+                peer_id: _,
+                topic: _,
+            } => Poll::Pending,
+            gossipsub::Event::Unsubscribed {
+                peer_id: _,
+                topic: _,
+            } => Poll::Pending,
             gossipsub::Event::GossipsubNotSupported { peer_id } => {
                 log::trace!("peer doesn't support gossipsub: {peer_id}");
                 self.peer_score.unsupported_protocol(peer_id);
