@@ -67,7 +67,7 @@ impl SignedValidatorMessage {
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, derive_more::Unwrap)]
+#[derive(Debug, Clone, Eq, PartialEq, derive_more::Unwrap, derive_more::From)]
 pub enum VerifiedValidatorMessage {
     ProducerBlock(VerifiedData<ValidatorAnnounce>),
     RequestBatchValidation(VerifiedData<ValidatorRequest>),
