@@ -68,19 +68,11 @@ impl<P: ProcessorExt> ComputeService<P> {
 
     /// Get all metrics from the compute service
     pub fn get_metrics(&self) -> ComputeMetrics {
-        todo!("+_+_+")
-        // let waiting_codes_count =
-        //     if let State::WaitForRequestedData { codes, .. } = &self.blocks_state {
-        //         codes.len()
-        //     } else {
-        //         0
-        //     };
-
-        // ComputeMetrics {
-        //     blocks_queue_len: self.blocks_queue.len(),
-        //     process_codes_count: self.process_codes.len(),
-        //     waiting_codes_count,
-        // }
+        ComputeMetrics {
+            blocks_queue_len: self.prepare_sub_service.blocks_queue_len(),
+            process_codes_count: self.codes_sub_service.process_codes_count(),
+            waiting_codes_count: self.prepare_sub_service.waiting_codes_count(),
+        }
     }
 }
 

@@ -54,6 +54,10 @@ impl<P: ProcessorExt> CodesSubService<P> {
             });
         }
     }
+
+    pub fn process_codes_count(&self) -> usize {
+        self.processions.len()
+    }
 }
 
 impl<P: ProcessorExt> Stream for CodesSubService<P> {

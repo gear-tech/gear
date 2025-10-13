@@ -81,6 +81,18 @@ impl PrepareSubService {
             codes.remove(&code_id);
         }
     }
+
+    pub fn blocks_queue_len(&self) -> usize {
+        self.input.len()
+    }
+
+    pub fn waiting_codes_count(&self) -> usize {
+        if let State::WaitingForCodes { codes, .. } = &self.state {
+            codes.len()
+        } else {
+            0
+        }
+    }
 }
 
 impl Stream for PrepareSubService {
