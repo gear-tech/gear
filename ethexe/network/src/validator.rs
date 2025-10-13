@@ -65,6 +65,12 @@ enum VerificationError {
     },
 }
 
+struct ChainHead {
+    header: BlockHeader,
+    current_validators: NonEmpty<Address>,
+    next_validators: Option<NonEmpty<Address>>,
+}
+
 /// Tracks validator-signed messages and admits each one once the on-chain
 /// context confirms it is timely and originates from a legitimate validator.
 ///
@@ -80,7 +86,7 @@ pub(crate) struct Validators {
     cached_messages: HashMap<PeerId, Vec<VerifiedValidatorMessage>>,
     verified_messages: VecDeque<VerifiedValidatorMessage>,
     db: Box<dyn ValidatorDatabase>,
-    chain_head: Option<(BlockHeader, NonEmpty<Address>)>,
+    chain_head: Option<ChainHead>,
     peer_score: peer_score::Handle,
 }
 
@@ -114,12 +120,20 @@ impl Validators {
             .db
             .block_validators(chain_head)
             .context("validators not found")?;
-        self.chain_head = Some((chain_head_header, validators));
+        self.chain_head = Some(ChainHead {
+            header: chain_head_header,
+            current_validators: validators,
+            next_validators: None,
+        });
 
         self.verify_on_new_chain_head();
 
         Ok(())
     }
+
+    // TODO: make actual implementation when `NextEraValidatorsCommitted` event is emitted before era transition
+    #[allow(dead_code)]
+    pub(crate) fn set_next_era_validators(&mut self) {}
 
     /// Retrieve the next verified message that is ready for further processing.
     pub(crate) fn next_message(&mut self) -> Option<VerifiedValidatorMessage> {
@@ -131,7 +145,11 @@ impl Validators {
     }
 
     fn inner_verify(&self, message: &VerifiedValidatorMessage) -> Result<(), VerificationError> {
-        let (chain_head, validators) = self
+        let ChainHead {
+            header: chain_head,
+            current_validators,
+            next_validators,
+        } = self
             .chain_head
             .as_ref()
             .expect("chain head should be set by this time");
@@ -139,6 +157,15 @@ impl Validators {
 
         let block = message.block();
         let address = message.address();
+
+        let is_current_validator = current_validators.contains(&address);
+        let is_next_validator = next_validators
+            .as_ref()
+            .map(|v| v.contains(&address))
+            .unwrap_or(false);
+        if !is_current_validator && !is_next_validator {
+            return Err(VerificationError::PeerIsNotValidator { address });
+        }
 
         let Some(block_header) = self.db.block_header(block) else {
             return Err(VerificationError::UnknownBlock { block });
@@ -162,10 +189,6 @@ impl Validators {
                     received_era: block_era,
                 });
             }
-        }
-
-        if !validators.contains(&address) {
-            return Err(VerificationError::PeerIsNotValidator { address });
         }
 
         Ok(())
@@ -291,6 +314,9 @@ mod tests {
         let (bob_address, bob_message, bob_block) = new_validator_message();
         let bob_verified = bob_message.clone().into_verified();
 
+        alice_db.set_block_validators(H256::zero(), nonempty![bob_address]);
+        alice.set_chain_head(H256::zero()).unwrap();
+
         let err = alice.inner_verify(&bob_verified).unwrap_err();
         assert_eq!(err, VerificationError::UnknownBlock { block: bob_block });
 
@@ -324,8 +350,8 @@ mod tests {
 
     #[test]
     fn old_era() {
-        let (alice, alice_db) = new_validators();
-        let (_bob_address, bob_message, bob_block) = new_validator_message();
+        let (mut alice, alice_db) = new_validators();
+        let (bob_address, bob_message, bob_block) = new_validator_message();
         let bob_message = bob_message.into_verified();
 
         alice_db.set_block_header(
@@ -336,6 +362,8 @@ mod tests {
                 parent_hash: Default::default(),
             },
         );
+        alice_db.set_block_validators(H256::zero(), nonempty![bob_address]);
+        alice.set_chain_head(H256::zero()).unwrap();
 
         let chain_head_era = alice.block_era_index(CHAIN_HEAD_TIMESTAMP);
 
@@ -365,6 +393,8 @@ mod tests {
                 parent_hash: Default::default(),
             },
         );
+        alice_db.set_block_validators(H256::zero(), nonempty![bob_address]);
+        alice.set_chain_head(H256::zero()).unwrap();
 
         let chain_head_era = alice.block_era_index(CHAIN_HEAD_TIMESTAMP);
 
@@ -399,18 +429,9 @@ mod tests {
 
     #[test]
     fn peer_is_not_validator() {
-        let (alice, alice_db) = new_validators();
-        let (bob_address, bob_message, bob_block) = new_validator_message();
+        let (alice, _alice_db) = new_validators();
+        let (bob_address, bob_message, _bob_block) = new_validator_message();
         let bob_message = bob_message.into_verified();
-
-        alice_db.set_block_header(
-            bob_block,
-            BlockHeader {
-                height: 1,
-                timestamp: CHAIN_HEAD_TIMESTAMP,
-                parent_hash: Default::default(),
-            },
-        );
 
         let err = alice.inner_verify(&bob_message).unwrap_err();
         assert_eq!(
