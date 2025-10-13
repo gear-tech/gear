@@ -33,7 +33,7 @@ use nonempty::NonEmpty;
 use std::{
     cmp::Ordering,
     collections::{HashMap, VecDeque},
-    mem,
+    iter, mem,
 };
 
 #[auto_impl::auto_impl(&, Box)]
@@ -77,7 +77,7 @@ pub(crate) struct Validators {
     genesis_timestamp: u64,
     era_duration: u64,
 
-    cached_messages: HashMap<PeerId, VerifiedValidatorMessage>,
+    cached_messages: HashMap<PeerId, Vec<VerifiedValidatorMessage>>,
     verified_messages: VecDeque<VerifiedValidatorMessage>,
     db: Box<dyn ValidatorDatabase>,
     chain_head: Option<(BlockHeader, NonEmpty<Address>)>,
@@ -172,7 +172,9 @@ impl Validators {
     }
 
     fn verify_on_new_chain_head(&mut self) {
-        let cached_messages = mem::take(&mut self.cached_messages);
+        let cached_messages = mem::take(&mut self.cached_messages)
+            .into_iter()
+            .flat_map(|(source, messages)| iter::repeat(source).zip(messages));
         for (source, message) in cached_messages {
             match self.inner_verify(&message) {
                 Ok(()) => {
@@ -210,12 +212,18 @@ impl Validators {
                 MessageAcceptance::Accept
             }
             Err(VerificationError::UnknownBlock { .. }) => {
-                self.cached_messages.insert(source, message);
+                self.cached_messages
+                    .entry(source)
+                    .or_default()
+                    .push(message);
                 MessageAcceptance::Ignore
             }
             Err(VerificationError::OldEra { .. }) => MessageAcceptance::Ignore,
             Err(VerificationError::NewEra { .. }) => {
-                self.cached_messages.insert(source, message);
+                self.cached_messages
+                    .entry(source)
+                    .or_default()
+                    .push(message);
                 MessageAcceptance::Ignore
             }
             Err(VerificationError::PeerIsNotValidator { .. }) => {
