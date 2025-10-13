@@ -87,7 +87,7 @@ pub struct ObserverService {
     headers_stream: SubscriptionStream<Header>,
 
     block_sync_queue: VecDeque<Header>,
-    sync_future: Option<BoxFuture<'static, Result<ObserverEvent>>>,
+    sync_future: Option<BoxFuture<'static, Result<H256>>>,
     subscription_future: Option<HeadersSubscriptionFuture>,
 }
 
@@ -145,7 +145,9 @@ impl Stream for ObserverService {
             && let Poll::Ready(result) = fut.poll_unpin(cx)
         {
             self.sync_future = None;
-            return Poll::Ready(Some(result));
+
+            let maybe_event = result.map(ObserverEvent::BlockSynced);
+            return Poll::Ready(Some(maybe_event));
         }
 
         Poll::Pending

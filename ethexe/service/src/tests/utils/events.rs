@@ -228,15 +228,21 @@ impl ObserverEventsListener {
         loop {
             let event = self.next_event().await?;
 
-            let ObserverEvent::BlockSynced(block) = event else {
+            let ObserverEvent::BlockSynced(block_hash) = event else {
                 continue;
             };
 
-            let header = self.db.block_header(block).expect("Block header not found");
-            let events = self.db.block_events(block).expect("Block events not found");
+            let header = self
+                .db
+                .block_header(block_hash)
+                .expect("Block header not found");
+            let events = self
+                .db
+                .block_events(block_hash)
+                .expect("Block events not found");
 
             let block_data = SimpleBlockData {
-                hash: block,
+                hash: block_hash,
                 header,
             };
 

@@ -18,7 +18,7 @@
 
 //! Implementation of the on-chain data synchronization.
 
-use crate::{ObserverEvent, RuntimeConfig, utils};
+use crate::{RuntimeConfig, utils};
 use alloy::{providers::RootProvider, rpc::types::eth::Header};
 use anyhow::{Result, anyhow};
 use ethexe_common::{
@@ -44,7 +44,7 @@ pub(crate) struct ChainSync<DB: SyncDB> {
 }
 
 impl<DB: SyncDB> ChainSync<DB> {
-    pub async fn sync(self, chain_head: Header) -> Result<ObserverEvent> {
+    pub async fn sync(self, chain_head: Header) -> Result<H256> {
         let block: H256 = chain_head.hash.0.into();
         let header = BlockHeader {
             height: chain_head.number as u32,
@@ -58,7 +58,7 @@ impl<DB: SyncDB> ChainSync<DB> {
         self.mark_chain_as_synced(chain.into_iter().rev());
         self.propagate_validators(block, header).await?;
 
-        Ok(ObserverEvent::BlockSynced(block))
+        Ok(block)
     }
 
     async fn load_chain(
