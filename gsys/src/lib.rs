@@ -20,6 +20,8 @@
 
 #![no_std]
 
+use bytemuck::{Pod, Zeroable};
+
 /// Represents error code type.
 pub type ErrorCode = u32;
 
@@ -65,8 +67,8 @@ pub type SignalCode = u32;
 pub type Value = u128;
 
 /// Represents type defining concatenated block number with hash. 36 bytes.
-#[repr(C, packed)]
-#[derive(Default, Debug)]
+#[repr(C)]
+#[derive(Default, Debug, Clone, Copy, Zeroable, Pod)]
 pub struct BlockNumberWithHash {
     pub bn: BlockNumber,
     pub hash: Hash,
@@ -79,8 +81,8 @@ impl BlockNumberWithHash {
 }
 
 /// Represents type defining concatenated hash with value. 48 bytes.
-#[repr(C, packed)]
-#[derive(Default, Debug, Clone)]
+#[repr(C)]
+#[derive(Default, Debug, Clone, Copy, Zeroable, Pod)]
 pub struct HashWithValue {
     pub hash: Hash,
     pub value: Value,
@@ -93,8 +95,8 @@ impl HashWithValue {
 }
 
 /// Represents type defining concatenated reply code with error code. 8 bytes.
-#[repr(C, packed)]
-#[derive(Default, Debug)]
+#[repr(C)]
+#[derive(Default, Debug, Clone, Copy, Zeroable, Pod)]
 pub struct ErrorWithReplyCode {
     pub error_code: ErrorCode,
     pub reply_code: ReplyCode,
@@ -120,8 +122,8 @@ impl From<Result<ReplyCode, ErrorCode>> for ErrorWithReplyCode {
 }
 
 /// Represents type defining concatenated signal code with length. 8 bytes.
-#[repr(C, packed)]
-#[derive(Default, Debug)]
+#[repr(C)]
+#[derive(Default, Debug, Clone, Copy, Zeroable, Pod)]
 pub struct ErrorWithSignalCode {
     pub error_code: ErrorCode,
     pub signal_code: SignalCode,
@@ -148,7 +150,7 @@ impl From<Result<SignalCode, ErrorCode>> for ErrorWithSignalCode {
 
 /// Represents type defining concatenated error code with gas. 12 bytes.
 #[repr(C, packed)]
-#[derive(Default, Debug)]
+#[derive(Default, Debug, Clone, Copy, Zeroable, Pod)]
 pub struct ErrorWithGas {
     pub error_code: ErrorCode,
     pub gas: Gas,
@@ -174,8 +176,8 @@ impl From<Result<Gas, ErrorCode>> for ErrorWithGas {
 }
 
 /// Represents type defining concatenated length with handle. 8 bytes.
-#[repr(C, packed)]
-#[derive(Default, Debug)]
+#[repr(C)]
+#[derive(Default, Debug, Clone, Copy, Zeroable, Pod)]
 pub struct ErrorWithHandle {
     pub error_code: ErrorCode,
     pub handle: Handle,
@@ -200,8 +202,8 @@ impl From<Result<Handle, ErrorCode>> for ErrorWithHandle {
     }
 }
 
-#[repr(C, packed)]
-#[derive(Default, Debug)]
+#[repr(transparent)]
+#[derive(Default, Debug, Clone, Copy, Zeroable, Pod)]
 pub struct ErrorBytes([u8; size_of::<ErrorCode>()]);
 
 impl From<Result<(), ErrorCode>> for ErrorBytes {
@@ -211,8 +213,8 @@ impl From<Result<(), ErrorCode>> for ErrorBytes {
 }
 
 /// Represents type defining concatenated hash with error code. 36 bytes.
-#[repr(C, packed)]
-#[derive(Default, Debug)]
+#[repr(C)]
+#[derive(Default, Debug, Clone, Copy, Zeroable, Pod)]
 pub struct ErrorWithHash {
     pub error_code: ErrorCode,
     pub hash: Hash,
@@ -238,8 +240,8 @@ impl<T: Into<[u8; 32]>> From<Result<T, ErrorCode>> for ErrorWithHash {
 }
 
 /// Represents type defining concatenated two hashes with error code. 68 bytes.
-#[repr(C, packed)]
-#[derive(Default, Debug)]
+#[repr(C)]
+#[derive(Default, Debug, Clone, Copy, Zeroable, Pod)]
 pub struct ErrorWithTwoHashes {
     pub error_code: ErrorCode,
     pub hash1: Hash,
@@ -273,8 +275,8 @@ where
 }
 
 /// Represents type defining concatenated two hashes. 64 bytes.
-#[repr(C, packed)]
-#[derive(Default, Debug)]
+#[repr(C)]
+#[derive(Default, Debug, Clone, Copy, Zeroable, Pod)]
 pub struct TwoHashes {
     pub hash1: Hash,
     pub hash2: Hash,
@@ -287,8 +289,8 @@ impl TwoHashes {
 }
 
 /// Represents type defining concatenated two hashes with value. 80 bytes.
-#[repr(C, packed)]
-#[derive(Default, Debug)]
+#[repr(C)]
+#[derive(Default, Debug, Clone, Copy, Zeroable, Pod)]
 pub struct TwoHashesWithValue {
     pub hash1: Hash,
     pub hash2: Hash,
@@ -307,7 +309,7 @@ impl TwoHashesWithValue {
 /// settings. This structure matches to the most recent version of execution
 /// settings supported by backend.
 #[repr(C, packed)]
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Zeroable, Pod)]
 pub struct EnvVars {
     /// Current performance multiplier.
     pub performance_multiplier: Percent,
@@ -323,8 +325,8 @@ pub struct EnvVars {
 /// values greater than 100.
 // This is a "copy-paste" of the similar struct from the `core` crate
 // which can't be used here due to its dependencies from codec and TypeInfo.
-#[repr(C, packed)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+#[repr(transparent)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Zeroable, Pod)]
 pub struct Percent(u32);
 
 impl Percent {
@@ -342,7 +344,7 @@ impl Percent {
 // which can't be used here due to its dependencies from codec and TypeInfo as well
 // as FFI.
 #[repr(C, packed)]
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Zeroable, Pod)]
 pub struct GasMultiplier {
     gas_per_value: Gas,
     value_per_gas: Value,
