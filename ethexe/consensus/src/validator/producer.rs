@@ -26,7 +26,7 @@ use ethexe_common::{
     Address, Announce, AnnounceHash, SimpleBlockData,
     db::{AnnounceStorageRead, BlockMetaStorageRead},
     gear::BatchCommitment,
-    network::{ValidatorMessage, ValidatorMessagePayload},
+    network::ValidatorMessage,
 };
 use ethexe_service_utils::Timer;
 use futures::{FutureExt, future::BoxFuture};
@@ -227,7 +227,7 @@ impl Producer {
 
         let message = ValidatorMessage {
             block: self.block.hash,
-            payload: ValidatorMessagePayload::ProducerBlock(announce.clone()),
+            payload: announce.clone(),
         };
         let message = self
             .ctx
@@ -236,7 +236,7 @@ impl Producer {
             .signed_data(self.ctx.core.pub_key, message)?;
 
         self.state = State::WaitingAnnounceComputed;
-        self.output(ConsensusEvent::PublishMessage(message));
+        self.output(ConsensusEvent::PublishMessage(message.into()));
         self.output(ConsensusEvent::ComputeAnnounce(announce));
 
         Ok(())
@@ -364,8 +364,6 @@ mod tests {
         assert!(state.is_coordinator());
         event
             .unwrap_publish_message()
-            .into_data()
-            .payload
             .unwrap_request_batch_validation();
     }
 
@@ -445,11 +443,7 @@ mod tests {
 
             let (state, event) = state.wait_for_event().await?;
             assert!(state.is_producer());
-            event
-                .unwrap_publish_message()
-                .into_data()
-                .payload
-                .unwrap_producer_block();
+            event.unwrap_publish_message().unwrap_producer_block();
 
             let (state, event) = state.wait_for_event().await?;
             assert!(state.is_producer());

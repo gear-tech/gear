@@ -17,27 +17,26 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    Announce, ToDigest,
-    consensus::{
-        BatchCommitmentValidationReply, BatchCommitmentValidationRequest, VerifiedAnnounce,
-        VerifiedValidationReply, VerifiedValidationRequest,
-    },
-    ecdsa::SignedData,
+    Address, Announce, ToDigest,
+    consensus::{BatchCommitmentValidationReply, BatchCommitmentValidationRequest},
+    ecdsa::{SignResult, SignedData, VerifiedData},
 };
 use gprimitives::H256;
 use k256::sha2::Digest;
 use parity_scale_codec::{Decode, Encode};
 use sha3::Keccak256;
 
-pub type SignedValidatorMessage = SignedData<ValidatorMessage>;
+pub type ValidatorAnnounce = ValidatorMessage<Announce>;
+pub type ValidatorRequest = ValidatorMessage<BatchCommitmentValidationRequest>;
+pub type ValidatorReply = ValidatorMessage<BatchCommitmentValidationReply>;
 
 #[derive(Debug, Clone, Encode, Decode, Eq, PartialEq)]
-pub struct ValidatorMessage {
+pub struct ValidatorMessage<T> {
     pub block: H256,
-    pub payload: ValidatorMessagePayload,
+    pub payload: T,
 }
 
-impl ToDigest for ValidatorMessage {
+impl<T: ToDigest> ToDigest for ValidatorMessage<T> {
     fn update_hasher(&self, hasher: &mut Keccak256) {
         let Self { block, payload } = self;
         hasher.update(block.0);
@@ -45,28 +44,50 @@ impl ToDigest for ValidatorMessage {
     }
 }
 
-#[derive(Debug, Clone, Encode, Decode, Eq, PartialEq, derive_more::Unwrap)]
-pub enum ValidatorMessagePayload {
-    ProducerBlock(Announce),
-    RequestBatchValidation(BatchCommitmentValidationRequest),
-    ApproveBatch(BatchCommitmentValidationReply),
+#[derive(Debug, Clone, Encode, Decode, Eq, PartialEq, derive_more::Unwrap, derive_more::From)]
+pub enum SignedValidatorMessage {
+    ProducerBlock(SignedData<ValidatorAnnounce>),
+    RequestBatchValidation(SignedData<ValidatorRequest>),
+    ApproveBatch(SignedData<ValidatorReply>),
 }
 
-impl ToDigest for ValidatorMessagePayload {
-    fn update_hasher(&self, hasher: &mut Keccak256) {
+impl SignedValidatorMessage {
+    pub fn verified(self) -> SignResult<VerifiedValidatorMessage> {
         match self {
-            ValidatorMessagePayload::ProducerBlock(payload) => payload.update_hasher(hasher),
-            ValidatorMessagePayload::RequestBatchValidation(request) => {
-                request.update_hasher(hasher)
+            SignedValidatorMessage::ProducerBlock(announce) => announce
+                .verified()
+                .map(VerifiedValidatorMessage::ProducerBlock),
+            SignedValidatorMessage::RequestBatchValidation(request) => request
+                .verified()
+                .map(VerifiedValidatorMessage::RequestBatchValidation),
+            SignedValidatorMessage::ApproveBatch(reply) => {
+                reply.verified().map(VerifiedValidatorMessage::ApproveBatch)
             }
-            ValidatorMessagePayload::ApproveBatch(reply) => reply.update_hasher(hasher),
         }
     }
 }
 
 #[derive(Debug, Clone, Eq, PartialEq, derive_more::Unwrap)]
 pub enum VerifiedValidatorMessage {
-    ProducerBlock(VerifiedAnnounce),
-    RequestBatchValidation(VerifiedValidationRequest),
-    ApproveBatch(VerifiedValidationReply),
+    ProducerBlock(VerifiedData<ValidatorAnnounce>),
+    RequestBatchValidation(VerifiedData<ValidatorRequest>),
+    ApproveBatch(VerifiedData<ValidatorReply>),
+}
+
+impl VerifiedValidatorMessage {
+    pub fn block(&self) -> H256 {
+        match self {
+            VerifiedValidatorMessage::ProducerBlock(announce) => announce.data().block,
+            VerifiedValidatorMessage::RequestBatchValidation(request) => request.data().block,
+            VerifiedValidatorMessage::ApproveBatch(reply) => reply.data().block,
+        }
+    }
+
+    pub fn address(&self) -> Address {
+        match self {
+            VerifiedValidatorMessage::ProducerBlock(announce) => announce.address(),
+            VerifiedValidatorMessage::RequestBatchValidation(request) => request.address(),
+            VerifiedValidatorMessage::ApproveBatch(reply) => reply.address(),
+        }
+    }
 }

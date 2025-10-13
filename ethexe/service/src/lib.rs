@@ -433,12 +433,15 @@ impl Service {
                         NetworkEvent::ValidatorMessage(message) => {
                             match message {
                                 VerifiedValidatorMessage::ProducerBlock(announce) => {
+                                    let announce = announce.map(|a| a.payload);
                                     consensus.receive_announce(announce)?
                                 }
                                 VerifiedValidatorMessage::RequestBatchValidation(request) => {
+                                    let request = request.map(|r| r.payload);
                                     consensus.receive_validation_request(request)?
                                 }
                                 VerifiedValidatorMessage::ApproveBatch(reply) => {
+                                    let reply = reply.map(|r| r.payload);
                                     let (reply, _) = reply.into_parts();
                                     consensus.receive_validation_reply(reply)?
                                 }

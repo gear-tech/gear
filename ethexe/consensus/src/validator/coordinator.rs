@@ -21,10 +21,8 @@ use crate::{BatchCommitmentValidationReply, ConsensusEvent, utils::MultisignedBa
 use anyhow::{Result, anyhow, ensure};
 use derive_more::Display;
 use ethexe_common::{
-    Address,
-    consensus::BatchCommitmentValidationRequest,
-    gear::BatchCommitment,
-    network::{ValidatorMessage, ValidatorMessagePayload},
+    Address, consensus::BatchCommitmentValidationRequest, gear::BatchCommitment,
+    network::ValidatorMessage,
 };
 use nonempty::NonEmpty;
 use std::collections::BTreeSet;
@@ -105,7 +103,6 @@ impl Coordinator {
         }
 
         let payload = BatchCommitmentValidationRequest::new(multisigned_batch.batch());
-        let payload = ValidatorMessagePayload::RequestBatchValidation(payload);
         let message = ValidatorMessage {
             block: multisigned_batch.batch().block_hash,
             payload,
@@ -113,7 +110,7 @@ impl Coordinator {
 
         let validation_request = ctx.core.signer.signed_data(ctx.core.pub_key, message)?;
 
-        ctx.output(ConsensusEvent::PublishMessage(validation_request));
+        ctx.output(ConsensusEvent::PublishMessage(validation_request.into()));
 
         Ok(Self {
             ctx,
@@ -145,8 +142,6 @@ mod tests {
         coordinator.context().output[0]
             .clone()
             .unwrap_publish_message()
-            .into_data()
-            .payload
             .unwrap_request_batch_validation();
     }
 
@@ -214,8 +209,6 @@ mod tests {
         coordinator.context().output[0]
             .clone()
             .unwrap_publish_message()
-            .into_data()
-            .payload
             .unwrap_request_batch_validation();
 
         coordinator = coordinator.process_validation_reply(reply1).unwrap();
