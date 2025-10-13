@@ -94,7 +94,7 @@ impl Validators {
     pub(crate) fn new(
         genesis_timestamp: u64,
         era_duration: u64,
-        genesis_chain_head: H256,
+        genesis_block_hash: H256,
         db: Box<dyn ValidatorDatabase>,
         peer_score: peer_score::Handle,
     ) -> anyhow::Result<Self> {
@@ -103,7 +103,7 @@ impl Validators {
             era_duration,
             cached_messages: HashMap::new(),
             verified_messages: VecDeque::new(),
-            chain_head: Self::get_chain_head(&db, genesis_chain_head)?,
+            chain_head: Self::get_chain_head(&db, genesis_block_hash)?,
             db,
             peer_score,
         })

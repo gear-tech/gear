@@ -30,7 +30,9 @@ use ethexe_consensus::{
 };
 use ethexe_db::{Database, RocksDatabase};
 use ethexe_ethereum::router::RouterQuery;
-use ethexe_network::{NetworkEvent, NetworkService, db_sync::ExternalDataProvider};
+use ethexe_network::{
+    NetworkEvent, NetworkRuntimeConfig, NetworkService, db_sync::ExternalDataProvider,
+};
 use ethexe_observer::{ObserverEvent, ObserverService};
 use ethexe_processor::{Processor, ProcessorConfig};
 use ethexe_prometheus::{PrometheusEvent, PrometheusService};
@@ -224,11 +226,15 @@ impl Service {
         };
 
         let network = if let Some(net_config) = &config.network {
+            let runtime_config = NetworkRuntimeConfig {
+                genesis_timestamp: observer.genesis_timestamp_secs(),
+                era_duration: observer.era_duration_secs(),
+                genesis_block_hash: observer.genesis_block_hash(),
+            };
+
             let network = NetworkService::new(
                 net_config.clone(),
-                observer.genesis_timestamp_secs(),
-                observer.era_duration_secs(),
-                observer.genesis_block_hash(),
+                runtime_config,
                 &signer,
                 Box::new(RouterDataProvider(router_query)),
                 Box::new(db.clone()),

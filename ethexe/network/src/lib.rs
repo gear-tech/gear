@@ -92,6 +92,7 @@ impl TransportType {
     }
 }
 
+/// Config from CLI
 #[derive(Debug, Clone)]
 pub struct NetworkConfig {
     pub public_key: PublicKey,
@@ -124,6 +125,13 @@ impl NetworkConfig {
             router_address,
         }
     }
+}
+
+/// Config from other services
+pub struct NetworkRuntimeConfig {
+    pub genesis_timestamp: u64,
+    pub era_duration: u64,
+    pub genesis_block_hash: H256,
 }
 
 pub struct NetworkService {
@@ -165,9 +173,7 @@ impl FusedStream for NetworkService {
 impl NetworkService {
     pub fn new(
         config: NetworkConfig,
-        genesis_timestamp: u64,
-        era_duration: u64,
-        genesis_chain_head: H256,
+        runtime_config: NetworkRuntimeConfig,
         signer: &Signer,
         external_data_provider: Box<dyn db_sync::ExternalDataProvider>,
         db: Box<dyn NetworkServiceDatabase>,
@@ -180,6 +186,12 @@ impl NetworkService {
             transport_type,
             router_address,
         } = config;
+
+        let NetworkRuntimeConfig {
+            genesis_timestamp,
+            era_duration,
+            genesis_block_hash,
+        } = runtime_config;
 
         let keypair = NetworkService::generate_keypair(signer, public_key)?;
 
@@ -220,7 +232,7 @@ impl NetworkService {
         let validators = Validators::new(
             genesis_timestamp,
             era_duration,
-            genesis_chain_head,
+            genesis_block_hash,
             ValidatorDatabase::clone_boxed(&db),
             swarm.behaviour().peer_score.handle(),
         )
@@ -691,11 +703,16 @@ mod tests {
         let signer = Signer::new(key_storage);
         let key = signer.generate_key().unwrap();
         let config = NetworkConfig::new_test(key, Address::default());
+
+        let runtime_config = NetworkRuntimeConfig {
+            genesis_timestamp: 1_000_000,
+            era_duration: 1,
+            genesis_block_hash: GENESIS_BLOCK,
+        };
+
         NetworkService::new(
             config.clone(),
-            1_000_000,
-            1,
-            GENESIS_BLOCK,
+            runtime_config,
             &signer,
             Box::new(data_provider),
             Box::new(db),

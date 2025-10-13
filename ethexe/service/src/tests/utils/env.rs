@@ -44,7 +44,9 @@ use ethexe_common::{
 use ethexe_consensus::{ConsensusService, SimpleConnectService, ValidatorService};
 use ethexe_db::Database;
 use ethexe_ethereum::{Ethereum, deploy::EthereumDeployer, router::RouterQuery};
-use ethexe_network::{NetworkConfig, NetworkEvent, NetworkService, export::Multiaddr};
+use ethexe_network::{
+    NetworkConfig, NetworkEvent, NetworkRuntimeConfig, NetworkService, export::Multiaddr,
+};
 use ethexe_observer::{EthereumConfig, ObserverEvent, ObserverService};
 use ethexe_processor::Processor;
 use ethexe_rpc::{RpcConfig, RpcService, test_utils::RpcClient};
@@ -275,11 +277,16 @@ impl TestEnv {
             let mut config = NetworkConfig::new_test(network_key, router_address);
             config.listen_addresses = [multiaddr.clone()].into();
             config.external_addresses = [multiaddr.clone()].into();
-            let mut service = NetworkService::new(
-                config,
+
+            let runtime_config = NetworkRuntimeConfig {
                 genesis_timestamp,
                 era_duration,
                 genesis_block_hash,
+            };
+
+            let mut service = NetworkService::new(
+                config,
+                runtime_config,
                 &signer,
                 Box::new(RouterDataProvider(router_query.clone())),
                 Box::new(db.clone()),
@@ -841,11 +848,16 @@ impl Node {
                 let multiaddr = bootstrap_addr.parse().unwrap();
                 config.bootstrap_addresses = [multiaddr].into();
             }
+
+            let runtime_config = NetworkRuntimeConfig {
+                genesis_timestamp: observer.genesis_timestamp_secs(),
+                era_duration: observer.era_duration_secs(),
+                genesis_block_hash: observer.genesis_block_hash(),
+            };
+
             let network = NetworkService::new(
                 config,
-                observer.genesis_timestamp_secs(),
-                observer.era_duration_secs(),
-                observer.genesis_block_hash(),
+                runtime_config,
                 &self.signer,
                 Box::new(RouterDataProvider(self.router_query.clone())),
                 Box::new(self.db.clone()),
