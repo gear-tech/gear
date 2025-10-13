@@ -82,6 +82,7 @@ pub(crate) enum Event {
 pub(crate) struct Behaviour {
     inner: gossipsub::Behaviour,
     peer_score: peer_score::Handle,
+    // TODO: consider to limit queue
     message_queue: VecDeque<Message>,
     commitments_topic: IdentTopic,
     offchain_topic: IdentTopic,
