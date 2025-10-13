@@ -58,6 +58,7 @@ impl ProcessingHandler {
         &mut self,
         actor_id: ActorId,
         event: MirrorRequestEvent,
+        event_block_height: u32,
     ) -> Result<()> {
         if !self.transitions.is_program(&actor_id) {
             log::debug!("Received event from unrecognized mirror ({actor_id}): {event:?}");
@@ -88,7 +89,9 @@ impl ProcessingHandler {
                         payload,
                         value,
                         is_init,
-                        Origin::Ethereum,
+                        Origin::Ethereum {
+                            block_height: event_block_height,
+                        },
                         call_reply,
                     )?;
 
@@ -139,7 +142,9 @@ impl ProcessingHandler {
                         source,
                         payload,
                         value,
-                        Origin::Ethereum,
+                        Origin::Ethereum {
+                            block_height: event_block_height,
+                        },
                         false,
                     )?;
 
@@ -185,7 +190,9 @@ impl ProcessingHandler {
                         PayloadLookup::empty(),
                         0,
                         SuccessReplyReason::Auto,
-                        Origin::Ethereum,
+                        Origin::Ethereum {
+                            block_height: event_block_height,
+                        },
                         false,
                     );
 

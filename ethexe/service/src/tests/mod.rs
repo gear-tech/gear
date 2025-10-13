@@ -477,7 +477,9 @@ async fn mailbox() {
                     value: MailboxMessage {
                         payload: mid_payload.clone(),
                         value: 0,
-                        origin: Origin::Ethereum,
+                        origin: Origin::Ethereum {
+                            block_height: block_data.header.height - 1,
+                        },
                     },
                     expiry,
                 },
@@ -488,7 +490,9 @@ async fn mailbox() {
                     value: MailboxMessage {
                         payload: ping_payload,
                         value: 0,
-                        origin: Origin::Ethereum,
+                        origin: Origin::Ethereum {
+                            block_height: block_data.header.height - 1,
+                        },
                     },
                     expiry,
                 },
@@ -536,7 +540,9 @@ async fn mailbox() {
                 value: MailboxMessage {
                     payload: mid_payload,
                     value: 0,
-                    origin: Origin::Ethereum,
+                    origin: Origin::Ethereum {
+                        block_height: block_data.header.height - 1,
+                    },
                 },
                 expiry,
             },

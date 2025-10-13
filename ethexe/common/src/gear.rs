@@ -416,10 +416,15 @@ impl ToDigest for [ValueClaim] {
     }
 }
 
-#[derive(Clone, Copy, Debug, Encode, Decode, PartialEq, Eq, Default, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, Debug, Encode, Decode, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum Origin {
-    #[default]
-    Ethereum,
+    Ethereum { block_height: u32 },
     OffChain,
+}
+
+impl Default for Origin {
+    fn default() -> Self {
+        Self::OffChain
+    }
 }

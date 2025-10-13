@@ -245,6 +245,11 @@ async fn propagate_from_parent_announce(
         return Ok(new_base_announce_hash);
     }
 
+    let events_block_height = db
+        .block_header(block_hash)
+        .ok_or(ComputeError::BlockHeaderNotFound(block_hash))?
+        .height;
+
     let events = db
         .block_events(block_hash)
         .ok_or(ComputeError::BlockEventsNotFound(block_hash))?
@@ -257,7 +262,7 @@ async fn propagate_from_parent_announce(
         states,
         schedule,
     } = processor
-        .process_announce(new_base_announce.clone(), events)
+        .process_announce(new_base_announce.clone(), events, events_block_height)
         .await?;
 
     db.set_announce(new_base_announce);
@@ -287,6 +292,14 @@ mod tests {
         let block_hash = H256::random();
         let parent_announce_hash = AnnounceHash::random();
 
+        db.set_block_header(
+            block_hash,
+            BlockHeader {
+                height: 1,
+                timestamp: 1000,
+                parent_hash: parent_announce_hash.0,
+            },
+        );
         db.set_block_events(block_hash, &[]);
 
         let announce_hash = propagate_from_parent_announce(

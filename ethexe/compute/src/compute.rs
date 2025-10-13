@@ -18,7 +18,7 @@
 
 use crate::{ComputeError, ProcessorExt, Result, utils};
 use ethexe_common::{
-    Announce,
+    Announce, BlockHeader,
     db::{
         AnnounceStorageWrite, BlockMetaStorageRead, BlockMetaStorageWrite, LatestDataStorageWrite,
         OnChainStorageRead,
@@ -51,10 +51,14 @@ pub(crate) async fn compute<P: ProcessorExt>(
         return Ok(ComputationStatus::Computed);
     }
 
-    let parent_block_hash = db
+    let BlockHeader {
+        height: block_height,
+        parent_hash: parent_block_hash,
+        ..
+    } = db
         .block_header(block_hash)
-        .ok_or(ComputeError::BlockHeaderNotFound(block_hash))?
-        .parent_hash;
+        .ok_or(ComputeError::BlockHeaderNotFound(block_hash))?;
+
     if !utils::announce_is_computed_and_included(&db, announce.parent, parent_block_hash)? {
         log::warn!(
             "{announce:?} is from unknown branch: parent {}",
@@ -78,7 +82,7 @@ pub(crate) async fn compute<P: ProcessorExt>(
         .collect();
 
     let processing_result = processor
-        .process_announce(announce.clone(), block_request_events)
+        .process_announce(announce.clone(), block_request_events, block_height)
         .await?;
 
     let BlockProcessingResult {

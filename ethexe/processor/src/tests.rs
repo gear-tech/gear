@@ -29,7 +29,7 @@ use parity_scale_codec::Encode;
 use utils::*;
 
 fn init_genesis_block(processor: &mut Processor) -> H256 {
-    let genesis_block_hash = init_new_block(processor, Default::default());
+    let (genesis_block_hash, _) = init_new_block(processor, Default::default());
 
     // Set zero hash announce for genesis block (genesis announce hash)
     let genesis_announce_hash = AnnounceHash::zero();
@@ -44,15 +44,15 @@ fn init_genesis_block(processor: &mut Processor) -> H256 {
     genesis_block_hash
 }
 
-fn init_new_block(processor: &mut Processor, header: BlockHeader) -> H256 {
+fn init_new_block(processor: &mut Processor, header: BlockHeader) -> (H256, u32) {
     let chain_head = H256::random();
     processor.db.set_block_header(chain_head, header);
     processor.creator.set_chain_head(chain_head);
-    chain_head
+    (chain_head, header.height)
 }
 
 #[track_caller]
-fn init_new_block_from_parent(processor: &mut Processor, parent_hash: H256) -> H256 {
+fn init_new_block_from_parent(processor: &mut Processor, parent_hash: H256) -> (H256, u32) {
     let parent_block_header = processor.db.block_header(parent_hash).unwrap_or_default();
     let height = parent_block_header.height + 1;
     let timestamp = parent_block_header.timestamp + 12;
@@ -74,7 +74,7 @@ async fn process_observer_event() {
     let mut processor = Processor::new(Database::memory()).expect("failed to create processor");
 
     let genesis = init_genesis_block(&mut processor);
-    let block1 = init_new_block_from_parent(&mut processor, genesis);
+    let (block1, block1_height) = init_new_block_from_parent(&mut processor, genesis);
 
     let code = demo_ping::WASM_BINARY.to_vec();
     let code_id = CodeId::generate(&code);
@@ -92,7 +92,7 @@ async fn process_observer_event() {
     let BlockProcessingResult {
         states, schedule, ..
     } = processor
-        .process_announce(block1_announce, vec![])
+        .process_announce(block1_announce, vec![], block1_height)
         .await
         .unwrap();
     processor
@@ -102,7 +102,7 @@ async fn process_observer_event() {
         .db
         .set_announce_schedule(block1_announce_hash, schedule);
 
-    let block2 = init_new_block_from_parent(&mut processor, block1);
+    let (block2, block2_height) = init_new_block_from_parent(&mut processor, block1);
 
     let actor_id = ActorId::from(42);
 
@@ -133,7 +133,7 @@ async fn process_observer_event() {
     let BlockProcessingResult {
         states, schedule, ..
     } = processor
-        .process_announce(block2_announce, create_program_events)
+        .process_announce(block2_announce, create_program_events, block2_height)
         .await
         .expect("failed to process create program");
     processor
@@ -143,7 +143,7 @@ async fn process_observer_event() {
         .db
         .set_announce_schedule(block2_announce_hash, schedule);
 
-    let block3 = init_new_block_from_parent(&mut processor, block2);
+    let (block3, block3_height) = init_new_block_from_parent(&mut processor, block2);
 
     let send_message_event = BlockRequestEvent::mirror(
         actor_id,
@@ -160,7 +160,7 @@ async fn process_observer_event() {
 
     // Process block3 announce
     processor
-        .process_announce(block3_announce, vec![send_message_event])
+        .process_announce(block3_announce, vec![send_message_event], block3_height)
         .await
         .expect("failed to process send message");
 }
@@ -266,7 +266,7 @@ async fn ping_pong() {
     let mut processor = Processor::new(Database::memory()).unwrap();
 
     let genesis = init_genesis_block(&mut processor);
-    let block = init_new_block_from_parent(&mut processor, genesis);
+    let (block, block_height) = init_new_block_from_parent(&mut processor, genesis);
     let block_announce = Announce::with_default_gas(block, AnnounceHash::zero());
 
     let user_id = ActorId::from(10);
@@ -289,6 +289,7 @@ async fn ping_pong() {
             MirrorRequestEvent::ExecutableBalanceTopUpRequested {
                 value: 10_000_000_000,
             },
+            block_height,
         )
         .expect("failed to top up balance");
 
@@ -302,6 +303,7 @@ async fn ping_pong() {
                 value: 0,
                 call_reply: false,
             },
+            block_height,
         )
         .expect("failed to send message");
 
@@ -315,6 +317,7 @@ async fn ping_pong() {
                 value: 0,
                 call_reply: false,
             },
+            block_height,
         )
         .expect("failed to send message");
 
@@ -347,7 +350,7 @@ async fn async_and_ping() {
     let mut processor = Processor::new(Database::memory()).unwrap();
 
     let genesis = init_genesis_block(&mut processor);
-    let block = init_new_block_from_parent(&mut processor, genesis);
+    let (block, block_height) = init_new_block_from_parent(&mut processor, genesis);
     let block_announce = Announce::with_default_gas(block, AnnounceHash::zero());
 
     let ping_id = ActorId::from(0x10000000);
@@ -378,6 +381,7 @@ async fn async_and_ping() {
             MirrorRequestEvent::ExecutableBalanceTopUpRequested {
                 value: 10_000_000_000,
             },
+            block_height,
         )
         .expect("failed to top up balance");
 
@@ -391,6 +395,7 @@ async fn async_and_ping() {
                 value: 0,
                 call_reply: false,
             },
+            block_height,
         )
         .expect("failed to send message");
 
@@ -407,6 +412,7 @@ async fn async_and_ping() {
             MirrorRequestEvent::ExecutableBalanceTopUpRequested {
                 value: 10_000_000_000,
             },
+            block_height,
         )
         .expect("failed to top up balance");
 
@@ -420,6 +426,7 @@ async fn async_and_ping() {
                 value: 0,
                 call_reply: false,
             },
+            block_height,
         )
         .expect("failed to send message");
 
@@ -435,6 +442,7 @@ async fn async_and_ping() {
                 value: 0,
                 call_reply: false,
             },
+            block_height,
         )
         .expect("failed to send message");
 
@@ -488,7 +496,7 @@ async fn many_waits() {
     let mut processor = Processor::new(Database::memory()).unwrap();
 
     let genesis = init_genesis_block(&mut processor);
-    let block1 = init_new_block_from_parent(&mut processor, genesis);
+    let (block1, block1_height) = init_new_block_from_parent(&mut processor, genesis);
     let block1_announce = Announce::with_default_gas(block1, AnnounceHash::zero());
     let block1_announce_hash = block1_announce.to_hash();
 
@@ -516,6 +524,7 @@ async fn many_waits() {
                 MirrorRequestEvent::ExecutableBalanceTopUpRequested {
                     value: 10_000_000_000,
                 },
+                block1_height,
             )
             .expect("failed to top up balance");
 
@@ -529,6 +538,7 @@ async fn many_waits() {
                     value: 0,
                     call_reply: false,
                 },
+                block1_height,
             )
             .expect("failed to send message");
     }
@@ -552,6 +562,7 @@ async fn many_waits() {
                     value: 0,
                     call_reply: false,
                 },
+                block1_height,
             )
             .expect("failed to send message");
     }
@@ -575,7 +586,7 @@ async fn many_waits() {
     let mut block = block1;
     let mut block_announce_hash = block1_announce_hash;
     for _ in 0..9 {
-        block = init_new_block_from_parent(&mut processor, block);
+        (block, _) = init_new_block_from_parent(&mut processor, block);
         let block_announce = Announce::with_default_gas(block, block_announce_hash);
         let parent_announce_hash = block_announce_hash;
         block_announce_hash = block_announce.to_hash();
@@ -596,7 +607,7 @@ async fn many_waits() {
             .set_announce_schedule(block_announce_hash, schedule);
     }
 
-    let block12 = init_new_block_from_parent(&mut processor, block);
+    let (block12, _) = init_new_block_from_parent(&mut processor, block);
     let block12_announce = Announce::with_default_gas(block12, block_announce_hash);
 
     let states = processor

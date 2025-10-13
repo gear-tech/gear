@@ -81,6 +81,7 @@ pub trait ProcessorExt: Sized + Unpin + Send + Clone + 'static {
         &mut self,
         announce: Announce,
         events: Vec<BlockRequestEvent>,
+        events_block_height: u32,
     ) -> impl Future<Output = Result<BlockProcessingResult>> + Send;
     fn process_upload_code(&mut self, code_and_id: CodeAndIdUnchecked) -> Result<bool>;
 }
@@ -90,8 +91,9 @@ impl ProcessorExt for Processor {
         &mut self,
         announce: Announce,
         events: Vec<BlockRequestEvent>,
+        events_block_height: u32,
     ) -> Result<BlockProcessingResult> {
-        self.process_announce(announce, events)
+        self.process_announce(announce, events, events_block_height)
             .await
             .map_err(Into::into)
     }

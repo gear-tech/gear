@@ -319,7 +319,7 @@ mod tests {
             PayloadLookup::Direct(Payload::repeat(0xfe)),
             0xffffff,
             SuccessReplyReason::Auto,
-            Origin::Ethereum,
+            Origin::default(),
             false,
         );
 
@@ -351,7 +351,7 @@ mod tests {
         let message = MailboxMessage::new(
             PayloadLookup::Direct(Payload::repeat(0xfe)),
             0xffffff,
-            Origin::Ethereum,
+            Origin::default(),
         );
 
         let mut mailbox = Mailbox::default();
@@ -393,7 +393,7 @@ mod tests {
             PayloadLookup::Direct(Payload::repeat(0xfe)),
             0xffffff,
             SuccessReplyReason::Auto,
-            Origin::Ethereum,
+            Origin::default(),
             false,
         );
 
@@ -404,7 +404,7 @@ mod tests {
             PayloadLookup::Direct(Payload::repeat(0xaa)),
             0xbbbbbb,
             SuccessReplyReason::Auto,
-            Origin::Ethereum,
+            Origin::default(),
             false,
         );
 

@@ -48,6 +48,7 @@ impl ProcessorExt for MockProcessor {
         &mut self,
         _announce: Announce,
         _events: Vec<BlockRequestEvent>,
+        _events_block_height: u32,
     ) -> Result<BlockProcessingResult> {
         let result = PROCESSOR_RESULT.with_borrow(|r| r.clone());
         PROCESSOR_RESULT.with_borrow_mut(|r| {

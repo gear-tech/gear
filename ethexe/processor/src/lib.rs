@@ -184,6 +184,7 @@ impl Processor {
         &mut self,
         announce: Announce,
         events: Vec<BlockRequestEvent>,
+        events_block_height: u32,
     ) -> Result<BlockProcessingResult> {
         if !announce.off_chain_transactions.is_empty() {
             todo!("#4639 off-chain transactions and gas allowance are not supported yet");
@@ -202,7 +203,7 @@ impl Processor {
                     handler.handle_router_event(event)?;
                 }
                 BlockRequestEvent::Mirror { actor_id, event } => {
-                    handler.handle_mirror_event(actor_id, event)?;
+                    handler.handle_mirror_event(actor_id, event, events_block_height)?;
                 }
                 BlockRequestEvent::WVara(event) => {
                     handler.handle_wvara_event(event);
@@ -302,6 +303,7 @@ impl OverlaidProcessor {
                 value,
                 call_reply: false,
             },
+            0, // FIXME
         )?;
 
         self.0.process_queue(&mut handler).await;
