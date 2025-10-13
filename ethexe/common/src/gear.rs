@@ -420,11 +420,11 @@ impl ToDigest for [ValueClaim] {
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum Origin {
     Ethereum { block_height: u32 },
-    OffChain,
+    Injected,
 }
 
 impl Default for Origin {
     fn default() -> Self {
-        Self::OffChain
+        Self::Injected
     }
 }
