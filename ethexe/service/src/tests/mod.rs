@@ -80,6 +80,7 @@ async fn basics() {
 
     let eth_cfg = EthereumConfig {
         rpc: "wss://reth-rpc.gear-tech.io/ws".into(),
+        fallback_rpc: vec![],
         beacon_rpc: "https://eth-holesky-beacon.public.blastapi.io".into(),
         router_address: "0x051193e518181887088df3891cA0E5433b094A4a"
             .parse()

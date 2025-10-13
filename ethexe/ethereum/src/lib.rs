@@ -52,6 +52,7 @@ mod abi;
 mod eip1167;
 
 pub mod deploy;
+pub mod fallback_ws;
 pub mod middleware;
 pub mod mirror;
 pub mod router;
@@ -82,11 +83,12 @@ pub struct Ethereum {
 impl Ethereum {
     pub async fn new(
         rpc: &str,
+        fallback_rpc: Vec<String>,
         router_address: Address,
         signer: LocalSigner,
         sender_address: LocalAddress,
     ) -> Result<Ethereum> {
-        let provider = create_provider(rpc, signer, sender_address).await?;
+        let provider = create_provider(rpc, fallback_rpc, signer, sender_address).await?;
         let router_query = RouterQuery::from_provider(router_address, provider.root().clone());
         Ok(Self {
             router: router_address,
@@ -131,14 +133,15 @@ impl Ethereum {
 
 pub(crate) async fn create_provider(
     rpc_url: &str,
+    fallbacks: Vec<String>,
     signer: LocalSigner,
     sender_address: LocalAddress,
 ) -> Result<AlloyProvider> {
+    let client = rpc_client_with_fallback(rpc_url.to_string(), fallbacks).await?;
     Ok(ProviderBuilder::default()
         .filler(AlloyRecommendedFillers::default())
         .wallet(EthereumWallet::new(Sender::new(signer, sender_address)?))
-        .connect(rpc_url)
-        .await?)
+        .connect_client(client))
 }
 
 #[derive(Debug, Clone)]
@@ -270,3 +273,5 @@ macro_rules! signatures_consts {
 }
 
 pub(crate) use signatures_consts;
+
+use crate::fallback_ws::rpc_client_with_fallback;

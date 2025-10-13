@@ -201,6 +201,7 @@ impl Service {
                     db.clone(),
                     ValidatorConfig {
                         ethereum_rpc: config.ethereum.rpc.clone(),
+                        fallbacks_rpc: config.ethereum.fallback_rpc.clone(),
                         router_address: config.ethereum.router_address,
                         pub_key,
                         signatures_threshold: threshold,

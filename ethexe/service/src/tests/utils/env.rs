@@ -172,6 +172,7 @@ impl TestEnv {
             log::info!("📗 Connecting to existing router at {router_address}");
             Ethereum::new(
                 &rpc_url,
+                vec![],
                 router_address.parse().unwrap(),
                 signer.clone(),
                 sender_address,
@@ -183,7 +184,7 @@ impl TestEnv {
                 .iter()
                 .map(|k| k.public_key.to_address())
                 .collect();
-            EthereumDeployer::new(&rpc_url, signer.clone(), sender_address) // verifiable_secret_sharing_commitment,)
+            EthereumDeployer::new(&rpc_url, vec![], signer.clone(), sender_address) // verifiable_secret_sharing_commitment,)
                 .await
                 .unwrap()
                 .with_validators(validators_addresses)
@@ -200,6 +201,7 @@ impl TestEnv {
 
         let eth_cfg = EthereumConfig {
             rpc: rpc_url.clone(),
+            fallback_rpc: Default::default(),
             beacon_rpc: Default::default(),
             router_address,
             block_time: config.block_time,
@@ -820,6 +822,7 @@ impl Node {
                         self.db.clone(),
                         ethexe_consensus::ValidatorConfig {
                             ethereum_rpc: self.eth_cfg.rpc.clone(),
+                            fallbacks_rpc: self.eth_cfg.fallback_rpc.clone(),
                             pub_key: config.public_key,
                             router_address: self.eth_cfg.router_address,
                             signatures_threshold: self.threshold,

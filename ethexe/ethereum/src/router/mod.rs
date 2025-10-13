@@ -431,7 +431,7 @@ mod tests {
             .unwrap();
 
         let ethereum =
-            EthereumDeployer::new(anvil.endpoint_url().as_str(), signer, alice.to_address())
+            EthereumDeployer::new(&anvil.ws_endpoint(), vec![], signer, alice.to_address())
                 .await
                 .unwrap()
                 .deploy()

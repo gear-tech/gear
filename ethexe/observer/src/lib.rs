@@ -31,7 +31,7 @@ use ethexe_common::{
     db::{BlockMetaStorageRead, OnChainStorageRead},
 };
 use ethexe_db::Database;
-use ethexe_ethereum::router::RouterQuery;
+use ethexe_ethereum::{fallback_ws::rpc_client_with_fallback, router::RouterQuery};
 use futures::{FutureExt, Stream, StreamExt, future::BoxFuture, stream::FusedStream};
 use gprimitives::H256;
 use nonempty::NonEmpty;
@@ -56,6 +56,7 @@ type HeadersSubscriptionFuture =
 #[derive(Clone, Debug)]
 pub struct EthereumConfig {
     pub rpc: String,
+    pub fallback_rpc: Vec<String>,
     pub beacon_rpc: String,
     pub router_address: Address,
     pub block_time: Duration,
@@ -176,6 +177,7 @@ impl ObserverService {
     pub async fn new(eth_cfg: &EthereumConfig, max_sync_depth: u32, db: Database) -> Result<Self> {
         let EthereumConfig {
             rpc,
+            fallback_rpc,
             router_address,
             block_time,
             ..
@@ -185,10 +187,10 @@ impl ObserverService {
 
         let wvara_address = Address(router_query.wvara_address().await?.0.0);
 
-        let provider = ProviderBuilder::default()
-            .connect(rpc)
+        let client = rpc_client_with_fallback(eth_cfg.rpc.clone(), fallback_rpc.clone())
             .await
-            .context("failed to create ethereum provider")?;
+            .context("failed to create ethereum rpc client")?;
+        let provider = ProviderBuilder::default().connect_client(client);
 
         let genesis_header =
             Self::pre_process_genesis_for_db(&db, &provider, &router_query).await?;

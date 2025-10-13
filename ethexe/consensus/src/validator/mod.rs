@@ -100,6 +100,8 @@ pub struct ValidatorService {
 pub struct ValidatorConfig {
     /// Ethereum RPC endpoint URL
     pub ethereum_rpc: String,
+    /// Ethereum fallback RPC endpoints
+    pub fallbacks_rpc: Vec<String>,
     /// ECDSA public key of this validator
     pub pub_key: PublicKey,
     /// Address of the router contract
@@ -126,6 +128,7 @@ impl ValidatorService {
     pub async fn new(signer: Signer, db: Database, config: ValidatorConfig) -> Result<Self> {
         let ethereum = Ethereum::new(
             &config.ethereum_rpc,
+            config.fallbacks_rpc,
             config.router_address.into(),
             signer.clone(),
             config.pub_key.to_address(),

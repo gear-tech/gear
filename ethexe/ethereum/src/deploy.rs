@@ -71,8 +71,13 @@ pub struct EthereumDeployer {
 // Public methods
 impl EthereumDeployer {
     /// Creates a new deployer from necessary arguments.
-    pub async fn new(rpc: &str, signer: LocalSigner, sender_address: LocalAddress) -> Result<Self> {
-        let provider = create_provider(rpc, signer, sender_address).await?;
+    pub async fn new(
+        rpc: &str,
+        fallback_rpc: Vec<String>,
+        signer: LocalSigner,
+        sender_address: LocalAddress,
+    ) -> Result<Self> {
+        let provider = create_provider(rpc, fallback_rpc, signer, sender_address).await?;
         Ok(EthereumDeployer {
             provider,
             validators: nonempty::nonempty![LocalAddress([1u8; 20])],
@@ -421,7 +426,7 @@ mod tests {
         )?;
         let sender_address = sender_public_key.to_address();
 
-        let ethereum = EthereumDeployer::new(&anvil.endpoint(), signer, sender_address)
+        let ethereum = EthereumDeployer::new(&anvil.ws_endpoint(), vec![], signer, sender_address)
             .await?
             .with_middleware()
             .deploy()

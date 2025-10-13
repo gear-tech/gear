@@ -49,7 +49,7 @@ async fn test_deployment() -> Result<()> {
     let sender_address = sender_public_key.to_address();
     let validators = vec!["0x45D6536E3D4AdC8f4e13c5c4aA54bE968C55Abf1".parse()?];
 
-    let deployer = EthereumDeployer::new(&ethereum_rpc, signer, sender_address)
+    let deployer = EthereumDeployer::new(&ethereum_rpc, vec![], signer, sender_address)
         .await
         .unwrap();
     let ethereum = deployer.with_validators(validators).deploy().await?;
@@ -60,6 +60,7 @@ async fn test_deployment() -> Result<()> {
     let mut observer = ObserverService::new(
         &EthereumConfig {
             rpc: ethereum_rpc,
+            fallback_rpc: vec![],
             router_address: ethereum.router().address(),
             block_time: Duration::from_secs(1),
             beacon_rpc: Default::default(),

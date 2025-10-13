@@ -32,6 +32,9 @@ pub struct EthereumParams {
     #[serde(rename = "rpc")]
     pub ethereum_rpc: Option<String>,
 
+    #[arg(long, alias = "fallback-rpc")]
+    pub ethereum_fallback_rpc: Option<Vec<String>>,
+
     /// Ethereum Beacon RPC endpoint.
     #[arg(long, alias = "eth-beacon-rpc")]
     #[serde(rename = "beacon-rpc")]
@@ -64,6 +67,7 @@ impl EthereumParams {
             rpc: self
                 .ethereum_rpc
                 .unwrap_or_else(|| Self::DEFAULT_ETHEREUM_RPC.into()),
+            fallback_rpc: self.ethereum_fallback_rpc.unwrap_or_default(),
             beacon_rpc: self
                 .ethereum_beacon_rpc
                 .unwrap_or_else(|| Self::DEFAULT_ETHEREUM_BEACON_RPC.into()),
@@ -79,9 +83,24 @@ impl EthereumParams {
 
 impl MergeParams for EthereumParams {
     fn merge(self, with: Self) -> Self {
+        // Removes equal rpc endpoints
+        let mut fallback_rpc = self.ethereum_fallback_rpc.unwrap_or_default();
+        fallback_rpc.extend(
+            with.ethereum_fallback_rpc
+                .unwrap_or_default()
+                .into_iter()
+                .filter(|rpc| fallback_rpc.contains(rpc))
+                .collect::<Vec<_>>(),
+        );
+        let ethereum_fallback_rpc = match fallback_rpc.is_empty() {
+            true => None,
+            false => Some(fallback_rpc),
+        };
+
         Self {
             ethereum_rpc: self.ethereum_rpc.or(with.ethereum_rpc),
             ethereum_beacon_rpc: self.ethereum_beacon_rpc.or(with.ethereum_beacon_rpc),
+            ethereum_fallback_rpc,
             ethereum_router: self.ethereum_router.or(with.ethereum_router),
             block_time: self.block_time.or(with.block_time),
         }

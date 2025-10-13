@@ -4865,6 +4865,7 @@ dependencies = [
  "rand 0.8.5",
  "roast-secp256k1-evm",
  "tokio",
+ "tracing",
 ]
 
 [[package]]

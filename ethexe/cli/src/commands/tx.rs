@@ -104,7 +104,7 @@ impl TxCommand {
             .parse()
             .with_context(|| "invalid `sender`")?;
 
-        let ethereum = Ethereum::new(&rpc, router_addr, signer, sender)
+        let ethereum = Ethereum::new(&rpc, vec![], router_addr, signer, sender)
             .await
             .with_context(|| "failed to create Ethereum client")?;
 
