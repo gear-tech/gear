@@ -44,9 +44,7 @@ use ethexe_common::{
 use ethexe_consensus::{ConsensusService, SimpleConnectService, ValidatorService};
 use ethexe_db::Database;
 use ethexe_ethereum::{Ethereum, deploy::EthereumDeployer, router::RouterQuery};
-use ethexe_network::{
-    NetworkConfig, NetworkEvent, NetworkService, ValidatorsRuntimeConfig, export::Multiaddr,
-};
+use ethexe_network::{NetworkConfig, NetworkEvent, NetworkService, export::Multiaddr};
 use ethexe_observer::{EthereumConfig, ObserverEvent, ObserverService};
 use ethexe_processor::Processor;
 use ethexe_rpc::{RpcConfig, RpcService, test_utils::RpcClient};
@@ -279,16 +277,14 @@ impl TestEnv {
             config.external_addresses = [multiaddr.clone()].into();
             let mut service = NetworkService::new(
                 config,
+                genesis_timestamp,
+                era_duration,
                 &signer,
                 Box::new(RouterDataProvider(router_query.clone())),
                 Box::new(db.clone()),
             )
             .unwrap();
             service.set_chain_head(genesis_block_hash).unwrap();
-            service.set_runtime_config(ValidatorsRuntimeConfig {
-                genesis_timestamp,
-                era_duration,
-            });
 
             let local_peer_id = service.local_peer_id();
 
@@ -844,17 +840,15 @@ impl Node {
                 let multiaddr = bootstrap_addr.parse().unwrap();
                 config.bootstrap_addresses = [multiaddr].into();
             }
-            let mut network = NetworkService::new(
+            let network = NetworkService::new(
                 config,
+                observer.genesis_timestamp_secs(),
+                observer.era_duration_secs(),
                 &self.signer,
                 Box::new(RouterDataProvider(self.router_query.clone())),
                 Box::new(self.db.clone()),
             )
             .unwrap();
-            network.set_runtime_config(ValidatorsRuntimeConfig {
-                genesis_timestamp: observer.genesis_timestamp_secs(),
-                era_duration: observer.era_duration_secs(),
-            });
             self.multiaddr = Some(format!("{addr}/p2p/{}", network.local_peer_id()));
             network
         });

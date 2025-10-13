@@ -27,8 +27,6 @@ pub mod export {
     pub use libp2p::{Multiaddr, PeerId, multiaddr::Protocol};
 }
 
-pub use validator::ValidatorsRuntimeConfig;
-
 use crate::{
     db_sync::DbSyncDatabase,
     validator::{ValidatorDatabase, Validators},
@@ -168,6 +166,8 @@ impl FusedStream for NetworkService {
 impl NetworkService {
     pub fn new(
         config: NetworkConfig,
+        genesis_timestamp: u64,
+        era_duration: u64,
         signer: &Signer,
         external_data_provider: Box<dyn db_sync::ExternalDataProvider>,
         db: Box<dyn NetworkServiceDatabase>,
@@ -218,6 +218,8 @@ impl NetworkService {
         }
 
         let validators = Validators::new(
+            genesis_timestamp,
+            era_duration,
             ValidatorDatabase::clone_boxed(&db),
             swarm.behaviour().peer_score.handle(),
         );
@@ -441,10 +443,6 @@ impl NetworkService {
 
     pub fn set_chain_head(&mut self, chain_head: H256) -> anyhow::Result<()> {
         self.validators.set_chain_head(chain_head)
-    }
-
-    pub fn set_runtime_config(&mut self, runtime_config: ValidatorsRuntimeConfig) {
-        self.validators.set_runtime_config(runtime_config)
     }
 
     pub fn publish_message(&mut self, data: impl Into<SignedValidatorMessage>) {
@@ -681,6 +679,8 @@ mod tests {
         let config = NetworkConfig::new_test(key, Address::default());
         NetworkService::new(
             config.clone(),
+            1_000_000,
+            1,
             &signer,
             Box::new(data_provider),
             Box::new(db),

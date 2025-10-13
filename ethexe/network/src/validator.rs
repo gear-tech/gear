@@ -52,14 +52,9 @@ enum VerificationError {
     PeerIsNotValidator,
 }
 
-#[derive(Debug, Copy, Clone)]
-pub struct ValidatorsRuntimeConfig {
-    pub genesis_timestamp: u64,
-    pub era_duration: u64,
-}
-
 pub(crate) struct Validators {
-    runtime_config: Option<ValidatorsRuntimeConfig>,
+    genesis_timestamp: u64,
+    era_duration: u64,
 
     cached_messages: HashMap<PeerId, VerifiedValidatorMessage>,
     verified_messages: VecDeque<VerifiedValidatorMessage>,
@@ -69,9 +64,15 @@ pub(crate) struct Validators {
 }
 
 impl Validators {
-    pub(crate) fn new(db: Box<dyn ValidatorDatabase>, peer_score: peer_score::Handle) -> Self {
+    pub(crate) fn new(
+        genesis_timestamp: u64,
+        era_duration: u64,
+        db: Box<dyn ValidatorDatabase>,
+        peer_score: peer_score::Handle,
+    ) -> Self {
         Self {
-            runtime_config: None,
+            genesis_timestamp,
+            era_duration,
             cached_messages: HashMap::new(),
             verified_messages: VecDeque::new(),
             db,
@@ -96,17 +97,12 @@ impl Validators {
         Ok(())
     }
 
-    pub(crate) fn set_runtime_config(&mut self, runtime_config: ValidatorsRuntimeConfig) {
-        self.runtime_config = Some(runtime_config);
-    }
-
     pub(crate) fn next_message(&mut self) -> Option<VerifiedValidatorMessage> {
         self.verified_messages.pop_front()
     }
 
     fn block_era_index(&self, block_ts: u64) -> u64 {
-        let config = self.runtime_config.unwrap();
-        (block_ts - config.genesis_timestamp) / config.era_duration
+        (block_ts - self.genesis_timestamp) / self.era_duration
     }
 
     fn inner_verify(&self, message: &VerifiedValidatorMessage) -> Result<(), VerificationError> {
