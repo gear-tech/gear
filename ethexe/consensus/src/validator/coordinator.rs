@@ -17,13 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::{StateHandler, ValidatorContext, ValidatorState, submitter::Submitter};
-use crate::{
-    BatchCommitmentValidationReply, BatchCommitmentValidationRequest, ConsensusEvent,
-    utils::MultisignedBatchCommitment,
-};
+use crate::{BatchCommitmentValidationReply, ConsensusEvent, utils::MultisignedBatchCommitment};
 use anyhow::{Result, anyhow, ensure};
 use derive_more::{Debug, Display};
-use ethexe_common::{Address, gear::BatchCommitment};
+use ethexe_common::{Address, consensus::BatchCommitmentValidationRequest, gear::BatchCommitment};
 use nonempty::NonEmpty;
 use std::collections::BTreeSet;
 
