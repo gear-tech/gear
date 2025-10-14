@@ -178,15 +178,6 @@ impl<T: Sized> SignedData<T> {
         self.public_key.to_address()
     }
 
-    /// Verifies the data itself using provided public key and signature.
-    pub fn verify(&self) -> SignResult<()>
-    where
-        T: ToDigest,
-    {
-        self.signature
-            .verify(self.public_key, self.data.to_digest())
-    }
-
     pub fn into_verified(self) -> VerifiedData<T> {
         VerifiedData {
             data: self.data,
