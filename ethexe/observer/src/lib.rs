@@ -27,7 +27,7 @@ use alloy::{
 };
 use anyhow::{Context as _, Result, anyhow};
 use ethexe_common::{
-    Address, BlockData, BlockHeader, GearExeTimelines, SimpleBlockData,
+    Address, BlockData, BlockHeader, ProtocolTimelines, SimpleBlockData,
     db::{BlockMetaStorageRO, OnChainStorageRW},
 };
 use ethexe_db::Database;
@@ -253,14 +253,14 @@ impl ObserverService {
         };
 
         let router_timelines = router_query.timelines().await?;
-        let timelines = GearExeTimelines {
+        let timelines = ProtocolTimelines {
             genesis_ts: genesis_header.timestamp,
             era: router_timelines.era,
             election: router_timelines.election,
         };
 
         // TODO: maybe move into `setup_genesis_in_db`
-        db.set_gear_exe_timelines(timelines);
+        db.set_protocol_timelines(timelines);
 
         let genesis_validators = router_query.validators_at(genesis_block_hash).await?;
 

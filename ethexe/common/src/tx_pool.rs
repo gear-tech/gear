@@ -146,7 +146,7 @@ pub fn check_mortality_at(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{BlockHeader, ecdsa::PrivateKey};
+    use crate::{BlockHeader, ProtocolTimelines, ecdsa::PrivateKey};
     use alloc::collections::BTreeMap;
 
     #[derive(Default)]
@@ -159,7 +159,7 @@ mod tests {
             self.block_headers.get(&hash).cloned()
         }
 
-        fn gear_exe_timelines(&self) -> Option<crate::GearExeTimelines> {
+        fn protocol_timelines(&self) -> Option<ProtocolTimelines> {
             unimplemented!()
         }
 

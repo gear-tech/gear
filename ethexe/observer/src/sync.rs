@@ -196,7 +196,7 @@ impl<DB: SyncDB> ChainSync<DB> {
     fn should_fetch_validators(&self, chain_head: BlockHeader) -> Result<bool> {
         let timelines = self
             .db
-            .gear_exe_timelines()
+            .protocol_timelines()
             .ok_or_else(|| anyhow!("GearExeTimelines not found in database"))?;
         let chain_head_era = era_from_ts(chain_head.timestamp, timelines.genesis_ts, timelines.era);
 

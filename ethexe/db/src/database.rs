@@ -23,7 +23,7 @@ use crate::{
     overlay::{CASOverlay, KVOverlay},
 };
 use ethexe_common::{
-    Announce, AnnounceHash, BlockHeader, CodeBlobInfo, GearExeTimelines, ProgramStates, Schedule,
+    Announce, AnnounceHash, BlockHeader, CodeBlobInfo, ProgramStates, ProtocolTimelines, Schedule,
     ValidatorsVec,
     db::{
         AnnounceMeta, AnnounceStorageRO, AnnounceStorageRW, BlockMeta, BlockMetaStorageRO,
@@ -463,9 +463,9 @@ impl Storage for Database {
 }
 
 impl OnChainStorageRO for Database {
-    fn gear_exe_timelines(&self) -> Option<GearExeTimelines> {
+    fn protocol_timelines(&self) -> Option<ProtocolTimelines> {
         self.kv.get(&Key::Timelines.to_bytes()).map(|data| {
-            GearExeTimelines::decode(&mut data.as_slice())
+            Decode::decode(&mut data.as_slice())
                 .expect("Failed to decode data into `GearExeTimelines`")
         })
     }
@@ -508,8 +508,8 @@ impl OnChainStorageRO for Database {
 }
 
 impl OnChainStorageRW for Database {
-    fn set_gear_exe_timelines(&self, timelines: GearExeTimelines) {
-        tracing::trace!("");
+    fn set_protocol_timelines(&self, timelines: ProtocolTimelines) {
+        tracing::trace!("Set protocol timelines");
         self.kv.put(&Key::Timelines.to_bytes(), timelines.encode());
     }
 

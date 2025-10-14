@@ -21,7 +21,7 @@
 // TODO #4547: move types to another module(s)
 
 use crate::{
-    Announce, AnnounceHash, BlockHeader, CodeBlobInfo, Digest, GearExeTimelines, ProgramStates,
+    Announce, AnnounceHash, BlockHeader, CodeBlobInfo, Digest, ProgramStates, ProtocolTimelines,
     Schedule, ValidatorsVec, events::BlockEvent, gear::StateTransition,
 };
 use alloc::{
@@ -68,14 +68,6 @@ pub trait HashStorageRO {
     fn read_by_hash(&self, hash: H256) -> Option<Vec<u8>>;
 }
 
-/// Static data stored in the database.
-/// Expected to be unmutable and set only once.
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, Encode, Decode)]
-pub struct StaticData {
-    pub gear_exe_timelines: Option<GearExeTimelines>,
-    // Maybe add more static fields in the future.
-}
-
 #[auto_impl::auto_impl(&, Box)]
 pub trait BlockMetaStorageRO {
     /// NOTE: if `BlockMeta` doesn't exist in the database, it will return the default value.
@@ -117,7 +109,7 @@ pub trait OnChainStorageRO {
     fn code_blob_info(&self, code_id: CodeId) -> Option<CodeBlobInfo>;
     fn block_synced(&self, block_hash: H256) -> bool;
     fn validators(&self, block_hash: H256) -> Option<ValidatorsVec>;
-    fn gear_exe_timelines(&self) -> Option<GearExeTimelines>;
+    fn protocol_timelines(&self) -> Option<ProtocolTimelines>;
 }
 
 #[auto_impl::auto_impl(&)]
@@ -125,7 +117,7 @@ pub trait OnChainStorageRW: OnChainStorageRO {
     fn set_block_header(&self, block_hash: H256, header: BlockHeader);
     fn set_block_events(&self, block_hash: H256, events: &[BlockEvent]);
     fn set_code_blob_info(&self, code_id: CodeId, code_info: CodeBlobInfo);
-    fn set_gear_exe_timelines(&self, timelines: GearExeTimelines);
+    fn set_protocol_timelines(&self, timelines: ProtocolTimelines);
     fn set_block_validators(&self, block_hash: H256, validator_set: ValidatorsVec);
     fn set_block_synced(&self, block_hash: H256);
 }

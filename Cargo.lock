@@ -4782,7 +4782,6 @@ dependencies = [
  "serde",
  "sha3",
  "tap",
- "tracing",
 ]
 
 [[package]]
@@ -4799,7 +4798,6 @@ dependencies = [
  "gear-utils",
  "gprimitives",
  "log",
- "nonempty 0.12.0",
  "thiserror 2.0.12",
  "tokio",
  "wasmparser 0.230.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -4810,7 +4808,6 @@ dependencies = [
 name = "ethexe-consensus"
 version = "1.9.2"
 dependencies = [
- "alloy",
  "anyhow",
  "async-trait",
  "derive_more 2.0.1",
@@ -4826,7 +4823,6 @@ dependencies = [
  "parity-scale-codec",
  "rand 0.8.5",
  "rand_chacha 0.3.1",
- "rand_core 0.6.4",
  "roast-secp256k1-evm",
  "tokio",
  "tracing",
@@ -4844,7 +4840,6 @@ dependencies = [
  "ethexe-runtime-common",
  "gear-core",
  "gprimitives",
- "log",
  "parity-scale-codec",
  "paste",
  "rocksdb",
@@ -4913,7 +4908,6 @@ dependencies = [
  "gear-utils",
  "gprimitives",
  "log",
- "nonempty 0.12.0",
  "tokio",
  "tracing",
  "wasmparser 0.230.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -5052,7 +5046,6 @@ dependencies = [
  "gear-core-errors",
  "gprimitives",
  "log",
- "nonempty 0.12.0",
  "ntest",
  "parity-scale-codec",
  "rand 0.8.5",

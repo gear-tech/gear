@@ -142,8 +142,8 @@ impl ValidatorCore {
         let SimpleBlockData { hash, header } = block;
         let timelines = self
             .db
-            .gear_exe_timelines()
-            .ok_or(anyhow!("gear exe timelines not found"))?;
+            .protocol_timelines()
+            .ok_or(anyhow!("protocol timelines not found"))?;
 
         let block_era = era_from_ts(header.timestamp, timelines.genesis_ts, timelines.era);
         let end_of_era = end_of_era_timestamp(block_era, timelines.genesis_ts, timelines.era);

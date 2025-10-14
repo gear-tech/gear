@@ -21,7 +21,7 @@ use crate::utils::MultisignedBatchCommitment;
 use anyhow::anyhow;
 use async_trait::async_trait;
 use ethexe_common::{
-    DEFAULT_BLOCK_GAS_LIMIT, GearExeTimelines, ValidatorsVec, db::OnChainStorageRW,
+    DEFAULT_BLOCK_GAS_LIMIT, ProtocolTimelines, ValidatorsVec, db::OnChainStorageRW,
 };
 use hashbrown::HashMap;
 use std::sync::Arc;
@@ -157,7 +157,7 @@ pub fn mock_validator_context() -> (ValidatorContext, Vec<PublicKey>, MockEthere
         output: VecDeque::new(),
     };
 
-    ctx.core.db.set_gear_exe_timelines(GearExeTimelines {
+    ctx.core.db.set_protocol_timelines(ProtocolTimelines {
         genesis_ts: 0,
         era: 12 * 60 * 60,
         election: 10 * 60,

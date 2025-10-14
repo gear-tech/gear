@@ -174,7 +174,7 @@ impl Decode for ValidatorsVec {
 #[debug("ValidatorsVec cannot be created from empty vector")]
 pub struct TryFromVecError;
 
-// Usefull conversions from / to `Vec<Address>`
+// Useful conversions from / to `Vec<Address>`
 impl TryFrom<Vec<Address>> for ValidatorsVec {
     type Error = TryFromVecError;
 
