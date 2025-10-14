@@ -375,6 +375,14 @@ where
         // Defining if message is kept by waitlist.
         gas_info.waited = WaitlistOf::<T>::contains(&main_program_id, &main_message_id);
 
+        // If RPC stored a pre-charge hint, fold it into the minimum limit so the
+        // declared weight survives the second pass.
+        if let Some(precharge_hint) =
+            <T as Config>::BuiltinDispatcherFactory::take_precharge_hint(main_message_id)
+        {
+            gas_info.min_limit = gas_info.min_limit.max(precharge_hint);
+        }
+
         // Returning result.
         Ok(gas_info)
     }

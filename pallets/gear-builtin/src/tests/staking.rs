@@ -131,6 +131,64 @@ fn bonding_works() {
 }
 
 #[test]
+fn calculate_gas_info_for_staking_builtin() {
+    init_logger();
+
+    new_test_ext().execute_with(|| {
+        let staking_actor_id = util::GearBuiltin::generate_actor_id(2);
+        let bond_value = 100 * UNITS;
+        let payload = Request::Bond {
+            value: bond_value,
+            payee: RewardAccount::Program,
+        }
+        .encode();
+
+        assert!(pallet_staking::Pallet::<Test>::ledger(StakingAccount::Stash(SIGNER)).is_err());
+
+        let signer_balance_before = Balances::free_balance(SIGNER);
+
+        let gas_info = {
+            start_transaction();
+            let res = Gear::calculate_gas_info(
+                SIGNER.into_origin(),
+                pallet_gear::manager::HandleKind::Handle(staking_actor_id),
+                payload.clone(),
+                0,
+                true,
+                None,
+                None,
+            )
+            .expect("calculate_gas_info failed");
+            rollback_transaction();
+            res
+        };
+
+        assert!(gas_info.min_limit >= gas_info.burned);
+        assert!(gas_info.min_limit > 0);
+        assert_eq!(Balances::free_balance(SIGNER), signer_balance_before);
+        assert!(pallet_staking::Pallet::<Test>::ledger(StakingAccount::Stash(SIGNER)).is_err());
+
+        System::reset_events();
+
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(SIGNER),
+            staking_actor_id,
+            payload,
+            gas_info.min_limit,
+            0,
+            false,
+        ));
+
+        run_to_next_block();
+
+        assert_staking_events(SIGNER, bond_value, EventType::Bonded);
+
+        let ledger = pallet_staking::Pallet::<Test>::ledger(StakingAccount::Stash(SIGNER)).unwrap();
+        assert_eq!(ledger.active, bond_value);
+    });
+}
+
+#[test]
 fn unbonding_works() {
     init_logger();
 
