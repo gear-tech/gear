@@ -20,8 +20,8 @@ use crate::{ComputeError, ProcessorExt, Result, utils};
 use ethexe_common::{
     Announce,
     db::{
-        AnnounceStorageWrite, BlockMetaStorageRead, BlockMetaStorageWrite, LatestDataStorageWrite,
-        OnChainStorageRead,
+        AnnounceStorageRW, BlockMetaStorageRO, BlockMetaStorageRW, LatestDataStorageRW,
+        OnChainStorageRO,
     },
 };
 use ethexe_db::Database;
@@ -134,7 +134,7 @@ mod tests {
                     parent_hash: H256::random(),
                 },
             },
-            // NonEmpty::from_vec(vec![Default::default()]).unwrap(),
+            Default::default(),
         );
 
         // Setup block as prepared

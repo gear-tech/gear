@@ -24,7 +24,7 @@
 use anyhow::{Result, anyhow};
 use ethexe_common::{
     Address, Announce, AnnounceHash, Digest, SimpleBlockData, ToDigest, ValidatorsVec,
-    db::{AnnounceStorageRead, BlockMetaStorageRead, CodesStorageRead, OnChainStorageRead},
+    db::{AnnounceStorageRO, BlockMetaStorageRO, CodesStorageRO, OnChainStorageRO},
     ecdsa::{ContractSignature, PublicKey, SignedData},
     gear::{
         AggregatedPublicKey, BatchCommitment, ChainCommitment, CodeCommitment, RewardsCommitment,
@@ -200,7 +200,7 @@ impl MultisignedBatchCommitment {
     }
 }
 
-pub fn aggregate_code_commitments<DB: CodesStorageRead>(
+pub fn aggregate_code_commitments<DB: CodesStorageRO>(
     db: &DB,
     codes: impl IntoIterator<Item = CodeId>,
     fail_if_not_found: bool,
@@ -220,9 +220,7 @@ pub fn aggregate_code_commitments<DB: CodesStorageRead>(
     Ok(commitments)
 }
 
-pub fn aggregate_chain_commitment<
-    DB: BlockMetaStorageRead + OnChainStorageRead + AnnounceStorageRead,
->(
+pub fn aggregate_chain_commitment<DB: BlockMetaStorageRO + OnChainStorageRO + AnnounceStorageRO>(
     db: &DB,
     head_announce: AnnounceHash,
     fail_if_not_computed: bool,
@@ -325,7 +323,7 @@ pub fn validators_commitment(era: u64, validators: ValidatorsVec) -> Result<Vali
     })
 }
 
-pub fn create_batch_commitment<DB: BlockMetaStorageRead>(
+pub fn create_batch_commitment<DB: BlockMetaStorageRO>(
     db: &DB,
     block: &SimpleBlockData,
     chain_commitment: Option<ChainCommitment>,
@@ -372,7 +370,7 @@ pub fn has_duplicates<T: Hash + Eq>(data: &[T]) -> bool {
 }
 
 /// Finds the block with the earliest timestamp that is still within the specified election period.
-pub fn election_block_in_era<DB: OnChainStorageRead>(
+pub fn election_block_in_era<DB: OnChainStorageRO>(
     db: &DB,
     block_data: SimpleBlockData,
     election_ts: u64,

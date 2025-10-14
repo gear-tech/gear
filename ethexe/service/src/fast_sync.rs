@@ -23,8 +23,8 @@ use ethexe_common::{
     Address, Announce, AnnounceHash, BlockData, CodeAndIdUnchecked, Digest, ProgramStates,
     StateHashWithQueueSize,
     db::{
-        AnnounceStorageRead, BlockMetaStorageRead, CodesStorageRead, CodesStorageWrite,
-        FullAnnounceData, FullBlockData, HashStorageRead, OnChainStorageRead, OnChainStorageWrite,
+        AnnounceStorageRO, BlockMetaStorageRO, CodesStorageRO, CodesStorageRW, FullAnnounceData,
+        FullBlockData, HashStorageRO, OnChainStorageRO, OnChainStorageRW,
     },
     events::{BlockEvent, RouterEvent},
 };
@@ -677,8 +677,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
         db.set_program_code_id(program_id, code_id);
     }
 
-    // let validators = NonEmpty::from_vec(observer.router_query().validators_at(block_hash).await?)
-    //     .ok_or(anyhow!("validator set is empty"))?;
+    let validators = observer.router_query().validators_at(block_hash).await?;
 
     ethexe_common::setup_start_block_in_db(
         db,
@@ -686,7 +685,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
         FullBlockData {
             header,
             events,
-            // validators,
+            validators,
             // NOTE: there is no invariant that fast sync should recover codes queue
             codes_queue: Default::default(),
             announces: [announce_hash].into(),

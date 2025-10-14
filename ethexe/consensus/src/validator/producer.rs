@@ -24,7 +24,7 @@ use anyhow::{Result, anyhow};
 use derive_more::{Debug, Display};
 use ethexe_common::{
     Announce, AnnounceHash, SimpleBlockData, ValidatorsVec,
-    db::{AnnounceStorageRead, BlockMetaStorageRead},
+    db::{AnnounceStorageRO, BlockMetaStorageRO},
     gear::BatchCommitment,
 };
 use ethexe_service_utils::Timer;

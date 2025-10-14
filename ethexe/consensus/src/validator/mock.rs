@@ -21,9 +21,8 @@ use crate::utils::MultisignedBatchCommitment;
 use anyhow::anyhow;
 use async_trait::async_trait;
 use ethexe_common::{
-    DEFAULT_BLOCK_GAS_LIMIT, GearExeTimelines, ValidatorsVec, db::OnChainStorageWrite,
+    DEFAULT_BLOCK_GAS_LIMIT, GearExeTimelines, ValidatorsVec, db::OnChainStorageRW,
 };
-use ethexe_ethereum::router::ValidatorsProvider;
 use hashbrown::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
@@ -32,7 +31,6 @@ use tokio::sync::RwLock;
 pub struct MockEthereum {
     pub committed_batch: Arc<RwLock<Option<MultisignedBatchCommitment>>>,
     pub predefined_election_at: Arc<RwLock<HashMap<u64, ValidatorsVec>>>,
-    pub predefined_validators_at: Arc<RwLock<HashMap<H256, ValidatorsVec>>>,
 }
 
 #[async_trait]
@@ -56,25 +54,6 @@ impl ElectionProvider for MockEthereum {
                 "No predefined election result for the given request"
             )),
         }
-    }
-}
-
-#[async_trait]
-impl ValidatorsProvider for MockEthereum {
-    async fn validators_at(&self, block: H256) -> Result<ValidatorsVec> {
-        match self.predefined_validators_at.read().await.get(&block) {
-            Some(validators) => Ok(validators.clone()),
-            None => Err(anyhow!("Validators not found")),
-        }
-    }
-}
-
-impl MockEthereum {
-    pub async fn set_validators_at(&self, block: H256, validators: ValidatorsVec) {
-        self.predefined_validators_at
-            .write()
-            .await
-            .insert(block, validators);
     }
 }
 
@@ -174,7 +153,6 @@ pub fn mock_validator_context() -> (ValidatorContext, Vec<PublicKey>, MockEthere
             validate_chain_deepness_limit: MAX_CHAIN_DEEPNESS,
             chain_deepness_threshold: CHAIN_DEEPNESS_THRESHOLD,
         },
-        validators_manager: ValidatorsManager::new(db, ethereum.clone()),
         pending_events: VecDeque::new(),
         output: VecDeque::new(),
     };

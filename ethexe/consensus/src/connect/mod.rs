@@ -22,13 +22,12 @@
 
 use crate::{
     BatchCommitmentValidationReply, ConsensusEvent, ConsensusService, SignedAnnounce,
-    SignedValidationRequest, manager::ValidatorsManager, utils,
+    SignedValidationRequest, utils,
 };
-use anyhow::Result;
-use ethexe_common::{Address, AnnounceHash, SimpleBlockData, ValidatorsVec};
+use anyhow::{Result, anyhow};
+use ethexe_common::{Address, AnnounceHash, SimpleBlockData, db::OnChainStorageRO};
 use ethexe_db::Database;
-use ethexe_ethereum::router::ValidatorsProvider;
-use futures::{FutureExt, Stream, future::BoxFuture, stream::FusedStream};
+use futures::{Stream, stream::FusedStream};
 use gprimitives::H256;
 use std::{
     collections::VecDeque,
@@ -44,21 +43,12 @@ const _: () = assert!(
 );
 
 #[allow(clippy::enum_variant_names)]
-#[derive(derive_more::Debug)]
+#[derive(Debug)]
 enum State {
     WaitingForBlock,
-    WaitingForBlockValidators {
+    WaitingForSyncedBlock {
         block: SimpleBlockData,
-        #[debug(skip)]
-        future: BoxFuture<'static, Result<ValidatorsVec>>,
-
-        // block_synced: bool,
-        block_prepared: bool,
     },
-    // WaitingForSyncedBlock {
-    //     block: SimpleBlockData,
-    //     producer: Address,
-    // },
     WaitingForPreparedBlock {
         block: SimpleBlockData,
         producer: Address,
@@ -73,30 +63,24 @@ enum State {
 /// in order to keep the program states in local database actual.
 #[derive(derive_more::Debug)]
 pub struct SimpleConnectService {
-    // #[debug(skip)]
-    // db: Database,
+    #[debug(skip)]
+    db: Database,
     slot_duration: Duration,
 
     state: State,
     pending_announces: VecDeque<SignedAnnounce>,
     output: VecDeque<ConsensusEvent>,
-
-    validators_manager: ValidatorsManager<Database>,
 }
 
 impl SimpleConnectService {
     /// Creates a new instance of `SimpleConnectService`.
-    pub fn new<V>(db: Database, slot_duration: Duration, validators_provider: V) -> Self
-    where
-        V: ValidatorsProvider + 'static,
-    {
+    pub fn new(db: Database, slot_duration: Duration) -> Self {
         Self {
-            // db: db.clone(),
+            db,
             slot_duration,
             state: State::WaitingForBlock,
             pending_announces: VecDeque::with_capacity(MAX_PENDING_ANNOUNCES),
             output: VecDeque::new(),
-            validators_manager: ValidatorsManager::new(db, validators_provider),
         }
     }
 }
@@ -107,63 +91,53 @@ impl ConsensusService for SimpleConnectService {
     }
 
     fn receive_new_chain_head(&mut self, block: SimpleBlockData) -> Result<()> {
-        // self.state = State::WaitingForSyncedBlock { block };
-        self.state = State::WaitingForBlockValidators {
-            block,
-            future: self
-                .validators_manager
-                .clone()
-                .get_validators(block.hash)
-                .boxed(),
-            block_prepared: false,
-        };
+        self.state = State::WaitingForSyncedBlock { block };
         Ok(())
     }
 
-    fn receive_synced_block(&mut self, _block_hash: H256) -> Result<()> {
-        // match &mut self.state {
-        //     State::WaitingForBlockValidators { block_synced, .. } => {
-        //         block_synced = true;
-        //     }
-        //     State::WaitingForSyncedBlock { block, .. } => {}
-        //     _ => Ok(()),
-        // }
-        // if let State::WaitingForSyncedBlock { block, .. } = &self.state
-        //     && block.hash == block_hash
-        // {
-        //     let validators = Default::default();
-        //     let producer = utils::block_producer_for(
-        //         &validators,
-        //         block.header.timestamp,
-        //         self.slot_duration.as_secs(),
-        //     );
+    fn receive_synced_block(&mut self, block_hash: H256) -> Result<()> {
+        if let State::WaitingForSyncedBlock { block } = &self.state
+            && block.hash == block_hash
+        {
+            let validators = self.db.validators(block_hash).ok_or(anyhow!(
+                "validators not found for synced block({block_hash})"
+            ))?;
+            let producer = utils::block_producer_for(
+                &validators,
+                block.header.timestamp,
+                self.slot_duration.as_secs(),
+            );
 
-        //     self.state = State::WaitingForPreparedBlock {
-        //         block: block.clone(),
-        //         producer,
-        //     };
-        // }
-
+            self.state = State::WaitingForPreparedBlock {
+                block: *block,
+                producer,
+            };
+        }
         Ok(())
     }
 
     fn receive_prepared_block(&mut self, prepared_block_hash: H256) -> Result<()> {
-        if let State::WaitingForBlockValidators {
-            block,
-            block_prepared,
-            ..
-        } = &mut self.state
-            && block.hash == prepared_block_hash
-        {
-            *block_prepared = true
-        };
-
         if let State::WaitingForPreparedBlock { block, producer } = &self.state
             && block.hash == prepared_block_hash
         {
-            self.handle_prepared_block(*block, *producer);
+            if let Some(index) = self.pending_announces.iter().position(|announce| {
+                announce.address() == *producer && announce.data().block_hash == block.hash
+            }) {
+                let (announce, _) = self
+                    .pending_announces
+                    .remove(index)
+                    .expect("Index must be valid")
+                    .into_parts();
+                self.output
+                    .push_back(ConsensusEvent::ComputeAnnounce(announce));
+                self.state = State::WaitingForBlock;
+            } else {
+                self.state = State::WaitingForAnnounce {
+                    block: *block,
+                    producer: *producer,
+                };
+            };
         }
-
         Ok(())
     }
 
@@ -214,54 +188,17 @@ impl ConsensusService for SimpleConnectService {
 impl Stream for SimpleConnectService {
     type Item = Result<ConsensusEvent>;
 
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+    fn poll_next(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         if let Some(event) = self.output.pop_front() {
-            return Poll::Ready(Some(Ok(event)));
+            Poll::Ready(Some(Ok(event)))
+        } else {
+            Poll::Pending
         }
-
-        let slot_duration = self.slot_duration.as_secs();
-        if let State::WaitingForBlockValidators {
-            block,
-            future,
-            block_prepared,
-        } = &mut self.state
-        {
-            let validators = futures::ready!(future.poll_unpin(cx))?;
-            let block = *block;
-            let producer =
-                utils::block_producer_for(&validators, block.header.timestamp, slot_duration);
-
-            if *block_prepared {
-                self.handle_prepared_block(block, producer);
-            } else {
-                self.state = State::WaitingForPreparedBlock { block, producer }
-            }
-        }
-        Poll::Pending
     }
 }
 
 impl FusedStream for SimpleConnectService {
     fn is_terminated(&self) -> bool {
         false
-    }
-}
-
-impl SimpleConnectService {
-    fn handle_prepared_block(&mut self, block: SimpleBlockData, producer: Address) {
-        if let Some(index) = self.pending_announces.iter().position(|announce| {
-            announce.address() == producer && announce.data().block_hash == block.hash
-        }) {
-            let (announce, _) = self
-                .pending_announces
-                .remove(index)
-                .expect("Index must be valid")
-                .into_parts();
-            self.output
-                .push_back(ConsensusEvent::ComputeAnnounce(announce));
-            self.state = State::WaitingForBlock;
-        } else {
-            self.state = State::WaitingForAnnounce { block, producer };
-        };
     }
 }

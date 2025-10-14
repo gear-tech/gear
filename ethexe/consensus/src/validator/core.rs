@@ -26,7 +26,7 @@ use anyhow::{Result, anyhow, ensure};
 use async_trait::async_trait;
 use ethexe_common::{
     Address, Digest, SimpleBlockData, ToDigest, ValidatorsVec,
-    db::{BlockMetaStorageRead, OnChainStorageRead},
+    db::{BlockMetaStorageRO, OnChainStorageRO},
     ecdsa::PublicKey,
     end_of_era_timestamp, era_from_ts,
     gear::{
@@ -150,8 +150,6 @@ impl ValidatorCore {
         let block_era = era_from_ts(header.timestamp, timelines.genesis_ts, timelines.era);
         let end_of_era = end_of_era_timestamp(block_era, timelines.genesis_ts, timelines.era);
         let election_ts = end_of_era - timelines.election;
-        // let election_ts = end_of_era_timestamp(block_era, timelines.genesis_ts, timelines.era)
-        //     - timelines.election;
 
         if header.timestamp < election_ts {
             tracing::info!(

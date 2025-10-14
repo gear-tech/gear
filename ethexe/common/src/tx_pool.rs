@@ -18,7 +18,7 @@
 
 //! ethexe tx pool types
 
-use crate::{ToDigest, db::OnChainStorageRead, ecdsa::SignedData};
+use crate::{ToDigest, db::OnChainStorageRO, ecdsa::SignedData};
 use alloc::vec::Vec;
 use anyhow::{Result, anyhow};
 use derive_more::{Debug, Display};
@@ -104,7 +104,7 @@ impl RawOffchainTransaction {
 /// - `true` if the transaction is still valid at the given block
 /// - `false` otherwise
 pub fn check_mortality_at(
-    db: &impl OnChainStorageRead,
+    db: &impl OnChainStorageRO,
     tx: &SignedOffchainTransaction,
     block_hash: H256,
 ) -> Result<bool> {
@@ -154,7 +154,7 @@ mod tests {
         block_headers: BTreeMap<H256, BlockHeader>,
     }
 
-    impl OnChainStorageRead for MockDatabase {
+    impl OnChainStorageRO for MockDatabase {
         fn block_header(&self, hash: H256) -> Option<BlockHeader> {
             self.block_headers.get(&hash).cloned()
         }
@@ -172,6 +172,10 @@ mod tests {
         }
 
         fn block_synced(&self, _block_hash: H256) -> bool {
+            unimplemented!()
+        }
+
+        fn validators(&self, _block_hash: H256) -> Option<crate::ValidatorsVec> {
             unimplemented!()
         }
     }

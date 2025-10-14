@@ -28,7 +28,7 @@ use alloy::{
 use anyhow::{Context as _, Result, anyhow};
 use ethexe_common::{
     Address, BlockData, BlockHeader, GearExeTimelines, SimpleBlockData,
-    db::{BlockMetaStorageRead, OnChainStorageWrite},
+    db::{BlockMetaStorageRO, OnChainStorageRW},
 };
 use ethexe_db::Database;
 use ethexe_ethereum::router::RouterQuery;
@@ -262,13 +262,15 @@ impl ObserverService {
         // TODO: maybe move into `setup_genesis_in_db`
         db.set_gear_exe_timelines(timelines);
 
+        let genesis_validators = router_query.validators_at(genesis_block_hash).await?;
+
         ethexe_common::setup_genesis_in_db(
             db,
             SimpleBlockData {
                 hash: genesis_block_hash,
                 header: genesis_header,
             },
-            // genesis_validators,
+            genesis_validators,
         );
 
         Ok(())

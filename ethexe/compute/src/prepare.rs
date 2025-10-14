@@ -20,8 +20,8 @@ use crate::{ComputeError, ProcessorExt, Result, utils};
 use ethexe_common::{
     Announce, AnnounceHash, SimpleBlockData,
     db::{
-        AnnounceStorageRead, AnnounceStorageWrite, BlockMetaStorageRead, BlockMetaStorageWrite,
-        CodesStorageRead, LatestDataStorageRead, LatestDataStorageWrite, OnChainStorageRead,
+        AnnounceStorageRO, AnnounceStorageRW, BlockMetaStorageRO, BlockMetaStorageRW,
+        CodesStorageRO, LatestDataStorageRO, LatestDataStorageRW, OnChainStorageRO,
     },
     events::{BlockEvent, BlockRequestEvent, RouterEvent},
 };

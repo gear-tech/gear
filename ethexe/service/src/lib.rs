@@ -222,8 +222,6 @@ impl Service {
                     ethereum.router(),
                     db.clone(),
                     ValidatorConfig {
-                        // ethereum_rpc: config.ethereum.rpc.clone(),
-                        router_address: config.ethereum.router_address,
                         pub_key,
                         signatures_threshold: threshold,
                         slot_duration: config.ethereum.block_time,
@@ -231,12 +229,9 @@ impl Service {
                     },
                 )?)
             } else {
-                let router_query =
-                    RouterQuery::new(&config.ethereum.rpc, config.ethereum.router_address).await?;
                 Box::pin(SimpleConnectService::new(
                     db.clone(),
                     config.ethereum.block_time,
-                    router_query,
                 ))
             }
         };

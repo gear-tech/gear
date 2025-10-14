@@ -20,7 +20,7 @@ use super::ProcessingHandler;
 use crate::{ProcessorError, Result};
 use ethexe_common::{
     ScheduledTask,
-    db::{CodesStorageRead, CodesStorageWrite},
+    db::{CodesStorageRO, CodesStorageRW},
     events::{MirrorRequestEvent, RouterRequestEvent, WVaraRequestEvent},
     gear::{Origin, ValueClaim},
 };

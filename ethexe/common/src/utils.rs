@@ -17,10 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    Announce, AnnounceHash, SimpleBlockData,
+    Announce, AnnounceHash, SimpleBlockData, ValidatorsVec,
     db::{
-        AnnounceStorageWrite, BlockMeta, BlockMetaStorageWrite, FullAnnounceData, FullBlockData,
-        LatestData, LatestDataStorageWrite, OnChainStorageWrite,
+        AnnounceStorageRW, BlockMeta, BlockMetaStorageRW, FullAnnounceData, FullBlockData,
+        LatestData, LatestDataStorageRW, OnChainStorageRW,
     },
 };
 use gprimitives::H256;
@@ -45,7 +45,7 @@ pub const fn u64_into_uint48_be_bytes_lossy(val: u64) -> [u8; 6] {
 }
 
 pub fn setup_start_block_in_db<
-    DB: OnChainStorageWrite + BlockMetaStorageWrite + AnnounceStorageWrite + LatestDataStorageWrite,
+    DB: OnChainStorageRW + BlockMetaStorageRW + AnnounceStorageRW + LatestDataStorageRW,
 >(
     db: &DB,
     start_block_hash: H256,
@@ -75,11 +75,11 @@ pub fn setup_start_block_in_db<
 }
 
 pub fn setup_genesis_in_db<
-    DB: OnChainStorageWrite + BlockMetaStorageWrite + AnnounceStorageWrite + LatestDataStorageWrite,
+    DB: OnChainStorageRW + BlockMetaStorageRW + AnnounceStorageRW + LatestDataStorageRW,
 >(
     db: &DB,
     genesis_block: SimpleBlockData,
-    // validators: NonEmpty<Address>,
+    validators: ValidatorsVec,
 ) {
     let genesis_announce = Announce::base(genesis_block.hash, AnnounceHash::zero());
     let genesis_announce_hash = setup_announce_in_db(
@@ -98,7 +98,7 @@ pub fn setup_genesis_in_db<
         FullBlockData {
             header: genesis_block.header,
             events: Default::default(),
-            // validators: validators.clone(),
+            validators,
             codes_queue: Default::default(),
             announces: [genesis_announce_hash].into(),
             last_committed_batch: Default::default(),
@@ -128,7 +128,7 @@ pub fn setup_genesis_in_db<
     }
 }
 
-pub fn setup_block_in_db<DB: OnChainStorageWrite + BlockMetaStorageWrite>(
+pub fn setup_block_in_db<DB: OnChainStorageRW + BlockMetaStorageRW>(
     db: &DB,
     block_hash: H256,
     block_data: FullBlockData,
@@ -148,7 +148,7 @@ pub fn setup_block_in_db<DB: OnChainStorageWrite + BlockMetaStorageWrite>(
     });
 }
 
-pub fn setup_announce_in_db<DB: AnnounceStorageWrite>(
+pub fn setup_announce_in_db<DB: AnnounceStorageRW>(
     db: &DB,
     announce_data: FullAnnounceData,
 ) -> AnnounceHash {

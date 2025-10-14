@@ -264,11 +264,11 @@ impl BlockChain {
 
     pub fn setup<DB>(self, db: &DB) -> Self
     where
-        DB: AnnounceStorageWrite
-            + BlockMetaStorageWrite
-            + OnChainStorageWrite
-            + CodesStorageWrite
-            + LatestDataStorageWrite,
+        DB: AnnounceStorageRW
+            + BlockMetaStorageRW
+            + OnChainStorageRW
+            + CodesStorageRW
+            + LatestDataStorageRW,
     {
         let BlockChain {
             blocks,
@@ -477,7 +477,7 @@ pub trait DBMockExt {
     fn top_announce_hash(&self, block: H256) -> AnnounceHash;
 }
 
-impl<DB: OnChainStorageRead + BlockMetaStorageRead> DBMockExt for DB {
+impl<DB: OnChainStorageRO + BlockMetaStorageRO> DBMockExt for DB {
     fn simple_block_data(&self, block: H256) -> SimpleBlockData {
         let header = self.block_header(block).expect("block header not found");
         SimpleBlockData {

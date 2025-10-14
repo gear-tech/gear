@@ -846,9 +846,7 @@ impl Node {
                         ethereum.router(),
                         self.db.clone(),
                         ethexe_consensus::ValidatorConfig {
-                            // ethereum_rpc: self.eth_cfg.rpc.clone(),
                             pub_key: config.public_key,
-                            router_address: self.eth_cfg.router_address,
                             signatures_threshold: self.threshold,
                             slot_duration: self.block_time,
                             block_gas_limit: DEFAULT_BLOCK_GAS_LIMIT,
@@ -857,14 +855,7 @@ impl Node {
                     .unwrap(),
                 )
             } else {
-                let router_query = RouterQuery::new(&self.eth_cfg.rpc, self.eth_cfg.router_address)
-                    .await
-                    .unwrap();
-                Box::pin(SimpleConnectService::new(
-                    self.db.clone(),
-                    self.block_time,
-                    router_query,
-                ))
+                Box::pin(SimpleConnectService::new(self.db.clone(), self.block_time))
             }
         };
 

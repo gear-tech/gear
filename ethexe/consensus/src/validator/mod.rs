@@ -43,7 +43,6 @@
 use crate::{
     BatchCommitmentValidationReply, ConsensusEvent, ConsensusService, SignedAnnounce,
     SignedValidationRequest,
-    manager::ValidatorsManager,
     validator::{
         coordinator::Coordinator,
         core::{MiddlewareWrapper, ValidatorCore},
@@ -55,7 +54,7 @@ use crate::{
 };
 use anyhow::Result;
 use derive_more::{Debug, From};
-use ethexe_common::{Address, AnnounceHash, SimpleBlockData, ecdsa::PublicKey};
+use ethexe_common::{AnnounceHash, SimpleBlockData, ecdsa::PublicKey};
 use ethexe_db::Database;
 use ethexe_ethereum::{middleware::ElectionProvider, router::Router};
 use ethexe_signer::Signer;
@@ -100,12 +99,8 @@ pub struct ValidatorService {
 
 /// Configuration parameters for the validator service.
 pub struct ValidatorConfig {
-    /// Ethereum RPC endpoint URL
-    // pub ethereum_rpc: String,
     /// ECDSA public key of this validator
     pub pub_key: PublicKey,
-    /// Address of the router contract
-    pub router_address: Address,
     /// ECDSA multi-signature threshold
     // TODO #4637: threshold should be a ratio (and maybe also a block dependent value)
     pub signatures_threshold: u64,
@@ -132,12 +127,11 @@ impl ValidatorService {
         db: Database,
         config: ValidatorConfig,
     ) -> Result<Self> {
-        let router_query = router.query();
         let ctx = ValidatorContext {
             core: ValidatorCore {
                 slot_duration: config.slot_duration,
                 signatures_threshold: config.signatures_threshold,
-                router_address: config.router_address,
+                router_address: router.address(),
                 pub_key: config.pub_key,
                 signer,
                 db: db.clone(),
@@ -147,7 +141,6 @@ impl ValidatorService {
                 chain_deepness_threshold: CHAIN_DEEPNESS_THRESHOLD,
                 block_gas_limit: config.block_gas_limit,
             },
-            validators_manager: ValidatorsManager::new(db, router_query),
             pending_events: VecDeque::new(),
             output: VecDeque::new(),
         };
@@ -466,8 +459,6 @@ struct ValidatorContext {
     /// Core validator parameters and utilities.
     core: ValidatorCore,
 
-    #[debug(skip)]
-    validators_manager: ValidatorsManager<Database>,
     /// ## Important
     /// New events are pushed-front, in order to process the most recent event first.
     /// So, actually it is a stack.

@@ -24,10 +24,11 @@ use crate::{
 };
 use ethexe_common::{
     Announce, AnnounceHash, BlockHeader, CodeBlobInfo, GearExeTimelines, ProgramStates, Schedule,
+    ValidatorsVec,
     db::{
-        AnnounceMeta, AnnounceStorageRead, AnnounceStorageWrite, BlockMeta, BlockMetaStorageRead,
-        BlockMetaStorageWrite, CodesStorageRead, CodesStorageWrite, HashStorageRead, LatestData,
-        LatestDataStorageRead, LatestDataStorageWrite, OnChainStorageRead, OnChainStorageWrite,
+        AnnounceMeta, AnnounceStorageRO, AnnounceStorageRW, BlockMeta, BlockMetaStorageRO,
+        BlockMetaStorageRW, CodesStorageRO, CodesStorageRW, HashStorageRO, LatestData,
+        LatestDataStorageRO, LatestDataStorageRW, OnChainStorageRO, OnChainStorageRW,
     },
     events::BlockEvent,
     gear::StateTransition,
@@ -51,22 +52,23 @@ use std::collections::BTreeSet;
 enum Key {
     BlockSmallData(H256) = 0,
     BlockEvents(H256) = 1,
+    ValidatorSet(H256) = 2,
 
-    AnnounceProgramStates(AnnounceHash) = 2,
-    AnnounceOutcome(AnnounceHash) = 3,
-    AnnounceSchedule(AnnounceHash) = 4,
-    AnnounceMeta(AnnounceHash) = 5,
+    AnnounceProgramStates(AnnounceHash) = 3,
+    AnnounceOutcome(AnnounceHash) = 4,
+    AnnounceSchedule(AnnounceHash) = 5,
+    AnnounceMeta(AnnounceHash) = 6,
 
-    ProgramToCodeId(ActorId) = 6,
-    InstrumentedCode(u32, CodeId) = 7,
-    CodeMetadata(CodeId) = 8,
-    CodeUploadInfo(CodeId) = 9,
-    CodeValid(CodeId) = 10,
+    ProgramToCodeId(ActorId) = 7,
+    InstrumentedCode(u32, CodeId) = 8,
+    CodeMetadata(CodeId) = 9,
+    CodeUploadInfo(CodeId) = 10,
+    CodeValid(CodeId) = 11,
 
-    SignedTransaction(H256) = 11,
+    SignedTransaction(H256) = 12,
 
-    LatestData = 12,
-    Timelines = 13,
+    LatestData = 13,
+    Timelines = 14,
 }
 
 impl Key {
@@ -81,7 +83,7 @@ impl Key {
     fn to_bytes(&self) -> Vec<u8> {
         let prefix = self.prefix();
         match self {
-            Self::BlockSmallData(hash) | Self::BlockEvents(hash) => {
+            Self::BlockSmallData(hash) | Self::BlockEvents(hash) | Self::ValidatorSet(hash) => {
                 [prefix.as_ref(), hash.as_ref()].concat()
             }
             Self::AnnounceProgramStates(AnnounceHash(hash))
@@ -201,7 +203,7 @@ impl Database {
     }
 }
 
-impl HashStorageRead for Database {
+impl HashStorageRO for Database {
     fn read_by_hash(&self, hash: H256) -> Option<Vec<u8>> {
         self.cas.read(hash)
     }
@@ -214,14 +216,14 @@ struct BlockSmallData {
     meta: BlockMeta,
 }
 
-impl BlockMetaStorageRead for Database {
+impl BlockMetaStorageRO for Database {
     fn block_meta(&self, block_hash: H256) -> BlockMeta {
         self.with_small_data(block_hash, |data| data.meta)
             .unwrap_or_default()
     }
 }
 
-impl BlockMetaStorageWrite for Database {
+impl BlockMetaStorageRW for Database {
     fn mutate_block_meta(&self, block_hash: H256, f: impl FnOnce(&mut BlockMeta)) {
         tracing::trace!("For block {block_hash} mutate meta");
         self.mutate_small_data(block_hash, |data| {
@@ -230,7 +232,7 @@ impl BlockMetaStorageWrite for Database {
     }
 }
 
-impl CodesStorageRead for Database {
+impl CodesStorageRO for Database {
     fn original_code_exists(&self, code_id: CodeId) -> bool {
         self.kv.contains(code_id.as_ref())
     }
@@ -298,7 +300,7 @@ impl CodesStorageRead for Database {
     }
 }
 
-impl CodesStorageWrite for Database {
+impl CodesStorageRW for Database {
     fn set_original_code(&self, code: &[u8]) -> CodeId {
         self.cas.write(code).into()
     }
@@ -460,7 +462,7 @@ impl Storage for Database {
     }
 }
 
-impl OnChainStorageRead for Database {
+impl OnChainStorageRO for Database {
     fn gear_exe_timelines(&self) -> Option<GearExeTimelines> {
         self.kv.get(&Key::Timelines.to_bytes()).map(|data| {
             GearExeTimelines::decode(&mut data.as_slice())
@@ -494,9 +496,18 @@ impl OnChainStorageRead for Database {
         self.with_small_data(block_hash, |data| data.block_is_synced)
             .unwrap_or_default()
     }
+
+    fn validators(&self, block_hash: H256) -> Option<ethexe_common::ValidatorsVec> {
+        self.kv
+            .get(&Key::ValidatorSet(block_hash).to_bytes())
+            .map(|data| {
+                Decode::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `ValidatorsVec`")
+            })
+    }
 }
 
-impl OnChainStorageWrite for Database {
+impl OnChainStorageRW for Database {
     fn set_gear_exe_timelines(&self, timelines: GearExeTimelines) {
         tracing::trace!("");
         self.kv.put(&Key::Timelines.to_bytes(), timelines.encode());
@@ -525,9 +536,16 @@ impl OnChainStorageWrite for Database {
             data.block_is_synced = true;
         });
     }
+
+    fn set_block_validators(&self, block_hash: H256, validator_set: ValidatorsVec) {
+        self.kv.put(
+            &Key::ValidatorSet(block_hash).to_bytes(),
+            validator_set.encode(),
+        );
+    }
 }
 
-impl AnnounceStorageRead for Database {
+impl AnnounceStorageRO for Database {
     fn announce(&self, hash: AnnounceHash) -> Option<Announce> {
         self.cas.read(hash.0).map(|data| {
             Announce::decode(&mut &data[..]).expect("Failed to decode data into `ProducerBlock`")
@@ -572,7 +590,7 @@ impl AnnounceStorageRead for Database {
     }
 }
 
-impl AnnounceStorageWrite for Database {
+impl AnnounceStorageRW for Database {
     fn set_announce(&self, announce: Announce) -> AnnounceHash {
         AnnounceHash(self.cas.write(&announce.encode()))
     }
@@ -610,7 +628,7 @@ impl AnnounceStorageWrite for Database {
     }
 }
 
-impl LatestDataStorageRead for Database {
+impl LatestDataStorageRO for Database {
     fn latest_data(&self) -> Option<LatestData> {
         self.kv.get(&Key::LatestData.to_bytes()).map(|data| {
             LatestData::decode(&mut data.as_slice())
@@ -619,7 +637,7 @@ impl LatestDataStorageRead for Database {
     }
 }
 
-impl LatestDataStorageWrite for Database {
+impl LatestDataStorageRW for Database {
     fn set_latest_data(&self, data: LatestData) {
         self.kv.put(&Key::LatestData.to_bytes(), data.encode());
     }
