@@ -17,13 +17,12 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::{StateHandler, ValidatorContext, ValidatorState, submitter::Submitter};
-use crate::{
-    BatchCommitmentValidationReply, BatchCommitmentValidationRequest, ConsensusEvent,
-    utils::MultisignedBatchCommitment,
-};
+use crate::{BatchCommitmentValidationReply, ConsensusEvent, utils::MultisignedBatchCommitment};
 use anyhow::{Result, anyhow, ensure};
 use derive_more::{Debug, Display};
-use ethexe_common::{Address, ValidatorsVec, gear::BatchCommitment};
+use ethexe_common::{
+    Address, ValidatorsVec, consensus::BatchCommitmentValidationRequest, gear::BatchCommitment,
+};
 use std::collections::BTreeSet;
 
 /// [`Coordinator`] sends batch commitment validation request to other validators

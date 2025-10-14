@@ -80,8 +80,6 @@ async fn basics() {
         fast_sync: false,
     };
 
-    let signer = Signer::fs(node_cfg.key_path.clone());
-
     let eth_cfg = EthereumConfig {
         rpc: "wss://reth-rpc.gear-tech.io/ws".into(),
         beacon_rpc: "https://eth-holesky-beacon.public.blastapi.io".into(),
@@ -93,16 +91,21 @@ async fn basics() {
 
     let mut config = Config {
         node: node_cfg,
-        network: ethexe_network::NetworkConfig::new_local(
-            signer.generate_key().unwrap(),
-            eth_cfg.router_address,
-        ),
         ethereum: eth_cfg,
+        network: None,
         rpc: None,
         prometheus: None,
     };
 
+    let service = Service::new(&config).await.unwrap();
+
     // Enable all optional services
+    let network_key = service.signer.generate_key().unwrap();
+    config.network = Some(ethexe_network::NetworkConfig::new_local(
+        network_key,
+        config.ethereum.router_address,
+    ));
+
     config.rpc = Some(RpcConfig {
         listen_addr: SocketAddr::new(Ipv4Addr::LOCALHOST.into(), 9944),
         cors: None,

@@ -23,6 +23,7 @@ gear-sandbox-env.workspace = true
 actor-system-error.workspace = true
 
 blake2.workspace = true
+bytemuck = { workspace = true, features = ["const_zeroed"] }
 # Use max_level_debug feature to remove tracing in syscalls by default.
 log.workspace = true
 derive_more.workspace = true
@@ -31,6 +32,7 @@ parity-scale-codec.workspace = true
 [dev-dependencies]
 parity-scale-codec.workspace = true
 tracing-subscriber.workspace = true
+bytemuck = { workspace = true, features = ["derive"] }
 
 [features]
 default = ["std"]
