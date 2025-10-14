@@ -62,7 +62,15 @@ enum VerificationError {
     UnknownBlock {
         block: H256,
     },
+    TooOldEra {
+        expected_era: u64,
+        received_era: u64,
+    },
     OldEra {
+        expected_era: u64,
+        received_era: u64,
+    },
+    TooNewEra {
         expected_era: u64,
         received_era: u64,
     },
@@ -181,23 +189,38 @@ impl Validators {
             return Err(VerificationError::UnknownBlock { block });
         };
         let block_era = self.block_era_index(block_header.timestamp);
+
         match block_era.cmp(&chain_head_era) {
             Ordering::Less => {
-                // node may be not synced yet
-                return Err(VerificationError::OldEra {
-                    expected_era: chain_head_era,
-                    received_era: block_era,
-                });
+                return if block_era + 1 != chain_head_era {
+                    Err(VerificationError::TooOldEra {
+                        expected_era: chain_head_era,
+                        received_era: block_era,
+                    })
+                } else {
+                    // node may be not synced yet
+                    Err(VerificationError::OldEra {
+                        expected_era: chain_head_era,
+                        received_era: block_era,
+                    })
+                };
             }
             Ordering::Equal => {
                 // both nodes are in sync
             }
             Ordering::Greater => {
-                // node may be synced ahead
-                return Err(VerificationError::NewEra {
-                    expected_era: chain_head_era,
-                    received_era: block_era,
-                });
+                return if block_era != chain_head_era + 1 {
+                    Err(VerificationError::TooNewEra {
+                        expected_era: chain_head_era,
+                        received_era: block_era,
+                    })
+                } else {
+                    // node may be synced ahead
+                    Err(VerificationError::NewEra {
+                        expected_era: chain_head_era,
+                        received_era: block_era,
+                    })
+                };
             }
         }
 
@@ -247,7 +270,27 @@ impl Validators {
                     .insert(message);
                 MessageAcceptance::Ignore
             }
+            Err(VerificationError::TooOldEra {
+                expected_era,
+                received_era,
+            }) => {
+                log::trace!(
+                    "peer {source} era is too old: expected={expected_era}, received={received_era}"
+                );
+                self.peer_score.invalid_data(source);
+                MessageAcceptance::Reject
+            }
             Err(VerificationError::OldEra { .. }) => MessageAcceptance::Ignore,
+            Err(VerificationError::TooNewEra {
+                expected_era,
+                received_era,
+            }) => {
+                log::trace!(
+                    "peer {source} era is too new: expected={expected_era}, received={received_era}"
+                );
+                self.peer_score.invalid_data(source);
+                MessageAcceptance::Reject
+            }
             Err(VerificationError::NewEra { .. }) => {
                 self.cached_messages
                     .get_or_insert_mut(source, LruVec::new)
@@ -363,7 +406,7 @@ mod tests {
     }
 
     #[test]
-    fn old_era() {
+    fn too_old_era() {
         let (mut alice, alice_db) = new_validators();
         let (bob_address, bob_message, bob_block) = new_validator_message();
         let bob_message = bob_message.into_verified();
@@ -384,7 +427,7 @@ mod tests {
         let err = alice.inner_verify(&bob_message).unwrap_err();
         assert_eq!(
             err,
-            VerificationError::OldEra {
+            VerificationError::TooOldEra {
                 expected_era: chain_head_era,
                 received_era: chain_head_era - 2
             }
@@ -392,8 +435,73 @@ mod tests {
     }
 
     #[test]
-    fn new_era() {
+    fn old_era() {
+        let (mut alice, alice_db) = new_validators();
+        let (bob_address, bob_message, bob_block) = new_validator_message();
+        let bob_message = bob_message.into_verified();
+
+        alice_db.set_block_header(
+            bob_block,
+            BlockHeader {
+                height: 1,
+                timestamp: CHAIN_HEAD_TIMESTAMP - ERA_DURATION,
+                parent_hash: Default::default(),
+            },
+        );
+        alice_db.set_block_validators(GENESIS_CHAIN_HEAD, nonempty![bob_address]);
+        alice.set_chain_head(GENESIS_CHAIN_HEAD).unwrap();
+
+        let chain_head_era = alice.block_era_index(CHAIN_HEAD_TIMESTAMP);
+
+        let err = alice.inner_verify(&bob_message).unwrap_err();
+        assert_eq!(
+            err,
+            VerificationError::OldEra {
+                expected_era: chain_head_era,
+                received_era: chain_head_era - 1
+            }
+        );
+    }
+
+    #[test]
+    fn too_new_era() {
         const BOB_BLOCK_TIMESTAMP: u64 = CHAIN_HEAD_TIMESTAMP + (ERA_DURATION * 2);
+
+        let (mut alice, alice_db) = new_validators();
+        let (bob_address, bob_message, bob_block) = new_validator_message();
+        let bob_verified = bob_message.clone().into_verified();
+
+        alice_db.set_block_header(
+            bob_block,
+            BlockHeader {
+                height: 1,
+                timestamp: BOB_BLOCK_TIMESTAMP,
+                parent_hash: Default::default(),
+            },
+        );
+        alice_db.set_block_validators(GENESIS_CHAIN_HEAD, nonempty![bob_address]);
+        alice.set_chain_head(GENESIS_CHAIN_HEAD).unwrap();
+
+        let chain_head_era = alice.block_era_index(CHAIN_HEAD_TIMESTAMP);
+
+        let err = alice.inner_verify(&bob_verified).unwrap_err();
+        assert_eq!(
+            err,
+            VerificationError::TooNewEra {
+                expected_era: chain_head_era,
+                received_era: chain_head_era + 2
+            }
+        );
+
+        let bob_source = PeerId::random();
+        let acceptance = alice.verify_message_initially(bob_source, bob_message);
+        assert_matches!(acceptance, MessageAcceptance::Reject);
+        assert_eq!(alice.cached_messages.len(), 0);
+    }
+
+    #[test]
+    fn new_era() {
+        const BOB_BLOCK_TIMESTAMP: u64 = CHAIN_HEAD_TIMESTAMP + ERA_DURATION;
 
         let (mut alice, alice_db) = new_validators();
         let (bob_address, bob_message, bob_block) = new_validator_message();
@@ -417,7 +525,7 @@ mod tests {
             err,
             VerificationError::NewEra {
                 expected_era: chain_head_era,
-                received_era: chain_head_era + 2
+                received_era: chain_head_era + 1
             }
         );
 
