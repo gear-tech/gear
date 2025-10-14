@@ -27,6 +27,8 @@ derive_more.workspace = true
 itertools = { workspace = true, features = ["use_std"]}
 nonempty.workspace = true
 auto_impl.workspace = true
+lru.workspace = true
+uluru.workspace = true
 
 [dependencies.libp2p]
 version = "0.55.0"

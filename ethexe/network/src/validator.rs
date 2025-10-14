@@ -29,12 +29,22 @@ use ethexe_common::{
 use ethexe_db::Database;
 use gprimitives::H256;
 use libp2p::PeerId;
+use lru::LruCache as LruHashMap;
 use nonempty::NonEmpty;
-use std::{
-    cmp::Ordering,
-    collections::{HashMap, VecDeque},
-    iter, mem,
-};
+use std::{cmp::Ordering, collections::VecDeque, mem, num::NonZeroUsize};
+use uluru::LRUCache as LruVec;
+
+const MAX_CACHED_PEERS: NonZeroUsize = NonZeroUsize::new(50).unwrap();
+const MAX_CACHED_MESSAGES_PER_PEER: usize = 20;
+
+// used only in assertion
+#[allow(dead_code)]
+const TOTAL_CACHED_MESSAGES: usize = 1024;
+const _: () =
+    assert!(MAX_CACHED_PEERS.get() * MAX_CACHED_MESSAGES_PER_PEER <= TOTAL_CACHED_MESSAGES);
+
+type CachedMessages =
+    LruHashMap<PeerId, LruVec<VerifiedValidatorMessage, MAX_CACHED_MESSAGES_PER_PEER>>;
 
 #[auto_impl::auto_impl(&, Box)]
 pub trait ValidatorDatabase: Send + OnChainStorageRead {
@@ -83,7 +93,7 @@ pub(crate) struct Validators {
     genesis_timestamp: u64,
     era_duration: u64,
 
-    cached_messages: HashMap<PeerId, Vec<VerifiedValidatorMessage>>,
+    cached_messages: CachedMessages,
     verified_messages: VecDeque<VerifiedValidatorMessage>,
     db: Box<dyn ValidatorDatabase>,
     chain_head: ChainHead,
@@ -101,7 +111,7 @@ impl Validators {
         Ok(Self {
             genesis_timestamp,
             era_duration,
-            cached_messages: HashMap::new(),
+            cached_messages: LruHashMap::new(MAX_CACHED_PEERS),
             verified_messages: VecDeque::new(),
             chain_head: Self::get_chain_head(&db, genesis_block_hash)?,
             db,
@@ -195,17 +205,21 @@ impl Validators {
     }
 
     fn verify_on_new_chain_head(&mut self) {
-        let cached_messages = mem::take(&mut self.cached_messages)
-            .into_iter()
-            .flat_map(|(source, messages)| iter::repeat(source).zip(messages));
-        for (source, message) in cached_messages {
-            match self.inner_verify(&message) {
-                Ok(()) => {
-                    self.verified_messages.push_back(message);
-                }
-                Err(err) => {
-                    log::trace!("{message:?} message verification {source} peer failed: {err:?}");
-                    self.peer_score.invalid_data(source);
+        let cached_messages =
+            mem::replace(&mut self.cached_messages, LruHashMap::new(MAX_CACHED_PEERS));
+        'cached: for (source, messages) in cached_messages {
+            for message in messages.iter().cloned() {
+                match self.inner_verify(&message) {
+                    Ok(()) => {
+                        self.verified_messages.push_back(message);
+                    }
+                    Err(err) => {
+                        log::trace!(
+                            "{message:?} message verification {source} peer failed: {err:?}"
+                        );
+                        self.peer_score.invalid_data(source);
+                        break 'cached;
+                    }
                 }
             }
         }
@@ -229,17 +243,15 @@ impl Validators {
             }
             Err(VerificationError::UnknownBlock { .. }) => {
                 self.cached_messages
-                    .entry(source)
-                    .or_default()
-                    .push(message);
+                    .get_or_insert_mut(source, LruVec::new)
+                    .insert(message);
                 MessageAcceptance::Ignore
             }
             Err(VerificationError::OldEra { .. }) => MessageAcceptance::Ignore,
             Err(VerificationError::NewEra { .. }) => {
                 self.cached_messages
-                    .entry(source)
-                    .or_default()
-                    .push(message);
+                    .get_or_insert_mut(source, LruVec::new)
+                    .insert(message);
                 MessageAcceptance::Ignore
             }
             Err(VerificationError::PeerIsNotValidator { .. }) => {
