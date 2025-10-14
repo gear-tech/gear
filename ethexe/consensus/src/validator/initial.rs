@@ -55,6 +55,14 @@ impl StateHandler for Initial {
         self.ctx
     }
 
+    fn process_new_head(mut self, block: SimpleBlockData) -> Result<ValidatorState> {
+        // TODO #4555: block producer could be calculated right here, using propagation from previous blocks.
+
+        self.state = State::WaitingForSyncedBlock(block);
+
+        Ok(self.into())
+    }
+
     fn process_synced_block(self, block_hash: H256) -> Result<ValidatorState> {
         match &self.state {
             State::WaitingForSyncedBlock(block) if block.hash == block_hash => {
@@ -107,16 +115,11 @@ impl Initial {
         .into())
     }
 
-    // TODO #4555: block producer could be calculated right here, using propagation from previous blocks.
     pub fn create_with_chain_head(
         ctx: ValidatorContext,
         block: SimpleBlockData,
     ) -> Result<ValidatorState> {
-        Ok(Self {
-            ctx,
-            state: State::WaitingForSyncedBlock(block),
-        }
-        .into())
+        Self::create(ctx)?.process_new_head(block)
     }
 }
 
@@ -138,7 +141,7 @@ mod tests {
     #[test]
     fn create_with_chain_head_success() {
         let (ctx, _, _) = mock_validator_context();
-        let block = SimpleBlockData::mock(());
+        let block = BlockChain::mock(1).setup(&ctx.core.db).blocks[1].to_simple();
         let initial = Initial::create_with_chain_head(ctx, block).unwrap();
         assert!(initial.is_initial());
     }
@@ -152,8 +155,7 @@ mod tests {
             keys[1].to_address(),
         ];
 
-        let mut block = SimpleBlockData::mock(());
-        block.header.timestamp = 0;
+        let block = BlockChain::mock(2).setup(&ctx.core.db).blocks[2].to_simple();
 
         ctx.core
             .db
@@ -173,8 +175,7 @@ mod tests {
             keys[2].to_address(),
         ];
 
-        let mut block = SimpleBlockData::mock(());
-        block.header.timestamp = 1;
+        let block = BlockChain::mock(1).setup(&ctx.core.db).blocks[1].to_simple();
 
         ctx.core.db.set_block_validators(block.hash, validators);
 
@@ -186,7 +187,7 @@ mod tests {
     #[test]
     fn process_synced_block_rejected() {
         let (ctx, _, _) = mock_validator_context();
-        let block = SimpleBlockData::mock(());
+        let block = BlockChain::mock(1).setup(&ctx.core.db).blocks[1].to_simple();
 
         let initial = Initial::create(ctx)
             .unwrap()

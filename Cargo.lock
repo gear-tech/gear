@@ -4805,9 +4805,11 @@ dependencies = [
  "ethexe-service-utils",
  "ethexe-signer",
  "futures",
+ "gear-utils",
  "gprimitives",
  "log",
  "nonempty 0.12.0",
+ "ntest",
  "parity-scale-codec",
  "tokio",
 ]

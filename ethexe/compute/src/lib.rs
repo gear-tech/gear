@@ -42,7 +42,6 @@ pub enum ComputeEvent {
     CodeProcessed(CodeId),
     BlockPrepared(H256),
     AnnounceComputed(AnnounceHash),
-    AnnounceRejected(AnnounceHash),
 }
 
 #[derive(thiserror::Error, Debug)]

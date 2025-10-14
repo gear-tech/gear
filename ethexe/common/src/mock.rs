@@ -185,7 +185,7 @@ impl BlockFullData {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct ComputedAnnounceData {
     pub outcome: Vec<StateTransition>,
     pub program_states: ProgramStates,
@@ -205,6 +205,21 @@ impl AnnounceData {
 
     pub fn as_computed_mut(&mut self) -> &mut ComputedAnnounceData {
         self.computed.as_mut().expect("announce not computed")
+    }
+
+    pub fn setup(self, db: &impl AnnounceStorageWrite) -> Self {
+        let announce_hash = db.set_announce(self.announce.clone());
+
+        if let Some(computed) = &self.computed {
+            db.set_announce_outcome(announce_hash, computed.outcome.clone());
+            db.set_announce_program_states(announce_hash, computed.program_states.clone());
+            db.set_announce_schedule(announce_hash, computed.schedule.clone());
+            db.mutate_announce_meta(announce_hash, |meta| {
+                *meta = AnnounceMeta { computed: true }
+            });
+        }
+
+        self
     }
 }
 
@@ -346,22 +361,9 @@ impl BlockChain {
             }
         }
 
-        for (announce_hash, AnnounceData { announce, computed }) in announces {
-            db.set_announce(announce);
-            if let Some(ComputedAnnounceData {
-                outcome,
-                program_states,
-                schedule,
-            }) = computed
-            {
-                db.set_announce_outcome(announce_hash, outcome);
-                db.set_announce_program_states(announce_hash, program_states);
-                db.set_announce_schedule(announce_hash, schedule);
-                db.mutate_announce_meta(announce_hash, |meta| {
-                    *meta = AnnounceMeta { computed: true }
-                });
-            }
-        }
+        announces.into_iter().for_each(|(_, data)| {
+            let _ = data.setup(db);
+        });
 
         for (
             code_id,

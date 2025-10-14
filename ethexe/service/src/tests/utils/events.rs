@@ -162,7 +162,9 @@ impl ServiceEventsListener<'_> {
                     if self
                         .db
                         .announce(announce_hash)
-                        .ok_or_else(|| anyhow!("Announce not found in listener's node DB"))
+                        .ok_or_else(|| {
+                            anyhow!("Announce {announce_hash} not found in listener's node DB")
+                        })
                         .unwrap()
                         .block_hash
                         == waited_block_hash

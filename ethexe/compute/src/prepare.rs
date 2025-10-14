@@ -277,8 +277,8 @@ fn prepare_one_block<DB: BlockMetaStorageWrite + LatestDataStorageWrite>(
     Ok(())
 }
 
-/// Create a new base announce from provided parent announce hash.
-/// Compute the announce and store related data in the database.
+// /// Create a new base announce from provided parent announce hash.
+// /// Compute the announce and store related data in the database.
 // async fn propagate_from_parent_announce(
 //     db: &Database,
 //     processor: &mut impl ProcessorExt,

@@ -24,7 +24,10 @@
 use anyhow::{Result, anyhow};
 use ethexe_common::{
     Address, Announce, AnnounceHash, Digest, SimpleBlockData, ToDigest,
-    db::{AnnounceStorageRead, BlockMetaStorageRead, CodesStorageRead, OnChainStorageRead},
+    db::{
+        AnnounceStorageRead, AnnounceStorageWrite, BlockMetaStorageRead, BlockMetaStorageWrite,
+        CodesStorageRead, OnChainStorageRead,
+    },
     ecdsa::{ContractSignature, PublicKey, SignedData},
     gear::{
         BatchCommitment, ChainCommitment, CodeCommitment, RewardsCommitment, ValidatorsCommitment,
@@ -32,11 +35,11 @@ use ethexe_common::{
     sha3::{self, digest::Digest as _},
 };
 use ethexe_signer::Signer;
-use gprimitives::CodeId;
+use gprimitives::{CodeId, H256};
 use nonempty::NonEmpty;
 use parity_scale_codec::{Decode, Encode};
 use std::{
-    collections::{BTreeMap, HashSet},
+    collections::{BTreeMap, HashSet, VecDeque},
     hash::Hash,
 };
 
@@ -341,6 +344,67 @@ pub fn block_producer_for(
         .get(index)
         .cloned()
         .unwrap_or_else(|| unreachable!("index must be valid"))
+}
+
+// TODO +_+_+: this is temporary main line announce, must be smarter in future
+// +_+_+ doc
+pub fn parent_main_line_announce<DB: BlockMetaStorageRead>(
+    db: &DB,
+    parent_hash: H256,
+) -> Result<AnnounceHash> {
+    db.block_meta(parent_hash)
+        .announces
+        .into_iter()
+        .flatten()
+        .next()
+        .ok_or_else(|| anyhow!("No announces found for {parent_hash} in block meta storage"))
+}
+
+/// Creates announces chain till the specified block, from the nearest ancestor without announces,
+/// by appending base announces.
+///
+/// Returns the announce hash of `block_hash`: new one or existing.
+pub fn propagate_announces_for_skipped_blocks<
+    DB: BlockMetaStorageRead + BlockMetaStorageWrite + AnnounceStorageWrite + OnChainStorageRead,
+>(
+    db: &DB,
+    block_hash: H256,
+) -> Result<AnnounceHash> {
+    let mut current_block_hash = block_hash;
+    let mut blocks = VecDeque::new();
+    // tries to found a block with at least one announce
+    let announce_hash = loop {
+        let announce_hash = db
+            .block_meta(current_block_hash)
+            .announces
+            .into_iter()
+            .flatten()
+            .next();
+
+        if let Some(announce_hash) = announce_hash {
+            break announce_hash;
+        }
+
+        blocks.push_front(current_block_hash);
+        current_block_hash = db
+            .block_header(current_block_hash)
+            .ok_or_else(|| anyhow!("Block header not found for {current_block_hash}"))?
+            .parent_hash;
+    };
+
+    // the newest block with announce is found, create announces chain till the target block
+    let mut announce_hash = announce_hash;
+    for block_hash in blocks {
+        // +_+_+ hack announce not base
+        // +_+_+ tests this case
+        let announce = Announce::with_default_gas(block_hash, announce_hash);
+        announce_hash = db.set_announce(announce);
+        db.mutate_block_meta(block_hash, |meta| {
+            meta.announces.get_or_insert_default().insert(announce_hash);
+        });
+    }
+
+    Ok(announce_hash)
 }
 
 #[cfg(test)]

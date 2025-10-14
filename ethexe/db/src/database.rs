@@ -527,6 +527,7 @@ impl OnChainStorageWrite for Database {
     }
 
     fn set_block_validators(&self, block_hash: H256, validator_set: NonEmpty<Address>) {
+        log::trace!("Set validator set for {block_hash}: {validator_set:?}");
         self.kv.put(
             &Key::ValidatorSet(block_hash).to_bytes(),
             Into::<Vec<Address>>::into(validator_set).encode(),
@@ -581,6 +582,7 @@ impl AnnounceStorageRead for Database {
 
 impl AnnounceStorageWrite for Database {
     fn set_announce(&self, announce: Announce) -> AnnounceHash {
+        log::trace!("Set announce {}: {announce}", announce.to_hash());
         AnnounceHash(self.cas.write(&announce.encode()))
     }
 
@@ -589,6 +591,7 @@ impl AnnounceStorageWrite for Database {
         announce_hash: AnnounceHash,
         program_states: ProgramStates,
     ) {
+        log::trace!("Set announce program states for {announce_hash}: {program_states:?}");
         self.kv.put(
             &Key::AnnounceProgramStates(announce_hash).to_bytes(),
             program_states.encode(),
@@ -596,6 +599,7 @@ impl AnnounceStorageWrite for Database {
     }
 
     fn set_announce_outcome(&self, announce_hash: AnnounceHash, outcome: Vec<StateTransition>) {
+        log::trace!("Set announce outcome for {announce_hash}: {outcome:?}");
         self.kv.put(
             &Key::AnnounceOutcome(announce_hash).to_bytes(),
             outcome.encode(),
@@ -603,6 +607,7 @@ impl AnnounceStorageWrite for Database {
     }
 
     fn set_announce_schedule(&self, announce_hash: AnnounceHash, schedule: Schedule) {
+        log::trace!("Set announce schedule for {announce_hash}: {schedule:?}");
         self.kv.put(
             &Key::AnnounceSchedule(announce_hash).to_bytes(),
             schedule.encode(),
@@ -610,6 +615,7 @@ impl AnnounceStorageWrite for Database {
     }
 
     fn mutate_announce_meta(&self, announce_hash: AnnounceHash, f: impl FnOnce(&mut AnnounceMeta)) {
+        log::trace!("For announce {announce_hash} mutate meta");
         let mut meta = self.announce_meta(announce_hash);
         f(&mut meta);
         self.kv

@@ -78,7 +78,9 @@ pub trait ConsensusService:
     fn receive_validation_reply(&mut self, reply: BatchCommitmentValidationReply) -> Result<()>;
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, derive_more::From, derive_more::IsVariant)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, derive_more::From, derive_more::IsVariant, derive_more::Unwrap,
+)]
 pub enum ConsensusEvent {
     /// Outer service have to compute announce
     ComputeAnnounce(Announce),
