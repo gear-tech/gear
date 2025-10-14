@@ -659,7 +659,7 @@ impl Default for TestEnvConfig {
                 // when the next finalized block is produced, which is convenient for tests
                 slots_in_epoch: Some(1),
                 // For deterministic tests we need to set fixed genesis timestamp
-                genesis_timestamp: Some(1_000_000),
+                genesis_timestamp: Some(1_000_000_000),
             },
             wallets: None,
             signer: Signer::memory(),
@@ -731,7 +731,6 @@ pub struct ValidatorConfig {
 }
 
 /// Provides access to hardcoded anvil wallets or custom set wallets.
-#[derive(Clone)]
 pub struct Wallets {
     wallets: Vec<PublicKey>,
     next_wallet: usize,

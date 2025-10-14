@@ -119,6 +119,7 @@ impl Stream for ObserverService {
 
                 // TODO #4568: test creating a new subscription in case when Receiver becomes invalid
                 let provider = self.provider().clone();
+                let _fut = provider.get_block_by_number(alloy::eips::BlockNumberOrTag::Earliest);
                 self.subscription_future =
                     Some(Box::pin(async move { provider.subscribe_blocks().await }));
 
