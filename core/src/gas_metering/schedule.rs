@@ -1085,11 +1085,11 @@ impl Default for InstrumentationWeights {
     fn default() -> Self {
         Self {
             base: Weight {
-                ref_time: 1226264561,
+                ref_time: 412026293,
                 proof_size: 3760,
             },
             per_byte: Weight {
-                ref_time: 712440,
+                ref_time: 736133,
                 proof_size: 0,
             },
         }

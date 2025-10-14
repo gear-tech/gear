@@ -459,7 +459,7 @@ fn code_instrumentation_costs_heuristic_test() {
     let code_instrumentation_costs = InstrumentationWeights::<Runtime>::default().into();
 
     let expected_code_instrumentation_costs = InstrumentationCosts {
-        base: 1226265000.into(),
+        base: 412026293.into(),
         per_byte: 715243.into(),
     };
 
