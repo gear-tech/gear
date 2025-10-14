@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 #![allow(dead_code, clippy::new_without_default)]
-
+use crate::fallback_ws::rpc_client_with_fallback;
 use abi::{IMirror, IRouter, IWrappedVara};
 use alloy::{
     consensus::SignableTransaction,
@@ -273,5 +273,3 @@ macro_rules! signatures_consts {
 }
 
 pub(crate) use signatures_consts;
-
-use crate::fallback_ws::rpc_client_with_fallback;

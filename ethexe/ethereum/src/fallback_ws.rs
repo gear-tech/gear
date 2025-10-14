@@ -22,6 +22,7 @@ use alloy::{
     rpc::client::{ClientBuilder, RpcClient},
     transports::{RpcError, TransportError, TransportErrorKind, TransportResult},
 };
+use anyhow::anyhow;
 use std::collections::VecDeque;
 use tokio::sync::Mutex;
 
@@ -52,7 +53,8 @@ pub async fn rpc_client_with_fallback(
     ClientBuilder::default().pubsub(fallback_ws).await
 }
 
-/// [`FallbackWs`]
+/// [`FallbackWs`] is a wrapper around [`WsConnect`].
+/// It implements [`PubSubConnect`] trait to manage the ws connection in case when they dropped.
 pub struct FallbackWs {
     current: Mutex<WsConnect>,
     fallbacks: Mutex<VecDeque<WsConnect>>,
@@ -71,12 +73,15 @@ impl PubSubConnect for FallbackWs {
         let mut current = self.current.lock().await;
         let mut fallbacks = self.fallbacks.lock().await;
 
-        fallbacks.push_back(current.clone());
+        // stores drop ws connections
+        let mut dropped_connections = Vec::new();
+        dropped_connections.push(current.clone());
 
         loop {
             let next_ws = fallbacks.pop_front().ok_or_else(|| {
-                // all connections are dropped, so we
-                RpcError::Transport(TransportErrorKind::BackendGone)
+                RpcError::Transport(TransportErrorKind::Custom(
+                    anyhow!("all ws connections dropped, verify the network").into(),
+                ))
             })?;
 
             match next_ws.connect().await {
@@ -86,6 +91,8 @@ impl PubSubConnect for FallbackWs {
                         new_connection = %next_ws.url(),
                         "reconnecting to new web socket"
                     );
+                    // Add dropped connections to fallbacks, assume that in future they may be valid
+                    fallbacks.extend(dropped_connections);
                     *current = next_ws;
                     return Ok(conn);
                 }
@@ -95,7 +102,7 @@ impl PubSubConnect for FallbackWs {
                         err = %err,
                         "failed to connect to ws"
                     );
-                    fallbacks.push_back(next_ws);
+                    dropped_connections.push(next_ws);
                     continue;
                 }
             }
@@ -118,7 +125,8 @@ mod tests {
         let anvil = Anvil::new().block_time(1).spawn();
         let anvil2 = Anvil::new().block_time_f64(0.0001).spawn();
 
-        tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
+        // sleep for some time to allow anvil mine some blocks
+        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
 
         let client = rpc_client_with_fallback(anvil.ws_endpoint(), vec![anvil2.ws_endpoint()])
             .await
@@ -126,20 +134,23 @@ mod tests {
 
         let provider = ProviderBuilder::new().connect_client(client);
 
-        let block = provider
+        let block1 = provider
             .get_block_by_number(alloy::eips::BlockNumberOrTag::Latest)
             .await
             .unwrap()
             .unwrap();
-        println!("latest block: {:?}", block.header.number);
+        tracing::debug!("receive block: {}", block1.header.number);
 
         drop(anvil);
 
-        let block = provider
+        let block2 = provider
             .get_block_by_number(alloy::eips::BlockNumberOrTag::Latest)
             .await
             .unwrap()
             .unwrap();
-        println!("latest block: {:?}", block.header.number);
+        tracing::debug!("receive second block: {}", block2.header.number);
+
+        // Verify, that block2 was received from second rpc
+        assert!(block2.header.number - block1.header.number > 100);
     }
 }
