@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    Announce, AnnounceHash, SimpleBlockData, ValidatorsVec,
+    Announce, AnnounceHash, ProtocolTimelines, SimpleBlockData, ValidatorsVec,
     db::{
         AnnounceStorageRW, BlockMeta, BlockMetaStorageRW, FullAnnounceData, FullBlockData,
         LatestData, LatestDataStorageRW, OnChainStorageRW,
@@ -80,6 +80,7 @@ pub fn setup_genesis_in_db<
     db: &DB,
     genesis_block: SimpleBlockData,
     validators: ValidatorsVec,
+    timelines: ProtocolTimelines,
 ) {
     let genesis_announce = Announce::base(genesis_block.hash, AnnounceHash::zero());
     let genesis_announce_hash = setup_announce_in_db(
@@ -105,6 +106,8 @@ pub fn setup_genesis_in_db<
             last_committed_announce: Default::default(),
         },
     );
+
+    db.set_protocol_timelines(timelines);
 
     if let Some(latest) = db.latest_data() {
         assert_eq!(

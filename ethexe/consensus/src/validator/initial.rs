@@ -129,7 +129,7 @@ mod tests {
     use crate::{ConsensusEvent, validator::mock::*};
     use ethexe_common::{ValidatorsVec, db::*, mock::*};
     use gprimitives::H256;
-    use nonempty::{NonEmpty, nonempty};
+    use nonempty::nonempty;
 
     #[test]
     fn create_initial_success() {
@@ -228,9 +228,12 @@ mod tests {
     #[test]
     fn producer_for_calculates_correct_producer() {
         let (_ctx, keys, _) = mock_validator_context();
-        let validators = NonEmpty::from_vec(keys.iter().map(|k| k.to_address()).collect())
-            .unwrap()
-            .into();
+        let validators = keys
+            .iter()
+            .map(|k| k.to_address())
+            .collect::<Vec<_>>()
+            .try_into()
+            .unwrap();
         let timestamp = 10;
 
         let producer = utils::block_producer_for(&validators, timestamp, 1);

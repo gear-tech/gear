@@ -27,8 +27,7 @@ use alloy::{
 };
 use anyhow::{Context as _, Result, anyhow};
 use ethexe_common::{
-    Address, BlockData, BlockHeader, ProtocolTimelines, SimpleBlockData,
-    db::{BlockMetaStorageRO, OnChainStorageRW},
+    Address, BlockData, BlockHeader, ProtocolTimelines, SimpleBlockData, db::BlockMetaStorageRO,
 };
 use ethexe_db::Database;
 use ethexe_ethereum::router::RouterQuery;
@@ -82,7 +81,6 @@ struct RuntimeConfig {
     wvara_address: Address,
     max_sync_depth: u32,
     batched_sync_depth: u32,
-    // block_time: Duration,
 }
 
 // TODO #4552: make tests for observer service
@@ -173,7 +171,6 @@ impl ObserverService {
         let EthereumConfig {
             rpc,
             router_address,
-            // block_time,
             ..
         } = eth_cfg;
 
@@ -199,7 +196,6 @@ impl ObserverService {
             max_sync_depth,
             // TODO #4562: make this configurable. Important: must be greater than 1.
             batched_sync_depth: 2,
-            // block_time: *block_time,
         };
 
         let chain_sync = ChainSync {
@@ -234,9 +230,6 @@ impl ObserverService {
 
         if db.block_meta(genesis_block_hash).prepared {
             return Ok(());
-            // return db
-            //     .block_header(genesis_block_hash)
-            //     .ok_or(anyhow!("block header not found for {genesis_block_hash:?}"));
         }
 
         let genesis_block = provider
@@ -259,9 +252,6 @@ impl ObserverService {
             election: router_timelines.election,
         };
 
-        // TODO: maybe move into `setup_genesis_in_db`
-        db.set_protocol_timelines(timelines);
-
         let genesis_validators = router_query.validators_at(genesis_block_hash).await?;
 
         ethexe_common::setup_genesis_in_db(
@@ -271,6 +261,7 @@ impl ObserverService {
                 header: genesis_header,
             },
             genesis_validators,
+            timelines,
         );
 
         Ok(())
@@ -283,10 +274,6 @@ impl ObserverService {
     pub fn last_block_number(&self) -> u32 {
         self.last_block_number
     }
-
-    // pub fn block_time_secs(&self) -> u64 {
-    //     self.config.block_time.as_secs()
-    // }
 
     pub fn load_block_data(&self, block: H256) -> impl Future<Output = Result<BlockData>> {
         load_block_data(

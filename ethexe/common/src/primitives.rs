@@ -220,7 +220,7 @@ impl CodeAndId {
 
 /// GearExe network timelines configuration. Parameters fetched the Router contract.
 /// This struct stores in the database, because of using in the multiple places.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode)]
+#[derive(Debug, Clone, Default, Copy, PartialEq, Eq, Encode, Decode)]
 pub struct ProtocolTimelines {
     // The genesis timestamp of the GearExe network.
     pub genesis_ts: u64,
