@@ -625,6 +625,10 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
         sender,
         ..
     } = service;
+    let Some(network) = network else {
+        log::warn!("Network service is disabled. Skipping fast synchronization...");
+        return Ok(());
+    };
 
     log::info!("Fast synchronization is in progress...");
 
