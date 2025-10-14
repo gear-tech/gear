@@ -87,6 +87,7 @@ pub enum ConsensusEvent {
     #[from]
     ComputeAnnounce(Announce),
     /// Outer service have to publish signed message
+    #[from]
     PublishMessage(SignedValidatorMessage),
     /// Informational event: commitment was successfully submitted, tx hash is provided
     CommitmentSubmitted(H256),
