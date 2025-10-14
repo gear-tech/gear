@@ -40,7 +40,7 @@ use std::{
     task::{Context, Poll, ready},
 };
 
-#[derive(Debug)]
+#[derive(Debug, derive_more::From)]
 pub enum Message {
     Commitments(SignedValidatorMessage),
     Offchain(SignedOffchainTransaction),
@@ -80,6 +80,7 @@ pub(crate) enum Event {
 pub(crate) struct Behaviour {
     inner: gossipsub::Behaviour,
     peer_score: peer_score::Handle,
+    // TODO: consider to limit queue
     message_queue: VecDeque<Message>,
     commitments_topic: IdentTopic,
     offchain_topic: IdentTopic,
@@ -126,8 +127,8 @@ impl Behaviour {
         IdentTopic::new(format!("{name}-{router_address}"))
     }
 
-    pub fn publish(&mut self, message: Message) {
-        self.message_queue.push_back(message);
+    pub fn publish(&mut self, message: impl Into<Message>) {
+        self.message_queue.push_back(message.into());
     }
 
     pub fn report_message_validation_result(

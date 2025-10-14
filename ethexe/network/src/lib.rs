@@ -196,11 +196,11 @@ impl NetworkService {
         let keypair = NetworkService::generate_keypair(signer, public_key)?;
 
         let behaviour_config = BehaviourConfig {
+            router_address,
             keypair: keypair.clone(),
             external_data_provider,
             db: DbSyncDatabase::clone_boxed(&db),
             enable_mdns: transport_type.mdns_enabled(),
-            router_address,
         };
         let mut swarm = NetworkService::create_swarm(keypair, transport_type, behaviour_config)?;
 
@@ -459,17 +459,11 @@ impl NetworkService {
     }
 
     pub fn publish_message(&mut self, data: impl Into<SignedValidatorMessage>) {
-        self.swarm
-            .behaviour_mut()
-            .gossipsub
-            .publish(gossipsub::Message::Commitments(data.into()))
+        self.swarm.behaviour_mut().gossipsub.publish(data.into())
     }
 
     pub fn publish_offchain_transaction(&mut self, data: SignedOffchainTransaction) {
-        self.swarm
-            .behaviour_mut()
-            .gossipsub
-            .publish(gossipsub::Message::Offchain(data))
+        self.swarm.behaviour_mut().gossipsub.publish(data);
     }
 }
 
@@ -497,11 +491,11 @@ impl NetworkService {
 }
 
 struct BehaviourConfig {
+    router_address: Address,
     keypair: identity::Keypair,
     external_data_provider: Box<dyn db_sync::ExternalDataProvider>,
     db: Box<dyn DbSyncDatabase>,
     enable_mdns: bool,
-    router_address: Address,
 }
 
 #[derive(NetworkBehaviour)]
@@ -530,11 +524,11 @@ pub(crate) struct Behaviour {
 impl Behaviour {
     fn new(config: BehaviourConfig) -> anyhow::Result<Self> {
         let BehaviourConfig {
+            router_address,
             keypair,
             external_data_provider,
             db,
             enable_mdns,
-            router_address,
         } = config;
 
         let peer_id = keypair.public().to_peer_id();
@@ -577,7 +571,7 @@ impl Behaviour {
         kad.set_mode(Some(kad::Mode::Server));
 
         let gossipsub =
-            gossipsub::Behaviour::new(keypair, peer_score_handle.clone(), router_address)
+            gossipsub::Behaviour::new(keypair.clone(), peer_score_handle.clone(), router_address)
                 .map_err(|e| anyhow!("`gossipsub::Behaviour` error: {e}"))?;
 
         let db_sync = db_sync::Behaviour::new(
