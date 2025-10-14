@@ -197,7 +197,7 @@ impl<DB: SyncDB> ChainSync<DB> {
         let timelines = self
             .db
             .protocol_timelines()
-            .ok_or_else(|| anyhow!("GearExeTimelines not found in database"))?;
+            .ok_or_else(|| anyhow!("ProtocolTimelines not found in database"))?;
         let chain_head_era = era_from_ts(chain_head.timestamp, timelines.genesis_ts, timelines.era);
 
         if chain_head_era == 0 {
