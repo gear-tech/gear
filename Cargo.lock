@@ -4728,9 +4728,11 @@ version = "1.9.2"
 dependencies = [
  "alloy",
  "ethexe-common",
+ "ethexe-ethereum",
  "futures",
  "gprimitives",
  "log",
+ "nonempty 0.12.0",
  "reqwest",
  "thiserror 2.0.12",
  "tokio",
@@ -4755,6 +4757,7 @@ dependencies = [
  "gprimitives",
  "hex",
  "log",
+ "nonempty 0.12.0",
  "serde",
  "static_init",
  "tempfile",
@@ -4860,7 +4863,6 @@ dependencies = [
  "gear-core-errors",
  "gear-utils",
  "gprimitives",
- "log",
  "nonempty 0.12.0",
  "rand 0.8.5",
  "roast-secp256k1-evm",
@@ -10811,6 +10813,9 @@ name = "nonempty"
 version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9737e026353e5cd0736f98eddae28665118eb6f6600902a7f50db585621fecb6"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "nonzero_ext"

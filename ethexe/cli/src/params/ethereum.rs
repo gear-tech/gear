@@ -20,20 +20,20 @@ use super::MergeParams;
 use anyhow::{Context, Result, anyhow};
 use clap::Parser;
 use ethexe_observer::EthereumConfig;
+use nonempty::NonEmpty;
 use serde::Deserialize;
-use std::time::Duration;
+use std::{collections::HashSet, time::Duration};
 
 /// CLI/TOML-config parameters related to Ethereum.
 #[derive(Clone, Debug, Deserialize, Parser)]
 #[serde(deny_unknown_fields)]
 pub struct EthereumParams {
-    /// Ethereum RPC endpoint.
+    /// Ethereum RPC endpoints.
+    /// The first listed RPC is used as the primary endpoint.
+    /// Additional entries will be used as a fallback variants.
     #[arg(long, alias = "eth-rpc")]
     #[serde(rename = "rpc")]
-    pub ethereum_rpc: Option<String>,
-
-    #[arg(long, alias = "fallback-rpc")]
-    pub ethereum_fallback_rpc: Option<Vec<String>>,
+    pub ethereum_rpc: Option<Vec<String>>,
 
     /// Ethereum Beacon RPC endpoint.
     #[arg(long, alias = "eth-beacon-rpc")]
@@ -63,11 +63,12 @@ impl EthereumParams {
 
     /// Convert self into a proper `EthereumConfig` object.
     pub fn into_config(self) -> Result<EthereumConfig> {
+        let rpc = match self.ethereum_rpc {
+            Some(rpc) if !rpc.is_empty() => NonEmpty::from_vec(rpc).unwrap(),
+            _ => nonempty::nonempty![Self::DEFAULT_ETHEREUM_RPC.into()],
+        };
         Ok(EthereumConfig {
-            rpc: self
-                .ethereum_rpc
-                .unwrap_or_else(|| Self::DEFAULT_ETHEREUM_RPC.into()),
-            fallback_rpc: self.ethereum_fallback_rpc.unwrap_or_default(),
+            rpc,
             beacon_rpc: self
                 .ethereum_beacon_rpc
                 .unwrap_or_else(|| Self::DEFAULT_ETHEREUM_BEACON_RPC.into()),
@@ -83,24 +84,17 @@ impl EthereumParams {
 
 impl MergeParams for EthereumParams {
     fn merge(self, with: Self) -> Self {
-        // Removes equal rpc endpoints
-        let mut fallback_rpc = self.ethereum_fallback_rpc.unwrap_or_default();
-        fallback_rpc.extend(
-            with.ethereum_fallback_rpc
-                .unwrap_or_default()
-                .into_iter()
-                .filter(|rpc| fallback_rpc.contains(rpc))
-                .collect::<Vec<_>>(),
-        );
-        let ethereum_fallback_rpc = match fallback_rpc.is_empty() {
-            true => None,
-            false => Some(fallback_rpc),
-        };
+        let mut rpc = HashSet::new();
+        if let Some(ethereum_rpc) = self.ethereum_rpc {
+            rpc.extend(ethereum_rpc);
+        }
+        if let Some(ethereum_rpc) = with.ethereum_rpc {
+            rpc.extend(ethereum_rpc);
+        }
 
         Self {
-            ethereum_rpc: self.ethereum_rpc.or(with.ethereum_rpc),
+            ethereum_rpc: (!rpc.is_empty()).then(|| rpc.into_iter().collect()),
             ethereum_beacon_rpc: self.ethereum_beacon_rpc.or(with.ethereum_beacon_rpc),
-            ethereum_fallback_rpc,
             ethereum_router: self.ethereum_router.or(with.ethereum_router),
             block_time: self.block_time.or(with.block_time),
         }

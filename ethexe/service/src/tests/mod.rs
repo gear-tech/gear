@@ -48,6 +48,7 @@ use gear_core::{
 };
 use gear_core_errors::{ErrorReplyReason, SimpleExecutionError, SimpleUnavailableActorError};
 use gprimitives::{ActorId, H160, H256, MessageId};
+use nonempty::nonempty;
 use parity_scale_codec::Encode;
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -79,8 +80,7 @@ async fn basics() {
     };
 
     let eth_cfg = EthereumConfig {
-        rpc: "wss://reth-rpc.gear-tech.io/ws".into(),
-        fallback_rpc: vec![],
+        rpc: nonempty!["wss://reth-rpc.gear-tech.io/ws".into()],
         beacon_rpc: "https://eth-holesky-beacon.public.blastapi.io".into(),
         router_address: "0x051193e518181887088df3891cA0E5433b094A4a"
             .parse()

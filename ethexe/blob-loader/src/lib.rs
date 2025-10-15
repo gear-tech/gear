@@ -26,12 +26,14 @@ use ethexe_common::{
     CodeAndIdUnchecked, CodeBlobInfo,
     db::{CodesStorageRead, OnChainStorageRead},
 };
+use ethexe_ethereum::fallback_ws::FallbackWs;
 use futures::{
     FutureExt, Stream, StreamExt,
     future::BoxFuture,
     stream::{FusedStream, FuturesUnordered},
 };
 use gprimitives::{CodeId, H256};
+use nonempty::NonEmpty;
 use reqwest::Client;
 use std::{collections::HashSet, fmt, hash::RandomState, pin::Pin, task::Poll};
 use tokio::time::{self, Duration};
@@ -99,7 +101,7 @@ impl fmt::Debug for BlobLoaderEvent {
 
 #[derive(Clone)]
 pub struct ConsensusLayerConfig {
-    pub ethereum_rpc: String,
+    pub ethereum_rpc: NonEmpty<String>,
     pub ethereum_beacon_rpc: String,
     pub beacon_block_time: Duration,
 }
@@ -230,14 +232,13 @@ impl<DB: Database> FusedStream for BlobLoader<DB> {
 
 impl<DB: Database> BlobLoader<DB> {
     pub async fn new(db: DB, consensus_cfg: ConsensusLayerConfig) -> Result<Self> {
+        let rpc_client = FallbackWs::client(consensus_cfg.ethereum_rpc.clone()).await?;
         Ok(Self {
             futures: FuturesUnordered::new(),
             codes_loading: HashSet::new(),
 
             blobs_reader: ConsensusLayerBlobReader {
-                provider: ProviderBuilder::default()
-                    .connect(&consensus_cfg.ethereum_rpc)
-                    .await?,
+                provider: ProviderBuilder::default().connect_client(rpc_client),
                 http_client: Client::new(),
                 config: consensus_cfg,
             },

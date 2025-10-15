@@ -35,7 +35,7 @@ pub struct TxCommand {
 
     /// Ethereum RPC endpoint to use.
     #[arg(long, alias = "eth-rpc")]
-    pub ethereum_rpc: Option<String>,
+    pub ethereum_rpc: Option<Vec<String>>,
 
     /// Ethereum router address to use.
     #[arg(long, alias = "eth-router")]
@@ -91,6 +91,9 @@ impl TxCommand {
         let rpc = self
             .ethereum_rpc
             .ok_or_else(|| anyhow!("missing `ethereum-rpc`"))?;
+        let nonempty_rpc = rpc
+            .try_into()
+            .map_err(|_| anyhow!("provided ethereum rpc is empty"))?;
 
         let router_addr = self
             .ethereum_router
@@ -104,7 +107,7 @@ impl TxCommand {
             .parse()
             .with_context(|| "invalid `sender`")?;
 
-        let ethereum = Ethereum::new(&rpc, vec![], router_addr, signer, sender)
+        let ethereum = Ethereum::new(nonempty_rpc, router_addr, signer, sender)
             .await
             .with_context(|| "failed to create Ethereum client")?;
 

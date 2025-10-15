@@ -140,9 +140,10 @@ impl Service {
                 .await
                 .context("failed to create observer service")?;
 
-        let router_query = RouterQuery::new(&config.ethereum.rpc, config.ethereum.router_address)
-            .await
-            .with_context(|| "failed to create router query")?;
+        let router_query = RouterQuery::from_provider(
+            config.ethereum.router_address.into(),
+            observer.provider().clone(),
+        );
 
         let genesis_block_hash = router_query
             .genesis_block_hash()
@@ -201,7 +202,6 @@ impl Service {
                     db.clone(),
                     ValidatorConfig {
                         ethereum_rpc: config.ethereum.rpc.clone(),
-                        fallbacks_rpc: config.ethereum.fallback_rpc.clone(),
                         router_address: config.ethereum.router_address,
                         pub_key,
                         signatures_threshold: threshold,

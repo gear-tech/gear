@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 #![allow(dead_code, clippy::new_without_default)]
-use crate::fallback_ws::rpc_client_with_fallback;
+use crate::fallback_ws::FallbackWs;
 use abi::{IMirror, IRouter, IWrappedVara};
 use alloy::{
     consensus::SignableTransaction,
@@ -31,7 +31,7 @@ use alloy::{
             SimpleNonceManager, WalletFiller,
         },
     },
-    rpc::types::eth::Log,
+    rpc::{client::RpcClient, types::eth::Log},
     signers::{
         self as alloy_signer, Error as SignerError, Result as SignerResult, Signer, SignerSync,
         sign_transaction_with_chain_id,
@@ -45,6 +45,7 @@ use ethexe_common::{Address as LocalAddress, Digest, ecdsa::PublicKey};
 use ethexe_signer::Signer as LocalSigner;
 use middleware::Middleware;
 use mirror::Mirror;
+use nonempty::NonEmpty;
 use router::{Router, RouterQuery};
 use std::time::Duration;
 
@@ -82,13 +83,13 @@ pub struct Ethereum {
 
 impl Ethereum {
     pub async fn new(
-        rpc: &str,
-        fallback_rpc: Vec<String>,
+        rpc: NonEmpty<String>,
         router_address: Address,
         signer: LocalSigner,
         sender_address: LocalAddress,
     ) -> Result<Ethereum> {
-        let provider = create_provider(rpc, fallback_rpc, signer, sender_address).await?;
+        let fallback_client = FallbackWs::client(rpc).await?;
+        let provider = create_provider(fallback_client, signer, sender_address)?;
         let router_query = RouterQuery::from_provider(router_address, provider.root().clone());
         Ok(Self {
             router: router_address,
@@ -131,13 +132,11 @@ impl Ethereum {
     }
 }
 
-pub(crate) async fn create_provider(
-    rpc_url: &str,
-    fallbacks: Vec<String>,
+pub(crate) fn create_provider(
+    client: RpcClient,
     signer: LocalSigner,
     sender_address: LocalAddress,
 ) -> Result<AlloyProvider> {
-    let client = rpc_client_with_fallback(rpc_url.to_string(), fallbacks).await?;
     Ok(ProviderBuilder::default()
         .filler(AlloyRecommendedFillers::default())
         .wallet(EthereumWallet::new(Sender::new(signer, sender_address)?))
@@ -232,9 +231,9 @@ impl<N: Network> TryGetReceipt<N> for PendingTransactionBuilder<N> {
             Err(err) => err,
         };
 
-        log::trace!("Failed to get transaction receipt for {tx_hash}. Retrying...");
+        tracing::trace!("Failed to get transaction receipt for {tx_hash}. Retrying...");
         for n in 0..20 {
-            log::trace!("Attempt {n}. Error - {err}");
+            tracing::trace!("Attempt {n}. Error - {err}");
             match err {
                 PendingTransactionError::TransportError(RpcError::NullResp) => {}
                 _ => break,

@@ -25,7 +25,7 @@ use alloy::{
     consensus::{SidecarBuilder, SimpleCoder},
     eips::BlockId,
     primitives::{Address, B256, Bytes, fixed_bytes},
-    providers::{PendingTransactionBuilder, Provider, ProviderBuilder, RootProvider},
+    providers::{PendingTransactionBuilder, Provider, RootProvider},
     rpc::types::{Filter, eth::state::AccountOverride},
 };
 use anyhow::{Result, anyhow};
@@ -220,14 +220,6 @@ pub struct RouterQuery {
 }
 
 impl RouterQuery {
-    pub async fn new(rpc_url: &str, router_address: LocalAddress) -> Result<Self> {
-        let provider = ProviderBuilder::default().connect(rpc_url).await?;
-
-        Ok(Self {
-            instance: QueryInstance::new(Address::new(router_address.0), provider),
-        })
-    }
-
     pub fn from_provider(router_address: Address, provider: RootProvider) -> Self {
         Self {
             instance: QueryInstance::new(router_address, provider),
@@ -430,13 +422,13 @@ mod tests {
             )
             .unwrap();
 
-        let ethereum =
-            EthereumDeployer::new(&anvil.ws_endpoint(), vec![], signer, alice.to_address())
-                .await
-                .unwrap()
-                .deploy()
-                .await
-                .unwrap();
+        let rpc = nonempty::nonempty![anvil.ws_endpoint()];
+        let ethereum = EthereumDeployer::new(rpc, signer, alice.to_address())
+            .await
+            .unwrap()
+            .deploy()
+            .await
+            .unwrap();
 
         let router = ethereum.router().query();
 

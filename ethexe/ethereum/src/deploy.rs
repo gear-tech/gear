@@ -31,6 +31,7 @@ use crate::{
         symbiotic_abi::*,
     },
     create_provider,
+    fallback_ws::FallbackWs,
 };
 use alloy::{
     primitives::{Address, Bytes, U256, Uint},
@@ -72,12 +73,12 @@ pub struct EthereumDeployer {
 impl EthereumDeployer {
     /// Creates a new deployer from necessary arguments.
     pub async fn new(
-        rpc: &str,
-        fallback_rpc: Vec<String>,
+        rpc: NonEmpty<String>,
         signer: LocalSigner,
         sender_address: LocalAddress,
     ) -> Result<Self> {
-        let provider = create_provider(rpc, fallback_rpc, signer, sender_address).await?;
+        let fallback_client = FallbackWs::client(rpc).await?;
+        let provider = create_provider(fallback_client, signer, sender_address)?;
         Ok(EthereumDeployer {
             provider,
             validators: nonempty::nonempty![LocalAddress([1u8; 20])],
@@ -137,7 +138,7 @@ impl EthereumDeployer {
         .await?;
 
         let mirror = IMirror::deploy(self.provider.clone(), *router.address()).await?;
-        log::debug!("Mirror impl has been deployed at {}", mirror.address());
+        tracing::debug!("Mirror impl has been deployed at {}", mirror.address());
 
         debug_assert_eq!(
             self.provider.get_transaction_count(deployer).await?,
@@ -188,11 +189,11 @@ where
 
     let wrapped_vara = IWrappedVara::new(*proxy.address(), provider);
 
-    log::debug!(
+    tracing::debug!(
         "WrappedVara impl has been deployed at {}",
         wrapped_vara_impl.address()
     );
-    log::debug!("WrappedVara deployed at {}", wrapped_vara.address());
+    tracing::debug!("WrappedVara deployed at {}", wrapped_vara.address());
 
     Ok(wrapped_vara)
 }
@@ -270,8 +271,8 @@ where
     let router_address = *proxy.address();
     let router = IRouter::new(router_address, provider.clone());
 
-    log::debug!("Router impl has been deployed at {}", router_impl.address());
-    log::debug!("Router proxy has been deployed at {}", router.address());
+    tracing::debug!("Router impl has been deployed at {}", router_impl.address());
+    tracing::debug!("Router proxy has been deployed at {}", router.address());
 
     Ok(router)
 }
@@ -360,11 +361,11 @@ where
     .await?;
 
     let middleware = IMiddleware::new(*proxy.address(), provider.clone());
-    log::debug!(
+    tracing::debug!(
         "Middleware impl has been deployed at {}",
         middleware_impl.address()
     );
-    log::debug!("Middleware proxy deployed at {}", middleware.address());
+    tracing::debug!("Middleware proxy deployed at {}", middleware.address());
 
     Ok(middleware)
 }
@@ -413,6 +414,7 @@ mod tests {
     use super::*;
 
     use alloy::node_bindings::Anvil;
+    use nonempty::nonempty;
 
     #[tokio::test]
     async fn test_deployment_with_middleware() -> Result<()> {
@@ -426,7 +428,8 @@ mod tests {
         )?;
         let sender_address = sender_public_key.to_address();
 
-        let ethereum = EthereumDeployer::new(&anvil.ws_endpoint(), vec![], signer, sender_address)
+        let rpc = nonempty![anvil.ws_endpoint()];
+        let ethereum = EthereumDeployer::new(rpc, signer, sender_address)
             .await?
             .with_middleware()
             .deploy()

@@ -20,44 +20,51 @@ use alloy::{
     providers::WsConnect,
     pubsub::{ConnectionHandle, PubSubConnect},
     rpc::client::{ClientBuilder, RpcClient},
-    transports::{RpcError, TransportError, TransportErrorKind, TransportResult},
+    transports::{TransportError, TransportResult},
 };
-use anyhow::anyhow;
+use nonempty::NonEmpty;
 use std::collections::VecDeque;
 use tokio::sync::Mutex;
-
-/// Builds the [`RpcClient`] for using [`alloy::providers::Provider`]
-/// with inner [`FallbackWs`] pubsub connect implementation.
-///
-/// ## Usage example:
-/// ```rust ignore
-/// let main_ws = "wss://";
-/// // Fallback  ws
-/// let public_ws = "wss://infura.io.public.rpc/...";
-///
-/// let client = rpc_client_with_fallback(String::new(), vec![String::new()])
-///     .await
-///     .unwrap();
-/// let provider = ProviderBuilder::default().connect_client(client);
-/// ```
-pub async fn rpc_client_with_fallback(
-    current: String,
-    fallbacks: Vec<String>,
-) -> Result<RpcClient, TransportError> {
-    let fallbacks: VecDeque<_> = fallbacks.into_iter().map(WsConnect::new).collect();
-
-    let fallback_ws = FallbackWs {
-        current: Mutex::new(WsConnect::new(current)),
-        fallbacks: Mutex::new(fallbacks),
-    };
-    ClientBuilder::default().pubsub(fallback_ws).await
-}
 
 /// [`FallbackWs`] is a wrapper around [`WsConnect`].
 /// It implements [`PubSubConnect`] trait to manage the ws connection in case when they dropped.
 pub struct FallbackWs {
-    current: Mutex<WsConnect>,
-    fallbacks: Mutex<VecDeque<WsConnect>>,
+    rpc: Mutex<VecDeque<WsConnect>>,
+}
+
+impl FallbackWs {
+    pub fn new(rpc: NonEmpty<String>) -> Self {
+        let rpc = Mutex::new(rpc.into_iter().map(WsConnect::new).collect());
+        Self { rpc }
+    }
+
+    /// Builds the [`RpcClient`] for using [`alloy::providers::Provider`]
+    /// with inner [`FallbackWs`] pubsub connect implementation.
+    ///
+    /// ## Usage example:
+    /// ```rust ignore
+    /// let main_ws = "wss://";
+    /// // Fallback  ws
+    /// let public_ws = "wss://infura.io.public.rpc/...";
+    ///
+    /// let client = rpc_client_with_fallback(String::new(), vec![String::new()])
+    ///     .await
+    ///     .unwrap();
+    /// let provider = ProviderBuilder::default().connect_client(client);
+    /// ```
+    pub async fn client(rpc: NonEmpty<String>) -> Result<RpcClient, TransportError> {
+        ClientBuilder::default().pubsub(Self::new(rpc)).await
+    }
+
+    /// Method returns the next web socket connection.
+    /// It takes one [`WsConnect`] out of the deque and push a clone back to keep rotation.
+    async fn next_ws(&self) -> WsConnect {
+        let mut rpc = self.rpc.lock().await;
+        // safe because `rpc` was constructed from a NonEmpty collection
+        let ws = rpc.pop_front().expect("rpc contains at least one element");
+        rpc.push_back(ws.clone());
+        ws
+    }
 }
 
 impl PubSubConnect for FallbackWs {
@@ -66,47 +73,11 @@ impl PubSubConnect for FallbackWs {
     }
 
     async fn connect(&self) -> TransportResult<ConnectionHandle> {
-        self.current.lock().await.connect().await
+        self.next_ws().await.connect().await
     }
 
     async fn try_reconnect(&self) -> TransportResult<ConnectionHandle> {
-        let mut current = self.current.lock().await;
-        let mut fallbacks = self.fallbacks.lock().await;
-
-        // stores drop ws connections
-        let mut dropped_connections = Vec::new();
-        dropped_connections.push(current.clone());
-
-        loop {
-            let next_ws = fallbacks.pop_front().ok_or_else(|| {
-                RpcError::Transport(TransportErrorKind::Custom(
-                    anyhow!("all ws connections dropped, verify the network").into(),
-                ))
-            })?;
-
-            match next_ws.connect().await {
-                Ok(conn) => {
-                    tracing::trace!(
-                        previous_connection = %current.url(),
-                        new_connection = %next_ws.url(),
-                        "reconnecting to new web socket"
-                    );
-                    // Add dropped connections to fallbacks, assume that in future they may be valid
-                    fallbacks.extend(dropped_connections);
-                    *current = next_ws;
-                    return Ok(conn);
-                }
-                Err(err) => {
-                    tracing::trace!(
-                        ws = %next_ws.url(),
-                        err = %err,
-                        "failed to connect to ws"
-                    );
-                    dropped_connections.push(next_ws);
-                    continue;
-                }
-            }
-        }
+        self.next_ws().await.connect().await
     }
 }
 
@@ -115,31 +86,30 @@ mod tests {
     use super::*;
     use alloy::{
         node_bindings::Anvil,
-        providers::{Provider, ProviderBuilder},
+        providers::{Provider, ProviderBuilder, ext::AnvilApi},
     };
 
     #[tokio::test]
     async fn test_drop_anvil() {
         gear_utils::init_default_logger();
 
-        let anvil = Anvil::new().block_time(1).spawn();
-        let anvil2 = Anvil::new().block_time_f64(0.0001).spawn();
+        let anvil = Anvil::new().spawn();
+        let anvil2 = Anvil::new().spawn();
 
-        // sleep for some time to allow anvil mine some blocks
-        tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+        let rpc = nonempty::nonempty![anvil.ws_endpoint(), anvil2.ws_endpoint()];
+        let fallback_client = FallbackWs::client(rpc).await.unwrap();
 
-        let client = rpc_client_with_fallback(anvil.ws_endpoint(), vec![anvil2.ws_endpoint()])
-            .await
-            .unwrap();
+        let provider = ProviderBuilder::new().connect_client(fallback_client);
 
-        let provider = ProviderBuilder::new().connect_client(client);
+        provider.anvil_mine(Some(1000), None).await.unwrap();
 
         let block1 = provider
             .get_block_by_number(alloy::eips::BlockNumberOrTag::Latest)
             .await
             .unwrap()
             .unwrap();
-        tracing::debug!("receive block: {}", block1.header.number);
+
+        assert_eq!(block1.header.number, 1000);
 
         drop(anvil);
 
@@ -148,9 +118,10 @@ mod tests {
             .await
             .unwrap()
             .unwrap();
-        tracing::debug!("receive second block: {}", block2.header.number);
 
-        // Verify, that block2 was received from second rpc
-        assert!(block2.header.number - block1.header.number > 100);
+        assert_eq!(
+            block2.header.number, 0,
+            "Expect block2 received from second rpc"
+        );
     }
 }

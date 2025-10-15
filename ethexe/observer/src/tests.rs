@@ -40,7 +40,6 @@ async fn test_deployment() -> Result<()> {
     gear_utils::init_default_logger();
 
     let anvil = Anvil::new().try_spawn()?;
-    let ethereum_rpc = anvil.ws_endpoint();
 
     let signer = Signer::memory();
     let sender_public_key = signer
@@ -49,7 +48,8 @@ async fn test_deployment() -> Result<()> {
     let sender_address = sender_public_key.to_address();
     let validators = vec!["0x45D6536E3D4AdC8f4e13c5c4aA54bE968C55Abf1".parse()?];
 
-    let deployer = EthereumDeployer::new(&ethereum_rpc, vec![], signer, sender_address)
+    let rpc = nonempty::nonempty![anvil.ws_endpoint()];
+    let deployer = EthereumDeployer::new(rpc.clone(), signer, sender_address)
         .await
         .unwrap();
     let ethereum = deployer.with_validators(validators).deploy().await?;
@@ -59,8 +59,7 @@ async fn test_deployment() -> Result<()> {
 
     let mut observer = ObserverService::new(
         &EthereumConfig {
-            rpc: ethereum_rpc,
-            fallback_rpc: vec![],
+            rpc,
             router_address: ethereum.router().address(),
             block_time: Duration::from_secs(1),
             beacon_rpc: Default::default(),

@@ -61,6 +61,7 @@ use ethexe_signer::Signer;
 use futures::{Stream, stream::FusedStream};
 use gprimitives::H256;
 use initial::Initial;
+use nonempty::NonEmpty;
 use std::{
     collections::VecDeque,
     fmt,
@@ -99,9 +100,7 @@ pub struct ValidatorService {
 /// Configuration parameters for the validator service.
 pub struct ValidatorConfig {
     /// Ethereum RPC endpoint URL
-    pub ethereum_rpc: String,
-    /// Ethereum fallback RPC endpoints
-    pub fallbacks_rpc: Vec<String>,
+    pub ethereum_rpc: NonEmpty<String>,
     /// ECDSA public key of this validator
     pub pub_key: PublicKey,
     /// Address of the router contract
@@ -127,8 +126,7 @@ impl ValidatorService {
     /// A new `ValidatorService` instance
     pub async fn new(signer: Signer, db: Database, config: ValidatorConfig) -> Result<Self> {
         let ethereum = Ethereum::new(
-            &config.ethereum_rpc,
-            config.fallbacks_rpc,
+            config.ethereum_rpc,
             config.router_address.into(),
             signer.clone(),
             config.pub_key.to_address(),

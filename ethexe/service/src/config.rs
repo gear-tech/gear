@@ -39,7 +39,7 @@ impl Config {
     pub fn log_info(&self) {
         log::info!("💾 Database: {}", self.node.database_path.display());
         log::info!("🔑 Key directory: {}", self.node.key_path.display());
-        log::info!("⧫  Ethereum observer RPC: {}", self.ethereum.rpc);
+        log::info!("⧫  Ethereum main RPC: {}", self.ethereum.rpc.first());
         log::info!(
             "📡 Ethereum router address: {}",
             self.ethereum.router_address
