@@ -44,7 +44,7 @@ use anyhow::anyhow;
 use gear_core::ids::*;
 use gsdk_codegen::storage_fetch;
 use hex::ToHex;
-use sp_core::{H256, crypto::Ss58Codec};
+use sp_core::crypto::Ss58Codec;
 use sp_runtime::AccountId32;
 use std::collections::HashMap;
 use subxt::{
@@ -52,7 +52,7 @@ use subxt::{
     ext::codec::{Decode, Encode},
     metadata::types::StorageEntryType,
     storage::{Address, DynamicAddress, StaticStorageKey},
-    utils::Yes,
+    utils::{H256, Yes},
 };
 
 impl Api {

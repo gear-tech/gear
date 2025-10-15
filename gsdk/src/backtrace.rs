@@ -21,8 +21,8 @@
 use crate::TxStatus;
 use indexmap::IndexMap;
 use parking_lot::Mutex;
-use sp_core::H256;
 use std::{collections::BTreeMap, sync::Arc, time::SystemTime};
+use subxt::utils::H256;
 
 /// Transaction Status for Backtrace
 #[derive(Clone, Debug, Eq, PartialEq)]

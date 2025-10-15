@@ -31,15 +31,15 @@ use crate::{
 };
 use anyhow::anyhow;
 use colored::Colorize;
-use scale_value::Composite;
-use sp_core::H256;
 use std::sync::Arc;
 use subxt::{
     Error as SubxtError, OnlineClient,
     blocks::ExtrinsicEvents,
     config::polkadot::PolkadotExtrinsicParamsBuilder,
     dynamic::Value,
+    ext::scale_value::Composite,
     tx::{DynamicPayload, TxProgress},
+    utils::H256,
 };
 
 type TxProgressT = TxProgress<GearConfig, OnlineClient<GearConfig>>;

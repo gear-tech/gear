@@ -23,8 +23,7 @@ use gear_core::{
     ids::{ActorId, CodeId, MessageId},
     rpc::ReplyInfo,
 };
-use sp_core::H256;
-use subxt::rpc_params;
+use subxt::{rpc_params, utils::H256};
 
 impl Api {
     /// gear_calculateInitCreateGas

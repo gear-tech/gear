@@ -19,6 +19,8 @@
 //! GSdk Results
 use crate::TxStatus;
 
+use subxt::ext::scale_value;
+
 /// Transaction Errors
 #[derive(Debug, thiserror::Error)]
 pub enum TxError {
@@ -55,7 +57,7 @@ pub enum Error {
     #[error(transparent)]
     Base64Decode(#[from] base64::DecodeError),
     #[error(transparent)]
-    Codec(#[from] parity_scale_codec::Error),
+    Codec(#[from] subxt::ext::codec::Error),
     #[error("Code not found {0}")]
     CodeNotFound(String),
     #[error(transparent)]

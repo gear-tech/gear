@@ -25,12 +25,12 @@ use crate::{
     result::Result,
 };
 use parity_scale_codec::Encode;
-use sp_core::H256;
 use subxt::{
     Metadata, OnlineClient,
     dynamic::Value,
     error::{DispatchError as SubxtDispatchError, Error},
     storage::{Address, DynamicAddress, Storage, StorageKey},
+    utils::H256,
 };
 
 impl Api {
