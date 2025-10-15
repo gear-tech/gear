@@ -69,7 +69,6 @@ impl StateHandler for Producer {
     }
 
     fn process_prepared_block(mut self, block: H256) -> Result<ValidatorState> {
-        tracing::error!("PROCESS PREPARED BLOCK");
         if self.block.hash != block {
             return DefaultProcessing::prepared_block(self, block);
         }
@@ -198,7 +197,6 @@ impl Producer {
     }
 
     fn create_announce(&mut self) -> Result<()> {
-        tracing::error!("CREATING ANNOUNCE");
         if !self.ctx.core.db.block_meta(self.block.hash).prepared {
             return Err(anyhow!(
                 "Impossible, block must be prepared before creating announce"

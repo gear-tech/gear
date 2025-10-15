@@ -126,7 +126,7 @@ impl MockElectionProvider {
     }
 
     pub async fn set_predefined_election_at(&self, ts: u64, validators: ValidatorsVec) {
-        tracing::info!(timestamp = ts, validators = ?validators, "election result set");
+        tracing::trace!(timestamp = ts, validators = ?validators, "set election result");
         self.predefined_election_at
             .write()
             .await

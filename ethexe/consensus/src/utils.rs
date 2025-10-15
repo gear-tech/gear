@@ -315,7 +315,10 @@ pub fn election_block_in_era<DB: OnChainStorageRO>(
     }
 
     loop {
-        let parent_header = db.block_header(header.parent_hash).ok_or(anyhow!(""))?;
+        let parent_header = db.block_header(header.parent_hash).ok_or(anyhow!(
+            "block header not found for({})",
+            header.parent_hash
+        ))?;
         if parent_header.timestamp < election_ts {
             break;
         }

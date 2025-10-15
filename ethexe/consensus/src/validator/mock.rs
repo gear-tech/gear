@@ -76,14 +76,11 @@ impl WaitFor for ValidatorState {
             fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
                 let mut event;
                 loop {
-                    println!("i am polling");
                     let (poll, mut state) = self.0.take().unwrap().poll_next_state(cx)?;
-                    println!("my poll: {poll:?}, state is: {state:?}");
                     event = state.context_mut().output.pop_front();
                     self.0 = Some(state);
 
                     if poll.is_pending() || event.is_some() {
-                        println!("i am breaking");
                         break;
                     }
                 }
@@ -94,7 +91,6 @@ impl WaitFor for ValidatorState {
 
         let mut dummy = Dummy(Some(self));
         let event = (&mut dummy).await.unwrap();
-        println!("await end, event: {event:?}");
         Ok((dummy.0.unwrap(), event))
     }
 

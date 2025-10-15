@@ -71,8 +71,6 @@ pub enum ProcessorError {
     PreparedBlockAnnouncesMissing(H256),
     #[error("not found announce by hash ({0})")]
     AnnounceNotFound(AnnounceHash),
-    #[error("GearExe timelines not found in database")]
-    GearExeTimelinesNotFound,
 
     // `InstanceWrapper` errors
     #[error("couldn't find 'memory' export")]
