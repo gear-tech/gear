@@ -97,9 +97,10 @@ pub(crate) fn write_storage_address_root_bytes(addr: &impl Address, out: &mut Ve
 pub(crate) fn storage_address_bytes(
     addr: &impl Address,
     metadata: &Metadata,
-) -> Result<Vec<u8>, Error> {
+) -> Result<Vec<u8>, Box<Error>> {
     let mut bytes = Vec::new();
     write_storage_address_root_bytes(addr, &mut bytes);
-    addr.append_entry_bytes(metadata, &mut bytes)?;
+    addr.append_entry_bytes(metadata, &mut bytes)
+        .map_err(|err| Box::new(err.into()))?;
     Ok(bytes)
 }

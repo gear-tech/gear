@@ -175,7 +175,7 @@ serde_json = { version = "1.0.135", default-features = false, features = [
 serde-json-wasm = { version = "1.0.1", default-features = false }
 sha-1 = "0.10.1"
 static_init = "1.0.3"
-subxt = "0.38.0"
+subxt = "0.40.0"
 subxt-codegen = "0.37.0"
 syn = "2.0.71"
 thiserror = { version = "2.0.12", default-features = false }

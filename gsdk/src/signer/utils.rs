@@ -64,7 +64,7 @@ impl Inner {
     pub(crate) fn log_status(status: &TxStatus) {
         match status {
             TxStatus::Validated => log::info!("\tStatus: Validated"),
-            TxStatus::Broadcasted { num_peers } => log::info!("\tStatus: Broadcast( {num_peers} )"),
+            TxStatus::Broadcasted => log::info!("\tStatus: Broadcast"),
             TxStatus::NoLongerInBestBlock => log::info!("\tStatus: NoLongerInBestBlock"),
             TxStatus::InBestBlock(b) => log::info!(
                 "\tStatus: InBestBlock( block hash: {}, extrinsic hash: {} )",
@@ -110,7 +110,7 @@ impl Inner {
             }
 
             match status {
-                Validated | Broadcasted { .. } | NoLongerInBestBlock => (),
+                Validated | Broadcasted | NoLongerInBestBlock => (),
                 InBestBlock(b) => {
                     hash = Some(b.extrinsic_hash());
                     self.backtrace.append(
