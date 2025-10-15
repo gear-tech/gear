@@ -21,6 +21,7 @@ pub use tap::Tap;
 use crate::{
     Address, Announce, AnnounceHash, BlockData, BlockHeader, CodeBlobInfo, Digest, ProgramStates,
     Schedule, SimpleBlockData,
+    consensus::BatchCommitmentValidationRequest,
     db::*,
     events::BlockEvent,
     gear::{BatchCommitment, ChainCommitment, CodeCommitment, Message, StateTransition},
@@ -113,6 +114,18 @@ impl Mock<()> for BatchCommitment {
             code_commitments: vec![CodeCommitment::mock(()), CodeCommitment::mock(())],
             validators_commitment: None,
             rewards_commitment: None,
+        }
+    }
+}
+
+impl Mock<()> for BatchCommitmentValidationRequest {
+    fn mock(_args: ()) -> Self {
+        BatchCommitmentValidationRequest {
+            digest: H256::random().0.into(),
+            head: Some(AnnounceHash(H256::random())),
+            codes: vec![CodeCommitment::mock(()).id, CodeCommitment::mock(()).id],
+            validators: false,
+            rewards: false,
         }
     }
 }

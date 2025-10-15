@@ -25,7 +25,7 @@ use ethexe_common::{
 use ethexe_compute::ComputeEvent;
 use ethexe_consensus::ConsensusEvent;
 use ethexe_db::Database;
-use ethexe_network::{NetworkEvent, export::PeerId};
+use ethexe_network::NetworkEvent;
 use ethexe_observer::ObserverEvent;
 use ethexe_prometheus::PrometheusEvent;
 use ethexe_rpc::RpcEvent;
@@ -38,29 +38,6 @@ use tokio::sync::{
 
 pub type TestingEventSender = Sender<TestingEvent>;
 pub type TestingEventReceiver = Receiver<TestingEvent>;
-
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub(crate) enum TestingNetworkEvent {
-    Message {
-        data: Vec<u8>,
-        source: Option<PeerId>,
-    },
-    PeerBlocked(PeerId),
-    PeerConnected(PeerId),
-}
-
-impl TestingNetworkEvent {
-    fn new(event: &NetworkEvent) -> Self {
-        match event {
-            NetworkEvent::Message { data, source } => Self::Message {
-                data: data.clone(),
-                source: *source,
-            },
-            NetworkEvent::PeerBlocked(peer) => Self::PeerBlocked(*peer),
-            NetworkEvent::PeerConnected(peer) => Self::PeerConnected(*peer),
-        }
-    }
-}
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum TestingRpcEvent {
@@ -92,7 +69,7 @@ pub(crate) enum TestingEvent {
     // Services events.
     Compute(ComputeEvent),
     Consensus(ConsensusEvent),
-    Network(TestingNetworkEvent),
+    Network(NetworkEvent),
     Observer(ObserverEvent),
     BlobLoader(BlobLoaderEvent),
     Prometheus(PrometheusEvent),
@@ -105,7 +82,7 @@ impl TestingEvent {
         match event {
             Event::Compute(event) => Self::Compute(event.clone()),
             Event::Consensus(event) => Self::Consensus(event.clone()),
-            Event::Network(event) => Self::Network(TestingNetworkEvent::new(event)),
+            Event::Network(event) => Self::Network(event.clone()),
             Event::Observer(event) => Self::Observer(event.clone()),
             Event::BlobLoader(event) => Self::BlobLoader(event.clone()),
             Event::Prometheus(event) => Self::Prometheus(event.clone()),

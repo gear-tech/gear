@@ -18,14 +18,12 @@
 
 //! Validator core utils and parameters.
 
-use crate::{
-    BatchCommitmentValidationRequest,
-    utils::{self, MultisignedBatchCommitment},
-};
+use crate::utils::{self, MultisignedBatchCommitment};
 use anyhow::{Result, anyhow, ensure};
 use async_trait::async_trait;
 use ethexe_common::{
     Address, AnnounceHash, Digest, SimpleBlockData, ToDigest,
+    consensus::BatchCommitmentValidationRequest,
     db::BlockMetaStorageRead,
     ecdsa::PublicKey,
     gear::{

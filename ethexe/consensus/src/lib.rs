@@ -37,10 +37,10 @@ use futures::{Stream, stream::FusedStream};
 use gprimitives::H256;
 
 pub use connect::SimpleConnectService;
-pub use utils::{
-    BatchCommitmentValidationReply, BatchCommitmentValidationRequest, SignedAnnounce,
-    SignedValidationRequest, block_producer_for, block_producer_index,
+use ethexe_common::consensus::{
+    BatchCommitmentValidationReply, SignedAnnounce, SignedValidationRequest,
 };
+pub use utils::{block_producer_for, block_producer_index};
 pub use validator::{ValidatorConfig, ValidatorService};
 
 mod connect;

@@ -2178,9 +2178,23 @@ checksum = "2c676a478f63e9fa2dd5368a42f28bba0d6c560b775f38583c8bbaa7fcd67c9c"
 
 [[package]]
 name = "bytemuck"
-version = "1.13.1"
+version = "1.23.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "17febce684fd15d89027105661fec94afb475cb995fbc59d2865198446ba2eea"
+checksum = "3995eaeebcdf32f91f980d360f78732ddc061097ab4e39991ae7a6ace9194677"
+dependencies = [
+ "bytemuck_derive",
+]
+
+[[package]]
+name = "bytemuck_derive"
+version = "1.10.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4f154e572231cb6ba2bd1176980827e3d5dc04cc183a75dea38109fbdd672d29"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.100",
+]
 
 [[package]]
 name = "byteorder"
@@ -6315,6 +6329,7 @@ version = "1.9.2"
 dependencies = [
  "actor-system-error",
  "blake2 0.10.6",
+ "bytemuck",
  "derive_more 2.0.1",
  "gear-core",
  "gear-core-errors",
@@ -7051,6 +7066,7 @@ version = "1.9.2"
 dependencies = [
  "alloy-primitives",
  "alloy-sol-types",
+ "bytemuck",
  "derive_more 2.0.1",
  "gear-ss58",
  "hex",
@@ -7190,6 +7206,9 @@ dependencies = [
 [[package]]
 name = "gsys"
 version = "1.9.2"
+dependencies = [
+ "bytemuck",
+]
 
 [[package]]
 name = "gtest"
