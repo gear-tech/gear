@@ -270,8 +270,8 @@ impl<DB: SyncDB> FinalizedDataSync<DB> {
         }
 
         let finalized_block_hash = finalized_block.header().hash().0.into();
-        self.db
-            .set_latest_synced_finalized_block(finalized_block_hash);
+        // self.db
+        //     .set_latest_synced_finalized_block(finalized_block_hash);
         Ok(finalized_block_hash)
     }
 

@@ -16,8 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use super::{BatchCommitter, StateHandler, ValidatorContext, ValidatorState, initial::Initial};
-use crate::{ConsensusEvent, utils::MultisignedBatchCommitment};
+use super::{StateHandler, ValidatorContext, ValidatorState, initial::Initial};
+use crate::{ConsensusEvent, utils::MultisignedBatchCommitment, validator::core::BatchCommitter};
 use anyhow::Result;
 use async_trait::async_trait;
 use derive_more::{Debug, Display};
@@ -51,20 +51,20 @@ impl StateHandler for Submitter {
         self.ctx
     }
 
-    fn poll_next_state(mut self, cx: &mut Context<'_>) -> Result<ValidatorState> {
+    fn poll_next_state(mut self, cx: &mut Context<'_>) -> Result<(Poll<()>, ValidatorState)> {
         match self.future.poll_unpin(cx) {
             Poll::Ready(Ok(tx)) => {
                 self.output(ConsensusEvent::CommitmentSubmitted(tx));
 
-                Initial::create(self.ctx)
+                Initial::create(self.ctx).map(|s| (Poll::Ready(()), s))
             }
             Poll::Ready(Err(err)) => {
                 // TODO: consider retries
                 self.warning(format!("failed to submit batch commitment: {err:?}"));
 
-                Initial::create(self.ctx)
+                Initial::create(self.ctx).map(|s| (Poll::Ready(()), s))
             }
-            Poll::Pending => Ok(self.into()),
+            Poll::Pending => Ok((Poll::Pending, self.into())),
         }
     }
 }
@@ -74,28 +74,27 @@ impl Submitter {
         ctx: ValidatorContext,
         batch: MultisignedBatchCommitment,
     ) -> Result<ValidatorState> {
-        Self::fill_db_before_commit(&ctx, &batch);
-        let future = ctx.committer.clone_boxed().commit_batch(batch);
+        let future = ctx.core.committer.clone_boxed().commit_batch(batch);
         Ok(Self { ctx, future }.into())
     }
 
     // dirty solution for filling db data before sending new batch to ethereum
-    fn fill_db_before_commit(ctx: &ValidatorContext, batch: &MultisignedBatchCommitment) {
-        let commitment = batch.inner();
-        if commitment.rewards_commitment.is_some() {
-            ctx.db.set_rewards_state(
-                commitment.block_hash,
-                RewardsState::SentToEthereum {
-                    in_block: commitment.block_hash,
+    // fn fill_db_before_commit(ctx: &ValidatorContext, batch: &MultisignedBatchCommitment) {
+    //     let commitment = batch.inner();
+    //     if commitment.rewards_commitment.is_some() {
+    // ctx.db.set_rewards_state(
+    //     commitment.block_hash,
+    //     RewardsState::SentToEthereum {
+    //         in_block: commitment.block_hash,
 
-                    // TODO: remove this with the actual data
-                    rewarded_era: 0,
-                    previous_rewarded_era: 0,
-                    operators_distribution: Default::default(),
-                },
-            );
-        }
-    }
+    //         // TODO: remove this with the actual data
+    //         rewarded_era: 0,
+    //         previous_rewarded_era: 0,
+    //         operators_distribution: Default::default(),
+    //     },
+    // );
+    // }
+    // }
 }
 
 #[derive(Clone)]
@@ -122,16 +121,20 @@ impl BatchCommitter for EthereumCommitter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{mock::*, validator::mock::*};
-    use ethexe_common::gear::BatchCommitment;
+    use crate::validator::mock::*;
+    use ethexe_common::{gear::BatchCommitment, mock::*};
 
     #[tokio::test]
     async fn submitter() {
-        let (ctx, _) = mock_validator_context();
+        let (ctx, _, eth) = mock_validator_context();
         let batch = BatchCommitment::mock(());
-        let multisigned_batch =
-            MultisignedBatchCommitment::new(batch, &ctx.signer, ctx.router_address, ctx.pub_key)
-                .unwrap();
+        let multisigned_batch = MultisignedBatchCommitment::new(
+            batch,
+            &ctx.core.signer,
+            ctx.core.router_address,
+            ctx.core.pub_key,
+        )
+        .unwrap();
 
         let submitter = Submitter::create(ctx, multisigned_batch.clone()).unwrap();
         assert!(submitter.is_submitter());
@@ -140,6 +143,7 @@ mod tests {
         assert!(initial.is_initial());
         assert!(matches!(event, ConsensusEvent::CommitmentSubmitted(_)));
 
-        with_batch(|submitted_batch| assert_eq!(submitted_batch, Some(&multisigned_batch)));
+        let batch = eth.committed_batch.lock().await.clone();
+        assert_eq!(batch, Some(multisigned_batch));
     }
 }

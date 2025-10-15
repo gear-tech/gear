@@ -53,11 +53,14 @@ runs:
         echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
       shell: bash
 
+    - id: date
+      run: echo "value=$(date +%Y)-$(( $(date +%W) - $(date +%W) % 2 ))" >> $GITHUB_OUTPUT
+      shell: bash
+
     - uses: gear-tech/rust-cache@wasm
       with:
-        prefix-key: 'rust-cache/master-lookup-only'
+        prefix-key: 'rust-cache/date-${{ steps.date.outputs.value }}'
         key: ${{ inputs.key }}
-        lookup-only: ${{ github.ref == 'refs/heads/master' }}
         workspaces: |
           . -> target
           utils/wasm-builder/test-program -> target

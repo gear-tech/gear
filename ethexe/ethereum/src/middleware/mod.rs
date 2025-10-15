@@ -16,7 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{AlloyProvider, abi::IMiddleware};
+use crate::{
+    AlloyProvider,
+    abi::{IMiddleware, middleware_abi},
+};
 use alloy::{
     primitives::{Address, U256 as AlloyU256, Uint},
     providers::{Provider, ProviderBuilder, RootProvider},
@@ -65,6 +68,14 @@ impl MiddlewareQuery {
         Self(QueryInstance::new(middleware_address, provider))
     }
 
+    pub async fn router(&self) -> Result<LocalAddress> {
+        Ok(self.0.router().call().await?.into())
+    }
+
+    pub async fn symbiotic_contracts(&self) -> Result<middleware_abi::Gear::SymbioticContracts> {
+        self.0.symbioticContracts().call().await.map_err(Into::into)
+    }
+
     pub async fn make_election_at(
         &self,
         ts: u64,
@@ -86,15 +97,15 @@ impl MiddlewareQuery {
             .map_err(Into::into)
     }
 
-    pub async fn operator_stake_vaults_at(
-        &self,
-        operator: LocalAddress,
-        ts: u64,
-    ) -> Result<Vec<IMiddleware::VaultWithStake>> {
-        self.0
-            .getOperatorStakeVaultsAt(operator.0.into(), Uint::from(ts))
-            .call()
-            .await
-            .map_err(Into::into)
-    }
+    // pub async fn operator_stake_vaults_at(
+    //     &self,
+    //     operator: LocalAddress,
+    //     ts: u64,
+    // ) -> Result<Vec<IMiddleware::VaultWithStake>> {
+    //     self.0
+    //         .getOperatorStakeVaultsAt(operator.0.into(), Uint::from(ts))
+    //         .call()
+    //         .await
+    //         .map_err(Into::into)
+    // }
 }

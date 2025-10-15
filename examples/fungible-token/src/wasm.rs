@@ -46,9 +46,7 @@ impl FungibleToken {
         let len = user_ids.end - user_ids.start;
         self.total_supply += amount * len as u128;
         for user_id in user_ids {
-            let mut arr = [0u8; 32];
-            arr[0..8].copy_from_slice(&user_id.to_le_bytes()[..]);
-            self.balances.insert(arr.into(), amount);
+            self.balances.insert(ActorId::from(user_id), amount);
         }
     }
 

@@ -3,9 +3,7 @@
 ethexe-pre-commit: ethexe-contracts-pre-commit ethexe-pre-commit-no-contracts
 
 .PHONY: ethexe-pre-commit-no-contracts
-ethexe-pre-commit-no-contracts:
-	@ echo " > Formatting ethexe" && cargo fmt --all
-	@ echo " >> Clippy checking ethexe" && cargo clippy -p "ethexe-*" --all-targets --all-features -- --no-deps -D warnings
+ethexe-pre-commit-no-contracts: fmt clippy
 	@ echo " >>> Testing ethexe" && cargo nextest run -p "ethexe-*" --no-fail-fast
 
 # Building ethexe contracts
@@ -134,26 +132,12 @@ docker-run:
 
 # Format section
 .PHONY: fmt
-fmt: fmt-gear fmt-doc
-
-.PHONY: fmt-check
-fmt-check: fmt-gear-check fmt-doc-check
-
-.PHONY: fmt-gear
-fmt-gear:
+fmt:
 	@ ./scripts/gear.sh format gear
 
-.PHONY: fmt-gear-check
-fmt-gear-check:
+.PHONY: fmt-check
+fmt-check:
 	@ ./scripts/gear.sh format gear --check
-
-.PHONY: fmt-doc
-fmt-doc:
-	@ ./scripts/gear.sh format doc
-
-.PHONY: fmt-doc-check
-fmt-doc-check:
-	@ ./scripts/gear.sh format doc --check
 
 # Init section
 .PHONY: init
@@ -288,3 +272,7 @@ install:
 .PHONY: typos
 typos:
 	@ ./scripts/gear.sh test typos
+
+.PHONY: ethexe-remappings
+ethexe-remappings:
+	@ cd ethexe/contracts && forge remappings > remappings.txt && cd ../..

@@ -22,6 +22,7 @@ jobs:
     with:
       macos: true
       windows: true
+      linux-aarch64: true
       release: true
       production: true
 

@@ -35,7 +35,6 @@
 //! in a usual Substrate fashion.
 //!
 //! The pallet implements the `pallet_staking::EraPayout<Balance>` trait
-//!
 
 #![cfg_attr(not(feature = "std"), no_std)]
 #![allow(clippy::items_after_test_module)]

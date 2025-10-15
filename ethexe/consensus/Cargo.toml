@@ -32,3 +32,4 @@ oz_merkle_rs.workspace = true
 
 [dev-dependencies]
 tokio.workspace = true
+ethexe-common = { workspace = true, features = ["mock"] }

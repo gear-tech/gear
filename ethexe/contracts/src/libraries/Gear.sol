@@ -178,14 +178,19 @@ library Gear {
         uint128 value;
     }
 
-    struct SymbioticRegistries {
+    struct SymbioticContracts {
+        // Symbiotic Registries
         address vaultRegistry;
         address operatorRegistry;
         address networkRegistry;
         address middlewareService;
         address networkOptIn;
-        // address vaultOptInService;
         address stakerRewardsFactory;
+        // Symbiotic Gear contracts
+        address operatorRewards;
+        address roleSlashRequester;
+        address roleSlashExecutor;
+        address vetoResolver;
     }
 
     enum SignatureType {

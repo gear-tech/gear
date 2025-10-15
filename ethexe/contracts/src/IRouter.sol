@@ -40,8 +40,8 @@ interface IRouter {
 
     /// @notice Emitted when all necessary state transitions have been applied and states have changed.
     /// @dev This is an *informational* event, signaling that the all transitions until head were committed.
-    /// @param head The hash of the block that was "finalized" in relation to the necessary transitions.
-    event HeadCommitted(bytes32 head);
+    /// @param head The hash of committed announces chain head.
+    event AnnouncesCommitted(bytes32 head);
 
     /// @notice Emitted when a code, previously requested for validation, receives validation results, so its CodeStatus changed.
     /// @dev This is an *informational* event, signaling the results of code validation.
@@ -88,6 +88,7 @@ interface IRouter {
 
     function mirrorImpl() external view returns (address);
     function wrappedVara() external view returns (address);
+    function middleware() external view returns (address);
 
     function validatorsAggregatedPublicKey() external view returns (Gear.AggregatedPublicKey memory);
     function validatorsVerifiableSecretSharingCommitment() external view returns (bytes memory);

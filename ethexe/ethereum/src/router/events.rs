@@ -32,14 +32,14 @@ pub mod signatures {
     crate::signatures_consts! {
         IRouter;
         BATCH_COMMITTED: BatchCommitted,
-        HEAD_COMMITTED: HeadCommitted,
+        ANNOUNCES_COMMITTED: AnnouncesCommitted,
         CODE_GOT_VALIDATED: CodeGotValidated,
         CODE_VALIDATION_REQUESTED: CodeValidationRequested,
         COMPUTATION_SETTINGS_CHANGED: ComputationSettingsChanged,
         PROGRAM_CREATED: ProgramCreated,
         STORAGE_SLOT_CHANGED: StorageSlotChanged,
         NEXT_ERA_VALIDATORS_COMMITTED: NextEraValidatorsCommitted,
-        REWARDS_DISTRIBUTED: RewardsDistributed,
+        // REWARDS_DISTRIBUTED: RewardsDistributed,
     }
 
     pub const REQUESTS: &[B256] = &[
@@ -58,7 +58,7 @@ pub fn try_extract_event(log: &Log) -> Result<Option<RouterEvent>> {
 
     let event = match *topic0 {
         BATCH_COMMITTED => decode_log::<IRouter::BatchCommitted>(log)?.into(),
-        HEAD_COMMITTED => decode_log::<IRouter::HeadCommitted>(log)?.into(),
+        ANNOUNCES_COMMITTED => decode_log::<IRouter::AnnouncesCommitted>(log)?.into(),
         CODE_GOT_VALIDATED => decode_log::<IRouter::CodeGotValidated>(log)?.into(),
         CODE_VALIDATION_REQUESTED => {
             let tx_hash = log

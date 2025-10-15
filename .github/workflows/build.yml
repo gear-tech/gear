@@ -9,6 +9,9 @@ on:
       windows:
         type: boolean
         default: false
+      linux-aarch64:
+        type: boolean
+        default: false
       release:
         type: boolean
         default: false
@@ -33,7 +36,8 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       profiles: ${{ steps.profiles.outputs.value }}
-      targets: ${{ steps.targets.outputs.value }}
+      targets: ${{ steps.targets.outputs.targets }}
+      unix-targets: ${{ steps.targets.outputs.unix-targets }}
     steps:
       - id: profiles
         run: |
@@ -52,9 +56,10 @@ jobs:
               "runs-on": ["kuberunner", "github-runner-02"]
             }
           ]')
+          unix_targets="[]"
           
           if ${{ inputs.macos }}; then
-            targets=$(echo "$targets" | jq -c '. += [
+            macos='[
               {
                 name: "macos-aarch64",
                 target: "aarch64-apple-darwin",
@@ -65,7 +70,21 @@ jobs:
                 target: "x86_64-apple-darwin",
                 "runs-on": "macos-latest"
               }
-            ]')
+            ]'
+            targets=$(echo "$targets" | jq -c ". += $macos")
+            unix_targets=$(echo "$unix_targets" | jq -c ". += $macos")
+          fi
+          
+          if ${{ inputs.linux-aarch64 }}; then
+            linux_aarch64='[
+              {
+                name: "linux-aarch64",
+                target: "aarch64-unknown-linux-gnu",
+                "runs-on": "ubuntu-24.04-arm"
+              }
+            ]'
+            targets=$(echo "$targets" | jq -c ". += $linux_aarch64")
+            unix_targets=$(echo "$unix_targets" | jq -c ". += $linux_aarch64")
           fi
           
           if ${{ inputs.windows }}; then
@@ -79,7 +98,10 @@ jobs:
           fi
           
           echo "Targets: ${targets}"
-          echo "value=${targets}" >> $GITHUB_OUTPUT
+          echo "targets=${targets}" >> $GITHUB_OUTPUT
+          
+          echo "*NIX targets: ${unix_targets}"
+          echo "unix-targets=${unix_targets}" >> $GITHUB_OUTPUT
 
   node:
     needs: dynamic-matrix
@@ -128,26 +150,368 @@ jobs:
           name: node-and-runtime-release-${{ matrix.targets.target }}
           path: artifact
 
-  linux:
-    needs: [dynamic-matrix, node]
-    uses: ./.github/workflows/build-linux.yml
+  docs:
+    needs: node
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup linker
+        uses: ./.github/actions/setup-linker
+
+      - name: Install Rust toolchain
+        uses: ./.github/actions/install-rust
+
+      - name: Install compilation environment
+        uses: ./.github/actions/setup-compilation-env
+        with:
+          target: x86_64-unknown-linux-gnu
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Setup caching
+        uses: ./.github/actions/rust-cache
+        with:
+          us-access-key-id: "${{ secrets.GEAR_CI_S3_US_ACCESS_KEY_ID }}"
+          us-secret-access-key: "${{ secrets.GEAR_CI_S3_US_SECRET_ACCESS_KEY }}"
+          eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
+          eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
+
+      - run: cargo doc --workspace --no-deps
+        env:
+          RUSTDOCFLAGS: "-D warnings"
+          __GEAR_WASM_BUILDER_NO_BUILD: 1
+          SKIP_WASM_BUILD: 1
+
+      # TODO: uncomment once caching fixed
+      # - run: ./scripts/gear.sh test docs
+      #   env:
+      #     RUSTFLAGS: "-D warnings"
+      #     __GEAR_WASM_BUILDER_NO_BUILD: 1
+      #     SKIP_WASM_BUILD: 1
+
+  workspace:
+    needs: [ dynamic-matrix, node ]
+    runs-on: [ kuberunner, github-runner-02 ]
+    strategy:
+      matrix:
+        profiles: ${{ fromJSON(needs.dynamic-matrix.outputs.profiles) }}
+      fail-fast: false
+    name: workspace (${{ matrix.profiles.name }})
+    steps:
+      - name: "ACTIONS: Checkout"
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: "Install: Setup linker"
+        uses: ./.github/actions/setup-linker
+
+      - name: "Install: Rust toolchain"
+        uses: ./.github/actions/install-rust
+
+      - name: "ACTIONS: Setup caching"
+        uses: ./.github/actions/rust-cache
+        with:
+          us-access-key-id: "${{ secrets.GEAR_CI_S3_US_ACCESS_KEY_ID }}"
+          us-secret-access-key: "${{ secrets.GEAR_CI_S3_US_SECRET_ACCESS_KEY }}"
+          eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
+          eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
+          key: "${{ matrix.profiles.name }}"
+
+      - name: "Install: Foundry"
+        uses: foundry-rs/foundry-toolchain@v1
+
+      - name: "Show: Versioning"
+        run: |
+          ./scripts/gear.sh show
+          forge --version
+
+      - name: "Build: Init"
+        run: ./scripts/gear.sh init cargo
+
+      - name: "Build: Workspace"
+        run: cargo build --workspace --all-targets --all-features ${{ matrix.profiles.flags }}
+
+      - name: "ACTIONS: Upload example WASMs"
+        uses: actions/upload-artifact@v4
+        with:
+          name: examples-${{ matrix.profiles.name }}-wasm32-gear
+          path: target/wasm32-gear/${{ matrix.profiles.name }}
+
+      - name: "ACTIONS: Download node and runtime"
+        uses: actions/download-artifact@v4
+        with:
+          name: node-and-runtime-release-x86_64-unknown-linux-gnu
+          path: node-and-runtime-release
+
+      - name: "Test: Workspace"
+        run: cargo nextest run --workspace --all-targets --all-features -E 'not package(/fuzz/)' ${{ matrix.profiles.flags }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+  crates-io:
+    runs-on: [ kuberunner, github-runner-02 ]
+    needs: workspace
+    steps:
+      - name: "ACTIONS: Checkout"
+        uses: actions/checkout@v4
+
+      - name: "Install: Setup linker"
+        uses: ./.github/actions/setup-linker
+
+      - name: "Install: Rust stable toolchain"
+        uses: dtolnay/rust-toolchain@1.88.0
+        with:
+          targets: wasm32v1-none
+
+      - name: "ACTIONS: Setup caching"
+        uses: ./.github/actions/rust-cache
+        with:
+          us-access-key-id: "${{ secrets.GEAR_CI_S3_US_ACCESS_KEY_ID }}"
+          us-secret-access-key: "${{ secrets.GEAR_CI_S3_US_SECRET_ACCESS_KEY }}"
+          eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
+          eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
+          cache-all-crates: true
+
+      - name: "Test: crates-io packages publishing"
+        run: cargo +1.88.0 run --release -p crates-io publish --simulate --registry-path /tmp/cargo-http-registry
+
+  # unoptimized benchmark tests take a few hours to run,
+  # so we only run in release
+  benchmarks:
+    runs-on: [ kuberunner, github-runner-02 ]
+    needs: workspace
+    name: benchmarks
+    steps:
+      - name: "ACTIONS: Checkout"
+        uses: actions/checkout@v4
+
+      - name: "Install: Setup linker"
+        uses: ./.github/actions/setup-linker
+
+      - name: "Install: Rust toolchain"
+        uses: ./.github/actions/install-rust
+
+      - name: "ACTIONS: Setup caching"
+        uses: ./.github/actions/rust-cache
+        with:
+          us-access-key-id: "${{ secrets.GEAR_CI_S3_US_ACCESS_KEY_ID }}"
+          us-secret-access-key: "${{ secrets.GEAR_CI_S3_US_SECRET_ACCESS_KEY }}"
+          eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
+          eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
+
+      - name: "Build: gear-cli with enabled benchmarks"
+        run: cargo build -p gear-cli -F runtime-benchmarks,runtime-benchmarks-checkers --release --locked
+
+      - name: "Test: Benchmarks in WASM"
+        # check that perf benchmarks works. `--steps=5` need to test, that benchmarks works for different input number.
+        run: >-
+          ./target/release/gear benchmark pallet
+          --chain=dev --steps=5 --repeat=0 --heap-pages=4096
+          --pallet="*" --extrinsic="*"
+
+      - name: "Test: Extra `read_big_state` benchmark"
+        run: >-
+          ./target/release/gear benchmark pallet
+          --chain=dev --repeat=0 --heap-pages=4096
+          --pallet=pallet_gear --extrinsic="read_big_state" --extra
+
+      - name: "Test: Extra `signal_stack_limit_exceeded_works` benchmark"
+        run: >-
+          ./target/release/gear benchmark pallet
+          --chain=dev --repeat=0 --heap-pages=4096
+          --pallet=pallet_gear --extrinsic="signal_stack_limit_exceeded_works" --extra
+
+      - name: "Test: Extra `check_all` benchmark"
+        run: >-
+          ./target/release/gear benchmark pallet
+          --chain=dev --repeat=0 --heap-pages=4096
+          --pallet=pallet_gear --extrinsic="check_all" --extra
+
+  try-runtime:
+    needs: [ dynamic-matrix, node ]
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        profiles: ${{ fromJSON(needs.dynamic-matrix.outputs.profiles) }}
+      fail-fast: false
+    name: try-runtime (${{ matrix.profiles.name }})
+    steps:
+      - name: "ACTIONS: Checkout"
+        uses: actions/checkout@v4
+
+      - name: "Install: Setup linker"
+        uses: ./.github/actions/setup-linker
+
+      - name: "Install: Rust toolchain"
+        uses: ./.github/actions/install-rust
+
+      - name: "Install: Compilation environment"
+        uses: ./.github/actions/setup-compilation-env
+        with:
+          target: x86_64-unknown-linux-gnu
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: "ACTIONS: Setup caching"
+        uses: ./.github/actions/rust-cache
+        with:
+          us-access-key-id: "${{ secrets.GEAR_CI_S3_US_ACCESS_KEY_ID }}"
+          us-secret-access-key: "${{ secrets.GEAR_CI_S3_US_SECRET_ACCESS_KEY }}"
+          eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
+          eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
+          key: "${{ matrix.profiles.name }}"
+
+      - name: "Install: try-runtime CLI"
+        run: |
+          curl -sL https://github.com/paritytech/try-runtime-cli/releases/download/v0.8.0/try-runtime-x86_64-unknown-linux-musl -o try-runtime
+          chmod +x ./try-runtime
+
+      - name: "Build: Vara mainnet runtime"
+        run: cargo build -p vara-runtime -F std,try-runtime --locked ${{ matrix.profiles.flags }}
+
+      - name: "Test: Download Vara Mainnet snapshot"
+        run: curl -o vara_ci.snap -L https://snapshots.vara-network.io/vara-mainnet.snap
+
+      - name: "Test: on-runtime-upgrade"
+        run: >-
+          ./try-runtime
+          --runtime target/x86_64-unknown-linux-gnu/${{ matrix.profiles.name }}/wbuild/vara-runtime/vara_runtime.wasm
+          on-runtime-upgrade
+          --blocktime 3000
+          --checks all
+          --disable-spec-version-check
+          --no-weight-warnings
+          snap -p vara_ci.snap
+
+  fuzzer:
+    runs-on: [ kuberunner, github-runner-01 ]
+    needs: workspace
+    env:
+      RUSTFLAGS: "--cfg fuzz"
+    steps:
+      - name: Cancel Previous Runs
+        if: ${{ github.event_name == 'pull_request' }}
+        uses: styfle/cancel-workflow-action@0.12.1
+        with:
+          access_token: ${{ github.token }}
+
+      - name: "ACTIONS: Checkout"
+        uses: actions/checkout@v4
+
+      - name: "Install: Setup linker"
+        uses: ./.github/actions/setup-linker
+
+      - name: "Install deps"
+        run: |
+          sudo apt update
+          sudo apt install -y xxd
+
+      - name: "MOUNT: Logs path"
+        run: |
+          FUZZER_LOGS_PATH=/mnt/fuzzer_logs
+          sudo mkdir -p $FUZZER_LOGS_PATH
+          sudo ln -s $FUZZER_LOGS_PATH/artifacts $PWD/utils/runtime-fuzzer/fuzz/artifacts
+          sudo ln -s $FUZZER_LOGS_PATH/proptest-regressions $PWD/utils/runtime-fuzzer/proptest-regressions
+
+      - name: "Install: Rust toolchain"
+        uses: ./.github/actions/install-rust
+
+      - name: "ACTIONS: Setup caching"
+        uses: ./.github/actions/rust-cache
+        with:
+          us-access-key-id: "${{ secrets.GEAR_CI_S3_US_ACCESS_KEY_ID }}"
+          us-secret-access-key: "${{ secrets.GEAR_CI_S3_US_SECRET_ACCESS_KEY }}"
+          eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
+          eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
+
+      - name: "Install: cargo-nextest"
+        run: curl -LsSf https://get.nexte.st/latest/linux | tar zxf - -C ${CARGO_HOME:-~/.cargo}/bin
+
+      - name: "Install: cargo-fuzz"
+        run: cargo install cargo-fuzz
+
+      - name: "Build fuzzer"
+        run: ./scripts/gear.sh build fuzz --locked ${{ matrix.profiles.flags }}
+
+      - name: "Run: runtime-fuzzer crate tests"
+        run: ./scripts/gear.sh test fuzzer-tests
+
+      - name: "Check: fuzzer competence with mutation test"
+        run: ./scripts/check-fuzzer.sh
+
+      - name: "Check: lazy pages fuzzer with smoke test"
+        run: ./scripts/check-lazy-pages-fuzzer.sh
+
+      - name: "Log: fuzzer run output"
+        if: "!cancelled()"
+        run: cat fuzz_run
+
+      - name: "Log: lazy pages fuzzer run output"
+        if: "!cancelled()"
+        run: cat lazy_pages_fuzz_run
+
+  production:
+    runs-on: [ kuberunner, github-runner-02 ]
+    needs: workspace
+    if: ${{ inputs.production }}
+    steps:
+      - name: "ACTIONS: Checkout"
+        uses: actions/checkout@v4
+
+      - name: "Install: Setup linker"
+        uses: ./.github/actions/setup-linker
+
+      - name: "Install: Rust toolchain"
+        uses: ./.github/actions/install-rust
+
+      - name: "ACTIONS: Download example WASMs"
+        uses: actions/download-artifact@v4
+        with:
+          name: examples-release-wasm32-gear
+          path: examples-artifact
+
+      - name: "Build: Production binaries"
+        run: cargo build -p wasm-proc -p gear-cli -F cli --profile production
+
+      - name: Prepare artifacts
+        run: |
+          mkdir artifact
+
+          # examples
+          (cd examples-artifact && tar czvf ../artifact/examples.tar.gz *.wasm)
+
+          # runtime
+          cp target/production/wbuild/vara-runtime/vara_runtime.compact.compressed.wasm artifact/
+          cp target/production/wbuild/vara-runtime/vara_runtime.compact.wasm artifact/
+          cp target/production/wbuild/vara-runtime/vara_runtime.wasm artifact/
+
+          # executables
+          cp target/production/gear artifact/
+          cp target/production/wasm-proc artifact/
+
+      - name: Upload artifacts
+        if: ${{ github.event_name == 'push' }}
+        uses: actions/upload-artifact@v4
+        with:
+          path: artifact
+
+  unix:
+    needs: [ dynamic-matrix, workspace ]
+    uses: ./.github/workflows/build-unix.yml
     secrets: inherit
     with:
       profiles: ${{ needs.dynamic-matrix.outputs.profiles }}
-      production: ${{ inputs.production }}
+      targets: ${{ needs.dynamic-matrix.outputs.unix-targets }}
 
   windows:
-    needs: [dynamic-matrix, node, linux]
+    needs: [ dynamic-matrix, workspace ]
     if: ${{ inputs.windows }}
     uses: ./.github/workflows/build-windows.yml
-    secrets: inherit
-    with:
-      profiles: ${{ needs.dynamic-matrix.outputs.profiles }}
-
-  macos:
-    needs: [dynamic-matrix, node, linux]
-    if: ${{ inputs.macos }}
-    uses: ./.github/workflows/build-macos.yml
     secrets: inherit
     with:
       profiles: ${{ needs.dynamic-matrix.outputs.profiles }}

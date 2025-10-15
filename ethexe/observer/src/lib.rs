@@ -18,10 +18,7 @@
 
 //! Ethereum state observer for ethexe.
 
-use crate::{
-    finalization::{FinalizedBlocksStream, FinalizedDataSync},
-    utils::load_block_data,
-};
+use crate::utils::load_block_data;
 use alloy::{
     providers::{Provider, ProviderBuilder, RootProvider},
     pubsub::{Subscription, SubscriptionStream},
@@ -30,8 +27,8 @@ use alloy::{
 };
 use anyhow::{Context as _, Result, anyhow};
 use ethexe_common::{
-    Address, BlockData, BlockHeader, Digest, SimpleBlockData,
-    db::{BlockMetaStorageRead, BlockMetaStorageWrite, OnChainStorageRead, OnChainStorageWrite},
+    Address, BlockData, BlockHeader, SimpleBlockData,
+    db::{BlockMetaStorageRead, OnChainStorageRead},
 };
 use ethexe_db::Database;
 use ethexe_ethereum::router::RouterQuery;
@@ -47,7 +44,7 @@ use std::{
 };
 use sync::ChainSync;
 
-mod finalization;
+// mod finalization;
 mod sync;
 mod utils;
 
@@ -99,16 +96,14 @@ pub struct ObserverService {
     provider: RootProvider,
     config: RuntimeConfig,
     chain_sync: ChainSync<Database>,
-    finalized_data_sync: FinalizedDataSync<Database>,
-
+    // finalized_data_sync: FinalizedDataSync<Database>,
     last_block_number: u32,
     headers_stream: SubscriptionStream<Header>,
-    finalized_blocks_stream: FinalizedBlocksStream<RootProvider>,
-
+    // finalized_blocks_stream: FinalizedBlocksStream<RootProvider>,
     block_sync_queue: VecDeque<Header>,
-    finalized_blocks_sync_queue: VecDeque<Block>,
+    // finalized_blocks_sync_queue: VecDeque<Block>,
     sync_future: Option<BoxFuture<'static, Result<H256>>>,
-    finalization_sync_future: Option<BoxFuture<'static, Result<H256>>>,
+    // finalization_sync_future: Option<BoxFuture<'static, Result<H256>>>,
     subscription_future: Option<HeadersSubscriptionFuture>,
 }
 
@@ -156,29 +151,10 @@ impl Stream for ObserverService {
             return Poll::Ready(Some(Ok(ObserverEvent::Block(data))));
         }
 
-        if let Poll::Ready(res) = self.finalized_blocks_stream.poll_next_unpin(cx) {
-            let Some(block) = res else {
-                // This is unreachable because FinalizedBlocksStream never ends.
-                unreachable!("Finalized blocks stream ended");
-            };
-            self.finalized_blocks_sync_queue.push_front(block);
-        }
-
         if self.sync_future.is_none()
             && let Some(header) = self.block_sync_queue.pop_back()
         {
             self.sync_future = Some(self.chain_sync.clone().sync(header).boxed());
-        }
-
-        if self.finalization_sync_future.is_none()
-            && let Some(block) = self.finalized_blocks_sync_queue.pop_back()
-        {
-            self.finalization_sync_future = Some(
-                self.finalized_data_sync
-                    .clone()
-                    .process_finalized_block(block)
-                    .boxed(),
-            );
         }
 
         if let Some(fut) = self.sync_future.as_mut()
@@ -188,16 +164,6 @@ impl Stream for ObserverService {
 
             let maybe_event = result.map(ObserverEvent::BlockSynced);
             return Poll::Ready(Some(maybe_event));
-        }
-
-        if let Some(fut) = self.finalization_sync_future.as_mut()
-            && let Poll::Ready(result) = fut.poll_unpin(cx)
-        {
-            self.finalization_sync_future = None;
-            match result {
-                Ok(hash) => log::trace!("Finalized block {hash:?} processed"),
-                Err(e) => log::error!("Failed to process finalized block: {e:?}"),
-            }
         }
 
         Poll::Pending
@@ -240,11 +206,11 @@ impl ObserverService {
             .context("failed to subscribe blocks")?
             .into_stream();
 
-        #[cfg(not(test))]
-        let finalized_blocks_stream = FinalizedBlocksStream::new(provider.clone());
-        #[cfg(test)]
-        let finalized_blocks_stream =
-            FinalizedBlocksStream::mock_new(provider.clone(), block_time.as_secs());
+        // #[cfg(not(test))]
+        // let finalized_blocks_stream = FinalizedBlocksStream::new(provider.clone());
+        // #[cfg(test)]
+        // let finalized_blocks_stream =
+        //     FinalizedBlocksStream::mock_new(provider.clone(), block_time.as_secs());
 
         let config = RuntimeConfig {
             router_address: *router_address,
@@ -264,26 +230,18 @@ impl ObserverService {
             config: config.clone(),
         };
 
-        let finalized_data_sync = FinalizedDataSync {
-            db,
-            provider: provider.clone(),
-            config: config.clone(),
-        };
-
         Ok(Self {
             provider,
             config,
             chain_sync,
-            finalized_data_sync,
-
+            // finalized_data_sync,
             last_block_number: 0,
             headers_stream,
-            finalized_blocks_stream,
-
+            // finalized_blocks_stream,
             block_sync_queue: VecDeque::new(),
-            finalized_blocks_sync_queue: VecDeque::new(),
+            // finalized_blocks_sync_queue: VecDeque::new(),
             sync_future: None,
-            finalization_sync_future: None,
+            // finalization_sync_future: None,
             subscription_future: None,
         })
     }
@@ -291,16 +249,14 @@ impl ObserverService {
     // TODO #4563: this is a temporary solution.
     // Choose a better place for this, out of ObserverService.
     /// If genesis block is not yet fully setup in the database, we need to do it
-    async fn pre_process_genesis_for_db<
-        DB: BlockMetaStorageRead + BlockMetaStorageWrite + OnChainStorageRead + OnChainStorageWrite,
-    >(
-        db: &DB,
+    async fn pre_process_genesis_for_db(
+        db: &Database,
         provider: &RootProvider,
         router_query: &RouterQuery,
     ) -> Result<BlockHeader> {
         let genesis_block_hash = router_query.genesis_block_hash().await?;
 
-        if db.block_meta(genesis_block_hash).computed {
+        if db.block_meta(genesis_block_hash).prepared {
             return db
                 .block_header(genesis_block_hash)
                 .ok_or(anyhow!("block header not found for {genesis_block_hash:?}"));
@@ -323,23 +279,14 @@ impl ObserverService {
             NonEmpty::from_vec(router_query.validators_at(genesis_block_hash).await?)
                 .ok_or(anyhow!("genesis validator set is empty"))?;
 
-        db.set_block_header(genesis_block_hash, genesis_header);
-        db.set_block_events(genesis_block_hash, &[]);
-        db.set_latest_synced_block_height(genesis_header.height);
-        db.mutate_block_meta(genesis_block_hash, |meta| {
-            meta.computed = true;
-            meta.prepared = true;
-            meta.synced = true;
-            meta.last_committed_batch = Some(Digest([0; 32]));
-            meta.last_committed_head = Some(genesis_block_hash);
-        });
-
-        db.set_block_codes_queue(genesis_block_hash, Default::default());
-        db.set_block_program_states(genesis_block_hash, Default::default());
-        db.set_block_schedule(genesis_block_hash, Default::default());
-        db.set_block_outcome(genesis_block_hash, Default::default());
-        db.set_latest_computed_block(genesis_block_hash, genesis_header);
-        db.set_validators(genesis_block_hash, genesis_validators);
+        ethexe_common::setup_genesis_in_db(
+            db,
+            SimpleBlockData {
+                hash: genesis_block_hash,
+                header: genesis_header,
+            },
+            genesis_validators,
+        );
 
         Ok(genesis_header)
     }

@@ -23,8 +23,8 @@
 //!    related to these fields builders. For example, wasm module configs:
 //! ```rust
 //! # use std::num::NonZero;
-//! use gear_wasm_gen::*;
 //! use arbitrary::{Arbitrary, Result, Unstructured};
+//! use gear_wasm_gen::*;
 //!
 //! fn my_config<'a>(u: &'a mut Unstructured<'a>) -> Result<WasmModuleConfig> {
 //!     let selectable_params = SelectableParams {
@@ -76,8 +76,8 @@
 //!
 //! 3. With `arbitrary::Unstructured`. For example:
 //! ```rust
+//! use arbitrary::{Arbitrary, Result, Unstructured};
 //! use gear_wasm_gen::*;
-//! use arbitrary::{Result, Arbitrary, Unstructured};
 //!
 //! fn my_config<'a>(u: &'a mut Unstructured<'a>) -> Result<WasmModuleConfig> {
 //!     WasmModuleConfig::arbitrary(u)

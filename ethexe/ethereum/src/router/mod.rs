@@ -256,14 +256,14 @@ impl RouterQuery {
             .map_err(Into::into)
     }
 
-    pub async fn latest_rewarded_era_index(&self) -> Result<u64> {
-        self.instance
-            .latestRewardedEraIndex()
-            .call()
-            .await
-            .map(|res| res.to::<u64>())
-            .map_err(Into::into)
-    }
+    // pub async fn latest_rewarded_era_index(&self) -> Result<u64> {
+    //     self.instance
+    //         .latestRewardedEraIndex()
+    //         .call()
+    //         .await
+    //         .map(|res| res.to::<u64>())
+    //         .map_err(Into::into)
+    // }
 
     pub async fn mirror_impl(&self) -> Result<LocalAddress> {
         self.instance
@@ -276,6 +276,10 @@ impl RouterQuery {
 
     pub async fn wvara_address(&self) -> Result<Address> {
         self.instance.wrappedVara().call().await.map_err(Into::into)
+    }
+
+    pub async fn middleware_address(&self) -> Result<Address> {
+        self.instance.middleware().call().await.map_err(Into::into)
     }
 
     pub async fn validators_aggregated_public_key(&self) -> Result<AggregatedPublicKey> {
@@ -421,23 +425,13 @@ impl RouterQuery {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Ethereum;
+    use crate::deploy::EthereumDeployer;
     use alloy::node_bindings::Anvil;
     use ethexe_signer::Signer;
-    use roast_secp256k1_evm::frost;
 
     #[tokio::test]
     async fn inexistent_code_is_unknown() {
         let anvil = Anvil::new().spawn();
-
-        let (shares, _pubkey_package) = frost::keys::generate_with_dealer(
-            5,
-            3,
-            frost::keys::IdentifierList::Default,
-            rand::thread_rng(),
-        )
-        .unwrap();
-        let first_share = shares.values().next().unwrap();
 
         let signer = Signer::memory();
         let alice = signer
@@ -449,18 +443,15 @@ mod tests {
             )
             .unwrap();
 
-        let ethereum = Ethereum::deploy(
-            anvil.endpoint_url().as_str(),
-            vec![],
-            signer,
-            alice.to_address(),
-            first_share.commitment().clone(),
-        )
-        .await
-        .unwrap();
+        let ethereum =
+            EthereumDeployer::new(anvil.endpoint_url().as_str(), signer, alice.to_address())
+                .await
+                .unwrap()
+                .deploy()
+                .await
+                .unwrap();
 
-        let router =
-            RouterQuery::from_provider(ethereum.router_address, ethereum.provider.root().clone());
+        let router = ethereum.router().query();
 
         let latest_block = router
             .instance
