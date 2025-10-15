@@ -16,12 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use std::{
-    collections::VecDeque,
-    pin::Pin,
-    task::{Context, Poll},
-};
-
 use crate::{ComputeError, ProcessorExt, Result};
 use ethexe_common::{
     Announce, AnnounceHash,
@@ -33,6 +27,11 @@ use ethexe_common::{
 use ethexe_db::Database;
 use ethexe_processor::BlockProcessingResult;
 use futures::{Stream, future::BoxFuture};
+use std::{
+    collections::VecDeque,
+    pin::Pin,
+    task::{Context, Poll},
+};
 
 pub struct ComputeSubService<P: ProcessorExt> {
     db: Database,

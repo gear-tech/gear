@@ -409,7 +409,6 @@ impl Service {
                     ComputeEvent::AnnounceComputed(announce_hash) => {
                         consensus.receive_computed_announce(announce_hash)?
                     }
-                    // +_+_+ #4811 solved
                     ComputeEvent::BlockPrepared(block_hash) => {
                         consensus.receive_prepared_block(block_hash)?
                     }

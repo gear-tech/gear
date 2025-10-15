@@ -277,8 +277,11 @@ pub fn block_producer_for(
         .unwrap_or_else(|| unreachable!("index must be valid"))
 }
 
-// TODO +_+_+: this is temporary main line announce, must be smarter in future
-// +_+_+ doc
+// NOTE: this is temporary main line announce, will be smarter in future
+/// Returns announce hash which is supposed to be the announce
+/// from main announces chain for this node.
+/// Used to identify parent announce when creating announce for new block,
+/// or accepting announce from producer.
 pub fn parent_main_line_announce<DB: BlockMetaStorageRead>(
     db: &DB,
     parent_hash: H256,
@@ -291,20 +294,19 @@ pub fn parent_main_line_announce<DB: BlockMetaStorageRead>(
         .ok_or_else(|| anyhow!("No announces found for {parent_hash} in block meta storage"))
 }
 
+// TODO #4813: support announce branching and mortality
 /// Creates announces chain till the specified block, from the nearest ancestor without announces,
 /// by appending base announces.
-///
-/// Returns the announce hash of `block_hash`: new one or existing.
 pub fn propagate_announces_for_skipped_blocks<
     DB: BlockMetaStorageRead + BlockMetaStorageWrite + AnnounceStorageWrite + OnChainStorageRead,
 >(
     db: &DB,
     block_hash: H256,
-) -> Result<AnnounceHash> {
+) -> Result<()> {
     let mut current_block_hash = block_hash;
     let mut blocks = VecDeque::new();
     // tries to found a block with at least one announce
-    let announce_hash = loop {
+    let mut announce_hash = loop {
         let announce_hash = db
             .block_meta(current_block_hash)
             .announces
@@ -324,10 +326,9 @@ pub fn propagate_announces_for_skipped_blocks<
     };
 
     // the newest block with announce is found, create announces chain till the target block
-    let mut announce_hash = announce_hash;
     for block_hash in blocks {
-        // +_+_+ hack announce not base
-        // +_+_+ tests this case
+        // TODO #4814: hack - use here with default gas announce to avoid unknown announces in tests,
+        // this will be fixed by unknown announces handling later
         let announce = Announce::with_default_gas(block_hash, announce_hash);
         announce_hash = db.set_announce(announce);
         db.mutate_block_meta(block_hash, |meta| {
@@ -335,7 +336,7 @@ pub fn propagate_announces_for_skipped_blocks<
         });
     }
 
-    Ok(announce_hash)
+    Ok(())
 }
 
 #[cfg(test)]
