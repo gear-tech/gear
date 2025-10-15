@@ -57,30 +57,32 @@ impl ValidatorDatabase for Database {
     }
 }
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, Eq, PartialEq, derive_more::Display)]
 enum VerificationError {
-    UnknownBlock {
-        block: H256,
-    },
+    #[display("unknown block {block}")]
+    UnknownBlock { block: H256 },
+    #[display("too old era: expected {expected_era}, got {received_era}")]
     TooOldEra {
         expected_era: u64,
         received_era: u64,
     },
+    #[display("old era: expected {expected_era}, got {received_era}")]
     OldEra {
         expected_era: u64,
         received_era: u64,
     },
+    #[display("too new era: expected {expected_era}, got {received_era}")]
     TooNewEra {
         expected_era: u64,
         received_era: u64,
     },
+    #[display("new era: expected {expected_era}, got {received_era}")]
     NewEra {
         expected_era: u64,
         received_era: u64,
     },
-    PeerIsNotValidator {
-        address: Address,
-    },
+    #[display("address {address} is not validator")]
+    AddressIsNotValidator { address: Address },
 }
 
 struct ChainHead {
@@ -182,7 +184,7 @@ impl Validators {
             .map(|v| v.contains(&address))
             .unwrap_or(false);
         if !is_current_validator && !is_next_validator {
-            return Err(VerificationError::PeerIsNotValidator { address });
+            return Err(VerificationError::AddressIsNotValidator { address });
         }
 
         let Some(block_header) = self.db.block_header(block) else {
@@ -238,7 +240,7 @@ impl Validators {
                     }
                     Err(err) => {
                         log::trace!(
-                            "{message:?} message verification {source} peer failed: {err:?}"
+                            "failed to verify message again from {source} peer: {err}, message: {message:?}"
                         );
                         self.peer_score.invalid_data(source);
                         break 'cached;
@@ -264,41 +266,19 @@ impl Validators {
                 self.verified_messages.push_back(message);
                 MessageAcceptance::Accept
             }
-            Err(VerificationError::UnknownBlock { .. }) => {
-                self.cached_messages
-                    .get_or_insert_mut(source, LruVec::new)
-                    .insert(message);
-                MessageAcceptance::Ignore
-            }
-            Err(VerificationError::TooOldEra {
-                expected_era,
-                received_era,
-            }) => {
-                log::trace!(
-                    "peer {source} era is too old: expected={expected_era}, received={received_era}"
-                );
-                self.peer_score.invalid_data(source);
-                MessageAcceptance::Reject
-            }
             Err(VerificationError::OldEra { .. }) => MessageAcceptance::Ignore,
-            Err(VerificationError::TooNewEra {
-                expected_era,
-                received_era,
-            }) => {
-                log::trace!(
-                    "peer {source} era is too new: expected={expected_era}, received={received_era}"
-                );
-                self.peer_score.invalid_data(source);
-                MessageAcceptance::Reject
-            }
-            Err(VerificationError::NewEra { .. }) => {
+            Err(VerificationError::UnknownBlock { .. }) | Err(VerificationError::NewEra { .. }) => {
                 self.cached_messages
                     .get_or_insert_mut(source, LruVec::new)
                     .insert(message);
                 MessageAcceptance::Ignore
             }
-            Err(VerificationError::PeerIsNotValidator { .. }) => {
-                log::trace!("peer {source} is not in validator set");
+            Err(err @ VerificationError::TooOldEra { .. })
+            | Err(err @ VerificationError::TooNewEra { .. })
+            | Err(err @ VerificationError::AddressIsNotValidator { .. }) => {
+                log::trace!(
+                    "failed to verify message initially from {source} peer: {err}, message: {message:?}"
+                );
                 self.peer_score.invalid_data(source);
                 MessageAcceptance::Reject
             }
@@ -550,7 +530,7 @@ mod tests {
     }
 
     #[test]
-    fn peer_is_not_validator() {
+    fn address_is_not_validator() {
         let (alice, _alice_db) = new_validators();
         let (bob_address, bob_message, _bob_block) = new_validator_message();
         let bob_message = bob_message.into_verified();
@@ -558,7 +538,7 @@ mod tests {
         let err = alice.inner_verify(&bob_message).unwrap_err();
         assert_eq!(
             err,
-            VerificationError::PeerIsNotValidator {
+            VerificationError::AddressIsNotValidator {
                 address: bob_address
             }
         );
