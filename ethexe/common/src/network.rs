@@ -30,7 +30,7 @@ pub type ValidatorAnnounce = ValidatorMessage<Announce>;
 pub type ValidatorRequest = ValidatorMessage<BatchCommitmentValidationRequest>;
 pub type ValidatorReply = ValidatorMessage<BatchCommitmentValidationReply>;
 
-#[derive(Debug, Clone, Encode, Decode, Eq, PartialEq)]
+#[derive(Debug, Clone, Encode, Decode, Eq, PartialEq, Hash)]
 pub struct ValidatorMessage<T> {
     pub block: H256,
     pub payload: T,
@@ -63,7 +63,7 @@ impl SignedValidatorMessage {
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, derive_more::Unwrap, derive_more::From)]
+#[derive(Debug, Clone, Eq, PartialEq, Hash, derive_more::Unwrap, derive_more::From)]
 pub enum VerifiedValidatorMessage {
     ProducerBlock(VerifiedData<ValidatorAnnounce>),
     RequestBatchValidation(VerifiedData<ValidatorRequest>),

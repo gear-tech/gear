@@ -29,22 +29,20 @@ use ethexe_common::{
 use ethexe_db::Database;
 use gprimitives::H256;
 use libp2p::PeerId;
-use lru::LruCache as LruHashMap;
+use lru::LruCache;
 use nonempty::NonEmpty;
 use std::{cmp::Ordering, collections::VecDeque, mem, num::NonZeroUsize};
-use uluru::LRUCache as LruVec;
 
 const MAX_CACHED_PEERS: NonZeroUsize = NonZeroUsize::new(50).unwrap();
-const MAX_CACHED_MESSAGES_PER_PEER: usize = 20;
+const MAX_CACHED_MESSAGES_PER_PEER: NonZeroUsize = NonZeroUsize::new(20).unwrap();
 
 // used only in assertion
 #[allow(dead_code)]
 const TOTAL_CACHED_MESSAGES: usize = 1024;
 const _: () =
-    assert!(MAX_CACHED_PEERS.get() * MAX_CACHED_MESSAGES_PER_PEER <= TOTAL_CACHED_MESSAGES);
+    assert!(MAX_CACHED_PEERS.get() * MAX_CACHED_MESSAGES_PER_PEER.get() <= TOTAL_CACHED_MESSAGES);
 
-type CachedMessages =
-    LruHashMap<PeerId, LruVec<VerifiedValidatorMessage, MAX_CACHED_MESSAGES_PER_PEER>>;
+type CachedMessages = LruCache<PeerId, LruCache<VerifiedValidatorMessage, ()>>;
 
 #[auto_impl::auto_impl(&, Box)]
 pub trait ValidatorDatabase: Send + OnChainStorageRead {
@@ -121,7 +119,7 @@ impl Validators {
         Ok(Self {
             genesis_timestamp,
             era_duration,
-            cached_messages: LruHashMap::new(MAX_CACHED_PEERS),
+            cached_messages: LruCache::new(MAX_CACHED_PEERS),
             verified_messages: VecDeque::new(),
             chain_head: Self::get_chain_head(&db, genesis_block_hash)?,
             db,
@@ -231,9 +229,9 @@ impl Validators {
 
     fn verify_on_new_chain_head(&mut self) {
         let cached_messages =
-            mem::replace(&mut self.cached_messages, LruHashMap::new(MAX_CACHED_PEERS));
+            mem::replace(&mut self.cached_messages, LruCache::new(MAX_CACHED_PEERS));
         'cached: for (source, messages) in cached_messages {
-            for message in messages.iter().cloned() {
+            for (message, ()) in messages {
                 match self.inner_verify(&message) {
                     Ok(()) => {
                         self.verified_messages.push_back(message);
@@ -268,9 +266,12 @@ impl Validators {
             }
             Err(VerificationError::OldEra { .. }) => MessageAcceptance::Ignore,
             Err(VerificationError::UnknownBlock { .. }) | Err(VerificationError::NewEra { .. }) => {
-                self.cached_messages
-                    .get_or_insert_mut(source, LruVec::new)
-                    .insert(message);
+                let existed = self
+                    .cached_messages
+                    .get_or_insert_mut(source, || LruCache::new(MAX_CACHED_MESSAGES_PER_PEER))
+                    .put(message, ());
+                // gossipsub should ignore a duplicated message
+                debug_assert!(existed.is_none());
                 MessageAcceptance::Ignore
             }
             Err(err @ VerificationError::TooOldEra { .. })

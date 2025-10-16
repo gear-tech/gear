@@ -19,6 +19,7 @@
 //! Secp256k1 signature types and utilities.
 
 pub use k256::ecdsa::signature::Result as SignResult;
+use std::hash::{Hash, Hasher};
 
 use super::{
     address::Address,
@@ -140,6 +141,12 @@ impl Encode for Signature {
     }
 }
 
+impl Hash for Signature {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.into_pre_eip155_bytes().hash(state);
+    }
+}
+
 /// A signed data structure, that contains the data and its signature.
 /// Always valid after construction.
 #[derive(Clone, Encode, PartialEq, Eq, Debug, Display)]
@@ -225,7 +232,7 @@ where
 }
 
 /// A signature verified data structure, that contains the data and public key.
-#[derive(Clone, PartialEq, Eq, Debug, Display)]
+#[derive(Clone, PartialEq, Eq, Debug, Display, Hash)]
 #[display("ValidatedData({data}, {public_key})")]
 pub struct VerifiedData<T> {
     data: T,
@@ -260,7 +267,7 @@ impl<T> VerifiedData<T> {
 
 /// A recoverable ECDSA signature for a contract-specific digest format (ERC-191).
 /// See also `contract_specific_digest` and explanation here: <https://eips.ethereum.org/EIPS/eip-191>
-#[derive(Debug, Clone, Copy, Encode, Decode, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Encode, Decode, PartialEq, Eq, Hash)]
 pub struct ContractSignature(Signature);
 
 impl ContractSignature {

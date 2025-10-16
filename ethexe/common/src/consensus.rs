@@ -32,7 +32,7 @@ pub type VerifiedValidationRequest = VerifiedData<BatchCommitmentValidationReque
 pub type VerifiedValidationReply = VerifiedData<BatchCommitmentValidationReply>;
 
 /// Represents a request for validating a batch commitment.
-#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
+#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq, Hash)]
 pub struct BatchCommitmentValidationRequest {
     // Digest of batch commitment to validate
     pub digest: Digest,
@@ -89,7 +89,7 @@ impl ToDigest for BatchCommitmentValidationRequest {
 
 /// A reply to a batch commitment validation request.
 /// Contains the digest of the batch and a signature confirming the validation.
-#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
+#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq, Hash)]
 pub struct BatchCommitmentValidationReply {
     /// Digest of the [`BatchCommitment`] being validated
     pub digest: Digest,
