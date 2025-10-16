@@ -62,13 +62,39 @@ impl Message {
     }
 }
 
+#[derive(Debug)]
+pub struct MessageValidator {
+    message_id: MessageId,
+    propagation_source: PeerId,
+    message: Message,
+}
+
+impl MessageValidator {
+    pub(crate) fn validate<F, T>(self, behaviour: &mut Behaviour, f: F) -> T
+    where
+        F: FnOnce(Message) -> (MessageAcceptance, T),
+    {
+        let Self {
+            message_id,
+            propagation_source,
+            message,
+        } = self;
+        let (acceptance, message) = f(message);
+        let validated = behaviour.inner.report_message_validation_result(
+            &message_id,
+            &propagation_source,
+            acceptance,
+        );
+        debug_assert!(validated);
+        message
+    }
+}
+
 #[derive(derive_more::Debug)]
 pub(crate) enum Event {
     Message {
-        message_id: MessageId,
-        propagation_source: PeerId,
         source: PeerId,
-        message: Message,
+        validator: MessageValidator,
     },
     PublishFailure {
         error: PublishError,
@@ -131,17 +157,7 @@ impl Behaviour {
         self.message_queue.push_back(message.into());
     }
 
-    pub fn report_message_validation_result(
-        &mut self,
-        msg_id: &MessageId,
-        propagation_source: &PeerId,
-        acceptance: MessageAcceptance,
-    ) -> bool {
-        self.inner
-            .report_message_validation_result(msg_id, propagation_source, acceptance)
-    }
-
-    fn handle_inner_event(&self, event: gossipsub::Event) -> Poll<Event> {
+    fn handle_inner_event(&mut self, event: gossipsub::Event) -> Poll<Event> {
         match event {
             gossipsub::Event::Message {
                 propagation_source,
@@ -169,17 +185,24 @@ impl Behaviour {
                     Ok(message) => message,
                     Err(error) => {
                         log::trace!("failed to decode gossip message from {source}: {error}");
+                        let validated = self.inner.report_message_validation_result(
+                            &message_id,
+                            &propagation_source,
+                            MessageAcceptance::Reject,
+                        );
+                        debug_assert!(validated);
                         self.peer_score.invalid_data(source);
                         return Poll::Pending;
                     }
                 };
 
-                Poll::Ready(Event::Message {
+                let validator = MessageValidator {
                     message_id,
                     propagation_source,
-                    source,
                     message,
-                })
+                };
+
+                Poll::Ready(Event::Message { source, validator })
             }
             gossipsub::Event::Subscribed {
                 peer_id: _,
