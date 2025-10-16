@@ -358,19 +358,13 @@ impl NetworkService {
             BehaviourEvent::Kad(_) => {}
             //
             BehaviourEvent::Gossipsub(gossipsub::Event::Message {
-                message_id,
-                propagation_source,
                 source: _,
-                message,
+                validator,
             }) => {
                 let gossipsub = &mut self.swarm.behaviour_mut().gossipsub;
 
-                // NOTE: will be used in the future
-                debug_assert!(gossipsub.report_message_validation_result(
-                    &message_id,
-                    &propagation_source,
-                    MessageAcceptance::Accept,
-                ));
+                let message =
+                    validator.validate(gossipsub, |message| (MessageAcceptance::Accept, message));
 
                 return Some(match message {
                     gossipsub::Message::Commitments(message) => NetworkEvent::Message(message),
