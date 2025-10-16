@@ -75,7 +75,6 @@ struct RuntimeConfig {
     block_time: Duration,
     genesis_timestamp: u64,
     era_duration: u64,
-    validation_delay: u64,
     genesis_block_hash: H256,
 }
 
@@ -202,7 +201,6 @@ impl ObserverService {
             block_time: *block_time,
             genesis_timestamp: genesis_header.timestamp,
             era_duration: timelines.era,
-            validation_delay: timelines.validation_delay,
             genesis_block_hash,
         };
 
@@ -288,10 +286,6 @@ impl ObserverService {
 
     pub fn era_duration_secs(&self) -> u64 {
         self.config.era_duration
-    }
-
-    pub fn validation_delay_secs(&self) -> u64 {
-        self.config.validation_delay
     }
 
     pub fn genesis_block_hash(&self) -> H256 {

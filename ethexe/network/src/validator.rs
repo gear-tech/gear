@@ -100,7 +100,6 @@ struct ChainHead {
 pub(crate) struct Validators {
     genesis_timestamp: u64,
     era_duration: u64,
-    validation_delay: u64,
 
     cached_messages: CachedMessages,
     verified_messages: VecDeque<VerifiedValidatorMessage>,
@@ -113,7 +112,6 @@ impl Validators {
     pub(crate) fn new(
         genesis_timestamp: u64,
         era_duration: u64,
-        validation_delay: u64,
         genesis_block_hash: H256,
         db: Box<dyn ValidatorDatabase>,
         peer_score: peer_score::Handle,
@@ -121,7 +119,6 @@ impl Validators {
         Ok(Self {
             genesis_timestamp,
             era_duration,
-            validation_delay,
             cached_messages: LruCache::new(MAX_CACHED_PEERS),
             verified_messages: VecDeque::new(),
             chain_head: Self::get_chain_head(&db, genesis_block_hash)?,
@@ -168,14 +165,6 @@ impl Validators {
         (block_ts - self.genesis_timestamp) / self.era_duration
     }
 
-    fn block_era_start(&self, block_ts: u64) -> u64 {
-        self.genesis_timestamp + self.block_era_index(block_ts) * self.era_duration
-    }
-
-    fn block_era_end(&self, block_ts: u64) -> u64 {
-        self.block_era_start(block_ts + self.era_duration)
-    }
-
     fn inner_verify(&self, message: &VerifiedValidatorMessage) -> Result<(), VerificationError> {
         let ChainHead {
             header: chain_head,
@@ -210,18 +199,10 @@ impl Validators {
                     })
                 } else {
                     // node may be not synced yet
-
-                    let block_era_end = self.block_era_end(block_header.timestamp);
-                    let validation_delay = (block_era_end - self.validation_delay)..block_era_end;
-
-                    if validation_delay.contains(&block_header.timestamp) {
-                        Ok(())
-                    } else {
-                        Err(VerificationError::OldEra {
-                            expected_era: chain_head_era,
-                            received_era: block_era,
-                        })
-                    }
+                    Err(VerificationError::OldEra {
+                        expected_era: chain_head_era,
+                        received_era: block_era,
+                    })
                 };
             }
             Ordering::Equal => {
@@ -318,7 +299,6 @@ mod tests {
     const ERA_DURATION: u64 = 1_000;
     const GENESIS_CHAIN_HEAD: H256 = H256::zero();
     const CHAIN_HEAD_TIMESTAMP: u64 = GENESIS_TIMESTAMP + (ERA_DURATION * 10);
-    const VALIDATION_DELAY: u64 = 200;
 
     fn new_validators() -> (Validators, Database) {
         let db = Database::memory();
@@ -335,7 +315,6 @@ mod tests {
         let validators = Validators::new(
             GENESIS_TIMESTAMP,
             ERA_DURATION,
-            VALIDATION_DELAY,
             GENESIS_CHAIN_HEAD,
             ValidatorDatabase::clone_boxed(&db),
             peer_score::Handle::new_test(),
@@ -582,33 +561,6 @@ mod tests {
         assert_matches!(acceptance, MessageAcceptance::Reject);
         assert_eq!(alice.cached_messages.len(), 0);
         assert_eq!(alice.next_message(), None);
-    }
-
-    #[test]
-    fn validation_delay() {
-        let (mut alice, alice_db) = new_validators();
-        let (bob_address, bob_message, bob_block) = new_validator_message();
-        let bob_verified = bob_message.clone().into_verified();
-
-        alice_db.set_block_validators(GENESIS_CHAIN_HEAD, nonempty![bob_address]);
-        alice.set_chain_head(GENESIS_CHAIN_HEAD).unwrap();
-
-        alice_db.set_block_header(
-            bob_block,
-            BlockHeader {
-                height: 1,
-                timestamp: CHAIN_HEAD_TIMESTAMP - VALIDATION_DELAY,
-                parent_hash: Default::default(),
-            },
-        );
-
-        alice.inner_verify(&bob_verified).unwrap();
-
-        let bob_source = PeerId::random();
-        let acceptance = alice.verify_message_initially(bob_source, bob_message);
-        assert_matches!(acceptance, MessageAcceptance::Accept);
-
-        assert_eq!(alice.next_message(), Some(bob_verified));
     }
 
     #[test]
