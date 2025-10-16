@@ -402,23 +402,18 @@ impl NetworkService {
             }
             BehaviourEvent::Kad(_) => {}
             //
-            BehaviourEvent::Gossipsub(gossipsub::Event::Message {
-                source,
-                validator,
-            }) => {
+            BehaviourEvent::Gossipsub(gossipsub::Event::Message { source, validator }) => {
                 let gossipsub = &mut self.swarm.behaviour_mut().gossipsub;
 
-                let event = validator.validate(gossipsub, |message| {
-                    match message {
-                        gossipsub::Message::Commitments(message) => {
-                            let acceptance = self.validators.verify_message_initially(source, message);
-                            (acceptance, None)
-                        }
-                        gossipsub::Message::Offchain(transaction) => (
-                            MessageAcceptance::Accept,
-                            Some(NetworkEvent::OffchainTransaction(transaction)),
-                        ),
+                let event = validator.validate(gossipsub, |message| match message {
+                    gossipsub::Message::Commitments(message) => {
+                        let acceptance = self.validators.verify_message_initially(source, message);
+                        (acceptance, None)
                     }
+                    gossipsub::Message::Offchain(transaction) => (
+                        MessageAcceptance::Accept,
+                        Some(NetworkEvent::OffchainTransaction(transaction)),
+                    ),
                 });
 
                 return event;
