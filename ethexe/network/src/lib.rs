@@ -28,9 +28,9 @@ pub mod export {
 use crate::db_sync::DbSyncDatabase;
 use anyhow::{Context, anyhow};
 use ethexe_common::{Address, ecdsa::PublicKey};
-use ethexe_signer::Signer;
 use futures::{Stream, future::Either, ready, stream::FusedStream};
 use gprimitives::utils::ByteSliceFormatter;
+use gsigner::secp256k1::Signer;
 use libp2p::{
     Multiaddr, PeerId, Swarm, Transport, connection_limits,
     core::{muxing::StreamMuxerBox, transport, transport::ListenerId, upgrade},
@@ -601,8 +601,8 @@ mod tests {
     use async_trait::async_trait;
     use ethexe_common::gear::CodeState;
     use ethexe_db::{Database, MemDb};
-    use ethexe_signer::{FSKeyStorage, Signer};
     use gprimitives::{ActorId, CodeId, H256};
+    use gsigner::secp256k1::{FileStorage, Signer};
     use std::{
         collections::{BTreeSet, HashMap},
         sync::Arc,
@@ -676,7 +676,7 @@ mod tests {
     }
 
     fn new_service_with(db: Database, data_provider: DataProvider) -> NetworkService {
-        let key_storage = FSKeyStorage::tmp();
+        let key_storage = FileStorage::tmp();
         let signer = Signer::new(key_storage);
         let key = signer.generate_key().unwrap();
         let config = NetworkConfig::new_test(key, Address::default());

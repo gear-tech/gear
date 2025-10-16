@@ -28,6 +28,9 @@ use anyhow::Result;
 use derive_more::{Debug, Display};
 use ethexe_common::{Address, Digest, SimpleBlockData};
 use futures::{FutureExt, future::BoxFuture};
+use gsigner::secp256k1::Secp256k1SignerExt;
+#[cfg(test)]
+use gsigner::secp256k1::Signer;
 use std::task::Poll;
 
 /// [`Participant`] is a state of the validator that processes validation requests,
@@ -85,16 +88,13 @@ impl StateHandler for Participant {
         {
             match res {
                 Ok(digest) => {
-                    let reply = self
-                        .ctx
-                        .core
-                        .signer
-                        .sign_for_contract(
-                            self.ctx.core.router_address,
-                            self.ctx.core.pub_key,
-                            digest,
-                        )
-                        .map(|signature| BatchCommitmentValidationReply { digest, signature })?;
+                    let gsigner_pubkey = self.ctx.core.pub_key;
+                    let signature = self.ctx.core.signer.sign_for_contract_digest(
+                        self.ctx.core.router_address,
+                        gsigner_pubkey,
+                        &digest,
+                    )?;
+                    let reply = BatchCommitmentValidationReply { digest, signature };
 
                     self.output(ConsensusEvent::PublishValidationReply(reply));
                 }
@@ -174,6 +174,25 @@ mod tests {
     use crate::{mock::*, validator::mock::*};
     use ethexe_common::{Digest, ToDigest, gear::CodeCommitment, mock::*};
 
+    fn make_signed_request(
+        signer: &Signer,
+        producer: ethexe_common::ecdsa::PublicKey,
+        request: BatchCommitmentValidationRequest,
+    ) -> SignedValidationRequest {
+        use ethexe_common::ecdsa::Signature as EthexeSignature;
+
+        let digest = request.to_digest();
+        let gsigner_signature = signer
+            .sign_digest(producer, &digest)
+            .expect("signing failed");
+        let signature =
+            EthexeSignature::from_pre_eip155_bytes(gsigner_signature.into_pre_eip155_bytes())
+                .expect("signature conversion failed");
+
+        SignedValidationRequest::try_from_parts(request, signature)
+            .expect("failed to build signed request")
+    }
+
     #[test]
     fn create() {
         let (ctx, pub_keys, _) = mock_validator_context();
@@ -237,11 +256,11 @@ mod tests {
         let batch = prepare_chain_for_batch_commitment(&ctx.core.db);
         let block = ctx.core.db.simple_block_data(batch.block_hash);
 
-        let signed_request = ctx
-            .core
-            .signer
-            .signed_data(producer, BatchCommitmentValidationRequest::new(&batch))
-            .unwrap();
+        let signed_request = make_signed_request(
+            &ctx.core.signer,
+            producer,
+            BatchCommitmentValidationRequest::new(&batch),
+        );
 
         let state = Participant::create(ctx, block, producer.to_address()).unwrap();
         assert!(state.is_participant());
@@ -296,7 +315,7 @@ mod tests {
         batch.code_commitments.push(extra_code);
 
         let request = BatchCommitmentValidationRequest::new(&batch);
-        let signed_request = ctx.core.signer.signed_data(producer, request).unwrap();
+        let signed_request = make_signed_request(&ctx.core.signer, producer, request);
 
         let state = Participant::create(ctx, block, producer.to_address()).unwrap();
         assert!(state.is_participant());
@@ -326,7 +345,7 @@ mod tests {
             validators: false,
         };
 
-        let signed_request = ctx.core.signer.signed_data(producer, request).unwrap();
+        let signed_request = make_signed_request(&ctx.core.signer, producer, request);
 
         let state = Participant::create(ctx, block, producer.to_address()).unwrap();
         assert!(state.is_participant());
@@ -355,7 +374,7 @@ mod tests {
             request.codes.push(duplicate_code);
         }
 
-        let signed_request = ctx.core.signer.signed_data(producer, request).unwrap();
+        let signed_request = make_signed_request(&ctx.core.signer, producer, request);
 
         let state = Participant::create(ctx, block.clone(), producer.to_address()).unwrap();
         assert!(state.is_participant());
@@ -381,7 +400,7 @@ mod tests {
         let mut request = BatchCommitmentValidationRequest::new(&batch);
         request.digest = Digest::random();
 
-        let signed_request = ctx.core.signer.signed_data(producer, request).unwrap();
+        let signed_request = make_signed_request(&ctx.core.signer, producer, request);
 
         let state = Participant::create(ctx, block, producer.to_address()).unwrap();
         assert!(state.is_participant());

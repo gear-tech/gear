@@ -24,7 +24,7 @@ use ethexe_network::{
     NetworkConfig,
     export::{Multiaddr, Protocol},
 };
-use ethexe_signer::Signer;
+use gsigner::secp256k1::Signer;
 use serde::Deserialize;
 use std::path::PathBuf;
 

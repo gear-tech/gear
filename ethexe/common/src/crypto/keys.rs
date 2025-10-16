@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::address::Address;
-use alloc::string::String;
+use alloc::{string::String, vec::Vec};
 use core::str::FromStr;
 use hex::FromHexError;
 use k256::ecdsa::{SigningKey, VerifyingKey};
@@ -41,6 +41,7 @@ use parity_scale_codec::{Decode, Encode};
     derive_more::From,
     derive_more::Into,
 )]
+#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[debug("0x{}", hex::encode(_0))]
 #[display("0x{}", hex::encode(_0))]
 pub struct PrivateKey([u8; 32]);
@@ -89,6 +90,7 @@ impl PrivateKey {
     PartialEq,
     PartialOrd,
     Ord,
+    Hash,
     derive_more::Debug,
     derive_more::Display,
     derive_more::From,
@@ -152,6 +154,41 @@ impl From<VerifyingKey> for PublicKey {
 impl From<PublicKey> for VerifyingKey {
     fn from(key: PublicKey) -> Self {
         VerifyingKey::from_sec1_bytes(key.0.as_slice()).expect("invalid public key")
+    }
+}
+
+#[cfg(feature = "serde")]
+impl serde::Serialize for PublicKey {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        if serializer.is_human_readable() {
+            serializer.serialize_str(&self.to_hex())
+        } else {
+            serializer.serialize_bytes(&self.0)
+        }
+    }
+}
+
+#[cfg(feature = "serde")]
+impl<'de> serde::Deserialize<'de> for PublicKey {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        if deserializer.is_human_readable() {
+            let s = String::deserialize(deserializer)?;
+            Self::from_str(&s).map_err(serde::de::Error::custom)
+        } else {
+            let bytes = <Vec<u8>>::deserialize(deserializer)?;
+            if bytes.len() != 33 {
+                return Err(serde::de::Error::custom("Invalid public key length"));
+            }
+            let mut arr = [0u8; 33];
+            arr.copy_from_slice(&bytes);
+            Ok(Self(arr))
+        }
     }
 }
 

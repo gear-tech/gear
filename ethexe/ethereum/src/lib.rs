@@ -41,8 +41,9 @@ use alloy::{
 };
 use anyhow::{Result, anyhow};
 use async_trait::async_trait;
-use ethexe_common::{Address as LocalAddress, Digest, ecdsa::PublicKey};
-use ethexe_signer::Signer as LocalSigner;
+use gsigner::secp256k1::{
+    Address as LocalAddress, PublicKey as LocalPublicKey, Signer as LocalSigner,
+};
 use middleware::Middleware;
 use mirror::Mirror;
 use router::{Router, RouterQuery};
@@ -113,7 +114,7 @@ impl Ethereum {
     }
 
     pub fn mirror(&self, address: LocalAddress) -> Mirror {
-        Mirror::new(address.0.into(), self.provider())
+        Mirror::new(address.into(), self.provider())
     }
 
     pub fn router(&self) -> Router {
@@ -144,15 +145,14 @@ pub(crate) async fn create_provider(
 #[derive(Debug, Clone)]
 struct Sender {
     signer: LocalSigner,
-    sender: PublicKey,
+    sender: LocalPublicKey,
     chain_id: Option<ChainId>,
 }
 
 impl Sender {
     pub fn new(signer: LocalSigner, sender_address: LocalAddress) -> Result<Self> {
         let sender = signer
-            .storage()
-            .get_key_by_addr(sender_address)?
+            .get_key_by_address(sender_address)?
             .ok_or_else(|| anyhow!("no key found for {sender_address}"))?;
 
         Ok(Self {
@@ -170,7 +170,7 @@ impl Signer for Sender {
     }
 
     fn address(&self) -> Address {
-        self.sender.to_address().0.into()
+        self.sender.to_address().into()
     }
 
     fn chain_id(&self) -> Option<ChainId> {
@@ -185,7 +185,7 @@ impl Signer for Sender {
 #[async_trait]
 impl TxSigner<Signature> for Sender {
     fn address(&self) -> Address {
-        self.sender.to_address().0.into()
+        self.sender.to_address().into()
     }
 
     async fn sign_transaction(
@@ -198,11 +198,11 @@ impl TxSigner<Signature> for Sender {
 
 impl SignerSync for Sender {
     fn sign_hash_sync(&self, hash: &B256) -> SignerResult<Signature> {
-        let (s, r) = self
+        let signature = self
             .signer
-            .sign(self.sender, Digest(hash.0))
-            .map_err(|err| SignerError::Other(err.into()))
-            .map(|s| s.into_parts())?;
+            .sign(self.sender, &hash.0)
+            .map_err(|err| SignerError::Other(err.into()))?;
+        let (s, r) = signature.into_parts();
         let v = r.to_byte() as u64;
         let v = primitives::normalize_v(v).ok_or(SignatureError::InvalidParity(v))?;
         Ok(Signature::from_signature_and_parity(s, v))

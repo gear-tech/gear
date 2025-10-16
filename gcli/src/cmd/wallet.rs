@@ -16,11 +16,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use crate::keyring;
 use anyhow::{Result, anyhow};
 use clap::Parser;
 use colored::Colorize;
-use gring::{Keyring, SecretKey, cmd::Command};
 use gsdk::ext::sp_core::{Pair, sr25519};
+use gsigner::cli::{GSignerCommands, display_result, execute_command};
+use schnorrkel::Keypair;
 
 const DEFAULT_DEV: &str = "//Alice";
 
@@ -36,9 +38,9 @@ pub enum Wallet {
         #[clap(short, long)]
         uri: Option<String>,
     },
-    /// Flatted gring command
+    /// gsigner commands embedded into gcli.
     #[clap(flatten)]
-    Gring(Command),
+    Signer(GSignerCommands),
 }
 
 impl Wallet {
@@ -46,25 +48,28 @@ impl Wallet {
     pub fn run(&self) -> anyhow::Result<()> {
         match self {
             Wallet::Dev { name, uri } => Self::dev(name, uri.clone()),
-            Wallet::Gring(command) => command.clone().run(),
+            Wallet::Signer(command) => {
+                let result = execute_command(command.clone())?;
+                display_result(&result);
+                Ok(())
+            }
         }
     }
 
     /// Switch to development account.
     pub fn dev(name: &str, uri: Option<String>) -> Result<()> {
-        let mut keyring = Keyring::load(Command::store()?)?;
-        if keyring.set_primary(name.into()).is_ok() {
+        let mut keyring = keyring::load_keyring()?;
+        if keyring.set_primary(name).is_ok() {
             println!("Successfully switched to dev account {} !", name.cyan());
             return Ok(());
         }
 
-        let sk = SecretKey::from_bytes(
-            &sr25519::Pair::from_string(&uri.unwrap_or(DEFAULT_DEV.into()), None)?.to_raw_vec(),
-        )
-        .map_err(|_| anyhow!("Failed to create keypair from the input uri."))?;
+        let pair = sr25519::Pair::from_string(&uri.unwrap_or_else(|| DEFAULT_DEV.into()), None)
+            .map_err(|e| anyhow!("Failed to create keypair from the input uri: {e}"))?;
+        let keypair: Keypair = pair.into();
 
-        keyring.add(name, sk.into(), None)?;
-        keyring.set_primary(name.into())?;
+        keyring.add(name, keypair, None)?;
+        keyring.set_primary(name)?;
         println!("Successfully switched to dev account {} !", name.cyan());
         Ok(())
     }

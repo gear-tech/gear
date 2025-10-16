@@ -16,17 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Signer library for ethexe.
-//!
-//! The crate defines types and related logic for private keys, public keys types,
-//! cryptographic signatures and ethereum address.
-//!
-//! Cryptographic instrumentary of the crate is based on secp256k1 standard
-//! using [k256](https://crates.io/crates/k256) crate, but all the
-//! machinery used is wrapped in the crate's types.
+//! Key storage implementations.
 
-mod signer;
-mod storage;
+mod fs;
+mod memory;
 
-pub use signer::Signer;
-pub use storage::{FSKeyStorage, KeyStorage, MemoryKeyStorage};
+pub use self::{fs::FSKeyStorage, memory::MemoryKeyStorage};

@@ -34,9 +34,9 @@ use ethexe_common::{
 };
 use ethexe_db::Database;
 use ethexe_ethereum::middleware::Middleware;
-use ethexe_signer::Signer;
 use futures::lock::Mutex;
 use gprimitives::H256;
+use gsigner::secp256k1::Signer;
 use std::{collections::HashSet, sync::Arc, time::Duration};
 
 #[derive(derive_more::Debug)]

@@ -25,8 +25,8 @@ use ethexe_common::{
     mock::*,
 };
 use ethexe_db::Database;
-use ethexe_signer::Signer;
 use gprimitives::H256;
+use gsigner::secp256k1::{Secp256k1SignerExt, Signer};
 use std::vec;
 
 pub fn init_signer_with_keys(amount: u8) -> (Signer, Vec<PrivateKey>, Vec<PublicKey>) {
@@ -117,7 +117,11 @@ impl SignerMockExt for Signer {
         pub_key: PublicKey,
         args: T,
     ) -> SignedData<M> {
-        self.signed_data(pub_key, M::mock(args)).unwrap()
+        let data = M::mock(args);
+        let digest = data.to_digest();
+        let signature = self.sign_digest(pub_key, &digest).expect("signing failed");
+
+        SignedData::try_from_parts(data, signature).expect("signed data conversion failed")
     }
 
     fn validation_reply(
@@ -126,11 +130,10 @@ impl SignerMockExt for Signer {
         contract_address: Address,
         digest: Digest,
     ) -> BatchCommitmentValidationReply {
-        BatchCommitmentValidationReply {
-            digest,
-            signature: self
-                .sign_for_contract(contract_address, public_key, digest)
-                .unwrap(),
-        }
+        let signature = self
+            .sign_for_contract_digest(contract_address, public_key, &digest)
+            .unwrap();
+
+        BatchCommitmentValidationReply { digest, signature }
     }
 }

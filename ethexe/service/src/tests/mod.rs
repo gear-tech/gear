@@ -48,6 +48,7 @@ use gear_core::{
 };
 use gear_core_errors::{ErrorReplyReason, SimpleExecutionError, SimpleUnavailableActorError};
 use gprimitives::{ActorId, H160, H256, MessageId};
+use gsigner::secp256k1::Secp256k1SignerExt;
 use parity_scale_codec::Encode;
 use std::{
     collections::{BTreeMap, BTreeSet},

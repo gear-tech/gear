@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2024-2025 Gear Technologies Inc.
+// Copyright (C) 2021-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -16,18 +16,16 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-mod keyring;
-mod keystore;
-mod pair;
-mod scrypt;
+use anyhow::Result;
+use clap::Parser;
+use gsigner::cli::{GSignerCli, display_result, execute_command};
 
-pub mod cmd;
-pub use gear_ss58 as ss58;
+fn main() -> Result<()> {
+    tracing_subscriber::fmt::init();
 
-pub use self::{
-    keyring::Keyring,
-    keystore::{Encoding, Keystore},
-    pair::KeypairInfo,
-    scrypt::Scrypt,
-};
-pub use schnorrkel::{Keypair, SecretKey};
+    let cli = GSignerCli::parse();
+    let result = execute_command(cli.command)?;
+    display_result(&result);
+
+    Ok(())
+}

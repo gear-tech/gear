@@ -57,9 +57,9 @@ use derive_more::{Debug, From};
 use ethexe_common::{Address, AnnounceHash, SimpleBlockData, ecdsa::PublicKey};
 use ethexe_db::Database;
 use ethexe_ethereum::Ethereum;
-use ethexe_signer::Signer;
 use futures::{Stream, stream::FusedStream};
 use gprimitives::H256;
+use gsigner::secp256k1::Signer;
 use initial::Initial;
 use std::{
     collections::VecDeque,

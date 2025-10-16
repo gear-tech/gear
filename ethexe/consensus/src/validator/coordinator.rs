@@ -24,6 +24,7 @@ use crate::{
 use anyhow::{Result, anyhow, ensure};
 use derive_more::{Debug, Display};
 use ethexe_common::{Address, gear::BatchCommitment};
+use gsigner::secp256k1::Secp256k1SignerExt;
 use nonempty::NonEmpty;
 use std::collections::BTreeSet;
 
@@ -102,10 +103,20 @@ impl Coordinator {
             return Submitter::create(ctx, multisigned_batch);
         }
 
-        let validation_request = ctx.core.signer.signed_data(
-            ctx.core.pub_key,
-            BatchCommitmentValidationRequest::new(multisigned_batch.batch()),
-        )?;
+        use ethexe_common::ecdsa::SignedData as EthexeSignedData;
+        use parity_scale_codec::Encode;
+
+        let validation_request_data =
+            BatchCommitmentValidationRequest::new(multisigned_batch.batch());
+
+        // Sign the encoded data
+        let gsigner_signature = ctx
+            .core
+            .signer
+            .sign_recoverable(ctx.core.pub_key, &validation_request_data.encode())?;
+        let validation_request =
+            EthexeSignedData::try_from_parts(validation_request_data, gsigner_signature)
+                .map_err(|e| anyhow::anyhow!("Failed to create SignedData: {}", e))?;
 
         ctx.output(ConsensusEvent::PublishValidationRequest(validation_request));
 

@@ -20,7 +20,7 @@ use super::*;
 use alloy::node_bindings::Anvil;
 use ethexe_db::{Database, MemDb};
 use ethexe_ethereum::deploy::EthereumDeployer;
-use ethexe_signer::Signer;
+use gsigner::secp256k1::Signer;
 use std::time::Duration;
 
 fn wat2wasm_with_validate(s: &str, validate: bool) -> Vec<u8> {

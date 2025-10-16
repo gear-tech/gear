@@ -93,7 +93,7 @@ pub const STACKED_DEPENDENCIES: &[&str] = &[
 /// on the previous one, please be cautious about changing
 /// the order.
 pub const PACKAGES: &[&str] = &[
-    "gring",
+    "gsigner",
     "gear-wasm-optimizer",
     "gear-wasm-builder",
     "gear-node-wrapper",

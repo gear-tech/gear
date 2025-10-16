@@ -39,8 +39,8 @@ use alloy::{
 };
 use anyhow::Result;
 use ethexe_common::{Address as LocalAddress, ecdsa::PublicKey, gear::AggregatedPublicKey};
-use ethexe_signer::Signer as LocalSigner;
 use gprimitives::{ActorId, H160, U256 as GearU256};
+use gsigner::secp256k1::Signer as LocalSigner;
 use nonempty::NonEmpty;
 use roast_secp256k1_evm::frost::{
     Identifier,
@@ -394,7 +394,7 @@ fn aggregated_public_key(
         .expect("conversion failed")
         .try_into()
         .unwrap();
-    let public_key_uncompressed = PublicKey(public_key_compressed).to_uncompressed();
+    let public_key_uncompressed = PublicKey::from_bytes(public_key_compressed).to_uncompressed();
     let (public_key_x_bytes, public_key_y_bytes) = public_key_uncompressed.split_at(32);
 
     AggregatedPublicKey {

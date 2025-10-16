@@ -61,6 +61,13 @@ impl Signature {
         Ok(signature)
     }
 
+    /// Create a recoverable signature from a precomputed digest.
+    pub fn create_from_digest(private_key: PrivateKey, digest: &Digest) -> SignResult<Self> {
+        SigningKey::from(private_key)
+            .sign_prehash_recoverable(digest.as_ref())
+            .map(|(inner, recovery_id)| Self { inner, recovery_id })
+    }
+
     /// Recovers public key which was used to create the signature for the signed data.
     pub fn recover<T>(&self, data: T) -> SignResult<PublicKey>
     where
@@ -220,6 +227,11 @@ where
 pub struct ContractSignature(Signature);
 
 impl ContractSignature {
+    /// Create a ContractSignature from a Signature.
+    pub fn from_signature(signature: Signature) -> Self {
+        Self(signature)
+    }
+
     /// Create a recoverable contract-specific signature for the provided data using the private key.
     pub fn create<T>(
         contract_address: Address,
@@ -232,6 +244,18 @@ impl ContractSignature {
         Signature::create::<Digest>(
             private_key,
             contract_specific_digest(Digest::from(data), contract_address),
+        )
+        .map(ContractSignature)
+    }
+
+    pub fn create_from_digest(
+        contract_address: Address,
+        private_key: PrivateKey,
+        digest: &Digest,
+    ) -> SignResult<Self> {
+        Signature::create_from_digest(
+            private_key,
+            &contract_specific_digest(*digest, contract_address),
         )
         .map(ContractSignature)
     }
