@@ -22,7 +22,7 @@ use crate::{
         TestingEvent,
         events::{
             ObserverEventsListener, ObserverEventsPublisher, ServiceEventsListener,
-            TestingEventReceiver, TestingNetworkEvent,
+            TestingEventReceiver,
         },
     },
 };
@@ -44,7 +44,7 @@ use ethexe_common::{
 use ethexe_consensus::{ConsensusService, SimpleConnectService, ValidatorService};
 use ethexe_db::Database;
 use ethexe_ethereum::{Ethereum, deploy::EthereumDeployer, router::RouterQuery};
-use ethexe_network::{NetworkConfig, NetworkService, export::Multiaddr};
+use ethexe_network::{NetworkConfig, NetworkEvent, NetworkService, export::Multiaddr};
 use ethexe_observer::{EthereumConfig, ObserverEvent, ObserverService};
 use ethexe_processor::Processor;
 use ethexe_rpc::{RpcConfig, RpcService, test_utils::RpcClient};
@@ -895,13 +895,8 @@ impl Node {
 
         // fast sync implies network has connections
         if wait_for_network && !self.fast_sync {
-            self.wait_for(|e| {
-                matches!(
-                    e,
-                    TestingEvent::Network(TestingNetworkEvent::PeerConnected(_))
-                )
-            })
-            .await;
+            self.wait_for(|e| matches!(e, TestingEvent::Network(NetworkEvent::PeerConnected(_))))
+                .await;
         }
     }
 

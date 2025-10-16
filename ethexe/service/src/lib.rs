@@ -23,11 +23,10 @@ use ethexe_blob_loader::{
     BlobLoader, BlobLoaderEvent, BlobLoaderService, ConsensusLayerConfig,
     local::{LocalBlobLoader, LocalBlobStorage},
 };
-use ethexe_common::{ecdsa::PublicKey, gear::CodeState};
+use ethexe_common::{ecdsa::PublicKey, gear::CodeState, network::NetworkMessage};
 use ethexe_compute::{ComputeEvent, ComputeService};
 use ethexe_consensus::{
-    BatchCommitmentValidationReply, ConsensusEvent, ConsensusService, SignedAnnounce,
-    SignedValidationRequest, SimpleConnectService, ValidatorConfig, ValidatorService,
+    ConsensusEvent, ConsensusService, SimpleConnectService, ValidatorConfig, ValidatorService,
 };
 use ethexe_db::{Database, RocksDatabase};
 use ethexe_ethereum::router::RouterQuery;
@@ -37,11 +36,10 @@ use ethexe_processor::{Processor, ProcessorConfig};
 use ethexe_prometheus::{PrometheusEvent, PrometheusService};
 use ethexe_rpc::{RpcEvent, RpcService};
 use ethexe_service_utils::{OptionFuture as _, OptionStreamNext as _};
-use ethexe_tx_pool::{SignedOffchainTransaction, TxPoolEvent, TxPoolService};
+use ethexe_tx_pool::{TxPoolEvent, TxPoolService};
 use futures::StreamExt;
 use gprimitives::{ActorId, CodeId, H256};
 use gsigner::secp256k1::Signer;
-use parity_scale_codec::{Decode, Encode};
 use std::{collections::BTreeSet, pin::Pin};
 
 pub mod config;
@@ -60,17 +58,6 @@ pub enum Event {
     Prometheus(PrometheusEvent),
     Rpc(RpcEvent),
     TxPool(TxPoolEvent),
-}
-
-// TODO #4176: consider to move this to another module
-#[derive(Debug, Clone, Encode, Decode, derive_more::From)]
-pub enum NetworkMessage {
-    ProducerBlock(SignedAnnounce),
-    RequestBatchValidation(SignedValidationRequest),
-    ApproveBatch(BatchCommitmentValidationReply),
-    OffchainTransaction {
-        transaction: SignedOffchainTransaction,
-    },
 }
 
 #[derive(Clone)]
@@ -439,16 +426,7 @@ impl Service {
                     };
 
                     match event {
-                        NetworkEvent::Message { source: _, data } => {
-                            let Ok(message) = NetworkMessage::decode(&mut data.as_slice())
-                                .inspect_err(|e| {
-                                    log::warn!("Failed to decode network message: {e}")
-                                })
-                            else {
-                                // TODO: use peer scoring for this case
-                                continue;
-                            };
-
+                        NetworkEvent::Message(message) => {
                             match message {
                                 NetworkMessage::ProducerBlock(block) => {
                                     consensus.receive_announce(block)?
@@ -459,16 +437,14 @@ impl Service {
                                 NetworkMessage::ApproveBatch(reply) => {
                                     consensus.receive_validation_reply(reply)?
                                 }
-                                NetworkMessage::OffchainTransaction { transaction } => {
-                                    if let Err(e) =
-                                        tx_pool.process_offchain_transaction(transaction)
-                                    {
-                                        log::warn!(
-                                            "Failed to process offchain transaction received by p2p: {e}"
-                                        );
-                                    }
-                                }
                             };
+                        }
+                        NetworkEvent::OffchainTransaction(transaction) => {
+                            if let Err(e) = tx_pool.process_offchain_transaction(transaction) {
+                                log::warn!(
+                                    "Failed to process offchain transaction received by p2p: {e}"
+                                );
+                            }
                         }
                         NetworkEvent::PeerBlocked(_) | NetworkEvent::PeerConnected(_) => {}
                     }
@@ -533,21 +509,21 @@ impl Service {
                             continue;
                         };
 
-                        n.publish_message(NetworkMessage::from(block).encode());
+                        n.publish_message(block);
                     }
                     ConsensusEvent::PublishValidationRequest(request) => {
                         let Some(n) = network.as_mut() else {
                             continue;
                         };
 
-                        n.publish_message(NetworkMessage::from(request).encode());
+                        n.publish_message(request);
                     }
                     ConsensusEvent::PublishValidationReply(reply) => {
                         let Some(n) = network.as_mut() else {
                             continue;
                         };
 
-                        n.publish_message(NetworkMessage::from(reply).encode());
+                        n.publish_message(reply);
                     }
                     ConsensusEvent::CommitmentSubmitted(tx) => {
                         log::info!("Commitment submitted, tx: {tx}");
@@ -566,7 +542,7 @@ impl Service {
                             continue;
                         };
 
-                        n.publish_offchain_transaction(NetworkMessage::from(transaction).encode());
+                        n.publish_offchain_transaction(transaction);
                     }
                 },
             }

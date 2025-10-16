@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2024-2025 Gear Technologies Inc.
+// Copyright (C) 2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -16,32 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! ethexe common types and traits.
-
-#![cfg_attr(not(feature = "std"), no_std)]
-
-extern crate alloc;
-
-pub mod consensus;
-mod crypto;
-pub mod db;
-pub mod events;
-pub mod gear;
-pub mod network;
-mod primitives;
-pub mod tx_pool;
-mod utils;
-
-#[cfg(feature = "mock")]
-pub mod mock;
-
-pub use crypto::*;
-pub use gear_core;
-pub use gprimitives;
-pub use k256;
-pub use primitives::*;
-pub use sha3;
-pub use utils::*;
-
-/// Default block gas limit for the node.
-pub const DEFAULT_BLOCK_GAS_LIMIT: u64 = 4_000_000_000_000;
+fn main() {
+    gear_wasm_builder::build();
+}

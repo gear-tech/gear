@@ -16,16 +16,15 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{BatchCommitmentValidationReply, BatchCommitmentValidationRequest};
+use crate::BatchCommitmentValidationReply;
 use ethexe_common::{
-    Address, AnnounceHash, Digest, ToDigest,
+    Address, Digest, ToDigest,
     db::*,
     ecdsa::{PrivateKey, PublicKey, SignedData},
     gear::{BatchCommitment, ChainCommitment, CodeCommitment},
     mock::*,
 };
 use ethexe_db::Database;
-use gprimitives::H256;
 use gsigner::secp256k1::{Secp256k1SignerExt, Signer};
 use std::vec;
 
@@ -38,18 +37,6 @@ pub fn init_signer_with_keys(amount: u8) -> (Signer, Vec<PrivateKey>, Vec<Public
         .map(|&key| signer.storage_mut().add_key(key).unwrap())
         .collect();
     (signer, private_keys, public_keys)
-}
-
-impl Mock<()> for BatchCommitmentValidationRequest {
-    fn mock(_args: ()) -> Self {
-        BatchCommitmentValidationRequest {
-            digest: H256::random().0.into(),
-            head: Some(AnnounceHash(H256::random())),
-            codes: vec![CodeCommitment::mock(()).id, CodeCommitment::mock(()).id],
-            validators: false,
-            rewards: false,
-        }
-    }
 }
 
 /// Prepare chain with case:
