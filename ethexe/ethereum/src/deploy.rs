@@ -96,13 +96,6 @@ impl Default for ContractsDeploymentParams {
     }
 }
 
-#[macro_export]
-macro_rules! call {
-    ($builder:expr) => {
-        $builder.call().await.unwrap()
-    };
-}
-
 // Public methods
 impl EthereumDeployer {
     /// Creates a new deployer from necessary arguments.
@@ -402,7 +395,7 @@ where
         vaultGracePeriod: Uint::from(2 * 24 * 60 * 60), // 2 eras
         minVetoDuration: Uint::from(2 * 60 * 60),       // 2 h
         minSlashExecutionDelay: Uint::from(5 * 60),     // 5 min
-        allowedVaultImplVersion: call!(vault_factory.lastVersion()),
+        allowedVaultImplVersion: vault_factory.lastVersion().call().await?,
 
         // TODO (kuzmin-dev): remove this constant and use slasher type from slasher factory
         // TODO (kuzmin-dev): add delegator type also (means that we will support only one type of delegator)

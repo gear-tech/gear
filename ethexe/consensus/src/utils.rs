@@ -211,6 +211,7 @@ pub fn aggregate_chain_commitment<DB: BlockMetaStorageRO + OnChainStorageRO + An
     )))
 }
 
+// TODO(kuzmindev): this is a temporal solution. In future need to impelement DKG algorithm.
 pub fn validators_commitment(era: u64, validators: ValidatorsVec) -> Result<ValidatorsCommitment> {
     let validators_identifiers = validators
         .iter()
@@ -303,31 +304,29 @@ pub fn has_duplicates<T: Hash + Eq>(data: &[T]) -> bool {
 /// Finds the block with the earliest timestamp that is still within the specified election period.
 pub fn election_block_in_era<DB: OnChainStorageRO>(
     db: &DB,
-    block_data: SimpleBlockData,
+    mut block: SimpleBlockData,
     election_ts: u64,
 ) -> Result<SimpleBlockData> {
-    let SimpleBlockData {
-        mut hash,
-        mut header,
-    } = block_data;
-    if header.timestamp < election_ts {
+    if block.header.timestamp < election_ts {
         anyhow::bail!("election not reached yet");
     }
 
     loop {
-        let parent_header = db.block_header(header.parent_hash).ok_or(anyhow!(
+        let parent_header = db.block_header(block.header.parent_hash).ok_or(anyhow!(
             "block header not found for({})",
-            header.parent_hash
+            block.header.parent_hash
         ))?;
         if parent_header.timestamp < election_ts {
             break;
         }
 
-        hash = header.parent_hash;
-        header = parent_header;
+        block = SimpleBlockData {
+            hash: block.header.parent_hash,
+            header: parent_header,
+        };
     }
 
-    Ok(SimpleBlockData { hash, header })
+    Ok(block)
 }
 
 // TODO #4553: temporary implementation, should be improved

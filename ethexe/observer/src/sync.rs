@@ -24,7 +24,7 @@ use anyhow::{Result, anyhow};
 use ethexe_common::{
     self, BlockData, BlockHeader, CodeBlobInfo,
     db::{LatestDataStorageRW, OnChainStorageRW},
-    era_from_ts,
+    era_utils,
     events::{BlockEvent, RouterEvent},
 };
 use ethexe_ethereum::router::RouterQuery;
@@ -198,7 +198,8 @@ impl<DB: SyncDB> ChainSync<DB> {
             .db
             .protocol_timelines()
             .ok_or_else(|| anyhow!("ProtocolTimelines not found in database"))?;
-        let chain_head_era = era_from_ts(chain_head.timestamp, timelines.genesis_ts, timelines.era);
+        let chain_head_era =
+            era_utils::era_from_ts(chain_head.timestamp, timelines.genesis_ts, timelines.era);
 
         if chain_head_era == 0 {
             return Ok(false);
@@ -209,7 +210,8 @@ impl<DB: SyncDB> ChainSync<DB> {
             chain_head.parent_hash
         ))?;
 
-        let parent_era_index = era_from_ts(parent.timestamp, timelines.genesis_ts, timelines.era);
+        let parent_era_index =
+            era_utils::era_from_ts(parent.timestamp, timelines.genesis_ts, timelines.era);
         Ok(chain_head_era > parent_era_index)
     }
 }

@@ -717,7 +717,6 @@ async fn ping_reorg() {
         .unwrap();
 
     // Mine some blocks to check missed blocks support
-    log::error!("📗 Skip some blocks to simulate long time without service");
     env.skip_blocks(10).await;
 
     // Start new service

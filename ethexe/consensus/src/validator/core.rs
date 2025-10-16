@@ -26,7 +26,7 @@ use ethexe_common::{
     consensus::BatchCommitmentValidationRequest,
     db::{BlockMetaStorageRO, OnChainStorageRO},
     ecdsa::PublicKey,
-    end_of_era_timestamp, era_from_ts,
+    era_utils,
     gear::{
         BatchCommitment, ChainCommitment, CodeCommitment, RewardsCommitment, ValidatorsCommitment,
     },
@@ -134,7 +134,6 @@ impl ValidatorCore {
         utils::aggregate_code_commitments(&self.db, queue, false)
     }
 
-    // TODO #4741
     pub async fn aggregate_validators_commitment(
         &mut self,
         block: &SimpleBlockData,
@@ -145,12 +144,13 @@ impl ValidatorCore {
             .protocol_timelines()
             .ok_or(anyhow!("protocol timelines not found"))?;
 
-        let block_era = era_from_ts(header.timestamp, timelines.genesis_ts, timelines.era);
-        let end_of_era = end_of_era_timestamp(block_era, timelines.genesis_ts, timelines.era);
+        let block_era =
+            era_utils::era_from_ts(header.timestamp, timelines.genesis_ts, timelines.era);
+        let end_of_era = era_utils::era_end(block_era, timelines.genesis_ts, timelines.era);
         let election_ts = end_of_era - timelines.election;
 
         if header.timestamp < election_ts {
-            tracing::info!(
+            tracing::trace!(
                 block = %hash,
                 block.timestamp = %header.timestamp,
                 election_ts = %election_ts,
@@ -164,6 +164,7 @@ impl ValidatorCore {
         let request = ElectionRequest {
             at_block_hash: election_block.hash,
             at_timestamp: election_ts,
+            // TODO(kuzmindev) #4908: max validators must be configurable
             max_validators: 10,
         };
 

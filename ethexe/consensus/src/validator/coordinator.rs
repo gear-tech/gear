@@ -132,8 +132,7 @@ mod tests {
             .iter()
             .take(3)
             .map(|k| k.to_address())
-            .collect::<Vec<_>>()
-            .try_into()
+            .collect::<Result<_, _>>()
             .unwrap();
         let batch = BatchCommitment::default();
 

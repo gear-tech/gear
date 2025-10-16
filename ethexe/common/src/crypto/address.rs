@@ -171,24 +171,35 @@ impl Decode for ValidatorsVec {
 
 #[derive(Debug, Display, Error)]
 #[display("{:?}", self)]
-#[debug("ValidatorsVec cannot be created from empty vector")]
-pub struct TryFromVecError;
+#[debug("ValidatorsVec cannot be create from empty collection")]
+pub struct EmptyValidatorsError;
 
 // Useful conversions from / to `Vec<Address>`
 impl TryFrom<Vec<Address>> for ValidatorsVec {
-    type Error = TryFromVecError;
+    type Error = EmptyValidatorsError;
 
     fn try_from(value: Vec<Address>) -> Result<Self, Self::Error> {
-        NonEmpty::from_vec(value).map(Self).ok_or(TryFromVecError)
+        NonEmpty::from_vec(value)
+            .map(Self)
+            .ok_or(EmptyValidatorsError)
     }
 }
 
 impl TryFrom<Vec<alloy_primitives::Address>> for ValidatorsVec {
-    type Error = TryFromVecError;
+    type Error = EmptyValidatorsError;
 
     fn try_from(value: Vec<alloy_primitives::Address>) -> Result<Self, Self::Error> {
         let vec: Vec<Address> = value.into_iter().map(Into::into).collect();
-        NonEmpty::from_vec(vec).map(Self).ok_or(TryFromVecError)
+        NonEmpty::from_vec(vec)
+            .map(Self)
+            .ok_or(EmptyValidatorsError)
+    }
+}
+
+impl FromIterator<Address> for Result<ValidatorsVec, EmptyValidatorsError> {
+    fn from_iter<T: IntoIterator<Item = Address>>(iter: T) -> Self {
+        let inner = iter.into_iter().collect::<Vec<_>>();
+        inner.try_into()
     }
 }
 
