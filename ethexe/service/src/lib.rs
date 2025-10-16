@@ -229,6 +229,7 @@ impl Service {
             let runtime_config = NetworkRuntimeConfig {
                 genesis_timestamp: observer.genesis_timestamp_secs(),
                 era_duration: observer.era_duration_secs(),
+                validation_delay: observer.validation_delay_secs(),
                 genesis_block_hash: observer.genesis_block_hash(),
             };
 

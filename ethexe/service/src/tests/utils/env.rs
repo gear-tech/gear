@@ -214,6 +214,7 @@ impl TestEnv {
             .unwrap();
         let genesis_timestamp = observer.genesis_timestamp_secs();
         let era_duration = observer.era_duration_secs();
+        let validation_delay = observer.validation_delay_secs();
         let genesis_block_hash = observer.genesis_block_hash();
 
         let blobs_storage = LocalBlobStorage::default();
@@ -281,6 +282,7 @@ impl TestEnv {
             let runtime_config = NetworkRuntimeConfig {
                 genesis_timestamp,
                 era_duration,
+                validation_delay,
                 genesis_block_hash,
             };
 
@@ -852,6 +854,7 @@ impl Node {
             let runtime_config = NetworkRuntimeConfig {
                 genesis_timestamp: observer.genesis_timestamp_secs(),
                 era_duration: observer.era_duration_secs(),
+                validation_delay: observer.validation_delay_secs(),
                 genesis_block_hash: observer.genesis_block_hash(),
             };
 

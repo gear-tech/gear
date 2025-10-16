@@ -131,6 +131,7 @@ impl NetworkConfig {
 pub struct NetworkRuntimeConfig {
     pub genesis_timestamp: u64,
     pub era_duration: u64,
+    pub validation_delay: u64,
     pub genesis_block_hash: H256,
 }
 
@@ -190,6 +191,7 @@ impl NetworkService {
         let NetworkRuntimeConfig {
             genesis_timestamp,
             era_duration,
+            validation_delay,
             genesis_block_hash,
         } = runtime_config;
 
@@ -232,6 +234,7 @@ impl NetworkService {
         let validators = Validators::new(
             genesis_timestamp,
             era_duration,
+            validation_delay,
             genesis_block_hash,
             ValidatorDatabase::clone_boxed(&db),
             swarm.behaviour().peer_score.handle(),
@@ -700,7 +703,8 @@ mod tests {
 
         let runtime_config = NetworkRuntimeConfig {
             genesis_timestamp: 1_000_000,
-            era_duration: 1,
+            era_duration: 1_000,
+            validation_delay: 200,
             genesis_block_hash: GENESIS_BLOCK,
         };
 
