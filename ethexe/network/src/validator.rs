@@ -241,7 +241,7 @@ impl Validators {
                             "failed to verify message again from {source} peer: {err}, message: {message:?}"
                         );
                         self.peer_score.invalid_data(source);
-                        break 'cached;
+                        continue 'cached;
                     }
                 }
             }
@@ -588,5 +588,102 @@ mod tests {
         assert_matches!(acceptance, MessageAcceptance::Accept);
 
         assert_eq!(alice.next_message(), Some(bob_verified));
+    }
+
+    #[test]
+    fn reverify_cached_messages_with_bad_peer() {
+        const NEXT_ERA_TIMESTAMP: u64 = CHAIN_HEAD_TIMESTAMP + ERA_DURATION;
+
+        let (mut alice, alice_db) = new_validators();
+
+        // Bob creates a valid message for next era (will be cached)
+        let (bob_address, bob_message, bob_block) = new_validator_message();
+        let bob_verified = bob_message.clone().into_verified();
+
+        // Charlie creates a valid message for next era (will be cached)
+        let (charlie_address, charlie_message, charlie_block) = new_validator_message();
+        let charlie_verified = charlie_message.clone().into_verified();
+
+        // Dave creates a message for next era (will be cached, then become invalid when not a validator)
+        let (dave_address, dave_message, dave_block) = new_validator_message();
+
+        // Setup all blocks for next era
+        alice_db.set_block_header(
+            bob_block,
+            BlockHeader {
+                height: 1,
+                timestamp: NEXT_ERA_TIMESTAMP,
+                parent_hash: Default::default(),
+            },
+        );
+
+        alice_db.set_block_header(
+            charlie_block,
+            BlockHeader {
+                height: 2,
+                timestamp: NEXT_ERA_TIMESTAMP,
+                parent_hash: Default::default(),
+            },
+        );
+
+        alice_db.set_block_header(
+            dave_block,
+            BlockHeader {
+                height: 3,
+                timestamp: NEXT_ERA_TIMESTAMP,
+                parent_hash: Default::default(),
+            },
+        );
+
+        // Set current validators (including all three)
+        alice_db.set_block_validators(
+            GENESIS_CHAIN_HEAD,
+            nonempty![bob_address, charlie_address, dave_address],
+        );
+        alice.set_chain_head(GENESIS_CHAIN_HEAD).unwrap();
+
+        // All three messages are cached (NewEra)
+        let bob_source = PeerId::random();
+        let charlie_source = PeerId::random();
+        let dave_source = PeerId::random();
+
+        assert_matches!(
+            alice.verify_message_initially(bob_source, bob_message),
+            MessageAcceptance::Ignore
+        );
+        assert_matches!(
+            alice.verify_message_initially(charlie_source, charlie_message),
+            MessageAcceptance::Ignore
+        );
+        assert_matches!(
+            alice.verify_message_initially(dave_source, dave_message),
+            MessageAcceptance::Ignore
+        );
+
+        assert_eq!(alice.cached_messages.len(), 3);
+
+        // Update chain head to next era, but Dave is no longer a validator
+        let new_chain_head = H256::random();
+        alice_db.set_block_header(
+            new_chain_head,
+            BlockHeader {
+                height: 4,
+                timestamp: NEXT_ERA_TIMESTAMP,
+                parent_hash: Default::default(),
+            },
+        );
+        alice_db.set_block_validators(new_chain_head, nonempty![bob_address, charlie_address]);
+        alice.set_chain_head(new_chain_head).unwrap();
+
+        // Bob and Charlie should be verified, Dave should fail but not block others
+        let mut verified = vec![];
+        while let Some(msg) = alice.next_message() {
+            verified.push(msg);
+        }
+
+        // Both Bob's and Charlie's messages should be verified despite Dave's failure
+        assert_eq!(verified.len(), 2);
+        assert!(verified.contains(&bob_verified));
+        assert!(verified.contains(&charlie_verified));
     }
 }
