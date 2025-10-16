@@ -412,12 +412,12 @@ impl NetworkService {
                 return match message {
                     gossipsub::Message::Commitments(message) => {
                         let acceptance = self.validators.verify_message_initially(source, message);
-
-                        debug_assert!(gossipsub.report_message_validation_result(
+                        let validated = gossipsub.report_message_validation_result(
                             &message_id,
                             &propagation_source,
                             acceptance,
-                        ));
+                        );
+                        debug_assert!(validated);
 
                         None
                     }
