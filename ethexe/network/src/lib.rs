@@ -29,6 +29,7 @@ pub mod export {
 
 use crate::{
     db_sync::DbSyncDatabase,
+    gossipsub::MessageAcceptance,
     validator::{ValidatorDatabase, Validators},
 };
 use anyhow::{Context, anyhow};
@@ -409,22 +410,24 @@ impl NetworkService {
             }) => {
                 let gossipsub = &mut self.swarm.behaviour_mut().gossipsub;
 
-                return match message {
+                let (acceptance, event) = match message {
                     gossipsub::Message::Commitments(message) => {
                         let acceptance = self.validators.verify_message_initially(source, message);
-                        let validated = gossipsub.report_message_validation_result(
-                            &message_id,
-                            &propagation_source,
-                            acceptance,
-                        );
-                        debug_assert!(validated);
-
-                        None
+                        (acceptance, None)
                     }
-                    gossipsub::Message::Offchain(transaction) => {
-                        Some(NetworkEvent::OffchainTransaction(transaction))
-                    }
+                    gossipsub::Message::Offchain(transaction) => (
+                        MessageAcceptance::Accept,
+                        Some(NetworkEvent::OffchainTransaction(transaction)),
+                    ),
                 };
+
+                gossipsub.report_message_validation_result(
+                    &message_id,
+                    &propagation_source,
+                    acceptance,
+                );
+
+                return event;
             }
             BehaviourEvent::Gossipsub(gossipsub::Event::PublishFailure {
                 error,
