@@ -411,7 +411,7 @@ mod tests {
     fn too_old_era() {
         let (mut alice, alice_db) = new_validators();
         let (bob_address, bob_message, bob_block) = new_validator_message();
-        let bob_message = bob_message.into_verified();
+        let bob_verified = bob_message.clone().into_verified();
 
         alice_db.set_block_header(
             bob_block,
@@ -426,7 +426,7 @@ mod tests {
 
         let chain_head_era = alice.block_era_index(CHAIN_HEAD_TIMESTAMP);
 
-        let err = alice.inner_verify(&bob_message).unwrap_err();
+        let err = alice.inner_verify(&bob_verified).unwrap_err();
         assert_eq!(
             err,
             VerificationError::TooOldEra {
@@ -434,13 +434,19 @@ mod tests {
                 received_era: chain_head_era - 2
             }
         );
+
+        let bob_source = PeerId::random();
+        let acceptance = alice.verify_message_initially(bob_source, bob_message);
+        assert_matches!(acceptance, MessageAcceptance::Reject);
+        assert_eq!(alice.cached_messages.len(), 0);
+        assert_eq!(alice.next_message(), None);
     }
 
     #[test]
     fn old_era() {
         let (mut alice, alice_db) = new_validators();
         let (bob_address, bob_message, bob_block) = new_validator_message();
-        let bob_message = bob_message.into_verified();
+        let bob_verified = bob_message.clone().into_verified();
 
         alice_db.set_block_header(
             bob_block,
@@ -455,7 +461,7 @@ mod tests {
 
         let chain_head_era = alice.block_era_index(CHAIN_HEAD_TIMESTAMP);
 
-        let err = alice.inner_verify(&bob_message).unwrap_err();
+        let err = alice.inner_verify(&bob_verified).unwrap_err();
         assert_eq!(
             err,
             VerificationError::OldEra {
@@ -463,6 +469,12 @@ mod tests {
                 received_era: chain_head_era - 1
             }
         );
+
+        let bob_source = PeerId::random();
+        let acceptance = alice.verify_message_initially(bob_source, bob_message);
+        assert_matches!(acceptance, MessageAcceptance::Ignore);
+        assert_eq!(alice.cached_messages.len(), 0);
+        assert_eq!(alice.next_message(), None);
     }
 
     #[test]
@@ -553,17 +565,23 @@ mod tests {
 
     #[test]
     fn address_is_not_validator() {
-        let (alice, _alice_db) = new_validators();
+        let (mut alice, _alice_db) = new_validators();
         let (bob_address, bob_message, _bob_block) = new_validator_message();
-        let bob_message = bob_message.into_verified();
+        let bob_verified = bob_message.clone().into_verified();
 
-        let err = alice.inner_verify(&bob_message).unwrap_err();
+        let err = alice.inner_verify(&bob_verified).unwrap_err();
         assert_eq!(
             err,
             VerificationError::AddressIsNotValidator {
                 address: bob_address
             }
         );
+
+        let bob_source = PeerId::random();
+        let acceptance = alice.verify_message_initially(bob_source, bob_message);
+        assert_matches!(acceptance, MessageAcceptance::Reject);
+        assert_eq!(alice.cached_messages.len(), 0);
+        assert_eq!(alice.next_message(), None);
     }
 
     #[test]
