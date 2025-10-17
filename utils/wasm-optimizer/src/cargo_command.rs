@@ -105,20 +105,16 @@ impl CargoCommand {
             self.toolchain.clone()
         };
 
-        let mut cargo = if option_env!("IN_NIX_SHELL").is_some() {
-            Command::new("cargo")
-        } else {
-            let mut cargo = Command::new(&self.path);
-            cargo
-                .arg("run")
-                .arg(toolchain.raw_toolchain_str().as_ref())
-                .arg("cargo");
+        let mut cargo = Command::new(&self.path);
+        cargo
+            .arg("run")
+            .arg(toolchain.raw_toolchain_str().as_ref())
+            .arg("cargo");
 
-            if self.force_recommended_toolchain {
-                self.clean_up_environment(&mut cargo);
-            }
-            cargo
-        };
+        if self.force_recommended_toolchain {
+            self.clean_up_environment(&mut cargo);
+        }
+
         cargo
             .arg("rustc")
             .arg("--target=wasm32v1-none")

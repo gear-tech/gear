@@ -304,7 +304,7 @@ mod tests {
         let dispatch = Dispatch::reply(
             MessageId::from(456),
             ActorId::from(789),
-            PayloadLookup::Direct(Payload::filled_with(0xfe)),
+            PayloadLookup::Direct(Payload::repeat(0xfe)),
             0xffffff,
             SuccessReplyReason::Auto,
             Origin::Ethereum,
@@ -337,7 +337,7 @@ mod tests {
         let user_id = ActorId::from(2);
         let message_id = MessageId::from(3);
         let message = MailboxMessage::new(
-            PayloadLookup::Direct(Payload::filled_with(0xfe)),
+            PayloadLookup::Direct(Payload::repeat(0xfe)),
             0xffffff,
             Origin::Ethereum,
         );
@@ -378,7 +378,7 @@ mod tests {
         let program_dispatch = Dispatch::reply(
             MessageId::from(456),
             ActorId::from(789),
-            PayloadLookup::Direct(Payload::filled_with(0xfe)),
+            PayloadLookup::Direct(Payload::repeat(0xfe)),
             0xffffff,
             SuccessReplyReason::Auto,
             Origin::Ethereum,
@@ -389,7 +389,7 @@ mod tests {
         let user_dispatch = Dispatch::reply(
             MessageId::from(789),
             ActorId::from(999),
-            PayloadLookup::Direct(Payload::filled_with(0xaa)),
+            PayloadLookup::Direct(Payload::repeat(0xaa)),
             0xbbbbbb,
             SuccessReplyReason::Auto,
             Origin::Ethereum,

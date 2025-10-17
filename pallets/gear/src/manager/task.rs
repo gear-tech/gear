@@ -149,7 +149,7 @@ where
                         "TaskHandler::remove_from_waitlist: failed conversion of error reply into `Payload`. \
                         Error reply bytes len - {len}, max payload len - {max_len}",
                         len = error_reply.len(),
-                        max_len = Payload::max_len(),
+                        max_len = Payload::MAX_LEN,
                     );
 
                     log::error!("{err_msg}");

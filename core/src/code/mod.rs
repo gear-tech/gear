@@ -51,6 +51,10 @@ pub struct TryNewCodeConfig {
     pub data_segments_amount_limit: Option<u32>,
     /// Limit on the number of tables.
     pub table_amount_limit: Option<u32>,
+    /// Limit on the length of the type section.
+    pub type_section_len_limit: Option<u32>,
+    /// Limit on the number of parameters per type in type section.
+    pub type_section_params_per_type_limit: Option<u32>,
     /// Export `STACK_HEIGHT_EXPORT_NAME` global
     pub export_stack_height: bool,
     /// Check exports (wasm contains init or handle exports)
@@ -88,6 +92,8 @@ impl Default for TryNewCodeConfig {
             stack_height: None,
             data_segments_amount_limit: None,
             table_amount_limit: None,
+            type_section_len_limit: None,
+            type_section_params_per_type_limit: None,
             export_stack_height: false,
             check_exports: true,
             check_imports: true,
@@ -157,6 +163,9 @@ impl Code {
         if config.check_imports {
             utils::check_imports(&module)?;
         }
+        if let Some(limit) = config.type_section_params_per_type_limit {
+            utils::check_type_section(&module, limit)?;
+        }
 
         // Get exports set before instrumentations.
         let exports = utils::get_exports(&module);
@@ -183,7 +192,7 @@ impl Code {
         let CodeTypeSectionSizes {
             code_section,
             type_section,
-        } = utils::get_code_type_sections_sizes(&code)?;
+        } = utils::get_code_type_sections_sizes(&code, config.type_section_len_limit)?;
 
         let instantiated_section_sizes = InstantiatedSectionSizes::new(
             code_section,
@@ -296,6 +305,8 @@ impl Code {
         get_gas_rules: GetRulesFn,
         stack_height: Option<u32>,
         data_segments_amount_limit: Option<u32>,
+        type_section_len_limit: Option<u32>,
+        type_section_params_per_type_limit: Option<u32>,
     ) -> Result<Self, CodeError>
     where
         R: Rules,
@@ -308,6 +319,8 @@ impl Code {
                 version,
                 stack_height,
                 data_segments_amount_limit,
+                type_section_len_limit,
+                type_section_params_per_type_limit,
                 ..Default::default()
             },
         )
@@ -441,7 +454,7 @@ mod tests {
     use crate::{
         code::{
             Code, CodeError, DataSectionError, ExportError, GENERIC_OS_PAGE_SIZE, ImportError,
-            StackEndError, TryNewCodeConfig, utils::REF_TYPE_SIZE,
+            StackEndError, TryNewCodeConfig, TypeSectionError, utils::REF_TYPE_SIZE,
         },
         gas_metering::CustomConstantCostRules,
     };
@@ -778,6 +791,8 @@ mod tests {
             |_| CustomConstantCostRules::default(),
             None,
             None,
+            None,
+            None,
         );
 
         assert_code_err!(res, CodeError::Validation(_));
@@ -851,6 +866,54 @@ mod tests {
             CodeError::DataSection(DataSectionError::DataSegmentsAmountLimit {
                 limit: DATA_SEGMENTS_AMOUNT_LIMIT,
                 actual: 1025
+            })
+        );
+    }
+
+    #[test]
+    fn type_section_limits() {
+        const TYPE_SECTION_LEN_LIMIT: u32 = 16;
+        const PARAMS_PER_TYPE_LIMIT: u32 = 10;
+
+        fn try_new_with_type_limits(
+            wat: &str,
+            type_section_len_limit: Option<u32>,
+            type_section_params_per_type_limit: Option<u32>,
+        ) -> Result<Code, CodeError> {
+            Code::try_new_mock_const_or_no_rules(
+                wat2wasm(wat),
+                true,
+                TryNewCodeConfig {
+                    type_section_len_limit,
+                    type_section_params_per_type_limit,
+                    stack_height: None,
+                    make_validation: true,
+                    ..Default::default()
+                },
+            )
+        }
+
+        let wat = r#"
+            (module
+                (import "env" "memory" (memory 1))
+                (func $init)
+                (export "init" (func $init))
+                (type (func (param i64 i64 i32 i32 i64 i32 i64 i64 i64 i32 i32 i64 i32 i64) (result i64)))
+            )"#;
+
+        assert_code_err!(
+            try_new_with_type_limits(wat, TYPE_SECTION_LEN_LIMIT.into(), None,),
+            CodeError::TypeSection(TypeSectionError::LengthLimitExceeded {
+                limit: TYPE_SECTION_LEN_LIMIT,
+                actual: 26,
+            })
+        );
+
+        assert_code_err!(
+            try_new_with_type_limits(wat, None, PARAMS_PER_TYPE_LIMIT.into(),),
+            CodeError::TypeSection(TypeSectionError::ParametersPerTypeLimitExceeded {
+                limit: PARAMS_PER_TYPE_LIMIT,
+                actual: 14,
             })
         );
     }
