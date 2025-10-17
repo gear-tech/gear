@@ -28,7 +28,7 @@ pub mod export {
 use crate::db_sync::DbSyncDatabase;
 use anyhow::{Context, anyhow};
 use ethexe_common::{
-    Address, ecdsa::PublicKey, network::NetworkMessage, tx_pool::SignedOffchainTransaction,
+    Address, NetworkMessage, ecdsa::PublicKey, tx_pool::SignedOffchainTransaction,
 };
 use ethexe_signer::Signer;
 use futures::{Stream, future::Either, ready, stream::FusedStream};

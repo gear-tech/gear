@@ -33,6 +33,7 @@ use ethexe_common::{
 };
 use libp2p::request_response;
 use std::{
+    collections::VecDeque,
     num::NonZeroU32,
     task::{Context, Poll},
 };
@@ -130,7 +131,7 @@ impl OngoingResponses {
             return Err(anyhow!("latest data not found in database"));
         };
 
-        let mut announces = vec![];
+        let mut announces = VecDeque::new();
         let mut announce_hash = head;
         for _ in 0..MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE.get() {
             let Some(announce) = db.announce(announce_hash) else {
@@ -138,14 +139,18 @@ impl OngoingResponses {
             };
 
             let parent = announce.parent;
-            announces.push(announce);
+            announces.push_front(announce);
 
             match until {
                 AnnouncesRequestUntil::Tail(tail) if announce_hash == tail => {
-                    return Ok(AnnouncesResponse { announces });
+                    return Ok(AnnouncesResponse {
+                        announces: announces.into(),
+                    });
                 }
                 AnnouncesRequestUntil::ChainLen(len) if announces.len() == len.get() as usize => {
-                    return Ok(AnnouncesResponse { announces });
+                    return Ok(AnnouncesResponse {
+                        announces: announces.into(),
+                    });
                 }
                 _ => {}
             }
@@ -283,28 +288,6 @@ mod tests {
     }
 
     #[test]
-    fn returns_announces_until_tail() {
-        let db = Database::memory();
-
-        let tail = make_announce(10, AnnounceHash(H256::from_low_u64_be(99)));
-        let tail_hash = db.set_announce(tail.clone());
-        let head = make_announce(11, tail_hash);
-        let head_hash = db.set_announce(head.clone());
-
-        let genesis = AnnounceHash(H256::from_low_u64_be(1));
-        let start = AnnounceHash(H256::from_low_u64_be(2));
-        set_latest_data(&db, genesis, start);
-
-        let request = AnnouncesRequest {
-            head: head_hash,
-            until: AnnouncesRequestUntil::Tail(tail_hash),
-        };
-
-        let response = OngoingResponses::process_announce_request(&db, request).unwrap();
-        assert_eq!(response.announces, vec![head, tail]);
-    }
-
-    #[test]
     fn fails_when_reaching_genesis() {
         let db = Database::memory();
 
@@ -381,6 +364,29 @@ mod tests {
     }
 
     #[test]
+    fn returns_announces_until_tail() {
+        let db = Database::memory();
+
+        let tail = make_announce(10, AnnounceHash(H256::from_low_u64_be(99)));
+        let tail_hash = db.set_announce(tail.clone());
+        let head = make_announce(11, tail_hash);
+        let head_hash = db.set_announce(head.clone());
+
+        let genesis = AnnounceHash(H256::from_low_u64_be(1));
+        let start = AnnounceHash(H256::from_low_u64_be(2));
+        set_latest_data(&db, genesis, start);
+
+        let request = AnnouncesRequest {
+            head: head_hash,
+            until: AnnouncesRequestUntil::Tail(tail_hash),
+        };
+
+        let response = OngoingResponses::process_announce_request(&db, request).unwrap();
+        assert_eq!(response.announces, vec![tail, head]);
+        response.try_into_checked(request).unwrap();
+    }
+
+    #[test]
     fn returns_announces_until_chain_len() {
         let db = Database::memory();
 
@@ -402,6 +408,7 @@ mod tests {
         };
 
         let response = OngoingResponses::process_announce_request(&db, request).unwrap();
-        assert_eq!(response.announces, vec![head, middle]);
+        assert_eq!(response.announces, vec![middle, head]);
+        response.try_into_checked(request).unwrap();
     }
 }
