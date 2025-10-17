@@ -18,13 +18,16 @@
 
 //! Address types for different cryptographic schemes.
 
-pub use ethexe_common::{Address, FromActorIdError};
+#[cfg(feature = "secp256k1")]
+pub use crate::schemes::secp256k1::{Address, FromActorIdError};
 
+#[cfg(feature = "sr25519")]
+use alloc::string::String;
 #[cfg(feature = "sr25519")]
 use anyhow::{Result, anyhow};
 
 #[cfg(feature = "sr25519")]
-use std::fmt;
+use core::fmt;
 
 /// Substrate SS58 address wrapper.
 #[cfg(feature = "sr25519")]

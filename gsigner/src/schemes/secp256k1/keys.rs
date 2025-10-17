@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2025 Gear Technologies Inc.
+// Copyright (C) 2024-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -16,20 +16,24 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use super::address::Address;
-use alloc::{string::String, vec::Vec};
+//! secp256k1 key types.
+
+use alloc::string::String;
+#[cfg(feature = "serde")]
+use alloc::vec::Vec;
 use core::str::FromStr;
 use hex::FromHexError;
 use k256::ecdsa::{SigningKey, VerifyingKey};
-use parity_scale_codec::{Decode, Encode};
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
+use super::Address;
 
 /// Private key.
 ///
 /// Private key type used for elliptic curves maths for secp256k1 standard
 /// is a 256 bits unsigned integer, which the type stores as a 32 bytes array.
 #[derive(
-    Encode,
-    Decode,
     Default,
     Clone,
     Copy,
@@ -41,7 +45,11 @@ use parity_scale_codec::{Decode, Encode};
     derive_more::From,
     derive_more::Into,
 )]
-#[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(
+    feature = "codec",
+    derive(parity_scale_codec::Encode, parity_scale_codec::Decode)
+)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[debug("0x{}", hex::encode(_0))]
 #[display("0x{}", hex::encode(_0))]
 pub struct PrivateKey([u8; 32]);
@@ -63,7 +71,7 @@ impl FromStr for PrivateKey {
     type Err = FromHexError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        crate::decode_to_array(s).map(Self)
+        decode_hex_to_array(s).map(Self)
     }
 }
 
@@ -71,6 +79,13 @@ impl FromStr for PrivateKey {
 impl PrivateKey {
     pub fn random() -> Self {
         SigningKey::random(&mut k256::elliptic_curve::rand_core::OsRng).into()
+    }
+}
+
+#[cfg(not(feature = "std"))]
+impl PrivateKey {
+    pub fn random() -> Self {
+        panic!("`PrivateKey::random` requires the `std` feature to access an RNG");
     }
 }
 
@@ -102,8 +117,6 @@ pub struct PublicKey(pub [u8; 33]);
 
 impl PublicKey {
     /// Create public key from the private key.
-    ///
-    /// Only `ethexe-signer` types are used.
     pub fn from_private(private_key: PrivateKey) -> Self {
         let signing_key: SigningKey = private_key.into();
         let verifying_key = VerifyingKey::from(&signing_key);
@@ -196,6 +209,32 @@ impl FromStr for PublicKey {
     type Err = FromHexError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        crate::decode_to_array(s).map(Self)
+        decode_hex_to_array(s).map(Self)
+    }
+}
+
+fn decode_hex_to_array<const N: usize>(s: &str) -> Result<[u8; N], FromHexError> {
+    let stripped = s.strip_prefix("0x").unwrap_or(s);
+    let mut buf = [0u8; N];
+    hex::decode_to_slice(stripped, &mut buf)?;
+    Ok(buf)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn anvil_default_account_matches_expected_address() {
+        // Default Anvil account private key (see Hardhat/Foundry defaults)
+        let private_key = PrivateKey::from_str(
+            "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80",
+        )
+        .unwrap();
+        let public_key = PublicKey::from(private_key);
+        assert_eq!(
+            public_key.to_address().to_hex(),
+            "f39fd6e51aad88f6f4ce6ab8827279cfffb92266"
+        );
     }
 }

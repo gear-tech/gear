@@ -49,12 +49,16 @@
 //! let signature = signer.sign(public_key, b"hello world")?;
 //! ```
 
-#[cfg(not(feature = "std"))]
-compile_error!("gsigner currently requires the `std` feature to be enabled.");
+extern crate alloc;
+
+#[cfg(all(not(feature = "std"), feature = "sr25519"))]
+compile_error!("The `sr25519` feature requires the `std` feature.");
 
 pub mod address;
+pub mod crypto;
 pub mod error;
 pub mod schemes;
+#[cfg(feature = "std")]
 pub mod signer;
 pub mod storage;
 pub mod traits;
@@ -68,30 +72,38 @@ pub mod keyring;
 #[cfg(feature = "sr25519")]
 pub mod substrate;
 
+#[cfg(feature = "secp256k1")]
 pub use address::Address;
-#[cfg(feature = "gprimitives")]
+#[cfg(feature = "secp256k1")]
 pub use address::FromActorIdError;
 #[cfg(feature = "sr25519")]
 pub use address::SubstrateAddress;
 pub use error::{Result, SignerError};
+#[cfg(feature = "std")]
 pub use signer::Signer;
 #[cfg(feature = "sr25519")]
 pub use substrate::SubstratePair;
 pub use traits::{KeyStorage, SignatureScheme};
 
 #[cfg(feature = "secp256k1")]
-pub use schemes::secp256k1::{Digest, PrivateKey, PublicKey, Signature};
+pub use schemes::secp256k1::{
+    ContractSignature, Digest, PrivateKey, PublicKey, Signature, SignedData, ToDigest,
+};
 
+#[cfg(all(feature = "secp256k1", feature = "std"))]
+pub use storage::FSKeyStorage;
 #[cfg(feature = "secp256k1")]
-pub use storage::{FSKeyStorage, MemoryKeyStorage};
+pub use storage::MemoryKeyStorage;
 
 #[cfg(feature = "secp256k1")]
 pub mod secp256k1 {
     //! Ergonomic re-exports for the secp256k1 scheme.
 
     pub use crate::schemes::secp256k1::*;
+    #[cfg(feature = "std")]
     pub type Signer = crate::Signer<Secp256k1>;
     pub type MemoryStorage = crate::storage::MemoryKeyStorage<Secp256k1>;
+    #[cfg(feature = "std")]
     pub type FileStorage = crate::storage::FSKeyStorage<Secp256k1>;
 }
 
@@ -109,10 +121,16 @@ pub mod sr25519 {
 
 /// Re-export commonly used types
 pub mod prelude {
-    pub use crate::{
-        Address, KeyStorage, SignatureScheme, Signer,
-        schemes::{self, SchemeType},
-    };
+    pub use crate::{KeyStorage, SignatureScheme, schemes};
+
+    #[cfg(feature = "secp256k1")]
+    pub use crate::Address;
+
+    #[cfg(any(feature = "secp256k1", feature = "sr25519"))]
+    pub use crate::schemes::SchemeType;
+
+    #[cfg(feature = "std")]
+    pub use crate::Signer;
 
     #[cfg(feature = "secp256k1")]
     pub use crate::schemes::secp256k1::Secp256k1;

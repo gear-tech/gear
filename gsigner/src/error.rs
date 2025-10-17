@@ -18,10 +18,13 @@
 
 //! Error types for the gsigner library.
 
+use alloc::string::{String, ToString};
+use core::result::Result as CoreResult;
+#[cfg(feature = "std")]
 use std::io;
 
 /// Result type alias using [`SignerError`].
-pub type Result<T> = std::result::Result<T, SignerError>;
+pub type Result<T> = CoreResult<T, SignerError>;
 
 /// Errors that can occur during signing operations.
 #[derive(Debug, thiserror::Error)]
@@ -31,6 +34,7 @@ pub enum SignerError {
     KeyNotFound(String),
 
     /// Storage I/O error.
+    #[cfg(feature = "std")]
     #[error("Storage error: {0}")]
     Storage(#[from] io::Error),
 
@@ -67,6 +71,7 @@ pub enum SignerError {
     Other(String),
 }
 
+#[cfg(feature = "std")]
 impl From<serde_json::Error> for SignerError {
     fn from(err: serde_json::Error) -> Self {
         SignerError::Serialization(err.to_string())

@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2025 Gear Technologies Inc.
+// Copyright (C) 2024-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -21,19 +21,15 @@
 use super::keys::PublicKey;
 use alloc::string::String;
 use core::str::FromStr;
-use derive_more::{Debug, Display, Error};
 use gprimitives::{ActorId, H160};
 use hex::FromHexError;
-use parity_scale_codec::{Decode, Encode};
 use sha3::Digest as _;
 
 /// Ethereum address type.
 ///
 /// Basically a 20 bytes buffer, which is obtained from the least significant 20 bytes
-/// of the hashed with keccak256 public key.
+/// of the keccak256 hashed public key.
 #[derive(
-    Encode,
-    Decode,
     Default,
     Clone,
     Copy,
@@ -45,6 +41,10 @@ use sha3::Digest as _;
     derive_more::From,
     derive_more::Debug,
     derive_more::Display,
+)]
+#[cfg_attr(
+    feature = "codec",
+    derive(parity_scale_codec::Encode, parity_scale_codec::Decode)
 )]
 #[from([u8; 20], H160)]
 #[display("0x{}", self.to_hex())]
@@ -80,16 +80,16 @@ impl FromStr for Address {
     type Err = FromHexError;
 
     fn from_str(s: &str) -> Result<Self, FromHexError> {
-        crate::decode_to_array(s).map(Self)
+        decode_hex_to_array(s).map(Self)
     }
 }
 
-#[derive(Debug, Display, Error)]
+#[derive(derive_more::Debug, derive_more::Display, derive_more::Error)]
 #[display("{:?}", self)]
 #[debug("First 12 bytes are not 0, it is not ethereum address")]
 pub struct FromActorIdError;
 
-/// Tries to convert `ActorId`` into `Address`.
+/// Tries to convert `ActorId` into `Address`.
 ///
 /// Succeeds if first 12 bytes are 0.
 impl TryFrom<ActorId> for Address {
@@ -120,7 +120,6 @@ impl From<Address> for ActorId {
     }
 }
 
-// Type conversions to/from `alloy_primitives::Address`
 impl From<alloy_primitives::Address> for Address {
     fn from(value: alloy_primitives::Address) -> Self {
         Self(value.0.0)
@@ -133,9 +132,17 @@ impl From<Address> for alloy_primitives::Address {
     }
 }
 
+fn decode_hex_to_array<const N: usize>(s: &str) -> Result<[u8; N], FromHexError> {
+    let stripped = s.strip_prefix("0x").unwrap_or(s);
+    let mut buf = [0u8; N];
+    hex::decode_to_slice(stripped, &mut buf)?;
+    Ok(buf)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use core::str::FromStr;
 
     #[test]
     fn test_u64_to_address() {

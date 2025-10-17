@@ -18,21 +18,19 @@
 
 //! Secp256k1 signature types and utilities.
 
-use super::{
-    address::Address,
-    digest::{Digest, ToDigest},
-    keys::{PrivateKey, PublicKey},
-};
+use super::{Address, Digest, PrivateKey, PublicKey, ToDigest};
+use core::mem::size_of;
 use derive_more::{Debug, Display};
 use k256::ecdsa::{
     self, RecoveryId, SigningKey, VerifyingKey,
     signature::{Result as SignResult, hazmat::PrehashVerifier},
 };
+#[cfg(feature = "codec")]
 use parity_scale_codec::{
     Decode, Encode, Error as CodecError, Input as CodecInput, Output as CodecOutput,
 };
 
-/// A recoverable ECDSA signature
+/// A recoverable ECDSA signature.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Display)]
 #[debug("0x{}", hex::encode(self.into_pre_eip155_bytes()))]
 #[display("0x{}", hex::encode(self.into_pre_eip155_bytes()))]
@@ -131,6 +129,7 @@ impl Signature {
     }
 }
 
+#[cfg(feature = "codec")]
 impl Decode for Signature {
     fn decode<I: CodecInput>(input: &mut I) -> Result<Self, CodecError> {
         let bytes = <SignatureBytes>::decode(input)?;
@@ -138,6 +137,7 @@ impl Decode for Signature {
     }
 }
 
+#[cfg(feature = "codec")]
 impl Encode for Signature {
     fn encode_to<T: CodecOutput + ?Sized>(&self, dest: &mut T) {
         dest.write(self.into_pre_eip155_bytes().as_slice());
@@ -150,12 +150,13 @@ impl Encode for Signature {
 
 /// A signed data structure, that contains the data and its signature.
 /// Always valid after construction.
-#[derive(Clone, Encode, PartialEq, Eq, Debug, Display)]
+#[derive(Clone, PartialEq, Eq, Debug, Display)]
 #[display("SignedData({data}, {signature})")]
+#[cfg_attr(feature = "codec", derive(parity_scale_codec::Encode))]
 pub struct SignedData<T: Sized> {
     data: T,
     signature: Signature,
-    #[codec(skip)]
+    #[cfg_attr(feature = "codec", codec(skip))]
     public_key: PublicKey,
 }
 
@@ -183,6 +184,7 @@ impl<T: Sized> SignedData<T> {
     }
 }
 
+#[cfg(feature = "codec")]
 impl<T: Sized + Decode> Decode for SignedData<T>
 where
     for<'a> Digest: From<&'a T>,
@@ -223,7 +225,11 @@ where
 
 /// A recoverable ECDSA signature for a contract-specific digest format (ERC-191).
 /// See also `contract_specific_digest` and explanation here: <https://eips.ethereum.org/EIPS/eip-191>
-#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(
+    feature = "codec",
+    derive(parity_scale_codec::Encode, parity_scale_codec::Decode)
+)]
 pub struct ContractSignature(Signature);
 
 impl ContractSignature {
@@ -288,6 +294,7 @@ fn contract_specific_digest(digest: Digest, contract_address: Address) -> Digest
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloc::vec;
 
     fn mock_private_key() -> PrivateKey {
         PrivateKey::from([42; 32])
@@ -365,36 +372,39 @@ mod tests {
         assert_eq!(public_key.to_address(), address);
     }
 
+    #[cfg(feature = "codec")]
     #[test]
     fn signature_encode_decode() {
         let private_key = mock_private_key();
 
         let signature = Signature::create(private_key, MOCK_DIGEST).unwrap();
-        let encoded = signature.encode();
+        let encoded = parity_scale_codec::Encode::encode(&signature);
         let decoded = Signature::decode(&mut &encoded[..]).unwrap();
 
         assert_eq!(signature, decoded);
     }
 
+    #[cfg(feature = "codec")]
     #[test]
     fn signed_data_encode_decode() {
         let private_key = mock_private_key();
         let data = vec![1, 2, 3, 4];
 
         let signed_data = SignedData::create(private_key, data).unwrap();
-        let encoded = signed_data.encode();
+        let encoded = parity_scale_codec::Encode::encode(&signed_data);
         let decoded = SignedData::decode(&mut &encoded[..]).unwrap();
 
         assert_eq!(signed_data, decoded);
     }
 
+    #[cfg(feature = "codec")]
     #[test]
     fn contract_signature_encode_decode() {
         let private_key = mock_private_key();
 
         let contract_signature =
             ContractSignature::create(CONTRACT_ADDRESS, private_key, MOCK_DIGEST).unwrap();
-        let encoded = contract_signature.encode();
+        let encoded = parity_scale_codec::Encode::encode(&contract_signature);
         let decoded = ContractSignature::decode(&mut &encoded[..]).unwrap();
 
         assert_eq!(contract_signature, decoded);

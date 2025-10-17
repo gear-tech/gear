@@ -23,7 +23,7 @@ use crate::{
     error::Result,
     traits::{KeyStorage, SignatureScheme},
 };
-use std::collections::BTreeMap;
+use alloc::{collections::BTreeMap, format, vec::Vec};
 
 /// In-memory key storage using a BTreeMap.
 ///
@@ -76,7 +76,7 @@ impl<S: SignatureScheme> KeyStorage<S> for MemoryKeyStorage<S> {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "std"))]
 mod tests {
     use super::*;
 

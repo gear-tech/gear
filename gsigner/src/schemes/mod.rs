@@ -44,6 +44,8 @@ impl SchemeType {
             SchemeType::Secp256k1 => "secp256k1",
             #[cfg(feature = "sr25519")]
             SchemeType::Sr25519 => "sr25519",
+            #[allow(unreachable_patterns)]
+            _ => unreachable!("No signature schemes enabled"),
         }
     }
 }

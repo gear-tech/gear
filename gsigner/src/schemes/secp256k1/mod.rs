@@ -22,17 +22,29 @@ use crate::{
     error::{Result, SignerError},
     traits::SignatureScheme,
 };
+use alloc::format;
 
-pub use crate::storage::{FSKeyStorage, MemoryKeyStorage};
+pub mod address;
+pub mod digest;
+pub mod keys;
+pub mod signature;
+#[cfg(feature = "std")]
 mod signer_ext;
 
-pub use ethexe_common::{Digest, ToDigest};
-pub use signer_ext::Secp256k1SignerExt;
+pub use address::{Address, FromActorIdError};
+pub use digest::{Digest, ToDigest};
+pub use keys::{PrivateKey, PublicKey};
+pub use signature::{ContractSignature, Signature, SignedData};
 
-pub use ethexe_common::{
-    Address,
-    ecdsa::{ContractSignature, PrivateKey, PublicKey, Signature, SignedData},
-};
+pub mod ecdsa {
+    pub use super::{ContractSignature, PrivateKey, PublicKey, Signature, SignedData};
+}
+
+#[cfg(feature = "std")]
+pub use crate::storage::FSKeyStorage;
+pub use crate::storage::MemoryKeyStorage;
+#[cfg(feature = "std")]
+pub use signer_ext::Secp256k1SignerExt;
 
 /// secp256k1 signature scheme marker type.
 #[derive(Debug, Clone, Copy)]
@@ -80,11 +92,13 @@ impl SignatureScheme for Secp256k1 {
 }
 
 /// Convenient aliases for the secp256k1 signer and storages.
+#[cfg(feature = "std")]
 pub type Signer = crate::Signer<Secp256k1>;
 pub type MemoryStorage = crate::storage::MemoryKeyStorage<Secp256k1>;
+#[cfg(feature = "std")]
 pub type FileStorage = crate::storage::FSKeyStorage<Secp256k1>;
 
-#[cfg(test)]
+#[cfg(all(test, feature = "std"))]
 mod tests {
     use super::*;
 

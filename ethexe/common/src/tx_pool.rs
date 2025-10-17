@@ -18,17 +18,48 @@
 
 //! ethexe tx pool types
 
-use crate::{ToDigest, db::OnChainStorageRead, ecdsa::SignedData};
+use crate::{
+    ToDigest,
+    db::OnChainStorageRead,
+    ecdsa::{PrivateKey, Signature, SignedData},
+};
 use alloc::vec::Vec;
 use anyhow::{Result, anyhow};
+use core::ops::{Deref, DerefMut};
 use derive_more::{Debug, Display};
 use gprimitives::{H160, H256};
+use k256::ecdsa::signature::Result as SignResult;
 use parity_scale_codec::{Decode, Encode};
 use sha3::Digest as _;
 
-pub type SignedOffchainTransaction = SignedData<OffchainTransaction>;
+#[derive(Clone, Encode, Decode, PartialEq, Eq, Debug, Display)]
+#[display("{_0}")]
+pub struct SignedOffchainTransaction(SignedData<OffchainTransaction>);
 
 impl SignedOffchainTransaction {
+    pub fn new(inner: SignedData<OffchainTransaction>) -> Self {
+        Self(inner)
+    }
+
+    pub fn into_inner(self) -> SignedData<OffchainTransaction> {
+        self.0
+    }
+
+    pub fn into_parts(self) -> (OffchainTransaction, Signature) {
+        self.0.into_parts()
+    }
+
+    pub fn create(private_key: PrivateKey, data: OffchainTransaction) -> SignResult<Self> {
+        SignedData::create(private_key, data).map(Self)
+    }
+
+    pub fn try_from_parts(
+        data: OffchainTransaction,
+        signature: Signature,
+    ) -> Result<Self, &'static str> {
+        SignedData::try_from_parts(data, signature).map(Self)
+    }
+
     /// Ethexe transaction blake2b256 hash.
     pub fn tx_hash(&self) -> H256 {
         gear_core::utils::hash(&self.encode()).into()
@@ -39,6 +70,32 @@ impl SignedOffchainTransaction {
     /// Reference block hash is used for a transaction mortality check.
     pub fn reference_block(&self) -> H256 {
         self.data().reference_block
+    }
+}
+
+impl Deref for SignedOffchainTransaction {
+    type Target = SignedData<OffchainTransaction>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for SignedOffchainTransaction {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+impl From<SignedData<OffchainTransaction>> for SignedOffchainTransaction {
+    fn from(inner: SignedData<OffchainTransaction>) -> Self {
+        Self(inner)
+    }
+}
+
+impl From<SignedOffchainTransaction> for SignedData<OffchainTransaction> {
+    fn from(value: SignedOffchainTransaction) -> Self {
+        value.0
     }
 }
 

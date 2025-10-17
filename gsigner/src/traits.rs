@@ -19,7 +19,8 @@
 //! Core traits for signature schemes and key storage.
 
 use crate::error::Result;
-use std::fmt::Debug;
+use alloc::vec::Vec;
+use core::{fmt::Debug, hash::Hash};
 
 /// Trait defining a cryptographic signature scheme.
 ///
@@ -30,7 +31,7 @@ pub trait SignatureScheme: Debug + Send + Sync + 'static {
     type PrivateKey: Clone + Debug + Send + Sync;
 
     /// The public key type for this scheme.
-    type PublicKey: Clone + Debug + Send + Sync + Eq + std::hash::Hash + Ord;
+    type PublicKey: Clone + Debug + Send + Sync + Eq + Hash + Ord;
 
     /// The signature type for this scheme.
     type Signature: Clone + Debug + Send + Sync;

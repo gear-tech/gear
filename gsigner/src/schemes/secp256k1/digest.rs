@@ -19,10 +19,10 @@
 //! Keccak256 digest type.
 
 use alloc::vec::Vec;
-use parity_scale_codec::{Decode, Encode};
+use core::iter::FromIterator;
 use sha3::Digest as _;
 
-/// Common digest type for the ethexe.
+/// Common digest type for the ethexe / gsigner ecosystem.
 /// Presently, it is represented as 32-byte Keccak256 hash.
 /// The `ToDigest` trait is implemented for various types to facilitate hashing and signing.
 #[derive(
@@ -34,10 +34,12 @@ use sha3::Digest as _;
     PartialEq,
     Eq,
     Hash,
-    Encode,
-    Decode,
     derive_more::Debug,
     derive_more::Display,
+)]
+#[cfg_attr(
+    feature = "codec",
+    derive(parity_scale_codec::Encode, parity_scale_codec::Decode)
 )]
 #[repr(transparent)]
 #[debug("0x{}", hex::encode(self.0))]
@@ -49,10 +51,14 @@ impl Digest {
         Digest([0; 32])
     }
 
-    #[cfg(feature = "std")]
     /// NOTE: This function is cryptographically insecure and should not be used in production.
+    #[cfg(feature = "std")]
     pub fn random() -> Self {
-        Digest(gprimitives::H256::random().0)
+        use k256::elliptic_curve::rand_core::RngCore;
+
+        let mut bytes = [0u8; 32];
+        k256::elliptic_curve::rand_core::OsRng.fill_bytes(&mut bytes);
+        Digest(bytes)
     }
 }
 
@@ -109,6 +115,14 @@ impl<T: ToDigest> ToDigest for [T] {
 impl<T: ToDigest> ToDigest for Vec<T> {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
         self.as_slice().update_hasher(hasher);
+    }
+}
+
+impl<T: ToDigest> ToDigest for Option<T> {
+    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
+        if let Some(value) = self.as_ref() {
+            value.update_hasher(hasher);
+        }
     }
 }
 

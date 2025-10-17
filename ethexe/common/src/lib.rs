@@ -23,7 +23,6 @@
 extern crate alloc;
 
 pub mod consensus;
-mod crypto;
 pub mod db;
 pub mod events;
 pub mod gear;
@@ -35,7 +34,13 @@ mod utils;
 #[cfg(feature = "mock")]
 pub mod mock;
 
-pub use crypto::*;
+pub use gsigner::{
+    Address, ContractSignature, Digest, FromActorIdError, PrivateKey, PublicKey, Signature,
+    SignedData, ToDigest,
+};
+pub mod ecdsa {
+    pub use gsigner::secp256k1::{ContractSignature, PrivateKey, PublicKey, Signature, SignedData};
+}
 pub use gear_core;
 pub use gprimitives;
 pub use k256;

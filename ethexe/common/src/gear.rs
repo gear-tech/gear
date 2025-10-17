@@ -64,16 +64,12 @@ pub struct ChainCommitment {
     pub head_announce: AnnounceHash,
 }
 
-impl ToDigest for Option<ChainCommitment> {
+impl ToDigest for ChainCommitment {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
-        // To avoid missing incorrect hashing while developing.
-        let Some(ChainCommitment {
+        let ChainCommitment {
             transitions,
             head_announce,
-        }) = self
-        else {
-            return;
-        };
+        } = self;
 
         hasher.update(transitions.to_digest());
         hasher.update(head_announce.0);
@@ -152,17 +148,13 @@ pub struct RewardsCommitment {
     pub timestamp: u64,
 }
 
-impl ToDigest for Option<RewardsCommitment> {
+impl ToDigest for RewardsCommitment {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
-        // To avoid missing incorrect hashing while developing.
-        let Some(RewardsCommitment {
+        let RewardsCommitment {
             operators,
             stakers,
             timestamp,
-        }) = self
-        else {
-            return;
-        };
+        } = self;
 
         hasher.update(operators.to_digest());
         hasher.update(stakers.to_digest());
@@ -230,18 +222,14 @@ pub struct ValidatorsCommitment {
     pub era_index: u64,
 }
 
-impl ToDigest for Option<ValidatorsCommitment> {
+impl ToDigest for ValidatorsCommitment {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
-        // To avoid missing incorrect hashing while developing.
-        let Some(ValidatorsCommitment {
+        let ValidatorsCommitment {
             aggregated_public_key,
             verifiable_secret_sharing_commitment: _, // TODO: add to digest
             validators,
             era_index,
-        }) = self
-        else {
-            return;
-        };
+        } = self;
 
         hasher.update(<[u8; 32]>::from(aggregated_public_key.x));
         hasher.update(<[u8; 32]>::from(aggregated_public_key.y));
@@ -399,20 +387,17 @@ pub struct ValueClaim {
     pub value: u128,
 }
 
-/// Note: `ValueClaim` is not `ToDigest`
-impl ToDigest for [ValueClaim] {
+impl ToDigest for ValueClaim {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
-        self.iter().for_each(
-            |ValueClaim {
-                 message_id,
-                 destination,
-                 value,
-             }| {
-                hasher.update(message_id);
-                hasher.update(destination.to_address_lossy());
-                hasher.update(value.to_be_bytes());
-            },
-        )
+        let ValueClaim {
+            message_id,
+            destination,
+            value,
+        } = self;
+
+        hasher.update(message_id);
+        hasher.update(destination.to_address_lossy());
+        hasher.update(value.to_be_bytes());
     }
 }
 

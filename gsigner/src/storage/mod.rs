@@ -18,7 +18,10 @@
 
 //! Key storage implementations.
 
+#[cfg(feature = "std")]
 mod fs;
 mod memory;
 
-pub use self::{fs::FSKeyStorage, memory::MemoryKeyStorage};
+#[cfg(feature = "std")]
+pub use self::fs::FSKeyStorage;
+pub use self::memory::MemoryKeyStorage;

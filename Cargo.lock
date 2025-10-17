@@ -4773,6 +4773,7 @@ dependencies = [
  "derive_more 2.0.1",
  "gear-core",
  "gprimitives",
+ "gsigner",
  "hex",
  "itertools 0.13.0",
  "k256",
@@ -7152,7 +7153,6 @@ dependencies = [
  "colored",
  "derive_more 2.0.1",
  "dirs",
- "ethexe-common",
  "gprimitives",
  "hex",
  "k256",
@@ -7160,7 +7160,6 @@ dependencies = [
  "parity-scale-codec",
  "rand 0.8.5",
  "schnorrkel",
- "secrecy",
  "serde",
  "serde_json",
  "sha3",
@@ -15744,7 +15743,6 @@ version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9bd1c54ea06cfd2f6b63219704de0b9b4f72dcc2b8fdef820be6cd799780e91e"
 dependencies = [
- "serde",
  "zeroize",
 ]
 
