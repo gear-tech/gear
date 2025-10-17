@@ -16,6 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use std::collections::HashSet;
+
 use super::{
     DefaultProcessing, StateHandler, ValidatorContext, ValidatorState, producer::Producer,
     subordinate::Subordinate,
@@ -24,6 +26,7 @@ use crate::utils;
 use anyhow::{Result, anyhow};
 use derive_more::{Debug, Display};
 use ethexe_common::{SimpleBlockData, db::OnChainStorageRead};
+use futures::future::BoxFuture;
 use gprimitives::H256;
 
 /// [`Initial`] is the first state of the validator.
@@ -36,10 +39,15 @@ pub struct Initial {
     state: State,
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug)]
 enum State {
     WaitingForChainHead,
     WaitingForSyncedBlock(SimpleBlockData),
+    WaitingForPreparedBlock(SimpleBlockData),
+    WaitingForMissingAnnounces {
+        block: SimpleBlockData,
+        announces: HashSet<AnnouncesRequest>,
+    }
 }
 
 impl StateHandler for Initial {
@@ -63,45 +71,60 @@ impl StateHandler for Initial {
         Ok(self.into())
     }
 
-    fn process_synced_block(self, block_hash: H256) -> Result<ValidatorState> {
-        match &self.state {
-            State::WaitingForSyncedBlock(block) if block.hash == block_hash => {
-                let validators = self
-                    .ctx
-                    .core
-                    .db
-                    .validators(block_hash)
-                    .ok_or(anyhow!("validators not found for block({block_hash})"))?;
-                let producer = utils::block_producer_for(
-                    &validators,
-                    block.header.timestamp,
-                    self.ctx.core.slot_duration.as_secs(),
+    fn process_synced_block(mut self, block_hash: H256) -> Result<ValidatorState> {
+        if let State::WaitingForSyncedBlock(block) = &self.state
+            && block.hash == block_hash
+        {
+            self.state = State::WaitingForPreparedBlock(block.clone());
+
+            Ok(self.into())
+        } else {
+            DefaultProcessing::synced_block(self, block_hash)
+        }
+    }
+
+    fn process_prepared_block(self, block_hash: H256) -> Result<ValidatorState> {
+        
+        if let State::WaitingForPreparedBlock(block) = &self.state
+            && block.hash == block_hash
+        {
+            let validators = self
+                .ctx
+                .core
+                .db
+                .validators(block_hash)
+                .ok_or(anyhow!("validators not found for block({block_hash})"))?;
+
+            let producer = utils::block_producer_for(
+                &validators,
+                block.header.timestamp,
+                self.ctx.core.slot_duration.as_secs(),
+            );
+            let my_address = self.ctx.core.pub_key.to_address();
+
+            if my_address == producer {
+                log::info!("👷 Start to work as a producer for block: {}", block.hash);
+
+                Producer::create(self.ctx, block.clone(), validators.clone())
+            } else {
+                // TODO #4636: add test (in ethexe-service) for case where is not validator for current block
+                let is_validator_for_current_block = validators.contains(&my_address);
+
+                log::info!(
+                    "👷 Start to work as a subordinate for block: {}, producer is {producer}, \
+                    I'm validator for current block: {is_validator_for_current_block}",
+                    block.hash
                 );
-                let my_address = self.ctx.core.pub_key.to_address();
 
-                if my_address == producer {
-                    log::info!("👷 Start to work as a producer for block: {}", block.hash);
-
-                    Producer::create(self.ctx, block.clone(), validators)
-                } else {
-                    // TODO #4636: add test (in ethexe-service) for case where is not validator for current block
-                    let is_validator_for_current_block = validators.contains(&my_address);
-
-                    log::info!(
-                        "👷 Start to work as a subordinate for block: {}, producer is {producer}, \
-                        I'm validator for current block: {is_validator_for_current_block}",
-                        block.hash
-                    );
-
-                    Subordinate::create(
-                        self.ctx,
-                        block.clone(),
-                        producer,
-                        is_validator_for_current_block,
-                    )
-                }
+                Subordinate::create(
+                    self.ctx,
+                    block.clone(),
+                    producer,
+                    is_validator_for_current_block,
+                )
             }
-            _ => DefaultProcessing::synced_block(self, block_hash),
+        } else {
+            DefaultProcessing::prepared_block(self, block_hash)
         }
     }
 }
