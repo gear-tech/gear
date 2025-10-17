@@ -139,6 +139,7 @@ pub fn setup_block_in_db<DB: OnChainStorageRW + BlockMetaStorageRW>(
     db.set_block_header(block_hash, block_data.header);
     db.set_block_events(block_hash, &block_data.events);
     db.set_block_synced(block_hash);
+    db.set_block_validators(block_hash, block_data.validators);
 
     db.mutate_block_meta(block_hash, |meta| {
         *meta = BlockMeta {
@@ -163,100 +164,4 @@ pub fn setup_announce_in_db<DB: AnnounceStorageRW>(
     db.mutate_announce_meta(announce_hash, |meta| meta.computed = true);
 
     announce_hash
-}
-
-/// Eras management
-/// Era `i` is in interval [start, end), where:
-/// - start: gensis_ts + i * era_duration
-/// - end: genesis_ts + (i + 1) * era_duration
-pub mod era_utils {
-    /// Returns the era index for the given timestamp. Eras starts from 0.
-    /// If geven `ts` less than `genesis_ts` function returns `0`;
-    #[inline(always)]
-    pub fn era_from_ts(ts: u64, genesis_ts: u64, era_duration: u64) -> u64 {
-        if ts < genesis_ts {
-            return 0;
-        }
-        (ts - genesis_ts) / era_duration
-    }
-
-    /// Returns the timestamp since which the given era started.
-    #[inline(always)]
-    pub fn era_start(era_index: u64, genesis_ts: u64, era_duration: u64) -> u64 {
-        genesis_ts + era_index * era_duration
-    }
-
-    #[inline(always)]
-    pub fn era_start_ts(ts: u64, genesis_ts: u64, era_duration: u64) -> u64 {
-        era_start(
-            era_from_ts(ts, genesis_ts, era_duration),
-            genesis_ts,
-            era_duration,
-        )
-    }
-
-    /// Returns the timestamp of beginning the next era, or the timestamp when current era finished.
-    #[inline(always)]
-    pub fn era_end(era_index: u64, genesis_ts: u64, era_duration: u64) -> u64 {
-        genesis_ts + (era_index + 1) * era_duration
-    }
-
-    #[inline(always)]
-    pub fn era_end_ts(ts: u64, genesis_ts: u64, era_duration: u64) -> u64 {
-        era_end(
-            era_from_ts(ts, genesis_ts, era_duration),
-            genesis_ts,
-            era_duration,
-        )
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::era_utils;
-
-    #[test]
-    fn test_era_from_ts_calculation() {
-        let genesis_ts = 10;
-        let era_duration = 234;
-
-        // For 0 era
-        assert_eq!(era_utils::era_from_ts(10, genesis_ts, era_duration), 0);
-        assert_eq!(era_utils::era_from_ts(45, genesis_ts, era_duration), 0);
-        assert_eq!(era_utils::era_from_ts(243, genesis_ts, era_duration), 0);
-
-        // For 1 era
-        assert_eq!(era_utils::era_from_ts(244, genesis_ts, era_duration), 1);
-        assert_eq!(era_utils::era_from_ts(333, genesis_ts, era_duration), 1);
-    }
-
-    #[test]
-    fn test_era_start_calculation() {
-        let genesis_ts = 10;
-        let era_duration = 234;
-
-        // For 0 era
-        assert_eq!(era_utils::era_start(0, genesis_ts, era_duration), 10);
-        assert_eq!(era_utils::era_start(0, genesis_ts, era_duration), 10);
-        assert_eq!(era_utils::era_start(0, genesis_ts, era_duration), 10);
-
-        // For 1 era
-        assert_eq!(era_utils::era_start(1, genesis_ts, era_duration), 244);
-        assert_eq!(era_utils::era_start(1, genesis_ts, era_duration), 244);
-    }
-
-    #[test]
-    fn test_era_end_calculation() {
-        let genesis_ts = 10;
-        let era_duration = 234;
-
-        // For 0 era
-        assert_eq!(era_utils::era_end(0, genesis_ts, era_duration), 244);
-        assert_eq!(era_utils::era_end(0, genesis_ts, era_duration), 244);
-        assert_eq!(era_utils::era_end(0, genesis_ts, era_duration), 244);
-
-        // For 1 era
-        assert_eq!(era_utils::era_end(1, genesis_ts, era_duration), 478);
-        assert_eq!(era_utils::era_end(1, genesis_ts, era_duration), 478);
-    }
 }

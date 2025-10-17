@@ -57,7 +57,7 @@ interface IRouter {
     /// @notice Emitted when validators for the next era has been set.
     /// @dev This is an *informational* and *request* event, signaling that validators has been set for the next era.
     /// @param eraIndex The index of the era for which the validators have been committed.
-    event NextEraValidatorsCommitted(uint256 eraIndex);
+    event ValidatorsCommittedForEra(uint256 eraIndex);
 
     /// @notice Emitted when the computation settings have been changed.
     /// @dev This is both an *informational* and *requesting* event, signaling that an authority decided to change the computation settings. Users and program authors may want to adjust their practices, while validators need to apply the changes internally starting from the next block.

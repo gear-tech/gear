@@ -118,7 +118,7 @@ impl StateHandler for Producer {
             self.ctx
                 .core
                 .clone()
-                .aggregate_batch_commitment(self.block)
+                .aggregate_batch_commitment(self.block.clone())
                 .boxed(),
         );
 
@@ -186,7 +186,7 @@ impl Producer {
 
         Ok(Self {
             ctx,
-            block,
+            block: block.clone(),
             validators,
             state: State::Preparing {
                 codes_timer: Some(timer),
@@ -310,7 +310,7 @@ mod tests {
 
         // If threshold is 1, we should not emit any events and goes thru states coordinator -> submitter -> initial
         // until batch is committed
-        let (state, event) = Producer::create(ctx, block, validators.clone())
+        let (state, event) = Producer::create(ctx, block.clone(), validators.clone())
             .unwrap()
             .to_prepared_block_state()
             .await
@@ -346,7 +346,7 @@ mod tests {
 
         // If threshold is 2, producer must goes to coordinator state and emit validation request
         ctx.core.signatures_threshold = 2;
-        let (state, event) = Producer::create(ctx, block, validators.clone())
+        let (state, event) = Producer::create(ctx, block.clone(), validators.clone())
             .unwrap()
             .to_prepared_block_state()
             .await

@@ -248,7 +248,7 @@ mod tests {
         ctx.pending(PendingEvent::Announce(announce2.clone()));
 
         // Subordinate waits for block prepared after creation.
-        let s = Subordinate::create(ctx, block, producer.to_address(), true).unwrap();
+        let s = Subordinate::create(ctx, block.clone(), producer.to_address(), true).unwrap();
         assert!(s.is_subordinate());
         assert!(s.context().output.is_empty());
 
@@ -307,7 +307,7 @@ mod tests {
 
         // After block prepared, subordinate sends announce to computation and waits for it.
         // All pending events except first MAX_PENDING_EVENTS will be removed.
-        let s = Subordinate::create(ctx, block, producer.to_address(), true)
+        let s = Subordinate::create(ctx, block.clone(), producer.to_address(), true)
             .unwrap()
             .process_prepared_block(block.hash)
             .unwrap();
@@ -324,7 +324,7 @@ mod tests {
         let announce = ctx.core.signer.mock_signed_data(producer, block.hash);
 
         // Subordinate waits for block prepared and announce after creation.
-        let s = Subordinate::create(ctx, block, producer.to_address(), true).unwrap();
+        let s = Subordinate::create(ctx, block.clone(), producer.to_address(), true).unwrap();
         assert!(s.is_subordinate());
         assert!(s.context().output.is_empty());
 
@@ -354,7 +354,7 @@ mod tests {
         let announce = ctx.core.signer.mock_signed_data(producer, block.hash);
 
         // Subordinate waits for block prepared and announce after creation.
-        let s = Subordinate::create(ctx, block, producer.to_address(), false).unwrap();
+        let s = Subordinate::create(ctx, block.clone(), producer.to_address(), false).unwrap();
         assert!(s.is_subordinate());
         assert!(s.context().output.is_empty());
 
@@ -387,7 +387,7 @@ mod tests {
         ctx.pending(PendingEvent::Announce(announce1.clone()));
         ctx.pending(PendingEvent::Announce(announce2.clone()));
 
-        let s = Subordinate::create(ctx, block, producer.to_address(), true)
+        let s = Subordinate::create(ctx, block.clone(), producer.to_address(), true)
             .unwrap()
             .process_prepared_block(block.hash)
             .unwrap();

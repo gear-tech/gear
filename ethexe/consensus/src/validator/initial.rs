@@ -74,7 +74,7 @@ impl StateHandler for Initial {
                 if my_address == producer {
                     tracing::info!("👷 Start to work as a producer for block: {}", block.hash);
 
-                    Producer::create(self.ctx, *block, validators)
+                    Producer::create(self.ctx, block.clone(), validators)
                 } else {
                     // TODO #4636: add test (in ethexe-service) for case where is not validator for current block
                     let is_validator_for_current_block = validators.contains(&my_address);
@@ -93,7 +93,12 @@ impl StateHandler for Initial {
                         );
                     }
 
-                    Subordinate::create(self.ctx, *block, producer, is_validator_for_current_block)
+                    Subordinate::create(
+                        self.ctx,
+                        block.clone(),
+                        producer,
+                        is_validator_for_current_block,
+                    )
                 }
             }
             _ => DefaultProcessing::synced_block(self, block_hash),
@@ -161,7 +166,7 @@ mod tests {
         ctx.core.db.set_block_header(block.hash, block.header);
         ctx.core.db.set_block_validators(block.hash, validators);
 
-        let initial = Initial::create_with_chain_head(ctx, block).unwrap();
+        let initial = Initial::create_with_chain_head(ctx, block.clone()).unwrap();
         let producer = initial
             .process_synced_block(block.hash)
             .unwrap()
@@ -188,7 +193,7 @@ mod tests {
         ctx.core.db.set_block_header(block.hash, block.header);
         ctx.core.db.set_block_validators(block.hash, validators);
 
-        let initial = Initial::create_with_chain_head(ctx, block).unwrap();
+        let initial = Initial::create_with_chain_head(ctx, block.clone()).unwrap();
         let state = initial.process_synced_block(block.hash).unwrap();
         let state = state
             .wait_for_state(|state| state.is_subordinate())

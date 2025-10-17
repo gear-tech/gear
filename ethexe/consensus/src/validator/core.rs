@@ -26,7 +26,6 @@ use ethexe_common::{
     consensus::BatchCommitmentValidationRequest,
     db::{BlockMetaStorageRO, OnChainStorageRO},
     ecdsa::PublicKey,
-    era_utils,
     gear::{
         BatchCommitment, ChainCommitment, CodeCommitment, RewardsCommitment, ValidatorsCommitment,
     },
@@ -144,9 +143,8 @@ impl ValidatorCore {
             .protocol_timelines()
             .ok_or(anyhow!("protocol timelines not found"))?;
 
-        let block_era =
-            era_utils::era_from_ts(header.timestamp, timelines.genesis_ts, timelines.era);
-        let end_of_era = era_utils::era_end(block_era, timelines.genesis_ts, timelines.era);
+        let block_era = timelines.era_from_ts(header.timestamp);
+        let end_of_era = timelines.era_end(block_era);
         let election_ts = end_of_era - timelines.election;
 
         if header.timestamp < election_ts {
@@ -160,7 +158,7 @@ impl ValidatorCore {
             return Ok(None);
         }
 
-        let election_block = utils::election_block_in_era(&self.db, *block, election_ts)?;
+        let election_block = utils::election_block_in_era(&self.db, block.clone(), election_ts)?;
         let request = ElectionRequest {
             at_block_hash: election_block.hash,
             at_timestamp: election_ts,
@@ -168,7 +166,10 @@ impl ValidatorCore {
             max_validators: 10,
         };
 
-        let elected_validators = self.middleware.make_election_at(request).await?;
+        let mut elected_validators = self.middleware.make_election_at(request).await?;
+        // Sort elected validators, because of we can not guarantee the determenism of validators order.
+        elected_validators.sort();
+
         let commitment = utils::validators_commitment(block_era + 1, elected_validators)?;
         Ok(Some(commitment))
     }

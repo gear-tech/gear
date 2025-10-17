@@ -109,7 +109,7 @@ impl ConsensusService for SimpleConnectService {
             );
 
             self.state = State::WaitingForPreparedBlock {
-                block: *block,
+                block: block.clone(),
                 producer,
             };
         }
@@ -133,7 +133,7 @@ impl ConsensusService for SimpleConnectService {
                 self.state = State::WaitingForBlock;
             } else {
                 self.state = State::WaitingForAnnounce {
-                    block: *block,
+                    block: block.clone(),
                     producer: *producer,
                 };
             };

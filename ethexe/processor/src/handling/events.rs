@@ -43,7 +43,7 @@ impl ProcessingHandler {
 
                 self.transitions.register_new(actor_id);
             }
-            RouterRequestEvent::NextEraValidatorsCommitted { .. }
+            RouterRequestEvent::ValidatorsCommittedForEra { .. }
             | RouterRequestEvent::CodeValidationRequested { .. }
             | RouterRequestEvent::ComputationSettingsChanged { .. }
             | RouterRequestEvent::StorageSlotChanged => {

@@ -159,7 +159,7 @@ impl Participant {
                 .ctx
                 .core
                 .clone()
-                .validate_batch_commitment_request(self.block, request)
+                .validate_batch_commitment_request(self.block.clone(), request)
                 .boxed(),
         };
 

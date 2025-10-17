@@ -430,7 +430,7 @@ async fn mailbox() {
                         Ok(None)
                     } else if id == ping_expected_message {
                         assert_eq!(payload, b"PING");
-                        Ok(Some(*block_data))
+                        Ok(Some(block_data.clone()))
                     } else {
                         unreachable!()
                     }
@@ -557,7 +557,7 @@ async fn mailbox() {
                 MirrorEvent::ValueClaimed { claimed_id, .. }
                     if claimed_id == mid_expected_message =>
                 {
-                    Ok(Some(*block_data))
+                    Ok(Some(block_data.clone()))
                 }
                 _ => Ok(None),
             },
@@ -1403,7 +1403,7 @@ async fn validators_election() {
         .apply_until_block_event(|event| {
             Ok(matches!(
                 event,
-                BlockEvent::Router(RouterEvent::NextEraValidatorsCommitted { era_index: _ })
+                BlockEvent::Router(RouterEvent::ValidatorsCommittedForEra { era_index: _ })
             )
             .then_some(()))
         })

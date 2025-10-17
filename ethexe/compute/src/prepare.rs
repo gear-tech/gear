@@ -370,7 +370,7 @@ mod tests {
         db.set_block_synced(block.hash);
 
         // Prepare the block
-        prepare_one_block(&db, &mut MockProcessor, block)
+        prepare_one_block(&db, &mut MockProcessor, block.clone())
             .await
             .unwrap();
 
