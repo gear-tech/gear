@@ -224,6 +224,7 @@ impl Service {
         };
 
         let network = if let Some(net_config) = &config.network {
+            let signer = Signer::fs(config.node.key_path.parent().unwrap().join("net"));
             Some(
                 NetworkService::new(
                     net_config.clone(),

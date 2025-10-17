@@ -65,17 +65,17 @@ pub struct NodeParams {
     /// Number of worker threads to use in tokio runtime.
     #[arg(long)]
     #[serde(rename = "worker-threads")]
-    pub worker_threads: Option<NonZero<u8>>,
+    pub worker_threads: Option<NonZero<usize>>,
 
     /// Number of blocking threads to use in tokio runtime.
     #[arg(long)]
     #[serde(rename = "blocking-threads")]
-    pub blocking_threads: Option<NonZero<u8>>,
+    pub blocking_threads: Option<NonZero<usize>>,
 
     /// Number of threads to use for chunk processing.
     #[arg(long)]
     #[serde(rename = "chunk-processing-threads")]
-    pub chunk_processing_threads: Option<NonZero<u8>>,
+    pub chunk_processing_threads: Option<NonZero<usize>>,
 
     /// Block gas limit for the node.
     #[arg(long)]
@@ -107,12 +107,12 @@ impl NodeParams {
             validator_session: ConfigPublicKey::new(&self.validator_session)
                 .with_context(|| "invalid `validator-session` key")?,
             eth_max_sync_depth: self.max_depth.unwrap_or(Self::DEFAULT_MAX_DEPTH).get(),
-            worker_threads: self.worker_threads.map(|v| v.get() as usize),
-            blocking_threads: self.blocking_threads.map(|v| v.get() as usize),
+            worker_threads: self.worker_threads.map(|v| v.get()),
+            blocking_threads: self.blocking_threads.map(|v| v.get()),
             chunk_processing_threads: self
                 .chunk_processing_threads
-                .unwrap_or(NonZero::new(DEFAULT_CHUNK_PROCESSING_THREADS).unwrap())
-                .get() as usize,
+                .unwrap_or(DEFAULT_CHUNK_PROCESSING_THREADS)
+                .get(),
             block_gas_limit: self
                 .block_gas_limit
                 .unwrap_or(DEFAULT_BLOCK_GAS_LIMIT)
