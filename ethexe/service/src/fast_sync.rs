@@ -681,15 +681,12 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
         db.set_program_code_id(program_id, code_id);
     }
 
-    let validators = observer.router_query().validators_at(block_hash).await?;
-
     ethexe_common::setup_start_block_in_db(
         db,
         block_hash,
         FullBlockData {
             header,
             events,
-            validators,
             // NOTE: there is no invariant that fast sync should recover codes queue
             codes_queue: Default::default(),
             announces: [announce_hash].into(),

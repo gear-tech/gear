@@ -19,8 +19,8 @@
 pub use tap::Tap;
 
 use crate::{
-    Address, Announce, AnnounceHash, BlockHeader, CodeBlobInfo, Digest, ProgramStates, Schedule,
-    SimpleBlockData, ValidatorsVec,
+    Address, Announce, AnnounceHash, BlockHeader, CodeBlobInfo, Digest, ProgramStates,
+    ProtocolTimelines, Schedule, SimpleBlockData, ValidatorsVec,
     consensus::BatchCommitmentValidationRequest,
     db::*,
     events::BlockEvent,
@@ -291,6 +291,8 @@ impl BlockChain {
 
         db.set_latest_data(LatestData::default());
 
+        let timelines = ProtocolTimelines::mock(());
+
         if let Some(genesis) = blocks.front() {
             db.mutate_latest_data(|latest| {
                 latest.genesis_block_hash = genesis.hash;
@@ -327,7 +329,10 @@ impl BlockChain {
                 db.set_block_header(hash, header);
                 db.set_block_events(hash, &events);
                 db.set_block_synced(hash);
-                db.set_block_validators(hash, validators);
+
+                // Set validators in every block, because of they can be from different eras.
+                let block_era = timelines.era_from_ts(header.timestamp);
+                db.set_validators(block_era, validators);
             }
 
             if let Some(PreparedBlockData {
@@ -483,6 +488,16 @@ impl Mock<u32> for BlockChain {
     /// `len` - length of chain not counting genesis block
     fn mock(len: u32) -> Self {
         BlockChain::mock((len, nonempty![Address([123; 20])].into()))
+    }
+}
+
+impl Mock<()> for ProtocolTimelines {
+    fn mock(_args: ()) -> Self {
+        ProtocolTimelines {
+            genesis_ts: 0,
+            era: 10_000,
+            election: 2_000,
+        }
     }
 }
 

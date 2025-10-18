@@ -266,7 +266,6 @@ mod tests {
                 header: BlockHeader::default(),
             },
             Default::default(),
-            Default::default(),
         );
 
         // Setup on chain data for not prepared

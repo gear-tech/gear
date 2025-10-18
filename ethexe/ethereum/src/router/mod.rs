@@ -261,15 +261,6 @@ impl RouterQuery {
             .map_err(Into::into)
     }
 
-    pub async fn middleware(&self) -> Result<LocalAddress> {
-        self.instance
-            .middleware()
-            .call()
-            .await
-            .map(|res| LocalAddress(res.into()))
-            .map_err(Into::into)
-    }
-
     pub async fn wvara_address(&self) -> Result<Address> {
         self.instance.wrappedVara().call().await.map_err(Into::into)
     }

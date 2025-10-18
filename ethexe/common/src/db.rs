@@ -108,7 +108,7 @@ pub trait OnChainStorageRO {
     fn block_events(&self, block_hash: H256) -> Option<Vec<BlockEvent>>;
     fn code_blob_info(&self, code_id: CodeId) -> Option<CodeBlobInfo>;
     fn block_synced(&self, block_hash: H256) -> bool;
-    fn validators(&self, block_hash: H256) -> Option<ValidatorsVec>;
+    fn validators(&self, era_index: u64) -> Option<ValidatorsVec>;
     fn protocol_timelines(&self) -> Option<ProtocolTimelines>;
 }
 
@@ -118,7 +118,7 @@ pub trait OnChainStorageRW: OnChainStorageRO {
     fn set_block_events(&self, block_hash: H256, events: &[BlockEvent]);
     fn set_code_blob_info(&self, code_id: CodeId, code_info: CodeBlobInfo);
     fn set_protocol_timelines(&self, timelines: ProtocolTimelines);
-    fn set_block_validators(&self, block_hash: H256, validator_set: ValidatorsVec);
+    fn set_validators(&self, era_index: u64, validator_set: ValidatorsVec);
     fn set_block_synced(&self, block_hash: H256);
 }
 
@@ -189,7 +189,6 @@ pub trait LatestDataStorageRW: LatestDataStorageRO {
 pub struct FullBlockData {
     pub header: BlockHeader,
     pub events: Vec<BlockEvent>,
-    pub validators: ValidatorsVec,
     pub codes_queue: VecDeque<CodeId>,
     pub announces: BTreeSet<AnnounceHash>,
     pub last_committed_batch: Digest,
