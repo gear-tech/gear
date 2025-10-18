@@ -407,8 +407,9 @@ impl NetworkService {
 
                 let event = validator.validate(gossipsub, |message| match message {
                     gossipsub::Message::Commitments(message) => {
-                        let acceptance = self.validators.verify_message_initially(source, message);
-                        (acceptance, None)
+                        let (acceptance, message) =
+                            self.validators.verify_message_initially(source, message);
+                        (acceptance, message.map(NetworkEvent::ValidatorMessage))
                     }
                     gossipsub::Message::Offchain(transaction) => (
                         MessageAcceptance::Accept,

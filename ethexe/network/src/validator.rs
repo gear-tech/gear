@@ -256,15 +256,12 @@ impl Validators {
         &mut self,
         source: PeerId,
         message: SignedValidatorMessage,
-    ) -> MessageAcceptance {
+    ) -> (MessageAcceptance, Option<VerifiedValidatorMessage>) {
         let message = message.into_verified();
 
         match self.inner_verify(&message) {
-            Ok(()) => {
-                self.verified_messages.push_back(message);
-                MessageAcceptance::Accept
-            }
-            Err(VerificationError::OldEra { .. }) => MessageAcceptance::Ignore,
+            Ok(()) => (MessageAcceptance::Accept, Some(message)),
+            Err(VerificationError::OldEra { .. }) => (MessageAcceptance::Ignore, None),
             Err(VerificationError::UnknownBlock { .. }) | Err(VerificationError::NewEra { .. }) => {
                 let existed = self
                     .cached_messages
@@ -272,7 +269,7 @@ impl Validators {
                     .put(message, ());
                 // gossipsub should ignore a duplicated message
                 debug_assert!(existed.is_none());
-                MessageAcceptance::Ignore
+                (MessageAcceptance::Ignore, None)
             }
             Err(err @ VerificationError::TooOldEra { .. })
             | Err(err @ VerificationError::TooNewEra { .. })
@@ -281,7 +278,7 @@ impl Validators {
                     "failed to verify message initially from {source} peer: {err}, message: {message:?}"
                 );
                 self.peer_score.invalid_data(source);
-                MessageAcceptance::Reject
+                (MessageAcceptance::Reject, None)
             }
         }
     }
@@ -359,8 +356,9 @@ mod tests {
         assert_eq!(err, VerificationError::UnknownBlock { block: bob_block });
 
         let bob_source = PeerId::random();
-        let acceptance = alice.verify_message_initially(bob_source, bob_message);
+        let (acceptance, verified_msg) = alice.verify_message_initially(bob_source, bob_message);
         assert_matches!(acceptance, MessageAcceptance::Ignore);
+        assert_eq!(verified_msg, None);
         assert_eq!(alice.cached_messages.len(), 1);
 
         alice_db.set_block_header(
@@ -415,8 +413,9 @@ mod tests {
         );
 
         let bob_source = PeerId::random();
-        let acceptance = alice.verify_message_initially(bob_source, bob_message);
+        let (acceptance, verified_msg) = alice.verify_message_initially(bob_source, bob_message);
         assert_matches!(acceptance, MessageAcceptance::Reject);
+        assert_eq!(verified_msg, None);
         assert_eq!(alice.cached_messages.len(), 0);
         assert_eq!(alice.next_message(), None);
     }
@@ -450,8 +449,9 @@ mod tests {
         );
 
         let bob_source = PeerId::random();
-        let acceptance = alice.verify_message_initially(bob_source, bob_message);
+        let (acceptance, verified_msg) = alice.verify_message_initially(bob_source, bob_message);
         assert_matches!(acceptance, MessageAcceptance::Ignore);
+        assert_eq!(verified_msg, None);
         assert_eq!(alice.cached_messages.len(), 0);
         assert_eq!(alice.next_message(), None);
     }
@@ -487,8 +487,9 @@ mod tests {
         );
 
         let bob_source = PeerId::random();
-        let acceptance = alice.verify_message_initially(bob_source, bob_message);
+        let (acceptance, verified_msg) = alice.verify_message_initially(bob_source, bob_message);
         assert_matches!(acceptance, MessageAcceptance::Reject);
+        assert_eq!(verified_msg, None);
         assert_eq!(alice.cached_messages.len(), 0);
     }
 
@@ -523,8 +524,9 @@ mod tests {
         );
 
         let bob_source = PeerId::random();
-        let acceptance = alice.verify_message_initially(bob_source, bob_message);
+        let (acceptance, verified_msg) = alice.verify_message_initially(bob_source, bob_message);
         assert_matches!(acceptance, MessageAcceptance::Ignore);
+        assert_eq!(verified_msg, None);
         assert_eq!(alice.cached_messages.len(), 1);
 
         let new_chain_head = H256::random();
@@ -557,8 +559,9 @@ mod tests {
         );
 
         let bob_source = PeerId::random();
-        let acceptance = alice.verify_message_initially(bob_source, bob_message);
+        let (acceptance, verified_msg) = alice.verify_message_initially(bob_source, bob_message);
         assert_matches!(acceptance, MessageAcceptance::Reject);
+        assert_eq!(verified_msg, None);
         assert_eq!(alice.cached_messages.len(), 0);
         assert_eq!(alice.next_message(), None);
     }
@@ -584,10 +587,9 @@ mod tests {
         alice.inner_verify(&bob_verified).unwrap();
 
         let bob_source = PeerId::random();
-        let acceptance = alice.verify_message_initially(bob_source, bob_message);
+        let (acceptance, verified_msg) = alice.verify_message_initially(bob_source, bob_message);
         assert_matches!(acceptance, MessageAcceptance::Accept);
-
-        assert_eq!(alice.next_message(), Some(bob_verified));
+        assert_eq!(verified_msg, Some(bob_verified));
     }
 
     #[test]
@@ -647,18 +649,20 @@ mod tests {
         let charlie_source = PeerId::random();
         let dave_source = PeerId::random();
 
-        assert_matches!(
-            alice.verify_message_initially(bob_source, bob_message),
-            MessageAcceptance::Ignore
-        );
-        assert_matches!(
-            alice.verify_message_initially(charlie_source, charlie_message),
-            MessageAcceptance::Ignore
-        );
-        assert_matches!(
-            alice.verify_message_initially(dave_source, dave_message),
-            MessageAcceptance::Ignore
-        );
+        let (bob_acceptance, bob_verified_msg) =
+            alice.verify_message_initially(bob_source, bob_message);
+        assert_matches!(bob_acceptance, MessageAcceptance::Ignore);
+        assert!(bob_verified_msg.is_none());
+
+        let (charlie_acceptance, charlie_verified_msg) =
+            alice.verify_message_initially(charlie_source, charlie_message);
+        assert_matches!(charlie_acceptance, MessageAcceptance::Ignore);
+        assert!(charlie_verified_msg.is_none());
+
+        let (dave_acceptance, dave_verified_msg) =
+            alice.verify_message_initially(dave_source, dave_message);
+        assert_matches!(dave_acceptance, MessageAcceptance::Ignore);
+        assert!(dave_verified_msg.is_none());
 
         assert_eq!(alice.cached_messages.len(), 3);
 
