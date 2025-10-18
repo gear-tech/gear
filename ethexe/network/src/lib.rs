@@ -71,6 +71,10 @@ const MAX_ESTABLISHED_INCOMING_PER_PEER_CONNECTIONS: u32 = 1;
 const MAX_ESTABLISHED_OUTBOUND_PER_PEER_CONNECTIONS: u32 = 1;
 const MAX_ESTABLISHED_INCOMING_CONNECTIONS: u32 = 100;
 
+const KAD_RECORD_TTL_SECS: u64 = 3600 * 3; // 3 hours
+const KAD_RECORD_TTL: Duration = Duration::from_secs(KAD_RECORD_TTL_SECS);
+const KAD_PUBLISHING_INTERVAL: Duration = Duration::from_secs(KAD_RECORD_TTL_SECS / 4);
+
 pub trait NetworkServiceDatabase: DbSyncDatabase + ValidatorDatabase {}
 impl<T> NetworkServiceDatabase for T where T: DbSyncDatabase + ValidatorDatabase {}
 
@@ -563,7 +567,12 @@ impl Behaviour {
                 .transpose()?,
         );
 
-        let mut kad = kad::Behaviour::new(peer_id, kad::store::MemoryStore::new(peer_id));
+        let mut kad = kad::Config::default();
+        kad.disjoint_query_paths(true)
+            .set_record_ttl(Some(KAD_RECORD_TTL))
+            .set_publication_interval(Some(KAD_PUBLISHING_INTERVAL));
+        let mut kad =
+            kad::Behaviour::with_config(peer_id, kad::store::MemoryStore::new(peer_id), kad);
         kad.set_mode(Some(kad::Mode::Server));
 
         let gossipsub =
