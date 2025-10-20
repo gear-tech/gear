@@ -16,16 +16,19 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use std::collections::BTreeSet;
+
 use crate::Event;
 use anyhow::{Result, anyhow};
 use ethexe_blob_loader::BlobLoaderEvent;
 use ethexe_common::{
-    AnnounceHash, SimpleBlockData, db::*, events::BlockEvent, tx_pool::SignedOffchainTransaction,
+    Address, AnnounceHash, SimpleBlockData, db::*, events::BlockEvent,
+    tx_pool::SignedOffchainTransaction,
 };
 use ethexe_compute::ComputeEvent;
 use ethexe_consensus::ConsensusEvent;
 use ethexe_db::Database;
-use ethexe_network::NetworkEvent;
+use ethexe_network::{NetworkEvent, NetworkService};
 use ethexe_observer::ObserverEvent;
 use ethexe_prometheus::PrometheusEvent;
 use ethexe_rpc::RpcEvent;
@@ -95,6 +98,7 @@ impl TestingEvent {
 pub struct ServiceEventsListener<'a> {
     pub receiver: &'a mut TestingEventReceiver,
     pub db: Database,
+    pub router_address: Address,
 }
 
 #[derive(Debug, Default, Clone, Copy, derive_more::From)]
@@ -113,7 +117,10 @@ impl ServiceEventsListener<'_> {
         self.receiver.recv().await.map_err(Into::into)
     }
 
-    pub async fn wait_for(&mut self, f: impl Fn(TestingEvent) -> Result<bool>) -> Result<()> {
+    pub async fn wait_for(
+        &mut self,
+        mut f: impl FnMut(TestingEvent) -> Result<bool>,
+    ) -> Result<()> {
         self.apply_until(|e| if f(e)? { Ok(Some(())) } else { Ok(None) })
             .await
     }
@@ -156,7 +163,7 @@ impl ServiceEventsListener<'_> {
 
     pub async fn apply_until<R: Sized>(
         &mut self,
-        f: impl Fn(TestingEvent) -> Result<Option<R>>,
+        mut f: impl FnMut(TestingEvent) -> Result<Option<R>>,
     ) -> Result<R> {
         loop {
             let event = self.next_event().await?;
@@ -164,6 +171,35 @@ impl ServiceEventsListener<'_> {
                 return Ok(res);
             }
         }
+    }
+
+    pub async fn wait_for_pubsub_subscribed(
+        &mut self,
+        topic_names: BTreeSet<&'static str>,
+    ) -> Result<()> {
+        let mut topics = topic_names
+            .into_iter()
+            .map(|topic_name| {
+                NetworkService::gossipsub_topic(topic_name, self.router_address)
+                    .hash()
+                    .to_string()
+            })
+            .collect::<BTreeSet<_>>();
+        self.wait_for(|event| match event {
+            TestingEvent::Network(NetworkEvent::GossipsubPeerSubscribed {
+                topic: subscribed_topic,
+                ..
+            }) => {
+                topics.remove(&subscribed_topic);
+                if topics.is_empty() {
+                    Ok(true)
+                } else {
+                    Ok(false)
+                }
+            }
+            _ => Ok(false),
+        })
+        .await
     }
 }
 

@@ -72,6 +72,7 @@ pub enum NetworkEvent {
     OffchainTransaction(SignedOffchainTransaction),
     PeerBlocked(PeerId),
     PeerConnected(PeerId),
+    GossipsubPeerSubscribed { peer_id: PeerId, topic: String },
 }
 
 #[derive(Default, Debug, Clone, Copy)]
@@ -218,7 +219,7 @@ impl NetworkService {
         })
     }
 
-    fn gossipsub_topic(name: &'static str, router_address: Address) -> gossipsub::IdentTopic {
+    pub fn gossipsub_topic(name: &'static str, router_address: Address) -> gossipsub::IdentTopic {
         gossipsub::IdentTopic::new(format!("{name}-{router_address}"))
     }
 
@@ -408,6 +409,12 @@ impl NetworkService {
                         }
                     }
                 }
+            }
+            BehaviourEvent::Gossipsub(gossipsub::Event::Subscribed { peer_id, topic }) => {
+                return Some(NetworkEvent::GossipsubPeerSubscribed {
+                    peer_id,
+                    topic: topic.to_string(),
+                });
             }
             BehaviourEvent::Gossipsub(gossipsub::Event::GossipsubNotSupported { peer_id }) => {
                 log::debug!("`gossipsub` protocol is not supported");

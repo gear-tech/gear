@@ -442,7 +442,9 @@ impl Service {
                                 );
                             }
                         }
-                        NetworkEvent::PeerBlocked(_) | NetworkEvent::PeerConnected(_) => {}
+                        NetworkEvent::PeerBlocked(_)
+                        | NetworkEvent::PeerConnected(_)
+                        | NetworkEvent::GossipsubPeerSubscribed { .. } => {}
                     }
                 }
                 Event::Prometheus(event) => {
