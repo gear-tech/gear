@@ -126,9 +126,9 @@ impl WaitFor for ValidatorState {
 
 pub fn mock_validator_context() -> (ValidatorContext, Vec<PublicKey>, MockEthereum) {
     let (signer, _, mut keys) = crate::mock::init_signer_with_keys(10);
-    let db = Database::memory();
     let ethereum = MockEthereum::default();
 
+    let db = Database::memory();
     let ctx = ValidatorContext {
         core: ValidatorCore {
             slot_duration: Duration::from_secs(1),

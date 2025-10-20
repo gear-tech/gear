@@ -140,6 +140,7 @@ library Gear {
         mapping(address => bytes32) programs;
         uint256 programsCount;
         uint256 validatedCodesCount;
+        uint48 latestRewardedEraIndex;
     }
 
     struct ReplyDetails {
@@ -160,7 +161,7 @@ library Gear {
     }
 
     struct Timelines {
-        uint256 era;
+        uint48 era;
         uint256 election;
         uint256 validationDelay;
     }

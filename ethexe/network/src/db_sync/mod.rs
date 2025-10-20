@@ -255,6 +255,10 @@ impl Request {
             validated_count,
         })
     }
+
+    // pub fn rewards_distribution(at_era: u64) -> Self {
+    //     Self::RewardsDistribution(RewardsDistributionRequest(at_era))
+    // }
 }
 
 #[derive(derive_more::Debug, Clone, Eq, PartialEq, derive_more::From, derive_more::Unwrap)]
@@ -355,6 +359,9 @@ pub(crate) struct InnerHashesResponse(BTreeMap<H256, Vec<u8>>);
 
 #[derive(Debug, Default, Eq, PartialEq, Encode, Decode)]
 pub(crate) struct InnerProgramIdsResponse(BTreeSet<ActorId>);
+
+// #[derive(Debug, Default, Eq, PartialEq, Encode, Decode)]
+// pub struct InnerRewardsDistributionResponse(BTreeMap<Address, U256>);
 
 /// Network-only type to be encoded-decoded and sent over the network
 #[derive(Debug, Eq, PartialEq, derive_more::From, Encode, Decode)]

@@ -59,6 +59,10 @@ interface IRouter {
     /// @param startTimestamp timestamp when the new era starts.
     event NextEraValidatorsCommitted(uint256 startTimestamp);
 
+    /// @notice Emitted when rewards for the appropriate era was distributed.
+    /// @param eraIndex is a index of era for which rewards was distributed.
+    event RewardsDistributed(uint48 eraIndex);
+
     /// @notice Emitted when the computation settings have been changed.
     /// @dev This is both an *informational* and *requesting* event, signaling that an authority decided to change the computation settings. Users and program authors may want to adjust their practices, while validators need to apply the changes internally starting from the next block.
     /// @param threshold The amount of Gear gas initially allocated for free to allow the program to decide if it wants to process the incoming message.
@@ -80,6 +84,7 @@ interface IRouter {
     function genesisTimestamp() external view returns (uint48);
     function latestCommittedBatchHash() external view returns (bytes32);
     function latestCommittedBatchTimestamp() external view returns (uint48);
+    function latestRewardedEraIndex() external view returns (uint48);
 
     function mirrorImpl() external view returns (address);
     function wrappedVara() external view returns (address);

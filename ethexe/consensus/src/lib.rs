@@ -49,6 +49,8 @@ mod validator;
 
 #[cfg(test)]
 mod mock;
+#[cfg(feature = "staking-rewards")]
+mod rewards;
 
 pub trait ConsensusService:
     Stream<Item = Result<ConsensusEvent>> + FusedStream + Unpin + Send + 'static

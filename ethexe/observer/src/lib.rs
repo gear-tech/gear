@@ -22,7 +22,7 @@ use crate::utils::load_block_data;
 use alloy::{
     providers::{Provider, ProviderBuilder, RootProvider},
     pubsub::{Subscription, SubscriptionStream},
-    rpc::types::eth::Header,
+    rpc::types::{Block, eth::Header},
     transports::{RpcError, TransportErrorKind},
 };
 use anyhow::{Context as _, Result, anyhow};
@@ -44,6 +44,7 @@ use std::{
 };
 use sync::ChainSync;
 
+// mod finalization;
 mod sync;
 mod utils;
 
@@ -52,7 +53,6 @@ mod tests;
 
 type HeadersSubscriptionFuture =
     BoxFuture<'static, std::result::Result<Subscription<Header>, RpcError<TransportErrorKind>>>;
-
 #[derive(Clone, Debug)]
 pub struct EthereumConfig {
     pub rpc: String,
@@ -64,6 +64,8 @@ pub struct EthereumConfig {
 #[derive(Clone, PartialEq, Eq)]
 pub enum ObserverEvent {
     Block(SimpleBlockData),
+    // Maybe should add
+    // FinalizedBlock(H256),
     BlockSynced(H256),
 }
 
@@ -82,9 +84,9 @@ impl fmt::Debug for ObserverEvent {
 struct RuntimeConfig {
     router_address: Address,
     wvara_address: Address,
+    middleware_address: Address,
     max_sync_depth: u32,
     batched_sync_depth: u32,
-    block_time: Duration,
     genesis_timestamp: u64,
     era_duration: u64,
 }
@@ -94,12 +96,14 @@ pub struct ObserverService {
     provider: RootProvider,
     config: RuntimeConfig,
     chain_sync: ChainSync<Database>,
-
+    // finalized_data_sync: FinalizedDataSync<Database>,
     last_block_number: u32,
     headers_stream: SubscriptionStream<Header>,
-
+    // finalized_blocks_stream: FinalizedBlocksStream<RootProvider>,
     block_sync_queue: VecDeque<Header>,
+    // finalized_blocks_sync_queue: VecDeque<Block>,
     sync_future: Option<BoxFuture<'static, Result<H256>>>,
+    // finalization_sync_future: Option<BoxFuture<'static, Result<H256>>>,
     subscription_future: Option<HeadersSubscriptionFuture>,
 }
 
@@ -177,6 +181,7 @@ impl ObserverService {
         let EthereumConfig {
             rpc,
             router_address,
+            #[cfg(test)]
             block_time,
             ..
         } = eth_cfg;
@@ -201,19 +206,26 @@ impl ObserverService {
             .context("failed to subscribe blocks")?
             .into_stream();
 
+        // #[cfg(not(test))]
+        // let finalized_blocks_stream = FinalizedBlocksStream::new(provider.clone());
+        // #[cfg(test)]
+        // let finalized_blocks_stream =
+        //     FinalizedBlocksStream::mock_new(provider.clone(), block_time.as_secs());
+
         let config = RuntimeConfig {
             router_address: *router_address,
+            middleware_address: Address::default(),
             wvara_address,
             max_sync_depth,
             // TODO #4562: make this configurable. Important: must be greater than 1.
             batched_sync_depth: 2,
-            block_time: *block_time,
+            // block_time: *block_time,
             genesis_timestamp: genesis_header.timestamp,
             era_duration: timelines.era,
         };
 
         let chain_sync = ChainSync {
-            db,
+            db: db.clone(),
             provider: provider.clone(),
             config: config.clone(),
         };
@@ -221,14 +233,16 @@ impl ObserverService {
         Ok(Self {
             provider,
             config,
-
             chain_sync,
-            sync_future: None,
-            block_sync_queue: VecDeque::new(),
-
+            // finalized_data_sync,
             last_block_number: 0,
-            subscription_future: None,
             headers_stream,
+            // finalized_blocks_stream,
+            block_sync_queue: VecDeque::new(),
+            // finalized_blocks_sync_queue: VecDeque::new(),
+            sync_future: None,
+            // finalization_sync_future: None,
+            subscription_future: None,
         })
     }
 
@@ -283,10 +297,6 @@ impl ObserverService {
 
     pub fn last_block_number(&self) -> u32 {
         self.last_block_number
-    }
-
-    pub fn block_time_secs(&self) -> u64 {
-        self.config.block_time.as_secs()
     }
 
     pub fn load_block_data(&self, block: H256) -> impl Future<Output = Result<BlockData>> {

@@ -124,6 +124,11 @@ interface IMiddleware {
         uint256 index;
     }
 
+    struct VaultWithStake {
+        address vault;
+        uint256 stake;
+    }
+
     // # Views.
     function eraDuration() external view returns (uint48);
     function minVaultEpochDuration() external view returns (uint48);
@@ -150,6 +155,9 @@ interface IMiddleware {
 
     /// @return stake The total stake of the operator in all vaults that was active at the given timestamp.
     function getOperatorStakeAt(address operator, uint48 ts) external view returns (uint256 stake);
+
+    ///
+    function getOperatorStakeVaultsAt(address operator, uint48 ts) external view returns (VaultWithStake[] memory);
 
     function requestSlash(SlashData[] calldata data) external;
 

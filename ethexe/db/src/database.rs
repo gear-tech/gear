@@ -489,6 +489,14 @@ impl OnChainStorageRead for Database {
             .unwrap_or_default()
     }
 
+    // fn latest_synced_finalized_block(&self) -> Option<H256> {
+    //     self.kv
+    //         .get(&Key::LatestSyncedFinalizedBlock.to_bytes())
+    //         .map(|data| {
+    //             H256::decode(&mut data.as_slice()).expect("Failed to decode data into `H256`")
+    //         })
+    // }
+
     fn validators(&self, block_hash: H256) -> Option<NonEmpty<Address>> {
         self.kv
             .get(&Key::ValidatorSet(block_hash).to_bytes())
@@ -499,6 +507,24 @@ impl OnChainStorageRead for Database {
                 )
             })?
     }
+
+    // fn rewards_state(&self, block_hash: H256) -> Option<RewardsState> {
+    //     self.kv
+    //         .get(&Key::RewardsState(block_hash).to_bytes())
+    //         .map(|data| {
+    //             RewardsState::decode(&mut data.as_slice())
+    //                 .expect("Failed to decode data into `RewardsState` enum")
+    //         })
+    // }
+
+    // fn staking_metadata(&self, era: u64) -> Option<StakingEraMetadata> {
+    //     self.kv
+    //         .get(&Key::StakingMetadata(era).to_bytes())
+    //         .map(|data| {
+    //             StakingEraMetadata::decode(&mut data.as_slice())
+    //                 .expect("Failed to decode data into `StakingEraMetadata`")
+    //         })
+    // }
 }
 
 impl OnChainStorageWrite for Database {
@@ -532,6 +558,24 @@ impl OnChainStorageWrite for Database {
             Into::<Vec<Address>>::into(validator_set).encode(),
         );
     }
+
+    // fn set_rewards_state(&self, block_hash: H256, state: RewardsState) {
+    //     self.kv
+    //         .put(&Key::RewardsState(block_hash).to_bytes(), state.encode());
+    // }
+
+    // fn mutate_staking_metadata(
+    //     &self,
+    //     era: u64,
+    //     f: impl FnOnce(&mut ethexe_common::StakingEraMetadata),
+    // ) {
+    //     log::trace!("Mutate staking metadata for era {era}");
+    //     let mut metadata = self.staking_metadata(era).unwrap_or_default();
+    //     f(&mut metadata);
+
+    //     self.kv
+    //         .put(&Key::StakingMetadata(era).to_bytes(), metadata.encode());
+    // }
 }
 
 impl AnnounceStorageRead for Database {

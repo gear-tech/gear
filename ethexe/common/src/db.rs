@@ -71,7 +71,7 @@ pub trait HashStorageRead {
 
 #[auto_impl::auto_impl(&, Box)]
 pub trait BlockMetaStorageRead {
-    /// NOTE: if `BlockMeta` doesn't exist in the database, it will return the default value.
+    /// Returns [`BlockMeta`] for the given block hash. If it doesn't exist, returns a default one.
     fn block_meta(&self, block_hash: H256) -> BlockMeta;
 }
 
@@ -108,6 +108,8 @@ pub trait OnChainStorageRead {
     fn block_header(&self, block_hash: H256) -> Option<BlockHeader>;
     fn block_events(&self, block_hash: H256) -> Option<Vec<BlockEvent>>;
     fn code_blob_info(&self, code_id: CodeId) -> Option<CodeBlobInfo>;
+    // fn rewards_state(&self, block_hash: H256) -> Option<RewardsState>;
+    // fn staking_metadata(&self, era: u64) -> Option<StakingEraMetadata>;
     fn validators(&self, block_hash: H256) -> Option<NonEmpty<Address>>;
     fn block_synced(&self, block_hash: H256) -> bool;
 }
@@ -117,6 +119,8 @@ pub trait OnChainStorageWrite: OnChainStorageRead {
     fn set_block_header(&self, block_hash: H256, header: BlockHeader);
     fn set_block_events(&self, block_hash: H256, events: &[BlockEvent]);
     fn set_code_blob_info(&self, code_id: CodeId, code_info: CodeBlobInfo);
+    // fn set_rewards_state(&self, block_hash: H256, state: RewardsState);
+    // fn mutate_staking_metadata(&self, era: u64, f: impl FnOnce(&mut StakingEraMetadata));
     fn set_block_validators(&self, block_hash: H256, validator_set: NonEmpty<Address>);
     fn set_block_synced(&self, block_hash: H256);
 }

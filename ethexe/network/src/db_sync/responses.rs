@@ -146,7 +146,6 @@ impl OngoingResponses {
                 response,
             }
         });
-
         Some(response_id)
     }
 

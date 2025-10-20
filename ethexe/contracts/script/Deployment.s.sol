@@ -82,8 +82,8 @@ contract DeploymentScript is Script {
             });
 
             IMiddleware.InitParams memory initParams = IMiddleware.InitParams({
-                owner: deployerAddress,
                 eraDuration: 1 days,
+                owner: deployerAddress,
                 minVaultEpochDuration: 2 hours,
                 operatorGracePeriod: 5 minutes,
                 vaultGracePeriod: 5 minutes,

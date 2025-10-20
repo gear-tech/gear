@@ -136,6 +136,35 @@ async fn prepare_one_block(
             BlockEvent::Router(RouterEvent::AnnouncesCommitted(head)) => {
                 last_committed_announce_hash = Some(head);
             }
+            // BlockEvent::Router(RouterEvent::RewardsDistributed { era }) => {
+            //     match db.rewards_state(parent) {
+            //         Some(RewardsState::SentToEthereum {
+            //             in_block: _,
+            //             rewarded_era,
+            //             operators_distribution,
+            //             ..
+            //         }) => {
+            //             debug_assert_eq!(
+            //                 rewarded_era, *era,
+            //                 "receive rewards event for unexpected era"
+            //             );
+
+            //             // db.set_operators_rewards_distribution_at(
+            //             //     rewarded_era,
+            //             //     operators_distribution,
+            //             // );
+            //             // db.mutate_staking_metadata(rewarded_era, |metadata| {
+            //             //     metadata.operators_rewards_distribution = operators_distribution;
+            //             // });
+
+            //             // db.set_rewards_state(block, RewardsState::LatestDistributed(*era));
+            //         }
+
+            //         _ => unreachable!(
+            //             "Should be unreachable because of event should be received only after rewards sending"
+            //         ),
+            //     }
+            // }
             _ => {}
         }
     }

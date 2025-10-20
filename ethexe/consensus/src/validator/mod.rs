@@ -52,6 +52,9 @@ use crate::{
         subordinate::Subordinate,
     },
 };
+
+#[cfg(feature = "staking-rewards")]
+use crate::rewards::RewardsManager;
 use anyhow::Result;
 use derive_more::{Debug, From};
 use ethexe_common::{Address, AnnounceHash, SimpleBlockData, ecdsa::PublicKey};

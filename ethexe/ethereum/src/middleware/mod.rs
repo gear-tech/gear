@@ -21,8 +21,8 @@ use crate::{
     abi::{IMiddleware, middleware_abi},
 };
 use alloy::{
-    primitives::{Address, U256 as AlloyU256},
-    providers::{Provider, RootProvider},
+    primitives::{Address, U256 as AlloyU256, Uint},
+    providers::{Provider, ProviderBuilder, RootProvider},
 };
 use anyhow::Result;
 use ethexe_common::Address as LocalAddress;
@@ -58,11 +58,14 @@ impl Middleware {
 pub struct MiddlewareQuery(QueryInstance);
 
 impl MiddlewareQuery {
-    pub fn new(provider: RootProvider, middleware_address: LocalAddress) -> Self {
-        Self(QueryInstance::new(
-            Address::new(middleware_address.0),
-            provider,
-        ))
+    pub async fn new(rpc_url: &str, middleware_address: Address) -> Result<Self> {
+        let provider = ProviderBuilder::default().connect(rpc_url).await?;
+
+        Ok(Self(QueryInstance::new(middleware_address, provider)))
+    }
+
+    pub fn from_provider(middleware_address: Address, provider: RootProvider) -> Self {
+        Self(QueryInstance::new(middleware_address, provider))
     }
 
     pub async fn router(&self) -> Result<LocalAddress> {
@@ -79,13 +82,30 @@ impl MiddlewareQuery {
         max_validators: u128,
     ) -> Result<Vec<LocalAddress>> {
         self.0
-            .makeElectionAt(
-                alloy::primitives::Uint::from(ts),
-                AlloyU256::from(max_validators),
-            )
+            .makeElectionAt(Uint::from(ts), AlloyU256::from(max_validators))
             .call()
             .await
             .map(|res| res.into_iter().map(|v| LocalAddress(v.into())).collect())
             .map_err(Into::into)
     }
+
+    pub async fn operator_stake_at(&self, operator: LocalAddress, ts: u64) -> Result<AlloyU256> {
+        self.0
+            .getOperatorStakeAt(operator.0.into(), Uint::from(ts))
+            .call()
+            .await
+            .map_err(Into::into)
+    }
+
+    // pub async fn operator_stake_vaults_at(
+    //     &self,
+    //     operator: LocalAddress,
+    //     ts: u64,
+    // ) -> Result<Vec<IMiddleware::VaultWithStake>> {
+    //     self.0
+    //         .getOperatorStakeVaultsAt(operator.0.into(), Uint::from(ts))
+    //         .call()
+    //         .await
+    //         .map_err(Into::into)
+    // }
 }
