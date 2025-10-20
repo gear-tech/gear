@@ -1392,7 +1392,8 @@ pub(crate) mod tests {
                 program_ids.clone(),
                 iter::repeat_with(H256::random).map(|hash| StateHashWithQueueSize {
                     hash,
-                    cached_queue_size: 0,
+                    canonical_queue_size: 0,
+                    injected_queue_size: 0,
                 }),
             )
             .collect(),

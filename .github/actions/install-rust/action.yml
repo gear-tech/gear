@@ -13,5 +13,5 @@ runs:
 
     - uses: dsherret/rust-toolchain-file@v1
 
-    - run: rustup default 1.88.0
+    - run: rustup default stable
       shell: bash

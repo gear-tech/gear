@@ -93,6 +93,8 @@ impl MessageValidator {
 #[derive(derive_more::Debug)]
 pub(crate) enum Event {
     Message {
+        // will be used in the future
+        #[allow(dead_code)]
         source: PeerId,
         validator: MessageValidator,
     },
