@@ -19,13 +19,13 @@
 //! Secp256k1 signature types and utilities.
 
 pub use k256::ecdsa::signature::Result as SignResult;
-use std::hash::{Hash, Hasher};
 
 use super::{
     address::Address,
     digest::{Digest, ToDigest},
     keys::{PrivateKey, PublicKey},
 };
+use core::hash::{Hash, Hasher};
 use derive_more::{Debug, Display};
 use k256::ecdsa::{self, RecoveryId, SigningKey, VerifyingKey, signature::hazmat::PrehashVerifier};
 use parity_scale_codec::{
