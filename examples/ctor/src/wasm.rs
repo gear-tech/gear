@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2024-2025 Gear Technologies Inc.
+// Copyright (C) 2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -16,12 +16,35 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use std::{env, fs, path::PathBuf};
+use gstd::{prelude::*, static_mut, static_ref};
 
-fn main() {
-    let out_dir = env::var("OUT_DIR").unwrap();
-    let out_dir = PathBuf::from(out_dir);
-    // create placeholder in `OUT_DIR`
-    // so `env!("OUT_DIR")` can be used in embedded executor module caching
-    fs::write(out_dir.join("placeholder"), "placeholder file").unwrap();
+static mut CTORS: u64 = 0;
+static mut DTORS: u64 = 0;
+
+gstd::ctor! {
+    unsafe extern "C" fn() {
+        *static_mut!(CTORS) += 1;
+    }
+}
+
+gstd::dtor! {
+    unsafe extern "C" fn() {
+        *static_mut!(DTORS) += 1;
+    }
+}
+
+#[unsafe(no_mangle)]
+extern "C" fn init() {
+    unsafe {
+        assert_eq!(*static_mut!(CTORS), 1);
+        assert_eq!(*static_ref!(DTORS), 0);
+    }
+}
+
+#[unsafe(no_mangle)]
+extern "C" fn handle() {
+    unsafe {
+        assert_eq!(*static_ref!(CTORS), 2);
+        assert_eq!(*static_ref!(DTORS), 1);
+    }
 }

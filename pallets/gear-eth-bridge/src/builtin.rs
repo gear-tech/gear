@@ -85,7 +85,10 @@ fn send_message_request<T: Config>(
     destination: H160,
     payload: Vec<u8>,
     context: &mut BuiltinContext,
-) -> Result<Payload, BuiltinActorError> {
+) -> Result<Payload, BuiltinActorError>
+where
+    T::AccountId: Origin,
+{
     let gas_cost = <T as Config>::WeightInfo::send_eth_message().ref_time();
 
     context.try_charge_gas(gas_cost)?;
@@ -110,12 +113,12 @@ fn send_message_request<T: Config>(
 
 pub fn error_to_str<T: Config>(error: &Error<T>) -> &'static str {
     match error {
+        Error::BridgeCleanupRequired => "Send message: bridge queue overflowed and needs cleanup",
         Error::BridgeIsNotYetInitialized => "Send message: bridge is not yet initialized",
         Error::BridgeIsPaused => "Send message: bridge is paused",
         Error::MaxPayloadSizeExceeded => "Send message: message max payload size exceeded",
         Error::InsufficientValueApplied => "Send message: insufficient value applied",
-        // TODO (breathx): put here actual name of the call
-        Error::InvalidFinalityProof => "Prove finality: invalid finality proof",
+        Error::InvalidQueueReset => "Reset overflowed queue: invalid proof or not overflowed",
         Error::__Ignore(_, _) => unreachable!("never constructed"),
     }
 }

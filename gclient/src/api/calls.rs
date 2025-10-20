@@ -32,6 +32,7 @@ use gsdk::{
         Convert, Event,
         balances::Event as BalancesEvent,
         gear::Event as GearEvent,
+        gear_eth_bridge::Event as GearEthBridgeEvent,
         runtime_types::{
             frame_system::pallet::Call as SystemCall,
             gear_common::event::{CodeChangeKind, MessageEntry},
@@ -56,6 +57,27 @@ use std::{
 use subxt::blocks::ExtrinsicEvents;
 
 impl GearApi {
+    /// Sends the pallet-gear-eth-bridge::reset_overflowed_queue extrinsic.
+    ///
+    /// This function returns a hash of the block with the transaction.
+    pub async fn reset_overflowed_queue(&self, encoded_finality_proof: Vec<u8>) -> Result<H256> {
+        let tx = self
+            .0
+            .calls
+            .reset_overflowed_queue(encoded_finality_proof)
+            .await?;
+
+        for event in tx.wait_for_success().await?.iter() {
+            if let Event::GearEthBridge(GearEthBridgeEvent::QueueReset) =
+                event?.as_root_event::<Event>()?
+            {
+                return Ok(tx.block_hash());
+            }
+        }
+
+        Err(Error::EventNotFound)
+    }
+
     /// Returns original wasm code for the given `code_id` at specified
     /// `at_block_hash`.
     pub async fn original_code_at(
