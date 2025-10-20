@@ -189,7 +189,7 @@ impl TestEnv {
 
     async fn compute_and_assert_announce(&mut self, announce: Announce) {
         let announce_hash = announce.to_hash();
-        self.compute.compute_announce(announce);
+        self.compute.compute_announce(announce.clone());
 
         let event = self
             .compute
@@ -200,9 +200,14 @@ impl TestEnv {
 
         let processed_announce = event.unwrap_announce_computed();
         assert_eq!(processed_announce, announce_hash);
+
+        self.db.mutate_block_meta(announce.block_hash, |meta| {
+            meta.announces.get_or_insert_default().insert(announce_hash);
+        });
     }
 }
 
+#[track_caller]
 fn new_announce(db: &Database, block_hash: H256, gas_allowance: Option<u64>) -> Announce {
     let parent_hash = db.block_header(block_hash).unwrap().parent_hash;
     let parent_announce_hash = db.top_announce_hash(parent_hash);
@@ -238,6 +243,17 @@ async fn multiple_preparation_and_one_processing() -> Result<()> {
 
     for block in env.chain.blocks.clone().iter().skip(1) {
         env.prepare_and_assert_block(block.hash).await;
+    }
+
+    // append announces to prepared blocks, except the last one, so that it can be computed
+    for i in 1..3 {
+        let announce = new_announce(&env.db, env.chain.blocks[i].hash, Some(100));
+        env.db.mutate_block_meta(announce.block_hash, |meta| {
+            meta.announces
+                .get_or_insert_default()
+                .insert(announce.to_hash());
+        });
+        env.db.set_announce(announce);
     }
 
     let announce = new_announce(&env.db, env.chain.blocks[3].hash, Some(100));

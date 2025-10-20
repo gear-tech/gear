@@ -61,11 +61,11 @@ ntest = "0.9.3"
 gear-core-errors.workspace = true
 serde_json.workspace = true
 ethexe-network.workspace = true
-ethexe-common = { workspace = true, features = ["std", "mock"] }
 roast-secp256k1-evm.workspace = true
 ethexe-rpc = { workspace = true, features = ["test-utils"] }
 tracing.workspace = true
 tracing-subscriber.workspace = true
+ethexe-common = { workspace = true, features = ["mock"] }
 
 demo-ping = { workspace = true, features = ["debug", "ethexe"] }
 demo-async = { workspace = true, features = ["debug", "ethexe"] }
