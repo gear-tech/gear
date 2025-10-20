@@ -608,7 +608,8 @@ where
     ) {
         for StateHashWithQueueSize {
             hash: program_state,
-            cached_queue_size: _,
+            canonical_queue_size: _,
+            injected_queue_size: _,
         } in announce_program_states.values().copied()
         {
             try_push_node!(no_hash: self.program_state(program_state));
@@ -618,7 +619,8 @@ where
     fn iter_program_state(&mut self, ProgramStateNode { program_state }: ProgramStateNode) {
         let ProgramState {
             program,
-            queue,
+            canonical_queue,
+            injected_queue,
             waitlist_hash,
             stash_hash,
             mailbox_hash,
@@ -649,7 +651,11 @@ where
         }
 
         self.push_node(MessageQueueHashWithSizeNode {
-            queue_hash_with_size: queue,
+            queue_hash_with_size: canonical_queue,
+        });
+
+        self.push_node(MessageQueueHashWithSizeNode {
+            queue_hash_with_size: injected_queue,
         });
 
         if let Some(waitlist) = waitlist_hash.to_inner() {
@@ -941,7 +947,8 @@ pub(crate) mod tests {
             program_id,
             StateHashWithQueueSize {
                 hash: state_hash,
-                cached_queue_size: 0,
+                canonical_queue_size: 0,
+                injected_queue_size: 0,
             },
         );
 
