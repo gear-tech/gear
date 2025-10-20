@@ -20,8 +20,8 @@ use crate::Service;
 use alloy::{eips::BlockId, providers::Provider};
 use anyhow::{Context, Result, anyhow};
 use ethexe_common::{
-    Address, Announce, AnnounceHash, BlockData, CodeAndIdUnchecked, Digest, ProgramStates,
-    StateHashWithQueueSize,
+    Address, Announce, AnnounceHash, AnnouncesRequest, AnnouncesRequestUntil, BlockData,
+    CodeAndIdUnchecked, Digest, ProgramStates, StateHashWithQueueSize,
     db::{
         AnnounceStorageRead, BlockMetaStorageRead, CodesStorageRead, CodesStorageWrite,
         FullAnnounceData, FullBlockData, HashStorageRead, OnChainStorageRead, OnChainStorageWrite,
@@ -187,18 +187,22 @@ async fn collect_announce(
         return Ok(announce);
     }
 
-    Ok(net_fetch(
+    let db_sync::Response::Announces(response) = net_fetch(
         network,
-        db_sync::AnnouncesRequest {
+        AnnouncesRequest {
             head: announce_hash,
-            max_chain_len: 1,
+            until: AnnouncesRequestUntil::ChainLen(1.try_into().unwrap()),
         }
         .into(),
     )
     .await?
-    .unwrap_announces()
-    .pop()
-    .expect("announce must be present"))
+    else {
+        anyhow::bail!("Expected Announces response");
+    };
+
+    // Response is checked so we can just take the first announce
+    let (_, mut announces) = response.into_parts();
+    Ok(announces.remove(0))
 }
 
 /// Collects a set of valid code IDs that are not yet validated in the local database.
