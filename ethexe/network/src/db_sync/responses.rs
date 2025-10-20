@@ -18,21 +18,29 @@
 
 use crate::{
     db_sync::{
-        Config, DbSyncDatabase, InnerAnnouncesRequest, InnerBehaviour, InnerHashesResponse,
-        InnerProgramIdsResponse, InnerRequest, InnerResponse, ResponseId,
+        Config, DbSyncDatabase, InnerBehaviour, InnerHashesResponse, InnerProgramIdsResponse,
+        InnerRequest, InnerResponse, ResponseId,
     },
     export::PeerId,
 };
-use ethexe_common::db::{
-    AnnounceStorageRead, BlockMetaStorageRead, HashStorageRead, LatestDataStorageRead,
+use anyhow::{Result, anyhow};
+use ethexe_common::{
+    AnnouncesRequest, AnnouncesRequestUntil, AnnouncesResponse,
+    db::{
+        AnnounceStorageRead, BlockMetaStorageRead, HashStorageRead, LatestData,
+        LatestDataStorageRead,
+    },
 };
 use libp2p::request_response;
-use std::task::{Context, Poll};
+use std::{
+    collections::VecDeque,
+    num::NonZeroU32,
+    task::{Context, Poll},
+};
 use tokio::task::JoinSet;
 
 /// Maximum length of the chain for announces responses to prevent abuse
-const MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE: u64 = 10_000;
-const _: () = assert!(MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE > 0, "cannot be zero");
+const MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE: NonZeroU32 = NonZeroU32::new(1000).unwrap();
 
 struct OngoingResponse {
     response_id: ResponseId,
@@ -86,42 +94,85 @@ impl OngoingResponses {
             )
             .into(),
             InnerRequest::ValidCodes => db.valid_codes().into(),
-            InnerRequest::Announces(InnerAnnouncesRequest {
-                head,
-                max_chain_len,
-            }) => {
-                if max_chain_len > MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE {
-                    log::trace!(
-                        "Request for announces with too large max_chain_len: {max_chain_len}, \
-                         max is {MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE} instead"
-                    );
-                    // TODO #4874: use peer score to punish the peer for such requests
-                    return InnerResponse::Announces(vec![]);
+            InnerRequest::Announces(request) => {
+                match Self::process_announce_request(&db, request) {
+                    Ok(response) => response.into(),
+                    Err(e) => {
+                        log::warn!("cannot complete request: {e}");
+                        InnerResponse::Announces(Default::default())
+                    }
                 }
-
-                let Some(start_announce_hash) = db.latest_data().map(|d| d.start_announce_hash)
-                else {
-                    log::warn!("Cannot complete request: latest data not found in database");
-                    return InnerResponse::Announces(vec![]);
-                };
-                let mut announces = vec![];
-                let mut announce_hash = head;
-                let mut counter = 0;
-                while counter < max_chain_len && announce_hash != start_announce_hash {
-                    let Some(announce) = db.announce(announce_hash) else {
-                        log::warn!(
-                            "Cannot complete request: announce {announce_hash} not found in database"
-                        );
-                        return InnerResponse::Announces(vec![]);
-                    };
-
-                    announce_hash = announce.parent;
-                    announces.push(announce);
-                    counter += 1;
-                }
-                InnerResponse::Announces(announces)
             }
         }
+    }
+
+    fn process_announce_request<DB: AnnounceStorageRead + LatestDataStorageRead>(
+        db: &DB,
+        request: AnnouncesRequest,
+    ) -> Result<AnnouncesResponse> {
+        let AnnouncesRequest { head, until } = request;
+
+        // Check the requested chain length first to prevent abuse
+        if let AnnouncesRequestUntil::ChainLen(len) = until
+            && len > MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE
+        {
+            // TODO #4874: use peer score to punish the peer for such requests
+            return Err(anyhow!(
+                "requested chain length {len} exceeds maximum allowed {MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE}"
+            ));
+        }
+
+        let Some(LatestData {
+            genesis_announce_hash,
+            start_announce_hash,
+            ..
+        }) = db.latest_data()
+        else {
+            return Err(anyhow!("latest data not found in database"));
+        };
+
+        let mut announces = VecDeque::new();
+        let mut announce_hash = head;
+        for _ in 0..MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE.get() {
+            let Some(announce) = db.announce(announce_hash) else {
+                return Err(anyhow!("announce {announce_hash} not found in database"));
+            };
+
+            let parent = announce.parent;
+            announces.push_front(announce);
+
+            match until {
+                AnnouncesRequestUntil::Tail(tail) if announce_hash == tail => {
+                    return Ok(AnnouncesResponse {
+                        announces: announces.into(),
+                    });
+                }
+                AnnouncesRequestUntil::ChainLen(len) if announces.len() == len.get() as usize => {
+                    return Ok(AnnouncesResponse {
+                        announces: announces.into(),
+                    });
+                }
+                _ => {}
+            }
+
+            if announce_hash == start_announce_hash {
+                if start_announce_hash == genesis_announce_hash {
+                    // Reaching genesis - request is invalid and should be punished.
+                    // TODO #4874: use peer score to punish the peer for such requests
+                    return Err(anyhow!("reached genesis announce {genesis_announce_hash}"));
+                } else {
+                    // Reaching start announce - request can be valid, we just can't go further
+                    return Err(anyhow!("reached start announce {start_announce_hash}"));
+                }
+            }
+
+            announce_hash = parent;
+        }
+
+        // TODO #4874: use peer score to punish the peer for such requests
+        Err(anyhow!(
+            "reached maximum chain length {MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE}"
+        ))
     }
 
     pub(crate) fn handle_response(
@@ -167,5 +218,197 @@ impl OngoingResponses {
         } else {
             Poll::Pending
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ethexe_common::{
+        Announce, AnnounceHash,
+        db::{AnnounceStorageWrite, LatestDataStorageWrite},
+    };
+    use ethexe_db::Database;
+    use gprimitives::H256;
+    use std::num::NonZeroU32;
+
+    fn make_announce(block: u64, parent: AnnounceHash) -> Announce {
+        Announce::base(H256::from_low_u64_be(block), parent)
+    }
+
+    fn set_latest_data(db: &Database, genesis: AnnounceHash, start: AnnounceHash) {
+        db.set_latest_data(LatestData {
+            synced_block_height: 0,
+            prepared_block_hash: H256::zero(),
+            computed_announce_hash: AnnounceHash::zero(),
+            genesis_block_hash: H256::zero(),
+            genesis_announce_hash: genesis,
+            start_block_hash: H256::zero(),
+            start_announce_hash: start,
+        });
+    }
+
+    #[test]
+    fn fails_chain_len_exceeding_max() {
+        let db = Database::memory();
+        set_latest_data(&db, AnnounceHash::zero(), AnnounceHash::zero());
+
+        let len = MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE.checked_add(1).unwrap();
+        let request = AnnouncesRequest {
+            head: AnnounceHash::zero(),
+            until: AnnouncesRequestUntil::ChainLen(len),
+        };
+
+        OngoingResponses::process_announce_request(&db, request).unwrap_err();
+    }
+
+    #[test]
+    fn fails_latest_data_missing() {
+        let db = Database::memory();
+        let request = AnnouncesRequest {
+            head: AnnounceHash::zero(),
+            until: AnnouncesRequestUntil::Tail(AnnounceHash::zero()),
+        };
+
+        OngoingResponses::process_announce_request(&db, request).unwrap_err();
+    }
+
+    #[test]
+    fn fails_announce_missing() {
+        let head = AnnounceHash(H256::from_low_u64_be(1));
+        let db = Database::memory();
+        set_latest_data(&db, AnnounceHash::zero(), AnnounceHash::zero());
+
+        let request = AnnouncesRequest {
+            head,
+            until: AnnouncesRequestUntil::Tail(AnnounceHash::zero()),
+        };
+
+        OngoingResponses::process_announce_request(&db, request).unwrap_err();
+    }
+
+    #[test]
+    fn fails_when_reaching_genesis() {
+        let db = Database::memory();
+
+        let genesis_announce = make_announce(10, AnnounceHash(H256::from_low_u64_be(99)));
+        let genesis = db.set_announce(genesis_announce);
+        let middle = make_announce(11, genesis);
+        let middle_hash = db.set_announce(middle.clone());
+        let head = make_announce(12, middle_hash);
+        let head_hash = db.set_announce(head.clone());
+
+        set_latest_data(&db, genesis, genesis);
+
+        let request = AnnouncesRequest {
+            head: head_hash,
+            until: AnnouncesRequestUntil::Tail(AnnounceHash(H256::from_low_u64_be(123))),
+        };
+
+        OngoingResponses::process_announce_request(&db, request).unwrap_err();
+    }
+
+    #[test]
+    fn fails_reaching_start_non_genesis() {
+        let db = Database::memory();
+
+        let start_announce = make_announce(10, AnnounceHash(H256::from_low_u64_be(99)));
+        let start = db.set_announce(start_announce);
+        let genesis = AnnounceHash(H256::from_low_u64_be(1));
+
+        set_latest_data(&db, genesis, start);
+
+        let head = make_announce(11, start);
+        let head_hash = db.set_announce(head);
+
+        let request = AnnouncesRequest {
+            head: head_hash,
+            until: AnnouncesRequestUntil::Tail(AnnounceHash(H256::from_low_u64_be(123))),
+        };
+
+        OngoingResponses::process_announce_request(&db, request).unwrap_err();
+    }
+
+    #[test]
+    fn fails_reaching_max_chain_length() {
+        let db = Database::memory();
+
+        let mut parent = AnnounceHash(H256::from_low_u64_be(1));
+        let mut head_hash = parent;
+        let mut chain_hashes = Vec::new();
+
+        for i in 0..MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE.get() {
+            let announce = make_announce(10_000 + i as u64, parent);
+            let hash = db.set_announce(announce);
+            chain_hashes.push(hash);
+            parent = hash;
+            head_hash = hash;
+        }
+
+        let start = AnnounceHash(H256::from_low_u64_be(2));
+        let genesis = AnnounceHash(H256::from_low_u64_be(3));
+        let tail = AnnounceHash(H256::from_low_u64_be(4));
+
+        assert!(!chain_hashes.contains(&start));
+        assert!(!chain_hashes.contains(&genesis));
+        assert!(!chain_hashes.contains(&tail));
+
+        set_latest_data(&db, genesis, start);
+
+        let request = AnnouncesRequest {
+            head: head_hash,
+            until: AnnouncesRequestUntil::Tail(tail),
+        };
+
+        OngoingResponses::process_announce_request(&db, request).unwrap_err();
+    }
+
+    #[test]
+    fn returns_announces_until_tail() {
+        let db = Database::memory();
+
+        let tail = make_announce(10, AnnounceHash(H256::from_low_u64_be(99)));
+        let tail_hash = db.set_announce(tail.clone());
+        let head = make_announce(11, tail_hash);
+        let head_hash = db.set_announce(head.clone());
+
+        let genesis = AnnounceHash(H256::from_low_u64_be(1));
+        let start = AnnounceHash(H256::from_low_u64_be(2));
+        set_latest_data(&db, genesis, start);
+
+        let request = AnnouncesRequest {
+            head: head_hash,
+            until: AnnouncesRequestUntil::Tail(tail_hash),
+        };
+
+        let response = OngoingResponses::process_announce_request(&db, request).unwrap();
+        assert_eq!(response.announces, vec![tail, head]);
+        response.try_into_checked(request).unwrap();
+    }
+
+    #[test]
+    fn returns_announces_until_chain_len() {
+        let db = Database::memory();
+
+        let tail = make_announce(10, AnnounceHash(H256::from_low_u64_be(99)));
+        let tail_hash = db.set_announce(tail.clone());
+        let middle = make_announce(11, tail_hash);
+        let middle_hash = db.set_announce(middle.clone());
+        let head = make_announce(12, middle_hash);
+        let head_hash = db.set_announce(head.clone());
+
+        let genesis = AnnounceHash(H256::from_low_u64_be(1));
+        let start = AnnounceHash(H256::from_low_u64_be(2));
+        set_latest_data(&db, genesis, start);
+
+        let length = NonZeroU32::new(2).unwrap();
+        let request = AnnouncesRequest {
+            head: head_hash,
+            until: AnnouncesRequestUntil::ChainLen(length),
+        };
+
+        let response = OngoingResponses::process_announce_request(&db, request).unwrap();
+        assert_eq!(response.announces, vec![middle, head]);
+        response.try_into_checked(request).unwrap();
     }
 }
