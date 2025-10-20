@@ -26,7 +26,7 @@
 #![warn(missing_docs)]
 #![doc(html_logo_url = "https://gear-tech.io/logo.png")]
 #![doc(html_favicon_url = "https://gear-tech.io/favicon.ico")]
-#![cfg_attr(docsrs, feature(doc_auto_cfg))]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 
 pub use builtin::Actor;
 pub use pallet::*;
