@@ -59,9 +59,9 @@ jobs:
           version: v1.3.6
 
       - name: "Install: Node.js"
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v4
         with:
-          node-version: 24.x
+          node-version: 22.x
 
       - name: "Show: Versioning"
         run: forge --version
