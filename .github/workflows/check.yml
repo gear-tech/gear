@@ -55,11 +55,13 @@ jobs:
 
       - name: "Install: Foundry"
         uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: v1.3.6
 
       - name: "Install: Node.js"
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
-          node-version: 22.x
+          node-version: 24.x
 
       - name: "Show: Versioning"
         run: forge --version
