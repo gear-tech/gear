@@ -18,13 +18,13 @@
 //
 //! Command line application abstraction
 
+use crate::keyring;
 use clap::Parser;
 use color_eyre::{Result, eyre::eyre};
 use gclient::{
     GearApi,
     ext::sp_core::{self, Pair as _, crypto::Ss58Codec, sr25519::Pair},
 };
-use gring::Keyring;
 use gsdk::Api;
 use std::env;
 use tracing_subscriber::EnvFilter;
@@ -93,16 +93,14 @@ pub trait App: Parser + Sync {
 
     /// Get the address of the primary key
     fn ss58_address(&self) -> String {
-        gring::cmd::Command::store()
-            .and_then(Keyring::load)
-            .and_then(|mut s| s.primary())
-            .map(|k| k.address)
-            .unwrap_or(
+        keyring::load_keyring()
+            .and_then(|mut ring| ring.primary().map(|keystore| keystore.address.clone()))
+            .unwrap_or_else(|_| {
                 Pair::from_string("//Alice", None)
                     .expect("Alice always works")
                     .public()
-                    .to_ss58check(),
-            )
+                    .to_ss58check()
+            })
     }
 
     /// Exec program from the parsed arguments.
@@ -126,9 +124,9 @@ pub trait App: Parser + Sync {
             .timeout(self.timeout())
             .build(self.endpoint().as_deref())
             .await?;
-        let pair = Keyring::load(gring::cmd::Command::store()?)?
-            .primary()?
-            .decrypt(passwd.clone().and_then(|p| hex::decode(p).ok()).as_deref())?;
+        let mut keyring = keyring::load_keyring()?;
+        let passphrase = passwd.as_ref().and_then(|p| hex::decode(p).ok());
+        let pair = keyring.primary()?.decrypt(passphrase.as_deref())?;
 
         Ok(GearApi::from((api, pair.into())))
     }

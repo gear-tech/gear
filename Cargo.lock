@@ -4753,8 +4753,8 @@ dependencies = [
  "ethexe-prometheus",
  "ethexe-rpc",
  "ethexe-service",
- "ethexe-signer",
  "gprimitives",
+ "gsigner",
  "hex",
  "log",
  "serde",
@@ -4775,6 +4775,7 @@ dependencies = [
  "derive_more 2.0.1",
  "gear-core",
  "gprimitives",
+ "gsigner",
  "hex",
  "itertools 0.13.0",
  "k256",
@@ -4818,9 +4819,9 @@ dependencies = [
  "ethexe-db",
  "ethexe-ethereum",
  "ethexe-service-utils",
- "ethexe-signer",
  "futures",
  "gprimitives",
+ "gsigner",
  "log",
  "nonempty 0.12.0",
  "parity-scale-codec",
@@ -4856,12 +4857,12 @@ dependencies = [
  "anyhow",
  "async-trait",
  "ethexe-common",
- "ethexe-signer",
  "futures",
  "gear-core",
  "gear-core-errors",
  "gear-utils",
  "gprimitives",
+ "gsigner",
  "log",
  "nonempty 0.12.0",
  "rand 0.8.5",
@@ -4880,9 +4881,9 @@ dependencies = [
  "ethexe-common",
  "ethexe-db",
  "ethexe-service-utils",
- "ethexe-signer",
  "futures",
  "gprimitives",
+ "gsigner",
  "itertools 0.13.0",
  "libp2p 0.55.0",
  "libp2p-swarm-test",
@@ -4902,10 +4903,10 @@ dependencies = [
  "ethexe-common",
  "ethexe-db",
  "ethexe-ethereum",
- "ethexe-signer",
  "futures",
  "gear-utils",
  "gprimitives",
+ "gsigner",
  "log",
  "nonempty 0.12.0",
  "tokio",
@@ -5038,12 +5039,12 @@ dependencies = [
  "ethexe-rpc",
  "ethexe-runtime-common",
  "ethexe-service-utils",
- "ethexe-signer",
  "ethexe-tx-pool",
  "futures",
  "gear-core",
  "gear-core-errors",
  "gprimitives",
+ "gsigner",
  "log",
  "nonempty 0.12.0",
  "ntest",
@@ -5064,18 +5065,6 @@ dependencies = [
  "futures",
  "log",
  "tokio",
-]
-
-[[package]]
-name = "ethexe-signer"
-version = "1.9.2"
-dependencies = [
- "alloy",
- "anyhow",
- "derive_more 2.0.1",
- "ethexe-common",
- "parity-scale-codec",
- "tempfile",
 ]
 
 [[package]]
@@ -6087,17 +6076,19 @@ dependencies = [
  "gear-core",
  "gear-node-wrapper",
  "gear-runtime-primitives",
- "gring",
  "gsdk",
+ "gsigner",
  "hex",
  "keyring",
  "log",
  "reqwest",
  "scale-info",
+ "schnorrkel",
  "serde",
  "thiserror 2.0.12",
  "tokio",
  "toml 0.8.14",
+ "tracing",
  "tracing-subscriber",
  "url",
 ]
@@ -7064,26 +7055,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "gring"
-version = "1.9.2"
-dependencies = [
- "anyhow",
- "base64 0.21.7",
- "clap 4.5.23",
- "colored",
- "dirs",
- "gear-ss58",
- "hex",
- "nacl",
- "rand 0.8.5",
- "schnorrkel",
- "serde",
- "serde_json",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
 name = "group"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7113,6 +7084,7 @@ dependencies = [
  "gear-node-wrapper",
  "gear-utils",
  "gsdk-codegen",
+ "gsigner",
  "hex",
  "indexmap 2.7.1",
  "jsonrpsee 0.24.7",
@@ -7155,6 +7127,39 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.106",
+]
+
+[[package]]
+name = "gsigner"
+version = "1.9.2"
+dependencies = [
+ "alloy",
+ "alloy-primitives",
+ "anyhow",
+ "base64 0.21.7",
+ "blake2 0.10.6",
+ "bs58 0.5.1",
+ "clap 4.5.23",
+ "colored",
+ "derive_more 2.0.1",
+ "dirs",
+ "gprimitives",
+ "hex",
+ "k256",
+ "nacl",
+ "parity-scale-codec",
+ "rand 0.8.5",
+ "schnorrkel",
+ "serde",
+ "serde_json",
+ "sha3",
+ "sp-core",
+ "sp-runtime",
+ "tempfile",
+ "thiserror 2.0.12",
+ "tracing",
+ "tracing-subscriber",
+ "zeroize",
 ]
 
 [[package]]
@@ -10886,9 +10891,9 @@ dependencies = [
 
 [[package]]
 name = "num"
-version = "0.4.1"
+version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b05180d69e3da0e530ba2a1dae5110317e49e3b7f3d41be227dc5f92e49ee7af"
+checksum = "3135b08af27d103b0a51f2ae0f8632117b7b185ccf931445affa8df530576a41"
 dependencies = [
  "num-bigint",
  "num-complex",
@@ -10911,9 +10916,9 @@ dependencies = [
 
 [[package]]
 name = "num-complex"
-version = "0.4.4"
+version = "0.4.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1ba157ca0885411de85d6ca030ba7e2a83a28636056c7c699b07c8b6f7383214"
+checksum = "73f88a1307638156682bada9d7604135552957b7818057dcef22705b4d509495"
 dependencies = [
  "num-traits",
 ]
@@ -10936,19 +10941,18 @@ dependencies = [
 
 [[package]]
 name = "num-integer"
-version = "0.1.45"
+version = "0.1.46"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "225d3389fb3509a24c93f5c29eb6bde2586b98d9f016636dff58d7c6f7569cd9"
+checksum = "7969661fd2958a5cb096e56c8e1ad0444ac2bbcd0061bd28660485a44879858f"
 dependencies = [
- "autocfg",
  "num-traits",
 ]
 
 [[package]]
 name = "num-iter"
-version = "0.1.43"
+version = "0.1.45"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7d03e6c028c5dc5cac6e2dec0efda81fc887605bb3d884578bb6d6bf7514e252"
+checksum = "1429034a0490724d0075ebb2bc9e875d6503c3cf69e235a8941aa757d83ef5bf"
 dependencies = [
  "autocfg",
  "num-integer",
@@ -15946,9 +15950,9 @@ dependencies = [
 
 [[package]]
 name = "serde_repr"
-version = "0.1.16"
+version = "0.1.20"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8725e1dfadb3a50f7e5ce0b1a540466f6ed3fe7a0fca2ac2b8b831d31316bd00"
+checksum = "175ee3e80ae9982737ca543e96133087cbd9a485eecc3bc4de9c1a37b47ea59c"
 dependencies = [
  "proc-macro2",
  "quote",

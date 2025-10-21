@@ -414,7 +414,7 @@ mod tests {
     use super::*;
     use crate::deploy::EthereumDeployer;
     use alloy::node_bindings::Anvil;
-    use ethexe_signer::Signer;
+    use gsigner::Signer;
 
     #[tokio::test]
     async fn inexistent_code_is_unknown() {

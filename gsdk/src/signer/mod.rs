@@ -26,9 +26,10 @@ use crate::{
 };
 use calls::SignerCalls;
 use core::ops::Deref;
+use gsigner::substrate::SubstratePair;
 pub use pair_signer::PairSigner;
 use rpc::SignerRpc;
-use sp_core::{Pair as PairT, crypto::Ss58Codec, sr25519::Pair};
+use sp_core::{crypto::Ss58Codec, sr25519::Pair};
 use sp_runtime::AccountId32;
 use std::sync::Arc;
 use storage::SignerStorage;
@@ -75,9 +76,7 @@ impl Signer {
     pub fn new(api: Api, suri: &str, passwd: Option<&str>) -> Result<Self> {
         let signer = Inner {
             api,
-            signer: PairSigner::new(
-                Pair::from_string(suri, passwd).map_err(|_| Error::InvalidSecret)?,
-            ),
+            signer: PairSigner::new(load_sr25519_pair(suri, passwd)?),
             nonce: None,
             backtrace: Default::default(),
         };
@@ -115,8 +114,7 @@ impl Signer {
 
     /// Change inner signer.
     pub fn change(mut self, suri: &str, passwd: Option<&str>) -> Result<Self> {
-        let signer =
-            PairSigner::new(Pair::from_string(suri, passwd).map_err(|_| Error::InvalidSecret)?);
+        let signer = PairSigner::new(load_sr25519_pair(suri, passwd)?);
 
         self.replace_inner(Inner {
             signer,
@@ -167,6 +165,15 @@ impl From<(Api, PairSigner<GearConfig, Pair>)> for Signer {
 
         Self::from_inner(signer)
     }
+}
+
+const SIGNER_ALIAS: &str = "gsdk";
+
+fn load_sr25519_pair(suri: &str, passwd: Option<&str>) -> Result<Pair> {
+    let pair =
+        SubstratePair::from_suri(SIGNER_ALIAS, suri, passwd).map_err(|_| Error::InvalidSecret)?;
+
+    pair.to_sp_pair().map_err(|_| Error::InvalidSecret)
 }
 
 impl Deref for Signer {

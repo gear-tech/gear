@@ -30,6 +30,7 @@ subxt.workspace = true
 thiserror.workspace = true
 sp-runtime = { workspace = true, features = [ "std" ] }
 sp-core = { workspace = true, features = [ "std" , "full_crypto"] }
+gsigner = { workspace = true, features = ["std", "sr25519"] }
 gsdk-codegen.workspace = true
 parking_lot.workspace = true
 derive_more.workspace = true

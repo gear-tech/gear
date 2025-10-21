@@ -30,6 +30,7 @@ use ethexe_common::{
 use ethexe_service_utils::Timer;
 use futures::{FutureExt, future::BoxFuture};
 use gprimitives::H256;
+use gsigner::secp256k1::Secp256k1SignerExt;
 use nonempty::NonEmpty;
 use std::task::{Context, Poll};
 
@@ -176,8 +177,9 @@ impl Producer {
         block: SimpleBlockData,
         validators: NonEmpty<Address>,
     ) -> Result<ValidatorState> {
+        let my_address = ctx.core.pub_key.to_address();
         assert!(
-            validators.contains(&ctx.core.pub_key.to_address()),
+            validators.contains(&my_address),
             "Producer is not in the list of validators"
         );
 
@@ -224,11 +226,17 @@ impl Producer {
             off_chain_transactions: Vec::new(),
         };
 
-        let signed = self
+        use ethexe_common::ecdsa::SignedData as EthexeSignedData;
+        use parity_scale_codec::Encode;
+
+        // Sign the encoded announce
+        let gsigner_signature = self
             .ctx
             .core
             .signer
-            .signed_data(self.ctx.core.pub_key, announce.clone())?;
+            .sign_recoverable(self.ctx.core.pub_key, &announce.encode())?;
+        let signed = EthexeSignedData::try_from_parts(announce.clone(), gsigner_signature)
+            .map_err(|e| anyhow::anyhow!("Failed to create SignedData: {}", e))?;
 
         self.state = State::WaitingAnnounceComputed;
         self.output(ConsensusEvent::PublishAnnounce(signed));
@@ -252,7 +260,7 @@ mod tests {
     #[tokio::test]
     async fn create() {
         let (mut ctx, keys, _) = mock_validator_context();
-        let validators = nonempty![ctx.core.pub_key.to_address(), keys[0].to_address()];
+        let validators = nonempty![ctx.core.pub_key.to_address(), keys[0].to_address(),];
         let block = SimpleBlockData::mock(());
 
         ctx.pending(PendingEvent::ValidationRequest(
@@ -272,7 +280,7 @@ mod tests {
     #[tokio::test]
     async fn simple() {
         let (ctx, keys, eth) = mock_validator_context();
-        let validators = nonempty![ctx.core.pub_key.to_address(), keys[0].to_address()];
+        let validators = nonempty![ctx.core.pub_key.to_address(), keys[0].to_address(),];
         let parent = H256::random();
         let block = BlockChain::mock(1).setup(&ctx.core.db).blocks[1].to_simple();
         let announce_hash = ctx.core.db.top_announce_hash(block.hash);
@@ -303,7 +311,7 @@ mod tests {
     #[tokio::test]
     async fn complex() {
         let (ctx, keys, eth) = mock_validator_context();
-        let validators = nonempty![ctx.core.pub_key.to_address(), keys[0].to_address()];
+        let validators = nonempty![ctx.core.pub_key.to_address(), keys[0].to_address(),];
         let batch = prepare_chain_for_batch_commitment(&ctx.core.db);
         let block = ctx.core.db.simple_block_data(batch.block_hash);
         let announce_hash = ctx.core.db.top_announce_hash(block.hash);
@@ -363,7 +371,7 @@ mod tests {
     #[tokio::test]
     async fn code_commitments_only() {
         let (ctx, keys, eth) = mock_validator_context();
-        let validators = nonempty![ctx.core.pub_key.to_address(), keys[0].to_address()];
+        let validators = nonempty![ctx.core.pub_key.to_address(), keys[0].to_address(),];
         let parent = H256::random();
         let block = BlockChain::mock(1).setup(&ctx.core.db).blocks[1].to_simple();
         let announce_hash = ctx.core.db.top_announce_hash(block.hash);

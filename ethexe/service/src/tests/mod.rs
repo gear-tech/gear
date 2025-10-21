@@ -41,13 +41,16 @@ use ethexe_observer::EthereumConfig;
 use ethexe_prometheus::PrometheusConfig;
 use ethexe_rpc::RpcConfig;
 use ethexe_runtime_common::state::{Expiring, MailboxMessage, PayloadLookup, Storage};
-use ethexe_tx_pool::{OffchainTransaction, RawOffchainTransaction, TxPoolEvent};
+use ethexe_tx_pool::{
+    OffchainTransaction, RawOffchainTransaction, SignedOffchainTransaction, TxPoolEvent,
+};
 use gear_core::{
     ids::prelude::*,
     message::{ReplyCode, SuccessReplyReason},
 };
 use gear_core_errors::{ErrorReplyReason, SimpleExecutionError, SimpleUnavailableActorError};
 use gprimitives::{ActorId, H160, H256, MessageId};
+use gsigner::secp256k1::Secp256k1SignerExt;
 use parity_scale_codec::Encode;
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -1051,7 +1054,7 @@ async fn tx_pool_gossip() {
         .prepared_block_hash;
 
     // Prepare tx data
-    let signed_ethexe_tx = {
+    let signed_ethexe_tx: SignedOffchainTransaction = {
         let sender_pub_key = env.signer.generate_key().expect("failed generating key");
 
         let ethexe_tx = OffchainTransaction {
@@ -1062,7 +1065,10 @@ async fn tx_pool_gossip() {
             // referring to the latest valid block hash
             reference_block,
         };
-        env.signer.signed_data(sender_pub_key, ethexe_tx).unwrap()
+        env.signer
+            .signed_data(sender_pub_key, ethexe_tx)
+            .unwrap()
+            .into()
     };
 
     let (transaction, signature) = signed_ethexe_tx.clone().into_parts();

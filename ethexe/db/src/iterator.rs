@@ -626,6 +626,7 @@ where
             mailbox_hash,
             balance: _,
             executable_balance: _,
+            last_modified_from_eth: _,
         } = program_state;
 
         if let Program::Active(ActiveProgram {

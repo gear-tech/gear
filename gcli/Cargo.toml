@@ -22,7 +22,7 @@ color-eyre.workspace = true
 dirs.workspace = true
 tracing-subscriber.workspace = true
 gear-core.workspace = true
-gring = { workspace = true, features = ["cli"] }
+gsigner = { workspace = true, features = ["std", "cli", "keyring"] }
 hex.workspace = true
 keyring.workspace = true
 log.workspace = true
@@ -31,11 +31,16 @@ serde.workspace = true
 clap = { workspace = true, features = ["std", "derive"] }
 thiserror.workspace = true
 tokio = { workspace = true, features = ["full"] }
-reqwest = { workspace = true, default-features = false, features = ["json", "rustls-tls"] }
+reqwest = { workspace = true, default-features = false, features = [
+    "json",
+    "rustls-tls",
+] }
 etc.workspace = true
 runtime-primitives.workspace = true
 url = { workspace = true, features = ["serde"] }
 toml.workspace = true
+schnorrkel.workspace = true
+tracing.workspace = true
 
 [dev-dependencies]
 demo-messenger.workspace = true

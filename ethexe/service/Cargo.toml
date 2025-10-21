@@ -15,7 +15,7 @@ ethexe-network.workspace = true
 ethexe-observer.workspace = true
 ethexe-blob-loader.workspace = true
 ethexe-processor.workspace = true
-ethexe-signer.workspace = true
+gsigner = { workspace = true, features = ["std", "secp256k1"] }
 ethexe-consensus.workspace = true
 ethexe-ethereum.workspace = true
 ethexe-common = { workspace = true, features = ["std"] }
