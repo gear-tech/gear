@@ -89,7 +89,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
 
         // Copy signing threshold percentage from the old router.
         newRouter.validationSettings.signingThresholdPercentage =
-            oldRouter.validationSettings.signingThresholdPercentage;
+        oldRouter.validationSettings.signingThresholdPercentage;
 
         // Copy validators from the old router.
         // TODO #4557: consider what to do. Maybe we should start reelection process.

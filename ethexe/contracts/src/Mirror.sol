@@ -121,22 +121,8 @@ contract Mirror is IMirror {
 
     /* Primary Gear logic */
 
-    function sendMessage(bytes calldata _payload, bool _callReply)
-        external
-        payable
-        onlyIfActive
-        onlyAfterInitMessageOrInitializer
-        returns (bytes32)
-    {
-        uint128 _value = uint128(msg.value);
-
-        _retrievingEther(_value);
-
-        bytes32 id = keccak256(abi.encodePacked(address(this), nonce++));
-
-        emit MessageQueueingRequested(id, msg.sender, _payload, _value, _callReply);
-
-        return id;
+    function sendMessage(bytes calldata _payload, bool _callReply) external payable returns (bytes32) {
+        return _sendMessage(_payload, _callReply);
     }
 
     function sendReply(bytes32 _repliedTo, bytes calldata _payload) external payable onlyIfActive onlyAfterInitMessage {
@@ -213,6 +199,23 @@ contract Mirror is IMirror {
             valueClaimsHash,
             messagesHashesHash
         );
+    }
+
+    function _sendMessage(bytes calldata _payload, bool _callReply)
+        private
+        onlyIfActive
+        onlyAfterInitMessageOrInitializer
+        returns (bytes32)
+    {
+        uint128 _value = uint128(msg.value);
+
+        _retrievingEther(_value);
+
+        bytes32 id = keccak256(abi.encodePacked(address(this), nonce++));
+
+        emit MessageQueueingRequested(id, msg.sender, _payload, _value, _callReply);
+
+        return id;
     }
 
     // TODO (breathx): consider when to emit event: on success in decoder, on failure etc.
@@ -457,7 +460,7 @@ contract Mirror is IMirror {
             callReply := calldataload(0x04)
         }
 
-        bytes32 messageId = IMirror(address(this)).sendMessage{value: msg.value}(msg.data, callReply != 0);
+        bytes32 messageId = _sendMessage(msg.data, callReply != 0);
 
         assembly ("memory-safe") {
             mstore(0x00, messageId)
