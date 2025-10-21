@@ -147,6 +147,9 @@ contract Mirror is IMirror {
 
     function transferLockedValueToInheritor() public onlyIfExited {
         uint256 balance = _wvara(router).balanceOf(address(this));
+
+        // casting to 'uint128' is safe because of total supply is less than uint128.max
+        // forge-lint: disable-next-line(unsafe-typecast)
         _transferVara(inheritor, uint128(balance));
     }
 
@@ -289,14 +292,10 @@ contract Mirror is IMirror {
          *      Very important check because custom events can match our hashes!
          *      If we miss even 1 event that is emitted by Mirror, user will be able to fake protocol logic!
          */
-        if (
-            !(
-                topic1 != StateChanged.selector && topic1 != MessageQueueingRequested.selector
+        if (!(topic1 != StateChanged.selector && topic1 != MessageQueueingRequested.selector
                     && topic1 != ReplyQueueingRequested.selector && topic1 != ValueClaimingRequested.selector
                     && topic1 != ExecutableBalanceTopUpRequested.selector && topic1 != Message.selector
-                    && topic1 != Reply.selector && topic1 != ValueClaimed.selector
-            )
-        ) {
+                    && topic1 != Reply.selector && topic1 != ValueClaimed.selector)) {
             return false;
         }
 
@@ -442,6 +441,8 @@ contract Mirror is IMirror {
             callReply := calldataload(0x24)
         }
 
+        // casting to 'uint128' is safe because of total supply is less then uint128.max
+        // forge-lint: disable-next-line(unsafe-typecast)
         bytes32 messageId = sendMessage(msg.data, uint128(value), callReply != 0);
 
         assembly ("memory-safe") {
