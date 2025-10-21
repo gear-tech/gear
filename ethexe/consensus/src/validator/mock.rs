@@ -142,6 +142,7 @@ pub fn mock_validator_context() -> (ValidatorContext, Vec<PublicKey>, MockEthere
             middleware: MiddlewareWrapper::new(Box::new(ethereum.clone()), db),
             validate_chain_deepness_limit: MAX_CHAIN_DEEPNESS,
             chain_deepness_threshold: CHAIN_DEEPNESS_THRESHOLD,
+            commitment_delay_limit: 3,
         },
         pending_events: VecDeque::new(),
         output: VecDeque::new(),

@@ -26,7 +26,7 @@ use crate::{
 };
 use anyhow::{Result, anyhow};
 use ethexe_common::{
-    Address, AnnounceHash, SimpleBlockData,
+    Address, AnnounceHash, CheckedAnnouncesResponse, SimpleBlockData,
     db::{AnnounceStorageWrite, BlockMetaStorageWrite, OnChainStorageRead},
 };
 use ethexe_db::Database;
@@ -192,6 +192,10 @@ impl ConsensusService for SimpleConnectService {
 
     fn receive_validation_reply(&mut self, _reply: BatchCommitmentValidationReply) -> Result<()> {
         Ok(())
+    }
+
+    fn request_announces(&mut self, _response: CheckedAnnouncesResponse) -> Result<()> {
+        todo!("+_+_+ handle announces")
     }
 }
 

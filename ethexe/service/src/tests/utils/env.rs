@@ -825,6 +825,7 @@ impl Node {
                             signatures_threshold: self.threshold,
                             slot_duration: self.block_time,
                             block_gas_limit: DEFAULT_BLOCK_GAS_LIMIT,
+                            commitment_delay_limit: 3,
                         },
                     )
                     .await

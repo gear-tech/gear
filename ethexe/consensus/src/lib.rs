@@ -32,18 +32,18 @@
 //! - `utils`: Utility functions and shared data structures
 
 use anyhow::Result;
-use ethexe_common::{Announce, AnnounceHash, SimpleBlockData};
+use ethexe_common::{Announce, AnnounceHash, CheckedAnnouncesResponse, SimpleBlockData};
 use futures::{Stream, stream::FusedStream};
 use gprimitives::H256;
 
-pub use connect::SimpleConnectService;
+// pub use connect::SimpleConnectService;
 use ethexe_common::consensus::{
     BatchCommitmentValidationReply, SignedAnnounce, SignedValidationRequest,
 };
 pub use utils::{block_producer_for, block_producer_index};
 pub use validator::{ValidatorConfig, ValidatorService};
 
-mod connect;
+// mod connect;
 mod utils;
 mod validator;
 
@@ -76,6 +76,9 @@ pub trait ConsensusService:
 
     /// Process a received validation reply
     fn receive_validation_reply(&mut self, reply: BatchCommitmentValidationReply) -> Result<()>;
+
+    /// Process a request for announces
+    fn request_announces(&mut self, response: CheckedAnnouncesResponse) -> Result<()>;
 }
 
 #[derive(

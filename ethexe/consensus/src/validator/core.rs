@@ -24,7 +24,7 @@ use async_trait::async_trait;
 use ethexe_common::{
     Address, AnnounceHash, Digest, SimpleBlockData, ToDigest,
     consensus::BatchCommitmentValidationRequest,
-    db::BlockMetaStorageRead,
+    db::{AnnounceStorageRead, BlockMetaStorageRead, LatestDataStorageRead},
     ecdsa::PublicKey,
     gear::{
         BatchCommitment, ChainCommitment, CodeCommitment, RewardsCommitment, ValidatorsCommitment,
@@ -35,7 +35,11 @@ use ethexe_ethereum::middleware::Middleware;
 use ethexe_signer::Signer;
 use futures::lock::Mutex;
 use gprimitives::H256;
-use std::{collections::HashSet, sync::Arc, time::Duration};
+use std::{
+    collections::{BTreeSet, HashSet},
+    sync::Arc,
+    time::Duration,
+};
 
 #[derive(derive_more::Debug)]
 pub struct ValidatorCore {
@@ -58,6 +62,7 @@ pub struct ValidatorCore {
     /// Minimum deepness threshold to create chain commitment even if there are no transitions.
     pub chain_deepness_threshold: u32,
     pub block_gas_limit: u64,
+    pub commitment_delay_limit: u32,
 }
 
 impl Clone for ValidatorCore {
@@ -74,6 +79,7 @@ impl Clone for ValidatorCore {
             validate_chain_deepness_limit: self.validate_chain_deepness_limit,
             chain_deepness_threshold: self.chain_deepness_threshold,
             block_gas_limit: self.block_gas_limit,
+            commitment_delay_limit: self.commitment_delay_limit,
         }
     }
 }
@@ -266,6 +272,114 @@ impl ValidatorCore {
         } else {
             Ok(digest)
         }
+    }
+
+    /// Returns announce hash from T1S3 or global genesis/start announce
+    pub fn find_announces_common_predecessor(&self, block_hash: H256) -> Result<AnnounceHash> {
+        let start_announce_hash = self
+            .db
+            .latest_data()
+            .ok_or_else(|| anyhow!("Latest data not found"))?
+            .start_announce_hash;
+
+        let mut announces = self
+            .db
+            .block_meta(block_hash)
+            .announces
+            .ok_or_else(|| anyhow!("announces not found for block {block_hash}"))?;
+
+        for _ in 0..self.commitment_delay_limit {
+            if announces.contains(&start_announce_hash) {
+                if announces.len() != 1 {
+                    return Err(anyhow!(
+                        "Start announce {start_announce_hash} reached, but multiple announces present"
+                    ));
+                }
+                return Ok(start_announce_hash);
+            }
+
+            announces = self.announces_parents(announces)?;
+        }
+
+        if let Some(announce) = announces.iter().next()
+            && announces.len() == 1
+        {
+            return Ok(*announce);
+        } else {
+            // common predecessor not found by some reasons
+            // This can happen for example, if some old not base announce was committed
+            // and T1S3 cannot be applied.
+            Err(anyhow!(
+                "Cannot find common predecessor for announces in block {block_hash} in nearest {} blocks",
+                self.commitment_delay_limit
+            ))
+        }
+    }
+
+    /// Returns announce hash, which is supposed to be best to produce a new announce above.
+    /// Used to produce new announce or validate announce from producer.
+    pub fn best_parent_announce(&self, block_hash: H256) -> Result<AnnounceHash> {
+        let start_announce_hash = self
+            .db
+            .latest_data()
+            .ok_or_else(|| anyhow!("Latest data not found"))?
+            .start_announce_hash;
+
+        // We do not take announces directly from parent announces,
+        // because some of them may be expired at `block_hash`.
+        let parent_announces = self.announces_parents(
+            self.db
+                .block_meta(block_hash)
+                .announces
+                .into_iter()
+                .flatten(),
+        )?;
+
+        let mut best_announce_hash = None;
+        let mut best_announce_points = 0;
+        for parent_announce_hash in parent_announces {
+            let mut points = 0;
+            let mut announce_hash = parent_announce_hash;
+            for _ in 0..self.commitment_delay_limit {
+                let announce = self
+                    .db
+                    .announce(announce_hash)
+                    .ok_or_else(|| anyhow!("Announce {announce_hash} not found in db"))?;
+
+                // Base announce gives 1 point, non-base - 2 points.
+                // Why not 0 and 1? Only to avoid confusion with zero points,
+                // which is set at the beginning as best.
+                points += if announce.is_base() { 1 } else { 2 };
+
+                if announce_hash == start_announce_hash {
+                    break;
+                }
+
+                announce_hash = announce.parent;
+            }
+
+            if points > best_announce_points {
+                best_announce_points = points;
+                best_announce_hash = Some(parent_announce_hash);
+            }
+        }
+
+        best_announce_hash.ok_or_else(|| anyhow!("No announces found in db for block {block_hash}"))
+    }
+
+    pub fn announces_parents(
+        &self,
+        announces: impl IntoIterator<Item = AnnounceHash>,
+    ) -> Result<BTreeSet<AnnounceHash>> {
+        announces
+            .into_iter()
+            .map(|announce_hash| {
+                self.db
+                    .announce(announce_hash)
+                    .map(|a| a.parent)
+                    .ok_or_else(|| anyhow!("Announce {announce_hash:?} not found"))
+            })
+            .collect()
     }
 }
 

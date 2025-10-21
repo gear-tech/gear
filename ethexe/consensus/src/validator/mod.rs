@@ -54,7 +54,9 @@ use crate::{
 };
 use anyhow::Result;
 use derive_more::{Debug, From};
-use ethexe_common::{Address, AnnounceHash, SimpleBlockData, ecdsa::PublicKey};
+use ethexe_common::{
+    Address, AnnounceHash, CheckedAnnouncesResponse, SimpleBlockData, ecdsa::PublicKey,
+};
 use ethexe_db::Database;
 use ethexe_ethereum::Ethereum;
 use ethexe_signer::Signer;
@@ -82,8 +84,9 @@ mod subordinate;
 mod mock;
 
 // TODO #4790: should be configurable
-/// Event if chain commitment does not contain any transitions
-/// and chain is not deep enough, producer still emits it to the network.
+/// If chain commitment does not contain any transitions,
+/// but announces chain depth is bigger than `CHAIN_DEEPNESS_THRESHOLD`,
+/// producer would try to submit this commitment.
 const CHAIN_DEEPNESS_THRESHOLD: u32 = 500;
 
 // TODO #4790: should be configurable
@@ -111,6 +114,8 @@ pub struct ValidatorConfig {
     pub slot_duration: Duration,
     /// Block gas limit for producer to create announces
     pub block_gas_limit: u64,
+    /// Delay limit for commitment
+    pub commitment_delay_limit: u32,
 }
 
 impl ValidatorService {
@@ -153,6 +158,7 @@ impl ValidatorService {
                 validate_chain_deepness_limit: MAX_CHAIN_DEEPNESS,
                 chain_deepness_threshold: CHAIN_DEEPNESS_THRESHOLD,
                 block_gas_limit: config.block_gas_limit,
+                commitment_delay_limit: config.commitment_delay_limit,
             },
             pending_events: VecDeque::new(),
             output: VecDeque::new(),
@@ -216,6 +222,10 @@ impl ConsensusService for ValidatorService {
 
     fn receive_validation_reply(&mut self, reply: BatchCommitmentValidationReply) -> Result<()> {
         self.update_inner(|inner| inner.process_validation_reply(reply))
+    }
+
+    fn request_announces(&mut self, response: CheckedAnnouncesResponse) -> Result<()> {
+        self.update_inner(|inner| inner.process_announces_response(response))
     }
 }
 
@@ -312,6 +322,13 @@ where
         reply: BatchCommitmentValidationReply,
     ) -> Result<ValidatorState> {
         DefaultProcessing::validation_reply(self, reply)
+    }
+
+    fn process_announces_response(
+        self,
+        _response: CheckedAnnouncesResponse,
+    ) -> Result<ValidatorState> {
+        DefaultProcessing::announces_response(self, _response)
     }
 
     fn poll_next_state(self, _cx: &mut Context<'_>) -> Result<(Poll<()>, ValidatorState)> {
@@ -463,6 +480,17 @@ impl DefaultProcessing {
     ) -> Result<ValidatorState> {
         log::trace!("Skip validation reply: {reply:?}");
         Ok(s.into())
+    }
+
+    fn announces_response(
+        s: impl Into<ValidatorState>,
+        response: CheckedAnnouncesResponse,
+    ) -> Result<ValidatorState> {
+        let mut s = s.into();
+        s.warning(format!(
+            "unexpected announces response: {response:?}, ignored."
+        ));
+        Ok(s)
     }
 }
 

@@ -19,7 +19,7 @@
 use super::{
     StateHandler, ValidatorContext, ValidatorState, coordinator::Coordinator, initial::Initial,
 };
-use crate::{ConsensusEvent, utils, validator::DefaultProcessing};
+use crate::{ConsensusEvent, validator::DefaultProcessing};
 use anyhow::{Result, anyhow};
 use derive_more::{Debug, Display};
 use ethexe_common::{
@@ -29,7 +29,6 @@ use ethexe_common::{
 };
 use ethexe_service_utils::Timer;
 use futures::{FutureExt, future::BoxFuture};
-use gprimitives::H256;
 use nonempty::NonEmpty;
 use std::task::{Context, Poll};
 
@@ -47,10 +46,9 @@ pub struct Producer {
 
 #[derive(Debug, derive_more::IsVariant)]
 enum State {
-    Preparing {
+    WaitingForCodes {
         #[debug(skip)]
         codes_timer: Option<Timer>,
-        block_prepared: bool,
     },
     WaitingAnnounceComputed(AnnounceHash),
     AggregateBatchCommitment {
@@ -70,43 +68,6 @@ impl StateHandler for Producer {
 
     fn into_context(self) -> ValidatorContext {
         self.ctx
-    }
-
-    fn process_prepared_block(mut self, block_hash: H256) -> Result<ValidatorState> {
-        if self.block.hash != block_hash {
-            return DefaultProcessing::prepared_block(self, block_hash);
-        }
-
-        match &mut self.state {
-            State::Preparing {
-                codes_timer,
-                block_prepared,
-            } if !*block_prepared => {
-                utils::propagate_announces_for_skipped_blocks(
-                    &self.ctx.core.db,
-                    self.block.header.parent_hash,
-                )?;
-
-                if codes_timer.is_none() {
-                    // Timer is already expired, we can create announce immediately
-                    self.create_announce()?;
-                } else {
-                    // Timer is still running, we will create announce later
-                    *block_prepared = true;
-                }
-
-                Ok(self.into())
-            }
-            State::Preparing { codes_timer, .. } if codes_timer.is_some() => {
-                self.warning(format!("Receiving {block_hash} prepared twice or more"));
-
-                Ok(self.into())
-            }
-            State::Preparing { .. } => {
-                unreachable!("Impossible, announce must be already created inside polling");
-            }
-            _ => DefaultProcessing::prepared_block(self, block_hash),
-        }
     }
 
     fn process_computed_announce(mut self, announce_hash: AnnounceHash) -> Result<ValidatorState> {
@@ -136,20 +97,12 @@ impl StateHandler for Producer {
 
     fn poll_next_state(mut self, cx: &mut Context<'_>) -> Result<(Poll<()>, ValidatorState)> {
         match &mut self.state {
-            State::Preparing {
+            State::WaitingForCodes {
                 codes_timer: Some(timer),
-                block_prepared,
             } => {
                 if timer.poll_unpin(cx).is_ready() {
-                    if *block_prepared {
-                        // Timer is ready and block is prepared - we can create announce
-                        self.create_announce()?;
-                    } else {
-                        self.state = State::Preparing {
-                            codes_timer: None,
-                            block_prepared: false,
-                        }
-                    }
+                    self.create_announce()?;
+                    return Ok((Poll::Ready(()), self.into()));
                 }
             }
             State::AggregateBatchCommitment { future } => match future.poll_unpin(cx) {
@@ -184,6 +137,7 @@ impl Producer {
             "Producer is not in the list of validators"
         );
 
+        // +_+_+ make timer configurable
         let mut timer = Timer::new("collect codes", ctx.core.slot_duration / 6);
         timer.start(());
 
@@ -193,9 +147,8 @@ impl Producer {
             ctx,
             block,
             validators,
-            state: State::Preparing {
+            state: State::WaitingForCodes {
                 codes_timer: Some(timer),
-                block_prepared: false,
             },
         }
         .into())
@@ -208,8 +161,7 @@ impl Producer {
             ));
         }
 
-        let parent =
-            utils::parent_main_line_announce(&self.ctx.core.db, self.block.header.parent_hash)?;
+        let parent = self.ctx.core.best_parent_announce(self.block.hash)?;
 
         let announce = Announce {
             block_hash: self.block.hash,
@@ -250,6 +202,7 @@ mod tests {
     };
     use async_trait::async_trait;
     use ethexe_common::{AnnounceHash, Digest, ToDigest, db::*, gear::CodeCommitment, mock::*};
+    use gprimitives::H256;
     use nonempty::nonempty;
 
     #[tokio::test]
@@ -278,18 +231,14 @@ mod tests {
     async fn simple() {
         let (ctx, keys, eth) = mock_validator_context();
         let validators = nonempty![ctx.core.pub_key.to_address(), keys[0].to_address()];
-        let parent = H256::random();
-        let block = BlockChain::mock(1).setup(&ctx.core.db).blocks[1].to_simple();
-
-        // Set parent announce
-        ctx.core.db.mutate_block_meta(parent, |meta| {
-            meta.prepared = true;
-            meta.announces = Some([AnnounceHash::random()].into());
-        });
+        let block = BlockChain::mock((1, validators.clone()))
+            .setup(&ctx.core.db)
+            .blocks[1]
+            .to_simple();
 
         let (state, announce_hash) = Producer::create(ctx, block.clone(), validators)
             .unwrap()
-            .to_prepared_block_state()
+            .skip_timer()
             .await
             .unwrap();
 
@@ -320,7 +269,7 @@ mod tests {
         // until batch is committed
         let (state, announce_hash) = Producer::create(ctx, block.clone(), validators.clone())
             .unwrap()
-            .to_prepared_block_state()
+            .skip_timer()
             .await
             .unwrap();
 
@@ -375,7 +324,7 @@ mod tests {
         ctx.core.signatures_threshold = 2;
         let (state, event) = Producer::create(ctx, block.clone(), validators.clone())
             .unwrap()
-            .to_prepared_block_state()
+            .skip_timer()
             .await
             .unwrap()
             .0
@@ -415,7 +364,7 @@ mod tests {
 
         let (state, announce_hash) = Producer::create(ctx, block.clone(), validators.clone())
             .unwrap()
-            .to_prepared_block_state()
+            .skip_timer()
             .await
             .unwrap();
 
@@ -447,29 +396,33 @@ mod tests {
 
     #[async_trait]
     trait ProducerExt: Sized {
-        async fn to_prepared_block_state(self) -> Result<(Self, AnnounceHash)>;
+        async fn skip_timer(self) -> Result<(Self, AnnounceHash)>;
     }
 
     #[async_trait]
     impl ProducerExt for ValidatorState {
-        async fn to_prepared_block_state(self) -> Result<(Self, AnnounceHash)> {
-            assert!(self.is_producer(), "Works only for producer state");
+        async fn skip_timer(self) -> Result<(Self, AnnounceHash)> {
+            assert!(
+                self.is_producer(),
+                "Works only for producer state, got {}",
+                self
+            );
 
             let producer = self.unwrap_producer();
             assert!(
-                producer.state.is_preparing(),
-                "Works only for preparing state"
+                producer.state.is_waiting_for_codes(),
+                "Works only for waiting for codes state, got {:?}",
+                producer.state
             );
 
-            let block_hash = producer.block.hash;
-            let state = producer.process_prepared_block(block_hash)?;
+            let state = ValidatorState::from(producer);
 
             let (state, event) = state.wait_for_event().await?;
-            assert!(state.is_producer());
+            assert!(state.is_producer(), "Expected producer state, got {state}");
             assert!(event.is_publish_announce());
 
             let (state, event) = state.wait_for_event().await?;
-            assert!(state.is_producer());
+            assert!(state.is_producer(), "Expected producer state, got {state}");
             assert!(event.is_compute_announce());
 
             Ok((state, event.unwrap_compute_announce().to_hash()))

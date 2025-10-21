@@ -206,6 +206,7 @@ impl Service {
                         signatures_threshold: threshold,
                         slot_duration: config.ethereum.block_time,
                         block_gas_limit: config.node.block_gas_limit,
+                        commitment_delay_limit: 3, // TODO +_+_+: set from router
                     },
                 )
                 .await?,
