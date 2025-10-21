@@ -251,31 +251,6 @@ pub mod pallet {
         /// Message Queue processing routing provider.
         type QueueRunner: QueueRunner<Gas = GasBalanceOf<Self>>;
 
-        /// The free of charge period of rent.
-        #[pallet::constant]
-        type ProgramRentFreePeriod: Get<BlockNumberFor<Self>>;
-
-        /// The minimal amount of blocks to resume.
-        #[pallet::constant]
-        type ProgramResumeMinimalRentPeriod: Get<BlockNumberFor<Self>>;
-
-        /// The program rent cost per block.
-        #[pallet::constant]
-        type ProgramRentCostPerBlock: Get<BalanceOf<Self>>;
-
-        /// The amount of blocks for processing resume session.
-        #[pallet::constant]
-        type ProgramResumeSessionDuration: Get<BlockNumberFor<Self>>;
-
-        /// The flag determines if program rent mechanism enabled.
-        #[pallet::constant]
-        type ProgramRentEnabled: Get<bool>;
-
-        /// The constant defines value that is added if the program
-        /// rent is disabled.
-        #[pallet::constant]
-        type ProgramRentDisabledDelta: Get<BlockNumberFor<Self>>;
-
         /// The builtin dispatcher factory.
         type BuiltinDispatcherFactory: BuiltinDispatcherFactory;
 

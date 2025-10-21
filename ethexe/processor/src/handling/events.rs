@@ -98,7 +98,7 @@ impl ProcessingHandler {
                     )?;
 
                     state
-                        .queue
+                        .canonical_queue
                         .modify_queue(storage, |queue| queue.queue(dispatch));
 
                     Ok(())
@@ -149,7 +149,7 @@ impl ProcessingHandler {
                     )?;
 
                     state
-                        .queue
+                        .canonical_queue
                         .modify_queue(storage, |queue| queue.queue(reply));
 
                     Ok(())
@@ -195,7 +195,7 @@ impl ProcessingHandler {
                     );
 
                     state
-                        .queue
+                        .canonical_queue
                         .modify_queue(storage, |queue| queue.queue(reply));
 
                     Ok(())

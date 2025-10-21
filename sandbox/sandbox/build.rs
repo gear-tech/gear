@@ -19,24 +19,6 @@
 use std::{env, fs, path::PathBuf};
 
 fn main() {
-    #[cfg(not(any(windows, target_os = "cygwin")))]
-    #[cfg(any(target_arch = "x86_64", target_arch = "x86"))]
-    {
-        use rustc_version::{Version, VersionMeta, version_meta};
-
-        let VersionMeta {
-            semver: Version { major, minor, .. },
-            commit_date,
-            ..
-        } = version_meta().expect("failed to get rustc version");
-
-        if major >= 1 && minor >= 89 && commit_date != Some("2025-06-05".into()) {
-            panic!(
-                "Rust >= 1.89 is not supported, use Rust 1.88: https://github.com/wasmerio/wasmer/issues/5610"
-            );
-        }
-    }
-
     let out_dir = env::var("OUT_DIR").unwrap();
     let out_dir = PathBuf::from(out_dir);
     // create placeholder in `OUT_DIR`

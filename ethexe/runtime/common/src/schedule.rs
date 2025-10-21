@@ -10,7 +10,7 @@ use anyhow::Context;
 use ethexe_common::{ProgramStates, Rfm, Schedule, ScheduledTask, Sd, Sum, gear::ValueClaim};
 use gear_core::tasks::TaskHandler;
 use gear_core_errors::SuccessReplyReason;
-use gprimitives::{ActorId, CodeId, H256, MessageId, ReservationId};
+use gprimitives::{ActorId, H256, MessageId, ReservationId};
 
 pub struct Handler<'a, S: Storage> {
     pub controller: TransitionController<'a, S>,
@@ -52,7 +52,7 @@ impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
                 );
 
                 state
-                    .queue
+                    .canonical_queue
                     .modify_queue(storage, |queue| queue.queue(reply));
             });
 
@@ -62,7 +62,7 @@ impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
     fn send_dispatch(&mut self, (program_id, message_id): (ActorId, MessageId)) -> u64 {
         self.controller
             .update_state(program_id, |state, storage, _| {
-                state.queue.modify_queue(storage, |queue| {
+                state.canonical_queue.modify_queue(storage, |queue| {
                     let dispatch = state
                         .stash_hash
                         .modify_stash(storage, |stash| stash.remove_to_program(&message_id));
@@ -120,7 +120,7 @@ impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
                         .expect("failed to find message in waitlist")
                 });
 
-                state.queue.modify_queue(storage, |queue| {
+                state.canonical_queue.modify_queue(storage, |queue| {
                     queue.queue(dispatch);
                 })
             });
@@ -132,19 +132,7 @@ impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
     fn remove_from_waitlist(&mut self, _program_id: ActorId, _message_id: MessageId) -> u64 {
         unreachable!("considering deprecation of it; use `wake_message` instead")
     }
-    fn pause_program(&mut self, _: ActorId) -> u64 {
-        unreachable!("deprecated")
-    }
-    fn remove_code(&mut self, _: CodeId) -> u64 {
-        unreachable!("deprecated")
-    }
     fn remove_gas_reservation(&mut self, _: ActorId, _: ReservationId) -> u64 {
-        unreachable!("deprecated")
-    }
-    fn remove_paused_program(&mut self, _: ActorId) -> u64 {
-        unreachable!("deprecated")
-    }
-    fn remove_resume_session(&mut self, _: u32) -> u64 {
         unreachable!("deprecated")
     }
 }
