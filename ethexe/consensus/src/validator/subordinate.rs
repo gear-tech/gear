@@ -21,14 +21,12 @@ use super::{
     initial::Initial,
 };
 use crate::{
-    ConsensusEvent, SignedAnnounce, SignedValidationRequest, validator::participant::Participant,
+    ConsensusEvent, SignedAnnounce, SignedValidationRequest,
+    validator::{core::ValidatorCore, participant::Participant},
 };
 use anyhow::Result;
 use derive_more::{Debug, Display};
-use ethexe_common::{
-    Address, Announce, AnnounceHash, SimpleBlockData,
-    db::{AnnounceStorageWrite, BlockMetaStorageWrite},
-};
+use ethexe_common::{Address, Announce, AnnounceHash, SimpleBlockData};
 use std::mem;
 
 /// In order to avoid too big size of pending events queue,
@@ -165,27 +163,43 @@ impl Subordinate {
     }
 
     fn send_announce_for_computation(mut self, announce: Announce) -> Result<ValidatorState> {
-        let best_parent = self.ctx.core.best_parent_announce(self.block.hash)?;
+        match self.ctx.core.accept_announce(announce.clone())? {
+            AnnounceStatus::Accepted(announce_hash) => {
+                self.ctx.output(ConsensusEvent::ComputeAnnounce(announce));
+                self.state = State::WaitingAnnounceComputed { announce_hash };
+
+                Ok(self.into())
+            }
+            AnnounceStatus::Rejected { announce, reason } => {
+                log::warn!("Received announce {announce:?} is rejected: {reason}");
+                Initial::create(self.ctx)
+            }
+        }
+    }
+}
+
+enum AnnounceStatus {
+    Accepted(AnnounceHash),
+    Rejected { announce: Announce, reason: String },
+}
+
+impl ValidatorCore {
+    fn accept_announce(&self, announce: Announce) -> Result<AnnounceStatus> {
+        let best_parent = self.best_parent_announce(announce.block_hash)?;
         if best_parent != announce.parent {
-            self.warning(format!(
-                "Received announce {announce:?} is rejected, best parent is {best_parent}",
-            ));
-            return Initial::create(self.ctx);
+            return Ok(AnnounceStatus::Rejected {
+                announce,
+                reason: format!("best parent is {best_parent}"),
+            });
         }
 
-        let announce_hash = self.ctx.core.db.set_announce(announce.clone());
-        self.ctx
-            .core
-            .db
-            .mutate_block_meta(announce.block_hash, |meta| {
-                meta.announces.get_or_insert_default().insert(announce_hash);
-            });
-
-        let announce_hash = announce.to_hash();
-        self.ctx.output(ConsensusEvent::ComputeAnnounce(announce));
-        self.state = State::WaitingAnnounceComputed { announce_hash };
-
-        Ok(self.into())
+        match self.include_announce(announce.clone()) {
+            Ok(announce_hash) => Ok(AnnounceStatus::Accepted(announce_hash)),
+            Err(err) => Ok(AnnounceStatus::Rejected {
+                announce,
+                reason: format!("{err}"),
+            }),
+        }
     }
 }
 

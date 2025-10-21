@@ -19,12 +19,11 @@
 use super::{
     StateHandler, ValidatorContext, ValidatorState, coordinator::Coordinator, initial::Initial,
 };
-use crate::{ConsensusEvent, validator::DefaultProcessing};
+use crate::validator::DefaultProcessing;
 use anyhow::{Result, anyhow};
 use derive_more::{Debug, Display};
 use ethexe_common::{
-    Address, Announce, AnnounceHash, SimpleBlockData,
-    db::{AnnounceStorageWrite, BlockMetaStorageRead, BlockMetaStorageWrite},
+    Address, Announce, AnnounceHash, SimpleBlockData, db::BlockMetaStorageRead,
     gear::BatchCommitment,
 };
 use ethexe_service_utils::Timer;
@@ -171,13 +170,11 @@ impl Producer {
             off_chain_transactions: Vec::new(),
         };
 
-        let announce_hash = self.ctx.core.db.set_announce(announce.clone());
-        self.ctx
-            .core
-            .db
-            .mutate_block_meta(announce.block_hash, |meta| {
-                meta.announces.get_or_insert_default().insert(announce_hash);
-            });
+        // TODO +_+_+: consider to support case:
+        // abuse from rpc - the same eth block is announced multiple times,
+        // then the same announce is created multiple times, and include_announce would fail,
+        // because announce is already included.
+        let announce_hash = self.ctx.core.include_announce(announce.clone())?;
 
         let signed = self
             .ctx
@@ -186,8 +183,8 @@ impl Producer {
             .signed_data(self.ctx.core.pub_key, announce.clone())?;
 
         self.state = State::WaitingAnnounceComputed(announce_hash);
-        self.output(ConsensusEvent::PublishAnnounce(signed));
-        self.output(ConsensusEvent::ComputeAnnounce(announce));
+        self.ctx.output(signed);
+        self.ctx.output(announce);
 
         Ok(())
     }
@@ -202,7 +199,6 @@ mod tests {
     };
     use async_trait::async_trait;
     use ethexe_common::{AnnounceHash, Digest, ToDigest, db::*, gear::CodeCommitment, mock::*};
-    use gprimitives::H256;
     use nonempty::nonempty;
 
     #[tokio::test]
@@ -257,7 +253,7 @@ mod tests {
 
     #[tokio::test]
     #[ntest::timeout(3000)]
-    async fn complex() {
+    async fn threshold_one() {
         gear_utils::init_default_logger();
 
         let (ctx, keys, eth) = mock_validator_context();
@@ -299,8 +295,6 @@ mod tests {
         assert!(state.is_initial());
         assert!(event.is_commitment_submitted());
 
-        let mut ctx = state.into_context();
-
         // Check that we have a batch with commitments after submitting
         let (committed_batch, signatures) = eth
             .committed_batch
@@ -314,25 +308,45 @@ mod tests {
         let (address, signature) = signatures.into_iter().next().unwrap();
         assert_eq!(
             signature
-                .validate(ctx.core.router_address, batch.to_digest())
+                .validate(state.context().core.router_address, batch.to_digest())
                 .unwrap()
                 .to_address(),
             address
         );
+    }
 
-        // If threshold is 2, producer must goes to coordinator state and emit validation request
+    #[tokio::test]
+    #[ntest::timeout(3000)]
+    async fn threshold_two() {
+        let (mut ctx, keys, _) = mock_validator_context();
         ctx.core.signatures_threshold = 2;
-        let (state, event) = Producer::create(ctx, block.clone(), validators.clone())
+        let validators = nonempty![ctx.core.pub_key.to_address(), keys[0].to_address()];
+        let batch = prepare_chain_for_batch_commitment(&ctx.core.db);
+        let block = ctx.core.db.simple_block_data(batch.block_hash);
+
+        let (state, announce_hash) = Producer::create(ctx, block.clone(), validators.clone())
             .unwrap()
             .skip_timer()
             .await
-            .unwrap()
-            .0
+            .unwrap();
+
+        assert!(state.is_producer(), "got {state:?}");
+
+        // compute announce
+        AnnounceData {
+            announce: state.context().core.db.announce(announce_hash).unwrap(),
+            computed: Some(ComputedAnnounceData::default()),
+        }
+        .setup(&state.context().core.db);
+
+        let (state, event) = state
             .process_computed_announce(announce_hash)
             .unwrap()
             .wait_for_event()
             .await
             .unwrap();
+
+        // If threshold is 2, producer must goes to coordinator state and emit validation request
         assert!(state.is_coordinator());
         assert!(event.is_publish_validation_request());
     }
@@ -342,13 +356,7 @@ mod tests {
     async fn code_commitments_only() {
         let (ctx, keys, eth) = mock_validator_context();
         let validators = nonempty![ctx.core.pub_key.to_address(), keys[0].to_address()];
-        let parent = H256::random();
         let block = BlockChain::mock(1).setup(&ctx.core.db).blocks[1].to_simple();
-
-        ctx.core.db.mutate_block_meta(parent, |meta| {
-            meta.prepared = true;
-            meta.announces = Some([AnnounceHash::random()].into());
-        });
 
         let code1 = CodeCommitment::mock(());
         let code2 = CodeCommitment::mock(());

@@ -286,10 +286,6 @@ where
         self.context_mut().warning(warning);
     }
 
-    fn output(&mut self, event: ConsensusEvent) {
-        self.context_mut().output(event);
-    }
-
     fn process_new_head(self, block: SimpleBlockData) -> Result<ValidatorState> {
         DefaultProcessing::new_head(self.into(), block)
     }
@@ -377,10 +373,6 @@ impl StateHandler for ValidatorState {
 
     fn warning(&mut self, warning: String) {
         delegate_call!(self => warning(warning))
-    }
-
-    fn output(&mut self, event: ConsensusEvent) {
-        delegate_call!(self => output(event))
     }
 
     fn process_new_head(self, block: SimpleBlockData) -> Result<ValidatorState> {
@@ -512,8 +504,8 @@ impl ValidatorContext {
         self.output.push_back(ConsensusEvent::Warning(warning));
     }
 
-    pub fn output(&mut self, event: ConsensusEvent) {
-        self.output.push_back(event);
+    pub fn output(&mut self, event: impl Into<ConsensusEvent>) {
+        self.output.push_back(event.into());
     }
 
     pub fn pending(&mut self, event: impl Into<PendingEvent>) {

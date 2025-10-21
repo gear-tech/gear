@@ -32,7 +32,6 @@ use ethexe_common::{
         AnnounceStorageRead, AnnounceStorageWrite, BlockMetaStorageRead, BlockMetaStorageWrite,
         OnChainStorageRead,
     },
-    events::{BlockEvent, RouterEvent},
 };
 use ethexe_ethereum::primitives::map::HashMap;
 use gprimitives::H256;
@@ -44,17 +43,16 @@ use gprimitives::H256;
 #[display("INITIAL in {:?}", self.state)]
 pub struct Initial {
     ctx: ValidatorContext,
-    state: State,
+    state: WaitingFor,
 }
 
 #[derive(Debug)]
-enum State {
-    WaitingForChainHead,
-    WaitingForSyncedBlock(SimpleBlockData),
-    WaitingForPreparedBlock(SimpleBlockData),
-    WaitingForMissingAnnounces {
+enum WaitingFor {
+    ChainHead,
+    SyncedBlock(SimpleBlockData),
+    PreparedBlock(SimpleBlockData),
+    MissingAnnounces {
         block: SimpleBlockData,
-        chain: VecDeque<SimpleBlockData>,
         announces: AnnouncesRequest,
     },
 }
@@ -75,16 +73,16 @@ impl StateHandler for Initial {
     fn process_new_head(mut self, block: SimpleBlockData) -> Result<ValidatorState> {
         // TODO #4555: block producer could be calculated right here, using propagation from previous blocks.
 
-        self.state = State::WaitingForSyncedBlock(block);
+        self.state = WaitingFor::SyncedBlock(block);
 
         Ok(self.into())
     }
 
     fn process_synced_block(mut self, block_hash: H256) -> Result<ValidatorState> {
-        if let State::WaitingForSyncedBlock(block) = &self.state
+        if let WaitingFor::SyncedBlock(block) = &self.state
             && block.hash == block_hash
         {
-            self.state = State::WaitingForPreparedBlock(block.clone());
+            self.state = WaitingFor::PreparedBlock(block.clone());
 
             Ok(self.into())
         } else {
@@ -92,33 +90,30 @@ impl StateHandler for Initial {
         }
     }
 
-    fn process_prepared_block(self, block_hash: H256) -> Result<ValidatorState> {
-        if let State::WaitingForPreparedBlock(block) = &self.state
+    fn process_prepared_block(mut self, block_hash: H256) -> Result<ValidatorState> {
+        if let WaitingFor::PreparedBlock(block) = &self.state
             && block.hash == block_hash
         {
-            match self.ctx.core.search_for_missing_announces(block.hash)? {
-                (Some(request), chain) => {
-                    log::debug!(
-                        "Missing announces detected for block {block_hash}, send request: {request:?}"
-                    );
+            if let Some(request) = self.ctx.core.identify_missing_announces(block.hash)? {
+                log::debug!(
+                    "Missing announces detected for block {block_hash}, send request: {request:?}"
+                );
 
-                    Ok(Self {
-                        ctx: self.ctx,
-                        state: State::WaitingForMissingAnnounces {
-                            block: block.clone(),
-                            chain,
-                            announces: request,
-                        },
-                    }
-                    .into())
+                self.ctx.output(request);
+
+                Ok(Self {
+                    ctx: self.ctx,
+                    state: WaitingFor::MissingAnnounces {
+                        block: block.clone(),
+                        announces: request,
+                    },
                 }
-                (None, chain) => {
-                    let block = block.clone();
-                    self.ctx
-                        .core
-                        .propagate_announces(chain, Default::default())?;
-                    self.ctx.switch_to_producer_or_subordinate(block)
-                }
+                .into())
+            } else {
+                self.ctx
+                    .core
+                    .propagate_announces(block.hash, Default::default())?;
+                self.ctx.switch_to_producer_or_subordinate(block.clone())
             }
         } else {
             DefaultProcessing::prepared_block(self, block_hash)
@@ -130,11 +125,9 @@ impl StateHandler for Initial {
         response: CheckedAnnouncesResponse,
     ) -> Result<ValidatorState> {
         match self.state {
-            State::WaitingForMissingAnnounces {
-                block,
-                chain,
-                announces,
-            } if announces == *response.request() => {
+            WaitingFor::MissingAnnounces { block, announces }
+                if announces == *response.request() =>
+            {
                 log::debug!("Received announces response for block {}", block.hash);
 
                 let missing_announces = response
@@ -145,7 +138,7 @@ impl StateHandler for Initial {
                     .collect();
                 self.ctx
                     .core
-                    .propagate_announces(chain, missing_announces)?;
+                    .propagate_announces(block.hash, missing_announces)?;
                 self.ctx.switch_to_producer_or_subordinate(block)
             }
             state => {
@@ -160,7 +153,7 @@ impl Initial {
     pub fn create(ctx: ValidatorContext) -> Result<ValidatorState> {
         Ok(Self {
             ctx,
-            state: State::WaitingForChainHead,
+            state: WaitingFor::ChainHead,
         }
         .into())
     }
@@ -210,9 +203,34 @@ impl ValidatorContext {
 impl ValidatorCore {
     fn propagate_announces(
         &self,
-        chain: VecDeque<SimpleBlockData>,
+        block_hash: H256,
         mut missing_announces: HashMap<AnnounceHash, Announce>,
     ) -> Result<()> {
+        // collect blocks without announces propagated
+        let mut chain = VecDeque::new();
+        let mut current_block = block_hash;
+        loop {
+            if let Some(announces) = self.db.block_meta(current_block).announces {
+                if announces.is_empty() {
+                    return Err(anyhow!("{current_block} has empty announces list"));
+                }
+
+                break;
+            }
+
+            let header = self
+                .db
+                .block_header(current_block)
+                .ok_or(anyhow!("header not found for block({current_block})"))?;
+
+            chain.push_front(SimpleBlockData {
+                hash: current_block,
+                header,
+            });
+            current_block = header.parent_hash;
+        }
+
+        // iterate over the collected blocks from oldest to newest and propagate announces
         for block in chain {
             debug_assert!(
                 self.db.block_meta(block.hash).announces.is_none(),
@@ -273,7 +291,7 @@ impl ValidatorCore {
 
             announce_hash = announce.parent;
 
-            self.include_announce(announce);
+            self.include_announce(announce)?;
         }
 
         Ok(())
@@ -348,94 +366,38 @@ impl ValidatorCore {
             "branch from {parent_announce_hash} is not expired, new announce {new_base_announce:?}"
         );
 
-        self.include_announce(new_base_announce);
+        self.include_announce(new_base_announce)?;
 
         Ok(())
     }
 
-    fn search_for_missing_announces(
-        &self,
-        block_hash: H256,
-    ) -> Result<(Option<AnnouncesRequest>, VecDeque<SimpleBlockData>)> {
-        // collect blocks without announces propagated
-        // find for the last committed announce in the chain
-        let mut chain = VecDeque::new();
-        let mut last_committed_announce = None;
-        let mut current_block = block_hash;
-        loop {
-            let announces = self.db.block_meta(current_block).announces;
+    fn identify_missing_announces(&self, block_hash: H256) -> Result<Option<AnnouncesRequest>> {
+        let last_committed_announce_hash = self
+            .db
+            .block_meta(block_hash)
+            .last_committed_announce
+            .ok_or_else(|| {
+            anyhow!("last committed announce not found for prepared block {block_hash}")
+        })?;
 
-            if let Some(announces) = announces {
-                if announces.is_empty() {
-                    return Err(anyhow!("{current_block} has empty announces list"));
-                }
-
-                break;
-            }
-
-            self.db
-                .block_events(current_block)
-                .ok_or_else(|| anyhow!("events not found for {current_block}"))?
-                .into_iter()
-                .filter_map(|event| {
-                    if let BlockEvent::Router(RouterEvent::AnnouncesCommitted(head)) = event {
-                        Some(head)
-                    } else {
-                        None
-                    }
-                })
-                .last()
-                .map(|hash| last_committed_announce.get_or_insert(hash));
-
-            let header = self
-                .db
-                .block_header(current_block)
-                .ok_or(anyhow!("header not found for block({current_block})"))?;
-
-            chain.push_front(SimpleBlockData {
-                hash: current_block,
-                header,
-            });
-            current_block = header.parent_hash;
-        }
-
-        let Some(announce_hash) = last_committed_announce else {
-            // no announces were committed yet
-            return Ok((None, chain));
-        };
-
-        if let Some(announce) = self.db.announce(announce_hash)
-            && let Some(announces) = self.db.block_meta(announce.block_hash).announces
-            && announces.contains(&announce_hash)
-        {
+        if self.announce_is_included(last_committed_announce_hash) {
             // announce is already included, no need to request announces
-
             // +_+_+ debug check if all announces in the chain are present
-
-            Ok((None, chain))
+            Ok(None)
         } else {
             // announce is unknown, or not included, so there can be missing announces
             // and we need to request all chain of announces
+            let common_predecessor_announce_hash =
+                self.find_announces_common_predecessor(block_hash)?;
 
-            let first_not_propagated_block = chain
-                .front()
-                .cloned()
-                .expect("If at least on announce is committed, chain cannot be empty");
-
-            let common_predecessor_announce_hash = self
-                .find_announces_common_predecessor(first_not_propagated_block.header.parent_hash)?;
-
-            Ok((
-                Some(AnnouncesRequest {
-                    head: announce_hash,
-                    until: AnnouncesRequestUntil::Tail(common_predecessor_announce_hash),
-                }),
-                chain,
-            ))
+            Ok(Some(AnnouncesRequest {
+                head: last_committed_announce_hash,
+                until: AnnouncesRequestUntil::Tail(common_predecessor_announce_hash),
+            }))
         }
     }
 
-    fn announce_is_included(&self, announce_hash: AnnounceHash) -> bool {
+    pub fn announce_is_included(&self, announce_hash: AnnounceHash) -> bool {
         self.db
             .announce(announce_hash)
             .and_then(|announce| self.db.block_meta(announce.block_hash).announces)
@@ -443,12 +405,18 @@ impl ValidatorCore {
             .unwrap_or(false)
     }
 
-    fn include_announce(&self, announce: Announce) {
+    pub fn include_announce(&self, announce: Announce) -> Result<AnnounceHash> {
         let block_hash = announce.block_hash;
         let announce_hash = self.db.set_announce(announce);
+
+        let mut not_yet_included = true;
         self.db.mutate_block_meta(block_hash, |meta| {
-            meta.announces.get_or_insert_default().insert(announce_hash);
+            not_yet_included = meta.announces.get_or_insert_default().insert(announce_hash);
         });
+
+        not_yet_included.then_some(announce_hash).ok_or_else(|| {
+            anyhow!("announce {announce_hash} for block {block_hash} was already included")
+        })
     }
 }
 

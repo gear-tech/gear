@@ -32,7 +32,9 @@
 //! - `utils`: Utility functions and shared data structures
 
 use anyhow::Result;
-use ethexe_common::{Announce, AnnounceHash, CheckedAnnouncesResponse, SimpleBlockData};
+use ethexe_common::{
+    Announce, AnnounceHash, AnnouncesRequest, CheckedAnnouncesResponse, SimpleBlockData,
+};
 use futures::{Stream, stream::FusedStream};
 use gprimitives::H256;
 
@@ -93,6 +95,8 @@ pub enum ConsensusEvent {
     PublishValidationRequest(SignedValidationRequest),
     /// Outer service have to publish signed validation reply
     PublishValidationReply(BatchCommitmentValidationReply),
+    /// Outer service have to request announces
+    RequestAnnounces(AnnouncesRequest),
     /// Informational event: commitment was successfully submitted, tx hash is provided
     #[from(skip)]
     CommitmentSubmitted(H256),

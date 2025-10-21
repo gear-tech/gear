@@ -304,7 +304,7 @@ impl ValidatorCore {
         if let Some(announce) = announces.iter().next()
             && announces.len() == 1
         {
-            return Ok(*announce);
+            Ok(*announce)
         } else {
             // common predecessor not found by some reasons
             // This can happen for example, if some old not base announce was committed

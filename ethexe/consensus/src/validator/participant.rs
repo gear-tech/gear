@@ -20,7 +20,7 @@ use super::{
     DefaultProcessing, PendingEvent, StateHandler, ValidatorContext, ValidatorState,
     initial::Initial,
 };
-use crate::{BatchCommitmentValidationReply, ConsensusEvent, SignedValidationRequest};
+use crate::{BatchCommitmentValidationReply, SignedValidationRequest};
 use anyhow::Result;
 use derive_more::{Debug, Display};
 use ethexe_common::{
@@ -95,7 +95,7 @@ impl StateHandler for Participant {
                         )
                         .map(|signature| BatchCommitmentValidationReply { digest, signature })?;
 
-                    self.output(ConsensusEvent::PublishValidationReply(reply));
+                    self.ctx.output(reply);
                 }
                 Err(err) => self.warning(format!("reject validation request: {err}")),
             }
@@ -170,7 +170,7 @@ impl Participant {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{mock::*, validator::mock::*};
+    use crate::{ConsensusEvent, mock::*, validator::mock::*};
     use ethexe_common::{Digest, ToDigest, gear::CodeCommitment, mock::*};
 
     #[test]
