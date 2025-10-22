@@ -50,7 +50,7 @@ const MAX_BACKFILL_BLOCKS: u64 = 5_000;
 #[derive(Clone, Debug, serde::Deserialize)]
 pub struct UserMsgFilter {
     pub source: Option<H256>,
-    pub dest: Option<H256>,
+    pub destination: Option<H256>,
     #[serde(default)]
     pub payload_filters: Vec<PayloadFilter>,
     pub from_block: Option<u64>,
@@ -565,8 +565,8 @@ fn matches_filter(filter: &UserMsgFilter, message: &UserMessage) -> bool {
         return false;
     }
 
-    if let Some(dest) = filter.dest
-        && message.destination().into_bytes() != dest.0
+    if let Some(destination) = filter.destination
+        && message.destination().into_bytes() != destination.0
     {
         return false;
     }
@@ -699,7 +699,7 @@ mod tests {
     fn payload_filter_matches_at_offset() {
         let filter = UserMsgFilter {
             source: None,
-            dest: None,
+            destination: None,
             payload_filters: vec![PayloadFilter {
                 offset: 2,
                 pattern: b"cd".to_vec(),
@@ -716,7 +716,7 @@ mod tests {
     fn payload_filter_rejects_out_of_bounds() {
         let filter = UserMsgFilter {
             source: None,
-            dest: None,
+            destination: None,
             payload_filters: vec![PayloadFilter {
                 offset: 5,
                 pattern: b"ghi".to_vec(),
@@ -733,7 +733,7 @@ mod tests {
     fn multiple_payload_filters_must_all_match() {
         let filter = UserMsgFilter {
             source: None,
-            dest: None,
+            destination: None,
             payload_filters: vec![
                 PayloadFilter {
                     offset: 3,

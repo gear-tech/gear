@@ -174,7 +174,7 @@ pub struct UserMessageSentFilter {
     pub source: Option<H256>,
     /// Only match messages targeting this actor.
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub dest: Option<H256>,
+    pub destination: Option<H256>,
     /// Only match messages whose payload contains the provided pattern at the specified offset.
     #[serde(skip_serializing_if = "Vec::is_empty")]
     pub payload_filters: Vec<PayloadFilter>,
@@ -219,7 +219,7 @@ impl UserMessageSentFilter {
 
     /// Restrict events to the provided destination actor.
     pub fn with_destination(mut self, destination: ActorId) -> Self {
-        self.dest = Some(destination.into());
+        self.destination = Some(destination.into());
         self
     }
 
