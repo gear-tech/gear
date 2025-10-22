@@ -21,6 +21,7 @@
 use crate::{config::GearConfig, metadata::Event, result::Result};
 use futures::{Stream, StreamExt};
 use gear_core::ids::{ActorId, MessageId};
+use gear_core_errors::ReplyCode;
 use hex::decode;
 use serde::{Deserialize, Deserializer, Serialize, de::Error as DeError};
 use sp_core::H256;
@@ -264,6 +265,19 @@ pub struct UserMessageSent {
     pub payload: Vec<u8>,
     /// Attached value.
     pub value: u128,
+    /// Reply details if this message is a reply.
+    pub reply: Option<UserMessageReply>,
+}
+
+/// Reply-specific details for a user message.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct UserMessageReply {
+    /// Identifier of the message being replied to.
+    pub to: MessageId,
+    /// Reply code associated with the reply.
+    pub code: ReplyCode,
+    /// Optional textual description of the reply code.
+    pub code_text: Option<String>,
 }
 
 impl<'de> Deserialize<'de> for UserMessageSent {
@@ -280,12 +294,27 @@ impl<'de> Deserialize<'de> for UserMessageSent {
             destination: [u8; 32],
             payload: String,
             value: String,
+            #[serde(default)]
+            reply: Option<RawReplyDetails>,
+        }
+
+        #[derive(Deserialize)]
+        struct RawReplyDetails {
+            to: [u8; 32],
+            code_raw: [u8; 4],
+            #[serde(default)]
+            code: Option<String>,
         }
 
         let raw = RawUserMessageSent::deserialize(deserializer)?;
         let payload_str = raw.payload.strip_prefix("0x").unwrap_or(&raw.payload);
         let payload = decode(payload_str).map_err(DeError::custom)?;
         let value = raw.value.parse::<u128>().map_err(DeError::custom)?;
+        let reply = raw.reply.map(|reply| UserMessageReply {
+            to: MessageId::from(reply.to),
+            code: ReplyCode::from_bytes(reply.code_raw),
+            code_text: reply.code,
+        });
 
         Ok(Self {
             block: raw.block,
@@ -295,6 +324,7 @@ impl<'de> Deserialize<'de> for UserMessageSent {
             destination: ActorId::from(raw.destination),
             payload,
             value,
+            reply,
         })
     }
 }

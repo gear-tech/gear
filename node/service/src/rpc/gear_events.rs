@@ -72,10 +72,28 @@ pub struct UserMessageSentJson {
     pub destination: [u8; 32],
     pub payload: String,
     pub value: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub reply: Option<UserMessageReplyJson>,
+}
+
+#[derive(Clone, Debug, serde::Serialize)]
+pub struct UserMessageReplyJson {
+    pub to: [u8; 32],
+    pub code_raw: [u8; 4],
+    pub code: String,
 }
 
 impl UserMessageSentJson {
     fn from_message(block: Hash, index: u32, message: &UserMessage) -> Self {
+        let reply = message.details().map(|details| {
+            let (to, code) = details.into_parts();
+            UserMessageReplyJson {
+                to: to.into_bytes(),
+                code_raw: code.to_bytes(),
+                code: code.to_string(),
+            }
+        });
+
         Self {
             block,
             index,
@@ -84,6 +102,7 @@ impl UserMessageSentJson {
             destination: message.destination().into_bytes(),
             payload: format!("0x{}", hex::encode(message.payload_bytes())),
             value: message.value().to_string(),
+            reply,
         }
     }
 }

@@ -71,6 +71,12 @@ async fn subscribe_user_messages_receives_reply() -> anyhow::Result<()> {
 
     let event = received.expect("expected user message reply");
     assert_eq!(event.payload, b"PONG");
+    let reply = event.reply.expect("expected reply details");
+    assert!(
+        reply.code.is_success(),
+        "expected successful reply code, got {:?}",
+        reply.code
+    );
 
     Ok(())
 }
