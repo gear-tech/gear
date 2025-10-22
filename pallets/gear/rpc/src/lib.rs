@@ -670,7 +670,8 @@ where
                     8000,
                     "Runtime error",
                     Some(format!("Program filter size must be lower than {limit}")),
-                ));
+                )
+                .into());
             }
             Some(filter)
         } else {

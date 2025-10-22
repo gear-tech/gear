@@ -22,10 +22,9 @@ use crate::{config::GearConfig, metadata::Event, result::Result};
 use futures::{Stream, StreamExt};
 use gear_core::ids::{ActorId, MessageId};
 use gear_core_errors::ReplyCode;
-use hex::decode;
 use serde::{Deserialize, Deserializer, Serialize, de::Error as DeError};
-use sp_core::H256;
-use std::{marker::Unpin, ops::Deref, pin::Pin, task::Poll};
+use sp_core::{Bytes, H256};
+use std::{convert::TryInto, marker::Unpin, ops::Deref, pin::Pin, task::Poll};
 use subxt::{
     OnlineClient,
     backend::{StreamOfResults, rpc::RpcSubscription},
@@ -292,7 +291,7 @@ impl<'de> Deserialize<'de> for UserMessageSent {
             id: [u8; 32],
             source: [u8; 32],
             destination: [u8; 32],
-            payload: String,
+            payload: Bytes,
             value: String,
             #[serde(default)]
             reply: Option<RawReplyDetails>,
@@ -301,20 +300,32 @@ impl<'de> Deserialize<'de> for UserMessageSent {
         #[derive(Deserialize)]
         struct RawReplyDetails {
             to: [u8; 32],
-            code_raw: [u8; 4],
+            code_raw: Bytes,
             #[serde(default)]
             code: Option<String>,
         }
 
         let raw = RawUserMessageSent::deserialize(deserializer)?;
-        let payload_str = raw.payload.strip_prefix("0x").unwrap_or(&raw.payload);
-        let payload = decode(payload_str).map_err(DeError::custom)?;
+        let payload = raw.payload.0;
+        let reply = match raw.reply {
+            Some(reply) => {
+                let code_raw: [u8; 4] = reply
+                    .code_raw
+                    .0
+                    .as_slice()
+                    .try_into()
+                    .map_err(|_| DeError::custom("invalid reply.code_raw length"))?;
+
+                Some(UserMessageReply {
+                    to: MessageId::from(reply.to),
+                    code: ReplyCode::from_bytes(code_raw),
+                    code_text: reply.code,
+                })
+            }
+            None => None,
+        };
+
         let value = raw.value.parse::<u128>().map_err(DeError::custom)?;
-        let reply = raw.reply.map(|reply| UserMessageReply {
-            to: MessageId::from(reply.to),
-            code: ReplyCode::from_bytes(reply.code_raw),
-            code_text: reply.code,
-        });
 
         Ok(Self {
             block: raw.block,

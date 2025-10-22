@@ -38,7 +38,7 @@ use parking_lot::Mutex;
 use sc_client_api::{BlockchainEvents, StorageProvider, backend::Backend as ClientBackend};
 use sc_rpc::SubscriptionTaskExecutor;
 use sp_blockchain::HeaderBackend;
-use sp_core::H256;
+use sp_core::{Bytes, H256};
 use sp_runtime::traits::{Header, SaturatedConversion, UniqueSaturatedInto};
 use sp_storage::{StorageData, StorageKey};
 
@@ -70,7 +70,7 @@ pub struct UserMessageSentJson {
     pub id: [u8; 32],
     pub source: [u8; 32],
     pub destination: [u8; 32],
-    pub payload: String,
+    pub payload: Bytes,
     pub value: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reply: Option<UserMessageReplyJson>,
@@ -79,7 +79,7 @@ pub struct UserMessageSentJson {
 #[derive(Clone, Debug, serde::Serialize)]
 pub struct UserMessageReplyJson {
     pub to: [u8; 32],
-    pub code_raw: [u8; 4],
+    pub code_raw: Bytes,
     pub code: String,
 }
 
@@ -89,7 +89,7 @@ impl UserMessageSentJson {
             let (to, code) = details.into_parts();
             UserMessageReplyJson {
                 to: to.into_bytes(),
-                code_raw: code.to_bytes(),
+                code_raw: Bytes(code.to_bytes().to_vec()),
                 code: code.to_string(),
             }
         });
@@ -100,7 +100,7 @@ impl UserMessageSentJson {
             id: message.id().into_bytes(),
             source: message.source().into_bytes(),
             destination: message.destination().into_bytes(),
-            payload: format!("0x{}", hex::encode(message.payload_bytes())),
+            payload: Bytes(message.payload_bytes().to_vec()),
             value: message.value().to_string(),
             reply,
         }
