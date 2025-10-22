@@ -662,7 +662,20 @@ where
         program_ids: Option<Vec<H256>>,
     ) -> SubscriptionResult {
         let prefix = self.program_storage_prefix.clone();
-        let program_filter = program_ids.map(|ids| ids.into_iter().collect::<BTreeSet<_>>());
+        let program_filter = if let Some(ids) = program_ids {
+            let filter = ids.into_iter().collect::<BTreeSet<_>>();
+            let limit = self.max_batch_size as usize;
+            if limit != 0 && filter.len() > limit {
+                return Err(ErrorObject::owned(
+                    8000,
+                    "Runtime error",
+                    Some(format!("Program filter size must be lower than {limit}")),
+                ));
+            }
+            Some(filter)
+        } else {
+            None
+        };
         let program_storage_keys = program_filter.as_ref().map(|filter| {
             filter
                 .iter()
