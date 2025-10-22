@@ -19,7 +19,7 @@
 //! GSdk Results
 use crate::TxStatus;
 
-use subxt::ext::scale_value;
+use subxt::ext::{scale_value, subxt_rpcs};
 
 /// Transaction Errors
 #[derive(Debug, thiserror::Error)]
@@ -93,7 +93,9 @@ pub enum Error {
     #[error(transparent)]
     Tx(#[from] TxError),
     #[error(transparent)]
-    SubxtRpc(#[from] jsonrpsee::core::ClientError),
+    SubxtRpc(#[from] subxt_rpcs::Error),
+    #[error(transparent)]
+    Jsonrpsee(#[from] jsonrpsee::core::ClientError),
     #[error("Page {0} of Program {1} was not found in the storage.")]
     PageNotFound(u32, String),
     #[error("Program has been terminated.")]

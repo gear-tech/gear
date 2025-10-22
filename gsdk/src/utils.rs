@@ -20,11 +20,11 @@
 use crate::{
     Api,
     config::GearConfig,
-    ext::sp_core::hashing,
     metadata::{DispatchError, StorageInfo},
     result::Result,
 };
 use parity_scale_codec::Encode;
+use sp_core::hashing;
 use subxt::{
     Metadata, OnlineClient,
     dynamic::Value,

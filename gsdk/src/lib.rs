@@ -22,7 +22,7 @@
 
 //! Gear api
 pub use crate::{
-    api::{Api, ApiBuilder},
+    api::Api,
     config::GearConfig,
     metadata::Event,
     result::{Error, Result},
@@ -47,7 +47,6 @@ use subxt::{
 
 mod api;
 pub mod backtrace;
-mod client;
 pub mod config;
 mod constants;
 pub mod events;
@@ -59,8 +58,9 @@ mod storage;
 pub mod subscription;
 mod utils;
 
+mod ensure_versions;
+
 pub mod ext {
-    pub use sp_core;
     pub use sp_runtime::{self, codec, scale_info};
 }
 pub mod gp {

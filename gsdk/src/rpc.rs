@@ -23,7 +23,7 @@ use gear_core::{
     ids::{ActorId, CodeId, MessageId},
     rpc::ReplyInfo,
 };
-use subxt::{rpc_params, utils::H256};
+use subxt::{ext::subxt_rpcs::rpc_params, utils::H256};
 
 impl Api {
     /// gear_calculateInitCreateGas
@@ -49,6 +49,7 @@ impl Api {
                 ],
             )
             .await
+            .map_err(Into::into)
     }
 
     /// gear_calculateInitUploadGas
@@ -74,6 +75,7 @@ impl Api {
                 ],
             )
             .await
+            .map_err(Into::into)
     }
 
     /// gear_calculateHandleGas
@@ -99,6 +101,7 @@ impl Api {
                 ],
             )
             .await
+            .map_err(Into::into)
     }
 
     /// gear_calculateReplyGas
@@ -124,6 +127,7 @@ impl Api {
                 ],
             )
             .await
+            .map_err(Into::into)
     }
 
     /// gear_meta_hash
@@ -131,6 +135,7 @@ impl Api {
         self.rpc()
             .request("gear_readMetahash", rpc_params![H256(pid.into()), at])
             .await
+            .map_err(Into::into)
     }
 
     /// gear_readState
@@ -146,6 +151,7 @@ impl Api {
                 rpc_params![H256(pid.into()), hex::encode(payload), at],
             )
             .await
+            .map_err(Into::into)
     }
 
     /// runtime_wasmBlobVersion
@@ -153,6 +159,7 @@ impl Api {
         self.rpc()
             .request("runtime_wasmBlobVersion", rpc_params![at])
             .await
+            .map_err(Into::into)
     }
 
     /// gear_calculateReplyForHandle
@@ -178,5 +185,6 @@ impl Api {
                 ],
             )
             .await
+            .map_err(Into::into)
     }
 }

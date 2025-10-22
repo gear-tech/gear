@@ -49,13 +49,12 @@ async fn pallet_errors_formatting() -> Result<()> {
         .await
         .expect_err("Must return error");
 
-    let expected_err = Error::Subxt(Box::new(SubxtError::Rpc(RpcError::ClientError(Box::new(
-        ErrorObject::owned(
-            8000,
-            "Runtime error",
-            Some("\"Extrinsic `gear.upload_program` failed: 'ProgramConstructionFailed'\""),
-        ),
-    )))));
+    let expected_err = ErrorObject::owned(
+        8000,
+        "Runtime error",
+        Some("\"Extrinsic `gear.upload_program` failed: 'ProgramConstructionFailed'\""),
+    )
+    .into();
 
     assert_eq!(format!("{err}"), format!("{expected_err}"));
 
