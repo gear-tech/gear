@@ -61,7 +61,7 @@ use runtime_primitives::{Balance, BlockNumber, Hash, Moment, Nonce};
 use scale_info::TypeInfo;
 use sp_api::impl_runtime_apis;
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
-use sp_core::{ConstBool, ConstU8, ConstU64, H256, OpaqueMetadata, crypto::KeyTypeId};
+use sp_core::{ConstU8, ConstU64, H256, OpaqueMetadata, crypto::KeyTypeId};
 use sp_runtime::{
     ApplyExtrinsicResult, FixedU128, Perbill, Percent, Permill, Perquintill, RuntimeDebug,
     create_runtime_str, generic, impl_opaque_keys,
@@ -113,10 +113,6 @@ pub use frame_support::{
 pub use gear_runtime_common::{
     AVERAGE_ON_INITIALIZE_RATIO, BlockHashCount, DealWithFees, GAS_LIMIT_MIN_PERCENTAGE_NUM,
     NORMAL_DISPATCH_LENGTH_RATIO, NORMAL_DISPATCH_WEIGHT_RATIO, VALUE_PER_GAS,
-    constants::{
-        RENT_DISABLED_DELTA_WEEK_FACTOR, RENT_FREE_PERIOD_MONTH_FACTOR, RENT_RESUME_WEEK_FACTOR,
-        RESUME_SESSION_DURATION_HOUR_FACTOR,
-    },
     impl_runtime_apis_plus_common,
 };
 pub use pallet_gear::manager::{ExtManager, HandleKind};
@@ -1159,18 +1155,7 @@ impl pallet_gear::Config for Runtime {
     type Scheduler = GearScheduler;
     type QueueRunner = Gear;
     type BuiltinDispatcherFactory = GearBuiltin;
-    type ProgramRentFreePeriod = ConstU32<{ MONTHS * RENT_FREE_PERIOD_MONTH_FACTOR }>;
-    type ProgramResumeMinimalRentPeriod = ConstU32<{ WEEKS * RENT_RESUME_WEEK_FACTOR }>;
-    type ProgramRentCostPerBlock = ConstU128<RENT_COST_PER_BLOCK>;
-    type ProgramResumeSessionDuration = ConstU32<{ HOURS * RESUME_SESSION_DURATION_HOUR_FACTOR }>;
 
-    #[cfg(feature = "runtime-benchmarks")]
-    type ProgramRentEnabled = ConstBool<true>;
-
-    #[cfg(not(feature = "runtime-benchmarks"))]
-    type ProgramRentEnabled = ConstBool<false>;
-
-    type ProgramRentDisabledDelta = ConstU32<{ WEEKS * RENT_DISABLED_DELTA_WEEK_FACTOR }>;
     type RentPoolId = pallet_gear_staking_rewards::RentPoolId<Self>;
 }
 
