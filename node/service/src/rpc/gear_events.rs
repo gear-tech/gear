@@ -358,6 +358,9 @@ where
         let fut: BoxFuture<'static, ()> = Box::pin(async move {
             let mut stream = dispatcher.client.import_notification_stream();
             while let Some(notification) = stream.next().await {
+                if !notification.is_new_best {
+                    continue;
+                }
                 let number = (*notification.header.number()).unique_saturated_into();
                 dispatcher.process_block(StreamKind::Best, notification.hash, number);
             }
