@@ -1,8 +1,8 @@
 use crate::{
     TransitionController,
     state::{
-        ActiveProgram, Dispatch, Expiring, MAILBOX_VALIDITY, MailboxMessage, Program, ProgramState,
-        Storage,
+        ActiveProgram, Dispatch, Expiring, MAILBOX_VALIDITY, MailboxMessage, ModifyStorage,
+        Program, ProgramState,  Storage,
     },
 };
 use alloc::{collections::BTreeMap, vec::Vec};
@@ -50,7 +50,7 @@ impl<S: Storage> NativeJournalHandler<'_, S> {
                         ScheduledTask::SendDispatch((destination, dispatch.id)),
                     );
 
-                    state.stash_hash.modify_stash(storage, |stash| {
+                    state.stash_hash.modify(storage, |stash| {
                         stash.add_to_program(dispatch, expiry);
                     })
                 } else {
@@ -98,7 +98,7 @@ impl<S: Storage> NativeJournalHandler<'_, S> {
                     let dispatch =
                         Dispatch::from_core_stored(storage, dispatch, dispatch_origin, false);
 
-                    state.stash_hash.modify_stash(storage, |stash| {
+                    state.stash_hash.modify(storage, |stash| {
                         stash.add_to_user(dispatch, expiry, user_id);
                     });
                 } else {
@@ -117,7 +117,7 @@ impl<S: Storage> NativeJournalHandler<'_, S> {
 
                     let message = MailboxMessage::new(payload, dispatch.value(), dispatch_origin);
 
-                    state.mailbox_hash.modify_mailbox(storage, |mailbox| {
+                    state.mailbox_hash.modify(storage, |mailbox| {
                         mailbox.add_and_store_user_mailbox(
                             storage,
                             dispatch.destination(),
@@ -258,7 +258,7 @@ impl<S: Storage> JournalHandler for NativeJournalHandler<'_, S> {
                     );
                 });
 
-                state.waitlist_hash.modify_waitlist(storage, |waitlist| {
+                state.waitlist_hash.modify(storage, |waitlist| {
                     waitlist.wait(dispatch, expiry);
                 });
             });
@@ -285,7 +285,7 @@ impl<S: Storage> JournalHandler for NativeJournalHandler<'_, S> {
                     expiry,
                 }) = state
                     .waitlist_hash
-                    .modify_waitlist(storage, |waitlist| waitlist.wake(&awakening_id))
+                    .modify(storage, |waitlist| waitlist.wake(&awakening_id))
                 else {
                     return;
                 };
@@ -529,7 +529,7 @@ where
             panic!("an attempt to update pages data of inactive program");
         };
 
-        pages_hash.modify_pages(self.storage, |pages| {
+        pages_hash.modify(self.storage, |pages| {
             pages.update_and_store_regions(self.storage, self.storage.write_pages_data(pages_data));
         });
     }
@@ -544,12 +544,12 @@ where
             panic!("an attempt to update allocations of inactive program");
         };
 
-        let removed_pages = allocations_hash.modify_allocations(self.storage, |allocations| {
+        let removed_pages = allocations_hash.modify(self.storage, |allocations| {
             allocations.update(new_allocations)
         });
 
         if !removed_pages.is_empty() {
-            pages_hash.modify_pages(self.storage, |pages| {
+            pages_hash.modify(self.storage, |pages| {
                 pages.remove_and_store_regions(self.storage, &removed_pages);
             })
         }

@@ -17,12 +17,15 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{errors, utils};
-use ethexe_common::db::{AnnounceStorageRead, CodesStorageRead};
+use ethexe_common::{
+    HashOf,
+    db::{AnnounceStorageRead, CodesStorageRead},
+};
 use ethexe_db::Database;
 use ethexe_processor::Processor;
 use ethexe_runtime_common::state::{
-    DispatchStash, HashOf, Mailbox, MemoryPages, MessageQueue, Program, ProgramState, Storage,
-    Waitlist,
+    DispatchStash, Mailbox, MemoryPages, MessageQueue, Program, ProgramState, QueryStorage,
+    Storage, Waitlist,
 };
 use gear_core::rpc::ReplyInfo;
 use gprimitives::{H160, H256};

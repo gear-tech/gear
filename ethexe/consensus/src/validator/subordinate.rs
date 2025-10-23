@@ -25,7 +25,7 @@ use crate::{
 };
 use anyhow::Result;
 use derive_more::{Debug, Display};
-use ethexe_common::{Address, Announce, AnnounceHash, SimpleBlockData};
+use ethexe_common::{Address, Announce, HashOf, SimpleBlockData};
 use gprimitives::H256;
 use std::mem;
 
@@ -54,7 +54,7 @@ enum State {
         received_announce: Option<Announce>,
     },
     WaitingAnnounceComputed {
-        announce_hash: AnnounceHash,
+        announce_hash: HashOf<Announce>,
     },
 }
 
@@ -103,7 +103,7 @@ impl StateHandler for Subordinate {
 
     fn process_computed_announce(
         self,
-        computed_announce_hash: AnnounceHash,
+        computed_announce_hash: HashOf<Announce>,
     ) -> Result<ValidatorState> {
         match &self.state {
             State::WaitingAnnounceComputed { announce_hash }
@@ -418,7 +418,7 @@ mod tests {
 
         let s = Subordinate::create(ctx, block.clone(), producer.to_address(), true).unwrap();
 
-        let s = s.process_computed_announce(AnnounceHash::random()).unwrap();
+        let s = s.process_computed_announce(HashOf::random()).unwrap();
         assert_eq!(s.context().output.len(), 1);
         assert!(matches!(s.context().output[0], ConsensusEvent::Warning(_)));
     }

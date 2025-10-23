@@ -28,7 +28,7 @@ pub(crate) use crate::{
 };
 use async_trait::async_trait;
 use ethexe_common::{
-    Announce, AnnounceHash,
+    Announce, HashOf,
     db::{
         AnnounceStorageRead, BlockMetaStorageRead, CodesStorageRead, HashStorageRead,
         LatestDataStorageRead,
@@ -227,7 +227,7 @@ pub struct ValidCodesRequest {
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct AnnouncesRequest {
     /// The hash of head announce
-    pub head: AnnounceHash,
+    pub head: HashOf<Announce>,
     /// Max chain length to return
     pub max_chain_len: u64,
 }
@@ -336,7 +336,7 @@ pub(crate) struct InnerProgramIdsRequest {
 #[derive(Debug, Clone, Eq, PartialEq, Encode, Decode)]
 pub struct InnerAnnouncesRequest {
     /// The hash of head announce
-    pub head: AnnounceHash,
+    pub head: HashOf<Announce>,
     /// Max chain length to return
     pub max_chain_len: u64,
 }
@@ -1377,10 +1377,10 @@ pub(crate) mod tests {
             .set_programs_code_ids_at(program_ids.clone(), H256::zero(), code_ids.clone())
             .await;
 
-        let mut announce_hash = AnnounceHash::zero();
+        let mut announce_hash = HashOf::zero();
         right_db.mutate_block_meta(H256::zero(), |meta| {
             assert!(meta.announces.is_none());
-            let announce = Announce::base(H256::zero(), AnnounceHash::zero());
+            let announce = Announce::base(H256::zero(), HashOf::zero());
             announce_hash = announce.to_hash();
             meta.announces = Some([announce_hash].into());
         });

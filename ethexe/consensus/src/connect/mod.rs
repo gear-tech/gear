@@ -25,7 +25,7 @@ use crate::{
     SignedValidationRequest, utils,
 };
 use anyhow::{Result, anyhow};
-use ethexe_common::{Address, AnnounceHash, SimpleBlockData, db::OnChainStorageRead};
+use ethexe_common::{Address, Announce, HashOf, SimpleBlockData, db::OnChainStorageRead};
 use ethexe_db::Database;
 use futures::{Stream, stream::FusedStream};
 use gprimitives::H256;
@@ -141,7 +141,7 @@ impl ConsensusService for SimpleConnectService {
         Ok(())
     }
 
-    fn receive_computed_announce(&mut self, _announce: AnnounceHash) -> Result<()> {
+    fn receive_computed_announce(&mut self, _announce: HashOf<Announce>) -> Result<()> {
         Ok(())
     }
 

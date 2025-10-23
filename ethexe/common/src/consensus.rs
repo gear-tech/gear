@@ -17,9 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    Announce, AnnounceHash, Digest, ToDigest,
+    Announce, Digest, ToDigest,
     ecdsa::{ContractSignature, SignedData},
     gear::BatchCommitment,
+    hash::HashOf,
 };
 use alloc::vec::Vec;
 use gprimitives::CodeId;
@@ -35,7 +36,7 @@ pub struct BatchCommitmentValidationRequest {
     // Digest of batch commitment to validate
     pub digest: Digest,
     /// Optional head announce hash of the chain commitment
-    pub head: Option<AnnounceHash>,
+    pub head: Option<HashOf<Announce>>,
     /// List of codes which are part of the batch
     pub codes: Vec<CodeId>,
     /// Whether rewards commitment is part of the batch
@@ -73,7 +74,7 @@ impl ToDigest for BatchCommitmentValidationRequest {
         } = self;
 
         hasher.update(digest);
-        head.map(|h| hasher.update(h.0));
+        head.map(|h| hasher.update(h.hash().0));
         hasher.update(
             codes
                 .iter()

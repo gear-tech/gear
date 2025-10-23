@@ -23,7 +23,7 @@ use crate::{ConsensusEvent, validator::DefaultProcessing};
 use anyhow::{Result, anyhow};
 use derive_more::{Debug, Display};
 use ethexe_common::{
-    Address, Announce, AnnounceHash, SimpleBlockData,
+    Address, Announce, HashOf, SimpleBlockData,
     db::{AnnounceStorageRead, BlockMetaStorageRead},
     gear::BatchCommitment,
 };
@@ -104,7 +104,7 @@ impl StateHandler for Producer {
         }
     }
 
-    fn process_computed_announce(mut self, announce_hash: AnnounceHash) -> Result<ValidatorState> {
+    fn process_computed_announce(mut self, announce_hash: HashOf<Announce>) -> Result<ValidatorState> {
         let announce = self.ctx.core.db.announce(announce_hash).ok_or(anyhow!(
             "Computed announce {announce_hash} is not found in storage"
         ))?;
@@ -246,7 +246,7 @@ mod tests {
         validator::{PendingEvent, mock::*},
     };
     use async_trait::async_trait;
-    use ethexe_common::{AnnounceHash, Digest, ToDigest, db::*, gear::CodeCommitment, mock::*};
+    use ethexe_common::{HashOf, Digest, ToDigest, db::*, gear::CodeCommitment, mock::*};
     use nonempty::nonempty;
 
     #[tokio::test]
@@ -280,7 +280,7 @@ mod tests {
         // Set parent announce
         ctx.core.db.mutate_block_meta(parent, |meta| {
             meta.prepared = true;
-            meta.announces = Some([AnnounceHash::random()].into());
+            meta.announces = Some([HashOf::random()].into());
         });
 
         let state = Producer::create(ctx, block.clone(), validators)
@@ -370,7 +370,7 @@ mod tests {
 
         ctx.core.db.mutate_block_meta(parent, |meta| {
             meta.prepared = true;
-            meta.announces = Some([AnnounceHash::random()].into());
+            meta.announces = Some([HashOf::random()].into());
         });
 
         let code1 = CodeCommitment::mock(());
@@ -382,7 +382,7 @@ mod tests {
         });
         ctx.core.db.mutate_block_meta(block.hash, |meta| {
             meta.last_committed_batch = Some(Digest::random());
-            meta.last_committed_announce = Some(AnnounceHash::random());
+            meta.last_committed_announce = Some(HashOf::random());
         });
 
         let (state, event) = Producer::create(ctx, block.clone(), validators.clone())

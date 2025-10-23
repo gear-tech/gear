@@ -24,7 +24,9 @@ use ethexe_common::{
     events::{MirrorRequestEvent, RouterRequestEvent, WVaraRequestEvent},
     gear::{Origin, ValueClaim},
 };
-use ethexe_runtime_common::state::{Dispatch, Expiring, MailboxMessage, PayloadLookup};
+use ethexe_runtime_common::state::{
+    Dispatch, Expiring, MailboxMessage, ModifyStorage, PayloadLookup,
+};
 use gear_core::{ids::ActorId, message::SuccessReplyReason};
 
 impl ProcessingHandler {
@@ -113,7 +115,7 @@ impl ProcessingHandler {
                                 ..
                             },
                         expiry,
-                    }) = state.mailbox_hash.modify_mailbox(storage, |mailbox| {
+                    }) = state.mailbox_hash.modify(storage, |mailbox| {
                         mailbox.remove_and_store_user_mailbox(storage, source, replied_to)
                     })
                     else {
@@ -159,7 +161,7 @@ impl ProcessingHandler {
                                 ..
                             },
                         expiry,
-                    }) = state.mailbox_hash.modify_mailbox(storage, |mailbox| {
+                    }) = state.mailbox_hash.modify(storage, |mailbox| {
                         mailbox.remove_and_store_user_mailbox(storage, source, claimed_id)
                     })
                     else {

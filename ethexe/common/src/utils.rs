@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    Address, Announce, AnnounceHash, SimpleBlockData,
+    Address, Announce, SimpleBlockData, HashOf,
     db::{
         AnnounceStorageWrite, BlockMeta, BlockMetaStorageWrite, FullAnnounceData, FullBlockData,
         LatestData, LatestDataStorageWrite, OnChainStorageWrite,
@@ -82,7 +82,7 @@ pub fn setup_genesis_in_db<
     genesis_block: SimpleBlockData,
     validators: NonEmpty<Address>,
 ) {
-    let genesis_announce = Announce::base(genesis_block.hash, AnnounceHash::zero());
+    let genesis_announce = Announce::base(genesis_block.hash, HashOf::zero());
     let genesis_announce_hash = setup_announce_in_db(
         db,
         FullAnnounceData {
@@ -104,7 +104,7 @@ pub fn setup_genesis_in_db<
             codes_queue: Default::default(),
             announces: [genesis_announce_hash].into(),
             last_committed_batch: Default::default(),
-            last_committed_announce: Default::default(),
+            last_committed_announce: HashOf::zero(),
         },
     );
 
@@ -154,7 +154,7 @@ pub fn setup_block_in_db<DB: OnChainStorageWrite + BlockMetaStorageWrite>(
 pub fn setup_announce_in_db<DB: AnnounceStorageWrite>(
     db: &DB,
     announce_data: FullAnnounceData,
-) -> AnnounceHash {
+) -> HashOf<Announce> {
     let announce_hash = announce_data.announce.to_hash();
     db.set_announce(announce_data.announce);
     db.set_announce_program_states(announce_hash, announce_data.program_states);

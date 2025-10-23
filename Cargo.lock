@@ -4780,6 +4780,7 @@ dependencies = [
  "k256",
  "nonempty 0.12.0",
  "parity-scale-codec",
+ "rand 0.8.5",
  "roast-secp256k1-evm",
  "serde",
  "sha3",
@@ -4984,6 +4985,7 @@ dependencies = [
 name = "ethexe-runtime"
 version = "1.9.2"
 dependencies = [
+ "ethexe-common",
  "ethexe-runtime-common",
  "gear-core",
  "gear-core-processor",

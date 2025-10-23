@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use ethexe_common::{Announce, AnnounceHash, CodeAndIdUnchecked, events::BlockRequestEvent};
+use ethexe_common::{events::BlockRequestEvent, Announce, CodeAndIdUnchecked, HashOf};
 use ethexe_processor::{BlockProcessingResult, Processor, ProcessorError};
 use gprimitives::{CodeId, H256};
 pub use service::ComputeService;
@@ -40,8 +40,8 @@ pub enum ComputeEvent {
     RequestLoadCodes(HashSet<CodeId>),
     CodeProcessed(CodeId),
     BlockPrepared(H256),
-    AnnounceComputed(AnnounceHash),
-    AnnounceRejected(AnnounceHash),
+    AnnounceComputed(HashOf<Announce>),
+    AnnounceRejected(HashOf<Announce>),
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -63,7 +63,7 @@ pub enum ComputeError {
     #[error("last committed head not found for computed block({0})")]
     LastCommittedHeadNotFound(H256),
     #[error("Announce {0:?} not found in db")]
-    AnnounceNotFound(AnnounceHash),
+    AnnounceNotFound(HashOf<Announce>),
     #[error("Announces for prepared block {0:?} not found in db")]
     PreparedBlockAnnouncesSetMissing(H256),
     #[error("Latest data not found")]

@@ -1,8 +1,8 @@
 use crate::{
     TransitionController,
     state::{
-        Dispatch, DispatchStash, Expiring, MAILBOX_VALIDITY, MailboxMessage, PayloadLookup,
-        ProgramState, Storage, UserMailbox, Waitlist,
+        Dispatch, DispatchStash, Expiring, MAILBOX_VALIDITY, MailboxMessage, ModifyStorage,
+        PayloadLookup, ProgramState, QueryStorage, Storage, UserMailbox, Waitlist,
     },
 };
 use alloc::collections::{BTreeMap, BTreeSet};
@@ -27,7 +27,7 @@ impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
                 let Expiring {
                     value: MailboxMessage { value, origin, .. },
                     ..
-                } = state.mailbox_hash.modify_mailbox(storage, |mailbox| {
+                } = state.mailbox_hash.modify(storage, |mailbox| {
                     mailbox
                         .remove_and_store_user_mailbox(storage, user_id, message_id)
                         .expect("failed to find message in mailbox")
@@ -65,7 +65,7 @@ impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
                 state.canonical_queue.modify_queue(storage, |queue| {
                     let dispatch = state
                         .stash_hash
-                        .modify_stash(storage, |stash| stash.remove_to_program(&message_id));
+                        .modify(storage, |stash| stash.remove_to_program(&message_id));
 
                     queue.queue(dispatch);
                 });
@@ -79,14 +79,14 @@ impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
             .update_state(program_id, |state, storage, transitions| {
                 let (dispatch, user_id) = state
                     .stash_hash
-                    .modify_stash(storage, |stash| stash.remove_to_user(&stashed_message_id));
+                    .modify(storage, |stash| stash.remove_to_user(&stashed_message_id));
 
                 let expiry = transitions.schedule_task(
                     MAILBOX_VALIDITY.try_into().expect("infallible"),
                     ScheduledTask::RemoveFromMailbox((program_id, user_id), stashed_message_id),
                 );
 
-                state.mailbox_hash.modify_mailbox(storage, |mailbox| {
+                state.mailbox_hash.modify(storage, |mailbox| {
                     mailbox.add_and_store_user_mailbox(
                         storage,
                         user_id,
@@ -114,7 +114,7 @@ impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
             .update_state(program_id, |state, storage, _| {
                 let Expiring {
                     value: dispatch, ..
-                } = state.waitlist_hash.modify_waitlist(storage, |waitlist| {
+                } = state.waitlist_hash.modify(storage, |waitlist| {
                     waitlist
                         .wake(&message_id)
                         .expect("failed to find message in waitlist")
