@@ -132,6 +132,9 @@ pub struct ProgramStateChange {
     pub block_hash: H256,
     /// List of programs whose states changed in that block.
     pub program_ids: Vec<H256>,
+    /// Acknowledgement marker for the subscription setup.
+    #[serde(default)]
+    pub ack: Option<bool>,
 }
 
 /// Subscription of program state changes.
@@ -155,10 +158,14 @@ impl Stream for ProgramStateChanges {
         mut self: Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> Poll<Option<Self::Item>> {
-        match futures::ready!(self.0.poll_next_unpin(cx)) {
-            Some(Ok(change)) => Poll::Ready(Some(Ok(change))),
-            Some(Err(err)) => Poll::Ready(Some(Err(err.into()))),
-            None => Poll::Ready(None),
+        loop {
+            let next = futures::ready!(self.0.poll_next_unpin(cx));
+            match next {
+                Some(Ok(change)) if change.ack.unwrap_or(false) => continue,
+                Some(Ok(change)) => return Poll::Ready(Some(Ok(change))),
+                Some(Err(err)) => return Poll::Ready(Some(Err(err.into()))),
+                None => return Poll::Ready(None),
+            }
         }
     }
 }
@@ -266,6 +273,8 @@ pub struct UserMessageSent {
     pub value: u128,
     /// Reply details if this message is a reply.
     pub reply: Option<UserMessageReply>,
+    /// Indicates whether this notification is an acknowledgement.
+    pub is_ack: bool,
 }
 
 /// Reply-specific details for a user message.
@@ -295,6 +304,8 @@ impl<'de> Deserialize<'de> for UserMessageSent {
             value: String,
             #[serde(default)]
             reply: Option<RawReplyDetails>,
+            #[serde(default)]
+            ack: Option<bool>,
         }
 
         #[derive(Deserialize)]
@@ -326,6 +337,7 @@ impl<'de> Deserialize<'de> for UserMessageSent {
         };
 
         let value = raw.value.parse::<u128>().map_err(DeError::custom)?;
+        let is_ack = raw.ack.unwrap_or(false);
 
         Ok(Self {
             block: raw.block,
@@ -336,6 +348,7 @@ impl<'de> Deserialize<'de> for UserMessageSent {
             payload,
             value,
             reply,
+            is_ack,
         })
     }
 }
@@ -361,10 +374,14 @@ impl Stream for UserMessageSentSubscription {
         mut self: Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> Poll<Option<Self::Item>> {
-        match futures::ready!(self.0.poll_next_unpin(cx)) {
-            Some(Ok(message)) => Poll::Ready(Some(Ok(message))),
-            Some(Err(err)) => Poll::Ready(Some(Err(err.into()))),
-            None => Poll::Ready(None),
+        loop {
+            let next = futures::ready!(self.0.poll_next_unpin(cx));
+            match next {
+                Some(Ok(message)) if message.is_ack => continue,
+                Some(Ok(message)) => return Poll::Ready(Some(Ok(message))),
+                Some(Err(err)) => return Poll::Ready(Some(Err(err.into()))),
+                None => return Poll::Ready(None),
+            }
         }
     }
 }

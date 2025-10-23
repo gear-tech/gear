@@ -74,6 +74,8 @@ pub struct UserMessageSentJson {
     pub value: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub reply: Option<UserMessageReplyJson>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub ack: Option<bool>,
 }
 
 #[derive(Clone, Debug, serde::Serialize)]
@@ -103,6 +105,21 @@ impl UserMessageSentJson {
             payload: Bytes(message.payload_bytes().to_vec()),
             value: message.value().to_string(),
             reply,
+            ack: None,
+        }
+    }
+
+    fn acknowledgement() -> Self {
+        Self {
+            block: Hash::default(),
+            index: 0,
+            id: [0; 32],
+            source: [0; 32],
+            destination: [0; 32],
+            payload: Vec::new().into(),
+            value: "0".into(),
+            reply: None,
+            ack: Some(true),
         }
     }
 }
@@ -291,6 +308,20 @@ where
                 return;
             }
         };
+
+        match SubscriptionMessage::from_json(&UserMessageSentJson::acknowledgement()) {
+            Ok(initial) => {
+                if sink.send(initial).await.is_err() {
+                    return;
+                }
+            }
+            Err(error) => {
+                error!(
+                    target: "rpc",
+                    "unable to serialize initial user message subscription ack: {error}"
+                );
+            }
+        }
 
         if let Err(error) = self.backfill(&sink, &filter, &plan).await {
             warn!(target: "rpc", "failed to backfill user message subscription: {error:?}");

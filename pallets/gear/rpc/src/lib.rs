@@ -706,6 +706,23 @@ where
                 }
             };
 
+            // Send acknowledgment with empty program state change
+            let ack = ProgramStateChange {
+                block_hash: <Block as BlockT>::Hash::default(),
+                program_ids: vec![],
+            };
+
+            if let Ok(initial) = SubscriptionMessage::from_json(&ack) {
+                if sink.send(initial).await.is_err() {
+                    return;
+                }
+            } else {
+                log::error!(
+                    target: "rpc",
+                    "failed to serialize initial program state subscription ack",
+                );
+            }
+
             while let Some(notification) = stream.next().await {
                 let mut programs = BTreeSet::new();
 
