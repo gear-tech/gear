@@ -37,7 +37,6 @@ use gprimitives::H256;
 use nonempty::NonEmpty;
 use std::{
     collections::VecDeque,
-    fmt,
     pin::Pin,
     task::{Context, Poll},
     time::Duration,
@@ -61,21 +60,10 @@ pub struct EthereumConfig {
     pub block_time: Duration,
 }
 
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ObserverEvent {
     Block(SimpleBlockData),
     BlockSynced(H256),
-}
-
-impl fmt::Debug for ObserverEvent {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            ObserverEvent::Block(data) => f.debug_tuple("Block").field(data).finish(),
-            ObserverEvent::BlockSynced(synced_block) => {
-                f.debug_tuple("BlockSynced").field(synced_block).finish()
-            }
-        }
-    }
 }
 
 #[derive(Clone, Debug)]
@@ -87,6 +75,7 @@ struct RuntimeConfig {
     block_time: Duration,
     genesis_timestamp: u64,
     era_duration: u64,
+    genesis_block_hash: H256,
 }
 
 // TODO #4552: make tests for observer service
@@ -190,8 +179,10 @@ impl ObserverService {
             .await
             .context("failed to create ethereum provider")?;
 
+        let genesis_block_hash = router_query.genesis_block_hash().await?;
         let genesis_header =
-            Self::pre_process_genesis_for_db(&db, &provider, &router_query).await?;
+            Self::pre_process_genesis_for_db(genesis_block_hash, &db, &provider, &router_query)
+                .await?;
 
         let timelines = router_query.timelines().await?;
 
@@ -210,6 +201,7 @@ impl ObserverService {
             block_time: *block_time,
             genesis_timestamp: genesis_header.timestamp,
             era_duration: timelines.era,
+            genesis_block_hash,
         };
 
         let chain_sync = ChainSync::new(db, config.clone(), provider.clone());
@@ -230,12 +222,11 @@ impl ObserverService {
     // Choose a better place for this, out of ObserverService.
     /// If genesis block is not yet fully setup in the database, we need to do it
     async fn pre_process_genesis_for_db(
+        genesis_block_hash: H256,
         db: &Database,
         provider: &RootProvider,
         router_query: &RouterQuery,
     ) -> Result<BlockHeader> {
-        let genesis_block_hash = router_query.genesis_block_hash().await?;
-
         if db.block_meta(genesis_block_hash).prepared {
             return db
                 .block_header(genesis_block_hash)
@@ -289,6 +280,18 @@ impl ObserverService {
             self.config.router_address,
             self.config.wvara_address,
         )
+    }
+
+    pub fn genesis_timestamp_secs(&self) -> u64 {
+        self.config.genesis_timestamp
+    }
+
+    pub fn era_duration_secs(&self) -> u64 {
+        self.config.era_duration
+    }
+
+    pub fn genesis_block_hash(&self) -> H256 {
+        self.config.genesis_block_hash
     }
 
     pub fn router_query(&self) -> RouterQuery {

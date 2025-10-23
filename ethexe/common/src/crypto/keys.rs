@@ -89,6 +89,7 @@ impl PrivateKey {
     PartialEq,
     PartialOrd,
     Ord,
+    Hash,
     derive_more::Debug,
     derive_more::Display,
     derive_more::From,

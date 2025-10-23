@@ -18,19 +18,21 @@
 
 use crate::{
     Announce, AnnounceHash, Digest, ToDigest,
-    ecdsa::{ContractSignature, SignedData},
+    ecdsa::{ContractSignature, VerifiedData},
     gear::BatchCommitment,
 };
 use alloc::vec::Vec;
 use gprimitives::CodeId;
 use k256::sha2::Digest as _;
 use parity_scale_codec::{Decode, Encode};
+use sha3::Keccak256;
 
-pub type SignedAnnounce = SignedData<Announce>;
-pub type SignedValidationRequest = SignedData<BatchCommitmentValidationRequest>;
+pub type VerifiedAnnounce = VerifiedData<Announce>;
+pub type VerifiedValidationRequest = VerifiedData<BatchCommitmentValidationRequest>;
+pub type VerifiedValidationReply = VerifiedData<BatchCommitmentValidationReply>;
 
 /// Represents a request for validating a batch commitment.
-#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
+#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq, Hash)]
 pub struct BatchCommitmentValidationRequest {
     // Digest of batch commitment to validate
     pub digest: Digest,
@@ -87,10 +89,18 @@ impl ToDigest for BatchCommitmentValidationRequest {
 
 /// A reply to a batch commitment validation request.
 /// Contains the digest of the batch and a signature confirming the validation.
-#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
+#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq, Hash)]
 pub struct BatchCommitmentValidationReply {
     /// Digest of the [`BatchCommitment`] being validated
     pub digest: Digest,
     /// Signature confirming the validation by origin
     pub signature: ContractSignature,
+}
+
+impl ToDigest for BatchCommitmentValidationReply {
+    fn update_hasher(&self, hasher: &mut Keccak256) {
+        let Self { digest, signature } = self;
+        hasher.update(digest.0);
+        hasher.update(signature.into_pre_eip155_bytes())
+    }
 }
