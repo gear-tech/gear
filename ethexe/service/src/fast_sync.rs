@@ -644,7 +644,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
         .expect("latest block always exist");
     let finalized_block = H256(finalized_block.header.hash.0);
 
-    let block_loader = observer.block_loader().lazy(db.clone());
+    let block_loader = observer.block_loader();
 
     let Some(EventData {
         latest_committed_batch,
