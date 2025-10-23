@@ -94,7 +94,7 @@ impl StateHandler for Initial {
         if let WaitingFor::PreparedBlock(block) = &self.state
             && block.hash == block_hash
         {
-            if let Some(request) = self.ctx.core.identify_missing_announces(block.hash)? {
+            if let Some(request) = self.ctx.core.check_for_missing_announces(block)? {
                 log::debug!(
                     "Missing announces detected for block {block_hash}, send request: {request:?}"
                 );
@@ -371,13 +371,19 @@ impl ValidatorCore {
         Ok(())
     }
 
-    fn identify_missing_announces(&self, block_hash: H256) -> Result<Option<AnnouncesRequest>> {
+    fn check_for_missing_announces(
+        &self,
+        block: &SimpleBlockData,
+    ) -> Result<Option<AnnouncesRequest>> {
         let last_committed_announce_hash = self
             .db
-            .block_meta(block_hash)
+            .block_meta(block.hash)
             .last_committed_announce
             .ok_or_else(|| {
-            anyhow!("last committed announce not found for prepared block {block_hash}")
+            anyhow!(
+                "last committed announce not found for prepared block {}",
+                block.hash
+            )
         })?;
 
         if self.announce_is_included(last_committed_announce_hash) {
@@ -386,9 +392,8 @@ impl ValidatorCore {
             Ok(None)
         } else {
             // announce is unknown, or not included, so there can be missing announces
-            // and we need to request all chain of announces
-            let common_predecessor_announce_hash =
-                self.find_announces_common_predecessor(block_hash)?;
+            // and node needs to request all announces till definitely known one
+            let common_predecessor_announce_hash = self.find_announces_common_predecessor(block)?;
 
             Ok(Some(AnnouncesRequest {
                 head: last_committed_announce_hash,
@@ -422,9 +427,11 @@ impl ValidatorCore {
 
 #[cfg(test)]
 mod tests {
+    use std::num::NonZeroU32;
+
     use super::*;
     use crate::{ConsensusEvent, validator::mock::*};
-    use ethexe_common::{db::*, mock::*};
+    use ethexe_common::{AnnouncesResponse, db::*, mock::*};
     use gprimitives::H256;
     use nonempty::nonempty;
 
@@ -445,6 +452,8 @@ mod tests {
 
     #[tokio::test]
     async fn switch_to_producer() {
+        gear_utils::init_default_logger();
+
         let (ctx, keys, _) = mock_validator_context();
         let validators = nonempty![
             ctx.core.pub_key.to_address(),
@@ -470,6 +479,8 @@ mod tests {
 
     #[test]
     fn switch_to_subordinate() {
+        gear_utils::init_default_logger();
+
         let (ctx, keys, _) = mock_validator_context();
         let validators = nonempty![
             ctx.core.pub_key.to_address(),
@@ -493,11 +504,119 @@ mod tests {
         );
     }
 
-    // +_+_+ make a test for missing announces request/response
-    // +_+_+ make a test for announce propagation done
+    #[test]
+    fn missing_announces_request_response() {
+        gear_utils::init_default_logger();
+
+        let (ctx, _, _) = mock_validator_context();
+        let last = 9;
+
+        let mut chain = BlockChain::mock(last as u32);
+        chain.blocks[last].as_prepared_mut().announces = None;
+
+        // create 2 missing announces from blocks last - 2 and last - 1
+        let announce8 = Announce::with_default_gas(
+            chain.blocks[last - 2].hash,
+            chain.block_top_announce_hash(last - 3),
+        );
+        let announce9 =
+            Announce::with_default_gas(chain.blocks[last - 1].hash, announce8.to_hash());
+
+        chain.blocks[last].as_prepared_mut().last_committed_announce = announce9.to_hash();
+        let chain = chain.setup(&ctx.core.db);
+        let block = chain.blocks[last].to_simple();
+
+        let state = Initial::create_with_chain_head(ctx, block.clone())
+            .unwrap()
+            .process_synced_block(block.hash)
+            .unwrap()
+            .process_prepared_block(block.hash)
+            .unwrap();
+        assert!(state.is_initial(), "got {:?}", state);
+        let expected_request = AnnouncesRequest {
+            head: chain.blocks[last].as_prepared().last_committed_announce,
+            until: chain.block_top_announce_hash(last - 3).into(),
+        };
+        assert_eq!(state.context().output, vec![expected_request.into()]);
+
+        let response = AnnouncesResponse {
+            announces: vec![
+                chain
+                    .announces
+                    .get(&chain.block_top_announce_hash(last - 3))
+                    .unwrap()
+                    .announce
+                    .clone(),
+                announce8.clone(),
+                announce9.clone(),
+            ],
+        }
+        .try_into_checked(expected_request)
+        .unwrap();
+
+        // In successful case no new events are produced
+        let state = state.process_announces_response(response).unwrap();
+        assert_eq!(state.context().output, vec![expected_request.into()]);
+    }
+
+    #[test]
+    fn announce_propagation_done() {
+        gear_utils::init_default_logger();
+
+        let (ctx, _, _) = mock_validator_context();
+        let last = 9;
+        let chain = BlockChain::mock(last as u32)
+            .tap_mut(|chain| {
+                // remove announces from 5 latest blocks
+                (last - 4..=last).for_each(|idx| {
+                    chain.blocks[idx].as_prepared_mut().announces = None;
+                });
+
+                // append one more announce to the block last - 5
+                let announce = Announce::with_default_gas(
+                    chain.blocks[last - 5].hash,
+                    chain.block_top_announce_hash(last - 6),
+                );
+                chain.blocks[last - 5]
+                    .as_prepared_mut()
+                    .announces
+                    .as_mut()
+                    .unwrap()
+                    .insert(announce.to_hash());
+                chain.announces.insert(
+                    announce.to_hash(),
+                    AnnounceData {
+                        announce,
+                        computed: None,
+                    },
+                );
+            })
+            .setup(&ctx.core.db);
+        let block = chain.blocks[last].to_simple();
+
+        let state = Initial::create_with_chain_head(ctx, block.clone())
+            .unwrap()
+            .process_synced_block(block.hash)
+            .unwrap()
+            .process_prepared_block(block.hash)
+            .unwrap();
+
+        let ctx = state.into_context();
+        assert_eq!(ctx.output, vec![]);
+        for i in last - 5..last - 5 + ctx.core.commitment_delay_limit as usize {
+            let announces = ctx.core.db.block_meta(chain.blocks[i].hash).announces;
+            assert_eq!(announces.unwrap().len(), 2);
+        }
+        for i in last - 5 + ctx.core.commitment_delay_limit as usize..=last {
+            let announces = ctx.core.db.block_meta(chain.blocks[i].hash).announces;
+            assert_eq!(announces.unwrap().len(), 1);
+        }
+    }
 
     #[test]
     fn process_synced_block_rejected() {
+        gear_utils::init_default_logger();
+
         let (ctx, _, _) = mock_validator_context();
         let block = BlockChain::mock(1).setup(&ctx.core.db).blocks[1].to_simple();
 
@@ -524,5 +643,71 @@ mod tests {
         ));
     }
 
-    // +_+_+ make a test prepared block rejected
+    #[test]
+    fn process_prepared_block_rejected() {
+        gear_utils::init_default_logger();
+
+        let (ctx, _, _) = mock_validator_context();
+        let block = BlockChain::mock(1).setup(&ctx.core.db).blocks[1].to_simple();
+        let state = Initial::create_with_chain_head(ctx, block.clone())
+            .unwrap()
+            .process_synced_block(block.hash)
+            .unwrap()
+            .process_prepared_block(H256::random())
+            .unwrap();
+        assert!(state.is_initial(), "got {:?}", state);
+        assert_eq!(state.context().output.len(), 1);
+        assert!(matches!(
+            state.context().output[0],
+            ConsensusEvent::Warning(_)
+        ));
+    }
+
+    #[test]
+    fn process_announces_response_rejected() {
+        gear_utils::init_default_logger();
+
+        let (ctx, _, _) = mock_validator_context();
+        let block = BlockChain::mock(1)
+            .setup(&ctx.core.db)
+            .tap_mut(|chain| {
+                chain.blocks[1].as_prepared_mut().announces = None;
+                chain.blocks[1].as_prepared_mut().last_committed_announce = AnnounceHash::random();
+            })
+            .setup(&ctx.core.db)
+            .blocks[1]
+            .to_simple();
+
+        let invalid_announce = Announce {
+            block_hash: H256::random(),
+            parent: AnnounceHash::random(),
+            gas_allowance: None,
+            off_chain_transactions: vec![],
+        };
+        let invalid_announce_hash = invalid_announce.to_hash();
+
+        let state = Initial::create_with_chain_head(ctx, block.clone())
+            .unwrap()
+            .process_synced_block(block.hash)
+            .unwrap()
+            .process_prepared_block(block.hash)
+            .unwrap()
+            .process_announces_response(
+                AnnouncesResponse {
+                    announces: vec![invalid_announce],
+                }
+                .try_into_checked(AnnouncesRequest {
+                    head: invalid_announce_hash,
+                    until: NonZeroU32::new(1).unwrap().into(),
+                })
+                .unwrap(),
+            )
+            .unwrap();
+        assert!(state.is_initial(), "got {:?}", state);
+        assert_eq!(state.context().output.len(), 2);
+        assert!(matches!(
+            state.context().output[1],
+            ConsensusEvent::Warning(_)
+        ));
+    }
 }

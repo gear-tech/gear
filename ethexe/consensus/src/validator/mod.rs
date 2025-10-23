@@ -409,6 +409,13 @@ impl StateHandler for ValidatorState {
         delegate_call!(self => process_validation_reply(reply))
     }
 
+    fn process_announces_response(
+        self,
+        response: CheckedAnnouncesResponse,
+    ) -> Result<ValidatorState> {
+        delegate_call!(self => process_announces_response(response))
+    }
+
     fn poll_next_state(self, cx: &mut Context<'_>) -> Result<(Poll<()>, ValidatorState)> {
         delegate_call!(self => poll_next_state(cx))
     }

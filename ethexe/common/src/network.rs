@@ -32,7 +32,7 @@ pub enum NetworkMessage {
 }
 
 /// Until condition for announces request (see [`AnnouncesRequest`]).
-#[derive(PartialEq, Eq, Hash, Debug, Clone, Copy, Encode, Decode)]
+#[derive(PartialEq, Eq, Hash, Debug, Clone, Copy, Encode, Decode, derive_more::From)]
 pub enum AnnouncesRequestUntil {
     /// Request until a specific tail announce hash
     Tail(AnnounceHash),

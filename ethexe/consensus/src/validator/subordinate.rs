@@ -225,9 +225,9 @@ mod tests {
     fn earlier_received_announces() {
         let (mut ctx, keys, _) = mock_validator_context();
         let producer = keys[0];
-        let blocks = BlockChain::mock(1).setup(&ctx.core.db).blocks;
-        let block = blocks[1].to_simple();
-        let parent_announce_hash = blocks[0].as_prepared().announces.first().copied().unwrap();
+        let chain = BlockChain::mock(1).setup(&ctx.core.db);
+        let block = chain.blocks[1].to_simple();
+        let parent_announce_hash = chain.block_top_announce_hash(0);
         let announce1 = ctx
             .core
             .signer
@@ -280,15 +280,12 @@ mod tests {
         let (mut ctx, keys, _) = mock_validator_context();
         let producer = keys[0];
         let alice = keys[1];
-        let blocks = BlockChain::mock(1).setup(&ctx.core.db).blocks;
-        let block = blocks[1].to_simple();
-        let announce: SignedAnnounce = ctx.core.signer.mock_signed_data(
-            producer,
-            (
-                block.hash,
-                blocks[0].as_prepared().announces.first().copied().unwrap(),
-            ),
-        );
+        let chain = BlockChain::mock(1).setup(&ctx.core.db);
+        let block = chain.blocks[1].to_simple();
+        let announce: SignedAnnounce = ctx
+            .core
+            .signer
+            .mock_signed_data(producer, (block.hash, chain.block_top_announce_hash(0)));
 
         ctx.pending(announce.clone());
 
@@ -310,13 +307,12 @@ mod tests {
     fn simple() {
         let (ctx, pub_keys, _) = mock_validator_context();
         let producer = pub_keys[0];
-        let blocks = BlockChain::mock(1).setup(&ctx.core.db).blocks;
-        let parent_announce_hash = blocks[0].as_prepared().announces.first().copied().unwrap();
-        let block = blocks[1].to_simple();
+        let chain = BlockChain::mock(1).setup(&ctx.core.db);
+        let block = chain.blocks[1].to_simple();
         let announce = ctx
             .core
             .signer
-            .mock_signed_data(producer, (block.hash, parent_announce_hash));
+            .mock_signed_data(producer, (block.hash, chain.block_top_announce_hash(0)));
 
         // Subordinate waits for block prepared and announce after creation.
         let s = Subordinate::create(ctx, block.clone(), producer.to_address(), true).unwrap();
@@ -340,9 +336,9 @@ mod tests {
     fn simple_not_validator() {
         let (ctx, pub_keys, _) = mock_validator_context();
         let producer = pub_keys[0];
-        let blocks = BlockChain::mock(1).setup(&ctx.core.db).blocks;
-        let block = blocks[1].to_simple();
-        let parent_announce_hash = blocks[0].as_prepared().announces.first().copied().unwrap();
+        let chain = BlockChain::mock(1).setup(&ctx.core.db);
+        let block = chain.blocks[1].to_simple();
+        let parent_announce_hash = chain.block_top_announce_hash(0);
         let announce = ctx
             .core
             .signer
