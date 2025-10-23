@@ -135,21 +135,22 @@ where
 
         // Handle special cases that return custom response instead of just dispatching calls
         if let Request::ActiveEra = request {
-            let active_era = pallet_staking::ActiveEra::<T>::get();
-            let payload = if let Some(era_info) = active_era {
-                Response::ActiveEra {
-                    index: era_info.index,
-                    start: era_info.start,
-                    executed_at: frame_system::Pallet::<T>::block_number().saturated_into::<u32>(),
-                    executed_at_gear_block: pallet_gear::Pallet::<T>::block_number()
-                        .saturated_into::<u32>(),
-                }
-                .encode()
-                .try_into()
-                .expect("Small vector")
-            } else {
-                Default::default()
-            };
+            let executed_at = frame_system::Pallet::<T>::block_number().saturated_into::<u32>();
+            let executed_at_gear_block =
+                pallet_gear::Pallet::<T>::block_number().saturated_into::<u32>();
+            let info = pallet_staking::ActiveEra::<T>::get().map(|era_info| ActiveEraInfo {
+                index: era_info.index,
+                start: era_info.start,
+            });
+
+            let payload = Response::ActiveEra {
+                info,
+                executed_at,
+                executed_at_gear_block,
+            }
+            .encode()
+            .try_into()
+            .expect("Small vector");
             return Ok(BuiltinReply {
                 payload,
                 value: dispatch.value(),

@@ -129,18 +129,25 @@ pub enum RewardAccount {
 /// Response type for staking built-in actor operations.
 #[derive(Debug, Clone, Eq, PartialEq, Encode, Decode, TypeInfo)]
 pub enum Response {
-    /// Response containing the active era details amd when it was executed.
+    /// Response containing the active era details and when it was executed.
     ActiveEra {
-        // Current active era index.
-        index: u32,
-        /// Moment of start expressed as millisecond from `$UNIX_EPOCH`.
-        ///
-        /// Start can be none if start hasn't been set for the era yet,
-        /// Start is set on the first on_finalize of the era to guarantee usage of `Time`.
-        start: Option<u64>,
-        // Block number when the request was executed.
+        /// Information about the active era if one is available.
+        info: Option<ActiveEraInfo>,
+        /// Block number when the request was executed.
         executed_at: u32,
-        // Gear block number when the request was executed.
+        /// Gear block number when the request was executed.
         executed_at_gear_block: u32,
     },
+}
+
+/// Information about the active era.
+#[derive(Debug, Clone, Eq, PartialEq, Encode, Decode, TypeInfo)]
+pub struct ActiveEraInfo {
+    /// Current active era index.
+    pub index: u32,
+    /// Moment of start expressed as millisecond from `$UNIX_EPOCH`.
+    ///
+    /// Start can be none if start hasn't been set for the era yet.
+    /// Start is set on the first `on_finalize` of the era to guarantee usage of `Time`.
+    pub start: Option<u64>,
 }
