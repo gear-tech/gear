@@ -20,12 +20,12 @@
 
 use crate::{
     RuntimeConfig,
-    utils::{BlockLoader, EthereumBlockLoader, LazyBlockLoader},
+    utils::{BlockLoader, EthereumBlockLoader},
 };
 use alloy::{providers::RootProvider, rpc::types::eth::Header};
 use anyhow::{Result, anyhow};
 use ethexe_common::{
-    self, BlockData, BlockHeader, CodeBlobInfo,
+    self, BlockData, BlockHeader, CodeBlobInfo, SimpleBlockData,
     db::{LatestDataStorageWrite, OnChainStorageWrite},
     events::{BlockEvent, RouterEvent},
     gear_core::pages::num_traits::Zero,
@@ -44,7 +44,7 @@ pub(crate) struct ChainSync<DB: SyncDB> {
     pub db: DB,
     pub config: RuntimeConfig,
     pub router_query: RouterQuery,
-    pub block_loader: LazyBlockLoader<EthereumBlockLoader, DB>,
+    pub block_loader: EthereumBlockLoader,
 }
 
 impl<DB: SyncDB> ChainSync<DB> {
@@ -52,8 +52,7 @@ impl<DB: SyncDB> ChainSync<DB> {
         let router_query =
             RouterQuery::from_provider(config.router_address.0.into(), provider.clone());
         let block_loader =
-            EthereumBlockLoader::new(provider, config.router_address, config.wvara_address)
-                .lazy(db.clone());
+            EthereumBlockLoader::new(provider, config.router_address, config.wvara_address);
         Self {
             db,
             config,
@@ -63,44 +62,51 @@ impl<DB: SyncDB> ChainSync<DB> {
     }
 
     pub async fn sync(self, chain_head: Header) -> Result<H256> {
-        let block: H256 = chain_head.hash.0.into();
-        let header = BlockHeader {
-            height: chain_head.number as u32,
-            timestamp: chain_head.timestamp,
-            parent_hash: H256(chain_head.parent_hash.0),
+        let block = SimpleBlockData {
+            hash: H256(chain_head.hash.0),
+            header: BlockHeader {
+                height: chain_head.number as u32,
+                timestamp: chain_head.timestamp,
+                parent_hash: H256(chain_head.parent_hash.0),
+            },
         };
 
-        let blocks_data = self.pre_load_data(&header).await?;
-        let chain = self.load_chain(block, header, blocks_data).await?;
+        let blocks_data = self.pre_load_data(&block.header).await?;
+        let chain = self.load_chain(&block, blocks_data).await?;
 
-        self.mark_chain_as_synced(chain.into_iter().rev());
-        self.propagate_validators(block, header).await?;
+        self.mark_chain_as_synced(chain.into_iter().rev())?;
 
-        Ok(block)
+        // NOTE: Set validators for the chain head block only.
+        // It's useless to set validators for all synced blocks currently.
+        self.propagate_validators(&block).await?;
+
+        Ok(block.hash)
     }
 
     async fn load_chain(
         &self,
-        block: H256,
-        header: BlockHeader,
+        block: &SimpleBlockData,
         mut blocks_data: HashMap<H256, BlockData>,
-    ) -> Result<Vec<H256>> {
+    ) -> Result<Vec<SimpleBlockData>> {
         let mut chain = Vec::new();
 
-        let mut hash = block;
-        while !self.db.block_synced(hash) {
-            let block_data = match blocks_data.remove(&hash) {
+        let mut current_block_hash = block.hash;
+        while !self.db.block_synced(current_block_hash) {
+            let block_data = match blocks_data.remove(&current_block_hash) {
                 Some(data) => data,
                 None => {
                     self.block_loader
-                        .load(hash, (hash == block).then_some(header))
+                        .load(
+                            current_block_hash,
+                            (current_block_hash == block.hash).then_some(block.header),
+                        )
                         .await?
                 }
             };
 
-            if hash != block_data.hash {
+            if current_block_hash != block_data.hash {
                 unreachable!(
-                    "Expected data for block hash {hash}, got for {}",
+                    "Expected data for block hash {current_block_hash}, got for {}",
                     block_data.hash
                 );
             }
@@ -117,9 +123,17 @@ impl<DB: SyncDB> ChainSync<DB> {
                 }
             }
 
-            let parent_hash = block_data.header.parent_hash;
-            chain.push(hash);
-            hash = parent_hash;
+            self.db
+                .set_block_header(current_block_hash, block_data.header);
+            self.db
+                .set_block_events(current_block_hash, &block_data.events);
+
+            chain.push(SimpleBlockData {
+                hash: current_block_hash,
+                header: block_data.header,
+            });
+
+            current_block_hash = block_data.header.parent_hash;
         }
 
         Ok(chain)
@@ -162,36 +176,35 @@ impl<DB: SyncDB> ChainSync<DB> {
     }
 
     // Propagate validators from the parent block. If start new era, fetch new validators from the router.
-    async fn propagate_validators(&self, block: H256, header: BlockHeader) -> Result<()> {
-        let validators = match self.db.block_validators(header.parent_hash) {
-            Some(validators) if !self.should_fetch_validators(header)? => validators,
+    async fn propagate_validators(&self, block: &SimpleBlockData) -> Result<()> {
+        let validators = match self.db.block_validators(block.header.parent_hash) {
+            Some(validators) if !self.should_fetch_validators(block.header)? => validators,
             _ => {
-                let fetched_validators = self.router_query.validators_at(block).await?;
+                let fetched_validators = self.router_query.validators_at(block.hash).await?;
                 NonEmpty::from_vec(fetched_validators).ok_or(anyhow!(
-                    "validator set is empty on router for block({block})"
+                    "validator set is empty on router for block({})",
+                    block.hash
                 ))?
             }
         };
-        self.db.set_block_validators(block, validators.clone());
+        self.db.set_block_validators(block.hash, validators.clone());
         Ok(())
     }
 
-    fn mark_chain_as_synced(&self, chain: impl Iterator<Item = H256>) {
-        for hash in chain {
-            let block_header = self
-                .db
-                .block_header(hash)
-                .unwrap_or_else(|| unreachable!("Block header for synced block {hash} is missing"));
-
-            self.db.set_block_synced(hash);
-
-            let _ = self
-                .db
-                .mutate_latest_data(|data| data.synced_block_height = block_header.height)
-                .ok_or_else(|| {
-                    log::error!("Failed to update latest data for synced block {hash}");
-                });
+    fn mark_chain_as_synced(&self, chain: impl Iterator<Item = SimpleBlockData>) -> Result<()> {
+        let mut head_height = None;
+        for block in chain {
+            self.db.set_block_synced(block.hash);
+            head_height = Some(block.header.height);
         }
+
+        if let Some(head_height) = head_height {
+            self.db
+                .mutate_latest_data(|data| data.synced_block_height = head_height)
+                .ok_or_else(|| anyhow!("latest data is not set in db"))?;
+        }
+
+        Ok(())
     }
 
     /// NOTE: we don't need to fetch validators for block from zero era, because of
