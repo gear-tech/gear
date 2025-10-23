@@ -79,6 +79,7 @@ impl fmt::Debug for ObserverEvent {
 struct RuntimeConfig {
     router_address: Address,
     wvara_address: Address,
+    middleware_address: Address,
     max_sync_depth: u32,
     batched_sync_depth: u32,
 }
@@ -177,6 +178,7 @@ impl ObserverService {
 
         let router_query = RouterQuery::new(rpc, *router_address).await?;
         let wvara_address = Address(router_query.wvara_address().await?.0.0);
+        let middleware_address = router_query.middleware_address().await?.into();
 
         let provider = ProviderBuilder::default()
             .connect(rpc)
@@ -194,6 +196,7 @@ impl ObserverService {
         let config = RuntimeConfig {
             router_address: *router_address,
             wvara_address,
+            middleware_address,
             max_sync_depth,
             // TODO #4562: make this configurable. Important: must be greater than 1.
             batched_sync_depth: 2,
@@ -253,15 +256,12 @@ impl ObserverService {
             election: router_timelines.election,
         };
 
-        let genesis_validators = router_query.validators_at(genesis_block_hash).await?;
-
         ethexe_common::setup_genesis_in_db(
             db,
             SimpleBlockData {
                 hash: genesis_block_hash,
                 header: genesis_header,
             },
-            genesis_validators,
             timelines,
         );
 

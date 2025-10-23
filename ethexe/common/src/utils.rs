@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    Announce, AnnounceHash, ProtocolTimelines, SimpleBlockData, ValidatorsVec,
+    Announce, AnnounceHash, ProtocolTimelines, SimpleBlockData,
     db::{
         AnnounceStorageRW, BlockMeta, BlockMetaStorageRW, FullAnnounceData, FullBlockData,
         LatestData, LatestDataStorageRW, OnChainStorageRW,
@@ -79,7 +79,6 @@ pub fn setup_genesis_in_db<
 >(
     db: &DB,
     genesis_block: SimpleBlockData,
-    validators: ValidatorsVec,
     timelines: ProtocolTimelines,
 ) {
     let genesis_announce = Announce::base(genesis_block.hash, AnnounceHash::zero());
@@ -99,7 +98,6 @@ pub fn setup_genesis_in_db<
         FullBlockData {
             header: genesis_block.header,
             events: Default::default(),
-            validators,
             codes_queue: Default::default(),
             announces: [genesis_announce_hash].into(),
             last_committed_batch: Default::default(),
@@ -139,7 +137,6 @@ pub fn setup_block_in_db<DB: OnChainStorageRW + BlockMetaStorageRW>(
     db.set_block_header(block_hash, block_data.header);
     db.set_block_events(block_hash, &block_data.events);
     db.set_block_synced(block_hash);
-    db.set_block_validators(block_hash, block_data.validators);
 
     db.mutate_block_meta(block_hash, |meta| {
         *meta = BlockMeta {
