@@ -195,8 +195,8 @@ fn payload_size_matters() {
 
         // Prepare large payload
         let mut targets = Vec::<ActorId>::new();
-        for i in 100_u64..200_u64 {
-            targets.push(i.cast());
+        for i in 100_u32..200_u32 {
+            targets.push((i as u64).cast());
         }
 
         System::reset_events();
@@ -561,7 +561,7 @@ fn payout_stakers_works() {
 
         // Actually run the chain for a few eras (5) to accumulate some rewards
         run_for_n_blocks(
-            5 * SESSION_DURATION * <Test as pallet_staking::Config>::SessionsPerEra::get() as u64,
+            5 * SESSION_DURATION * <Test as pallet_staking::Config>::SessionsPerEra::get(),
             None,
         );
 
@@ -783,14 +783,14 @@ mod util {
         PalletId, assert_ok, construct_runtime,
         pallet_prelude::{DispatchClass, Weight},
         parameter_types,
-        traits::{ConstBool, ConstU64, FindAuthor, Get, OnFinalize, OnInitialize},
+        traits::{ConstU64, FindAuthor, Get, OnFinalize, OnInitialize},
     };
     use frame_support_test::TestRandomness;
     use frame_system::{self as system, limits::BlockWeights, pallet_prelude::BlockNumberFor};
     pub(super) use gbuiltin_staking::{Request, RewardAccount};
     pub(super) use gear_core::ids::{ActorId, CodeId, prelude::*};
     use gear_core_errors::{ErrorReplyReason, ReplyCode, SimpleExecutionError};
-    use pallet_session::historical::{self as pallet_session_historical};
+    use pallet_session::historical as pallet_session_historical;
     pub(super) use parity_scale_codec::Encode;
     use sp_core::{H256, crypto::key_types};
     use sp_runtime::{
@@ -800,7 +800,7 @@ mod util {
     };
     use sp_std::convert::{TryFrom, TryInto};
 
-    pub(super) const SESSION_DURATION: u64 = 250;
+    pub(super) const SESSION_DURATION: u32 = 250;
     pub(super) const REWARD_PAYEE: AccountId = 2;
     pub(super) type AccountId = u64;
 
@@ -808,9 +808,9 @@ mod util {
     const VAL_2_AUTH_ID: UintAuthorityId = UintAuthorityId(21);
     const VAL_3_AUTH_ID: UintAuthorityId = UintAuthorityId(31);
 
-    type BlockNumber = u64;
+    type BlockNumber = u32;
     type Balance = u128;
-    type Block = frame_system::mocking::MockBlock<Test>;
+    type Block = frame_system::mocking::MockBlockU32<Test>;
     type BlockWeightsOf<T> = <T as frame_system::Config>::BlockWeights;
 
     // Configure a mock runtime to test the pallet.
@@ -835,7 +835,7 @@ mod util {
     );
 
     parameter_types! {
-        pub const BlockHashCount: u64 = 250;
+        pub const BlockHashCount: BlockNumber = 250;
         pub const ExistentialDeposit: Balance = EXISTENTIAL_DEPOSIT;
         pub ElectionBoundsOnChain: ElectionBounds = ElectionBoundsBuilder::default().build();
     }
@@ -907,8 +907,8 @@ mod util {
     }
 
     parameter_types! {
-        pub const Period: u64 = SESSION_DURATION;
-        pub const Offset: u64 = SESSION_DURATION + 1;
+        pub const Period: BlockNumber = SESSION_DURATION;
+        pub const Offset: BlockNumber = SESSION_DURATION + 1;
     }
 
     impl pallet_session::Config for Test {
@@ -1037,7 +1037,7 @@ mod util {
         run_for_n_blocks(1, None)
     }
 
-    pub(crate) fn run_for_n_blocks(n: u64, remaining_weight: Option<u64>) {
+    pub(crate) fn run_for_n_blocks(n: BlockNumber, remaining_weight: Option<u64>) {
         let now = System::block_number();
         let until = now + n;
         for current_blk in now..until {
@@ -1064,7 +1064,7 @@ mod util {
 
     // Run on_initialize hooks in order as they appear in AllPalletsWithSystem.
     pub(crate) fn on_initialize(new_block_number: BlockNumberFor<Test>) {
-        Timestamp::set_timestamp(new_block_number.saturating_mul(MILLISECS_PER_BLOCK));
+        Timestamp::set_timestamp(u64::from(new_block_number).saturating_mul(MILLISECS_PER_BLOCK));
         Authorship::on_initialize(new_block_number);
         Session::on_initialize(new_block_number);
         GearGas::on_initialize(new_block_number);

@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2024-2025 Gear Technologies Inc.
+// Copyright (C) 2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -16,21 +16,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use anyhow::Result;
-use hyper::header::HeaderValue;
-use tower_http::cors::{AllowOrigin, CorsLayer};
+use crate::consensus::{BatchCommitmentValidationReply, SignedAnnounce, SignedValidationRequest};
+use parity_scale_codec::{Decode, Encode};
 
-pub(crate) fn try_into_cors(maybe_cors: Option<Vec<String>>) -> Result<CorsLayer> {
-    if let Some(cors) = maybe_cors {
-        let mut list = Vec::new();
-
-        for origin in cors {
-            list.push(HeaderValue::from_str(&origin)?)
-        }
-
-        Ok(CorsLayer::new().allow_origin(AllowOrigin::list(list)))
-    } else {
-        // allow all cors
-        Ok(CorsLayer::permissive())
-    }
+#[derive(Debug, Clone, Encode, Decode, derive_more::From, Eq, PartialEq)]
+pub enum NetworkMessage {
+    ProducerBlock(SignedAnnounce),
+    RequestBatchValidation(SignedValidationRequest),
+    ApproveBatch(BatchCommitmentValidationReply),
 }

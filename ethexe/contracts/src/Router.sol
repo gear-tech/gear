@@ -137,6 +137,10 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
         return _router().implAddresses.wrappedVara;
     }
 
+    function middleware() public view returns (address) {
+        return _router().implAddresses.middleware;
+    }
+
     function validatorsAggregatedPublicKey() public view returns (Gear.AggregatedPublicKey memory) {
         return Gear.currentEraValidators(_router()).aggregatedPublicKey;
     }
@@ -376,7 +380,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
 
         bytes32 _transitionsHash = _commitTransitions(router, _commitment.transitions);
 
-        emit HeadCommitted(_commitment.head);
+        emit AnnouncesCommitted(_commitment.head);
 
         return Gear.chainCommitmentHash(_transitionsHash, _commitment.head);
     }

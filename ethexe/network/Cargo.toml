@@ -24,7 +24,7 @@ async-trait.workspace = true
 rand = { workspace = true, features = ["std", "std_rng"] }
 futures.workspace = true
 derive_more.workspace = true
-itertools.workspace = true
+itertools = { workspace = true, features = ["use_std"]}
 
 [dependencies.libp2p]
 version = "0.55.0"
