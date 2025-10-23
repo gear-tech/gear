@@ -19,8 +19,8 @@
 pub use tap::Tap;
 
 use crate::{
-    Address, Announce, AnnounceHash, BlockHeader, CodeBlobInfo, Digest, ProgramStates, Schedule,
-    SimpleBlockData, ValidatorsVec,
+    Address, Announce, AnnounceHash, BlockHeader, CodeBlobInfo, Digest, ProgramStates,
+    ProtocolTimelines, Schedule, SimpleBlockData, ValidatorsVec,
     consensus::BatchCommitmentValidationRequest,
     db::*,
     events::BlockEvent,
@@ -54,6 +54,16 @@ impl Mock<H256> for SimpleBlockData {
 impl Mock<()> for SimpleBlockData {
     fn mock(_args: ()) -> Self {
         SimpleBlockData::mock(H256::random())
+    }
+}
+
+impl Mock<()> for ProtocolTimelines {
+    fn mock(_args: ()) -> Self {
+        Self {
+            genesis_ts: 0,
+            era: 1000,
+            election: 200,
+        }
     }
 }
 

@@ -52,9 +52,9 @@ use crate::{
         subordinate::Subordinate,
     },
 };
-use anyhow::Result;
+use anyhow::{Result, anyhow};
 use derive_more::{Debug, From};
-use ethexe_common::{AnnounceHash, SimpleBlockData, ecdsa::PublicKey};
+use ethexe_common::{AnnounceHash, SimpleBlockData, db::OnChainStorageRO, ecdsa::PublicKey};
 use ethexe_db::Database;
 use ethexe_ethereum::{middleware::ElectionProvider, router::Router};
 use ethexe_signer::Signer;
@@ -127,12 +127,16 @@ impl ValidatorService {
         db: Database,
         config: ValidatorConfig,
     ) -> Result<Self> {
+        let timelines = db
+            .protocol_timelines()
+            .ok_or_else(|| anyhow!("Protocol timelines not found in database"))?;
         let ctx = ValidatorContext {
             core: ValidatorCore {
                 slot_duration: config.slot_duration,
                 signatures_threshold: config.signatures_threshold,
                 router_address: router.address(),
                 pub_key: config.pub_key,
+                timelines,
                 signer,
                 db: db.clone(),
                 committer: Box::new(EthereumCommitter { router }),

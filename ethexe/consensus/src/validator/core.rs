@@ -22,9 +22,9 @@ use crate::utils::{self, MultisignedBatchCommitment};
 use anyhow::{Result, anyhow, ensure};
 use async_trait::async_trait;
 use ethexe_common::{
-    Address, Digest, SimpleBlockData, ToDigest, ValidatorsVec,
+    Address, Digest, ProtocolTimelines, SimpleBlockData, ToDigest, ValidatorsVec,
     consensus::BatchCommitmentValidationRequest,
-    db::{BlockMetaStorageRO, OnChainStorageRO},
+    db::BlockMetaStorageRO,
     ecdsa::PublicKey,
     gear::{
         BatchCommitment, ChainCommitment, CodeCommitment, RewardsCommitment, ValidatorsCommitment,
@@ -44,6 +44,7 @@ pub struct ValidatorCore {
     pub signatures_threshold: u64,
     pub router_address: Address,
     pub pub_key: PublicKey,
+    pub timelines: ProtocolTimelines,
 
     #[debug(skip)]
     pub signer: Signer,
@@ -68,6 +69,7 @@ impl Clone for ValidatorCore {
             signatures_threshold: self.signatures_threshold,
             router_address: self.router_address,
             pub_key: self.pub_key,
+            timelines: self.timelines,
             signer: self.signer.clone(),
             db: self.db.clone(),
             committer: self.committer.clone_boxed(),
@@ -138,14 +140,10 @@ impl ValidatorCore {
         block: &SimpleBlockData,
     ) -> Result<Option<ValidatorsCommitment>> {
         let SimpleBlockData { hash, header } = block;
-        let timelines = self
-            .db
-            .protocol_timelines()
-            .ok_or(anyhow!("protocol timelines not found"))?;
 
-        let block_era = timelines.era_from_ts(header.timestamp);
-        let end_of_era = timelines.era_end(block_era);
-        let election_ts = end_of_era - timelines.election;
+        let block_era = self.timelines.era_from_ts(header.timestamp);
+        let end_of_era = self.timelines.era_end(block_era);
+        let election_ts = end_of_era - self.timelines.election;
 
         if header.timestamp < election_ts {
             tracing::trace!(
@@ -153,7 +151,7 @@ impl ValidatorCore {
                 block.timestamp = %header.timestamp,
                 election_ts = %election_ts,
                 end_of_era = %end_of_era,
-                genesis_ts = %timelines.genesis_ts,
+                genesis_ts = %self.timelines.genesis_ts,
                 "No election in this block, election not reached yet");
             return Ok(None);
         }

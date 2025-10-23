@@ -831,6 +831,10 @@ impl Node {
             network
         });
 
+        let observer = ObserverService::new(&self.eth_cfg, u32::MAX, self.db.clone())
+            .await
+            .unwrap();
+
         let consensus: Pin<Box<dyn ConsensusService>> = {
             if let Some(config) = self.validator_config.as_ref() {
                 let ethereum = Ethereum::new(
@@ -862,10 +866,6 @@ impl Node {
         };
 
         let (sender, receiver) = broadcast::channel(2048);
-
-        let observer = ObserverService::new(&self.eth_cfg, u32::MAX, self.db.clone())
-            .await
-            .unwrap();
 
         let blob_loader = LocalBlobLoader::new(self.blob_storage.clone()).into_box();
 
