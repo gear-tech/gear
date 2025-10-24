@@ -86,9 +86,8 @@ impl EthereumDeployer {
         self
     }
 
-    pub fn with_validators(mut self, validators: Vec<LocalAddress>) -> Self {
-        self.validators =
-            NonEmpty::from_vec(validators).expect("at least one validator is required");
+    pub fn with_validators(mut self, validators: NonEmpty<LocalAddress>) -> Self {
+        self.validators = validators;
         self
     }
 

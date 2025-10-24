@@ -157,7 +157,7 @@ impl<DB: SyncDB> ChainSync<DB> {
 
     // Propagate validators from the parent block. If start new era, fetch new validators from the router.
     async fn propagate_validators(&self, block: H256, header: BlockHeader) -> Result<()> {
-        let validators = match self.db.validators(header.parent_hash) {
+        let validators = match self.db.block_validators(header.parent_hash) {
             Some(validators) if !self.should_fetch_validators(header)? => validators,
             _ => {
                 let fetched_validators = RouterQuery::from_provider(
