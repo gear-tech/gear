@@ -978,6 +978,20 @@ where
             unreachable!("{err_msg}")
         });
 
+        if message.destination() == ActorId::zero() {
+            log::warn!(
+                "send_user_message: attempted to insert message into mailbox with zero destination address. \
+                    Message id - {message_id}, source - {from:?}. Skipping mailbox insertion.",
+                from = message.source(),
+            );
+
+            if let Some(reservation_id) = reservation {
+                Self::remove_gas_reservation_with_task(message.source(), reservation_id);
+            }
+
+            return;
+        }
+
         // Taking data for funds manipulations.
         let from = message.source().cast();
         let to = message.destination().cast::<T::AccountId>();
@@ -1056,6 +1070,7 @@ where
                 log::error!("{err_msg}");
                 unreachable!("{err_msg}")
             });
+
             MailboxOf::<T>::insert(message, hold.expected()).unwrap_or_else(|e| {
                 let err_msg = format!(
                     "send_user_message: failed inserting message into mailbox. \
@@ -1147,11 +1162,21 @@ where
         let from = message.source().cast();
         let to = message.destination().cast::<T::AccountId>();
         let value = message.value().unique_saturated_into();
+        let message_id = message.id();
 
         // If gas limit can cover threshold, message will be added to mailbox,
         // task created and funds reserved.
 
         let expiration = if to_mailbox {
+            if message.destination() == ActorId::zero() {
+                log::warn!(
+                    "send_user_message_after_delay: attempted to insert message into mailbox with zero destination address. \
+                        Message id - {message_id}, source - {from:?}. Skipping mailbox insertion.",
+                    from = message.source(),
+                );
+                return;
+            }
+
             // Querying gas limit. Fails in cases of `GasTree` invalidations.
             let gas_limit = GasHandlerOf::<T>::get_limit(message.id()).unwrap_or_else(|e| {
                 let err_msg = format!(
@@ -1193,7 +1218,6 @@ where
                 });
 
             // Inserting message in mailbox.
-            let message_id = message.id();
             let message: UserStoredMessage = message
                 .clone()
                 .try_into()
@@ -1207,6 +1231,7 @@ where
                     log::error!("{err_msg}");
                     unreachable!("{err_msg}")
                 });
+
             MailboxOf::<T>::insert(message, hold.expected()).unwrap_or_else(|e| {
                 let err_msg = format!(
                     "send_user_message_after_delay: failed inserting message into mailbox. \
