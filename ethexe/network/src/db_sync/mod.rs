@@ -367,6 +367,7 @@ pub(crate) enum InnerResponse {
 
 type InnerBehaviour = request_response::Behaviour<ParityScaleCodec<InnerRequest, InnerResponse>>;
 
+#[auto_impl::auto_impl(&, Box)]
 pub trait DbSyncDatabase:
     Send
     + HashStorageRead

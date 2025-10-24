@@ -18,22 +18,22 @@
 
 //! Secp256k1 signature types and utilities.
 
+pub use k256::ecdsa::signature::Result as SignResult;
+
 use super::{
     address::Address,
     digest::{Digest, ToDigest},
     keys::{PrivateKey, PublicKey},
 };
+use core::hash::{Hash, Hasher};
 use derive_more::{Debug, Display};
-use k256::ecdsa::{
-    self, RecoveryId, SigningKey, VerifyingKey,
-    signature::{Result as SignResult, hazmat::PrehashVerifier},
-};
+use k256::ecdsa::{self, RecoveryId, SigningKey, VerifyingKey, signature::hazmat::PrehashVerifier};
 use parity_scale_codec::{
     Decode, Encode, Error as CodecError, Input as CodecInput, Output as CodecOutput,
 };
 
 /// A recoverable ECDSA signature
-#[derive(Clone, Copy, PartialEq, Eq, Debug, Display)]
+#[derive(Clone, Copy, PartialEq, Eq, derive_more::Debug, derive_more::Display)]
 #[debug("0x{}", hex::encode(self.into_pre_eip155_bytes()))]
 #[display("0x{}", hex::encode(self.into_pre_eip155_bytes()))]
 pub struct Signature {
@@ -141,6 +141,12 @@ impl Encode for Signature {
     }
 }
 
+impl Hash for Signature {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.into_pre_eip155_bytes().hash(state);
+    }
+}
+
 /// A signed data structure, that contains the data and its signature.
 /// Always valid after construction.
 #[derive(Clone, Encode, PartialEq, Eq, Debug, Display)]
@@ -161,6 +167,10 @@ impl<T: Sized> SignedData<T> {
         &self.signature
     }
 
+    pub fn into_data(self) -> T {
+        self.data
+    }
+
     pub fn into_parts(self) -> (T, Signature) {
         (self.data, self.signature)
     }
@@ -173,6 +183,13 @@ impl<T: Sized> SignedData<T> {
     /// Returns the address of the public key used to sign the data.
     pub fn address(&self) -> Address {
         self.public_key.to_address()
+    }
+
+    pub fn into_verified(self) -> VerifiedData<T> {
+        VerifiedData {
+            data: self.data,
+            public_key: self.public_key,
+        }
     }
 }
 
@@ -214,9 +231,43 @@ where
     }
 }
 
+/// A signature verified data structure, that contains the data and public key.
+#[derive(Clone, PartialEq, Eq, Debug, Display, Hash)]
+#[display("ValidatedData({data}, {public_key})")]
+pub struct VerifiedData<T> {
+    data: T,
+    public_key: PublicKey,
+}
+
+impl<T> VerifiedData<T> {
+    pub fn map<U>(self, f: impl FnOnce(T) -> U) -> VerifiedData<U> {
+        let Self { data, public_key } = self;
+        let data = f(data);
+        VerifiedData { data, public_key }
+    }
+
+    pub fn data(&self) -> &T {
+        &self.data
+    }
+
+    pub fn into_parts(self) -> (T, PublicKey) {
+        (self.data, self.public_key)
+    }
+
+    /// Returns the public key used to sign the data.
+    pub fn public_key(&self) -> PublicKey {
+        self.public_key
+    }
+
+    /// Returns the address of the public key used to sign the data.
+    pub fn address(&self) -> Address {
+        self.public_key.to_address()
+    }
+}
+
 /// A recoverable ECDSA signature for a contract-specific digest format (ERC-191).
 /// See also `contract_specific_digest` and explanation here: <https://eips.ethereum.org/EIPS/eip-191>
-#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, Encode, Decode, PartialEq, Eq, Hash)]
 pub struct ContractSignature(Signature);
 
 impl ContractSignature {
