@@ -107,7 +107,7 @@ pub trait OnChainStorageRead {
     fn block_header(&self, block_hash: H256) -> Option<BlockHeader>;
     fn block_events(&self, block_hash: H256) -> Option<Vec<BlockEvent>>;
     fn code_blob_info(&self, code_id: CodeId) -> Option<CodeBlobInfo>;
-    fn validators(&self, block_hash: H256) -> Option<NonEmpty<Address>>;
+    fn block_validators(&self, block_hash: H256) -> Option<NonEmpty<Address>>;
     fn block_synced(&self, block_hash: H256) -> bool;
 }
 
