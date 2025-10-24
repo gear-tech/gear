@@ -24,6 +24,7 @@ pub mod peer_score;
 mod utils;
 mod validator_discovery;
 mod validator_list;
+mod validator_topic;
 
 pub mod export {
     pub use libp2p::{Multiaddr, PeerId, multiaddr::Protocol};
@@ -33,6 +34,7 @@ use crate::{
     db_sync::DbSyncDatabase,
     gossipsub::MessageAcceptance,
     validator_list::{ValidatorDatabase, ValidatorList},
+    validator_topic::ValidatorTopic,
 };
 use anyhow::{Context, anyhow};
 use ethexe_common::{
@@ -152,6 +154,7 @@ pub struct NetworkService {
     // `MemoryTransport` doesn't unregister its ports on drop so we do it
     listeners: Vec<ListenerId>,
     validator_list: ValidatorList,
+    validator_topic: ValidatorTopic,
 }
 
 impl Stream for NetworkService {
@@ -161,7 +164,7 @@ impl Stream for NetworkService {
         mut self: Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> Poll<Option<Self::Item>> {
-        if let Some(message) = self.validator_list.next_message() {
+        if let Some(message) = self.validator_topic.next_message() {
             return Poll::Ready(Some(NetworkEvent::ValidatorMessage(message)));
         }
 
@@ -248,14 +251,19 @@ impl NetworkService {
         let validator_list = ValidatorList::new(
             runtime_config.genesis_block_hash,
             ValidatorDatabase::clone_boxed(&db),
-            swarm.behaviour().peer_score.handle(),
         )
         .context("failed to create validator list")?;
+
+        let validator_topic = ValidatorTopic::new(
+            ValidatorDatabase::clone_boxed(&db),
+            swarm.behaviour().peer_score.handle(),
+        );
 
         Ok(Self {
             swarm,
             listeners,
             validator_list,
+            validator_topic,
         })
     }
 
@@ -450,18 +458,19 @@ impl NetworkService {
             BehaviourEvent::Gossipsub(gossipsub::Event::Message { source, validator }) => {
                 let gossipsub = &mut self.swarm.behaviour_mut().gossipsub;
 
-                let event = validator.validate(gossipsub, |message| match message {
-                    gossipsub::Message::Commitments(message) => {
-                        let (acceptance, message) = self
-                            .validator_list
-                            .verify_message_initially(source, message);
-                        (acceptance, message.map(NetworkEvent::ValidatorMessage))
-                    }
-                    gossipsub::Message::Offchain(transaction) => (
-                        MessageAcceptance::Accept,
-                        Some(NetworkEvent::OffchainTransaction(transaction)),
-                    ),
-                });
+                let event =
+                    validator.validate(gossipsub, |message| match message {
+                        gossipsub::Message::Commitments(message) => {
+                            let (acceptance, message) = self
+                                .validator_topic
+                                .verify_message_initially(&self.validator_list, source, message);
+                            (acceptance, message.map(NetworkEvent::ValidatorMessage))
+                        }
+                        gossipsub::Message::Offchain(transaction) => (
+                            MessageAcceptance::Accept,
+                            Some(NetworkEvent::OffchainTransaction(transaction)),
+                        ),
+                    });
 
                 return event;
             }
@@ -501,6 +510,7 @@ impl NetworkService {
 
     pub fn set_chain_head(&mut self, chain_head: H256) -> anyhow::Result<()> {
         self.validator_list.set_chain_head(chain_head)?;
+        self.validator_topic.on_chain_head(&self.validator_list);
 
         let current_era_index = self.validator_list.current_era_index();
         let behaviour = self.swarm.behaviour_mut();
