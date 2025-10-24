@@ -21,11 +21,13 @@
 #[allow(unused)]
 use crate::Pallet as BuiltinActorPallet;
 use crate::*;
-use ark_bls12_381::{Bls12_381, G1Affine, G1Projective as G1, G2Affine, G2Projective as G2};
-use ark_ec::{Group, ScalarMul, pairing::Pairing, short_weierstrass::SWCurveConfig};
-use ark_ff::biginteger::BigInt;
-use ark_scale::hazmat::ArkScaleProjective;
 use ark_std::{UniformRand, ops::Mul};
+use builtins_common::bls12_381::{
+    ark_bls12_381::{self, Bls12_381, G1Affine, G1Projective as G1, G2Affine, G2Projective as G2},
+    ark_ec::{Group, ScalarMul, pairing::Pairing, short_weierstrass::SWCurveConfig},
+    ark_ff::biginteger::BigInt,
+    ark_scale::{self, hazmat::ArkScaleProjective},
+};
 use common::Origin;
 use frame_benchmarking::benchmarks;
 use gear_core::buffer::MAX_PAYLOAD_SIZE;
@@ -268,9 +270,10 @@ benchmarks! {
         let ark_points: ArkScale<Vec<G1>> = points.clone().into();
         let encoded_points = ark_points.encode();
 
-        let mut _result = Err(0);
+        // Custom error by default.
+        let mut _result = Err(3);
     }: {
-        _result = gear_runtime_interface::gear_bls_12_381::aggregate_g1(&encoded_points);
+        _result = gear_runtime_interface::gear_bls_12_381::aggregate_g1(encoded_points);
     } verify {
         assert!(
             matches!(_result, Ok(result) if ArkScale::<G1>::decode(&mut &result[..]).is_ok())
@@ -282,9 +285,10 @@ benchmarks! {
 
         let message = vec![1u8; c as usize];
 
-        let mut _result = Err(0);
+        // Custom error by default.
+        let mut _result = Err(3);
     }: {
-        _result = gear_runtime_interface::gear_bls_12_381::map_to_g2affine(&message);
+        _result = gear_runtime_interface::gear_bls_12_381::map_to_g2affine(message);
     } verify {
         assert!(ArkScale::<G2Affine>::decode(&mut &_result.unwrap()[..]).is_ok())
     }
