@@ -283,16 +283,16 @@ impl TestEnv {
             config.listen_addresses = [multiaddr.clone()].into();
             config.external_addresses = [multiaddr.clone()].into();
 
-            let runtime_config = NetworkRuntimeConfig { genesis_block_hash };
+            let runtime_config = NetworkRuntimeConfig {
+                genesis_block_hash,
+                validator_key: None,
+                general_signer: signer.clone(),
+                network_signer: signer.clone(),
+                external_data_provider: Box::new(RouterDataProvider(router_query.clone())),
+                db: Box::new(db.clone()),
+            };
 
-            let mut service = NetworkService::new(
-                config,
-                runtime_config,
-                &signer,
-                Box::new(RouterDataProvider(router_query.clone())),
-                Box::new(db.clone()),
-            )
-            .unwrap();
+            let mut service = NetworkService::new(config, runtime_config).unwrap();
             service.set_chain_head(genesis_block_hash).unwrap();
 
             let local_peer_id = service.local_peer_id();
@@ -890,16 +890,14 @@ impl Node {
 
             let runtime_config = NetworkRuntimeConfig {
                 genesis_block_hash: observer.genesis_block_hash(),
+                validator_key: self.validator_config.as_ref().map(|v| v.public_key),
+                general_signer: self.signer.clone(),
+                network_signer: self.signer.clone(),
+                external_data_provider: Box::new(RouterDataProvider(self.router_query.clone())),
+                db: Box::new(self.db.clone()),
             };
 
-            let network = NetworkService::new(
-                config,
-                runtime_config,
-                &self.signer,
-                Box::new(RouterDataProvider(self.router_query.clone())),
-                Box::new(self.db.clone()),
-            )
-            .unwrap();
+            let network = NetworkService::new(config, runtime_config).unwrap();
             self.multiaddr = Some(format!("{addr}/p2p/{}", network.local_peer_id()));
             network
         });

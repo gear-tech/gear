@@ -97,7 +97,7 @@ struct ChainHead {
 /// validator-signed payload it carries. The hinted era must match the current
 /// chain head; eras N-1, N+2, N+3, and so on are dropped when the node is at era N.
 /// Messages from era N+1 are rechecked after the next validator set arrives.
-pub(crate) struct Validators {
+pub(crate) struct ValidatorList {
     timelines: ProtocolTimelines,
     cached_messages: CachedMessages,
     verified_messages: VecDeque<VerifiedValidatorMessage>,
@@ -106,7 +106,7 @@ pub(crate) struct Validators {
     peer_score: peer_score::Handle,
 }
 
-impl Validators {
+impl ValidatorList {
     pub(crate) fn new(
         genesis_block_hash: H256,
         db: Box<dyn ValidatorDatabase>,
@@ -152,6 +152,14 @@ impl Validators {
         self.verify_on_new_chain_head();
 
         Ok(())
+    }
+
+    pub(crate) fn current_era_index(&self) -> u64 {
+        self.block_era_index(self.chain_head.header.timestamp)
+    }
+
+    pub(crate) fn current_validators(&self) -> impl Iterator<Item = Address> {
+        self.chain_head.current_validators.iter().copied()
     }
 
     // TODO: make actual implementation when `NextEraValidatorsCommitted` event is emitted before era transition
@@ -298,7 +306,7 @@ mod tests {
     const GENESIS_CHAIN_HEAD: H256 = H256::zero();
     const CHAIN_HEAD_TIMESTAMP: u64 = TIMELINES.genesis_ts + (TIMELINES.era * 10);
 
-    fn new_validators(genesis_block_ts: u64) -> (Validators, Database) {
+    fn new_validators(genesis_block_ts: u64) -> (ValidatorList, Database) {
         let db = Database::memory();
         db.set_block_header(
             GENESIS_CHAIN_HEAD,
@@ -311,7 +319,7 @@ mod tests {
         db.set_validators(TIMELINES.era_from_ts(genesis_block_ts), Default::default());
         db.set_protocol_timelines(TIMELINES);
 
-        let validators = Validators::new(
+        let validators = ValidatorList::new(
             GENESIS_CHAIN_HEAD,
             ValidatorDatabase::clone_boxed(&db),
             peer_score::Handle::new_test(),

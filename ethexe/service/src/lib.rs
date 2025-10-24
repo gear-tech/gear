@@ -236,8 +236,17 @@ impl Service {
         };
 
         let network = if let Some(net_config) = &config.network {
+            // TODO: use normal path
+            let network_signer = config.node.key_path.join("../net");
+            let network_signer = Signer::fs(network_signer);
+
             let runtime_config = NetworkRuntimeConfig {
                 genesis_block_hash: observer.genesis_block_hash(),
+                validator_key: validator_pub_key,
+                general_signer: signer.clone(),
+                network_signer,
+                external_data_provider: Box::new(RouterDataProvider(router_query)),
+                db: Box::new(db.clone()),
             };
             // TODO: #4918 create Signer object correctly for test/prod environments
             let signer = Signer::fs(
@@ -249,14 +258,8 @@ impl Service {
                     .join("net"),
             );
 
-            let network = NetworkService::new(
-                net_config.clone(),
-                runtime_config,
-                &signer,
-                Box::new(RouterDataProvider(router_query)),
-                Box::new(db.clone()),
-            )
-            .with_context(|| "failed to create network service")?;
+            let network = NetworkService::new(net_config.clone(), runtime_config)
+                .with_context(|| "failed to create network service")?;
             Some(network)
         } else {
             None

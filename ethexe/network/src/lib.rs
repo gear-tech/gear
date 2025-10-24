@@ -22,7 +22,8 @@ mod gossipsub;
 mod injected;
 pub mod peer_score;
 mod utils;
-mod validator;
+mod validator_discovery;
+mod validator_list;
 
 pub mod export {
     pub use libp2p::{Multiaddr, PeerId, multiaddr::Protocol};
@@ -31,7 +32,7 @@ pub mod export {
 use crate::{
     db_sync::DbSyncDatabase,
     gossipsub::MessageAcceptance,
-    validator::{ValidatorDatabase, Validators},
+    validator_list::{ValidatorDatabase, ValidatorList},
 };
 use anyhow::{Context, anyhow};
 use ethexe_common::{
@@ -44,6 +45,7 @@ use ethexe_common::{
 use ethexe_signer::Signer;
 use futures::{Stream, future::Either, ready, stream::FusedStream};
 use gprimitives::H256;
+use hpke::Deserializable;
 use libp2p::{
     Multiaddr, PeerId, Swarm, Transport, connection_limits,
     core::{muxing::StreamMuxerBox, transport, transport::ListenerId, upgrade},
@@ -138,13 +140,18 @@ impl NetworkConfig {
 /// Config from other services
 pub struct NetworkRuntimeConfig {
     pub genesis_block_hash: H256,
+    pub validator_key: Option<PublicKey>,
+    pub general_signer: Signer,
+    pub network_signer: Signer,
+    pub external_data_provider: Box<dyn db_sync::ExternalDataProvider>,
+    pub db: Box<dyn NetworkServiceDatabase>,
 }
 
 pub struct NetworkService {
     swarm: Swarm<Behaviour>,
     // `MemoryTransport` doesn't unregister its ports on drop so we do it
     listeners: Vec<ListenerId>,
-    validators: Validators,
+    validator_list: ValidatorList,
 }
 
 impl Stream for NetworkService {
@@ -154,7 +161,7 @@ impl Stream for NetworkService {
         mut self: Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> Poll<Option<Self::Item>> {
-        if let Some(message) = self.validators.next_message() {
+        if let Some(message) = self.validator_list.next_message() {
             return Poll::Ready(Some(NetworkEvent::ValidatorMessage(message)));
         }
 
@@ -180,9 +187,6 @@ impl NetworkService {
     pub fn new(
         config: NetworkConfig,
         runtime_config: NetworkRuntimeConfig,
-        signer: &Signer,
-        external_data_provider: Box<dyn db_sync::ExternalDataProvider>,
-        db: Box<dyn NetworkServiceDatabase>,
     ) -> anyhow::Result<NetworkService> {
         let NetworkConfig {
             public_key,
@@ -193,7 +197,16 @@ impl NetworkService {
             router_address,
         } = config;
 
-        let keypair = NetworkService::generate_keypair(signer, public_key)?;
+        let NetworkRuntimeConfig {
+            genesis_block_hash,
+            validator_key,
+            general_signer,
+            network_signer,
+            external_data_provider,
+            db,
+        } = runtime_config;
+
+        let keypair = NetworkService::generate_keypair(&network_signer, public_key)?;
 
         let behaviour_config = BehaviourConfig {
             router_address,
@@ -201,8 +214,11 @@ impl NetworkService {
             external_data_provider,
             db: DbSyncDatabase::clone_boxed(&db),
             enable_mdns: transport_type.mdns_enabled(),
+            validator_key,
+            general_signer,
         };
-        let mut swarm = NetworkService::create_swarm(keypair, transport_type, behaviour_config)?;
+        let mut swarm =
+            NetworkService::create_swarm(keypair.clone(), transport_type, behaviour_config)?;
 
         for multiaddr in external_addresses {
             swarm.add_external_address(multiaddr);
@@ -229,17 +245,17 @@ impl NetworkService {
             swarm.behaviour_mut().kad.add_address(&peer_id, multiaddr);
         }
 
-        let validators = Validators::new(
+        let validator_list = ValidatorList::new(
             runtime_config.genesis_block_hash,
             ValidatorDatabase::clone_boxed(&db),
             swarm.behaviour().peer_score.handle(),
         )
-        .context("failed to create validators")?;
+        .context("failed to create validator list")?;
 
         Ok(Self {
             swarm,
             listeners,
-            validators,
+            validator_list,
         })
     }
 
@@ -397,6 +413,38 @@ impl NetworkService {
                     let _res = behaviour.kad.remove_peer(&peer);
                 }
             }
+            BehaviourEvent::Kad(kad::Event::OutboundQueryProgressed {
+                id: _,
+                result,
+                stats: _,
+                step: _,
+            }) => match result {
+                kad::QueryResult::GetRecord(get_record_result) => match get_record_result {
+                    Ok(kad::GetRecordOk::FoundRecord(peer_record)) => {
+                        if let Err(err) = self
+                            .swarm
+                            .behaviour_mut()
+                            .validator_discovery
+                            .put_identity(peer_record.record)
+                        {
+                            log::trace!("failed to put identity: {err}");
+                        }
+                    }
+                    Ok(kad::GetRecordOk::FinishedWithNoAdditionalRecord {
+                        cache_candidates: _,
+                    }) => {}
+                    Err(err) => {
+                        log::warn!("failed to get record: {err}");
+                    }
+                },
+                kad::QueryResult::PutRecord(put_record_result) => match put_record_result {
+                    Ok(_) => {}
+                    Err(err) => {
+                        log::warn!("failed to put record: {err}");
+                    }
+                },
+                _ => {}
+            },
             BehaviourEvent::Kad(_) => {}
             //
             BehaviourEvent::Gossipsub(gossipsub::Event::Message { source, validator }) => {
@@ -404,8 +452,9 @@ impl NetworkService {
 
                 let event = validator.validate(gossipsub, |message| match message {
                     gossipsub::Message::Commitments(message) => {
-                        let (acceptance, message) =
-                            self.validators.verify_message_initially(source, message);
+                        let (acceptance, message) = self
+                            .validator_list
+                            .verify_message_initially(source, message);
                         (acceptance, message.map(NetworkEvent::ValidatorMessage))
                     }
                     gossipsub::Message::Offchain(transaction) => (
@@ -431,6 +480,8 @@ impl NetworkService {
             BehaviourEvent::Injected(injected::Event::NewInjectedTransaction(transaction)) => {
                 return Some(NetworkEvent::InjectedTransaction(transaction));
             }
+            //
+            BehaviourEvent::ValidatorDiscovery(e) => match e {},
         }
 
         None
@@ -449,7 +500,47 @@ impl NetworkService {
     }
 
     pub fn set_chain_head(&mut self, chain_head: H256) -> anyhow::Result<()> {
-        self.validators.set_chain_head(chain_head)
+        self.validator_list.set_chain_head(chain_head)?;
+
+        let current_era_index = self.validator_list.current_era_index();
+        let behaviour = self.swarm.behaviour_mut();
+
+        {
+            let offchain_transaction_key =
+                utils::hpke::PublicKey::from_bytes(&[0; 32]).expect("infallible");
+
+            match behaviour
+                .validator_discovery
+                .identity(current_era_index, offchain_transaction_key)
+                .transpose()
+            {
+                Ok(Some(identity)) => {
+                    match behaviour.kad.put_record(identity, kad::Quorum::Majority) {
+                        Ok(_) => {}
+                        Err(err) => {
+                            log::warn!("failed to put record into local storage: {err}");
+                        }
+                    };
+                }
+                Ok(None) => {
+                    // validator public key is not set
+                }
+                Err(err) => {
+                    log::warn!("failed to create validator identity: {err}");
+                }
+            }
+        }
+
+        {
+            for validator in self.validator_list.current_validators() {
+                let key = behaviour
+                    .validator_discovery
+                    .identity_key(validator, current_era_index);
+                behaviour.kad.get_record(key);
+            }
+        }
+
+        Ok(())
     }
 
     pub fn publish_message(&mut self, data: impl Into<SignedValidatorMessage>) {
@@ -494,6 +585,8 @@ struct BehaviourConfig {
     external_data_provider: Box<dyn db_sync::ExternalDataProvider>,
     db: Box<dyn DbSyncDatabase>,
     enable_mdns: bool,
+    validator_key: Option<PublicKey>,
+    general_signer: Signer,
 }
 
 #[derive(NetworkBehaviour)]
@@ -519,6 +612,8 @@ pub(crate) struct Behaviour {
     pub db_sync: db_sync::Behaviour,
     // injected transaction shenanigans
     pub injected: injected::Behaviour,
+    // validator discovery
+    pub validator_discovery: validator_discovery::Behaviour,
 }
 
 impl Behaviour {
@@ -529,6 +624,8 @@ impl Behaviour {
             external_data_provider,
             db,
             enable_mdns,
+            validator_key,
+            general_signer,
         } = config;
 
         let peer_id = keypair.public().to_peer_id();
@@ -588,6 +685,9 @@ impl Behaviour {
 
         let injected = injected::Behaviour::new(peer_score_handle);
 
+        let validator_discovery =
+            validator_discovery::Behaviour::new(keypair, validator_key, general_signer);
+
         Ok(Self {
             custom_connection_limits,
             connection_limits,
@@ -599,6 +699,7 @@ impl Behaviour {
             gossipsub,
             db_sync,
             injected,
+            validator_discovery,
         })
     }
 }
@@ -714,16 +815,14 @@ mod tests {
 
         let runtime_config = NetworkRuntimeConfig {
             genesis_block_hash: GENESIS_BLOCK,
+            validator_key: None,
+            general_signer: signer.clone(),
+            network_signer: signer,
+            external_data_provider: Box::new(data_provider),
+            db: Box::new(db),
         };
 
-        NetworkService::new(
-            config.clone(),
-            runtime_config,
-            &signer,
-            Box::new(data_provider),
-            Box::new(db),
-        )
-        .unwrap()
+        NetworkService::new(config.clone(), runtime_config).unwrap()
     }
 
     fn new_service() -> NetworkService {

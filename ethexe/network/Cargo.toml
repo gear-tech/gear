@@ -29,6 +29,7 @@ nonempty.workspace = true
 auto_impl.workspace = true
 lru.workspace = true
 thiserror.workspace = true
+hpke = { version = "0.12.0", features = ["std"] }
 
 [dependencies.libp2p]
 version = "0.56.0"
