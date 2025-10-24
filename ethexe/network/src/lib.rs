@@ -429,11 +429,10 @@ impl NetworkService {
             }) => match result {
                 kad::QueryResult::GetRecord(get_record_result) => match get_record_result {
                     Ok(kad::GetRecordOk::FoundRecord(peer_record)) => {
-                        if let Err(err) = self
-                            .swarm
-                            .behaviour_mut()
+                        let behaviour = self.swarm.behaviour_mut();
+                        if let Err(err) = behaviour
                             .validator_discovery
-                            .put_identity(peer_record.record)
+                            .put_identity(&self.validator_list, peer_record.record)
                         {
                             log::trace!("failed to put identity: {err}");
                         }

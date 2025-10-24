@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{db_sync::PeerId, utils::hpke};
+use crate::{db_sync::PeerId, utils::hpke, validator_list::ValidatorList};
 use anyhow::Context;
 use ethexe_common::{
     Address, ToDigest,
@@ -195,9 +195,18 @@ impl Behaviour {
         self.identities.get(&address)
     }
 
-    pub fn put_identity(&mut self, identity: kad::Record) -> anyhow::Result<()> {
+    pub fn put_identity(
+        &mut self,
+        list: &ValidatorList,
+        identity: kad::Record,
+    ) -> anyhow::Result<()> {
         let identity = SignedValidatorIdentity::decode(&mut &identity.value[..])
             .context("failed to decode signed validator identity")?;
+
+        anyhow::ensure!(
+            list.contains_any_validator(identity.address()),
+            "received identity is not in any validator list"
+        );
 
         if let Some(old_identity) = self.identities.peek(&identity.address())
             && old_identity.data().creation_time >= identity.data().creation_time
