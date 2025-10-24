@@ -56,6 +56,8 @@ use std::{
 };
 use tempfile::tempdir;
 
+const ETHER: u128 = 1_000_000_000_000_000_000;
+
 #[ignore = "until rpc fixed"]
 #[tokio::test]
 async fn basics() {
@@ -628,11 +630,11 @@ async fn incoming_transfers() {
     assert_eq!(local_balance, 0);
 
     // 1_000 ETH
-    const VALUE_SENT: u128 = 1_000_000_000_000_000_000_000;
+    const VALUE_SENT: u128 = 1_000 * ETHER;
 
     let mut listener = env.observer_events_publisher().subscribe().await;
 
-    ping.reducible_balance_top_up(VALUE_SENT).await.unwrap();
+    ping.owned_balance_top_up(VALUE_SENT).await.unwrap();
 
     listener
         .apply_until_block_event(|e| {

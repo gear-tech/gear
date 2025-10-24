@@ -39,12 +39,12 @@ interface IMirror {
     event ValueClaimingRequested(bytes32 claimedId, address indexed source);
 
     /**
-     * @dev Emitted when a user requests program's reducible balance top up with his Ether.
+     * @dev Emitted when a user requests program's owned balance top up with his Ether.
      *
      * NOTE:    It's event for NODES:
      *  it requires to top up balance of the program (in Ether).
      */
-    event ReducibleBalanceTopUpRequested(uint128 value);
+    event OwnedBalanceTopUpRequested(uint128 value);
 
     /**
      * @dev Emitted when a user requests program's executable balance top up with his tokens.

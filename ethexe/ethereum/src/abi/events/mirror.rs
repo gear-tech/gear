@@ -58,9 +58,9 @@ impl From<IMirror::ValueClaimingRequested> for MirrorEvent {
     }
 }
 
-impl From<IMirror::ReducibleBalanceTopUpRequested> for MirrorEvent {
-    fn from(value: IMirror::ReducibleBalanceTopUpRequested) -> Self {
-        Self::ReducibleBalanceTopUpRequested { value: value.value }
+impl From<IMirror::OwnedBalanceTopUpRequested> for MirrorEvent {
+    fn from(value: IMirror::OwnedBalanceTopUpRequested) -> Self {
+        Self::OwnedBalanceTopUpRequested { value: value.value }
     }
 }
 

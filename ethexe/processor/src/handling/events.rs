@@ -66,7 +66,7 @@ impl ProcessingHandler {
         }
 
         match event {
-            MirrorRequestEvent::ReducibleBalanceTopUpRequested { value } => {
+            MirrorRequestEvent::OwnedBalanceTopUpRequested { value } => {
                 self.update_state(actor_id, |state, _, _| {
                     state.balance += value;
                 });

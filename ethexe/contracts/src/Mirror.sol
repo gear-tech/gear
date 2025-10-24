@@ -307,7 +307,7 @@ contract Mirror is IMirror {
          */
         if (!(topic1 != StateChanged.selector && topic1 != MessageQueueingRequested.selector
                     && topic1 != ReplyQueueingRequested.selector && topic1 != ValueClaimingRequested.selector
-                    && topic1 != ReducibleBalanceTopUpRequested.selector
+                    && topic1 != OwnedBalanceTopUpRequested.selector
                     && topic1 != ExecutableBalanceTopUpRequested.selector && topic1 != Message.selector
                     && topic1 != Reply.selector && topic1 != ValueClaimed.selector)) {
             return false;
@@ -440,7 +440,7 @@ contract Mirror is IMirror {
         if (msg.value > 0 && msg.data.length == 0) {
             uint128 value = uint128(msg.value);
 
-            emit ReducibleBalanceTopUpRequested(value);
+            emit OwnedBalanceTopUpRequested(value);
 
             return;
         }

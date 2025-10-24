@@ -27,7 +27,7 @@ pub mod signatures {
 
     crate::signatures_consts! {
         IMirror;
-        REDUCIBLE_BALANCE_TOP_UP_REQUESTED: ReducibleBalanceTopUpRequested,
+        OWNED_BALANCE_TOP_UP_REQUESTED: OwnedBalanceTopUpRequested,
         EXECUTABLE_BALANCE_TOP_UP_REQUESTED: ExecutableBalanceTopUpRequested,
         MESSAGE_QUEUEING_REQUESTED: MessageQueueingRequested,
         MESSAGE: Message,
@@ -41,7 +41,7 @@ pub mod signatures {
     }
 
     pub const REQUESTS: &[B256] = &[
-        REDUCIBLE_BALANCE_TOP_UP_REQUESTED,
+        OWNED_BALANCE_TOP_UP_REQUESTED,
         EXECUTABLE_BALANCE_TOP_UP_REQUESTED,
         MESSAGE_QUEUEING_REQUESTED,
         REPLY_QUEUEING_REQUESTED,
@@ -55,8 +55,8 @@ pub fn try_extract_event(log: &Log) -> Result<Option<MirrorEvent>> {
     };
 
     let event = match *topic0 {
-        REDUCIBLE_BALANCE_TOP_UP_REQUESTED => {
-            decode_log::<IMirror::ReducibleBalanceTopUpRequested>(log)?.into()
+        OWNED_BALANCE_TOP_UP_REQUESTED => {
+            decode_log::<IMirror::OwnedBalanceTopUpRequested>(log)?.into()
         }
         EXECUTABLE_BALANCE_TOP_UP_REQUESTED => {
             decode_log::<IMirror::ExecutableBalanceTopUpRequested>(log)?.into()

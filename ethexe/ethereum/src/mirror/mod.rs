@@ -63,7 +63,7 @@ impl Mirror {
             .map_err(Into::into)
     }
 
-    pub async fn reducible_balance_top_up(&self, value: u128) -> Result<H256> {
+    pub async fn owned_balance_top_up(&self, value: u128) -> Result<H256> {
         let builder = CallBuilder::new_raw(self.0.provider(), Bytes::new())
             .to(*self.0.address())
             .value(value.try_into().expect("failed to convert u128 to U256"));
