@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use ethexe_common::{events::BlockRequestEvent, Announce, CodeAndIdUnchecked, HashOf};
+use ethexe_common::{Announce, CodeAndIdUnchecked, HashOf, events::BlockRequestEvent};
 use ethexe_processor::{BlockProcessingResult, Processor, ProcessorError};
 use gprimitives::{CodeId, H256};
 pub use service::ComputeService;

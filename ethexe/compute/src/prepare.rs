@@ -18,7 +18,7 @@
 
 use crate::{ComputeError, ProcessorExt, Result, utils};
 use ethexe_common::{
-    Announce,  SimpleBlockData, HashOf,
+    Announce, HashOf, SimpleBlockData,
     db::{
         AnnounceStorageRead, AnnounceStorageWrite, BlockMetaStorageRead, BlockMetaStorageWrite,
         CodesStorageRead, LatestDataStorageRead, LatestDataStorageWrite, OnChainStorageRead,
@@ -276,7 +276,7 @@ mod tests {
     use crate::tests::MockProcessor;
 
     use super::*;
-    use ethexe_common::{Address, BlockHeader, Digest, db::*, events::BlockEvent, HashOf};
+    use ethexe_common::{Address, BlockHeader, Digest, HashOf, db::*, events::BlockEvent};
     use ethexe_db::Database as DB;
     use gprimitives::H256;
     use nonempty::nonempty;

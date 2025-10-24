@@ -19,7 +19,7 @@
 use crate::errors;
 use anyhow::Result;
 use ethexe_common::{
-    HashOf, SimpleBlockData, Announce,
+    Announce, HashOf, SimpleBlockData,
     db::{BlockMetaStorageRead, LatestDataStorageRead, OnChainStorageRead},
 };
 use hyper::header::HeaderValue;

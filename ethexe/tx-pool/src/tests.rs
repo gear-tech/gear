@@ -24,7 +24,7 @@
 use crate::{
     OffchainTransaction, RawOffchainTransaction, SignedOffchainTransaction, TxPoolService,
 };
-use ethexe_common::{HashOf, BlockHeader, db::*};
+use ethexe_common::{BlockHeader, HashOf, db::*};
 use ethexe_db::Database;
 use gprimitives::{H160, H256};
 

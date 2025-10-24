@@ -24,7 +24,7 @@ use crate::{ConsensusEvent, validator::participant::Participant};
 use anyhow::Result;
 use derive_more::{Debug, Display};
 use ethexe_common::{
-    Address, Announce, HashOf,  SimpleBlockData,
+    Address, Announce, HashOf, SimpleBlockData,
     consensus::{VerifiedAnnounce, VerifiedValidationRequest},
 };
 use gprimitives::H256;

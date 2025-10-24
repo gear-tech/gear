@@ -18,7 +18,7 @@
 
 //! This is supposed to be an exact copy of Gear.sol library.
 
-use crate::{Address,  Digest, ToDigest, Announce, HashOf};
+use crate::{Address, Announce, Digest, HashOf, ToDigest};
 use alloc::vec::Vec;
 use gear_core::message::{ReplyCode, ReplyDetails, StoredMessage, SuccessReplyReason};
 use gprimitives::{ActorId, CodeId, H256, MessageId, U256};

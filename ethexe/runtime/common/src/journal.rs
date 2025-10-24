@@ -2,7 +2,7 @@ use crate::{
     TransitionController,
     state::{
         ActiveProgram, Dispatch, Expiring, MAILBOX_VALIDITY, MailboxMessage, ModifyStorage,
-        Program, ProgramState,  Storage,
+        Program, ProgramState, Storage,
     },
 };
 use alloc::{collections::BTreeMap, vec::Vec};

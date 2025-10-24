@@ -27,7 +27,7 @@ use crate::{
     utils::ConnectionMap,
 };
 use anyhow::Context as _;
-use ethexe_common::{Announce,HashOf,  gear::CodeState};
+use ethexe_common::{Announce, HashOf, gear::CodeState};
 use futures::{FutureExt, future::BoxFuture};
 use gprimitives::{ActorId, CodeId, H256};
 use itertools::EitherOrBoth;

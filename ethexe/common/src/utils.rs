@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    Address, Announce, SimpleBlockData, HashOf,
+    Address, Announce, HashOf, SimpleBlockData,
     db::{
         AnnounceStorageWrite, BlockMeta, BlockMetaStorageWrite, FullAnnounceData, FullBlockData,
         LatestData, LatestDataStorageWrite, OnChainStorageWrite,

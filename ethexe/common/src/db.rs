@@ -21,7 +21,8 @@
 // TODO #4547: move types to another module(s)
 
 use crate::{
-    events::BlockEvent, gear::StateTransition, Address, Announce, BlockHeader, CodeBlobInfo, Digest, HashOf, ProgramStates, Schedule
+    Address, Announce, BlockHeader, CodeBlobInfo, Digest, HashOf, ProgramStates, Schedule,
+    events::BlockEvent, gear::StateTransition,
 };
 use alloc::{
     collections::{BTreeSet, VecDeque},
@@ -144,7 +145,11 @@ pub trait AnnounceStorageWrite: AnnounceStorageRead {
     );
     fn set_announce_outcome(&self, announce_hash: HashOf<Announce>, outcome: Vec<StateTransition>);
     fn set_announce_schedule(&self, announce_hash: HashOf<Announce>, schedule: Schedule);
-    fn mutate_announce_meta(&self, announce_hash: HashOf<Announce>, f: impl FnOnce(&mut AnnounceMeta));
+    fn mutate_announce_meta(
+        &self,
+        announce_hash: HashOf<Announce>,
+        f: impl FnOnce(&mut AnnounceMeta),
+    );
 }
 
 #[derive(Debug, Clone, Default, Encode, Decode, PartialEq, Eq)]

@@ -105,7 +105,10 @@ impl StateHandler for Producer {
         }
     }
 
-    fn process_computed_announce(mut self, announce_hash: HashOf<Announce>) -> Result<ValidatorState> {
+    fn process_computed_announce(
+        mut self,
+        announce_hash: HashOf<Announce>,
+    ) -> Result<ValidatorState> {
         let announce = self.ctx.core.db.announce(announce_hash).ok_or(anyhow!(
             "Computed announce {announce_hash} is not found in storage"
         ))?;
@@ -251,7 +254,7 @@ mod tests {
         validator::{PendingEvent, mock::*},
     };
     use async_trait::async_trait;
-    use ethexe_common::{HashOf, Digest, ToDigest, db::*, gear::CodeCommitment, mock::*};
+    use ethexe_common::{Digest, HashOf, ToDigest, db::*, gear::CodeCommitment, mock::*};
     use nonempty::nonempty;
 
     #[tokio::test]

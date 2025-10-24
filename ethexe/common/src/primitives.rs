@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{events::BlockEvent, HashOf, ToDigest, DEFAULT_BLOCK_GAS_LIMIT};
+use crate::{DEFAULT_BLOCK_GAS_LIMIT, HashOf, ToDigest, events::BlockEvent};
 use alloc::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
     vec::Vec,
@@ -81,7 +81,7 @@ pub struct Announce {
 
 impl Announce {
     pub fn to_hash(&self) -> HashOf<Self> {
-        unsafe {HashOf::new(H256(utils::hash(&self.encode())))}
+        unsafe { HashOf::new(H256(utils::hash(&self.encode()))) }
     }
 
     pub fn base(block_hash: H256, parent: HashOf<Self>) -> Self {
