@@ -21,7 +21,7 @@ use crate::{ProcessorError, Result};
 use ethexe_common::{
     ScheduledTask,
     db::{CodesStorageRead, CodesStorageWrite},
-    events::{MirrorRequestEvent, RouterRequestEvent, WVaraRequestEvent},
+    events::{MirrorRequestEvent, RouterRequestEvent},
     gear::{Origin, ValueClaim},
 };
 use ethexe_runtime_common::state::{Dispatch, Expiring, MailboxMessage, PayloadLookup};
@@ -66,6 +66,11 @@ impl ProcessingHandler {
         }
 
         match event {
+            MirrorRequestEvent::OwnedBalanceTopUpRequested { value } => {
+                self.update_state(actor_id, |state, _, _| {
+                    state.balance += value;
+                });
+            }
             MirrorRequestEvent::ExecutableBalanceTopUpRequested { value } => {
                 self.update_state(actor_id, |state, _, _| {
                     state.executable_balance += value;
@@ -199,15 +204,5 @@ impl ProcessingHandler {
         };
 
         Ok(())
-    }
-
-    pub(crate) fn handle_wvara_event(&mut self, event: WVaraRequestEvent) {
-        match event {
-            WVaraRequestEvent::Transfer { from, to, value } => {
-                if self.transitions.is_program(&to) && !self.transitions.is_program(&from) {
-                    self.update_state(to, |state, _, _| state.balance += value);
-                }
-            }
-        }
     }
 }
