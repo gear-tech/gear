@@ -56,6 +56,8 @@ use std::{
 };
 use tempfile::tempdir;
 
+const ETHER: u128 = 1_000_000_000_000_000_000;
+
 #[ignore = "until rpc fixed"]
 #[tokio::test]
 async fn basics() {
@@ -620,23 +622,19 @@ async fn incoming_transfers() {
 
     let ping = env.ethereum.mirror(ping_id.to_address_lossy().into());
 
-    let on_eth_balance = wvara
-        .query()
-        .balance_of(ping.address().0.into())
-        .await
-        .unwrap();
+    let on_eth_balance = ping.get_balance().await.unwrap();
     assert_eq!(on_eth_balance, 0);
 
     let state_hash = ping.query().state_hash().await.unwrap();
     let local_balance = node.db.program_state(state_hash).unwrap().balance;
     assert_eq!(local_balance, 0);
 
-    // 1_000 tokens
-    const VALUE_SENT: u128 = 1_000_000_000_000_000;
+    // 1_000 ETH
+    const VALUE_SENT: u128 = 1_000 * ETHER;
 
     let mut listener = env.observer_events_publisher().subscribe().await;
 
-    env.transfer_wvara(ping_id, VALUE_SENT).await;
+    ping.owned_balance_top_up(VALUE_SENT).await.unwrap();
 
     listener
         .apply_until_block_event(|e| {
@@ -645,11 +643,7 @@ async fn incoming_transfers() {
         .await
         .unwrap();
 
-    let on_eth_balance = wvara
-        .query()
-        .balance_of(ping.address().0.into())
-        .await
-        .unwrap();
+    let on_eth_balance = ping.get_balance().await.unwrap();
     assert_eq!(on_eth_balance, VALUE_SENT);
 
     let state_hash = ping.query().state_hash().await.unwrap();
@@ -669,11 +663,7 @@ async fn incoming_transfers() {
     assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Manual));
     assert_eq!(res.value, 0);
 
-    let on_eth_balance = wvara
-        .query()
-        .balance_of(ping.address().0.into())
-        .await
-        .unwrap();
+    let on_eth_balance = ping.get_balance().await.unwrap();
     assert_eq!(on_eth_balance, 2 * VALUE_SENT);
 
     let state_hash = ping.query().state_hash().await.unwrap();
