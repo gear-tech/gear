@@ -180,7 +180,7 @@ macro_rules! impl_syscall_builder {
                     let $generic = $generic::post_process($generic, ctx);
                 )+
 
-                Ok(((self)($($generic),+)))
+                Ok((self)($($generic),+))
             }
         }
     };
