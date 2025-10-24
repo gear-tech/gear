@@ -18,16 +18,18 @@
 
 //! Requires node to be built in release mode
 
+use futures::StreamExt;
 use gear_core::{
     ids::{ActorId, CodeId, prelude::*},
     rpc::ReplyInfo,
 };
 use gear_core_errors::{ReplyCode, SuccessReplyReason};
-use gsdk::{Api, Error, Result};
+use gsdk::{Api, Error, Event, Result};
 use jsonrpsee::types::error::ErrorObject;
 use parity_scale_codec::Encode;
 use std::{borrow::Cow, process::Command, str::FromStr, time::Instant};
 use subxt::{Error as SubxtError, error::RpcError, utils::H256};
+use tokio::time::{Duration, timeout};
 use utils::{alice_account_id, dev_node};
 
 mod utils;
@@ -206,6 +208,62 @@ async fn test_calculate_reply_gas() -> Result<()> {
         .calls
         .send_reply(message_id, vec![], gas_info.min_limit, 0)
         .await?;
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_subscribe_program_state_changes() -> Result<()> {
+    let node = dev_node();
+    let api = Api::new(node.ws().as_str()).await?;
+
+    let mut subscription = api.subscribe_program_state_changes(None).await?;
+
+    let signer = api.clone().signer("//Alice", None)?;
+    let salt = b"state-change".to_vec();
+
+    let tx = signer
+        .calls
+        .upload_program(
+            demo_messenger::WASM_BINARY.to_vec(),
+            salt,
+            vec![],
+            100_000_000_000,
+            0,
+        )
+        .await?;
+
+    let program_id = api
+        .events_of(&tx)
+        .await?
+        .into_iter()
+        .find_map(|event| {
+            if let Event::Gear(gsdk::metadata::gear::Event::ProgramChanged { id, .. }) = event {
+                Some(id)
+            } else {
+                None
+            }
+        })
+        .expect("program change event not found");
+
+    let expected_id = H256::from(program_id.0);
+
+    let change = timeout(Duration::from_secs(30), async {
+        loop {
+            let event = subscription.next().await;
+            println!("Got event: {event:?}");
+            match event {
+                Some(Ok(event)) if event.program_ids.contains(&expected_id) => break Ok(event),
+                Some(Ok(_)) => continue,
+                Some(Err(err)) => break Err(err),
+                None => break Err(Error::EventNotFound),
+            }
+        }
+    })
+    .await
+    .expect("timed out waiting for program state change")?;
+
+    assert!(change.program_ids.contains(&expected_id));
 
     Ok(())
 }
