@@ -424,7 +424,6 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
 
         Gear.RewardsCommitment calldata _commitment = _batch.rewardsCommitment[0];
 
-        require(_commitment.timestamp > 0, "rewards commitment timestamp is zero");
         require(_commitment.timestamp < _batch.blockTimestamp, "rewards commitment timestamp must be for the past");
         require(_commitment.timestamp >= router.genesisBlock.timestamp, "rewards commitment timestamp predates genesis");
 
