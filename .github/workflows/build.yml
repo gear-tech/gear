@@ -57,7 +57,7 @@ jobs:
             }
           ]')
           unix_targets="[]"
-          
+
           if ${{ inputs.macos }}; then
             macos='[
               {
@@ -74,7 +74,7 @@ jobs:
             targets=$(echo "$targets" | jq -c ". += $macos")
             unix_targets=$(echo "$unix_targets" | jq -c ". += $macos")
           fi
-          
+
           if ${{ inputs.linux-aarch64 }}; then
             linux_aarch64='[
               {
@@ -86,7 +86,7 @@ jobs:
             targets=$(echo "$targets" | jq -c ". += $linux_aarch64")
             unix_targets=$(echo "$unix_targets" | jq -c ". += $linux_aarch64")
           fi
-          
+
           if ${{ inputs.windows }}; then
             targets=$(echo "$targets" | jq -c '. += [
               {
@@ -96,10 +96,10 @@ jobs:
               }
             ]')
           fi
-          
+
           echo "Targets: ${targets}"
           echo "targets=${targets}" >> $GITHUB_OUTPUT
-          
+
           echo "*NIX targets: ${unix_targets}"
           echo "unix-targets=${unix_targets}" >> $GITHUB_OUTPUT
 
@@ -195,8 +195,8 @@ jobs:
       #     SKIP_WASM_BUILD: 1
 
   workspace:
-    needs: [ dynamic-matrix, node ]
-    runs-on: [ kuberunner, github-runner-02 ]
+    needs: [dynamic-matrix, node]
+    runs-on: [kuberunner, github-runner-02]
     strategy:
       matrix:
         profiles: ${{ fromJSON(needs.dynamic-matrix.outputs.profiles) }}
@@ -226,7 +226,7 @@ jobs:
       - name: "Install: Foundry"
         uses: foundry-rs/foundry-toolchain@v1
         with:
-          version: v1.3.6
+          version: v1.4.2
 
       - name: "Show: Versioning"
         run: |
@@ -257,7 +257,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   crates-io:
-    runs-on: [ kuberunner, github-runner-02 ]
+    runs-on: [kuberunner, github-runner-02]
     needs: workspace
     steps:
       - name: "ACTIONS: Checkout"
@@ -286,7 +286,7 @@ jobs:
   # unoptimized benchmark tests take a few hours to run,
   # so we only run in release
   benchmarks:
-    runs-on: [ kuberunner, github-runner-02 ]
+    runs-on: [kuberunner, github-runner-02]
     needs: workspace
     name: benchmarks
     steps:
@@ -336,7 +336,7 @@ jobs:
           --pallet=pallet_gear --extrinsic="check_all" --extra
 
   try-runtime:
-    needs: [ dynamic-matrix, node ]
+    needs: [dynamic-matrix, node]
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -391,7 +391,7 @@ jobs:
           snap -p vara_ci.snap
 
   fuzzer:
-    runs-on: [ kuberunner, github-runner-01 ]
+    runs-on: [kuberunner, github-runner-01]
     needs: workspace
     env:
       RUSTFLAGS: "--cfg fuzz"
@@ -458,7 +458,7 @@ jobs:
         run: cat lazy_pages_fuzz_run
 
   production:
-    runs-on: [ kuberunner, github-runner-02 ]
+    runs-on: [kuberunner, github-runner-02]
     needs: workspace
     if: ${{ inputs.production }}
     steps:
@@ -503,7 +503,7 @@ jobs:
           path: artifact
 
   unix:
-    needs: [ dynamic-matrix, workspace ]
+    needs: [dynamic-matrix, workspace]
     uses: ./.github/workflows/build-unix.yml
     secrets: inherit
     with:
@@ -511,7 +511,7 @@ jobs:
       targets: ${{ needs.dynamic-matrix.outputs.unix-targets }}
 
   windows:
-    needs: [ dynamic-matrix, workspace ]
+    needs: [dynamic-matrix, workspace]
     if: ${{ inputs.windows }}
     uses: ./.github/workflows/build-windows.yml
     secrets: inherit

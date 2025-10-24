@@ -10,8 +10,9 @@ import {WrappedVara} from "../src/WrappedVara.sol";
 
 import {Middleware} from "../src/Middleware.sol";
 import {IMiddleware} from "../src/IMiddleware.sol";
-import {IDefaultOperatorRewardsFactory} from
-    "symbiotic-rewards/src/interfaces/defaultOperatorRewards/IDefaultOperatorRewardsFactory.sol";
+import {
+    IDefaultOperatorRewardsFactory
+} from "symbiotic-rewards/src/interfaces/defaultOperatorRewards/IDefaultOperatorRewardsFactory.sol";
 
 contract DeploymentScript is Script {
     WrappedVara public wrappedVara;

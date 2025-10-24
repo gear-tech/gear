@@ -11,8 +11,9 @@ import {IRouter} from "./IRouter.sol";
 import {IWrappedVara} from "./IWrappedVara.sol";
 import {IMiddleware} from "./IMiddleware.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import {ReentrancyGuardTransientUpgradeable} from
-    "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardTransientUpgradeable.sol";
+import {
+    ReentrancyGuardTransientUpgradeable
+} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardTransientUpgradeable.sol";
 import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
@@ -89,7 +90,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
 
         // Copy signing threshold percentage from the old router.
         newRouter.validationSettings.signingThresholdPercentage =
-            oldRouter.validationSettings.signingThresholdPercentage;
+        oldRouter.validationSettings.signingThresholdPercentage;
 
         // Copy validators from the old router.
         // TODO #4557: consider what to do. Maybe we should start reelection process.
@@ -269,9 +270,8 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
     function createProgram(bytes32 _codeId, bytes32 _salt, address _overrideInitializer) external returns (address) {
         address mirror = _createProgram(_codeId, _salt, true);
 
-        IMirror(mirror).initialize(
-            _overrideInitializer == address(0) ? msg.sender : _overrideInitializer, mirrorImpl(), true
-        );
+        IMirror(mirror)
+            .initialize(_overrideInitializer == address(0) ? msg.sender : _overrideInitializer, mirrorImpl(), true);
 
         return mirror;
     }
@@ -284,9 +284,8 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
     ) external returns (address) {
         address mirror = _createProgram(_codeId, _salt, false);
 
-        IMirror(mirror).initialize(
-            _overrideInitializer == address(0) ? msg.sender : _overrideInitializer, _abiInterface, false
-        );
+        IMirror(mirror)
+            .initialize(_overrideInitializer == address(0) ? msg.sender : _overrideInitializer, _abiInterface, false);
 
         return mirror;
     }
@@ -312,6 +311,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
             router.latestCommittedBatch.hash == _batch.previousCommittedBatchHash,
             "invalid previous committed batch hash"
         );
+
         require(
             router.latestCommittedBatch.timestamp <= _batch.blockTimestamp,
             "batch timestamp must be greater or equal to latest committed batch timestamp"
@@ -429,13 +429,13 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
         require(_commitment.timestamp < _batch.blockTimestamp, "rewards commitment timestamp must be for the past");
 
         address _middleware = router.implAddresses.middleware;
-        IERC20(router.implAddresses.wrappedVara).approve(
-            _middleware, _commitment.operators.amount + _commitment.stakers.totalAmount
-        );
+        IERC20(router.implAddresses.wrappedVara)
+            .approve(_middleware, _commitment.operators.amount + _commitment.stakers.totalAmount);
 
-        bytes32 _operatorRewardsHash = IMiddleware(_middleware).distributeOperatorRewards(
-            router.implAddresses.wrappedVara, _commitment.operators.amount, _commitment.operators.root
-        );
+        bytes32 _operatorRewardsHash = IMiddleware(_middleware)
+            .distributeOperatorRewards(
+                router.implAddresses.wrappedVara, _commitment.operators.amount, _commitment.operators.root
+            );
 
         bytes32 _stakerRewardsHash =
             IMiddleware(_middleware).distributeStakerRewards(_commitment.stakers, _commitment.timestamp);
@@ -444,10 +444,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
     }
 
     /// @dev Set validators for the next era.
-    function _commitValidators(Storage storage router, Gear.BatchCommitment calldata _batch)
-        private
-        returns (bytes32)
-    {
+    function _commitValidators(Storage storage router, Gear.BatchCommitment calldata _batch) private returns (bytes32) {
         require(
             _batch.validatorsCommitment.length <= 1,
             "validators commitment must be empty or contains only one commitment"
@@ -480,7 +477,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
             nextEraStart
         );
 
-        emit NextEraValidatorsCommitted(nextEraStart);
+        emit ValidatorsCommittedForEra(_commitment.eraIndex);
 
         return Gear.validatorsCommitmentHash(_commitment);
     }
@@ -499,9 +496,8 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
             );
 
             if (transition.valueToReceive != 0) {
-                bool success = IWrappedVara(router.implAddresses.wrappedVara).transfer(
-                    transition.actorId, transition.valueToReceive
-                );
+                bool success = IWrappedVara(router.implAddresses.wrappedVara)
+                    .transfer(transition.actorId, transition.valueToReceive);
                 require(success, "transfer to actor failed");
             }
 

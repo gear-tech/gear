@@ -20,7 +20,7 @@
 
 use ethexe_common::{
     Announce, AnnounceHash, CodeAndIdUnchecked, ProgramStates, Schedule,
-    db::{AnnounceStorageRead, BlockMetaStorageRead, CodesStorageWrite},
+    db::{AnnounceStorageRO, BlockMetaStorageRO, CodesStorageRW},
     events::{BlockRequestEvent, MirrorRequestEvent},
     gear::StateTransition,
 };

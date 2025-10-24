@@ -20,7 +20,7 @@ use super::ProcessingHandler;
 use crate::{ProcessorError, Result};
 use ethexe_common::{
     ScheduledTask,
-    db::{CodesStorageRead, CodesStorageWrite},
+    db::{CodesStorageRO, CodesStorageRW},
     events::{MirrorRequestEvent, RouterRequestEvent, WVaraRequestEvent},
     gear::{Origin, ValueClaim},
 };
@@ -43,10 +43,10 @@ impl ProcessingHandler {
 
                 self.transitions.register_new(actor_id);
             }
-            RouterRequestEvent::CodeValidationRequested { .. }
+            RouterRequestEvent::ValidatorsCommittedForEra { .. }
+            | RouterRequestEvent::CodeValidationRequested { .. }
             | RouterRequestEvent::ComputationSettingsChanged { .. }
-            | RouterRequestEvent::StorageSlotChanged
-            | RouterRequestEvent::NextEraValidatorsCommitted { .. } => {
+            | RouterRequestEvent::StorageSlotChanged => {
                 log::debug!("Handler not yet implemented: {event:?}");
             }
         };

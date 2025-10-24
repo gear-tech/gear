@@ -16,7 +16,10 @@ contract WrappedVaraScript is Script {
         vm.startBroadcast(privateKey);
 
         bytes memory data = reinitialize
-            ? abi.encodeCall(WrappedVara.reinitialize, () /*WrappedVara.reinitialize arguments*/ )
+            ? abi.encodeCall(
+                WrappedVara.reinitialize,
+                () /*WrappedVara.reinitialize arguments*/
+            )
             : new bytes(0);
         Upgrades.upgradeProxy(wrappedVaraAddress, "WrappedVara.sol", data);
 

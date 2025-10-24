@@ -256,7 +256,7 @@ library Gear {
     }
 
     function defaultComputationSettings() internal pure returns (ComputationSettings memory) {
-        return ComputationSettings(COMPUTATION_THRESHOLD, WVARA_PER_SECOND);
+        return ComputationSettings({threshold: COMPUTATION_THRESHOLD, wvaraPerSecond: WVARA_PER_SECOND});
     }
 
     function messageHash(Message memory message) internal pure returns (bytes32) {
@@ -274,7 +274,7 @@ library Gear {
     }
 
     function newGenesis() internal view returns (GenesisBlockInfo memory) {
-        return GenesisBlockInfo(bytes32(0), uint32(block.number), uint48(block.timestamp));
+        return GenesisBlockInfo({hash: bytes32(0), number: uint32(block.number), timestamp: uint48(block.timestamp)});
     }
 
     function stateTransitionHash(
@@ -444,11 +444,7 @@ library Gear {
         return ts1Greater && (tsGe0 == tsGe1);
     }
 
-    function validatorsThreshold(uint256 validatorsAmount, uint16 thresholdPercentage)
-        internal
-        pure
-        returns (uint256)
-    {
+    function validatorsThreshold(uint256 validatorsAmount, uint16 thresholdPercentage) internal pure returns (uint256) {
         // Dividing by 10000 to adjust for percentage
         return (validatorsAmount * uint256(thresholdPercentage) + 9999) / 10000;
     }

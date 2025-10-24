@@ -16,12 +16,17 @@ ethexe-common.workspace = true
 gprimitives = { workspace = true, features = ["codec", "std"] }
 
 async-trait.workspace = true
+tokio.workspace = true
 parity-scale-codec = { workspace = true, features = ["std", "derive"] }
-log.workspace = true
+tracing.workspace = true
 anyhow.workspace = true
 futures.workspace = true
 derive_more.workspace = true
 nonempty.workspace = true
+rand = "0.8"
+rand_chacha = "0.3"
+roast-secp256k1-evm.workspace = true
+hashbrown.workspace = true
 
 [dev-dependencies]
 tokio.workspace = true

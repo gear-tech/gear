@@ -24,7 +24,7 @@ use alloy::{
 };
 use ethexe_common::{
     CodeAndIdUnchecked, CodeBlobInfo,
-    db::{CodesStorageRead, OnChainStorageRead},
+    db::{CodesStorageRO, OnChainStorageRO},
 };
 use futures::{
     FutureExt, Stream, StreamExt,
@@ -194,8 +194,8 @@ impl ConsensusLayerBlobReader {
     }
 }
 
-pub trait Database: CodesStorageRead + OnChainStorageRead + Unpin + Send + Clone + 'static {}
-impl<T: CodesStorageRead + OnChainStorageRead + Unpin + Send + Clone + 'static> Database for T {}
+pub trait Database: CodesStorageRO + OnChainStorageRO + Unpin + Send + Clone + 'static {}
+impl<T: CodesStorageRO + OnChainStorageRO + Unpin + Send + Clone + 'static> Database for T {}
 
 pub struct BlobLoader<DB: Database> {
     futures: FuturesUnordered<BoxFuture<'static, Result<CodeAndIdUnchecked>>>,

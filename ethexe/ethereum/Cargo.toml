@@ -30,7 +30,8 @@ alloy = { workspace = true, features = [
 ] }
 futures.workspace = true
 log.workspace = true
-tokio.workspace = true
+tracing.workspace = true
+tokio = { workspace = true, features = ["process"] }
 roast-secp256k1-evm.workspace = true
 nonempty.workspace = true
 rand.workspace = true
