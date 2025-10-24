@@ -32,12 +32,14 @@ use alloy::{
     providers::{Provider as _, RootProvider, ext::AnvilApi},
     rpc::types::{Header as RpcHeader, anvil::MineOptions},
 };
+use anyhow::anyhow;
 use ethexe_blob_loader::{
     BlobLoaderService,
     local::{LocalBlobLoader, LocalBlobStorage},
 };
 use ethexe_common::{
     Address, CodeAndId, DEFAULT_BLOCK_GAS_LIMIT,
+    db::OnChainStorageRO,
     ecdsa::{PrivateKey, PublicKey},
     events::{BlockEvent, MirrorEvent, RouterEvent},
 };
@@ -49,7 +51,9 @@ use ethexe_ethereum::{
     middleware::MockElectionProvider,
     router::RouterQuery,
 };
-use ethexe_network::{NetworkConfig, NetworkEvent, NetworkService, export::Multiaddr};
+use ethexe_network::{
+    NetworkConfig, NetworkEvent, NetworkRuntimeConfig, NetworkService, export::Multiaddr,
+};
 use ethexe_observer::{EthereumConfig, ObserverEvent, ObserverService};
 use ethexe_processor::Processor;
 use ethexe_rpc::{RpcConfig, RpcService, test_utils::RpcClient};
@@ -170,9 +174,8 @@ impl TestEnv {
                 .collect(),
         };
 
-        let (validators, verifiable_secret_sharing_commitment) =
-            Self::define_session_keys(&signer, validators);
-
+        let (validator_configs, verifiable_secret_sharing_commitment) =
+            Self::define_session_keys(&signer, validators.clone());
         let sender_address = wallets.next().to_address();
 
         let ethereum = if let Some(router_address) = router_address {
@@ -186,10 +189,8 @@ impl TestEnv {
             .await?
         } else {
             log::info!("📗 Deploying new router");
-            let validators_addresses: Vec<Address> = validators
-                .iter()
-                .map(|k| k.public_key.to_address())
-                .collect();
+            let validators_addresses: Vec<Address> =
+                validators.iter().map(|k| k.to_address()).collect();
             EthereumDeployer::new(&rpc_url, signer.clone(), sender_address) // verifiable_secret_sharing_commitment,)
                 .await
                 .unwrap()
@@ -215,6 +216,7 @@ impl TestEnv {
         let mut observer = ObserverService::new(&eth_cfg, u32::MAX, db.clone())
             .await
             .unwrap();
+        let genesis_block_hash = observer.genesis_block_hash();
 
         let blobs_storage = LocalBlobStorage::default();
 
@@ -277,13 +279,27 @@ impl TestEnv {
             let mut config = NetworkConfig::new_test(network_key, router_address);
             config.listen_addresses = [multiaddr.clone()].into();
             config.external_addresses = [multiaddr.clone()].into();
+
+            let timelines = db
+                .protocol_timelines()
+                .ok_or_else(|| anyhow!("protocol timelines not found in database"))
+                .unwrap();
+
+            let runtime_config = NetworkRuntimeConfig {
+                genesis_timestamp: timelines.genesis_ts,
+                era_duration: timelines.era,
+                genesis_block_hash,
+            };
+
             let mut service = NetworkService::new(
                 config,
+                runtime_config,
                 &signer,
                 Box::new(RouterDataProvider(router_query.clone())),
                 Box::new(db.clone()),
             )
             .unwrap();
+            service.set_chain_head(genesis_block_hash).unwrap();
 
             let local_peer_id = service.local_peer_id();
 
@@ -317,7 +333,7 @@ impl TestEnv {
             election_provider: MockElectionProvider::new(),
             ethereum,
             signer,
-            validators,
+            validators: validator_configs,
             sender_id: ActorId::from(H160::from(sender_address.0)),
             threshold,
             block_time,
@@ -807,30 +823,6 @@ impl Node {
 
         let processor = Processor::new(self.db.clone()).unwrap();
 
-        let wait_for_network = self.network_bootstrap_address.is_some();
-
-        let network = self.network_address.as_ref().map(|addr| {
-            let network_key = self.signer.generate_key().unwrap();
-            let multiaddr: Multiaddr = addr.parse().unwrap();
-
-            let mut config = NetworkConfig::new_test(network_key, self.eth_cfg.router_address);
-            config.listen_addresses = [multiaddr.clone()].into();
-            config.external_addresses = [multiaddr.clone()].into();
-            if let Some(bootstrap_addr) = self.network_bootstrap_address.as_ref() {
-                let multiaddr = bootstrap_addr.parse().unwrap();
-                config.bootstrap_addresses = [multiaddr].into();
-            }
-            let network = NetworkService::new(
-                config,
-                &self.signer,
-                Box::new(RouterDataProvider(self.router_query.clone())),
-                Box::new(self.db.clone()),
-            )
-            .unwrap();
-            self.multiaddr = Some(format!("{addr}/p2p/{}", network.local_peer_id()));
-            network
-        });
-
         let observer = ObserverService::new(&self.eth_cfg, u32::MAX, self.db.clone())
             .await
             .unwrap();
@@ -868,6 +860,44 @@ impl Node {
         let (sender, receiver) = broadcast::channel(2048);
 
         let blob_loader = LocalBlobLoader::new(self.blob_storage.clone()).into_box();
+
+        let wait_for_network = self.network_bootstrap_address.is_some();
+
+        let network = self.network_address.as_ref().map(|addr| {
+            let network_key = self.signer.generate_key().unwrap();
+            let multiaddr: Multiaddr = addr.parse().unwrap();
+
+            let mut config = NetworkConfig::new_test(network_key, self.eth_cfg.router_address);
+            config.listen_addresses = [multiaddr.clone()].into();
+            config.external_addresses = [multiaddr.clone()].into();
+            if let Some(bootstrap_addr) = self.network_bootstrap_address.as_ref() {
+                let multiaddr = bootstrap_addr.parse().unwrap();
+                config.bootstrap_addresses = [multiaddr].into();
+            }
+
+            let timelines = self
+                .db
+                .protocol_timelines()
+                .ok_or_else(|| anyhow!("protocol timelines not found in database"))
+                .unwrap();
+
+            let runtime_config = NetworkRuntimeConfig {
+                genesis_timestamp: timelines.genesis_ts,
+                era_duration: timelines.era,
+                genesis_block_hash: observer.genesis_block_hash(),
+            };
+
+            let network = NetworkService::new(
+                config,
+                runtime_config,
+                &self.signer,
+                Box::new(RouterDataProvider(self.router_query.clone())),
+                Box::new(self.db.clone()),
+            )
+            .unwrap();
+            self.multiaddr = Some(format!("{addr}/p2p/{}", network.local_peer_id()));
+            network
+        });
 
         let tx_pool_service = TxPoolService::new(self.db.clone());
 

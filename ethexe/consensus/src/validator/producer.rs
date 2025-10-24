@@ -26,6 +26,7 @@ use ethexe_common::{
     Announce, AnnounceHash, SimpleBlockData, ValidatorsVec,
     db::{AnnounceStorageRO, BlockMetaStorageRO},
     gear::BatchCommitment,
+    network::ValidatorMessage,
 };
 use ethexe_service_utils::Timer;
 use futures::{FutureExt, future::BoxFuture};
@@ -222,14 +223,18 @@ impl Producer {
             off_chain_transactions: Vec::new(),
         };
 
-        let signed = self
+        let message = ValidatorMessage {
+            block: self.block.hash,
+            payload: announce.clone(),
+        };
+        let message = self
             .ctx
             .core
             .signer
-            .signed_data(self.ctx.core.pub_key, announce.clone())?;
+            .signed_data(self.ctx.core.pub_key, message)?;
 
         self.state = State::WaitingAnnounceComputed;
-        self.output(ConsensusEvent::PublishAnnounce(signed));
+        self.output(ConsensusEvent::PublishMessage(message.into()));
         self.output(ConsensusEvent::ComputeAnnounce(announce));
 
         Ok(())
@@ -254,7 +259,7 @@ mod tests {
         let block = SimpleBlockData::mock(());
 
         ctx.pending(PendingEvent::ValidationRequest(
-            ctx.core.signer.mock_signed_data(keys[0], ()),
+            ctx.core.signer.mock_verified_data(keys[0], ()),
         ));
 
         let producer = Producer::create(ctx, block, validators.into()).unwrap();
@@ -357,7 +362,9 @@ mod tests {
             .await
             .unwrap();
         assert!(state.is_coordinator());
-        assert!(event.is_publish_validation_request());
+        event
+            .unwrap_publish_message()
+            .unwrap_request_batch_validation();
     }
 
     #[tokio::test]
@@ -437,7 +444,7 @@ mod tests {
 
             let (state, event) = state.wait_for_event().await?;
             assert!(state.is_producer());
-            assert!(event.is_publish_announce());
+            event.unwrap_publish_message().unwrap_producer_block();
 
             let (state, event) = state.wait_for_event().await?;
             assert!(state.is_producer());

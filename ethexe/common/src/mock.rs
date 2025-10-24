@@ -25,6 +25,7 @@ use crate::{
     db::*,
     events::BlockEvent,
     gear::{BatchCommitment, ChainCommitment, CodeCommitment, Message, StateTransition},
+    network::ValidatorMessage,
 };
 use alloc::{collections::BTreeMap, vec};
 use gear_core::code::{CodeMetadata, InstrumentedCode};
@@ -157,6 +158,15 @@ impl Mock<()> for StateTransition {
                 call: false,
             }],
             exited: false,
+        }
+    }
+}
+
+impl<T: Mock<()>> Mock<()> for ValidatorMessage<T> {
+    fn mock(_args: ()) -> Self {
+        Self {
+            block: H256::random(),
+            payload: T::mock(()),
         }
     }
 }

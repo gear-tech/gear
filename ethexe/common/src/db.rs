@@ -108,7 +108,7 @@ pub trait OnChainStorageRO {
     fn block_events(&self, block_hash: H256) -> Option<Vec<BlockEvent>>;
     fn code_blob_info(&self, code_id: CodeId) -> Option<CodeBlobInfo>;
     fn block_synced(&self, block_hash: H256) -> bool;
-    fn validators(&self, block_hash: H256) -> Option<ValidatorsVec>;
+    fn block_validators(&self, block_hash: H256) -> Option<ValidatorsVec>;
     fn protocol_timelines(&self) -> Option<ProtocolTimelines>;
 }
 

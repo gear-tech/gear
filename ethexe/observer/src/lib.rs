@@ -35,7 +35,6 @@ use futures::{FutureExt, Stream, StreamExt, future::BoxFuture, stream::FusedStre
 use gprimitives::H256;
 use std::{
     collections::VecDeque,
-    fmt,
     pin::Pin,
     task::{Context, Poll},
     time::Duration,
@@ -58,21 +57,10 @@ pub struct EthereumConfig {
     pub router_address: Address,
     pub block_time: Duration,
 }
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ObserverEvent {
     Block(SimpleBlockData),
     BlockSynced(H256),
-}
-
-impl fmt::Debug for ObserverEvent {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            ObserverEvent::Block(data) => f.debug_tuple("Block").field(data).finish(),
-            ObserverEvent::BlockSynced(synced_block) => {
-                f.debug_tuple("BlockSynced").field(synced_block).finish()
-            }
-        }
-    }
 }
 
 #[derive(Clone, Debug)]
@@ -81,6 +69,7 @@ struct RuntimeConfig {
     wvara_address: Address,
     max_sync_depth: u32,
     batched_sync_depth: u32,
+    genesis_block_hash: H256,
 }
 
 // TODO #4552: make tests for observer service
@@ -183,7 +172,8 @@ impl ObserverService {
             .await
             .context("failed to create ethereum provider")?;
 
-        Self::pre_process_genesis_for_db(&db, &provider, &router_query).await?;
+        let genesis_block_hash =
+            Self::pre_process_genesis_for_db(&db, &provider, &router_query).await?;
 
         let headers_stream = provider
             .subscribe_blocks()
@@ -197,6 +187,7 @@ impl ObserverService {
             max_sync_depth,
             // TODO #4562: make this configurable. Important: must be greater than 1.
             batched_sync_depth: 2,
+            genesis_block_hash,
         };
 
         let chain_sync = ChainSync {
@@ -226,11 +217,11 @@ impl ObserverService {
         db: &Database,
         provider: &RootProvider,
         router_query: &RouterQuery,
-    ) -> Result<()> {
+    ) -> Result<H256> {
         let genesis_block_hash = router_query.genesis_block_hash().await?;
 
         if db.block_meta(genesis_block_hash).prepared {
-            return Ok(());
+            return Ok(genesis_block_hash);
         }
 
         let genesis_block = provider
@@ -265,7 +256,7 @@ impl ObserverService {
             timelines,
         );
 
-        Ok(())
+        Ok(genesis_block_hash)
     }
 
     pub fn provider(&self) -> &RootProvider {
@@ -274,6 +265,10 @@ impl ObserverService {
 
     pub fn last_block_number(&self) -> u32 {
         self.last_block_number
+    }
+
+    pub fn genesis_block_hash(&self) -> H256 {
+        self.config.genesis_block_hash
     }
 
     pub fn load_block_data(&self, block: H256) -> impl Future<Output = Result<BlockData>> {

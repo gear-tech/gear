@@ -497,7 +497,7 @@ impl OnChainStorageRO for Database {
             .unwrap_or_default()
     }
 
-    fn validators(&self, block_hash: H256) -> Option<ValidatorsVec> {
+    fn block_validators(&self, block_hash: H256) -> Option<ValidatorsVec> {
         self.kv
             .get(&Key::ValidatorSet(block_hash).to_bytes())
             .map(|data| {
