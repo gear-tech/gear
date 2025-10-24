@@ -20,7 +20,7 @@ use crate::{
     db_sync::PeerId,
     gossipsub::MessageAcceptance,
     peer_score,
-    validator_list::{ValidatorDatabase, ValidatorList},
+    validator::{ValidatorDatabase, list::ValidatorList},
 };
 use ethexe_common::{
     Address,

@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{db_sync::PeerId, utils::hpke, validator_list::ValidatorList};
+use crate::{db_sync::PeerId, utils::hpke, validator::list::ValidatorList};
 use anyhow::Context;
 use ethexe_common::{
     Address, ToDigest,

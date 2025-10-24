@@ -22,20 +22,13 @@ mod gossipsub;
 mod injected;
 pub mod peer_score;
 mod utils;
-mod validator_discovery;
-mod validator_list;
-mod validator_topic;
+mod validator;
 
 pub mod export {
     pub use libp2p::{Multiaddr, PeerId, multiaddr::Protocol};
 }
 
-use crate::{
-    db_sync::DbSyncDatabase,
-    gossipsub::MessageAcceptance,
-    validator_list::{ValidatorDatabase, ValidatorList},
-    validator_topic::ValidatorTopic,
-};
+use crate::{db_sync::DbSyncDatabase, gossipsub::MessageAcceptance, validator::ValidatorDatabase};
 use anyhow::{Context, anyhow};
 use ethexe_common::{
     Address,
@@ -65,6 +58,7 @@ use libp2p::{
 #[cfg(test)]
 use libp2p_swarm_test::SwarmExt;
 use std::{collections::HashSet, pin::Pin, task::Poll, time::Duration};
+use validator::{list::ValidatorList, topic::ValidatorTopic};
 
 pub const DEFAULT_LISTEN_PORT: u16 = 20333;
 
@@ -622,7 +616,7 @@ pub(crate) struct Behaviour {
     // injected transaction shenanigans
     pub injected: injected::Behaviour,
     // validator discovery
-    pub validator_discovery: validator_discovery::Behaviour,
+    pub validator_discovery: validator::discovery::Behaviour,
 }
 
 impl Behaviour {
@@ -695,7 +689,7 @@ impl Behaviour {
         let injected = injected::Behaviour::new(peer_score_handle);
 
         let validator_discovery =
-            validator_discovery::Behaviour::new(keypair, validator_key, general_signer);
+            validator::discovery::Behaviour::new(keypair, validator_key, general_signer);
 
         Ok(Self {
             custom_connection_limits,

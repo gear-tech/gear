@@ -19,6 +19,7 @@
 //! Validator-specific networking logic that verifies signed messages
 //! against on-chain state.
 
+use crate::validator::ValidatorDatabase;
 use anyhow::Context;
 use ethexe_common::{
     Address, BlockHeader, ProtocolTimelines, ValidatorsVec,
@@ -28,17 +29,6 @@ use ethexe_common::{
 use ethexe_db::Database;
 use gprimitives::H256;
 use nonempty::NonEmpty;
-
-#[auto_impl::auto_impl(&, Box)]
-pub trait ValidatorDatabase: Send + OnChainStorageRO {
-    fn clone_boxed(&self) -> Box<dyn ValidatorDatabase>;
-}
-
-impl ValidatorDatabase for Database {
-    fn clone_boxed(&self) -> Box<dyn ValidatorDatabase> {
-        Box::new(self.clone())
-    }
-}
 
 struct ChainHead {
     header: BlockHeader,
