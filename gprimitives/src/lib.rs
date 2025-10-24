@@ -22,10 +22,11 @@
 #![warn(missing_docs)]
 #![doc(html_logo_url = "https://gear-tech.io/logo.png")]
 #![doc(html_favicon_url = "https://gear-tech.io/favicon.ico")]
-#![cfg_attr(docsrs, feature(doc_auto_cfg))]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 
 extern crate alloc;
 
+use bytemuck::{Pod, Zeroable};
 pub use gear_ss58::Ss58Address;
 pub use nonzero_u256::NonZeroU256;
 pub use primitive_types::{H160, H256, U256};
@@ -75,7 +76,7 @@ pub enum ConversionError {
 /// initialization, filling the message with payload (can be gradual), and
 /// message sending.
 #[repr(transparent)]
-#[derive(Clone, Copy, Debug, PartialEq, Eq, From, Into)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, From, Into, Zeroable, Pod)]
 #[cfg_attr(feature = "codec", derive(TypeInfo, Encode, Decode, MaxEncodedLen), codec(crate = scale))]
 pub struct MessageHandle(u32);
 
@@ -88,7 +89,23 @@ pub struct MessageHandle(u32);
 /// `ActorId` as one of the arguments.
 ///
 /// NOTE: Implementation of `From<u64>` places bytes from idx=12 for Eth compatibility.
-#[derive(Clone, Copy, Default, Hash, Ord, PartialEq, PartialOrd, Eq, From, Into, AsRef, AsMut)]
+#[repr(transparent)]
+#[derive(
+    Clone,
+    Copy,
+    Default,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+    Eq,
+    From,
+    Into,
+    AsRef,
+    AsMut,
+    Zeroable,
+    Pod,
+)]
 #[as_ref(forward)]
 #[as_mut(forward)]
 #[cfg_attr(feature = "codec", derive(TypeInfo, Encode, Decode, MaxEncodedLen), codec(crate = scale))]
@@ -293,7 +310,23 @@ impl<'de> Deserialize<'de> for ActorId {
 /// struct. The message identifier can be obtained for the currently processed
 /// message using the `gstd::msg::id()` function. Also, each send and reply
 /// functions return a message identifier.
-#[derive(Clone, Copy, Default, Hash, Ord, PartialEq, PartialOrd, Eq, From, Into, AsRef, AsMut)]
+#[repr(transparent)]
+#[derive(
+    Clone,
+    Copy,
+    Default,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+    Eq,
+    From,
+    Into,
+    AsRef,
+    AsMut,
+    Zeroable,
+    Pod,
+)]
 #[as_ref(forward)]
 #[as_mut(forward)]
 #[cfg_attr(feature = "codec", derive(TypeInfo, Encode, Decode, MaxEncodedLen), codec(crate = scale))]
@@ -309,7 +342,23 @@ macros::impl_primitive!(new zero into_bytes from_u64 from_h256 into_h256 from_st
 ///
 /// Code identifier is required when creating programs from programs (see
 /// `gstd::prog` module for details).
-#[derive(Clone, Copy, Default, Hash, Ord, PartialEq, PartialOrd, Eq, From, Into, AsRef, AsMut)]
+#[repr(transparent)]
+#[derive(
+    Clone,
+    Copy,
+    Default,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+    Eq,
+    From,
+    Into,
+    AsRef,
+    AsMut,
+    Zeroable,
+    Pod,
+)]
 #[as_ref(forward)]
 #[as_mut(forward)]
 #[cfg_attr(feature = "codec", derive(TypeInfo, Encode, Decode, MaxEncodedLen), codec(crate = scale))]
@@ -321,7 +370,23 @@ macros::impl_primitive!(new zero into_bytes from_u64 from_h256 into_h256 from_st
 ///
 /// The identifier is used to reserve and unreserve gas amount for program
 /// execution later.
-#[derive(Clone, Copy, Default, Hash, Ord, PartialEq, PartialOrd, Eq, From, Into, AsRef, AsMut)]
+#[repr(transparent)]
+#[derive(
+    Clone,
+    Copy,
+    Default,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+    Eq,
+    From,
+    Into,
+    AsRef,
+    AsMut,
+    Zeroable,
+    Pod,
+)]
 #[as_ref(forward)]
 #[as_mut(forward)]
 #[cfg_attr(feature = "codec", derive(TypeInfo, Encode, Decode, MaxEncodedLen), codec(crate = scale))]

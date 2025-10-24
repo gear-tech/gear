@@ -1,5 +1,5 @@
 use crate::{
-    Config, EthMessage, QueueId, QueuesInfo, TransportFee, WeightInfo,
+    Config, EthMessage, QueueId, QueueOverflowedSince, QueuesInfo, WeightInfo,
     internal::{EthMessageExt, QueueInfo},
     mock::{mock_builtin_id as builtin_id, *},
 };
@@ -503,15 +503,14 @@ fn bridge_queues_governance_messages_when_over_capacity() {
             0,
         );
 
-        // Queue got reset on init.
-        System::assert_has_event(Event::QueueReset.into());
-        assert_eq!(Queue::get().len(), 0);
+        // Queue wasn't reset yet.
+        assert!(QueuesInfo::<Test>::get(1).is_none());
 
         let Some(QueueInfo::NonEmpty {
             latest_nonce_used, ..
         }) = QueuesInfo::<Test>::get(0)
         else {
-            panic!("empty queue info for past id");
+            panic!("empty queue info for current id");
         };
 
         // Expected len is `msg_queue_len + 2`, so latest nonce (idx) used is -1.
@@ -573,9 +572,11 @@ fn bridge_max_payload_size_exceeded_err() {
 }
 
 #[test]
-fn bridge_queue_capacity_exceeded_causes_reset() {
+fn bridge_queue_capacity_exceeded_and_reset() {
     init_logger();
     new_test_ext().execute_with(|| {
+        const ERR: Error = Error::BridgeCleanupRequired;
+
         run_to_block(WHEN_INITIALIZED);
 
         assert_ok!(GearEthBridge::unpause(RuntimeOrigin::root()));
@@ -586,19 +587,50 @@ fn bridge_queue_capacity_exceeded_causes_reset() {
                 H160::zero(),
                 vec![]
             ));
+
+            // Due to not yet overflowed until the end of block.
+            assert_noop!(
+                GearEthBridge::reset_overflowed_queue(RuntimeOrigin::signed(SIGNER), vec![42]),
+                Error::InvalidQueueReset
+            );
         }
 
-        run_block_with_builtin_call(
-            SIGNER,
+        let block_number = <frame_system::Pallet<Test>>::block_number();
+        assert!(QueueOverflowedSince::<Test>::get().is_none());
+
+        run_block_and_assert_messaging_error(
             Request::SendEthMessage {
                 destination: H160::zero(),
                 payload: vec![],
             },
-            None,
-            TransportFee::<Test>::get(),
+            ERR,
         );
 
-        System::assert_has_event(Event::QueueReset.into());
+        System::assert_has_event(Event::QueueOverflowed.into());
+
+        assert_eq!(QueueOverflowedSince::<Test>::get(), Some(block_number));
+
+        // Due to wrong "finality proof".
+        assert_noop!(
+            GearEthBridge::reset_overflowed_queue(RuntimeOrigin::signed(SIGNER), vec![]),
+            Error::InvalidQueueReset
+        );
+
+        assert_eq!(QueueId::<Test>::get(), 0);
+
+        assert_ok!(GearEthBridge::reset_overflowed_queue(
+            RuntimeOrigin::signed(SIGNER),
+            vec![42]
+        ));
+        System::assert_last_event(Event::QueueReset.into());
+        assert!(QueueOverflowedSince::<Test>::get().is_none());
+
+        // Due to already reset => not overflowed.
+        assert_noop!(
+            GearEthBridge::reset_overflowed_queue(RuntimeOrigin::signed(SIGNER), vec![42]),
+            Error::InvalidQueueReset
+        );
+
         assert_eq!(Queue::get().len(), 0);
 
         let Some(QueueInfo::NonEmpty {
@@ -612,8 +644,8 @@ fn bridge_queue_capacity_exceeded_causes_reset() {
 
         let capacity: u32 = <Test as crate::Config>::QueueCapacity::get();
 
-        // Expected len is `QueueCapacity + 1`, so latest nonce (idx) used is -1.
-        assert_eq!(latest_nonce_used.as_usize(), capacity as usize,);
+        // Expected len is eq `QueueCapacity`, so latest nonce (idx) used is -1.
+        assert_eq!(latest_nonce_used.as_usize(), capacity as usize - 1);
     })
 }
 

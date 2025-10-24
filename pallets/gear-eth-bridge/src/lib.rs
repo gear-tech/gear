@@ -26,7 +26,7 @@
 #![warn(missing_docs)]
 #![doc(html_logo_url = "https://gear-tech.io/logo.png")]
 #![doc(html_favicon_url = "https://gear-tech.io/favicon.ico")]
-#![cfg_attr(docsrs, feature(doc_auto_cfg))]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 
 pub use builtin::Actor;
 pub use pallet::*;
@@ -88,7 +88,9 @@ pub mod pallet {
 
     /// Pallet Gear Eth Bridge's config.
     #[pallet::config]
-    pub trait Config: frame_system::Config + pallet_gear_bank::Config {
+    pub trait Config:
+        frame_system::Config + pallet_gear_bank::Config + pallet_grandpa::Config
+    {
         /// Type representing aggregated runtime event.
         type RuntimeEvent: From<Event<Self>>
             + TryInto<Event<Self>>
@@ -171,6 +173,9 @@ pub mod pallet {
             root: H256,
         },
 
+        /// Queue has been overflowed and now requires reset.
+        QueueOverflowed,
+
         /// Queue was reset.
         ///
         /// Related to bridge clearing on initialization of the second block in a new era.
@@ -181,6 +186,10 @@ pub mod pallet {
     #[pallet::error]
     #[cfg_attr(test, derive(Clone))]
     pub enum Error<T> {
+        /// The error happens when bridge queue is temporarily overflowed
+        /// and needs cleanup to proceed.
+        BridgeCleanupRequired,
+
         /// The error happens when bridge got called before
         /// proper initialization after deployment.
         BridgeIsNotYetInitialized,
@@ -194,6 +203,10 @@ pub mod pallet {
         /// The error happens when bridging thorough builtin and message value
         /// is inapplicable to operation or insufficient.
         InsufficientValueApplied,
+
+        /// The error happens when attempted to reset overflowed queue, but
+        /// queue isn't overflowed or incorrect finality proof provided.
+        InvalidQueueReset,
     }
 
     /// Lifecycle storage.
@@ -282,10 +295,10 @@ pub mod pallet {
 
     /// Operational storage.
     ///
-    /// Defines if queue should be reset in the next block initialization.
+    /// Defines since when queue was last pushed to that caused overflow.
     /// Intended to support unlimited queue capacity.
     #[pallet::storage]
-    pub(crate) type ResetQueueOnInit<T> = StorageValue<_, bool, ValueQuery>;
+    pub(crate) type QueueOverflowedSince<T> = StorageValue<_, BlockNumberFor<T>>;
 
     /// Operational storage.
     ///
@@ -378,11 +391,11 @@ pub mod pallet {
 
             // Transfer fee or skip it if it's zero or governance origin.
             let fee = TransportFee::<T>::get();
+
             if !(fee.is_zero() || from_governance) {
-                let builtin_id = T::BuiltinAddress::get();
                 CurrencyOf::<T>::transfer(
                     &origin,
-                    &builtin_id,
+                    &T::BuiltinAddress::get(),
                     fee,
                     ExistenceRequirement::AllowDeath,
                 )?;
@@ -405,6 +418,29 @@ pub mod pallet {
 
             // Returning successful result without weight refund.
             Ok(().into())
+        }
+
+        /// Extrinsic that verifies some block finality that resets
+        /// overflowed within the current era queue.
+        #[pallet::call_index(4)]
+        #[pallet::weight((
+            T::BlockWeights::get()
+                .get(DispatchClass::Operational)
+                .max_extrinsic
+                .unwrap_or(Weight::MAX),
+            DispatchClass::Operational,
+            // `Pays::No` on success
+            Pays::Yes,
+        ))]
+        pub fn reset_overflowed_queue(
+            origin: OriginFor<T>,
+            encoded_finality_proof: Vec<u8>,
+        ) -> DispatchResultWithPostInfo {
+            ensure_signed(origin)?;
+
+            Self::reset_overflowed_queue_impl(encoded_finality_proof)?;
+
+            Ok(Pays::No.into())
         }
     }
 
@@ -452,11 +488,8 @@ pub mod pallet {
         fn on_initialize(_bn: BlockNumberFor<T>) -> Weight {
             // Resulting weight of the hook.
             //
-            // Initially consists of one read of `ClearTimer` and one write to `ResetQueueOnInit` storages.
-            let mut weight = T::DbWeight::get().reads_writes(1, 1);
-
-            // Flag defining if queue was reset within the hook.
-            let mut was_reset = false;
+            // Initially consists of one read of `ClearTimer` storage item.
+            let mut weight = T::DbWeight::get().reads_writes(1, 0);
 
             // Querying timer and checking its value if some.
             if let Some(timer) = ClearTimer::<T>::get() {
@@ -472,19 +505,12 @@ pub mod pallet {
                 if new_timer.is_zero() {
                     // Clearing the bridge, including queue.
                     let clear_weight = Self::clear_bridge();
-                    was_reset = true;
                     weight = weight.saturating_add(clear_weight);
                 } else {
                     // Rescheduling clearing by putting back non-zero timer.
                     ClearTimer::<T>::put(new_timer);
                     weight = weight.saturating_add(T::DbWeight::get().writes(1));
                 }
-            }
-
-            // Resetting queue on request from previous block if there wasn't reset.
-            if ResetQueueOnInit::<T>::take() && !was_reset {
-                let reset_weight = Self::reset_queue();
-                weight = weight.saturating_add(reset_weight);
             }
 
             weight

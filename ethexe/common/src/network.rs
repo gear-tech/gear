@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2024-2025 Gear Technologies Inc.
+// Copyright (C) 2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -16,24 +16,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::errors;
-use ethexe_common::{
-    BlockHeader,
-    db::{BlockMetaStorageRead, OnChainStorageRead},
-};
-use gprimitives::H256;
-use jsonrpsee::core::RpcResult;
+use crate::consensus::{BatchCommitmentValidationReply, SignedAnnounce, SignedValidationRequest};
+use parity_scale_codec::{Decode, Encode};
 
-pub fn block_header_at_or_latest<DB: BlockMetaStorageRead + OnChainStorageRead>(
-    db: &DB,
-    at: impl Into<Option<H256>>,
-) -> RpcResult<(H256, BlockHeader)> {
-    if let Some(hash) = at.into() {
-        db.block_header(hash)
-            .map(|header| (hash, header))
-            .ok_or_else(|| errors::db("Block header for requested hash wasn't found"))
-    } else {
-        db.latest_computed_block()
-            .ok_or_else(|| errors::db("Latest block header wasn't found"))
-    }
+#[derive(Debug, Clone, Encode, Decode, derive_more::From, Eq, PartialEq)]
+pub enum NetworkMessage {
+    ProducerBlock(SignedAnnounce),
+    RequestBatchValidation(SignedValidationRequest),
+    ApproveBatch(BatchCommitmentValidationReply),
 }
