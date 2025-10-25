@@ -81,6 +81,7 @@ pub struct Announce {
 
 impl Announce {
     pub fn to_hash(&self) -> HashOf<Self> {
+        // # Safety because of implementation
         unsafe { HashOf::new(H256(utils::hash(&self.encode()))) }
     }
 

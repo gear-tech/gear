@@ -134,125 +134,110 @@ impl PayloadLookup {
     }
 }
 
-pub trait QueryStorage {
-    type T;
-    fn query<S: Storage>(&self, storage: &S) -> Result<Self::T>;
-}
-
-pub trait ModifyStorage {
-    type T;
-    fn modify<S: Storage, U>(&mut self, storage: &S, f: impl FnOnce(&mut Self::T) -> U) -> U;
-}
-
-impl QueryStorage for MaybeHashOf<Allocations> {
-    type T = Allocations;
-
-    fn query<S: Storage>(&self, storage: &S) -> Result<Self::T> {
-        self.try_map_or_default(|hash| {
-            storage.allocations(hash).ok_or(anyhow!(
+impl<S: Storage> QueriableStorage<Allocations> for S {
+    fn query(&self, hash: &MaybeHashOf<Allocations>) -> Result<Allocations> {
+        hash.try_map_or_default(|hash| {
+            self.allocations(hash).ok_or(anyhow!(
                 "failed to read ['Allocations'] from storage by hash"
             ))
         })
     }
 }
 
-impl ModifyStorage for MaybeHashOf<Allocations> {
-    type T = Allocations;
-
-    fn modify<S: Storage, U>(&mut self, storage: &S, f: impl FnOnce(&mut Self::T) -> U) -> U {
-        let mut allocations = self.query(storage).expect("failed to modify allocations");
+impl<S: Storage> ModifiableStorage<Allocations> for S {
+    fn modify<U>(
+        &self,
+        hash: &mut MaybeHashOf<Allocations>,
+        f: impl FnOnce(&mut Allocations) -> U,
+    ) -> U {
+        let mut allocations = self.query(hash).expect("failed to modify allocations");
 
         let r = f(&mut allocations);
 
-        self.replace(allocations.store(storage));
+        hash.replace(allocations.store(&self));
 
         r
     }
 }
 
-impl QueryStorage for MaybeHashOf<DispatchStash> {
-    type T = DispatchStash;
-    fn query<S: Storage>(&self, storage: &S) -> Result<Self::T> {
-        self.try_map_or_default(|hash| {
-            storage.dispatch_stash(hash).ok_or(anyhow!(
+impl<S: Storage> QueriableStorage<DispatchStash> for S {
+    fn query(&self, hash: &MaybeHashOf<DispatchStash>) -> Result<DispatchStash> {
+        hash.try_map_or_default(|hash| {
+            self.dispatch_stash(hash).ok_or(anyhow!(
                 "failed to read ['DispatchStash'] from storage by hash"
             ))
         })
     }
 }
 
-impl ModifyStorage for MaybeHashOf<DispatchStash> {
-    type T = DispatchStash;
-    fn modify<S: Storage, U>(&mut self, storage: &S, f: impl FnOnce(&mut Self::T) -> U) -> U {
-        let mut stash = self.query(storage).expect("failed to modify stash");
+impl<S: Storage> ModifiableStorage<DispatchStash> for S {
+    fn modify<U>(
+        &self,
+        hash: &mut MaybeHashOf<DispatchStash>,
+        f: impl FnOnce(&mut DispatchStash) -> U,
+    ) -> U {
+        let mut stash = self.query(hash).expect("failed to modify stash");
 
         let r = f(&mut stash);
 
-        *self = stash.store(storage);
+        *hash = stash.store(&self);
 
         r
     }
 }
 
-impl QueryStorage for MaybeHashOf<Mailbox> {
-    type T = Mailbox;
-
-    fn query<S: Storage>(&self, storage: &S) -> Result<Self::T> {
-        self.try_map_or_default(|hash| {
-            storage
-                .mailbox(hash)
+impl<S: Storage> QueriableStorage<Mailbox> for S {
+    fn query(&self, hash: &MaybeHashOf<Mailbox>) -> Result<Mailbox> {
+        hash.try_map_or_default(|hash| {
+            self.mailbox(hash)
                 .ok_or(anyhow!("failed to read ['Mailbox'] from storage by hash"))
         })
     }
 }
 
-impl ModifyStorage for MaybeHashOf<Mailbox> {
-    type T = Mailbox;
-
-    fn modify<S: Storage, U>(&mut self, storage: &S, f: impl FnOnce(&mut Self::T) -> U) -> U {
-        let mut mailbox = self.query(storage).expect("failed to modify mailbox");
+impl<S: Storage> ModifiableStorage<Mailbox> for S {
+    fn modify<U>(&self, hash: &mut MaybeHashOf<Mailbox>, f: impl FnOnce(&mut Mailbox) -> U) -> U {
+        let mut mailbox = self.query(hash).expect("failed to modify mailbox");
 
         let r = f(&mut mailbox);
 
-        self.replace(mailbox.store(storage));
+        hash.replace(mailbox.store(&self));
 
         r
     }
 }
 
-impl QueryStorage for MaybeHashOf<UserMailbox> {
-    type T = UserMailbox;
-
-    fn query<S: Storage>(&self, storage: &S) -> Result<Self::T> {
-        self.try_map_or_default(|hash| {
-            storage.user_mailbox(hash).ok_or(anyhow!(
+impl<S: Storage> QueriableStorage<UserMailbox> for S {
+    fn query(&self, hash: &MaybeHashOf<UserMailbox>) -> Result<UserMailbox> {
+        hash.try_map_or_default(|hash| {
+            self.user_mailbox(hash).ok_or(anyhow!(
                 "failed to read ['UserMailbox'] from storage by hash"
             ))
         })
     }
 }
 
-impl QueryStorage for MaybeHashOf<MemoryPages> {
-    type T = MemoryPages;
-
-    fn query<S: Storage>(&self, storage: &S) -> Result<Self::T> {
-        self.try_map_or_default(|hash| {
-            storage.memory_pages(hash).ok_or(anyhow!(
+impl<S: Storage> QueriableStorage<MemoryPages> for S {
+    fn query(&self, hash: &MaybeHashOf<MemoryPages>) -> Result<MemoryPages> {
+        hash.try_map_or_default(|hash| {
+            self.memory_pages(hash).ok_or(anyhow!(
                 "failed to read ['MemoryPages'] from storage by hash"
             ))
         })
     }
 }
 
-impl ModifyStorage for MaybeHashOf<MemoryPages> {
-    type T = MemoryPages;
-
-    fn modify<S: Storage, U>(&mut self, storage: &S, f: impl FnOnce(&mut Self::T) -> U) -> U {
-        let mut pages = self.query(storage).expect("failed to modify memory pages");
+impl<S: Storage> ModifiableStorage<MemoryPages> for S {
+    fn modify<U>(
+        &self,
+        hash: &mut MaybeHashOf<MemoryPages>,
+        f: impl FnOnce(&mut MemoryPages) -> U,
+    ) -> U {
+        let mut pages = self.query(hash).expect("failed to modify memory pages");
 
         let r = f(&mut pages);
 
-        *self = pages.store(storage);
+        *hash = pages.store(&self);
 
         r
     }
@@ -297,12 +282,10 @@ impl MessageQueueHashWithSize {
     }
 }
 
-impl QueryStorage for MaybeHashOf<Payload> {
-    type T = Payload;
-    fn query<S: Storage>(&self, storage: &S) -> Result<Self::T> {
-        self.try_map_or_default(|hash| {
-            storage
-                .payload(hash)
+impl<S: Storage> QueriableStorage<Payload> for S {
+    fn query(&self, hash: &MaybeHashOf<Payload>) -> Result<Payload> {
+        hash.try_map_or_default(|hash| {
+            self.payload(hash)
                 .ok_or_else(|| anyhow!("failed to read ['Payload'] from storage by hash"))
         })
 
@@ -310,26 +293,22 @@ impl QueryStorage for MaybeHashOf<Payload> {
     }
 }
 
-impl QueryStorage for MaybeHashOf<Waitlist> {
-    type T = Waitlist;
-    fn query<S: Storage>(&self, storage: &S) -> Result<Self::T> {
-        self.try_map_or_default(|hash| {
-            storage
-                .waitlist(hash)
+impl<S: Storage> QueriableStorage<Waitlist> for S {
+    fn query(&self, hash: &MaybeHashOf<Waitlist>) -> Result<Waitlist> {
+        hash.try_map_or_default(|hash| {
+            self.waitlist(hash)
                 .ok_or(anyhow!("failed to read ['Waitlist'] from storage by hash"))
         })
     }
 }
 
-impl ModifyStorage for MaybeHashOf<Waitlist> {
-    type T = Waitlist;
-
-    fn modify<S: Storage, U>(&mut self, storage: &S, f: impl FnOnce(&mut Self::T) -> U) -> U {
-        let mut waitlist = self.query(storage).expect("failed to modify waitlist");
+impl<S: Storage> ModifiableStorage<Waitlist> for S {
+    fn modify<U>(&self, hash: &mut MaybeHashOf<Waitlist>, f: impl FnOnce(&mut Waitlist) -> U) -> U {
+        let mut waitlist = self.query(hash).expect("failed to modify waitlist");
 
         let r = f(&mut waitlist);
 
-        self.replace(waitlist.store(storage));
+        hash.replace(waitlist.store(&self));
 
         r
     }
@@ -862,8 +841,8 @@ impl Mailbox {
 
         let maybe_hash: MaybeHashOf<UserMailbox> = self.inner.get(&user_id).cloned().into();
 
-        let mut mailbox = maybe_hash
-            .query(storage)
+        let mut mailbox = storage
+            .query(&maybe_hash)
             .expect("failed to query user mailbox");
 
         mailbox.add(message_id, message, expiry);
@@ -881,8 +860,8 @@ impl Mailbox {
     ) -> Option<Expiring<MailboxMessage>> {
         let maybe_hash: MaybeHashOf<UserMailbox> = self.inner.get(&user_id).cloned().into();
 
-        let mut mailbox = maybe_hash
-            .query(storage)
+        let mut mailbox = storage
+            .query(&maybe_hash)
             .expect("failed to query user mailbox");
 
         let value = mailbox.remove(message_id);
@@ -1234,6 +1213,18 @@ pub trait Storage {
             .map(|(k, v)| (k, self.write_page_data(v)))
             .collect()
     }
+}
+
+/// [`QueriableStorage`] is a extenstion over [`Storage`] which provides methods to query
+/// runtime primitives from it.
+pub trait QueriableStorage<T>: Storage {
+    fn query(&self, hash: &MaybeHashOf<T>) -> Result<T>;
+}
+
+/// [`ModifiableStorage`] is a extension over [`Storage`] which provides method to modify
+/// runtime primitives by its hash.
+pub trait ModifiableStorage<T>: QueriableStorage<T> {
+    fn modify<U>(&self, hash: &mut MaybeHashOf<T>, f: impl FnOnce(&mut T) -> U) -> U;
 }
 
 /// In-memory storage for testing purposes.

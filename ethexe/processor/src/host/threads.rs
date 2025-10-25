@@ -24,8 +24,8 @@ use ethexe_db::Database;
 use ethexe_runtime_common::{
     BlockInfo,
     state::{
-        ActiveProgram, MemoryPages, MemoryPagesRegionInner, Program, ProgramState, QueryStorage,
-        RegionIdx, Storage,
+        ActiveProgram, MemoryPages, MemoryPagesRegionInner, Program, ProgramState,
+        QueriableStorage, RegionIdx, Storage,
     },
 };
 use gear_core::{ids::ActorId, memory::PageBuf, pages::GearPage};
@@ -69,7 +69,7 @@ impl ThreadParams {
                 unreachable!("program that is currently running can't be inactive");
             };
 
-            pages_hash.query(&self.db).expect(UNKNOWN_STATE)
+            self.db.query(&pages_hash).expect(UNKNOWN_STATE)
         });
 
         let region_idx = MemoryPages::page_region(page);

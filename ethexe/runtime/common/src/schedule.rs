@@ -1,8 +1,8 @@
 use crate::{
     TransitionController,
     state::{
-        Dispatch, DispatchStash, Expiring, MAILBOX_VALIDITY, MailboxMessage, ModifyStorage,
-        PayloadLookup, ProgramState, QueryStorage, Storage, UserMailbox, Waitlist,
+        Dispatch, DispatchStash, Expiring, MAILBOX_VALIDITY, MailboxMessage, ModifiableStorage,
+        PayloadLookup, ProgramState, QueriableStorage, Storage, UserMailbox, Waitlist,
     },
 };
 use alloc::collections::{BTreeMap, BTreeSet};
@@ -27,7 +27,7 @@ impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
                 let Expiring {
                     value: MailboxMessage { value, origin, .. },
                     ..
-                } = state.mailbox_hash.modify(storage, |mailbox| {
+                } = storage.modify(&mut state.mailbox_hash, |mailbox| {
                     mailbox
                         .remove_and_store_user_mailbox(storage, user_id, message_id)
                         .expect("failed to find message in mailbox")
@@ -63,9 +63,9 @@ impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
         self.controller
             .update_state(program_id, |state, storage, _| {
                 state.canonical_queue.modify_queue(storage, |queue| {
-                    let dispatch = state
-                        .stash_hash
-                        .modify(storage, |stash| stash.remove_to_program(&message_id));
+                    let dispatch = storage.modify(&mut state.stash_hash, |stash| {
+                        stash.remove_to_program(&message_id)
+                    });
 
                     queue.queue(dispatch);
                 });
@@ -77,16 +77,16 @@ impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
     fn send_user_message(&mut self, stashed_message_id: MessageId, program_id: ActorId) -> u64 {
         self.controller
             .update_state(program_id, |state, storage, transitions| {
-                let (dispatch, user_id) = state
-                    .stash_hash
-                    .modify(storage, |stash| stash.remove_to_user(&stashed_message_id));
+                let (dispatch, user_id) = storage.modify(&mut state.stash_hash, |stash| {
+                    stash.remove_to_user(&stashed_message_id)
+                });
 
                 let expiry = transitions.schedule_task(
                     MAILBOX_VALIDITY.try_into().expect("infallible"),
                     ScheduledTask::RemoveFromMailbox((program_id, user_id), stashed_message_id),
                 );
 
-                state.mailbox_hash.modify(storage, |mailbox| {
+                storage.modify(&mut state.mailbox_hash, |mailbox| {
                     mailbox.add_and_store_user_mailbox(
                         storage,
                         user_id,
@@ -114,7 +114,7 @@ impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
             .update_state(program_id, |state, storage, _| {
                 let Expiring {
                     value: dispatch, ..
-                } = state.waitlist_hash.modify(storage, |waitlist| {
+                } = storage.modify(&mut state.waitlist_hash, |waitlist| {
                     waitlist
                         .wake(&message_id)
                         .expect("failed to find message in waitlist")
@@ -185,19 +185,19 @@ impl Restorer {
                 ..
             } = program_state;
 
-            if let Ok(waitlist) = waitlist_hash.query(storage) {
+            if let Ok(waitlist) = storage.query(&waitlist_hash) {
                 for &program_id in &program_ids {
                     restorer.waitlist(program_id, &waitlist);
                 }
             }
 
-            if let Ok(stash) = stash_hash.query(storage) {
+            if let Ok(stash) = storage.query(&stash_hash) {
                 for &program_id in &program_ids {
                     restorer.stash(program_id, &stash);
                 }
             }
 
-            if let Ok(mailbox) = mailbox_hash.query(storage) {
+            if let Ok(mailbox) = storage.query(&mailbox_hash) {
                 for (&user_id, &user_mailbox) in mailbox.as_ref() {
                     let user_mailbox = storage
                         .user_mailbox(user_mailbox)

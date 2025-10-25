@@ -24,7 +24,7 @@ use ethexe_common::{
 use ethexe_db::Database;
 use ethexe_processor::Processor;
 use ethexe_runtime_common::state::{
-    DispatchStash, Mailbox, MemoryPages, MessageQueue, Program, ProgramState, QueryStorage,
+    DispatchStash, Mailbox, MemoryPages, MessageQueue, Program, ProgramState, QueriableStorage,
     Storage, Waitlist,
 };
 use gear_core::rpc::ReplyInfo;
@@ -210,9 +210,9 @@ impl ProgramServer for ProgramApi {
 
         let canonical_queue = canonical_queue.query(&self.db).ok();
         let injected_queue = injected_queue.query(&self.db).ok();
-        let waitlist = waitlist_hash.query(&self.db).ok();
-        let stash = stash_hash.query(&self.db).ok();
-        let mailbox = mailbox_hash.query(&self.db).ok();
+        let waitlist = self.db.query(&waitlist_hash).ok();
+        let stash = self.db.query(&stash_hash).ok();
+        let mailbox = self.db.query(&mailbox_hash).ok();
 
         Ok(FullProgramState {
             program,

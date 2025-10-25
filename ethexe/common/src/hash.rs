@@ -21,6 +21,7 @@ use anyhow::Result;
 use core::{
     any::Any,
     cmp::Ordering,
+    fmt::Debug,
     hash::{Hash, Hasher},
     marker::PhantomData,
 };
@@ -34,7 +35,6 @@ fn option_string<T: ToString>(value: &Option<T>) -> String {
         .unwrap_or_else(|| "<none>".to_string())
 }
 
-#[allow(dead_code)]
 fn shortname<T: Any>() -> &'static str {
     core::any::type_name::<T>()
         .split("::")
@@ -42,9 +42,8 @@ fn shortname<T: Any>() -> &'static str {
         .expect("name is empty")
 }
 
-#[derive(Encode, Decode, derive_more::Into, derive_more::Debug, derive_more::Display)]
+#[derive(Encode, Decode, derive_more::Into, derive_more::Display)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
-#[debug("HashOf<{}>({hash:?})", shortname::<T>())]
 #[display("{hash}")]
 pub struct HashOf<T: 'static> {
     hash: H256,
@@ -52,6 +51,12 @@ pub struct HashOf<T: 'static> {
     #[codec(skip)]
     #[cfg_attr(feature = "std", serde(skip))]
     _phantom: PhantomData<T>,
+}
+
+impl<T> Debug for HashOf<T> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "HashOf<{}>({:?})", shortname::<T>(), self.hash)
+    }
 }
 
 impl<T> PartialEq for HashOf<T> {
@@ -125,23 +130,22 @@ impl<T> Default for HashOf<T> {
 }
 
 #[derive(
-    Encode,
-    Decode,
-    PartialEq,
-    Eq,
-    derive_more::Into,
-    derive_more::From,
-    derive_more::Debug,
-    derive_more::Display,
+    Encode, Decode, PartialEq, Eq, derive_more::Into, derive_more::From, derive_more::Display,
 )]
 #[cfg_attr(
     feature = "std",
     derive(serde::Serialize, serde::Deserialize),
     serde(bound = "")
 )]
-#[debug("MaybeHashOf<{}>({})", shortname::<T>(), option_string(&Self::hash(*self)))]
 #[display("{}", option_string(_0))]
 pub struct MaybeHashOf<T: 'static>(Option<HashOf<T>>);
+
+impl<T> Debug for MaybeHashOf<T> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        let option_string = option_string(&Self::to_inner(*self).map(HashOf::hash));
+        write!(f, "MaybeHashOf<{}>({})", shortname::<T>(), option_string)
+    }
+}
 
 impl<T> Clone for MaybeHashOf<T> {
     fn clone(&self) -> Self {
@@ -164,10 +168,6 @@ impl<T> MaybeHashOf<T> {
 
     pub const fn is_empty(&self) -> bool {
         self.0.is_none()
-    }
-
-    pub fn hash(self) -> Option<H256> {
-        self.to_inner().map(HashOf::hash)
     }
 
     pub fn from_inner(inner: Option<HashOf<T>>) -> Self {

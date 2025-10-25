@@ -50,6 +50,7 @@ use std::collections::BTreeSet;
 
 #[repr(u64)]
 enum Key {
+    // TODO (kuzmindev): use `HashOf<T>` here
     BlockSmallData(H256) = 0,
     BlockEvents(H256) = 1,
     ValidatorSet(H256) = 2,
@@ -65,6 +66,7 @@ enum Key {
     CodeUploadInfo(CodeId) = 10,
     CodeValid(CodeId) = 11,
 
+    // TODO (kuzmindev): use `HashOf<T>` here
     SignedTransaction(H256) = 12,
 
     LatestData = 13,

@@ -29,6 +29,7 @@ impl From<IRouter::BatchCommitted> for RouterEvent {
 
 impl From<IRouter::AnnouncesCommitted> for RouterEvent {
     fn from(value: IRouter::AnnouncesCommitted) -> Self {
+        // # Safety because of implementation
         Self::AnnouncesCommitted(unsafe { HashOf::new(value.head.0.into()) })
     }
 }
