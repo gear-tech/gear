@@ -31,7 +31,7 @@ use alloy::{
 };
 use anyhow::{Result, anyhow};
 use ethexe_common::{Address, BlockData, BlockHeader, events::BlockEvent};
-use ethexe_ethereum::{mirror, router, wvara};
+use ethexe_ethereum::{mirror, router};
 use futures::{FutureExt, future, stream::FuturesUnordered};
 use gprimitives::H256;
 use std::{collections::HashMap, future::IntoFuture};
@@ -43,7 +43,6 @@ pub(crate) fn log_filter() -> Filter {
     let topic = Topic::from_iter(
         [
             router::events::signatures::ALL,
-            wvara::events::signatures::ALL,
             mirror::events::signatures::ALL,
         ]
         .into_iter()
@@ -57,7 +56,6 @@ pub(crate) fn log_filter() -> Filter {
 pub(crate) fn logs_to_events(
     logs: Vec<Log>,
     router_address: Address,
-    wvara_address: Address,
 ) -> Result<HashMap<H256, Vec<BlockEvent>>> {
     let block_hash_of = |log: &Log| -> Result<H256> {
         log.block_hash
@@ -73,10 +71,6 @@ pub(crate) fn logs_to_events(
 
         if address.0 == router_address.0 {
             if let Some(event) = router::events::try_extract_event(&log)? {
-                res.entry(block_hash).or_default().push(event.into());
-            }
-        } else if address.0 == wvara_address.0 {
-            if let Some(event) = wvara::events::try_extract_event(&log)? {
                 res.entry(block_hash).or_default().push(event.into());
             }
         } else {
@@ -110,7 +104,6 @@ pub(crate) async fn load_block_data(
     provider: RootProvider,
     block: H256,
     router_address: Address,
-    wvara_address: Address,
     header: Option<BlockHeader>,
 ) -> Result<BlockData> {
     log::trace!("Querying data for one block {block:?}");
@@ -133,7 +126,7 @@ pub(crate) async fn load_block_data(
         return Err(anyhow!("Expected block hash {block}, got {block_hash}"));
     }
 
-    let events = logs_to_events(logs, router_address, wvara_address)?;
+    let events = logs_to_events(logs, router_address)?;
 
     if events.len() > 1 {
         return Err(anyhow!(
@@ -163,15 +156,13 @@ pub(crate) async fn load_blocks_data_batched(
     from_block: u64,
     to_block: u64,
     router_address: Address,
-    wvara_address: Address,
 ) -> Result<HashMap<H256, BlockData>> {
     let batch_futures: FuturesUnordered<_> = (from_block..=to_block)
         .step_by(MAX_QUERY_BLOCK_RANGE)
         .map(|start| {
             let end = (start + MAX_QUERY_BLOCK_RANGE as u64 - 1).min(to_block);
 
-            load_blocks_batch_data(provider.clone(), router_address, wvara_address, start, end)
-                .boxed()
+            load_blocks_batch_data(provider.clone(), router_address, start, end).boxed()
         })
         .collect();
 
@@ -190,7 +181,6 @@ pub(crate) async fn load_blocks_data_batched(
 async fn load_blocks_batch_data(
     provider: RootProvider,
     router_address: Address,
-    wvara_address: Address,
     from_block: u64,
     to_block: u64,
 ) -> Result<Vec<BlockData>> {
@@ -237,7 +227,7 @@ async fn load_blocks_batch_data(
         });
     }
 
-    let mut events = logs_to_events(logs, router_address, wvara_address)?;
+    let mut events = logs_to_events(logs, router_address)?;
     for block_data in blocks_data.iter_mut() {
         block_data.events = events.remove(&block_data.hash).unwrap_or_default();
     }

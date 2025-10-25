@@ -18,7 +18,7 @@
 
 #![allow(dead_code, clippy::new_without_default)]
 
-use abi::{IMirror, IRouter, IWrappedVara};
+use abi::{IMirror, IRouter};
 use alloy::{
     consensus::SignableTransaction,
     network::{Ethereum as AlloyEthereum, EthereumWallet, Network, TxSigner},
