@@ -515,21 +515,17 @@ impl NetworkService {
             match behaviour
                 .validator_discovery
                 .identity(current_era_index, offchain_transaction_key)
-                .transpose()
             {
-                Ok(Some(identity)) => {
-                    match behaviour.kad.put_record(identity, kad::Quorum::Majority) {
-                        Ok(_) => {}
-                        Err(err) => {
-                            log::warn!("failed to put record into local storage: {err}");
-                        }
-                    };
+                Some(Ok(identity)) => {
+                    if let Err(err) = behaviour.kad.put_record(identity, kad::Quorum::Majority) {
+                        log::warn!("failed to put record into local storage: {err}");
+                    }
                 }
-                Ok(None) => {
-                    // validator public key is not set
-                }
-                Err(err) => {
+                Some(Err(err)) => {
                     log::warn!("failed to create validator identity: {err}");
+                }
+                None => {
+                    // validator public key is not set
                 }
             }
         }
