@@ -19,7 +19,7 @@
 use crate::errors;
 use anyhow::Result;
 use ethexe_common::{
-    AnnounceHash, SimpleBlockData,
+    Announce, HashOf, SimpleBlockData,
     db::{BlockMetaStorageRead, LatestDataStorageRead, OnChainStorageRead},
 };
 use hyper::header::HeaderValue;
@@ -70,7 +70,7 @@ pub fn announce_at_or_latest<
 >(
     db: &DB,
     at: impl Into<Option<H256>>,
-) -> RpcResult<AnnounceHash> {
+) -> RpcResult<HashOf<Announce>> {
     let block_hash = block_header_at_or_latest(db, at)?.hash;
 
     db.block_meta(block_hash)

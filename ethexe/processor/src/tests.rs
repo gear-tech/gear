@@ -18,7 +18,7 @@
 
 use crate::*;
 use ethexe_common::{
-    BlockHeader,
+    BlockHeader, HashOf,
     db::*,
     events::{BlockRequestEvent, MirrorRequestEvent, RouterRequestEvent},
 };
@@ -32,7 +32,7 @@ fn init_genesis_block(processor: &mut Processor) -> H256 {
     let genesis_block_hash = init_new_block(processor, Default::default());
 
     // Set zero hash announce for genesis block (genesis announce hash)
-    let genesis_announce_hash = AnnounceHash::zero();
+    let genesis_announce_hash = HashOf::zero();
 
     processor
         .db
@@ -85,7 +85,7 @@ async fn process_observer_event() {
         .expect("failed to upload code");
     assert!(valid);
 
-    let block1_announce = Announce::with_default_gas(block1, AnnounceHash::zero());
+    let block1_announce = Announce::with_default_gas(block1, HashOf::zero());
     let block1_announce_hash = block1_announce.to_hash();
 
     // Process and save results
@@ -267,7 +267,7 @@ async fn ping_pong() {
 
     let genesis = init_genesis_block(&mut processor);
     let block = init_new_block_from_parent(&mut processor, genesis);
-    let block_announce = Announce::with_default_gas(block, AnnounceHash::zero());
+    let block_announce = Announce::with_default_gas(block, HashOf::zero());
 
     let user_id = ActorId::from(10);
     let actor_id = ActorId::from(0x10000);
@@ -348,7 +348,7 @@ async fn async_and_ping() {
 
     let genesis = init_genesis_block(&mut processor);
     let block = init_new_block_from_parent(&mut processor, genesis);
-    let block_announce = Announce::with_default_gas(block, AnnounceHash::zero());
+    let block_announce = Announce::with_default_gas(block, HashOf::zero());
 
     let ping_id = ActorId::from(0x10000000);
     let async_id = ActorId::from(0x20000000);
@@ -489,7 +489,7 @@ async fn many_waits() {
 
     let genesis = init_genesis_block(&mut processor);
     let block1 = init_new_block_from_parent(&mut processor, genesis);
-    let block1_announce = Announce::with_default_gas(block1, AnnounceHash::zero());
+    let block1_announce = Announce::with_default_gas(block1, HashOf::zero());
     let block1_announce_hash = block1_announce.to_hash();
 
     let code_id = processor

@@ -19,10 +19,11 @@
 use super::interface::database_ri;
 use alloc::vec::Vec;
 use core_processor::configs::BlockInfo;
+use ethexe_common::HashOf;
 use ethexe_runtime_common::{
     RuntimeInterface,
     state::{
-        Allocations, DispatchStash, HashOf, Mailbox, MemoryPages, MemoryPagesRegion, MessageQueue,
+        Allocations, DispatchStash, Mailbox, MemoryPages, MemoryPagesRegion, MessageQueue,
         ProgramState, Storage, UserMailbox, Waitlist,
     },
 };

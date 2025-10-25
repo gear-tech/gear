@@ -24,7 +24,7 @@
 use crate::{
     OffchainTransaction, RawOffchainTransaction, SignedOffchainTransaction, TxPoolService,
 };
-use ethexe_common::{AnnounceHash, BlockHeader, db::*};
+use ethexe_common::{BlockHeader, HashOf, db::*};
 use ethexe_db::Database;
 use gprimitives::{H160, H256};
 
@@ -83,11 +83,11 @@ impl BlocksManager {
                 self.db.set_latest_data(LatestData {
                     prepared_block_hash: block_hash,
                     synced_block_height: header.height,
-                    computed_announce_hash: AnnounceHash::zero(),
+                    computed_announce_hash: HashOf::zero(),
                     genesis_block_hash: block_hash,
-                    genesis_announce_hash: AnnounceHash::zero(),
+                    genesis_announce_hash: HashOf::zero(),
                     start_block_hash: block_hash,
-                    start_announce_hash: AnnounceHash::zero(),
+                    start_announce_hash: HashOf::zero(),
                 });
 
                 (block_hash, header)

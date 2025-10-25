@@ -38,7 +38,7 @@ impl From<ChainCommitment> for Gear::ChainCommitment {
     fn from(value: ChainCommitment) -> Self {
         Self {
             transitions: value.transitions.into_iter().map(Into::into).collect(),
-            head: value.head_announce.0.0.into(),
+            head: value.head_announce.hash().0.into(),
         }
     }
 }
