@@ -417,6 +417,13 @@ impl ProgramState {
             && self.injected_queue.hash.is_empty()
             && self.waitlist_hash.is_empty()
     }
+
+    pub fn queue_from_origin(&mut self, origin: Origin) -> &mut MessageQueueHashWithSize {
+        match origin {
+            Origin::Ethereum => &mut self.canonical_queue,
+            Origin::Injected => &mut self.injected_queue,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, Hash)]

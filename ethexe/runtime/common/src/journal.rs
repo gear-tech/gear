@@ -54,9 +54,8 @@ impl<S: Storage> NativeJournalHandler<'_, S> {
                         stash.add_to_program(dispatch, expiry);
                     });
                 } else {
-                    state
-                        .canonical_queue
-                        .modify_queue(storage, |queue| queue.queue(dispatch));
+                    let queue = state.queue_from_origin(dispatch.origin);
+                    queue.modify_queue(storage, |queue| queue.queue(dispatch));
                 }
             })
     }
@@ -179,7 +178,9 @@ impl<S: Storage> JournalHandler for NativeJournalHandler<'_, S> {
 
         self.controller
             .update_state(program_id, |state, storage, _| {
-                state.canonical_queue.modify_queue(storage, |queue| {
+                let queue = state.queue_from_origin(self.dispatch_origin);
+
+                queue.modify_queue(storage, |queue| {
                     let head = queue
                         .dequeue()
                         .expect("an attempt to consume message from empty queue");
@@ -247,7 +248,9 @@ impl<S: Storage> JournalHandler for NativeJournalHandler<'_, S> {
                 let dispatch =
                     Dispatch::from_core_stored(storage, dispatch, dispatch_origin, call_reply);
 
-                state.canonical_queue.modify_queue(storage, |queue| {
+                let queue = state.queue_from_origin(dispatch_origin);
+
+                queue.modify_queue(storage, |queue| {
                     let head = queue
                         .dequeue()
                         .expect("an attempt to wait message from empty queue");
@@ -290,9 +293,8 @@ impl<S: Storage> JournalHandler for NativeJournalHandler<'_, S> {
                     return;
                 };
 
-                state
-                    .canonical_queue
-                    .modify_queue(storage, |queue| queue.queue(dispatch));
+                let queue = state.queue_from_origin(dispatch.origin);
+                queue.modify_queue(storage, |queue| queue.queue(dispatch));
 
                 transitions
                     .remove_task(

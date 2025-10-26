@@ -429,5 +429,5 @@ impl ToDigest for [ValueClaim] {
 pub enum Origin {
     #[default]
     Ethereum,
-    OffChain,
+    Injected,
 }
