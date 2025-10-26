@@ -17,7 +17,7 @@
 
 # Public key of the validator, if node should act as one.
 # Provided in the format of 33-byte hex string:
-# - `yParityСompressed`, compressed `publicKeyY`,
+# - `yParityCompressed`, compressed `publicKeyY`,
 #   `0x02` if `publicKeyY` is even, `0x03` if `publicKeyY` is odd
 #   [1 byte]
 # - `publicKeyX`, x-coordinate of the public key on secp256k1 curve
@@ -37,7 +37,7 @@
 
 # Public key of the validator session, if node should act as one.
 # Provided in the format of 33-byte hex string:
-# - `yParityСompressed`, compressed `publicKeyY`,
+# - `yParityCompressed`, compressed `publicKeyY`,
 #   `0x02` if `publicKeyY` is even, `0x03` if `publicKeyY` is odd
 #   [1 byte]
 # - `publicKeyX`, x-coordinate of the public key on secp256k1 curve
@@ -105,7 +105,7 @@
 [network]
 # Network pubkey of the node. If not provided, tries to fetch one from .net directory, in case of absence - generates and stores new random one.
 # Provided in the format of 33-byte hex string:
-# - `yParityСompressed`, compressed `publicKeyY`,
+# - `yParityCompressed`, compressed `publicKeyY`,
 #   `0x02` if `publicKeyY` is even, `0x03` if `publicKeyY` is odd
 #   [1 byte]
 # - `publicKeyX`, x-coordinate of the public key on secp256k1 curve
