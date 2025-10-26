@@ -47,6 +47,7 @@ use crate::{
         core::{MiddlewareWrapper, ValidatorCore},
         participant::Participant,
         producer::Producer,
+        rewards::RewardsManager,
         submitter::Submitter,
         subordinate::Subordinate,
     },
@@ -80,6 +81,7 @@ mod core;
 mod initial;
 mod participant;
 mod producer;
+mod rewards;
 mod submitter;
 mod subordinate;
 
@@ -143,6 +145,7 @@ impl ValidatorService {
                 timelines,
                 signer,
                 db: db.clone(),
+                rewards_manager: RewardsManager::new(db, timelines, router.wvara().address()),
                 committer: Box::new(EthereumCommitter { router }),
                 middleware: MiddlewareWrapper::from_inner_arc(election_provider),
                 validate_chain_deepness_limit: MAX_CHAIN_DEEPNESS,

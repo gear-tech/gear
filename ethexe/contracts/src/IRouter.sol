@@ -97,6 +97,8 @@ interface IRouter {
 
     function computeSettings() external view returns (Gear.ComputationSettings memory);
 
+    function latestRewardedEra() external view returns (uint64);
+
     function codeState(bytes32 codeId) external view returns (Gear.CodeState);
     function codesStates(bytes32[] calldata codesIds) external view returns (Gear.CodeState[] memory);
     function programCodeId(address programId) external view returns (bytes32);

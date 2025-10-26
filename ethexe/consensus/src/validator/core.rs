@@ -18,13 +18,16 @@
 
 //! Validator core utils and parameters.
 
-use crate::utils::{self, MultisignedBatchCommitment};
+use crate::{
+    utils::{self, MultisignedBatchCommitment},
+    validator::rewards::RewardsManager,
+};
 use anyhow::{Result, anyhow, ensure};
 use async_trait::async_trait;
 use ethexe_common::{
     Address, Digest, ProtocolTimelines, SimpleBlockData, ToDigest, ValidatorsVec,
     consensus::BatchCommitmentValidationRequest,
-    db::BlockMetaStorageRO,
+    db::{BlockMetaStorageRO, LatestDataStorageRO},
     ecdsa::PublicKey,
     gear::{
         BatchCommitment, ChainCommitment, CodeCommitment, RewardsCommitment, ValidatorsCommitment,
@@ -35,7 +38,11 @@ use ethexe_ethereum::middleware::ElectionProvider;
 use ethexe_signer::Signer;
 use gprimitives::H256;
 use hashbrown::{HashMap, HashSet};
-use std::{sync::Arc, time::Duration};
+use std::{
+    ops::{Mul, Sub},
+    sync::Arc,
+    time::Duration,
+};
 use tokio::sync::RwLock;
 
 #[derive(derive_more::Debug)]
@@ -54,6 +61,8 @@ pub struct ValidatorCore {
     pub committer: Box<dyn BatchCommitter>,
     #[debug(skip)]
     pub middleware: MiddlewareWrapper,
+
+    pub rewards_manager: RewardsManager<Database>,
 
     /// Maximum deepness for chain commitment validation.
     pub validate_chain_deepness_limit: u32,
@@ -74,6 +83,7 @@ impl Clone for ValidatorCore {
             db: self.db.clone(),
             committer: self.committer.clone_boxed(),
             middleware: self.middleware.clone(),
+            rewards_manager: self.rewards_manager.clone(),
             validate_chain_deepness_limit: self.validate_chain_deepness_limit,
             chain_deepness_threshold: self.chain_deepness_threshold,
             block_gas_limit: self.block_gas_limit,
@@ -175,9 +185,29 @@ impl ValidatorCore {
     // TODO #4742
     pub async fn aggregate_rewards_commitment(
         &mut self,
-        _block: &SimpleBlockData,
+        block: &SimpleBlockData,
     ) -> Result<Option<RewardsCommitment>> {
-        Ok(None)
+        let block_era = self.timelines.era_from_ts(block.header.timestamp);
+        let era_start = self.timelines.era_start(block_era);
+        let latest_data = self
+            .db
+            .latest_data()
+            .ok_or_else(|| anyhow!("not found latest data in database"))?;
+
+        let previous_era_finalized = block
+            .header
+            .timestamp
+            .sub(era_start)
+            .ge(&self.slot_duration.as_secs().mul(64));
+
+        if block_era != 0 && latest_data.rewarded_era < block_era && previous_era_finalized {
+            // Make commitment for previous era always
+            self.rewards_manager
+                .commitment_for(block_era.sub(1))
+                .map(Some)
+        } else {
+            Ok(None)
+        }
     }
 
     pub async fn validate_batch_commitment_request(
