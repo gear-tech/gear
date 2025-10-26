@@ -107,7 +107,7 @@
 use ethexe_common::{StateHashWithQueueSize, db::CodesStorageRO, gear::CHUNK_PROCESSING_GAS_LIMIT};
 use ethexe_db::Database;
 use ethexe_runtime_common::{
-    InBlockTransitions, JournalHandler, ProgramJournals, TransitionController,
+    InBlockTransitions, JournalHandler, ProcessingQueueKind, ProgramJournals, TransitionController,
 };
 use gear_core::gas::GasAllowanceCounter;
 use gprimitives::{ActorId, H256};
@@ -168,6 +168,7 @@ pub async fn run(
                         &mut executor,
                         program_id,
                         state_hash,
+                        ProcessingQueueKind::Canonical,
                         gas_allowance_for_chunk,
                     );
                     (chunk_pos, program_id, new_state_hash, jn, gas_spent)
@@ -273,6 +274,7 @@ fn run_runtime(
     executor: &mut InstanceWrapper,
     program_id: ActorId,
     state_hash: H256,
+    queue_kind: ProcessingQueueKind,
     gas_allowance: u64,
 ) -> (ProgramJournals, H256, u64) {
     let code_id = db.program_code_id(program_id).expect("Code ID must be set");
@@ -285,6 +287,7 @@ fn run_runtime(
             db,
             program_id,
             state_hash,
+            queue_kind,
             instrumented_code,
             code_metadata,
             gas_allowance,

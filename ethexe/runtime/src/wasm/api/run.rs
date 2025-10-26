@@ -21,13 +21,16 @@ use crate::wasm::{
     storage::{NativeRuntimeInterface, RuntimeInterfaceStorage},
 };
 use core_processor::configs::BlockInfo;
-use ethexe_runtime_common::{ProgramJournals, RuntimeInterface, process_queue, state::Storage};
+use ethexe_runtime_common::{
+    ProcessingQueueKind, ProgramJournals, RuntimeInterface, process_queue, state::Storage,
+};
 use gear_core::code::{CodeMetadata, InstrumentedCode};
 use gprimitives::{ActorId, H256};
 
 pub fn run(
     program_id: ActorId,
     state_root: H256,
+    queue_kind: ProcessingQueueKind,
     maybe_instrumented_code: Option<InstrumentedCode>,
     code_metadata: Option<CodeMetadata>,
     gas_allowance: u64,
@@ -49,6 +52,7 @@ pub fn run(
     let (journals, gas_spent) = process_queue(
         program_id,
         program_state,
+        queue_kind,
         maybe_instrumented_code,
         code_metadata,
         &ri,

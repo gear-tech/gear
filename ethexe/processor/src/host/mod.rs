@@ -19,7 +19,7 @@
 use crate::{Database, ProcessorError, Result};
 use core_processor::common::JournalNote;
 use ethexe_common::gear::Origin;
-use ethexe_runtime_common::{ProgramJournals, unpack_i64_to_u32};
+use ethexe_runtime_common::{ProcessingQueueKind, ProgramJournals, unpack_i64_to_u32};
 use gear_core::{
     code::{CodeMetadata, InstrumentedCode},
     ids::ActorId,
@@ -128,11 +128,13 @@ impl InstanceWrapper {
         self.call("instrument_code", original_code)
     }
 
+    #[allow(clippy::too_many_arguments)]
     pub fn run(
         &mut self,
         db: Database,
         program_id: ActorId,
         state_hash: H256,
+        queue_kind: ProcessingQueueKind,
         maybe_instrumented_code: Option<InstrumentedCode>,
         maybe_code_metadata: Option<CodeMetadata>,
         gas_allowance: u64,
@@ -143,6 +145,7 @@ impl InstanceWrapper {
         let arg = (
             program_id,
             state_hash,
+            queue_kind,
             maybe_instrumented_code,
             maybe_code_metadata,
             gas_allowance,

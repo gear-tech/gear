@@ -39,6 +39,7 @@ use gear_lazy_pages_common::LazyPagesInterface;
 use gprimitives::H256;
 use gsys::{GasMultiplier, Percent};
 use journal::RuntimeJournalHandler;
+use parity_scale_codec::{Decode, Encode};
 use state::{Dispatch, ProgramState, Storage};
 
 pub use core_processor::configs::BlockInfo;
@@ -59,6 +60,21 @@ pub const VERSION: u32 = 1;
 pub const RUNTIME_ID: u32 = 1;
 
 pub type ProgramJournals = Vec<(Vec<JournalNote>, Origin, bool)>;
+
+#[derive(Clone, Copy, Debug, Encode, Decode, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub enum ProcessingQueueKind {
+    Canonical,
+    Injected,
+}
+
+impl From<ProcessingQueueKind> for Origin {
+    fn from(kind: ProcessingQueueKind) -> Self {
+        match kind {
+            ProcessingQueueKind::Canonical => Origin::Ethereum,
+            ProcessingQueueKind::Injected => Origin::Injected,
+        }
+    }
+}
 
 pub trait RuntimeInterface<S: Storage> {
     type LazyPages: LazyPagesInterface + 'static;
@@ -112,6 +128,7 @@ impl<S: Storage> TransitionController<'_, S> {
 pub fn process_queue<S, RI>(
     program_id: ActorId,
     mut program_state: ProgramState,
+    queue_kind: ProcessingQueueKind,
     instrumented_code: Option<InstrumentedCode>,
     code_metadata: Option<CodeMetadata>,
     ri: &RI,
@@ -132,7 +149,7 @@ where
     }
 
     let queue = program_state
-        .canonical_queue
+        .queue_from_origin(queue_kind.into())
         .hash
         .map(|hash| {
             ri.storage()
