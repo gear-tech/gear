@@ -8,7 +8,6 @@ import {SSTORE2} from "./libraries/SSTORE2.sol";
 import {FROST} from "frost-secp256k1-evm/FROST.sol";
 import {IMirror} from "./IMirror.sol";
 import {IRouter} from "./IRouter.sol";
-import {IWrappedVara} from "./IWrappedVara.sol";
 import {IMiddleware} from "./IMiddleware.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {
@@ -424,9 +423,13 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
 
         Gear.RewardsCommitment calldata _commitment = _batch.rewardsCommitment[0];
 
-        // TODO #4740: check that it is for previous eras (have some problems with rewards for 0 era)
-        require(_commitment.timestamp > 0, "rewards commitment timestamp is zero");
         require(_commitment.timestamp < _batch.blockTimestamp, "rewards commitment timestamp must be for the past");
+        require(_commitment.timestamp >= router.genesisBlock.timestamp, "rewards commitment timestamp predates genesis");
+
+        uint256 commitmentEraIndex = Gear.eraIndexAt(router, _commitment.timestamp);
+        uint256 batchEraIndex = Gear.eraIndexAt(router, _batch.blockTimestamp);
+
+        require(commitmentEraIndex < batchEraIndex, "rewards commitment must target previous era");
 
         address _middleware = router.implAddresses.middleware;
         IERC20(router.implAddresses.wrappedVara)
@@ -496,8 +499,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
             );
 
             if (transition.valueToReceive != 0) {
-                bool success = IWrappedVara(router.implAddresses.wrappedVara)
-                    .transfer(transition.actorId, transition.valueToReceive);
+                (bool success,) = transition.actorId.call{value: transition.valueToReceive}("");
                 require(success, "transfer to actor failed");
             }
 
@@ -554,5 +556,16 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
     function _setStorageSlot(string memory namespace) private onlyOwner {
         bytes32 slot = keccak256(abi.encode(uint256(keccak256(bytes(namespace))) - 1)) & ~bytes32(uint256(0xff));
         StorageSlot.getBytes32Slot(SLOT_STORAGE).value = slot;
+    }
+
+    receive() external payable {
+        Storage storage router = _router();
+        require(router.genesisBlock.hash != bytes32(0), "router genesis is zero; call `lookupGenesisHash()` first");
+
+        uint128 value = uint128(msg.value);
+        require(value > 0, "zero value transfer is not allowed");
+
+        address actorId = msg.sender;
+        require(router.protocolData.programs[actorId] != 0, "couldn't receive Ether from unknown program");
     }
 }

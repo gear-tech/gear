@@ -54,7 +54,7 @@ use crate::{
 use anyhow::{Result, anyhow};
 use derive_more::{Debug, From};
 use ethexe_common::{
-     AnnounceHash, SimpleBlockData,
+    AnnounceHash, SimpleBlockData,
     consensus::{VerifiedAnnounce, VerifiedValidationRequest},
     db::OnChainStorageRO,
     ecdsa::PublicKey,

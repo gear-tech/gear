@@ -25,5 +25,4 @@ pathdiff.workspace = true
 gear-core.workspace = true
 gear-wasm-instrument.workspace = true
 gear-wasm-optimizer.workspace = true
-rustc_version.workspace = true
 itertools = { workspace = true, features = ["use_std"] }
