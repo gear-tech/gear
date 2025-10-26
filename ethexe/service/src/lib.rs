@@ -231,6 +231,8 @@ impl Service {
                 era_duration: observer.era_duration_secs(),
                 genesis_block_hash: observer.genesis_block_hash(),
             };
+            // TODO: #4918 create Signer object correctly for test environment
+            let signer = Signer::fs(config.node.key_path.parent().unwrap().join("net"));
 
             let network = NetworkService::new(
                 net_config.clone(),

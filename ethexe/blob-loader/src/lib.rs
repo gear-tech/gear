@@ -128,7 +128,7 @@ impl ConsensusLayerBlobReader {
 
     async fn read_blob_from_tx_hash(&self, tx_hash: H256, attempts: Option<u8>) -> Result<Vec<u8>> {
         //TODO: read genesis from `{ethereum_beacon_rpc}/eth/v1/beacon/genesis` with caching into some static
-        const BEACON_GENESIS_BLOCK_TIME: u64 = 1695902400;
+        const BEACON_GENESIS_BLOCK_TIME: u64 = 1742213400;
 
         let tx = self
             .provider

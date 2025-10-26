@@ -58,6 +58,20 @@ $ forge script script/Deployment.s.sol:DeploymentScript --slow --rpc-url $HOODI_
 # Now need to update `address internal constant ROUTER` in `MirrorProxy.sol` and `MirrorProxySmall.sol`
 # to address obtained during deployment (used to verify contracts created by Router)!
 
+$ BROADCAST_PATH="broadcast/Deployment.s.sol/$(cast chain-id --rpc-url $HOODI_RPC_URL)/run-latest.json"
+$ ROUTER_ADDRESS=$(cat $BROADCAST_PATH | jq '.transactions[] | select(.contractName == "Router") | .contractAddress' | tr -d '"')
+$ PROXY_ADDRESS=$(cat $BROADCAST_PATH | 
+  jq ".transactions[] | \
+  select(.contractName == \"TransparentUpgradeableProxy\") | \
+  select(.transactionType == \"CREATE\") | \
+  select(.arguments[] | ascii_downcase | contains(\"${ROUTER_ADDRESS}\")) | \
+  .contractAddress" | 
+  tr -d '"' |
+  cast to-check-sum-address
+)
+$ echo "Router: $PROXY_ADDRESS"
+$ sed -i "s/0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE/${PROXY_ADDRESS}/" src/MirrorProxy.sol src/MirrorProxySmall.sol
+
 $ forge script script/MirrorProxy.s.sol:MirrorProxyScript --slow --rpc-url $MAINNET_RPC_URL --broadcast --verify -vvvv
 $ forge script script/MirrorProxy.s.sol:MirrorProxyScript --slow --rpc-url $SEPOLIA_RPC_URL --broadcast --verify -vvvv
 $ forge script script/MirrorProxy.s.sol:MirrorProxyScript --slow --rpc-url $HOLESKY_RPC_URL --broadcast --verify -vvvv
@@ -67,6 +81,9 @@ $ forge script script/MirrorProxySmall.s.sol:MirrorProxySmallScript --slow --rpc
 $ forge script script/MirrorProxySmall.s.sol:MirrorProxySmallScript --slow --rpc-url $SEPOLIA_RPC_URL --broadcast --verify -vvvv
 $ forge script script/MirrorProxySmall.s.sol:MirrorProxySmallScript --slow --rpc-url $HOLESKY_RPC_URL --broadcast --verify -vvvv
 $ forge script script/MirrorProxySmall.s.sol:MirrorProxySmallScript --slow --rpc-url $HOODI_RPC_URL --broadcast --verify -vvvv
+
+$ rm -rf broadcast
+$ git checkout src/MirrorProxy.sol src/MirrorProxySmall.sol
 ```
 
 _Notes:_
