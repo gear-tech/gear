@@ -116,6 +116,7 @@ use tokio::task::JoinSet;
 
 use crate::host::{InstanceCreator, InstanceWrapper};
 
+#[derive(Clone)]
 pub struct RunnerConfig {
     pub chunk_processing_threads: usize,
     pub block_gas_limit: u64,
@@ -127,16 +128,55 @@ pub async fn run(
     in_block_transitions: &mut InBlockTransitions,
     config: RunnerConfig,
 ) {
-    let mut join_set = JoinSet::new();
-    let chunk_size = config.chunk_processing_threads;
     let mut allowance_counter = GasAllowanceCounter::new(config.block_gas_limit);
+    let chunk_size = config.chunk_processing_threads;
+
+    // Start with injected queues processing.
+    let is_out_of_gas_for_block = run_inner(
+        db.clone(),
+        &instance_creator,
+        in_block_transitions,
+        &mut allowance_counter,
+        chunk_size,
+        ProcessingQueueKind::Injected,
+    )
+    .await;
+
+    // If gas is still left in block, process canonical (Ethereum) queues
+    if !is_out_of_gas_for_block {
+        run_inner(
+            db,
+            &instance_creator,
+            in_block_transitions,
+            &mut allowance_counter,
+            chunk_size,
+            ProcessingQueueKind::Canonical,
+        )
+        .await;
+    }
+}
+
+async fn run_inner(
+    db: Database,
+    instance_creator: &InstanceCreator,
+    in_block_transitions: &mut InBlockTransitions,
+    allowance_counter: &mut GasAllowanceCounter,
+    chunk_size: usize,
+    processing_queue_kind: ProcessingQueueKind,
+) -> bool {
+    let mut join_set = JoinSet::new();
     let mut is_out_of_gas_for_block = false;
 
     loop {
         let states: Vec<_> = in_block_transitions
             .states_iter()
             .filter_map(|(&actor_id, &state)| {
-                if state.canonical_queue_size == 0 {
+                let queue_size = match processing_queue_kind {
+                    ProcessingQueueKind::Canonical => state.canonical_queue_size,
+                    ProcessingQueueKind::Injected => state.injected_queue_size,
+                };
+
+                if queue_size == 0 {
                     return None;
                 }
 
@@ -144,7 +184,7 @@ pub async fn run(
             })
             .collect();
 
-        let chunks = split_to_chunks(chunk_size, states);
+        let chunks = split_to_chunks(chunk_size, states, processing_queue_kind);
 
         if chunks.is_empty() {
             // No more chunks to process. Stopping.
@@ -168,7 +208,7 @@ pub async fn run(
                         &mut executor,
                         program_id,
                         state_hash,
-                        ProcessingQueueKind::Canonical,
+                        processing_queue_kind,
                         gas_allowance_for_chunk,
                     );
                     (chunk_pos, program_id, new_state_hash, jn, gas_spent)
@@ -209,7 +249,7 @@ pub async fn run(
                             transitions: in_block_transitions,
                             storage: &db,
                         },
-                        gas_allowance_counter: &allowance_counter,
+                        gas_allowance_counter: allowance_counter,
                         chunk_gas_limit: CHUNK_PROCESSING_GAS_LIMIT,
                         out_of_gas_for_block: &mut is_out_of_gas_for_block,
                     };
@@ -218,13 +258,15 @@ pub async fn run(
             }
 
             allowance_counter.charge(max_gas_spent_in_chunk);
+        }
 
-            if is_out_of_gas_for_block {
-                // Ran out of gas for the block, stopping processing.
-                break;
-            }
+        if is_out_of_gas_for_block {
+            // Ran out of gas for the block, stopping processing.
+            break;
         }
     }
+
+    is_out_of_gas_for_block
 }
 
 // `split_to_chunks` is not exactly sorting (sorting usually `n*log(n)` this one is `O(n)``),
@@ -232,6 +274,7 @@ pub async fn run(
 fn split_to_chunks(
     chunk_size: usize,
     states: Vec<(ActorId, StateHashWithQueueSize)>,
+    queue_kind: ProcessingQueueKind,
 ) -> Vec<Vec<(ActorId, H256)>> {
     fn chunk_idx(queue_size: usize, number_of_chunks: usize) -> usize {
         // Simplest implementation of chunk partitioning '| 1 | 2 | 3 | 4 | ..'
@@ -247,11 +290,15 @@ fn split_to_chunks(
         StateHashWithQueueSize {
             hash,
             canonical_queue_size,
-            injected_queue_size: _,
+            injected_queue_size,
         },
     ) in states
     {
-        let queue_size = canonical_queue_size as usize;
+        let queue_size = match queue_kind {
+            ProcessingQueueKind::Canonical => canonical_queue_size as usize,
+            ProcessingQueueKind::Injected => injected_queue_size as usize,
+        };
+
         let chunk_idx = chunk_idx(queue_size, number_of_chunks);
         chunks[chunk_idx].push((actor_id, hash));
     }
@@ -331,7 +378,11 @@ mod tests {
             .take(STATE_SIZE),
         );
 
-        let chunks = split_to_chunks(CHUNK_PROCESSING_THREADS, states);
+        let chunks = split_to_chunks(
+            CHUNK_PROCESSING_THREADS,
+            states,
+            ProcessingQueueKind::Canonical,
+        );
 
         // Checking chunks partitioning
         let accum_chunks = chunks

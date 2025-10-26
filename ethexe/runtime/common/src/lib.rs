@@ -141,9 +141,14 @@ where
 {
     let block_info = ri.block_info();
 
-    log::trace!("Processing queue for program {program_id}");
+    log::trace!("Processing {queue_kind:?} queue for program {program_id}");
 
-    if program_state.canonical_queue.hash.is_empty() {
+    let is_queue_empty = match queue_kind {
+        ProcessingQueueKind::Canonical => program_state.canonical_queue.hash.is_empty(),
+        ProcessingQueueKind::Injected => program_state.injected_queue.hash.is_empty(),
+    };
+
+    if is_queue_empty {
         // Queue is empty, nothing to process.
         return (Vec::new(), 0);
     }
