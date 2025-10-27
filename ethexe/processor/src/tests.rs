@@ -21,8 +21,9 @@ use ethexe_common::{
     BlockHeader, HashOf,
     db::*,
     events::{BlockRequestEvent, MirrorRequestEvent, RouterRequestEvent},
+    gear::Origin,
 };
-use ethexe_runtime_common::ScheduleRestorer;
+use ethexe_runtime_common::{ScheduleRestorer, state::Dispatch};
 use gear_core::ids::prelude::CodeIdExt;
 use gprimitives::{ActorId, MessageId};
 use parity_scale_codec::Encode;
@@ -65,6 +66,39 @@ fn init_new_block_from_parent(processor: &mut Processor, parent_hash: H256) -> H
             parent_hash,
         },
     )
+}
+
+fn handle_injected_message(
+    handler: &mut ProcessingHandler,
+    actor_id: ActorId,
+    message_id: MessageId,
+    source: ActorId,
+    payload: Vec<u8>,
+    value: u128,
+    call_reply: bool,
+) -> Result<()> {
+    handler.update_state(actor_id, |state, storage, _| -> Result<()> {
+        let is_init = state.requires_init_message();
+
+        let dispatch = Dispatch::new(
+            storage,
+            message_id,
+            source,
+            payload,
+            value,
+            is_init,
+            Origin::Injected,
+            call_reply,
+        )?;
+
+        state
+            .injected_queue
+            .modify_queue(storage, |queue| queue.queue(dispatch));
+
+        Ok(())
+    })?;
+
+    Ok(())
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -658,4 +692,95 @@ mod utils {
 
         (code_id, code)
     }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn injected_ping_pong() {
+    init_logger();
+
+    let mut processor = Processor::new(Database::memory()).unwrap();
+
+    let genesis = init_genesis_block(&mut processor);
+    let block = init_new_block_from_parent(&mut processor, genesis);
+    let block_announce = Announce::with_default_gas(block, AnnounceHash::zero());
+
+    let user_1 = ActorId::from(10);
+    let user_2 = ActorId::from(20);
+    let actor_id = ActorId::from(0x10000);
+
+    let code_id = processor
+        .handle_new_code(demo_ping::WASM_BINARY)
+        .expect("failed to call runtime api")
+        .expect("code failed verification or instrumentation");
+
+    let mut handler = processor.handler(block_announce).unwrap();
+
+    handler
+        .handle_router_event(RouterRequestEvent::ProgramCreated { actor_id, code_id })
+        .expect("failed to create new program");
+
+    handler
+        .handle_mirror_event(
+            actor_id,
+            MirrorRequestEvent::ExecutableBalanceTopUpRequested {
+                value: 10_000_000_000,
+            },
+        )
+        .expect("failed to top up balance");
+
+    handler
+        .handle_mirror_event(
+            actor_id,
+            MirrorRequestEvent::MessageQueueingRequested {
+                id: MessageId::from(1),
+                source: user_1,
+                payload: b"INIT".to_vec(),
+                value: 0,
+                call_reply: false,
+            },
+        )
+        .expect("failed to send message");
+
+    processor.process_queue(&mut handler).await;
+
+    handler
+        .handle_mirror_event(
+            actor_id,
+            MirrorRequestEvent::MessageQueueingRequested {
+                id: MessageId::from(2),
+                source: user_1,
+                payload: b"PING".to_vec(),
+                value: 0,
+                call_reply: false,
+            },
+        )
+        .expect("failed to send message");
+
+    handle_injected_message(
+        &mut handler,
+        actor_id,
+        MessageId::from(3),
+        user_2,
+        b"PING".to_vec(),
+        0,
+        false,
+    )
+    .expect("failed to send message");
+
+    processor.process_queue(&mut handler).await;
+
+    let to_users = handler.transitions.current_messages();
+
+    assert_eq!(to_users.len(), 3);
+    let message = &to_users[0].1;
+    assert_eq!(message.destination, user_1);
+    assert_eq!(message.payload, b"");
+
+    let message = &to_users[1].1;
+    assert_eq!(message.destination, user_2);
+    assert_eq!(message.payload, b"PONG");
+
+    let message = &to_users[2].1;
+    assert_eq!(message.destination, user_1);
+    assert_eq!(message.payload, b"PONG");
 }
