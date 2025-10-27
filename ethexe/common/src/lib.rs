@@ -26,6 +26,7 @@ pub mod consensus;
 pub mod db;
 pub mod events;
 pub mod gear;
+mod hash;
 pub mod network;
 mod primitives;
 pub mod tx_pool;
@@ -45,6 +46,7 @@ pub mod ecdsa {
 }
 pub use gear_core;
 pub use gprimitives;
+pub use hash::*;
 pub use k256;
 pub use primitives::*;
 pub use sha3;
