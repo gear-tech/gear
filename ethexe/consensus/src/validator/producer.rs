@@ -32,9 +32,7 @@ use ethexe_service_utils::Timer;
 use futures::{FutureExt, future::BoxFuture};
 use gprimitives::H256;
 use nonempty::NonEmpty;
-use std::{
-    task::{Context, Poll},
-};
+use std::task::{Context, Poll};
 
 /// [`Producer`] is the state of the validator, which creates a new block
 /// and publish it to the network. It waits for the block to be computed

@@ -22,9 +22,13 @@ use crate::utils::{self, MultisignedBatchCommitment};
 use anyhow::{Result, anyhow, ensure};
 use async_trait::async_trait;
 use ethexe_common::{
-    Address, Announce, Digest, HashOf, SimpleBlockData, ToDigest, consensus::BatchCommitmentValidationRequest, db::BlockMetaStorageRead, ecdsa::PublicKey, gear::{
+    Address, Announce, Digest, HashOf, SimpleBlockData, ToDigest,
+    consensus::BatchCommitmentValidationRequest,
+    db::BlockMetaStorageRead,
+    ecdsa::PublicKey,
+    gear::{
         BatchCommitment, ChainCommitment, CodeCommitment, RewardsCommitment, ValidatorsCommitment,
-    }
+    },
 };
 use ethexe_db::Database;
 use ethexe_ethereum::middleware::Middleware;
