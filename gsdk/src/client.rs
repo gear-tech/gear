@@ -45,7 +45,7 @@ use subxt::{
     error::RpcError,
 };
 
-const ONE_HUNDRED_MEGA_BYTES: u32 = 100 * 1024 * 1024;
+pub const ONE_HUNDRED_MEGA_BYTES: u32 = 100 * 1024 * 1024;
 
 struct Params(Option<Box<RawValue>>);
 
@@ -88,6 +88,27 @@ impl RpcClient {
         } else {
             Err(Error::InvalidUrl)
         }
+    }
+
+    /// Create WebSocket RPC client from url and timeout with a custom initializer
+    /// for the WebSocket client builder.
+    pub async fn new_ws_custom(
+        uri: &str,
+        timeout: u64,
+        init: impl FnOnce(WsClientBuilder) -> WsClientBuilder,
+    ) -> Result<Self> {
+        log::info!("Connecting to {uri} ...");
+
+        if !uri.starts_with("ws") {
+            return Err(Error::InvalidUrl);
+        }
+
+        let builder = init(WsClientBuilder::default());
+        builder
+            .build(uri)
+            .await
+            .map(|c| Self::Ws(c))
+            .map_err(Error::SubxtRpc)
     }
 }
 
