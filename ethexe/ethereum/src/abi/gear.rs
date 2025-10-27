@@ -63,11 +63,7 @@ impl From<ValidatorsCommitment> for Gear::ValidatorsCommitment {
                     .expect("Could not serialize `VerifiableSecretSharingCommitment<C>`")
                     .concat(),
             ),
-            validators: value
-                .validators
-                .into_iter()
-                .map(actor_id_to_address_lossy)
-                .collect(),
+            validators: value.validators.into_iter().map(|v| v.into()).collect(),
             eraIndex: Uint256::from(value.era_index),
         }
     }

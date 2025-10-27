@@ -32,18 +32,25 @@ use alloy::{
     providers::{Provider as _, RootProvider, ext::AnvilApi},
     rpc::types::{Header as RpcHeader, anvil::MineOptions},
 };
+use anyhow::anyhow;
 use ethexe_blob_loader::{
     BlobLoaderService,
     local::{LocalBlobLoader, LocalBlobStorage},
 };
 use ethexe_common::{
     Address, CodeAndId, DEFAULT_BLOCK_GAS_LIMIT,
+    db::OnChainStorageRO,
     ecdsa::{PrivateKey, PublicKey},
     events::{BlockEvent, MirrorEvent, RouterEvent},
 };
 use ethexe_consensus::{ConsensusService, SimpleConnectService, ValidatorService};
 use ethexe_db::Database;
-use ethexe_ethereum::{Ethereum, deploy::EthereumDeployer, router::RouterQuery};
+use ethexe_ethereum::{
+    Ethereum,
+    deploy::{ContractsDeploymentParams, EthereumDeployer},
+    middleware::MockElectionProvider,
+    router::RouterQuery,
+};
 use ethexe_network::{
     NetworkConfig, NetworkEvent, NetworkRuntimeConfig, NetworkService, export::Multiaddr,
 };
@@ -55,7 +62,6 @@ use ethexe_tx_pool::TxPoolService;
 use futures::StreamExt;
 use gear_core_errors::ReplyCode;
 use gprimitives::{ActorId, CodeId, H160, H256, MessageId};
-use nonempty::NonEmpty;
 use rand::{SeedableRng, prelude::StdRng};
 use roast_secp256k1_evm::frost::{
     Identifier, SigningKey, keys,
@@ -64,7 +70,10 @@ use roast_secp256k1_evm::frost::{
 use std::{
     net::SocketAddr,
     pin::Pin,
-    sync::atomic::{AtomicUsize, Ordering},
+    sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    },
     time::Duration,
 };
 use tokio::{
@@ -82,6 +91,7 @@ pub struct TestEnv {
     #[allow(unused)]
     pub wallets: Wallets,
     pub blobs_storage: LocalBlobStorage,
+    pub election_provider: MockElectionProvider,
     pub provider: RootProvider,
     pub ethereum: Ethereum,
     pub signer: Signer,
@@ -110,9 +120,11 @@ impl TestEnv {
             block_time,
             rpc,
             wallets,
+            signer,
             router_address,
             continuous_block_generation,
             network,
+            deploy_params,
         } = config;
 
         log::info!(
@@ -130,9 +142,6 @@ impl TestEnv {
             } => {
                 let mut anvil = Anvil::new();
 
-                if continuous_block_generation {
-                    anvil = anvil.block_time(block_time.as_secs())
-                }
                 if let Some(slots_in_epoch) = slots_in_epoch {
                     anvil = anvil.arg(format!("--slots-in-an-epoch={slots_in_epoch}"));
                 }
@@ -147,8 +156,6 @@ impl TestEnv {
             }
         };
 
-        let signer = Signer::memory();
-
         let mut wallets = if let Some(wallets) = wallets {
             Wallets::custom(&signer, wallets)
         } else {
@@ -156,6 +163,7 @@ impl TestEnv {
         };
 
         let validators: Vec<_> = match validators {
+            ValidatorsConfig::ProvidedValidators(validators_keys) => validators_keys,
             ValidatorsConfig::PreDefined(amount) => (0..amount).map(|_| wallets.next()).collect(),
             ValidatorsConfig::Custom(keys) => keys
                 .iter()
@@ -167,14 +175,7 @@ impl TestEnv {
         };
 
         let (validator_configs, verifiable_secret_sharing_commitment) =
-            Self::define_session_keys(&signer, validators);
-        let validators = validator_configs
-            .iter()
-            .map(|k| k.public_key.to_address())
-            .collect();
-        let validators =
-            NonEmpty::from_vec(validators).expect("at least one validator is required");
-
+            Self::define_session_keys(&signer, validators.clone());
         let sender_address = wallets.next().to_address();
 
         let ethereum = if let Some(router_address) = router_address {
@@ -188,11 +189,14 @@ impl TestEnv {
             .await?
         } else {
             log::info!("📗 Deploying new router");
+            let validators_addresses: Vec<Address> =
+                validators.iter().map(|k| k.to_address()).collect();
             EthereumDeployer::new(&rpc_url, signer.clone(), sender_address) // verifiable_secret_sharing_commitment,)
                 .await
                 .unwrap()
-                .with_validators(validators.clone())
+                .with_validators(validators_addresses.try_into().unwrap())
                 .with_verifiable_secret_sharing_commitment(verifiable_secret_sharing_commitment)
+                .with_params(deploy_params)
                 .deploy()
                 .await?
         };
@@ -212,8 +216,6 @@ impl TestEnv {
         let mut observer = ObserverService::new(&eth_cfg, u32::MAX, db.clone())
             .await
             .unwrap();
-        let genesis_timestamp = observer.genesis_timestamp_secs();
-        let era_duration = observer.era_duration_secs();
         let genesis_block_hash = observer.genesis_block_hash();
 
         let blobs_storage = LocalBlobStorage::default();
@@ -278,9 +280,14 @@ impl TestEnv {
             config.listen_addresses = [multiaddr.clone()].into();
             config.external_addresses = [multiaddr.clone()].into();
 
+            let timelines = db
+                .protocol_timelines()
+                .ok_or_else(|| anyhow!("protocol timelines not found in database"))
+                .unwrap();
+
             let runtime_config = NetworkRuntimeConfig {
-                genesis_timestamp,
-                era_duration,
+                genesis_timestamp: timelines.genesis_ts,
+                era_duration: timelines.era,
                 genesis_block_hash,
             };
 
@@ -323,6 +330,7 @@ impl TestEnv {
             wallets,
             provider,
             blobs_storage,
+            election_provider: MockElectionProvider::new(),
             ethereum,
             signer,
             validators: validator_configs,
@@ -373,6 +381,7 @@ impl TestEnv {
             eth_cfg: self.eth_cfg.clone(),
             receiver: None,
             blob_storage: self.blobs_storage.clone(),
+            election_provider: self.election_provider.clone(),
             signer: self.signer.clone(),
             threshold: self.threshold,
             block_time: self.block_time,
@@ -605,6 +614,8 @@ impl TestEnv {
 }
 
 pub enum ValidatorsConfig {
+    /// Use provided public keys
+    ProvidedValidators(Vec<PublicKey>),
     /// Take validator addresses from provided wallet, amount of validators is provided.
     PreDefined(usize),
     /// Custom validator eth-addresses in hex string format.
@@ -642,6 +653,8 @@ pub struct TestEnvConfig {
     pub rpc: EnvRpcConfig,
     /// By default uses anvil hardcoded wallets if custom wallets are not provided.
     pub wallets: Option<Vec<String>>,
+    /// Signer
+    pub signer: Signer,
     /// If None (by default) new router will be deployed.
     /// In case of Some(_), will connect to existing router contract.
     pub router_address: Option<String>,
@@ -649,6 +662,8 @@ pub struct TestEnvConfig {
     pub continuous_block_generation: bool,
     /// Network service configuration, disabled by default.
     pub network: EnvNetworkConfig,
+    /// Smart contracts deploy configuration.
+    pub deploy_params: ContractsDeploymentParams,
 }
 
 impl Default for TestEnvConfig {
@@ -664,9 +679,11 @@ impl Default for TestEnvConfig {
                 genesis_timestamp: Some(1_000_000_000),
             },
             wallets: None,
+            signer: Signer::memory(),
             router_address: None,
             continuous_block_generation: false,
             network: EnvNetworkConfig::Disabled,
+            deploy_params: Default::default(),
         }
     }
 }
@@ -786,6 +803,7 @@ pub struct Node {
     eth_cfg: EthereumConfig,
     receiver: Option<TestingEventReceiver>,
     blob_storage: LocalBlobStorage,
+    election_provider: MockElectionProvider,
     signer: Signer,
     threshold: u64,
     block_time: Duration,
@@ -806,33 +824,41 @@ impl Node {
 
         let processor = Processor::new(self.db.clone()).unwrap();
 
-        let consensus: Pin<Box<dyn ConsensusService>> =
+        let observer = ObserverService::new(&self.eth_cfg, u32::MAX, self.db.clone())
+            .await
+            .unwrap();
+
+        let consensus: Pin<Box<dyn ConsensusService>> = {
             if let Some(config) = self.validator_config.as_ref() {
+                let ethereum = Ethereum::new(
+                    &self.eth_cfg.rpc,
+                    self.eth_cfg.router_address.into(),
+                    self.signer.clone(),
+                    config.public_key.to_address(),
+                )
+                .await
+                .unwrap();
                 Box::pin(
                     ValidatorService::new(
                         self.signer.clone(),
+                        Arc::new(self.election_provider.clone()),
+                        ethereum.router(),
                         self.db.clone(),
                         ethexe_consensus::ValidatorConfig {
-                            ethereum_rpc: self.eth_cfg.rpc.clone(),
                             pub_key: config.public_key,
-                            router_address: self.eth_cfg.router_address,
                             signatures_threshold: self.threshold,
                             slot_duration: self.block_time,
                             block_gas_limit: DEFAULT_BLOCK_GAS_LIMIT,
                         },
                     )
-                    .await
                     .unwrap(),
                 )
             } else {
                 Box::pin(SimpleConnectService::new(self.db.clone(), self.block_time))
-            };
+            }
+        };
 
         let (sender, receiver) = broadcast::channel(2048);
-
-        let observer = ObserverService::new(&self.eth_cfg, u32::MAX, self.db.clone())
-            .await
-            .unwrap();
 
         let blob_loader = LocalBlobLoader::new(self.blob_storage.clone()).into_box();
 
@@ -850,9 +876,15 @@ impl Node {
                 config.bootstrap_addresses = [multiaddr].into();
             }
 
+            let timelines = self
+                .db
+                .protocol_timelines()
+                .ok_or_else(|| anyhow!("protocol timelines not found in database"))
+                .unwrap();
+
             let runtime_config = NetworkRuntimeConfig {
-                genesis_timestamp: observer.genesis_timestamp_secs(),
-                era_duration: observer.era_duration_secs(),
+                genesis_timestamp: timelines.genesis_ts,
+                era_duration: timelines.era,
                 genesis_block_hash: observer.genesis_block_hash(),
             };
 

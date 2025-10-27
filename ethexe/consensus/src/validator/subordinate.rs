@@ -83,7 +83,7 @@ impl StateHandler for Subordinate {
                 received_announce,
             } => {
                 if *block_prepared {
-                    log::warn!("Receive block {} prepared twice or more, ignoring", block);
+                    tracing::warn!("Receive block {} prepared twice or more, ignoring", block);
                     return Ok(self.into());
                 }
 
@@ -149,7 +149,9 @@ impl StateHandler for Subordinate {
         request: VerifiedValidationRequest,
     ) -> Result<ValidatorState> {
         if request.address() == self.producer {
-            log::trace!("Receive validation request from producer: {request:?}, saved for later.");
+            tracing::trace!(
+                "Receive validation request from producer: {request:?}, saved for later."
+            );
             self.ctx.pending(request);
 
             Ok(self.into())
@@ -189,7 +191,7 @@ impl Subordinate {
                     ctx.pending_events.push_back(event);
                 }
                 _ => {
-                    log::trace!("Skipping pending event: {event:?}");
+                    tracing::trace!("Skipping pending event: {event:?}");
                 }
             }
         }
@@ -222,7 +224,7 @@ mod tests {
         let producer = pub_keys[0];
         let block = SimpleBlockData::mock(());
 
-        let s = Subordinate::create(ctx, block.clone(), producer.to_address(), true).unwrap();
+        let s = Subordinate::create(ctx, block, producer.to_address(), true).unwrap();
         assert!(s.is_subordinate());
         assert!(s.context().output.is_empty());
         assert_eq!(s.context().pending_events, vec![]);
@@ -279,7 +281,7 @@ mod tests {
         ctx.pending(PendingEvent::ValidationRequest(request2.clone()));
 
         // Subordinate waits for block prepared and announce after creation, and does not process validation requests.
-        let s = Subordinate::create(ctx, block.clone(), producer.to_address(), true).unwrap();
+        let s = Subordinate::create(ctx, block, producer.to_address(), true).unwrap();
         assert!(s.is_subordinate());
         assert!(s.context().output.is_empty());
         assert_eq!(
@@ -402,7 +404,7 @@ mod tests {
         let block = SimpleBlockData::mock(());
         let invalid_announce = ctx.core.signer.mock_verified_data(alice, block.hash);
 
-        let s = Subordinate::create(ctx, block.clone(), producer.to_address(), true)
+        let s = Subordinate::create(ctx, block, producer.to_address(), true)
             .unwrap()
             .process_announce(invalid_announce.clone())
             .unwrap();
@@ -417,7 +419,7 @@ mod tests {
         let producer = pub_keys[0];
         let block = SimpleBlockData::mock(());
 
-        let s = Subordinate::create(ctx, block.clone(), producer.to_address(), true).unwrap();
+        let s = Subordinate::create(ctx, block, producer.to_address(), true).unwrap();
 
         let s = s.process_computed_announce(HashOf::random()).unwrap();
         assert_eq!(s.context().output.len(), 1);

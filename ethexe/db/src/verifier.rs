@@ -23,7 +23,7 @@ use crate::{
 };
 use ethexe_common::{
     Announce, BlockHeader, HashOf, ScheduledTask,
-    db::{AnnounceMeta, AnnounceStorageRead, BlockMeta, BlockMetaStorageRead, OnChainStorageRead},
+    db::{AnnounceMeta, AnnounceStorageRO, BlockMeta, BlockMetaStorageRO, OnChainStorageRO},
 };
 use ethexe_runtime_common::state::{MessageQueue, MessageQueueHashWithSize};
 use gear_core::code::CodeMetadata;
@@ -322,7 +322,7 @@ mod tests {
     };
     use ethexe_common::{
         Digest, MaybeHashOf, ProgramStates, Schedule,
-        db::{AnnounceStorageWrite, BlockMetaStorageWrite, CodesStorageWrite, OnChainStorageWrite},
+        db::{AnnounceStorageRW, BlockMetaStorageRW, CodesStorageRW, OnChainStorageRW},
     };
     use ethexe_runtime_common::state::Storage;
     use gear_core::{
