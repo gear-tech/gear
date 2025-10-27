@@ -230,7 +230,6 @@ impl Subordinate {
                 meta.announces.get_or_insert_default().insert(announce_hash);
             });
 
-        let announce_hash = announce.to_hash();
         self.ctx.output(ConsensusEvent::ComputeAnnounce(announce));
         self.state = State::WaitingAnnounceComputed { announce_hash };
 
