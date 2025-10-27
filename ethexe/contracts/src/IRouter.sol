@@ -75,6 +75,10 @@ interface IRouter {
     /// @dev This is both an *informational* and *requesting* event, signaling that an authority decided to wipe the router state, rendering all previously existing codes and programs ineligible. Validators need to wipe their databases immediately.
     event StorageSlotChanged();
 
+    /// @notice Emitted when the rewards were distributed for appropriate era.
+    /// @param eraIndex the index of era for which rewards was distributed.
+    event RewardsDistributedFor(uint64 eraIndex);
+
     // # Views.
     function genesisBlockHash() external view returns (bytes32);
     function genesisTimestamp() external view returns (uint48);

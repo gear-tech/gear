@@ -76,3 +76,11 @@ impl From<IRouter::ValidatorsCommittedForEra> for RouterEvent {
         }
     }
 }
+
+impl From<IRouter::RewardsDistributedFor> for RouterEvent {
+    fn from(value: IRouter::RewardsDistributedFor) -> Self {
+        Self::RewardsDistributedFor {
+            era_index: value.eraIndex,
+        }
+    }
+}
