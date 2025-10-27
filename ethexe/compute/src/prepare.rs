@@ -51,7 +51,7 @@ enum State {
     WaitingForBlock,
     WaitingForCodes {
         codes: HashSet<CodeId>,
-        not_processed_blocks_chain: VecDeque<BlockData>,
+        not_prepared_blocks_chain: VecDeque<BlockData>,
     },
 }
 
@@ -98,7 +98,9 @@ impl SubService for PrepareSubService {
 
     fn poll_next(&mut self, _cx: &mut Context<'_>) -> Poll<Result<Self::Output>> {
         if let State::WaitingForBlock = &self.state {
-            let Some(mut block_hash) = self.input.pop_back() else {
+            // Use pop_back to prepare the most recent blocks first,
+            // this is the most efficient way of preparing blocks in case of multiple pending blocks.
+            let Some(block_hash) = self.input.pop_back() else {
                 return Poll::Pending;
             };
 
@@ -106,45 +108,24 @@ impl SubService for PrepareSubService {
                 return Poll::Ready(Err(ComputeError::BlockNotSynced(block_hash)));
             }
 
-            let mut not_processed_blocks_chain = VecDeque::new();
-            loop {
-                if self.db.block_meta(block_hash).prepared {
-                    break;
-                }
+            let not_prepared_blocks_chain =
+                collect_not_prepared_blocks_chain(&self.db, block_hash)?;
 
-                let header = self
-                    .db
-                    .block_header(block_hash)
-                    .ok_or(ComputeError::BlockHeaderNotFound(block_hash))?;
-                let events = self
-                    .db
-                    .block_events(block_hash)
-                    .ok_or(ComputeError::BlockEventsNotFound(block_hash))?;
-
-                not_processed_blocks_chain.push_front(BlockData {
-                    hash: block_hash,
-                    header,
-                    events,
-                });
-
-                block_hash = header.parent_hash;
-            }
-
-            if not_processed_blocks_chain.is_empty() {
+            if not_prepared_blocks_chain.is_empty() {
                 // Block is already prepared
                 return Poll::Ready(Ok(Event::BlockPrepared(block_hash)));
             }
 
-            log::trace!("Collected a chain to prepare {not_processed_blocks_chain:?}");
+            log::trace!("Collected a chain to prepare {not_prepared_blocks_chain:?}");
 
             let MissingData {
                 codes,
                 validated_codes,
-            } = missing_data(&self.db, &not_processed_blocks_chain)?;
+            } = missing_data(&self.db, &not_prepared_blocks_chain)?;
 
             self.state = State::WaitingForCodes {
                 codes: validated_codes,
-                not_processed_blocks_chain,
+                not_prepared_blocks_chain,
             };
 
             if !codes.is_empty() {
@@ -154,18 +135,18 @@ impl SubService for PrepareSubService {
 
         if let State::WaitingForCodes {
             codes,
-            not_processed_blocks_chain,
+            not_prepared_blocks_chain,
         } = &mut self.state
             && codes.is_empty()
         {
-            log::trace!("All validated codes are processed, preparing blocks");
+            log::trace!("All validated codes are processed, start to prepare blocks");
 
-            let head = not_processed_blocks_chain
+            let head = not_prepared_blocks_chain
                 .back()
                 .unwrap_or_else(|| unreachable!("chain must be non-empty"))
                 .hash;
 
-            for block in std::mem::take(not_processed_blocks_chain) {
+            for block in std::mem::take(not_prepared_blocks_chain) {
                 prepare_one_block(&self.db, block)?;
             }
 
@@ -176,6 +157,38 @@ impl SubService for PrepareSubService {
 
         Poll::Pending
     }
+}
+
+/// Collects a chain of blocks that are not yet prepared, starting from `block_hash`
+/// and going backwards through parent hashes until a prepared block is found.
+fn collect_not_prepared_blocks_chain(
+    db: &Database,
+    mut block_hash: H256,
+) -> Result<VecDeque<BlockData>> {
+    let mut chain = VecDeque::new();
+
+    loop {
+        if db.block_meta(block_hash).prepared {
+            break;
+        }
+
+        let header = db
+            .block_header(block_hash)
+            .ok_or(ComputeError::BlockHeaderNotFound(block_hash))?;
+        let events = db
+            .block_events(block_hash)
+            .ok_or(ComputeError::BlockEventsNotFound(block_hash))?;
+
+        chain.push_front(BlockData {
+            hash: block_hash,
+            header,
+            events,
+        });
+
+        block_hash = header.parent_hash;
+    }
+
+    Ok(chain)
 }
 
 #[derive(Debug)]

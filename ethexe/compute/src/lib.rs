@@ -22,11 +22,10 @@ use gprimitives::{CodeId, H256};
 pub use service::ComputeService;
 use std::collections::HashSet;
 
+mod codes;
 mod compute;
 mod prepare;
 mod service;
-// mod utils;
-mod codes;
 
 #[cfg(test)]
 mod tests;
