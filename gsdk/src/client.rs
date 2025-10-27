@@ -93,6 +93,7 @@ impl RpcClient {
     /// for the WebSocket client builder.
     pub async fn new_ws_custom(
         uri: &str,
+        timeout: u64,
         init: impl FnOnce(WsClientBuilder) -> WsClientBuilder,
     ) -> Result<Self> {
         log::info!("Connecting to {uri} ...");
@@ -101,7 +102,13 @@ impl RpcClient {
             return Err(Error::InvalidUrl);
         }
 
-        let builder = init(WsClientBuilder::default());
+        let builder = init(
+            WsClientBuilder::default()
+                .max_request_size(ONE_HUNDRED_MEGA_BYTES)
+                .connection_timeout(Duration::from_millis(timeout))
+                .request_timeout(Duration::from_millis(timeout))
+                .enable_ws_ping(PingConfig::default()),
+        );
         builder
             .build(uri)
             .await
