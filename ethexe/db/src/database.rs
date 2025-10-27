@@ -584,6 +584,7 @@ impl AnnounceStorageRead for Database {
 
 impl AnnounceStorageWrite for Database {
     fn set_announce(&self, announce: Announce) -> HashOf<Announce> {
+        // Safe, because of inner method implementation.
         unsafe { HashOf::new(self.cas.write(&announce.encode())) }
     }
 
