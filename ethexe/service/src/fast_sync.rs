@@ -53,7 +53,10 @@ use futures::StreamExt;
 use gprimitives::{ActorId, CodeId, H256};
 use nonempty::NonEmpty;
 use parity_scale_codec::Decode;
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::{
+    collections::{BTreeMap, BTreeSet, HashMap},
+    num::NonZeroU32,
+};
 
 struct EventData {
     /// Latest committed since latest prepared block batch
@@ -192,7 +195,7 @@ async fn collect_announce(
         network,
         AnnouncesRequest {
             head: announce_hash,
-            until: AnnouncesRequestUntil::ChainLen(1.try_into().unwrap()),
+            until: AnnouncesRequestUntil::ChainLen(NonZeroU32::MIN),
         }
         .into(),
     )
