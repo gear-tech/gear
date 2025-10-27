@@ -22,8 +22,7 @@ use crate::Event;
 use anyhow::{Result, anyhow};
 use ethexe_blob_loader::BlobLoaderEvent;
 use ethexe_common::{
-    Address, AnnounceHash, SimpleBlockData, db::*, events::BlockEvent,
-    tx_pool::SignedOffchainTransaction,
+    Address, Announce, HashOf, SimpleBlockData, db::*, events::BlockEvent, tx_pool::SignedOffchainTransaction
 };
 use ethexe_compute::ComputeEvent;
 use ethexe_consensus::ConsensusEvent;
@@ -107,7 +106,7 @@ pub enum AnnounceId {
     #[default]
     Any,
     /// Wait for announce computed with a specific hash
-    AnnounceHash(AnnounceHash),
+    AnnounceHash(HashOf<Announce>),
     /// Wait for announce computed with a specific block hash
     BlockHash(H256),
 }

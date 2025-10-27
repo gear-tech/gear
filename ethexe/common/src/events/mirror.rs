@@ -23,6 +23,9 @@ use parity_scale_codec::{Decode, Encode};
 
 #[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, Hash)]
 pub enum Event {
+    OwnedBalanceTopUpRequested {
+        value: u128,
+    },
     ExecutableBalanceTopUpRequested {
         value: u128,
     },
@@ -77,6 +80,9 @@ pub enum Event {
 impl Event {
     pub fn to_request(self) -> Option<RequestEvent> {
         Some(match self {
+            Self::OwnedBalanceTopUpRequested { value } => {
+                RequestEvent::OwnedBalanceTopUpRequested { value }
+            }
             Self::ExecutableBalanceTopUpRequested { value } => {
                 RequestEvent::ExecutableBalanceTopUpRequested { value }
             }
@@ -120,6 +126,9 @@ impl Event {
 #[derive(Clone, Debug, PartialEq, Eq, Decode, Encode)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum RequestEvent {
+    OwnedBalanceTopUpRequested {
+        value: u128,
+    },
     ExecutableBalanceTopUpRequested {
         value: u128,
     },

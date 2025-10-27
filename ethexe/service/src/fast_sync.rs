@@ -20,7 +20,7 @@ use crate::Service;
 use alloy::{eips::BlockId, providers::Provider};
 use anyhow::{Context, Result, anyhow};
 use ethexe_common::{
-    Address, Announce, AnnounceHash, BlockData, CodeAndIdUnchecked, Digest, ProgramStates,
+    Address, Announce, BlockData, CodeAndIdUnchecked, Digest, HashOf, ProgramStates,
     StateHashWithQueueSize,
     db::{
         AnnounceStorageRead, BlockMetaStorageRead, CodesStorageRead, CodesStorageWrite,
@@ -58,7 +58,7 @@ struct EventData {
     /// Latest committed since latest prepared block batch
     latest_committed_batch: Digest,
     /// Latest committed on the chain and not computed announce hash
-    latest_committed_announce: AnnounceHash,
+    latest_committed_announce: HashOf<Announce>,
 }
 
 impl EventData {
@@ -88,7 +88,7 @@ impl EventData {
         db: &Database,
         highest_block: H256,
     ) -> Result<Option<Self>> {
-        let mut latest_committed: Option<(Digest, Option<AnnounceHash>)> = None;
+        let mut latest_committed: Option<(Digest, Option<HashOf<Announce>>)> = None;
 
         let mut block = highest_block;
         'prepared: while !db.block_meta(block).prepared {
@@ -181,7 +181,7 @@ async fn collect_program_code_ids(
 async fn collect_announce(
     network: &mut NetworkService,
     db: &Database,
-    announce_hash: AnnounceHash,
+    announce_hash: HashOf<Announce>,
 ) -> Result<Announce> {
     if let Some(announce) = db.announce(announce_hash) {
         return Ok(announce);
@@ -506,8 +506,14 @@ async fn sync_from_network(
                         Decode::decode(&mut &data[..]).expect("`db-sync` must validate data");
                     // Save restored cached queue sizes
                     let program_state_hash = ethexe_db::hash(&data);
-                    restored_cached_queue_sizes
-                        .insert(program_state_hash, state.queue.cached_queue_size);
+                    restored_cached_queue_sizes.insert(
+                        program_state_hash,
+                        (
+                            state.canonical_queue.cached_queue_size,
+                            state.injected_queue.cached_queue_size,
+                        ),
+                    );
+
                     ethexe_db::visitor::walk(
                         &mut manager,
                         ProgramStateNode {
@@ -566,14 +572,15 @@ async fn sync_from_network(
     program_states
         .into_iter()
         .map(|(program_id, hash)| {
-            let cached_queue_size = *restored_cached_queue_sizes
+            let (canonical_queue_size, injected_queue_size) = *restored_cached_queue_sizes
                 .get(&hash)
                 .expect("program state cached queue size must be restored");
             (
                 program_id,
                 StateHashWithQueueSize {
                     hash,
-                    cached_queue_size,
+                    canonical_queue_size,
+                    injected_queue_size,
                 },
             )
         })

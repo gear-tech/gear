@@ -113,7 +113,7 @@ pub(crate) async fn compute<P: ProcessorExt>(
 mod tests {
     use super::*;
     use crate::tests::{MockProcessor, PROCESSOR_RESULT};
-    use ethexe_common::{AnnounceHash, BlockHeader, SimpleBlockData, db::*, gear::StateTransition};
+    use ethexe_common::{BlockHeader, HashOf, SimpleBlockData, db::*, gear::StateTransition};
     use ethexe_db::Database as DB;
     use gprimitives::{ActorId, H256};
     use nonempty::NonEmpty;
@@ -141,7 +141,7 @@ mod tests {
         // Setup block as prepared
         db.mutate_block_meta(block_hash, |meta| {
             *meta = BlockMeta {
-                announces: Some([AnnounceHash::random()].into()),
+                announces: Some([HashOf::random()].into()),
                 ..BlockMeta::default_prepared()
             }
         });
@@ -197,7 +197,7 @@ mod tests {
         // Try with unknown parent
         let announce = Announce {
             block_hash,
-            parent: AnnounceHash::random(),
+            parent: HashOf::random(),
             gas_allowance: Some(100),
             off_chain_transactions: vec![],
         };

@@ -8,11 +8,11 @@ import {SSTORE2} from "./libraries/SSTORE2.sol";
 import {FROST} from "frost-secp256k1-evm/FROST.sol";
 import {IMirror} from "./IMirror.sol";
 import {IRouter} from "./IRouter.sol";
-import {IWrappedVara} from "./IWrappedVara.sol";
 import {IMiddleware} from "./IMiddleware.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import {ReentrancyGuardTransientUpgradeable} from
-    "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardTransientUpgradeable.sol";
+import {
+    ReentrancyGuardTransientUpgradeable
+} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardTransientUpgradeable.sol";
 import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
@@ -89,7 +89,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
 
         // Copy signing threshold percentage from the old router.
         newRouter.validationSettings.signingThresholdPercentage =
-            oldRouter.validationSettings.signingThresholdPercentage;
+        oldRouter.validationSettings.signingThresholdPercentage;
 
         // Copy validators from the old router.
         // TODO #4557: consider what to do. Maybe we should start reelection process.
@@ -269,9 +269,8 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
     function createProgram(bytes32 _codeId, bytes32 _salt, address _overrideInitializer) external returns (address) {
         address mirror = _createProgram(_codeId, _salt, true);
 
-        IMirror(mirror).initialize(
-            _overrideInitializer == address(0) ? msg.sender : _overrideInitializer, mirrorImpl(), true
-        );
+        IMirror(mirror)
+            .initialize(_overrideInitializer == address(0) ? msg.sender : _overrideInitializer, mirrorImpl(), true);
 
         return mirror;
     }
@@ -284,9 +283,8 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
     ) external returns (address) {
         address mirror = _createProgram(_codeId, _salt, false);
 
-        IMirror(mirror).initialize(
-            _overrideInitializer == address(0) ? msg.sender : _overrideInitializer, _abiInterface, false
-        );
+        IMirror(mirror)
+            .initialize(_overrideInitializer == address(0) ? msg.sender : _overrideInitializer, _abiInterface, false);
 
         return mirror;
     }
@@ -424,18 +422,22 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
 
         Gear.RewardsCommitment calldata _commitment = _batch.rewardsCommitment[0];
 
-        // TODO #4740: check that it is for previous eras (have some problems with rewards for 0 era)
-        require(_commitment.timestamp > 0, "rewards commitment timestamp is zero");
         require(_commitment.timestamp < _batch.blockTimestamp, "rewards commitment timestamp must be for the past");
+        require(_commitment.timestamp >= router.genesisBlock.timestamp, "rewards commitment timestamp predates genesis");
+
+        uint256 commitmentEraIndex = Gear.eraIndexAt(router, _commitment.timestamp);
+        uint256 batchEraIndex = Gear.eraIndexAt(router, _batch.blockTimestamp);
+
+        require(commitmentEraIndex < batchEraIndex, "rewards commitment must target previous era");
 
         address _middleware = router.implAddresses.middleware;
-        IERC20(router.implAddresses.wrappedVara).approve(
-            _middleware, _commitment.operators.amount + _commitment.stakers.totalAmount
-        );
+        IERC20(router.implAddresses.wrappedVara)
+            .approve(_middleware, _commitment.operators.amount + _commitment.stakers.totalAmount);
 
-        bytes32 _operatorRewardsHash = IMiddleware(_middleware).distributeOperatorRewards(
-            router.implAddresses.wrappedVara, _commitment.operators.amount, _commitment.operators.root
-        );
+        bytes32 _operatorRewardsHash = IMiddleware(_middleware)
+            .distributeOperatorRewards(
+                router.implAddresses.wrappedVara, _commitment.operators.amount, _commitment.operators.root
+            );
 
         bytes32 _stakerRewardsHash =
             IMiddleware(_middleware).distributeStakerRewards(_commitment.stakers, _commitment.timestamp);
@@ -444,10 +446,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
     }
 
     /// @dev Set validators for the next era.
-    function _commitValidators(Storage storage router, Gear.BatchCommitment calldata _batch)
-        private
-        returns (bytes32)
-    {
+    function _commitValidators(Storage storage router, Gear.BatchCommitment calldata _batch) private returns (bytes32) {
         require(
             _batch.validatorsCommitment.length <= 1,
             "validators commitment must be empty or contains only one commitment"
@@ -499,9 +498,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
             );
 
             if (transition.valueToReceive != 0) {
-                bool success = IWrappedVara(router.implAddresses.wrappedVara).transfer(
-                    transition.actorId, transition.valueToReceive
-                );
+                (bool success,) = transition.actorId.call{value: transition.valueToReceive}("");
                 require(success, "transfer to actor failed");
             }
 
@@ -558,5 +555,16 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
     function _setStorageSlot(string memory namespace) private onlyOwner {
         bytes32 slot = keccak256(abi.encode(uint256(keccak256(bytes(namespace))) - 1)) & ~bytes32(uint256(0xff));
         StorageSlot.getBytes32Slot(SLOT_STORAGE).value = slot;
+    }
+
+    receive() external payable {
+        Storage storage router = _router();
+        require(router.genesisBlock.hash != bytes32(0), "router genesis is zero; call `lookupGenesisHash()` first");
+
+        uint128 value = uint128(msg.value);
+        require(value > 0, "zero value transfer is not allowed");
+
+        address actorId = msg.sender;
+        require(router.protocolData.programs[actorId] != 0, "couldn't receive Ether from unknown program");
     }
 }
