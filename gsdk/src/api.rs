@@ -151,13 +151,13 @@ impl ApiBuilder {
         })
     }
 
-    /// Build [`Api`] with a custom WebSocket client.
+    /// Build api with a custom WebSocket client.
     pub async fn build_ws_custom(
         self,
         uri: &str,
         init: impl FnOnce(WsClientBuilder) -> WsClientBuilder,
     ) -> Result<Api> {
-        let rpc = Rpc::new(uri, self.timeout, self.retries).await?;
+        let rpc = Rpc::new_ws_custom(uri, self.timeout, self.retries, init).await?;
 
         Ok(Api {
             client: OnlineClient::from_rpc_client(rpc.client()).await?,

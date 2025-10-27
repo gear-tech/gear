@@ -28,9 +28,8 @@ use jsonrpsee::{
         traits::ToRpcParams,
     },
     http_client::{HttpClient, HttpClientBuilder},
-    server::PingConfig,
     types::SubscriptionId,
-    ws_client::{WsClient, WsClientBuilder},
+    ws_client::{PingConfig, WsClient, WsClientBuilder},
 };
 use sp_runtime::DeserializeOwned;
 use std::{ops::Deref, result::Result as StdResult, time::Duration};
@@ -73,7 +72,7 @@ impl RpcClient {
                     .max_request_size(ONE_HUNDRED_MEGA_BYTES)
                     .connection_timeout(Duration::from_millis(timeout))
                     .request_timeout(Duration::from_millis(timeout))
-                    .enable_ws_ping(PingConfig::new())
+                    .enable_ws_ping(PingConfig::default())
                     .build(uri)
                     .await
                     .map_err(Error::SubxtRpc)?,
@@ -183,6 +182,22 @@ impl Rpc {
     /// Create RPC client from url and timeout.
     pub async fn new(uri: &str, timeout: u64, retries: u8) -> Result<Self> {
         let rpc = SubxtRpcClient::new(RpcClient::new(uri, timeout).await?);
+        let methods = LegacyRpcMethods::new(rpc.clone());
+        Ok(Self {
+            rpc,
+            methods,
+            retries,
+        })
+    }
+
+    /// Create WebSocket RPC client from url and timeout with a custom initializer
+    pub async fn new_ws_custom(
+        uri: &str,
+        timeout: u64,
+        retries: u8,
+        init: impl FnOnce(WsClientBuilder) -> WsClientBuilder,
+    ) -> Result<Self> {
+        let rpc = SubxtRpcClient::new(RpcClient::new_ws_custom(uri, timeout, init).await?);
         let methods = LegacyRpcMethods::new(rpc.clone());
         Ok(Self {
             rpc,
