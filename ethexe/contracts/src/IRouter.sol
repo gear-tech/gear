@@ -75,6 +75,10 @@ interface IRouter {
     /// @dev This is both an *informational* and *requesting* event, signaling that an authority decided to wipe the router state, rendering all previously existing codes and programs ineligible. Validators need to wipe their databases immediately.
     event StorageSlotChanged();
 
+    /// @notice Emitted when the rewards were distributed for appropriate era.
+    /// @param eraIndex the index of era for which rewards was distributed.
+    event RewardsDistributedFor(uint64 eraIndex);
+
     // # Views.
     function genesisBlockHash() external view returns (bytes32);
     function genesisTimestamp() external view returns (uint48);
@@ -96,6 +100,8 @@ interface IRouter {
     function validatorsThreshold() external view returns (uint256);
 
     function computeSettings() external view returns (Gear.ComputationSettings memory);
+
+    function latestRewardedEra() external view returns (uint64);
 
     function codeState(bytes32 codeId) external view returns (Gear.CodeState);
     function codesStates(bytes32[] calldata codesIds) external view returns (Gear.CodeState[] memory);

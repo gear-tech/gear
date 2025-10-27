@@ -242,6 +242,7 @@ impl ObserverService {
         };
 
         let genesis_validators = router_query.validators_at(genesis_block_hash).await?;
+        let latest_rewarded_era = router_query.latest_rewarded_era().await?;
 
         ethexe_common::setup_genesis_in_db(
             db,
@@ -251,6 +252,7 @@ impl ObserverService {
             },
             genesis_validators,
             timelines,
+            latest_rewarded_era,
         );
 
         Ok(genesis_block_hash)

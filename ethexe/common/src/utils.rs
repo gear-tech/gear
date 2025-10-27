@@ -81,6 +81,7 @@ pub fn setup_genesis_in_db<
     genesis_block: SimpleBlockData,
     validators: ValidatorsVec,
     timelines: ProtocolTimelines,
+    latest_rewarded_era: u64,
 ) {
     let genesis_announce = Announce::base(genesis_block.hash, AnnounceHash::zero());
     let genesis_announce_hash = setup_announce_in_db(
@@ -127,6 +128,7 @@ pub fn setup_genesis_in_db<
             genesis_announce_hash,
             start_block_hash: genesis_block.hash,
             start_announce_hash: genesis_announce_hash,
+            rewarded_era: latest_rewarded_era,
         });
     }
 }

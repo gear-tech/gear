@@ -766,6 +766,7 @@ mod tests {
             genesis_announce_hash: AnnounceHash::random(),
             start_block_hash: H256::random(),
             start_announce_hash: AnnounceHash::random(),
+            rewarded_era: 0,
         };
         db.set_latest_data(latest_data.clone());
         assert_eq!(db.latest_data(), Some(latest_data));

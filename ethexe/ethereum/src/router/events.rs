@@ -39,6 +39,7 @@ pub mod signatures {
         PROGRAM_CREATED: ProgramCreated,
         STORAGE_SLOT_CHANGED: StorageSlotChanged,
         VALIDATORS_COMMITTED_FOR_ERA: ValidatorsCommittedForEra,
+        REWARDS_DISTRIBUTED_FOR: RewardsDistributedFor,
     }
 
     pub const REQUESTS: &[B256] = &[
@@ -82,6 +83,7 @@ pub fn try_extract_event(log: &Log) -> Result<Option<RouterEvent>> {
         VALIDATORS_COMMITTED_FOR_ERA => {
             decode_log::<IRouter::ValidatorsCommittedForEra>(log)?.into()
         }
+        REWARDS_DISTRIBUTED_FOR => decode_log::<IRouter::RewardsDistributedFor>(log)?.into(),
         _ => unreachable!("filtered above"),
     };
 

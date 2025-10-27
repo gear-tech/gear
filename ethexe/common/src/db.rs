@@ -165,6 +165,8 @@ pub struct LatestData {
     pub start_block_hash: H256,
     /// Start announce hash: genesis or defined by fast-sync
     pub start_announce_hash: AnnounceHash,
+    /// Latest era for which rewards was distributed
+    pub rewarded_era: u64,
 }
 
 #[auto_impl::auto_impl(&, Box)]

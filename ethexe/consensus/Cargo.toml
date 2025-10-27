@@ -28,6 +28,8 @@ rand_chacha = "0.3"
 roast-secp256k1-evm.workspace = true
 hashbrown.workspace = true
 
+oz_merkle_rs = "0.1.3"
+
 [dev-dependencies]
 tokio.workspace = true
 ethexe-common = { workspace = true, features = ["mock"] }

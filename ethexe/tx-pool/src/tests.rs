@@ -88,6 +88,7 @@ impl BlocksManager {
                     genesis_announce_hash: AnnounceHash::zero(),
                     start_block_hash: block_hash,
                     start_announce_hash: AnnounceHash::zero(),
+                    rewarded_era: 0,
                 });
 
                 (block_hash, header)

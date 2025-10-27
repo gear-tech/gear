@@ -99,6 +99,12 @@ impl<DB: SyncDB> ChainSync<DB> {
                     self.db
                         .set_code_blob_info(code_id, CodeBlobInfo { timestamp, tx_hash });
                 }
+
+                if let &BlockEvent::Router(RouterEvent::RewardsDistributedFor { era_index }) = event
+                {
+                    self.db
+                        .mutate_latest_data(|latest_data| latest_data.rewarded_era = era_index);
+                }
             }
 
             let parent_hash = block_data.header.parent_hash;

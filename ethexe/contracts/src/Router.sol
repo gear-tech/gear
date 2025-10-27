@@ -188,6 +188,10 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
         return _router().computeSettings;
     }
 
+    function latestRewardedEra() external view returns (uint64) {
+        return _router().protocolData.latestRewardedEra;
+    }
+
     function codeState(bytes32 _codeId) public view returns (Gear.CodeState) {
         return _router().protocolData.codes[_codeId];
     }
@@ -442,6 +446,10 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
 
         bytes32 _stakerRewardsHash =
             IMiddleware(_middleware).distributeStakerRewards(_commitment.stakers, _commitment.timestamp);
+
+        // casting to 'uint64' is safe because of era index can not be higher than `uint64::MAX`.
+        // forge-lint: disable-next-line(unsafe-typecast)
+        emit RewardsDistributedFor(uint64(commitmentEraIndex));
 
         return keccak256(abi.encodePacked(_operatorRewardsHash, _stakerRewardsHash, _commitment.timestamp));
     }
