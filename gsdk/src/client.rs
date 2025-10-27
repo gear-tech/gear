@@ -93,7 +93,6 @@ impl RpcClient {
     /// for the WebSocket client builder.
     pub async fn new_ws_custom(
         uri: &str,
-        timeout: u64,
         init: impl FnOnce(WsClientBuilder) -> WsClientBuilder,
     ) -> Result<Self> {
         log::info!("Connecting to {uri} ...");
