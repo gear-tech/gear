@@ -35,9 +35,9 @@ use sp_runtime::{
 use sp_std::convert::{TryFrom, TryInto};
 
 pub type AccountId = u64;
-type BlockNumber = u64;
+type BlockNumber = u32;
 type Balance = u128;
-type Block = frame_system::mocking::MockBlock<Test>;
+type Block = frame_system::mocking::MockBlockU32<Test>;
 pub type Moment = u64;
 
 pub(crate) const SIGNER: AccountId = 1;
@@ -140,7 +140,7 @@ mod grandpa_keys_handler {
 pub type VaraSessionHandler = (grandpa_keys_handler::GrandpaAndGearEthBridge,);
 
 parameter_types! {
-    pub const BlockHashCount: u64 = 250;
+    pub const BlockHashCount: BlockNumber = 250;
     pub const ExistentialDeposit: Balance = EXISTENTIAL_DEPOSIT;
 }
 
@@ -223,7 +223,7 @@ pub struct TestSessionRotator;
 impl ShouldEndSession<BlockNumber> for TestSessionRotator {
     fn should_end_session(now: BlockNumber) -> bool {
         if now > 1 {
-            (now - 1).is_multiple_of(EpochDuration::get())
+            (now - 1).is_multiple_of(EpochDuration::get() as BlockNumber)
         } else {
             false
         }
@@ -303,18 +303,6 @@ parameter_types! {
     pub MockBridgePauserAccount: AccountId = GearEthBridgePalletId::get().into_sub_account_truncating("bridge_pauser");
 }
 
-pub struct MockBridgeControlAccounts;
-impl SortedMembers<AccountId> for MockBridgeControlAccounts {
-    fn sorted_members() -> Vec<AccountId> {
-        let mut members = vec![
-            MockBridgeAdminAccount::get(),
-            MockBridgePauserAccount::get(),
-        ];
-        members.sort();
-        members
-    }
-}
-
 pub struct MockBridgeAdminAccounts;
 impl SortedMembers<AccountId> for MockBridgeAdminAccounts {
     fn sorted_members() -> Vec<AccountId> {
@@ -323,7 +311,6 @@ impl SortedMembers<AccountId> for MockBridgeAdminAccounts {
 }
 
 impl pallet_gear_eth_bridge::Config for Test {
-    type ControlOrigin = EnsureSignedBy<MockBridgeControlAccounts, AccountId>;
     type AdminOrigin = EnsureSignedBy<MockBridgeAdminAccounts, AccountId>;
     type PalletId = GearEthBridgePalletId;
     type BuiltinAddress = MockBridgeBuiltinAddress;
@@ -394,7 +381,7 @@ impl ExtBuilder {
     }
 }
 
-pub(crate) fn run_to_block(n: u64) {
+pub(crate) fn run_to_block(n: BlockNumber) {
     while System::block_number() < n {
         let current_blk = System::block_number();
 
@@ -410,14 +397,14 @@ pub(crate) fn run_to_next_block() {
     run_for_n_blocks(1)
 }
 
-pub(crate) fn run_for_n_blocks(n: u64) {
+pub(crate) fn run_for_n_blocks(n: BlockNumber) {
     run_to_block(System::block_number() + n);
 }
 
 // Run on_initialize hooks in order as they appear in AllPalletsWithSystem.
 pub(crate) fn on_initialize(new: BlockNumberFor<Test>) {
     System::set_block_number(new);
-    Timestamp::set_timestamp(new.saturating_mul(MILLISECS_PER_BLOCK));
+    Timestamp::set_timestamp(u64::from(new).saturating_mul(MILLISECS_PER_BLOCK));
     Authorship::on_initialize(new);
     Grandpa::on_initialize(new);
     Balances::on_initialize(new);

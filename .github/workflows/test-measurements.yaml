@@ -19,6 +19,8 @@ jobs:
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - name: "Install: Set cargo path"
         run: echo "/tmp/cargo/bin" >> $GITHUB_PATH

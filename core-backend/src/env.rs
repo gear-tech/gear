@@ -52,7 +52,7 @@ use gear_wasm_instrument::{
 };
 #[cfg(feature = "std")]
 use {
-    core::any::Any, gear_core::memory::HostPointer, gear_core::str::LimitedStr,
+    core::any::Any, gear_core::limited::LimitedStr, gear_core::memory::HostPointer,
     gear_lazy_pages_common::GlobalsAccessError, gear_lazy_pages_common::GlobalsAccessor,
     std::pin::Pin,
 };

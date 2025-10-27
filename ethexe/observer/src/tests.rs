@@ -19,13 +19,8 @@
 use super::*;
 use alloy::node_bindings::Anvil;
 use ethexe_db::{Database, MemDb};
-use ethexe_ethereum::Ethereum;
+use ethexe_ethereum::deploy::EthereumDeployer;
 use ethexe_signer::Signer;
-use gprimitives::ActorId;
-use roast_secp256k1_evm::frost::{
-    Identifier,
-    keys::{self, IdentifierList},
-};
 use std::time::Duration;
 
 fn wat2wasm_with_validate(s: &str, validate: bool) -> Vec<u8> {
@@ -45,44 +40,19 @@ async fn test_deployment() -> Result<()> {
     gear_utils::init_default_logger();
 
     let anvil = Anvil::new().try_spawn()?;
-
     let ethereum_rpc = anvil.ws_endpoint();
 
     let signer = Signer::memory();
-
     let sender_public_key = signer
         .storage_mut()
         .add_key("0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80".parse()?)?;
     let sender_address = sender_public_key.to_address();
     let validators = vec!["0x45D6536E3D4AdC8f4e13c5c4aA54bE968C55Abf1".parse()?];
 
-    let (secret_shares, _) = keys::generate_with_dealer(
-        1,
-        1,
-        IdentifierList::Custom(&[Identifier::deserialize(
-            &ActorId::from(validators[0]).into_bytes(),
-        )
-        .unwrap()]),
-        rand::thread_rng(),
-    )
-    .unwrap();
-
-    let verifiable_secret_sharing_commitment = secret_shares
-        .values()
-        .map(|secret_share| secret_share.commitment().clone())
-        .next()
-        .expect("conversion failed");
-
-    let ethereum = Ethereum::deploy(
-        &ethereum_rpc,
-        validators,
-        signer,
-        sender_address,
-        verifiable_secret_sharing_commitment,
-    )
-    .await?;
-
-    let router_address = ethereum.router().address();
+    let deployer = EthereumDeployer::new(&ethereum_rpc, signer, sender_address)
+        .await
+        .unwrap();
+    let ethereum = deployer.with_validators(validators).deploy().await?;
 
     let db = MemDb::default();
     let database = Database::from_one(&db);
@@ -90,7 +60,7 @@ async fn test_deployment() -> Result<()> {
     let mut observer = ObserverService::new(
         &EthereumConfig {
             rpc: ethereum_rpc,
-            router_address,
+            router_address: ethereum.router().address(),
             block_time: Duration::from_secs(1),
             beacon_rpc: Default::default(),
         },

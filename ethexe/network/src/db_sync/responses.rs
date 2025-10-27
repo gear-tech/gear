@@ -18,16 +18,21 @@
 
 use crate::{
     db_sync::{
-        Config, InnerBehaviour, InnerHashesResponse, InnerProgramIdsResponse, InnerRequest,
-        InnerResponse, ResponseId,
+        Config, DbSyncDatabase, InnerAnnouncesRequest, InnerBehaviour, InnerHashesResponse,
+        InnerProgramIdsResponse, InnerRequest, InnerResponse, ResponseId,
     },
     export::PeerId,
 };
-use ethexe_common::db::{BlockMetaStorageRead, CodesStorageWrite};
-use ethexe_db::Database;
+use ethexe_common::db::{
+    AnnounceStorageRead, BlockMetaStorageRead, HashStorageRead, LatestDataStorageRead,
+};
 use libp2p::request_response;
 use std::task::{Context, Poll};
 use tokio::task::JoinSet;
+
+/// Maximum length of the chain for announces responses to prevent abuse
+const MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE: u64 = 10_000;
+const _: () = assert!(MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE > 0, "cannot be zero");
 
 struct OngoingResponse {
     response_id: ResponseId,
@@ -38,13 +43,13 @@ struct OngoingResponse {
 
 pub(crate) struct OngoingResponses {
     response_id_counter: u64,
-    db: Database,
+    db: Box<dyn DbSyncDatabase>,
     db_readers: JoinSet<OngoingResponse>,
     max_simultaneous_responses: u32,
 }
 
 impl OngoingResponses {
-    pub(crate) fn new(db: Database, config: &Config) -> Self {
+    pub(crate) fn new(db: Box<dyn DbSyncDatabase>, config: &Config) -> Self {
         Self {
             response_id_counter: 0,
             db,
@@ -59,7 +64,7 @@ impl OngoingResponses {
         ResponseId(id)
     }
 
-    fn response_from_db(request: InnerRequest, db: &Database) -> InnerResponse {
+    fn response_from_db(request: InnerRequest, db: Box<dyn DbSyncDatabase>) -> InnerResponse {
         match request {
             InnerRequest::Hashes(request) => InnerHashesResponse(
                 request
@@ -70,12 +75,52 @@ impl OngoingResponses {
             )
             .into(),
             InnerRequest::ProgramIds(request) => InnerProgramIdsResponse(
-                db.block_program_states(request.at)
-                    .map(|states| states.into_keys().collect())
+                db.block_meta(request.at)
+                    .announces
+                    .and_then(|a| a.first().copied())
+                    .and_then(|announce_hash| {
+                        db.announce_program_states(announce_hash)
+                            .map(|states| states.into_keys().collect())
+                    })
                     .unwrap_or_default(), // FIXME: Option might be more suitable
             )
             .into(),
             InnerRequest::ValidCodes => db.valid_codes().into(),
+            InnerRequest::Announces(InnerAnnouncesRequest {
+                head,
+                max_chain_len,
+            }) => {
+                if max_chain_len > MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE {
+                    log::trace!(
+                        "Request for announces with too large max_chain_len: {max_chain_len}, \
+                         max is {MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE} instead"
+                    );
+                    // TODO #4874: use peer score to punish the peer for such requests
+                    return InnerResponse::Announces(vec![]);
+                }
+
+                let Some(start_announce_hash) = db.latest_data().map(|d| d.start_announce_hash)
+                else {
+                    log::warn!("Cannot complete request: latest data not found in database");
+                    return InnerResponse::Announces(vec![]);
+                };
+                let mut announces = vec![];
+                let mut announce_hash = head;
+                let mut counter = 0;
+                while counter < max_chain_len && announce_hash != start_announce_hash {
+                    let Some(announce) = db.announce(announce_hash) else {
+                        log::warn!(
+                            "Cannot complete request: announce {announce_hash} not found in database"
+                        );
+                        return InnerResponse::Announces(vec![]);
+                    };
+
+                    announce_hash = announce.parent;
+                    announces.push(announce);
+                    counter += 1;
+                }
+                InnerResponse::Announces(announces)
+            }
         }
     }
 
@@ -91,9 +136,9 @@ impl OngoingResponses {
 
         let response_id = self.next_response_id();
 
-        let db = self.db.clone();
+        let db = self.db.clone_boxed();
         self.db_readers.spawn_blocking(move || {
-            let response = Self::response_from_db(request, &db);
+            let response = Self::response_from_db(request, db);
             OngoingResponse {
                 response_id,
                 peer_id,

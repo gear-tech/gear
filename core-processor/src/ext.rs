@@ -1220,13 +1220,7 @@ impl<LP: LazyPagesInterface> Externalities for Ext<LP> {
     }
 
     fn size(&self) -> Result<usize, Self::UnrecoverableError> {
-        Ok(self
-            .context
-            .message_context
-            .current()
-            .payload()
-            .inner()
-            .len())
+        Ok(self.context.message_context.current().payload().len())
     }
 
     fn reserve_gas(
@@ -1920,7 +1914,7 @@ mod tests {
         let res = ext.reply_push(&[0]);
         assert!(res.is_ok());
 
-        let res = ext.reply_commit(ReplyPacket::new(Payload::filled_with(0), 0));
+        let res = ext.reply_commit(ReplyPacket::new(Payload::repeat(0), 0));
         assert_eq!(
             res.unwrap_err(),
             FallibleExtError::Core(FallibleExtErrorCore::Message(
