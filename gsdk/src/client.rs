@@ -28,6 +28,7 @@ use jsonrpsee::{
         traits::ToRpcParams,
     },
     http_client::{HttpClient, HttpClientBuilder},
+    server::PingConfig,
     types::SubscriptionId,
     ws_client::{WsClient, WsClientBuilder},
 };
@@ -72,6 +73,7 @@ impl RpcClient {
                     .max_request_size(ONE_HUNDRED_MEGA_BYTES)
                     .connection_timeout(Duration::from_millis(timeout))
                     .request_timeout(Duration::from_millis(timeout))
+                    .enable_ws_ping(PingConfig::new())
                     .build(uri)
                     .await
                     .map_err(Error::SubxtRpc)?,
