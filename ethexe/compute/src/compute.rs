@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{ComputeError, ProcessorExt, Result};
+use crate::{ComputeError, ProcessorExt, Result, service::SubService};
 use ethexe_common::{
     Announce, AnnounceHash,
     db::{
@@ -26,10 +26,9 @@ use ethexe_common::{
 };
 use ethexe_db::Database;
 use ethexe_processor::BlockProcessingResult;
-use futures::{Stream, future::BoxFuture};
+use futures::future::BoxFuture;
 use std::{
     collections::VecDeque,
-    pin::Pin,
     task::{Context, Poll},
 };
 
@@ -131,10 +130,10 @@ impl<P: ProcessorExt> ComputeSubService<P> {
     }
 }
 
-impl<P: ProcessorExt> Stream for ComputeSubService<P> {
-    type Item = Result<AnnounceHash>;
+impl<P: ProcessorExt> SubService for ComputeSubService<P> {
+    type Output = AnnounceHash;
 
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Self::Output>> {
         if self.computation.is_none()
             && let Some(announce) = self.input.pop_front()
         {
@@ -149,7 +148,7 @@ impl<P: ProcessorExt> Stream for ComputeSubService<P> {
             && let Poll::Ready(res) = computation.as_mut().poll(cx)
         {
             self.computation = None;
-            return Poll::Ready(Some(res));
+            return Poll::Ready(res);
         }
 
         Poll::Pending
@@ -161,7 +160,6 @@ mod tests {
     use super::*;
     use crate::tests::{MockProcessor, PROCESSOR_RESULT};
     use ethexe_common::{db::*, gear::StateTransition, mock::*};
-    use futures::StreamExt;
     use gprimitives::{ActorId, H256};
 
     #[tokio::test]
@@ -196,7 +194,7 @@ mod tests {
         PROCESSOR_RESULT.with_borrow_mut(|r| *r = non_empty_result.clone());
         service.receive_announce_to_compute(announce);
 
-        assert_eq!(service.next().await.unwrap().unwrap(), announce_hash);
+        assert_eq!(service.next().await.unwrap(), announce_hash);
 
         // Verify block was marked as computed
         assert!(db.announce_meta(announce_hash).computed);

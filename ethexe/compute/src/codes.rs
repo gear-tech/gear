@@ -16,15 +16,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{ComputeError, ProcessorExt, Result};
+use crate::{ComputeError, ProcessorExt, Result, service::SubService};
 use ethexe_common::{CodeAndIdUnchecked, db::CodesStorageRead};
 use ethexe_db::Database;
-use futures::Stream;
 use gprimitives::CodeId;
-use std::{
-    pin::Pin,
-    task::{Context, Poll},
-};
+use std::task::{Context, Poll};
 use tokio::task::JoinSet;
 
 pub struct CodesSubService<P: ProcessorExt> {
@@ -78,13 +74,13 @@ impl<P: ProcessorExt> CodesSubService<P> {
     }
 }
 
-impl<P: ProcessorExt> Stream for CodesSubService<P> {
-    type Item = Result<CodeId>;
+impl<P: ProcessorExt> SubService for CodesSubService<P> {
+    type Output = CodeId;
 
-    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Self::Output>> {
         futures::ready!(self.processions.poll_join_next(cx))
             .map(|res| res.map_err(ComputeError::CodeProcessJoin)?)
-            .map_or(Poll::Pending, |res| Poll::Ready(Some(res)))
+            .map_or(Poll::Pending, Poll::Ready)
     }
 }
 
@@ -93,7 +89,6 @@ mod tests {
     use super::*;
     use crate::tests::*;
     use ethexe_common::{CodeAndId, db::*};
-    use futures::StreamExt;
     use gear_core::code::{InstantiatedSectionSizes, InstrumentedCode};
 
     #[tokio::test]
@@ -105,10 +100,7 @@ mod tests {
         let code_and_id = CodeAndId::new(vec![1, 2, 3, 4]);
 
         service.receive_code_to_process(code_and_id.clone().into_unchecked());
-        assert_eq!(
-            service.next().await.unwrap().unwrap(),
-            code_and_id.code_id()
-        );
+        assert_eq!(service.next().await.unwrap(), code_and_id.code_id());
     }
 
     #[tokio::test]
@@ -130,12 +122,12 @@ mod tests {
             ),
         );
         service.receive_code_to_process(code_and_id.into_unchecked());
-        assert_eq!(service.next().await.unwrap().unwrap(), code_id);
+        assert_eq!(service.next().await.unwrap(), code_id);
 
         let code_and_id = CodeAndId::new(vec![100, 101, 102, 103]);
         let code_id = code_and_id.code_id();
         db.set_code_valid(code_id, false);
         service.receive_code_to_process(code_and_id.into_unchecked());
-        assert_eq!(service.next().await.unwrap().unwrap(), code_id);
+        assert_eq!(service.next().await.unwrap(), code_id);
     }
 }

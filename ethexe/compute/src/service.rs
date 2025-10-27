@@ -17,13 +17,13 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    ComputeError, ComputeEvent, ProcessorExt, Result, codes::CodesSubService,
-    compute::ComputeSubService, prepare::PrepareSubService,
+    ComputeEvent, ProcessorExt, Result, codes::CodesSubService, compute::ComputeSubService,
+    prepare::PrepareSubService,
 };
 use ethexe_common::{Announce, CodeAndIdUnchecked};
 use ethexe_db::Database;
 use ethexe_processor::Processor;
-use futures::{Stream, StreamExt, stream::FusedStream};
+use futures::{Stream, stream::FusedStream};
 use gprimitives::H256;
 use std::{
     pin::Pin,
@@ -80,7 +80,7 @@ impl<P: ProcessorExt> Stream for ComputeService<P> {
     type Item = Result<ComputeEvent>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        if let Poll::Ready(result) = self.codes_sub_service.poll_next_some(cx) {
+        if let Poll::Ready(result) = self.codes_sub_service.poll_next(cx) {
             match result {
                 Ok(code_id) => {
                     self.prepare_sub_service.receive_processed_code(code_id);
@@ -92,11 +92,11 @@ impl<P: ProcessorExt> Stream for ComputeService<P> {
             }
         };
 
-        if let Poll::Ready(result) = self.prepare_sub_service.poll_next_some(cx) {
+        if let Poll::Ready(result) = self.prepare_sub_service.poll_next(cx) {
             return Poll::Ready(Some(result.map(ComputeEvent::from)));
         };
 
-        if let Poll::Ready(result) = self.compute_sub_service.poll_next_some(cx) {
+        if let Poll::Ready(result) = self.compute_sub_service.poll_next(cx) {
             return Poll::Ready(Some(result.map(ComputeEvent::AnnounceComputed)));
         };
 
@@ -110,16 +110,14 @@ impl<P: ProcessorExt> FusedStream for ComputeService<P> {
     }
 }
 
-trait SubService<Output>: Stream<Item = Result<Output>> + Unpin + Send + 'static {
-    fn poll_next_some(&mut self, cx: &mut Context<'_>) -> Poll<Result<Output>> {
-        self.poll_next_unpin(cx)
-            .map(|e| e.ok_or(ComputeError::SubServiceClosed).flatten())
-    }
-}
+pub(crate) trait SubService: Unpin + Send + 'static {
+    type Output;
+    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Self::Output>>;
 
-impl<T, Output> SubService<Output> for T where
-    T: Stream<Item = Result<Output>> + Unpin + Send + 'static
-{
+    #[cfg(test)]
+    async fn next(&mut self) -> Result<Self::Output> {
+        futures::future::poll_fn(|cx| self.poll_next(cx)).await
+    }
 }
 
 #[cfg(test)]

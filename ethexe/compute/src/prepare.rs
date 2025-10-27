@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{ComputeError, ComputeEvent, Result};
+use crate::{ComputeError, ComputeEvent, Result, service::SubService};
 use ethexe_common::{
     BlockData,
     db::{
@@ -26,11 +26,9 @@ use ethexe_common::{
     events::{BlockEvent, RouterEvent},
 };
 use ethexe_db::Database;
-use futures::Stream;
 use gprimitives::{CodeId, H256};
 use std::{
     collections::{HashSet, VecDeque},
-    pin::Pin,
     task::{Context, Poll},
 };
 
@@ -95,17 +93,17 @@ impl PrepareSubService {
     }
 }
 
-impl Stream for PrepareSubService {
-    type Item = Result<Event>;
+impl SubService for PrepareSubService {
+    type Output = Event;
 
-    fn poll_next(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+    fn poll_next(&mut self, _cx: &mut Context<'_>) -> Poll<Result<Self::Output>> {
         if let State::WaitingForBlock = &self.state {
             let Some(mut block_hash) = self.input.pop_back() else {
                 return Poll::Pending;
             };
 
             if !self.db.block_synced(block_hash) {
-                return Poll::Ready(Some(Err(ComputeError::BlockNotSynced(block_hash))));
+                return Poll::Ready(Err(ComputeError::BlockNotSynced(block_hash)));
             }
 
             let mut not_processed_blocks_chain = VecDeque::new();
@@ -134,7 +132,7 @@ impl Stream for PrepareSubService {
 
             if not_processed_blocks_chain.is_empty() {
                 // Block is already prepared
-                return Poll::Ready(Some(Ok(Event::BlockPrepared(block_hash))));
+                return Poll::Ready(Ok(Event::BlockPrepared(block_hash)));
             }
 
             log::trace!("Collected a chain to prepare {not_processed_blocks_chain:?}");
@@ -150,7 +148,7 @@ impl Stream for PrepareSubService {
             };
 
             if !codes.is_empty() {
-                return Poll::Ready(Some(Ok(Event::RequestCodes(codes))));
+                return Poll::Ready(Ok(Event::RequestCodes(codes)));
             }
         }
 
@@ -173,7 +171,7 @@ impl Stream for PrepareSubService {
 
             self.state = State::WaitingForBlock;
 
-            return Poll::Ready(Some(Ok(Event::BlockPrepared(head))));
+            return Poll::Ready(Ok(Event::BlockPrepared(head)));
         }
 
         Poll::Pending
@@ -282,7 +280,6 @@ mod tests {
     use super::*;
     use ethexe_common::{AnnounceHash, Digest, events::BlockEvent, mock::*};
     use ethexe_db::Database;
-    use futures::StreamExt;
     use gprimitives::H256;
 
     #[test]
@@ -342,7 +339,7 @@ mod tests {
         service.receive_block_to_prepare(block.hash);
 
         assert_eq!(
-            service.next().await.unwrap().unwrap(),
+            service.next().await.unwrap(),
             Event::BlockPrepared(block.hash),
         );
     }
@@ -379,13 +376,13 @@ mod tests {
 
         service.receive_block_to_prepare(block.hash);
         assert_eq!(
-            service.next().await.unwrap().unwrap(),
+            service.next().await.unwrap(),
             Event::RequestCodes([code1_id, code2_id].into())
         );
 
         service.receive_processed_code(code1_id);
         assert_eq!(
-            service.next().await.unwrap().unwrap(),
+            service.next().await.unwrap(),
             Event::BlockPrepared(block.hash),
         );
     }
