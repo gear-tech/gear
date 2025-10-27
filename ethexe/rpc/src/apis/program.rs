@@ -37,7 +37,8 @@ use sp_core::Bytes;
 #[derive(Clone, Serialize, Deserialize)]
 pub struct FullProgramState {
     pub program: Program,
-    pub queue: Option<MessageQueue>,
+    pub canonical_queue: Option<MessageQueue>,
+    pub injected_queue: Option<MessageQueue>,
     pub waitlist: Option<Waitlist>,
     pub stash: Option<DispatchStash>,
     pub mailbox: Option<Mailbox>,
@@ -193,7 +194,8 @@ impl ProgramServer for ProgramApi {
     async fn read_full_state(&self, hash: H256) -> RpcResult<FullProgramState> {
         let Some(ProgramState {
             program,
-            queue,
+            canonical_queue,
+            injected_queue,
             waitlist_hash,
             stash_hash,
             mailbox_hash,
@@ -205,14 +207,16 @@ impl ProgramServer for ProgramApi {
             return Err(errors::db("Failed to read state by hash"));
         };
 
-        let queue = queue.query(&self.db).ok();
+        let canonical_queue = canonical_queue.query(&self.db).ok();
+        let injected_queue = injected_queue.query(&self.db).ok();
         let waitlist = waitlist_hash.query(&self.db).ok();
         let stash = stash_hash.query(&self.db).ok();
         let mailbox = mailbox_hash.query(&self.db).ok();
 
         Ok(FullProgramState {
             program,
-            queue,
+            canonical_queue,
+            injected_queue,
             waitlist,
             stash,
             mailbox,

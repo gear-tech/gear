@@ -19,9 +19,11 @@
 use super::{StateHandler, ValidatorContext, ValidatorState, submitter::Submitter};
 use crate::{BatchCommitmentValidationReply, ConsensusEvent, utils::MultisignedBatchCommitment};
 use anyhow::{Result, anyhow, ensure};
-use derive_more::{Debug, Display};
-use ethexe_common::{Address, consensus::BatchCommitmentValidationRequest, gear::BatchCommitment};
-use gsigner::secp256k1::Secp256k1SignerExt;
+use derive_more::Display;
+use ethexe_common::{
+    Address, consensus::BatchCommitmentValidationRequest, gear::BatchCommitment,
+    network::ValidatorMessage,
+};
 use nonempty::NonEmpty;
 use std::collections::BTreeSet;
 
@@ -100,22 +102,15 @@ impl Coordinator {
             return Submitter::create(ctx, multisigned_batch);
         }
 
-        use ethexe_common::ecdsa::SignedData as EthexeSignedData;
-        use parity_scale_codec::Encode;
+        let payload = BatchCommitmentValidationRequest::new(multisigned_batch.batch());
+        let message = ValidatorMessage {
+            block: multisigned_batch.batch().block_hash,
+            payload,
+        };
 
-        let validation_request_data =
-            BatchCommitmentValidationRequest::new(multisigned_batch.batch());
+        let validation_request = ctx.core.signer.signed_data(ctx.core.pub_key, message)?;
 
-        // Sign the encoded data
-        let gsigner_signature = ctx
-            .core
-            .signer
-            .sign_recoverable(ctx.core.pub_key, &validation_request_data.encode())?;
-        let validation_request =
-            EthexeSignedData::try_from_parts(validation_request_data, gsigner_signature)
-                .map_err(|e| anyhow::anyhow!("Failed to create SignedData: {}", e))?;
-
-        ctx.output(ConsensusEvent::PublishValidationRequest(validation_request));
+        ctx.output(ConsensusEvent::PublishMessage(validation_request.into()));
 
         Ok(Self {
             ctx,
@@ -144,10 +139,10 @@ mod tests {
 
         let coordinator = Coordinator::create(ctx, validators, batch).unwrap();
         assert!(coordinator.is_coordinator());
-        assert!(matches!(
-            coordinator.context().output[0],
-            ConsensusEvent::PublishValidationRequest(_)
-        ));
+        coordinator.context().output[0]
+            .clone()
+            .unwrap_publish_message()
+            .unwrap_request_batch_validation();
     }
 
     #[test]
@@ -211,10 +206,10 @@ mod tests {
 
         let mut coordinator = Coordinator::create(ctx, validators, batch).unwrap();
         assert!(coordinator.is_coordinator());
-        assert!(matches!(
-            coordinator.context().output[0],
-            ConsensusEvent::PublishValidationRequest(_)
-        ));
+        coordinator.context().output[0]
+            .clone()
+            .unwrap_publish_message()
+            .unwrap_request_batch_validation();
 
         coordinator = coordinator.process_validation_reply(reply1).unwrap();
         assert!(coordinator.is_coordinator());

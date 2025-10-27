@@ -16,15 +16,17 @@ import {IOptInService} from "symbiotic-core/src/interfaces/service/IOptInService
 import {INetworkMiddlewareService} from "symbiotic-core/src/interfaces/service/INetworkMiddlewareService.sol";
 import {IVetoSlasher} from "symbiotic-core/src/interfaces/slasher/IVetoSlasher.sol";
 import {IMigratableEntity} from "symbiotic-core/src/interfaces/common/IMigratableEntity.sol";
-import {IDefaultOperatorRewards} from
-    "symbiotic-rewards/src/interfaces/defaultOperatorRewards/IDefaultOperatorRewards.sol";
+import {
+    IDefaultOperatorRewards
+} from "symbiotic-rewards/src/interfaces/defaultOperatorRewards/IDefaultOperatorRewards.sol";
 import {IDefaultStakerRewards} from "symbiotic-rewards/src/interfaces/defaultStakerRewards/IDefaultStakerRewards.sol";
 
 import {MapWithTimeData} from "./libraries/MapWithTimeData.sol";
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
-import {ReentrancyGuardTransientUpgradeable} from
-    "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardTransientUpgradeable.sol";
+import {
+    ReentrancyGuardTransientUpgradeable
+} from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardTransientUpgradeable.sol";
 import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
 
 // TODO (asap): document all functions and variables
@@ -408,9 +410,8 @@ contract Middleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransient
                 }
 
                 address slasher = IVault(vaultData.vault).slasher();
-                IVetoSlasher(slasher).requestSlash(
-                    $.subnetwork, slashData.operator, vaultData.amount, slashData.ts, new bytes(0)
-                );
+                IVetoSlasher(slasher)
+                    .requestSlash($.subnetwork, slashData.operator, vaultData.amount, slashData.ts, new bytes(0));
             }
         }
     }

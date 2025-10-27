@@ -516,8 +516,10 @@ impl Program {
 pub struct ProgramState {
     /// Active, exited or terminated program state.
     pub program: Program,
-    /// Hash of incoming message queue with its cached size, see [`MessageQueueHashWithSize`].
-    pub queue: MessageQueueHashWithSize,
+    /// Hash of the incoming Ethereum message queue with its cached size. See [`MessageQueueHashWithSize`].
+    pub canonical_queue: MessageQueueHashWithSize,
+    /// Hash of the injected message queue with its cached size. See [`MessageQueueHashWithSize`].
+    pub injected_queue: MessageQueueHashWithSize,
     /// Hash of waiting messages list, see [`Waitlist`].
     pub waitlist_hash: MaybeHashOf<Waitlist>,
     /// Hash of dispatch stash, see [`DispatchStash`].
@@ -541,7 +543,11 @@ impl ProgramState {
                 memory_infix: MemoryInfix::new(0),
                 initialized: false,
             }),
-            queue: MessageQueueHashWithSize {
+            canonical_queue: MessageQueueHashWithSize {
+                hash: MaybeHashOf::empty(),
+                cached_queue_size: 0,
+            },
+            injected_queue: MessageQueueHashWithSize {
                 hash: MaybeHashOf::empty(),
                 cached_queue_size: 0,
             },
@@ -569,7 +575,9 @@ impl ProgramState {
             return false;
         }
 
-        self.queue.hash.is_empty() && self.waitlist_hash.is_empty()
+        self.canonical_queue.hash.is_empty()
+            && self.injected_queue.hash.is_empty()
+            && self.waitlist_hash.is_empty()
     }
 }
 

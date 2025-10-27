@@ -367,6 +367,7 @@ pub(crate) enum InnerResponse {
 
 type InnerBehaviour = request_response::Behaviour<ParityScaleCodec<InnerRequest, InnerResponse>>;
 
+#[auto_impl::auto_impl(&, Box)]
 pub trait DbSyncDatabase:
     Send
     + HashStorageRead
@@ -1391,7 +1392,8 @@ pub(crate) mod tests {
                 program_ids.clone(),
                 iter::repeat_with(H256::random).map(|hash| StateHashWithQueueSize {
                     hash,
-                    cached_queue_size: 0,
+                    canonical_queue_size: 0,
+                    injected_queue_size: 0,
                 }),
             )
             .collect(),

@@ -18,14 +18,15 @@
 
 //! Secp256k1 signature types and utilities.
 
+pub use k256::ecdsa::signature::Result as SignResult;
+
 use super::{Address, Digest, PrivateKey, PublicKey, ToDigest};
-use core::mem::size_of;
-use derive_more::{Debug, Display};
-use k256::ecdsa::{
-    self, RecoveryId, SigningKey, VerifyingKey,
-    signature::{Result as SignResult, hazmat::PrehashVerifier},
+use core::{
+    hash::{Hash, Hasher},
+    mem::size_of,
 };
-#[cfg(feature = "codec")]
+use derive_more::{Debug, Display};
+use k256::ecdsa::{self, RecoveryId, SigningKey, VerifyingKey, signature::hazmat::PrehashVerifier};
 use parity_scale_codec::{
     Decode, Encode, Error as CodecError, Input as CodecInput, Output as CodecOutput,
 };
@@ -129,7 +130,12 @@ impl Signature {
     }
 }
 
-#[cfg(feature = "codec")]
+impl Hash for Signature {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.into_pre_eip155_bytes().hash(state);
+    }
+}
+
 impl Decode for Signature {
     fn decode<I: CodecInput>(input: &mut I) -> Result<Self, CodecError> {
         let bytes = <SignatureBytes>::decode(input)?;
@@ -137,7 +143,6 @@ impl Decode for Signature {
     }
 }
 
-#[cfg(feature = "codec")]
 impl Encode for Signature {
     fn encode_to<T: CodecOutput + ?Sized>(&self, dest: &mut T) {
         dest.write(self.into_pre_eip155_bytes().as_slice());
@@ -150,13 +155,12 @@ impl Encode for Signature {
 
 /// A signed data structure, that contains the data and its signature.
 /// Always valid after construction.
-#[derive(Clone, PartialEq, Eq, Debug, Display)]
+#[derive(Clone, PartialEq, Eq, Debug, Display, parity_scale_codec::Encode)]
 #[display("SignedData({data}, {signature})")]
-#[cfg_attr(feature = "codec", derive(parity_scale_codec::Encode))]
 pub struct SignedData<T: Sized> {
     data: T,
     signature: Signature,
-    #[cfg_attr(feature = "codec", codec(skip))]
+    #[codec(skip)]
     public_key: PublicKey,
 }
 
@@ -167,6 +171,10 @@ impl<T: Sized> SignedData<T> {
 
     pub fn signature(&self) -> &Signature {
         &self.signature
+    }
+
+    pub fn into_data(self) -> T {
+        self.data
     }
 
     pub fn into_parts(self) -> (T, Signature) {
@@ -182,9 +190,15 @@ impl<T: Sized> SignedData<T> {
     pub fn address(&self) -> Address {
         self.public_key.to_address()
     }
+
+    pub fn into_verified(self) -> VerifiedData<T> {
+        VerifiedData {
+            data: self.data,
+            public_key: self.public_key,
+        }
+    }
 }
 
-#[cfg(feature = "codec")]
 impl<T: Sized + Decode> Decode for SignedData<T>
 where
     for<'a> Digest: From<&'a T>,
@@ -223,13 +237,43 @@ where
     }
 }
 
+/// A signature verified data structure, that contains the data and public key.
+#[derive(Clone, PartialEq, Eq, Debug, Display, Hash)]
+#[display("ValidatedData({data}, {public_key})")]
+pub struct VerifiedData<T> {
+    data: T,
+    public_key: PublicKey,
+}
+
+impl<T> VerifiedData<T> {
+    pub fn map<U>(self, f: impl FnOnce(T) -> U) -> VerifiedData<U> {
+        let Self { data, public_key } = self;
+        let data = f(data);
+        VerifiedData { data, public_key }
+    }
+
+    pub fn data(&self) -> &T {
+        &self.data
+    }
+
+    pub fn into_parts(self) -> (T, PublicKey) {
+        (self.data, self.public_key)
+    }
+
+    /// Returns the public key used to sign the data.
+    pub fn public_key(&self) -> PublicKey {
+        self.public_key
+    }
+
+    /// Returns the address of the public key used to sign the data.
+    pub fn address(&self) -> Address {
+        self.public_key.to_address()
+    }
+}
+
 /// A recoverable ECDSA signature for a contract-specific digest format (ERC-191).
 /// See also `contract_specific_digest` and explanation here: <https://eips.ethereum.org/EIPS/eip-191>
-#[derive(Debug, Clone, PartialEq, Eq)]
-#[cfg_attr(
-    feature = "codec",
-    derive(parity_scale_codec::Encode, parity_scale_codec::Decode)
-)]
+#[derive(Debug, Clone, Copy, Encode, Decode, PartialEq, Eq, Hash)]
 pub struct ContractSignature(Signature);
 
 impl ContractSignature {

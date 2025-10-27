@@ -20,12 +20,13 @@ use super::{
     DefaultProcessing, PendingEvent, StateHandler, ValidatorContext, ValidatorState,
     initial::Initial,
 };
-use crate::{
-    ConsensusEvent, SignedAnnounce, SignedValidationRequest, validator::participant::Participant,
-};
+use crate::{ConsensusEvent, validator::participant::Participant};
 use anyhow::Result;
 use derive_more::{Debug, Display};
-use ethexe_common::{Address, Announce, AnnounceHash, SimpleBlockData};
+use ethexe_common::{
+    Address, Announce, AnnounceHash, SimpleBlockData,
+    consensus::{VerifiedAnnounce, VerifiedValidationRequest},
+};
 use gprimitives::H256;
 use std::mem;
 
@@ -119,17 +120,17 @@ impl StateHandler for Subordinate {
         }
     }
 
-    fn process_announce(mut self, signed_announce: SignedAnnounce) -> Result<ValidatorState> {
+    fn process_announce(mut self, validated_announce: VerifiedAnnounce) -> Result<ValidatorState> {
         match &mut self.state {
             State::WaitingForAnnounceAndBlockPrepared {
                 block_prepared,
                 received_announce,
                 ..
             } if received_announce.is_none()
-                && signed_announce.address() == self.producer
-                && signed_announce.data().block_hash == self.block.hash =>
+                && validated_announce.address() == self.producer
+                && validated_announce.data().block_hash == self.block.hash =>
             {
-                let (announce, _sign) = signed_announce.into_parts();
+                let (announce, _pub_key) = validated_announce.into_parts();
                 let announce_hash = announce.to_hash();
 
                 if *block_prepared {
@@ -139,13 +140,13 @@ impl StateHandler for Subordinate {
 
                 Ok(self.into())
             }
-            _ => DefaultProcessing::block_from_producer(self, signed_announce),
+            _ => DefaultProcessing::block_from_producer(self, validated_announce),
         }
     }
 
     fn process_validation_request(
         mut self,
-        request: SignedValidationRequest,
+        request: VerifiedValidationRequest,
     ) -> Result<ValidatorState> {
         if request.address() == self.producer {
             log::trace!("Receive validation request from producer: {request:?}, saved for later.");
@@ -175,12 +176,12 @@ impl Subordinate {
         // 2) Malicious validator can send a lot of events (consider what to do).
         for event in mem::take(&mut ctx.pending_events) {
             match event {
-                PendingEvent::Announce(signed_pb)
+                PendingEvent::Announce(validated_pb)
                     if earlier_announce.is_none()
-                        && (signed_pb.data().block_hash == block.hash)
-                        && signed_pb.address() == producer =>
+                        && (validated_pb.data().block_hash == block.hash)
+                        && validated_pb.address() == producer =>
                 {
-                    earlier_announce = Some(signed_pb.into_parts().0);
+                    earlier_announce = Some(validated_pb.into_parts().0);
                 }
                 event if ctx.pending_events.len() < MAX_PENDING_EVENTS => {
                     // Events are sorted from newest to oldest,
@@ -212,7 +213,7 @@ impl Subordinate {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{SignedAnnounce, mock::*, validator::mock::*};
+    use crate::{mock::*, validator::mock::*};
     use ethexe_common::mock::*;
 
     #[test]
@@ -236,11 +237,11 @@ mod tests {
         let announce1 = ctx
             .core
             .signer
-            .mock_signed_data(producer, (block.hash, announce_hash));
+            .mock_verified_data(producer, (block.hash, announce_hash));
         let announce2 = ctx
             .core
             .signer
-            .mock_signed_data(keys[1], (block.hash, announce_hash));
+            .mock_verified_data(keys[1], (block.hash, announce_hash));
 
         ctx.pending(PendingEvent::Announce(announce1.clone()));
         ctx.pending(PendingEvent::Announce(announce2.clone()));
@@ -271,8 +272,8 @@ mod tests {
         let producer = keys[0];
         let alice = keys[1];
         let block = SimpleBlockData::mock(());
-        let request1 = ctx.core.signer.mock_signed_data(producer, ());
-        let request2 = ctx.core.signer.mock_signed_data(alice, ());
+        let request1 = ctx.core.signer.mock_verified_data(producer, ());
+        let request2 = ctx.core.signer.mock_verified_data(alice, ());
 
         ctx.pending(PendingEvent::ValidationRequest(request1.clone()));
         ctx.pending(PendingEvent::ValidationRequest(request2.clone()));
@@ -293,13 +294,13 @@ mod tests {
         let producer = keys[0];
         let alice = keys[1];
         let block = SimpleBlockData::mock(());
-        let announce: SignedAnnounce = ctx.core.signer.mock_signed_data(producer, block.hash);
+        let announce: VerifiedAnnounce = ctx.core.signer.mock_verified_data(producer, block.hash);
 
         ctx.pending(announce.clone());
 
         // Fill with fake blocks
         for _ in 0..10 * MAX_PENDING_EVENTS {
-            let announce = ctx.core.signer.mock_signed_data(alice, block.hash);
+            let announce = ctx.core.signer.mock_verified_data(alice, block.hash);
             ctx.pending(PendingEvent::Announce(announce));
         }
 
@@ -319,7 +320,7 @@ mod tests {
         let (ctx, pub_keys, _) = mock_validator_context();
         let producer = pub_keys[0];
         let block = SimpleBlockData::mock(());
-        let announce = ctx.core.signer.mock_signed_data(producer, block.hash);
+        let announce = ctx.core.signer.mock_verified_data(producer, block.hash);
 
         // Subordinate waits for block prepared and announce after creation.
         let s = Subordinate::create(ctx, block.clone(), producer.to_address(), true).unwrap();
@@ -349,7 +350,7 @@ mod tests {
         let (ctx, pub_keys, _) = mock_validator_context();
         let producer = pub_keys[0];
         let block = SimpleBlockData::mock(());
-        let announce = ctx.core.signer.mock_signed_data(producer, block.hash);
+        let announce = ctx.core.signer.mock_verified_data(producer, block.hash);
 
         // Subordinate waits for block prepared and announce after creation.
         let s = Subordinate::create(ctx, block.clone(), producer.to_address(), false).unwrap();
@@ -379,8 +380,8 @@ mod tests {
         let producer = keys[0];
         let alice = keys[1];
         let block = SimpleBlockData::mock(());
-        let announce1 = ctx.core.signer.mock_signed_data(producer, block.hash);
-        let announce2 = ctx.core.signer.mock_signed_data(alice, block.hash);
+        let announce1 = ctx.core.signer.mock_verified_data(producer, block.hash);
+        let announce2 = ctx.core.signer.mock_verified_data(alice, block.hash);
 
         ctx.pending(PendingEvent::Announce(announce1.clone()));
         ctx.pending(PendingEvent::Announce(announce2.clone()));
@@ -399,7 +400,7 @@ mod tests {
         let producer = keys[0];
         let alice = keys[1];
         let block = SimpleBlockData::mock(());
-        let invalid_announce = ctx.core.signer.mock_signed_data(alice, block.hash);
+        let invalid_announce = ctx.core.signer.mock_verified_data(alice, block.hash);
 
         let s = Subordinate::create(ctx, block.clone(), producer.to_address(), true)
             .unwrap()
