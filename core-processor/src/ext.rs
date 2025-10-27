@@ -319,20 +319,18 @@ impl<LP: LazyPagesInterface> MemoryStorer for MemoryDumper<LP> {
         let pages = LP::get_write_accessed_pages();
         let capacity = pages.len();
 
-        pages
-            .into_iter()
-            .map(|page| {
-                let mut data = PageBuf::new_zeroed();
-                memory.read(ctx, page.offset(), &mut data)?;
-                Ok(PageDump { page, data })
-            })
-            .try_fold(
-                MemoryDump::with_capacity(capacity)?,
-                |mut dump, page_dump| {
-                    dump.try_push(page_dump?)?;
-                    Ok(dump)
-                },
-            )
+        let mut dump =
+            MemoryDump::try_with_capacity(capacity).map_err(|_| MemoryError::AccessOutOfBounds)?;
+
+        for page in pages {
+            let mut data = PageBuf::new_zeroed();
+            memory.read(ctx, page.offset(), &mut data)?;
+            let page_dump = PageDump { page, data };
+            dump.try_push(page_dump)
+                .map_err(|_| MemoryError::AccessOutOfBounds)?;
+        }
+
+        Ok(dump)
     }
 
     fn revert_memory<Context>(

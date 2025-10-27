@@ -197,8 +197,8 @@ impl Default for PageDump {
     }
 }
 
-/// Memory dump vec
-pub type MemoryDump = LimitedVec<PageDump, MemoryError, { u32::MAX as usize }>;
+/// Memory dump for a program; number of stored pages is bounded by `u32::MAX`.
+pub type MemoryDump = LimitedVec<PageDump, { u32::MAX as usize }>;
 
 /// Host pointer type.
 /// Host pointer can be 64bit or less, to support both we use u64.

@@ -272,6 +272,8 @@ fn chain_execute(test_configs: Vec<TestConfig>, memory_dumper: &mut impl MemoryS
         |_| CustomConstantCostRules::new(0, 0, 0),
         None,
         None,
+        None,
+        None,
     )
     .expect("Failed to create Code");
 
