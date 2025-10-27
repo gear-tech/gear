@@ -18,7 +18,7 @@
 
 use crate::iterator::{DatabaseIterator, DatabaseIteratorError, DatabaseIteratorStorage, Node};
 use ethexe_common::{
-    Announce, AnnounceHash, BlockHeader, ProgramStates, Schedule, ScheduledTask,
+    Announce, BlockHeader, HashOf, ProgramStates, Schedule, ScheduledTask,
     db::{AnnounceMeta, BlockMeta},
     events::BlockEvent,
     gear::StateTransition,

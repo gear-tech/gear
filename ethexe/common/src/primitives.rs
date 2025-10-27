@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{DEFAULT_BLOCK_GAS_LIMIT, ToDigest, events::BlockEvent};
+use crate::{DEFAULT_BLOCK_GAS_LIMIT, HashOf, ToDigest, events::BlockEvent};
 use alloc::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
     vec::Vec,
@@ -27,37 +27,6 @@ use parity_scale_codec::{Decode, Encode};
 use sha3::Digest as _;
 
 pub type ProgramStates = BTreeMap<ActorId, StateHashWithQueueSize>;
-
-// TODO #4875: use HashOf here
-#[derive(
-    Debug,
-    Clone,
-    Copy,
-    Default,
-    PartialEq,
-    Eq,
-    PartialOrd,
-    Ord,
-    Hash,
-    Encode,
-    Decode,
-    derive_more::Deref,
-    derive_more::DerefMut,
-    derive_more::Display,
-)]
-#[display("{}", self.0)]
-pub struct AnnounceHash(pub H256);
-
-impl AnnounceHash {
-    pub const fn zero() -> Self {
-        Self(H256::zero())
-    }
-
-    #[cfg(feature = "std")]
-    pub fn random() -> Self {
-        Self(H256::random())
-    }
-}
 
 #[derive(Debug, Clone, Copy, Default, Encode, Decode, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
@@ -105,17 +74,18 @@ pub struct SimpleBlockData {
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, Hash)]
 pub struct Announce {
     pub block_hash: H256,
-    pub parent: AnnounceHash,
+    pub parent: HashOf<Self>,
     pub gas_allowance: Option<u64>,
     pub off_chain_transactions: Vec<H256>,
 }
 
 impl Announce {
-    pub fn to_hash(&self) -> AnnounceHash {
-        AnnounceHash(H256(utils::hash(&self.encode())))
+    pub fn to_hash(&self) -> HashOf<Self> {
+        // # Safety because of implementation
+        unsafe { HashOf::new(H256(utils::hash(&self.encode()))) }
     }
 
-    pub fn base(block_hash: H256, parent: AnnounceHash) -> Self {
+    pub fn base(block_hash: H256, parent: HashOf<Self>) -> Self {
         Self {
             block_hash,
             parent,
@@ -124,7 +94,7 @@ impl Announce {
         }
     }
 
-    pub fn with_default_gas(block_hash: H256, parent: AnnounceHash) -> Self {
+    pub fn with_default_gas(block_hash: H256, parent: HashOf<Self>) -> Self {
         Self {
             block_hash,
             parent,
@@ -150,14 +120,16 @@ impl ToDigest for Announce {
 #[cfg_attr(feature = "std", derive(serde::Serialize))]
 pub struct StateHashWithQueueSize {
     pub hash: H256,
-    pub cached_queue_size: u8,
+    pub canonical_queue_size: u8,
+    pub injected_queue_size: u8,
 }
 
 impl StateHashWithQueueSize {
     pub fn zero() -> Self {
         Self {
             hash: H256::zero(),
-            cached_queue_size: 0,
+            canonical_queue_size: 0,
+            injected_queue_size: 0,
         }
     }
 }

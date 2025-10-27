@@ -17,25 +17,84 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    Announce, AnnounceHash,
-    consensus::{BatchCommitmentValidationReply, SignedAnnounce, SignedValidationRequest},
+    Address, Announce, HashOf,
+    consensus::{BatchCommitmentValidationReply, BatchCommitmentValidationRequest},
+    crypto::ToDigest,
+    ecdsa::{SignedData, VerifiedData},
 };
 use alloc::vec::Vec;
-use core::num::NonZeroU32;
+use core::{hash::Hash, num::NonZeroU32};
+use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
+use sha3::{Digest as _, Keccak256};
 
-#[derive(Debug, Clone, Encode, Decode, derive_more::From, Eq, PartialEq)]
-pub enum NetworkMessage {
-    ProducerBlock(SignedAnnounce),
-    RequestBatchValidation(SignedValidationRequest),
-    ApproveBatch(BatchCommitmentValidationReply),
+pub type ValidatorAnnounce = ValidatorMessage<Announce>;
+pub type ValidatorRequest = ValidatorMessage<BatchCommitmentValidationRequest>;
+pub type ValidatorReply = ValidatorMessage<BatchCommitmentValidationReply>;
+
+#[derive(Debug, Clone, Encode, Decode, Eq, PartialEq, Hash)]
+pub struct ValidatorMessage<T> {
+    pub block: H256,
+    pub payload: T,
+}
+
+impl<T: ToDigest> ToDigest for ValidatorMessage<T> {
+    fn update_hasher(&self, hasher: &mut Keccak256) {
+        let Self { block, payload } = self;
+        hasher.update(block.0);
+        payload.update_hasher(hasher);
+    }
+}
+
+#[derive(Debug, Clone, Encode, Decode, Eq, PartialEq, derive_more::Unwrap, derive_more::From)]
+pub enum SignedValidatorMessage {
+    ProducerBlock(SignedData<ValidatorAnnounce>),
+    RequestBatchValidation(SignedData<ValidatorRequest>),
+    ApproveBatch(SignedData<ValidatorReply>),
+}
+
+impl SignedValidatorMessage {
+    pub fn into_verified(self) -> VerifiedValidatorMessage {
+        match self {
+            SignedValidatorMessage::ProducerBlock(announce) => announce.into_verified().into(),
+            SignedValidatorMessage::RequestBatchValidation(request) => {
+                request.into_verified().into()
+            }
+            SignedValidatorMessage::ApproveBatch(reply) => reply.into_verified().into(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Hash, derive_more::Unwrap, derive_more::From)]
+pub enum VerifiedValidatorMessage {
+    ProducerBlock(VerifiedData<ValidatorAnnounce>),
+    RequestBatchValidation(VerifiedData<ValidatorRequest>),
+    ApproveBatch(VerifiedData<ValidatorReply>),
+}
+
+impl VerifiedValidatorMessage {
+    pub fn block(&self) -> H256 {
+        match self {
+            VerifiedValidatorMessage::ProducerBlock(announce) => announce.data().block,
+            VerifiedValidatorMessage::RequestBatchValidation(request) => request.data().block,
+            VerifiedValidatorMessage::ApproveBatch(reply) => reply.data().block,
+        }
+    }
+
+    pub fn address(&self) -> Address {
+        match self {
+            VerifiedValidatorMessage::ProducerBlock(announce) => announce.address(),
+            VerifiedValidatorMessage::RequestBatchValidation(request) => request.address(),
+            VerifiedValidatorMessage::ApproveBatch(reply) => reply.address(),
+        }
+    }
 }
 
 /// Until condition for announces request (see [`AnnouncesRequest`]).
 #[derive(PartialEq, Eq, Hash, Debug, Clone, Copy, Encode, Decode)]
 pub enum AnnouncesRequestUntil {
     /// Request until a specific tail announce hash
-    Tail(AnnounceHash),
+    Tail(HashOf<Announce>),
     /// Request until a specific chain length
     ChainLen(NonZeroU32),
 }
@@ -46,7 +105,7 @@ pub enum AnnouncesRequestUntil {
 #[derive(PartialEq, Eq, Hash, Debug, Clone, Copy, Encode, Decode)]
 pub struct AnnouncesRequest {
     /// Hash of the requested chain head announce
-    pub head: AnnounceHash,
+    pub head: HashOf<Announce>,
     /// Request until this condition is met
     pub until: AnnouncesRequestUntil,
 }
@@ -76,13 +135,13 @@ pub enum AnnouncesResponseError {
     Empty,
     #[display("announces head mismatch, expected hash {expected}, received {received}")]
     HeadMismatch {
-        expected: AnnounceHash,
-        received: AnnounceHash,
+        expected: HashOf<Announce>,
+        received: HashOf<Announce>,
     },
     #[display("announces tail mismatch, expected hash {expected}, received {received}")]
     TailMismatch {
-        expected: AnnounceHash,
-        received: AnnounceHash,
+        expected: HashOf<Announce>,
+        received: HashOf<Announce>,
     },
     #[display("announces len expected {expected}, received {received}")]
     LenMismatch { expected: usize, received: usize },
@@ -163,7 +222,7 @@ mod tests {
     fn make_chain(len: usize) -> Vec<Announce> {
         assert!(len > 0);
         let mut chain = Vec::with_capacity(len);
-        let mut parent = AnnounceHash::zero();
+        let mut parent = HashOf::zero();
 
         for idx in 0..len {
             let announce = Announce::base(H256([idx as u8 + 1; 32]), parent);
@@ -219,7 +278,7 @@ mod tests {
     #[test]
     fn try_into_checked_rejects_empty_response() {
         let request = AnnouncesRequest {
-            head: AnnounceHash::zero(),
+            head: HashOf::zero(),
             until: AnnouncesRequestUntil::ChainLen(1.try_into().unwrap()),
         };
 
@@ -239,7 +298,7 @@ mod tests {
     fn try_into_checked_rejects_head_mismatch() {
         let announces = make_chain(2);
         let actual_head = announces.last().unwrap().to_hash();
-        let wrong_head = AnnounceHash::zero();
+        let wrong_head = HashOf::zero();
         let tail_hash = announces.first().unwrap().to_hash();
 
         let response = AnnouncesResponse { announces };
@@ -265,7 +324,7 @@ mod tests {
         let announces = make_chain(3);
         let actual_tail = announces.first().unwrap().to_hash();
         let head_hash = announces.last().unwrap().to_hash();
-        let wrong_tail = AnnounceHash::zero();
+        let wrong_tail = HashOf::zero();
 
         let err = AnnouncesResponse {
             announces: announces.clone(),
@@ -309,7 +368,7 @@ mod tests {
     #[test]
     fn try_into_checked_rejects_non_linked_chain() {
         let mut announces = make_chain(3);
-        announces[1].parent = AnnounceHash::zero();
+        announces[1].parent = HashOf::zero();
         let head_hash = announces.last().unwrap().to_hash();
         let tail_hash = announces.first().unwrap().to_hash();
 

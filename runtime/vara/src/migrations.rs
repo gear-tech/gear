@@ -16,13 +16,23 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use crate::Runtime;
+
 /// All migrations that will run on the next runtime upgrade for dev chain.
 #[cfg(feature = "dev")]
-pub type Migrations = (pallet_gear_eth_bridge::migrations::reset::ResetMigration<crate::Runtime>,);
+pub type Migrations = (
+    pallet_gear_eth_bridge::migrations::reset::ResetMigration<Runtime>,
+    // migrate to v3 of the Gear Scheduler with removal of program pause tasks
+    pallet_gear_scheduler::migrations::v3_remove_program_pause_tasks::MigrateRemoveProgramPauseTasks<Runtime>,
+);
 
 /// All migrations that will run on the next runtime upgrade for prod chain.
 #[cfg(not(feature = "dev"))]
-pub type Migrations = (LockEdForBuiltin<crate::GearEthBridgeBuiltinAddress>,);
+pub type Migrations = (
+	LockEdForBuiltin<crate::GearEthBridgeBuiltinAddress>,
+	// migrate to v3 of the Gear Scheduler with removal of program pause tasks
+    pallet_gear_scheduler::migrations::v3_remove_program_pause_tasks::MigrateRemoveProgramPauseTasks<Runtime>,
+);
 
 /// This migration is used to top up the ED for the builtin actor from the treasury,
 /// applying a lock under EXISTENTIAL_DEPOSIT_LOCK_ID, similar to programs.
@@ -33,7 +43,6 @@ impl<A: sp_core::Get<crate::AccountId>> frame_support::traits::OnRuntimeUpgrade
     for LockEdForBuiltin<A>
 {
     fn on_runtime_upgrade() -> frame_support::weights::Weight {
-        use crate::Runtime;
         use frame_support::{
             traits::{
                 Currency, ExistenceRequirement, InspectLockableCurrency, LockableCurrency,

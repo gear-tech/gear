@@ -25,11 +25,11 @@ use crate::{
 };
 use anyhow::{Result, anyhow};
 use ethexe_common::{
-    AnnouncesRequest, AnnouncesRequestUntil, AnnouncesResponse,
     db::{
         AnnounceStorageRead, BlockMetaStorageRead, HashStorageRead, LatestData,
         LatestDataStorageRead,
     },
+    network::{AnnouncesRequest, AnnouncesRequestUntil, AnnouncesResponse},
 };
 use libp2p::request_response;
 use std::{
@@ -225,22 +225,22 @@ impl OngoingResponses {
 mod tests {
     use super::*;
     use ethexe_common::{
-        Announce, AnnounceHash,
+        Announce, HashOf,
         db::{AnnounceStorageWrite, LatestDataStorageWrite},
     };
     use ethexe_db::Database;
     use gprimitives::H256;
     use std::num::NonZeroU32;
 
-    fn make_announce(block: u64, parent: AnnounceHash) -> Announce {
+    fn make_announce(block: u64, parent: HashOf<Announce>) -> Announce {
         Announce::base(H256::from_low_u64_be(block), parent)
     }
 
-    fn set_latest_data(db: &Database, genesis: AnnounceHash, start: AnnounceHash) {
+    fn set_latest_data(db: &Database, genesis: HashOf<Announce>, start: HashOf<Announce>) {
         db.set_latest_data(LatestData {
             synced_block_height: 0,
             prepared_block_hash: H256::zero(),
-            computed_announce_hash: AnnounceHash::zero(),
+            computed_announce_hash: HashOf::zero(),
             genesis_block_hash: H256::zero(),
             genesis_announce_hash: genesis,
             start_block_hash: H256::zero(),
@@ -251,11 +251,11 @@ mod tests {
     #[test]
     fn fails_chain_len_exceeding_max() {
         let db = Database::memory();
-        set_latest_data(&db, AnnounceHash::zero(), AnnounceHash::zero());
+        set_latest_data(&db, HashOf::zero(), HashOf::zero());
 
         let len = MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE.checked_add(1).unwrap();
         let request = AnnouncesRequest {
-            head: AnnounceHash::zero(),
+            head: HashOf::zero(),
             until: AnnouncesRequestUntil::ChainLen(len),
         };
 
@@ -266,8 +266,8 @@ mod tests {
     fn fails_latest_data_missing() {
         let db = Database::memory();
         let request = AnnouncesRequest {
-            head: AnnounceHash::zero(),
-            until: AnnouncesRequestUntil::Tail(AnnounceHash::zero()),
+            head: HashOf::zero(),
+            until: AnnouncesRequestUntil::Tail(HashOf::zero()),
         };
 
         OngoingResponses::process_announce_request(&db, request).unwrap_err();
@@ -275,13 +275,13 @@ mod tests {
 
     #[test]
     fn fails_announce_missing() {
-        let head = AnnounceHash(H256::from_low_u64_be(1));
+        let head = HashOf::random();
         let db = Database::memory();
-        set_latest_data(&db, AnnounceHash::zero(), AnnounceHash::zero());
+        set_latest_data(&db, HashOf::zero(), HashOf::zero());
 
         let request = AnnouncesRequest {
             head,
-            until: AnnouncesRequestUntil::Tail(AnnounceHash::zero()),
+            until: AnnouncesRequestUntil::Tail(HashOf::zero()),
         };
 
         OngoingResponses::process_announce_request(&db, request).unwrap_err();
@@ -291,7 +291,7 @@ mod tests {
     fn fails_when_reaching_genesis() {
         let db = Database::memory();
 
-        let genesis_announce = make_announce(10, AnnounceHash(H256::from_low_u64_be(99)));
+        let genesis_announce = make_announce(10, HashOf::random());
         let genesis = db.set_announce(genesis_announce);
         let middle = make_announce(11, genesis);
         let middle_hash = db.set_announce(middle.clone());
@@ -302,7 +302,7 @@ mod tests {
 
         let request = AnnouncesRequest {
             head: head_hash,
-            until: AnnouncesRequestUntil::Tail(AnnounceHash(H256::from_low_u64_be(123))),
+            until: AnnouncesRequestUntil::Tail(HashOf::random()),
         };
 
         OngoingResponses::process_announce_request(&db, request).unwrap_err();
@@ -311,10 +311,9 @@ mod tests {
     #[test]
     fn fails_reaching_start_non_genesis() {
         let db = Database::memory();
-
-        let start_announce = make_announce(10, AnnounceHash(H256::from_low_u64_be(99)));
+        let start_announce = make_announce(10, HashOf::random());
         let start = db.set_announce(start_announce);
-        let genesis = AnnounceHash(H256::from_low_u64_be(1));
+        let genesis = HashOf::random();
 
         set_latest_data(&db, genesis, start);
 
@@ -323,7 +322,7 @@ mod tests {
 
         let request = AnnouncesRequest {
             head: head_hash,
-            until: AnnouncesRequestUntil::Tail(AnnounceHash(H256::from_low_u64_be(123))),
+            until: AnnouncesRequestUntil::Tail(HashOf::random()),
         };
 
         OngoingResponses::process_announce_request(&db, request).unwrap_err();
@@ -333,7 +332,7 @@ mod tests {
     fn fails_reaching_max_chain_length() {
         let db = Database::memory();
 
-        let mut parent = AnnounceHash(H256::from_low_u64_be(1));
+        let mut parent = HashOf::random();
         let mut head_hash = parent;
         let mut chain_hashes = Vec::new();
 
@@ -345,9 +344,9 @@ mod tests {
             head_hash = hash;
         }
 
-        let start = AnnounceHash(H256::from_low_u64_be(2));
-        let genesis = AnnounceHash(H256::from_low_u64_be(3));
-        let tail = AnnounceHash(H256::from_low_u64_be(4));
+        let start = HashOf::random();
+        let genesis = HashOf::random();
+        let tail = HashOf::random();
 
         assert!(!chain_hashes.contains(&start));
         assert!(!chain_hashes.contains(&genesis));
@@ -367,13 +366,13 @@ mod tests {
     fn returns_announces_until_tail() {
         let db = Database::memory();
 
-        let tail = make_announce(10, AnnounceHash(H256::from_low_u64_be(99)));
+        let tail = make_announce(10, HashOf::random());
         let tail_hash = db.set_announce(tail.clone());
         let head = make_announce(11, tail_hash);
         let head_hash = db.set_announce(head.clone());
 
-        let genesis = AnnounceHash(H256::from_low_u64_be(1));
-        let start = AnnounceHash(H256::from_low_u64_be(2));
+        let genesis = HashOf::random();
+        let start = HashOf::random();
         set_latest_data(&db, genesis, start);
 
         let request = AnnouncesRequest {
@@ -390,15 +389,15 @@ mod tests {
     fn returns_announces_until_chain_len() {
         let db = Database::memory();
 
-        let tail = make_announce(10, AnnounceHash(H256::from_low_u64_be(99)));
+        let tail = make_announce(10, HashOf::random());
         let tail_hash = db.set_announce(tail.clone());
         let middle = make_announce(11, tail_hash);
         let middle_hash = db.set_announce(middle.clone());
         let head = make_announce(12, middle_hash);
         let head_hash = db.set_announce(head.clone());
 
-        let genesis = AnnounceHash(H256::from_low_u64_be(1));
-        let start = AnnounceHash(H256::from_low_u64_be(2));
+        let genesis = HashOf::random();
+        let start = HashOf::random();
         set_latest_data(&db, genesis, start);
 
         let length = NonZeroU32::new(2).unwrap();

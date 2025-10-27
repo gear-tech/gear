@@ -62,7 +62,7 @@ impl StateHandler for Initial {
                     .ctx
                     .core
                     .db
-                    .validators(block_hash)
+                    .block_validators(block_hash)
                     .ok_or(anyhow!("validators not found for block({block_hash})"))?;
                 let producer = utils::block_producer_for(
                     &validators,

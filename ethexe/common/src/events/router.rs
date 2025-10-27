@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{AnnounceHash, Digest};
+use crate::{Announce, Digest, HashOf};
 use gprimitives::{ActorId, CodeId, H256};
 use parity_scale_codec::{Decode, Encode};
 
@@ -25,7 +25,7 @@ pub enum Event {
     BatchCommitted {
         digest: Digest,
     },
-    AnnouncesCommitted(AnnounceHash),
+    AnnouncesCommitted(HashOf<Announce>),
     CodeGotValidated {
         code_id: CodeId,
         valid: bool,
