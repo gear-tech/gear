@@ -20,13 +20,11 @@
 //!
 //! Simple "connect-node" consensus service implementation.
 
-use crate::{
-    BatchCommitmentValidationReply, ConsensusEvent, ConsensusService, SignedAnnounce,
-    SignedValidationRequest, utils,
-};
+use crate::{BatchCommitmentValidationReply, ConsensusEvent, ConsensusService, utils};
 use anyhow::{Result, anyhow};
 use ethexe_common::{
     Address, AnnounceHash, SimpleBlockData,
+    consensus::{VerifiedAnnounce, VerifiedValidationRequest},
     db::{AnnounceStorageWrite, BlockMetaStorageWrite, OnChainStorageRead},
 };
 use ethexe_db::Database;
@@ -71,7 +69,7 @@ pub struct SimpleConnectService {
     slot_duration: Duration,
 
     state: State,
-    pending_announces: VecDeque<SignedAnnounce>,
+    pending_announces: VecDeque<VerifiedAnnounce>,
     output: VecDeque<ConsensusEvent>,
 }
 
@@ -102,7 +100,7 @@ impl ConsensusService for SimpleConnectService {
         if let State::WaitingForSyncedBlock { block } = &self.state
             && block.hash == block_hash
         {
-            let validators = self.db.validators(block_hash).ok_or(anyhow!(
+            let validators = self.db.block_validators(block_hash).ok_or(anyhow!(
                 "validators not found for synced block({block_hash})"
             ))?;
             let producer = utils::block_producer_for(
@@ -150,7 +148,7 @@ impl ConsensusService for SimpleConnectService {
         Ok(())
     }
 
-    fn receive_announce(&mut self, announce: SignedAnnounce) -> Result<()> {
+    fn receive_announce(&mut self, announce: VerifiedAnnounce) -> Result<()> {
         debug_assert!(
             self.pending_announces.len() <= MAX_PENDING_ANNOUNCES,
             "Logically impossible to have more than {MAX_PENDING_ANNOUNCES} pending announces because oldest ones are dropped"
@@ -186,7 +184,7 @@ impl ConsensusService for SimpleConnectService {
         Ok(())
     }
 
-    fn receive_validation_request(&mut self, _signed_batch: SignedValidationRequest) -> Result<()> {
+    fn receive_validation_request(&mut self, _batch: VerifiedValidationRequest) -> Result<()> {
         Ok(())
     }
 

@@ -21,11 +21,12 @@ use crate::{
 };
 use anyhow::Result;
 use core::ops::{Deref, DerefMut};
+use jsonrpsee::ws_client::WsClientBuilder;
 use subxt::OnlineClient;
 
-const DEFAULT_GEAR_ENDPOINT: &str = "wss://rpc.vara.network:443";
-const DEFAULT_TIMEOUT_MILLISECS: u64 = 60_000;
-const DEFAULT_RETRIES: u8 = 0;
+pub const DEFAULT_GEAR_ENDPOINT: &str = "wss://rpc.vara.network:443";
+pub const DEFAULT_TIMEOUT_MILLISECS: u64 = 60_000;
+pub const DEFAULT_RETRIES: u8 = 0;
 
 /// Gear api wrapper.
 #[derive(Clone)]
@@ -143,6 +144,20 @@ impl ApiBuilder {
             self.retries,
         )
         .await?;
+
+        Ok(Api {
+            client: OnlineClient::from_rpc_client(rpc.client()).await?,
+            rpc,
+        })
+    }
+
+    /// Build api with a custom WebSocket client.
+    pub async fn build_ws_custom(
+        self,
+        uri: &str,
+        init: impl FnOnce(WsClientBuilder) -> WsClientBuilder,
+    ) -> Result<Api> {
+        let rpc = Rpc::new_ws_custom(uri, self.timeout, self.retries, init).await?;
 
         Ok(Api {
             client: OnlineClient::from_rpc_client(rpc.client()).await?,

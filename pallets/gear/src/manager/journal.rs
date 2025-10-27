@@ -163,9 +163,7 @@ where
 
         Self::clean_waitlist(id_exited);
 
-        ProgramStorageOf::<T>::update_program_if_active(id_exited, |p, bn| {
-            let _ = TaskPoolOf::<T>::delete(bn, ScheduledTask::PauseProgram(id_exited));
-
+        ProgramStorageOf::<T>::update_program_if_active(id_exited, |p, _bn| {
             match p {
                 Program::Active(program) => {
                     Self::clean_inactive_program(id_exited, program, value_destination)

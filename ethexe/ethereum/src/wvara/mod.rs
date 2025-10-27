@@ -28,8 +28,6 @@ use anyhow::Result;
 use ethexe_common::Address as LocalAddress;
 use gprimitives::{H256, U256};
 
-pub mod events;
-
 type Instance = IWrappedVara::IWrappedVaraInstance<AlloyProvider>;
 type QueryInstance = IWrappedVara::IWrappedVaraInstance<RootProvider>;
 
