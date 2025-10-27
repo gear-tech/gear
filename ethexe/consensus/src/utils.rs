@@ -23,7 +23,7 @@
 
 use anyhow::{Result, anyhow};
 use ethexe_common::{
-    Address, AnnounceHash, Digest, SimpleBlockData, ToDigest, ValidatorsVec,
+    Address, Announce, Digest, HashOf, SimpleBlockData, ToDigest, ValidatorsVec,
     consensus::BatchCommitmentValidationReply,
     db::{AnnounceStorageRO, BlockMetaStorageRO, CodesStorageRO, OnChainStorageRO},
     ecdsa::{ContractSignature, PublicKey},
@@ -153,7 +153,7 @@ pub fn aggregate_code_commitments<DB: CodesStorageRO>(
 
 pub fn aggregate_chain_commitment<DB: BlockMetaStorageRO + OnChainStorageRO + AnnounceStorageRO>(
     db: &DB,
-    head_announce: AnnounceHash,
+    head_announce: HashOf<Announce>,
     fail_if_not_computed: bool,
     max_deepness: Option<u32>,
 ) -> Result<Option<(ChainCommitment, u32)>> {

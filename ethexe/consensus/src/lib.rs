@@ -32,7 +32,7 @@
 //! - `utils`: Utility functions and shared data structures
 
 use anyhow::Result;
-use ethexe_common::{Announce, AnnounceHash, SimpleBlockData};
+use ethexe_common::{Announce, HashOf, SimpleBlockData};
 use futures::{Stream, stream::FusedStream};
 use gprimitives::H256;
 
@@ -67,7 +67,7 @@ pub trait ConsensusService:
     fn receive_prepared_block(&mut self, block: H256) -> Result<()>;
 
     /// Process a computed block received
-    fn receive_computed_announce(&mut self, announce: AnnounceHash) -> Result<()>;
+    fn receive_computed_announce(&mut self, announce: HashOf<Announce>) -> Result<()>;
 
     /// Process a received producer block
     fn receive_announce(&mut self, block: VerifiedAnnounce) -> Result<()>;

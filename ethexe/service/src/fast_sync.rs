@@ -20,7 +20,7 @@ use crate::Service;
 use alloy::{eips::BlockId, providers::Provider};
 use anyhow::{Context, Result};
 use ethexe_common::{
-    Address, Announce, AnnounceHash, BlockData, CodeAndIdUnchecked, Digest, ProgramStates,
+    Address, Announce, BlockData, CodeAndIdUnchecked, Digest, HashOf, ProgramStates,
     StateHashWithQueueSize,
     db::{
         AnnounceStorageRO, BlockMetaStorageRO, CodesStorageRO, CodesStorageRW, FullAnnounceData,
@@ -57,7 +57,7 @@ struct EventData {
     /// Latest committed since latest prepared block batch
     latest_committed_batch: Digest,
     /// Latest committed on the chain and not computed announce hash
-    latest_committed_announce: AnnounceHash,
+    latest_committed_announce: HashOf<Announce>,
 }
 
 impl EventData {
@@ -87,7 +87,7 @@ impl EventData {
         db: &Database,
         highest_block: H256,
     ) -> Result<Option<Self>> {
-        let mut latest_committed: Option<(Digest, Option<AnnounceHash>)> = None;
+        let mut latest_committed: Option<(Digest, Option<HashOf<Announce>>)> = None;
 
         let mut block = highest_block;
         'prepared: while !db.block_meta(block).prepared {
@@ -180,7 +180,7 @@ async fn collect_program_code_ids(
 async fn collect_announce(
     network: &mut NetworkService,
     db: &Database,
-    announce_hash: AnnounceHash,
+    announce_hash: HashOf<Announce>,
 ) -> Result<Announce> {
     if let Some(announce) = db.announce(announce_hash) {
         return Ok(announce);

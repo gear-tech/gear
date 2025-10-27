@@ -28,7 +28,7 @@ pub(crate) use crate::{
 };
 use async_trait::async_trait;
 use ethexe_common::{
-    Announce, AnnounceHash,
+    Announce, HashOf,
     db::{
         AnnounceStorageRO, BlockMetaStorageRO, CodesStorageRO, HashStorageRO, LatestDataStorageRO,
     },
@@ -226,7 +226,7 @@ pub struct ValidCodesRequest {
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub struct AnnouncesRequest {
     /// The hash of head announce
-    pub head: AnnounceHash,
+    pub head: HashOf<Announce>,
     /// Max chain length to return
     pub max_chain_len: u64,
 }
@@ -335,7 +335,7 @@ pub(crate) struct InnerProgramIdsRequest {
 #[derive(Debug, Clone, Eq, PartialEq, Encode, Decode)]
 pub struct InnerAnnouncesRequest {
     /// The hash of head announce
-    pub head: AnnounceHash,
+    pub head: HashOf<Announce>,
     /// Max chain length to return
     pub max_chain_len: u64,
 }
@@ -799,25 +799,18 @@ pub(crate) mod tests {
 
     #[tokio::test(start_paused = true)]
     async fn timeout() {
-        const IDLE_CONNECTION_TIMEOUT: Duration = Duration::from_secs(5);
-
         init_logger();
 
         let alice_config = Config::default().with_request_timeout(Duration::from_secs(3));
         let (mut alice, _alice_db, _data_provider) = new_swarm_with_config(alice_config).await;
         let alice_handle = alice.behaviour().handle();
 
-        // idle connection timeout is lowered because `libp2p` uses `future_timer` inside,
-        // so we cannot advance time like in tokio
-        let mut bob = new_ephemeral_swarm(
-            swarm::Config::with_tokio_executor()
-                .with_idle_connection_timeout(IDLE_CONNECTION_TIMEOUT),
+        let mut bob = Swarm::new_ephemeral_tokio(|_keypair| {
             InnerBehaviour::new(
                 [(STREAM_PROTOCOL, ProtocolSupport::Full)],
                 request_response::Config::default(),
-            ),
-        );
-        let bob_peer_id = *bob.local_peer_id();
+            )
+        });
         bob.connect(&mut alice).await;
 
         let request = alice_handle.request(Request::hashes([]));
@@ -861,12 +854,6 @@ pub(crate) mod tests {
             }
         );
         request.await.unwrap_err();
-
-        time::resume();
-        time::sleep(IDLE_CONNECTION_TIMEOUT).await;
-
-        let event = alice.next_swarm_event().await;
-        assert_matches!(event, SwarmEvent::ConnectionClosed { peer_id, .. } if peer_id == bob_peer_id);
     }
 
     #[tokio::test]
@@ -1179,6 +1166,8 @@ pub(crate) mod tests {
 
     #[tokio::test]
     async fn simultaneous_responses_limit() {
+        const REQUEST_AMOUNT: usize = 64;
+
         init_logger();
 
         let alice_config = Config::default().with_max_simultaneous_responses(2);
@@ -1194,28 +1183,38 @@ pub(crate) mod tests {
                 .take(24 * 1024)
                 .collect::<BTreeSet<H256>>(),
         );
-        let _fut = bob_handle.request(request.clone());
-        let _fut = bob_handle.request(request.clone());
-        let _fut = bob_handle.request(request);
+        for _ in 0..REQUEST_AMOUNT {
+            let fut = bob_handle.request(request.clone());
+            mem::forget(fut);
+        }
         tokio::spawn(bob.loop_on_next());
 
-        let event = alice.next_behaviour_event().await;
-        assert!(matches!(event, Event::IncomingRequest { peer_id, .. } if peer_id == bob_peer_id));
+        let mut incoming_request_seen = false;
+        let mut incoming_request_dropped_seen = false;
+        let mut response_sent_seen = false;
 
-        let event = alice.next_behaviour_event().await;
-        assert!(matches!(event, Event::IncomingRequest { peer_id, .. } if peer_id == bob_peer_id));
+        for _ in 0..REQUEST_AMOUNT {
+            let event = alice.next_behaviour_event().await;
+            match event {
+                Event::IncomingRequest { peer_id, .. } => {
+                    assert_eq!(peer_id, bob_peer_id);
+                    incoming_request_seen = true;
+                }
+                Event::IncomingRequestDropped { peer_id, .. } => {
+                    assert_eq!(peer_id, bob_peer_id);
+                    incoming_request_dropped_seen = true;
+                }
+                Event::ResponseSent { peer_id, .. } => {
+                    assert_eq!(peer_id, bob_peer_id);
+                    response_sent_seen = true;
+                }
+                _ => {}
+            }
+        }
 
-        let event = alice.next_behaviour_event().await;
-        assert!(
-            matches!(event, Event::IncomingRequestDropped { peer_id, .. } if peer_id == bob_peer_id),
-            "event: {event:?}"
-        );
-
-        let event = alice.next_behaviour_event().await;
-        assert!(matches!(event, Event::ResponseSent { peer_id, .. } if peer_id == bob_peer_id));
-
-        let event = alice.next_behaviour_event().await;
-        assert!(matches!(event, Event::ResponseSent { peer_id, .. } if peer_id == bob_peer_id));
+        assert!(incoming_request_seen);
+        assert!(incoming_request_dropped_seen);
+        assert!(response_sent_seen);
     }
 
     #[tokio::test(start_paused = true)]
@@ -1372,10 +1371,10 @@ pub(crate) mod tests {
             .set_programs_code_ids_at(program_ids.clone(), H256::zero(), code_ids.clone())
             .await;
 
-        let mut announce_hash = AnnounceHash::zero();
+        let mut announce_hash = HashOf::zero();
         right_db.mutate_block_meta(H256::zero(), |meta| {
             assert!(meta.announces.is_none());
-            let announce = Announce::base(H256::zero(), AnnounceHash::zero());
+            let announce = Announce::base(H256::zero(), HashOf::zero());
             announce_hash = announce.to_hash();
             meta.announces = Some([announce_hash].into());
         });

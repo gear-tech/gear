@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use ethexe_common::{
-    Announce, AnnounceHash, BlockHeader, ProgramStates, Schedule, ScheduledTask,
+    Announce, BlockHeader, HashOf, MaybeHashOf, ProgramStates, Schedule, ScheduledTask,
     StateHashWithQueueSize,
     db::{
         AnnounceMeta, AnnounceStorageRO, BlockMeta, BlockMetaStorageRO, CodesStorageRO,
@@ -27,9 +27,9 @@ use ethexe_common::{
     gear::StateTransition,
 };
 use ethexe_runtime_common::state::{
-    ActiveProgram, Allocations, DispatchStash, Expiring, HashOf, Mailbox, MaybeHashOf, MemoryPages,
-    MemoryPagesRegion, MessageQueue, MessageQueueHashWithSize, PayloadLookup, Program,
-    ProgramState, Storage, UserMailbox, Waitlist,
+    ActiveProgram, Allocations, DispatchStash, Expiring, Mailbox, MemoryPages, MemoryPagesRegion,
+    MessageQueue, MessageQueueHashWithSize, PayloadLookup, Program, ProgramState, Storage,
+    UserMailbox, Waitlist,
 };
 use gear_core::{
     buffer::Payload,
@@ -179,14 +179,14 @@ node! {
         Announce(
             #[derive(Debug, Clone, Eq, PartialEq, Hash)]
             pub struct AnnounceNode {
-                pub announce_hash: AnnounceHash,
+                pub announce_hash: HashOf<Announce>,
                 pub announce: Announce,
             }
         ),
         AnnounceMeta(
             #[derive(Debug, Clone, Eq, PartialEq, Hash)]
             pub struct AnnounceMetaNode {
-                pub announce_hash: AnnounceHash,
+                pub announce_hash: HashOf<Announce>,
                 pub announce_meta: AnnounceMeta,
             }
         ),
@@ -232,7 +232,7 @@ node! {
         AnnounceProgramStates(
             #[derive(Debug, Clone, Eq, PartialEq, Hash)]
             pub struct AnnounceProgramStatesNode {
-                pub announce_hash: AnnounceHash,
+                pub announce_hash: HashOf<Announce>,
                 pub announce_program_states: ProgramStates,
             }
         ),
@@ -245,14 +245,14 @@ node! {
         AnnounceSchedule(
             #[derive(Debug, Clone, Eq, PartialEq, Hash)]
             pub struct AnnounceScheduleNode {
-                pub announce_hash: AnnounceHash,
+                pub announce_hash: HashOf<Announce>,
                 pub announce_schedule: Schedule,
             }
         ),
         AnnounceScheduleTasks(
             #[derive(Debug, Clone, Eq, PartialEq, Hash)]
             pub struct AnnounceScheduleTasksNode {
-                pub announce_hash: AnnounceHash,
+                pub announce_hash: HashOf<Announce>,
                 pub height: u32,
                 pub tasks: BTreeSet<ScheduledTask>,
             }
@@ -266,7 +266,7 @@ node! {
         AnnounceOutcome(
             #[derive(Debug, Clone, Eq, PartialEq, Hash)]
             pub struct AnnounceOutcomeNode {
-                pub announce_hash: AnnounceHash,
+                pub announce_hash: HashOf<Announce>,
                 pub announce_outcome: Vec<StateTransition>,
             }
         ),
@@ -374,10 +374,10 @@ pub enum DatabaseIteratorError {
     NoBlockAnnounces(H256),
     NoBlockCodesQueue(H256),
 
-    NoAnnounce(AnnounceHash),
-    NoAnnounceSchedule(AnnounceHash),
-    NoAnnounceOutcome(AnnounceHash),
-    NoAnnounceProgramStates(AnnounceHash),
+    NoAnnounce(HashOf<Announce>),
+    NoAnnounceSchedule(HashOf<Announce>),
+    NoAnnounceOutcome(HashOf<Announce>),
+    NoAnnounceProgramStates(HashOf<Announce>),
 
     /* memory */
     NoMemoryPages(HashOf<MemoryPages>),
@@ -931,7 +931,7 @@ pub(crate) mod tests {
 
     #[test]
     fn walk_announce_program_states() {
-        let announce_hash = AnnounceHash::random();
+        let announce_hash = HashOf::random();
         let program_id = ActorId::from([3u8; 32]);
         let state_hash = H256::random();
 
@@ -991,7 +991,7 @@ pub(crate) mod tests {
 
     #[test]
     fn walk_block_schedule_tasks() {
-        let announce_hash = AnnounceHash::random();
+        let announce_hash = HashOf::random();
         let program_id = ActorId::from([10u8; 32]);
 
         let mut tasks = BTreeSet::new();
@@ -1019,7 +1019,7 @@ pub(crate) mod tests {
 
     #[test]
     fn walk_announce_schedule() {
-        let announce_hash = AnnounceHash::random();
+        let announce_hash = HashOf::random();
         let program_id = ActorId::from([14u8; 32]);
 
         let mut announce_schedule = BTreeMap::new();
@@ -1043,7 +1043,7 @@ pub(crate) mod tests {
 
     #[test]
     fn walk_announce_outcome() {
-        let announce_hash = AnnounceHash::random();
+        let announce_hash = HashOf::random();
         let actor_id = ActorId::from([15u8; 32]);
         let new_state_hash = H256::random();
 

@@ -54,7 +54,7 @@ use crate::{
 use anyhow::{Result, anyhow};
 use derive_more::{Debug, From};
 use ethexe_common::{
-    AnnounceHash, SimpleBlockData,
+    Announce, HashOf, SimpleBlockData,
     consensus::{VerifiedAnnounce, VerifiedValidationRequest},
     db::OnChainStorageRO,
     ecdsa::PublicKey,
@@ -197,7 +197,7 @@ impl ConsensusService for ValidatorService {
         self.update_inner(|inner| inner.process_prepared_block(block))
     }
 
-    fn receive_computed_announce(&mut self, announce: AnnounceHash) -> Result<()> {
+    fn receive_computed_announce(&mut self, announce: HashOf<Announce>) -> Result<()> {
         self.update_inner(|inner| inner.process_computed_announce(announce))
     }
 
@@ -287,7 +287,7 @@ where
         DefaultProcessing::prepared_block(self.into(), block)
     }
 
-    fn process_computed_announce(self, announce: AnnounceHash) -> Result<ValidatorState> {
+    fn process_computed_announce(self, announce: HashOf<Announce>) -> Result<ValidatorState> {
         DefaultProcessing::computed_announce(self.into(), announce)
     }
 
@@ -373,7 +373,7 @@ impl StateHandler for ValidatorState {
         delegate_call!(self => process_prepared_block(block))
     }
 
-    fn process_computed_announce(self, announce: AnnounceHash) -> Result<ValidatorState> {
+    fn process_computed_announce(self, announce: HashOf<Announce>) -> Result<ValidatorState> {
         delegate_call!(self => process_computed_announce(announce))
     }
 
@@ -421,7 +421,7 @@ impl DefaultProcessing {
 
     fn computed_announce(
         s: impl Into<ValidatorState>,
-        announce_hash: AnnounceHash,
+        announce_hash: HashOf<Announce>,
     ) -> Result<ValidatorState> {
         let mut s = s.into();
         s.warning(format!("unexpected computed block: {announce_hash}"));
