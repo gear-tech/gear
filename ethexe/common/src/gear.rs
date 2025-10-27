@@ -367,8 +367,32 @@ impl ToDigest for StateTransition {
         hasher.update([*exited as u8]);
         hasher.update(inheritor.to_address_lossy());
         hasher.update(value_to_receive.to_be_bytes());
-        hasher.update(value_claims.to_digest());
-        hasher.update(messages.to_digest());
+
+        // Match router's hashing strategy: keccak256 of concatenated value-claim bytes.
+        let value_claims_hash: [u8; 32] = if value_claims.is_empty() {
+            sha3::Keccak256::digest([]).into()
+        } else {
+            let mut bytes = Vec::new();
+            for claim in value_claims {
+                bytes.extend_from_slice(claim.message_id.into_bytes().as_ref());
+                bytes.extend_from_slice(claim.destination.to_address_lossy().as_ref());
+                bytes.extend_from_slice(&claim.value.to_be_bytes());
+            }
+            sha3::Keccak256::digest(&bytes).into()
+        };
+        hasher.update(value_claims_hash);
+
+        // Messages hash mirrors Gear.sol implementation: keccak256 of concatenated message hashes.
+        let messages_hash: [u8; 32] = if messages.is_empty() {
+            sha3::Keccak256::digest([]).into()
+        } else {
+            let mut message_hashes = Vec::with_capacity(messages.len() * 32);
+            for message in messages {
+                message_hashes.extend_from_slice(message.to_digest().as_ref());
+            }
+            sha3::Keccak256::digest(&message_hashes).into()
+        };
+        hasher.update(messages_hash);
     }
 }
 

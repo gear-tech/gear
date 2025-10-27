@@ -10,7 +10,7 @@ repository.workspace = true
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-gsigner = { workspace = true, features = ["std", "secp256k1"] }
+gsigner = { workspace = true, features = ["std", "secp256k1", "codec"] }
 ethexe-db.workspace = true
 ethexe-service-utils.workspace = true
 ethexe-common.workspace = true

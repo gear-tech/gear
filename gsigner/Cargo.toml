@@ -17,60 +17,36 @@ path = "src/bin/gsigner.rs"
 required-features = ["cli"]
 
 [dependencies]
-anyhow = { workspace = true, default-features = false, features = [
-    "std",
-], optional = true }
-thiserror = { workspace = true }
-derive_more = { workspace = true }
-hex = { workspace = true, default-features = false, features = ["alloc"] }
-serde = { workspace = true, features = ["derive", "alloc"], optional = true }
-serde_json = { workspace = true, features = ["std"], optional = true }
+alloy-primitives = { workspace = true, optional = true }
+anyhow = { workspace = true, default-features = false, features = ["std"], optional = true }
 base64 = { workspace = true, optional = true }
-tempfile = { workspace = true, optional = true }
-tracing = { workspace = true, default-features = false, features = [
-    "std",
-], optional = true }
+clap = { workspace = true, features = ["derive"], optional = true }
+colored = { workspace = true, optional = true }
+derive_more = { workspace = true }
+gprimitives = { workspace = true, optional = true }
+hex = { workspace = true, default-features = false, features = ["alloc"] }
+k256 = { version = "0.13.4", default-features = false, features = ["ecdsa"], optional = true }
+nacl = { workspace = true, optional = true }
 parity-scale-codec = { workspace = true, default-features = false, features = [
     "derive",
 ], optional = true }
-gprimitives = { workspace = true, optional = true }
-alloy-primitives = { workspace = true, optional = true }
-sp-core = { workspace = true, features = [
-    "std",
-    "full_crypto",
-], optional = true }
+rand = { workspace = true, default-features = false, features = ["std", "std_rng"], optional = true }
+schnorrkel = { workspace = true, optional = true }
+serde = { workspace = true, features = ["derive", "alloc"], optional = true }
+serde_json = { workspace = true, features = ["std"], optional = true }
+sha3 = { version = "0.10", default-features = false, optional = true }
+sp-core = { workspace = true, features = ["std", "full_crypto"], optional = true }
 sp-runtime = { workspace = true, features = ["std"], optional = true }
-
-# Security
+tempfile = { workspace = true, optional = true }
+thiserror = { workspace = true }
+tracing = { workspace = true, default-features = false, features = ["std"], optional = true }
+tracing-subscriber = { workspace = true, optional = true }
 zeroize = { version = "1.8", features = ["zeroize_derive"] }
 
-# Secp256k1 (Ethereum) dependencies
-k256 = { version = "0.13.4", features = [
-    "ecdsa",
-], default-features = false, optional = true }
-sha3 = { version = "0.10", default-features = false, optional = true }
-
-# Sr25519 (Substrate) dependencies
-schnorrkel = { workspace = true, optional = true }
-nacl = { workspace = true, optional = true }
-blake2 = { workspace = true, features = ["std"], optional = true }
-bs58 = { workspace = true, features = ["std"], optional = true }
-rand = { workspace = true, default-features = false, features = [
-    "std",
-    "std_rng",
-], optional = true }
-
-# CLI dependencies
-clap = { workspace = true, features = ["derive"], optional = true }
-colored = { workspace = true, optional = true }
-dirs = { workspace = true, optional = true }
-tracing-subscriber = { workspace = true, optional = true }
-
 [dev-dependencies]
-alloy = { workspace = true, features = ["k256"] }
 
 [features]
-default = ["std", "secp256k1", "sr25519"]
+default = ["std", "secp256k1", "sr25519", "codec"]
 std = [
     "dep:anyhow",
     "dep:serde_json",
@@ -83,15 +59,13 @@ sr25519 = [
     "std",
     "schnorrkel",
     "nacl",
-    "blake2",
-    "bs58",
     "sp-core",
     "sp-runtime",
     "dep:base64",
     "dep:rand",
     "serde",
 ]
-cli = ["std", "clap", "colored", "dirs", "tracing-subscriber"]
+cli = ["std", "clap", "colored", "tracing-subscriber"]
 codec = ["dep:parity-scale-codec"]
 keyring = ["std", "sr25519"]
 serde = ["dep:serde"]

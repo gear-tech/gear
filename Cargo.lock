@@ -300,7 +300,6 @@ checksum = "804cefe429015b4244966c006d25bda5545fa9db5990e9c9079faf255052f50a"
 dependencies = [
  "alloy-primitives",
  "alloy-rlp",
- "k256",
  "serde",
  "thiserror 2.0.12",
 ]
@@ -4769,7 +4768,6 @@ dependencies = [
 name = "ethexe-common"
 version = "1.9.2"
 dependencies = [
- "alloy-primitives",
  "anyhow",
  "auto_impl",
  "derive_more 2.0.1",
@@ -7136,16 +7134,12 @@ dependencies = [
 name = "gsigner"
 version = "1.9.2"
 dependencies = [
- "alloy",
  "alloy-primitives",
  "anyhow",
  "base64 0.21.7",
- "blake2 0.10.6",
- "bs58 0.5.1",
  "clap 4.5.23",
  "colored",
  "derive_more 2.0.1",
- "dirs",
  "gprimitives",
  "hex",
  "k256",

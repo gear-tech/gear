@@ -8,7 +8,6 @@ homepage.workspace = true
 repository.workspace = true
 
 [dependencies]
-alloy-primitives.workspace = true
 gear-core.workspace = true
 gprimitives.workspace = true
 parity-scale-codec.workspace = true
@@ -38,6 +37,5 @@ std = [
     "parity-scale-codec/std",
     "sha3/std",
     "k256/std",
-    "alloy-primitives/std",
 ]
 mock = ["std", "itertools/use_std", "tap"]

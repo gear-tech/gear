@@ -9,7 +9,7 @@ repository.workspace = true
 
 [dependencies]
 ethexe-common = { workspace = true, features = ["std"] }
-gsigner = { workspace = true, features = ["std", "secp256k1"] }
+gsigner = { workspace = true, features = ["std", "secp256k1", "codec"] }
 ethexe-ethereum = { workspace = true }
 ethexe-db.workspace = true
 gprimitives = { workspace = true, features = ["std"] }

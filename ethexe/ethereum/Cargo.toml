@@ -8,7 +8,7 @@ homepage.workspace = true
 repository.workspace = true
 
 [dependencies]
-gsigner = { workspace = true, features = ["std", "secp256k1"] }
+gsigner = { workspace = true, features = ["std", "secp256k1", "codec"] }
 ethexe-common.workspace = true
 gear-core.workspace = true
 gear-core-errors.workspace = true
