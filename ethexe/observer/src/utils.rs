@@ -30,11 +30,7 @@ use alloy::{
     },
 };
 use anyhow::{Context, Result};
-use ethexe_common::{
-    Address, BlockData, BlockHeader,
-    db::{OnChainStorageRead, OnChainStorageWrite},
-    events::BlockEvent,
-};
+use ethexe_common::{Address, BlockData, BlockHeader, events::BlockEvent};
 use ethexe_ethereum::{mirror, router, wvara};
 use futures::future;
 use gprimitives::H256;
@@ -67,14 +63,6 @@ impl EthereumBlockLoader {
             provider,
             router_address,
             wvara_address,
-        }
-    }
-
-    pub fn lazy<DB>(self, db: DB) -> LazyBlockLoader<Self, DB> {
-        LazyBlockLoader {
-            db,
-            provider: self.provider.clone(),
-            inner: self,
         }
     }
 
@@ -249,84 +237,5 @@ impl BlockLoader for EthereumBlockLoader {
             .flatten()
             .map(|data| (data.hash, data))
             .collect())
-    }
-}
-
-#[derive(Debug, Clone)]
-pub struct LazyBlockLoader<T, DB> {
-    inner: T,
-    db: DB,
-    provider: RootProvider,
-}
-
-impl<T, DB> BlockLoader for LazyBlockLoader<T, DB>
-where
-    T: BlockLoader,
-    DB: OnChainStorageRead + OnChainStorageWrite,
-{
-    async fn load(&self, block: H256, header: Option<BlockHeader>) -> Result<BlockData> {
-        let data = match (self.db.block_header(block), self.db.block_events(block)) {
-            (Some(header), Some(events)) => BlockData {
-                hash: block,
-                header,
-                events,
-            },
-            (Some(_), None) | (None, Some(_)) => unreachable!("inconsistent database state"),
-            (None, None) => {
-                let data = self.inner.load(block, header).await?;
-                self.db.set_block_header(data.hash, data.header);
-                self.db.set_block_events(data.hash, &data.events);
-                data
-            }
-        };
-        Ok(data)
-    }
-
-    async fn load_many(&self, range: RangeInclusive<u64>) -> Result<HashMap<H256, BlockData>> {
-        let end_block = self
-            .provider
-            .get_block_by_number((*range.end()).into())
-            .await?
-            .with_context(|| format!("block #{} not found", range.end()))?;
-        let end_block = H256(end_block.header.hash.0);
-
-        let mut blocks = HashMap::new();
-        let mut block = end_block;
-        let mut missing_end_block = None;
-        for bn in range.clone().rev() {
-            let header = self.db.block_header(block);
-            let events = self.db.block_events(block);
-            let data = match (header, events) {
-                (Some(header), Some(events)) => BlockData {
-                    hash: block,
-                    header,
-                    events,
-                },
-                (Some(_), None) | (None, Some(_)) => unreachable!("inconsistent database state"),
-                (None, None) => {
-                    missing_end_block = Some(bn);
-                    break;
-                }
-            };
-            debug_assert_eq!(bn, data.header.height as u64);
-
-            block = data.header.parent_hash;
-            blocks.insert(block, data);
-        }
-
-        if let Some(missing_end_block) = missing_end_block {
-            let range = *range.start()..=missing_end_block;
-            let missing_blocks = self.inner.load_many(range).await?;
-
-            for (block, data) in &missing_blocks {
-                debug_assert_eq!(*block, data.hash);
-                self.db.set_block_header(data.hash, data.header);
-                self.db.set_block_events(data.hash, &data.events);
-            }
-
-            blocks.extend(missing_blocks);
-        }
-
-        Ok(blocks)
     }
 }
