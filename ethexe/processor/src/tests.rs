@@ -702,7 +702,7 @@ async fn injected_ping_pong() {
 
     let genesis = init_genesis_block(&mut processor);
     let block = init_new_block_from_parent(&mut processor, genesis);
-    let block_announce = Announce::with_default_gas(block, AnnounceHash::zero());
+    let block_announce = Announce::with_default_gas(block, Default::default());
 
     let user_1 = ActorId::from(10);
     let user_2 = ActorId::from(20);
@@ -783,4 +783,94 @@ async fn injected_ping_pong() {
     let message = &to_users[2].1;
     assert_eq!(message.destination, user_1);
     assert_eq!(message.payload, b"PONG");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn injected_prioritized_over_canonical() {
+    const MSG_NUM: u64 = 100;
+    const GAS_ALLOWANCE_FOR_HUNDRED_PING_MESSAGES: u64 = 4358998 * (MSG_NUM - 1) + 15916961;
+
+    init_logger();
+
+    let mut processor = Processor::new(Database::memory()).unwrap();
+
+    let genesis = init_genesis_block(&mut processor);
+    let block = init_new_block_from_parent(&mut processor, genesis);
+    let mut block_announce = Announce::with_default_gas(block, Default::default());
+    block_announce.gas_allowance = Some(GAS_ALLOWANCE_FOR_HUNDRED_PING_MESSAGES);
+
+    let canonical_user = ActorId::from(10);
+    let injected_user = ActorId::from(20);
+    let actor_id = ActorId::from(0x10000);
+
+    let code_id = processor
+        .handle_new_code(demo_ping::WASM_BINARY)
+        .expect("failed to call runtime api")
+        .expect("code failed verification or instrumentation");
+
+    let mut handler = processor.handler(block_announce).unwrap();
+
+    handler
+        .handle_router_event(RouterRequestEvent::ProgramCreated { actor_id, code_id })
+        .expect("failed to create new program");
+
+    handler
+        .handle_mirror_event(
+            actor_id,
+            MirrorRequestEvent::ExecutableBalanceTopUpRequested {
+                value: 10_000_000_000,
+            },
+        )
+        .expect("failed to top up balance");
+
+    handle_injected_message(
+        &mut handler,
+        actor_id,
+        MessageId::from(1),
+        injected_user,
+        b"INIT".to_vec(),
+        0,
+        false,
+    )
+    .expect("failed to send message");
+
+    handler
+        .handle_mirror_event(
+            actor_id,
+            MirrorRequestEvent::MessageQueueingRequested {
+                id: MessageId::from(2),
+                source: canonical_user,
+                payload: b"PING".to_vec(),
+                value: 0,
+                call_reply: false,
+            },
+        )
+        .expect("failed to send message");
+
+    for i in 0..MSG_NUM {
+        handle_injected_message(
+            &mut handler,
+            actor_id,
+            MessageId::from(3 + i),
+            injected_user,
+            b"PING".to_vec(),
+            0,
+            false,
+        )
+        .expect("failed to send message");
+    }
+
+    processor.process_queue(&mut handler).await;
+
+    let to_users = handler.transitions.current_messages();
+    assert_eq!(to_users.len(), MSG_NUM as usize);
+
+    // Verify that canonical message was not processed
+    for (idx, (_, message)) in to_users.into_iter().enumerate() {
+        assert_eq!(message.destination, injected_user);
+        // Skip first message which is INIT reply
+        if idx != 0 {
+            assert_eq!(message.payload, b"PONG");
+        }
+    }
 }
