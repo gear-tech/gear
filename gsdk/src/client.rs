@@ -106,7 +106,7 @@ impl RpcClient {
         builder
             .build(uri)
             .await
-            .map(|c| Self::Ws(c))
+            .map(Self::Ws)
             .map_err(Error::SubxtRpc)
     }
 }
