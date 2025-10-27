@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-     Announce, HashOf, SimpleBlockData,  ProtocolTimelines,  ValidatorsVec,
+    Announce, HashOf, ProtocolTimelines, SimpleBlockData, ValidatorsVec,
     db::{
         AnnounceStorageRW, BlockMeta, BlockMetaStorageRW, FullAnnounceData, FullBlockData,
         LatestData, LatestDataStorageRW, OnChainStorageRW,
