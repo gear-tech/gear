@@ -23,7 +23,7 @@ use crate::{ConsensusEvent, utils, validator::DefaultProcessing};
 use anyhow::{Result, anyhow};
 use derive_more::{Debug, Display};
 use ethexe_common::{
-    Address, Announce, AnnounceHash, SimpleBlockData,
+    Address, Announce, HashOf, SimpleBlockData,
     db::{AnnounceStorageWrite, BlockMetaStorageRead, BlockMetaStorageWrite},
     gear::BatchCommitment,
     network::ValidatorMessage,
@@ -32,7 +32,9 @@ use ethexe_service_utils::Timer;
 use futures::{FutureExt, future::BoxFuture};
 use gprimitives::H256;
 use nonempty::NonEmpty;
-use std::task::{Context, Poll};
+use std::{
+    task::{Context, Poll},
+};
 
 /// [`Producer`] is the state of the validator, which creates a new block
 /// and publish it to the network. It waits for the block to be computed
@@ -53,7 +55,7 @@ enum State {
         codes_timer: Option<Timer>,
         block_prepared: bool,
     },
-    WaitingAnnounceComputed(AnnounceHash),
+    WaitingAnnounceComputed(HashOf<Announce>),
     AggregateBatchCommitment {
         #[debug(skip)]
         future: BoxFuture<'static, Result<Option<BatchCommitment>>>,
@@ -110,7 +112,10 @@ impl StateHandler for Producer {
         }
     }
 
-    fn process_computed_announce(mut self, announce_hash: AnnounceHash) -> Result<ValidatorState> {
+    fn process_computed_announce(
+        mut self,
+        announce_hash: HashOf<Announce>,
+    ) -> Result<ValidatorState> {
         match &self.state {
             State::WaitingAnnounceComputed(expected) if *expected == announce_hash => {
                 self.state = State::AggregateBatchCommitment {
@@ -254,7 +259,7 @@ mod tests {
         validator::{PendingEvent, mock::*},
     };
     use async_trait::async_trait;
-    use ethexe_common::{AnnounceHash, Digest, ToDigest, db::*, gear::CodeCommitment, mock::*};
+    use ethexe_common::{Digest, HashOf, ToDigest, db::*, gear::CodeCommitment, mock::*};
     use nonempty::nonempty;
 
     #[tokio::test]
@@ -289,7 +294,7 @@ mod tests {
         // Set parent announce
         ctx.core.db.mutate_block_meta(parent, |meta| {
             meta.prepared = true;
-            meta.announces = Some([AnnounceHash::random()].into());
+            meta.announces = Some([HashOf::random()].into());
         });
 
         let (state, announce_hash) = Producer::create(ctx, block.clone(), validators)
@@ -405,7 +410,7 @@ mod tests {
 
         ctx.core.db.mutate_block_meta(parent, |meta| {
             meta.prepared = true;
-            meta.announces = Some([AnnounceHash::random()].into());
+            meta.announces = Some([HashOf::random()].into());
         });
 
         let code1 = CodeCommitment::mock(());
@@ -417,7 +422,7 @@ mod tests {
         });
         ctx.core.db.mutate_block_meta(block.hash, |meta| {
             meta.last_committed_batch = Some(Digest::random());
-            meta.last_committed_announce = Some(AnnounceHash::random());
+            meta.last_committed_announce = Some(HashOf::random());
         });
 
         let (state, announce_hash) = Producer::create(ctx, block.clone(), validators.clone())
@@ -454,12 +459,12 @@ mod tests {
 
     #[async_trait]
     trait ProducerExt: Sized {
-        async fn to_prepared_block_state(self) -> Result<(Self, AnnounceHash)>;
+        async fn to_prepared_block_state(self) -> Result<(Self, HashOf<Announce>)>;
     }
 
     #[async_trait]
     impl ProducerExt for ValidatorState {
-        async fn to_prepared_block_state(self) -> Result<(Self, AnnounceHash)> {
+        async fn to_prepared_block_state(self) -> Result<(Self, HashOf<Announce>)> {
             assert!(self.is_producer(), "Works only for producer state");
 
             let producer = self.unwrap_producer();

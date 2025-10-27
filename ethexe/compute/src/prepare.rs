@@ -291,7 +291,7 @@ fn prepare_one_block<DB: BlockMetaStorageWrite + LatestDataStorageWrite>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ethexe_common::{AnnounceHash, Digest, events::BlockEvent, mock::*};
+    use ethexe_common::{Announce, Digest, HashOf, events::BlockEvent, mock::*};
     use ethexe_db::Database;
     use gprimitives::H256;
 
@@ -306,7 +306,7 @@ mod tests {
         let code2_id = CodeId::from([2u8; 32]);
         let batch_committed = Digest::random();
 
-        let block1_announce_hash = AnnounceHash::random();
+        let block1_announce_hash = HashOf::<Announce>::random();
 
         let block = chain.blocks[1].to_simple().next_block();
         let block = BlockData {

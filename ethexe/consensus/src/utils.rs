@@ -23,7 +23,7 @@
 
 use anyhow::{Result, anyhow};
 use ethexe_common::{
-    Address, Announce, AnnounceHash, Digest, SimpleBlockData, ToDigest,
+    Address, Announce, Digest, HashOf, SimpleBlockData, ToDigest,
     consensus::BatchCommitmentValidationReply,
     db::{
         AnnounceStorageRead, AnnounceStorageWrite, BlockMetaStorageRead, BlockMetaStorageWrite,
@@ -153,7 +153,7 @@ pub fn aggregate_chain_commitment<
     DB: BlockMetaStorageRead + OnChainStorageRead + AnnounceStorageRead,
 >(
     db: &DB,
-    head_announce: AnnounceHash,
+    head_announce: HashOf<Announce>,
     fail_if_not_computed: bool,
     max_deepness: Option<u32>,
 ) -> Result<Option<(ChainCommitment, u32)>> {
@@ -285,7 +285,7 @@ pub fn block_producer_for(
 pub fn parent_main_line_announce<DB: BlockMetaStorageRead>(
     db: &DB,
     parent_hash: H256,
-) -> Result<AnnounceHash> {
+) -> Result<HashOf<Announce>> {
     db.block_meta(parent_hash)
         .announces
         .into_iter()

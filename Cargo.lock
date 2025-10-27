@@ -4989,6 +4989,7 @@ dependencies = [
 name = "ethexe-runtime"
 version = "1.9.2"
 dependencies = [
+ "ethexe-common",
  "ethexe-runtime-common",
  "gear-core",
  "gear-core-processor",

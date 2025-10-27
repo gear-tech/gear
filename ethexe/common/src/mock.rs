@@ -19,7 +19,7 @@
 pub use tap::Tap;
 
 use crate::{
-    Address, Announce, AnnounceHash, BlockData, BlockHeader, CodeBlobInfo, Digest, ProgramStates,
+    Address, Announce, BlockData, BlockHeader, CodeBlobInfo, Digest, HashOf, ProgramStates,
     Schedule, SimpleBlockData,
     consensus::BatchCommitmentValidationRequest,
     db::*,
@@ -58,8 +58,8 @@ impl Mock<()> for SimpleBlockData {
     }
 }
 
-impl Mock<(H256, AnnounceHash)> for Announce {
-    fn mock((block_hash, parent): (H256, AnnounceHash)) -> Self {
+impl Mock<(H256, HashOf<Announce>)> for Announce {
+    fn mock((block_hash, parent): (H256, HashOf<Announce>)) -> Self {
         Announce {
             block_hash,
             parent,
@@ -71,7 +71,7 @@ impl Mock<(H256, AnnounceHash)> for Announce {
 
 impl Mock<H256> for Announce {
     fn mock(block_hash: H256) -> Self {
-        Announce::mock((block_hash, AnnounceHash::random()))
+        Announce::mock((block_hash, HashOf::random()))
     }
 }
 
@@ -90,8 +90,8 @@ impl Mock<()> for CodeCommitment {
     }
 }
 
-impl Mock<AnnounceHash> for ChainCommitment {
-    fn mock(head_announce: AnnounceHash) -> Self {
+impl Mock<HashOf<Announce>> for ChainCommitment {
+    fn mock(head_announce: HashOf<Announce>) -> Self {
         ChainCommitment {
             transitions: vec![StateTransition::mock(()), StateTransition::mock(())],
             head_announce,
@@ -101,7 +101,7 @@ impl Mock<AnnounceHash> for ChainCommitment {
 
 impl Mock<()> for ChainCommitment {
     fn mock(_args: ()) -> Self {
-        ChainCommitment::mock(AnnounceHash::random())
+        ChainCommitment::mock(HashOf::random())
     }
 }
 
@@ -111,7 +111,7 @@ impl Mock<()> for BatchCommitment {
             block_hash: H256::random(),
             timestamp: 42,
             previous_batch: Digest::random(),
-            chain_commitment: Some(ChainCommitment::mock(AnnounceHash::random())),
+            chain_commitment: Some(ChainCommitment::mock(HashOf::random())),
             code_commitments: vec![CodeCommitment::mock(()), CodeCommitment::mock(())],
             validators_commitment: None,
             rewards_commitment: None,
@@ -123,7 +123,7 @@ impl Mock<()> for BatchCommitmentValidationRequest {
     fn mock(_args: ()) -> Self {
         BatchCommitmentValidationRequest {
             digest: H256::random().0.into(),
-            head: Some(AnnounceHash(H256::random())),
+            head: Some(HashOf::random()),
             codes: vec![CodeCommitment::mock(()).id, CodeCommitment::mock(()).id],
             validators: false,
             rewards: false,
@@ -171,9 +171,9 @@ pub struct SyncedBlockData {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PreparedBlockData {
     pub codes_queue: VecDeque<CodeId>,
-    pub announces: BTreeSet<AnnounceHash>,
+    pub announces: BTreeSet<HashOf<Announce>>,
     pub last_committed_batch: Digest,
-    pub last_committed_announce: AnnounceHash,
+    pub last_committed_announce: HashOf<Announce>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -272,12 +272,12 @@ impl CodeData {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BlockChain {
     pub blocks: VecDeque<BlockFullData>,
-    pub announces: BTreeMap<AnnounceHash, AnnounceData>,
+    pub announces: BTreeMap<HashOf<Announce>, AnnounceData>,
     pub codes: BTreeMap<CodeId, CodeData>,
 }
 
 impl BlockChain {
-    pub fn block_top_announce_hash(&self, block_index: usize) -> AnnounceHash {
+    pub fn block_top_announce_hash(&self, block_index: usize) -> HashOf<Announce> {
         self.blocks
             .get(block_index)
             .expect("block index overflow")
@@ -450,7 +450,7 @@ impl Mock<(u32, NonEmpty<Address>)> for BlockChain {
                             codes_queue: Default::default(),
                             announces: Default::default(), // empty here, filled below with announces
                             last_committed_batch: Digest::zero(),
-                            last_committed_announce: AnnounceHash::zero(),
+                            last_committed_announce: HashOf::zero(),
                         }),
                     }
                 },
@@ -458,7 +458,7 @@ impl Mock<(u32, NonEmpty<Address>)> for BlockChain {
             .collect();
 
         let mut genesis_announce_hash = None;
-        let mut parent_announce_hash = AnnounceHash::zero();
+        let mut parent_announce_hash = HashOf::zero();
         let announces = blocks
             .iter_mut()
             .map(|block| {
@@ -500,7 +500,7 @@ impl Mock<u32> for BlockChain {
 
 pub trait DBMockExt {
     fn simple_block_data(&self, block: H256) -> SimpleBlockData;
-    fn top_announce_hash(&self, block: H256) -> AnnounceHash;
+    fn top_announce_hash(&self, block: H256) -> HashOf<Announce>;
 }
 
 impl<DB: OnChainStorageRead + BlockMetaStorageRead> DBMockExt for DB {
@@ -514,7 +514,7 @@ impl<DB: OnChainStorageRead + BlockMetaStorageRead> DBMockExt for DB {
     }
 
     #[track_caller]
-    fn top_announce_hash(&self, block: H256) -> AnnounceHash {
+    fn top_announce_hash(&self, block: H256) -> HashOf<Announce> {
         self.block_meta(block)
             .announces
             .expect("block announces not found")

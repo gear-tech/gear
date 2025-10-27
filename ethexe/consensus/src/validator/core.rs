@@ -22,20 +22,16 @@ use crate::utils::{self, MultisignedBatchCommitment};
 use anyhow::{Result, anyhow, ensure};
 use async_trait::async_trait;
 use ethexe_common::{
-    Address, AnnounceHash, Digest, SimpleBlockData, ToDigest,
-    consensus::BatchCommitmentValidationRequest,
-    db::BlockMetaStorageRead,
-    ecdsa::PublicKey,
-    gear::{
+    Address, Announce, Digest, HashOf, SimpleBlockData, ToDigest, consensus::BatchCommitmentValidationRequest, db::BlockMetaStorageRead, ecdsa::PublicKey, gear::{
         BatchCommitment, ChainCommitment, CodeCommitment, RewardsCommitment, ValidatorsCommitment,
-    },
+    }
 };
 use ethexe_db::Database;
 use ethexe_ethereum::middleware::Middleware;
 use ethexe_signer::Signer;
 use futures::lock::Mutex;
 use gprimitives::H256;
-use std::{collections::HashSet, sync::Arc, time::Duration};
+use std::{collections::HashSet, hash::Hash, sync::Arc, time::Duration};
 
 #[derive(derive_more::Debug)]
 pub struct ValidatorCore {
@@ -82,7 +78,7 @@ impl ValidatorCore {
     pub async fn aggregate_batch_commitment(
         mut self,
         block: SimpleBlockData,
-        announce_hash: AnnounceHash,
+        announce_hash: HashOf<Announce>,
     ) -> Result<Option<BatchCommitment>> {
         let chain_commitment = self.aggregate_chain_commitment(announce_hash)?;
         let code_commitments = self.aggregate_code_commitments(block.hash)?;
@@ -113,7 +109,7 @@ impl ValidatorCore {
 
     pub fn aggregate_chain_commitment(
         &self,
-        announce_hash: AnnounceHash,
+        announce_hash: HashOf<Announce>,
     ) -> Result<Option<ChainCommitment>> {
         let Some((commitment, deepness)) =
             // Max deepness is ignored here, because we want to create chain commitment (not validate)

@@ -23,7 +23,7 @@ use crate::{
     overlay::{CASOverlay, KVOverlay},
 };
 use ethexe_common::{
-    Address, Announce, AnnounceHash, BlockHeader, CodeBlobInfo, ProgramStates, Schedule,
+    Address, Announce, BlockHeader, CodeBlobInfo, HashOf, ProgramStates, Schedule,
     db::{
         AnnounceMeta, AnnounceStorageRead, AnnounceStorageWrite, BlockMeta, BlockMetaStorageRead,
         BlockMetaStorageWrite, CodesStorageRead, CodesStorageWrite, HashStorageRead, LatestData,
@@ -34,7 +34,7 @@ use ethexe_common::{
     tx_pool::SignedOffchainTransaction,
 };
 use ethexe_runtime_common::state::{
-    Allocations, DispatchStash, HashOf, Mailbox, MemoryPages, MemoryPagesRegion, MessageQueue,
+    Allocations, DispatchStash, Mailbox, MemoryPages, MemoryPagesRegion, MessageQueue,
     ProgramState, Storage, UserMailbox, Waitlist,
 };
 use gear_core::{
@@ -50,14 +50,15 @@ use std::collections::BTreeSet;
 
 #[repr(u64)]
 enum Key {
+    // TODO (kuzmindev): use `HashOf<T>` here
     BlockSmallData(H256) = 0,
     BlockEvents(H256) = 1,
     ValidatorSet(H256) = 2,
 
-    AnnounceProgramStates(AnnounceHash) = 3,
-    AnnounceOutcome(AnnounceHash) = 4,
-    AnnounceSchedule(AnnounceHash) = 5,
-    AnnounceMeta(AnnounceHash) = 6,
+    AnnounceProgramStates(HashOf<Announce>) = 3,
+    AnnounceOutcome(HashOf<Announce>) = 4,
+    AnnounceSchedule(HashOf<Announce>) = 5,
+    AnnounceMeta(HashOf<Announce>) = 6,
 
     ProgramToCodeId(ActorId) = 7,
     InstrumentedCode(u32, CodeId) = 8,
@@ -65,6 +66,7 @@ enum Key {
     CodeUploadInfo(CodeId) = 10,
     CodeValid(CodeId) = 11,
 
+    // TODO (kuzmindev): use `HashOf<T>` here
     SignedTransaction(H256) = 12,
 
     LatestData = 13,
@@ -85,11 +87,12 @@ impl Key {
             Self::BlockSmallData(hash) | Self::BlockEvents(hash) | Self::ValidatorSet(hash) => {
                 [prefix.as_ref(), hash.as_ref()].concat()
             }
-            Self::AnnounceProgramStates(AnnounceHash(hash))
-            | Self::AnnounceOutcome(AnnounceHash(hash))
-            | Self::AnnounceSchedule(AnnounceHash(hash))
-            | Self::AnnounceMeta(AnnounceHash(hash))
-            | Self::SignedTransaction(hash) => [prefix.as_ref(), hash.as_ref()].concat(),
+            Self::AnnounceProgramStates(hash)
+            | Self::AnnounceOutcome(hash)
+            | Self::AnnounceSchedule(hash)
+            | Self::AnnounceMeta(hash) => [prefix.as_ref(), hash.hash().as_ref()].concat(),
+
+            Self::SignedTransaction(hash) => [prefix.as_ref(), hash.0.as_ref()].concat(),
 
             Self::ProgramToCodeId(program_id) => [prefix.as_ref(), program_id.as_ref()].concat(),
 
@@ -536,13 +539,13 @@ impl OnChainStorageWrite for Database {
 }
 
 impl AnnounceStorageRead for Database {
-    fn announce(&self, hash: AnnounceHash) -> Option<Announce> {
-        self.cas.read(hash.0).map(|data| {
+    fn announce(&self, hash: HashOf<Announce>) -> Option<Announce> {
+        self.cas.read(hash.hash()).map(|data| {
             Announce::decode(&mut &data[..]).expect("Failed to decode data into `ProducerBlock`")
         })
     }
 
-    fn announce_program_states(&self, announce_hash: AnnounceHash) -> Option<ProgramStates> {
+    fn announce_program_states(&self, announce_hash: HashOf<Announce>) -> Option<ProgramStates> {
         self.kv
             .get(&Key::AnnounceProgramStates(announce_hash).to_bytes())
             .map(|data| {
@@ -551,7 +554,7 @@ impl AnnounceStorageRead for Database {
             })
     }
 
-    fn announce_outcome(&self, announce_hash: AnnounceHash) -> Option<Vec<StateTransition>> {
+    fn announce_outcome(&self, announce_hash: HashOf<Announce>) -> Option<Vec<StateTransition>> {
         self.kv
             .get(&Key::AnnounceOutcome(announce_hash).to_bytes())
             .map(|data| {
@@ -560,7 +563,7 @@ impl AnnounceStorageRead for Database {
             })
     }
 
-    fn announce_schedule(&self, announce_hash: AnnounceHash) -> Option<Schedule> {
+    fn announce_schedule(&self, announce_hash: HashOf<Announce>) -> Option<Schedule> {
         self.kv
             .get(&Key::AnnounceSchedule(announce_hash).to_bytes())
             .map(|data| {
@@ -569,7 +572,7 @@ impl AnnounceStorageRead for Database {
             })
     }
 
-    fn announce_meta(&self, announce_hash: AnnounceHash) -> AnnounceMeta {
+    fn announce_meta(&self, announce_hash: HashOf<Announce>) -> AnnounceMeta {
         self.kv
             .get(&Key::AnnounceMeta(announce_hash).to_bytes())
             .map(|data| {
@@ -581,14 +584,15 @@ impl AnnounceStorageRead for Database {
 }
 
 impl AnnounceStorageWrite for Database {
-    fn set_announce(&self, announce: Announce) -> AnnounceHash {
+    fn set_announce(&self, announce: Announce) -> HashOf<Announce> {
         log::trace!("Set announce {}: {announce}", announce.to_hash());
-        AnnounceHash(self.cas.write(&announce.encode()))
+        // Safe, because of inner method implementation.
+        unsafe { HashOf::new(self.cas.write(&announce.encode())) }
     }
 
     fn set_announce_program_states(
         &self,
-        announce_hash: AnnounceHash,
+        announce_hash: HashOf<Announce>,
         program_states: ProgramStates,
     ) {
         log::trace!("Set announce program states for {announce_hash}: {program_states:?}");
@@ -598,7 +602,7 @@ impl AnnounceStorageWrite for Database {
         );
     }
 
-    fn set_announce_outcome(&self, announce_hash: AnnounceHash, outcome: Vec<StateTransition>) {
+    fn set_announce_outcome(&self, announce_hash: HashOf<Announce>, outcome: Vec<StateTransition>) {
         log::trace!("Set announce outcome for {announce_hash}: {outcome:?}");
         self.kv.put(
             &Key::AnnounceOutcome(announce_hash).to_bytes(),
@@ -606,7 +610,7 @@ impl AnnounceStorageWrite for Database {
         );
     }
 
-    fn set_announce_schedule(&self, announce_hash: AnnounceHash, schedule: Schedule) {
+    fn set_announce_schedule(&self, announce_hash: HashOf<Announce>, schedule: Schedule) {
         log::trace!("Set announce schedule for {announce_hash}: {schedule:?}");
         self.kv.put(
             &Key::AnnounceSchedule(announce_hash).to_bytes(),
@@ -614,7 +618,11 @@ impl AnnounceStorageWrite for Database {
         );
     }
 
-    fn mutate_announce_meta(&self, announce_hash: AnnounceHash, f: impl FnOnce(&mut AnnounceMeta)) {
+    fn mutate_announce_meta(
+        &self,
+        announce_hash: HashOf<Announce>,
+        f: impl FnOnce(&mut AnnounceMeta),
+    ) {
         log::trace!("For announce {announce_hash} mutate meta");
         let mut meta = self.announce_meta(announce_hash);
         f(&mut meta);
@@ -675,7 +683,7 @@ mod tests {
 
         let announce = Announce {
             block_hash: H256::random(),
-            parent: AnnounceHash::random(),
+            parent: HashOf::random(),
             gas_allowance: Some(1000),
             off_chain_transactions: vec![],
         };
@@ -688,7 +696,7 @@ mod tests {
     fn test_announce_program_states() {
         let db = Database::memory();
 
-        let announce_hash = AnnounceHash::random();
+        let announce_hash = HashOf::random();
         let program_states = ProgramStates::default();
         db.set_announce_program_states(announce_hash, program_states.clone());
         assert_eq!(
@@ -701,7 +709,7 @@ mod tests {
     fn test_announce_outcome() {
         let db = Database::memory();
 
-        let announce_hash = AnnounceHash::random();
+        let announce_hash = HashOf::random();
         let block_outcome = vec![StateTransition::default()];
         db.set_announce_outcome(announce_hash, block_outcome.clone());
         assert_eq!(db.announce_outcome(announce_hash), Some(block_outcome));
@@ -711,7 +719,7 @@ mod tests {
     fn test_announce_schedule() {
         let db = Database::memory();
 
-        let announce_hash = AnnounceHash::random();
+        let announce_hash = HashOf::random();
         let schedule = Schedule::default();
         db.set_announce_schedule(announce_hash, schedule.clone());
         assert_eq!(db.announce_schedule(announce_hash), Some(schedule));
@@ -756,11 +764,11 @@ mod tests {
         let latest_data = LatestData {
             synced_block_height: 42,
             prepared_block_hash: H256::random(),
-            computed_announce_hash: AnnounceHash::random(),
+            computed_announce_hash: HashOf::random(),
             genesis_block_hash: H256::random(),
-            genesis_announce_hash: AnnounceHash::random(),
+            genesis_announce_hash: HashOf::random(),
             start_block_hash: H256::random(),
-            start_announce_hash: AnnounceHash::random(),
+            start_announce_hash: HashOf::random(),
         };
         db.set_latest_data(latest_data.clone());
         assert_eq!(db.latest_data(), Some(latest_data));

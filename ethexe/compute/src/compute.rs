@@ -18,7 +18,7 @@
 
 use crate::{ComputeError, ProcessorExt, Result, service::SubService};
 use ethexe_common::{
-    Announce, AnnounceHash,
+    Announce, HashOf,
     db::{
         AnnounceStorageRead, AnnounceStorageWrite, BlockMetaStorageRead, LatestDataStorageWrite,
         OnChainStorageRead,
@@ -37,7 +37,7 @@ pub struct ComputeSubService<P: ProcessorExt> {
     processor: P,
 
     input: VecDeque<Announce>,
-    computation: Option<BoxFuture<'static, Result<AnnounceHash>>>,
+    computation: Option<BoxFuture<'static, Result<HashOf<Announce>>>>,
 }
 
 impl<P: ProcessorExt> ComputeSubService<P> {
@@ -54,7 +54,11 @@ impl<P: ProcessorExt> ComputeSubService<P> {
         self.input.push_back(announce);
     }
 
-    async fn compute(db: Database, mut processor: P, announce: Announce) -> Result<AnnounceHash> {
+    async fn compute(
+        db: Database,
+        mut processor: P,
+        announce: Announce,
+    ) -> Result<HashOf<Announce>> {
         let announce_hash = announce.to_hash();
         let block_hash = announce.block_hash;
 
@@ -94,9 +98,9 @@ impl<P: ProcessorExt> ComputeSubService<P> {
     async fn compute_one(
         db: &Database,
         processor: &mut P,
-        announce_hash: AnnounceHash,
+        announce_hash: HashOf<Announce>,
         announce: Announce,
-    ) -> Result<AnnounceHash> {
+    ) -> Result<HashOf<Announce>> {
         let block_hash = announce.block_hash;
 
         let events = db
@@ -131,7 +135,7 @@ impl<P: ProcessorExt> ComputeSubService<P> {
 }
 
 impl<P: ProcessorExt> SubService for ComputeSubService<P> {
-    type Output = AnnounceHash;
+    type Output = HashOf<Announce>;
 
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Self::Output>> {
         if self.computation.is_none()

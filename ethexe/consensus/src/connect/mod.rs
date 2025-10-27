@@ -23,7 +23,7 @@
 use crate::{BatchCommitmentValidationReply, ConsensusEvent, ConsensusService, utils};
 use anyhow::{Result, anyhow};
 use ethexe_common::{
-    Address, AnnounceHash, SimpleBlockData,
+    Address, Announce, HashOf, SimpleBlockData,
     consensus::{VerifiedAnnounce, VerifiedValidationRequest},
     db::{AnnounceStorageWrite, BlockMetaStorageWrite, OnChainStorageRead},
 };
@@ -144,7 +144,7 @@ impl ConsensusService for SimpleConnectService {
         Ok(())
     }
 
-    fn receive_computed_announce(&mut self, _announce: AnnounceHash) -> Result<()> {
+    fn receive_computed_announce(&mut self, _announce: HashOf<Announce>) -> Result<()> {
         Ok(())
     }
 
