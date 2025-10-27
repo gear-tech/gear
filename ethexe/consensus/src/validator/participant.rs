@@ -30,8 +30,6 @@ use ethexe_common::{
 };
 use futures::{FutureExt, future::BoxFuture};
 use gsigner::secp256k1::Secp256k1SignerExt;
-#[cfg(test)]
-use gsigner::secp256k1::Signer;
 use std::task::Poll;
 
 /// [`Participant`] is a state of the validator that processes validation requests,
@@ -185,25 +183,6 @@ mod tests {
     use super::*;
     use crate::{mock::*, validator::mock::*};
     use ethexe_common::{Digest, ToDigest, gear::CodeCommitment, mock::*};
-
-    fn make_signed_request(
-        signer: &Signer,
-        producer: ethexe_common::ecdsa::PublicKey,
-        request: BatchCommitmentValidationRequest,
-    ) -> SignedValidationRequest {
-        use ethexe_common::ecdsa::Signature as EthexeSignature;
-
-        let digest = request.to_digest();
-        let gsigner_signature = signer
-            .sign_digest(producer, &digest)
-            .expect("signing failed");
-        let signature =
-            EthexeSignature::from_pre_eip155_bytes(gsigner_signature.into_pre_eip155_bytes())
-                .expect("signature conversion failed");
-
-        SignedValidationRequest::try_from_parts(request, signature)
-            .expect("failed to build signed request")
-    }
 
     #[test]
     fn create() {

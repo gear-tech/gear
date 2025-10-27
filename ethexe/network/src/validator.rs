@@ -289,7 +289,7 @@ mod tests {
     use super::*;
     use assert_matches::assert_matches;
     use ethexe_common::{Announce, db::OnChainStorageWrite, mock::Mock, network::ValidatorMessage};
-    use ethexe_signer::Signer;
+    use gsigner::secp256k1::{Secp256k1SignerExt, Signer};
     use nonempty::nonempty;
 
     const GENESIS_TIMESTAMP: u64 = 1_000_000;

@@ -223,6 +223,21 @@ mod tests {
         assert_eq!(address.as_bytes().len(), 32);
     }
 
+    #[cfg(feature = "secp256k1")]
+    #[test]
+    fn sign_digest_recovers_original_key() {
+        use crate::schemes::secp256k1::{Digest, Secp256k1, Secp256k1SignerExt};
+
+        let signer = Signer::<Secp256k1>::memory();
+        let public_key = signer.generate_key().unwrap();
+        let digest = Digest([0x42; 32]);
+
+        let signature = signer.sign_digest(public_key, &digest).unwrap();
+        let recovered = signature.recover::<Digest>(digest).unwrap();
+
+        assert_eq!(recovered, public_key);
+    }
+
     #[cfg(all(feature = "secp256k1", feature = "sr25519"))]
     #[test]
     fn test_sub_signer() {

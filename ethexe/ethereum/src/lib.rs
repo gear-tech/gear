@@ -22,7 +22,7 @@ use abi::{IMirror, IRouter};
 use alloy::{
     consensus::SignableTransaction,
     network::{Ethereum as AlloyEthereum, EthereumWallet, Network, TxSigner},
-    primitives::{Address, B256, ChainId, Signature, SignatureError},
+    primitives::{Address, B256, ChainId, Signature},
     providers::{
         Identity, PendingTransactionBuilder, PendingTransactionError, Provider, ProviderBuilder,
         RootProvider,
@@ -42,7 +42,8 @@ use alloy::{
 use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use gsigner::secp256k1::{
-    Address as LocalAddress, PublicKey as LocalPublicKey, Signer as LocalSigner,
+    Address as LocalAddress, Digest as LocalDigest, PublicKey as LocalPublicKey,
+    Secp256k1SignerExt, Signer as LocalSigner,
 };
 use middleware::Middleware;
 use mirror::Mirror;
@@ -198,14 +199,20 @@ impl TxSigner<Signature> for Sender {
 
 impl SignerSync for Sender {
     fn sign_hash_sync(&self, hash: &B256) -> SignerResult<Signature> {
+        let digest = LocalDigest(hash.0);
         let signature = self
             .signer
-            .sign(self.sender, &hash.0)
+            .sign_digest(self.sender, &digest)
             .map_err(|err| SignerError::Other(err.into()))?;
-        let (s, r) = signature.into_parts();
-        let v = r.to_byte() as u64;
-        let v = primitives::normalize_v(v).ok_or(SignatureError::InvalidParity(v))?;
-        Ok(Signature::from_signature_and_parity(s, v))
+        let (sig, recovery_id) = signature.into_parts();
+        let mut parity = recovery_id.is_y_odd();
+        let sig = if let Some(normalized) = sig.normalize_s() {
+            parity = !parity;
+            normalized
+        } else {
+            sig
+        };
+        Ok(Signature::from_signature_and_parity(sig, parity))
     }
 
     fn chain_id_sync(&self) -> Option<ChainId> {
@@ -270,3 +277,25 @@ macro_rules! signatures_consts {
 }
 
 pub(crate) use signatures_consts;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sender_signs_prehashed_message() {
+        let signer = LocalSigner::memory();
+        let public_key = signer.generate_key().unwrap();
+        let address = signer.address(public_key);
+
+        let sender = Sender::new(signer.clone(), address).expect("sender init");
+
+        let hash = B256::from([0xAA; 32]);
+        let signature = sender.sign_hash_sync(&hash).expect("signature");
+
+        let recovered_vk = signature.recover_from_prehash(&hash).expect("recover");
+        let recovered_address = gsigner::secp256k1::PublicKey::from(recovered_vk).to_address();
+
+        assert_eq!(recovered_address, address);
+    }
+}

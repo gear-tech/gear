@@ -34,10 +34,12 @@ mod signer_ext;
 pub use address::{Address, FromActorIdError};
 pub use digest::{Digest, ToDigest};
 pub use keys::{PrivateKey, PublicKey};
-pub use signature::{ContractSignature, Signature, SignedData};
+pub use signature::{ContractSignature, Signature, SignedData, VerifiedData};
 
 pub mod ecdsa {
-    pub use super::{ContractSignature, PrivateKey, PublicKey, Signature, SignedData};
+    pub use super::{
+        ContractSignature, PrivateKey, PublicKey, Signature, SignedData, VerifiedData,
+    };
 }
 
 #[cfg(feature = "std")]

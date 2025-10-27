@@ -24,6 +24,7 @@ use ethexe_common::{
     Address, consensus::BatchCommitmentValidationRequest, gear::BatchCommitment,
     network::ValidatorMessage,
 };
+use gsigner::secp256k1::Secp256k1SignerExt;
 use nonempty::NonEmpty;
 use std::collections::BTreeSet;
 

@@ -87,7 +87,7 @@ pub use traits::{KeyStorage, SignatureScheme};
 
 #[cfg(feature = "secp256k1")]
 pub use schemes::secp256k1::{
-    ContractSignature, Digest, PrivateKey, PublicKey, Signature, SignedData, ToDigest,
+    ContractSignature, Digest, PrivateKey, PublicKey, Signature, SignedData, ToDigest, VerifiedData,
 };
 
 #[cfg(all(feature = "secp256k1", feature = "std"))]
