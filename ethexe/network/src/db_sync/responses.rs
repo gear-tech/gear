@@ -221,6 +221,8 @@ impl OngoingResponses {
     }
 }
 
+// TODO: create error enum for process_announce_request and return it instead of anyhow::Error also change tests below
+
 #[cfg(test)]
 mod tests {
     use super::*;
