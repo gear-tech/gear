@@ -48,9 +48,9 @@ use mirror::Mirror;
 use router::{Router, RouterQuery};
 use std::time::Duration;
 
-mod abi;
 mod eip1167;
 
+pub mod abi;
 pub mod deploy;
 pub mod middleware;
 pub mod mirror;
@@ -108,7 +108,7 @@ impl Ethereum {
 }
 
 impl Ethereum {
-    fn provider(&self) -> AlloyProvider {
+    pub fn provider(&self) -> AlloyProvider {
         self.provider.clone()
     }
 
@@ -120,12 +120,17 @@ impl Ethereum {
         Router::new(self.router, self.wvara, self.provider())
     }
 
-    pub fn middleware(&self) -> Option<Middleware> {
-        if self.middleware == Address::ZERO {
-            None
-        } else {
-            Some(Middleware::new(self.middleware, self.provider()))
-        }
+    pub fn wrapped_vara(&self) -> WVara {
+        WVara::new(self.wvara, self.provider())
+    }
+
+    pub fn middleware(&self) -> Middleware {
+        assert_ne!(
+            self.middleware,
+            Address::ZERO,
+            "Middleware address is zero. Make sure to deploy the middleware contract and pass `with_middleware` flag to `EthereumDeployer`."
+        );
+        Middleware::new(self.middleware, self.provider())
     }
 }
 
@@ -270,3 +275,5 @@ macro_rules! signatures_consts {
 }
 
 pub(crate) use signatures_consts;
+
+use crate::wvara::WVara;

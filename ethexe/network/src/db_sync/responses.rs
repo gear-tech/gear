@@ -25,10 +25,7 @@ use crate::{
 };
 use ethexe_common::{
     Announce, HashOf,
-    db::{
-        AnnounceStorageRead, BlockMetaStorageRead, HashStorageRead, LatestData,
-        LatestDataStorageRead,
-    },
+    db::{AnnounceStorageRO, BlockMetaStorageRO, HashStorageRO, LatestData, LatestDataStorageRO},
     network::{AnnouncesRequest, AnnouncesRequestUntil, AnnouncesResponse},
 };
 use libp2p::request_response;
@@ -107,7 +104,7 @@ impl OngoingResponses {
         }
     }
 
-    fn process_announce_request<DB: AnnounceStorageRead + LatestDataStorageRead>(
+    fn process_announce_request<DB: AnnounceStorageRO + LatestDataStorageRO>(
         db: &DB,
         request: AnnouncesRequest,
     ) -> Result<AnnouncesResponse, ProcessAnnounceError> {
@@ -247,7 +244,7 @@ mod tests {
     use super::*;
     use ethexe_common::{
         Announce, HashOf,
-        db::{AnnounceStorageWrite, LatestDataStorageWrite},
+        db::{AnnounceStorageRW, LatestDataStorageRW},
     };
     use ethexe_db::Database;
     use gprimitives::H256;

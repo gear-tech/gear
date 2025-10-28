@@ -18,13 +18,13 @@
 
 use crate::Service;
 use alloy::{eips::BlockId, providers::Provider};
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Context, Result};
 use ethexe_common::{
     Address, Announce, BlockData, CodeAndIdUnchecked, Digest, HashOf, ProgramStates,
     StateHashWithQueueSize,
     db::{
-        AnnounceStorageRead, BlockMetaStorageRead, CodesStorageRead, CodesStorageWrite,
-        FullAnnounceData, FullBlockData, HashStorageRead, OnChainStorageRead, OnChainStorageWrite,
+        AnnounceStorageRO, BlockMetaStorageRO, CodesStorageRO, CodesStorageRW, FullAnnounceData,
+        FullBlockData, HashStorageRO, OnChainStorageRO, OnChainStorageRW,
     },
     events::{BlockEvent, RouterEvent},
     network::{AnnouncesRequest, AnnouncesRequestUntil},
@@ -51,7 +51,6 @@ use ethexe_runtime_common::{
 };
 use futures::StreamExt;
 use gprimitives::{ActorId, CodeId, H256};
-use nonempty::NonEmpty;
 use parity_scale_codec::Decode;
 use std::{
     collections::{BTreeMap, BTreeSet, HashMap},
@@ -697,8 +696,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
         db.set_program_code_id(program_id, code_id);
     }
 
-    let validators = NonEmpty::from_vec(observer.router_query().validators_at(block_hash).await?)
-        .ok_or(anyhow!("validator set is empty"))?;
+    let validators = observer.router_query().validators_at(block_hash).await?;
 
     ethexe_common::setup_start_block_in_db(
         db,
