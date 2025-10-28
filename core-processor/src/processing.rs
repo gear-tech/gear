@@ -31,9 +31,10 @@ use crate::{
 use alloc::{string::ToString, vec::Vec};
 use core::{fmt, fmt::Formatter};
 use gear_core::{
-    buffer::{Payload, PayloadSizeError},
+    buffer::Payload,
     env::Externalities,
     ids::{ActorId, MessageId, prelude::*},
+    limited::LimitedVecError,
     message::{ContextSettings, DispatchKind, IncomingDispatch, ReplyMessage, StoredDispatch},
     reservation::GasReservationState,
 };
@@ -256,7 +257,7 @@ impl ProcessErrorCase {
                     .into_bytes()
                     .to_vec()
                     .try_into()
-                    .unwrap_or_else(|PayloadSizeError| {
+                    .unwrap_or_else(|LimitedVecError| {
                         unreachable!("`ActorId` is always smaller than maximum payload size")
                     })
             }

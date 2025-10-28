@@ -30,7 +30,7 @@ use alloy::{
 };
 use anyhow::{Result, anyhow};
 use ethexe_common::{
-    Address as LocalAddress, Digest,
+    Address as LocalAddress, Digest, ValidatorsVec,
     ecdsa::ContractSignature,
     gear::{AggregatedPublicKey, BatchCommitment, CodeState, SignatureType, Timelines},
 };
@@ -261,8 +261,33 @@ impl RouterQuery {
             .map_err(Into::into)
     }
 
+    pub async fn middleware(&self) -> Result<LocalAddress> {
+        self.instance
+            .middleware()
+            .call()
+            .await
+            .map(|res| LocalAddress(res.into()))
+            .map_err(Into::into)
+    }
+
     pub async fn wvara_address(&self) -> Result<Address> {
         self.instance.wrappedVara().call().await.map_err(Into::into)
+    }
+
+    pub async fn middleware_address(&self) -> Result<Address> {
+        self.instance.middleware().call().await.map_err(Into::into)
+    }
+
+    pub async fn validators_at(&self, block: H256) -> Result<ValidatorsVec> {
+        let validators: Vec<_> = self
+            .instance
+            .validators()
+            .call()
+            .block(B256::from(block.0).into())
+            .await
+            .map(|res| res.into_iter().map(|v| LocalAddress(v.into())).collect())
+            .map_err(Into::<anyhow::Error>::into)?;
+        validators.try_into().map_err(Into::into)
     }
 
     pub async fn validators_aggregated_public_key(&self) -> Result<AggregatedPublicKey> {
@@ -290,16 +315,6 @@ impl RouterQuery {
         self.instance
             .validators()
             .call()
-            .await
-            .map(|res| res.into_iter().map(|v| LocalAddress(v.into())).collect())
-            .map_err(Into::into)
-    }
-
-    pub async fn validators_at(&self, block: H256) -> Result<Vec<LocalAddress>> {
-        self.instance
-            .validators()
-            .call()
-            .block(B256::from(block.0).into())
             .await
             .map(|res| res.into_iter().map(|v| LocalAddress(v.into())).collect())
             .map_err(Into::into)
@@ -408,23 +423,13 @@ impl RouterQuery {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Ethereum;
+    use crate::deploy::EthereumDeployer;
     use alloy::node_bindings::Anvil;
     use ethexe_signer::Signer;
-    use roast_secp256k1_evm::frost;
 
     #[tokio::test]
     async fn inexistent_code_is_unknown() {
         let anvil = Anvil::new().spawn();
-
-        let (shares, _pubkey_package) = frost::keys::generate_with_dealer(
-            5,
-            3,
-            frost::keys::IdentifierList::Default,
-            rand::thread_rng(),
-        )
-        .unwrap();
-        let first_share = shares.values().next().unwrap();
 
         let signer = Signer::memory();
         let alice = signer
@@ -436,18 +441,15 @@ mod tests {
             )
             .unwrap();
 
-        let ethereum = Ethereum::deploy(
-            anvil.endpoint_url().as_str(),
-            vec![],
-            signer,
-            alice.to_address(),
-            first_share.commitment().clone(),
-        )
-        .await
-        .unwrap();
+        let ethereum =
+            EthereumDeployer::new(anvil.endpoint_url().as_str(), signer, alice.to_address())
+                .await
+                .unwrap()
+                .deploy()
+                .await
+                .unwrap();
 
-        let router =
-            RouterQuery::from_provider(ethereum.router_address, ethereum.provider.root().clone());
+        let router = ethereum.router().query();
 
         let latest_block = router
             .instance

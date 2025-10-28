@@ -32,15 +32,16 @@
 //! - `utils`: Utility functions and shared data structures
 
 use anyhow::Result;
-use ethexe_common::{ProducerBlock, SimpleBlockData};
+use ethexe_common::{Announce, HashOf, SimpleBlockData};
 use futures::{Stream, stream::FusedStream};
 use gprimitives::H256;
 
 pub use connect::SimpleConnectService;
-pub use utils::{
-    BatchCommitmentValidationReply, BatchCommitmentValidationRequest, SignedProducerBlock,
-    SignedValidationRequest,
+use ethexe_common::{
+    consensus::{BatchCommitmentValidationReply, VerifiedAnnounce, VerifiedValidationRequest},
+    network::SignedValidatorMessage,
 };
+pub use utils::{block_producer_for, block_producer_index};
 pub use validator::{ValidatorConfig, ValidatorService};
 
 mod connect;
@@ -62,50 +63,34 @@ pub trait ConsensusService:
     /// Process a synced block info
     fn receive_synced_block(&mut self, block: H256) -> Result<()>;
 
+    /// Process a prepared block received
+    fn receive_prepared_block(&mut self, block: H256) -> Result<()>;
+
     /// Process a computed block received
-    fn receive_computed_block(&mut self, block_hash: H256) -> Result<()>;
+    fn receive_computed_announce(&mut self, announce: HashOf<Announce>) -> Result<()>;
 
     /// Process a received producer block
-    fn receive_block_from_producer(&mut self, block: SignedProducerBlock) -> Result<()>;
+    fn receive_announce(&mut self, block: VerifiedAnnounce) -> Result<()>;
 
     /// Process a received validation request
-    fn receive_validation_request(&mut self, request: SignedValidationRequest) -> Result<()>;
+    fn receive_validation_request(&mut self, request: VerifiedValidationRequest) -> Result<()>;
 
     /// Process a received validation reply
     fn receive_validation_reply(&mut self, reply: BatchCommitmentValidationReply) -> Result<()>;
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, derive_more::From)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, derive_more::From, derive_more::IsVariant, derive_more::Unwrap,
+)]
 pub enum ConsensusEvent {
-    /// Outer service have to compute block
-    #[from(skip)]
-    ComputeBlock(H256),
-    /// Outer service have to compute producer block
-    ComputeProducerBlock(ProducerBlock),
-    /// Outer service have to publish signed producer block
-    PublishProducerBlock(SignedProducerBlock),
-    /// Outer service have to publish signed validation request
-    PublishValidationRequest(SignedValidationRequest),
-    /// Outer service have to publish signed validation reply
-    PublishValidationReply(BatchCommitmentValidationReply),
+    /// Outer service have to compute announce
+    #[from]
+    ComputeAnnounce(Announce),
+    /// Outer service have to publish signed message
+    #[from]
+    PublishMessage(SignedValidatorMessage),
     /// Informational event: commitment was successfully submitted, tx hash is provided
-    #[from(skip)]
     CommitmentSubmitted(H256),
     /// Informational event: during service processing, a warning situation was detected
-    #[from(skip)]
     Warning(String),
-}
-
-// TODO #4553: temporary implementation, should be improved
-/// Returns block producer for time slot. Next slot is the next validator in the list.
-pub const fn block_producer_index(validators_amount: usize, slot: u64) -> usize {
-    (slot % validators_amount as u64) as usize
-}
-
-#[test]
-fn block_producer_index_calculates_correct_index() {
-    let validators_amount = 5;
-    let slot = 7;
-    let index = crate::block_producer_index(validators_amount, slot);
-    assert_eq!(index, 2);
 }

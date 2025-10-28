@@ -10,8 +10,9 @@ import {WrappedVara} from "../src/WrappedVara.sol";
 
 import {Middleware} from "../src/Middleware.sol";
 import {IMiddleware} from "../src/IMiddleware.sol";
-import {IDefaultOperatorRewardsFactory} from
-    "symbiotic-rewards/src/interfaces/defaultOperatorRewards/IDefaultOperatorRewardsFactory.sol";
+import {
+    IDefaultOperatorRewardsFactory
+} from "symbiotic-rewards/src/interfaces/defaultOperatorRewards/IDefaultOperatorRewardsFactory.sol";
 
 contract DeploymentScript is Script {
     WrappedVara public wrappedVara;
@@ -41,25 +42,25 @@ contract DeploymentScript is Script {
         address middlewareAddress = vm.computeCreateAddress(deployerAddress, vm.getNonce(deployerAddress) + 3);
 
         router = Router(
-            Upgrades.deployTransparentProxy(
-                "Router.sol",
-                deployerAddress,
-                abi.encodeCall(
-                    Router.initialize,
-                    (
-                        deployerAddress,
-                        mirrorAddress,
-                        address(wrappedVara),
-                        middlewareAddress,
-                        1 days,
-                        2 hours,
-                        5 minutes,
-                        Gear.AggregatedPublicKey(aggregatedPublicKeyX, aggregatedPublicKeyY),
-                        verifiableSecretSharingCommitment,
-                        validatorsArray
+            payable(Upgrades.deployTransparentProxy(
+                    "Router.sol",
+                    deployerAddress,
+                    abi.encodeCall(
+                        Router.initialize,
+                        (
+                            deployerAddress,
+                            mirrorAddress,
+                            address(wrappedVara),
+                            middlewareAddress,
+                            1 days,
+                            2 hours,
+                            5 minutes,
+                            Gear.AggregatedPublicKey(aggregatedPublicKeyX, aggregatedPublicKeyY),
+                            verifiableSecretSharingCommitment,
+                            validatorsArray
+                        )
                     )
-                )
-            )
+                ))
         );
 
         mirror = new Mirror(address(router));
@@ -68,13 +69,17 @@ contract DeploymentScript is Script {
         if (!(vm.envExists("DEV_MODE") && vm.envBool("DEV_MODE"))) {
             address operatorRewardsFactoryAddress = vm.envAddress("SYMBIOTIC_OPERATOR_REWARDS_FACTORY");
 
-            Gear.SymbioticRegistries memory registries = Gear.SymbioticRegistries({
+            Gear.SymbioticContracts memory symbiotic = Gear.SymbioticContracts({
                 vaultRegistry: vm.envAddress("SYMBIOTIC_VAULT_REGISTRY"),
                 operatorRegistry: vm.envAddress("SYMBIOTIC_OPERATOR_REGISTRY"),
                 networkRegistry: vm.envAddress("SYMBIOTIC_NETWORK_REGISTRY"),
                 middlewareService: vm.envAddress("SYMBIOTIC_MIDDLEWARE_SERVICE"),
                 networkOptIn: vm.envAddress("SYMBIOTIC_NETWORK_OPT_IN"),
-                stakerRewardsFactory: vm.envAddress("SYMBIOTIC_STAKER_REWARDS_FACTORY")
+                stakerRewardsFactory: vm.envAddress("SYMBIOTIC_STAKER_REWARDS_FACTORY"),
+                operatorRewards: IDefaultOperatorRewardsFactory(operatorRewardsFactoryAddress).create(),
+                roleSlashRequester: address(router),
+                roleSlashExecutor: address(router),
+                vetoResolver: address(router)
             });
 
             IMiddleware.InitParams memory initParams = IMiddleware.InitParams({
@@ -90,12 +95,8 @@ contract DeploymentScript is Script {
                 maxResolverSetEpochsDelay: 5 minutes,
                 collateral: address(wrappedVara),
                 maxAdminFee: 10000,
-                operatorRewards: IDefaultOperatorRewardsFactory(operatorRewardsFactoryAddress).create(),
                 router: address(router),
-                roleSlashRequester: address(router),
-                roleSlashExecutor: address(router),
-                vetoResolver: address(router),
-                registries: registries
+                symbiotic: symbiotic
             });
 
             middleware = Middleware(

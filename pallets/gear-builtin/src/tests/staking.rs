@@ -18,7 +18,9 @@
 
 use crate::tests::DEFAULT_GAS_LIMIT;
 use frame_support::assert_ok;
+use gbuiltin_staking::{ActiveEraInfo, Response};
 use gprimitives::ActorId;
+use parity_scale_codec::Decode;
 use sp_staking::StakingAccount;
 use util::*;
 
@@ -193,8 +195,8 @@ fn payload_size_matters() {
 
         // Prepare large payload
         let mut targets = Vec::<ActorId>::new();
-        for i in 100_u64..200_u64 {
-            targets.push(i.cast());
+        for i in 100_u32..200_u32 {
+            targets.push((i as u64).cast());
         }
 
         System::reset_events();
@@ -559,7 +561,7 @@ fn payout_stakers_works() {
 
         // Actually run the chain for a few eras (5) to accumulate some rewards
         run_for_n_blocks(
-            5 * SESSION_DURATION * <Test as pallet_staking::Config>::SessionsPerEra::get() as u64,
+            5 * SESSION_DURATION * <Test as pallet_staking::Config>::SessionsPerEra::get(),
             None,
         );
 
@@ -643,6 +645,123 @@ fn gas_allowance_respected() {
     });
 }
 
+#[test]
+fn active_era_query_via_contract_works() {
+    init_logger();
+
+    new_test_ext().execute_with(|| {
+        let contract_id = ActorId::generate_from_user(CodeId::generate(WASM_BINARY), b"contract");
+
+        deploy_broker_contract();
+        run_to_next_block();
+
+        // Set up some active era data
+        let test_era_index = 5u32;
+        let test_start_block = 123u64;
+        pallet_staking::ActiveEra::<Test>::put(pallet_staking::ActiveEraInfo {
+            index: test_era_index,
+            start: Some(test_start_block),
+        });
+
+        // Send ActiveEra request to the contract
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(SIGNER),
+            contract_id,
+            Request::ActiveEra.encode(),
+            DEFAULT_GAS_LIMIT,
+            0,
+            false,
+        ));
+
+        run_to_next_block();
+
+        // The contract should have sent its reply containing the ActiveEra data
+        assert!(System::events().into_iter().any(|e| {
+            match e.event {
+                RuntimeEvent::Gear(pallet_gear::Event::UserMessageSent { message, .. }) => {
+                    if message.destination() == ActorId::from(SIGNER.into_origin()) {
+                        let payload = message.payload_bytes();
+                        if payload.is_empty() {
+                            return false;
+                        }
+                        let active_era = Response::decode(&mut &payload[..]).unwrap();
+                        // Check that the reply contains information about ActiveEra
+                        assert_eq!(
+                            active_era,
+                            Response::ActiveEra {
+                                info: Some(ActiveEraInfo {
+                                    index: test_era_index,
+                                    start: Some(test_start_block),
+                                }),
+                                executed_at: 2,
+                                executed_at_gear_block: 2,
+                            }
+                        );
+                        true
+                    } else {
+                        false
+                    }
+                }
+                _ => false,
+            }
+        }));
+    });
+}
+
+#[test]
+fn active_era_query_without_active_era_returns_none() {
+    init_logger();
+
+    new_test_ext().execute_with(|| {
+        let contract_id = ActorId::generate_from_user(CodeId::generate(WASM_BINARY), b"contract");
+
+        deploy_broker_contract();
+        run_to_next_block();
+
+        // Ensure the staking pallet reports no active era.
+        pallet_staking::ActiveEra::<Test>::kill();
+
+        // Send ActiveEra request to the contract
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(SIGNER),
+            contract_id,
+            Request::ActiveEra.encode(),
+            DEFAULT_GAS_LIMIT,
+            0,
+            false,
+        ));
+
+        run_to_next_block();
+
+        // The contract should respond with an empty ActiveEra info.
+        assert!(System::events().into_iter().any(|e| {
+            match e.event {
+                RuntimeEvent::Gear(pallet_gear::Event::UserMessageSent { message, .. }) => {
+                    if message.destination() == ActorId::from(SIGNER.into_origin()) {
+                        let payload = message.payload_bytes();
+                        if payload.is_empty() {
+                            return false;
+                        }
+                        let active_era = Response::decode(&mut &payload[..]).unwrap();
+                        assert_eq!(
+                            active_era,
+                            Response::ActiveEra {
+                                info: None,
+                                executed_at: 2,
+                                executed_at_gear_block: 2,
+                            }
+                        );
+                        true
+                    } else {
+                        false
+                    }
+                }
+                _ => false,
+            }
+        }));
+    });
+}
+
 mod util {
     pub(super) use crate::mock::{
         BLOCK_AUTHOR, ENDOWMENT, EXISTENTIAL_DEPOSIT, MILLISECS_PER_BLOCK, SIGNER, UNITS,
@@ -664,7 +783,7 @@ mod util {
         PalletId, assert_ok, construct_runtime,
         pallet_prelude::{DispatchClass, Weight},
         parameter_types,
-        traits::{ConstBool, ConstU64, FindAuthor, Get, OnFinalize, OnInitialize},
+        traits::{ConstU64, FindAuthor, Get, OnFinalize, OnInitialize},
     };
     use frame_support_test::TestRandomness;
     use frame_system::{self as system, limits::BlockWeights, pallet_prelude::BlockNumberFor};
@@ -681,7 +800,7 @@ mod util {
     };
     use sp_std::convert::{TryFrom, TryInto};
 
-    pub(super) const SESSION_DURATION: u64 = 250;
+    pub(super) const SESSION_DURATION: u32 = 250;
     pub(super) const REWARD_PAYEE: AccountId = 2;
     pub(super) type AccountId = u64;
 
@@ -689,9 +808,9 @@ mod util {
     const VAL_2_AUTH_ID: UintAuthorityId = UintAuthorityId(21);
     const VAL_3_AUTH_ID: UintAuthorityId = UintAuthorityId(31);
 
-    type BlockNumber = u64;
+    type BlockNumber = u32;
     type Balance = u128;
-    type Block = frame_system::mocking::MockBlock<Test>;
+    type Block = frame_system::mocking::MockBlockU32<Test>;
     type BlockWeightsOf<T> = <T as frame_system::Config>::BlockWeights;
 
     // Configure a mock runtime to test the pallet.
@@ -716,7 +835,7 @@ mod util {
     );
 
     parameter_types! {
-        pub const BlockHashCount: u64 = 250;
+        pub const BlockHashCount: BlockNumber = 250;
         pub const ExistentialDeposit: Balance = EXISTENTIAL_DEPOSIT;
         pub ElectionBoundsOnChain: ElectionBounds = ElectionBoundsBuilder::default().build();
     }
@@ -788,8 +907,8 @@ mod util {
     }
 
     parameter_types! {
-        pub const Period: u64 = SESSION_DURATION;
-        pub const Offset: u64 = SESSION_DURATION + 1;
+        pub const Period: BlockNumber = SESSION_DURATION;
+        pub const Offset: BlockNumber = SESSION_DURATION + 1;
     }
 
     impl pallet_session::Config for Test {
@@ -918,7 +1037,7 @@ mod util {
         run_for_n_blocks(1, None)
     }
 
-    pub(crate) fn run_for_n_blocks(n: u64, remaining_weight: Option<u64>) {
+    pub(crate) fn run_for_n_blocks(n: BlockNumber, remaining_weight: Option<u64>) {
         let now = System::block_number();
         let until = now + n;
         for current_blk in now..until {
@@ -945,7 +1064,7 @@ mod util {
 
     // Run on_initialize hooks in order as they appear in AllPalletsWithSystem.
     pub(crate) fn on_initialize(new_block_number: BlockNumberFor<Test>) {
-        Timestamp::set_timestamp(new_block_number.saturating_mul(MILLISECS_PER_BLOCK));
+        Timestamp::set_timestamp(u64::from(new_block_number).saturating_mul(MILLISECS_PER_BLOCK));
         Authorship::on_initialize(new_block_number);
         Session::on_initialize(new_block_number);
         GearGas::on_initialize(new_block_number);

@@ -38,13 +38,29 @@ impl CargoCommand {
     /// Initialize new cargo command.
     pub fn new() -> CargoCommand {
         let toolchain = Toolchain::try_from_rustup().expect("Failed to resolve toolchain version");
+        let rustc_version = rustc_version::version().expect("Failed to get rustc version");
+        let linker_plugin_lto = rustc_version.major == 1 && rustc_version.minor >= 91;
+
+        let mut rustc_flags = vec!["-C", "link-arg=--import-memory"];
+
+        if linker_plugin_lto {
+            rustc_flags.extend_from_slice(&[
+                // -C link-arg fixes this: https://github.com/rust-lang/rust/issues/145491
+                "-C",
+                "link-arg=--mllvm=-mcpu=mvp",
+                "-C",
+                "link-arg=--mllvm=-mattr=+mutable-globals",
+                // -C linker-plugin-lto causes conflict: https://github.com/rust-lang/rust/issues/130604
+                "-C",
+                "linker-plugin-lto",
+            ]);
+        }
 
         CargoCommand {
             path: "rustup".to_string(),
             manifest_path: "Cargo.toml".into(),
             profile: "dev".to_string(),
-            // TODO: enable `-C linker-plugin-lto` (https://github.com/rust-lang/rust/issues/130604)
-            rustc_flags: vec!["-C", "link-arg=--import-memory"],
+            rustc_flags,
             target_dir: "target".into(),
             features: vec![],
             toolchain,
@@ -105,20 +121,16 @@ impl CargoCommand {
             self.toolchain.clone()
         };
 
-        let mut cargo = if option_env!("IN_NIX_SHELL").is_some() {
-            Command::new("cargo")
-        } else {
-            let mut cargo = Command::new(&self.path);
-            cargo
-                .arg("run")
-                .arg(toolchain.raw_toolchain_str().as_ref())
-                .arg("cargo");
+        let mut cargo = Command::new(&self.path);
+        cargo
+            .arg("run")
+            .arg(toolchain.raw_toolchain_str().as_ref())
+            .arg("cargo");
 
-            if self.force_recommended_toolchain {
-                self.clean_up_environment(&mut cargo);
-            }
-            cargo
-        };
+        if self.force_recommended_toolchain {
+            self.clean_up_environment(&mut cargo);
+        }
+
         cargo
             .arg("rustc")
             .arg("--target=wasm32v1-none")
@@ -139,8 +151,6 @@ impl CargoCommand {
             .env("__GEAR_WASM_BUILDER_NO_BUILD", "1"); // Don't build the original crate recursively
 
         self.remove_cargo_encoded_rustflags(&mut cargo);
-
-        cargo.env("CARGO_ENCODED_RUSTFLAGS", "-Ctarget-feature=+sign-ext");
 
         let status = cargo.status().context("unable to execute cargo command")?;
         ensure!(

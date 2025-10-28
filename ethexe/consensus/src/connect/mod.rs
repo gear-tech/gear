@@ -20,32 +20,69 @@
 //!
 //! Simple "connect-node" consensus service implementation.
 
-use crate::{
-    BatchCommitmentValidationReply, ConsensusEvent, ConsensusService, SignedProducerBlock,
-    SignedValidationRequest,
+use crate::{BatchCommitmentValidationReply, ConsensusEvent, ConsensusService, utils};
+use anyhow::{Result, anyhow};
+use ethexe_common::{
+    Address, Announce, HashOf, SimpleBlockData,
+    consensus::{VerifiedAnnounce, VerifiedValidationRequest},
+    db::OnChainStorageRO,
 };
-use anyhow::Result;
-use ethexe_common::SimpleBlockData;
+use ethexe_db::Database;
 use futures::{Stream, stream::FusedStream};
 use gprimitives::H256;
 use std::{
     collections::VecDeque,
     pin::Pin,
     task::{Context, Poll},
+    time::Duration,
 };
+
+const MAX_PENDING_ANNOUNCES: usize = 10;
+const _: () = assert!(
+    MAX_PENDING_ANNOUNCES != 0,
+    "MAX_PENDING_ANNOUNCES must not be zero"
+);
+
+#[allow(clippy::enum_variant_names)]
+#[derive(Debug)]
+enum State {
+    WaitingForBlock,
+    WaitingForSyncedBlock {
+        block: SimpleBlockData,
+    },
+    WaitingForPreparedBlock {
+        block: SimpleBlockData,
+        producer: Address,
+    },
+    WaitingForAnnounce {
+        block: SimpleBlockData,
+        producer: Address,
+    },
+}
 
 /// Consensus service which tracks the on-chain and ethexe events
 /// in order to keep the program states in local database actual.
-#[derive(Debug, Default)]
+#[derive(derive_more::Debug)]
 pub struct SimpleConnectService {
-    chain_head: Option<SimpleBlockData>,
+    #[debug(skip)]
+    db: Database,
+    slot_duration: Duration,
+
+    state: State,
+    pending_announces: VecDeque<VerifiedAnnounce>,
     output: VecDeque<ConsensusEvent>,
 }
 
 impl SimpleConnectService {
     /// Creates a new instance of `SimpleConnectService`.
-    pub fn new() -> Self {
-        Self::default()
+    pub fn new(db: Database, slot_duration: Duration) -> Self {
+        Self {
+            db,
+            slot_duration,
+            state: State::WaitingForBlock,
+            pending_announces: VecDeque::with_capacity(MAX_PENDING_ANNOUNCES),
+            output: VecDeque::new(),
+        }
     }
 }
 
@@ -55,44 +92,92 @@ impl ConsensusService for SimpleConnectService {
     }
 
     fn receive_new_chain_head(&mut self, block: SimpleBlockData) -> Result<()> {
-        self.chain_head = Some(block);
-
+        self.state = State::WaitingForSyncedBlock { block };
         Ok(())
     }
 
-    fn receive_synced_block(&mut self, block: H256) -> Result<()> {
-        let Some(block_data) = self.chain_head.as_ref() else {
-            self.output.push_back(ConsensusEvent::Warning(format!(
-                "Received synced block {block}, but no chain-head was received yet",
-            )));
+    fn receive_synced_block(&mut self, block_hash: H256) -> Result<()> {
+        if let State::WaitingForSyncedBlock { block } = &self.state
+            && block.hash == block_hash
+        {
+            let validators = self.db.block_validators(block_hash).ok_or(anyhow!(
+                "validators not found for synced block({block_hash})"
+            ))?;
+            let producer = utils::block_producer_for(
+                &validators,
+                block.header.timestamp,
+                self.slot_duration.as_secs(),
+            );
 
-            return Ok(());
-        };
+            self.state = State::WaitingForPreparedBlock {
+                block: block.clone(),
+                producer,
+            };
+        }
+        Ok(())
+    }
 
-        if block_data.hash != block {
-            self.output.push_back(ConsensusEvent::Warning(format!(
-                "Received synced block {block} is different from the expected block hash {}",
-                block_data.hash
-            )));
+    fn receive_prepared_block(&mut self, prepared_block_hash: H256) -> Result<()> {
+        if let State::WaitingForPreparedBlock { block, producer } = &self.state
+            && block.hash == prepared_block_hash
+        {
+            if let Some(index) = self.pending_announces.iter().position(|announce| {
+                announce.address() == *producer && announce.data().block_hash == block.hash
+            }) {
+                let (announce, _) = self
+                    .pending_announces
+                    .remove(index)
+                    .expect("Index must be valid")
+                    .into_parts();
+                self.output
+                    .push_back(ConsensusEvent::ComputeAnnounce(announce));
+                self.state = State::WaitingForBlock;
+            } else {
+                self.state = State::WaitingForAnnounce {
+                    block: block.clone(),
+                    producer: *producer,
+                };
+            };
+        }
+        Ok(())
+    }
 
+    fn receive_computed_announce(&mut self, _announce: HashOf<Announce>) -> Result<()> {
+        Ok(())
+    }
+
+    fn receive_announce(&mut self, announce: VerifiedAnnounce) -> Result<()> {
+        debug_assert!(
+            self.pending_announces.len() <= MAX_PENDING_ANNOUNCES,
+            "Logically impossible to have more than {MAX_PENDING_ANNOUNCES} pending announces because oldest ones are dropped"
+        );
+
+        if let State::WaitingForAnnounce { block, producer } = &self.state
+            && announce.address() == *producer
+            && announce.data().block_hash == block.hash
+        {
+            let (announce, _) = announce.into_parts();
+            self.output
+                .push_back(ConsensusEvent::ComputeAnnounce(announce));
+            self.state = State::WaitingForBlock;
             return Ok(());
         }
 
-        self.output
-            .push_back(ConsensusEvent::ComputeBlock(block_data.hash));
+        if self.pending_announces.len() == MAX_PENDING_ANNOUNCES {
+            let old_announce = self.pending_announces.pop_front().unwrap();
+            tracing::trace!(
+                "Pending announces limit reached, dropping oldest announce: {:?} from {}",
+                old_announce.data(),
+                old_announce.address()
+            );
+        }
+
+        self.pending_announces.push_back(announce);
 
         Ok(())
     }
 
-    fn receive_computed_block(&mut self, _block_hash: H256) -> Result<()> {
-        Ok(())
-    }
-
-    fn receive_block_from_producer(&mut self, _block_hash: SignedProducerBlock) -> Result<()> {
-        Ok(())
-    }
-
-    fn receive_validation_request(&mut self, _signed_batch: SignedValidationRequest) -> Result<()> {
+    fn receive_validation_request(&mut self, _batch: VerifiedValidationRequest) -> Result<()> {
         Ok(())
     }
 
@@ -102,7 +187,7 @@ impl ConsensusService for SimpleConnectService {
 }
 
 impl Stream for SimpleConnectService {
-    type Item = anyhow::Result<ConsensusEvent>;
+    type Item = Result<ConsensusEvent>;
 
     fn poll_next(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         if let Some(event) = self.output.pop_front() {

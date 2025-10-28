@@ -24,7 +24,10 @@ use core::marker::PhantomData;
 use gbuiltin_staking::*;
 use pallet_staking::{Config as StakingConfig, NominationsQuota, RewardDestination};
 use parity_scale_codec::Decode;
-use sp_runtime::traits::{StaticLookup, UniqueSaturatedInto};
+use sp_runtime::{
+    SaturatedConversion,
+    traits::{StaticLookup, UniqueSaturatedInto},
+};
 
 pub struct Actor<T: Config + StakingConfig>(PhantomData<T>);
 
@@ -95,11 +98,12 @@ where
                 };
                 pallet_staking::Call::<T>::set_payee { payee }.into()
             }
+            _ => unreachable!("ActiveEra is handled separately"),
         }
     }
 }
 
-impl<T: Config + StakingConfig> BuiltinActor for Actor<T>
+impl<T: Config + StakingConfig + pallet_gear::Config> BuiltinActor for Actor<T>
 where
     T::AccountId: Origin,
     CallOf<T>: From<pallet_staking::Call<T>>,
@@ -130,6 +134,30 @@ where
         // Decode the message payload to derive the desired action
         let request =
             Request::decode(&mut payload).map_err(|_| BuiltinActorError::DecodingError)?;
+
+        // Handle special cases that return custom response instead of just dispatching calls
+        if let Request::ActiveEra = request {
+            let executed_at = frame_system::Pallet::<T>::block_number().saturated_into::<u32>();
+            let executed_at_gear_block =
+                pallet_gear::Pallet::<T>::block_number().saturated_into::<u32>();
+            let info = pallet_staking::ActiveEra::<T>::get().map(|era_info| ActiveEraInfo {
+                index: era_info.index,
+                start: era_info.start,
+            });
+
+            let payload = Response::ActiveEra {
+                info,
+                executed_at,
+                executed_at_gear_block,
+            }
+            .encode()
+            .try_into()
+            .expect("Small vector");
+            return Ok(BuiltinReply {
+                payload,
+                value: dispatch.value(),
+            });
+        }
 
         // Handle staking requests
         let call = Self::cast(request);

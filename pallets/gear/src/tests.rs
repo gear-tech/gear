@@ -71,6 +71,7 @@ use gstd::{
     errors::{CoreError, Error as GstdError},
 };
 use pallet_gear_voucher::PrepaidCall;
+use rand::{Rng, SeedableRng, prelude::StdRng};
 use sp_core::H256;
 use sp_runtime::{
     SaturatedConversion,
@@ -406,6 +407,8 @@ fn state_rpc_calls_trigger_reinstrumentation() {
             |module| schedule.rules(module),
             schedule.limits.stack_height,
             schedule.limits.data_segments_amount.into(),
+            schedule.limits.type_section_len.into(),
+            schedule.limits.parameters.into(),
         )
         .expect("Failed to create dummy code");
 
@@ -4947,6 +4950,8 @@ fn test_code_submission_pass() {
             |module| schedule.rules(module),
             schedule.limits.stack_height,
             schedule.limits.data_segments_amount.into(),
+            schedule.limits.type_section_len.into(),
+            schedule.limits.parameters.into(),
         )
         .expect("Error creating Code");
         assert_eq!(
@@ -6876,6 +6881,8 @@ fn test_create_program_works() {
             |module| schedule.rules(module),
             schedule.limits.stack_height,
             schedule.limits.data_segments_amount.into(),
+            schedule.limits.type_section_len.into(),
+            schedule.limits.parameters.into(),
         )
         .expect("Code failed to load");
 
@@ -10439,6 +10446,8 @@ fn test_mad_big_prog_instrumentation() {
             |module| schedule.rules(module),
             schedule.limits.stack_height,
             schedule.limits.data_segments_amount.into(),
+            schedule.limits.type_section_len.into(),
+            schedule.limits.parameters.into(),
         );
         // In any case of the defined weights on the platform, instrumentation of the valid
         // huge wasm mustn't fail
@@ -13433,6 +13442,8 @@ fn wrong_entry_type() {
                 |_| CustomConstantCostRules::default(),
                 None,
                 None,
+                None,
+                None,
             ),
             Err(CodeError::Export(ExportError::InvalidExportFnSignature(0)))
         ));
@@ -15301,7 +15312,7 @@ fn incorrect_store_context() {
         // Fill until the limit is reached
         while counter < limit + 1 {
             let handle = message_context.send_init().unwrap();
-            let len = (Payload::max_len() as u32).min(limit + 1 - counter);
+            let len = (Payload::MAX_LEN as u32).min(limit + 1 - counter);
             message_context
                 .send_push(handle, &vec![1; len as usize])
                 .unwrap();
@@ -16319,6 +16330,273 @@ fn check_gear_stack_end() {
     })
 }
 
+#[ignore]
+#[test]
+fn fungible_token_stress_test() {
+    use demo_fungible_token::{FTAction, InitConfig, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let _reset_guard = DynamicSchedule::mutate(|schedule| {
+            schedule.syscall_weights.gr_debug = Default::default();
+            schedule.syscall_weights.gr_debug_per_byte = Default::default();
+            schedule.syscall_weights.gr_gas_available = Default::default();
+        });
+
+        let init_msg = InitConfig {
+            name: "MyToken".to_string(),
+            symbol: "MTK".to_string(),
+            decimals: 18,
+            initial_capacity: None,
+        }
+        .encode();
+
+        let balance = Balances::free_balance(USER_1);
+
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            DEFAULT_SALT.to_vec(),
+            init_msg,
+            BlockGasLimitOf::<Test>::get(),
+            0,
+            false,
+        ));
+
+        let pid = get_last_program_id();
+
+        run_to_next_block(None);
+        assert!(Gear::is_initialized(pid));
+
+        log::info!(
+            "Value burned for `init`: {}",
+            balance - Balances::free_balance(USER_1)
+        );
+
+        // Getting basic users and their actor ids.
+        let users = [USER_1, USER_2];
+
+        // Creating batch of transactions for each user.
+        let mut batch: Vec<(AccountId, FTAction)> = vec![];
+
+        for user in users {
+            let actor_id: ActorId = user.cast();
+
+            // Mint 1_000_000 tokens to main user
+            let mint_payload = FTAction::Mint(1_000_000);
+            batch.push((user, mint_payload));
+
+            // Transfer 6_000 tokens to users 1-20
+            for i in 1..=20u64 {
+                let transfer_payload = FTAction::Transfer {
+                    from: actor_id,
+                    to: i.into(),
+                    amount: 6_000,
+                };
+                batch.push((user, transfer_payload));
+            }
+
+            // Check the balance of `user` and users 1-20
+            let balance_payload = FTAction::BalanceOf(actor_id);
+            batch.push((user, balance_payload));
+
+            for i in 1..=20u64 {
+                let balance_payload = FTAction::BalanceOf(i.into());
+                batch.push((user, balance_payload));
+            }
+
+            // Users 1-20 send 1_000 tokens to users 21-40
+            for i in 1..=20u64 {
+                let transfer_payload = FTAction::Transfer {
+                    from: i.into(),
+                    to: (i + 20).into(),
+                    amount: 1_000,
+                };
+                batch.push((user, transfer_payload));
+            }
+
+            // Check the balance of users 1..20 after transfers
+            for i in 1..=20u64 {
+                let balance_payload = FTAction::BalanceOf(i.into());
+                batch.push((user, balance_payload));
+            }
+
+            // Mint 10_000_000 tokens to main user
+            let mint_payload = FTAction::Mint(10_000_000);
+            batch.push((user, mint_payload));
+
+            // Mint 5_000 tokens, transfer them to users 87-120 and check their balance
+            for i in 87..=120u64 {
+                let mint_payload = FTAction::Mint(5_000);
+                batch.push((user, mint_payload));
+
+                let transfer_payload = FTAction::Transfer {
+                    from: actor_id,
+                    to: i.into(),
+                    amount: 5_000,
+                };
+                batch.push((user, transfer_payload));
+
+                let balance_payload = FTAction::BalanceOf(i.into());
+                batch.push((user, balance_payload));
+            }
+
+            // Same as above, but for users 918-1339 and then these users send 1_000 tokens
+            // to user i*2
+            for i in 918..=1339u64 {
+                let mint_payload = FTAction::Mint(5_000);
+                batch.push((user, mint_payload));
+
+                let transfer_payload = FTAction::Transfer {
+                    from: actor_id,
+                    to: i.into(),
+                    amount: 5_000,
+                };
+                batch.push((user, transfer_payload));
+
+                let transfer_payload = FTAction::Transfer {
+                    from: i.into(),
+                    to: (i * 2).into(),
+                    amount: i as u128 / 4u128,
+                };
+                batch.push((user, transfer_payload));
+            }
+        }
+
+        for (user, action) in batch {
+            let balance = Balances::free_balance(user);
+
+            assert_ok!(Gear::send_message(
+                RuntimeOrigin::signed(user),
+                pid,
+                action.encode(),
+                BlockGasLimitOf::<Test>::get(),
+                0,
+                false,
+            ));
+            let mid = get_last_message_id();
+
+            run_to_next_block(None);
+            assert_succeed(mid);
+
+            log::info!(
+                "Value burned for `handle`: {}",
+                balance - Balances::free_balance(user)
+            );
+        }
+    });
+}
+
+#[ignore]
+#[test]
+fn fungible_token_stress_transfer() {
+    use demo_fungible_token::{FTAction, InitConfig, WASM_BINARY};
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let _reset_guard = DynamicSchedule::mutate(|schedule| {
+            schedule.syscall_weights.gr_debug = Default::default();
+            schedule.syscall_weights.gr_debug_per_byte = Default::default();
+            schedule.syscall_weights.gr_gas_available = Default::default();
+        });
+
+        let mut rng = StdRng::seed_from_u64(42);
+
+        // Uploading program.
+        let init_msg = InitConfig {
+            name: "MyToken".to_string(),
+            symbol: "MTK".to_string(),
+            decimals: 18,
+            initial_capacity: Some(300_000),
+        }
+        .encode();
+
+        let balance = Balances::free_balance(USER_1);
+        let salt: u8 = rng.r#gen();
+        assert_ok!(Gear::upload_program(
+            RuntimeOrigin::signed(USER_1),
+            WASM_BINARY.to_vec(),
+            [salt].to_vec(),
+            init_msg,
+            BlockGasLimitOf::<Test>::get(),
+            0,
+            false,
+        ));
+
+        let pid = get_last_program_id();
+
+        run_to_next_block(None);
+        assert!(Gear::is_initialized(pid));
+
+        log::info!(
+            "Value burned for init: {}",
+            balance - Balances::free_balance(USER_1)
+        );
+
+        // Fill program with test users balances
+        let mut actions: Vec<FTAction> = vec![];
+        actions.push(FTAction::Mint(u64::MAX as u128));
+
+        // Add this amount of user balances in one message
+        let step_size = 5_000;
+        // Amount of added users in balances
+        let users_amount = 250_000;
+
+        for user_id in (1..=users_amount).step_by(step_size as usize) {
+            actions.push(FTAction::TestSet(
+                user_id..user_id + step_size,
+                u64::MAX as u128,
+            ));
+        }
+
+        for action in actions {
+            let balance = Balances::free_balance(USER_1);
+
+            assert_ok!(Gear::send_message(
+                RuntimeOrigin::signed(USER_1),
+                pid,
+                action.encode(),
+                BlockGasLimitOf::<Test>::get(),
+                0,
+                false,
+            ));
+
+            let msg_id = get_last_message_id();
+            run_to_next_block(None);
+            assert_succeed(msg_id);
+
+            log::info!(
+                "Value burned for action: {}",
+                balance - Balances::free_balance(USER_1)
+            );
+        }
+
+        // Estimate gas for one transfer action
+        for _ in 0..100 {
+            let from: u64 = rng.gen_range(1..=users_amount);
+            let to: u64 = rng.gen_range(1..=users_amount);
+            let amount: u128 = rng.gen_range(1..=100);
+            let action = FTAction::Transfer {
+                from: from.into(),
+                to: to.into(),
+                amount,
+            };
+
+            let GasInfo { burned, .. } = Gear::calculate_gas_info(
+                USER_1.into_origin(),
+                HandleKind::Handle(pid),
+                action.encode(),
+                0,
+                true,
+                true,
+            )
+            .expect("calculate_gas_info failed");
+
+            log::info!("Value burned for transfer: {}", gas_price(burned));
+        }
+    });
+}
+
 pub(crate) mod utils {
     #![allow(unused)]
 
@@ -16366,7 +16644,7 @@ pub(crate) mod utils {
         iter,
     };
 
-    pub(super) const DEFAULT_GAS_LIMIT: u64 = 200_000_000;
+    pub(super) const DEFAULT_GAS_LIMIT: u64 = 450_000_000;
     pub(super) const DEFAULT_SALT: &[u8; 4] = b"salt";
     pub(super) const EMPTY_PAYLOAD: &[u8; 0] = b"";
     pub(super) const OUTGOING_WITH_VALUE_IN_HANDLE_VALUE_GAS: u64 = 10000000;

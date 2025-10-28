@@ -17,14 +17,13 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::{StateHandler, ValidatorContext, ValidatorState, submitter::Submitter};
-use crate::{
-    BatchCommitmentValidationReply, BatchCommitmentValidationRequest, ConsensusEvent,
-    utils::MultisignedBatchCommitment,
-};
+use crate::{BatchCommitmentValidationReply, ConsensusEvent, utils::MultisignedBatchCommitment};
 use anyhow::{Result, anyhow, ensure};
-use derive_more::{Debug, Display};
-use ethexe_common::{Address, gear::BatchCommitment};
-use nonempty::NonEmpty;
+use derive_more::Display;
+use ethexe_common::{
+    Address, ValidatorsVec, consensus::BatchCommitmentValidationRequest, gear::BatchCommitment,
+    network::ValidatorMessage,
+};
 use std::collections::BTreeSet;
 
 /// [`Coordinator`] sends batch commitment validation request to other validators
@@ -67,7 +66,7 @@ impl StateHandler for Coordinator {
             self.warning(format!("validation reply rejected: {err}"));
         }
 
-        if self.multisigned_batch.signatures().len() as u64 >= self.ctx.signatures_threshold {
+        if self.multisigned_batch.signatures().len() as u64 >= self.ctx.core.signatures_threshold {
             Submitter::create(self.ctx, self.multisigned_batch)
         } else {
             Ok(self.into())
@@ -78,32 +77,39 @@ impl StateHandler for Coordinator {
 impl Coordinator {
     pub fn create(
         mut ctx: ValidatorContext,
-        validators: NonEmpty<Address>,
+        validators: ValidatorsVec,
         batch: BatchCommitment,
     ) -> Result<ValidatorState> {
         ensure!(
-            validators.len() as u64 >= ctx.signatures_threshold,
+            validators.len() as u64 >= ctx.core.signatures_threshold,
             "Number of validators is less than threshold"
         );
 
         ensure!(
-            ctx.signatures_threshold > 0,
+            ctx.core.signatures_threshold > 0,
             "Threshold should be greater than 0"
         );
 
-        let multisigned_batch =
-            MultisignedBatchCommitment::new(batch, &ctx.signer, ctx.router_address, ctx.pub_key)?;
+        let multisigned_batch = MultisignedBatchCommitment::new(
+            batch,
+            &ctx.core.signer,
+            ctx.core.router_address,
+            ctx.core.pub_key,
+        )?;
 
-        if multisigned_batch.signatures().len() as u64 >= ctx.signatures_threshold {
+        if multisigned_batch.signatures().len() as u64 >= ctx.core.signatures_threshold {
             return Submitter::create(ctx, multisigned_batch);
         }
 
-        let validation_request = ctx.signer.signed_data(
-            ctx.pub_key,
-            BatchCommitmentValidationRequest::new(multisigned_batch.batch()),
-        )?;
+        let payload = BatchCommitmentValidationRequest::new(multisigned_batch.batch());
+        let message = ValidatorMessage {
+            block: multisigned_batch.batch().block_hash,
+            payload,
+        };
 
-        ctx.output(ConsensusEvent::PublishValidationRequest(validation_request));
+        let validation_request = ctx.core.signer.signed_data(ctx.core.pub_key, message)?;
+
+        ctx.output(ConsensusEvent::PublishMessage(validation_request.into()));
 
         Ok(Self {
             ctx,
@@ -124,92 +130,89 @@ mod tests {
 
     #[test]
     fn coordinator_create_success() {
-        let (mut ctx, keys) = mock_validator_context();
-        ctx.signatures_threshold = 2;
-        let validators =
-            NonEmpty::from_vec(keys.iter().take(3).map(|k| k.to_address()).collect()).unwrap();
+        let (mut ctx, keys, _) = mock_validator_context();
+        ctx.core.signatures_threshold = 2;
+        let validators = keys
+            .iter()
+            .take(3)
+            .map(|k| k.to_address())
+            .collect::<Result<_, _>>()
+            .unwrap();
         let batch = BatchCommitment::default();
 
         let coordinator = Coordinator::create(ctx, validators, batch).unwrap();
         assert!(coordinator.is_coordinator());
-        assert!(matches!(
-            coordinator.context().output[0],
-            ConsensusEvent::PublishValidationRequest(_)
-        ));
+        coordinator.context().output[0]
+            .clone()
+            .unwrap_publish_message()
+            .unwrap_request_batch_validation();
     }
 
     #[test]
     fn coordinator_create_insufficient_validators() {
-        let (mut ctx, keys) = mock_validator_context();
-        ctx.signatures_threshold = 3;
+        let (mut ctx, keys, _) = mock_validator_context();
+        ctx.core.signatures_threshold = 3;
         let validators =
             NonEmpty::from_vec(keys.iter().take(2).map(|k| k.to_address()).collect()).unwrap();
         let batch = BatchCommitment::default();
 
         assert!(
-            Coordinator::create(ctx, validators, batch).is_err(),
+            Coordinator::create(ctx, validators.into(), batch).is_err(),
             "Expected an error, but got Ok"
         );
     }
 
     #[test]
     fn coordinator_create_zero_threshold() {
-        let (mut ctx, keys) = mock_validator_context();
-        ctx.signatures_threshold = 0;
+        let (mut ctx, keys, _) = mock_validator_context();
+        ctx.core.signatures_threshold = 0;
         let validators =
             NonEmpty::from_vec(keys.iter().take(1).map(|k| k.to_address()).collect()).unwrap();
         let batch = BatchCommitment::default();
 
         assert!(
-            Coordinator::create(ctx, validators, batch).is_err(),
+            Coordinator::create(ctx, validators.into(), batch).is_err(),
             "Expected an error due to zero threshold, but got Ok"
         );
     }
 
     #[test]
     fn process_validation_reply() {
-        let (mut ctx, keys) = mock_validator_context();
-        ctx.signatures_threshold = 3;
+        let (mut ctx, keys, _) = mock_validator_context();
+        ctx.core.signatures_threshold = 3;
         let validators =
             NonEmpty::from_vec(keys.iter().take(3).map(|k| k.to_address()).collect()).unwrap();
 
         let batch = BatchCommitment::default();
         let digest = batch.to_digest();
 
-        let reply1 = BatchCommitmentValidationReply::mock((
-            ctx.signer.clone(),
-            keys[0],
-            ctx.router_address,
-            digest,
-        ));
+        let reply1 = ctx
+            .core
+            .signer
+            .validation_reply(keys[0], ctx.core.router_address, digest);
 
-        let reply2_invalid = BatchCommitmentValidationReply::mock((
-            ctx.signer.clone(),
-            keys[4],
-            ctx.router_address,
-            digest,
-        ));
+        let reply2_invalid =
+            ctx.core
+                .signer
+                .validation_reply(keys[4], ctx.core.router_address, digest);
 
-        let reply3_invalid = BatchCommitmentValidationReply::mock((
-            ctx.signer.clone(),
+        let reply3_invalid = ctx.core.signer.validation_reply(
             keys[1],
-            ctx.router_address,
+            ctx.core.router_address,
             H256::random().0.into(),
-        ));
+        );
 
-        let reply4 = BatchCommitmentValidationReply::mock((
-            ctx.signer.clone(),
-            keys[2],
-            ctx.router_address,
-            digest,
-        ));
+        let reply4 = ctx
+            .core
+            .signer
+            .validation_reply(keys[2], ctx.core.router_address, digest);
 
-        let mut coordinator = Coordinator::create(ctx, validators, batch).unwrap();
+        let mut coordinator = Coordinator::create(ctx, validators.into(), batch).unwrap();
         assert!(coordinator.is_coordinator());
-        assert!(matches!(
-            coordinator.context().output[0],
-            ConsensusEvent::PublishValidationRequest(_)
-        ));
+        coordinator.context().output[0]
+            .clone()
+            .unwrap_publish_message()
+            .unwrap_request_batch_validation();
 
         coordinator = coordinator.process_validation_reply(reply1).unwrap();
         assert!(coordinator.is_coordinator());

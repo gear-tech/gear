@@ -21,11 +21,15 @@ import {Gear} from "../src/libraries/Gear.sol";
 
 import {IDefaultStakerRewards} from "symbiotic-rewards/src/interfaces/defaultStakerRewards/IDefaultStakerRewards.sol";
 import {DefaultStakerRewards} from "symbiotic-rewards/src/contracts/defaultStakerRewards/DefaultStakerRewards.sol";
-import {DefaultStakerRewardsFactory} from
-    "symbiotic-rewards/src/contracts/defaultStakerRewards/DefaultStakerRewardsFactory.sol";
-import {DefaultOperatorRewards} from "symbiotic-rewards/src/contracts/defaultOperatorRewards/DefaultOperatorRewards.sol";
-import {DefaultOperatorRewardsFactory} from
-    "symbiotic-rewards/src/contracts/defaultOperatorRewards/DefaultOperatorRewardsFactory.sol";
+import {
+    DefaultStakerRewardsFactory
+} from "symbiotic-rewards/src/contracts/defaultStakerRewards/DefaultStakerRewardsFactory.sol";
+import {
+    DefaultOperatorRewards
+} from "symbiotic-rewards/src/contracts/defaultOperatorRewards/DefaultOperatorRewards.sol";
+import {
+    DefaultOperatorRewardsFactory
+} from "symbiotic-rewards/src/contracts/defaultOperatorRewards/DefaultOperatorRewardsFactory.sol";
 
 contract Base is POCBaseTest {
     using MessageHashUtils for address;
@@ -105,25 +109,25 @@ contract Base is POCBaseTest {
         vm.startPrank(admin, admin);
         {
             router = Router(
-                Upgrades.deployTransparentProxy(
-                    "Router.sol",
-                    admin,
-                    abi.encodeCall(
-                        Router.initialize,
-                        (
-                            admin,
-                            mirrorAddress,
-                            wrappedVaraAddress,
-                            middlewareAddress,
-                            uint256(eraDuration),
-                            uint256(electionDuration),
-                            uint256(validationDelay),
-                            _aggregatedPublicKey,
-                            "",
-                            _validators
+                payable(Upgrades.deployTransparentProxy(
+                        "Router.sol",
+                        admin,
+                        abi.encodeCall(
+                            Router.initialize,
+                            (
+                                admin,
+                                mirrorAddress,
+                                wrappedVaraAddress,
+                                middlewareAddress,
+                                uint256(eraDuration),
+                                uint256(electionDuration),
+                                uint256(validationDelay),
+                                _aggregatedPublicKey,
+                                "",
+                                _validators
+                            )
                         )
-                    )
-                )
+                    ))
             );
         }
         vm.stopPrank();
@@ -174,9 +178,8 @@ contract Base is POCBaseTest {
         {
             middleware.registerVault(_vault, _rewards);
             operatorVaultOptInService.optIn(_vault);
-            IOperatorSpecificDelegator(IVault(_vault).delegator()).setNetworkLimit(
-                middleware.subnetwork(), type(uint256).max
-            );
+            IOperatorSpecificDelegator(IVault(_vault).delegator())
+                .setNetworkLimit(middleware.subnetwork(), type(uint256).max);
         }
         vm.stopPrank();
     }
@@ -372,9 +375,7 @@ contract Base is POCBaseTest {
                 delegatorParams: abi.encode(
                     IOperatorSpecificDelegator.InitParams({
                         baseParams: IBaseDelegator.BaseParams({
-                            defaultAdminRoleHolder: _operator,
-                            hook: address(0),
-                            hookSetRoleHolder: _operator
+                            defaultAdminRoleHolder: _operator, hook: address(0), hookSetRoleHolder: _operator
                         }),
                         networkLimitSetRoleHolders: networkLimitSetRoleHolders,
                         operator: _operator
@@ -464,13 +465,17 @@ contract Base is POCBaseTest {
         address defaultOperatorRewards_ = address(new DefaultOperatorRewards(address(networkMiddlewareService)));
         defaultOperatorRewardsFactory = new DefaultOperatorRewardsFactory(defaultOperatorRewards_);
 
-        Gear.SymbioticRegistries memory registries = Gear.SymbioticRegistries({
+        Gear.SymbioticContracts memory symbiotic = Gear.SymbioticContracts({
             vaultRegistry: address(vaultFactory),
             operatorRegistry: address(operatorRegistry),
             networkRegistry: address(networkRegistry),
             middlewareService: address(networkMiddlewareService),
             networkOptIn: address(operatorNetworkOptInService),
-            stakerRewardsFactory: address(defaultStakerRewardsFactory)
+            stakerRewardsFactory: address(defaultStakerRewardsFactory),
+            operatorRewards: defaultOperatorRewardsFactory.create(),
+            roleSlashRequester: admin,
+            roleSlashExecutor: admin,
+            vetoResolver: admin
         });
 
         params = IMiddleware.InitParams({
@@ -486,12 +491,8 @@ contract Base is POCBaseTest {
             maxResolverSetEpochsDelay: type(uint256).max,
             collateral: address(wrappedVara),
             maxAdminFee: 10000,
-            operatorRewards: defaultOperatorRewardsFactory.create(),
             router: address(router),
-            roleSlashRequester: admin,
-            roleSlashExecutor: admin,
-            vetoResolver: admin,
-            registries: registries
+            symbiotic: symbiotic
         });
     }
 }

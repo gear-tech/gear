@@ -34,7 +34,7 @@ pub(crate) struct Toolchain(String);
 
 impl Toolchain {
     /// This is a version of nightly toolchain, tested on our CI.
-    const PINNED_NIGHTLY_TOOLCHAIN: &'static str = "nightly-2025-06-06";
+    const PINNED_NIGHTLY_TOOLCHAIN: &'static str = "nightly-2025-10-20";
 
     /// Returns `Toolchain` representing the recommended nightly version.
     pub fn recommended_nightly() -> Self {
@@ -43,9 +43,6 @@ impl Toolchain {
 
     /// Fetches `Toolchain` via rustup.
     pub fn try_from_rustup() -> Result<Self> {
-        if option_env!("IN_NIX_SHELL").is_some() {
-            return Ok(Self::recommended_nightly());
-        }
         let output = Command::new("rustup")
             .args(["show", "active-toolchain"])
             .output()
@@ -63,7 +60,7 @@ impl Toolchain {
             let channels = TOOLCHAIN_CHANNELS.join("|");
             let pattern = format!(r"(?:{channels})(?:-\d{{4}}-\d{{2}}-\d{{2}})?");
             // Note this regex gives you a guaranteed match of the channel[-date] as group 0,
-            // for example: `nightly-2025-06-06`
+            // for example: `nightly-2025-10-20`
             Regex::new(&pattern).unwrap()
         });
 

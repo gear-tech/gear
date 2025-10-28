@@ -10,7 +10,7 @@ repository.workspace = true
 [dependencies]
 ethexe-common = { workspace = true, features = ["std"] }
 ethexe-signer.workspace = true
-ethexe-ethereum.workspace = true
+ethexe-ethereum = { workspace = true }
 ethexe-db.workspace = true
 gprimitives = { workspace = true, features = ["std"] }
 
@@ -31,11 +31,9 @@ alloy = { workspace = true, features = [
 tokio = { workspace = true, features = ["rt-multi-thread", "fs", "sync"] }
 futures.workspace = true
 log.workspace = true
-nonempty.workspace = true
+tracing.workspace = true
 
 [dev-dependencies]
 gear-utils.workspace = true
 wasmparser.workspace = true
 wat.workspace = true
-rand.workspace = true
-roast-secp256k1-evm.workspace = true

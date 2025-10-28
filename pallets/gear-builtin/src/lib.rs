@@ -36,10 +36,11 @@ extern crate alloc;
 pub mod benchmarking;
 
 pub mod bls12_381;
-pub mod migration;
 pub mod proxy;
 pub mod staking;
 pub mod weights;
+
+pub mod migrations {}
 
 #[cfg(test)]
 mod mock;
@@ -69,8 +70,8 @@ use frame_support::{
 use gear_core::{
     gas::{ChargeResult, GasAllowanceCounter, GasAmount, GasCounter},
     ids::ActorId,
+    limited::LimitedStr,
     message::{ContextOutcomeDrain, DispatchKind, MessageContext, ReplyPacket, StoredDispatch},
-    str::LimitedStr,
     utils::hash,
 };
 use impl_trait_for_tuples::impl_for_tuples;

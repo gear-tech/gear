@@ -23,78 +23,27 @@
 
 use anyhow::{Result, anyhow};
 use ethexe_common::{
-    Address, Digest, ProducerBlock, SimpleBlockData, ToDigest,
-    db::{BlockMetaStorageRead, CodesStorageRead, OnChainStorageRead},
-    ecdsa::{ContractSignature, PublicKey, SignedData},
-    gear::{BatchCommitment, ChainCommitment, CodeCommitment},
-    sha3::{self, digest::Digest as _},
+    Address, Announce, Digest, HashOf, SimpleBlockData, ToDigest, ValidatorsVec,
+    consensus::BatchCommitmentValidationReply,
+    db::{AnnounceStorageRO, BlockMetaStorageRO, CodesStorageRO, OnChainStorageRO},
+    ecdsa::{ContractSignature, PublicKey},
+    gear::{
+        AggregatedPublicKey, BatchCommitment, ChainCommitment, CodeCommitment, RewardsCommitment,
+        ValidatorsCommitment,
+    },
 };
 use ethexe_signer::Signer;
-use gprimitives::{CodeId, H256};
+use gprimitives::{CodeId, U256};
 use parity_scale_codec::{Decode, Encode};
+use rand::SeedableRng;
+use roast_secp256k1_evm::frost::{
+    Identifier,
+    keys::{self, IdentifierList},
+};
 use std::{
     collections::{BTreeMap, HashSet},
     hash::Hash,
 };
-
-pub type SignedProducerBlock = SignedData<ProducerBlock>;
-pub type SignedValidationRequest = SignedData<BatchCommitmentValidationRequest>;
-
-/// Represents a request for validating a batch commitment.
-#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
-pub struct BatchCommitmentValidationRequest {
-    // Digest of batch commitment to validate
-    pub digest: Digest,
-    /// List of blocks to validate
-    pub head: Option<H256>,
-    /// List of codes which are part of the batch
-    pub codes: Vec<CodeId>,
-}
-
-impl BatchCommitmentValidationRequest {
-    pub fn new(batch: &BatchCommitment) -> Self {
-        let codes = batch
-            .code_commitments
-            .iter()
-            .map(|commitment| commitment.id)
-            .collect();
-
-        BatchCommitmentValidationRequest {
-            digest: batch.to_digest(),
-            head: batch.chain_commitment.as_ref().map(|c| c.head),
-            codes,
-        }
-    }
-}
-
-impl ToDigest for BatchCommitmentValidationRequest {
-    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
-        let Self {
-            digest,
-            head,
-            codes,
-        } = self;
-
-        hasher.update(digest);
-        head.map(|head| hasher.update(head));
-        hasher.update(
-            codes
-                .iter()
-                .flat_map(|h| h.into_bytes())
-                .collect::<Vec<u8>>(),
-        );
-    }
-}
-
-/// A reply to a batch commitment validation request.
-/// Contains the digest of the batch and a signature confirming the validation.
-#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
-pub struct BatchCommitmentValidationReply {
-    /// Digest of the [`BatchCommitment`] being validated
-    pub digest: Digest,
-    /// Signature confirming the validation by origin
-    pub signature: ContractSignature,
-}
 
 /// A batch commitment, that has been signed by multiple validators.
 /// This structure manages the collection of signatures from different validators
@@ -182,7 +131,7 @@ impl MultisignedBatchCommitment {
     }
 }
 
-pub fn aggregate_code_commitments<DB: CodesStorageRead>(
+pub fn aggregate_code_commitments<DB: CodesStorageRO>(
     db: &DB,
     codes: impl IntoIterator<Item = CodeId>,
     fail_if_not_found: bool,
@@ -202,25 +151,30 @@ pub fn aggregate_code_commitments<DB: CodesStorageRead>(
     Ok(commitments)
 }
 
-pub fn aggregate_chain_commitment<DB: BlockMetaStorageRead + OnChainStorageRead>(
+pub fn aggregate_chain_commitment<DB: BlockMetaStorageRO + OnChainStorageRO + AnnounceStorageRO>(
     db: &DB,
-    from_block_hash: H256,
+    head_announce: HashOf<Announce>,
     fail_if_not_computed: bool,
     max_deepness: Option<u32>,
 ) -> Result<Option<(ChainCommitment, u32)>> {
     // TODO #4744: improve squashing - removing redundant state transitions
 
+    let block_hash = db
+        .announce(head_announce)
+        .ok_or_else(|| anyhow!("Cannot get announce from db for head {head_announce}"))?
+        .block_hash;
+
     let last_committed_head = db
-        .block_meta(from_block_hash)
-        .last_committed_head
+        .block_meta(block_hash)
+        .last_committed_announce
         .ok_or_else(|| {
-            anyhow!("Cannot get from db last committed head for block {from_block_hash}")
+            anyhow!("Cannot get from db last committed head for block {head_announce}")
         })?;
 
-    let mut block_hash = from_block_hash;
+    let mut announce_hash = head_announce;
     let mut counter: u32 = 0;
     let mut transitions = vec![];
-    while block_hash != last_committed_head {
+    while announce_hash != last_committed_head {
         if max_deepness.map(|d| counter >= d).unwrap_or(false) {
             return Err(anyhow!(
                 "Chain commitment is too deep: {block_hash} at depth {counter}"
@@ -229,7 +183,7 @@ pub fn aggregate_chain_commitment<DB: BlockMetaStorageRead + OnChainStorageRead>
 
         counter += 1;
 
-        if !db.block_meta(block_hash).computed {
+        if !db.announce_meta(announce_hash).computed {
             // This can happen when validator syncs from p2p network and skips some old blocks.
             if fail_if_not_computed {
                 return Err(anyhow!("Block {block_hash} is not computed"));
@@ -238,35 +192,86 @@ pub fn aggregate_chain_commitment<DB: BlockMetaStorageRead + OnChainStorageRead>
             }
         }
 
-        let block_outcome = db
-            .block_outcome(block_hash)
-            .ok_or_else(|| anyhow!("Cannot get from db outcome for computed block {block_hash}"))?
-            .into_transitions()
-            .ok_or_else(|| anyhow!("`block_outcome` is called on forced non-empty outcome"))?;
-        transitions.push(block_outcome);
+        transitions.push(db.announce_outcome(announce_hash).ok_or_else(|| {
+            anyhow!("Cannot get from db outcome for computed block {block_hash}")
+        })?);
 
-        block_hash = db
-            .block_header(block_hash)
+        announce_hash = db
+            .announce(announce_hash)
             .ok_or_else(|| anyhow!("Cannot get from db header for computed block {block_hash}"))?
-            .parent_hash;
+            .parent;
     }
 
     Ok(Some((
         ChainCommitment {
             transitions: transitions.into_iter().rev().flatten().collect(),
-            head: from_block_hash,
+            head_announce,
         },
         counter,
     )))
 }
 
-pub fn create_batch_commitment<DB: BlockMetaStorageRead>(
+// TODO(kuzmindev): this is a temporal solution. In future need to impelement DKG algorithm.
+pub fn validators_commitment(era: u64, validators: ValidatorsVec) -> Result<ValidatorsCommitment> {
+    let validators_identifiers = validators
+        .iter()
+        .map(|validator| {
+            let mut bytes = [0u8; 32];
+            bytes[12..32].copy_from_slice(&validator.0);
+            Identifier::deserialize(&bytes).unwrap()
+        })
+        .collect::<Vec<_>>();
+
+    let identifiers = IdentifierList::Custom(&validators_identifiers);
+
+    let rng = rand_chacha::ChaCha8Rng::from_seed([1u8; 32]);
+
+    let (mut secret_shares, public_key_package) =
+        keys::generate_with_dealer(validators.len() as u16, 1, identifiers, rng).unwrap();
+
+    let verifiable_secret_sharing_commitment = secret_shares
+        .pop_first()
+        .map(|(_key, value)| value.commitment().clone())
+        .expect("Expect at least one identifier");
+
+    let public_key_compressed: [u8; 33] = public_key_package
+        .verifying_key()
+        .serialize()?
+        .try_into()
+        .unwrap();
+    let public_key_uncompressed = PublicKey(public_key_compressed).to_uncompressed();
+    let (public_key_x_bytes, public_key_y_bytes) = public_key_uncompressed.split_at(32);
+
+    let aggregated_public_key = AggregatedPublicKey {
+        x: U256::from_big_endian(public_key_x_bytes),
+        y: U256::from_big_endian(public_key_y_bytes),
+    };
+
+    Ok(ValidatorsCommitment {
+        aggregated_public_key,
+        verifiable_secret_sharing_commitment,
+        validators,
+        era_index: era,
+    })
+}
+
+pub fn create_batch_commitment<DB: BlockMetaStorageRO>(
     db: &DB,
     block: &SimpleBlockData,
     chain_commitment: Option<ChainCommitment>,
     code_commitments: Vec<CodeCommitment>,
+    validators_commitment: Option<ValidatorsCommitment>,
+    rewards_commitment: Option<RewardsCommitment>,
 ) -> Result<Option<BatchCommitment>> {
-    if chain_commitment.is_none() && code_commitments.is_empty() {
+    if chain_commitment.is_none()
+        && code_commitments.is_empty()
+        && validators_commitment.is_none()
+        && rewards_commitment.is_none()
+    {
+        tracing::debug!(
+            "No commitments for block {} - skip batch commitment",
+            block.hash
+        );
         return Ok(None);
     }
 
@@ -286,8 +291,8 @@ pub fn create_batch_commitment<DB: BlockMetaStorageRead>(
         previous_batch: last_committed,
         chain_commitment,
         code_commitments,
-        validators_commitment: None,
-        rewards_commitment: None,
+        validators_commitment,
+        rewards_commitment,
     }))
 }
 
@@ -296,14 +301,93 @@ pub fn has_duplicates<T: Hash + Eq>(data: &[T]) -> bool {
     data.iter().any(|item| !seen.insert(item))
 }
 
+/// Finds the block with the earliest timestamp that is still within the specified election period.
+pub fn election_block_in_era<DB: OnChainStorageRO>(
+    db: &DB,
+    mut block: SimpleBlockData,
+    election_ts: u64,
+) -> Result<SimpleBlockData> {
+    if block.header.timestamp < election_ts {
+        anyhow::bail!("election not reached yet");
+    }
+
+    loop {
+        let parent_header = db.block_header(block.header.parent_hash).ok_or(anyhow!(
+            "block header not found for({})",
+            block.header.parent_hash
+        ))?;
+        if parent_header.timestamp < election_ts {
+            break;
+        }
+
+        block = SimpleBlockData {
+            hash: block.header.parent_hash,
+            header: parent_header,
+        };
+    }
+
+    Ok(block)
+}
+
+// TODO #4553: temporary implementation, should be improved
+/// Returns block producer for time slot. Next slot is the next validator in the list.
+pub const fn block_producer_index(validators_amount: usize, slot: u64) -> usize {
+    (slot % validators_amount as u64) as usize
+}
+
+/// Calculates the producer address for a given slot based on the validators and timestamp.
+///
+/// # Arguments
+/// * `validators` - A list of validator addresses
+/// * `timestamp` - The timestamp to determine the slot (in seconds)
+/// * `slot_duration` - The duration of each slot (in seconds)
+///
+/// # Returns
+/// The address of the producer for the given timestamp slot.
+pub fn block_producer_for(
+    validators: &ValidatorsVec,
+    timestamp: u64,
+    slot_duration: u64,
+) -> Address {
+    let slot = timestamp / slot_duration;
+    let index = block_producer_index(validators.len(), slot);
+    validators
+        .get(index)
+        .cloned()
+        .unwrap_or_else(|| unreachable!("index must be valid"))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::mock::*;
-    use ethexe_common::db::{BlockMetaStorageWrite, CodesStorageWrite};
+    use ethexe_common::{db::*, mock::*};
     use ethexe_db::Database;
 
     const ADDRESS: Address = Address([42; 20]);
+
+    #[test]
+    fn block_producer_index_calculates_correct_index() {
+        let validators_amount = 5;
+        let slot = 7;
+        let index = block_producer_index(validators_amount, slot);
+        assert_eq!(index, 2);
+    }
+
+    #[test]
+    fn producer_for_calculates_correct_producer() {
+        let validators = vec![
+            Address::from([1; 20]),
+            Address::from([2; 20]),
+            Address::from([3; 20]),
+        ]
+        .try_into()
+        .unwrap();
+        let timestamp = 10;
+
+        let producer = block_producer_for(&validators, timestamp, 1);
+        assert_eq!(producer, validators[timestamp as usize % validators.len()]);
+    }
 
     #[test]
     fn multisigned_batch_commitment_creation() {
@@ -411,32 +495,33 @@ mod tests {
     #[test]
     fn test_aggregate_chain_commitment() {
         let db = Database::memory();
-        let BatchCommitment { block_hash, .. } = prepared_mock_batch_commitment(&db);
+        let BatchCommitment { block_hash, .. } = prepare_chain_for_batch_commitment(&db);
+        let announce = db.top_announce_hash(block_hash);
 
-        let (commitment, counter) = aggregate_chain_commitment(&db, block_hash, false, None)
+        let (commitment, counter) = aggregate_chain_commitment(&db, announce, false, None)
             .unwrap()
             .unwrap();
-        assert_eq!(commitment.head, block_hash);
+        assert_eq!(commitment.head_announce, announce);
         assert_eq!(commitment.transitions.len(), 4);
         assert_eq!(counter, 3);
 
-        let (commitment, counter) = aggregate_chain_commitment(&db, block_hash, true, None)
+        let (commitment, counter) = aggregate_chain_commitment(&db, announce, true, None)
             .unwrap()
             .unwrap();
-        assert_eq!(commitment.head, block_hash);
+        assert_eq!(commitment.head_announce, announce);
         assert_eq!(commitment.transitions.len(), 4);
         assert_eq!(counter, 3);
 
-        aggregate_chain_commitment(&db, block_hash, false, Some(2)).unwrap_err();
-        aggregate_chain_commitment(&db, block_hash, true, Some(2)).unwrap_err();
+        aggregate_chain_commitment(&db, announce, false, Some(2)).unwrap_err();
+        aggregate_chain_commitment(&db, announce, true, Some(2)).unwrap_err();
 
-        db.mutate_block_meta(block_hash, |meta| meta.computed = false);
+        db.mutate_announce_meta(announce, |meta| meta.computed = false);
         assert!(
-            aggregate_chain_commitment(&db, block_hash, false, None)
+            aggregate_chain_commitment(&db, announce, false, None)
                 .unwrap()
                 .is_none()
         );
-        aggregate_chain_commitment(&db, block_hash, true, None).unwrap_err();
+        aggregate_chain_commitment(&db, announce, true, None).unwrap_err();
     }
 
     #[test]

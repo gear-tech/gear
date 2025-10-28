@@ -216,6 +216,33 @@ impl StakingBroker {
         })
         .await
     }
+
+    async fn active_era(&mut self) {
+        debug!(
+            "[StakingBroker] Sending `active_era` message at broker's state {:?}",
+            self
+        );
+
+        match msg::send_for_reply(BUILTIN_ADDRESS, Request::ActiveEra, 0, 0)
+            .expect("Error sending message")
+            .await
+        {
+            Ok(reply) => {
+                debug!("[StakingBroker] ActiveEra reply from builtin actor received");
+                // Forward the ActiveEra response back to the user
+                msg::reply_bytes(reply, 0).expect("Failed to send reply");
+            }
+            Err(e) => {
+                debug!("[StakingBroker] Error reply from builtin actor received: {e:?}");
+                match e {
+                    Error::ErrorReply(payload, _reason) => {
+                        panic!("{}", payload);
+                    }
+                    _ => panic!("Error in upstream program"),
+                }
+            }
+        }
+    }
 }
 
 #[gstd::async_main]
@@ -253,6 +280,9 @@ async fn main() {
         }
         Request::SetPayee { payee } => {
             broker.set_payee(payee).await;
+        }
+        Request::ActiveEra => {
+            broker.active_era().await;
         }
     }
 }

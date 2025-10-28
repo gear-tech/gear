@@ -17,13 +17,11 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    BlockProcessed, ComputeError, ComputeEvent, ProcessorExt, Result, compute,
-    prepare::{self, PrepareInfo},
+    ComputeError, ComputeEvent, ProcessorExt, Result,
+    compute::{self, ComputationStatus},
+    prepare::{self, MissingData},
 };
-use ethexe_common::{
-    CodeAndIdUnchecked, SimpleBlockData,
-    db::{BlockMetaStorageRead, BlockMetaStorageWrite, CodesStorageRead},
-};
+use ethexe_common::{Announce, CodeAndIdUnchecked, HashOf, db::CodesStorageRO};
 use ethexe_db::Database;
 use ethexe_processor::Processor;
 use futures::{FutureExt, Stream, future::BoxFuture, stream::FusedStream};
@@ -38,26 +36,34 @@ use tokio::task::JoinSet;
 #[derive(Debug, Clone)]
 pub struct ComputeMetrics {
     pub blocks_queue_len: usize,
-    pub waiting_codes_count: usize,
     pub process_codes_count: usize,
+    pub waiting_codes_count: usize,
 }
 
 #[derive(Debug, Clone)]
 enum BlockAction {
     Prepare(H256),
-    Process(H256),
+    Compute(Announce),
 }
 
-#[derive(Default)]
+#[derive(Default, derive_more::Debug)]
 enum State {
     #[default]
     WaitForBlock,
-    WaitForCodes {
-        block: H256,
-        chain: VecDeque<SimpleBlockData>,
-        waiting_codes: HashSet<CodeId>,
+    WaitForRequestedData {
+        block_hash: H256,
+        codes: HashSet<CodeId>,
     },
-    ComputeBlock(BoxFuture<'static, Result<BlockProcessed>>),
+    Preparation {
+        block_hash: H256,
+        #[debug(skip)]
+        future: BoxFuture<'static, Result<()>>,
+    },
+    Computation {
+        announce_hash: HashOf<Announce>,
+        #[debug(skip)]
+        future: BoxFuture<'static, Result<ComputationStatus>>,
+    },
 }
 
 pub struct ComputeService<P: ProcessorExt = Processor> {
@@ -116,23 +122,23 @@ impl<P: ProcessorExt> ComputeService<P> {
         self.blocks_queue.push_front(BlockAction::Prepare(block));
     }
 
-    pub fn process_block(&mut self, block: H256) {
-        self.blocks_queue.push_front(BlockAction::Process(block));
+    pub fn compute_announce(&mut self, announce: Announce) {
+        self.blocks_queue.push_front(BlockAction::Compute(announce));
     }
 
     /// Get all metrics from the compute service
     pub fn get_metrics(&self) -> ComputeMetrics {
         let waiting_codes_count =
-            if let State::WaitForCodes { waiting_codes, .. } = &self.blocks_state {
-                waiting_codes.len()
+            if let State::WaitForRequestedData { codes, .. } = &self.blocks_state {
+                codes.len()
             } else {
                 0
             };
 
         ComputeMetrics {
             blocks_queue_len: self.blocks_queue.len(),
-            waiting_codes_count,
             process_codes_count: self.process_codes.len(),
+            waiting_codes_count,
         }
     }
 }
@@ -144,10 +150,10 @@ impl<P: ProcessorExt> Stream for ComputeService<P> {
         if let Poll::Ready(Some(res)) = self.process_codes.poll_join_next(cx) {
             match res {
                 Ok(res) => {
-                    if let (Ok(code_id), State::WaitForCodes { waiting_codes, .. }) =
+                    if let (Ok(code_id), State::WaitForRequestedData { codes, .. }) =
                         (&res, &mut self.blocks_state)
                     {
-                        waiting_codes.remove(code_id);
+                        codes.remove(code_id);
                     }
 
                     return Poll::Ready(Some(res.map(ComputeEvent::CodeProcessed)));
@@ -156,62 +162,71 @@ impl<P: ProcessorExt> Stream for ComputeService<P> {
             }
         }
 
-        if matches!(self.blocks_state, State::WaitForBlock) {
+        if let State::WaitForBlock = &self.blocks_state {
             match self.blocks_queue.pop_back() {
                 Some(BlockAction::Prepare(block)) => {
-                    let PrepareInfo {
-                        chain,
-                        missing_codes,
-                        missing_validated_codes,
-                    } = prepare::prepare(&self.db, block)?;
+                    let MissingData {
+                        codes,
+                        validated_codes,
+                    } = prepare::missing_data(&self.db, block)?;
 
-                    self.blocks_state = State::WaitForCodes {
-                        block,
-                        chain,
-                        waiting_codes: missing_validated_codes,
+                    debug_assert!(
+                        validated_codes
+                            .iter()
+                            .all(|code_id| codes.contains(code_id)),
+                        "All missing validated codes must be in the missing codes list"
+                    );
+
+                    self.blocks_state = State::WaitForRequestedData {
+                        block_hash: block,
+                        codes: validated_codes,
                     };
 
-                    if !missing_codes.is_empty() {
-                        return Poll::Ready(Some(Ok(ComputeEvent::RequestLoadCodes(
-                            missing_codes,
-                        ))));
+                    if !codes.is_empty() {
+                        return Poll::Ready(Some(Ok(ComputeEvent::RequestLoadCodes(codes))));
                     }
                 }
-                Some(BlockAction::Process(block)) => {
-                    if !self.db.block_meta(block).prepared {
-                        return Poll::Ready(Some(Err(ComputeError::BlockNotPrepared(block))));
-                    }
-
-                    self.blocks_state = State::ComputeBlock(
-                        compute::compute(self.db.clone(), self.processor.clone(), block).boxed(),
-                    );
+                Some(BlockAction::Compute(announce)) => {
+                    self.blocks_state = State::Computation {
+                        announce_hash: announce.to_hash(),
+                        future: compute::compute(self.db.clone(), self.processor.clone(), announce)
+                            .boxed(),
+                    };
                 }
                 None => {}
             }
         }
 
-        if let State::WaitForCodes {
-            block,
-            chain,
-            waiting_codes,
-        } = &self.blocks_state
-            && waiting_codes.is_empty()
+        if let State::WaitForRequestedData { block_hash, codes } = &self.blocks_state
+            && codes.is_empty()
         {
-            // All codes are loaded, we can mark the block as prepared
-            for block_data in chain {
-                self.db
-                    .mutate_block_meta(block_data.hash, |meta| meta.prepared = true);
-            }
-            let event = ComputeEvent::BlockPrepared(*block);
-            self.blocks_state = State::WaitForBlock;
-            return Poll::Ready(Some(Ok(event)));
+            self.blocks_state = State::Preparation {
+                block_hash: *block_hash,
+                future: prepare::prepare(self.db.clone(), self.processor.clone(), *block_hash)
+                    .boxed(),
+            };
         }
 
-        if let State::ComputeBlock(future) = &mut self.blocks_state
+        if let State::Preparation { block_hash, future } = &mut self.blocks_state
             && let Poll::Ready(res) = future.poll_unpin(cx)
         {
+            let result = res.map(|_| ComputeEvent::BlockPrepared(*block_hash));
             self.blocks_state = State::WaitForBlock;
-            return Poll::Ready(Some(res.map(ComputeEvent::BlockProcessed)));
+            return Poll::Ready(Some(result));
+        }
+
+        if let State::Computation {
+            announce_hash,
+            future,
+        } = &mut self.blocks_state
+            && let Poll::Ready(res) = future.poll_unpin(cx)
+        {
+            let announce_hash = *announce_hash;
+            self.blocks_state = State::WaitForBlock;
+            return Poll::Ready(Some(res.map(|status| match status {
+                ComputationStatus::Computed => ComputeEvent::AnnounceComputed(announce_hash),
+                ComputationStatus::Rejected => ComputeEvent::AnnounceRejected(announce_hash),
+            })));
         }
 
         Poll::Pending
@@ -228,20 +243,15 @@ impl<P: ProcessorExt> FusedStream for ComputeService<P> {
 mod tests {
     use super::*;
     use crate::tests::MockProcessor;
-    use ethexe_common::{
-        Address, BlockHeader, CodeAndIdUnchecked,
-        db::{BlockMetaStorageWrite, OnChainStorageWrite},
-    };
+    use ethexe_common::{BlockHeader, CodeAndIdUnchecked, SimpleBlockData, db::*};
     use ethexe_db::Database as DB;
     use futures::StreamExt;
     use gear_core::ids::prelude::CodeIdExt;
     use gprimitives::{CodeId, H256};
-    use nonempty::nonempty;
-    use std::collections::VecDeque;
 
     /// Test ComputeService block preparation functionality
     #[tokio::test]
-    async fn test_compute_service_prepare_block() {
+    async fn prepare_block() {
         let db = DB::memory();
         let processor = MockProcessor;
         let mut service = ComputeService::new(db.clone(), processor);
@@ -249,20 +259,17 @@ mod tests {
         let parent_hash = H256::from([1; 32]);
         let block_hash = H256::from([2; 32]);
 
-        // Setup parent block as prepared
-        db.mutate_block_meta(parent_hash, |meta| {
-            meta.synced = true;
-            meta.prepared = true;
-            meta.last_committed_batch = Some(Default::default());
-            meta.last_committed_head = Some(Default::default());
-        });
-        db.set_block_codes_queue(parent_hash, VecDeque::new());
+        ethexe_common::setup_genesis_in_db(
+            &db,
+            SimpleBlockData {
+                hash: parent_hash,
+                header: BlockHeader::default(),
+            },
+            Default::default(),
+            Default::default(),
+        );
 
-        // Setup block as synced but not prepared
-        db.mutate_block_meta(block_hash, |meta| {
-            meta.synced = true;
-            meta.prepared = false;
-        });
+        // Setup on chain data for not prepared
         let header = BlockHeader {
             height: 2,
             parent_hash,
@@ -270,7 +277,7 @@ mod tests {
         };
         db.set_block_header(block_hash, header);
         db.set_block_events(block_hash, &[]);
-        db.set_validators(block_hash, nonempty![Address::from([0u8; 20])]);
+        db.set_block_synced(block_hash);
 
         // Request block preparation
         service.prepare_block(block_hash);
@@ -285,7 +292,9 @@ mod tests {
 
     /// Test ComputeService block processing functionality
     #[tokio::test]
-    async fn test_compute_service_process_block() {
+    async fn compute_announce() {
+        gear_utils::init_default_logger();
+
         let db = DB::memory();
         let processor = MockProcessor;
         let mut service = ComputeService::new(db.clone(), processor);
@@ -293,15 +302,19 @@ mod tests {
         let parent_hash = H256::from([1; 32]);
         let block_hash = H256::from([2; 32]);
 
-        // Setup parent block as computed
-        db.mutate_block_meta(parent_hash, |meta| meta.computed = true);
-        db.set_block_outcome(parent_hash, vec![]);
-
-        // Setup block as prepared
-        db.mutate_block_meta(block_hash, |meta| {
-            meta.synced = true;
-            meta.prepared = true;
+        // Setup parent block and one computed announce inside
+        let parent_announce = Announce::base(parent_hash, Default::default());
+        let parent_announce_hash = db.set_announce(parent_announce.clone());
+        db.mutate_announce_meta(parent_announce_hash, |meta| {
+            meta.computed = true;
         });
+        db.mutate_block_meta(parent_hash, |meta| {
+            *meta = BlockMeta::default_prepared();
+            meta.announces = Some([parent_announce_hash].into())
+        });
+        db.set_latest_data(Default::default());
+
+        // Setup and prepare block
         let header = BlockHeader {
             height: 2,
             parent_hash,
@@ -309,24 +322,32 @@ mod tests {
         };
         db.set_block_header(block_hash, header);
         db.set_block_events(block_hash, &[]);
+        db.set_block_synced(block_hash);
+        service.prepare_block(block_hash);
+        let event = service.next().await.unwrap().unwrap();
+        assert_eq!(event, ComputeEvent::BlockPrepared(block_hash));
 
-        // Request block processing
-        service.process_block(block_hash);
+        // Request computation
+        let announce = Announce {
+            block_hash,
+            parent: parent_announce.to_hash(),
+            gas_allowance: Some(42),
+            off_chain_transactions: vec![],
+        };
+        let announce_hash = announce.to_hash();
+        service.compute_announce(announce);
 
         // Poll service to process the block
         let event = service.next().await.unwrap().unwrap();
-        assert_eq!(
-            event,
-            ComputeEvent::BlockProcessed(BlockProcessed { block_hash })
-        );
+        assert_eq!(event, ComputeEvent::AnnounceComputed(announce_hash));
 
         // Verify block is marked as computed in DB
-        assert!(db.block_meta(block_hash).computed);
+        assert!(db.announce_meta(announce_hash).computed);
     }
 
     /// Test ComputeService code processing functionality
     #[tokio::test]
-    async fn test_compute_service_process_code() {
+    async fn process_code() {
         let db = DB::memory();
         let processor = MockProcessor;
         let mut service = ComputeService::new(db.clone(), processor);
@@ -347,6 +368,11 @@ mod tests {
         let event = service.next().await.unwrap().unwrap();
 
         // Should receive CodeProcessed event with correct code_id
-        assert_eq!(event, ComputeEvent::CodeProcessed(code_id));
+        match event {
+            ComputeEvent::CodeProcessed(processed_code_id) => {
+                assert_eq!(processed_code_id, code_id);
+            }
+            _ => panic!("Expected CodeProcessed event"),
+        }
     }
 }

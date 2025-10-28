@@ -16,50 +16,97 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! String with limited length implementation
+//! This module provides type for string with limited length.
 
 use alloc::{borrow::Cow, string::String};
+use derive_more::{AsRef, Deref, Display, Into};
 use parity_scale_codec::{Decode, Encode};
 use scale_info::TypeInfo;
 
-/// Max amount of bytes allowed to be thrown as string explanation of the error.
-pub const TRIMMED_MAX_LEN: usize = 1024;
+/// Wrapped string to fit given amount of bytes.
+///
+/// The [`Cow`] is used to avoid allocating a new `String` when
+/// the `LimitedStr` is created from a `&str`.
+///
+/// Plain [`str`] is not used because it can't be properly
+/// encoded/decoded via scale codec.
+#[derive(
+    Debug,
+    Display,
+    Clone,
+    Default,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Decode,
+    Encode,
+    Hash,
+    TypeInfo,
+    AsRef,
+    Deref,
+    Into,
+)]
+#[as_ref(forward)]
+#[deref(forward)]
+pub struct LimitedStr<'a, const N: usize = 1024>(Cow<'a, str>);
 
-fn smart_truncate(s: &mut String, max_bytes: usize) {
-    let mut last_byte = max_bytes;
-
-    if s.len() > last_byte {
-        while !s.is_char_boundary(last_byte) {
-            last_byte = last_byte.saturating_sub(1);
-        }
-
-        s.truncate(last_byte);
-    }
+/// Finds the left-nearest UTF-8 character boundary
+/// to given position in the string.
+fn nearest_char_boundary(s: &str, pos: usize) -> usize {
+    (0..=pos.min(s.len()))
+        .rev()
+        .find(|&pos| s.is_char_boundary(pos))
+        .unwrap_or(0)
 }
 
-/// Wrapped string to fit [`TRIMMED_MAX_LEN`] amount of bytes.
-///
-/// The `Cow` is used to avoid allocating a new `String` when the `LimitedStr` is
-/// created from a `&str`.
-///
-/// Plain `str` is not used because it can't be properly encoded/decoded via scale codec.
-#[derive(
-    TypeInfo, Encode, Decode, Debug, Clone, derive_more::Display, PartialEq, Eq, PartialOrd, Ord,
-)]
-pub struct LimitedStr<'a>(Cow<'a, str>);
+impl<'a, const N: usize> LimitedStr<'a, N> {
+    /// Maximum length of the string.
+    pub const MAX_LEN: usize = N;
 
-impl<'a> LimitedStr<'a> {
-    const INIT_ERROR_MSG: &'static str = concat!(
-        "String must be less than ",
-        stringify!(TRIMMED_MAX_LEN),
-        " bytes."
-    );
+    /// Constructs a limited string from a string.
+    ///
+    /// Checks the size of the string.
+    pub fn try_new<S: Into<Cow<'a, str>>>(s: S) -> Result<Self, LimitedStrError> {
+        let s = s.into();
 
-    /// Convert from `&str` in compile-time.
+        if s.len() > Self::MAX_LEN {
+            Err(LimitedStrError)
+        } else {
+            Ok(Self(s))
+        }
+    }
+
+    /// Constructs a limited string from a string
+    /// truncating it if it's too long.
+    pub fn truncated<S: Into<Cow<'a, str>>>(s: S) -> Self {
+        let s = s.into();
+        let truncation_pos = nearest_char_boundary(&s, Self::MAX_LEN);
+
+        match s {
+            Cow::Borrowed(s) => Self(s[..truncation_pos].into()),
+            Cow::Owned(mut s) => {
+                s.truncate(truncation_pos);
+                Self(s.into())
+            }
+        }
+    }
+
+    /// Constructs a limited string from a static
+    /// string literal small enough to fit the limit.
+    ///
+    /// Should be used only with static string literals.
+    /// In that case it can check the string length
+    /// in compile time.
+    ///
+    /// # Panics
+    ///
+    /// Can panic in runtime if the passed string is
+    /// not a static string literal and is too long.
     #[track_caller]
-    pub const fn from_small_str(s: &'a str) -> Self {
-        if s.len() > TRIMMED_MAX_LEN {
-            panic!("{}", Self::INIT_ERROR_MSG)
+    pub const fn from_small_str(s: &'static str) -> Self {
+        if s.len() > Self::MAX_LEN {
+            panic!("{}", LimitedStrError::MESSAGE)
         }
 
         Self(Cow::Borrowed(s))
@@ -67,7 +114,7 @@ impl<'a> LimitedStr<'a> {
 
     /// Return string slice.
     pub fn as_str(&self) -> &str {
-        self.0.as_ref()
+        self.as_ref()
     }
 
     /// Return inner value.
@@ -76,27 +123,34 @@ impl<'a> LimitedStr<'a> {
     }
 }
 
-/// The error type returned when a conversion from `&str` to [`LimitedStr`] fails.
-#[derive(Clone, Debug, derive_more::Display)]
-#[display("String must be less than {TRIMMED_MAX_LEN} bytes")]
-pub struct LimitedStrTryFromError;
-
 impl<'a> TryFrom<&'a str> for LimitedStr<'a> {
-    type Error = LimitedStrTryFromError;
+    type Error = LimitedStrError;
 
-    fn try_from(s: &'a str) -> Result<Self, Self::Error> {
-        if s.len() > TRIMMED_MAX_LEN {
-            return Err(LimitedStrTryFromError);
-        }
-
-        Ok(Self(Cow::from(s)))
+    fn try_from(value: &'a str) -> Result<Self, Self::Error> {
+        Self::try_new(value)
     }
 }
 
-impl From<String> for LimitedStr<'_> {
-    fn from(mut s: String) -> Self {
-        smart_truncate(&mut s, TRIMMED_MAX_LEN);
-        Self(Cow::from(s))
+impl<'a> TryFrom<String> for LimitedStr<'a> {
+    type Error = LimitedStrError;
+
+    fn try_from(value: String) -> Result<Self, Self::Error> {
+        Self::try_new(value)
+    }
+}
+
+/// The error type returned when a conversion from `&str` to [`LimitedStr`] fails.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Display)]
+#[display("{}", Self::MESSAGE)]
+pub struct LimitedStrError;
+
+impl LimitedStrError {
+    /// Static error message.
+    pub const MESSAGE: &str = "string length limit is exceeded";
+
+    /// Converts the error into a static error message.
+    pub const fn as_str(&self) -> &'static str {
+        Self::MESSAGE
     }
 }
 
@@ -106,8 +160,7 @@ mod tests {
     use rand::{Rng, distributions::Standard};
 
     fn assert_result(string: &'static str, max_bytes: usize, expectation: &'static str) {
-        let mut string = string.into();
-        smart_truncate(&mut string, max_bytes);
+        let string = &string[..nearest_char_boundary(string, max_bytes)];
         assert_eq!(string, expectation);
     }
 
@@ -115,8 +168,7 @@ mod tests {
         let initial_size = initial_string.len();
 
         for max_bytes in 0..=upper_boundary {
-            let mut string = initial_string.into();
-            smart_truncate(&mut string, max_bytes);
+            let string = &initial_string[..nearest_char_boundary(initial_string, max_bytes)];
 
             // Extra check just for confidence.
             if max_bytes >= initial_size {
@@ -154,6 +206,8 @@ mod tests {
         assert_eq!(cjk.len(), 9);
         // Length in chars.
         assert_eq!(cjk.chars().count(), 3);
+        // Byte length of each char.
+        assert!(cjk.chars().all(|c| c.len_utf8() == 3));
 
         // Check that `smart_truncate` never panics.
         //
@@ -208,6 +262,14 @@ mod tests {
         assert_result(mix, 13, "你he好l吗l");
         assert_result(mix, 14, "你he好l吗lo");
         assert_result(mix, 15, "你he好l吗lo");
+
+        assert_eq!(LimitedStr::<1>::truncated(String::from(mix)).as_str(), "");
+        assert_eq!(LimitedStr::<5>::truncated(mix).as_str(), "你he");
+        assert_eq!(
+            LimitedStr::<9>::truncated(String::from(mix)).as_str(),
+            "你he好l"
+        );
+        assert_eq!(LimitedStr::<13>::truncated(mix).as_str(), "你he好l吗l");
     }
 
     #[test]
@@ -220,9 +282,8 @@ mod tests {
             let mut string = thread_rng
                 .sample_iter::<char, _>(Standard)
                 .take(rand_len)
-                .collect();
-
-            smart_truncate(&mut string, max_bytes);
+                .collect::<String>();
+            string.truncate(nearest_char_boundary(&string, max_bytes));
 
             if string.len() > max_bytes {
                 panic!("String '{}' input invalidated algorithms property", string);

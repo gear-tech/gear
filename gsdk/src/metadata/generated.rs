@@ -687,16 +687,6 @@ pub mod runtime_types {
         }
         pub mod gear_core {
             use super::runtime_types;
-            pub mod buffer {
-                use super::runtime_types;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-                pub struct LimitedVec<_0, _1>(
-                    pub ::subxt::ext::subxt_core::alloc::vec::Vec<_0>,
-                    #[codec(skip)] pub ::core::marker::PhantomData<_1>,
-                );
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-                pub struct PayloadSizeError;
-            }
             pub mod code {
                 use super::runtime_types;
                 pub mod instrumented {
@@ -753,16 +743,21 @@ pub mod runtime_types {
                     }
                 }
             }
+            pub mod limited {
+                use super::runtime_types;
+                pub mod vec {
+                    use super::runtime_types;
+                    #[derive(
+                        Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode,
+                    )]
+                    pub struct LimitedVec<_0>(pub ::subxt::ext::subxt_core::alloc::vec::Vec<_0>);
+                }
+            }
             pub mod memory {
                 use super::runtime_types;
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
-                pub struct IntoPageBufError;
-                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub struct PageBuf(
-                    pub  runtime_types::gear_core::buffer::LimitedVec<
-                        ::core::primitive::u8,
-                        runtime_types::gear_core::memory::IntoPageBufError,
-                    >,
+                    pub runtime_types::gear_core::limited::vec::LimitedVec<::core::primitive::u8>,
                 );
             }
             pub mod message {
@@ -834,9 +829,8 @@ pub mod runtime_types {
                         pub id: runtime_types::gprimitives::MessageId,
                         pub source: runtime_types::gprimitives::ActorId,
                         pub destination: runtime_types::gprimitives::ActorId,
-                        pub payload: runtime_types::gear_core::buffer::LimitedVec<
+                        pub payload: runtime_types::gear_core::limited::vec::LimitedVec<
                             ::core::primitive::u8,
-                            runtime_types::gear_core::buffer::PayloadSizeError,
                         >,
                         #[codec(compact)]
                         pub value: ::core::primitive::u128,
@@ -854,9 +848,8 @@ pub mod runtime_types {
                         pub id: runtime_types::gprimitives::MessageId,
                         pub source: runtime_types::gprimitives::ActorId,
                         pub destination: runtime_types::gprimitives::ActorId,
-                        pub payload: runtime_types::gear_core::buffer::LimitedVec<
+                        pub payload: runtime_types::gear_core::limited::vec::LimitedVec<
                             ::core::primitive::u8,
-                            runtime_types::gear_core::buffer::PayloadSizeError,
                         >,
                         #[codec(compact)]
                         pub value: ::core::primitive::u128,
@@ -871,9 +864,8 @@ pub mod runtime_types {
                         pub id: runtime_types::gprimitives::MessageId,
                         pub source: runtime_types::gprimitives::ActorId,
                         pub destination: runtime_types::gprimitives::ActorId,
-                        pub payload: runtime_types::gear_core::buffer::LimitedVec<
+                        pub payload: runtime_types::gear_core::limited::vec::LimitedVec<
                             ::core::primitive::u8,
-                            runtime_types::gear_core::buffer::PayloadSizeError,
                         >,
                         #[codec(compact)]
                         pub value: ::core::primitive::u128,
@@ -984,37 +976,29 @@ pub mod runtime_types {
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub enum ScheduledTask<_0, _1, _2> {
                     #[codec(index = 0)]
-                    PauseProgram(runtime_types::gprimitives::ActorId),
-                    #[codec(index = 1)]
-                    RemoveCode(runtime_types::gprimitives::CodeId),
-                    #[codec(index = 2)]
                     RemoveFromMailbox(_0, runtime_types::gprimitives::MessageId),
-                    #[codec(index = 3)]
+                    #[codec(index = 1)]
                     RemoveFromWaitlist(
                         runtime_types::gprimitives::ActorId,
                         runtime_types::gprimitives::MessageId,
                     ),
-                    #[codec(index = 4)]
-                    RemovePausedProgram(runtime_types::gprimitives::ActorId),
-                    #[codec(index = 5)]
+                    #[codec(index = 2)]
                     WakeMessage(
                         runtime_types::gprimitives::ActorId,
                         runtime_types::gprimitives::MessageId,
                     ),
-                    #[codec(index = 6)]
+                    #[codec(index = 3)]
                     SendDispatch(_1),
-                    #[codec(index = 7)]
+                    #[codec(index = 4)]
                     SendUserMessage {
                         message_id: runtime_types::gprimitives::MessageId,
                         to_mailbox: _2,
                     },
-                    #[codec(index = 8)]
+                    #[codec(index = 5)]
                     RemoveGasReservation(
                         runtime_types::gprimitives::ActorId,
                         runtime_types::gprimitives::ReservationId,
                     ),
-                    #[codec(index = 9)]
-                    RemoveResumeSession(::core::primitive::u32),
                 }
             }
         }
@@ -3200,6 +3184,7 @@ pub mod runtime_types {
                     pub payload_len: ::core::primitive::u32,
                     pub code_len: ::core::primitive::u32,
                     pub data_segments_amount: ::core::primitive::u32,
+                    pub type_section_len: ::core::primitive::u32,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub struct MemoryWeights {
@@ -3369,6 +3354,19 @@ pub mod runtime_types {
         }
         pub mod pallet_gear_eth_bridge {
             use super::runtime_types;
+            pub mod internal {
+                use super::runtime_types;
+                #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
+                pub enum QueueInfo {
+                    #[codec(index = 0)]
+                    Empty,
+                    #[codec(index = 1)]
+                    NonEmpty {
+                        highest_root: ::subxt::ext::subxt_core::utils::H256,
+                        latest_nonce_used: runtime_types::primitive_types::U256,
+                    },
+                }
+            }
             pub mod pallet {
                 use super::runtime_types;
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
@@ -3392,28 +3390,39 @@ pub mod runtime_types {
                     #[codec(index = 3)]
                     #[doc = "Root extrinsic that sets fee for the transport of messages."]
                     set_fee { fee: ::core::primitive::u128 },
+                    #[codec(index = 4)]
+                    #[doc = "Extrinsic that verifies some block finality that resets"]
+                    #[doc = "overflowed within the current era queue."]
+                    reset_overflowed_queue {
+                        encoded_finality_proof:
+                            ::subxt::ext::subxt_core::alloc::vec::Vec<::core::primitive::u8>,
+                    },
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 #[doc = "Pallet Gear Eth Bridge's error."]
                 pub enum Error {
                     #[codec(index = 0)]
+                    #[doc = "The error happens when bridge queue is temporarily overflowed"]
+                    #[doc = "and needs cleanup to proceed."]
+                    BridgeCleanupRequired,
+                    #[codec(index = 1)]
                     #[doc = "The error happens when bridge got called before"]
                     #[doc = "proper initialization after deployment."]
                     BridgeIsNotYetInitialized,
-                    #[codec(index = 1)]
+                    #[codec(index = 2)]
                     #[doc = "The error happens when bridge got called when paused."]
                     BridgeIsPaused,
-                    #[codec(index = 2)]
+                    #[codec(index = 3)]
                     #[doc = "The error happens when bridging message sent with too big payload."]
                     MaxPayloadSizeExceeded,
-                    #[codec(index = 3)]
-                    #[doc = "The error happens when bridging queue capacity exceeded,"]
-                    #[doc = "so message couldn't be sent."]
-                    QueueCapacityExceeded,
                     #[codec(index = 4)]
                     #[doc = "The error happens when bridging thorough builtin and message value"]
                     #[doc = "is inapplicable to operation or insufficient."]
                     InsufficientValueApplied,
+                    #[codec(index = 5)]
+                    #[doc = "The error happens when attempted to reset overflowed queue, but"]
+                    #[doc = "queue isn't overflowed or incorrect finality proof provided."]
+                    InvalidQueueReset,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 #[doc = "Pallet Gear Eth Bridge's event."]
@@ -3423,8 +3432,10 @@ pub mod runtime_types {
                     #[doc = "first block of the last session in the era."]
                     AuthoritySetHashChanged(::subxt::ext::subxt_core::utils::H256),
                     #[codec(index = 1)]
-                    #[doc = "Bridge got cleared on initialization of the second block in a new era."]
-                    BridgeCleared,
+                    #[doc = "Authority set hash was reset."]
+                    #[doc = ""]
+                    #[doc = "Related to bridge clearing on initialization of the second block in a new era."]
+                    AuthoritySetReset,
                     #[codec(index = 2)]
                     #[doc = "Optimistically, single-time called event defining that pallet"]
                     #[doc = "got initialized and started processing session changes,"]
@@ -3444,7 +3455,18 @@ pub mod runtime_types {
                     },
                     #[codec(index = 6)]
                     #[doc = "Merkle root of the queue changed: new messages queued within the block."]
-                    QueueMerkleRootChanged(::subxt::ext::subxt_core::utils::H256),
+                    QueueMerkleRootChanged {
+                        queue_id: ::core::primitive::u64,
+                        root: ::subxt::ext::subxt_core::utils::H256,
+                    },
+                    #[codec(index = 7)]
+                    #[doc = "Queue has been overflowed and now requires reset."]
+                    QueueOverflowed,
+                    #[codec(index = 8)]
+                    #[doc = "Queue was reset."]
+                    #[doc = ""]
+                    #[doc = "Related to bridge clearing on initialization of the second block in a new era."]
+                    QueueReset,
                 }
             }
         }
@@ -10742,6 +10764,7 @@ pub mod calls {
         Unpause,
         SendEthMessage,
         SetFee,
+        ResetOverflowedQueue,
     }
     impl CallInfo for GearEthBridgeCall {
         const PALLET: &'static str = "GearEthBridge";
@@ -10751,6 +10774,7 @@ pub mod calls {
                 Self::Unpause => "unpause",
                 Self::SendEthMessage => "send_eth_message",
                 Self::SetFee => "set_fee",
+                Self::ResetOverflowedQueue => "reset_overflowed_queue",
             }
         }
     }
@@ -11583,10 +11607,13 @@ pub mod storage {
         AuthoritySetHash,
         QueueMerkleRoot,
         Queue,
+        QueueId,
+        QueuesInfo,
         SessionsTimer,
         ClearTimer,
         MessageNonce,
         QueueChanged,
+        QueueOverflowedSince,
         TransportFee,
     }
     impl StorageInfo for GearEthBridgeStorage {
@@ -11598,10 +11625,13 @@ pub mod storage {
                 Self::AuthoritySetHash => "AuthoritySetHash",
                 Self::QueueMerkleRoot => "QueueMerkleRoot",
                 Self::Queue => "Queue",
+                Self::QueueId => "QueueId",
+                Self::QueuesInfo => "QueuesInfo",
                 Self::SessionsTimer => "SessionsTimer",
                 Self::ClearTimer => "ClearTimer",
                 Self::MessageNonce => "MessageNonce",
                 Self::QueueChanged => "QueueChanged",
+                Self::QueueOverflowedSince => "QueueOverflowedSince",
                 Self::TransportFee => "TransportFee",
             }
         }
