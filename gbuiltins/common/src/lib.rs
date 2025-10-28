@@ -47,7 +47,6 @@
 //! - **BLS12-381** (`b"bls12-381"`, v1): BLS12-381 cryptographic operations
 //! - **Eth Bridge** (`b"eth-bridge"`, v1): Ethereum bridge operations
 
-#![no_std]
 #![cfg_attr(not(feature = "std"), no_std)]
 
 extern crate alloc;
