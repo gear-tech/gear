@@ -11582,7 +11582,6 @@ dependencies = [
  "pallet-timestamp",
  "parity-scale-codec",
  "scale-info",
- "serde",
  "sha2 0.10.8",
  "sp-core",
  "sp-crypto-ec-utils",
@@ -11600,7 +11599,6 @@ version = "1.9.2"
 dependencies = [
  "gbuiltin-common",
  "jsonrpsee 0.24.7",
- "pallet-gear-builtin",
  "pallet-gear-builtin-rpc-runtime-api",
  "sp-api",
  "sp-blockchain",
@@ -11613,7 +11611,6 @@ name = "pallet-gear-builtin-rpc-runtime-api"
 version = "1.9.2"
 dependencies = [
  "gbuiltin-common",
- "pallet-gear-builtin",
  "sp-api",
  "sp-core",
  "sp-std",
