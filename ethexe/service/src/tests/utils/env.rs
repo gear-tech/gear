@@ -51,7 +51,9 @@ use ethexe_ethereum::{
     middleware::MockElectionProvider,
     router::RouterQuery,
 };
-use ethexe_network::{NetworkConfig, NetworkRuntimeConfig, NetworkService, export::Multiaddr};
+use ethexe_network::{
+    NetworkConfig, NetworkEvent, NetworkRuntimeConfig, NetworkService, export::Multiaddr,
+};
 use ethexe_observer::{EthereumConfig, ObserverEvent, ObserverService};
 use ethexe_processor::Processor;
 use ethexe_rpc::{RpcConfig, RpcService, test_utils::RpcClient};
@@ -953,11 +955,8 @@ impl Node {
 
         // fast sync implies network has connections
         if wait_for_network && !self.fast_sync {
-            // Waiting for pubsub subscriptions to be ready
-            self.listener()
-                .wait_for_pubsub_subscribed(["commitments", "offchain"].into())
-                .await
-                .unwrap();
+            self.wait_for(|e| matches!(e, TestingEvent::Network(NetworkEvent::PeerConnected(_))))
+                .await;
         }
     }
 

@@ -78,7 +78,6 @@ pub enum NetworkEvent {
     OffchainTransaction(SignedOffchainTransaction),
     PeerBlocked(PeerId),
     PeerConnected(PeerId),
-    GossipsubPeerSubscribed { peer_id: PeerId, topic: String },
 }
 
 #[derive(Default, Debug, Clone, Copy)]
@@ -245,10 +244,6 @@ impl NetworkService {
             listeners,
             validators,
         })
-    }
-
-    pub fn gossipsub_topic(name: &'static str, router_address: Address) -> gossipsub::IdentTopic {
-        gossipsub::Behaviour::topic_with_router(name, router_address)
     }
 
     fn generate_keypair(signer: &Signer, key: PublicKey) -> anyhow::Result<identity::Keypair> {
@@ -423,12 +418,6 @@ impl NetworkService {
                 });
 
                 return event;
-            }
-            BehaviourEvent::Gossipsub(gossipsub::Event::Subscribed { peer_id, topic }) => {
-                return Some(NetworkEvent::GossipsubPeerSubscribed {
-                    peer_id,
-                    topic: topic.to_string(),
-                });
             }
             BehaviourEvent::Gossipsub(gossipsub::Event::PublishFailure {
                 error,

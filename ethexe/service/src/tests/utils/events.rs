@@ -16,8 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use std::collections::BTreeSet;
-
 use crate::Event;
 use anyhow::{Result, anyhow};
 use ethexe_blob_loader::BlobLoaderEvent;
@@ -172,36 +170,6 @@ impl ServiceEventsListener<'_> {
                 return Ok(res);
             }
         }
-    }
-
-    pub async fn wait_for_pubsub_subscribed(
-        &mut self,
-        _topic_names: BTreeSet<&'static str>,
-    ) -> Result<()> {
-        todo!("Implement wait_for_pubsub_subscribed")
-        // let mut topics = topic_names
-        //     .into_iter()
-        //     .map(|topic_name| {
-        //         NetworkService::gossipsub_topic(topic_name, self.router_address)
-        //             .hash()
-        //             .to_string()
-        //     })
-        //     .collect::<BTreeSet<_>>();
-        // self.wait_for(|event| match event {
-        //     TestingEvent::Network(NetworkEvent::GossipsubPeerSubscribed {
-        //         topic: subscribed_topic,
-        //         ..
-        //     }) => {
-        //         topics.remove(&subscribed_topic);
-        //         if topics.is_empty() {
-        //             Ok(true)
-        //         } else {
-        //             Ok(false)
-        //         }
-        //     }
-        //     _ => Ok(false),
-        // })
-        // .await
     }
 }
 
