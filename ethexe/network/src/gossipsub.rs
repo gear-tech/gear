@@ -103,6 +103,10 @@ pub(crate) enum Event {
         message: Message,
         topic: TopicHash,
     },
+    Subscribed {
+        peer_id: PeerId,
+        topic: TopicHash,
+    },
 }
 
 pub(crate) struct Behaviour {
@@ -151,7 +155,7 @@ impl Behaviour {
         })
     }
 
-    fn topic_with_router(name: &'static str, router_address: Address) -> IdentTopic {
+    pub fn topic_with_router(name: &'static str, router_address: Address) -> IdentTopic {
         IdentTopic::new(format!("{name}-{router_address}"))
     }
 
@@ -206,10 +210,9 @@ impl Behaviour {
 
                 Poll::Ready(Event::Message { source, validator })
             }
-            gossipsub::Event::Subscribed {
-                peer_id: _,
-                topic: _,
-            } => Poll::Pending,
+            gossipsub::Event::Subscribed { peer_id, topic } => {
+                Poll::Ready(Event::Subscribed { peer_id, topic })
+            }
             gossipsub::Event::Unsubscribed {
                 peer_id: _,
                 topic: _,

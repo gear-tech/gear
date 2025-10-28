@@ -247,6 +247,10 @@ impl NetworkService {
         })
     }
 
+    pub fn gossipsub_topic(name: &'static str, router_address: Address) -> gossipsub::IdentTopic {
+        gossipsub::Behaviour::topic_with_router(name, router_address)
+    }
+
     fn generate_keypair(signer: &Signer, key: PublicKey) -> anyhow::Result<identity::Keypair> {
         let key = signer.storage().get_private_key(key)?;
         let key = identity::secp256k1::SecretKey::try_from_bytes(&mut <[u8; 32]>::from(key))
@@ -420,12 +424,12 @@ impl NetworkService {
 
                 return event;
             }
-            // BehaviourEvent::Gossipsub(gossipsub::Event::Subscribed { peer_id, topic }) => {
-            //     return Some(NetworkEvent::GossipsubPeerSubscribed {
-            //         peer_id,
-            //         topic: topic.to_string(),
-            //     });
-            // }
+            BehaviourEvent::Gossipsub(gossipsub::Event::Subscribed { peer_id, topic }) => {
+                return Some(NetworkEvent::GossipsubPeerSubscribed {
+                    peer_id,
+                    topic: topic.to_string(),
+                });
+            }
             BehaviourEvent::Gossipsub(gossipsub::Event::PublishFailure {
                 error,
                 message,
