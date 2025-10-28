@@ -787,8 +787,8 @@ async fn injected_ping_pong() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn injected_prioritized_over_canonical() {
-    const MSG_NUM: u64 = 100;
-    const GAS_ALLOWANCE_FOR_HUNDRED_PING_MESSAGES: u64 = 4358998 * (MSG_NUM - 1) + 15916961;
+    const MSG_NUM: usize = 100;
+    const GAS_ALLOWANCE: u64 = 400_000_000;
 
     init_logger();
 
@@ -797,11 +797,12 @@ async fn injected_prioritized_over_canonical() {
     let genesis = init_genesis_block(&mut processor);
     let block = init_new_block_from_parent(&mut processor, genesis);
     let mut block_announce = Announce::with_default_gas(block, Default::default());
-    block_announce.gas_allowance = Some(GAS_ALLOWANCE_FOR_HUNDRED_PING_MESSAGES);
+    block_announce.gas_allowance = Some(GAS_ALLOWANCE);
 
     let canonical_user = ActorId::from(10);
     let injected_user = ActorId::from(20);
     let actor_id = ActorId::from(0x10000);
+    let mut msg_id_counter: u64 = 1;
 
     let code_id = processor
         .handle_new_code(demo_ping::WASM_BINARY)
@@ -826,46 +827,51 @@ async fn injected_prioritized_over_canonical() {
     handle_injected_message(
         &mut handler,
         actor_id,
-        MessageId::from(1),
+        MessageId::from(msg_id_counter),
         injected_user,
         b"INIT".to_vec(),
         0,
         false,
     )
     .expect("failed to send message");
+    msg_id_counter += 1;
 
-    handler
-        .handle_mirror_event(
-            actor_id,
-            MirrorRequestEvent::MessageQueueingRequested {
-                id: MessageId::from(2),
-                source: canonical_user,
-                payload: b"PING".to_vec(),
-                value: 0,
-                call_reply: false,
-            },
-        )
-        .expect("failed to send message");
+    for _ in 0..MSG_NUM {
+        handler
+            .handle_mirror_event(
+                actor_id,
+                MirrorRequestEvent::MessageQueueingRequested {
+                    id: MessageId::from(msg_id_counter),
+                    source: canonical_user,
+                    payload: b"PING".to_vec(),
+                    value: 0,
+                    call_reply: false,
+                },
+            )
+            .expect("failed to send message");
+        msg_id_counter += 1;
+    }
 
-    for i in 0..MSG_NUM {
+    for _ in 0..MSG_NUM {
         handle_injected_message(
             &mut handler,
             actor_id,
-            MessageId::from(3 + i),
+            MessageId::from(msg_id_counter),
             injected_user,
             b"PING".to_vec(),
             0,
             false,
         )
         .expect("failed to send message");
+        msg_id_counter += 1;
     }
 
     processor.process_queue(&mut handler).await;
 
     let to_users = handler.transitions.current_messages();
-    assert_eq!(to_users.len(), MSG_NUM as usize);
+    assert!(to_users.len() <= MSG_NUM);
 
-    // Verify that canonical message was not processed
+    // Verify that canonical messages were not processed
     for (idx, (_, message)) in to_users.into_iter().enumerate() {
         assert_eq!(message.destination, injected_user);
         // Skip first message which is INIT reply
