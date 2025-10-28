@@ -104,9 +104,7 @@
 //! In the future, we could introduce a weight multiplier to the queue size to improve partitioning efficiency.
 //! This weight multiplier could be calculated based on program execution time statistics.
 
-use ethexe_common::{
-    StateHashWithQueueSize, db::CodesStorageRead, gear::CHUNK_PROCESSING_GAS_LIMIT,
-};
+use ethexe_common::{StateHashWithQueueSize, db::CodesStorageRO, gear::CHUNK_PROCESSING_GAS_LIMIT};
 use ethexe_db::Database;
 use ethexe_runtime_common::{
     InBlockTransitions, JournalHandler, ProgramJournals, TransitionController,
@@ -138,7 +136,7 @@ pub async fn run(
         let states: Vec<_> = in_block_transitions
             .states_iter()
             .filter_map(|(&actor_id, &state)| {
-                if state.cached_queue_size == 0 {
+                if state.canonical_queue_size == 0 {
                     return None;
                 }
 
@@ -247,11 +245,12 @@ fn split_to_chunks(
         actor_id,
         StateHashWithQueueSize {
             hash,
-            cached_queue_size,
+            canonical_queue_size,
+            injected_queue_size: _,
         },
     ) in states
     {
-        let queue_size = cached_queue_size as usize;
+        let queue_size = canonical_queue_size as usize;
         let chunk_idx = chunk_idx(queue_size, number_of_chunks);
         chunks[chunk_idx].push((actor_id, hash));
     }
@@ -314,14 +313,15 @@ mod tests {
             std::iter::repeat_with(|| {
                 i += 1;
                 let hash = H256::from_low_u64_le(i);
-                let cached_queue_size = rand::random::<u8>() % MAX_QUEUE_SIZE + 1;
-                states_to_queue_size.insert(hash, cached_queue_size as usize);
+                let canonical_queue_size = rand::random::<u8>() % MAX_QUEUE_SIZE + 1;
+                states_to_queue_size.insert(hash, canonical_queue_size as usize);
 
                 (
                     ActorId::from(i),
                     StateHashWithQueueSize {
                         hash,
-                        cached_queue_size,
+                        canonical_queue_size,
+                        injected_queue_size: 0,
                     },
                 )
             })

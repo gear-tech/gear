@@ -26,11 +26,11 @@ use crate::{utils, validator::core::ValidatorCore};
 use anyhow::{Result, anyhow};
 use derive_more::{Debug, Display};
 use ethexe_common::{
-    Announce, AnnounceHash, AnnouncesRequest, AnnouncesRequestUntil, CheckedAnnouncesResponse,
+    Announce, AnnouncesRequest, AnnouncesRequestUntil, CheckedAnnouncesResponse, HashOf,
     SimpleBlockData,
     db::{
-        AnnounceStorageRead, AnnounceStorageWrite, BlockMetaStorageRead, BlockMetaStorageWrite,
-        OnChainStorageRead,
+        AnnounceStorageRO, AnnounceStorageRW, BlockMetaStorageRO, BlockMetaStorageRW,
+        OnChainStorageRO,
     },
 };
 use ethexe_ethereum::primitives::map::HashMap;
@@ -95,7 +95,7 @@ impl StateHandler for Initial {
             && block.hash == block_hash
         {
             if let Some(request) = self.ctx.core.check_for_missing_announces(block)? {
-                log::debug!(
+                tracing::debug!(
                     "Missing announces detected for block {block_hash}, send request: {request:?}"
                 );
 
@@ -128,7 +128,7 @@ impl StateHandler for Initial {
             WaitingFor::MissingAnnounces { block, announces }
                 if announces == *response.request() =>
             {
-                log::debug!("Received announces response for block {}", block.hash);
+                tracing::debug!(block = %block.hash, "Received missing announces response");
 
                 let missing_announces = response
                     .into_parts()
@@ -171,7 +171,7 @@ impl ValidatorContext {
         let validators = self
             .core
             .db
-            .validators(block.hash)
+            .block_validators(block.hash)
             .ok_or(anyhow!("validators not found for block({})", block.hash))?;
 
         let producer = utils::block_producer_for(
@@ -182,17 +182,17 @@ impl ValidatorContext {
         let my_address = self.core.pub_key.to_address();
 
         if my_address == producer {
-            log::info!("👷 Start to work as a producer for block: {}", block.hash);
+            tracing::info!(block = %block.hash, "👷 Start to work as a producer");
 
             Producer::create(self, block, validators.clone())
         } else {
             // TODO #4636: add test (in ethexe-service) for case where is not validator for current block
             let is_validator_for_current_block = validators.contains(&my_address);
 
-            log::info!(
-                "👷 Start to work as a subordinate for block: {}, producer is {producer}, \
+            tracing::info!(
+                block = %block.hash,
+                "👷 Start to work as subordinate, producer is {producer}, \
                 I'm validator for current block: {is_validator_for_current_block}",
-                block.hash
             );
 
             Subordinate::create(self, block, producer, is_validator_for_current_block)
@@ -204,7 +204,7 @@ impl ValidatorCore {
     fn propagate_announces(
         &self,
         block_hash: H256,
-        mut missing_announces: HashMap<AnnounceHash, Announce>,
+        mut missing_announces: HashMap<HashOf<Announce>, Announce>,
     ) -> Result<()> {
         // collect blocks without announces propagated
         let mut chain = VecDeque::new();
@@ -278,12 +278,12 @@ impl ValidatorCore {
 
     fn announces_chain_recovery_if_needed(
         &self,
-        last_committed_announce_hash: AnnounceHash,
-        missing_announces: &mut HashMap<AnnounceHash, Announce>,
+        last_committed_announce_hash: HashOf<Announce>,
+        missing_announces: &mut HashMap<HashOf<Announce>, Announce>,
     ) -> Result<()> {
         let mut announce_hash = last_committed_announce_hash;
         while !self.announce_is_included(announce_hash) {
-            log::debug!("Committed announces {announce_hash} was not included yet, including...");
+            tracing::debug!(announce = %announce_hash, "Committed announces was not included yet, including...");
 
             let announce = missing_announces.remove(&announce_hash).ok_or_else(|| {
                 anyhow!("Committed announce {announce_hash} not found in missing announces")
@@ -302,12 +302,14 @@ impl ValidatorCore {
     fn propagate_one_base_announce(
         &self,
         block_hash: H256,
-        parent_announce_hash: AnnounceHash,
-        last_committed_announce_hash: AnnounceHash,
+        parent_announce_hash: HashOf<Announce>,
+        last_committed_announce_hash: HashOf<Announce>,
     ) -> Result<()> {
-        log::trace!(
-            "Trying propagating announce for block {block_hash} from parent announce {parent_announce_hash}, \
-             last committed announce is {last_committed_announce_hash}",
+        tracing::trace!(
+            block = %block_hash,
+            parent_announce = %parent_announce_hash,
+            last_committed_announce = %last_committed_announce_hash,
+            "Trying propagating announce from parent announce",
         );
 
         // Check that parent announce branch is not expired
@@ -333,8 +335,10 @@ impl ValidatorCore {
                 // We reached the oldest announce in commitment delay limit which is not not committed yet.
                 // This announce cannot be committed any more if it is not base announce,
                 // so this branch is expired and we have to skip propagation from `parent`.
-                log::trace!(
-                    "predecessor {predecessor} is too old and not base, so {parent_announce_hash} branch is expired",
+                tracing::trace!(
+                    predecessor = %predecessor,
+                    parent_announce = %parent_announce_hash,
+                    "predecessor is too old and not base, so parent announce branch is expired",
                 );
                 return Ok(());
             }
@@ -362,8 +366,10 @@ impl ValidatorCore {
 
         let new_base_announce = Announce::base(block_hash, parent_announce_hash);
 
-        log::trace!(
-            "branch from {parent_announce_hash} is not expired, new announce {new_base_announce:?}"
+        tracing::trace!(
+            parent_announce = %parent_announce_hash,
+            new_base_announce = %new_base_announce.to_hash(),
+            "branch from parent announce is not expired, propagating new base announce",
         );
 
         self.include_announce(new_base_announce)?;
@@ -402,7 +408,7 @@ impl ValidatorCore {
         }
     }
 
-    pub fn announce_is_included(&self, announce_hash: AnnounceHash) -> bool {
+    pub fn announce_is_included(&self, announce_hash: HashOf<Announce>) -> bool {
         self.db
             .announce(announce_hash)
             .and_then(|announce| self.db.block_meta(announce.block_hash).announces)
@@ -410,7 +416,9 @@ impl ValidatorCore {
             .unwrap_or(false)
     }
 
-    pub fn include_announce(&self, announce: Announce) -> Result<AnnounceHash> {
+    pub fn include_announce(&self, announce: Announce) -> Result<HashOf<Announce>> {
+        tracing::trace!(announce = %announce.to_hash(), "Including announce");
+
         let block_hash = announce.block_hash;
         let announce_hash = self.db.set_announce(announce);
 
@@ -431,7 +439,7 @@ mod tests {
 
     use super::*;
     use crate::{ConsensusEvent, validator::mock::*};
-    use ethexe_common::{AnnouncesResponse, db::*, mock::*};
+    use ethexe_common::{AnnouncesResponse, mock::*};
     use gprimitives::H256;
     use nonempty::nonempty;
 
@@ -459,22 +467,19 @@ mod tests {
             ctx.core.pub_key.to_address(),
             keys[0].to_address(),
             keys[1].to_address(),
-        ];
+        ]
+        .into();
 
-        let block = BlockChain::mock(2).setup(&ctx.core.db).blocks[2].to_simple();
-
-        ctx.core
-            .db
-            .set_block_validators(block.hash, validators.clone());
+        let block = BlockChain::mock((2, validators)).setup(&ctx.core.db).blocks[2].to_simple();
 
         let state = Initial::create_with_chain_head(ctx, block.clone()).unwrap();
-        assert!(state.is_initial(), "expected Initial, got {:?}", state);
+        assert!(state.is_initial(), "got {:?}", state);
 
         let state = state.process_synced_block(block.hash).unwrap();
-        assert!(state.is_initial(), "expected Initial, got {:?}", state);
+        assert!(state.is_initial(), "got {:?}", state);
 
         let state = state.process_prepared_block(block.hash).unwrap();
-        assert!(state.is_producer(), "expected Producer, got {:?}", state);
+        assert!(state.is_producer(), "got {:?}", state);
     }
 
     #[test]
@@ -486,12 +491,13 @@ mod tests {
             ctx.core.pub_key.to_address(),
             keys[1].to_address(),
             keys[2].to_address(),
-        ];
+        ]
+        .into();
 
         let block = BlockChain::mock((1, validators)).setup(&ctx.core.db).blocks[1].to_simple();
 
         let state = Initial::create_with_chain_head(ctx, block.clone()).unwrap();
-        assert!(state.is_initial(), "expected Initial, got {:?}", state);
+        assert!(state.is_initial(), "got {:?}", state);
 
         let state = state.process_synced_block(block.hash).unwrap();
         assert!(state.is_initial(), "expected Initial, got {:?}", state);
@@ -672,7 +678,7 @@ mod tests {
             .setup(&ctx.core.db)
             .tap_mut(|chain| {
                 chain.blocks[1].as_prepared_mut().announces = None;
-                chain.blocks[1].as_prepared_mut().last_committed_announce = AnnounceHash::random();
+                chain.blocks[1].as_prepared_mut().last_committed_announce = HashOf::random();
             })
             .setup(&ctx.core.db)
             .blocks[1]
@@ -680,7 +686,7 @@ mod tests {
 
         let invalid_announce = Announce {
             block_hash: H256::random(),
-            parent: AnnounceHash::random(),
+            parent: HashOf::random(),
             gas_allowance: None,
             off_chain_transactions: vec![],
         };

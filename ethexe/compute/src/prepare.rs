@@ -16,21 +16,19 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{ComputeError, ComputeEvent, Result};
+use crate::{ComputeError, ComputeEvent, Result, service::SubService};
 use ethexe_common::{
     BlockData,
     db::{
-        BlockMetaStorageRead, BlockMetaStorageWrite, CodesStorageRead, LatestDataStorageWrite,
-        OnChainStorageRead,
+        BlockMetaStorageRO, BlockMetaStorageRW, CodesStorageRO, LatestDataStorageRW,
+        OnChainStorageRO,
     },
     events::{BlockEvent, RouterEvent},
 };
 use ethexe_db::Database;
-use futures::Stream;
 use gprimitives::{CodeId, H256};
 use std::{
     collections::{HashSet, VecDeque},
-    pin::Pin,
     task::{Context, Poll},
 };
 
@@ -53,7 +51,7 @@ enum State {
     WaitingForBlock,
     WaitingForCodes {
         codes: HashSet<CodeId>,
-        not_processed_blocks_chain: VecDeque<BlockData>,
+        not_prepared_blocks_chain: VecDeque<BlockData>,
     },
 }
 
@@ -95,89 +93,102 @@ impl PrepareSubService {
     }
 }
 
-impl Stream for PrepareSubService {
-    type Item = Result<Event>;
+impl SubService for PrepareSubService {
+    type Output = Event;
 
-    fn poll_next(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+    fn poll_next(&mut self, _cx: &mut Context<'_>) -> Poll<Result<Self::Output>> {
         if let State::WaitingForBlock = &self.state {
-            let Some(mut block_hash) = self.input.pop_back() else {
+            // Use pop_back to prepare the most recent blocks first,
+            // this is the most efficient way of preparing blocks in case of multiple pending blocks.
+            let Some(block_hash) = self.input.pop_back() else {
                 return Poll::Pending;
             };
 
             if !self.db.block_synced(block_hash) {
-                return Poll::Ready(Some(Err(ComputeError::BlockNotSynced(block_hash))));
+                return Poll::Ready(Err(ComputeError::BlockNotSynced(block_hash)));
             }
 
-            let mut not_processed_blocks_chain = VecDeque::new();
-            loop {
-                if self.db.block_meta(block_hash).prepared {
-                    break;
-                }
+            let not_prepared_blocks_chain =
+                collect_not_prepared_blocks_chain(&self.db, block_hash)?;
 
-                let header = self
-                    .db
-                    .block_header(block_hash)
-                    .ok_or(ComputeError::BlockHeaderNotFound(block_hash))?;
-                let events = self
-                    .db
-                    .block_events(block_hash)
-                    .ok_or(ComputeError::BlockEventsNotFound(block_hash))?;
-
-                not_processed_blocks_chain.push_front(BlockData {
-                    hash: block_hash,
-                    header,
-                    events,
-                });
-
-                block_hash = header.parent_hash;
-            }
-
-            if not_processed_blocks_chain.is_empty() {
+            if not_prepared_blocks_chain.is_empty() {
                 // Block is already prepared
-                return Poll::Ready(Some(Ok(Event::BlockPrepared(block_hash))));
+                return Poll::Ready(Ok(Event::BlockPrepared(block_hash)));
             }
 
-            log::trace!("Collected a chain to prepare {not_processed_blocks_chain:?}");
+            log::trace!("Collected a chain to prepare {not_prepared_blocks_chain:?}");
 
             let MissingData {
                 codes,
                 validated_codes,
-            } = missing_data(&self.db, &not_processed_blocks_chain)?;
+            } = missing_data(&self.db, &not_prepared_blocks_chain)?;
 
             self.state = State::WaitingForCodes {
                 codes: validated_codes,
-                not_processed_blocks_chain,
+                not_prepared_blocks_chain,
             };
 
             if !codes.is_empty() {
-                return Poll::Ready(Some(Ok(Event::RequestCodes(codes))));
+                return Poll::Ready(Ok(Event::RequestCodes(codes)));
             }
         }
 
         if let State::WaitingForCodes {
             codes,
-            not_processed_blocks_chain,
+            not_prepared_blocks_chain,
         } = &mut self.state
             && codes.is_empty()
         {
-            log::trace!("All validated codes are processed, preparing blocks");
+            log::trace!("All validated codes are processed, start to prepare blocks");
 
-            let head = not_processed_blocks_chain
+            let head = not_prepared_blocks_chain
                 .back()
                 .unwrap_or_else(|| unreachable!("chain must be non-empty"))
                 .hash;
 
-            for block in std::mem::take(not_processed_blocks_chain) {
+            for block in std::mem::take(not_prepared_blocks_chain) {
                 prepare_one_block(&self.db, block)?;
             }
 
             self.state = State::WaitingForBlock;
 
-            return Poll::Ready(Some(Ok(Event::BlockPrepared(head))));
+            return Poll::Ready(Ok(Event::BlockPrepared(head)));
         }
 
         Poll::Pending
     }
+}
+
+/// Collects a chain of blocks that are not yet prepared, starting from `block_hash`
+/// and going backwards through parent hashes until a prepared block is found.
+fn collect_not_prepared_blocks_chain(
+    db: &Database,
+    mut block_hash: H256,
+) -> Result<VecDeque<BlockData>> {
+    let mut chain = VecDeque::new();
+
+    loop {
+        if db.block_meta(block_hash).prepared {
+            break;
+        }
+
+        let header = db
+            .block_header(block_hash)
+            .ok_or(ComputeError::BlockHeaderNotFound(block_hash))?;
+        let events = db
+            .block_events(block_hash)
+            .ok_or(ComputeError::BlockEventsNotFound(block_hash))?;
+
+        chain.push_front(BlockData {
+            hash: block_hash,
+            header,
+            events,
+        });
+
+        block_hash = header.parent_hash;
+    }
+
+    Ok(chain)
 }
 
 #[derive(Debug)]
@@ -215,7 +226,7 @@ fn missing_data(db: &Database, chain: &VecDeque<BlockData>) -> Result<MissingDat
     })
 }
 
-fn prepare_one_block<DB: BlockMetaStorageWrite + LatestDataStorageWrite>(
+fn prepare_one_block<DB: BlockMetaStorageRW + LatestDataStorageRW>(
     db: &DB,
     block: BlockData,
 ) -> Result<()> {
@@ -280,9 +291,8 @@ fn prepare_one_block<DB: BlockMetaStorageWrite + LatestDataStorageWrite>(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ethexe_common::{AnnounceHash, Digest, events::BlockEvent, mock::*};
+    use ethexe_common::{Announce, Digest, HashOf, events::BlockEvent, mock::*};
     use ethexe_db::Database;
-    use futures::StreamExt;
     use gprimitives::H256;
 
     #[test]
@@ -296,7 +306,7 @@ mod tests {
         let code2_id = CodeId::from([2u8; 32]);
         let batch_committed = Digest::random();
 
-        let block1_announce_hash = AnnounceHash::random();
+        let block1_announce_hash = HashOf::<Announce>::random();
 
         let block = chain.blocks[1].to_simple().next_block();
         let block = BlockData {
@@ -342,7 +352,7 @@ mod tests {
         service.receive_block_to_prepare(block.hash);
 
         assert_eq!(
-            service.next().await.unwrap().unwrap(),
+            service.next().await.unwrap(),
             Event::BlockPrepared(block.hash),
         );
     }
@@ -379,13 +389,13 @@ mod tests {
 
         service.receive_block_to_prepare(block.hash);
         assert_eq!(
-            service.next().await.unwrap().unwrap(),
+            service.next().await.unwrap(),
             Event::RequestCodes([code1_id, code2_id].into())
         );
 
         service.receive_processed_code(code1_id);
         assert_eq!(
-            service.next().await.unwrap().unwrap(),
+            service.next().await.unwrap(),
             Event::BlockPrepared(block.hash),
         );
     }

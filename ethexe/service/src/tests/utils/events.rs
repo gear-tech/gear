@@ -22,13 +22,13 @@ use crate::Event;
 use anyhow::{Result, anyhow};
 use ethexe_blob_loader::BlobLoaderEvent;
 use ethexe_common::{
-    Address, AnnounceHash, SimpleBlockData, db::*, events::BlockEvent,
+    Address, Announce, HashOf, SimpleBlockData, db::*, events::BlockEvent,
     tx_pool::SignedOffchainTransaction,
 };
 use ethexe_compute::ComputeEvent;
 use ethexe_consensus::ConsensusEvent;
 use ethexe_db::Database;
-use ethexe_network::{NetworkEvent, NetworkService};
+use ethexe_network::NetworkEvent;
 use ethexe_observer::ObserverEvent;
 use ethexe_prometheus::PrometheusEvent;
 use ethexe_rpc::RpcEvent;
@@ -98,6 +98,7 @@ impl TestingEvent {
 pub struct ServiceEventsListener<'a> {
     pub receiver: &'a mut TestingEventReceiver,
     pub db: Database,
+    #[allow(unused)]
     pub router_address: Address,
 }
 
@@ -107,7 +108,7 @@ pub enum AnnounceId {
     #[default]
     Any,
     /// Wait for announce computed with a specific hash
-    AnnounceHash(AnnounceHash),
+    AnnounceHash(HashOf<Announce>),
     /// Wait for announce computed with a specific block hash
     BlockHash(H256),
 }
@@ -175,31 +176,32 @@ impl ServiceEventsListener<'_> {
 
     pub async fn wait_for_pubsub_subscribed(
         &mut self,
-        topic_names: BTreeSet<&'static str>,
+        _topic_names: BTreeSet<&'static str>,
     ) -> Result<()> {
-        let mut topics = topic_names
-            .into_iter()
-            .map(|topic_name| {
-                NetworkService::gossipsub_topic(topic_name, self.router_address)
-                    .hash()
-                    .to_string()
-            })
-            .collect::<BTreeSet<_>>();
-        self.wait_for(|event| match event {
-            TestingEvent::Network(NetworkEvent::GossipsubPeerSubscribed {
-                topic: subscribed_topic,
-                ..
-            }) => {
-                topics.remove(&subscribed_topic);
-                if topics.is_empty() {
-                    Ok(true)
-                } else {
-                    Ok(false)
-                }
-            }
-            _ => Ok(false),
-        })
-        .await
+        todo!("Implement wait_for_pubsub_subscribed")
+        // let mut topics = topic_names
+        //     .into_iter()
+        //     .map(|topic_name| {
+        //         NetworkService::gossipsub_topic(topic_name, self.router_address)
+        //             .hash()
+        //             .to_string()
+        //     })
+        //     .collect::<BTreeSet<_>>();
+        // self.wait_for(|event| match event {
+        //     TestingEvent::Network(NetworkEvent::GossipsubPeerSubscribed {
+        //         topic: subscribed_topic,
+        //         ..
+        //     }) => {
+        //         topics.remove(&subscribed_topic);
+        //         if topics.is_empty() {
+        //             Ok(true)
+        //         } else {
+        //             Ok(false)
+        //         }
+        //     }
+        //     _ => Ok(false),
+        // })
+        // .await
     }
 }
 

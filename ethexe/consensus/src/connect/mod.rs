@@ -20,14 +20,12 @@
 //!
 //! Simple "connect-node" consensus service implementation.
 
-use crate::{
-    BatchCommitmentValidationReply, ConsensusEvent, ConsensusService, SignedAnnounce,
-    SignedValidationRequest, utils,
-};
+use crate::{BatchCommitmentValidationReply, ConsensusEvent, ConsensusService, utils};
 use anyhow::{Result, anyhow};
 use ethexe_common::{
-    Address, AnnounceHash, CheckedAnnouncesResponse, SimpleBlockData,
-    db::{AnnounceStorageWrite, BlockMetaStorageWrite, OnChainStorageRead},
+    Address, Announce, HashOf, SimpleBlockData,
+    consensus::{VerifiedAnnounce, VerifiedValidationRequest},
+    db::{AnnounceStorageRW, BlockMetaStorageRW, OnChainStorageRO},
 };
 use ethexe_db::Database;
 use futures::{Stream, stream::FusedStream};
@@ -71,7 +69,7 @@ pub struct SimpleConnectService {
     slot_duration: Duration,
 
     state: State,
-    pending_announces: VecDeque<SignedAnnounce>,
+    pending_announces: VecDeque<VerifiedAnnounce>,
     output: VecDeque<ConsensusEvent>,
 }
 
@@ -102,7 +100,7 @@ impl ConsensusService for SimpleConnectService {
         if let State::WaitingForSyncedBlock { block } = &self.state
             && block.hash == block_hash
         {
-            let validators = self.db.validators(block_hash).ok_or(anyhow!(
+            let validators = self.db.block_validators(block_hash).ok_or(anyhow!(
                 "validators not found for synced block({block_hash})"
             ))?;
             let producer = utils::block_producer_for(
@@ -146,11 +144,11 @@ impl ConsensusService for SimpleConnectService {
         Ok(())
     }
 
-    fn receive_computed_announce(&mut self, _announce: AnnounceHash) -> Result<()> {
+    fn receive_computed_announce(&mut self, _announce: HashOf<Announce>) -> Result<()> {
         Ok(())
     }
 
-    fn receive_announce(&mut self, announce: SignedAnnounce) -> Result<()> {
+    fn receive_announce(&mut self, announce: VerifiedAnnounce) -> Result<()> {
         debug_assert!(
             self.pending_announces.len() <= MAX_PENDING_ANNOUNCES,
             "Logically impossible to have more than {MAX_PENDING_ANNOUNCES} pending announces because oldest ones are dropped"
@@ -179,14 +177,14 @@ impl ConsensusService for SimpleConnectService {
             let _ = self.pending_announces.pop_front().unwrap();
         }
 
-        log::warn!("Receive unexpected {announce:?}, save to pending announces");
+        tracing::warn!("Receive unexpected {announce:?}, save to pending announces");
 
         self.pending_announces.push_back(announce);
 
         Ok(())
     }
 
-    fn receive_validation_request(&mut self, _signed_batch: SignedValidationRequest) -> Result<()> {
+    fn receive_validation_request(&mut self, _batch: VerifiedValidationRequest) -> Result<()> {
         Ok(())
     }
 
@@ -200,7 +198,7 @@ impl ConsensusService for SimpleConnectService {
 }
 
 impl Stream for SimpleConnectService {
-    type Item = anyhow::Result<ConsensusEvent>;
+    type Item = Result<ConsensusEvent>;
 
     fn poll_next(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         if let Some(event) = self.output.pop_front() {

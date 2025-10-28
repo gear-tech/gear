@@ -19,9 +19,11 @@
 use super::{StateHandler, ValidatorContext, ValidatorState, submitter::Submitter};
 use crate::{BatchCommitmentValidationReply, ConsensusEvent, utils::MultisignedBatchCommitment};
 use anyhow::{Result, anyhow, ensure};
-use derive_more::{Debug, Display};
-use ethexe_common::{Address, consensus::BatchCommitmentValidationRequest, gear::BatchCommitment};
-use nonempty::NonEmpty;
+use derive_more::Display;
+use ethexe_common::{
+    Address, ValidatorsVec, consensus::BatchCommitmentValidationRequest, gear::BatchCommitment,
+    network::ValidatorMessage,
+};
 use std::collections::BTreeSet;
 
 /// [`Coordinator`] sends batch commitment validation request to other validators
@@ -75,7 +77,7 @@ impl StateHandler for Coordinator {
 impl Coordinator {
     pub fn create(
         mut ctx: ValidatorContext,
-        validators: NonEmpty<Address>,
+        validators: ValidatorsVec,
         batch: BatchCommitment,
     ) -> Result<ValidatorState> {
         ensure!(
@@ -99,12 +101,15 @@ impl Coordinator {
             return Submitter::create(ctx, multisigned_batch);
         }
 
-        let validation_request = ctx.core.signer.signed_data(
-            ctx.core.pub_key,
-            BatchCommitmentValidationRequest::new(multisigned_batch.batch()),
-        )?;
+        let payload = BatchCommitmentValidationRequest::new(multisigned_batch.batch());
+        let message = ValidatorMessage {
+            block: multisigned_batch.batch().block_hash,
+            payload,
+        };
 
-        ctx.output(ConsensusEvent::PublishValidationRequest(validation_request));
+        let validation_request = ctx.core.signer.signed_data(ctx.core.pub_key, message)?;
+
+        ctx.output(ConsensusEvent::PublishMessage(validation_request.into()));
 
         Ok(Self {
             ctx,
@@ -127,16 +132,20 @@ mod tests {
     fn coordinator_create_success() {
         let (mut ctx, keys, _) = mock_validator_context();
         ctx.core.signatures_threshold = 2;
-        let validators =
-            NonEmpty::from_vec(keys.iter().take(3).map(|k| k.to_address()).collect()).unwrap();
+        let validators = keys
+            .iter()
+            .take(3)
+            .map(|k| k.to_address())
+            .collect::<Result<_, _>>()
+            .unwrap();
         let batch = BatchCommitment::default();
 
         let coordinator = Coordinator::create(ctx, validators, batch).unwrap();
         assert!(coordinator.is_coordinator());
-        assert!(matches!(
-            coordinator.context().output[0],
-            ConsensusEvent::PublishValidationRequest(_)
-        ));
+        coordinator.context().output[0]
+            .clone()
+            .unwrap_publish_message()
+            .unwrap_request_batch_validation();
     }
 
     #[test]
@@ -148,7 +157,7 @@ mod tests {
         let batch = BatchCommitment::default();
 
         assert!(
-            Coordinator::create(ctx, validators, batch).is_err(),
+            Coordinator::create(ctx, validators.into(), batch).is_err(),
             "Expected an error, but got Ok"
         );
     }
@@ -162,7 +171,7 @@ mod tests {
         let batch = BatchCommitment::default();
 
         assert!(
-            Coordinator::create(ctx, validators, batch).is_err(),
+            Coordinator::create(ctx, validators.into(), batch).is_err(),
             "Expected an error due to zero threshold, but got Ok"
         );
     }
@@ -198,12 +207,12 @@ mod tests {
             .signer
             .validation_reply(keys[2], ctx.core.router_address, digest);
 
-        let mut coordinator = Coordinator::create(ctx, validators, batch).unwrap();
+        let mut coordinator = Coordinator::create(ctx, validators.into(), batch).unwrap();
         assert!(coordinator.is_coordinator());
-        assert!(matches!(
-            coordinator.context().output[0],
-            ConsensusEvent::PublishValidationRequest(_)
-        ));
+        coordinator.context().output[0]
+            .clone()
+            .unwrap_publish_message()
+            .unwrap_request_batch_validation();
 
         coordinator = coordinator.process_validation_reply(reply1).unwrap();
         assert!(coordinator.is_coordinator());
