@@ -24,7 +24,7 @@ use crate::{
     export::PeerId,
 };
 use ethexe_common::db::{
-    AnnounceStorageRead, BlockMetaStorageRead, HashStorageRead, LatestDataStorageRead,
+    AnnounceStorageRO, BlockMetaStorageRO, HashStorageRO, LatestDataStorageRO,
 };
 use libp2p::request_response;
 use std::task::{Context, Poll};

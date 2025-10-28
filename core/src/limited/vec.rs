@@ -240,7 +240,7 @@ impl LimitedVecError {
 #[cfg(test)]
 mod test {
     use super::LimitedVec;
-    use alloc::{format, string::String, vec, vec::Vec};
+    use alloc::{string::String, vec, vec::Vec};
     use core::convert::TryFrom;
 
     const N: usize = 1000;

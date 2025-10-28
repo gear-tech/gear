@@ -17,19 +17,19 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use ethexe_common::{
-    Announce, AnnounceHash, BlockHeader, ProgramStates, Schedule, ScheduledTask,
+    Announce, BlockHeader, HashOf, MaybeHashOf, ProgramStates, Schedule, ScheduledTask,
     StateHashWithQueueSize,
     db::{
-        AnnounceMeta, AnnounceStorageRead, BlockMeta, BlockMetaStorageRead, CodesStorageRead,
-        LatestDataStorageRead, OnChainStorageRead,
+        AnnounceMeta, AnnounceStorageRO, BlockMeta, BlockMetaStorageRO, CodesStorageRO,
+        LatestDataStorageRO, OnChainStorageRO,
     },
     events::BlockEvent,
     gear::StateTransition,
 };
 use ethexe_runtime_common::state::{
-    ActiveProgram, Allocations, DispatchStash, Expiring, HashOf, Mailbox, MaybeHashOf, MemoryPages,
-    MemoryPagesRegion, MessageQueue, MessageQueueHashWithSize, PayloadLookup, Program,
-    ProgramState, Storage, UserMailbox, Waitlist,
+    ActiveProgram, Allocations, DispatchStash, Expiring, Mailbox, MemoryPages, MemoryPagesRegion,
+    MessageQueue, MessageQueueHashWithSize, PayloadLookup, Program, ProgramState, Storage,
+    UserMailbox, Waitlist,
 };
 use gear_core::{
     buffer::Payload,
@@ -43,21 +43,21 @@ use std::{
 };
 
 pub trait DatabaseIteratorStorage:
-    OnChainStorageRead
-    + BlockMetaStorageRead
-    + AnnounceStorageRead
-    + CodesStorageRead
-    + LatestDataStorageRead
+    OnChainStorageRO
+    + BlockMetaStorageRO
+    + AnnounceStorageRO
+    + CodesStorageRO
+    + LatestDataStorageRO
     + Storage
 {
 }
 
 impl<
-    T: OnChainStorageRead
-        + BlockMetaStorageRead
-        + AnnounceStorageRead
-        + CodesStorageRead
-        + LatestDataStorageRead
+    T: OnChainStorageRO
+        + BlockMetaStorageRO
+        + AnnounceStorageRO
+        + CodesStorageRO
+        + LatestDataStorageRO
         + Storage,
 > DatabaseIteratorStorage for T
 {
@@ -179,14 +179,14 @@ node! {
         Announce(
             #[derive(Debug, Clone, Eq, PartialEq, Hash)]
             pub struct AnnounceNode {
-                pub announce_hash: AnnounceHash,
+                pub announce_hash: HashOf<Announce>,
                 pub announce: Announce,
             }
         ),
         AnnounceMeta(
             #[derive(Debug, Clone, Eq, PartialEq, Hash)]
             pub struct AnnounceMetaNode {
-                pub announce_hash: AnnounceHash,
+                pub announce_hash: HashOf<Announce>,
                 pub announce_meta: AnnounceMeta,
             }
         ),
@@ -232,7 +232,7 @@ node! {
         AnnounceProgramStates(
             #[derive(Debug, Clone, Eq, PartialEq, Hash)]
             pub struct AnnounceProgramStatesNode {
-                pub announce_hash: AnnounceHash,
+                pub announce_hash: HashOf<Announce>,
                 pub announce_program_states: ProgramStates,
             }
         ),
@@ -245,14 +245,14 @@ node! {
         AnnounceSchedule(
             #[derive(Debug, Clone, Eq, PartialEq, Hash)]
             pub struct AnnounceScheduleNode {
-                pub announce_hash: AnnounceHash,
+                pub announce_hash: HashOf<Announce>,
                 pub announce_schedule: Schedule,
             }
         ),
         AnnounceScheduleTasks(
             #[derive(Debug, Clone, Eq, PartialEq, Hash)]
             pub struct AnnounceScheduleTasksNode {
-                pub announce_hash: AnnounceHash,
+                pub announce_hash: HashOf<Announce>,
                 pub height: u32,
                 pub tasks: BTreeSet<ScheduledTask>,
             }
@@ -266,7 +266,7 @@ node! {
         AnnounceOutcome(
             #[derive(Debug, Clone, Eq, PartialEq, Hash)]
             pub struct AnnounceOutcomeNode {
-                pub announce_hash: AnnounceHash,
+                pub announce_hash: HashOf<Announce>,
                 pub announce_outcome: Vec<StateTransition>,
             }
         ),
@@ -374,10 +374,10 @@ pub enum DatabaseIteratorError {
     NoBlockAnnounces(H256),
     NoBlockCodesQueue(H256),
 
-    NoAnnounce(AnnounceHash),
-    NoAnnounceSchedule(AnnounceHash),
-    NoAnnounceOutcome(AnnounceHash),
-    NoAnnounceProgramStates(AnnounceHash),
+    NoAnnounce(HashOf<Announce>),
+    NoAnnounceSchedule(HashOf<Announce>),
+    NoAnnounceOutcome(HashOf<Announce>),
+    NoAnnounceProgramStates(HashOf<Announce>),
 
     /* memory */
     NoMemoryPages(HashOf<MemoryPages>),
@@ -608,7 +608,8 @@ where
     ) {
         for StateHashWithQueueSize {
             hash: program_state,
-            cached_queue_size: _,
+            canonical_queue_size: _,
+            injected_queue_size: _,
         } in announce_program_states.values().copied()
         {
             try_push_node!(no_hash: self.program_state(program_state));
@@ -618,7 +619,8 @@ where
     fn iter_program_state(&mut self, ProgramStateNode { program_state }: ProgramStateNode) {
         let ProgramState {
             program,
-            queue,
+            canonical_queue,
+            injected_queue,
             waitlist_hash,
             stash_hash,
             mailbox_hash,
@@ -649,7 +651,11 @@ where
         }
 
         self.push_node(MessageQueueHashWithSizeNode {
-            queue_hash_with_size: queue,
+            queue_hash_with_size: canonical_queue,
+        });
+
+        self.push_node(MessageQueueHashWithSizeNode {
+            queue_hash_with_size: injected_queue,
         });
 
         if let Some(waitlist) = waitlist_hash.to_inner() {
@@ -696,10 +702,8 @@ where
 
     fn iter_scheduled_task(&mut self, ScheduledTaskNode { task }: ScheduledTaskNode) {
         match task {
-            ScheduledTask::PauseProgram(program_id)
-            | ScheduledTask::RemoveFromMailbox((program_id, _), _)
+            ScheduledTask::RemoveFromMailbox((program_id, _), _)
             | ScheduledTask::RemoveFromWaitlist(program_id, _)
-            | ScheduledTask::RemovePausedProgram(program_id)
             | ScheduledTask::WakeMessage(program_id, _)
             | ScheduledTask::SendDispatch((program_id, _))
             | ScheduledTask::SendUserMessage {
@@ -709,11 +713,6 @@ where
             | ScheduledTask::RemoveGasReservation(program_id, _) => {
                 self.push_node(ProgramIdNode { program_id });
             }
-            ScheduledTask::RemoveCode(code_id) => {
-                self.push_node(CodeIdNode { code_id });
-            }
-            #[allow(deprecated)]
-            ScheduledTask::RemoveResumeSession(_) => unreachable!("deprecated"),
         }
     }
 
@@ -932,7 +931,7 @@ pub(crate) mod tests {
 
     #[test]
     fn walk_announce_program_states() {
-        let announce_hash = AnnounceHash::random();
+        let announce_hash = HashOf::random();
         let program_id = ActorId::from([3u8; 32]);
         let state_hash = H256::random();
 
@@ -941,7 +940,8 @@ pub(crate) mod tests {
             program_id,
             StateHashWithQueueSize {
                 hash: state_hash,
-                cached_queue_size: 0,
+                canonical_queue_size: 0,
+                injected_queue_size: 0,
             },
         );
 
@@ -990,43 +990,12 @@ pub(crate) mod tests {
     }
 
     #[test]
-    fn walk_scheduled_task_pause_program() {
-        let program_id = ActorId::from([6u8; 32]);
-        let task = ScheduledTask::PauseProgram(program_id);
-
-        let visited_programs: Vec<_> =
-            DatabaseIterator::new(setup_db(), ScheduledTaskNode { task })
-                .filter_map(Node::into_program_id)
-                .map(|node| node.program_id)
-                .collect();
-
-        assert!(visited_programs.contains(&program_id));
-    }
-
-    #[test]
-    fn walk_scheduled_task_remove_code() {
-        let code_id = CodeId::from([7u8; 32]);
-        let task = ScheduledTask::RemoveCode(code_id);
-
-        let visited_codes: Vec<_> = DatabaseIterator::new(setup_db(), ScheduledTaskNode { task })
-            .filter_map(Node::into_code_id)
-            .map(|node| node.code_id)
-            .collect();
-
-        assert!(visited_codes.contains(&code_id));
-    }
-
-    #[test]
-    fn walk_announce_schedule_tasks() {
-        let announce_hash = AnnounceHash::random();
-        let program_id1 = ActorId::from([10u8; 32]);
-        let program_id2 = ActorId::from([11u8; 32]);
-        let code_id = CodeId::from([12u8; 32]);
+    fn walk_block_schedule_tasks() {
+        let announce_hash = HashOf::random();
+        let program_id = ActorId::from([10u8; 32]);
 
         let mut tasks = BTreeSet::new();
-        tasks.insert(ScheduledTask::PauseProgram(program_id1));
-        tasks.insert(ScheduledTask::RemoveCode(code_id));
-        tasks.insert(ScheduledTask::WakeMessage(program_id2, MessageId::zero()));
+        tasks.insert(ScheduledTask::WakeMessage(program_id, MessageId::zero()));
 
         let visited: Vec<_> = DatabaseIterator::new(
             setup_db(),
@@ -1045,26 +1014,17 @@ pub(crate) mod tests {
             .map(|node| node.program_id)
             .collect();
 
-        let visited_codes: Vec<CodeId> = visited
-            .iter()
-            .cloned()
-            .filter_map(Node::into_code_id)
-            .map(|node| node.code_id)
-            .collect();
-
-        assert!(visited_programs.contains(&program_id1));
-        assert!(visited_programs.contains(&program_id2));
-        assert!(visited_codes.contains(&code_id));
+        assert!(visited_programs.contains(&program_id));
     }
 
     #[test]
     fn walk_announce_schedule() {
-        let announce_hash = AnnounceHash::random();
+        let announce_hash = HashOf::random();
         let program_id = ActorId::from([14u8; 32]);
 
         let mut announce_schedule = BTreeMap::new();
         let mut tasks = BTreeSet::new();
-        tasks.insert(ScheduledTask::PauseProgram(program_id));
+        tasks.insert(ScheduledTask::WakeMessage(program_id, MessageId::zero()));
         announce_schedule.insert(1000u32, tasks);
 
         let visited_programs: Vec<_> = DatabaseIterator::new(
@@ -1083,7 +1043,7 @@ pub(crate) mod tests {
 
     #[test]
     fn walk_announce_outcome() {
-        let announce_hash = AnnounceHash::random();
+        let announce_hash = HashOf::random();
         let actor_id = ActorId::from([15u8; 32]);
         let new_state_hash = H256::random();
 

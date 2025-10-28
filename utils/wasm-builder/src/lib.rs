@@ -18,7 +18,7 @@
 
 #![doc(html_logo_url = "https://gear-tech.io/logo.png")]
 #![doc(html_favicon_url = "https://gear-tech.io/favicon.ico")]
-#![cfg_attr(docsrs, feature(doc_auto_cfg))]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 
 pub use gear_wasm_optimizer::{self as optimize, CargoCommand};
 pub use wasm_project::{PreProcessor, PreProcessorResult, PreProcessorTarget};

@@ -18,7 +18,7 @@
 
 //! ethexe tx pool types
 
-use crate::{ToDigest, db::OnChainStorageRead, ecdsa::SignedData};
+use crate::{ToDigest, db::OnChainStorageRO, ecdsa::SignedData};
 use alloc::vec::Vec;
 use anyhow::{Result, anyhow};
 use derive_more::{Debug, Display};
@@ -104,7 +104,7 @@ impl RawOffchainTransaction {
 /// - `true` if the transaction is still valid at the given block
 /// - `false` otherwise
 pub fn check_mortality_at(
-    db: &impl OnChainStorageRead,
+    db: &impl OnChainStorageRO,
     tx: &SignedOffchainTransaction,
     block_hash: H256,
 ) -> Result<bool> {
@@ -146,7 +146,7 @@ pub fn check_mortality_at(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{BlockHeader, ecdsa::PrivateKey};
+    use crate::{BlockHeader, ProtocolTimelines, ecdsa::PrivateKey};
     use alloc::collections::BTreeMap;
 
     #[derive(Default)]
@@ -154,9 +154,13 @@ mod tests {
         block_headers: BTreeMap<H256, BlockHeader>,
     }
 
-    impl OnChainStorageRead for MockDatabase {
+    impl OnChainStorageRO for MockDatabase {
         fn block_header(&self, hash: H256) -> Option<BlockHeader> {
             self.block_headers.get(&hash).cloned()
+        }
+
+        fn protocol_timelines(&self) -> Option<ProtocolTimelines> {
+            unimplemented!()
         }
 
         fn block_events(&self, _block_hash: H256) -> Option<Vec<crate::events::BlockEvent>> {
@@ -167,11 +171,11 @@ mod tests {
             unimplemented!()
         }
 
-        fn validators(&self, _block_hash: H256) -> Option<nonempty::NonEmpty<crate::Address>> {
+        fn block_synced(&self, _block_hash: H256) -> bool {
             unimplemented!()
         }
 
-        fn block_synced(&self, _block_hash: H256) -> bool {
+        fn block_validators(&self, _block_hash: H256) -> Option<crate::ValidatorsVec> {
             unimplemented!()
         }
     }

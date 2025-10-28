@@ -16,17 +16,16 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{BatchCommitmentValidationReply, BatchCommitmentValidationRequest};
+use crate::BatchCommitmentValidationReply;
 use ethexe_common::{
-    Address, AnnounceHash, Digest, ToDigest,
+    Address, Digest, ToDigest,
     db::*,
-    ecdsa::{PrivateKey, PublicKey, SignedData},
+    ecdsa::{PrivateKey, PublicKey, SignedData, VerifiedData},
     gear::{BatchCommitment, ChainCommitment, CodeCommitment},
     mock::*,
 };
 use ethexe_db::Database;
 use ethexe_signer::Signer;
-use gprimitives::H256;
 use std::vec;
 
 pub fn init_signer_with_keys(amount: u8) -> (Signer, Vec<PrivateKey>, Vec<PublicKey>) {
@@ -38,18 +37,6 @@ pub fn init_signer_with_keys(amount: u8) -> (Signer, Vec<PrivateKey>, Vec<Public
         .map(|&key| signer.storage_mut().add_key(key).unwrap())
         .collect();
     (signer, private_keys, public_keys)
-}
-
-impl Mock<()> for BatchCommitmentValidationRequest {
-    fn mock(_args: ()) -> Self {
-        BatchCommitmentValidationRequest {
-            digest: H256::random().0.into(),
-            head: Some(AnnounceHash(H256::random())),
-            codes: vec![CodeCommitment::mock(()).id, CodeCommitment::mock(()).id],
-            validators: false,
-            rewards: false,
-        }
-    }
 }
 
 /// Prepare chain with case:
@@ -102,6 +89,14 @@ pub trait SignerMockExt {
         pub_key: PublicKey,
         args: T,
     ) -> SignedData<M>;
+
+    fn mock_verified_data<T, M: Mock<T> + ToDigest>(
+        &self,
+        pub_key: PublicKey,
+        args: T,
+    ) -> VerifiedData<M> {
+        self.mock_signed_data(pub_key, args).into_verified()
+    }
 
     fn validation_reply(
         &self,

@@ -118,7 +118,7 @@ pub const CARGO_REGISTRY_NAME: &str = "cargo-http-registry";
 /// Test the input package
 pub fn test(package: &str, test: &str) -> Result<ExitStatus> {
     Command::new("cargo")
-        .args(["+1.88.0", "test", "-p", package, "--", test])
+        .args(["+stable", "test", "-p", package, "--", test])
         .status()
         .map_err(Into::into)
 }
@@ -127,7 +127,7 @@ pub fn test(package: &str, test: &str) -> Result<ExitStatus> {
 pub fn publish(manifest: &str) -> Result<ExitStatus> {
     Command::new("cargo")
         .args([
-            "+1.88.0",
+            "+stable",
             "publish",
             "--manifest-path",
             manifest,
@@ -140,7 +140,7 @@ pub fn publish(manifest: &str) -> Result<ExitStatus> {
 /// Add owner to the input package
 pub fn add_owner(package: &str, owner: &str) -> Result<ExitStatus> {
     Command::new("cargo")
-        .args(["+1.88.0", "owner", "--add", owner, package])
+        .args(["+stable", "owner", "--add", owner, package])
         .status()
         .map_err(Into::into)
 }
