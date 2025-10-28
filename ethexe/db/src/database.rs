@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2024-2025 Gear Technologies Inc.
+// Copyright (C) 2024-2025 Gear Technotracingies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -541,6 +541,7 @@ impl OnChainStorageRW for Database {
     }
 
     fn set_block_validators(&self, block_hash: H256, validator_set: ValidatorsVec) {
+        tracing::trace!("Set validator set for {block_hash}: {validator_set:?}");
         self.kv.put(
             &Key::ValidatorSet(block_hash).to_bytes(),
             validator_set.encode(),
@@ -595,6 +596,8 @@ impl AnnounceStorageRO for Database {
 
 impl AnnounceStorageRW for Database {
     fn set_announce(&self, announce: Announce) -> HashOf<Announce> {
+        tracing::trace!("Set announce {}: {announce}", announce.to_hash());
+        // Safe, because of inner method implementation.
         unsafe { HashOf::new(self.cas.write(&announce.encode())) }
     }
 
@@ -603,6 +606,7 @@ impl AnnounceStorageRW for Database {
         announce_hash: HashOf<Announce>,
         program_states: ProgramStates,
     ) {
+        tracing::trace!("Set announce program states for {announce_hash}: {program_states:?}");
         self.kv.put(
             &Key::AnnounceProgramStates(announce_hash).to_bytes(),
             program_states.encode(),
@@ -610,6 +614,7 @@ impl AnnounceStorageRW for Database {
     }
 
     fn set_announce_outcome(&self, announce_hash: HashOf<Announce>, outcome: Vec<StateTransition>) {
+        tracing::trace!("Set announce outcome for {announce_hash}: {outcome:?}");
         self.kv.put(
             &Key::AnnounceOutcome(announce_hash).to_bytes(),
             outcome.encode(),
@@ -617,6 +622,7 @@ impl AnnounceStorageRW for Database {
     }
 
     fn set_announce_schedule(&self, announce_hash: HashOf<Announce>, schedule: Schedule) {
+        tracing::trace!("Set announce schedule for {announce_hash}: {schedule:?}");
         self.kv.put(
             &Key::AnnounceSchedule(announce_hash).to_bytes(),
             schedule.encode(),
@@ -628,6 +634,7 @@ impl AnnounceStorageRW for Database {
         announce_hash: HashOf<Announce>,
         f: impl FnOnce(&mut AnnounceMeta),
     ) {
+        tracing::trace!("For announce {announce_hash} mutate meta");
         let mut meta = self.announce_meta(announce_hash);
         f(&mut meta);
         self.kv

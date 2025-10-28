@@ -19,8 +19,8 @@
 pub use tap::Tap;
 
 use crate::{
-    Address, Announce, BlockHeader, CodeBlobInfo, Digest, HashOf, ProgramStates, ProtocolTimelines,
-    Schedule, SimpleBlockData, ValidatorsVec,
+    Address, Announce, BlockData, BlockHeader, CodeBlobInfo, Digest, HashOf, ProgramStates,
+    ProtocolTimelines, Schedule, SimpleBlockData, ValidatorsVec,
     consensus::BatchCommitmentValidationRequest,
     db::*,
     events::BlockEvent,
@@ -187,13 +187,13 @@ pub struct PreparedBlockData {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct BlockData {
+pub struct BlockFullData {
     pub hash: H256,
     pub synced: Option<SyncedBlockData>,
     pub prepared: Option<PreparedBlockData>,
 }
 
-impl BlockData {
+impl BlockFullData {
     pub fn as_synced(&self) -> &SyncedBlockData {
         self.synced.as_ref().expect("block not synced")
     }
@@ -218,7 +218,7 @@ impl BlockData {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct ComputedAnnounceData {
     pub outcome: Vec<StateTransition>,
     pub program_states: ProgramStates,
@@ -238,6 +238,21 @@ impl AnnounceData {
 
     pub fn as_computed_mut(&mut self) -> &mut ComputedAnnounceData {
         self.computed.as_mut().expect("announce not computed")
+    }
+
+    pub fn setup(self, db: &impl AnnounceStorageRW) -> Self {
+        let announce_hash = db.set_announce(self.announce.clone());
+
+        if let Some(computed) = &self.computed {
+            db.set_announce_outcome(announce_hash, computed.outcome.clone());
+            db.set_announce_program_states(announce_hash, computed.program_states.clone());
+            db.set_announce_schedule(announce_hash, computed.schedule.clone());
+            db.mutate_announce_meta(announce_hash, |meta| {
+                *meta = AnnounceMeta { computed: true }
+            });
+        }
+
+        self
     }
 }
 
@@ -266,7 +281,7 @@ impl CodeData {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BlockChain {
-    pub blocks: VecDeque<BlockData>,
+    pub blocks: VecDeque<BlockFullData>,
     pub announces: BTreeMap<HashOf<Announce>, AnnounceData>,
     pub codes: BTreeMap<CodeId, CodeData>,
 }
@@ -329,7 +344,7 @@ impl BlockChain {
             }
         }
 
-        for BlockData {
+        for BlockFullData {
             hash,
             synced,
             prepared,
@@ -379,22 +394,9 @@ impl BlockChain {
             }
         }
 
-        for (announce_hash, AnnounceData { announce, computed }) in announces {
-            db.set_announce(announce);
-            if let Some(ComputedAnnounceData {
-                outcome,
-                program_states,
-                schedule,
-            }) = computed
-            {
-                db.set_announce_outcome(announce_hash, outcome);
-                db.set_announce_program_states(announce_hash, program_states);
-                db.set_announce_schedule(announce_hash, schedule);
-                db.mutate_announce_meta(announce_hash, |meta| {
-                    *meta = AnnounceMeta { computed: true }
-                });
-            }
-        }
+        announces.into_iter().for_each(|(_, data)| {
+            let _ = data.setup(db);
+        });
 
         for (
             code_id,
@@ -443,7 +445,7 @@ impl Mock<(u32, ValidatorsVec)> for BlockChain {
             .tuple_windows()
             .map(
                 |((parent_hash, _, _), (block_hash, block_height, block_timestamp))| {
-                    BlockData {
+                    BlockFullData {
                         hash: block_hash,
                         synced: Some(SyncedBlockData {
                             header: BlockHeader {
@@ -512,6 +514,7 @@ pub trait DBMockExt {
 }
 
 impl<DB: OnChainStorageRO + BlockMetaStorageRO> DBMockExt for DB {
+    #[track_caller]
     fn simple_block_data(&self, block: H256) -> SimpleBlockData {
         let header = self.block_header(block).expect("block header not found");
         SimpleBlockData {
@@ -520,6 +523,7 @@ impl<DB: OnChainStorageRO + BlockMetaStorageRO> DBMockExt for DB {
         }
     }
 
+    #[track_caller]
     fn top_announce_hash(&self, block: H256) -> HashOf<Announce> {
         self.block_meta(block)
             .announces
@@ -527,5 +531,42 @@ impl<DB: OnChainStorageRO + BlockMetaStorageRO> DBMockExt for DB {
             .into_iter()
             .next()
             .expect("must be at list one announce")
+    }
+}
+
+impl SimpleBlockData {
+    pub fn setup<DB>(self, db: &DB) -> Self
+    where
+        DB: OnChainStorageRW,
+    {
+        db.set_block_header(self.hash, self.header);
+        db.set_block_events(self.hash, &[]);
+        db.set_block_validators(self.hash, nonempty![Address([123; 20])].into());
+        db.set_block_synced(self.hash);
+        self
+    }
+
+    pub fn next_block(self) -> Self {
+        Self {
+            hash: H256::from_low_u64_be(self.hash.to_low_u64_be() + 1),
+            header: BlockHeader {
+                height: self.header.height + 1,
+                parent_hash: self.hash,
+                timestamp: self.header.timestamp + 10,
+            },
+        }
+    }
+}
+
+impl BlockData {
+    pub fn setup<DB>(self, db: &DB) -> Self
+    where
+        DB: OnChainStorageRW,
+    {
+        db.set_block_header(self.hash, self.header);
+        db.set_block_events(self.hash, &self.events);
+        db.set_block_validators(self.hash, nonempty![Address([123; 20])].into());
+        db.set_block_synced(self.hash);
+        self
     }
 }
