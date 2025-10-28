@@ -20,8 +20,8 @@ use crate::{ComputeError, ProcessorExt, Result, utils};
 use ethexe_common::{
     Announce, HashOf, SimpleBlockData,
     db::{
-        AnnounceStorageRead, AnnounceStorageWrite, BlockMetaStorageRead, BlockMetaStorageWrite,
-        CodesStorageRead, LatestDataStorageRead, LatestDataStorageWrite, OnChainStorageRead,
+        AnnounceStorageRO, AnnounceStorageRW, BlockMetaStorageRO, BlockMetaStorageRW,
+        CodesStorageRO, LatestDataStorageRO, LatestDataStorageRW, OnChainStorageRO,
     },
     events::{BlockEvent, BlockRequestEvent, RouterEvent},
 };
@@ -276,10 +276,9 @@ mod tests {
     use crate::tests::MockProcessor;
 
     use super::*;
-    use ethexe_common::{Address, BlockHeader, Digest, HashOf, db::*, events::BlockEvent};
+    use ethexe_common::{BlockHeader, Digest, HashOf, db::*, events::BlockEvent};
     use ethexe_db::Database as DB;
-    use gprimitives::H256;
-    use nonempty::nonempty;
+    use gprimitives::{CodeId, H256};
 
     #[tokio::test]
     async fn test_propagate_data_from_parent() {
@@ -331,7 +330,6 @@ mod tests {
         let code1_id = CodeId::from([1u8; 32]);
         let code2_id = CodeId::from([2u8; 32]);
         let batch_committed = Digest::random();
-        let validators = nonempty![Address::from([42u8; 20])];
 
         let parent_announce = Announce::base(parent_hash, last_committed_announce);
         db.set_announce(parent_announce.clone());
@@ -348,7 +346,6 @@ mod tests {
                 last_committed_announce: Some(HashOf::random()),
             }
         });
-        db.set_block_validators(parent_hash, validators.clone());
 
         db.set_block_header(block.hash, block.header);
 
@@ -370,7 +367,6 @@ mod tests {
             }),
         ];
         db.set_block_events(block.hash, &events);
-        db.set_block_validators(block.hash, validators);
         db.set_block_synced(block.hash);
 
         // Prepare the block

@@ -30,8 +30,7 @@ use async_trait::async_trait;
 use ethexe_common::{
     Announce, HashOf,
     db::{
-        AnnounceStorageRead, BlockMetaStorageRead, CodesStorageRead, HashStorageRead,
-        LatestDataStorageRead,
+        AnnounceStorageRO, BlockMetaStorageRO, CodesStorageRO, HashStorageRO, LatestDataStorageRO,
     },
     gear::CodeState,
 };
@@ -369,12 +368,7 @@ type InnerBehaviour = request_response::Behaviour<ParityScaleCodec<InnerRequest,
 
 #[auto_impl::auto_impl(&, Box)]
 pub trait DbSyncDatabase:
-    Send
-    + HashStorageRead
-    + LatestDataStorageRead
-    + BlockMetaStorageRead
-    + AnnounceStorageRead
-    + CodesStorageRead
+    Send + HashStorageRO + LatestDataStorageRO + BlockMetaStorageRO + AnnounceStorageRO + CodesStorageRO
 {
     fn clone_boxed(&self) -> Box<dyn DbSyncDatabase>;
 }

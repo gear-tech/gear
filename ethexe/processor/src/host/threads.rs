@@ -19,7 +19,7 @@
 // TODO: for each panic here place log::error, otherwise it won't be printed.
 
 use core::fmt;
-use ethexe_common::{HashOf, db::OnChainStorageRead};
+use ethexe_common::{HashOf, db::OnChainStorageRO};
 use ethexe_db::Database;
 use ethexe_runtime_common::{
     BlockInfo,

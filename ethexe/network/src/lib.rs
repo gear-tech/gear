@@ -607,7 +607,7 @@ mod tests {
         utils::tests::init_logger,
     };
     use async_trait::async_trait;
-    use ethexe_common::{BlockHeader, db::OnChainStorageWrite, gear::CodeState};
+    use ethexe_common::{BlockHeader, db::OnChainStorageRW, gear::CodeState};
     use ethexe_db::{Database, MemDb};
     use ethexe_signer::{FSKeyStorage, Signer};
     use gprimitives::{ActorId, CodeId, H256};
@@ -695,7 +695,7 @@ mod tests {
                 parent_hash: Default::default(),
             },
         );
-        db.set_block_validators(GENESIS_BLOCK, nonempty![Address::default()]);
+        db.set_block_validators(GENESIS_BLOCK, nonempty![Address::default()].into());
 
         let key_storage = FSKeyStorage::tmp();
         let signer = Signer::new(key_storage);
