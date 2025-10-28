@@ -19,7 +19,7 @@
 use ethexe_common::{Announce, CodeAndIdUnchecked, HashOf, events::BlockRequestEvent};
 use ethexe_processor::{BlockProcessingResult, Processor, ProcessorError};
 use gprimitives::{CodeId, H256};
-pub use service::ComputeService;
+pub use service::{ComputeConfig, ComputeService};
 use std::collections::HashSet;
 
 mod compute;

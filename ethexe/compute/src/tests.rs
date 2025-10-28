@@ -16,6 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use crate::service::ComputeConfig;
+
 use super::*;
 use ethexe_common::{
     CodeBlobInfo,
@@ -138,7 +140,8 @@ impl TestEnv {
         mark_as_not_prepared(&mut chain);
         chain = chain.setup(&db);
 
-        let compute = ComputeService::new(db.clone(), Processor::new(db.clone()).unwrap());
+        let config = ComputeConfig::new_with_zero_maturity();
+        let compute = ComputeService::new(config, db.clone(), Processor::new(db.clone()).unwrap());
 
         TestEnv { db, compute, chain }
     }

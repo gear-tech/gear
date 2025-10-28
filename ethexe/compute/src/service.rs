@@ -33,6 +33,33 @@ use std::{
 };
 use tokio::task::JoinSet;
 
+/// [`CANONICAL_EVENTS_MATURITY_PERIOD`] defines the period of blocks to start applying canonical events in current block.
+const CANONICAL_EVENTS_MATURITY_PERIOD: u8 = 16;
+
+#[derive(Debug, Clone, Copy)]
+pub struct ComputeConfig {
+    /// The delay in **blocks** in which events from Ethereum will be a be appply.
+    pub events_maturity_period: u8,
+}
+
+impl ComputeConfig {
+    /// Must use only in testing purposes.
+    /// For production purposes must to use `ComputeConfig::default()`
+    pub fn new_with_zero_maturity() -> Self {
+        Self {
+            events_maturity_period: 0,
+        }
+    }
+}
+
+impl Default for ComputeConfig {
+    fn default() -> Self {
+        Self {
+            events_maturity_period: CANONICAL_EVENTS_MATURITY_PERIOD,
+        }
+    }
+}
+
 #[derive(Debug, Clone)]
 pub struct ComputeMetrics {
     pub blocks_queue_len: usize,
@@ -67,6 +94,7 @@ enum State {
 }
 
 pub struct ComputeService<P: ProcessorExt = Processor> {
+    config: ComputeConfig,
     db: Database,
     processor: P,
 
@@ -78,8 +106,9 @@ pub struct ComputeService<P: ProcessorExt = Processor> {
 
 impl<P: ProcessorExt> ComputeService<P> {
     // TODO #4550: consider to create Processor inside ComputeService
-    pub fn new(db: Database, processor: P) -> Self {
+    pub fn new(config: ComputeConfig, db: Database, processor: P) -> Self {
         Self {
+            config,
             db,
             processor,
             blocks_queue: Default::default(),
@@ -189,8 +218,13 @@ impl<P: ProcessorExt> Stream for ComputeService<P> {
                 Some(BlockAction::Compute(announce)) => {
                     self.blocks_state = State::Computation {
                         announce_hash: announce.to_hash(),
-                        future: compute::compute(self.db.clone(), self.processor.clone(), announce)
-                            .boxed(),
+                        future: compute::compute(
+                            self.db.clone(),
+                            self.processor.clone(),
+                            announce,
+                            self.config.events_maturity_period,
+                        )
+                        .boxed(),
                     };
                 }
                 None => {}
@@ -255,7 +289,8 @@ mod tests {
     async fn prepare_block() {
         let db = DB::memory();
         let processor = MockProcessor;
-        let mut service = ComputeService::new(db.clone(), processor);
+        let config = ComputeConfig::new_with_zero_maturity();
+        let mut service = ComputeService::new(config, db.clone(), processor);
 
         let parent_hash = H256::from([1; 32]);
         let block_hash = H256::from([2; 32]);
@@ -297,7 +332,8 @@ mod tests {
 
         let db = DB::memory();
         let processor = MockProcessor;
-        let mut service = ComputeService::new(db.clone(), processor);
+        let config = ComputeConfig::new_with_zero_maturity();
+        let mut service = ComputeService::new(config, db.clone(), processor);
 
         let parent_hash = H256::from([1; 32]);
         let block_hash = H256::from([2; 32]);
@@ -350,7 +386,8 @@ mod tests {
     async fn process_code() {
         let db = DB::memory();
         let processor = MockProcessor;
-        let mut service = ComputeService::new(db.clone(), processor);
+        let config = ComputeConfig::new_with_zero_maturity();
+        let mut service = ComputeService::new(config, db.clone(), processor);
 
         // Create test code
         let code = vec![0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00]; // Simple WASM header

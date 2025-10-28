@@ -18,14 +18,16 @@
 
 use crate::{ComputeError, ProcessorExt, Result, utils};
 use ethexe_common::{
-    Announce,
+    Announce, BlockHeader,
     db::{
         AnnounceStorageWrite, BlockMetaStorageRead, BlockMetaStorageWrite, LatestDataStorageWrite,
         OnChainStorageRead,
     },
+    events::BlockEvent,
 };
 use ethexe_db::Database;
 use ethexe_processor::BlockProcessingResult;
+use gprimitives::H256;
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq)]
 pub(crate) enum ComputationStatus {
@@ -37,6 +39,7 @@ pub(crate) async fn compute<P: ProcessorExt>(
     db: Database,
     mut processor: P,
     announce: Announce,
+    events_maturity_period: u8,
 ) -> Result<ComputationStatus> {
     let announce_hash = announce.to_hash();
     let block_hash = announce.block_hash;
@@ -51,11 +54,10 @@ pub(crate) async fn compute<P: ProcessorExt>(
         return Ok(ComputationStatus::Computed);
     }
 
-    let parent_block_hash = db
+    let block_header = db
         .block_header(block_hash)
-        .ok_or(ComputeError::BlockHeaderNotFound(block_hash))?
-        .parent_hash;
-    if !utils::announce_is_computed_and_included(&db, announce.parent, parent_block_hash)? {
+        .ok_or(ComputeError::BlockHeaderNotFound(block_hash))?;
+    if !utils::announce_is_computed_and_included(&db, announce.parent, block_header.parent_hash)? {
         log::warn!(
             "{announce:?} is from unknown branch: parent {}",
             announce.parent
@@ -68,9 +70,12 @@ pub(crate) async fn compute<P: ProcessorExt>(
         "Announce cannot be base, else it must be already computed in prepare"
     );
 
-    let events = db
-        .block_events(block_hash)
-        .ok_or(ComputeError::BlockEventsNotFound(block_hash))?;
+    let events = find_matured_cononical_events(
+        db.clone(),
+        block_hash,
+        block_header,
+        events_maturity_period,
+    )?;
 
     let block_request_events = events
         .into_iter()
@@ -107,6 +112,26 @@ pub(crate) async fn compute<P: ProcessorExt>(
     .ok_or(ComputeError::LatestDataNotFound)?;
 
     Ok(ComputationStatus::Computed)
+}
+
+fn find_matured_cononical_events<DB: OnChainStorageRead>(
+    db: DB,
+    mut block_hash: H256,
+    mut block_header: BlockHeader,
+    maturity_period: u8,
+) -> Result<Vec<BlockEvent>> {
+    for _ in 0..maturity_period {
+        let parent_hash = block_header.parent_hash;
+        let parent_header = db
+            .block_header(parent_hash)
+            .ok_or(ComputeError::BlockHeaderNotFound(parent_hash))?;
+
+        block_hash = parent_hash;
+        block_header = parent_header;
+    }
+
+    db.block_events(block_hash)
+        .ok_or(ComputeError::BlockEventsNotFound(block_hash))
 }
 
 #[cfg(test)]
@@ -176,7 +201,9 @@ mod tests {
 
         // Set the PROCESSOR_RESULT to return non-empty result
         PROCESSOR_RESULT.with_borrow_mut(|r| *r = non_empty_result.clone());
-        let status = compute(db.clone(), MockProcessor, announce).await.unwrap();
+        let status = compute(db.clone(), MockProcessor, announce, 0)
+            .await
+            .unwrap();
         assert_eq!(status, ComputationStatus::Computed);
 
         // Verify block was marked as computed
@@ -201,7 +228,9 @@ mod tests {
             gas_allowance: Some(100),
             off_chain_transactions: vec![],
         };
-        let status = compute(db.clone(), MockProcessor, announce).await.unwrap();
+        let status = compute(db.clone(), MockProcessor, announce, 0)
+            .await
+            .unwrap();
         assert_eq!(status, ComputationStatus::Rejected);
     }
 }

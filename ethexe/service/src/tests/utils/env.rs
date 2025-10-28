@@ -41,6 +41,7 @@ use ethexe_common::{
     ecdsa::{PrivateKey, PublicKey},
     events::{BlockEvent, MirrorEvent, RouterEvent},
 };
+use ethexe_compute::{ComputeConfig, ComputeService};
 use ethexe_consensus::{ConsensusService, SimpleConnectService, ValidatorService};
 use ethexe_db::Database;
 use ethexe_ethereum::{Ethereum, deploy::EthereumDeployer, router::RouterQuery};
@@ -806,6 +807,9 @@ impl Node {
 
         let processor = Processor::new(self.db.clone()).unwrap();
 
+        let compute_config = ComputeConfig::new_with_zero_maturity();
+        let compute = ComputeService::new(compute_config, self.db.clone(), processor);
+
         let consensus: Pin<Box<dyn ConsensusService>> =
             if let Some(config) = self.validator_config.as_ref() {
                 Box::pin(
@@ -880,7 +884,7 @@ impl Node {
             self.db.clone(),
             observer,
             blob_loader,
-            processor,
+            compute,
             self.signer.clone(),
             tx_pool_service,
             consensus,

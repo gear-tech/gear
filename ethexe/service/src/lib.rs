@@ -24,7 +24,7 @@ use ethexe_blob_loader::{
     local::{LocalBlobLoader, LocalBlobStorage},
 };
 use ethexe_common::{ecdsa::PublicKey, gear::CodeState, network::VerifiedValidatorMessage};
-use ethexe_compute::{ComputeEvent, ComputeService};
+use ethexe_compute::{ComputeConfig, ComputeEvent, ComputeService};
 use ethexe_consensus::{
     ConsensusEvent, ConsensusService, SimpleConnectService, ValidatorConfig, ValidatorService,
 };
@@ -252,7 +252,9 @@ impl Service {
 
         let tx_pool = TxPoolService::new(db.clone());
 
-        let compute = ComputeService::new(db.clone(), processor);
+        // In production we are using **16** blocks as a connonical events maturity period.
+        let compute_config = ComputeConfig::default();
+        let compute = ComputeService::new(compute_config, db.clone(), processor);
 
         let fast_sync = config.node.fast_sync;
 
@@ -288,7 +290,7 @@ impl Service {
         db: Database,
         observer: ObserverService,
         blob_loader: Box<dyn BlobLoaderService>,
-        processor: Processor,
+        compute: ComputeService,
         signer: Signer,
         tx_pool: TxPoolService,
         consensus: Pin<Box<dyn ConsensusService>>,
@@ -298,8 +300,6 @@ impl Service {
         sender: tests::utils::TestingEventSender,
         fast_sync: bool,
     ) -> Self {
-        let compute = ComputeService::new(db.clone(), processor);
-
         Self {
             db,
             observer,
