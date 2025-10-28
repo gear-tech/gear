@@ -27,7 +27,7 @@ use crate::{
     utils::ConnectionMap,
 };
 use anyhow::Context as _;
-use ethexe_common::{AnnouncesResponseError, gear::CodeState};
+use ethexe_common::{gear::CodeState, network::AnnouncesResponseError};
 use futures::{FutureExt, future::BoxFuture};
 use gprimitives::{ActorId, CodeId, H256};
 use itertools::EitherOrBoth;

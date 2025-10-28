@@ -41,7 +41,6 @@ pub use gear_core;
 pub use gprimitives;
 pub use hash::*;
 pub use k256;
-pub use network::*;
 pub use primitives::*;
 pub use sha3;
 pub use utils::*;

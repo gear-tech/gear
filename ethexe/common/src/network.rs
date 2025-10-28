@@ -21,12 +21,12 @@ use crate::{
     consensus::{BatchCommitmentValidationReply, BatchCommitmentValidationRequest},
     ecdsa::{SignedData, VerifiedData},
 };
+use alloc::vec::Vec;
 use core::{hash::Hash, num::NonZeroU32};
 use gprimitives::H256;
 use k256::sha2::Digest;
 use parity_scale_codec::{Decode, Encode};
 use sha3::Keccak256;
-use alloc::vec::Vec;
 
 pub type ValidatorAnnounce = ValidatorMessage<Announce>;
 pub type ValidatorRequest = ValidatorMessage<BatchCommitmentValidationRequest>;

@@ -20,13 +20,14 @@ use crate::Service;
 use alloy::{eips::BlockId, providers::Provider};
 use anyhow::{Context, Result};
 use ethexe_common::{
-    Address, Announce, AnnouncesRequest, AnnouncesRequestUntil, BlockData, CodeAndIdUnchecked,
-    Digest, HashOf, ProgramStates, StateHashWithQueueSize,
+    Address, Announce, BlockData, CodeAndIdUnchecked, Digest, HashOf, ProgramStates,
+    StateHashWithQueueSize,
     db::{
         AnnounceStorageRO, BlockMetaStorageRO, CodesStorageRO, CodesStorageRW, FullAnnounceData,
         FullBlockData, HashStorageRO, OnChainStorageRO, OnChainStorageRW,
     },
     events::{BlockEvent, RouterEvent},
+    network::{AnnouncesRequest, AnnouncesRequestUntil},
 };
 use ethexe_compute::ComputeService;
 use ethexe_db::{
@@ -51,7 +52,10 @@ use ethexe_runtime_common::{
 use futures::StreamExt;
 use gprimitives::{ActorId, CodeId, H256};
 use parity_scale_codec::Decode;
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::{
+    collections::{BTreeMap, BTreeSet, HashMap},
+    num::NonZeroU32,
+};
 
 struct EventData {
     /// Latest committed since latest prepared block batch
@@ -190,7 +194,7 @@ async fn collect_announce(
         network,
         AnnouncesRequest {
             head: announce_hash,
-            until: AnnouncesRequestUntil::ChainLen(1.try_into().unwrap()),
+            until: AnnouncesRequestUntil::ChainLen(NonZeroU32::MIN),
         }
         .into(),
     )

@@ -28,11 +28,11 @@ pub(crate) use crate::{
 };
 use async_trait::async_trait;
 use ethexe_common::{
-    AnnouncesRequest, AnnouncesResponse, CheckedAnnouncesResponse,
     db::{
         AnnounceStorageRO, BlockMetaStorageRO, CodesStorageRO, HashStorageRO, LatestDataStorageRO,
     },
     gear::CodeState,
+    network::{AnnouncesRequest, AnnouncesResponse, CheckedAnnouncesResponse},
 };
 use ethexe_db::Database;
 use futures::FutureExt;

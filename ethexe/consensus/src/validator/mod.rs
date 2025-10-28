@@ -54,10 +54,11 @@ use crate::{
 use anyhow::{Result, anyhow};
 use derive_more::{Debug, From};
 use ethexe_common::{
-    Announce, CheckedAnnouncesResponse, HashOf, SimpleBlockData,
+    Announce, HashOf, SimpleBlockData,
     consensus::{VerifiedAnnounce, VerifiedValidationRequest},
     db::OnChainStorageRO,
     ecdsa::PublicKey,
+    network::CheckedAnnouncesResponse,
 };
 use ethexe_db::Database;
 use ethexe_ethereum::{middleware::ElectionProvider, router::Router};

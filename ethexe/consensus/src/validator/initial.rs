@@ -26,12 +26,12 @@ use crate::{utils, validator::core::ValidatorCore};
 use anyhow::{Result, anyhow};
 use derive_more::{Debug, Display};
 use ethexe_common::{
-    Announce, AnnouncesRequest, AnnouncesRequestUntil, CheckedAnnouncesResponse, HashOf,
-    SimpleBlockData,
+    Announce, HashOf, SimpleBlockData,
     db::{
         AnnounceStorageRO, AnnounceStorageRW, BlockMetaStorageRO, BlockMetaStorageRW,
         OnChainStorageRO,
     },
+    network::{AnnouncesRequest, AnnouncesRequestUntil, CheckedAnnouncesResponse},
 };
 use ethexe_ethereum::primitives::map::HashMap;
 use gprimitives::H256;
@@ -439,7 +439,7 @@ mod tests {
 
     use super::*;
     use crate::{ConsensusEvent, validator::mock::*};
-    use ethexe_common::{AnnouncesResponse, mock::*};
+    use ethexe_common::{mock::*, network::AnnouncesResponse};
     use gprimitives::H256;
     use nonempty::nonempty;
 

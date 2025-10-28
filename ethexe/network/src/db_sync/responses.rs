@@ -23,10 +23,10 @@ use crate::{
     },
     export::PeerId,
 };
-use anyhow::{Result, anyhow};
 use ethexe_common::{
-    AnnouncesRequest, AnnouncesRequestUntil, AnnouncesResponse,
+    Announce, HashOf,
     db::{AnnounceStorageRO, BlockMetaStorageRO, HashStorageRO, LatestData, LatestDataStorageRO},
+    network::{AnnouncesRequest, AnnouncesRequestUntil, AnnouncesResponse},
 };
 use libp2p::request_response;
 use std::{
@@ -34,6 +34,7 @@ use std::{
     num::NonZeroU32,
     task::{Context, Poll},
 };
+use thiserror::Error;
 use tokio::task::JoinSet;
 
 /// Maximum length of the chain for announces responses to prevent abuse
@@ -106,7 +107,7 @@ impl OngoingResponses {
     fn process_announce_request<DB: AnnounceStorageRO + LatestDataStorageRO>(
         db: &DB,
         request: AnnouncesRequest,
-    ) -> Result<AnnouncesResponse> {
+    ) -> Result<AnnouncesResponse, ProcessAnnounceError> {
         let AnnouncesRequest { head, until } = request;
 
         // Check the requested chain length first to prevent abuse
@@ -114,9 +115,7 @@ impl OngoingResponses {
             && len > MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE
         {
             // TODO #4874: use peer score to punish the peer for such requests
-            return Err(anyhow!(
-                "requested chain length {len} exceeds maximum allowed {MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE}"
-            ));
+            return Err(ProcessAnnounceError::ChainLenExceedsMax { requested: len });
         }
 
         let Some(LatestData {
@@ -125,14 +124,16 @@ impl OngoingResponses {
             ..
         }) = db.latest_data()
         else {
-            return Err(anyhow!("latest data not found in database"));
+            return Err(ProcessAnnounceError::LatestDataMissing);
         };
 
         let mut announces = VecDeque::new();
         let mut announce_hash = head;
         for _ in 0..MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE.get() {
             let Some(announce) = db.announce(announce_hash) else {
-                return Err(anyhow!("announce {announce_hash} not found in database"));
+                return Err(ProcessAnnounceError::AnnounceMissing {
+                    hash: announce_hash,
+                });
             };
 
             let parent = announce.parent;
@@ -156,10 +157,14 @@ impl OngoingResponses {
                 if start_announce_hash == genesis_announce_hash {
                     // Reaching genesis - request is invalid and should be punished.
                     // TODO #4874: use peer score to punish the peer for such requests
-                    return Err(anyhow!("reached genesis announce {genesis_announce_hash}"));
+                    return Err(ProcessAnnounceError::ReachedGenesis {
+                        genesis: genesis_announce_hash,
+                    });
                 } else {
                     // Reaching start announce - request can be valid, we just can't go further
-                    return Err(anyhow!("reached start announce {start_announce_hash}"));
+                    return Err(ProcessAnnounceError::ReachedStart {
+                        start: start_announce_hash,
+                    });
                 }
             }
 
@@ -167,9 +172,7 @@ impl OngoingResponses {
         }
 
         // TODO #4874: use peer score to punish the peer for such requests
-        Err(anyhow!(
-            "reached maximum chain length {MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE}"
-        ))
+        Err(ProcessAnnounceError::ReachedMaxChainLength)
     }
 
     pub(crate) fn handle_response(
@@ -218,12 +221,30 @@ impl OngoingResponses {
     }
 }
 
+#[derive(Debug, Error, PartialEq, Eq)]
+enum ProcessAnnounceError {
+    #[error(
+        "requested chain length {requested} exceeds maximum allowed {MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE}"
+    )]
+    ChainLenExceedsMax { requested: NonZeroU32 },
+    #[error("latest data not found in database")]
+    LatestDataMissing,
+    #[error("announce {hash} not found in database")]
+    AnnounceMissing { hash: HashOf<Announce> },
+    #[error("reached genesis announce {genesis}")]
+    ReachedGenesis { genesis: HashOf<Announce> },
+    #[error("reached start announce {start}")]
+    ReachedStart { start: HashOf<Announce> },
+    #[error("reached maximum chain length {MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE}")]
+    ReachedMaxChainLength,
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use ethexe_common::{
         Announce, HashOf,
-        db::{AnnounceStorageRW, LatestData, LatestDataStorageRW},
+        db::{AnnounceStorageRW, LatestDataStorageRW},
     };
     use ethexe_db::Database;
     use gprimitives::H256;
@@ -256,7 +277,11 @@ mod tests {
             until: AnnouncesRequestUntil::ChainLen(len),
         };
 
-        OngoingResponses::process_announce_request(&db, request).unwrap_err();
+        let err = OngoingResponses::process_announce_request(&db, request).unwrap_err();
+        assert_eq!(
+            err,
+            ProcessAnnounceError::ChainLenExceedsMax { requested: len }
+        );
     }
 
     #[test]
@@ -267,7 +292,8 @@ mod tests {
             until: AnnouncesRequestUntil::Tail(HashOf::zero()),
         };
 
-        OngoingResponses::process_announce_request(&db, request).unwrap_err();
+        let err = OngoingResponses::process_announce_request(&db, request).unwrap_err();
+        assert_eq!(err, ProcessAnnounceError::LatestDataMissing);
     }
 
     #[test]
@@ -281,7 +307,8 @@ mod tests {
             until: AnnouncesRequestUntil::Tail(HashOf::zero()),
         };
 
-        OngoingResponses::process_announce_request(&db, request).unwrap_err();
+        let err = OngoingResponses::process_announce_request(&db, request).unwrap_err();
+        assert_eq!(err, ProcessAnnounceError::AnnounceMissing { hash: head });
     }
 
     #[test]
@@ -302,13 +329,13 @@ mod tests {
             until: AnnouncesRequestUntil::Tail(HashOf::random()),
         };
 
-        OngoingResponses::process_announce_request(&db, request).unwrap_err();
+        let err = OngoingResponses::process_announce_request(&db, request).unwrap_err();
+        assert_eq!(err, ProcessAnnounceError::ReachedGenesis { genesis });
     }
 
     #[test]
     fn fails_reaching_start_non_genesis() {
         let db = Database::memory();
-
         let start_announce = make_announce(10, HashOf::random());
         let start = db.set_announce(start_announce);
         let genesis = HashOf::random();
@@ -323,7 +350,8 @@ mod tests {
             until: AnnouncesRequestUntil::Tail(HashOf::random()),
         };
 
-        OngoingResponses::process_announce_request(&db, request).unwrap_err();
+        let err = OngoingResponses::process_announce_request(&db, request).unwrap_err();
+        assert_eq!(err, ProcessAnnounceError::ReachedStart { start });
     }
 
     #[test]
@@ -357,7 +385,8 @@ mod tests {
             until: AnnouncesRequestUntil::Tail(tail),
         };
 
-        OngoingResponses::process_announce_request(&db, request).unwrap_err();
+        let err = OngoingResponses::process_announce_request(&db, request).unwrap_err();
+        assert_eq!(err, ProcessAnnounceError::ReachedMaxChainLength);
     }
 
     #[test]

@@ -33,9 +33,9 @@
 
 use anyhow::Result;
 use ethexe_common::{
-    Announce, AnnouncesRequest, CheckedAnnouncesResponse, HashOf, SimpleBlockData,
+    Announce, HashOf, SimpleBlockData,
     consensus::{BatchCommitmentValidationReply, VerifiedAnnounce, VerifiedValidationRequest},
-    network::SignedValidatorMessage,
+    network::{AnnouncesRequest, CheckedAnnouncesResponse, SignedValidatorMessage},
 };
 use futures::{Stream, stream::FusedStream};
 use gprimitives::H256;
