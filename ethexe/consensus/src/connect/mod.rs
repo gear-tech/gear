@@ -25,7 +25,7 @@ use anyhow::{Result, anyhow};
 use ethexe_common::{
     Address, Announce, HashOf, SimpleBlockData,
     consensus::{VerifiedAnnounce, VerifiedValidationRequest},
-    db::OnChainStorageRead,
+    db::OnChainStorageRO,
 };
 use ethexe_db::Database;
 use futures::{Stream, stream::FusedStream};
@@ -165,7 +165,7 @@ impl ConsensusService for SimpleConnectService {
 
         if self.pending_announces.len() == MAX_PENDING_ANNOUNCES {
             let old_announce = self.pending_announces.pop_front().unwrap();
-            log::trace!(
+            tracing::trace!(
                 "Pending announces limit reached, dropping oldest announce: {:?} from {}",
                 old_announce.data(),
                 old_announce.address()
@@ -187,7 +187,7 @@ impl ConsensusService for SimpleConnectService {
 }
 
 impl Stream for SimpleConnectService {
-    type Item = anyhow::Result<ConsensusEvent>;
+    type Item = Result<ConsensusEvent>;
 
     fn poll_next(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         if let Some(event) = self.output.pop_front() {

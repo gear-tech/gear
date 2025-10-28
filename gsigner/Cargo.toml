@@ -27,6 +27,7 @@ gprimitives = { workspace = true, optional = true }
 hex = { workspace = true, default-features = false, features = ["alloc"] }
 k256 = { version = "0.13.4", default-features = false, features = ["ecdsa"], optional = true }
 nacl = { workspace = true, optional = true }
+nonempty = { workspace = true }
 parity-scale-codec = { workspace = true, default-features = false, features = [
     "derive",
 ], optional = true }

@@ -21,8 +21,8 @@
 // TODO #4547: move types to another module(s)
 
 use crate::{
-    Address, Announce, BlockHeader, CodeBlobInfo, Digest, HashOf, ProgramStates, Schedule,
-    events::BlockEvent, gear::StateTransition,
+    Announce, BlockHeader, CodeBlobInfo, Digest, HashOf, ProgramStates, ProtocolTimelines,
+    Schedule, ValidatorsVec, events::BlockEvent, gear::StateTransition,
 };
 use alloc::{
     collections::{BTreeSet, VecDeque},
@@ -33,7 +33,6 @@ use gear_core::{
     ids::{ActorId, CodeId},
 };
 use gprimitives::H256;
-use nonempty::NonEmpty;
 use parity_scale_codec::{Decode, Encode};
 
 /// Ethexe metadata associated with an on-chain block.
@@ -65,25 +64,25 @@ impl BlockMeta {
 }
 
 #[auto_impl::auto_impl(&, Box)]
-pub trait HashStorageRead {
+pub trait HashStorageRO {
     fn read_by_hash(&self, hash: H256) -> Option<Vec<u8>>;
 }
 
 #[auto_impl::auto_impl(&, Box)]
-pub trait BlockMetaStorageRead {
+pub trait BlockMetaStorageRO {
     /// NOTE: if `BlockMeta` doesn't exist in the database, it will return the default value.
     fn block_meta(&self, block_hash: H256) -> BlockMeta;
 }
 
 #[auto_impl::auto_impl(&)]
-pub trait BlockMetaStorageWrite: BlockMetaStorageRead {
+pub trait BlockMetaStorageRW: BlockMetaStorageRO {
     /// NOTE: if `BlockMeta` doesn't exist in the database,
     /// it will be created with default values and then will be mutated.
     fn mutate_block_meta(&self, block_hash: H256, f: impl FnOnce(&mut BlockMeta));
 }
 
 #[auto_impl::auto_impl(&, Box)]
-pub trait CodesStorageRead {
+pub trait CodesStorageRO {
     fn original_code_exists(&self, code_id: CodeId) -> bool;
     fn original_code(&self, code_id: CodeId) -> Option<Vec<u8>>;
     fn program_code_id(&self, program_id: ActorId) -> Option<CodeId>;
@@ -95,7 +94,7 @@ pub trait CodesStorageRead {
 }
 
 #[auto_impl::auto_impl(&)]
-pub trait CodesStorageWrite: CodesStorageRead {
+pub trait CodesStorageRW: CodesStorageRO {
     fn set_original_code(&self, code: &[u8]) -> CodeId;
     fn set_program_code_id(&self, program_id: ActorId, code_id: CodeId);
     fn set_instrumented_code(&self, runtime_id: u32, code_id: CodeId, code: InstrumentedCode);
@@ -104,20 +103,22 @@ pub trait CodesStorageWrite: CodesStorageRead {
 }
 
 #[auto_impl::auto_impl(&, Box)]
-pub trait OnChainStorageRead {
+pub trait OnChainStorageRO {
     fn block_header(&self, block_hash: H256) -> Option<BlockHeader>;
     fn block_events(&self, block_hash: H256) -> Option<Vec<BlockEvent>>;
     fn code_blob_info(&self, code_id: CodeId) -> Option<CodeBlobInfo>;
-    fn block_validators(&self, block_hash: H256) -> Option<NonEmpty<Address>>;
     fn block_synced(&self, block_hash: H256) -> bool;
+    fn block_validators(&self, block_hash: H256) -> Option<ValidatorsVec>;
+    fn protocol_timelines(&self) -> Option<ProtocolTimelines>;
 }
 
 #[auto_impl::auto_impl(&)]
-pub trait OnChainStorageWrite: OnChainStorageRead {
+pub trait OnChainStorageRW: OnChainStorageRO {
     fn set_block_header(&self, block_hash: H256, header: BlockHeader);
     fn set_block_events(&self, block_hash: H256, events: &[BlockEvent]);
     fn set_code_blob_info(&self, code_id: CodeId, code_info: CodeBlobInfo);
-    fn set_block_validators(&self, block_hash: H256, validator_set: NonEmpty<Address>);
+    fn set_protocol_timelines(&self, timelines: ProtocolTimelines);
+    fn set_block_validators(&self, block_hash: H256, validator_set: ValidatorsVec);
     fn set_block_synced(&self, block_hash: H256);
 }
 
@@ -127,7 +128,7 @@ pub struct AnnounceMeta {
 }
 
 #[auto_impl::auto_impl(&, Box)]
-pub trait AnnounceStorageRead {
+pub trait AnnounceStorageRO {
     fn announce(&self, hash: HashOf<Announce>) -> Option<Announce>;
     fn announce_program_states(&self, announce_hash: HashOf<Announce>) -> Option<ProgramStates>;
     fn announce_outcome(&self, announce_hash: HashOf<Announce>) -> Option<Vec<StateTransition>>;
@@ -136,7 +137,7 @@ pub trait AnnounceStorageRead {
 }
 
 #[auto_impl::auto_impl(&)]
-pub trait AnnounceStorageWrite: AnnounceStorageRead {
+pub trait AnnounceStorageRW: AnnounceStorageRO {
     fn set_announce(&self, announce: Announce) -> HashOf<Announce>;
     fn set_announce_program_states(
         &self,
@@ -171,12 +172,12 @@ pub struct LatestData {
 }
 
 #[auto_impl::auto_impl(&, Box)]
-pub trait LatestDataStorageRead {
+pub trait LatestDataStorageRO {
     fn latest_data(&self) -> Option<LatestData>;
 }
 
 #[auto_impl::auto_impl(&)]
-pub trait LatestDataStorageWrite: LatestDataStorageRead {
+pub trait LatestDataStorageRW: LatestDataStorageRO {
     fn set_latest_data(&self, data: LatestData);
     fn mutate_latest_data(&self, f: impl FnOnce(&mut LatestData)) -> Option<()> {
         if let Some(mut latest_data) = self.latest_data() {
@@ -192,8 +193,7 @@ pub trait LatestDataStorageWrite: LatestDataStorageRead {
 pub struct FullBlockData {
     pub header: BlockHeader,
     pub events: Vec<BlockEvent>,
-    pub validators: NonEmpty<Address>,
-
+    pub validators: ValidatorsVec,
     pub codes_queue: VecDeque<CodeId>,
     pub announces: BTreeSet<HashOf<Announce>>,
     pub last_committed_batch: Digest,

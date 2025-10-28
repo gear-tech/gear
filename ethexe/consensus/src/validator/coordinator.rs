@@ -21,11 +21,10 @@ use crate::{BatchCommitmentValidationReply, ConsensusEvent, utils::MultisignedBa
 use anyhow::{Result, anyhow, ensure};
 use derive_more::Display;
 use ethexe_common::{
-    Address, consensus::BatchCommitmentValidationRequest, gear::BatchCommitment,
+    Address, ValidatorsVec, consensus::BatchCommitmentValidationRequest, gear::BatchCommitment,
     network::ValidatorMessage,
 };
 use gsigner::secp256k1::Secp256k1SignerExt;
-use nonempty::NonEmpty;
 use std::collections::BTreeSet;
 
 /// [`Coordinator`] sends batch commitment validation request to other validators
@@ -79,7 +78,7 @@ impl StateHandler for Coordinator {
 impl Coordinator {
     pub fn create(
         mut ctx: ValidatorContext,
-        validators: NonEmpty<Address>,
+        validators: ValidatorsVec,
         batch: BatchCommitment,
     ) -> Result<ValidatorState> {
         ensure!(
@@ -134,8 +133,12 @@ mod tests {
     fn coordinator_create_success() {
         let (mut ctx, keys, _) = mock_validator_context();
         ctx.core.signatures_threshold = 2;
-        let validators =
-            NonEmpty::from_vec(keys.iter().take(3).map(|k| k.to_address()).collect()).unwrap();
+        let validators = keys
+            .iter()
+            .take(3)
+            .map(|k| k.to_address())
+            .collect::<Result<_, _>>()
+            .unwrap();
         let batch = BatchCommitment::default();
 
         let coordinator = Coordinator::create(ctx, validators, batch).unwrap();
@@ -155,7 +158,7 @@ mod tests {
         let batch = BatchCommitment::default();
 
         assert!(
-            Coordinator::create(ctx, validators, batch).is_err(),
+            Coordinator::create(ctx, validators.into(), batch).is_err(),
             "Expected an error, but got Ok"
         );
     }
@@ -169,7 +172,7 @@ mod tests {
         let batch = BatchCommitment::default();
 
         assert!(
-            Coordinator::create(ctx, validators, batch).is_err(),
+            Coordinator::create(ctx, validators.into(), batch).is_err(),
             "Expected an error due to zero threshold, but got Ok"
         );
     }
@@ -205,7 +208,7 @@ mod tests {
             .signer
             .validation_reply(keys[2], ctx.core.router_address, digest);
 
-        let mut coordinator = Coordinator::create(ctx, validators, batch).unwrap();
+        let mut coordinator = Coordinator::create(ctx, validators.into(), batch).unwrap();
         assert!(coordinator.is_coordinator());
         coordinator.context().output[0]
             .clone()

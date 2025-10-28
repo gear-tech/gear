@@ -19,7 +19,7 @@
 //! Address types for different cryptographic schemes.
 
 #[cfg(feature = "secp256k1")]
-pub use crate::schemes::secp256k1::{Address, FromActorIdError};
+pub use crate::schemes::secp256k1::{Address, FromActorIdError, ValidatorsVec};
 
 #[cfg(feature = "sr25519")]
 use alloc::string::String;

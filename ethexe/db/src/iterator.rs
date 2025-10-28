@@ -20,8 +20,8 @@ use ethexe_common::{
     Announce, BlockHeader, HashOf, MaybeHashOf, ProgramStates, Schedule, ScheduledTask,
     StateHashWithQueueSize,
     db::{
-        AnnounceMeta, AnnounceStorageRead, BlockMeta, BlockMetaStorageRead, CodesStorageRead,
-        LatestDataStorageRead, OnChainStorageRead,
+        AnnounceMeta, AnnounceStorageRO, BlockMeta, BlockMetaStorageRO, CodesStorageRO,
+        LatestDataStorageRO, OnChainStorageRO,
     },
     events::BlockEvent,
     gear::StateTransition,
@@ -43,21 +43,21 @@ use std::{
 };
 
 pub trait DatabaseIteratorStorage:
-    OnChainStorageRead
-    + BlockMetaStorageRead
-    + AnnounceStorageRead
-    + CodesStorageRead
-    + LatestDataStorageRead
+    OnChainStorageRO
+    + BlockMetaStorageRO
+    + AnnounceStorageRO
+    + CodesStorageRO
+    + LatestDataStorageRO
     + Storage
 {
 }
 
 impl<
-    T: OnChainStorageRead
-        + BlockMetaStorageRead
-        + AnnounceStorageRead
-        + CodesStorageRead
-        + LatestDataStorageRead
+    T: OnChainStorageRO
+        + BlockMetaStorageRO
+        + AnnounceStorageRO
+        + CodesStorageRO
+        + LatestDataStorageRO
         + Storage,
 > DatabaseIteratorStorage for T
 {

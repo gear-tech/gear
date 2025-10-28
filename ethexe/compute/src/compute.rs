@@ -20,8 +20,8 @@ use crate::{ComputeError, ProcessorExt, Result, utils};
 use ethexe_common::{
     Announce,
     db::{
-        AnnounceStorageWrite, BlockMetaStorageRead, BlockMetaStorageWrite, LatestDataStorageWrite,
-        OnChainStorageRead,
+        AnnounceStorageRW, BlockMetaStorageRO, BlockMetaStorageRW, LatestDataStorageRW,
+        OnChainStorageRO,
     },
 };
 use ethexe_db::Database;
@@ -116,7 +116,6 @@ mod tests {
     use ethexe_common::{BlockHeader, HashOf, SimpleBlockData, db::*, gear::StateTransition};
     use ethexe_db::Database as DB;
     use gprimitives::{ActorId, H256};
-    use nonempty::NonEmpty;
 
     #[tokio::test]
     async fn test_compute() {
@@ -135,7 +134,8 @@ mod tests {
                     parent_hash: H256::random(),
                 },
             },
-            NonEmpty::from_vec(vec![Default::default()]).unwrap(),
+            Default::default(),
+            Default::default(),
         );
 
         // Setup block as prepared

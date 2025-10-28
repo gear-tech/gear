@@ -73,11 +73,11 @@ pub mod keyring;
 pub mod substrate;
 
 #[cfg(feature = "secp256k1")]
-pub use address::Address;
-#[cfg(feature = "secp256k1")]
 pub use address::FromActorIdError;
 #[cfg(feature = "sr25519")]
 pub use address::SubstrateAddress;
+#[cfg(feature = "secp256k1")]
+pub use address::{Address, ValidatorsVec};
 pub use error::{Result, SignerError};
 #[cfg(feature = "std")]
 pub use signer::Signer;

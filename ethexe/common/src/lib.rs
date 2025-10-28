@@ -37,7 +37,7 @@ pub mod mock;
 
 pub use gsigner::{
     Address, ContractSignature, Digest, FromActorIdError, PrivateKey, PublicKey, Signature,
-    SignedData, ToDigest, VerifiedData,
+    SignedData, ToDigest, ValidatorsVec, VerifiedData,
 };
 pub mod ecdsa {
     pub use gsigner::secp256k1::{

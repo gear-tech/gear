@@ -385,7 +385,7 @@ mod tests {
             .unwrap()
             .into_verified();
 
-        let state = Participant::create(ctx, block.clone(), producer.to_address()).unwrap();
+        let state = Participant::create(ctx, block, producer.to_address()).unwrap();
         assert!(state.is_participant());
 
         let (state, event) = state

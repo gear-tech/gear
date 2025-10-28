@@ -31,7 +31,7 @@ pub mod signature;
 #[cfg(feature = "std")]
 mod signer_ext;
 
-pub use address::{Address, FromActorIdError};
+pub use address::{Address, EmptyValidatorsError, FromActorIdError, ValidatorsVec};
 pub use digest::{Digest, ToDigest};
 pub use keys::{PrivateKey, PublicKey};
 pub use signature::{ContractSignature, Signature, SignedData, VerifiedData};

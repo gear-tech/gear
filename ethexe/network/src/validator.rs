@@ -22,8 +22,8 @@
 use crate::{gossipsub::MessageAcceptance, peer_score};
 use anyhow::Context;
 use ethexe_common::{
-    Address, BlockHeader,
-    db::OnChainStorageRead,
+    Address, BlockHeader, ValidatorsVec,
+    db::OnChainStorageRO,
     network::{SignedValidatorMessage, VerifiedValidatorMessage},
 };
 use ethexe_db::Database;
@@ -45,7 +45,7 @@ const _: () =
 type CachedMessages = LruCache<PeerId, LruCache<VerifiedValidatorMessage, ()>>;
 
 #[auto_impl::auto_impl(&, Box)]
-pub trait ValidatorDatabase: Send + OnChainStorageRead {
+pub trait ValidatorDatabase: Send + OnChainStorageRO {
     fn clone_boxed(&self) -> Box<dyn ValidatorDatabase>;
 }
 
@@ -85,7 +85,7 @@ enum VerificationError {
 
 struct ChainHead {
     header: BlockHeader,
-    current_validators: NonEmpty<Address>,
+    current_validators: ValidatorsVec,
     next_validators: Option<NonEmpty<Address>>,
 }
 
@@ -288,7 +288,7 @@ impl Validators {
 mod tests {
     use super::*;
     use assert_matches::assert_matches;
-    use ethexe_common::{Announce, db::OnChainStorageWrite, mock::Mock, network::ValidatorMessage};
+    use ethexe_common::{Announce, db::OnChainStorageRW, mock::Mock, network::ValidatorMessage};
     use gsigner::secp256k1::{Secp256k1SignerExt, Signer};
     use nonempty::nonempty;
 
@@ -307,7 +307,7 @@ mod tests {
                 parent_hash: H256::random(),
             },
         );
-        db.set_block_validators(GENESIS_CHAIN_HEAD, nonempty![Address::default()]);
+        db.set_block_validators(GENESIS_CHAIN_HEAD, Default::default());
 
         let validators = Validators::new(
             GENESIS_TIMESTAMP,
@@ -349,7 +349,7 @@ mod tests {
         let (bob_address, bob_message, bob_block) = new_validator_message();
         let bob_verified = bob_message.clone().into_verified();
 
-        alice_db.set_block_validators(GENESIS_CHAIN_HEAD, nonempty![bob_address]);
+        alice_db.set_block_validators(GENESIS_CHAIN_HEAD, nonempty![bob_address].into());
         alice.set_chain_head(GENESIS_CHAIN_HEAD).unwrap();
 
         let err = alice.inner_verify(&bob_verified).unwrap_err();
@@ -378,7 +378,7 @@ mod tests {
                 parent_hash: Default::default(),
             },
         );
-        alice_db.set_block_validators(new_chain_head, nonempty![bob_address]);
+        alice_db.set_block_validators(new_chain_head, nonempty![bob_address].into());
         alice.set_chain_head(new_chain_head).unwrap();
 
         assert_eq!(alice.next_message(), Some(bob_verified));
@@ -398,7 +398,7 @@ mod tests {
                 parent_hash: Default::default(),
             },
         );
-        alice_db.set_block_validators(GENESIS_CHAIN_HEAD, nonempty![bob_address]);
+        alice_db.set_block_validators(GENESIS_CHAIN_HEAD, nonempty![bob_address].into());
         alice.set_chain_head(GENESIS_CHAIN_HEAD).unwrap();
 
         let chain_head_era = alice.block_era_index(CHAIN_HEAD_TIMESTAMP);
@@ -434,7 +434,7 @@ mod tests {
                 parent_hash: Default::default(),
             },
         );
-        alice_db.set_block_validators(GENESIS_CHAIN_HEAD, nonempty![bob_address]);
+        alice_db.set_block_validators(GENESIS_CHAIN_HEAD, nonempty![bob_address].into());
         alice.set_chain_head(GENESIS_CHAIN_HEAD).unwrap();
 
         let chain_head_era = alice.block_era_index(CHAIN_HEAD_TIMESTAMP);
@@ -472,7 +472,7 @@ mod tests {
                 parent_hash: Default::default(),
             },
         );
-        alice_db.set_block_validators(GENESIS_CHAIN_HEAD, nonempty![bob_address]);
+        alice_db.set_block_validators(GENESIS_CHAIN_HEAD, nonempty![bob_address].into());
         alice.set_chain_head(GENESIS_CHAIN_HEAD).unwrap();
 
         let chain_head_era = alice.block_era_index(CHAIN_HEAD_TIMESTAMP);
@@ -509,7 +509,7 @@ mod tests {
                 parent_hash: Default::default(),
             },
         );
-        alice_db.set_block_validators(GENESIS_CHAIN_HEAD, nonempty![bob_address]);
+        alice_db.set_block_validators(GENESIS_CHAIN_HEAD, nonempty![bob_address].into());
         alice.set_chain_head(GENESIS_CHAIN_HEAD).unwrap();
 
         let chain_head_era = alice.block_era_index(CHAIN_HEAD_TIMESTAMP);
@@ -538,7 +538,7 @@ mod tests {
                 parent_hash: Default::default(),
             },
         );
-        alice_db.set_block_validators(new_chain_head, nonempty![bob_address]);
+        alice_db.set_block_validators(new_chain_head, nonempty![bob_address].into());
         alice.set_chain_head(new_chain_head).unwrap();
 
         assert_eq!(alice.next_message(), Some(bob_verified));
@@ -572,7 +572,7 @@ mod tests {
         let (bob_address, bob_message, bob_block) = new_validator_message();
         let bob_verified = bob_message.clone().into_verified();
 
-        alice_db.set_block_validators(GENESIS_CHAIN_HEAD, nonempty![bob_address]);
+        alice_db.set_block_validators(GENESIS_CHAIN_HEAD, nonempty![bob_address].into());
         alice.set_chain_head(GENESIS_CHAIN_HEAD).unwrap();
 
         alice_db.set_block_header(
@@ -640,7 +640,7 @@ mod tests {
         // Set current validators (including all three)
         alice_db.set_block_validators(
             GENESIS_CHAIN_HEAD,
-            nonempty![bob_address, charlie_address, dave_address],
+            nonempty![bob_address, charlie_address, dave_address].into(),
         );
         alice.set_chain_head(GENESIS_CHAIN_HEAD).unwrap();
 
@@ -676,7 +676,10 @@ mod tests {
                 parent_hash: Default::default(),
             },
         );
-        alice_db.set_block_validators(new_chain_head, nonempty![bob_address, charlie_address]);
+        alice_db.set_block_validators(
+            new_chain_head,
+            nonempty![bob_address, charlie_address].into(),
+        );
         alice.set_chain_head(new_chain_head).unwrap();
 
         // Bob and Charlie should be verified, Dave should fail but not block others

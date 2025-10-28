@@ -20,7 +20,7 @@ use crate::errors;
 use anyhow::Result;
 use ethexe_common::{
     Announce, HashOf, SimpleBlockData,
-    db::{BlockMetaStorageRead, LatestDataStorageRead, OnChainStorageRead},
+    db::{BlockMetaStorageRO, LatestDataStorageRO, OnChainStorageRO},
 };
 use hyper::header::HeaderValue;
 use jsonrpsee::core::RpcResult;
@@ -43,7 +43,7 @@ pub(crate) fn try_into_cors(maybe_cors: Option<Vec<String>>) -> Result<CorsLayer
 }
 
 pub fn block_header_at_or_latest<
-    DB: BlockMetaStorageRead + OnChainStorageRead + LatestDataStorageRead,
+    DB: BlockMetaStorageRO + OnChainStorageRO + LatestDataStorageRO,
 >(
     db: &DB,
     at: impl Into<Option<H256>>,
@@ -65,9 +65,7 @@ pub fn block_header_at_or_latest<
 }
 
 /// NOTE: does not return latest computed announce - instead use announce from latest prepared block.
-pub fn announce_at_or_latest<
-    DB: BlockMetaStorageRead + OnChainStorageRead + LatestDataStorageRead,
->(
+pub fn announce_at_or_latest<DB: BlockMetaStorageRO + OnChainStorageRO + LatestDataStorageRO>(
     db: &DB,
     at: impl Into<Option<H256>>,
 ) -> RpcResult<HashOf<Announce>> {
