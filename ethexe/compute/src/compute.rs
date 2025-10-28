@@ -20,8 +20,8 @@ use crate::{ComputeError, ProcessorExt, Result, utils};
 use ethexe_common::{
     Announce, BlockHeader,
     db::{
-        AnnounceStorageWrite, BlockMetaStorageRead, BlockMetaStorageWrite, LatestDataStorageWrite,
-        OnChainStorageRead,
+        AnnounceStorageRW, BlockMetaStorageRO, BlockMetaStorageRW, LatestDataStorageRW,
+        OnChainStorageRO,
     },
     events::BlockEvent,
 };
@@ -114,7 +114,7 @@ pub(crate) async fn compute<P: ProcessorExt>(
     Ok(ComputationStatus::Computed)
 }
 
-fn find_matured_cononical_events<DB: OnChainStorageRead>(
+fn find_matured_cononical_events<DB: OnChainStorageRO>(
     db: DB,
     mut block_hash: H256,
     mut block_header: BlockHeader,
@@ -141,7 +141,6 @@ mod tests {
     use ethexe_common::{BlockHeader, HashOf, SimpleBlockData, db::*, gear::StateTransition};
     use ethexe_db::Database as DB;
     use gprimitives::{ActorId, H256};
-    use nonempty::NonEmpty;
 
     #[tokio::test]
     async fn test_compute() {
@@ -160,7 +159,8 @@ mod tests {
                     parent_hash: H256::random(),
                 },
             },
-            NonEmpty::from_vec(vec![Default::default()]).unwrap(),
+            Default::default(),
+            Default::default(),
         );
 
         // Setup block as prepared

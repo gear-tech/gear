@@ -23,11 +23,12 @@ use crate::{
     overlay::{CASOverlay, KVOverlay},
 };
 use ethexe_common::{
-    Address, Announce, BlockHeader, CodeBlobInfo, HashOf, ProgramStates, Schedule,
+    Announce, BlockHeader, CodeBlobInfo, HashOf, ProgramStates, ProtocolTimelines, Schedule,
+    ValidatorsVec,
     db::{
-        AnnounceMeta, AnnounceStorageRead, AnnounceStorageWrite, BlockMeta, BlockMetaStorageRead,
-        BlockMetaStorageWrite, CodesStorageRead, CodesStorageWrite, HashStorageRead, LatestData,
-        LatestDataStorageRead, LatestDataStorageWrite, OnChainStorageRead, OnChainStorageWrite,
+        AnnounceMeta, AnnounceStorageRO, AnnounceStorageRW, BlockMeta, BlockMetaStorageRO,
+        BlockMetaStorageRW, CodesStorageRO, CodesStorageRW, HashStorageRO, LatestData,
+        LatestDataStorageRO, LatestDataStorageRW, OnChainStorageRO, OnChainStorageRW,
     },
     events::BlockEvent,
     gear::StateTransition,
@@ -44,7 +45,6 @@ use gear_core::{
     memory::PageBuf,
 };
 use gprimitives::H256;
-use nonempty::NonEmpty;
 use parity_scale_codec::{Decode, Encode};
 use std::collections::BTreeSet;
 
@@ -70,6 +70,7 @@ enum Key {
     SignedTransaction(H256) = 12,
 
     LatestData = 13,
+    Timelines = 14,
 }
 
 impl Key {
@@ -106,7 +107,7 @@ impl Key {
                 code_id.as_ref(),
             ]
             .concat(),
-            Self::LatestData => prefix.as_ref().to_vec(),
+            Self::LatestData | Self::Timelines => prefix.as_ref().to_vec(),
         }
     }
 }
@@ -205,7 +206,7 @@ impl Database {
     }
 }
 
-impl HashStorageRead for Database {
+impl HashStorageRO for Database {
     fn read_by_hash(&self, hash: H256) -> Option<Vec<u8>> {
         self.cas.read(hash)
     }
@@ -218,23 +219,23 @@ struct BlockSmallData {
     meta: BlockMeta,
 }
 
-impl BlockMetaStorageRead for Database {
+impl BlockMetaStorageRO for Database {
     fn block_meta(&self, block_hash: H256) -> BlockMeta {
         self.with_small_data(block_hash, |data| data.meta)
             .unwrap_or_default()
     }
 }
 
-impl BlockMetaStorageWrite for Database {
+impl BlockMetaStorageRW for Database {
     fn mutate_block_meta(&self, block_hash: H256, f: impl FnOnce(&mut BlockMeta)) {
-        log::trace!("For block {block_hash} mutate meta");
+        tracing::trace!("For block {block_hash} mutate meta");
         self.mutate_small_data(block_hash, |data| {
             f(&mut data.meta);
         });
     }
 }
 
-impl CodesStorageRead for Database {
+impl CodesStorageRO for Database {
     fn original_code_exists(&self, code_id: CodeId) -> bool {
         self.kv.contains(code_id.as_ref())
     }
@@ -302,7 +303,7 @@ impl CodesStorageRead for Database {
     }
 }
 
-impl CodesStorageWrite for Database {
+impl CodesStorageRW for Database {
     fn set_original_code(&self, code: &[u8]) -> CodeId {
         self.cas.write(code).into()
     }
@@ -464,7 +465,14 @@ impl Storage for Database {
     }
 }
 
-impl OnChainStorageRead for Database {
+impl OnChainStorageRO for Database {
+    fn protocol_timelines(&self) -> Option<ProtocolTimelines> {
+        self.kv.get(&Key::Timelines.to_bytes()).map(|data| {
+            Decode::decode(&mut data.as_slice())
+                .expect("Failed to decode data into `GearExeTimelines`")
+        })
+    }
+
     fn block_header(&self, block_hash: H256) -> Option<BlockHeader> {
         self.with_small_data(block_hash, |data| data.block_header)?
     }
@@ -492,52 +500,55 @@ impl OnChainStorageRead for Database {
             .unwrap_or_default()
     }
 
-    fn block_validators(&self, block_hash: H256) -> Option<NonEmpty<Address>> {
+    fn block_validators(&self, block_hash: H256) -> Option<ValidatorsVec> {
         self.kv
             .get(&Key::ValidatorSet(block_hash).to_bytes())
             .map(|data| {
-                NonEmpty::from_vec(
-                    Vec::<Address>::decode(&mut data.as_slice())
-                        .expect("Failed to decode data into `Vec<Address>`"),
-                )
-            })?
+                Decode::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `ValidatorsVec`")
+            })
     }
 }
 
-impl OnChainStorageWrite for Database {
+impl OnChainStorageRW for Database {
+    fn set_protocol_timelines(&self, timelines: ProtocolTimelines) {
+        tracing::trace!("Set protocol timelines");
+        self.kv.put(&Key::Timelines.to_bytes(), timelines.encode());
+    }
+
     fn set_block_header(&self, block_hash: H256, header: BlockHeader) {
-        log::trace!("Set block header for {block_hash}");
+        tracing::trace!("Set block header for {block_hash}");
         self.mutate_small_data(block_hash, |data| data.block_header = Some(header));
     }
 
     fn set_block_events(&self, block_hash: H256, events: &[BlockEvent]) {
-        log::trace!("Set block events for {block_hash}");
+        tracing::trace!("Set block events for {block_hash}");
         self.kv
             .put(&Key::BlockEvents(block_hash).to_bytes(), events.encode());
     }
 
     fn set_code_blob_info(&self, code_id: CodeId, code_info: CodeBlobInfo) {
-        log::trace!("Set code upload info for {code_id}");
+        tracing::trace!("Set code upload info for {code_id}");
         self.kv
             .put(&Key::CodeUploadInfo(code_id).to_bytes(), code_info.encode());
     }
 
     fn set_block_synced(&self, block_hash: H256) {
-        log::trace!("For block {block_hash} set synced");
+        tracing::trace!("For block {block_hash} set synced");
         self.mutate_small_data(block_hash, |data| {
             data.block_is_synced = true;
         });
     }
 
-    fn set_block_validators(&self, block_hash: H256, validator_set: NonEmpty<Address>) {
+    fn set_block_validators(&self, block_hash: H256, validator_set: ValidatorsVec) {
         self.kv.put(
             &Key::ValidatorSet(block_hash).to_bytes(),
-            Into::<Vec<Address>>::into(validator_set).encode(),
+            validator_set.encode(),
         );
     }
 }
 
-impl AnnounceStorageRead for Database {
+impl AnnounceStorageRO for Database {
     fn announce(&self, hash: HashOf<Announce>) -> Option<Announce> {
         self.cas.read(hash.hash()).map(|data| {
             Announce::decode(&mut &data[..]).expect("Failed to decode data into `ProducerBlock`")
@@ -582,9 +593,8 @@ impl AnnounceStorageRead for Database {
     }
 }
 
-impl AnnounceStorageWrite for Database {
+impl AnnounceStorageRW for Database {
     fn set_announce(&self, announce: Announce) -> HashOf<Announce> {
-        // Safe, because of inner method implementation.
         unsafe { HashOf::new(self.cas.write(&announce.encode())) }
     }
 
@@ -625,7 +635,7 @@ impl AnnounceStorageWrite for Database {
     }
 }
 
-impl LatestDataStorageRead for Database {
+impl LatestDataStorageRO for Database {
     fn latest_data(&self) -> Option<LatestData> {
         self.kv.get(&Key::LatestData.to_bytes()).map(|data| {
             LatestData::decode(&mut data.as_slice())
@@ -634,7 +644,7 @@ impl LatestDataStorageRead for Database {
     }
 }
 
-impl LatestDataStorageWrite for Database {
+impl LatestDataStorageRW for Database {
     fn set_latest_data(&self, data: LatestData) {
         self.kv.put(&Key::LatestData.to_bytes(), data.encode());
     }

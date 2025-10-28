@@ -104,9 +104,7 @@
 //! In the future, we could introduce a weight multiplier to the queue size to improve partitioning efficiency.
 //! This weight multiplier could be calculated based on program execution time statistics.
 
-use ethexe_common::{
-    StateHashWithQueueSize, db::CodesStorageRead, gear::CHUNK_PROCESSING_GAS_LIMIT,
-};
+use ethexe_common::{StateHashWithQueueSize, db::CodesStorageRO, gear::CHUNK_PROCESSING_GAS_LIMIT};
 use ethexe_db::Database;
 use ethexe_runtime_common::{
     InBlockTransitions, JournalHandler, ProgramJournals, TransitionController,

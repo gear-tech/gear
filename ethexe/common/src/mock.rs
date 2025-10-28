@@ -19,8 +19,8 @@
 pub use tap::Tap;
 
 use crate::{
-    Address, Announce, BlockHeader, CodeBlobInfo, Digest, HashOf, ProgramStates, Schedule,
-    SimpleBlockData,
+    Address, Announce, BlockHeader, CodeBlobInfo, Digest, HashOf, ProgramStates, ProtocolTimelines,
+    Schedule, SimpleBlockData, ValidatorsVec,
     consensus::BatchCommitmentValidationRequest,
     db::*,
     events::BlockEvent,
@@ -31,7 +31,7 @@ use alloc::{collections::BTreeMap, vec};
 use gear_core::code::{CodeMetadata, InstrumentedCode};
 use gprimitives::{CodeId, H256};
 use itertools::Itertools;
-use nonempty::{NonEmpty, nonempty};
+use nonempty::nonempty;
 use std::collections::{BTreeSet, VecDeque};
 
 // TODO #4881: use `proptest::Arbitrary` instead
@@ -55,6 +55,16 @@ impl Mock<H256> for SimpleBlockData {
 impl Mock<()> for SimpleBlockData {
     fn mock(_args: ()) -> Self {
         SimpleBlockData::mock(H256::random())
+    }
+}
+
+impl Mock<()> for ProtocolTimelines {
+    fn mock(_args: ()) -> Self {
+        Self {
+            genesis_ts: 0,
+            era: 1000,
+            election: 200,
+        }
     }
 }
 
@@ -165,7 +175,7 @@ impl<T: Mock<()>> Mock<()> for ValidatorMessage<T> {
 pub struct SyncedBlockData {
     pub header: BlockHeader,
     pub events: Vec<BlockEvent>,
-    pub validators: NonEmpty<Address>,
+    pub validators: ValidatorsVec,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -287,11 +297,11 @@ impl BlockChain {
 
     pub fn setup<DB>(self, db: &DB) -> Self
     where
-        DB: AnnounceStorageWrite
-            + BlockMetaStorageWrite
-            + OnChainStorageWrite
-            + CodesStorageWrite
-            + LatestDataStorageWrite,
+        DB: AnnounceStorageRW
+            + BlockMetaStorageRW
+            + OnChainStorageRW
+            + CodesStorageRW
+            + LatestDataStorageRW,
     {
         let BlockChain {
             blocks,
@@ -336,8 +346,8 @@ impl BlockChain {
 
                 db.set_block_header(hash, header);
                 db.set_block_events(hash, &events);
-                db.set_block_validators(hash, validators);
                 db.set_block_synced(hash);
+                db.set_block_validators(hash, validators);
             }
 
             if let Some(PreparedBlockData {
@@ -409,9 +419,9 @@ impl BlockChain {
     }
 }
 
-impl Mock<(u32, NonEmpty<Address>)> for BlockChain {
+impl Mock<(u32, ValidatorsVec)> for BlockChain {
     /// `len` - length of chain not counting genesis block
-    fn mock((len, validators): (u32, NonEmpty<Address>)) -> Self {
+    fn mock((len, validators): (u32, ValidatorsVec)) -> Self {
         // i = 0 - genesis parent
         // i = 1 - genesis
         // i = 2 - first block
@@ -492,7 +502,7 @@ impl Mock<(u32, NonEmpty<Address>)> for BlockChain {
 impl Mock<u32> for BlockChain {
     /// `len` - length of chain not counting genesis block
     fn mock(len: u32) -> Self {
-        BlockChain::mock((len, nonempty![Address([123; 20])]))
+        BlockChain::mock((len, nonempty![Address([123; 20])].into()))
     }
 }
 
@@ -501,7 +511,7 @@ pub trait DBMockExt {
     fn top_announce_hash(&self, block: H256) -> HashOf<Announce>;
 }
 
-impl<DB: OnChainStorageRead + BlockMetaStorageRead> DBMockExt for DB {
+impl<DB: OnChainStorageRO + BlockMetaStorageRO> DBMockExt for DB {
     fn simple_block_data(&self, block: H256) -> SimpleBlockData {
         let header = self.block_header(block).expect("block header not found");
         SimpleBlockData {

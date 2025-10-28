@@ -19,7 +19,7 @@
 use crate::{errors, utils};
 use ethexe_common::{
     HashOf,
-    db::{AnnounceStorageRead, CodesStorageRead},
+    db::{AnnounceStorageRO, CodesStorageRO},
 };
 use ethexe_db::Database;
 use ethexe_processor::Processor;
