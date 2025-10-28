@@ -23,10 +23,10 @@
 //! from the external crate and its reexport by
 //! [`subxt`] are the same type.
 
+#![allow(unused)]
+
 #[diagnostic::on_unimplemented(message = "Types `{Self}` and `{A}` are not the same type")]
-trait SameType<A> {
-    const UNIT: () = ();
-}
+trait SameType<A> {}
 
 impl<T> SameType<T> for T {}
 

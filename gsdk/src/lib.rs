@@ -68,6 +68,7 @@ pub mod gp {
     pub use subxt::ext::{
         codec::{Decode, Encode},
         scale_decode::DecodeAsType,
+        scale_encode::EncodeAsType,
     };
 }
 

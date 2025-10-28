@@ -190,10 +190,10 @@ impl Api {
         let gas_node_ids = gas_node_ids.as_ref();
         let mut gas_nodes = Vec::with_capacity(gas_node_ids.len());
 
-        for gas_node_id in gas_node_ids {
+        for &gas_node_id in gas_node_ids {
             let addr = Self::storage(GearGasStorage::GasNodes, StaticStorageKey::new(gas_node_id));
             let gas_node = self.fetch_storage_at(&addr, block_hash).await?;
-            gas_nodes.push((*gas_node_id, gas_node));
+            gas_nodes.push((gas_node_id, gas_node));
         }
         Ok(gas_nodes)
     }

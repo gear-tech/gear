@@ -23,7 +23,7 @@ use gear_core::{
     rpc::ReplyInfo,
 };
 use gear_core_errors::{ReplyCode, SuccessReplyReason};
-use gsdk::{Api, Error, Result};
+use gsdk::{Api, Result};
 use jsonrpsee::types::error::ErrorObject;
 use parity_scale_codec::Encode;
 use std::{borrow::Cow, process::Command, str::FromStr, time::Instant};
@@ -53,10 +53,9 @@ async fn pallet_errors_formatting() -> Result<()> {
         8000,
         "Runtime error",
         Some("\"Extrinsic `gear.upload_program` failed: 'ProgramConstructionFailed'\""),
-    )
-    .into();
+    );
 
-    assert_eq!(format!("{err}"), format!("{expected_err}"));
+    assert_eq!(err.to_string(), expected_err.to_string());
 
     Ok(())
 }

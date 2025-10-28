@@ -95,7 +95,7 @@ impl SignerStorage {
         let gas_nodes = gas_nodes.as_ref();
         let mut gas_nodes_to_set = Vec::with_capacity(gas_nodes.len());
         for gas_node in gas_nodes {
-            let addr = Api::storage(GearGasStorage::GasNodes, StaticStorageKey::new(&gas_node.0));
+            let addr = Api::storage(GearGasStorage::GasNodes, StaticStorageKey::new(gas_node.0));
             gas_nodes_to_set.push((addr, &gas_node.1));
         }
         self.set_storage(&gas_nodes_to_set).await

@@ -34,7 +34,6 @@ use subxt::{
 
 const DEFAULT_GEAR_ENDPOINT: &str = "wss://rpc.vara.network:443";
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(60);
-const DEFAULT_RETRIES: u8 = 0;
 
 const ONE_HUNDRED_MEGABYTES: u32 = 100 * 1024 * 1024;
 

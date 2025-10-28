@@ -25,7 +25,6 @@ use subxt::{
         polkadot::PolkadotExtrinsicParams,
         substrate::{BlakeTwo256, SubstrateHeader},
     },
-    utils::H256,
 };
 
 pub type Header = SubstrateHeader<u32, BlakeTwo256>;
@@ -38,7 +37,6 @@ pub struct GearConfig;
 
 impl Config for GearConfig {
     type AssetId = ();
-    type Hash = H256;
     type Hasher = BlakeTwo256;
     type AccountId = sp_runtime::AccountId32;
     type Address = sp_runtime::MultiAddress<Self::AccountId, ()>;
