@@ -22,7 +22,7 @@ use crate::utils::{self, MultisignedBatchCommitment};
 use anyhow::{Result, anyhow, ensure};
 use async_trait::async_trait;
 use ethexe_common::{
-    Address, Digest, ProtocolTimelines, SimpleBlockData, ToDigest, ValidatorsVec,
+    Address, Announce, Digest, HashOf, ProtocolTimelines, SimpleBlockData, ToDigest, ValidatorsVec,
     consensus::BatchCommitmentValidationRequest,
     db::BlockMetaStorageRO,
     ecdsa::PublicKey,
@@ -85,8 +85,9 @@ impl ValidatorCore {
     pub async fn aggregate_batch_commitment(
         mut self,
         block: SimpleBlockData,
+        announce_hash: HashOf<Announce>,
     ) -> Result<Option<BatchCommitment>> {
-        let chain_commitment = self.aggregate_chain_commitment(block.hash)?;
+        let chain_commitment = self.aggregate_chain_commitment(announce_hash)?;
         let code_commitments = self.aggregate_code_commitments(block.hash)?;
         let validators_commitment = self.aggregate_validators_commitment(&block).await?;
         let rewards_commitment = self.aggregate_rewards_commitment(&block).await?;
@@ -101,19 +102,13 @@ impl ValidatorCore {
         )
     }
 
-    pub fn aggregate_chain_commitment(&self, block_hash: H256) -> Result<Option<ChainCommitment>> {
-        let head_announce = self
-            .db
-            .block_meta(block_hash)
-            .announces
-            .into_iter()
-            .flat_map(|a| a.into_iter())
-            .next()
-            .ok_or_else(|| anyhow!("No announces found for {block_hash} in block meta storage"))?;
-
+    pub fn aggregate_chain_commitment(
+        &self,
+        announce_hash: HashOf<Announce>,
+    ) -> Result<Option<ChainCommitment>> {
         let Some((commitment, deepness)) =
             // Max deepness is ignored here, because we want to create chain commitment (not validate)
-            utils::aggregate_chain_commitment(&self.db, head_announce, false, None)?
+            utils::aggregate_chain_commitment(&self.db, announce_hash, false, None)?
         else {
             return Ok(None);
         };
@@ -165,7 +160,7 @@ impl ValidatorCore {
         };
 
         let mut elected_validators = self.middleware.make_election_at(request).await?;
-        // Sort elected validators, because of we can not guarantee the determenism of validators order.
+        // Sort elected validators, because of we can not guarantee the determinism of validators order.
         elected_validators.sort();
 
         let commitment = utils::validators_commitment(block_era + 1, elected_validators)?;

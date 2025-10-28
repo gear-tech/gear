@@ -25,7 +25,10 @@ use anyhow::{Result, anyhow};
 use ethexe_common::{
     Address, Announce, Digest, HashOf, SimpleBlockData, ToDigest, ValidatorsVec,
     consensus::BatchCommitmentValidationReply,
-    db::{AnnounceStorageRO, BlockMetaStorageRO, CodesStorageRO, OnChainStorageRO},
+    db::{
+        AnnounceStorageRO, AnnounceStorageRW, BlockMetaStorageRO, BlockMetaStorageRW,
+        CodesStorageRO, OnChainStorageRO,
+    },
     ecdsa::{ContractSignature, PublicKey},
     gear::{
         AggregatedPublicKey, BatchCommitment, ChainCommitment, CodeCommitment, RewardsCommitment,
@@ -33,17 +36,14 @@ use ethexe_common::{
     },
 };
 use ethexe_signer::Signer;
-use gprimitives::{CodeId, U256};
+use gprimitives::{CodeId, H256, U256};
 use parity_scale_codec::{Decode, Encode};
 use rand::SeedableRng;
 use roast_secp256k1_evm::frost::{
     Identifier,
     keys::{self, IdentifierList},
 };
-use std::{
-    collections::{BTreeMap, HashSet},
-    hash::Hash,
-};
+use std::collections::{BTreeMap, HashSet, VecDeque};
 
 /// A batch commitment, that has been signed by multiple validators.
 /// This structure manages the collection of signatures from different validators
@@ -296,7 +296,7 @@ pub fn create_batch_commitment<DB: BlockMetaStorageRO>(
     }))
 }
 
-pub fn has_duplicates<T: Hash + Eq>(data: &[T]) -> bool {
+pub fn has_duplicates<T: std::hash::Hash + Eq>(data: &[T]) -> bool {
     let mut seen = HashSet::new();
     data.iter().any(|item| !seen.insert(item))
 }
@@ -355,6 +355,68 @@ pub fn block_producer_for(
         .get(index)
         .cloned()
         .unwrap_or_else(|| unreachable!("index must be valid"))
+}
+
+// NOTE: this is temporary main line announce, will be smarter in future
+/// Returns announce hash which is supposed to be the announce
+/// from main announces chain for this node.
+/// Used to identify parent announce when creating announce for new block,
+/// or accepting announce from producer.
+pub fn parent_main_line_announce<DB: BlockMetaStorageRO>(
+    db: &DB,
+    parent_hash: H256,
+) -> Result<HashOf<Announce>> {
+    db.block_meta(parent_hash)
+        .announces
+        .into_iter()
+        .flatten()
+        .next()
+        .ok_or_else(|| anyhow!("No announces found for {parent_hash} in block meta storage"))
+}
+
+// TODO #4813: support announce branching and mortality
+/// Creates announces chain till the specified block, from the nearest ancestor without announces,
+/// by appending base announces.
+pub fn propagate_announces_for_skipped_blocks<
+    DB: BlockMetaStorageRO + BlockMetaStorageRW + AnnounceStorageRW + OnChainStorageRO,
+>(
+    db: &DB,
+    block_hash: H256,
+) -> Result<()> {
+    let mut current_block_hash = block_hash;
+    let mut blocks = VecDeque::new();
+    // tries to found a block with at least one announce
+    let mut announce_hash = loop {
+        let announce_hash = db
+            .block_meta(current_block_hash)
+            .announces
+            .into_iter()
+            .flatten()
+            .next();
+
+        if let Some(announce_hash) = announce_hash {
+            break announce_hash;
+        }
+
+        blocks.push_front(current_block_hash);
+        current_block_hash = db
+            .block_header(current_block_hash)
+            .ok_or_else(|| anyhow!("Block header not found for {current_block_hash}"))?
+            .parent_hash;
+    };
+
+    // the newest block with announce is found, create announces chain till the target block
+    for block_hash in blocks {
+        // TODO #4814: hack - use here with default gas announce to avoid unknown announces in tests,
+        // this will be fixed by unknown announces handling later
+        let announce = Announce::with_default_gas(block_hash, announce_hash);
+        announce_hash = db.set_announce(announce);
+        db.mutate_block_meta(block_hash, |meta| {
+            meta.announces.get_or_insert_default().insert(announce_hash);
+        });
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]
