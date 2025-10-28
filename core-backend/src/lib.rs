@@ -36,7 +36,7 @@ pub mod state;
 use gear_core::{
     env::Externalities,
     gas::{CountersOwner, GasAmount},
-    memory::{Memory, MemoryDump, MemoryError, MemoryInterval},
+    memory::{Memory, MemoryError, MemoryInterval},
 };
 use gear_lazy_pages_common::ProcessAccessError;
 
@@ -53,31 +53,53 @@ pub trait BackendExternalities: Externalities + CountersOwner {
     ) -> Result<(), ProcessAccessError>;
 }
 
-pub trait MemoryStorer {
-    fn dump_memory<Context>(
+pub trait MemorySnapshot {
+    fn capture<Context>(
         &mut self,
         ctx: &Context,
         memory: &impl Memory<Context>,
-    ) -> Result<MemoryDump, MemoryError>;
+    ) -> Result<(), MemoryError>;
 
-    fn revert_memory<Context>(
+    fn restore<Context>(
         &self,
         ctx: &mut Context,
         memory: &impl Memory<Context>,
     ) -> Result<(), MemoryError>;
 }
 
-pub struct DummyStorer;
-impl MemoryStorer for DummyStorer {
-    fn dump_memory<Context>(
+pub enum MemorySnapshotStrategy<'a, M: MemorySnapshot> {
+    Disabled,
+    Enabled(&'a mut M),
+}
+
+impl<'a, M: MemorySnapshot> MemorySnapshotStrategy<'a, M> {
+    pub fn disabled() -> Self {
+        Self::Disabled
+    }
+
+    pub fn enabled(snapshot: &'a mut M) -> Self {
+        Self::Enabled(snapshot)
+    }
+
+    pub fn as_mut(&mut self) -> Option<&mut M> {
+        match self {
+            MemorySnapshotStrategy::Disabled => None,
+            MemorySnapshotStrategy::Enabled(snapshot) => Some(*snapshot),
+        }
+    }
+}
+
+pub struct NoopSnapshot;
+impl MemorySnapshot for NoopSnapshot {
+    fn capture<Context>(
         &mut self,
         _ctx: &Context,
         _memory: &impl Memory<Context>,
-    ) -> Result<MemoryDump, MemoryError> {
+    ) -> Result<(), MemoryError> {
         Err(Default::default())
     }
 
-    fn revert_memory<Context>(
+    fn restore<Context>(
         &self,
         _ctx: &mut Context,
         _memory: &impl Memory<Context>,
@@ -89,7 +111,7 @@ impl MemoryStorer for DummyStorer {
 #[cfg(test)]
 mod tests {
     use crate::{
-        DummyStorer,
+        MemorySnapshotStrategy, NoopSnapshot,
         env::{BackendReport, Environment},
         error::ActorTerminationReason,
         mock::MockExt,
@@ -130,12 +152,19 @@ mod tests {
         let ext = MockExt::default();
         let env = Environment::new(ext, &code, Default::default(), 0.into(), |_, _, _| {}).unwrap();
         let execution_result = env
-            .execute(DispatchKind::Init, None::<&mut DummyStorer>)
+            .execute(
+                DispatchKind::Init,
+                MemorySnapshotStrategy::<NoopSnapshot>::disabled(),
+            )
             .unwrap();
 
         let BackendReport {
             termination_reason, ..
-        } = execution_result.expect("Expecting success run").report();
+        } = execution_result
+            .expect("Expecting success run")
+            .report()
+            // The mocked environment should always produce a report; if not we want to know why.
+            .expect("Failed to gather execution report");
 
         assert_eq!(termination_reason, ActorTerminationReason::Success.into());
     }

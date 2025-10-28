@@ -30,7 +30,7 @@ use gear_core::{
     },
 };
 use gear_core_backend::{
-    DummyStorer,
+    MemorySnapshotStrategy, NoopSnapshot,
     env::{BackendReport, Environment},
     error::{ActorTerminationReason, TerminationReason, TrapExplanation},
 };
@@ -1090,10 +1090,16 @@ fn execute_wasm_with_custom_configs(
     .expect("Failed to create environment");
 
     let execution_result = env
-        .execute(DispatchKind::Init, None::<&mut DummyStorer>)
+        .execute(
+            DispatchKind::Init,
+            MemorySnapshotStrategy::<NoopSnapshot>::disabled(),
+        )
         .expect("Failed to execute WASM module");
 
-    execution_result.report()
+    execution_result
+        .report()
+        // The mocked execution should always finish with a report; surface a friendly panic otherwise.
+        .expect("Failed to gather execution report")
 }
 
 fn message_sender() -> ActorId {

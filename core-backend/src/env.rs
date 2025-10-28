@@ -19,7 +19,7 @@
 //! sp-sandbox environment for running a module.
 
 use crate::{
-    BackendExternalities, MemoryStorer,
+    BackendExternalities, MemorySnapshot, MemorySnapshotStrategy,
     error::{
         ActorTerminationReason, BackendAllocSyscallError, BackendSyscallError, RunFallibleError,
         TerminationReason,
@@ -103,6 +103,10 @@ pub enum SystemEnvironmentError {
     WrongInjectedGas,
     #[display("Failed to access env memory during dump creation: {_0:?}")]
     DumpMemoryError(MemoryError),
+    #[display("Environment state is not initialized")]
+    MissingState,
+    #[display("Environment execution result is not set")]
+    MissingExecutionResult,
 }
 
 pub struct ReadyToExecute;
@@ -153,7 +157,7 @@ where
         }
     }
 
-    pub fn report(self) -> BackendReport<Ext>
+    pub fn report(self) -> Result<BackendReport<Ext>, EnvironmentError>
     where
         Ext: BackendExternalities + Send + 'static,
         Ext::UnrecoverableError: BackendSyscallError,
@@ -397,36 +401,41 @@ where
         add_function!(FreeRange, free_range);
     }
 
-    fn report_impl(mut self) -> BackendReport<Ext> {
-        let state = self.store.data_mut().take().unwrap_or_else(|| {
-            let err_msg = "Environment::report: State must be set";
-
-            log::error!("{err_msg}");
-            unreachable!("{err_msg}")
-        });
+    fn report_impl(mut self) -> Result<BackendReport<Ext>, EnvironmentError> {
+        // If the environment state was never initialised this indicates a programming error,
+        // so surface it to the caller instead of crashing.
+        let state = self
+            .store
+            .data_mut()
+            .take()
+            .ok_or(EnvironmentError::System(
+                SystemEnvironmentError::MissingState,
+            ))?;
 
         let gas = self
             .instance
             .get_global_val(&mut self.store, GLOBAL_NAME_GAS)
             .and_then(i64::try_from_value)
-            .ok_or(SystemEnvironmentError::WrongInjectedGas)
-            .unwrap() as u64;
+            .ok_or(EnvironmentError::System(
+                SystemEnvironmentError::WrongInjectedGas,
+            ))? as u64;
 
-        let execution_result = self.execution_result.take().unwrap_or_else(|| {
-            let err_msg = "Environment::report: Execution result must be set";
-
-            log::error!("{err_msg}");
-            unreachable!("{err_msg}")
-        });
+        // Likewise, make sure we actually captured the execution outcome before continuing.
+        let execution_result = self
+            .execution_result
+            .take()
+            .ok_or(EnvironmentError::System(
+                SystemEnvironmentError::MissingExecutionResult,
+            ))?;
 
         let (ext, termination_reason) = state.terminate(execution_result, gas);
 
-        BackendReport {
+        Ok(BackendReport {
             termination_reason,
             store: self.store,
             memory: self.memory,
             ext,
-        }
+        })
     }
 }
 
@@ -530,10 +539,10 @@ where
     RunFallibleError: From<EnvExt::FallibleError>,
     EnvExt::AllocError: BackendAllocSyscallError<ExtError = EnvExt::UnrecoverableError>,
 {
-    pub fn execute<M: MemoryStorer>(
+    pub fn execute<M: MemorySnapshot>(
         self,
         entry_point: impl WasmEntryPoint,
-        memory_storer: Option<&mut M>,
+        mut memory_snapshot: MemorySnapshotStrategy<'_, M>,
     ) -> Result<ExecutedEnvironment<'a, EnvExt>, EnvironmentError> {
         use EnvironmentError::*;
         use SystemEnvironmentError::*;
@@ -608,12 +617,11 @@ where
             Ok(ReturnValue::Unit)
         };
 
-        if let Some(memory_storer) = memory_storer
+        if let Some(snapshot) = memory_snapshot.as_mut()
             && let Ok(_) = res
         {
-            // If we have a memory storer and result we dump the memory after execution.
-            memory_storer
-                .dump_memory(&store, &memory)
+            snapshot
+                .capture(&store, &memory)
                 .map_err(|e| System(DumpMemoryError(e)))?;
         }
 
@@ -637,7 +645,7 @@ where
     RunFallibleError: From<EnvExt::FallibleError>,
     EnvExt::AllocError: BackendAllocSyscallError<ExtError = EnvExt::UnrecoverableError>,
 {
-    pub fn report(self) -> BackendReport<EnvExt> {
+    pub fn report(self) -> Result<BackendReport<EnvExt>, EnvironmentError> {
         self.report_impl()
     }
 
@@ -683,13 +691,13 @@ where
     RunFallibleError: From<EnvExt::FallibleError>,
     EnvExt::AllocError: BackendAllocSyscallError<ExtError = EnvExt::UnrecoverableError>,
 {
-    pub fn report(self) -> BackendReport<EnvExt> {
+    pub fn report(self) -> Result<BackendReport<EnvExt>, EnvironmentError> {
         self.report_impl()
     }
 
-    pub fn revert(
+    pub fn revert<M: MemorySnapshot>(
         self,
-        memory_storer: &impl MemoryStorer,
+        snapshot: &M,
     ) -> Result<Environment<'a, EnvExt, SuccessExecution>, MemoryError> {
         let Self {
             instance,
@@ -702,7 +710,7 @@ where
             ..
         } = self;
 
-        memory_storer.revert_memory(&mut store, &memory)?;
+        snapshot.restore(&mut store, &memory)?;
 
         Ok(Environment {
             instance,

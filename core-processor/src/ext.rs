@@ -22,7 +22,7 @@ use alloc::{
     format,
     vec::Vec,
 };
-use core::marker::PhantomData;
+use core::{marker::PhantomData, mem};
 use gear_core::{
     buffer::PayloadSlice,
     costs::{CostToken, ExtCosts, LazyPagesCosts},
@@ -49,7 +49,7 @@ use gear_core::{
     reservation::GasReserver,
 };
 use gear_core_backend::{
-    BackendExternalities, MemoryStorer,
+    BackendExternalities, MemorySnapshot,
     error::{
         ActorTerminationReason, BackendAllocSyscallError, BackendSyscallError, RunFallibleError,
         TrapExplanation, UndefinedTerminationReason, UnrecoverableExecutionError,
@@ -173,8 +173,8 @@ pub trait ProcessorExternalities {
     /// Create new
     fn new(context: ProcessorContext) -> Self;
 
-    /// Create MemoryDumper
-    fn memory_dumper() -> impl MemoryStorer;
+    /// Create memory snapshot collector.
+    fn memory_snapshot() -> impl MemorySnapshot;
 
     /// Convert externalities into info.
     fn into_ext_info<Context>(
@@ -305,43 +305,55 @@ impl BackendAllocSyscallError for AllocExtError {
     }
 }
 
-pub struct MemoryDumper<LP: LazyPagesInterface> {
+pub struct LazyPagesSnapshot<LP: LazyPagesInterface> {
     dump: MemoryDump,
     _phantom: PhantomData<LP>,
 }
 
-impl<LP: LazyPagesInterface> MemoryStorer for MemoryDumper<LP> {
-    fn dump_memory<Context>(
+impl<LP: LazyPagesInterface> MemorySnapshot for LazyPagesSnapshot<LP> {
+    fn capture<Context>(
         &mut self,
         ctx: &Context,
         memory: &impl Memory<Context>,
-    ) -> Result<MemoryDump, MemoryError> {
+    ) -> Result<(), MemoryError> {
         let pages = LP::get_write_accessed_pages();
-        let capacity = pages.len();
+        let required = pages.len();
 
-        let mut dump =
-            MemoryDump::try_with_capacity(capacity).map_err(|_| MemoryError::AccessOutOfBounds)?;
+        if required == 0 {
+            self.dump.inner_mut().clear();
+            return Ok(());
+        }
+
+        let mut dump = if self.dump.inner().capacity() >= required {
+            let mut dump = mem::take(&mut self.dump);
+            dump.inner_mut().clear();
+            dump
+        } else {
+            MemoryDump::try_with_capacity(required).map_err(|_| MemoryError::AccessOutOfBounds)?
+        };
 
         for page in pages {
             let mut data = PageBuf::new_zeroed();
             memory.read(ctx, page.offset(), &mut data)?;
-            let page_dump = PageDump { page, data };
-            dump.try_push(page_dump)
+            dump.try_push(PageDump { page, data })
                 .map_err(|_| MemoryError::AccessOutOfBounds)?;
         }
 
-        Ok(dump)
+        self.dump = dump;
+
+        Ok(())
     }
 
-    fn revert_memory<Context>(
+    fn restore<Context>(
         &self,
         ctx: &mut Context,
         memory: &impl Memory<Context>,
     ) -> Result<(), MemoryError> {
-        self.dump
-            .inner()
-            .iter()
-            .try_for_each(|page_dump| memory.write(ctx, page_dump.page.offset(), &page_dump.data))
+        for page_dump in self.dump.inner() {
+            memory.write(ctx, page_dump.page.offset(), &page_dump.data)?;
+        }
+
+        Ok(())
     }
 }
 
@@ -610,8 +622,8 @@ impl<LP: LazyPagesInterface> ProcessorExternalities for Ext<LP> {
         }
     }
 
-    fn memory_dumper() -> impl MemoryStorer {
-        MemoryDumper {
+    fn memory_snapshot() -> impl MemorySnapshot {
+        LazyPagesSnapshot {
             dump: MemoryDump::new(),
             _phantom: PhantomData::<LP>,
         }
