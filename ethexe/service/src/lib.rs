@@ -432,10 +432,6 @@ impl Service {
                     ComputeEvent::AnnounceComputed(announce_hash) => {
                         consensus.receive_computed_announce(announce_hash)?
                     }
-                    ComputeEvent::AnnounceRejected(announce_hash) => {
-                        // TODO: #4811 we should handle this case properly inside consensus service
-                        log::warn!("Announce {announce_hash:?} was rejected");
-                    }
                     ComputeEvent::BlockPrepared(block_hash) => {
                         consensus.receive_prepared_block(block_hash)?
                     }
