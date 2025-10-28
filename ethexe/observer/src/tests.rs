@@ -21,7 +21,6 @@ use alloy::node_bindings::Anvil;
 use ethexe_db::{Database, MemDb};
 use ethexe_ethereum::deploy::EthereumDeployer;
 use ethexe_signer::Signer;
-use nonempty::nonempty;
 use std::time::Duration;
 
 fn wat2wasm_with_validate(s: &str, validate: bool) -> Vec<u8> {
@@ -48,12 +47,15 @@ async fn test_deployment() -> Result<()> {
         .storage_mut()
         .add_key("0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80".parse()?)?;
     let sender_address = sender_public_key.to_address();
-    let validators = nonempty!["0x45D6536E3D4AdC8f4e13c5c4aA54bE968C55Abf1".parse()?];
+    let validators: Vec<Address> = vec!["0x45D6536E3D4AdC8f4e13c5c4aA54bE968C55Abf1".parse()?];
 
     let deployer = EthereumDeployer::new(&ethereum_rpc, signer, sender_address)
         .await
         .unwrap();
-    let ethereum = deployer.with_validators(validators).deploy().await?;
+    let ethereum = deployer
+        .with_validators(validators.try_into().unwrap())
+        .deploy()
+        .await?;
 
     let db = MemDb::default();
     let database = Database::from_one(&db);

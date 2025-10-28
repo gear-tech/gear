@@ -20,8 +20,8 @@ use crate::{ComputeError, ProcessorExt, Result, utils};
 use ethexe_common::{
     Announce,
     db::{
-        AnnounceStorageWrite, BlockMetaStorageRead, BlockMetaStorageWrite, LatestDataStorageWrite,
-        OnChainStorageRead,
+        AnnounceStorageRW, BlockMetaStorageRO, BlockMetaStorageRW, LatestDataStorageRW,
+        OnChainStorageRO,
     },
 };
 use ethexe_db::Database;
@@ -113,10 +113,9 @@ pub(crate) async fn compute<P: ProcessorExt>(
 mod tests {
     use super::*;
     use crate::tests::{MockProcessor, PROCESSOR_RESULT};
-    use ethexe_common::{AnnounceHash, BlockHeader, SimpleBlockData, db::*, gear::StateTransition};
+    use ethexe_common::{BlockHeader, HashOf, SimpleBlockData, db::*, gear::StateTransition};
     use ethexe_db::Database as DB;
     use gprimitives::{ActorId, H256};
-    use nonempty::NonEmpty;
 
     #[tokio::test]
     async fn test_compute() {
@@ -135,13 +134,14 @@ mod tests {
                     parent_hash: H256::random(),
                 },
             },
-            NonEmpty::from_vec(vec![Default::default()]).unwrap(),
+            Default::default(),
+            Default::default(),
         );
 
         // Setup block as prepared
         db.mutate_block_meta(block_hash, |meta| {
             *meta = BlockMeta {
-                announces: Some([AnnounceHash::random()].into()),
+                announces: Some([HashOf::random()].into()),
                 ..BlockMeta::default_prepared()
             }
         });
@@ -197,7 +197,7 @@ mod tests {
         // Try with unknown parent
         let announce = Announce {
             block_hash,
-            parent: AnnounceHash::random(),
+            parent: HashOf::random(),
             gas_allowance: Some(100),
             off_chain_transactions: vec![],
         };

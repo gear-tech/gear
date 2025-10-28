@@ -21,7 +21,7 @@ use crate::{
     compute::{self, ComputationStatus},
     prepare::{self, MissingData},
 };
-use ethexe_common::{Announce, AnnounceHash, CodeAndIdUnchecked, db::CodesStorageRead};
+use ethexe_common::{Announce, CodeAndIdUnchecked, HashOf, db::CodesStorageRO};
 use ethexe_db::Database;
 use ethexe_processor::Processor;
 use futures::{FutureExt, Stream, future::BoxFuture, stream::FusedStream};
@@ -60,7 +60,7 @@ enum State {
         future: BoxFuture<'static, Result<()>>,
     },
     Computation {
-        announce_hash: AnnounceHash,
+        announce_hash: HashOf<Announce>,
         #[debug(skip)]
         future: BoxFuture<'static, Result<ComputationStatus>>,
     },
@@ -248,7 +248,6 @@ mod tests {
     use futures::StreamExt;
     use gear_core::ids::prelude::CodeIdExt;
     use gprimitives::{CodeId, H256};
-    use nonempty::nonempty;
 
     /// Test ComputeService block preparation functionality
     #[tokio::test]
@@ -266,7 +265,8 @@ mod tests {
                 hash: parent_hash,
                 header: BlockHeader::default(),
             },
-            nonempty![Default::default()],
+            Default::default(),
+            Default::default(),
         );
 
         // Setup on chain data for not prepared

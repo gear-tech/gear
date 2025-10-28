@@ -18,10 +18,10 @@
 
 use crate::{ComputeError, ProcessorExt, Result, utils};
 use ethexe_common::{
-    Announce, AnnounceHash, SimpleBlockData,
+    Announce, HashOf, SimpleBlockData,
     db::{
-        AnnounceStorageRead, AnnounceStorageWrite, BlockMetaStorageRead, BlockMetaStorageWrite,
-        CodesStorageRead, LatestDataStorageRead, LatestDataStorageWrite, OnChainStorageRead,
+        AnnounceStorageRO, AnnounceStorageRW, BlockMetaStorageRO, BlockMetaStorageRW,
+        CodesStorageRO, LatestDataStorageRO, LatestDataStorageRW, OnChainStorageRO,
     },
     events::{BlockEvent, BlockRequestEvent, RouterEvent},
 };
@@ -191,9 +191,9 @@ async fn propagate_from_parent_announce(
     db: &Database,
     processor: &mut impl ProcessorExt,
     block_hash: H256,
-    parent_announce_hash: AnnounceHash,
-    last_committed_announce_hash: Option<AnnounceHash>,
-) -> Result<AnnounceHash> {
+    parent_announce_hash: HashOf<Announce>,
+    last_committed_announce_hash: Option<HashOf<Announce>>,
+) -> Result<HashOf<Announce>> {
     if let Some(last_committed_announce_hash) = last_committed_announce_hash {
         log::trace!(
             "Searching for last committed announce hash {last_committed_announce_hash} in known announces chain",
@@ -276,16 +276,15 @@ mod tests {
     use crate::tests::MockProcessor;
 
     use super::*;
-    use ethexe_common::{Address, BlockHeader, Digest, db::*, events::BlockEvent};
+    use ethexe_common::{BlockHeader, Digest, HashOf, db::*, events::BlockEvent};
     use ethexe_db::Database as DB;
-    use gprimitives::H256;
-    use nonempty::nonempty;
+    use gprimitives::{CodeId, H256};
 
     #[tokio::test]
     async fn test_propagate_data_from_parent() {
         let db = DB::memory();
         let block_hash = H256::random();
-        let parent_announce_hash = AnnounceHash::random();
+        let parent_announce_hash = HashOf::random();
 
         db.set_block_events(block_hash, &[]);
 
@@ -327,11 +326,10 @@ mod tests {
                 parent_hash,
             },
         };
-        let last_committed_announce = AnnounceHash::random();
+        let last_committed_announce = HashOf::random();
         let code1_id = CodeId::from([1u8; 32]);
         let code2_id = CodeId::from([2u8; 32]);
         let batch_committed = Digest::random();
-        let validators = nonempty![Address::from([42u8; 20])];
 
         let parent_announce = Announce::base(parent_hash, last_committed_announce);
         db.set_announce(parent_announce.clone());
@@ -345,10 +343,9 @@ mod tests {
                 announces: Some([parent_announce.to_hash()].into()),
                 codes_queue: Some(vec![code1_id].into()),
                 last_committed_batch: Some(Digest::random()),
-                last_committed_announce: Some(AnnounceHash::random()),
+                last_committed_announce: Some(HashOf::random()),
             }
         });
-        db.set_block_validators(parent_hash, validators.clone());
 
         db.set_block_header(block.hash, block.header);
 
@@ -370,7 +367,6 @@ mod tests {
             }),
         ];
         db.set_block_events(block.hash, &events);
-        db.set_block_validators(block.hash, validators);
         db.set_block_synced(block.hash);
 
         // Prepare the block

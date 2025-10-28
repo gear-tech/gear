@@ -20,8 +20,8 @@
 
 use core::num::NonZero;
 use ethexe_common::{
-    Announce, AnnounceHash, CodeAndIdUnchecked, ProgramStates, Schedule,
-    db::{AnnounceStorageRead, BlockMetaStorageRead, CodesStorageWrite},
+    Announce, CodeAndIdUnchecked, HashOf, ProgramStates, Schedule,
+    db::{AnnounceStorageRO, BlockMetaStorageRO, CodesStorageRW},
     events::{BlockRequestEvent, MirrorRequestEvent},
     gear::StateTransition,
 };
@@ -65,13 +65,13 @@ pub enum ProcessorError {
     #[error("not found header for processing block ({0})")]
     BlockHeaderNotFound(H256),
     #[error("not found program states for processing announce ({0})")]
-    AnnounceProgramStatesNotFound(AnnounceHash),
+    AnnounceProgramStatesNotFound(HashOf<Announce>),
     #[error("not found block start schedule for processing announce ({0})")]
-    AnnounceScheduleNotFound(AnnounceHash),
+    AnnounceScheduleNotFound(HashOf<Announce>),
     #[error("not found announces for processing announce ({0})")]
     PreparedBlockAnnouncesMissing(H256),
     #[error("not found announce by hash ({0})")]
-    AnnounceNotFound(AnnounceHash),
+    AnnounceNotFound(HashOf<Announce>),
 
     // `InstanceWrapper` errors
     #[error("couldn't find 'memory' export")]
