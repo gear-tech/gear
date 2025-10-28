@@ -1183,7 +1183,6 @@ impl pallet_gear_messenger::Config for Runtime {
 /// # Security
 /// Make sure to mint ED for each new builtin actor added to the tuple.
 /// (see migrations.rs/LockEdForBuiltin).
-#[cfg(not(feature = "dev"))]
 pub type BuiltinActors = (
     pallet_gear_builtin::bls12_381::Actor<Runtime>,
     pallet_gear_builtin::staking::Actor<Runtime>,
