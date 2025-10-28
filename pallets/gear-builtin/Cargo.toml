@@ -32,6 +32,7 @@ ark-std = { workspace = true, optional = true }
 common.workspace = true
 core-processor.workspace = true
 gbuiltin-bls381.workspace = true
+gbuiltin-common.workspace = true
 gbuiltin-staking.workspace = true
 gbuiltin-proxy.workspace = true
 gear-core.workspace = true
@@ -52,6 +53,7 @@ pallet-proxy.workspace = true
 demo-waiting-proxy.workspace = true
 demo-staking-broker.workspace = true
 demo-proxy-broker.workspace = true
+gbuiltin-common = { workspace = true, features = ["dev"] }
 gprimitives.workspace = true
 sp-externalities = { workspace = true, features = ["std"] }
 sp-io = { workspace = true, features = ["std"] }
@@ -83,6 +85,7 @@ std = [
     "frame-benchmarking?/std",
     "frame-support/std",
     "frame-system/std",
+    "gbuiltin-common/std",
     "gear-core/std",
     "gear-runtime-interface/std",
     "pallet-gear/std",

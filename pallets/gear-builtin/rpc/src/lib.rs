@@ -18,12 +18,12 @@
 
 //! RPC interface for the gear module.
 
+use gbuiltin_common::BuiltinActorType;
 use jsonrpsee::{
     core::RpcResult,
     proc_macros::rpc,
     types::{ErrorObjectOwned, error::ErrorObject},
 };
-use pallet_gear_builtin::BuiltinActorType;
 pub use pallet_gear_builtin_rpc_runtime_api::GearBuiltinApi as GearBuiltinRuntimeApi;
 use sp_api::ProvideRuntimeApi;
 use sp_blockchain::HeaderBackend;
@@ -33,13 +33,16 @@ use std::sync::Arc;
 
 #[rpc(server)]
 pub trait GearBuiltinApi<BlockHash> {
+    /// Query ActorId by legacy numeric builtin ID (for backward compatibility).
     #[method(name = "gearBuiltin_queryId")]
     fn query_actor_id(&self, builtin_id: u64) -> RpcResult<Option<H256>>;
 
-    #[method(name = "gearBuiltin_list")]
+    /// List all builtin actors with their types, versions, and ActorIds.
+    #[method(name = "gearBuiltin_listActors")]
     fn list_actors(&self) -> RpcResult<Vec<(BuiltinActorType, u16, H256)>>;
 
-    #[method(name = "gearBuiltin_actorId")]
+    /// Get ActorId for a specific builtin actor type and version.
+    #[method(name = "gearBuiltin_getActorId")]
     fn get_actor_id(&self, actor_type: BuiltinActorType, version: u16) -> RpcResult<Option<H256>>;
 }
 

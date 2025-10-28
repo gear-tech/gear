@@ -10,6 +10,7 @@ repository = "https://github.com/gear-tech/gear"
 [dependencies]
 jsonrpsee = { workspace = true, features = ["server", "macros"] }
 
+gbuiltin-common.workspace = true
 pallet-gear-builtin.workspace = true
 
 # Substrate packages

@@ -1,0 +1,26 @@
+[package]
+name = "gbuiltin-common"
+description = "Common types for Gear builtin actors"
+documentation = "https://docs.rs/gbuiltin-common"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+parity-scale-codec = { workspace = true, features = ["derive"] }
+scale-info = { workspace = true, features = ["derive"] }
+serde = { workspace = true, features = ["derive"], optional = true }
+
+[features]
+default = ["std"]
+std = [
+    "serde",
+    "parity-scale-codec/std",
+    "scale-info/std",
+]
+# Enable the Custom variant for development/testing purposes
+dev = []

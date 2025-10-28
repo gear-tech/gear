@@ -21,6 +21,7 @@
 use crate::{Config, Error, Pallet, QueueId, TransportFee, WeightInfo};
 use common::Origin;
 use core::marker::PhantomData;
+use gbuiltin_common::BuiltinActorType;
 use gbuiltin_eth_bridge::{Request, Response};
 use gear_core::{
     buffer::Payload,
@@ -28,9 +29,7 @@ use gear_core::{
     message::{StoredDispatch, Value},
 };
 use gprimitives::{ActorId, H160};
-use pallet_gear_builtin::{
-    BuiltinActor, BuiltinActorError, BuiltinActorType, BuiltinContext, BuiltinReply,
-};
+use pallet_gear_builtin::{BuiltinActor, BuiltinActorError, BuiltinContext, BuiltinReply};
 use parity_scale_codec::{Decode, Encode};
 use sp_runtime::traits::UniqueSaturatedInto;
 use sp_std::vec::Vec;

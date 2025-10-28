@@ -6051,6 +6051,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "gbuiltin-common"
+version = "1.9.2"
+dependencies = [
+ "parity-scale-codec",
+ "scale-info",
+ "serde",
+]
+
+[[package]]
 name = "gbuiltin-eth-bridge"
 version = "1.9.2"
 dependencies = [
@@ -11547,6 +11556,7 @@ dependencies = [
  "frame-support-test",
  "frame-system",
  "gbuiltin-bls381",
+ "gbuiltin-common",
  "gbuiltin-proxy",
  "gbuiltin-staking",
  "gear-common",
@@ -11588,6 +11598,7 @@ dependencies = [
 name = "pallet-gear-builtin-rpc"
 version = "1.9.2"
 dependencies = [
+ "gbuiltin-common",
  "jsonrpsee 0.24.7",
  "pallet-gear-builtin",
  "pallet-gear-builtin-rpc-runtime-api",
@@ -11601,6 +11612,7 @@ dependencies = [
 name = "pallet-gear-builtin-rpc-runtime-api"
 version = "1.9.2"
 dependencies = [
+ "gbuiltin-common",
  "pallet-gear-builtin",
  "sp-api",
  "sp-core",
@@ -11617,6 +11629,7 @@ dependencies = [
  "frame-support",
  "frame-support-test",
  "frame-system",
+ "gbuiltin-common",
  "gbuiltin-eth-bridge",
  "gear-common",
  "gear-core",
@@ -18794,6 +18807,7 @@ dependencies = [
  "frame-system-benchmarking",
  "frame-system-rpc-runtime-api",
  "frame-try-runtime",
+ "gbuiltin-common",
  "gbuiltin-proxy",
  "gear-common",
  "gear-core",

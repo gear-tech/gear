@@ -47,9 +47,9 @@ use frame_system::{
     EnsureRoot,
     limits::{BlockLength, BlockWeights},
 };
+use gbuiltin_common::{BuiltinActorId, BuiltinActorType};
 use gbuiltin_proxy::ProxyType as BuiltinProxyType;
 use pallet_election_provider_multi_phase::{GeometricDepositBase, SolutionAccuracyOf};
-use pallet_gear_builtin::{BuiltinActorId, BuiltinActorType};
 use pallet_grandpa::{
     AuthorityId as GrandpaId, AuthorityList as GrandpaAuthorityList, fg_primitives,
 };
@@ -76,12 +76,6 @@ use sp_std::{
     prelude::*,
 };
 use sp_version::RuntimeVersion;
-
-#[cfg(feature = "dev")]
-use pallet_gear_builtin::BuiltinActor;
-
-#[cfg(not(feature = "dev"))]
-use sp_runtime::traits::OpaqueKeys;
 
 #[cfg(any(feature = "std", test))]
 use {
@@ -1206,7 +1200,7 @@ parameter_types! {
 
 parameter_types! {
     pub GearEthBridgeBuiltinAddress: AccountId
-        = GearBuiltin::builtin_id_into_actor_id(<pallet_gear_eth_bridge::builtin::Actor<Runtime> as BuiltinActor>::TYPE.id()).into_bytes().into();
+        = GearBuiltin::builtin_id_into_actor_id(BuiltinActorType::EthBridge.id()).into_bytes().into();
 }
 
 pub struct GearEthBridgeAdminAccounts;

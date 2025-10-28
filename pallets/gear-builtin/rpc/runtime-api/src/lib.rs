@@ -18,7 +18,7 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use pallet_gear_builtin::BuiltinActorType;
+use gbuiltin_common::BuiltinActorType;
 use sp_core::H256;
 use sp_std::vec::Vec;
 

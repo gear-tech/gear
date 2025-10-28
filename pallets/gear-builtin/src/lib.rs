@@ -18,7 +18,7 @@
 
 //! # Gear Builtin Actors Pallet
 //!
-//! The Builtn Actors pallet provides a registry of the builtin actors available in the Runtime.
+//! The Builtin Actors pallet provides a registry of the builtin actors available in the Runtime.
 //!
 //! - [`Config`]
 //!
@@ -26,6 +26,36 @@
 //!
 //! The pallet implements the `pallet_gear::BuiltinDispatcher` allowing to restore builtin actors
 //! claimed `BuiltinId`'s based on their corresponding `ActorId` address.
+//!
+//! ## Builtin Actor Identification
+//!
+//! Builtin actors are identified using a pallet-style naming convention with version support:
+//!
+//! ```rust
+//! use pallet_gear_builtin::BuiltinActorId;
+//! # use pallet_gear_builtin::Pallet;
+//! # type GearBuiltin = Pallet<()>;
+//!
+//! // Create a builtin actor ID
+//! let builtin_id = BuiltinActorId::new(b"staking", 1);
+//!
+//! // Convert to ActorId (requires runtime context)
+//! // let actor_id = GearBuiltin::builtin_id_into_actor_id(builtin_id);
+//! ```
+//!
+//! The encoding follows the pattern: `modl/bia/{name}/v-{version}/`
+//! where:
+//! - `modl` = module (Substrate convention)
+//! - `bia` = builtin actor
+//! - `{name}` = actor name (max 16 bytes)
+//! - `v-{version}` = version number (u16, little-endian)
+//!
+//! ## Available Builtin Actors
+//!
+//! - **Staking** (`b"staking"`, v1): Substrate staking operations
+//! - **Proxy** (`b"proxy"`, v1): Proxy account management
+//! - **BLS12-381** (`b"bls12-381"`, v1): BLS12-381 cryptographic operations
+//! - **Eth Bridge** (`b"eth-bridge"`, v1): Ethereum bridge operations
 
 #![cfg_attr(not(feature = "std"), no_std)]
 #![allow(clippy::manual_inspect)]
@@ -64,9 +94,7 @@ use core_processor::{
     },
     process_allowance_exceed, process_execution_error, process_success,
 };
-use frame_support::{
-    dispatch::extract_actual_weight, pallet_prelude::TypeInfo, traits::StorageVersion,
-};
+use frame_support::{dispatch::extract_actual_weight, traits::StorageVersion};
 use gear_core::{
     gas::{ChargeResult, GasAllowanceCounter, GasAmount, GasCounter},
     ids::ActorId,
@@ -77,158 +105,19 @@ use gear_core::{
 use impl_trait_for_tuples::impl_for_tuples;
 pub use pallet::*;
 use pallet_gear::{BuiltinDispatcher, BuiltinDispatcherFactory, BuiltinInfo, HandleFn, WeightFn};
-use parity_scale_codec::{Decode, Encode, Error, Input, Output};
+use parity_scale_codec::{Decode, Encode};
 use sp_std::prelude::*;
 
 pub use pallet_gear::BuiltinReply;
+
+// Re-export common types from gbuiltin-common
+pub use gbuiltin_common::{BuiltinActorId, BuiltinActorType};
 
 type CallOf<T> = <T as Config>::RuntimeCall;
 pub type GasAllowanceOf<T> = <<T as Config>::BlockLimiter as BlockLimiter>::GasAllowance;
 
 const LOG_TARGET: &str = "gear::builtin";
 pub type ActorErrorHandleFn = HandleFn<BuiltinContext, BuiltinActorError>;
-
-#[derive(Clone, Copy, Default, Eq, PartialEq, TypeInfo)]
-#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
-pub struct BuiltinActorId {
-    /// The unique name of the builtin actor.
-    pub name: [u8; 16],
-    /// The version of the builtin actor.
-    pub version: u16,
-}
-
-impl BuiltinActorId {
-    /// Creates a new `BuiltinActorId` with the given name and version.
-    pub const fn new(name: &[u8], version: u16) -> Self {
-        let mut name_arr = [0u8; 16];
-        let mut i = 0;
-
-        // Copy the name into the array, truncating if necessary.
-        while i < name.len() && i < 16 {
-            name_arr[i] = name[i];
-            i += 1;
-        }
-
-        Self {
-            name: name_arr,
-            version,
-        }
-    }
-}
-
-impl Encode for BuiltinActorId {
-    fn size_hint(&self) -> usize {
-        // "modl/bia/" + name (max 16) + "/v-" + version + "/"
-        9 + 16 + 3 + 2 + 1
-    }
-
-    fn encode_to<T: Output + ?Sized>(&self, dest: &mut T) {
-        let null_position = || self.name.iter().position(|&x| x == 0).unwrap_or(16);
-
-        dest.write(b"modl/bia/");
-        dest.write(&self.name[0..null_position()]);
-        dest.write(b"/v-");
-        dest.write(&self.version.to_le_bytes());
-        dest.write(b"/");
-    }
-}
-
-impl Decode for BuiltinActorId {
-    fn decode<I: Input>(input: &mut I) -> Result<Self, Error> {
-        let mut bytes = [0u8; 31];
-        input.read(&mut bytes)?;
-
-        let mut parts = bytes.split(|&x| x == b'/');
-
-        if parts.next().is_some_and(|v| v == *b"modl") {
-            return Err("Expected prefix 'modl'".into());
-        }
-        if parts.next().is_some_and(|v| v == *b"bia") {
-            return Err("Expected prefix 'modl/bia'".into());
-        }
-
-        let name_bytes = parts.next().ok_or("Missing name")?;
-
-        if name_bytes.len() > 16 {
-            return Err("Actor name too long".into());
-        }
-
-        if name_bytes.is_empty() {
-            return Err("Actor name is empty".into());
-        }
-
-        let mut name = [0u8; 16];
-        name[..name_bytes.len()].copy_from_slice(name_bytes);
-
-        let version_bytes = parts.next().ok_or("Missing version")?;
-
-        if !version_bytes.starts_with(b"v-") {
-            return Err("Actor version must start with 'v-'".into());
-        }
-
-        let version_number = version_bytes
-            .split(|&x| x == b'-')
-            .next()
-            .ok_or("Missing version number")?;
-
-        if version_number.len() != 2 {
-            return Err("Actor version is not 2 bytes".into());
-        }
-
-        let mut version = [0u8; 2];
-        version.copy_from_slice(version_number);
-
-        let version = u16::from_le_bytes(version);
-
-        Ok(BuiltinActorId { name, version })
-    }
-}
-
-/// Built-in actors type
-#[derive(Copy, Clone, Default, Eq, PartialEq, Encode, Decode, TypeInfo)]
-#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
-pub enum BuiltinActorType {
-    /// Custom
-    #[cfg(test)]
-    Custom(BuiltinActorId),
-    /// Default case for unknown actors
-    #[default]
-    Unknown,
-    /// Staking actor
-    Staking,
-    /// Proxy actor
-    Proxy,
-    /// BLS12-381 actor
-    BLS12_381,
-    /// Eth bridge actor
-    EthBridge,
-}
-
-impl BuiltinActorType {
-    /// Returns the `BuiltinActorId` for the given actor type.
-    pub const fn id(&self) -> BuiltinActorId {
-        match self {
-            #[cfg(test)]
-            Self::Custom(id) => *id,
-            Self::Unknown => BuiltinActorId::new(b"unknown", 0),
-            Self::Staking => BuiltinActorId::new(b"staking", 1),
-            Self::Proxy => BuiltinActorId::new(b"proxy", 1),
-            Self::BLS12_381 => BuiltinActorId::new(b"bls12-381", 1),
-            Self::EthBridge => BuiltinActorId::new(b"eth-bridge", 1),
-        }
-    }
-
-    /// Back compatibility func returning 'BuiltinActorType' for numeric id
-    pub const fn from_index(index: u64) -> Option<Self> {
-        match index {
-            1 => Some(BuiltinActorType::BLS12_381),
-            2 => Some(BuiltinActorType::Staking),
-            3 => Some(BuiltinActorType::EthBridge),
-            4 => Some(BuiltinActorType::Proxy),
-            _ => None,
-        }
-    }
-}
 
 /// Built-in actor error type
 #[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, derive_more::Display)]
@@ -326,7 +215,17 @@ pub trait BuiltinActor {
         context: &mut BuiltinContext,
     ) -> Result<BuiltinReply, BuiltinActorError>;
 
-    /// Returns the maximum gas that can be spent by the actor.
+    /// Returns the maximum gas that can be spent by the actor for a given payload.
+    ///
+    /// This is used for upfront gas allowance checks before message execution.
+    /// Returning 0 effectively disables the pre-flight check, allowing messages
+    /// to start execution even if the block gas allowance is low.
+    ///
+    /// **Note:** Implementations should either:
+    /// - Return a conservative upper bound for the actor's gas consumption
+    /// - Return 0 to rely on runtime gas metering during execution (current default)
+    ///
+    /// See issue #4395 for fine-grained estimation based on payload.
     fn max_gas() -> u64;
 }
 
@@ -386,6 +285,8 @@ pub mod pallet {
     use frame_system::pallet_prelude::*;
     use sp_runtime::traits::{Dispatchable, TrailingZeroInput};
 
+    /// Seed used for legacy numeric ID-based actor ID generation.
+    /// Only used for backward compatibility in `generate_actor_id`.
     pub(crate) const SEED: [u8; 8] = *b"built/in";
 
     #[pallet::config]
@@ -433,11 +334,17 @@ pub mod pallet {
             BuiltinRegistry::<T>::new().info()
         }
 
-        /// Generate an `actor_id` given a builtin ID.
+        /// Generate an `ActorId` given a legacy numeric builtin ID.
         ///
+        /// **Note:** This function is deprecated and maintained only for backward compatibility.
+        /// Use `builtin_id_into_actor_id` with `BuiltinActorId` for new code.
         ///
         /// This does computations, therefore we should seek to cache the value at the time of
         /// a builtin actor registration.
+        #[deprecated(
+            since = "1.0.0",
+            note = "Use `builtin_id_into_actor_id` with `BuiltinActorId` instead"
+        )]
         pub fn generate_actor_id(builtin_id: u64) -> ActorId {
             hash((SEED, builtin_id).encode().as_slice()).into()
         }

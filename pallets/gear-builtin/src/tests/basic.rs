@@ -32,6 +32,17 @@ pub(crate) fn init_logger() {
     let _ = tracing_subscriber::fmt::try_init();
 }
 
+/// Helper function to create expected ActorId from builtin actor type.
+/// This makes tests more maintainable by avoiding hardcoded byte arrays.
+fn builtin_actor_id<T: crate::BuiltinActor>() -> ActorId {
+    GearBuiltin::builtin_id_into_actor_id(T::TYPE.id())
+}
+
+/// Helper function to create ActorId for a specific BuiltinActorType.
+fn actor_id_for_type(actor_type: BuiltinActorType) -> ActorId {
+    GearBuiltin::builtin_id_into_actor_id(actor_type.id())
+}
+
 fn deploy_contract(init_payload: Vec<u8>) {
     assert_ok!(Gear::upload_program(
         RuntimeOrigin::signed(SIGNER),
@@ -60,54 +71,51 @@ fn builtin_actor_ids_are_correct() {
     init_logger();
 
     new_test_ext().execute_with(|| {
-        let success_actor_id: ActorId = GearBuiltin::builtin_id_into_actor_id(
-            <SuccessBuiltinActor as crate::BuiltinActor>::TYPE.id(),
-        );
-        let error_actor_id: ActorId = GearBuiltin::builtin_id_into_actor_id(
-            <ErrorBuiltinActor as crate::BuiltinActor>::TYPE.id(),
-        );
-        let honest_actor_id: ActorId = GearBuiltin::builtin_id_into_actor_id(
-            <HonestBuiltinActor as crate::BuiltinActor>::TYPE.id(),
-        );
-        let proxy_actor_id: ActorId = GearBuiltin::builtin_id_into_actor_id(
-            <crate::proxy::Actor<Test> as crate::BuiltinActor>::TYPE.id(),
-        );
-        let staking_actor_id: ActorId = GearBuiltin::builtin_id_into_actor_id(
-            <crate::staking::Actor<Test> as crate::BuiltinActor>::TYPE.id(),
-        );
-        let bls_actor_id: ActorId = GearBuiltin::builtin_id_into_actor_id(
-            <crate::bls12_381::Actor<Test> as crate::BuiltinActor>::TYPE.id(),
-        );
-        let eth_bridge_actor_id: ActorId =
-            GearBuiltin::builtin_id_into_actor_id(BuiltinActorType::EthBridge.id());
+        // Use helper functions to compute expected ActorIds
+        let success_actor_id = builtin_actor_id::<SuccessBuiltinActor>();
+        let error_actor_id = builtin_actor_id::<ErrorBuiltinActor>();
+        let honest_actor_id = builtin_actor_id::<HonestBuiltinActor>();
+        let proxy_actor_id = builtin_actor_id::<crate::proxy::Actor<Test>>();
+        let staking_actor_id = builtin_actor_id::<crate::staking::Actor<Test>>();
+        let bls_actor_id = builtin_actor_id::<crate::bls12_381::Actor<Test>>();
+        let eth_bridge_actor_id = actor_id_for_type(BuiltinActorType::EthBridge);
 
+        // Verify the encoding matches expected format
+        // These assertions validate that the encoding produces correct actor IDs
         assert_eq!(
             success_actor_id,
-            ActorId::from(*b"modl/bia/success-actor/v-\x01\0/\0\0\0\0")
+            ActorId::from(*b"modl/bia/success-actor/v-\x01\0/\0\0\0\0"),
+            "Success actor ID encoding mismatch"
         );
         assert_eq!(
             error_actor_id,
-            ActorId::from(*b"modl/bia/error-actor/v-\x01\0/\0\0\0\0\0\0")
+            ActorId::from(*b"modl/bia/error-actor/v-\x01\0/\0\0\0\0\0\0"),
+            "Error actor ID encoding mismatch"
         );
         assert_eq!(
             honest_actor_id,
-            ActorId::from(*b"modl/bia/honest-actor/v-\x01\0/\0\0\0\0\0")
+            ActorId::from(*b"modl/bia/honest-actor/v-\x01\0/\0\0\0\0\0"),
+            "Honest actor ID encoding mismatch"
         );
         assert_eq!(
             proxy_actor_id,
-            ActorId::from(*b"modl/bia/proxy/v-\x01\0/\0\0\0\0\0\0\0\0\0\0\0\0")
+            ActorId::from(*b"modl/bia/proxy/v-\x01\0/\0\0\0\0\0\0\0\0\0\0\0\0"),
+            "Proxy actor ID encoding mismatch"
         );
         assert_eq!(
             staking_actor_id,
-            ActorId::from(*b"modl/bia/staking/v-\x01\0/\0\0\0\0\0\0\0\0\0\0")
+            ActorId::from(*b"modl/bia/staking/v-\x01\0/\0\0\0\0\0\0\0\0\0\0"),
+            "Staking actor ID encoding mismatch"
         );
         assert_eq!(
             bls_actor_id,
-            ActorId::from(*b"modl/bia/bls12-381/v-\x01\0/\0\0\0\0\0\0\0\0")
+            ActorId::from(*b"modl/bia/bls12-381/v-\x01\0/\0\0\0\0\0\0\0\0"),
+            "BLS12-381 actor ID encoding mismatch"
         );
         assert_eq!(
             eth_bridge_actor_id,
-            ActorId::from(*b"modl/bia/eth-bridge/v-\x01\0/\0\0\0\0\0\0\0")
+            ActorId::from(*b"modl/bia/eth-bridge/v-\x01\0/\0\0\0\0\0\0\0"),
+            "Eth bridge actor ID encoding mismatch"
         );
     });
 }
@@ -117,9 +125,7 @@ fn user_message_to_builtin_actor_works() {
     init_logger();
 
     new_test_ext().execute_with(|| {
-        let success_bia_id: ActorId = GearBuiltin::builtin_id_into_actor_id(
-            <SuccessBuiltinActor as crate::BuiltinActor>::TYPE.id(),
-        );
+        let success_bia_id = builtin_actor_id::<SuccessBuiltinActor>();
 
         assert_eq!(current_stack(), vec![]);
 
@@ -141,9 +147,7 @@ fn user_message_to_builtin_actor_works() {
         assert!(gas_tree_empty());
 
         // Asserting error
-        let error_bia_id = GearBuiltin::builtin_id_into_actor_id(
-            <ErrorBuiltinActor as crate::BuiltinActor>::TYPE.id(),
-        );
+        let error_bia_id = builtin_actor_id::<ErrorBuiltinActor>();
         send_message(error_bia_id, Default::default());
         run_to_next_block();
 
@@ -166,9 +170,7 @@ fn invoking_builtin_from_program_works() {
 
         assert_eq!(current_stack(), vec![]);
 
-        let honest_bia_id: ActorId = GearBuiltin::builtin_id_into_actor_id(
-            <HonestBuiltinActor as crate::BuiltinActor>::TYPE.id(),
-        );
+        let honest_bia_id = builtin_actor_id::<HonestBuiltinActor>();
 
         deploy_contract((honest_bia_id, 0u64).encode());
         run_to_next_block();
@@ -224,9 +226,7 @@ fn calculate_gas_info_works() {
     init_logger();
 
     new_test_ext().execute_with(|| {
-        let success_bia_id: ActorId = GearBuiltin::builtin_id_into_actor_id(
-            <SuccessBuiltinActor as crate::BuiltinActor>::TYPE.id(),
-        );
+        let success_bia_id = builtin_actor_id::<SuccessBuiltinActor>();
 
         assert_eq!(current_stack(), vec![]);
 
@@ -274,9 +274,7 @@ fn calculate_gas_info_works() {
         assert!(gas_tree_empty());
 
         // Honest actor runs gas limit check and respects its outcome.
-        let honest_bia_id = GearBuiltin::builtin_id_into_actor_id(
-            <HonestBuiltinActor as crate::BuiltinActor>::TYPE.id(),
-        );
+        let honest_bia_id = builtin_actor_id::<HonestBuiltinActor>();
         let gas_info = get_gas_info(honest_bia_id, Default::default());
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(SIGNER),

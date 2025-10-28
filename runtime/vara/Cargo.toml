@@ -121,6 +121,7 @@ pallet-gear-staking-rewards-rpc-runtime-api.workspace = true
 pallet-gear-builtin-rpc-runtime-api.workspace = true
 pallet-gear-eth-bridge-rpc-runtime-api.workspace = true
 runtime-primitives.workspace = true
+gbuiltin-common.workspace = true
 gbuiltin-proxy.workspace = true
 
 [dev-dependencies]
@@ -172,6 +173,7 @@ std = [
     "pallet-gear-staking-rewards-rpc-runtime-api/std",
     "pallet-gear-builtin-rpc-runtime-api/std",
     "pallet-gear-eth-bridge-rpc-runtime-api/std",
+    "gbuiltin-common/std",
     "pallet-grandpa/std",
     "pallet-identity/std",
     "pallet-im-online/std",
