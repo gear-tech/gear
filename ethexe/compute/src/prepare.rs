@@ -20,8 +20,8 @@ use crate::{ComputeError, ComputeEvent, Result, service::SubService};
 use ethexe_common::{
     BlockData,
     db::{
-        BlockMetaStorageRead, BlockMetaStorageWrite, CodesStorageRead, LatestDataStorageWrite,
-        OnChainStorageRead,
+        BlockMetaStorageRO, BlockMetaStorageRW, CodesStorageRO, LatestDataStorageRW,
+        OnChainStorageRO,
     },
     events::{BlockEvent, RouterEvent},
 };
@@ -226,7 +226,7 @@ fn missing_data(db: &Database, chain: &VecDeque<BlockData>) -> Result<MissingDat
     })
 }
 
-fn prepare_one_block<DB: BlockMetaStorageWrite + LatestDataStorageWrite>(
+fn prepare_one_block<DB: BlockMetaStorageRW + LatestDataStorageRW>(
     db: &DB,
     block: BlockData,
 ) -> Result<()> {

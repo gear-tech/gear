@@ -25,7 +25,7 @@ use anyhow::{Result, anyhow};
 use ethexe_common::{
     Address, Announce, HashOf, SimpleBlockData,
     consensus::{VerifiedAnnounce, VerifiedValidationRequest},
-    db::{AnnounceStorageWrite, BlockMetaStorageWrite, OnChainStorageRead},
+    db::{AnnounceStorageRW, BlockMetaStorageRW, OnChainStorageRO},
 };
 use ethexe_db::Database;
 use futures::{Stream, stream::FusedStream};
@@ -177,7 +177,7 @@ impl ConsensusService for SimpleConnectService {
             let _ = self.pending_announces.pop_front().unwrap();
         }
 
-        log::warn!("Receive unexpected {announce:?}, save to pending announces");
+        tracing::warn!("Receive unexpected {announce:?}, save to pending announces");
 
         self.pending_announces.push_back(announce);
 
@@ -194,7 +194,7 @@ impl ConsensusService for SimpleConnectService {
 }
 
 impl Stream for SimpleConnectService {
-    type Item = anyhow::Result<ConsensusEvent>;
+    type Item = Result<ConsensusEvent>;
 
     fn poll_next(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         if let Some(event) = self.output.pop_front() {

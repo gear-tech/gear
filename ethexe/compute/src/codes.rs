@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{ComputeError, ProcessorExt, Result, service::SubService};
-use ethexe_common::{CodeAndIdUnchecked, db::CodesStorageRead};
+use ethexe_common::{CodeAndIdUnchecked, db::CodesStorageRO};
 use ethexe_db::Database;
 use gprimitives::CodeId;
 use std::task::{Context, Poll};

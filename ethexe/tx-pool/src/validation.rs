@@ -20,7 +20,7 @@
 
 use crate::SignedOffchainTransaction;
 use anyhow::{Result, anyhow, bail};
-use ethexe_common::{db::LatestDataStorageRead, tx_pool};
+use ethexe_common::{db::LatestDataStorageRO, tx_pool};
 use ethexe_db::Database;
 
 // TODO #4424

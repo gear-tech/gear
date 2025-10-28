@@ -4822,11 +4822,15 @@ dependencies = [
  "futures",
  "gear-utils",
  "gprimitives",
- "log",
+ "hashbrown 0.14.5",
  "nonempty 0.12.0",
  "ntest",
  "parity-scale-codec",
+ "rand 0.8.5",
+ "rand_chacha 0.3.1",
+ "roast-secp256k1-evm",
  "tokio",
+ "tracing",
 ]
 
 [[package]]
@@ -4841,13 +4845,12 @@ dependencies = [
  "ethexe-runtime-common",
  "gear-core",
  "gprimitives",
- "log",
- "nonempty 0.12.0",
  "parity-scale-codec",
  "paste",
  "rocksdb",
  "scopeguard",
  "tempfile",
+ "tracing",
 ]
 
 [[package]]
@@ -4869,6 +4872,7 @@ dependencies = [
  "rand 0.8.5",
  "roast-secp256k1-evm",
  "tokio",
+ "tracing",
 ]
 
 [[package]]
@@ -4912,8 +4916,8 @@ dependencies = [
  "gear-utils",
  "gprimitives",
  "log",
- "nonempty 0.12.0",
  "tokio",
+ "tracing",
  "wasmparser 0.230.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "wat",
 ]
@@ -5051,7 +5055,6 @@ dependencies = [
  "gear-core-errors",
  "gprimitives",
  "log",
- "nonempty 0.12.0",
  "ntest",
  "parity-scale-codec",
  "rand 0.8.5",

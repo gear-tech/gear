@@ -20,8 +20,8 @@ use crate::{ComputeError, ProcessorExt, Result, service::SubService};
 use ethexe_common::{
     Announce, HashOf,
     db::{
-        AnnounceStorageRead, AnnounceStorageWrite, BlockMetaStorageRead, LatestDataStorageWrite,
-        OnChainStorageRead,
+        AnnounceStorageRO, AnnounceStorageRW, BlockMetaStorageRO, LatestDataStorageRW,
+        OnChainStorageRO,
     },
 };
 use ethexe_db::Database;

@@ -193,6 +193,57 @@ impl CodeAndId {
     }
 }
 
+/// GearExe network timelines configuration. Parameters fetched the Router contract.
+/// This struct stores in the database, because of using in the multiple places.
+///
+/// TODO(kuzmindev): `ProtocolTimelines` can store more protocol parameters,
+/// for example `max_validators` in election.
+#[derive(Debug, Clone, Default, Copy, PartialEq, Eq, Encode, Decode)]
+pub struct ProtocolTimelines {
+    // The genesis timestamp of the GearExe network.
+    pub genesis_ts: u64,
+    // The duration of an era in seconds.
+    pub era: u64,
+    // The election duration in seconds before the end of an era when the next set of validators elected.
+    ///  (start of era)[ - - - - - - - - - - -  + - - - - ] (end of era)
+    ///                                         ^ election
+    pub election: u64,
+}
+
+impl ProtocolTimelines {
+    /// Returns the era index for the given timestamp. Eras starts from 0.
+    /// If geven `ts` less than `genesis_ts` function returns `0`;
+    #[inline(always)]
+    pub fn era_from_ts(&self, ts: u64) -> u64 {
+        if ts < self.genesis_ts {
+            return 0;
+        }
+        (ts - self.genesis_ts) / self.era
+    }
+
+    /// Returns the timestamp since which the given era started.
+    #[inline(always)]
+    pub fn era_start(&self, era_index: u64) -> u64 {
+        self.genesis_ts + era_index * self.era
+    }
+
+    #[inline(always)]
+    pub fn era_start_ts(&self, ts: u64) -> u64 {
+        self.era_start(self.era_from_ts(ts))
+    }
+
+    /// Returns the timestamp of beginning the next era, or the timestamp when current era finished.
+    #[inline(always)]
+    pub fn era_end(&self, era_index: u64) -> u64 {
+        self.genesis_ts + (era_index + 1) * self.era
+    }
+
+    #[inline(always)]
+    pub fn era_end_ts(&self, ts: u64) -> u64 {
+        self.era_end(self.era_from_ts(ts))
+    }
+}
+
 /// RemoveFromMailbox key; (msgs sources program (mailbox and queue provider), destination user id)
 pub type Rfm = (ActorId, ActorId);
 
@@ -207,3 +258,62 @@ pub type ScheduledTask = gear_core::tasks::ScheduledTask<Rfm, Sd, Sum>;
 
 /// Scheduler; (block height, scheduled task)
 pub type Schedule = BTreeMap<u32, BTreeSet<ScheduledTask>>;
+
+#[cfg(test)]
+mod tests {
+    use super::ProtocolTimelines;
+
+    #[test]
+    fn test_era_from_ts_calculation() {
+        let timelines = ProtocolTimelines {
+            genesis_ts: 10,
+            era: 234,
+            election: 200,
+        };
+
+        // For 0 era
+        assert_eq!(timelines.era_from_ts(10), 0);
+        assert_eq!(timelines.era_from_ts(45), 0);
+        assert_eq!(timelines.era_from_ts(243), 0);
+
+        // For 1 era
+        assert_eq!(timelines.era_from_ts(244), 1);
+        assert_eq!(timelines.era_from_ts(333), 1);
+    }
+
+    #[test]
+    fn test_era_start_calculation() {
+        let timelines = ProtocolTimelines {
+            genesis_ts: 10,
+            era: 234,
+            election: 200,
+        };
+
+        // For 0 era
+        assert_eq!(timelines.era_start(0), 10);
+        assert_eq!(timelines.era_start(0), 10);
+        assert_eq!(timelines.era_start(0), 10);
+
+        // For 1 era
+        assert_eq!(timelines.era_start(1), 244);
+        assert_eq!(timelines.era_start(1), 244);
+    }
+
+    #[test]
+    fn test_era_end_calculation() {
+        let timelines = ProtocolTimelines {
+            genesis_ts: 10,
+            era: 234,
+            election: 200,
+        };
+
+        // For 0 era
+        assert_eq!(timelines.era_end(0), 244);
+        assert_eq!(timelines.era_end(0), 244);
+        assert_eq!(timelines.era_end(0), 244);
+
+        // For 1 era
+        assert_eq!(timelines.era_end(1), 478);
+        assert_eq!(timelines.era_end(1), 478);
+    }
+}

@@ -19,7 +19,7 @@
 use crate::{errors, utils};
 use ethexe_common::{
     BlockHeader, SimpleBlockData,
-    db::{AnnounceStorageRead, OnChainStorageRead},
+    db::{AnnounceStorageRO, OnChainStorageRO},
     events::BlockRequestEvent,
     gear::StateTransition,
 };

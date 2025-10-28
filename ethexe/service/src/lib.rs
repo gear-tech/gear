@@ -17,19 +17,21 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::config::{Config, ConfigPublicKey};
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result, anyhow, bail};
 use async_trait::async_trait;
 use ethexe_blob_loader::{
     BlobLoader, BlobLoaderEvent, BlobLoaderService, ConsensusLayerConfig,
     local::{LocalBlobLoader, LocalBlobStorage},
 };
-use ethexe_common::{ecdsa::PublicKey, gear::CodeState, network::VerifiedValidatorMessage};
+use ethexe_common::{
+    db::OnChainStorageRO, ecdsa::PublicKey, gear::CodeState, network::VerifiedValidatorMessage,
+};
 use ethexe_compute::{ComputeEvent, ComputeService};
 use ethexe_consensus::{
     ConsensusEvent, ConsensusService, SimpleConnectService, ValidatorConfig, ValidatorService,
 };
 use ethexe_db::{Database, RocksDatabase};
-use ethexe_ethereum::router::RouterQuery;
+use ethexe_ethereum::{Ethereum, router::RouterQuery};
 use ethexe_network::{
     NetworkEvent, NetworkRuntimeConfig, NetworkService, db_sync::ExternalDataProvider,
 };
@@ -42,7 +44,7 @@ use ethexe_signer::Signer;
 use ethexe_tx_pool::{TxPoolEvent, TxPoolService};
 use futures::StreamExt;
 use gprimitives::{ActorId, CodeId, H256};
-use std::{collections::BTreeSet, pin::Pin};
+use std::{collections::BTreeSet, pin::Pin, sync::Arc};
 
 pub mod config;
 
@@ -128,7 +130,7 @@ impl Service {
             let consensus_config = ConsensusLayerConfig {
                 ethereum_rpc: config.ethereum.rpc.clone(),
                 ethereum_beacon_rpc: config.ethereum.beacon_rpc.clone(),
-                beacon_block_time: config.ethereum.block_time,
+                beacon_block_time: alloy::eips::merge::SLOT_DURATION,
             };
             let blob_loader = BlobLoader::new(db.clone(), consensus_config)
                 .await
@@ -196,27 +198,33 @@ impl Service {
             Self::get_config_public_key(config.node.validator_session, &signer)
                 .with_context(|| "failed to get validator session private key")?;
 
-        let consensus: Pin<Box<dyn ConsensusService>> = if let Some(pub_key) = validator_pub_key {
-            Box::pin(
-                ValidatorService::new(
+        let consensus: Pin<Box<dyn ConsensusService>> = {
+            if let Some(pub_key) = validator_pub_key {
+                let ethereum = Ethereum::new(
+                    &config.ethereum.rpc,
+                    config.ethereum.router_address.into(),
                     signer.clone(),
+                    pub_key.to_address(),
+                )
+                .await?;
+                Box::pin(ValidatorService::new(
+                    signer.clone(),
+                    Arc::new(ethereum.middleware().query()),
+                    ethereum.router(),
                     db.clone(),
                     ValidatorConfig {
-                        ethereum_rpc: config.ethereum.rpc.clone(),
-                        router_address: config.ethereum.router_address,
                         pub_key,
                         signatures_threshold: threshold,
                         slot_duration: config.ethereum.block_time,
                         block_gas_limit: config.node.block_gas_limit,
                     },
-                )
-                .await?,
-            )
-        } else {
-            Box::pin(SimpleConnectService::new(
-                db.clone(),
-                config.ethereum.block_time,
-            ))
+                )?)
+            } else {
+                Box::pin(SimpleConnectService::new(
+                    db.clone(),
+                    config.ethereum.block_time,
+                ))
+            }
         };
 
         let prometheus = if let Some(config) = config.prometheus.clone() {
@@ -226,9 +234,12 @@ impl Service {
         };
 
         let network = if let Some(net_config) = &config.network {
+            let timelines = db
+                .protocol_timelines()
+                .ok_or_else(|| anyhow!("protocol timelines not found in database"))?;
             let runtime_config = NetworkRuntimeConfig {
-                genesis_timestamp: observer.genesis_timestamp_secs(),
-                era_duration: observer.era_duration_secs(),
+                genesis_timestamp: timelines.genesis_ts,
+                era_duration: timelines.era,
                 genesis_block_hash: observer.genesis_block_hash(),
             };
 
@@ -387,11 +398,12 @@ impl Service {
             match event {
                 Event::Observer(event) => match event {
                     ObserverEvent::Block(block_data) => {
-                        log::info!(
-                            "📦 receive a chain head, height {}, hash {}, parent hash {}",
-                            block_data.header.height,
-                            block_data.hash,
-                            block_data.header.parent_hash,
+                        tracing::info!(
+                            height = %block_data.header.height,
+                            timestamp = %block_data.header.timestamp,
+                            hash = %block_data.hash,
+                            parent_hash = %block_data.header.parent_hash,
+                            "📦 receive a chain head",
                         );
 
                         consensus.receive_new_chain_head(block_data)?
