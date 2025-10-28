@@ -286,10 +286,7 @@ impl ValidatorCore {
     }
 
     /// Returns announce hash from T1S3 or global start announce
-    pub fn find_announces_common_predecessor(
-        &self,
-        block: &SimpleBlockData,
-    ) -> Result<HashOf<Announce>> {
+    pub fn find_announces_common_predecessor(&self, block_hash: H256) -> Result<HashOf<Announce>> {
         let start_announce_hash = self
             .db
             .latest_data()
@@ -298,9 +295,9 @@ impl ValidatorCore {
 
         let mut announces = self
             .db
-            .block_meta(block.header.parent_hash)
+            .block_meta(block_hash)
             .announces
-            .ok_or_else(|| anyhow!("announces not found for block {}", block.header.parent_hash))?;
+            .ok_or_else(|| anyhow!("announces not found for block {block_hash}"))?;
 
         for _ in 0..self
             .commitment_delay_limit
@@ -328,8 +325,7 @@ impl ValidatorCore {
             // This can happen for example, if some old not base announce was committed
             // and T1S3 cannot be applied.
             Err(anyhow!(
-                "Cannot find common predecessor for announces in block {} in nearest {} blocks",
-                block.hash,
+                "Cannot find common predecessor for announces in block {block_hash} in nearest {} blocks",
                 self.commitment_delay_limit
             ))
         }

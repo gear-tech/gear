@@ -29,7 +29,7 @@ use crate::{
 use alloy::{
     eips::BlockId,
     node_bindings::{Anvil, AnvilInstance},
-    providers::{Provider as _, RootProvider, ext::AnvilApi},
+    providers::{Provider as _, ProviderBuilder, RootProvider, ext::AnvilApi},
     rpc::types::{Header as RpcHeader, anvil::MineOptions},
 };
 use anyhow::anyhow;
@@ -150,6 +150,19 @@ impl TestEnv {
                 }
 
                 let anvil = anvil.spawn();
+
+                // By default, anvil set system time as block time. For testing purposes we need to have constant increment.
+                if !continuous_block_generation {
+                    let provider: RootProvider = ProviderBuilder::default()
+                        .connect(anvil.ws_endpoint().as_str())
+                        .await
+                        .expect("failed to connect to anvil");
+
+                    provider
+                        .anvil_set_block_timestamp_interval(block_time.as_secs())
+                        .await
+                        .unwrap();
+                }
 
                 log::info!("📍 Anvil started at {}", anvil.ws_endpoint());
                 (anvil.ws_endpoint(), Some(anvil))
@@ -316,14 +329,6 @@ impl TestEnv {
 
             (handle, bootstrap_address, nonce)
         });
-
-        // By default, anvil set system time as block time. For testing purposes we need to have constant increment.
-        if anvil.is_some() && !continuous_block_generation {
-            provider
-                .anvil_set_block_timestamp_interval(block_time.as_secs())
-                .await
-                .unwrap();
-        }
 
         Ok(TestEnv {
             eth_cfg,
