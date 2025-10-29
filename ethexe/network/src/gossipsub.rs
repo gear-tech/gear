@@ -23,7 +23,7 @@ use crate::{
     peer_score,
 };
 use anyhow::anyhow;
-use ethexe_common::{Address, network::NetworkMessage, tx_pool::SignedOffchainTransaction};
+use ethexe_common::{Address, network::SignedValidatorMessage, tx_pool::SignedOffchainTransaction};
 use libp2p::{
     core::{Endpoint, transport::PortUse},
     gossipsub,
@@ -42,7 +42,7 @@ use std::{
 
 #[derive(Debug, derive_more::From)]
 pub enum Message {
-    Commitments(NetworkMessage),
+    Commitments(SignedValidatorMessage),
     Offchain(SignedOffchainTransaction),
 }
 
@@ -176,7 +176,7 @@ impl Behaviour {
                     source.expect("ValidationMode::Strict implies `source` is always present");
 
                 let res = if topic == self.commitments_topic.hash() {
-                    NetworkMessage::decode(&mut &data[..]).map(Message::Commitments)
+                    SignedValidatorMessage::decode(&mut &data[..]).map(Message::Commitments)
                 } else if topic == self.offchain_topic.hash() {
                     SignedOffchainTransaction::decode(&mut &data[..]).map(Message::Offchain)
                 } else {

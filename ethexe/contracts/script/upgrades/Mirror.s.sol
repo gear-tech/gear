@@ -14,8 +14,8 @@ contract MirrorScript is Script {
 
         vm.startBroadcast(privateKey);
 
-        Mirror mirror = new Mirror(routerAddress);
-        Router(routerAddress).setMirror(address(mirror));
+        Mirror mirror = new Mirror(payable(routerAddress));
+        Router(payable(routerAddress)).setMirror(address(mirror));
 
         vm.stopBroadcast();
     }

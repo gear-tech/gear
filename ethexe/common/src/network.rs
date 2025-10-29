@@ -16,12 +16,74 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::consensus::{BatchCommitmentValidationReply, SignedAnnounce, SignedValidationRequest};
+use crate::{
+    Address, Announce, ToDigest,
+    consensus::{BatchCommitmentValidationReply, BatchCommitmentValidationRequest},
+    ecdsa::{SignedData, VerifiedData},
+};
+use gprimitives::H256;
+use k256::sha2::Digest;
 use parity_scale_codec::{Decode, Encode};
+use sha3::Keccak256;
 
-#[derive(Debug, Clone, Encode, Decode, derive_more::From, Eq, PartialEq)]
-pub enum NetworkMessage {
-    ProducerBlock(SignedAnnounce),
-    RequestBatchValidation(SignedValidationRequest),
-    ApproveBatch(BatchCommitmentValidationReply),
+pub type ValidatorAnnounce = ValidatorMessage<Announce>;
+pub type ValidatorRequest = ValidatorMessage<BatchCommitmentValidationRequest>;
+pub type ValidatorReply = ValidatorMessage<BatchCommitmentValidationReply>;
+
+#[derive(Debug, Clone, Encode, Decode, Eq, PartialEq, Hash)]
+pub struct ValidatorMessage<T> {
+    pub block: H256,
+    pub payload: T,
+}
+
+impl<T: ToDigest> ToDigest for ValidatorMessage<T> {
+    fn update_hasher(&self, hasher: &mut Keccak256) {
+        let Self { block, payload } = self;
+        hasher.update(block.0);
+        payload.update_hasher(hasher);
+    }
+}
+
+#[derive(Debug, Clone, Encode, Decode, Eq, PartialEq, derive_more::Unwrap, derive_more::From)]
+pub enum SignedValidatorMessage {
+    ProducerBlock(SignedData<ValidatorAnnounce>),
+    RequestBatchValidation(SignedData<ValidatorRequest>),
+    ApproveBatch(SignedData<ValidatorReply>),
+}
+
+impl SignedValidatorMessage {
+    pub fn into_verified(self) -> VerifiedValidatorMessage {
+        match self {
+            SignedValidatorMessage::ProducerBlock(announce) => announce.into_verified().into(),
+            SignedValidatorMessage::RequestBatchValidation(request) => {
+                request.into_verified().into()
+            }
+            SignedValidatorMessage::ApproveBatch(reply) => reply.into_verified().into(),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Eq, PartialEq, Hash, derive_more::Unwrap, derive_more::From)]
+pub enum VerifiedValidatorMessage {
+    ProducerBlock(VerifiedData<ValidatorAnnounce>),
+    RequestBatchValidation(VerifiedData<ValidatorRequest>),
+    ApproveBatch(VerifiedData<ValidatorReply>),
+}
+
+impl VerifiedValidatorMessage {
+    pub fn block(&self) -> H256 {
+        match self {
+            VerifiedValidatorMessage::ProducerBlock(announce) => announce.data().block,
+            VerifiedValidatorMessage::RequestBatchValidation(request) => request.data().block,
+            VerifiedValidatorMessage::ApproveBatch(reply) => reply.data().block,
+        }
+    }
+
+    pub fn address(&self) -> Address {
+        match self {
+            VerifiedValidatorMessage::ProducerBlock(announce) => announce.address(),
+            VerifiedValidatorMessage::RequestBatchValidation(request) => request.address(),
+            VerifiedValidatorMessage::ApproveBatch(reply) => reply.address(),
+        }
+    }
 }

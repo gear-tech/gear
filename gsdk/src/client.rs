@@ -29,7 +29,7 @@ use jsonrpsee::{
     },
     http_client::{HttpClient, HttpClientBuilder},
     types::SubscriptionId,
-    ws_client::{WsClient, WsClientBuilder},
+    ws_client::{PingConfig, WsClient, WsClientBuilder},
 };
 use sp_runtime::DeserializeOwned;
 use std::{ops::Deref, result::Result as StdResult, time::Duration};
@@ -45,7 +45,7 @@ use subxt::{
     error::RpcError,
 };
 
-const ONE_HUNDRED_MEGA_BYTES: u32 = 100 * 1024 * 1024;
+pub const ONE_HUNDRED_MEGA_BYTES: u32 = 100 * 1024 * 1024;
 
 struct Params(Option<Box<RawValue>>);
 
@@ -73,6 +73,7 @@ impl RpcClient {
                     .max_request_size(ONE_HUNDRED_MEGA_BYTES)
                     .connection_timeout(Duration::from_millis(timeout))
                     .request_timeout(Duration::from_millis(timeout))
+                    .enable_ws_ping(PingConfig::default())
                     .build(uri)
                     .await
                     .map_err(Error::SubxtRpc)?,
@@ -87,6 +88,33 @@ impl RpcClient {
         } else {
             Err(Error::InvalidUrl)
         }
+    }
+
+    /// Create WebSocket RPC client from url and timeout with a custom initializer
+    /// for the WebSocket client builder.
+    pub async fn new_ws_custom(
+        uri: &str,
+        timeout: u64,
+        init: impl FnOnce(WsClientBuilder) -> WsClientBuilder,
+    ) -> Result<Self> {
+        log::info!("Connecting to {uri} ...");
+
+        if !uri.starts_with("ws") {
+            return Err(Error::InvalidUrl);
+        }
+
+        let builder = init(
+            WsClientBuilder::default()
+                .max_request_size(ONE_HUNDRED_MEGA_BYTES)
+                .connection_timeout(Duration::from_millis(timeout))
+                .request_timeout(Duration::from_millis(timeout))
+                .enable_ws_ping(PingConfig::default()),
+        );
+        builder
+            .build(uri)
+            .await
+            .map(Self::Ws)
+            .map_err(Error::SubxtRpc)
     }
 }
 
@@ -161,6 +189,22 @@ impl Rpc {
     /// Create RPC client from url and timeout.
     pub async fn new(uri: &str, timeout: u64, retries: u8) -> Result<Self> {
         let rpc = SubxtRpcClient::new(RpcClient::new(uri, timeout).await?);
+        let methods = LegacyRpcMethods::new(rpc.clone());
+        Ok(Self {
+            rpc,
+            methods,
+            retries,
+        })
+    }
+
+    /// Create WebSocket RPC client from url and timeout with a custom initializer
+    pub async fn new_ws_custom(
+        uri: &str,
+        timeout: u64,
+        retries: u8,
+        init: impl FnOnce(WsClientBuilder) -> WsClientBuilder,
+    ) -> Result<Self> {
+        let rpc = SubxtRpcClient::new(RpcClient::new_ws_custom(uri, timeout, init).await?);
         let methods = LegacyRpcMethods::new(rpc.clone());
         Ok(Self {
             rpc,

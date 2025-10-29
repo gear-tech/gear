@@ -20,11 +20,13 @@ use super::ProcessingHandler;
 use crate::{ProcessorError, Result};
 use ethexe_common::{
     ScheduledTask,
-    db::{CodesStorageRead, CodesStorageWrite},
-    events::{MirrorRequestEvent, RouterRequestEvent, WVaraRequestEvent},
+    db::{CodesStorageRO, CodesStorageRW},
+    events::{MirrorRequestEvent, RouterRequestEvent},
     gear::{Origin, ValueClaim},
 };
-use ethexe_runtime_common::state::{Dispatch, Expiring, MailboxMessage, PayloadLookup};
+use ethexe_runtime_common::state::{
+    Dispatch, Expiring, MailboxMessage, ModifiableStorage, PayloadLookup,
+};
 use gear_core::{ids::ActorId, message::SuccessReplyReason};
 
 impl ProcessingHandler {
@@ -43,10 +45,10 @@ impl ProcessingHandler {
 
                 self.transitions.register_new(actor_id);
             }
-            RouterRequestEvent::CodeValidationRequested { .. }
+            RouterRequestEvent::ValidatorsCommittedForEra { .. }
+            | RouterRequestEvent::CodeValidationRequested { .. }
             | RouterRequestEvent::ComputationSettingsChanged { .. }
-            | RouterRequestEvent::StorageSlotChanged
-            | RouterRequestEvent::NextEraValidatorsCommitted { .. } => {
+            | RouterRequestEvent::StorageSlotChanged => {
                 log::debug!("Handler not yet implemented: {event:?}");
             }
         };
@@ -66,6 +68,11 @@ impl ProcessingHandler {
         }
 
         match event {
+            MirrorRequestEvent::OwnedBalanceTopUpRequested { value } => {
+                self.update_state(actor_id, |state, _, _| {
+                    state.balance += value;
+                });
+            }
             MirrorRequestEvent::ExecutableBalanceTopUpRequested { value } => {
                 self.update_state(actor_id, |state, _, _| {
                     state.executable_balance += value;
@@ -113,7 +120,7 @@ impl ProcessingHandler {
                                 ..
                             },
                         expiry,
-                    }) = state.mailbox_hash.modify_mailbox(storage, |mailbox| {
+                    }) = storage.modify(&mut state.mailbox_hash, |mailbox| {
                         mailbox.remove_and_store_user_mailbox(storage, source, replied_to)
                     })
                     else {
@@ -159,7 +166,7 @@ impl ProcessingHandler {
                                 ..
                             },
                         expiry,
-                    }) = state.mailbox_hash.modify_mailbox(storage, |mailbox| {
+                    }) = storage.modify(&mut state.mailbox_hash, |mailbox| {
                         mailbox.remove_and_store_user_mailbox(storage, source, claimed_id)
                     })
                     else {
@@ -199,15 +206,5 @@ impl ProcessingHandler {
         };
 
         Ok(())
-    }
-
-    pub(crate) fn handle_wvara_event(&mut self, event: WVaraRequestEvent) {
-        match event {
-            WVaraRequestEvent::Transfer { from, to, value } => {
-                if self.transitions.is_program(&to) && !self.transitions.is_program(&from) {
-                    self.update_state(to, |state, _, _| state.balance += value);
-                }
-            }
-        }
     }
 }

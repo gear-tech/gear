@@ -1838,7 +1838,7 @@ dependencies = [
  "bitflags 2.9.4",
  "cexpr",
  "clang-sys",
- "itertools 0.13.0",
+ "itertools 0.10.5",
  "log",
  "prettyplease 0.2.15",
  "proc-macro2",
@@ -4800,7 +4800,7 @@ dependencies = [
  "gear-utils",
  "gprimitives",
  "log",
- "nonempty 0.12.0",
+ "ntest",
  "thiserror 2.0.12",
  "tokio",
  "wasmparser 0.230.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -4820,11 +4820,17 @@ dependencies = [
  "ethexe-service-utils",
  "ethexe-signer",
  "futures",
+ "gear-utils",
  "gprimitives",
- "log",
+ "hashbrown 0.14.5",
  "nonempty 0.12.0",
+ "ntest",
  "parity-scale-codec",
+ "rand 0.8.5",
+ "rand_chacha 0.3.1",
+ "roast-secp256k1-evm",
  "tokio",
+ "tracing",
 ]
 
 [[package]]
@@ -4839,13 +4845,12 @@ dependencies = [
  "ethexe-runtime-common",
  "gear-core",
  "gprimitives",
- "log",
- "nonempty 0.12.0",
  "parity-scale-codec",
  "paste",
  "rocksdb",
  "scopeguard",
  "tempfile",
+ "tracing",
 ]
 
 [[package]]
@@ -4867,6 +4872,7 @@ dependencies = [
  "rand 0.8.5",
  "roast-secp256k1-evm",
  "tokio",
+ "tracing",
 ]
 
 [[package]]
@@ -4876,6 +4882,7 @@ dependencies = [
  "anyhow",
  "assert_matches",
  "async-trait",
+ "auto_impl",
  "derive_more 2.0.1",
  "ethexe-common",
  "ethexe-db",
@@ -4887,6 +4894,8 @@ dependencies = [
  "libp2p 0.55.0",
  "libp2p-swarm-test",
  "log",
+ "lru 0.16.1",
+ "nonempty 0.12.0",
  "parity-scale-codec",
  "rand 0.8.5",
  "tokio",
@@ -4907,8 +4916,8 @@ dependencies = [
  "gear-utils",
  "gprimitives",
  "log",
- "nonempty 0.12.0",
  "tokio",
+ "tracing",
  "wasmparser 0.230.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "wat",
 ]
@@ -4984,6 +4993,7 @@ dependencies = [
 name = "ethexe-runtime"
 version = "1.9.2"
 dependencies = [
+ "ethexe-common",
  "ethexe-runtime-common",
  "gear-core",
  "gear-core-processor",
@@ -5045,7 +5055,6 @@ dependencies = [
  "gear-core-errors",
  "gprimitives",
  "log",
- "nonempty 0.12.0",
  "ntest",
  "parity-scale-codec",
  "rand 0.8.5",
@@ -6780,7 +6789,6 @@ dependencies = [
  "log",
  "pathdiff",
  "regex",
- "rustc_version 0.4.1",
  "thiserror 2.0.12",
  "toml 0.8.14",
 ]
@@ -6837,6 +6845,7 @@ dependencies = [
  "gear-wasm-instrument",
  "log",
  "regex",
+ "rustc_version 0.4.1",
  "wasmer",
  "wasmparser 0.230.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "wat",
@@ -10028,6 +10037,15 @@ name = "lru"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "227748d55f2f0ab4735d87fd623798cb6b664512fe979705f829c9f81c934465"
+dependencies = [
+ "hashbrown 0.15.2",
+]
+
+[[package]]
+name = "lru"
+version = "0.16.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bfe949189f46fabb938b3a9a0be30fdd93fd8a09260da863399a8cf3db756ec8"
 dependencies = [
  "hashbrown 0.15.2",
 ]

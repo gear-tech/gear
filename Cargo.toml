@@ -182,6 +182,7 @@ syn = "2.0.71"
 thiserror = { version = "2.0.12", default-features = false }
 tokio = { version = "1.38.0" }
 uluru = "3.1.0"
+lru = "0.16.1"
 url = "2.5.2"
 wat = "1.0.71"
 wasmer = { version = "6.1.0", default-features = false, features = [
@@ -213,6 +214,7 @@ assert_matches = "1.5.0"
 nonempty = { version = "0.12.0", default-features = false }
 cc = "1.2.37"
 tap = "1.0.1"
+ntest = "0.9.3"
 
 # Published deps
 #
