@@ -140,7 +140,7 @@ impl TestEnv {
                 slots_in_epoch,
                 genesis_timestamp,
             } => {
-                let mut anvil = Anvil::new();
+                let mut anvil = Anvil::new().args(["--hardfork", "osaka"]);
 
                 if let Some(slots_in_epoch) = slots_in_epoch {
                     anvil = anvil.arg(format!("--slots-in-an-epoch={slots_in_epoch}"));
