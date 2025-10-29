@@ -36,9 +36,10 @@ use ethexe_common::{
     gear::Origin,
     mock::*,
 };
+use ethexe_compute::ComputeConfig;
 use ethexe_db::{Database, verifier::IntegrityVerifier};
 use ethexe_ethereum::deploy::ContractsDeploymentParams;
-use ethexe_observer::EthereumConfig;
+use ethexe_observer::{EthereumConfig, ObserverEvent};
 use ethexe_prometheus::PrometheusConfig;
 use ethexe_rpc::RpcConfig;
 use ethexe_runtime_common::state::{Expiring, MailboxMessage, PayloadLookup, Storage};
@@ -54,6 +55,7 @@ use parity_scale_codec::Encode;
 use std::{
     collections::{BTreeMap, BTreeSet},
     net::{Ipv4Addr, SocketAddr},
+    ops::Add,
     time::Duration,
 };
 use tempfile::tempdir;
@@ -1431,4 +1433,95 @@ async fn validators_election() {
         .await
         .unwrap();
     assert!(res.valid);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ntest::timeout(60_000)]
+async fn execution_with_canonical_events_maturity() {
+    init_logger();
+
+    let config = TestEnvConfig {
+        // validators: ValidatorsConfig::PreDefined(2),
+        network: EnvNetworkConfig::Enabled,
+        compute_config: ComputeConfig::production(),
+        continuous_block_generation: false,
+        ..Default::default()
+    };
+    let mut env = TestEnv::new(config).await.unwrap();
+
+    log::info!("📗 Starting validator");
+    let mut validator = env.new_node(NodeConfig::default().validator(env.validators[0]));
+    validator.start_service().await;
+
+    let uploaded_code = env
+        .upload_code(demo_ping::WASM_BINARY)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert!(uploaded_code.valid);
+
+    let res = env
+        .create_program(uploaded_code.code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert_eq!(res.code_id, uploaded_code.code_id);
+
+    let events_maturity_period = env.compute_config.events_maturity_period();
+    let message_id = env
+        .send_message(res.program_id, b"PING", 0)
+        .await
+        .unwrap()
+        .message_id;
+
+    // Mine extra 1 block to receive reply in it.
+    env.provider
+        .anvil_mine(Some(events_maturity_period.add(20).into()), Some(1))
+        .await
+        .unwrap();
+
+    let mut listener = env.observer_events_publisher().subscribe().await;
+
+    let mut skipped_blocks = 0;
+    listener
+        .apply_until(|event| {
+            let ObserverEvent::BlockSynced(block_hash) = event.clone() else {
+                return Ok(None);
+            };
+
+            let Some(block_events) = validator.db.block_events(block_hash) else {
+                skipped_blocks += 1;
+                return Ok(None);
+            };
+
+            if skipped_blocks < events_maturity_period {
+                skipped_blocks += 1;
+                return Ok(None);
+            }
+
+            for block_event in block_events {
+                if let BlockEvent::Mirror {
+                    actor_id: _,
+                    event:
+                        MirrorEvent::Reply {
+                            payload,
+                            value: _,
+                            reply_to,
+                            reply_code: _,
+                        },
+                } = block_event
+                    && reply_to == message_id
+                    && payload == b"PONG"
+                {
+                    return Ok(Some(()));
+                }
+            }
+            Ok(None)
+        })
+        .await
+        .unwrap();
 }

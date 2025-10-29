@@ -20,8 +20,8 @@ use crate::{ComputeError, ProcessorExt, Result, service::SubService};
 use ethexe_common::{
     Announce, HashOf,
     db::{
-        AnnounceStorageRO, AnnounceStorageRW, BlockMetaStorageRO, LatestDataStorageRW,
-        OnChainStorageRO,
+        AnnounceStorageRO, AnnounceStorageRW, BlockMetaStorageRO, LatestDataStorageRO,
+        LatestDataStorageRW, OnChainStorageRO,
     },
     events::BlockEvent,
 };
@@ -173,16 +173,26 @@ impl<P: ProcessorExt> ComputeSubService<P> {
         Ok(announce_hash)
     }
 
+    /// Finds events from Ethereum in database which can be processed in current block.
     fn find_matured_cononical_events(
         db: &Database,
         mut block_hash: H256,
         events_maturity_period: u8,
     ) -> Result<Vec<BlockEvent>> {
+        let genesis_block = db
+            .latest_data()
+            .ok_or_else(|| ComputeError::LatestDataNotFound)?
+            .genesis_block_hash;
+
         let mut block_header = db
             .block_header(block_hash)
             .ok_or_else(|| ComputeError::BlockHeaderNotFound(block_hash))?;
 
         for _ in 0..events_maturity_period {
+            if block_hash == genesis_block {
+                return Ok(Default::default());
+            }
+
             let parent_hash = block_header.parent_hash;
             let parent_header = db
                 .block_header(parent_hash)

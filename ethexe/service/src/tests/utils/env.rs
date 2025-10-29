@@ -101,6 +101,7 @@ pub struct TestEnv {
     pub threshold: u64,
     pub block_time: Duration,
     pub continuous_block_generation: bool,
+    pub compute_config: ComputeConfig,
 
     router_query: RouterQuery,
     /// In order to reduce amount of observers, we create only one observer and broadcast events to all subscribers.
@@ -126,6 +127,7 @@ impl TestEnv {
             continuous_block_generation,
             network,
             deploy_params,
+            compute_config,
         } = config;
 
         log::info!(
@@ -339,6 +341,7 @@ impl TestEnv {
             threshold,
             block_time,
             continuous_block_generation,
+            compute_config,
             router_query,
             broadcaster,
             db,
@@ -392,6 +395,7 @@ impl TestEnv {
             network_bootstrap_address,
             service_rpc_config,
             fast_sync,
+            compute_config: self.compute_config,
         }
     }
 
@@ -665,6 +669,8 @@ pub struct TestEnvConfig {
     pub network: EnvNetworkConfig,
     /// Smart contracts deploy configuration.
     pub deploy_params: ContractsDeploymentParams,
+    /// Compute service configuration
+    pub compute_config: ComputeConfig,
 }
 
 impl Default for TestEnvConfig {
@@ -685,6 +691,7 @@ impl Default for TestEnvConfig {
             continuous_block_generation: false,
             network: EnvNetworkConfig::Disabled,
             deploy_params: Default::default(),
+            compute_config: ComputeConfig::new_with_zero_maturity(),
         }
     }
 }
@@ -814,6 +821,7 @@ pub struct Node {
     network_bootstrap_address: Option<String>,
     service_rpc_config: Option<RpcConfig>,
     fast_sync: bool,
+    compute_config: ComputeConfig,
 }
 
 impl Node {
@@ -824,9 +832,7 @@ impl Node {
         );
 
         let processor = Processor::new(self.db.clone()).unwrap();
-
-        let compute_config = ComputeConfig::new_with_zero_maturity();
-        let compute = ComputeService::new(compute_config, self.db.clone(), processor);
+        let compute = ComputeService::new(self.compute_config, self.db.clone(), processor);
 
         let observer = ObserverService::new(&self.eth_cfg, u32::MAX, self.db.clone())
             .await
