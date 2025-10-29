@@ -177,6 +177,8 @@ impl ValidatorCore {
         Ok(None)
     }
 
+    // TODO +_+_+: return must be Result<Status, Error>, where Status indicates whether validation passed or failed
+    // and Error indicates node errors (e.g. db errors)
     pub async fn validate_batch_commitment_request(
         mut self,
         block: SimpleBlockData,
@@ -219,26 +221,19 @@ impl ValidatorCore {
         );
 
         let chain_commitment = if let Some(head) = head {
-            let local_announces = self.db.block_meta(block.hash).announces.ok_or_else(|| {
-                anyhow!(
-                    "Cannot get from db block announces for block {}",
-                    block.hash
-                )
-            })?;
-            assert_eq!(
-                local_announces.len(),
-                1,
-                "There should be only one announce in the current block"
-            );
-            let local_announce = local_announces
-                .first()
-                .copied()
-                .expect("Just checked, that there is one announce");
+            let best_announce_hash = self.best_announce(
+                self.db
+                    .block_meta(block.hash)
+                    .announces
+                    .into_iter()
+                    .flatten(),
+            )?;
 
-            // TODO #4791: support head != current block hash, have to check head is predecessor of current block
+            // TODO #4791: support commitment head from another block in chain,
+            // have to check head block is predecessor of current block
             ensure!(
-                head == local_announce,
-                "Head cannot be different from current block hash"
+                head == best_announce_hash,
+                "Requested for validation head announce {head} is not known best announce {best_announce_hash}"
             );
 
             utils::aggregate_chain_commitment(
@@ -276,13 +271,12 @@ impl ValidatorCore {
         )?
         .ok_or_else(|| anyhow!("Batch commitment is empty for current block"))?;
 
-        if batch.to_digest() != digest {
-            Err(anyhow!(
-                "Requested and local batch commitment digests mismatch"
-            ))
-        } else {
-            Ok(digest)
-        }
+        ensure!(
+            batch.to_digest() == digest,
+            "Requested and local batch commitment digests mismatch"
+        );
+
+        Ok(digest)
     }
 
     /// Returns announce hash from T1S3 or global start announce
@@ -334,12 +328,6 @@ impl ValidatorCore {
     /// Returns announce hash, which is supposed to be best to produce a new announce above.
     /// Used to produce new announce or validate announce from producer.
     pub fn best_parent_announce(&self, block_hash: H256) -> Result<HashOf<Announce>> {
-        let start_announce_hash = self
-            .db
-            .latest_data()
-            .ok_or_else(|| anyhow!("Latest data not found"))?
-            .start_announce_hash;
-
         // We do not take announces directly from parent announces,
         // because some of them may be expired at `block_hash`.
         let parent_announces = self.announces_parents(
@@ -350,21 +338,35 @@ impl ValidatorCore {
                 .flatten(),
         )?;
 
-        let mut best_announce_hash = None;
-        let mut best_announce_points = 0;
-        for parent_announce_hash in parent_announces {
+        self.best_announce(parent_announces)
+    }
+
+    pub fn best_announce(
+        &self,
+        announces: impl IntoIterator<Item = HashOf<Announce>>,
+    ) -> Result<HashOf<Announce>> {
+        let mut announces = announces.into_iter();
+        let Some(first) = announces.next() else {
+            return Err(anyhow!("No announces provided"));
+        };
+
+        let start_announce_hash = self
+            .db
+            .latest_data()
+            .ok_or_else(|| anyhow!("Latest data not found"))?
+            .start_announce_hash;
+
+        let announce_points = |mut announce_hash| -> Result<u32> {
             let mut points = 0;
-            let mut announce_hash = parent_announce_hash;
             for _ in 0..self.commitment_delay_limit {
                 let announce = self
                     .db
                     .announce(announce_hash)
                     .ok_or_else(|| anyhow!("Announce {announce_hash} not found in db"))?;
 
-                // Base announce gives 1 point, non-base - 2 points.
-                // Why not 0 and 1? Only to avoid confusion with zero points,
-                // which is set at the beginning as best.
-                points += if announce.is_base() { 1 } else { 2 };
+                // Base announce gives 0 points, non-base - 1 point.
+                // To prefer non-base announces, when select best chain.
+                points += if announce.is_base() { 0 } else { 1 };
 
                 if announce_hash == start_announce_hash {
                     break;
@@ -373,13 +375,21 @@ impl ValidatorCore {
                 announce_hash = announce.parent;
             }
 
+            Ok(points)
+        };
+
+        let mut best_announce_hash = first;
+        let mut best_announce_points = announce_points(first)?;
+        for announce_hash in announces {
+            let points = announce_points(announce_hash)?;
+
             if points > best_announce_points {
                 best_announce_points = points;
-                best_announce_hash = Some(parent_announce_hash);
+                best_announce_hash = announce_hash;
             }
         }
 
-        best_announce_hash.ok_or_else(|| anyhow!("No announces found in db for block {block_hash}"))
+        Ok(best_announce_hash)
     }
 
     pub fn announces_parents(

@@ -31,7 +31,8 @@ use ethexe_consensus::{ConsensusEvent, ConsensusService, ValidatorConfig, Valida
 use ethexe_db::{Database, RocksDatabase};
 use ethexe_ethereum::{Ethereum, router::RouterQuery};
 use ethexe_network::{
-    NetworkEvent, NetworkRuntimeConfig, NetworkService, db_sync::ExternalDataProvider,
+    NetworkEvent, NetworkRuntimeConfig, NetworkService,
+    db_sync::{self, ExternalDataProvider},
 };
 use ethexe_observer::{ObserverEvent, ObserverService};
 use ethexe_processor::{Processor, ProcessorConfig};
@@ -40,7 +41,7 @@ use ethexe_rpc::{RpcEvent, RpcService};
 use ethexe_service_utils::{OptionFuture as _, OptionStreamNext as _};
 use ethexe_signer::Signer;
 use ethexe_tx_pool::{TxPoolEvent, TxPoolService};
-use futures::StreamExt;
+use futures::{StreamExt, stream::FuturesUnordered};
 use gprimitives::{ActorId, CodeId, H256};
 use std::{collections::BTreeSet, pin::Pin, sync::Arc};
 
@@ -60,6 +61,7 @@ pub enum Event {
     Prometheus(PrometheusEvent),
     Rpc(RpcEvent),
     TxPool(TxPoolEvent),
+    Fetching(db_sync::HandleResult),
 }
 
 #[derive(Clone)]
@@ -372,6 +374,8 @@ impl Service {
             .send(tests::utils::TestingEvent::ServiceStarted)
             .expect("failed to broadcast service STARTED event");
 
+        let mut network_fetcher = FuturesUnordered::new();
+
         loop {
             let event: Event = tokio::select! {
                 event = compute.select_next_some() => event?.into(),
@@ -382,6 +386,7 @@ impl Service {
                 event = prometheus.maybe_next_some() => event.into(),
                 event = rpc.maybe_next_some() => event.into(),
                 event = tx_pool.select_next_some() => event.into(),
+                fetching_result = network_fetcher.maybe_next_some() => Event::Fetching(fetching_result),
                 _ = rpc_handle.as_mut().maybe() => {
                     log::info!("`RPCWorker` has terminated, shutting down...");
                     continue;
@@ -540,14 +545,12 @@ impl Service {
                     ConsensusEvent::Warning(msg) => {
                         log::warn!("Consensus service warning: {msg}");
                     }
-                    ConsensusEvent::RequestAnnounces(_request) => {
-                        let Some(_network) = network.as_mut() else {
+                    ConsensusEvent::RequestAnnounces(request) => {
+                        let Some(network) = network.as_mut() else {
                             continue;
                         };
 
-                        todo!("Implement announces request handling via network");
-
-                        // network.request_announces(request);
+                        network_fetcher.push(network.db_sync_handle().request(request.into()));
                     }
                 },
                 Event::TxPool(event) => match event {
@@ -563,6 +566,26 @@ impl Service {
                         n.publish_offchain_transaction(transaction);
                     }
                 },
+                Event::Fetching(result) => {
+                    let Some(network) = network.as_mut() else {
+                        unreachable!("Fetching event is impossible without network service");
+                    };
+
+                    match result {
+                        Ok(db_sync::Response::Announces(response)) => {
+                            consensus.receive_announces_response(response)?;
+                        }
+                        Ok(resp) => {
+                            panic!("only announces are requested currently, but got: {resp:?}");
+                        }
+                        Err((err, request)) => {
+                            log::trace!(
+                                "Retry fetching external data for request {request:?} due to error: {err:?}"
+                            );
+                            network_fetcher.push(network.db_sync_handle().retry(request));
+                        }
+                    }
+                }
             }
         }
     }

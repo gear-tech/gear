@@ -79,7 +79,7 @@ pub trait ConsensusService:
     fn receive_validation_reply(&mut self, reply: BatchCommitmentValidationReply) -> Result<()>;
 
     /// Process a request for announces
-    fn request_announces(&mut self, response: CheckedAnnouncesResponse) -> Result<()>;
+    fn receive_announces_response(&mut self, response: CheckedAnnouncesResponse) -> Result<()>;
 }
 
 #[derive(

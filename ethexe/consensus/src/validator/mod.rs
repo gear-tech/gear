@@ -218,7 +218,7 @@ impl ConsensusService for ValidatorService {
         self.update_inner(|inner| inner.process_validation_reply(reply))
     }
 
-    fn request_announces(&mut self, response: CheckedAnnouncesResponse) -> Result<()> {
+    fn receive_announces_response(&mut self, response: CheckedAnnouncesResponse) -> Result<()> {
         self.update_inner(|inner| inner.process_announces_response(response))
     }
 }

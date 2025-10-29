@@ -97,11 +97,13 @@ impl StateHandler for Initial {
         {
             let chain = self.ctx.core.collect_blocks_without_announces(block.hash)?;
 
+            tracing::trace!(block = %block.hash, "Collected blocks without announces: {chain:?}");
+
             if let Some(first_block) = chain.front()
                 && let Some(request) = self
                     .ctx
                     .core
-                    .check_for_missing_announces(first_block.header.parent_hash)?
+                    .check_for_missing_announces(block_hash, first_block.header.parent_hash)?
             {
                 tracing::debug!(
                     "Missing announces detected for block {block_hash}, send request: {request:?}"
@@ -119,6 +121,8 @@ impl StateHandler for Initial {
                 }
                 .into())
             } else {
+                tracing::debug!(block = %block.hash, "No missing announces");
+
                 self.ctx
                     .core
                     .propagate_announces(chain, Default::default())?;
@@ -212,13 +216,9 @@ impl ValidatorContext {
 }
 
 impl ValidatorCore {
-    fn collect_blocks_without_announces(
-        &self,
-        starting_block: H256,
-    ) -> Result<VecDeque<SimpleBlockData>> {
+    fn collect_blocks_without_announces(&self, head: H256) -> Result<VecDeque<SimpleBlockData>> {
         let mut blocks = VecDeque::new();
-        let mut current_block = starting_block;
-
+        let mut current_block = head;
         loop {
             let header = self
                 .db
@@ -393,21 +393,38 @@ impl ValidatorCore {
 
     fn check_for_missing_announces(
         &self,
+        head: H256,
         last_with_announces_block_hash: H256,
     ) -> Result<Option<AnnouncesRequest>> {
         let last_committed_announce_hash = self
             .db
-            .block_meta(last_with_announces_block_hash)
+            .block_meta(head)
             .last_committed_announce
-            .ok_or_else(|| {
-                anyhow!(
-                    "last committed announce not found for block {last_with_announces_block_hash}",
-                )
-            })?;
+            .ok_or_else(|| anyhow!("last committed announce not found for block {head}"))?;
 
         if self.announce_is_included(last_committed_announce_hash) {
             // announce is already included, no need to request announces
-            // +_+_+ debug check if all announces in the chain are present
+
+            #[cfg(debug_assertions)]
+            {
+                // debug check that all announces in the chain are present (check only up to 100 announces)
+                let mut announce_hash = last_committed_announce_hash;
+                let mut count = 0;
+                while count < 100 && announce_hash != HashOf::zero() {
+                    assert!(
+                        self.announce_is_included(announce_hash),
+                        "announce {announce_hash} must be included"
+                    );
+
+                    announce_hash = self
+                        .db
+                        .announce(announce_hash)
+                        .unwrap_or_else(|| panic!("announce {announce_hash} not found"))
+                        .parent;
+                    count += 1;
+                }
+            }
+
             Ok(None)
         } else {
             // announce is unknown, or not included, so there can be missing announces

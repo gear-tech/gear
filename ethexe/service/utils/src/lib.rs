@@ -18,7 +18,10 @@
 
 #![allow(async_fn_in_trait)]
 
-use futures::{StreamExt, future, stream::FusedStream};
+use futures::{
+    StreamExt, future,
+    stream::{FusedStream, FuturesUnordered},
+};
 use std::future::Future;
 
 pub use task_local::LocalKey;
@@ -28,10 +31,13 @@ mod task_local;
 mod timer;
 
 mod private {
+    use futures::stream::FuturesUnordered;
+
     pub trait Sealed {}
 
     impl<T> Sealed for Option<T> {}
     impl<T> Sealed for &mut Option<T> {}
+    impl<F> Sealed for &mut FuturesUnordered<F> {}
 }
 
 pub trait OptionFuture<T>: private::Sealed {
@@ -61,6 +67,20 @@ impl<S: StreamExt + FusedStream + Unpin> OptionStreamNext<S::Item> for &mut Opti
 
     async fn maybe_next_some(self) -> S::Item {
         self.as_mut().map(StreamExt::select_next_some).maybe().await
+    }
+}
+
+impl<F: Future> OptionStreamNext<F::Output> for &mut FuturesUnordered<F> {
+    async fn maybe_next(self) -> Option<F::Output> {
+        unimplemented!("Do not use maybe_next on FuturesUnordered");
+    }
+
+    async fn maybe_next_some(self) -> F::Output {
+        if let Some(res) = self.next().await {
+            res
+        } else {
+            future::pending().await
+        }
     }
 }
 
