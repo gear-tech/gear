@@ -19,7 +19,11 @@
 use super::{
     StateHandler, ValidatorContext, ValidatorState, coordinator::Coordinator, initial::Initial,
 };
-use crate::{ConsensusEvent, validator::DefaultProcessing};
+use crate::{
+    ConsensusEvent,
+    announces::{self, DBExt},
+    validator::DefaultProcessing,
+};
 use anyhow::{Result, anyhow};
 use derive_more::{Debug, Display};
 use ethexe_common::{
@@ -163,7 +167,11 @@ impl Producer {
             ));
         }
 
-        let parent = self.ctx.core.best_parent_announce(self.block.hash)?;
+        let parent = announces::best_parent_announce(
+            &self.ctx.core.db,
+            self.block.hash,
+            self.ctx.core.commitment_delay_limit,
+        )?;
 
         let announce = Announce {
             block_hash: self.block.hash,
@@ -177,7 +185,7 @@ impl Producer {
         // abuse from rpc - the same eth block is announced multiple times,
         // then the same announce is created multiple times, and include_announce would fail,
         // because announce is already included.
-        let announce_hash = self.ctx.core.include_announce(announce.clone())?;
+        let announce_hash = self.ctx.core.db.include_announce(announce.clone())?;
 
         let message = ValidatorMessage {
             block: self.block.hash,

@@ -22,18 +22,17 @@ use super::{
     DefaultProcessing, StateHandler, ValidatorContext, ValidatorState, producer::Producer,
     subordinate::Subordinate,
 };
-use crate::{utils, validator::core::ValidatorCore};
+use crate::{
+    announces::{self, DBExt},
+    utils,
+};
 use anyhow::{Result, anyhow};
 use derive_more::{Debug, Display};
 use ethexe_common::{
-    Announce, HashOf, SimpleBlockData,
-    db::{
-        AnnounceStorageRO, AnnounceStorageRW, BlockMetaStorageRO, BlockMetaStorageRW,
-        OnChainStorageRO,
-    },
-    network::{AnnouncesRequest, AnnouncesRequestUntil, CheckedAnnouncesResponse},
+    SimpleBlockData,
+    db::OnChainStorageRO,
+    network::{AnnouncesRequest, CheckedAnnouncesResponse},
 };
-use ethexe_ethereum::primitives::map::HashMap;
 use gprimitives::H256;
 
 /// [`Initial`] is the first state of the validator.
@@ -95,15 +94,21 @@ impl StateHandler for Initial {
         if let WaitingFor::PreparedBlock(block) = &self.state
             && block.hash == block_hash
         {
-            let chain = self.ctx.core.collect_blocks_without_announces(block.hash)?;
+            let chain = self
+                .ctx
+                .core
+                .db
+                .collect_blocks_without_announces(block_hash)?;
 
             tracing::trace!(block = %block.hash, "Collected blocks without announces: {chain:?}");
 
             if let Some(first_block) = chain.front()
-                && let Some(request) = self
-                    .ctx
-                    .core
-                    .check_for_missing_announces(block_hash, first_block.header.parent_hash)?
+                && let Some(request) = announces::check_for_missing_announces(
+                    &self.ctx.core.db,
+                    block_hash,
+                    first_block.header.parent_hash,
+                    self.ctx.core.commitment_delay_limit,
+                )?
             {
                 tracing::debug!(
                     "Missing announces detected for block {block_hash}, send request: {request:?}"
@@ -123,9 +128,13 @@ impl StateHandler for Initial {
             } else {
                 tracing::debug!(block = %block.hash, "No missing announces");
 
-                self.ctx
-                    .core
-                    .propagate_announces(chain, Default::default())?;
+                announces::propagate_announces(
+                    &self.ctx.core.db,
+                    chain,
+                    self.ctx.core.commitment_delay_limit,
+                    Default::default(),
+                )?;
+
                 self.ctx.switch_to_producer_or_subordinate(block.clone())
             }
         } else {
@@ -151,9 +160,14 @@ impl StateHandler for Initial {
                     .into_iter()
                     .map(|a| (a.to_hash(), a))
                     .collect();
-                self.ctx
-                    .core
-                    .propagate_announces(chain, missing_announces)?;
+
+                announces::propagate_announces(
+                    &self.ctx.core.db,
+                    chain,
+                    self.ctx.core.commitment_delay_limit,
+                    missing_announces,
+                )?;
+
                 self.ctx.switch_to_producer_or_subordinate(block)
             }
             state => {
@@ -215,267 +229,13 @@ impl ValidatorContext {
     }
 }
 
-impl ValidatorCore {
-    fn collect_blocks_without_announces(&self, head: H256) -> Result<VecDeque<SimpleBlockData>> {
-        let mut blocks = VecDeque::new();
-        let mut current_block = head;
-        loop {
-            let header = self
-                .db
-                .block_header(current_block)
-                .ok_or_else(|| anyhow!("header not found for block({current_block})"))?;
-
-            if self.db.block_meta(current_block).announces.is_some() {
-                break;
-            }
-
-            blocks.push_front(SimpleBlockData {
-                hash: current_block,
-                header,
-            });
-            current_block = header.parent_hash;
-        }
-
-        Ok(blocks)
-    }
-
-    fn propagate_announces(
-        &self,
-        chain: VecDeque<SimpleBlockData>,
-        mut missing_announces: HashMap<HashOf<Announce>, Announce>,
-    ) -> Result<()> {
-        // iterate over the collected blocks from oldest to newest and propagate announces
-        for block in chain {
-            debug_assert!(
-                self.db.block_meta(block.hash).announces.is_none(),
-                "Block {} should not have announces propagated yet",
-                block.hash
-            );
-
-            let last_committed_announce_hash = self
-                .db
-                .block_meta(block.hash)
-                .last_committed_announce
-                .ok_or_else(|| {
-                    anyhow!(
-                        "Last committed announce hash not found for prepared block({})",
-                        block.hash
-                    )
-                })?;
-
-            self.announces_chain_recovery_if_needed(
-                last_committed_announce_hash,
-                &mut missing_announces,
-            )?;
-
-            for parent_announce_hash in self
-                .db
-                .block_meta(block.header.parent_hash)
-                .announces
-                .ok_or_else(|| {
-                    anyhow!(
-                        "Parent block({}) announces are missing",
-                        block.header.parent_hash
-                    )
-                })?
-            {
-                self.propagate_one_base_announce(
-                    block.hash,
-                    parent_announce_hash,
-                    last_committed_announce_hash,
-                )?;
-            }
-        }
-
-        Ok(())
-    }
-
-    fn announces_chain_recovery_if_needed(
-        &self,
-        last_committed_announce_hash: HashOf<Announce>,
-        missing_announces: &mut HashMap<HashOf<Announce>, Announce>,
-    ) -> Result<()> {
-        let mut announce_hash = last_committed_announce_hash;
-        while !self.announce_is_included(announce_hash) {
-            tracing::debug!(announce = %announce_hash, "Committed announces was not included yet, including...");
-
-            let announce = missing_announces.remove(&announce_hash).ok_or_else(|| {
-                anyhow!("Committed announce {announce_hash} not found in missing announces")
-            })?;
-
-            announce_hash = announce.parent;
-
-            self.include_announce(announce)?;
-        }
-
-        Ok(())
-    }
-
-    /// Create a new base announce from provided parent announce hash.
-    /// Compute the announce and store related data in the database.
-    fn propagate_one_base_announce(
-        &self,
-        block_hash: H256,
-        parent_announce_hash: HashOf<Announce>,
-        last_committed_announce_hash: HashOf<Announce>,
-    ) -> Result<()> {
-        tracing::trace!(
-            block = %block_hash,
-            parent_announce = %parent_announce_hash,
-            last_committed_announce = %last_committed_announce_hash,
-            "Trying propagating announce from parent announce",
-        );
-
-        // Check that parent announce branch is not expired
-        // The branch is expired if:
-        // 1. It does not includes last committed announce
-        // 2. If it includes not committed and not base announce, which is older than commitment delay limit.
-        //
-        // We check here till commitment delay limit, because T1 guaranties that enough.
-        let mut predecessor = parent_announce_hash;
-        for i in 0..=self.commitment_delay_limit {
-            if predecessor == last_committed_announce_hash {
-                // We found last committed announce in the branch, until commitment delay limit
-                // that means this branch is still not expired.
-                break;
-            }
-
-            let predecessor_announce = self
-                .db
-                .announce(predecessor)
-                .ok_or_else(|| anyhow!("announce({predecessor}) not found"))?;
-
-            if i == self.commitment_delay_limit - 1 && !predecessor_announce.is_base() {
-                // We reached the oldest announce in commitment delay limit which is not not committed yet.
-                // This announce cannot be committed any more if it is not base announce,
-                // so this branch is expired and we have to skip propagation from `parent`.
-                tracing::trace!(
-                    predecessor = %predecessor,
-                    parent_announce = %parent_announce_hash,
-                    "predecessor is too old and not base, so parent announce branch is expired",
-                );
-                return Ok(());
-            }
-
-            // Check neighbor announces to be last committed announce
-            if self
-                .db
-                .block_meta(predecessor_announce.block_hash)
-                .announces
-                .ok_or_else(|| {
-                    anyhow!(
-                        "announces are missing for block({})",
-                        predecessor_announce.block_hash
-                    )
-                })?
-                .contains(&last_committed_announce_hash)
-            {
-                // We found last committed announce in the neighbor branch, until commitment delay limit
-                // that means this branch is already expired.
-                return Ok(());
-            };
-
-            predecessor = predecessor_announce.parent;
-        }
-
-        let new_base_announce = Announce::base(block_hash, parent_announce_hash);
-
-        tracing::trace!(
-            parent_announce = %parent_announce_hash,
-            new_base_announce = %new_base_announce.to_hash(),
-            "branch from parent announce is not expired, propagating new base announce",
-        );
-
-        self.include_announce(new_base_announce)?;
-
-        Ok(())
-    }
-
-    fn check_for_missing_announces(
-        &self,
-        head: H256,
-        last_with_announces_block_hash: H256,
-    ) -> Result<Option<AnnouncesRequest>> {
-        let last_committed_announce_hash = self
-            .db
-            .block_meta(head)
-            .last_committed_announce
-            .ok_or_else(|| anyhow!("last committed announce not found for block {head}"))?;
-
-        if self.announce_is_included(last_committed_announce_hash) {
-            // announce is already included, no need to request announces
-
-            #[cfg(debug_assertions)]
-            {
-                // debug check that all announces in the chain are present (check only up to 100 announces)
-                let mut announce_hash = last_committed_announce_hash;
-                let mut count = 0;
-                while count < 100 && announce_hash != HashOf::zero() {
-                    assert!(
-                        self.announce_is_included(announce_hash),
-                        "announce {announce_hash} must be included"
-                    );
-
-                    announce_hash = self
-                        .db
-                        .announce(announce_hash)
-                        .unwrap_or_else(|| panic!("announce {announce_hash} not found"))
-                        .parent;
-                    count += 1;
-                }
-            }
-
-            Ok(None)
-        } else {
-            // announce is unknown, or not included, so there can be missing announces
-            // and node needs to request all announces till definitely known one
-            let common_predecessor_announce_hash =
-                self.find_announces_common_predecessor(last_with_announces_block_hash)?;
-
-            Ok(Some(AnnouncesRequest {
-                head: last_committed_announce_hash,
-                until: AnnouncesRequestUntil::Tail(common_predecessor_announce_hash),
-            }))
-        }
-    }
-
-    pub fn announce_is_included(&self, announce_hash: HashOf<Announce>) -> bool {
-        // Consider zero announce hash as always included
-        if announce_hash == HashOf::zero() {
-            return true;
-        }
-
-        self.db
-            .announce(announce_hash)
-            .and_then(|announce| self.db.block_meta(announce.block_hash).announces)
-            .map(|announces| announces.contains(&announce_hash))
-            .unwrap_or(false)
-    }
-
-    pub fn include_announce(&self, announce: Announce) -> Result<HashOf<Announce>> {
-        tracing::trace!(announce = %announce.to_hash(), "Including announce");
-
-        let block_hash = announce.block_hash;
-        let announce_hash = self.db.set_announce(announce);
-
-        let mut not_yet_included = true;
-        self.db.mutate_block_meta(block_hash, |meta| {
-            not_yet_included = meta.announces.get_or_insert_default().insert(announce_hash);
-        });
-
-        not_yet_included.then_some(announce_hash).ok_or_else(|| {
-            anyhow!("announce {announce_hash} for block {block_hash} was already included")
-        })
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use std::num::NonZeroU32;
 
     use super::*;
     use crate::{ConsensusEvent, validator::mock::*};
-    use ethexe_common::{mock::*, network::AnnouncesResponse};
+    use ethexe_common::{Announce, HashOf, db::*, mock::*, network::AnnouncesResponse};
     use gprimitives::H256;
     use nonempty::nonempty;
 

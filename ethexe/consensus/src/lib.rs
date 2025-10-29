@@ -45,6 +45,7 @@ pub use utils::{block_producer_for, block_producer_index};
 pub use validator::{ValidatorConfig, ValidatorService};
 
 // mod connect;
+mod announces;
 mod utils;
 mod validator;
 

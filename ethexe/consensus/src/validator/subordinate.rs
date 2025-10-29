@@ -22,7 +22,8 @@ use super::{
 };
 use crate::{
     ConsensusEvent,
-    validator::{core::ValidatorCore, participant::Participant},
+    announces::{self, AnnounceStatus},
+    validator::participant::Participant,
 };
 use anyhow::Result;
 use derive_more::{Debug, Display};
@@ -168,7 +169,11 @@ impl Subordinate {
     }
 
     fn send_announce_for_computation(mut self, announce: Announce) -> Result<ValidatorState> {
-        match self.ctx.core.accept_announce(announce.clone())? {
+        match announces::accept_announce(
+            &self.ctx.core.db,
+            announce.clone(),
+            self.ctx.core.commitment_delay_limit,
+        )? {
             AnnounceStatus::Accepted(announce_hash) => {
                 self.ctx.output(ConsensusEvent::ComputeAnnounce(announce));
                 self.state = State::WaitingAnnounceComputed { announce_hash };
@@ -179,31 +184,6 @@ impl Subordinate {
                 tracing::warn!("Received announce {announce:?} is rejected: {reason}");
                 Initial::create(self.ctx)
             }
-        }
-    }
-}
-
-enum AnnounceStatus {
-    Accepted(HashOf<Announce>),
-    Rejected { announce: Announce, reason: String },
-}
-
-impl ValidatorCore {
-    fn accept_announce(&self, announce: Announce) -> Result<AnnounceStatus> {
-        let best_parent = self.best_parent_announce(announce.block_hash)?;
-        if best_parent != announce.parent {
-            return Ok(AnnounceStatus::Rejected {
-                announce,
-                reason: format!("best parent is {best_parent}"),
-            });
-        }
-
-        match self.include_announce(announce.clone()) {
-            Ok(announce_hash) => Ok(AnnounceStatus::Accepted(announce_hash)),
-            Err(err) => Ok(AnnounceStatus::Rejected {
-                announce,
-                reason: format!("{err}"),
-            }),
         }
     }
 }
