@@ -190,7 +190,7 @@ async fn collect_announce(
         return Ok(announce);
     }
 
-    let db_sync::Response::Announces(response) = net_fetch(
+    let response = net_fetch(
         network,
         AnnouncesRequest {
             head: announce_hash,
@@ -199,9 +199,7 @@ async fn collect_announce(
         .into(),
     )
     .await?
-    else {
-        anyhow::bail!("Expected Announces response");
-    };
+    .unwrap_announces();
 
     // Response is checked so we can just take the first announce
     let (_, mut announces) = response.into_parts();
