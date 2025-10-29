@@ -60,7 +60,7 @@ pub struct UserMsgFilter {
 #[derive(Clone, Debug, serde::Deserialize)]
 pub struct PayloadFilter {
     pub offset: u32,
-    pub pattern: Vec<u8>,
+    pub pattern: Bytes,
 }
 
 #[derive(Clone, Debug, serde::Serialize)]
