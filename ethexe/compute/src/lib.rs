@@ -16,16 +16,17 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+pub use compute::ComputeConfig;
 use ethexe_common::{Announce, CodeAndIdUnchecked, HashOf, events::BlockRequestEvent};
 use ethexe_processor::{BlockProcessingResult, Processor, ProcessorError};
 use gprimitives::{CodeId, H256};
-pub use service::{ComputeConfig, ComputeService};
+pub use service::ComputeService;
 use std::collections::HashSet;
 
+mod codes;
 mod compute;
 mod prepare;
 mod service;
-mod utils;
 
 #[cfg(test)]
 mod tests;
@@ -41,7 +42,6 @@ pub enum ComputeEvent {
     CodeProcessed(CodeId),
     BlockPrepared(H256),
     AnnounceComputed(HashOf<Announce>),
-    AnnounceRejected(HashOf<Announce>),
 }
 
 #[derive(thiserror::Error, Debug)]

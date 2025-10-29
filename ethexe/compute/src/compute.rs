@@ -16,169 +16,229 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{ComputeError, ProcessorExt, Result, utils};
+use crate::{ComputeError, ProcessorExt, Result, service::SubService};
 use ethexe_common::{
-    Announce, BlockHeader,
+    Announce, HashOf,
     db::{
-        AnnounceStorageRW, BlockMetaStorageRO, BlockMetaStorageRW, LatestDataStorageRW,
+        AnnounceStorageRO, AnnounceStorageRW, BlockMetaStorageRO, LatestDataStorageRW,
         OnChainStorageRO,
     },
     events::BlockEvent,
 };
 use ethexe_db::Database;
 use ethexe_processor::BlockProcessingResult;
+use futures::future::BoxFuture;
 use gprimitives::H256;
+use std::{
+    collections::VecDeque,
+    task::{Context, Poll},
+};
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
-pub(crate) enum ComputationStatus {
-    Rejected,
-    Computed,
-}
+/// [`CANONICAL_EVENTS_MATURITY_PERIOD`] defines the period of blocks to start applying canonical events in current block.
+const CANONICAL_EVENTS_MATURITY_PERIOD: u8 = 16;
 
-pub(crate) async fn compute<P: ProcessorExt>(
-    db: Database,
-    mut processor: P,
-    announce: Announce,
+#[derive(Debug, Clone, Copy)]
+pub struct ComputeConfig {
+    /// The delay in **blocks** in which events from Ethereum will be a be appply.
     events_maturity_period: u8,
-) -> Result<ComputationStatus> {
-    let announce_hash = announce.to_hash();
-    let block_hash = announce.block_hash;
-
-    if !db.block_meta(block_hash).prepared {
-        log::error!("Block {block_hash} is not prepared before announce is coming");
-        return Err(ComputeError::BlockNotPrepared(block_hash));
-    }
-
-    if utils::announce_is_computed_and_included(&db, announce_hash, announce.block_hash)? {
-        log::trace!("{announce:?} is already computed");
-        return Ok(ComputationStatus::Computed);
-    }
-
-    let block_header = db
-        .block_header(block_hash)
-        .ok_or(ComputeError::BlockHeaderNotFound(block_hash))?;
-    if !utils::announce_is_computed_and_included(&db, announce.parent, block_header.parent_hash)? {
-        log::warn!(
-            "{announce:?} is from unknown branch: parent {}",
-            announce.parent
-        );
-        return Ok(ComputationStatus::Rejected);
-    }
-
-    debug_assert!(
-        !announce.is_base(),
-        "Announce cannot be base, else it must be already computed in prepare"
-    );
-
-    let events = find_matured_cononical_events(
-        db.clone(),
-        block_hash,
-        block_header,
-        events_maturity_period,
-    )?;
-
-    let block_request_events = events
-        .into_iter()
-        .filter_map(|event| event.to_request())
-        .collect();
-
-    let processing_result = processor
-        .process_announce(announce.clone(), block_request_events)
-        .await?;
-
-    let BlockProcessingResult {
-        transitions,
-        states,
-        schedule,
-    } = processing_result;
-
-    db.set_announce(announce);
-    db.set_announce_outcome(announce_hash, transitions);
-    db.set_announce_program_states(announce_hash, states);
-    db.set_announce_schedule(announce_hash, schedule);
-
-    db.mutate_announce_meta(announce_hash, |meta| {
-        meta.computed = true;
-    });
-
-    db.mutate_block_meta(block_hash, |meta| {
-        // Currently we replace announces, but we would append in future as separate branch
-        meta.announces = Some([announce_hash].into());
-    });
-
-    db.mutate_latest_data(|data| {
-        data.computed_announce_hash = announce_hash;
-    })
-    .ok_or(ComputeError::LatestDataNotFound)?;
-
-    Ok(ComputationStatus::Computed)
 }
 
-fn find_matured_cononical_events<DB: OnChainStorageRO>(
-    db: DB,
-    mut block_hash: H256,
-    mut block_header: BlockHeader,
-    maturity_period: u8,
-) -> Result<Vec<BlockEvent>> {
-    for _ in 0..maturity_period {
-        let parent_hash = block_header.parent_hash;
-        let parent_header = db
-            .block_header(parent_hash)
-            .ok_or(ComputeError::BlockHeaderNotFound(parent_hash))?;
-
-        block_hash = parent_hash;
-        block_header = parent_header;
+impl ComputeConfig {
+    /// Must use only in testing purposes.
+    /// For production purposes must to use [`ComputeConfig::production`]
+    pub fn new_with_zero_maturity() -> Self {
+        Self {
+            events_maturity_period: 0,
+        }
     }
 
-    db.block_events(block_hash)
-        .ok_or(ComputeError::BlockEventsNotFound(block_hash))
+    /// Constructs [`ComputeConfig`] for using in production purposes.
+    pub fn production() -> Self {
+        Self {
+            events_maturity_period: CANONICAL_EVENTS_MATURITY_PERIOD,
+        }
+    }
+
+    #[inline]
+    pub fn events_maturity_period(&self) -> u8 {
+        self.events_maturity_period
+    }
+}
+
+pub struct ComputeSubService<P: ProcessorExt> {
+    db: Database,
+    processor: P,
+    config: ComputeConfig,
+
+    input: VecDeque<Announce>,
+    computation: Option<BoxFuture<'static, Result<HashOf<Announce>>>>,
+}
+
+impl<P: ProcessorExt> ComputeSubService<P> {
+    pub fn new(config: ComputeConfig, db: Database, processor: P) -> Self {
+        Self {
+            db,
+            processor,
+            config,
+            input: VecDeque::new(),
+            computation: None,
+        }
+    }
+
+    pub fn receive_announce_to_compute(&mut self, announce: Announce) {
+        self.input.push_back(announce);
+    }
+
+    async fn compute(
+        db: Database,
+        config: ComputeConfig,
+        mut processor: P,
+        announce: Announce,
+    ) -> Result<HashOf<Announce>> {
+        let announce_hash = announce.to_hash();
+        let block_hash = announce.block_hash;
+
+        if !db.block_meta(block_hash).prepared {
+            return Err(ComputeError::BlockNotPrepared(block_hash));
+        }
+
+        let mut parent_hash = announce.parent;
+        let mut announces_chain: VecDeque<_> = [(announce_hash, announce)].into();
+        loop {
+            if db.announce_meta(parent_hash).computed {
+                break;
+            }
+
+            let parent_announce = db
+                .announce(parent_hash)
+                .ok_or(ComputeError::AnnounceNotFound(parent_hash))?;
+
+            let next_parent_hash = parent_announce.parent;
+            announces_chain.push_front((parent_hash, parent_announce));
+
+            parent_hash = next_parent_hash;
+        }
+
+        if announces_chain.is_empty() {
+            log::trace!("All announces are already computed");
+            return Ok(announce_hash);
+        }
+
+        for (announce_hash, announce) in announces_chain {
+            Self::compute_one(&db, &mut processor, announce_hash, announce, config).await?;
+        }
+
+        Ok(announce_hash)
+    }
+
+    async fn compute_one(
+        db: &Database,
+        processor: &mut P,
+        announce_hash: HashOf<Announce>,
+        announce: Announce,
+        config: ComputeConfig,
+    ) -> Result<HashOf<Announce>> {
+        let block_hash = announce.block_hash;
+
+        let matured_events =
+            Self::find_matured_cononical_events(db, block_hash, config.events_maturity_period)?;
+
+        let request_events = matured_events
+            .into_iter()
+            .filter_map(|event| event.to_request())
+            .collect();
+
+        let processing_result = processor
+            .process_announce(announce.clone(), request_events)
+            .await?;
+
+        let BlockProcessingResult {
+            transitions,
+            states,
+            schedule,
+        } = processing_result;
+
+        db.set_announce_outcome(announce_hash, transitions);
+        db.set_announce_program_states(announce_hash, states);
+        db.set_announce_schedule(announce_hash, schedule);
+        db.mutate_announce_meta(announce_hash, |meta| {
+            meta.computed = true;
+        });
+
+        db.mutate_latest_data(|data| {
+            data.computed_announce_hash = announce_hash;
+        })
+        .ok_or(ComputeError::LatestDataNotFound)?;
+
+        Ok(announce_hash)
+    }
+
+    fn find_matured_cononical_events(
+        db: &Database,
+        mut block_hash: H256,
+        events_maturity_period: u8,
+    ) -> Result<Vec<BlockEvent>> {
+        let mut block_header = db
+            .block_header(block_hash)
+            .ok_or_else(|| ComputeError::BlockHeaderNotFound(block_hash))?;
+
+        for _ in 0..events_maturity_period {
+            let parent_hash = block_header.parent_hash;
+            let parent_header = db
+                .block_header(parent_hash)
+                .ok_or(ComputeError::BlockHeaderNotFound(parent_hash))?;
+
+            block_hash = parent_hash;
+            block_header = parent_header;
+        }
+
+        db.block_events(block_hash)
+            .ok_or(ComputeError::BlockEventsNotFound(block_hash))
+    }
+}
+
+impl<P: ProcessorExt> SubService for ComputeSubService<P> {
+    type Output = HashOf<Announce>;
+
+    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Self::Output>> {
+        if self.computation.is_none()
+            && let Some(announce) = self.input.pop_front()
+        {
+            self.computation = Some(Box::pin(Self::compute(
+                self.db.clone(),
+                self.config,
+                self.processor.clone(),
+                announce,
+            )));
+        }
+
+        if let Some(computation) = &mut self.computation
+            && let Poll::Ready(res) = computation.as_mut().poll(cx)
+        {
+            self.computation = None;
+            return Poll::Ready(res);
+        }
+
+        Poll::Pending
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::tests::{MockProcessor, PROCESSOR_RESULT};
-    use ethexe_common::{BlockHeader, HashOf, SimpleBlockData, db::*, gear::StateTransition};
-    use ethexe_db::Database as DB;
+    use ethexe_common::{db::*, gear::StateTransition, mock::*};
     use gprimitives::{ActorId, H256};
 
     #[tokio::test]
+    #[ntest::timeout(3000)]
     async fn test_compute() {
-        let db = DB::memory();
+        gear_utils::init_default_logger();
 
-        let genesis_hash = H256::random();
-        let block_hash = H256::random();
-
-        ethexe_common::setup_genesis_in_db(
-            &db,
-            SimpleBlockData {
-                hash: genesis_hash,
-                header: BlockHeader {
-                    height: 0,
-                    timestamp: 1000,
-                    parent_hash: H256::random(),
-                },
-            },
-            Default::default(),
-            Default::default(),
-        );
-
-        // Setup block as prepared
-        db.mutate_block_meta(block_hash, |meta| {
-            *meta = BlockMeta {
-                announces: Some([HashOf::random()].into()),
-                ..BlockMeta::default_prepared()
-            }
-        });
-        db.set_block_events(block_hash, &[]);
-        db.set_block_header(
-            block_hash,
-            BlockHeader {
-                height: 1,
-                timestamp: 2000,
-                parent_hash: genesis_hash,
-            },
-        );
+        let db = Database::memory();
+        let block_hash = BlockChain::mock(1).setup(&db).blocks[1].hash;
+        let config = ComputeConfig::new_with_zero_maturity();
+        let mut service = ComputeSubService::new(config, db.clone(), MockProcessor);
 
         let announce = Announce {
             block_hash,
@@ -201,10 +261,9 @@ mod tests {
 
         // Set the PROCESSOR_RESULT to return non-empty result
         PROCESSOR_RESULT.with_borrow_mut(|r| *r = non_empty_result.clone());
-        let status = compute(db.clone(), MockProcessor, announce, 0)
-            .await
-            .unwrap();
-        assert_eq!(status, ComputationStatus::Computed);
+        service.receive_announce_to_compute(announce);
+
+        assert_eq!(service.next().await.unwrap(), announce_hash);
 
         // Verify block was marked as computed
         assert!(db.announce_meta(announce_hash).computed);
@@ -220,17 +279,5 @@ mod tests {
             db.latest_data().unwrap().computed_announce_hash,
             announce_hash
         );
-
-        // Try with unknown parent
-        let announce = Announce {
-            block_hash,
-            parent: HashOf::random(),
-            gas_allowance: Some(100),
-            off_chain_transactions: vec![],
-        };
-        let status = compute(db.clone(), MockProcessor, announce, 0)
-            .await
-            .unwrap();
-        assert_eq!(status, ComputationStatus::Rejected);
     }
 }
