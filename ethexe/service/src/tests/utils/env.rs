@@ -140,7 +140,7 @@ impl TestEnv {
                 slots_in_epoch,
                 genesis_timestamp,
             } => {
-                let mut anvil = Anvil::new().args(["--hardfork", "osaka"]);
+                let mut anvil = Anvil::new();
 
                 if let Some(slots_in_epoch) = slots_in_epoch {
                     anvil = anvil.arg(format!("--slots-in-an-epoch={slots_in_epoch}"));
@@ -406,7 +406,7 @@ impl TestEnv {
         let pending_builder = self
             .ethereum
             .router()
-            .request_code_validation_with_sidecar(code)
+            .request_code_validation_with_sidecar_old(code)
             .await?;
         assert_eq!(pending_builder.code_id(), code_id);
 

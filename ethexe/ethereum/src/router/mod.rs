@@ -121,6 +121,26 @@ impl Router {
         })
     }
 
+    pub async fn request_code_validation_with_sidecar_old(
+        &self,
+        code: &[u8],
+    ) -> Result<PendingCodeRequestBuilder> {
+        let code_id = CodeId::generate(code);
+
+        let builder = self
+            .instance
+            .requestCodeValidation(code_id.into_bytes().into())
+            .sidecar(BlobTransactionSidecarVariant::Eip4844(
+                SidecarBuilder::<SimpleCoder>::from_slice(code).build()?,
+            ));
+        let pending_builder = builder.send().await?;
+
+        Ok(PendingCodeRequestBuilder {
+            code_id,
+            pending_builder,
+        })
+    }
+
     pub async fn wait_code_validation(&self, code_id: CodeId) -> Result<bool> {
         let filter = Filter::new().address(*self.instance.address());
         let mut router_events = self
