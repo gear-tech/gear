@@ -55,7 +55,6 @@ use parity_scale_codec::Encode;
 use std::{
     collections::{BTreeMap, BTreeSet},
     net::{Ipv4Addr, SocketAddr},
-    ops::Add,
     time::Duration,
 };
 use tempfile::tempdir;
@@ -1436,15 +1435,12 @@ async fn validators_election() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[ntest::timeout(60_000)]
+#[ntest::timeout(25_000)]
 async fn execution_with_canonical_events_maturity() {
     init_logger();
 
     let config = TestEnvConfig {
-        // validators: ValidatorsConfig::PreDefined(2),
-        network: EnvNetworkConfig::Enabled,
         compute_config: ComputeConfig::production(),
-        continuous_block_generation: false,
         ..Default::default()
     };
     let mut env = TestEnv::new(config).await.unwrap();
@@ -1478,50 +1474,50 @@ async fn execution_with_canonical_events_maturity() {
         .unwrap()
         .message_id;
 
-    // Mine extra 1 block to receive reply in it.
-    env.provider
-        .anvil_mine(Some(events_maturity_period.add(20).into()), Some(1))
-        .await
-        .unwrap();
+    env.provider.anvil_mine(Some(1), None).await.unwrap();
 
     let mut listener = env.observer_events_publisher().subscribe().await;
 
+    // Skipping events to reach canonical events maturity
     let mut skipped_blocks = 0;
-    listener
-        .apply_until(|event| {
-            let ObserverEvent::BlockSynced(block_hash) = event.clone() else {
-                return Ok(None);
-            };
+    while skipped_blocks < events_maturity_period {
+        env.provider.anvil_mine(Some(1), None).await.unwrap();
+        tokio::time::sleep(Duration::from_millis(150)).await;
 
-            let Some(block_events) = validator.db.block_events(block_hash) else {
-                skipped_blocks += 1;
-                return Ok(None);
-            };
+        if let ObserverEvent::BlockSynced(..) = listener.next_event().await.unwrap() {
+            skipped_blocks += 1
+        };
+    }
 
-            if skipped_blocks < events_maturity_period {
-                skipped_blocks += 1;
-                return Ok(None);
+    // Now waiting for the PONG reply
+    loop {
+        let synced_block = match listener.next_event().await.unwrap() {
+            ObserverEvent::BlockSynced(block_hash) => block_hash,
+            _ => {
+                continue;
             }
+        };
 
-            for block_event in block_events {
-                if let BlockEvent::Mirror {
-                    actor_id: _,
-                    event:
-                        MirrorEvent::Reply {
-                            payload,
-                            value: _,
-                            reply_to,
-                            reply_code: _,
-                        },
-                } = block_event
-                    && reply_to == message_id
-                    && payload == b"PONG"
-                {
-                    return Ok(Some(()));
-                }
+        let Some(block_events) = validator.db.block_events(synced_block) else {
+            continue;
+        };
+
+        for block_event in block_events {
+            if let BlockEvent::Mirror {
+                actor_id: _,
+                event:
+                    MirrorEvent::Reply {
+                        payload,
+                        value: _,
+                        reply_to,
+                        reply_code: _,
+                    },
+            } = block_event
+                && reply_to == message_id
+                && payload == b"PONG"
+            {
+                return;
             }
-            Ok(None)
-        })
-        .await
-        .unwrap();
+        }
+    }
 }

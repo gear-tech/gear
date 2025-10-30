@@ -237,7 +237,7 @@ impl<P: ProcessorExt> SubService for ComputeSubService<P> {
 mod tests {
     use super::*;
     use crate::tests::{MockProcessor, PROCESSOR_RESULT};
-    use ethexe_common::{db::*, gear::StateTransition, mock::*};
+    use ethexe_common::{gear::StateTransition, mock::*};
     use gprimitives::{ActorId, H256};
 
     #[tokio::test]
