@@ -18,16 +18,18 @@
 
 //! Runtime constants query methods
 
-use crate::{Api, metadata::runtime_types::gear_common::GasMultiplier, result::Result};
-use parity_scale_codec::Decode;
+use crate::{
+    Api,
+    gear::{self, runtime_types::gear_common::GasMultiplier},
+    result::Result,
+};
 use sp_runtime::Percent;
-use subxt::utils::AccountId32;
+use subxt::{constants, utils::AccountId32};
 
 impl Api {
     /// Query constant
-    fn query_constant<D: Decode>(&self, pallet: &'static str, constant: &'static str) -> Result<D> {
-        let addr = subxt::dynamic::constant(pallet, constant);
-        D::decode(&mut self.constants().at(&addr)?.encoded()).map_err(Into::into)
+    pub fn constant<Addr: constants::Address>(&self, addr: &Addr) -> Result<Addr::Target> {
+        self.constants().at(addr).map_err(Into::into)
     }
 }
 
@@ -35,7 +37,7 @@ impl Api {
 impl Api {
     /// Get expected block time.
     pub fn expected_block_time(&self) -> Result<u64> {
-        self.query_constant("Babe", "ExpectedBlockTime")
+        self.constant(&gear::constants().babe().expected_block_time())
     }
 }
 
@@ -43,22 +45,24 @@ impl Api {
 impl Api {
     /// Get gas multiplier.
     pub fn gas_multiplier(&self) -> Result<GasMultiplier<u128, u64>> {
-        self.query_constant("GearBank", "GasMultiplier")
+        self.constant(&gear::constants().gear_bank().gas_multiplier())
     }
 
     /// Get treasury address set.
     pub fn treasury_address(&self) -> Result<AccountId32> {
-        self.query_constant("GearBank", "TreasuryAddress")
+        self.constant(&gear::constants().gear_bank().treasury_address())
     }
 
     /// Get treasury gas payouts fee percent.
     pub fn treasury_gas_fee_share(&self) -> Result<Percent> {
-        self.query_constant("GearBank", "TreasuryGasFeeShare")
+        self.constant(&gear::constants().gear_bank().treasury_gas_fee_share())
+            .map(|p| p.0)
     }
 
     /// Get treasury tx fee percent.
     pub fn treasury_tx_fee_share(&self) -> Result<Percent> {
-        self.query_constant("GearBank", "TreasuryTxFeeShare")
+        self.constant(&gear::constants().gear_bank().treasury_tx_fee_share())
+            .map(|p| p.0)
     }
 }
 
@@ -66,6 +70,6 @@ impl Api {
 impl Api {
     /// Get gas limit.
     pub fn gas_limit(&self) -> Result<u64> {
-        self.query_constant("GearGas", "BlockGasLimit")
+        self.constant(&gear::constants().gear_gas().block_gas_limit())
     }
 }

@@ -48,6 +48,16 @@ use subxt::{
     tx::{TxInBlock as SubxtTxInBlock, TxStatus as SubxtTxStatus},
 };
 
+/// Generated runtime API types.
+#[subxt::subxt(
+    runtime_metadata_path = "vara_runtime.scale",
+    substitute_type(
+        path = "sp_arithmetic::per_things::Percent",
+        with = "::subxt::utils::Static<::sp_runtime::Percent>"
+    )
+)]
+pub mod gear {}
+
 mod api;
 pub mod backtrace;
 pub mod config;
