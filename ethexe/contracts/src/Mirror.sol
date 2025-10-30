@@ -382,9 +382,9 @@ contract Mirror is IMirror {
             }
         } else {
             _transferEther(_message.destination, _message.value);
-        }
 
-        emit Reply(_message.payload, _message.value, _message.replyDetails.to, _message.replyDetails.code);
+            emit Reply(_message.payload, _message.value, _message.replyDetails.to, _message.replyDetails.code);
+        }
     }
 
     // TODO (breathx): claimValues will fail if the program is exited: keep the funds on router.
