@@ -130,8 +130,8 @@ pub enum RewardAccount {
 pub enum Response {
     /// Response containing the active era details and when it was executed.
     ActiveEra {
-        /// Information about the active era if one is available.
-        info: Option<ActiveEraInfo>,
+        /// Information about the active era.
+        info: ActiveEraInfo,
         /// Block number when the request was executed.
         executed_at: u32,
         /// Gear block number when the request was executed.
