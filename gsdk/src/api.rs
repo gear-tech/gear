@@ -22,8 +22,8 @@ use crate::{
 };
 use anyhow::Result;
 use core::ops::{Deref, DerefMut};
-use sp_core::H256;
 use jsonrpsee::ws_client::WsClientBuilder;
+use sp_core::H256;
 use subxt::{OnlineClient, rpc_params};
 
 pub const DEFAULT_GEAR_ENDPOINT: &str = "wss://rpc.vara.network:443";

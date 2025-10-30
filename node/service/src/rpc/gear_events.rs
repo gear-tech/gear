@@ -616,7 +616,7 @@ fn matches_filter(filter: &UserMsgFilter, message: &UserMessage) -> bool {
             return false;
         }
 
-        if &payload[offset..end] != pattern.as_slice() {
+        if &payload[offset..end] != pattern.0.as_slice() {
             return false;
         }
     }
