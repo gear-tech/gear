@@ -49,9 +49,11 @@ use roast_secp256k1_evm::frost::{
 };
 use std::collections::BTreeSet;
 
-// Constants for deployment nonce offsets. Needed to verify the correctness of the deployment order
-// and maintain the validity of address calculations in router deployment.
+/// The offset for mirror address calculation in router deployment.
 const MIRROR_DEPLOYMENT_NONCE_OFFSET: u64 = 2;
+
+/// The offset for middleware address calculation in router deployment.
+/// Offset equals `16` because of a symbiotic deployment contracts.
 const MIDDLEWARE_DEPLOYMENT_NONCE_OFFSET: u64 = 16;
 
 /// [`EthereumDeployer`] is a builder for deploying smart contracts on Ethereum for testing purposes.

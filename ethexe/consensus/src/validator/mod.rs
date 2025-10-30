@@ -41,8 +41,7 @@
 //! * Each state can be interrupted by a new chain head -> switches to [`Initial`] immediately.
 
 use crate::{
-    BatchCommitmentValidationReply, ConsensusEvent, ConsensusService, SignedAnnounce,
-    SignedValidationRequest,
+    BatchCommitmentValidationReply, ConsensusEvent, ConsensusService,
     validator::{
         coordinator::Coordinator,
         core::{MiddlewareWrapper, ValidatorCore},
@@ -52,9 +51,14 @@ use crate::{
         subordinate::Subordinate,
     },
 };
-use anyhow::Result;
+use anyhow::{Result, anyhow};
 use derive_more::{Debug, From};
-use ethexe_common::{AnnounceHash, SimpleBlockData, ecdsa::PublicKey};
+use ethexe_common::{
+    Announce, HashOf, SimpleBlockData,
+    consensus::{VerifiedAnnounce, VerifiedValidationRequest},
+    db::OnChainStorageRO,
+    ecdsa::PublicKey,
+};
 use ethexe_db::Database;
 use ethexe_ethereum::{middleware::ElectionProvider, router::Router};
 use ethexe_signer::Signer;
@@ -127,12 +131,16 @@ impl ValidatorService {
         db: Database,
         config: ValidatorConfig,
     ) -> Result<Self> {
+        let timelines = db
+            .protocol_timelines()
+            .ok_or_else(|| anyhow!("Protocol timelines not found in database"))?;
         let ctx = ValidatorContext {
             core: ValidatorCore {
                 slot_duration: config.slot_duration,
                 signatures_threshold: config.signatures_threshold,
                 router_address: router.address(),
                 pub_key: config.pub_key,
+                timelines,
                 signer,
                 db: db.clone(),
                 committer: Box::new(EthereumCommitter { router }),
@@ -189,16 +197,16 @@ impl ConsensusService for ValidatorService {
         self.update_inner(|inner| inner.process_prepared_block(block))
     }
 
-    fn receive_computed_announce(&mut self, announce: AnnounceHash) -> Result<()> {
+    fn receive_computed_announce(&mut self, announce: HashOf<Announce>) -> Result<()> {
         self.update_inner(|inner| inner.process_computed_announce(announce))
     }
 
-    fn receive_announce(&mut self, signed: SignedAnnounce) -> Result<()> {
-        self.update_inner(|inner| inner.process_announce(signed))
+    fn receive_announce(&mut self, announce: VerifiedAnnounce) -> Result<()> {
+        self.update_inner(|inner| inner.process_announce(announce))
     }
 
-    fn receive_validation_request(&mut self, signed: SignedValidationRequest) -> Result<()> {
-        self.update_inner(|inner| inner.process_validation_request(signed))
+    fn receive_validation_request(&mut self, batch: VerifiedValidationRequest) -> Result<()> {
+        self.update_inner(|inner| inner.process_validation_request(batch))
     }
 
     fn receive_validation_reply(&mut self, reply: BatchCommitmentValidationReply) -> Result<()> {
@@ -242,9 +250,9 @@ impl FusedStream for ValidatorService {
 #[derive(Clone, Debug, From, PartialEq, Eq, derive_more::IsVariant)]
 enum PendingEvent {
     /// A block from the producer
-    Announce(SignedAnnounce),
+    Announce(VerifiedAnnounce),
     /// A validation request
-    ValidationRequest(SignedValidationRequest),
+    ValidationRequest(VerifiedValidationRequest),
 }
 
 /// Trait defining the interface for validator inner state and events handler.
@@ -279,17 +287,17 @@ where
         DefaultProcessing::prepared_block(self.into(), block)
     }
 
-    fn process_computed_announce(self, announce: AnnounceHash) -> Result<ValidatorState> {
+    fn process_computed_announce(self, announce: HashOf<Announce>) -> Result<ValidatorState> {
         DefaultProcessing::computed_announce(self.into(), announce)
     }
 
-    fn process_announce(self, block: SignedAnnounce) -> Result<ValidatorState> {
+    fn process_announce(self, block: VerifiedAnnounce) -> Result<ValidatorState> {
         DefaultProcessing::block_from_producer(self, block)
     }
 
     fn process_validation_request(
         self,
-        request: SignedValidationRequest,
+        request: VerifiedValidationRequest,
     ) -> Result<ValidatorState> {
         DefaultProcessing::validation_request(self, request)
     }
@@ -365,17 +373,17 @@ impl StateHandler for ValidatorState {
         delegate_call!(self => process_prepared_block(block))
     }
 
-    fn process_computed_announce(self, announce: AnnounceHash) -> Result<ValidatorState> {
+    fn process_computed_announce(self, announce: HashOf<Announce>) -> Result<ValidatorState> {
         delegate_call!(self => process_computed_announce(announce))
     }
 
-    fn process_announce(self, announce: SignedAnnounce) -> Result<ValidatorState> {
+    fn process_announce(self, announce: VerifiedAnnounce) -> Result<ValidatorState> {
         delegate_call!(self => process_announce(announce))
     }
 
     fn process_validation_request(
         self,
-        request: SignedValidationRequest,
+        request: VerifiedValidationRequest,
     ) -> Result<ValidatorState> {
         delegate_call!(self => process_validation_request(request))
     }
@@ -413,7 +421,7 @@ impl DefaultProcessing {
 
     fn computed_announce(
         s: impl Into<ValidatorState>,
-        announce_hash: AnnounceHash,
+        announce_hash: HashOf<Announce>,
     ) -> Result<ValidatorState> {
         let mut s = s.into();
         s.warning(format!("unexpected computed block: {announce_hash}"));
@@ -422,19 +430,19 @@ impl DefaultProcessing {
 
     fn block_from_producer(
         s: impl Into<ValidatorState>,
-        signed_announce: SignedAnnounce,
+        announce: VerifiedAnnounce,
     ) -> Result<ValidatorState> {
         let mut s = s.into();
         s.warning(format!(
-            "unexpected block from producer: {signed_announce:?}, saved for later."
+            "unexpected block from producer: {announce:?}, saved for later."
         ));
-        s.context_mut().pending(signed_announce);
+        s.context_mut().pending(announce);
         Ok(s)
     }
 
     fn validation_request(
         s: impl Into<ValidatorState>,
-        request: SignedValidationRequest,
+        request: VerifiedValidationRequest,
     ) -> Result<ValidatorState> {
         let mut s = s.into();
         s.warning(format!(

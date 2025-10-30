@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    Announce, AnnounceHash, ProtocolTimelines, SimpleBlockData,
+    Announce, HashOf, ProtocolTimelines, SimpleBlockData, ValidatorsVec,
     db::{
         AnnounceStorageRW, BlockMeta, BlockMetaStorageRW, FullAnnounceData, FullBlockData,
         LatestData, LatestDataStorageRW, OnChainStorageRW,
@@ -79,9 +79,10 @@ pub fn setup_genesis_in_db<
 >(
     db: &DB,
     genesis_block: SimpleBlockData,
+    genesis_validators: ValidatorsVec,
     timelines: ProtocolTimelines,
 ) {
-    let genesis_announce = Announce::base(genesis_block.hash, AnnounceHash::zero());
+    let genesis_announce = Announce::base(genesis_block.hash, HashOf::zero());
     let genesis_announce_hash = setup_announce_in_db(
         db,
         FullAnnounceData {
@@ -101,8 +102,15 @@ pub fn setup_genesis_in_db<
             codes_queue: Default::default(),
             announces: [genesis_announce_hash].into(),
             last_committed_batch: Default::default(),
-            last_committed_announce: Default::default(),
+            last_committed_announce: HashOf::zero(),
         },
+    );
+
+    // We understand, that genesis block is always in era 0, but we calculate it from timestamp to prevent some
+    // possible mismatches in future.
+    db.set_validators(
+        timelines.era_from_ts(genesis_block.header.timestamp),
+        genesis_validators,
     );
 
     db.set_protocol_timelines(timelines);
@@ -152,7 +160,7 @@ pub fn setup_block_in_db<DB: OnChainStorageRW + BlockMetaStorageRW>(
 pub fn setup_announce_in_db<DB: AnnounceStorageRW>(
     db: &DB,
     announce_data: FullAnnounceData,
-) -> AnnounceHash {
+) -> HashOf<Announce> {
     let announce_hash = announce_data.announce.to_hash();
     db.set_announce(announce_data.announce);
     db.set_announce_program_states(announce_hash, announce_data.program_states);

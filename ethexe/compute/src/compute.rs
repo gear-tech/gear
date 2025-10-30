@@ -16,143 +16,164 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{ComputeError, ProcessorExt, Result, utils};
+use crate::{ComputeError, ProcessorExt, Result, service::SubService};
 use ethexe_common::{
-    Announce,
+    Announce, HashOf,
     db::{
-        AnnounceStorageRW, BlockMetaStorageRO, BlockMetaStorageRW, LatestDataStorageRW,
+        AnnounceStorageRO, AnnounceStorageRW, BlockMetaStorageRO, LatestDataStorageRW,
         OnChainStorageRO,
     },
 };
 use ethexe_db::Database;
 use ethexe_processor::BlockProcessingResult;
+use futures::future::BoxFuture;
+use std::{
+    collections::VecDeque,
+    task::{Context, Poll},
+};
 
-#[derive(Debug, Clone, Copy, Eq, PartialEq)]
-pub(crate) enum ComputationStatus {
-    Rejected,
-    Computed,
+pub struct ComputeSubService<P: ProcessorExt> {
+    db: Database,
+    processor: P,
+
+    input: VecDeque<Announce>,
+    computation: Option<BoxFuture<'static, Result<HashOf<Announce>>>>,
 }
 
-pub(crate) async fn compute<P: ProcessorExt>(
-    db: Database,
-    mut processor: P,
-    announce: Announce,
-) -> Result<ComputationStatus> {
-    let announce_hash = announce.to_hash();
-    let block_hash = announce.block_hash;
-
-    if !db.block_meta(block_hash).prepared {
-        log::error!("Block {block_hash} is not prepared before announce is coming");
-        return Err(ComputeError::BlockNotPrepared(block_hash));
+impl<P: ProcessorExt> ComputeSubService<P> {
+    pub fn new(db: Database, processor: P) -> Self {
+        Self {
+            db,
+            processor,
+            input: VecDeque::new(),
+            computation: None,
+        }
     }
 
-    if utils::announce_is_computed_and_included(&db, announce_hash, announce.block_hash)? {
-        log::trace!("{announce:?} is already computed");
-        return Ok(ComputationStatus::Computed);
+    pub fn receive_announce_to_compute(&mut self, announce: Announce) {
+        self.input.push_back(announce);
     }
 
-    let parent_block_hash = db
-        .block_header(block_hash)
-        .ok_or(ComputeError::BlockHeaderNotFound(block_hash))?
-        .parent_hash;
-    if !utils::announce_is_computed_and_included(&db, announce.parent, parent_block_hash)? {
-        log::warn!(
-            "{announce:?} is from unknown branch: parent {}",
-            announce.parent
-        );
-        return Ok(ComputationStatus::Rejected);
+    async fn compute(
+        db: Database,
+        mut processor: P,
+        announce: Announce,
+    ) -> Result<HashOf<Announce>> {
+        let announce_hash = announce.to_hash();
+        let block_hash = announce.block_hash;
+
+        if !db.block_meta(block_hash).prepared {
+            return Err(ComputeError::BlockNotPrepared(block_hash));
+        }
+
+        let mut parent_hash = announce.parent;
+        let mut announces_chain: VecDeque<_> = [(announce_hash, announce)].into();
+        loop {
+            if db.announce_meta(parent_hash).computed {
+                break;
+            }
+
+            let parent_announce = db
+                .announce(parent_hash)
+                .ok_or(ComputeError::AnnounceNotFound(parent_hash))?;
+
+            let next_parent_hash = parent_announce.parent;
+            announces_chain.push_front((parent_hash, parent_announce));
+
+            parent_hash = next_parent_hash;
+        }
+
+        if announces_chain.is_empty() {
+            log::trace!("All announces are already computed");
+            return Ok(announce_hash);
+        }
+
+        for (announce_hash, announce) in announces_chain {
+            Self::compute_one(&db, &mut processor, announce_hash, announce).await?;
+        }
+
+        Ok(announce_hash)
     }
 
-    debug_assert!(
-        !announce.is_base(),
-        "Announce cannot be base, else it must be already computed in prepare"
-    );
+    async fn compute_one(
+        db: &Database,
+        processor: &mut P,
+        announce_hash: HashOf<Announce>,
+        announce: Announce,
+    ) -> Result<HashOf<Announce>> {
+        let block_hash = announce.block_hash;
 
-    let events = db
-        .block_events(block_hash)
-        .ok_or(ComputeError::BlockEventsNotFound(block_hash))?;
+        let events = db
+            .block_events(block_hash)
+            .ok_or(ComputeError::BlockEventsNotFound(block_hash))?
+            .into_iter()
+            .filter_map(|event| event.to_request())
+            .collect();
 
-    let block_request_events = events
-        .into_iter()
-        .filter_map(|event| event.to_request())
-        .collect();
+        let processing_result = processor.process_announce(announce.clone(), events).await?;
 
-    let processing_result = processor
-        .process_announce(announce.clone(), block_request_events)
-        .await?;
+        let BlockProcessingResult {
+            transitions,
+            states,
+            schedule,
+        } = processing_result;
 
-    let BlockProcessingResult {
-        transitions,
-        states,
-        schedule,
-    } = processing_result;
+        db.set_announce_outcome(announce_hash, transitions);
+        db.set_announce_program_states(announce_hash, states);
+        db.set_announce_schedule(announce_hash, schedule);
+        db.mutate_announce_meta(announce_hash, |meta| {
+            meta.computed = true;
+        });
 
-    db.set_announce(announce);
-    db.set_announce_outcome(announce_hash, transitions);
-    db.set_announce_program_states(announce_hash, states);
-    db.set_announce_schedule(announce_hash, schedule);
+        db.mutate_latest_data(|data| {
+            data.computed_announce_hash = announce_hash;
+        })
+        .ok_or(ComputeError::LatestDataNotFound)?;
 
-    db.mutate_announce_meta(announce_hash, |meta| {
-        meta.computed = true;
-    });
+        Ok(announce_hash)
+    }
+}
 
-    db.mutate_block_meta(block_hash, |meta| {
-        // Currently we replace announces, but we would append in future as separate branch
-        meta.announces = Some([announce_hash].into());
-    });
+impl<P: ProcessorExt> SubService for ComputeSubService<P> {
+    type Output = HashOf<Announce>;
 
-    db.mutate_latest_data(|data| {
-        data.computed_announce_hash = announce_hash;
-    })
-    .ok_or(ComputeError::LatestDataNotFound)?;
+    fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Self::Output>> {
+        if self.computation.is_none()
+            && let Some(announce) = self.input.pop_front()
+        {
+            self.computation = Some(Box::pin(Self::compute(
+                self.db.clone(),
+                self.processor.clone(),
+                announce,
+            )));
+        }
 
-    Ok(ComputationStatus::Computed)
+        if let Some(computation) = &mut self.computation
+            && let Poll::Ready(res) = computation.as_mut().poll(cx)
+        {
+            self.computation = None;
+            return Poll::Ready(res);
+        }
+
+        Poll::Pending
+    }
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::tests::{MockProcessor, PROCESSOR_RESULT};
-    use ethexe_common::{AnnounceHash, BlockHeader, SimpleBlockData, db::*, gear::StateTransition};
-    use ethexe_db::Database as DB;
+    use ethexe_common::{db::*, gear::StateTransition, mock::*};
     use gprimitives::{ActorId, H256};
 
     #[tokio::test]
+    #[ntest::timeout(3000)]
     async fn test_compute() {
-        let db = DB::memory();
+        gear_utils::init_default_logger();
 
-        let genesis_hash = H256::random();
-        let block_hash = H256::random();
-
-        ethexe_common::setup_genesis_in_db(
-            &db,
-            SimpleBlockData {
-                hash: genesis_hash,
-                header: BlockHeader {
-                    height: 0,
-                    timestamp: 1000,
-                    parent_hash: H256::random(),
-                },
-            },
-            Default::default(),
-        );
-
-        // Setup block as prepared
-        db.mutate_block_meta(block_hash, |meta| {
-            *meta = BlockMeta {
-                announces: Some([AnnounceHash::random()].into()),
-                ..BlockMeta::default_prepared()
-            }
-        });
-        db.set_block_events(block_hash, &[]);
-        db.set_block_header(
-            block_hash,
-            BlockHeader {
-                height: 1,
-                timestamp: 2000,
-                parent_hash: genesis_hash,
-            },
-        );
+        let db = Database::memory();
+        let block_hash = BlockChain::mock(1).setup(&db).blocks[1].hash;
+        let mut service = ComputeSubService::new(db.clone(), MockProcessor);
 
         let announce = Announce {
             block_hash,
@@ -175,8 +196,9 @@ mod tests {
 
         // Set the PROCESSOR_RESULT to return non-empty result
         PROCESSOR_RESULT.with_borrow_mut(|r| *r = non_empty_result.clone());
-        let status = compute(db.clone(), MockProcessor, announce).await.unwrap();
-        assert_eq!(status, ComputationStatus::Computed);
+        service.receive_announce_to_compute(announce);
+
+        assert_eq!(service.next().await.unwrap(), announce_hash);
 
         // Verify block was marked as computed
         assert!(db.announce_meta(announce_hash).computed);
@@ -192,15 +214,5 @@ mod tests {
             db.latest_data().unwrap().computed_announce_hash,
             announce_hash
         );
-
-        // Try with unknown parent
-        let announce = Announce {
-            block_hash,
-            parent: AnnounceHash::random(),
-            gas_allowance: Some(100),
-            off_chain_transactions: vec![],
-        };
-        let status = compute(db.clone(), MockProcessor, announce).await.unwrap();
-        assert_eq!(status, ComputationStatus::Rejected);
     }
 }

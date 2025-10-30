@@ -19,18 +19,18 @@
 pub use tap::Tap;
 
 use crate::{
-    Address, Announce, AnnounceHash, BlockHeader, CodeBlobInfo, Digest, ProgramStates,
-    ProtocolTimelines, Schedule, SimpleBlockData, ValidatorsVec,
+    Announce, BlockData, BlockHeader, CodeBlobInfo, Digest, HashOf, ProgramStates,
+    ProtocolTimelines, Schedule, SimpleBlockData,
     consensus::BatchCommitmentValidationRequest,
     db::*,
     events::BlockEvent,
     gear::{BatchCommitment, ChainCommitment, CodeCommitment, Message, StateTransition},
+    network::ValidatorMessage,
 };
 use alloc::{collections::BTreeMap, vec};
 use gear_core::code::{CodeMetadata, InstrumentedCode};
 use gprimitives::{CodeId, H256};
 use itertools::Itertools;
-use nonempty::nonempty;
 use std::collections::{BTreeSet, VecDeque};
 
 // TODO #4881: use `proptest::Arbitrary` instead
@@ -57,8 +57,18 @@ impl Mock<()> for SimpleBlockData {
     }
 }
 
-impl Mock<(H256, AnnounceHash)> for Announce {
-    fn mock((block_hash, parent): (H256, AnnounceHash)) -> Self {
+impl Mock<()> for ProtocolTimelines {
+    fn mock(_args: ()) -> Self {
+        Self {
+            genesis_ts: 0,
+            era: 1000,
+            election: 200,
+        }
+    }
+}
+
+impl Mock<(H256, HashOf<Announce>)> for Announce {
+    fn mock((block_hash, parent): (H256, HashOf<Announce>)) -> Self {
         Announce {
             block_hash,
             parent,
@@ -70,7 +80,7 @@ impl Mock<(H256, AnnounceHash)> for Announce {
 
 impl Mock<H256> for Announce {
     fn mock(block_hash: H256) -> Self {
-        Announce::mock((block_hash, AnnounceHash::random()))
+        Announce::mock((block_hash, HashOf::random()))
     }
 }
 
@@ -89,8 +99,8 @@ impl Mock<()> for CodeCommitment {
     }
 }
 
-impl Mock<AnnounceHash> for ChainCommitment {
-    fn mock(head_announce: AnnounceHash) -> Self {
+impl Mock<HashOf<Announce>> for ChainCommitment {
+    fn mock(head_announce: HashOf<Announce>) -> Self {
         ChainCommitment {
             transitions: vec![StateTransition::mock(()), StateTransition::mock(())],
             head_announce,
@@ -100,7 +110,7 @@ impl Mock<AnnounceHash> for ChainCommitment {
 
 impl Mock<()> for ChainCommitment {
     fn mock(_args: ()) -> Self {
-        ChainCommitment::mock(AnnounceHash::random())
+        ChainCommitment::mock(HashOf::random())
     }
 }
 
@@ -110,7 +120,7 @@ impl Mock<()> for BatchCommitment {
             block_hash: H256::random(),
             timestamp: 42,
             previous_batch: Digest::random(),
-            chain_commitment: Some(ChainCommitment::mock(AnnounceHash::random())),
+            chain_commitment: Some(ChainCommitment::mock(HashOf::random())),
             code_commitments: vec![CodeCommitment::mock(()), CodeCommitment::mock(())],
             validators_commitment: None,
             rewards_commitment: None,
@@ -122,7 +132,7 @@ impl Mock<()> for BatchCommitmentValidationRequest {
     fn mock(_args: ()) -> Self {
         BatchCommitmentValidationRequest {
             digest: H256::random().0.into(),
-            head: Some(AnnounceHash(H256::random())),
+            head: Some(HashOf::random()),
             codes: vec![CodeCommitment::mock(()).id, CodeCommitment::mock(()).id],
             validators: false,
             rewards: false,
@@ -151,29 +161,37 @@ impl Mock<()> for StateTransition {
     }
 }
 
+impl<T: Mock<()>> Mock<()> for ValidatorMessage<T> {
+    fn mock(_args: ()) -> Self {
+        Self {
+            block: H256::random(),
+            payload: T::mock(()),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SyncedBlockData {
     pub header: BlockHeader,
     pub events: Vec<BlockEvent>,
-    pub validators: ValidatorsVec,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PreparedBlockData {
     pub codes_queue: VecDeque<CodeId>,
-    pub announces: BTreeSet<AnnounceHash>,
+    pub announces: BTreeSet<HashOf<Announce>>,
     pub last_committed_batch: Digest,
-    pub last_committed_announce: AnnounceHash,
+    pub last_committed_announce: HashOf<Announce>,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct BlockData {
+pub struct BlockFullData {
     pub hash: H256,
     pub synced: Option<SyncedBlockData>,
     pub prepared: Option<PreparedBlockData>,
 }
 
-impl BlockData {
+impl BlockFullData {
     pub fn as_synced(&self) -> &SyncedBlockData {
         self.synced.as_ref().expect("block not synced")
     }
@@ -198,7 +216,7 @@ impl BlockData {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Default)]
 pub struct ComputedAnnounceData {
     pub outcome: Vec<StateTransition>,
     pub program_states: ProgramStates,
@@ -218,6 +236,21 @@ impl AnnounceData {
 
     pub fn as_computed_mut(&mut self) -> &mut ComputedAnnounceData {
         self.computed.as_mut().expect("announce not computed")
+    }
+
+    pub fn setup(self, db: &impl AnnounceStorageRW) -> Self {
+        let announce_hash = db.set_announce(self.announce.clone());
+
+        if let Some(computed) = &self.computed {
+            db.set_announce_outcome(announce_hash, computed.outcome.clone());
+            db.set_announce_program_states(announce_hash, computed.program_states.clone());
+            db.set_announce_schedule(announce_hash, computed.schedule.clone());
+            db.mutate_announce_meta(announce_hash, |meta| {
+                *meta = AnnounceMeta { computed: true }
+            });
+        }
+
+        self
     }
 }
 
@@ -246,13 +279,13 @@ impl CodeData {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct BlockChain {
-    pub blocks: VecDeque<BlockData>,
-    pub announces: BTreeMap<AnnounceHash, AnnounceData>,
+    pub blocks: VecDeque<BlockFullData>,
+    pub announces: BTreeMap<HashOf<Announce>, AnnounceData>,
     pub codes: BTreeMap<CodeId, CodeData>,
 }
 
 impl BlockChain {
-    pub fn block_top_announce_hash(&self, block_index: usize) -> AnnounceHash {
+    pub fn block_top_announce_hash(&self, block_index: usize) -> HashOf<Announce> {
         self.blocks
             .get(block_index)
             .expect("block index overflow")
@@ -291,8 +324,6 @@ impl BlockChain {
 
         db.set_latest_data(LatestData::default());
 
-        let timelines = ProtocolTimelines::mock(());
-
         if let Some(genesis) = blocks.front() {
             db.mutate_latest_data(|latest| {
                 latest.genesis_block_hash = genesis.hash;
@@ -311,28 +342,19 @@ impl BlockChain {
             }
         }
 
-        for BlockData {
+        for BlockFullData {
             hash,
             synced,
             prepared,
         } in blocks
         {
-            if let Some(SyncedBlockData {
-                header,
-                events,
-                validators,
-            }) = synced
-            {
+            if let Some(SyncedBlockData { header, events }) = synced {
                 db.mutate_latest_data(|latest| latest.synced_block_height = header.height)
                     .unwrap();
 
                 db.set_block_header(hash, header);
                 db.set_block_events(hash, &events);
                 db.set_block_synced(hash);
-
-                // Set validators in every block, because of they can be from different eras.
-                let block_era = timelines.era_from_ts(header.timestamp);
-                db.set_validators(block_era, validators);
             }
 
             if let Some(PreparedBlockData {
@@ -364,22 +386,9 @@ impl BlockChain {
             }
         }
 
-        for (announce_hash, AnnounceData { announce, computed }) in announces {
-            db.set_announce(announce);
-            if let Some(ComputedAnnounceData {
-                outcome,
-                program_states,
-                schedule,
-            }) = computed
-            {
-                db.set_announce_outcome(announce_hash, outcome);
-                db.set_announce_program_states(announce_hash, program_states);
-                db.set_announce_schedule(announce_hash, schedule);
-                db.mutate_announce_meta(announce_hash, |meta| {
-                    *meta = AnnounceMeta { computed: true }
-                });
-            }
-        }
+        announces.into_iter().for_each(|(_, data)| {
+            let _ = data.setup(db);
+        });
 
         for (
             code_id,
@@ -404,9 +413,9 @@ impl BlockChain {
     }
 }
 
-impl Mock<(u32, ValidatorsVec)> for BlockChain {
+impl Mock<u32> for BlockChain {
     /// `len` - length of chain not counting genesis block
-    fn mock((len, validators): (u32, ValidatorsVec)) -> Self {
+    fn mock(len: u32) -> Self {
         // i = 0 - genesis parent
         // i = 1 - genesis
         // i = 2 - first block
@@ -428,7 +437,7 @@ impl Mock<(u32, ValidatorsVec)> for BlockChain {
             .tuple_windows()
             .map(
                 |((parent_hash, _, _), (block_hash, block_height, block_timestamp))| {
-                    BlockData {
+                    BlockFullData {
                         hash: block_hash,
                         synced: Some(SyncedBlockData {
                             header: BlockHeader {
@@ -437,13 +446,12 @@ impl Mock<(u32, ValidatorsVec)> for BlockChain {
                                 parent_hash,
                             },
                             events: Default::default(),
-                            validators: validators.clone(),
                         }),
                         prepared: Some(PreparedBlockData {
                             codes_queue: Default::default(),
                             announces: Default::default(), // empty here, filled below with announces
                             last_committed_batch: Digest::zero(),
-                            last_committed_announce: AnnounceHash::zero(),
+                            last_committed_announce: HashOf::zero(),
                         }),
                     }
                 },
@@ -451,7 +459,7 @@ impl Mock<(u32, ValidatorsVec)> for BlockChain {
             .collect();
 
         let mut genesis_announce_hash = None;
-        let mut parent_announce_hash = AnnounceHash::zero();
+        let mut parent_announce_hash = HashOf::zero();
         let announces = blocks
             .iter_mut()
             .map(|block| {
@@ -484,29 +492,13 @@ impl Mock<(u32, ValidatorsVec)> for BlockChain {
     }
 }
 
-impl Mock<u32> for BlockChain {
-    /// `len` - length of chain not counting genesis block
-    fn mock(len: u32) -> Self {
-        BlockChain::mock((len, nonempty![Address([123; 20])].into()))
-    }
-}
-
-impl Mock<()> for ProtocolTimelines {
-    fn mock(_args: ()) -> Self {
-        ProtocolTimelines {
-            genesis_ts: 0,
-            era: 10_000,
-            election: 2_000,
-        }
-    }
-}
-
 pub trait DBMockExt {
     fn simple_block_data(&self, block: H256) -> SimpleBlockData;
-    fn top_announce_hash(&self, block: H256) -> AnnounceHash;
+    fn top_announce_hash(&self, block: H256) -> HashOf<Announce>;
 }
 
 impl<DB: OnChainStorageRO + BlockMetaStorageRO> DBMockExt for DB {
+    #[track_caller]
     fn simple_block_data(&self, block: H256) -> SimpleBlockData {
         let header = self.block_header(block).expect("block header not found");
         SimpleBlockData {
@@ -515,12 +507,48 @@ impl<DB: OnChainStorageRO + BlockMetaStorageRO> DBMockExt for DB {
         }
     }
 
-    fn top_announce_hash(&self, block: H256) -> AnnounceHash {
+    #[track_caller]
+    fn top_announce_hash(&self, block: H256) -> HashOf<Announce> {
         self.block_meta(block)
             .announces
             .expect("block announces not found")
             .into_iter()
             .next()
             .expect("must be at list one announce")
+    }
+}
+
+impl SimpleBlockData {
+    pub fn setup<DB>(self, db: &DB) -> Self
+    where
+        DB: OnChainStorageRW,
+    {
+        db.set_block_header(self.hash, self.header);
+        db.set_block_events(self.hash, &[]);
+        db.set_block_synced(self.hash);
+        self
+    }
+
+    pub fn next_block(self) -> Self {
+        Self {
+            hash: H256::from_low_u64_be(self.hash.to_low_u64_be() + 1),
+            header: BlockHeader {
+                height: self.header.height + 1,
+                parent_hash: self.hash,
+                timestamp: self.header.timestamp + 10,
+            },
+        }
+    }
+}
+
+impl BlockData {
+    pub fn setup<DB>(self, db: &DB) -> Self
+    where
+        DB: OnChainStorageRW,
+    {
+        db.set_block_header(self.hash, self.header);
+        db.set_block_events(self.hash, &self.events);
+        db.set_block_synced(self.hash);
+        self
     }
 }

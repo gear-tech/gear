@@ -107,7 +107,7 @@ async fn test_deployment() -> Result<()> {
         .expect("observer did not receive event")
         .expect("received error instead of event");
 
-    let ObserverEvent::BlockSynced(_) = event else {
+    let ObserverEvent::BlockSynced { .. } = event else {
         panic!("Expected event: ObserverEvent::RequestLoadBlobs, received: {event:?}");
     };
 
@@ -127,7 +127,7 @@ async fn test_deployment() -> Result<()> {
         .await
         .expect("observer did not receive event")
         .expect("received error instead of event");
-    let ObserverEvent::BlockSynced(_) = event else {
+    let ObserverEvent::BlockSynced { .. } = event else {
         panic!("Expected event: ObserverEvent::RequestLoadBlobs, received: {event:?}");
     };
 

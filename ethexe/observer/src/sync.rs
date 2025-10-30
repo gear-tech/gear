@@ -79,7 +79,6 @@ impl<DB: SyncDB> ChainSync<DB> {
                         self.provider.clone(),
                         hash,
                         self.config.router_address,
-                        self.config.wvara_address,
                         (hash == block).then_some(header),
                     )
                     .await?
@@ -153,7 +152,6 @@ impl<DB: SyncDB> ChainSync<DB> {
             latest.synced_block_height as u64,
             header.height as u64,
             self.config.router_address,
-            self.config.wvara_address,
         )
         .await
     }

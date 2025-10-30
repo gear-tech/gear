@@ -27,7 +27,7 @@ use crate::{
     utils::ConnectionMap,
 };
 use anyhow::Context as _;
-use ethexe_common::{Announce, AnnounceHash, gear::CodeState};
+use ethexe_common::{Announce, HashOf, gear::CodeState};
 use futures::{FutureExt, future::BoxFuture};
 use gprimitives::{ActorId, CodeId, H256};
 use itertools::EitherOrBoth;
@@ -339,8 +339,8 @@ pub enum ValidCodesResponseError {
 pub enum AnnouncesResponseError {
     #[display("announces head mismatch, expected hash {expected}, received {received}")]
     HeadMismatch {
-        expected: AnnounceHash,
-        received: AnnounceHash,
+        expected: HashOf<Announce>,
+        received: HashOf<Announce>,
     },
     #[display("announces len maximum {expected}, received {received}")]
     LenOverflow { expected: usize, received: usize },

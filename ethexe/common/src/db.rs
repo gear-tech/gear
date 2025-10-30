@@ -21,7 +21,7 @@
 // TODO #4547: move types to another module(s)
 
 use crate::{
-    Announce, AnnounceHash, BlockHeader, CodeBlobInfo, Digest, ProgramStates, ProtocolTimelines,
+    Announce, BlockHeader, CodeBlobInfo, Digest, HashOf, ProgramStates, ProtocolTimelines,
     Schedule, ValidatorsVec, events::BlockEvent, gear::StateTransition,
 };
 use alloc::{
@@ -42,13 +42,13 @@ pub struct BlockMeta {
     /// all metadata is ready, all predecessors till start block are prepared too.
     pub prepared: bool,
     /// Set of announces included in the block.
-    pub announces: Option<BTreeSet<AnnounceHash>>,
+    pub announces: Option<BTreeSet<HashOf<Announce>>>,
     /// Queue of code ids waiting for validation status commitment on-chain.
     pub codes_queue: Option<VecDeque<CodeId>>,
     /// Last committed on-chain batch hash.
     pub last_committed_batch: Option<Digest>,
     /// Last committed on-chain announce hash.
-    pub last_committed_announce: Option<AnnounceHash>,
+    pub last_committed_announce: Option<HashOf<Announce>>,
 }
 
 impl BlockMeta {
@@ -129,24 +129,28 @@ pub struct AnnounceMeta {
 
 #[auto_impl::auto_impl(&, Box)]
 pub trait AnnounceStorageRO {
-    fn announce(&self, hash: AnnounceHash) -> Option<Announce>;
-    fn announce_program_states(&self, announce_hash: AnnounceHash) -> Option<ProgramStates>;
-    fn announce_outcome(&self, announce_hash: AnnounceHash) -> Option<Vec<StateTransition>>;
-    fn announce_schedule(&self, announce_hash: AnnounceHash) -> Option<Schedule>;
-    fn announce_meta(&self, announce_hash: AnnounceHash) -> AnnounceMeta;
+    fn announce(&self, hash: HashOf<Announce>) -> Option<Announce>;
+    fn announce_program_states(&self, announce_hash: HashOf<Announce>) -> Option<ProgramStates>;
+    fn announce_outcome(&self, announce_hash: HashOf<Announce>) -> Option<Vec<StateTransition>>;
+    fn announce_schedule(&self, announce_hash: HashOf<Announce>) -> Option<Schedule>;
+    fn announce_meta(&self, announce_hash: HashOf<Announce>) -> AnnounceMeta;
 }
 
 #[auto_impl::auto_impl(&)]
 pub trait AnnounceStorageRW: AnnounceStorageRO {
-    fn set_announce(&self, announce: Announce) -> AnnounceHash;
+    fn set_announce(&self, announce: Announce) -> HashOf<Announce>;
     fn set_announce_program_states(
         &self,
-        announce_hash: AnnounceHash,
+        announce_hash: HashOf<Announce>,
         program_states: ProgramStates,
     );
-    fn set_announce_outcome(&self, announce_hash: AnnounceHash, outcome: Vec<StateTransition>);
-    fn set_announce_schedule(&self, announce_hash: AnnounceHash, schedule: Schedule);
-    fn mutate_announce_meta(&self, announce_hash: AnnounceHash, f: impl FnOnce(&mut AnnounceMeta));
+    fn set_announce_outcome(&self, announce_hash: HashOf<Announce>, outcome: Vec<StateTransition>);
+    fn set_announce_schedule(&self, announce_hash: HashOf<Announce>, schedule: Schedule);
+    fn mutate_announce_meta(
+        &self,
+        announce_hash: HashOf<Announce>,
+        f: impl FnOnce(&mut AnnounceMeta),
+    );
 }
 
 #[derive(Debug, Clone, Default, Encode, Decode, PartialEq, Eq)]
@@ -156,15 +160,15 @@ pub struct LatestData {
     /// Latest prepared block hash
     pub prepared_block_hash: H256,
     /// Latest computed announce hash
-    pub computed_announce_hash: AnnounceHash,
+    pub computed_announce_hash: HashOf<Announce>,
     /// Genesis block hash
     pub genesis_block_hash: H256,
     /// Genesis announce hash
-    pub genesis_announce_hash: AnnounceHash,
+    pub genesis_announce_hash: HashOf<Announce>,
     /// Start block hash: genesis or defined by fast-sync
     pub start_block_hash: H256,
     /// Start announce hash: genesis or defined by fast-sync
-    pub start_announce_hash: AnnounceHash,
+    pub start_announce_hash: HashOf<Announce>,
 }
 
 #[auto_impl::auto_impl(&, Box)]
@@ -190,9 +194,9 @@ pub struct FullBlockData {
     pub header: BlockHeader,
     pub events: Vec<BlockEvent>,
     pub codes_queue: VecDeque<CodeId>,
-    pub announces: BTreeSet<AnnounceHash>,
+    pub announces: BTreeSet<HashOf<Announce>>,
     pub last_committed_batch: Digest,
-    pub last_committed_announce: AnnounceHash,
+    pub last_committed_announce: HashOf<Announce>,
 }
 
 pub struct FullAnnounceData {

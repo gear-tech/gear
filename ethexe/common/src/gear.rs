@@ -18,7 +18,7 @@
 
 //! This is supposed to be an exact copy of Gear.sol library.
 
-use crate::{Address, AnnounceHash, Digest, ToDigest, ValidatorsVec};
+use crate::{Address, Announce, Digest, HashOf, ToDigest, ValidatorsVec};
 use alloc::vec::Vec;
 use alloy_primitives::U256 as AlloyU256;
 use gear_core::message::{ReplyCode, ReplyDetails, StoredMessage, SuccessReplyReason};
@@ -62,7 +62,7 @@ pub struct AddressBook {
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
 pub struct ChainCommitment {
     pub transitions: Vec<StateTransition>,
-    pub head_announce: AnnounceHash,
+    pub head_announce: HashOf<Announce>,
 }
 
 impl ToDigest for Option<ChainCommitment> {
@@ -77,7 +77,7 @@ impl ToDigest for Option<ChainCommitment> {
         };
 
         hasher.update(transitions.to_digest());
-        hasher.update(head_announce.0);
+        hasher.update(head_announce.hash().0);
     }
 }
 

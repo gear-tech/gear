@@ -22,10 +22,10 @@ use crate::{
     visitor::{DatabaseVisitor, walk},
 };
 use ethexe_common::{
-    Announce, AnnounceHash, BlockHeader, ScheduledTask,
+    Announce, BlockHeader, HashOf, ScheduledTask,
     db::{AnnounceMeta, AnnounceStorageRO, BlockMeta, BlockMetaStorageRO, OnChainStorageRO},
 };
-use ethexe_runtime_common::state::{HashOf, MessageQueue, MessageQueueHashWithSize};
+use ethexe_runtime_common::state::{MessageQueue, MessageQueueHashWithSize};
 use gear_core::code::CodeMetadata;
 use gprimitives::{CodeId, H256};
 use parity_scale_codec::Encode;
@@ -48,10 +48,10 @@ pub enum IntegrityVerifierError {
     NoBlockHeader(H256),
 
     /* announce */
-    AnnounceNotFound(AnnounceHash),
-    AnnounceIsNotComputed(AnnounceHash),
-    AnnounceIsNotIncluded(AnnounceHash),
-    AnnounceOffChainTransactionsNotEmpty(AnnounceHash),
+    AnnounceNotFound(HashOf<Announce>),
+    AnnounceIsNotComputed(HashOf<Announce>),
+    AnnounceIsNotIncluded(HashOf<Announce>),
+    AnnounceOffChainTransactionsNotEmpty(HashOf<Announce>),
 
     /* block header */
     NoParentBlockHeader(H256),
@@ -74,7 +74,7 @@ pub enum IntegrityVerifierError {
 
     /* rest */
     AnnounceScheduleHasExpiredTasks {
-        announce_hash: AnnounceHash,
+        announce_hash: HashOf<Announce>,
         expiry: u32,
         tasks: usize,
     },
@@ -169,7 +169,7 @@ impl DatabaseVisitor for IntegrityVerifier {
         }
     }
 
-    fn visit_announce(&mut self, announce_hash: AnnounceHash, announce: Announce) {
+    fn visit_announce(&mut self, announce_hash: HashOf<Announce>, announce: Announce) {
         if !announce.off_chain_transactions.is_empty() {
             self.errors
                 .push(IntegrityVerifierError::AnnounceOffChainTransactionsNotEmpty(announce_hash));
@@ -186,7 +186,11 @@ impl DatabaseVisitor for IntegrityVerifier {
         }
     }
 
-    fn visit_announce_meta(&mut self, announce_hash: AnnounceHash, announce_meta: AnnounceMeta) {
+    fn visit_announce_meta(
+        &mut self,
+        announce_hash: HashOf<Announce>,
+        announce_meta: AnnounceMeta,
+    ) {
         if !announce_meta.computed {
             self.errors
                 .push(IntegrityVerifierError::AnnounceIsNotComputed(announce_hash));
@@ -257,7 +261,7 @@ impl DatabaseVisitor for IntegrityVerifier {
 
     fn visit_announce_schedule_tasks(
         &mut self,
-        announce_hash: AnnounceHash,
+        announce_hash: HashOf<Announce>,
         height: u32,
         tasks: BTreeSet<ScheduledTask>,
     ) {
@@ -317,10 +321,10 @@ mod tests {
         MessageQueueNode, tests::setup_db,
     };
     use ethexe_common::{
-        Digest, ProgramStates, Schedule,
+        Digest, MaybeHashOf, ProgramStates, Schedule,
         db::{AnnounceStorageRW, BlockMetaStorageRW, CodesStorageRW, OnChainStorageRW},
     };
-    use ethexe_runtime_common::state::{MaybeHashOf, Storage};
+    use ethexe_runtime_common::state::Storage;
     use gear_core::{
         code::{CodeMetadata, InstantiatedSectionSizes, InstrumentationStatus, InstrumentedCode},
         pages::WasmPagesAmount,
@@ -539,7 +543,7 @@ mod tests {
         let db = setup_db();
         let block_hash = H256::random();
 
-        let announce = Announce::base(block_hash, AnnounceHash::zero());
+        let announce = Announce::base(block_hash, HashOf::zero());
         let announce_hash = db.set_announce(announce);
 
         // Setup block with height 100
@@ -672,7 +676,7 @@ mod tests {
             timestamp: 1000,
         };
 
-        let announce = Announce::base(block_hash, AnnounceHash::zero());
+        let announce = Announce::base(block_hash, HashOf::zero());
         let announce_hash = db.set_announce(announce);
         db.set_announce_program_states(announce_hash, ProgramStates::new());
         db.set_announce_schedule(announce_hash, Schedule::new());

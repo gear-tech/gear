@@ -18,7 +18,7 @@
 
 use crate::{ComputeError, Result};
 use ethexe_common::{
-    AnnounceHash, SimpleBlockData,
+    Announce, HashOf, SimpleBlockData,
     db::{AnnounceStorageRO, BlockMeta, BlockMetaStorageRO, OnChainStorageRO},
 };
 use gprimitives::H256;
@@ -61,7 +61,7 @@ pub fn collect_chain<DB: BlockMetaStorageRO + OnChainStorageRO>(
 /// in the block.
 pub fn announce_is_computed_and_included<DB: BlockMetaStorageRO + AnnounceStorageRO>(
     db: &DB,
-    announce_hash: AnnounceHash,
+    announce_hash: HashOf<Announce>,
     block_hash: H256,
 ) -> Result<bool> {
     if !db.announce_meta(announce_hash).computed {
