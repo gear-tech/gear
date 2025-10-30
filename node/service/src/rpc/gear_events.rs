@@ -733,7 +733,7 @@ mod tests {
             destination: None,
             payload_filters: vec![PayloadFilter {
                 offset: 2,
-                pattern: b"cd".to_vec(),
+                pattern: b"cd".to_vec().into(),
             }],
             from_block: None,
             finalized_only: None,
@@ -750,7 +750,7 @@ mod tests {
             destination: None,
             payload_filters: vec![PayloadFilter {
                 offset: 5,
-                pattern: b"ghi".to_vec(),
+                pattern: b"ghi".to_vec().into(),
             }],
             from_block: None,
             finalized_only: None,
@@ -768,11 +768,11 @@ mod tests {
             payload_filters: vec![
                 PayloadFilter {
                     offset: 3,
-                    pattern: b"de".to_vec(),
+                    pattern: b"de".to_vec().into(),
                 },
                 PayloadFilter {
                     offset: 0,
-                    pattern: b"ab".to_vec(),
+                    pattern: b"ab".to_vec().into(),
                 },
             ],
             from_block: None,
