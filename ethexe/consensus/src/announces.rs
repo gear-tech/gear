@@ -260,9 +260,32 @@ pub fn check_for_missing_announces(
         #[cfg(debug_assertions)]
         {
             // debug check that all announces in the chain are present (check only up to 100 announces)
+            let start_announce_hash = db
+                .latest_data()
+                .expect("Latest data not found")
+                .start_announce_hash;
+
+            let start_announce_block_height = db
+                .announce(start_announce_hash)
+                .and_then(|announce| db.block_header(announce.block_hash))
+                .expect("start block data corrupted in db")
+                .height;
+
+            let last_committed_announce_block_height =
+                if last_committed_announce_hash == HashOf::zero() {
+                    0u32
+                } else {
+                    db.announce(last_committed_announce_hash)
+                        .and_then(|announce| db.block_header(announce.block_hash))
+                        .expect("last committed announce data corrupted in db")
+                        .height
+                };
+
             let mut announce_hash = last_committed_announce_hash;
-            let mut count = 0;
-            while count < 100 && announce_hash != HashOf::zero() {
+            let mut count = last_committed_announce_block_height
+                .saturating_sub(start_announce_block_height)
+                .min(100);
+            while count > 0 && announce_hash != start_announce_hash {
                 assert!(
                     db.announce_is_included(announce_hash),
                     "announce {announce_hash} must be included"
@@ -272,7 +295,7 @@ pub fn check_for_missing_announces(
                     .announce(announce_hash)
                     .unwrap_or_else(|| panic!("announce {announce_hash} not found"))
                     .parent;
-                count += 1;
+                count -= 1;
             }
         }
 

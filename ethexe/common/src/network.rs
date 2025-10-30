@@ -48,7 +48,7 @@ impl<T: ToDigest> ToDigest for ValidatorMessage<T> {
 
 #[derive(Debug, Clone, Encode, Decode, Eq, PartialEq, derive_more::Unwrap, derive_more::From)]
 pub enum SignedValidatorMessage {
-    ProducerBlock(SignedData<ValidatorAnnounce>),
+    Announce(SignedData<ValidatorAnnounce>),
     RequestBatchValidation(SignedData<ValidatorRequest>),
     ApproveBatch(SignedData<ValidatorReply>),
 }
@@ -56,7 +56,7 @@ pub enum SignedValidatorMessage {
 impl SignedValidatorMessage {
     pub fn into_verified(self) -> VerifiedValidatorMessage {
         match self {
-            SignedValidatorMessage::ProducerBlock(announce) => announce.into_verified().into(),
+            SignedValidatorMessage::Announce(announce) => announce.into_verified().into(),
             SignedValidatorMessage::RequestBatchValidation(request) => {
                 request.into_verified().into()
             }
@@ -67,7 +67,7 @@ impl SignedValidatorMessage {
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash, derive_more::Unwrap, derive_more::From)]
 pub enum VerifiedValidatorMessage {
-    ProducerBlock(VerifiedData<ValidatorAnnounce>),
+    Announce(VerifiedData<ValidatorAnnounce>),
     RequestBatchValidation(VerifiedData<ValidatorRequest>),
     ApproveBatch(VerifiedData<ValidatorReply>),
 }
@@ -75,7 +75,7 @@ pub enum VerifiedValidatorMessage {
 impl VerifiedValidatorMessage {
     pub fn block(&self) -> H256 {
         match self {
-            VerifiedValidatorMessage::ProducerBlock(announce) => announce.data().block,
+            VerifiedValidatorMessage::Announce(announce) => announce.data().block,
             VerifiedValidatorMessage::RequestBatchValidation(request) => request.data().block,
             VerifiedValidatorMessage::ApproveBatch(reply) => reply.data().block,
         }
@@ -83,7 +83,7 @@ impl VerifiedValidatorMessage {
 
     pub fn address(&self) -> Address {
         match self {
-            VerifiedValidatorMessage::ProducerBlock(announce) => announce.address(),
+            VerifiedValidatorMessage::Announce(announce) => announce.address(),
             VerifiedValidatorMessage::RequestBatchValidation(request) => request.address(),
             VerifiedValidatorMessage::ApproveBatch(reply) => reply.address(),
         }

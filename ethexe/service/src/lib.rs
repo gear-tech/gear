@@ -19,6 +19,7 @@
 use crate::config::{Config, ConfigPublicKey};
 use anyhow::{Context, Result, anyhow, bail};
 use async_trait::async_trait;
+use core::panic;
 use ethexe_blob_loader::{
     BlobLoader, BlobLoaderEvent, BlobLoaderService, ConsensusLayerConfig,
     local::{LocalBlobLoader, LocalBlobStorage},
@@ -27,7 +28,9 @@ use ethexe_common::{
     db::OnChainStorageRO, ecdsa::PublicKey, gear::CodeState, network::VerifiedValidatorMessage,
 };
 use ethexe_compute::{ComputeEvent, ComputeService};
-use ethexe_consensus::{ConsensusEvent, ConsensusService, ValidatorConfig, ValidatorService};
+use ethexe_consensus::{
+    ConnectService, ConsensusEvent, ConsensusService, ValidatorConfig, ValidatorService,
+};
 use ethexe_db::{Database, RocksDatabase};
 use ethexe_ethereum::{Ethereum, router::RouterQuery};
 use ethexe_network::{
@@ -221,11 +224,11 @@ impl Service {
                     },
                 )?)
             } else {
-                todo!("Implement non-validator consensus service");
-                // Box::pin(SimpleConnectService::new(
-                //     db.clone(),
-                //     config.ethereum.block_time,
-                // ))
+                Box::pin(ConnectService::new(
+                    db.clone(),
+                    config.ethereum.block_time,
+                    3,
+                ))
             }
         };
 
@@ -452,7 +455,7 @@ impl Service {
                     match event {
                         NetworkEvent::ValidatorMessage(message) => {
                             match message {
-                                VerifiedValidatorMessage::ProducerBlock(announce) => {
+                                VerifiedValidatorMessage::Announce(announce) => {
                                     let announce = announce.map(|a| a.payload);
                                     consensus.receive_announce(announce)?
                                 }
@@ -547,7 +550,7 @@ impl Service {
                     }
                     ConsensusEvent::RequestAnnounces(request) => {
                         let Some(network) = network.as_mut() else {
-                            continue;
+                            panic!("Requesting announces is not allowed without network service");
                         };
 
                         network_fetcher.push(network.db_sync_handle().request(request.into()));

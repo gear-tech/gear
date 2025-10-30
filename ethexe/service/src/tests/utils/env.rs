@@ -43,7 +43,7 @@ use ethexe_common::{
     ecdsa::{PrivateKey, PublicKey},
     events::{BlockEvent, MirrorEvent, RouterEvent},
 };
-use ethexe_consensus::{ConsensusService, ValidatorService};
+use ethexe_consensus::{ConnectService, ConsensusService, ValidatorService};
 use ethexe_db::Database;
 use ethexe_ethereum::{
     Ethereum,
@@ -860,8 +860,7 @@ impl Node {
                     .unwrap(),
                 )
             } else {
-                todo!("Implement SimpleConnectService");
-                // Box::pin(SimpleConnectService::new(self.db.clone(), self.block_time))
+                Box::pin(ConnectService::new(self.db.clone(), self.block_time, 3))
             }
         };
 

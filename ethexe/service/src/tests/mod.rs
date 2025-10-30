@@ -34,7 +34,6 @@ use ethexe_common::{
     db::*,
     events::{BlockEvent, MirrorEvent, RouterEvent},
     gear::Origin,
-    mock::*,
 };
 use ethexe_db::{Database, verifier::IntegrityVerifier};
 use ethexe_ethereum::deploy::ContractsDeploymentParams;
@@ -697,9 +696,18 @@ async fn incoming_transfers() {
 async fn ping_reorg() {
     init_logger();
 
-    let mut env = TestEnv::new(Default::default()).await.unwrap();
+    let mut env = TestEnv::new(TestEnvConfig {
+        network: EnvNetworkConfig::Enabled,
+        ..Default::default()
+    })
+    .await
+    .unwrap();
 
-    let mut node = env.new_node(NodeConfig::default().validator(env.validators[0]));
+    // Start a separate connect node, to be able to request missed announces.
+    let mut connect_node = env.new_node(NodeConfig::named("connect"));
+    connect_node.start_service().await;
+
+    let mut node = env.new_node(NodeConfig::named("validator").validator(env.validators[0]));
     node.start_service().await;
 
     let res = env
@@ -1172,25 +1180,49 @@ async fn fast_sync() {
             }
 
             log::trace!("assert block {block}");
-            assert_eq!(alice.db.block_meta(block), bob.db.block_meta(block));
 
-            let announce_hash = alice.db.top_announce_hash(block);
-            assert_eq!(
-                alice.db.announce_meta(announce_hash),
-                bob.db.announce_meta(announce_hash)
+            // Check block meta, exclude codes_queue and announces, which can vary, and it's ok
+            let alice_meta = alice.db.block_meta(block);
+            let bob_meta = bob.db.block_meta(block);
+            assert!(
+                alice_meta.prepared && bob_meta.prepared,
+                "Block {block} is not prepared for alice or bob"
             );
             assert_eq!(
-                alice.db.announce_program_states(announce_hash),
-                bob.db.announce_program_states(announce_hash)
+                alice_meta.last_committed_announce,
+                bob_meta.last_committed_announce
             );
             assert_eq!(
-                alice.db.announce_outcome(announce_hash),
-                bob.db.announce_outcome(announce_hash)
+                alice_meta.last_committed_batch,
+                bob_meta.last_committed_batch
             );
-            assert_eq!(
-                alice.db.announce_outcome(announce_hash),
-                bob.db.announce_outcome(announce_hash)
-            );
+
+            let Some((alice_announces, bob_announces)) =
+                alice_meta.announces.zip(bob_meta.announces)
+            else {
+                panic!("alice or bob has no announces");
+            };
+
+            for &announce_hash in alice_announces.intersection(&bob_announces) {
+                if alice.db.announce_meta(announce_hash).computed
+                    != bob.db.announce_meta(announce_hash).computed
+                {
+                    continue;
+                }
+
+                assert_eq!(
+                    alice.db.announce_program_states(announce_hash),
+                    bob.db.announce_program_states(announce_hash)
+                );
+                assert_eq!(
+                    alice.db.announce_outcome(announce_hash),
+                    bob.db.announce_outcome(announce_hash)
+                );
+                assert_eq!(
+                    alice.db.announce_outcome(announce_hash),
+                    bob.db.announce_outcome(announce_hash)
+                );
+            }
 
             assert_eq!(alice.db.block_header(block), bob.db.block_header(block));
             assert_eq!(alice.db.block_events(block), bob.db.block_events(block));
@@ -1207,11 +1239,11 @@ async fn fast_sync() {
     };
     let mut env = TestEnv::new(config).await.unwrap();
 
-    log::info!("Starting Alice");
+    log::info!("📗 Starting Alice");
     let mut alice = env.new_node(NodeConfig::named("Alice").validator(env.validators[0]));
     alice.start_service().await;
 
-    log::info!("Creating `demo-autoreply` programs");
+    log::info!("📗 Creating `demo-autoreply` programs");
 
     let code_info = env
         .upload_code(demo_mul_by_const::WASM_BINARY)
@@ -1256,7 +1288,7 @@ async fn fast_sync() {
 
     bob.start_service().await;
 
-    log::info!("Sending messages to programs");
+    log::info!("📗 Sending messages to programs");
 
     for (i, program_id) in program_ids.into_iter().enumerate() {
         let reply_info = env
@@ -1281,8 +1313,26 @@ async fn fast_sync() {
         .wait_for_announce_computed(latest_block)
         .await;
 
-    log::info!("Stopping Bob");
+    log::info!("📗 Stopping Bob");
     bob.stop_service().await;
+
+    // // +_+_+
+    // log::info!("Alice's announce chain:");
+    // {
+    //     let mut announce_hash = alice.db.latest_data().unwrap().computed_announce_hash;
+    //     while announce_hash != AnnounceHash::zero() {
+    //         log::trace!("Announce hash: {}", announce_hash);
+    //         announce_hash = alice.db.announce(announce_hash).unwrap().parent;
+    //     }
+    // }
+    // log::info!("Bob's announce chain:");
+    // {
+    //     let mut announce_hash = bob.db.latest_data().unwrap().computed_announce_hash;
+    //     while announce_hash != AnnounceHash::zero() {
+    //         log::trace!("Announce hash: {}", announce_hash);
+    //         announce_hash = bob.db.announce(announce_hash).unwrap().parent;
+    //     }
+    // }
 
     assert_chain(
         latest_block,
@@ -1314,11 +1364,18 @@ async fn fast_sync() {
         .wait_for_announce_computed(latest_block)
         .await;
 
-    log::info!("Starting Bob again to check how it handles partially empty database");
+    log::info!("📗 Starting Bob again to check how it handles partially empty database");
     bob.start_service().await;
 
-    // mine a block so Bob can produce the event we will wait for
-    env.skip_blocks(1).await;
+    // Mine some blocks so Bob can produce the event we will wait for.
+    // We mine several blocks here to ensure that Bob and Alice would converge to the same chain of announces.
+    // Why do we need that? Because Bob was disabled he missed some announces that Alice produced,
+    // this announces was not committed, so Bob would not see them during fast-sync
+    // and would not have them in his database. This is normal situation, after a few blocks Bob and Alice should
+    // converge to the same chain of announces.
+    for _ in 0..3 {
+        env.skip_blocks(1).await;
+    }
 
     let latest_block = env.latest_block().await.hash.0.into();
     alice

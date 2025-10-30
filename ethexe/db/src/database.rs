@@ -552,7 +552,7 @@ impl OnChainStorageRW for Database {
 impl AnnounceStorageRO for Database {
     fn announce(&self, hash: HashOf<Announce>) -> Option<Announce> {
         self.cas.read(hash.hash()).map(|data| {
-            Announce::decode(&mut &data[..]).expect("Failed to decode data into `ProducerBlock`")
+            Announce::decode(&mut &data[..]).expect("Failed to decode data into `Announce`")
         })
     }
 

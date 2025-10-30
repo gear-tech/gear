@@ -83,12 +83,14 @@ impl OngoingResponses {
             InnerRequest::ProgramIds(request) => InnerProgramIdsResponse(
                 db.block_meta(request.at)
                     .announces
-                    .and_then(|a| a.first().copied())
-                    .and_then(|announce_hash| {
-                        db.announce_program_states(announce_hash)
-                            .map(|states| states.into_keys().collect())
-                    })
-                    .unwrap_or_default(), // FIXME: Option might be more suitable
+                    .into_iter()
+                    .flatten()
+                    .find_map(|announce_hash| db.announce_program_states(announce_hash))
+                    .map(|states| states.into_keys().collect())
+                    .unwrap_or_else(|| {
+                        log::warn!("no program states found for block {:?}", request.at);
+                        Default::default()
+                    }), // FIXME: Option might be more suitable
             )
             .into(),
             InnerRequest::ValidCodes => db.valid_codes().into(),
