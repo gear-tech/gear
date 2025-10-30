@@ -59,7 +59,6 @@ impl ComputeConfig {
         }
     }
 
-    #[inline]
     pub fn events_maturity_period(&self) -> u8 {
         self.events_maturity_period
     }
