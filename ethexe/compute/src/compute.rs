@@ -24,6 +24,7 @@ use ethexe_common::{
         LatestDataStorageRW, OnChainStorageRO,
     },
     events::BlockEvent,
+    gear::CANONICAL_EVENTS_MATURITY_PERIOD,
 };
 use ethexe_db::Database;
 use ethexe_processor::BlockProcessingResult;
@@ -33,9 +34,6 @@ use std::{
     collections::VecDeque,
     task::{Context, Poll},
 };
-
-/// [`CANONICAL_EVENTS_MATURITY_PERIOD`] defines the period of blocks to start applying canonical events in current block.
-const CANONICAL_EVENTS_MATURITY_PERIOD: u8 = 16;
 
 #[derive(Debug, Clone, Copy)]
 pub struct ComputeConfig {

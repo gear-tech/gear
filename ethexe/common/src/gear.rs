@@ -38,6 +38,9 @@ pub const CHUNK_PROCESSING_GAS_LIMIT: u64 = 1_000_000_000_000;
 /// Max block gas limit for the node.
 pub const MAX_BLOCK_GAS_LIMIT: u64 = 9_000_000_000_000;
 
+/// [`CANONICAL_EVENTS_MATURITY_PERIOD`] defines the period of blocks to start applying canonical events in current block.
+pub const CANONICAL_EVENTS_MATURITY_PERIOD: u8 = 16;
+
 #[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
 pub struct AggregatedPublicKey {
     pub x: U256,
