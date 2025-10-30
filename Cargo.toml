@@ -5,7 +5,7 @@ edition = "2024"
 license = "GPL-3.0"
 homepage = "https://gear-tech.io"
 repository = "https://github.com/gear-tech/gear"
-rust-version = "1.88"
+rust-version = "1.89"
 
 [workspace]
 resolver = "3"
@@ -542,7 +542,6 @@ directories = "5.0.1"                                        # utils/key-finder
 num-traits = { version = "0.2", default-features = false }   # gear-core
 glob = "0.3.1"                                               # cargo-gbuild
 smallvec = "1.13.2"                                          # utils/node-wrapper
-fs4 = "0.11.1"                                               # utils/gear-wasmer-cache
 bytes = "1.8.0"                                              # utils/gear-wasmer-cache
 loom = "0.7.2"                                               # utils/gear-wasmer-cache
 wasm-smith = { version = "0.230", features = ["wasmparser"] } # utils/wasm-gen
