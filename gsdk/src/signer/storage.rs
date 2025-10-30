@@ -18,7 +18,7 @@
 
 //! Storage interfaces
 use crate::{
-    Api, BlockNumber, Error, GearGasNode, GearGasNodeId, GearPages,
+    Api, BlockNumber, GearGasNode, GearGasNodeId, GearPages,
     metadata::{
         runtime_types::{
             frame_system::pallet::Call,
@@ -31,6 +31,7 @@ use crate::{
         storage::{GearBankStorage, GearGasStorage, GearProgramStorage},
         vara_runtime::RuntimeCall,
     },
+    result::FailedPage,
     signer::{Inner, utils::EventsResult},
     utils::storage_address_bytes,
 };
@@ -161,7 +162,7 @@ impl SignerStorage {
                 ],
             );
             let page_buf_inner = PageBufInner::try_from(program_page.1.clone())
-                .map_err(|_| Error::PageInvalid(*program_page.0, program_id.encode_hex()))?;
+                .map_err(|_| FailedPage::new(*program_page.0, program_id.encode_hex()).invalid())?;
             let value = PageBuf::from_inner(page_buf_inner);
             program_pages_to_set.push((addr, value));
         }

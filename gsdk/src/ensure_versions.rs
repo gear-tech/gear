@@ -40,4 +40,5 @@ const _: () = {
     ensure_same_type::<jsonrpsee::core::client::Client, subxt::ext::jsonrpsee::core::client::Client>(
     );
     ensure_same_type::<parity_scale_codec::DecodeFinished, subxt::ext::codec::DecodeFinished>();
+    ensure_same_type::<url::Url, jsonrpsee::client_transport::ws::Url>();
 };

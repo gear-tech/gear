@@ -56,6 +56,7 @@ mod rpc;
 pub mod signer;
 mod storage;
 pub mod subscription;
+mod tx_status;
 mod utils;
 
 mod ensure_versions;

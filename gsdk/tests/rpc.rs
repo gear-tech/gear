@@ -501,7 +501,7 @@ async fn query_program_counters(
         }
     };
 
-    let storage = signer.api().get_storage(Some(block_hash)).await?;
+    let storage = signer.api().storage_at(Some(block_hash)).await?;
     let addr = Api::storage(GearProgramStorage::ProgramStorage, Vec::<Value>::new());
 
     let mut iter = storage.iter(addr).await?;

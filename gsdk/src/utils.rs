@@ -57,7 +57,7 @@ impl Api {
     }
 
     /// Get storage from optional block hash.
-    pub async fn get_storage(
+    pub async fn storage_at(
         &self,
         block_hash: Option<H256>,
     ) -> Result<Storage<GearConfig, OnlineClient<GearConfig>>> {
@@ -101,6 +101,6 @@ pub(crate) fn storage_address_bytes(
     let mut bytes = Vec::new();
     write_storage_address_root_bytes(addr, &mut bytes);
     addr.append_entry_bytes(metadata, &mut bytes)
-        .map_err(|err| Box::new(err.into()))?;
+        .map_err(|e| Box::new(e.into()))?;
     Ok(bytes)
 }

@@ -37,10 +37,9 @@ use crate::{
         },
         vara_runtime::RuntimeEvent,
     },
-    result::{Error, Result},
+    result::{Error, FailedPage, Result},
     utils,
 };
-use anyhow::anyhow;
 use gear_core::ids::*;
 use gsdk_codegen::storage_fetch;
 use hex::ToHex;
@@ -49,6 +48,7 @@ use sp_runtime::AccountId32;
 use std::collections::HashMap;
 use subxt::{
     dynamic::{DecodedValueThunk, Value},
+    error::MetadataError,
     ext::codec::{Decode, Encode},
     metadata::types::StorageEntryType,
     storage::{Address, DynamicAddress, StaticStorageKey},
@@ -56,7 +56,7 @@ use subxt::{
 };
 
 impl Api {
-    /// Shortcut for fetching storage at specified block.
+    /// Shortcut for fetching a value from storage at specified block.
     ///
     /// # You may not need this.
     ///
@@ -73,7 +73,7 @@ impl Api {
     ///
     /// {
     ///     let address = Api::storage(SystemStorage::Number);
-    ///     let bn = api.fetch_storage(address).await?;
+    ///     let bn = api.storage_fetch(address).await?;
     /// }
     ///
     /// // The code above equals to the following code due to
@@ -84,7 +84,7 @@ impl Api {
     /// }
     /// ```
     #[storage_fetch]
-    pub async fn fetch_storage_at<'a, Addr, Value>(
+    pub async fn storage_fetch_at<'a, Addr, Value>(
         &self,
         address: &'a Addr,
         block_hash: Option<H256>,
@@ -104,7 +104,7 @@ impl Api {
             &mut storage
                 .fetch(address)
                 .await?
-                .ok_or(Error::StorageNotFound)?
+                .ok_or(Error::StorageEntryNotFound)?
                 .encoded(),
         )?)
     }
@@ -127,13 +127,13 @@ impl Api {
         let dest = AccountId32::from_ss58check(address)?;
         let addr = Self::storage(SystemStorage::Account, vec![Value::from_bytes(dest)]);
 
-        self.fetch_storage_at(&addr, block_hash).await
+        self.storage_fetch_at(&addr, block_hash).await
     }
 
     /// Get block number.
     pub async fn number(&self) -> Result<u32> {
         let addr = Self::storage_root(SystemStorage::Number);
-        self.fetch_storage(&addr).await
+        self.storage_fetch(&addr).await
     }
 
     /// Get balance by account address.
@@ -147,7 +147,7 @@ impl Api {
         let addr = Self::storage_root(SystemStorage::Events);
 
         let evs: Vec<EventRecord<RuntimeEvent, H256>> =
-            self.fetch_storage_at(&addr, block_hash).await?;
+            self.storage_fetch_at(&addr, block_hash).await?;
 
         Ok(evs.into_iter().map(|ev| ev.event).collect())
     }
@@ -158,7 +158,7 @@ impl Api {
     /// Return a timestamp of the block.
     pub async fn block_timestamp(&self, block_hash: Option<H256>) -> Result<u64> {
         let addr = Self::storage_root(TimestampStorage::Now);
-        self.fetch_storage_at(&addr, block_hash).await
+        self.storage_fetch_at(&addr, block_hash).await
     }
 }
 
@@ -167,7 +167,7 @@ impl Api {
     /// Get all validators from pallet_session.
     pub async fn validators(&self) -> Result<Vec<AccountId32>> {
         let addr = Self::storage_root(SessionStorage::Validators);
-        self.fetch_storage(&addr).await
+        self.storage_fetch(&addr).await
     }
 }
 
@@ -177,7 +177,7 @@ impl Api {
     #[storage_fetch]
     pub async fn total_issuance_at(&self, block_hash: Option<H256>) -> Result<u64> {
         let addr = Self::storage_root(GearGasStorage::TotalIssuance);
-        self.fetch_storage_at(&addr, block_hash).await
+        self.storage_fetch_at(&addr, block_hash).await
     }
 
     /// Get Gear gas nodes by their ids at specified block.
@@ -192,7 +192,7 @@ impl Api {
 
         for &gas_node_id in gas_node_ids {
             let addr = Self::storage(GearGasStorage::GasNodes, StaticStorageKey::new(gas_node_id));
-            let gas_node = self.fetch_storage_at(&addr, block_hash).await?;
+            let gas_node = self.storage_fetch_at(&addr, block_hash).await?;
             gas_nodes.push((gas_node_id, gas_node));
         }
         Ok(gas_nodes)
@@ -210,20 +210,13 @@ impl Api {
     ) -> Result<BankAccount<u128>> {
         let addr = Self::storage(GearBankStorage::Bank, vec![Value::from_bytes(account_id)]);
 
-        self.fetch_storage_at(&addr, block_hash).await
+        self.storage_fetch_at(&addr, block_hash).await
     }
 
     /// Get Gear bank's sovereign account id.
     pub async fn bank_address(&self) -> Result<AccountId32> {
         let addr = Self::storage_root(GearBankStorage::BankAddress);
-        let thunk = self
-            .get_storage(None)
-            .await?
-            .fetch(&addr)
-            .await?
-            .ok_or(Error::StorageNotFound)?
-            .into_encoded();
-        Ok(AccountId32::decode(&mut thunk.as_ref())?)
+        self.storage_fetch(&addr).await
     }
 }
 
@@ -233,7 +226,8 @@ impl Api {
     pub async fn execute_inherent(&self) -> Result<bool> {
         let addr = Self::storage_root(GearStorage::ExecuteInherent);
         let thunk = self
-            .get_storage(None)
+            .storage()
+            .at_latest()
             .await?
             .fetch_or_default(&addr)
             .await?
@@ -246,7 +240,7 @@ impl Api {
     pub async fn gear_block_number(&self, block_hash: Option<H256>) -> Result<BlockNumber> {
         let addr = Self::storage_root(GearStorage::BlockNumber);
         let thunk = self
-            .get_storage(block_hash)
+            .storage_at(block_hash)
             .await?
             .fetch_or_default(&addr)
             .await?
@@ -268,7 +262,7 @@ impl Api {
             GearProgramStorage::OriginalCodeStorage,
             vec![Value::from_bytes(code_id)],
         );
-        self.fetch_storage_at(&addr, block_hash).await
+        self.storage_fetch_at(&addr, block_hash).await
     }
 
     /// Get `InstrumentedCode` by its `CodeId` at specified block.
@@ -282,7 +276,7 @@ impl Api {
             GearProgramStorage::InstrumentedCodeStorage,
             vec![Value::from_bytes(code_id)],
         );
-        self.fetch_storage_at(&addr, block_hash).await
+        self.storage_fetch_at(&addr, block_hash).await
     }
 
     /// Get `CodeMetadata` by its `CodeId` at specified block.
@@ -296,7 +290,7 @@ impl Api {
             GearProgramStorage::CodeMetadataStorage,
             vec![Value::from_bytes(code_id)],
         );
-        self.fetch_storage_at(&addr, block_hash).await
+        self.storage_fetch_at(&addr, block_hash).await
     }
 
     /// Get active program from program id at specified block.
@@ -336,7 +330,7 @@ impl Api {
         );
 
         let mut pages_stream = self
-            .get_storage(block_hash)
+            .storage_at(block_hash)
             .await?
             .iter(pages_storage_address)
             .await?;
@@ -392,11 +386,13 @@ impl Api {
             let metadata = self.metadata();
             let lookup_bytes = utils::storage_address_bytes(&addr, &metadata)?;
             let encoded_page = self
-                .get_storage(block_hash)
+                .storage_at(block_hash)
                 .await?
                 .fetch_raw(lookup_bytes)
                 .await?
-                .ok_or_else(|| Error::PageNotFound(page, program_id.as_ref().encode_hex()))?;
+                .ok_or_else(|| {
+                    FailedPage::new(page, program_id.as_ref().encode_hex()).not_found()
+                })?;
 
             pages.insert(page, encoded_page);
         }
@@ -416,7 +412,7 @@ impl Api {
             vec![Value::from_bytes(program_id)],
         );
 
-        self.fetch_storage_at::<_, Program<BlockNumber>>(&addr, block_hash)
+        self.storage_fetch_at::<_, Program<BlockNumber>>(&addr, block_hash)
             .await
     }
 }
@@ -438,7 +434,7 @@ impl Api {
             ],
         );
 
-        Ok(self.fetch_storage(&addr).await.ok())
+        Ok(self.storage_fetch(&addr).await.ok())
     }
 
     /// Get all mailbox messages or for the provided `address`.
@@ -477,19 +473,22 @@ impl Api {
 }
 
 /// Get storage entry type id using `metadata` and storage entry `address`
-pub(crate) fn storage_type_id(metadata: &subxt::Metadata, address: &impl Address) -> Result<u32> {
+pub(crate) fn storage_type_id(
+    metadata: &subxt::Metadata,
+    address: &impl Address,
+) -> Result<u32, MetadataError> {
     let storage_type = metadata
         .pallet_by_name_err(address.pallet_name())?
         .storage()
-        .ok_or(anyhow!("Storage {} not found", address.pallet_name()))?
+        .ok_or_else(|| MetadataError::StorageNotFoundInPallet(address.pallet_name().to_owned()))?
         .entry_by_name(address.entry_name())
-        .ok_or(anyhow!("Entry {} not found", address.entry_name()))?
+        .ok_or_else(|| MetadataError::StorageEntryNotFound(address.entry_name().to_owned()))?
         .entry_type();
 
-    let storage_type_id = match storage_type {
+    let storage_type_id = *match storage_type {
         StorageEntryType::Plain(id) => id,
         StorageEntryType::Map { value_ty, .. } => value_ty,
     };
 
-    Ok(*storage_type_id)
+    Ok(storage_type_id)
 }

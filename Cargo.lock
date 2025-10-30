@@ -7080,7 +7080,6 @@ dependencies = [
 name = "gsdk"
 version = "1.9.2"
 dependencies = [
- "anyhow",
  "base64 0.21.7",
  "colored",
  "demo-fungible-token",
@@ -7107,6 +7106,7 @@ dependencies = [
  "subxt",
  "thiserror 2.0.12",
  "tokio",
+ "url",
 ]
 
 [[package]]

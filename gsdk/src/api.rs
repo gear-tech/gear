@@ -17,20 +17,15 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    Blocks, Error, Events, TxInBlock, config::GearConfig, metadata::Event, signer::Signer,
+    Blocks, Events, Result, TxInBlock, config::GearConfig, metadata::Event, signer::Signer,
 };
-use anyhow::Result;
 use core::ops::{Deref, DerefMut};
 use jsonrpsee::{
     client_transport::ws::{Url, WsTransportClientBuilder},
     core::client::Client,
 };
 use std::time::Duration;
-use subxt::{
-    OnlineClient,
-    backend::rpc::RpcClient,
-    ext::subxt_rpcs::{self, LegacyRpcMethods},
-};
+use subxt::{OnlineClient, backend::rpc::RpcClient, ext::subxt_rpcs::LegacyRpcMethods};
 
 const DEFAULT_GEAR_ENDPOINT: &str = "wss://rpc.vara.network:443";
 const DEFAULT_TIMEOUT: Duration = Duration::from_secs(60);
@@ -59,14 +54,12 @@ impl Api {
     }
 
     async fn rpc_client(uri: &str, timeout: Duration) -> Result<RpcClient> {
-        let url = Url::parse(uri).map_err(|_| Error::InvalidUrl)?;
+        let url = Url::parse(uri)?;
         let (sender, receiver) = WsTransportClientBuilder::default()
             .max_request_size(ONE_HUNDRED_MEGABYTES)
             .connection_timeout(timeout)
             .build(url)
-            .await
-            .map_err(|e| jsonrpsee::core::ClientError::Transport(e.into()))
-            .map_err(subxt_rpcs::Error::from)?;
+            .await?;
 
         let client = Client::builder()
             .request_timeout(timeout)
@@ -140,7 +133,7 @@ impl Api {
 
     /// New signer from api
     pub fn signer(self, suri: &str, passwd: Option<&str>) -> Result<Signer> {
-        Signer::new(self, suri, passwd).map_err(Into::into)
+        Signer::new(self, suri, passwd)
     }
 
     /// Get the underlying [`RpcClient`] instance.

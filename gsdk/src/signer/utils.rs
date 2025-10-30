@@ -20,29 +20,26 @@
 
 use super::Inner;
 use crate::{
-    TxInBlock, TxStatus,
+    Error, TxInBlock, TxStatus,
     backtrace::BacktraceStatus,
     config::GearConfig,
-    metadata::{
-        CallInfo, Event, calls::SudoCall, sudo::Event as SudoEvent, vara_runtime::RuntimeCall,
-    },
-    result::Result,
+    metadata::{CallInfo, Event, calls::SudoCall, sudo, vara_runtime::RuntimeCall},
+    result::{Result, TxStatusExt, TxSuccess},
     signer::SignerRpc,
 };
-use anyhow::anyhow;
 use colored::Colorize;
 use std::sync::Arc;
 use subxt::{
-    Error as SubxtError, OnlineClient,
+    OnlineClient,
     blocks::ExtrinsicEvents,
     config::polkadot::PolkadotExtrinsicParamsBuilder,
     dynamic::Value,
     ext::scale_value::Composite,
-    tx::{DynamicPayload, TxProgress},
+    tx::{DynamicPayload, TxProgress as SubxtTxProgress},
     utils::H256,
 };
 
-type TxProgressT = TxProgress<GearConfig, OnlineClient<GearConfig>>;
+type TxProgress = SubxtTxProgress<GearConfig, OnlineClient<GearConfig>>;
 pub type EventsResult = Result<(H256, ExtrinsicEvents<GearConfig>)>;
 
 impl Inner {
@@ -84,8 +81,6 @@ impl Inner {
 
     /// Listen transaction process and print logs.
     pub async fn process(&self, tx: DynamicPayload) -> Result<TxInBlock> {
-        use subxt::tx::TxStatus::*;
-
         let signer_rpc = SignerRpc(Arc::new(self.clone()));
         let before = signer_rpc.get_balance().await?;
 
@@ -109,33 +104,37 @@ impl Inner {
                 queue.push((&status).into());
             }
 
-            match status {
-                Validated | Broadcasted | NoLongerInBestBlock => (),
-                InBestBlock(b) => {
-                    hash = Some(b.extrinsic_hash());
-                    self.backtrace.append(
-                        b.extrinsic_hash(),
-                        BacktraceStatus::InBestBlock {
-                            block_hash: b.block_hash(),
-                            extrinsic_hash: b.extrinsic_hash(),
-                        },
-                    );
-                }
-                InFinalizedBlock(b) => {
-                    log::info!("Submitted {extrinsic} !");
-                    log::info!("\tBlock Hash: {:?}", b.block_hash());
-                    log::info!("\tTransaction Hash: {:?}", b.extrinsic_hash());
+            match status.into_result() {
+                Ok(success) => match success {
+                    TxSuccess::Validated
+                    | TxSuccess::Broadcasted
+                    | TxSuccess::NoLongerInBestBlock => (),
+                    TxSuccess::InBestBlock(b) => {
+                        hash = Some(b.extrinsic_hash());
+                        self.backtrace.append(
+                            b.extrinsic_hash(),
+                            BacktraceStatus::InBestBlock {
+                                block_hash: b.block_hash(),
+                                extrinsic_hash: b.extrinsic_hash(),
+                            },
+                        );
+                    }
+                    TxSuccess::InFinalizedBlock(b) => {
+                        log::info!("Submitted {extrinsic} !");
+                        log::info!("\tBlock Hash: {:?}", b.block_hash());
+                        log::info!("\tTransaction Hash: {:?}", b.extrinsic_hash());
+                        self.log_balance_spent(before).await?;
+                        return Ok(b);
+                    }
+                },
+                Err(err) => {
                     self.log_balance_spent(before).await?;
-                    return Ok(b);
-                }
-                _ => {
-                    self.log_balance_spent(before).await?;
-                    return Err(status.into());
+                    return Err(err.into());
                 }
             }
         }
 
-        Err(anyhow!("Transaction wasn't found").into())
+        Err(Error::SubscriptionDied)
     }
 
     /// Process sudo transaction.
@@ -144,7 +143,7 @@ impl Inner {
         let events = tx.wait_for_success().await?;
         for event in events.iter() {
             let event = event?.as_root_event::<Event>()?;
-            if let Event::Sudo(SudoEvent::Sudid {
+            if let Event::Sudo(sudo::Event::Sudid {
                 sudo_result: Err(err),
             }) = event
             {
@@ -225,7 +224,7 @@ impl Inner {
     async fn sign_and_submit_then_watch(
         &self,
         tx: &DynamicPayload,
-    ) -> Result<TxProgressT, SubxtError> {
+    ) -> Result<TxProgress, subxt::Error> {
         if let Some(nonce) = self.nonce {
             self.api
                 .tx()
