@@ -6,9 +6,10 @@ extend-ignore-re = [
 
 [files]
 extend-exclude = [
+  "galloc/optimization/fungible_token.ipynb",
   "gsdk/src/metadata/generated.rs",
   "ethexe/ethereum/*.json",
-  "ethexe/contracts/lib/*"
+  "ethexe/contracts/lib/*",
 ]
 
 [default.extend-words]

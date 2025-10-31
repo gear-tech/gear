@@ -24,7 +24,7 @@ use apis::{
 use ethexe_blob_loader::local::LocalBlobStorage;
 use ethexe_common::tx_pool::SignedOffchainTransaction;
 use ethexe_db::Database;
-use ethexe_processor::ProcessorConfig;
+use ethexe_processor::{ProcessorConfig, RunnerConfig};
 use futures::{FutureExt, Stream, stream::FusedStream};
 use gprimitives::H256;
 use jsonrpsee::{
@@ -46,12 +46,11 @@ use tokio::{
 use tower::Service;
 
 mod apis;
-mod common;
 mod errors;
+mod utils;
 
 #[cfg(feature = "test-utils")]
 pub mod test_utils;
-pub(crate) mod util;
 
 #[derive(Clone)]
 struct PerConnection<RpcMiddleware, HttpMiddleware> {
@@ -69,9 +68,9 @@ pub struct RpcConfig {
     pub cors: Option<Vec<String>>,
     /// Dev mode.
     pub dev: bool,
-    /// Processor config used for overlaid calculate reply
-    /// executions.
-    pub processor_config: ProcessorConfig,
+    /// Runner config is created with the data
+    /// for processor, but with gas limit multiplier applied.
+    pub runner_config: RunnerConfig,
 }
 
 pub struct RpcService {
@@ -98,7 +97,7 @@ impl RpcService {
 
         let listener = TcpListener::bind(self.config.listen_addr).await?;
 
-        let cors = util::try_into_cors(self.config.cors)?;
+        let cors = utils::try_into_cors(self.config.cors)?;
 
         let http_middleware = tower::ServiceBuilder::new().layer(cors);
 
@@ -107,9 +106,11 @@ impl RpcService {
             .to_service_builder();
 
         let mut module = JsonrpcModule::new(());
+
+        let block_gas_limit = self.config.block_gas_limit.saturating_mul(self.config.gas_limit_multiplier);
         module.merge(ProgramServer::into_rpc(ProgramApi::new(
             self.db.clone(),
-            self.config.processor_config,
+            self.config.runner_config,
         )))?;
         module.merge(BlockServer::into_rpc(BlockApi::new(self.db.clone())))?;
         module.merge(CodeServer::into_rpc(CodeApi::new(self.db.clone())))?;

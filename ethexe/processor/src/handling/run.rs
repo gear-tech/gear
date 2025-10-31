@@ -105,7 +105,6 @@
 //! This weight multiplier could be calculated based on program execution time statistics.
 
 use crate::{
-    ProcessorConfig,
     handling::overlaid::OverlaidState,
     host::{InstanceCreator, InstanceWrapper},
 };
@@ -113,7 +112,7 @@ use chunk_execution_processing::ChunkJournalsProcessingOutput;
 use core_processor::common::JournalNote;
 use ethexe_common::{
     StateHashWithQueueSize,
-    db::CodesStorageRead,
+    db::CodesStorageRO,
     gear::{CHUNK_PROCESSING_GAS_LIMIT, Origin},
 };
 use ethexe_db::Database;
@@ -125,11 +124,37 @@ use gprimitives::{ActorId, H256};
 use itertools::Itertools;
 use tokio::task::JoinSet;
 
+#[derive(Debug, Clone)]
+pub struct RunnerConfig {
+    chunk_processing_threads: usize,
+    block_gas_limit: u64,
+}
+
+impl RunnerConfig {
+    pub fn common(chunk_processing_threads: usize, block_gas_limit: u64) -> Self {
+        Self {
+            chunk_processing_threads,
+            block_gas_limit,
+        }
+    }
+
+    pub fn overlay(chunk_processing_threads: usize, block_gas_limit: u64, gas_multiplier: u64) -> Self {
+        Self {
+            chunk_processing_threads,
+            block_gas_limit: block_gas_limit.saturating_mul(gas_multiplier),
+        }
+    }
+
+    pub fn chunk_processing_threads(&self) -> usize {
+        self.chunk_processing_threads
+    }
+}
+
 /// Runs programs queues in chunks.
 pub async fn run(
     db: Database,
     instance_creator: InstanceCreator,
-    config: &ProcessorConfig,
+    config: RunnerConfig,
     mut run_ctx: impl RunContext,
 ) {
     let chunk_size = config.chunk_processing_threads;
@@ -642,14 +667,15 @@ mod tests {
             std::iter::repeat_with(|| {
                 i += 1;
                 let hash = H256::from_low_u64_le(i);
-                let cached_queue_size = rand::random::<u8>() % MAX_QUEUE_SIZE + 1;
-                states_to_queue_size.insert(hash, cached_queue_size as usize);
+                let canonical_queue_size = rand::random::<u8>() % MAX_QUEUE_SIZE + 1;
+                states_to_queue_size.insert(hash, canonical_queue_size as usize);
 
                 chunks_splitting::ActorStateHashWithQueueSize::new(
                     ActorId::from(i),
                     StateHashWithQueueSize {
                         hash,
-                        cached_queue_size,
+                        canonical_queue_size,
+                        injected_queue_size: 0,
                     },
                 )
             })

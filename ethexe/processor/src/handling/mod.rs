@@ -17,12 +17,15 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{Processor, ProcessorError, Result};
-use ethexe_common::db::{BlockMetaStorageRead, CodesStorageWrite, OnChainStorageRead};
+use ethexe_common::{
+    Announce,
+    db::{AnnounceStorageRO, CodesStorageRW, OnChainStorageRO},
+};
 use ethexe_db::Database;
 use ethexe_runtime_common::{
     InBlockTransitions, ScheduleHandler, TransitionController, state::ProgramState,
 };
-use gprimitives::{ActorId, CodeId, H256};
+use gprimitives::{ActorId, CodeId};
 
 pub(crate) mod events;
 mod overlaid;
@@ -34,7 +37,7 @@ pub(crate) mod run;
 /// This is based a wrapper which holds data needed to instantiate [`TransitionController`],
 /// which itself performs recording actual state transitions.
 pub struct ProcessingHandler {
-    pub block_hash: H256,
+    pub announce: Announce,
     pub db: Database,
     pub transitions: InBlockTransitions,
 }
@@ -60,28 +63,32 @@ impl ProcessingHandler {
 impl Processor {
     /// Creates a new processing handler for the given block hash.
     ///
-    /// The [`InBlockTransitions`] is created using states of the parent of the block with `block_hash` hash.
+    /// The [`InBlockTransitions`] is created using states of the parent of the block with block_hash.
     /// That's done because the parent actually has the latest view on program states. Also program states
     /// for the `block_hash` block are written to database only after the block is processed.
-    pub fn handler(&self, block_hash: H256) -> Result<ProcessingHandler> {
-        let header = self
+    pub fn handler(&self, announce: Announce) -> Result<ProcessingHandler> {
+        let corresponding_block_header = self
             .db
-            .block_header(block_hash)
-            .ok_or(ProcessorError::BlockHeaderNotFound(block_hash))?;
+            .block_header(announce.block_hash)
+            .ok_or(ProcessorError::BlockHeaderNotFound(announce.block_hash))?;
 
-        let states = self.db.block_program_states(header.parent_hash).ok_or(
-            ProcessorError::BlockProgramStatesNotFound(header.parent_hash),
+        let parent_final_states = self.db.announce_program_states(announce.parent).ok_or(
+            ProcessorError::AnnounceProgramStatesNotFound(announce.parent),
         )?;
 
-        let schedule = self
+        let parent_final_schedule = self
             .db
-            .block_schedule(header.parent_hash)
-            .ok_or(ProcessorError::BlockScheduleNotFound(header.parent_hash))?;
+            .announce_schedule(announce.parent)
+            .ok_or(ProcessorError::AnnounceScheduleNotFound(announce.parent))?;
 
-        let transitions = InBlockTransitions::new(header, states, schedule);
+        let transitions = InBlockTransitions::new(
+            corresponding_block_header,
+            parent_final_states,
+            parent_final_schedule,
+        );
 
         Ok(ProcessingHandler {
-            block_hash,
+            announce,
             db: self.db.clone(),
             transitions,
         })

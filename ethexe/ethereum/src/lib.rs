@@ -18,7 +18,7 @@
 
 #![allow(dead_code, clippy::new_without_default)]
 
-use abi::{IMirror, IRouter, IWrappedVara};
+use abi::{IMirror, IRouter};
 use alloy::{
     consensus::SignableTransaction,
     network::{Ethereum as AlloyEthereum, EthereumWallet, Network, TxSigner},
@@ -48,9 +48,9 @@ use mirror::Mirror;
 use router::{Router, RouterQuery};
 use std::time::Duration;
 
-mod abi;
 mod eip1167;
 
+pub mod abi;
 pub mod deploy;
 pub mod middleware;
 pub mod mirror;
@@ -108,7 +108,7 @@ impl Ethereum {
 }
 
 impl Ethereum {
-    fn provider(&self) -> AlloyProvider {
+    pub fn provider(&self) -> AlloyProvider {
         self.provider.clone()
     }
 
@@ -120,8 +120,12 @@ impl Ethereum {
         Router::new(self.router, self.wvara, self.provider())
     }
 
+    pub fn wrapped_vara(&self) -> WVara {
+        WVara::new(self.wvara, self.provider())
+    }
+
     pub fn middleware(&self) -> Middleware {
-        debug_assert_ne!(
+        assert_ne!(
             self.middleware,
             Address::ZERO,
             "Middleware address is zero. Make sure to deploy the middleware contract and pass `with_middleware` flag to `EthereumDeployer`."
@@ -271,3 +275,5 @@ macro_rules! signatures_consts {
 }
 
 pub(crate) use signatures_consts;
+
+use crate::wvara::WVara;

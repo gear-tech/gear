@@ -19,7 +19,7 @@
 use super::MergeParams;
 use clap::Parser;
 use ethexe_processor::{
-    DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, MAX_BLOCK_GAS_LIMIT_MULTIPLIER, ProcessorConfig,
+    ProcessorConfig, RunnerConfig, DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER,
 };
 use ethexe_rpc::RpcConfig;
 use ethexe_service::config::NodeConfig;
@@ -95,9 +95,9 @@ impl RpcParams {
 
         let gas_limit_multiplier = self
             .gas_limit_multiplier
-            .unwrap_or(DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER)
-            .min(MAX_BLOCK_GAS_LIMIT_MULTIPLIER);
-        let processor_config = ProcessorConfig::overlay(
+            .unwrap_or(DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER);
+
+        let runner_config = RunnerConfig::overlay(
             node_config.chunk_processing_threads,
             node_config.block_gas_limit,
             gas_limit_multiplier,
@@ -107,7 +107,7 @@ impl RpcParams {
             listen_addr,
             cors,
             dev,
-            processor_config,
+            runner_config,
         })
     }
 }

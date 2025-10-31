@@ -29,6 +29,7 @@ use crate::{
     },
     state::{HostState, State},
 };
+use bytemuck::Pod;
 use gear_core::{costs::CostToken, pages::WasmPage};
 use gear_sandbox::{AsContextExt, HostError};
 use gear_wasm_instrument::SyscallName;
@@ -158,7 +159,7 @@ where
     ) -> Result<(u64, ()), HostError>
     where
         F: FnOnce(&mut Self) -> Result<U, RunFallibleError>,
-        R: From<Result<U, u32>> + Sized,
+        R: From<Result<U, u32>> + Sized + Pod,
     {
         self.run_any(
             token,
@@ -184,7 +185,7 @@ where
         res: Result<U, RunFallibleError>,
     ) -> Result<(), UndefinedTerminationReason>
     where
-        R: From<Result<U, u32>> + Sized,
+        R: From<Result<U, u32>> + Sized + Pod,
     {
         let res = match res {
             Err(RunFallibleError::FallibleExt(ext_err)) => {
@@ -199,7 +200,7 @@ where
         let mut registry = MemoryAccessRegistry::default();
         let write_res = registry.register_write_as::<R>(res_ptr);
         let mut io = registry.pre_process(&mut self.caller_wrap)?;
-        io.write_as(&mut self.caller_wrap, write_res, R::from(res))
+        io.write_as(&mut self.caller_wrap, write_res, &R::from(res))
             .map_err(Into::into)
     }
 

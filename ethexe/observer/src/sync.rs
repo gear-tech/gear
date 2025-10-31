@@ -18,32 +18,20 @@
 
 //! Implementation of the on-chain data synchronization.
 
-use crate::{
-    RuntimeConfig,
-    utils::{load_block_data, load_blocks_data_batched},
-};
+use crate::{RuntimeConfig, utils};
 use alloy::{providers::RootProvider, rpc::types::eth::Header};
 use anyhow::{Result, anyhow};
 use ethexe_common::{
     self, BlockData, BlockHeader, CodeBlobInfo,
-    db::{BlockMetaStorageRead, BlockMetaStorageWrite, OnChainStorageRead, OnChainStorageWrite},
+    db::{LatestDataStorageRW, OnChainStorageRW},
     events::{BlockEvent, RouterEvent},
-    gear_core::pages::num_traits::Zero,
 };
 use ethexe_ethereum::router::RouterQuery;
 use gprimitives::H256;
-use nonempty::NonEmpty;
 use std::collections::HashMap;
 
-pub(crate) trait SyncDB:
-    OnChainStorageRead + OnChainStorageWrite + BlockMetaStorageRead + BlockMetaStorageWrite + Clone
-{
-}
-impl<
-    T: OnChainStorageRead + OnChainStorageWrite + BlockMetaStorageRead + BlockMetaStorageWrite + Clone,
-> SyncDB for T
-{
-}
+pub(crate) trait SyncDB: OnChainStorageRW + LatestDataStorageRW + Clone {}
+impl<T: OnChainStorageRW + LatestDataStorageRW + Clone> SyncDB for T {}
 
 // TODO #4552: make tests for ChainSync
 #[derive(Clone)]
@@ -65,8 +53,8 @@ impl<DB: SyncDB> ChainSync<DB> {
         let blocks_data = self.pre_load_data(&header).await?;
         let chain = self.load_chain(block, header, blocks_data).await?;
 
-        self.mark_chain_as_synced(chain.into_iter().rev());
         self.propagate_validators(block, header).await?;
+        self.mark_chain_as_synced(chain.into_iter().rev());
 
         Ok(block)
     }
@@ -80,15 +68,14 @@ impl<DB: SyncDB> ChainSync<DB> {
         let mut chain = Vec::new();
 
         let mut hash = block;
-        while !self.db.block_meta(hash).synced {
+        while !self.db.block_synced(hash) {
             let block_data = match blocks_data.remove(&hash) {
                 Some(data) => data,
                 None => {
-                    load_block_data(
+                    utils::load_block_data(
                         self.provider.clone(),
                         hash,
                         self.config.router_address,
-                        self.config.wvara_address,
                         (hash == block).then_some(header),
                     )
                     .await?
@@ -128,64 +115,59 @@ impl<DB: SyncDB> ChainSync<DB> {
 
     /// Loads blocks if there is a gap between the `header`'s height and the latest synced block height.
     async fn pre_load_data(&self, header: &BlockHeader) -> Result<HashMap<H256, BlockData>> {
-        let Some(latest_synced_block_height) = self.db.latest_synced_block_height() else {
-            log::warn!("latest_synced_block_height is not set in the database");
+        let Some(latest) = self.db.latest_data() else {
+            tracing::warn!("latest data is not set in the database");
             return Ok(Default::default());
         };
 
-        if header.height <= latest_synced_block_height {
-            log::warn!(
+        if header.height <= latest.synced_block_height {
+            tracing::warn!(
                 "Got a block with number {} <= latest synced block number: {}, maybe a reorg",
                 header.height,
-                latest_synced_block_height
+                latest.synced_block_height
             );
             // Suppose here that all data is already in db.
             return Ok(Default::default());
         }
 
-        if (header.height - latest_synced_block_height) >= self.config.max_sync_depth {
+        if (header.height - latest.synced_block_height) >= self.config.max_sync_depth {
             // TODO (gsobol): return an event to notify about too deep chain.
             return Err(anyhow!(
                 "Too much to sync: current block number: {}, Latest valid block number: {}, Max depth: {}",
                 header.height,
-                latest_synced_block_height,
+                latest.synced_block_height,
                 self.config.max_sync_depth
             ));
         }
 
-        if header.height - latest_synced_block_height < self.config.batched_sync_depth {
+        if header.height - latest.synced_block_height < self.config.batched_sync_depth {
             // No need to pre load data, because amount of blocks is small enough.
             return Ok(Default::default());
         }
 
-        load_blocks_data_batched(
+        utils::load_blocks_data_batched(
             self.provider.clone(),
-            latest_synced_block_height as u64,
+            latest.synced_block_height as u64,
             header.height as u64,
             self.config.router_address,
-            self.config.wvara_address,
         )
         .await
     }
 
     // Propagate validators from the parent block. If start new era, fetch new validators from the router.
     async fn propagate_validators(&self, block: H256, header: BlockHeader) -> Result<()> {
-        let validators = match self.db.validators(header.parent_hash) {
+        let validators = match self.db.block_validators(header.parent_hash) {
             Some(validators) if !self.should_fetch_validators(header)? => validators,
             _ => {
-                let fetched_validators = RouterQuery::from_provider(
+                RouterQuery::from_provider(
                     self.config.router_address.0.into(),
                     self.provider.clone(),
                 )
                 .validators_at(block)
-                .await?;
-
-                NonEmpty::from_vec(fetched_validators).ok_or(anyhow!(
-                    "validator set is empty on router for block({block})"
-                ))?
+                .await?
             }
         };
-        self.db.set_validators(block, validators.clone());
+        self.db.set_block_validators(block, validators.clone());
         Ok(())
     }
 
@@ -196,18 +178,27 @@ impl<DB: SyncDB> ChainSync<DB> {
                 .block_header(hash)
                 .unwrap_or_else(|| unreachable!("Block header for synced block {hash} is missing"));
 
-            self.db.mutate_block_meta(hash, |meta| meta.synced = true);
+            self.db.set_block_synced(hash);
 
-            self.db.set_latest_synced_block_height(block_header.height);
+            let _ = self
+                .db
+                .mutate_latest_data(|data| data.synced_block_height = block_header.height)
+                .ok_or_else(|| {
+                    log::error!("Failed to update latest data for synced block {hash}");
+                });
         }
     }
 
     /// NOTE: we don't need to fetch validators for block from zero era, because of
     /// it will be fetched in [`crate::ObserverService::pre_process_genesis_for_db`]
     fn should_fetch_validators(&self, chain_head: BlockHeader) -> Result<bool> {
-        let chain_head_era = self.block_era_index(chain_head.timestamp);
+        let timelines = self
+            .db
+            .protocol_timelines()
+            .ok_or_else(|| anyhow!("ProtocolTimelines not found in database"))?;
+        let chain_head_era = timelines.era_from_ts(chain_head.timestamp);
 
-        if chain_head_era.is_zero() {
+        if chain_head_era == 0 {
             return Ok(false);
         }
 
@@ -216,11 +207,7 @@ impl<DB: SyncDB> ChainSync<DB> {
             chain_head.parent_hash
         ))?;
 
-        let parent_era_index = self.block_era_index(parent.timestamp);
+        let parent_era_index = timelines.era_from_ts(parent.timestamp);
         Ok(chain_head_era > parent_era_index)
-    }
-
-    fn block_era_index(&self, block_ts: u64) -> u64 {
-        (block_ts - self.config.genesis_timestamp) / self.config.era_duration
     }
 }

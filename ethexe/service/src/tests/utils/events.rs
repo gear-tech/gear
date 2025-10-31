@@ -17,15 +17,16 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::Event;
-use anyhow::Result;
+use anyhow::{Result, anyhow};
 use ethexe_blob_loader::BlobLoaderEvent;
 use ethexe_common::{
-    SimpleBlockData, db::OnChainStorageRead, events::BlockEvent, tx_pool::SignedOffchainTransaction,
+    Announce, HashOf, SimpleBlockData, db::*, events::BlockEvent,
+    tx_pool::SignedOffchainTransaction,
 };
-use ethexe_compute::{BlockProcessed, ComputeEvent};
+use ethexe_compute::ComputeEvent;
 use ethexe_consensus::ConsensusEvent;
 use ethexe_db::Database;
-use ethexe_network::{NetworkEvent, db_sync, export::PeerId};
+use ethexe_network::NetworkEvent;
 use ethexe_observer::ObserverEvent;
 use ethexe_prometheus::PrometheusEvent;
 use ethexe_rpc::RpcEvent;
@@ -38,42 +39,6 @@ use tokio::sync::{
 
 pub type TestingEventSender = Sender<TestingEvent>;
 pub type TestingEventReceiver = Receiver<TestingEvent>;
-
-#[derive(Debug, Clone, Eq, PartialEq)]
-#[allow(dead_code)]
-pub(crate) enum TestingNetworkEvent {
-    DbResponse {
-        request_id: db_sync::RequestId,
-        result: Result<db_sync::Response, db_sync::RequestFailure>,
-    },
-    DbExternalValidation {
-        request_id: db_sync::RequestId,
-        response: db_sync::Response,
-    },
-    Message {
-        data: Vec<u8>,
-        source: Option<PeerId>,
-    },
-    PeerBlocked(PeerId),
-    PeerConnected(PeerId),
-}
-
-impl TestingNetworkEvent {
-    fn new(event: &NetworkEvent) -> Self {
-        match event {
-            NetworkEvent::DbResponse { request_id, result } => Self::DbResponse {
-                request_id: *request_id,
-                result: result.as_ref().map_err(|(_req, err)| *err).cloned(),
-            },
-            NetworkEvent::Message { data, source } => Self::Message {
-                data: data.clone(),
-                source: *source,
-            },
-            NetworkEvent::PeerBlocked(peer) => Self::PeerBlocked(*peer),
-            NetworkEvent::PeerConnected(peer) => Self::PeerConnected(*peer),
-        }
-    }
-}
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum TestingRpcEvent {
@@ -105,7 +70,7 @@ pub(crate) enum TestingEvent {
     // Services events.
     Compute(ComputeEvent),
     Consensus(ConsensusEvent),
-    Network(TestingNetworkEvent),
+    Network(NetworkEvent),
     Observer(ObserverEvent),
     BlobLoader(BlobLoaderEvent),
     Prometheus(PrometheusEvent),
@@ -118,7 +83,7 @@ impl TestingEvent {
         match event {
             Event::Compute(event) => Self::Compute(event.clone()),
             Event::Consensus(event) => Self::Consensus(event.clone()),
-            Event::Network(event) => Self::Network(TestingNetworkEvent::new(event)),
+            Event::Network(event) => Self::Network(event.clone()),
             Event::Observer(event) => Self::Observer(event.clone()),
             Event::BlobLoader(event) => Self::BlobLoader(event.clone()),
             Event::Prometheus(event) => Self::Prometheus(event.clone()),
@@ -130,34 +95,70 @@ impl TestingEvent {
 
 pub struct ServiceEventsListener<'a> {
     pub receiver: &'a mut TestingEventReceiver,
+    pub db: Database,
+}
+
+#[derive(Debug, Default, Clone, Copy, derive_more::From)]
+pub enum AnnounceId {
+    /// Wait for any next computed announce
+    #[default]
+    Any,
+    /// Wait for announce computed with a specific hash
+    AnnounceHash(HashOf<Announce>),
+    /// Wait for announce computed with a specific block hash
+    BlockHash(H256),
 }
 
 impl ServiceEventsListener<'_> {
-    pub async fn next_event(&mut self) -> anyhow::Result<TestingEvent> {
+    pub async fn next_event(&mut self) -> Result<TestingEvent> {
         self.receiver.recv().await.map_err(Into::into)
     }
 
-    pub async fn wait_for(
-        &mut self,
-        f: impl Fn(TestingEvent) -> Result<bool>,
-    ) -> anyhow::Result<()> {
+    pub async fn wait_for(&mut self, f: impl Fn(TestingEvent) -> Result<bool>) -> Result<()> {
         self.apply_until(|e| if f(e)? { Ok(Some(())) } else { Ok(None) })
             .await
     }
 
-    pub async fn wait_for_block_processed(&mut self, block_hash: H256) {
-        self.wait_for(|event| {
-            Ok(matches!(
-                event,
-                TestingEvent::Compute(ComputeEvent::BlockProcessed(BlockProcessed { block_hash: b })) if b == block_hash
-            ))
-        }).await.unwrap();
+    pub async fn wait_for_announce_computed(&mut self, id: impl Into<AnnounceId>) {
+        let id = id.into();
+        loop {
+            let event = self.next_event().await.unwrap();
+            let TestingEvent::Compute(ComputeEvent::AnnounceComputed(announce_hash)) = event else {
+                continue;
+            };
+
+            match id {
+                AnnounceId::Any => {
+                    return;
+                }
+                AnnounceId::AnnounceHash(waited_announce_hash)
+                    if waited_announce_hash == announce_hash =>
+                {
+                    return;
+                }
+                AnnounceId::BlockHash(waited_block_hash) => {
+                    if self
+                        .db
+                        .announce(announce_hash)
+                        .ok_or_else(|| {
+                            anyhow!("Announce {announce_hash} not found in listener's node DB")
+                        })
+                        .unwrap()
+                        .block_hash
+                        == waited_block_hash
+                    {
+                        return;
+                    }
+                }
+                _ => continue,
+            }
+        }
     }
 
     pub async fn apply_until<R: Sized>(
         &mut self,
         f: impl Fn(TestingEvent) -> Result<Option<R>>,
-    ) -> anyhow::Result<R> {
+    ) -> Result<R> {
         loop {
             let event = self.next_event().await?;
             if let Some(res) = f(event)? {

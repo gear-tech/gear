@@ -32,7 +32,7 @@ use common::{
 use core::cmp;
 use gear_core::{
     buffer::Payload,
-    ids::{ActorId, CodeId, MessageId, ReservationId},
+    ids::{ActorId, MessageId, ReservationId},
     message::{DispatchKind, ReplyMessage},
     tasks::{ScheduledTask, TaskHandler, VaraScheduledTask},
 };
@@ -42,15 +42,12 @@ pub fn get_maximum_task_gas<T: Config>(task: &VaraScheduledTask<T::AccountId>) -
     use ScheduledTask::*;
 
     match task {
-        PauseProgram(_) => 0,
-        RemoveCode(_) => todo!("#646"),
         RemoveFromMailbox(_, _) => {
             <T as Config>::WeightInfo::tasks_remove_from_mailbox().ref_time()
         }
         RemoveFromWaitlist(_, _) => {
             <T as Config>::WeightInfo::tasks_remove_from_waitlist().ref_time()
         }
-        RemovePausedProgram(_) => todo!("#646"),
         WakeMessage(_, _) => cmp::max(
             <T as Config>::WeightInfo::tasks_wake_message().ref_time(),
             <T as Config>::WeightInfo::tasks_wake_message_no_wake().ref_time(),
@@ -63,8 +60,6 @@ pub fn get_maximum_task_gas<T: Config>(task: &VaraScheduledTask<T::AccountId>) -
         RemoveGasReservation(_, _) => {
             <T as Config>::WeightInfo::tasks_remove_gas_reservation().ref_time()
         }
-        #[allow(deprecated)]
-        RemoveResumeSession(_) => 0,
     }
 }
 
@@ -72,16 +67,6 @@ impl<T: Config> TaskHandler<T::AccountId, MessageId, bool> for ExtManager<T>
 where
     T::AccountId: Origin,
 {
-    fn pause_program(&mut self, _program_id: ActorId) -> Gas {
-        log::debug!("Program rent logic is disabled.");
-
-        0
-    }
-
-    fn remove_code(&mut self, _code_id: CodeId) -> Gas {
-        todo!("#646")
-    }
-
     fn remove_from_mailbox(&mut self, user_id: T::AccountId, message_id: MessageId) -> Gas {
         // Read reason.
         let reason = UserMessageReadSystemReason::OutOfRent.into_reason();
@@ -164,7 +149,7 @@ where
                         "TaskHandler::remove_from_waitlist: failed conversion of error reply into `Payload`. \
                         Error reply bytes len - {len}, max payload len - {max_len}",
                         len = error_reply.len(),
-                        max_len = Payload::max_len(),
+                        max_len = Payload::MAX_LEN,
                     );
 
                     log::error!("{err_msg}");
@@ -237,10 +222,6 @@ where
         log::trace!("Task gas: tasks_remove_from_waitlist = {gas}");
 
         gas
-    }
-
-    fn remove_paused_program(&mut self, _program_id: ActorId) -> Gas {
-        todo!("#646")
     }
 
     fn wake_message(&mut self, program_id: ActorId, message_id: MessageId) -> Gas {
@@ -366,10 +347,5 @@ where
         log::trace!("Task gas: tasks_remove_gas_reservation = {gas}");
 
         gas
-    }
-
-    fn remove_resume_session(&mut self, _session_id: u32) -> Gas {
-        log::debug!("Program rent logic is disabled");
-        0
     }
 }

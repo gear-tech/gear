@@ -126,10 +126,17 @@ impl InBlockTransitions {
         self.modifications.insert(actor_id, Default::default());
     }
 
-    pub fn modify_state(&mut self, actor_id: ActorId, new_state_hash: H256, queue_size: u8) {
+    pub fn modify_state(
+        &mut self,
+        actor_id: ActorId,
+        new_state_hash: H256,
+        canonical_queue_size: u8,
+        injected_queue_size: u8,
+    ) {
         self.modify(actor_id, |state, _transition| {
             state.hash = new_state_hash;
-            state.cached_queue_size = queue_size;
+            state.canonical_queue_size = canonical_queue_size;
+            state.injected_queue_size = injected_queue_size;
         })
     }
 

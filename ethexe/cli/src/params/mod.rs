@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Context, Result};
 use clap::Parser;
 use ethexe_service::config::Config;
 use serde::Deserialize;
@@ -64,34 +64,42 @@ pub struct Params {
 impl Params {
     /// Load the parameters from a TOML file.
     pub fn from_file(path: PathBuf) -> Result<Self> {
-        let content =
-            std::fs::read_to_string(path).with_context(|| "failed to read params file")?;
-        let params =
-            toml::from_str(&content).with_context(|| "failed to parse toml params file")?;
+        let content = std::fs::read_to_string(path).context("failed to read params file")?;
+        let params = toml::from_str(&content).context("failed to parse toml params file")?;
 
         Ok(params)
     }
 
     /// Convert self into a proper services `Config` object.
     pub fn into_config(self) -> Result<Config> {
-        let node = self.node.ok_or_else(|| anyhow!("missing node params"))?;
+        let Params {
+            node,
+            ethereum,
+            network,
+            rpc,
+            prometheus,
+        } = self;
+
+        let node = node.context("missing node params")?;
         let net_dir = node.net_dir();
 
-        let ethereum = self
-            .ethereum
-            .ok_or_else(|| anyhow!("missing ethereum params"))?;
+        let ethereum = ethereum.context("missing ethereum params")?;
+        let node = node.into_config()?;
+        let ethereum = ethereum.into_config()?;
+        let network = network
+            .and_then(|p| p.into_config(net_dir, ethereum.router_address).transpose())
+            .transpose()?;
+        let rpc = rpc.and_then(|p| p.into_config(dev));
+        let prometheus = prometheus.and_then(|p| p.into_config());
 
         let node = node.into_config()?;
         let rpc = self.rpc.and_then(|p| p.into_config(&node));
         Ok(Config {
             node,
+            ethereum,
+            network,
             rpc,
-            ethereum: ethereum.into_config()?,
-            network: self
-                .network
-                .and_then(|p| p.into_config(net_dir).transpose())
-                .transpose()?,
-            prometheus: self.prometheus.and_then(|p| p.into_config()),
+            prometheus,
         })
     }
 }

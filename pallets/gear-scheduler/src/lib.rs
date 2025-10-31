@@ -22,11 +22,15 @@
 #![allow(clippy::manual_inspect)]
 #![doc(html_logo_url = "https://gear-tech.io/logo.png")]
 #![doc(html_favicon_url = "https://gear-tech.io/favicon.ico")]
-#![cfg_attr(docsrs, feature(doc_auto_cfg))]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 
 // Runtime mock for running tests.
 #[cfg(test)]
 mod mock;
+
+pub mod migrations {
+    pub mod v3_remove_program_pause_tasks;
+}
 
 // Unit tests module.
 #[cfg(test)]
@@ -74,7 +78,7 @@ pub mod pallet {
     pub(crate) type GasAllowanceOf<T> = <<T as Config>::BlockLimiter as BlockLimiter>::GasAllowance;
 
     /// The current storage version.
-    const SCHEDULER_STORAGE_VERSION: StorageVersion = StorageVersion::new(2);
+    const SCHEDULER_STORAGE_VERSION: StorageVersion = StorageVersion::new(3);
 
     // Gear Scheduler Pallet's `Config`.
     #[pallet::config]
@@ -170,7 +174,7 @@ pub mod pallet {
     // Value here is useless, so unit type used as space saver:
     // `assert_eq!(().encode().len(), 0)`
     #[pallet::storage]
-    type TaskPool<T: Config> =
+    pub(crate) type TaskPool<T: Config> =
         StorageDoubleMap<_, Identity, BlockNumberFor<T>, Identity, Task<T>, ()>;
 
     // Public wrap of the mailbox elements.

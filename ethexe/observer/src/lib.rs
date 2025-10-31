@@ -27,17 +27,14 @@ use alloy::{
 };
 use anyhow::{Context as _, Result, anyhow};
 use ethexe_common::{
-    Address, BlockData, BlockHeader, Digest, SimpleBlockData,
-    db::{BlockMetaStorageRead, BlockMetaStorageWrite, OnChainStorageRead, OnChainStorageWrite},
+    Address, BlockData, BlockHeader, ProtocolTimelines, SimpleBlockData, db::BlockMetaStorageRO,
 };
 use ethexe_db::Database;
 use ethexe_ethereum::router::RouterQuery;
 use futures::{FutureExt, Stream, StreamExt, future::BoxFuture, stream::FusedStream};
 use gprimitives::H256;
-use nonempty::NonEmpty;
 use std::{
     collections::VecDeque,
-    fmt,
     pin::Pin,
     task::{Context, Poll},
     time::Duration,
@@ -60,33 +57,18 @@ pub struct EthereumConfig {
     pub router_address: Address,
     pub block_time: Duration,
 }
-
-#[derive(Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ObserverEvent {
     Block(SimpleBlockData),
     BlockSynced(H256),
 }
 
-impl fmt::Debug for ObserverEvent {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            ObserverEvent::Block(data) => f.debug_tuple("Block").field(data).finish(),
-            ObserverEvent::BlockSynced(synced_block) => {
-                f.debug_tuple("BlockSynced").field(synced_block).finish()
-            }
-        }
-    }
-}
-
 #[derive(Clone, Debug)]
 struct RuntimeConfig {
     router_address: Address,
-    wvara_address: Address,
     max_sync_depth: u32,
     batched_sync_depth: u32,
-    block_time: Duration,
-    genesis_timestamp: u64,
-    era_duration: u64,
+    genesis_block_hash: H256,
 }
 
 // TODO #4552: make tests for observer service
@@ -128,6 +110,7 @@ impl Stream for ObserverService {
 
                 // TODO #4568: test creating a new subscription in case when Receiver becomes invalid
                 let provider = self.provider().clone();
+                let _fut = provider.get_block_by_number(alloy::eips::BlockNumberOrTag::Earliest);
                 self.subscription_future =
                     Some(Box::pin(async move { provider.subscribe_blocks().await }));
 
@@ -180,23 +163,18 @@ impl ObserverService {
         let EthereumConfig {
             rpc,
             router_address,
-            block_time,
             ..
         } = eth_cfg;
 
         let router_query = RouterQuery::new(rpc, *router_address).await?;
-
-        let wvara_address = Address(router_query.wvara_address().await?.0.0);
 
         let provider = ProviderBuilder::default()
             .connect(rpc)
             .await
             .context("failed to create ethereum provider")?;
 
-        let genesis_header =
+        let genesis_block_hash =
             Self::pre_process_genesis_for_db(&db, &provider, &router_query).await?;
-
-        let timelines = router_query.timelines().await?;
 
         let headers_stream = provider
             .subscribe_blocks()
@@ -206,13 +184,10 @@ impl ObserverService {
 
         let config = RuntimeConfig {
             router_address: *router_address,
-            wvara_address,
             max_sync_depth,
             // TODO #4562: make this configurable. Important: must be greater than 1.
             batched_sync_depth: 2,
-            block_time: *block_time,
-            genesis_timestamp: genesis_header.timestamp,
-            era_duration: timelines.era,
+            genesis_block_hash,
         };
 
         let chain_sync = ChainSync {
@@ -252,19 +227,15 @@ impl ObserverService {
     ///   and processing outcome (state transitions) are set to default (empty) values.
     ///
     /// If genesis block was computed earlier, this function returns immediately.
-    async fn pre_process_genesis_for_db<
-        DB: BlockMetaStorageRead + BlockMetaStorageWrite + OnChainStorageRead + OnChainStorageWrite,
-    >(
-        db: &DB,
+    async fn pre_process_genesis_for_db(
+        db: &Database,
         provider: &RootProvider,
         router_query: &RouterQuery,
-    ) -> Result<BlockHeader> {
+    ) -> Result<H256> {
         let genesis_block_hash = router_query.genesis_block_hash().await?;
 
-        if db.block_meta(genesis_block_hash).computed {
-            return db
-                .block_header(genesis_block_hash)
-                .ok_or(anyhow!("block header not found for {genesis_block_hash:?}"));
+        if db.block_meta(genesis_block_hash).prepared {
+            return Ok(genesis_block_hash);
         }
 
         let genesis_block = provider
@@ -280,29 +251,26 @@ impl ObserverService {
             parent_hash: H256(genesis_block.header.parent_hash.0),
         };
 
-        let genesis_validators =
-            NonEmpty::from_vec(router_query.validators_at(genesis_block_hash).await?)
-                .ok_or(anyhow!("genesis validator set is empty"))?;
+        let router_timelines = router_query.timelines().await?;
+        let timelines = ProtocolTimelines {
+            genesis_ts: genesis_header.timestamp,
+            era: router_timelines.era,
+            election: router_timelines.election,
+        };
 
-        db.set_block_header(genesis_block_hash, genesis_header);
-        db.set_block_events(genesis_block_hash, &[]);
-        db.set_latest_synced_block_height(genesis_header.height);
-        db.mutate_block_meta(genesis_block_hash, |meta| {
-            meta.computed = true;
-            meta.prepared = true;
-            meta.synced = true;
-            meta.last_committed_batch = Some(Digest([0; 32]));
-            meta.last_committed_head = Some(genesis_block_hash);
-        });
+        let genesis_validators = router_query.validators_at(genesis_block_hash).await?;
 
-        db.set_block_codes_queue(genesis_block_hash, Default::default());
-        db.set_block_program_states(genesis_block_hash, Default::default());
-        db.set_block_schedule(genesis_block_hash, Default::default());
-        db.set_block_outcome(genesis_block_hash, Default::default());
-        db.set_latest_computed_block(genesis_block_hash, genesis_header);
-        db.set_validators(genesis_block_hash, genesis_validators);
+        ethexe_common::setup_genesis_in_db(
+            db,
+            SimpleBlockData {
+                hash: genesis_block_hash,
+                header: genesis_header,
+            },
+            genesis_validators,
+            timelines,
+        );
 
-        Ok(genesis_header)
+        Ok(genesis_block_hash)
     }
 
     pub fn provider(&self) -> &RootProvider {
@@ -313,8 +281,8 @@ impl ObserverService {
         self.last_block_number
     }
 
-    pub fn block_time_secs(&self) -> u64 {
-        self.config.block_time.as_secs()
+    pub fn genesis_block_hash(&self) -> H256 {
+        self.config.genesis_block_hash
     }
 
     pub fn load_block_data(&self, block: H256) -> impl Future<Output = Result<BlockData>> {
@@ -322,7 +290,6 @@ impl ObserverService {
             self.provider.clone(),
             block,
             self.config.router_address,
-            self.config.wvara_address,
             None,
         )
     }

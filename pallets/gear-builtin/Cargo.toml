@@ -46,8 +46,6 @@ sp-runtime = { workspace = true, features = ["serde"] }
 pallet-gear.workspace = true
 pallet-staking.workspace = true
 pallet-proxy.workspace = true
-# To be removed after migrations applied.
-pallet-balances.workspace = true
 
 [dev-dependencies]
 demo-waiting-proxy.workspace = true

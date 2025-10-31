@@ -18,7 +18,7 @@ ethexe-processor.workspace = true
 ethexe-signer.workspace = true
 ethexe-consensus.workspace = true
 ethexe-ethereum.workspace = true
-ethexe-common = { workspace = true, features = ["std"] }
+ethexe-common = { workspace = true, features = ["std", "mock"] }
 ethexe-runtime-common.workspace = true
 ethexe-prometheus.workspace = true
 ethexe-rpc.workspace = true
@@ -26,6 +26,7 @@ ethexe-tx-pool.workspace = true
 gear-core.workspace = true
 gprimitives = { workspace = true, features = ["std"] }
 log.workspace = true
+tracing.workspace = true
 anyhow.workspace = true
 alloy.workspace = true
 tokio = { workspace = true, features = [
@@ -41,7 +42,6 @@ rand.workspace = true
 tempfile.workspace = true
 derive_more.workspace = true
 async-trait.workspace = true
-nonempty.workspace = true
 
 [dev-dependencies]
 alloy = { workspace = true, features = [
@@ -64,6 +64,7 @@ roast-secp256k1-evm.workspace = true
 ethexe-rpc = { workspace = true, features = ["test-utils"] }
 tracing.workspace = true
 tracing-subscriber.workspace = true
+ethexe-common = { workspace = true, features = ["mock"] }
 
 demo-ping = { workspace = true, features = ["debug", "ethexe"] }
 demo-async = { workspace = true, features = ["debug", "ethexe"] }
