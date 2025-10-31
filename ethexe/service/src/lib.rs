@@ -478,6 +478,7 @@ impl Service {
                                 );
                             }
                         }
+                        NetworkEvent::OffchainInjectedMessage(_message) => {}
                         NetworkEvent::PeerBlocked(_) | NetworkEvent::PeerConnected(_) => {}
                     }
                 }
