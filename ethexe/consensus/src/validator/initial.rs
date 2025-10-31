@@ -66,18 +66,11 @@ impl StateHandler for Initial {
     fn process_synced_block(self, block_hash: H256) -> Result<ValidatorState> {
         match &self.state {
             State::WaitingForSyncedBlock(block) if block.hash == block_hash => {
-                let timelines = self
-                    .ctx
-                    .core
-                    .db
-                    .protocol_timelines()
-                    .ok_or_else(|| anyhow!("protocol timelines not found"))?;
-
                 let validators = self
                     .ctx
                     .core
                     .db
-                    .validators(timelines.era_from_ts(block.header.timestamp))
+                    .validators(self.ctx.core.timelines.era_from_ts(block.header.timestamp))
                     .ok_or(anyhow!("validators not found for block({block_hash})"))?;
                 let producer = utils::block_producer_for(
                     &validators,

@@ -32,14 +32,12 @@ use alloy::{
     providers::{Provider as _, RootProvider, ext::AnvilApi},
     rpc::types::{Header as RpcHeader, anvil::MineOptions},
 };
-use anyhow::anyhow;
 use ethexe_blob_loader::{
     BlobLoaderService,
     local::{LocalBlobLoader, LocalBlobStorage},
 };
 use ethexe_common::{
     Address, CodeAndId, DEFAULT_BLOCK_GAS_LIMIT,
-    db::OnChainStorageRO,
     ecdsa::{PrivateKey, PublicKey},
     events::{BlockEvent, MirrorEvent, RouterEvent},
 };
@@ -280,16 +278,7 @@ impl TestEnv {
             config.listen_addresses = [multiaddr.clone()].into();
             config.external_addresses = [multiaddr.clone()].into();
 
-            let timelines = db
-                .protocol_timelines()
-                .ok_or_else(|| anyhow!("protocol timelines not found in database"))
-                .unwrap();
-
-            let runtime_config = NetworkRuntimeConfig {
-                genesis_timestamp: timelines.genesis_ts,
-                era_duration: timelines.era,
-                genesis_block_hash,
-            };
+            let runtime_config = NetworkRuntimeConfig { genesis_block_hash };
 
             let mut service = NetworkService::new(
                 config,
@@ -876,15 +865,7 @@ impl Node {
                 config.bootstrap_addresses = [multiaddr].into();
             }
 
-            let timelines = self
-                .db
-                .protocol_timelines()
-                .ok_or_else(|| anyhow!("protocol timelines not found in database"))
-                .unwrap();
-
             let runtime_config = NetworkRuntimeConfig {
-                genesis_timestamp: timelines.genesis_ts,
-                era_duration: timelines.era,
                 genesis_block_hash: observer.genesis_block_hash(),
             };
 

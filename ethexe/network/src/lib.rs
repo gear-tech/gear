@@ -130,8 +130,6 @@ impl NetworkConfig {
 
 /// Config from other services
 pub struct NetworkRuntimeConfig {
-    pub genesis_timestamp: u64,
-    pub era_duration: u64,
     pub genesis_block_hash: H256,
 }
 
@@ -188,13 +186,6 @@ impl NetworkService {
             router_address,
         } = config;
 
-        let NetworkRuntimeConfig {
-            // TODO: remove this fields from config
-            genesis_timestamp: _,
-            era_duration: _,
-            genesis_block_hash,
-        } = runtime_config;
-
         let keypair = NetworkService::generate_keypair(signer, public_key)?;
 
         let behaviour_config = BehaviourConfig {
@@ -232,7 +223,7 @@ impl NetworkService {
         }
 
         let validators = Validators::new(
-            genesis_block_hash,
+            runtime_config.genesis_block_hash,
             ValidatorDatabase::clone_boxed(&db),
             swarm.behaviour().peer_score.handle(),
         )
@@ -697,8 +688,6 @@ mod tests {
         let config = NetworkConfig::new_test(key, Address::default());
 
         let runtime_config = NetworkRuntimeConfig {
-            genesis_timestamp: TIMELINES.genesis_ts,
-            era_duration: TIMELINES.era,
             genesis_block_hash: GENESIS_BLOCK,
         };
 

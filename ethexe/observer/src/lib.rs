@@ -66,7 +66,6 @@ pub enum ObserverEvent {
 #[derive(Clone, Debug)]
 struct RuntimeConfig {
     router_address: Address,
-    // wvara_address: Address,
     middleware_address: Address,
     max_sync_depth: u32,
     batched_sync_depth: u32,
@@ -166,7 +165,6 @@ impl ObserverService {
         } = eth_cfg;
 
         let router_query = RouterQuery::new(rpc, *router_address).await?;
-        // let wvara_address = Address(router_query.wvara_address().await?.0.0);
         let middleware_address = router_query.middleware_address().await?.into();
 
         let provider = ProviderBuilder::default()
@@ -185,7 +183,6 @@ impl ObserverService {
 
         let config = RuntimeConfig {
             router_address: *router_address,
-            // wvara_address,
             middleware_address,
             max_sync_depth,
             // TODO #4562: make this configurable. Important: must be greater than 1.
