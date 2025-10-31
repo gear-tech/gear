@@ -19,6 +19,7 @@
 mod custom_connection_limits;
 pub mod db_sync;
 mod gossipsub;
+mod offchain;
 pub mod peer_score;
 mod utils;
 mod validator;
@@ -432,6 +433,10 @@ impl NetworkService {
             }
             //
             BehaviourEvent::DbSync(_) => {}
+            //
+            BehaviourEvent::Offchain(offchain::Event::NewInjectedTransaction(transaction)) => {
+                return Some(NetworkEvent::InjectedTransaction(transaction));
+            }
         }
 
         None
@@ -514,6 +519,8 @@ pub(crate) struct Behaviour {
     pub gossipsub: gossipsub::Behaviour,
     // database synchronization protocol
     pub db_sync: db_sync::Behaviour,
+    // offchain shenanigans
+    pub offchain: offchain::Behaviour,
 }
 
 impl Behaviour {
@@ -571,10 +578,12 @@ impl Behaviour {
 
         let db_sync = db_sync::Behaviour::new(
             db_sync::Config::default(),
-            peer_score_handle,
+            peer_score_handle.clone(),
             external_data_provider,
             db,
         );
+
+        let offchain = offchain::Behaviour::new(peer_score_handle);
 
         Ok(Self {
             custom_connection_limits,
@@ -586,6 +595,7 @@ impl Behaviour {
             kad,
             gossipsub,
             db_sync,
+            offchain,
         })
     }
 }
