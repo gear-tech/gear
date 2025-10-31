@@ -371,8 +371,6 @@ pub struct ProgramState {
     pub balance: Value,
     /// Executable balance.
     pub executable_balance: Value,
-    /// Block number of the last modification to `ProgramState` caused by an Ethereum event.
-    pub last_modified_from_eth: u32,
 }
 
 impl ProgramState {
@@ -397,7 +395,6 @@ impl ProgramState {
             mailbox_hash: MaybeHashOf::empty(),
             balance: 0,
             executable_balance: 0,
-            last_modified_from_eth: 0,
         }
     }
 

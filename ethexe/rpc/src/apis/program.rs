@@ -47,7 +47,6 @@ pub struct FullProgramState {
     pub mailbox: Option<Mailbox>,
     pub balance: u128,
     pub executable_balance: u128,
-    pub last_modified_from_eth: u32,
 }
 
 #[rpc(server)]
@@ -204,7 +203,6 @@ impl ProgramServer for ProgramApi {
             mailbox_hash,
             balance,
             executable_balance,
-            last_modified_from_eth,
         }) = self.db.program_state(hash)
         else {
             return Err(errors::db("Failed to read state by hash"));
@@ -225,7 +223,6 @@ impl ProgramServer for ProgramApi {
             mailbox,
             balance,
             executable_balance,
-            last_modified_from_eth,
         })
     }
 
