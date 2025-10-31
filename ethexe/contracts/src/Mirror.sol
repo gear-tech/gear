@@ -375,10 +375,10 @@ contract Mirror is IMirror {
             (bool success,) = _message.destination.call{gas: 500_000, value: _message.value}(payload);
 
             if (!success) {
+                _transferEther(_message.destination, _message.value);
+
                 /// @dev In case of failed call, we emit appropriate event to inform external users.
                 emit ReplyCallFailed(_message.value, _message.replyDetails.to, _message.replyDetails.code);
-
-                return;
             }
         } else {
             _transferEther(_message.destination, _message.value);
