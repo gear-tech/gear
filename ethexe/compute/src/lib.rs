@@ -22,10 +22,10 @@ use gprimitives::{CodeId, H256};
 pub use service::ComputeService;
 use std::collections::HashSet;
 
+mod codes;
 mod compute;
 mod prepare;
 mod service;
-mod utils;
 
 #[cfg(test)]
 mod tests;
@@ -41,7 +41,6 @@ pub enum ComputeEvent {
     CodeProcessed(CodeId),
     BlockPrepared(H256),
     AnnounceComputed(HashOf<Announce>),
-    AnnounceRejected(HashOf<Announce>),
 }
 
 #[derive(thiserror::Error, Debug)]
@@ -68,6 +67,8 @@ pub enum ComputeError {
     PreparedBlockAnnouncesSetMissing(H256),
     #[error("Latest data not found")]
     LatestDataNotFound,
+    #[error("SubService closed")]
+    SubServiceClosed,
 
     #[error(transparent)]
     Processor(#[from] ProcessorError),
