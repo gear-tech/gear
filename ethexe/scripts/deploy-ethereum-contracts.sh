@@ -11,15 +11,15 @@ RPC_URL="$1"
 
 forge clean
 
-forge script script/Deployment.s.sol:DeploymentScript --slow --rpc-url $RPC_URL --broadcast --verify -vvvv
+forge script script/Deployment.s.sol:DeploymentScript --slow --rpc-url "$RPC_URL" --broadcast --verify -vvvv
 
 # Now need to update `address internal constant ROUTER` in `MirrorProxy.sol` and `MirrorProxySmall.sol`
 # to address obtained during deployment (used to verify contracts created by Router)!
 
-BROADCAST_PATH="broadcast/Deployment.s.sol/$(cast chain-id --rpc-url $RPC_URL)/run-latest.json"
-ROUTER_ADDRESS=$(cat $BROADCAST_PATH | jq '.transactions[] | select(.contractName == "Router") | .contractAddress' | tr -d '"')
-WVARA_ADDRESS=$(cat $BROADCAST_PATH | jq '.transactions[] | select(.contractName == "WrappedVara") | .contractAddress' | tr -d '"')
-ROUTER_PROXY_ADDRESS=$(cat $BROADCAST_PATH |
+BROADCAST_PATH="broadcast/Deployment.s.sol/$(cast chain-id --rpc-url "$RPC_URL")/run-latest.json"
+ROUTER_ADDRESS=$(cat "$BROADCAST_PATH" | jq '.transactions[] | select(.contractName == "Router") | .contractAddress' | tr -d '"')
+WVARA_ADDRESS=$(cat "$BROADCAST_PATH" | jq '.transactions[] | select(.contractName == "WrappedVara") | .contractAddress' | tr -d '"')
+ROUTER_PROXY_ADDRESS=$(cat "$BROADCAST_PATH" |
   jq ".transactions[] | \
   select(.contractName == \"TransparentUpgradeableProxy\") | \
   select(.transactionType == \"CREATE\") | \
@@ -28,7 +28,7 @@ ROUTER_PROXY_ADDRESS=$(cat $BROADCAST_PATH |
   tr -d '"' |
   cast to-check-sum-address
 )
-WVARA_PROXY_ADDRESS=$(cat $BROADCAST_PATH |
+WVARA_PROXY_ADDRESS=$(cat "$BROADCAST_PATH" |
   jq ".transactions[] | \
   select(.contractName == \"TransparentUpgradeableProxy\") | \
   select(.transactionType == \"CREATE\") | \
@@ -55,8 +55,8 @@ curl \
 # We also need to upload the MirrorProxy and MirrorProxySmall contracts
 # at least once to etherscan so that the Mirror creations by Router are shown as verified.
 
-forge script script/MirrorProxy.s.sol:MirrorProxyScript --slow --rpc-url $RPC_URL --broadcast --verify -vvvv
-forge script script/MirrorProxySmall.s.sol:MirrorProxySmallScript --slow --rpc-url $RPC_URL --broadcast --verify -vvvv
+forge script script/MirrorProxy.s.sol:MirrorProxyScript --slow --rpc-url "$RPC_URL" --broadcast --verify -vvvv
+forge script script/MirrorProxySmall.s.sol:MirrorProxySmallScript --slow --rpc-url "$RPC_URL" --broadcast --verify -vvvv
 
 # Cleaning up unused/dirty files.
 
