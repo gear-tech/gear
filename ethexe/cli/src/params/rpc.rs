@@ -54,7 +54,6 @@ pub struct RpcParams {
     pub no_rpc: bool,
 
     #[arg(long)]
-    #[serde(default)]
     pub gas_limit_multiplier: Option<u64>,
 }
 
