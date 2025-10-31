@@ -30,11 +30,14 @@ use crate::{
 };
 use alloy::providers::{Provider as _, ext::AnvilApi};
 use ethexe_common::{
-    ScheduledTask,
+    Announce, HashOf, ScheduledTask,
     db::*,
     events::{BlockEvent, MirrorEvent, RouterEvent},
     gear::Origin,
+    mock::*,
+    network::ValidatorMessage,
 };
+use ethexe_consensus::ConsensusEvent;
 use ethexe_db::{Database, verifier::IntegrityVerifier};
 use ethexe_ethereum::deploy::ContractsDeploymentParams;
 use ethexe_observer::EthereumConfig;
@@ -1485,7 +1488,7 @@ async fn validators_election() {
         .await
         .unwrap();
 
-    tracing::info!("📗 Next validators successfully commited");
+    tracing::info!("📗 Next validators successfully committed");
 
     // Stop previous validators
     for mut node in validators.into_iter() {
@@ -1516,4 +1519,275 @@ async fn validators_election() {
         .await
         .unwrap();
     assert!(res.valid);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ntest::timeout(120_000)]
+async fn announces_conflicts() {
+    init_logger();
+
+    let mut env = TestEnv::new(TestEnvConfig {
+        validators: ValidatorsConfig::PreDefined(7),
+        network: EnvNetworkConfig::Enabled,
+        ..Default::default()
+    })
+    .await
+    .unwrap();
+
+    let mut validators = vec![];
+    for (i, v) in env.validators.clone().into_iter().enumerate() {
+        log::info!("📗 Starting validator-{i}");
+        let mut validator = env.new_node(NodeConfig::named(format!("validator-{i}")).validator(v));
+        validator.start_service().await;
+        validators.push(validator);
+    }
+
+    let ping_code_id = env
+        .upload_code(demo_ping::WASM_BINARY)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap()
+        .tap(|res| assert!(res.valid))
+        .code_id;
+
+    let ping_id = env
+        .create_program(ping_code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap()
+        .tap(|res| assert_eq!(res.code_id, ping_code_id))
+        .program_id;
+
+    env.send_message(ping_id, b"", 0)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap()
+        .tap(|res| {
+            assert_eq!(res.program_id, ping_id);
+            assert_eq!(res.payload, b"");
+            assert_eq!(res.value, 0);
+            assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Auto));
+        });
+
+    {
+        log::info!("📗 Case 1: all validators works normally");
+
+        env.send_message(ping_id, b"PING", 0)
+            .await
+            .unwrap()
+            .wait_for()
+            .await
+            .unwrap()
+            .tap(|res| {
+                assert_eq!(res.program_id, ping_id);
+                assert_eq!(res.payload, b"PONG");
+                assert_eq!(res.value, 0);
+                assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Manual));
+            });
+    }
+
+    let (mut listeners, validator0, wait_for_pong) = {
+        log::info!("📗 Case 2: stop validator 0, and publish incorrect announce manually");
+
+        env.wait_for_next_producer_index(0).await;
+
+        let mut validator0 = validators.remove(0);
+        validator0.stop_service().await;
+
+        let mut listeners = validators
+            .iter_mut()
+            .map(|node| node.listener())
+            .collect::<Vec<_>>();
+
+        let wait_for_pong = env.send_message(ping_id, b"PING", 0).await.unwrap();
+
+        let block = env.latest_block().await;
+        let announce = Announce::with_default_gas(block.hash, HashOf::random());
+        let announce_hash = announce.to_hash();
+        validator0
+            .publish_validator_message(ValidatorMessage {
+                block: block.hash,
+                payload: announce,
+            })
+            .await;
+
+        // TODO +_+_+: consider to generate separate event about announce accept/reject and publish in network
+        // Validators 1..=6 must not accept this announce, so computation task should never happen
+        let waiting_for_computation_tasks = listeners.iter_mut().map(|l| {
+            l.apply_until(|event| {
+                Ok(matches!(
+                    event,
+                    TestingEvent::Consensus(ConsensusEvent::ComputeAnnounce(announce))
+                        if announce.to_hash() == announce_hash
+                )
+                .then_some(()))
+            })
+        });
+
+        tokio::time::timeout(
+            env.block_time * 5,
+            futures::future::join_all(waiting_for_computation_tasks),
+        )
+        .await
+        .expect_err("Timeout expected");
+
+        (listeners, validator0, wait_for_pong)
+    };
+
+    let latest_computed_announce_hash = {
+        log::info!(
+            "📗 Case 3: next block producer must be validator 1, so reply PONG must be delivered"
+        );
+
+        assert_eq!(env.next_block_producer_index().await, 1);
+        env.force_new_block().await;
+        wait_for_pong.wait_for().await.unwrap().tap(|res| {
+            assert_eq!(res.program_id, ping_id);
+            assert_eq!(res.payload, b"PONG");
+            assert_eq!(res.value, 0);
+            assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Manual));
+        });
+
+        // Wait till all validators accept announce for the latest block,
+        // which is from validator 2, because commitment forces anvil to produce new block.
+        let latest_block = env.latest_block().await.hash;
+        let mut latest_computed_announce_hash = HashOf::zero();
+        for listener in &mut listeners {
+            let announce_hash = listener.wait_for_announce_computed(latest_block).await;
+            assert!(
+                latest_computed_announce_hash == HashOf::zero()
+                    || latest_computed_announce_hash == announce_hash,
+                "All validators must compute the same announce for the latest block"
+            );
+            latest_computed_announce_hash = announce_hash;
+        }
+
+        latest_computed_announce_hash
+    };
+
+    let wait_for_pong = {
+        // Skip validators 3, 4, 5 (increasing timestamp). Stop validator 6,
+        // and emulate correct announce6 publishing from validator 6,
+        // but do not aggregate commitments.
+        // After that emulate validators 0 (which is already stopped before)
+        // send correct announce7 for the next block,
+        // but announce7 is from different chain than announce6, so announce7 must be rejected.
+        log::info!("📗 Case 4: announce chains conflict");
+
+        // because of commitment processing from previous step - next producer is 3
+        assert_eq!(env.next_block_producer_index().await, 3);
+
+        // skip slots for validators 3, 4, 5 and go to the timestamp, where next block producer is validator 6
+        env.provider
+            .anvil_set_next_block_timestamp(
+                env.latest_block().await.header.timestamp + env.block_time.as_secs() * 4,
+            )
+            .await
+            .unwrap();
+
+        // Get access to validator 1 db, to be able to access fresh announces
+        let validator1_db = validators[1].db.clone();
+
+        // Stop validator 6
+        // Note: index - 1, because validator 0 is already removed
+        let mut validator6 = validators.remove(6 - 1);
+        validator6.stop_service().await;
+
+        // Listeners for validators 1..=5
+        let mut listeners = validators
+            .iter_mut()
+            .map(|node| node.listener())
+            .collect::<Vec<_>>();
+
+        let _ = env.send_message(ping_id, b"PING", 0).await.unwrap();
+
+        // Next block producer is validator 0 - because validators 3, 4, 5 were skipped and 6 is current
+        assert_eq!(env.next_block_producer_index().await, 0);
+
+        // Send announce from stopped validator 6
+        let block = env.latest_block().await;
+        let announce6 = Announce::with_default_gas(block.hash, latest_computed_announce_hash);
+        let announce6_hash = announce6.to_hash();
+        validator6
+            .publish_validator_message(ValidatorMessage {
+                block: block.hash,
+                payload: announce6,
+            })
+            .await;
+        for listener in &mut listeners {
+            let announce_hash = listener.wait_for_announce_computed(announce6_hash).await;
+            assert_eq!(
+                announce_hash, announce_hash,
+                "Announce from validator 6 must be accepted"
+            );
+        }
+
+        // Commitment does not sent by validator 6,
+        // so now next producer is the next in order - validator 0
+        assert_eq!(env.next_block_producer_index().await, 0);
+
+        let wait_for_pong = env.send_message(ping_id, b"PING", 0).await.unwrap();
+
+        // Ignore announce6 and build announce7 on top of base announce from parent block
+        // Announce is not on top of announce6 (already accepted),
+        // so must be rejected by validators 1..=5
+        let block = env.latest_block().await;
+        let parent = validator1_db
+            .block_meta(block.header.parent_hash)
+            .announces
+            .into_iter()
+            .flatten()
+            .find(|&announce_hash| validator1_db.announce(announce_hash).unwrap().is_base())
+            .expect("base announces not found");
+        let announce7 = Announce::with_default_gas(block.hash, parent);
+        let announce7_hash = announce7.to_hash();
+        validator0
+            .publish_validator_message(ValidatorMessage {
+                block: block.hash,
+                payload: announce7,
+            })
+            .await;
+
+        // TODO +_+_+: consider to generate separate event about announce accept/reject and publish in network
+        // Validators 1..=5 must not accept this announce, so computation task should never happen
+        let waiting_for_computation_tasks = listeners.iter_mut().map(|l| {
+            l.apply_until(|event| {
+                Ok(matches!(
+                    event,
+                    TestingEvent::Consensus(ConsensusEvent::ComputeAnnounce(announce))
+                        if announce.to_hash() == announce7_hash
+                )
+                .then_some(()))
+            })
+        });
+        tokio::time::timeout(
+            env.block_time * 5,
+            futures::future::join_all(waiting_for_computation_tasks),
+        )
+        .await
+        .expect_err("Timeout expected");
+
+        wait_for_pong
+    };
+
+    {
+        log::info!(
+            "📗 Case 5: announce from validator 0 was rejected but still validator 1 could process all in the next block"
+        );
+
+        assert_eq!(env.next_block_producer_index().await, 1);
+        env.force_new_block().await;
+        wait_for_pong.wait_for().await.unwrap().tap(|res| {
+            assert_eq!(res.program_id, ping_id);
+            assert_eq!(res.payload, b"PONG");
+            assert_eq!(res.value, 0);
+            assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Manual));
+        });
+    }
 }

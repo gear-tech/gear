@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::Event;
-use anyhow::{Result, anyhow};
+use anyhow::Result;
 use ethexe_blob_loader::BlobLoaderEvent;
 use ethexe_common::{
     Address, Announce, HashOf, SimpleBlockData, db::*, events::BlockEvent,
@@ -126,7 +126,10 @@ impl ServiceEventsListener<'_> {
             .await
     }
 
-    pub async fn wait_for_announce_computed(&mut self, id: impl Into<AnnounceId>) {
+    pub async fn wait_for_announce_computed(
+        &mut self,
+        id: impl Into<AnnounceId>,
+    ) -> HashOf<Announce> {
         let id = id.into();
         loop {
             let event = self.next_event().await.unwrap();
@@ -136,25 +139,26 @@ impl ServiceEventsListener<'_> {
 
             match id {
                 AnnounceId::Any => {
-                    return;
+                    break announce_hash;
                 }
                 AnnounceId::AnnounceHash(waited_announce_hash)
                     if waited_announce_hash == announce_hash =>
                 {
-                    return;
+                    break announce_hash;
                 }
                 AnnounceId::BlockHash(waited_block_hash) => {
                     if self
                         .db
                         .announce(announce_hash)
-                        .ok_or_else(|| {
-                            anyhow!("Announce {announce_hash} not found in listener's node DB")
+                        .unwrap_or_else(|| {
+                            panic!(
+                                "Computed announce {announce_hash} not found in listener's node DB"
+                            )
                         })
-                        .unwrap()
                         .block_hash
                         == waited_block_hash
                     {
-                        return;
+                        break announce_hash;
                     }
                 }
                 _ => continue,
