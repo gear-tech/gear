@@ -3633,7 +3633,6 @@ dependencies = [
  "gbuiltin-bls381",
  "gear-wasm-builder",
  "gstd",
- "hex-literal",
  "parity-scale-codec",
 ]
 
@@ -4021,7 +4020,6 @@ dependencies = [
  "gear-wasm-builder",
  "gstd",
  "hashbrown 0.14.5",
- "hex-literal",
  "parity-scale-codec",
 ]
 
@@ -6165,6 +6163,15 @@ dependencies = [
  "ark-serialize 0.4.2",
  "parity-scale-codec",
  "scale-info",
+]
+
+[[package]]
+name = "gbuiltin-common"
+version = "1.9.2"
+dependencies = [
+ "parity-scale-codec",
+ "scale-info",
+ "serde",
 ]
 
 [[package]]
@@ -11674,6 +11681,7 @@ dependencies = [
  "frame-support-test",
  "frame-system",
  "gbuiltin-bls381",
+ "gbuiltin-common",
  "gbuiltin-proxy",
  "gbuiltin-staking",
  "gear-common",
@@ -11698,7 +11706,6 @@ dependencies = [
  "pallet-staking",
  "pallet-timestamp",
  "parity-scale-codec",
- "primitive-types",
  "scale-info",
  "sha2 0.10.8",
  "sp-core",
@@ -11715,6 +11722,7 @@ dependencies = [
 name = "pallet-gear-builtin-rpc"
 version = "1.9.2"
 dependencies = [
+ "gbuiltin-common",
  "jsonrpsee 0.24.7",
  "pallet-gear-builtin-rpc-runtime-api",
  "sp-api",
@@ -11727,8 +11735,10 @@ dependencies = [
 name = "pallet-gear-builtin-rpc-runtime-api"
 version = "1.9.2"
 dependencies = [
+ "gbuiltin-common",
  "sp-api",
  "sp-core",
+ "sp-std",
 ]
 
 [[package]]
@@ -11741,6 +11751,7 @@ dependencies = [
  "frame-support",
  "frame-support-test",
  "frame-system",
+ "gbuiltin-common",
  "gbuiltin-eth-bridge",
  "gear-common",
  "gear-core",
@@ -18927,6 +18938,7 @@ dependencies = [
  "frame-system-benchmarking",
  "frame-system-rpc-runtime-api",
  "frame-try-runtime",
+ "gbuiltin-common",
  "gbuiltin-proxy",
  "gear-common",
  "gear-core",

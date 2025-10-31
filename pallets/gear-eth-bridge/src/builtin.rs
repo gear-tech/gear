@@ -16,9 +16,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Builtin actor for the Gear Ethereum bridge.
+
 use crate::{Config, Error, Pallet, QueueId, TransportFee, WeightInfo};
 use common::Origin;
 use core::marker::PhantomData;
+use gbuiltin_common::BuiltinActorType;
 use gbuiltin_eth_bridge::{Request, Response};
 use gear_core::{
     buffer::Payload,
@@ -40,6 +43,8 @@ impl<T: Config> BuiltinActor for Actor<T>
 where
     T::AccountId: Origin,
 {
+    const TYPE: BuiltinActorType = BuiltinActorType::EthBridge;
+
     fn handle(
         dispatch: &StoredDispatch,
         context: &mut BuiltinContext,
@@ -111,6 +116,7 @@ where
         .map_err(|e| BuiltinActorError::Custom(LimitedStr::from_small_str(error_to_str(&e))))
 }
 
+/// Converts an error to a static string representation.
 pub fn error_to_str<T: Config>(error: &Error<T>) -> &'static str {
     match error {
         Error::BridgeCleanupRequired => "Send message: bridge queue overflowed and needs cleanup",

@@ -123,7 +123,7 @@ arbitrary = "1.3.2"
 async-recursion = "1.1.1"
 async-trait = "0.1.81"
 base64 = "0.21.7"
-bytemuck = "1.23.2" 
+bytemuck = "1.23.2"
 byteorder = { version = "1.5.0", default-features = false }
 blake2 = { version = "0.10.6", default-features = false }
 bs58 = { version = "0.5.1", default-features = false }
@@ -228,6 +228,7 @@ common = { package = "gear-common", path = "common", default-features = false }
 core-processor = { package = "gear-core-processor", path = "core-processor", default-features = false }
 galloc = { path = "galloc" }
 gbuiltin-bls381 = { path = "gbuiltins/bls381", default-features = false }
+gbuiltin-common = { path = "gbuiltins/common", default-features = false }
 gbuiltin-eth-bridge = { path = "gbuiltins/eth-bridge", default-features = false }
 gbuiltin-staking = { path = "gbuiltins/staking" }
 gbuiltin-proxy = { path = "gbuiltins/proxy" }

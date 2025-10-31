@@ -30,6 +30,8 @@ const IS_VALIDATED: Validate = ark_scale::is_validated(HOST_CALL);
 pub struct Actor<T: Config>(PhantomData<T>);
 
 impl<T: Config> BuiltinActor for Actor<T> {
+    const TYPE: BuiltinActorType = BuiltinActorType::BLS12_381;
+
     fn handle(
         dispatch: &StoredDispatch,
         context: &mut BuiltinContext,
@@ -67,6 +69,9 @@ impl<T: Config> BuiltinActor for Actor<T> {
     }
 
     fn max_gas() -> u64 {
+        // Returns 0 to disable pre-flight gas allowance checks.
+        // Gas consumption is tracked during execution via BuiltinContext.
+        // TODO: Implement payload-based gas estimation (see #4395)
         Default::default()
     }
 }

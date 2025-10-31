@@ -75,6 +75,8 @@ where
     <T as ProxyConfig>::ProxyType: From<BuiltinProxyType>,
     CallOf<T>: From<pallet_proxy::Call<T>>,
 {
+    const TYPE: BuiltinActorType = BuiltinActorType::Proxy;
+
     fn handle(
         dispatch: &StoredDispatch,
         context: &mut BuiltinContext,
@@ -95,6 +97,9 @@ where
     }
 
     fn max_gas() -> u64 {
+        // Returns 0 to disable pre-flight gas allowance checks.
+        // Gas consumption is tracked during execution via BuiltinContext.
+        // TODO: Implement payload-based gas estimation (see #4395)
         Default::default()
     }
 }
