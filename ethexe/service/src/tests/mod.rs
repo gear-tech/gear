@@ -85,9 +85,9 @@ async fn basics() {
     };
 
     let eth_cfg = EthereumConfig {
-        rpc: "wss://reth-rpc.gear-tech.io/ws".into(),
-        beacon_rpc: "https://eth-holesky-beacon.public.blastapi.io".into(),
-        router_address: "0x051193e518181887088df3891cA0E5433b094A4a"
+        rpc: "wss://hoodi-reth-rpc.gear-tech.io/ws".into(),
+        beacon_rpc: "https://hoodi-lighthouse-rpc.gear-tech.io".into(),
+        router_address: "0x61e49a1B6e387060Da92b1Cd85d640011acAeF26"
             .parse()
             .expect("infallible"),
         block_time: Duration::from_secs(12),

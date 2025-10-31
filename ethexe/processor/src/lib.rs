@@ -18,6 +18,7 @@
 
 //! Program's execution service for eGPU.
 
+use core::num::NonZero;
 use ethexe_common::{
     Announce, CodeAndIdUnchecked, HashOf, ProgramStates, Schedule,
     db::{AnnounceStorageRO, BlockMetaStorageRO, CodesStorageRW},
@@ -45,7 +46,7 @@ mod handling;
 mod tests;
 
 // Default amount of virtual threads to use for programs processing.
-pub const DEFAULT_CHUNK_PROCESSING_THREADS: u8 = 16;
+pub const DEFAULT_CHUNK_PROCESSING_THREADS: NonZero<usize> = NonZero::new(16).unwrap();
 
 #[derive(thiserror::Error, Debug)]
 pub enum ProcessorError {
@@ -129,7 +130,7 @@ pub struct ProcessorConfig {
 impl Default for ProcessorConfig {
     fn default() -> Self {
         Self {
-            chunk_processing_threads: DEFAULT_CHUNK_PROCESSING_THREADS as usize,
+            chunk_processing_threads: DEFAULT_CHUNK_PROCESSING_THREADS.get(),
         }
     }
 }
