@@ -17,6 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::ecdsa::Signature;
+use alloc::vec::Vec;
 use gprimitives::{ActorId, H256};
 use parity_scale_codec::{Decode, Encode};
 
