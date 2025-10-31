@@ -24,6 +24,9 @@ pub mod secp256k1;
 #[cfg(feature = "sr25519")]
 pub mod sr25519;
 
+#[cfg(feature = "ed25519")]
+pub mod ed25519;
+
 /// Enumeration of supported signature schemes.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SchemeType {
@@ -34,6 +37,10 @@ pub enum SchemeType {
     #[cfg(feature = "sr25519")]
     /// sr25519 Schnorrkel (Substrate).
     Sr25519,
+
+    #[cfg(feature = "ed25519")]
+    /// ed25519 Edwards-curve digital signatures.
+    Ed25519,
 }
 
 impl SchemeType {
@@ -44,6 +51,8 @@ impl SchemeType {
             SchemeType::Secp256k1 => "secp256k1",
             #[cfg(feature = "sr25519")]
             SchemeType::Sr25519 => "sr25519",
+            #[cfg(feature = "ed25519")]
+            SchemeType::Ed25519 => "ed25519",
             #[allow(unreachable_patterns)]
             _ => unreachable!("No signature schemes enabled"),
         }

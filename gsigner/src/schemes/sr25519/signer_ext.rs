@@ -77,12 +77,16 @@ impl Sr25519SignerExt for Signer<Sr25519> {
     }
 
     fn generate_vanity_key(&self, prefix: &str) -> Result<PublicKey> {
-        use crate::{address::SubstrateAddress, schemes::sr25519::PrivateKey};
+        use crate::{
+            address::{SubstrateAddress, SubstrateCryptoScheme},
+            schemes::sr25519::PrivateKey,
+        };
 
         loop {
             let candidate = PrivateKey::random();
             let public_key = Sr25519::public_key(&candidate);
-            let address = SubstrateAddress::new(public_key.to_bytes())?;
+            let address =
+                SubstrateAddress::new(public_key.to_bytes(), SubstrateCryptoScheme::Sr25519)?;
 
             if address.as_ss58().starts_with(prefix) {
                 return Ok(self.import_key(candidate)?);

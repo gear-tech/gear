@@ -217,10 +217,35 @@ mod tests {
         let keys = signer.list_keys().unwrap();
         assert_eq!(keys.len(), 1);
         assert!(keys.contains(&public_key));
-
         // Get address
         let address = signer.address(public_key);
         assert_eq!(address.as_bytes().len(), 32);
+    }
+
+    #[cfg(feature = "ed25519")]
+    #[test]
+    fn test_signer_ed25519() {
+        use crate::schemes::ed25519::Ed25519;
+
+        let signer = Signer::<Ed25519>::memory();
+
+        // Generate key
+        let public_key = signer.generate_key().unwrap();
+        assert!(signer.has_key(public_key).unwrap());
+
+        // Sign and verify
+        let message = b"hello world";
+        let signature = signer.sign(public_key, message).unwrap();
+        signer.verify(public_key, message, &signature).unwrap();
+
+        // List keys
+        let keys = signer.list_keys().unwrap();
+        assert_eq!(keys.len(), 1);
+        assert!(keys.contains(&public_key));
+
+        // Get address
+        let address = signer.address(public_key);
+        assert!(!address.as_ss58().is_empty());
     }
 
     #[cfg(feature = "secp256k1")]

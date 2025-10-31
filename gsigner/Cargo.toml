@@ -1,6 +1,6 @@
 [package]
 name = "gsigner"
-description = "Universal cryptographic signer supporting secp256k1 (Ethereum) and sr25519 (Substrate)"
+description = "Universal cryptographic signer supporting secp256k1 (Ethereum), ed25519, and sr25519 (Substrate)"
 documentation = "https://docs.rs/gsigner"
 keywords = ["cryptography", "ethereum", "substrate", "signing", "keystore"]
 version.workspace = true
@@ -47,7 +47,7 @@ zeroize = { version = "1.8", features = ["zeroize_derive"] }
 [dev-dependencies]
 
 [features]
-default = ["std", "secp256k1", "sr25519", "codec"]
+default = ["std", "secp256k1", "sr25519", "ed25519", "codec"]
 std = [
     "dep:anyhow",
     "dep:serde_json",
@@ -66,7 +66,13 @@ sr25519 = [
     "dep:rand",
     "serde",
 ]
+ed25519 = [
+    "std",
+    "sp-core",
+    "dep:rand",
+    "serde",
+]
 cli = ["std", "clap", "colored", "tracing-subscriber"]
 codec = ["dep:parity-scale-codec"]
-keyring = ["std", "sr25519"]
+keyring = ["std", "serde"]
 serde = ["dep:serde"]

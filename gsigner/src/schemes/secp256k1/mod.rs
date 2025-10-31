@@ -31,6 +31,9 @@ pub mod signature;
 #[cfg(feature = "std")]
 mod signer_ext;
 
+#[cfg(all(feature = "serde", feature = "keyring"))]
+pub mod keyring;
+
 pub use address::{Address, EmptyValidatorsError, FromActorIdError, ValidatorsVec};
 pub use digest::{Digest, ToDigest};
 pub use keys::{PrivateKey, PublicKey};
@@ -47,6 +50,9 @@ pub use crate::storage::FSKeyStorage;
 pub use crate::storage::MemoryKeyStorage;
 #[cfg(feature = "std")]
 pub use signer_ext::Secp256k1SignerExt;
+
+#[cfg(all(feature = "serde", feature = "keyring"))]
+pub use keyring::{Keyring, Keystore as KeyringKeystore};
 
 /// secp256k1 signature scheme marker type.
 #[derive(Debug, Clone, Copy)]

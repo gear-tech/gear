@@ -21,39 +21,61 @@
 #[cfg(feature = "secp256k1")]
 pub use crate::schemes::secp256k1::{Address, FromActorIdError, ValidatorsVec};
 
-#[cfg(feature = "sr25519")]
+#[cfg(any(feature = "sr25519", feature = "ed25519"))]
 use alloc::string::String;
-#[cfg(feature = "sr25519")]
+#[cfg(any(feature = "sr25519", feature = "ed25519"))]
 use anyhow::{Result, anyhow};
-
-#[cfg(feature = "sr25519")]
+#[cfg(any(feature = "sr25519", feature = "ed25519"))]
 use core::fmt;
+#[cfg(any(feature = "sr25519", feature = "ed25519"))]
+use sp_core::crypto::{Ss58AddressFormat, Ss58Codec};
 
 /// Substrate SS58 address wrapper.
-#[cfg(feature = "sr25519")]
+#[cfg(any(feature = "sr25519", feature = "ed25519"))]
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum SubstrateCryptoScheme {
+    #[cfg(feature = "sr25519")]
+    Sr25519,
+    #[cfg(feature = "ed25519")]
+    Ed25519,
+}
+
+#[cfg(any(feature = "sr25519", feature = "ed25519"))]
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub struct SubstrateAddress {
-    /// The raw public key bytes (32 bytes for sr25519).
+    /// The raw public key bytes (32 bytes for Substrate-compatible schemes).
     pub public_key: [u8; 32],
     /// The SS58 encoded address string.
     ss58: String,
+    /// The cryptographic scheme used to derive this address.
+    scheme: SubstrateCryptoScheme,
 }
 
-#[cfg(feature = "sr25519")]
+#[cfg(any(feature = "sr25519", feature = "ed25519"))]
 impl SubstrateAddress {
     const DEFAULT_PREFIX: u16 = 137; // Vara network
 
-    /// Create a new Substrate address from public key bytes.
-    pub fn new(public_key: [u8; 32]) -> Result<Self> {
-        use sp_core::{
-            crypto::{Ss58AddressFormat, Ss58Codec},
-            sr25519,
-        };
-
-        let public = sr25519::Public::from_raw(public_key);
+    /// Create a new Substrate address from public key bytes for the given scheme.
+    pub fn new(public_key: [u8; 32], scheme: SubstrateCryptoScheme) -> Result<Self> {
         let format = Ss58AddressFormat::custom(Self::DEFAULT_PREFIX);
-        let ss58 = public.to_ss58check_with_version(format);
-        Ok(Self { public_key, ss58 })
+        let ss58 = Self::encode(public_key, format, scheme)?;
+        Ok(Self {
+            public_key,
+            ss58,
+            scheme,
+        })
+    }
+
+    #[cfg(feature = "sr25519")]
+    /// Convenience constructor for sr25519 public keys.
+    pub fn from_sr25519(public_key: [u8; 32]) -> Result<Self> {
+        Self::new(public_key, SubstrateCryptoScheme::Sr25519)
+    }
+
+    #[cfg(feature = "ed25519")]
+    /// Convenience constructor for ed25519 public keys.
+    pub fn from_ed25519(public_key: [u8; 32]) -> Result<Self> {
+        Self::new(public_key, SubstrateCryptoScheme::Ed25519)
     }
 
     /// Get the SS58 encoded address string.
@@ -66,42 +88,79 @@ impl SubstrateAddress {
         &self.public_key
     }
 
+    /// Get the underlying cryptographic scheme.
+    pub fn scheme(&self) -> SubstrateCryptoScheme {
+        self.scheme
+    }
+
     /// Decode an SS58 address string to public key bytes.
     pub fn from_ss58(ss58: &str) -> Result<Self> {
-        use sp_core::{crypto::Ss58Codec, sr25519};
+        #[cfg(feature = "sr25519")]
+        if let Ok(public) = sp_core::sr25519::Public::from_ss58check(ss58) {
+            return Ok(Self {
+                public_key: public.0,
+                ss58: ss58.to_string(),
+                scheme: SubstrateCryptoScheme::Sr25519,
+            });
+        }
 
-        let public = sr25519::Public::from_ss58check(ss58)
-            .map_err(|e| anyhow!("Invalid SS58 encoding: {e}"))?;
-        let public_key = public.0;
-        Ok(Self {
-            public_key,
-            ss58: ss58.to_string(),
-        })
+        #[cfg(feature = "ed25519")]
+        if let Ok(public) = sp_core::ed25519::Public::from_ss58check(ss58) {
+            return Ok(Self {
+                public_key: public.0,
+                ss58: ss58.to_string(),
+                scheme: SubstrateCryptoScheme::Ed25519,
+            });
+        }
+
+        Err(anyhow!("Invalid SS58 encoding: {ss58}"))
     }
 
     /// Re-encode address to a different SS58 format (e.g., VARA).
     pub fn recode(&self) -> Result<Self> {
-        Self::new(self.public_key)
+        Self::new(self.public_key, self.scheme)
+    }
+
+    fn encode(
+        public_key: [u8; 32],
+        format: Ss58AddressFormat,
+        scheme: SubstrateCryptoScheme,
+    ) -> Result<String> {
+        match scheme {
+            #[cfg(feature = "sr25519")]
+            SubstrateCryptoScheme::Sr25519 => {
+                let public = sp_core::sr25519::Public::from_raw(public_key);
+                Ok(public.to_ss58check_with_version(format))
+            }
+            #[cfg(feature = "ed25519")]
+            SubstrateCryptoScheme::Ed25519 => {
+                let public = sp_core::ed25519::Public::from_raw(public_key);
+                Ok(public.to_ss58check_with_version(format))
+            }
+            #[cfg(not(any(feature = "sr25519", feature = "ed25519")))]
+            _ => Err(anyhow!("No Substrate-compatible scheme enabled")),
+        }
     }
 }
 
-#[cfg(feature = "sr25519")]
+#[cfg(any(feature = "sr25519", feature = "ed25519"))]
 impl fmt::Debug for SubstrateAddress {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("SubstrateAddress")
             .field("ss58", &self.ss58)
+            .field("scheme", &self.scheme)
             .finish()
     }
 }
 
-#[cfg(feature = "sr25519")]
+#[cfg(any(feature = "sr25519", feature = "ed25519"))]
 impl fmt::Display for SubstrateAddress {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.ss58)
     }
 }
 
-#[cfg(feature = "sr25519")]
+#[cfg(any(feature = "sr25519", feature = "ed25519"))]
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -109,10 +168,16 @@ mod tests {
     #[test]
     fn test_substrate_address_encode_decode() {
         let public_key = [0x42; 32];
-        let addr = SubstrateAddress::new(public_key).unwrap();
+        #[cfg(feature = "sr25519")]
+        let scheme = SubstrateCryptoScheme::Sr25519;
+        #[cfg(all(not(feature = "sr25519"), feature = "ed25519"))]
+        let scheme = SubstrateCryptoScheme::Ed25519;
+
+        let addr = SubstrateAddress::new(public_key, scheme).unwrap();
         let ss58 = addr.as_ss58();
 
         let decoded = SubstrateAddress::from_ss58(ss58).unwrap();
         assert_eq!(decoded.public_key, public_key);
+        assert_eq!(decoded.scheme(), scheme);
     }
 }

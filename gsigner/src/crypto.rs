@@ -30,15 +30,29 @@ pub mod secp256k1 {
     };
     #[cfg(feature = "std")]
     pub use crate::schemes::secp256k1::{FileStorage, Signer};
+    #[cfg(all(feature = "serde", feature = "keyring"))]
+    pub use crate::schemes::secp256k1::{Keyring, KeyringKeystore};
 }
 
 #[cfg(feature = "sr25519")]
 pub mod sr25519 {
+    #[cfg(all(feature = "serde", feature = "keyring"))]
+    pub use crate::schemes::sr25519::Keyring;
+    #[cfg(feature = "serde")]
+    pub use crate::schemes::sr25519::Keystore;
     pub use crate::{
         schemes::sr25519::{
-            self as primitives, Keyring, Keystore, PrivateKey, PublicKey, Signature, Sr25519,
-            Sr25519SignerExt,
+            self as primitives, PrivateKey, PublicKey, Signature, Sr25519, Sr25519SignerExt,
         },
         substrate::SubstratePair,
     };
+}
+
+#[cfg(feature = "ed25519")]
+pub mod ed25519 {
+    pub use crate::schemes::ed25519::{
+        self as primitives, Ed25519, PrivateKey, PublicKey, Signature,
+    };
+    #[cfg(all(feature = "serde", feature = "keyring"))]
+    pub use crate::schemes::ed25519::{Keyring, KeyringKeystore};
 }

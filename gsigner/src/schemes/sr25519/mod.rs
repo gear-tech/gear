@@ -19,7 +19,7 @@
 //! sr25519 Schnorrkel signature scheme (Substrate-compatible).
 
 use crate::{
-    address::SubstrateAddress,
+    address::{SubstrateAddress, SubstrateCryptoScheme},
     error::{Result, SignerError},
     traits::SignatureScheme,
 };
@@ -27,6 +27,7 @@ use schnorrkel::{
     KEYPAIR_LENGTH, Keypair, PublicKey as SchnorrkelPublicKey, Signature as SchnorrkelSignature,
     signing_context,
 };
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use sp_core::{
     Pair as _,
@@ -36,11 +37,16 @@ use sp_core::{
 use std::vec::Vec;
 use zeroize::Zeroizing;
 
-pub mod keyring;
-pub mod keystore;
 mod signer_ext;
 
+#[cfg(all(feature = "serde", feature = "keyring"))]
+pub mod keyring;
+#[cfg(feature = "serde")]
+pub mod keystore;
+
+#[cfg(all(feature = "serde", feature = "keyring"))]
 pub use keyring::Keyring;
+#[cfg(feature = "serde")]
 pub use keystore::Keystore;
 pub use signer_ext::Sr25519SignerExt;
 
@@ -63,7 +69,8 @@ pub struct PrivateKey {
 }
 
 /// sr25519 public key (32 bytes).
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(
     feature = "codec",
     derive(parity_scale_codec::Encode, parity_scale_codec::Decode)
@@ -131,6 +138,7 @@ impl PrivateKey {
     }
 }
 
+#[cfg(feature = "serde")]
 impl Serialize for PrivateKey {
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
     where
@@ -140,6 +148,7 @@ impl Serialize for PrivateKey {
     }
 }
 
+#[cfg(feature = "serde")]
 impl<'de> Deserialize<'de> for PrivateKey {
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where
@@ -197,7 +206,8 @@ impl PublicKey {
 
     /// Return SS58 address using the default Vara prefix.
     pub fn to_address(&self) -> Result<SubstrateAddress> {
-        SubstrateAddress::new(self.0).map_err(|e| SignerError::InvalidAddress(e.to_string()))
+        SubstrateAddress::new(self.0, SubstrateCryptoScheme::Sr25519)
+            .map_err(|e| SignerError::InvalidAddress(e.to_string()))
     }
 }
 
@@ -252,6 +262,7 @@ impl std::fmt::Debug for Signature {
     }
 }
 
+#[cfg(feature = "serde")]
 impl Serialize for Signature {
     fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
     where
@@ -261,6 +272,7 @@ impl Serialize for Signature {
     }
 }
 
+#[cfg(feature = "serde")]
 impl<'de> Deserialize<'de> for Signature {
     fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
     where

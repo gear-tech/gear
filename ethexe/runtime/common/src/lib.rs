@@ -207,8 +207,6 @@ where
             program_state: &mut program_state,
             gas_allowance_counter: &mut queue_gas_allowance_counter,
             stop_processing: false,
-            block_info: block_config.block_info,
-            origin,
         };
         let (unhandled_journal_notes, new_state_hash) = handler.handle_journal(journal);
         mega_journal.push((unhandled_journal_notes, origin, call_reply));

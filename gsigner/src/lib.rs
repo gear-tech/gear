@@ -20,12 +20,13 @@
 //! Universal cryptographic signer library supporting multiple signature schemes.
 //!
 //! This crate provides a unified interface for cryptographic signing operations
-//! supporting both secp256k1 (Ethereum) and sr25519 (Substrate) signature schemes.
+//! supporting secp256k1 (Ethereum), ed25519, and sr25519 (Substrate) signature schemes.
 //!
 //! # Features
 //!
 //! - `secp256k1` - Enable Ethereum/secp256k1 ECDSA support (enabled by default)
 //! - `sr25519` - Enable Substrate/sr25519 Schnorrkel support (enabled by default)
+//! - `ed25519` - Enable Substrate-compatible ed25519 support (enabled by default)
 //! - `cli` - Enable command-line interface tools
 //! - `codec` - Enable parity-scale-codec support for serialization
 //! - `keyring` - Keyring support with primary key management
@@ -54,6 +55,9 @@ extern crate alloc;
 #[cfg(all(not(feature = "std"), feature = "sr25519"))]
 compile_error!("The `sr25519` feature requires the `std` feature.");
 
+#[cfg(all(not(feature = "std"), feature = "ed25519"))]
+compile_error!("The `ed25519` feature requires the `std` feature.");
+
 pub mod address;
 pub mod crypto;
 pub mod error;
@@ -74,10 +78,10 @@ pub mod substrate;
 
 #[cfg(feature = "secp256k1")]
 pub use address::FromActorIdError;
-#[cfg(feature = "sr25519")]
-pub use address::SubstrateAddress;
 #[cfg(feature = "secp256k1")]
 pub use address::{Address, ValidatorsVec};
+#[cfg(any(feature = "sr25519", feature = "ed25519"))]
+pub use address::{SubstrateAddress, SubstrateCryptoScheme};
 pub use error::{Result, SignerError};
 #[cfg(feature = "std")]
 pub use signer::Signer;
@@ -90,9 +94,15 @@ pub use schemes::secp256k1::{
     ContractSignature, Digest, PrivateKey, PublicKey, Signature, SignedData, ToDigest, VerifiedData,
 };
 
-#[cfg(all(feature = "secp256k1", feature = "std"))]
+#[cfg(feature = "ed25519")]
+pub use schemes::ed25519::Ed25519;
+
+#[cfg(all(
+    feature = "std",
+    any(feature = "secp256k1", feature = "sr25519", feature = "ed25519")
+))]
 pub use storage::FSKeyStorage;
-#[cfg(feature = "secp256k1")]
+#[cfg(any(feature = "secp256k1", feature = "sr25519", feature = "ed25519"))]
 pub use storage::MemoryKeyStorage;
 
 #[cfg(feature = "secp256k1")]
@@ -119,6 +129,17 @@ pub mod sr25519 {
     pub type FileStorage = crate::storage::FSKeyStorage<Sr25519>;
 }
 
+#[cfg(feature = "ed25519")]
+pub mod ed25519 {
+    //! Ergonomic re-exports for the ed25519 scheme.
+
+    pub use crate::schemes::ed25519::*;
+    pub type Signer = crate::Signer<Ed25519>;
+    pub type MemoryStorage = crate::storage::MemoryKeyStorage<Ed25519>;
+    #[cfg(feature = "std")]
+    pub type FileStorage = crate::storage::FSKeyStorage<Ed25519>;
+}
+
 /// Re-export commonly used types
 pub mod prelude {
     pub use crate::{KeyStorage, SignatureScheme, schemes};
@@ -126,7 +147,7 @@ pub mod prelude {
     #[cfg(feature = "secp256k1")]
     pub use crate::Address;
 
-    #[cfg(any(feature = "secp256k1", feature = "sr25519"))]
+    #[cfg(any(feature = "secp256k1", feature = "sr25519", feature = "ed25519"))]
     pub use crate::schemes::SchemeType;
 
     #[cfg(feature = "std")]
@@ -137,4 +158,7 @@ pub mod prelude {
 
     #[cfg(feature = "sr25519")]
     pub use crate::schemes::sr25519::Sr25519;
+
+    #[cfg(feature = "ed25519")]
+    pub use crate::schemes::ed25519::Ed25519;
 }

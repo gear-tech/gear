@@ -18,6 +18,7 @@
 
 //! Polkadot-js compatible keystore format for sr25519 keys.
 
+use crate::address::{SubstrateAddress, SubstrateCryptoScheme};
 use anyhow::{Result, anyhow};
 use base64::{Engine as _, engine::general_purpose::STANDARD};
 use rand::RngCore;
@@ -54,8 +55,6 @@ impl Keystore {
     }
 
     fn encrypt_scrypt(info: KeypairInfo, passphrase: &[u8]) -> Result<Self> {
-        use crate::address::SubstrateAddress;
-
         let mut encoded = Vec::new();
 
         // 1. Generate scrypt parameters and derive key
@@ -73,7 +72,7 @@ impl Keystore {
             .map_err(|e| anyhow!("{:?}", e))?;
         encoded.extend_from_slice(&encrypted);
 
-        let address = SubstrateAddress::new(info.public)?;
+        let address = SubstrateAddress::new(info.public, SubstrateCryptoScheme::Sr25519)?;
 
         Ok(Self {
             encoded: STANDARD.encode(&encoded),
@@ -84,9 +83,7 @@ impl Keystore {
     }
 
     fn encrypt_none(info: KeypairInfo) -> Result<Self> {
-        use crate::address::SubstrateAddress;
-
-        let address = SubstrateAddress::new(info.public)?;
+        let address = SubstrateAddress::new(info.public, SubstrateCryptoScheme::Sr25519)?;
 
         Ok(Self {
             encoded: STANDARD.encode(info.encode()),
@@ -145,7 +142,6 @@ impl Keystore {
 
     /// Get the public key from the keystore.
     pub fn public_key(&self) -> Result<[u8; 32]> {
-        use crate::address::SubstrateAddress;
         // Parse the SS58 address to get the public key
         let address = SubstrateAddress::from_ss58(&self.address)?;
         Ok(address.public_key)

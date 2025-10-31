@@ -19,11 +19,15 @@
 //! Unified keyring manager supporting multiple cryptographic schemes.
 //!
 //! This module provides a top-level keyring abstraction that can manage keys
-//! for both secp256k1 (Ethereum) and sr25519 (Substrate) schemes.
+//! across different signature schemes by relying on scheme-specific keystore
+//! types to implement [`KeystoreEntry`].
 
 use anyhow::{Result, anyhow};
 use serde::{Deserialize, Serialize};
-use std::{fs, path::PathBuf};
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
 
 const CONFIG_FILE: &str = "keyring.json";
 
@@ -45,8 +49,9 @@ struct KeyringConfig {
 
 /// Unified keyring manager for cryptographic keys.
 ///
-/// Manages a collection of encrypted keystores with a primary key concept.
-/// Supports both sr25519 (Substrate) and secp256k1 (Ethereum) key types.
+/// Manages a collection of serialized keystores with a primary key concept.
+/// The keystore format is delegated to the scheme-specific implementation via
+/// the [`KeystoreEntry`] trait.
 ///
 /// # Directory Structure
 ///
@@ -69,30 +74,30 @@ pub struct Keyring<K: KeystoreEntry> {
 impl<K: KeystoreEntry> Keyring<K> {
     /// Load keyring from directory.
     ///
-    /// Creates the directory if it doesn't exist.
-    /// Loads all keystore files and reads the primary key configuration.
+    /// Creates the directory if it doesn't exist and loads all keystores from disk.
     pub fn load(store: PathBuf) -> Result<Self> {
         fs::create_dir_all(&store)?;
 
-        let keystores = fs::read_dir(&store)?
-            .filter_map(|entry| {
-                let path = entry.ok()?.path();
-                if path.file_name()? == CONFIG_FILE {
-                    return None;
+        let mut keystores = Vec::new();
+        for entry in fs::read_dir(&store)? {
+            let entry = match entry {
+                Ok(entry) => entry,
+                Err(err) => {
+                    tracing::warn!("Failed to iterate keyring directory: {err}");
+                    continue;
                 }
-                if path.extension()? != "json" {
-                    return None;
-                }
+            };
 
-                let content = fs::read(&path).ok()?;
-                serde_json::from_slice::<K>(&content)
-                    .map_err(|err| {
-                        tracing::warn!("Failed to load keystore at {:?}: {}", path, err);
-                        err
-                    })
-                    .ok()
-            })
-            .collect::<Vec<_>>();
+            let path = entry.path();
+            if Self::is_config_file(&path) || !Self::is_keystore_file(&path) {
+                continue;
+            }
+
+            match Self::read_keystore(&path) {
+                Ok(keystore) => keystores.push(keystore),
+                Err(err) => tracing::warn!("Failed to load keystore at {:?}: {err}", path),
+            }
+        }
 
         let config_path = store.join(CONFIG_FILE);
         let primary = if config_path.exists() {
@@ -109,6 +114,31 @@ impl<K: KeystoreEntry> Keyring<K> {
         })
     }
 
+    fn is_config_file(path: &Path) -> bool {
+        path.file_name().is_some_and(|name| name == CONFIG_FILE)
+    }
+
+    fn is_keystore_file(path: &Path) -> bool {
+        path.extension().is_some_and(|ext| ext == "json")
+    }
+
+    fn read_keystore(path: &Path) -> Result<K> {
+        let bytes = fs::read(path)?;
+        let mut keystore: K = serde_json::from_slice(&bytes)?;
+
+        if let Some(stem) = path.file_stem().and_then(|s| s.to_str())
+            && keystore.name().is_empty()
+        {
+            keystore.set_name(stem);
+        }
+
+        Ok(keystore)
+    }
+
+    fn keystore_path(&self, name: &str) -> PathBuf {
+        self.store.join(name).with_extension("json")
+    }
+
     /// Save keyring configuration to disk.
     fn save_config(&self) -> Result<()> {
         let config = KeyringConfig {
@@ -119,6 +149,39 @@ impl<K: KeystoreEntry> Keyring<K> {
         Ok(())
     }
 
+    /// Persist a keystore entry in the keyring.
+    ///
+    /// Saves the keystore to disk, overwriting any existing entry with the same name.
+    pub fn store(&mut self, name: &str, mut keystore: K) -> Result<K> {
+        keystore.set_name(name);
+
+        let path = self.keystore_path(name);
+        fs::write(&path, serde_json::to_vec_pretty(&keystore)?)?;
+
+        if let Some(index) = self.keystores.iter().position(|entry| entry.name() == name) {
+            self.keystores[index] = keystore.clone();
+        } else {
+            self.keystores.push(keystore.clone());
+        }
+
+        Ok(keystore)
+    }
+
+    /// Import a keystore from an arbitrary JSON file.
+    ///
+    /// The file is deserialized, optionally renamed from its filename, and stored
+    /// in the keyring directory.
+    pub fn import(&mut self, path: PathBuf) -> Result<K> {
+        let mut keystore = Self::read_keystore(&path)?;
+        let name = path
+            .file_stem()
+            .and_then(|s| s.to_str())
+            .ok_or_else(|| anyhow!("Invalid file name"))?;
+
+        keystore.set_name(name);
+        self.store(name, keystore)
+    }
+
     /// Get the primary keystore.
     ///
     /// Returns an error if no primary key is set or if the keyring is empty.
@@ -127,9 +190,9 @@ impl<K: KeystoreEntry> Keyring<K> {
             return Err(anyhow!("No keys in keyring"));
         }
 
-        // If no primary set, use the first key
         if self.primary.is_none() {
-            self.primary = Some(self.keystores[0].name().to_string());
+            let first = self.keystores[0].name().to_string();
+            self.primary = Some(first);
             self.save_config()?;
         }
 
@@ -142,7 +205,6 @@ impl<K: KeystoreEntry> Keyring<K> {
 
     /// Set the primary key by name.
     pub fn set_primary(&mut self, name: &str) -> Result<()> {
-        // Verify the key exists first
         if !self.keystores.iter().any(|k| k.name() == name) {
             return Err(anyhow!("Key '{}' not found in keyring", name));
         }
@@ -162,30 +224,6 @@ impl<K: KeystoreEntry> Keyring<K> {
         self.keystores.iter().find(|k| k.name() == name)
     }
 
-    /// Add a keystore to the keyring.
-    ///
-    /// Saves the keystore to disk and adds it to the in-memory collection.
-    pub fn add(&mut self, name: &str, keystore: K) -> Result<K> {
-        let path = self.store.join(name).with_extension("json");
-        fs::write(&path, serde_json::to_vec_pretty(&keystore)?)?;
-
-        self.keystores.push(keystore.clone());
-        Ok(keystore)
-    }
-
-    /// Import a keystore from a file.
-    pub fn import(&mut self, path: PathBuf) -> Result<K> {
-        let content = fs::read(&path)?;
-        let keystore: K = serde_json::from_slice(&content)?;
-
-        let name = path
-            .file_stem()
-            .and_then(|s| s.to_str())
-            .ok_or_else(|| anyhow!("Invalid file name"))?;
-
-        self.add(name, keystore)
-    }
-
     /// Remove a keystore by name.
     pub fn remove(&mut self, name: &str) -> Result<K> {
         let index = self
@@ -197,7 +235,7 @@ impl<K: KeystoreEntry> Keyring<K> {
         let keystore = self.keystores.remove(index);
 
         // Remove from disk
-        let path = self.store.join(name).with_extension("json");
+        let path = self.keystore_path(name);
         if path.exists() {
             fs::remove_file(&path)?;
         }
@@ -212,13 +250,11 @@ impl<K: KeystoreEntry> Keyring<K> {
     }
 }
 
-// Re-export scheme-specific keyring implementations will be added here
-// as we integrate them with the unified keyring base
-
 #[cfg(test)]
 mod tests {
     use super::*;
     use serde::{Deserialize, Serialize};
+    use std::collections::HashSet;
 
     #[derive(Clone, Serialize, Deserialize)]
     struct TestKeystore {
@@ -243,19 +279,27 @@ mod tests {
 
         // Add keystores
         let key1 = TestKeystore {
-            name: "alice".to_string(),
+            name: String::new(),
             data: "secret1".to_string(),
         };
         let key2 = TestKeystore {
-            name: "bob".to_string(),
+            name: String::from("bob"),
             data: "secret2".to_string(),
         };
 
-        keyring.add("alice", key1).unwrap();
-        keyring.add("bob", key2).unwrap();
+        keyring.store("alice", key1).unwrap();
+        keyring.store("bob", key2).unwrap();
 
         // List
         assert_eq!(keyring.list().len(), 2);
+        assert_eq!(
+            keyring
+                .list()
+                .iter()
+                .map(|k| k.name())
+                .collect::<HashSet<_>>(),
+            HashSet::from(["alice", "bob"])
+        );
 
         // Get
         assert!(keyring.get("alice").is_some());
@@ -264,6 +308,7 @@ mod tests {
         // Set primary
         keyring.set_primary("alice").unwrap();
         assert_eq!(keyring.primary.as_deref(), Some("alice"));
+        keyring.primary().unwrap();
 
         // Remove
         keyring.remove("alice").unwrap();

@@ -26,7 +26,7 @@ use std::path::PathBuf;
 /// Root CLI structure
 #[derive(Parser, Debug, Clone)]
 #[command(name = "gsigner")]
-#[command(about = "Universal cryptographic signer supporting secp256k1 (Ethereum) and sr25519 (Substrate)", long_about = None)]
+#[command(about = "Universal cryptographic signer supporting secp256k1 (Ethereum), ed25519, and sr25519 (Substrate)", long_about = None)]
 pub struct GSignerCli {
     #[command(subcommand)]
     pub command: GSignerCommands,
@@ -35,12 +35,17 @@ pub struct GSignerCli {
 /// Top-level commands
 #[derive(Subcommand, Debug, Clone)]
 pub enum GSignerCommands {
-    #[command(about = "Secp256k1 (Ethereum) operations")]
+    #[command(about = "Secp256k1 (Ethereum) operations", alias = "secp")]
     Secp256k1 {
         #[command(subcommand)]
         command: Secp256k1Commands,
     },
-    #[command(about = "Sr25519 (Substrate) operations")]
+    #[command(about = "Ed25519 (Substrate) operations", alias = "ed")]
+    Ed25519 {
+        #[command(subcommand)]
+        command: Ed25519Commands,
+    },
+    #[command(about = "Sr25519 (Substrate) operations", alias = "sr")]
     Sr25519 {
         #[command(subcommand)]
         command: Sr25519Commands,
@@ -84,6 +89,69 @@ pub enum Secp256k1Commands {
     List {
         #[arg(short, long, help = "Storage directory")]
         storage: Option<PathBuf>,
+    },
+    #[cfg(feature = "keyring")]
+    #[command(about = "Keyring operations")]
+    Keyring {
+        #[command(subcommand)]
+        command: Secp256k1KeyringCommands,
+    },
+}
+
+/// Ed25519 subcommands
+#[derive(Subcommand, Debug, Clone)]
+pub enum Ed25519Commands {
+    #[command(about = "Generate a new ed25519 keypair")]
+    Generate {
+        #[arg(short, long, help = "Storage directory (default: memory only)")]
+        storage: Option<PathBuf>,
+    },
+    #[command(about = "Import ed25519 key from SURI (//Alice, mnemonic, etc.)")]
+    Import {
+        #[arg(
+            short = 'u',
+            long,
+            help = "SURI string (e.g., //Alice, //Alice//stash, mnemonic phrase)"
+        )]
+        suri: String,
+        #[arg(short = 'w', long, help = "Password for SURI derivation")]
+        password: Option<String>,
+        #[arg(short, long, help = "Storage directory (default: memory only)")]
+        storage: Option<PathBuf>,
+    },
+    #[command(about = "Sign data with an ed25519 private key")]
+    Sign {
+        #[arg(short, long, help = "Public key (hex)")]
+        public_key: String,
+        #[arg(short, long, help = "Data to sign (hex)")]
+        data: String,
+        #[arg(short, long, help = "Storage directory")]
+        storage: Option<PathBuf>,
+    },
+    #[command(about = "Verify an ed25519 signature")]
+    Verify {
+        #[arg(short, long, help = "Public key (hex)")]
+        public_key: String,
+        #[arg(short, long, help = "Data that was signed (hex)")]
+        data: String,
+        #[arg(short, long, help = "Signature (hex)")]
+        signature: String,
+    },
+    #[command(about = "Get SS58 address from public key")]
+    Address {
+        #[arg(short, long, help = "Public key (hex)")]
+        public_key: String,
+    },
+    #[command(about = "List all keys in storage")]
+    List {
+        #[arg(short, long, help = "Storage directory")]
+        storage: Option<PathBuf>,
+    },
+    #[cfg(feature = "keyring")]
+    #[command(about = "Keyring operations")]
+    Keyring {
+        #[command(subcommand)]
+        command: Ed25519KeyringCommands,
     },
 }
 
@@ -135,10 +203,11 @@ pub enum Sr25519Commands {
         #[arg(short, long, help = "Public key (hex)")]
         public_key: String,
     },
+    #[cfg(feature = "keyring")]
     #[command(about = "Keyring operations")]
     Keyring {
         #[command(subcommand)]
-        command: KeyringCommands,
+        command: Sr25519KeyringCommands,
     },
     #[command(about = "List all keys in storage")]
     List {
@@ -147,9 +216,85 @@ pub enum Sr25519Commands {
     },
 }
 
-/// Keyring subcommands
+#[cfg(feature = "keyring")]
+/// Secp256k1 keyring subcommands
 #[derive(Subcommand, Debug, Clone)]
-pub enum KeyringCommands {
+pub enum Secp256k1KeyringCommands {
+    #[command(about = "Initialise a keyring directory")]
+    Create {
+        #[arg(short, long, help = "Keyring directory")]
+        path: PathBuf,
+    },
+    #[command(about = "Generate and store a new key")]
+    Generate {
+        #[arg(short, long, help = "Keyring directory")]
+        path: PathBuf,
+        #[arg(short, long, help = "Key name")]
+        name: String,
+    },
+    #[command(about = "Import a private key (hex)")]
+    Import {
+        #[arg(short, long, help = "Keyring directory")]
+        path: PathBuf,
+        #[arg(short, long, help = "Key name")]
+        name: String,
+        #[arg(short = 'k', long, help = "Private key (0x... hex)")]
+        private_key: String,
+    },
+    #[command(about = "List keys in keyring")]
+    List {
+        #[arg(short, long, help = "Keyring directory")]
+        path: PathBuf,
+    },
+}
+
+#[cfg(feature = "keyring")]
+/// Ed25519 keyring subcommands
+#[derive(Subcommand, Debug, Clone)]
+pub enum Ed25519KeyringCommands {
+    #[command(about = "Initialise a keyring directory")]
+    Create {
+        #[arg(short, long, help = "Keyring directory")]
+        path: PathBuf,
+    },
+    #[command(about = "Generate and store a new key")]
+    Generate {
+        #[arg(short, long, help = "Keyring directory")]
+        path: PathBuf,
+        #[arg(short, long, help = "Key name")]
+        name: String,
+    },
+    #[command(about = "Import a private key seed (hex)")]
+    ImportHex {
+        #[arg(short, long, help = "Keyring directory")]
+        path: PathBuf,
+        #[arg(short, long, help = "Key name")]
+        name: String,
+        #[arg(short = 'k', long, help = "Seed (0x... hex)")]
+        seed: String,
+    },
+    #[command(about = "Import a key from SURI")]
+    ImportSuri {
+        #[arg(short, long, help = "Keyring directory")]
+        path: PathBuf,
+        #[arg(short, long, help = "Key name")]
+        name: String,
+        #[arg(short = 'u', long, help = "SURI string")]
+        suri: String,
+        #[arg(short = 'w', long, help = "Password for SURI derivation")]
+        password: Option<String>,
+    },
+    #[command(about = "List keys in keyring")]
+    List {
+        #[arg(short, long, help = "Keyring directory")]
+        path: PathBuf,
+    },
+}
+
+#[cfg(feature = "keyring")]
+/// Sr25519 keyring subcommands
+#[derive(Subcommand, Debug, Clone)]
+pub enum Sr25519KeyringCommands {
     #[command(about = "Create a new keyring")]
     Create {
         #[arg(short, long, help = "Keyring directory")]

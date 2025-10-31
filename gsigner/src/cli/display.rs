@@ -27,7 +27,66 @@ use colored::Colorize;
 pub fn display_result(result: &CommandResult) {
     match result {
         CommandResult::Secp256k1(r) => display_secp256k1_result(r),
+        CommandResult::Ed25519(r) => display_ed25519_result(r),
         CommandResult::Sr25519(r) => display_sr25519_result(r),
+    }
+}
+
+fn address_label(address: &str) -> &'static str {
+    if address.starts_with("0x") {
+        "Address"
+    } else {
+        "SS58"
+    }
+}
+
+#[cfg(feature = "keyring")]
+fn display_keyring_result(result: &KeyringResult) {
+    println!("{}", format!("✓ {}", result.message).green().bold());
+    if let Some(details) = &result.details {
+        println!(
+            "  {} {}",
+            "Key name:".bright_blue(),
+            details.name.bright_white()
+        );
+        println!("  {} {}", "Public key:".bright_blue(), details.public_key);
+        println!(
+            "  {} {}",
+            format!("{}:", address_label(&details.address)).bright_blue(),
+            details.address
+        );
+        if let Some(private_key) = &details.private_key {
+            println!("  {} {}", "Private key:".bright_red(), private_key);
+        }
+        if let Some(keystore_name) = &details.keystore_name {
+            println!("  {} {}", "Keystore:".bright_blue(), keystore_name);
+        }
+    }
+}
+
+#[cfg(feature = "keyring")]
+fn display_keyring_list(result: &KeyringListResult) {
+    if result.keystores.is_empty() {
+        println!("{}", "No keys in keyring".yellow());
+    } else {
+        println!(
+            "{}",
+            format!("Keyring contains {} key(s):", result.keystores.len())
+                .green()
+                .bold()
+        );
+        for ks in &result.keystores {
+            println!("  {} {}", "•".bright_blue(), ks.name.bright_white().bold());
+            if let Some(public_key) = &ks.public_key {
+                println!("    {} {}", "Public key:".bright_black(), public_key);
+            }
+            println!(
+                "    {} {}",
+                format!("{}:", address_label(&ks.address)).bright_black(),
+                ks.address
+            );
+            println!("    {} {}", "Created:".bright_black(), ks.created);
+        }
     }
 }
 
@@ -62,6 +121,53 @@ fn display_secp256k1_result(result: &Secp256k1Result) {
                 }
             }
         }
+        #[cfg(feature = "keyring")]
+        Secp256k1Result::Keyring(r) => display_keyring_result(r),
+        #[cfg(feature = "keyring")]
+        Secp256k1Result::KeyringList(r) => display_keyring_list(r),
+    }
+}
+
+fn display_ed25519_result(result: &Ed25519Result) {
+    match result {
+        Ed25519Result::Generate(r) => {
+            println!("{}", "✓ Generated ed25519 keypair".green().bold());
+            println!("  {} {}", "Public key:".bright_blue(), r.public_key);
+            println!("  {} {}", "SS58 Address:".bright_blue(), r.address);
+        }
+        Ed25519Result::Import(r) => {
+            println!("{}", "✓ Imported ed25519 key from SURI".green().bold());
+            println!("  {} {}", "Public key:".bright_blue(), r.public_key);
+            println!("  {} {}", "SS58 Address:".bright_blue(), r.address);
+        }
+        Ed25519Result::Sign(r) => {
+            println!("{}", "✓ Signed data".green().bold());
+            println!("  {} {}", "Signature:".bright_blue(), r.signature);
+        }
+        Ed25519Result::Verify(_) => {
+            println!("{}", "✓ Signature is valid".green().bold());
+        }
+        Ed25519Result::Address(r) => {
+            println!("{} {}", "SS58 Address:".bright_blue(), r.address);
+        }
+        Ed25519Result::List(r) => {
+            if r.keys.is_empty() {
+                println!("{}", "No keys found".yellow());
+            } else {
+                println!(
+                    "{}",
+                    format!("Found {} key(s):", r.keys.len()).green().bold()
+                );
+                for key in &r.keys {
+                    println!("  {} {}", "•".bright_blue(), key.public_key);
+                    println!("    {} {}", "SS58:".bright_black(), key.address);
+                }
+            }
+        }
+        #[cfg(feature = "keyring")]
+        Ed25519Result::Keyring(r) => display_keyring_result(r),
+        #[cfg(feature = "keyring")]
+        Ed25519Result::KeyringList(r) => display_keyring_list(r),
     }
 }
 
@@ -87,36 +193,10 @@ fn display_sr25519_result(result: &Sr25519Result) {
         Sr25519Result::Address(r) => {
             println!("{} {}", "SS58 Address:".bright_blue(), r.address);
         }
-        Sr25519Result::Keyring(r) => {
-            println!("{}", format!("✓ {}", r.message).green().bold());
-            if let Some(details) = &r.details {
-                println!("  {} {}", "Public key:".bright_blue(), details.public_key);
-                println!("  {} {}", "SS58 Address:".bright_blue(), details.address);
-                if let Some(keystore_name) = &details.keystore_name {
-                    println!("  {} {}", "Keystore:".bright_blue(), keystore_name);
-                }
-            }
-        }
-        Sr25519Result::KeyringList(r) => {
-            if r.keystores.is_empty() {
-                println!("{}", "No keys in keyring".yellow());
-            } else {
-                println!(
-                    "{}",
-                    format!("Keyring contains {} key(s):", r.keystores.len())
-                        .green()
-                        .bold()
-                );
-                for ks in &r.keystores {
-                    println!("  {} {}", "•".bright_blue(), ks.name.bright_white().bold());
-                    if let Some(public_key) = &ks.public_key {
-                        println!("    {} {}", "Public key:".bright_black(), public_key);
-                    }
-                    println!("    {} {}", "SS58:".bright_black(), ks.address);
-                    println!("    {} {}", "Created:".bright_black(), ks.created);
-                }
-            }
-        }
+        #[cfg(feature = "keyring")]
+        Sr25519Result::Keyring(r) => display_keyring_result(r),
+        #[cfg(feature = "keyring")]
+        Sr25519Result::KeyringList(r) => display_keyring_list(r),
         Sr25519Result::List(r) => {
             if r.keys.is_empty() {
                 println!("{}", "No keys found".yellow());
