@@ -22,6 +22,7 @@ use super::*;
 use common::Origin;
 use core::marker::PhantomData;
 use gbuiltin_staking::*;
+use gear_core::limited::LimitedStr;
 use pallet_staking::{Config as StakingConfig, NominationsQuota, RewardDestination};
 use parity_scale_codec::Decode;
 use sp_runtime::{
@@ -138,13 +139,16 @@ where
             let executed_at = frame_system::Pallet::<T>::block_number().saturated_into::<u32>();
             let executed_at_gear_block =
                 pallet_gear::Pallet::<T>::block_number().saturated_into::<u32>();
-            let info = pallet_staking::ActiveEra::<T>::get().map(|era_info| ActiveEraInfo {
-                index: era_info.index,
-                start: era_info.start,
-            });
-
+            let Some(era_info) = pallet_staking::ActiveEra::<T>::get() else {
+                return Err(BuiltinActorError::Custom(LimitedStr::from_small_str(
+                    "Active era is not set",
+                )));
+            };
             let payload = Response::ActiveEra {
-                info,
+                info: ActiveEraInfo {
+                    index: era_info.index,
+                    start: era_info.start,
+                },
                 executed_at,
                 executed_at_gear_block,
             }

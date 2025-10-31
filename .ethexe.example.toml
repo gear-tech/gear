@@ -1,0 +1,191 @@
+### General various node and execution parameters.
+[node]
+# Base directory for all node-related subdirectories.
+# Default locations:
+# - Linux: `$XDG_DATA_HOME/ethexe` or `$HOME/.local/share/ethexe`
+# - macOS: `$HOME/Library/Application Support/com.Gear.ethexe`
+# - Windows: `%APPDATA%\Gear\ethexe\data`
+# base = "/path/to/ethexe" # (optional, default location used if not provided).
+
+# Flag to use temporary directory for database.
+# (optional, default: false).
+# tmp = false
+
+# Flag to run node in development mode.
+# (optional, default: false).
+# dev = false
+
+# Public key of the validator, if node should act as one.
+# Provided in the format of 33-byte hex string:
+# - `yParityCompressed`, compressed `publicKeyY`,
+#   `0x02` if `publicKeyY` is even, `0x03` if `publicKeyY` is odd
+#   [1 byte]
+# - `publicKeyX`, x-coordinate of the public key on secp256k1 curve
+#   [32 bytes]
+# Example of converting secp256k1 private key 0x01..01 to compressed public key:
+# ```shell
+# $ cargo run --package ethexe-cli --release -- key insert 0x0101010101010101010101010101010101010101010101010101010101010101
+# ```
+# Output:
+# ```
+# Using default params file: ./.ethexe.toml
+# Public key: 0x031b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f
+# Ethereum address: 0x1a642f0e3c3af545e7acbd38b07251b3990914f1
+# ```
+# (optional, default: None).
+# validator = "031b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f"
+
+# Public key of the validator session, if node should act as one.
+# Provided in the format of 33-byte hex string:
+# - `yParityCompressed`, compressed `publicKeyY`,
+#   `0x02` if `publicKeyY` is even, `0x03` if `publicKeyY` is odd
+#   [1 byte]
+# - `publicKeyX`, x-coordinate of the public key on secp256k1 curve
+#   [32 bytes]
+# Example of converting secp256k1 private key 0x01..01 to compressed public key:
+# ```shell
+# $ cargo run --package ethexe-cli --release -- key insert 0x0101010101010101010101010101010101010101010101010101010101010101
+# ```
+# Output:
+# ```
+# Using default params file: ./.ethexe.toml
+# Public key: 0x031b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f
+# Ethereum address: 0x1a642f0e3c3af545e7acbd38b07251b3990914f1
+# ```
+# (optional, default: None).
+# validator-session = "031b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f"
+
+# Max allowed height diff from head for sync directly from Ethereum.
+# (optional, must be non-zero u32, default: 100_000).
+# max-depth = 100_000
+
+# Number of worker threads to use in tokio runtime.
+# (optional, must be non-zero usize, default: number of CPU cores).
+# worker-threads = 8
+
+# Number of blocking threads to use in tokio runtime.
+# (optional, must be non-zero usize, default: 512 in current implementation of tokio runtime).
+# blocking-threads = 512
+
+# Number of threads to use for chunk processing.
+# (optional, must be non-zero usize, default: 16).
+# chunk-processing-threads = 16
+
+# Block gas limit for the node.
+# (optional, max block gas limit: 9_000_000_000_000, default: 4_000_000_000_000).
+# block-gas-limit = 4_000_000_000_000
+
+# Do P2P database synchronization before the main loop.
+# (optional, default: false).
+# fast-sync = false
+
+##########################################################################################
+
+### Ethereum-specific parameters.
+[ethereum]
+# Ethereum RPC endpoint.
+# (optional, default: http://localhost:8545).
+# rpc = "http://localhost:8545"
+
+# Ethereum Beacon RPC endpoint.
+# (optional, default: http://localhost:5052).
+# beacon-rpc = "http://localhost:5052"
+
+# Ethereum router contract address.
+# (optional).
+# router = "0x0000000000000000000000000000000000000000"
+
+# Ethereum block time in seconds.
+# (optional, default: 12).
+# block-time = 12
+
+##########################################################################################
+
+### Network service related parameters.
+[network]
+# Network pubkey of the node. If not provided, tries to fetch one from .net directory, in case of absence - generates and stores new random one.
+# Provided in the format of 33-byte hex string:
+# - `yParityCompressed`, compressed `publicKeyY`,
+#   `0x02` if `publicKeyY` is even, `0x03` if `publicKeyY` is odd
+#   [1 byte]
+# - `publicKeyX`, x-coordinate of the public key on secp256k1 curve
+#   [32 bytes]
+# Example of converting secp256k1 private key 0x01..01 to compressed public key:
+# ```shell
+# $ cargo run --package ethexe-cli --release -- key insert 0x0101010101010101010101010101010101010101010101010101010101010101
+# ```
+# Output:
+# ```
+# Using default params file: ./.ethexe.toml
+# Public key: 0x031b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f
+# Ethereum address: 0x1a642f0e3c3af545e7acbd38b07251b3990914f1
+# ```
+# (optional, default: None).
+# key = "031b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f"
+
+# Predefined bootnodes addresses to connect to.
+# Each address should be in multiaddr format (https://docs.libp2p.io/concepts/fundamentals/addressing/).
+# (optional, default: empty list).
+# bootnodes = []
+
+# Externally exposed network addresses of the node.
+# Each address should be in multiaddr format (https://docs.libp2p.io/concepts/fundamentals/addressing/).
+# (optional, default: empty list).
+# public-addr = []
+
+# Addresses to listen for incoming connections.
+# Each address should be in multiaddr format (https://docs.libp2p.io/concepts/fundamentals/addressing/).
+# If an empty list is passed, all IPv6 and IPv4 interfaces will be listened to.
+# (optional, default: empty list).
+# listen-addr = [] # ["/ip6/::/udp/{port}/quic-v1", "/ip4/0.0.0.0/udp/{port}/quic-v1"]
+
+# Default network port.
+# (optional, default: 20333).
+# port = 20333
+
+# Flag to disable network service.
+# (optional, default: false).
+# no-network = false
+
+##########################################################################################
+
+### Ethexe RPC service hosting parameters.
+[rpc]
+# Port to expose RPC service.
+# (optional, default: 9944).
+# port = 9944
+
+# Flag to expose RPC service on all interfaces.
+# (optional, default: false).
+# external = false
+
+# CORS policy for RPC service.
+# Possible values:
+# - `cors = "*"` or `cors = "all"` to allow all origins
+# - `cors = ["http://example.com", "https://example.org"]` to allow specific origins
+# (optional, default: ["http://localhost:*", "http://127.0.0.1:*", "https://localhost:*", "https://127.0.0.1:*"]).
+# cors = ["http://localhost:*", "http://127.0.0.1:*", "https://localhost:*", "https://127.0.0.1:*"]
+
+# Flag to disable RPC service.
+# (optional, default: false).
+# no-rpc = false
+
+##########################################################################################
+
+### Prometheus (metrics) service parameters.
+[prometheus]
+# Node name in prometheus monitoring.
+# (optional, default: DevelopmentNode).
+# name = "DevelopmentNode"
+
+# Port to expose prometheus metrics.
+# (optional, default: 9635).
+# port = 9635
+
+# Flag to expose prometheus metrics on all interfaces.
+# (optional, default: false).
+# external = false
+
+# Flag to disable prometheus metrics.
+# (optional, default: false).
+# no-prometheus = false
