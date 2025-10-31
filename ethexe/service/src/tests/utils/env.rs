@@ -406,7 +406,7 @@ impl TestEnv {
         let pending_builder = self
             .ethereum
             .router()
-            .request_code_validation_with_sidecar(code)
+            .request_code_validation_with_sidecar_old(code)
             .await?;
         assert_eq!(pending_builder.code_id(), code_id);
 

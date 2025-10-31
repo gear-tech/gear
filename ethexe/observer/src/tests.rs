@@ -76,7 +76,7 @@ async fn test_deployment() -> Result<()> {
     let request_wasm_validation = async move |wasm: Vec<u8>| {
         let pending_builder = ethereum
             .router()
-            .request_code_validation_with_sidecar(&wasm)
+            .request_code_validation_with_sidecar_old(&wasm)
             .await
             .expect("failed to request code validation");
 
