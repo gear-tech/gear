@@ -235,6 +235,15 @@ impl Service {
             let runtime_config = NetworkRuntimeConfig {
                 genesis_block_hash: observer.genesis_block_hash(),
             };
+            // TODO: #4918 create Signer object correctly for test/prod environments
+            let signer = Signer::fs(
+                config
+                    .node
+                    .key_path
+                    .parent()
+                    .context("key_path has no parent directory")?
+                    .join("net"),
+            );
 
             let network = NetworkService::new(
                 net_config.clone(),

@@ -144,25 +144,18 @@ contract DeploymentScript is Script {
             console.log("                       Alternatively, run the following curl request.");
             console.log("```");
             uint256 chainId = block.chainid;
-            if (chainId == 1) {
-                console.log("curl --request POST 'https://api.etherscan.io/api' \\");
-            } else {
-                console.log(
-                    string.concat(
-                        "curl --request POST 'https://api-", vm.getChain(chainId).chainAlias, ".etherscan.io/api' \\"
-                    )
-                );
-            }
-            console.log("   --header 'Content-Type: application/x-www-form-urlencoded' \\");
-            console.log("   --data-urlencode 'module=contract' \\");
-            console.log("   --data-urlencode 'action=verifyproxycontract' \\");
-            console.log(string.concat("   --data-urlencode 'address=", vm.toString(contractAddress), "' \\"));
+            console.log("curl \\");
+            console.log(string.concat("    --data \"address=", vm.toString(contractAddress), "\" \\"));
+            console.log(
+                string.concat("    --data \"expectedimplementation=", vm.toString(expectedImplementation), "\" \\")
+            );
             console.log(
                 string.concat(
-                    "   --data-urlencode 'expectedimplementation=", vm.toString(expectedImplementation), "' \\"
+                    "    \"https://api.etherscan.io/v2/api?chainid=",
+                    vm.toString(chainId),
+                    "&module=contract&action=verifyproxycontract&apikey=$ETHERSCAN_API_KEY\""
                 )
             );
-            console.log("   --data-urlencode \"apikey=$ETHERSCAN_API_KEY\"");
             console.log("```");
         }
         console.log("================================================================================================");
