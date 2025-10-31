@@ -18,8 +18,8 @@ services:
       insert-key ${VALIDATOR_KEY} &&
       ethexe
       -d /data
-      --ethereum-rpc wss://reth-rpc.gear-tech.io/ws
-      --ethereum-beacon-rpc https://eth-holesky-beacon.public.blastapi.io
+      --ethereum-rpc wss://hoodi-reth-rpc.gear-tech.io/ws
+      --ethereum-beacon-rpc https://hoodi-lighthouse-rpc.gear-tech.io
       --validator-key ${VALIDATOR_PUB_KEY}
       --prometheus-external"
     networks:
