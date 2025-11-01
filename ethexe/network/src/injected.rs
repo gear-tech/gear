@@ -44,8 +44,13 @@ pub(crate) enum Request {
 }
 
 #[derive(Debug, Encode, Decode)]
+pub(crate) enum InjectedTransactionResponse {
+    Accepted,
+}
+
+#[derive(Debug, Encode, Decode)]
 pub(crate) enum Response {
-    InjectedTransactionAccepted,
+    InjectedTransaction(InjectedTransactionResponse),
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -94,9 +99,10 @@ impl Behaviour {
             } => {
                 return match request {
                     Request::InjectedTransaction(transaction) => {
-                        let _res = self
-                            .inner
-                            .send_response(channel, Response::InjectedTransactionAccepted);
+                        let _res = self.inner.send_response(
+                            channel,
+                            Response::InjectedTransaction(InjectedTransactionResponse::Accepted),
+                        );
                         Poll::Ready(Event::NewInjectedTransaction(transaction))
                     }
                 };
@@ -111,7 +117,7 @@ impl Behaviour {
                     },
             } => {
                 match response {
-                    Response::InjectedTransactionAccepted => {}
+                    Response::InjectedTransaction(InjectedTransactionResponse::Accepted) => {}
                 };
             }
             request_response::Event::OutboundFailure {

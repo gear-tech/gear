@@ -19,7 +19,7 @@
 mod custom_connection_limits;
 pub mod db_sync;
 mod gossipsub;
-mod offchain;
+mod injected;
 pub mod peer_score;
 mod utils;
 mod validator;
@@ -434,7 +434,7 @@ impl NetworkService {
             //
             BehaviourEvent::DbSync(_) => {}
             //
-            BehaviourEvent::Offchain(offchain::Event::NewInjectedTransaction(transaction)) => {
+            BehaviourEvent::Injected(injected::Event::NewInjectedTransaction(transaction)) => {
                 return Some(NetworkEvent::InjectedTransaction(transaction));
             }
         }
@@ -467,7 +467,7 @@ impl NetworkService {
     }
 
     pub fn send_injected_transaction(&mut self, data: SignedInjectedTransaction) {
-        self.swarm.behaviour_mut().offchain.send_transaction(data);
+        self.swarm.behaviour_mut().injected.send_transaction(data);
     }
 }
 
@@ -523,8 +523,8 @@ pub(crate) struct Behaviour {
     pub gossipsub: gossipsub::Behaviour,
     // database synchronization protocol
     pub db_sync: db_sync::Behaviour,
-    // offchain shenanigans
-    pub offchain: offchain::Behaviour,
+    // injected transaction shenanigans
+    pub injected: injected::Behaviour,
 }
 
 impl Behaviour {
@@ -587,7 +587,7 @@ impl Behaviour {
             db,
         );
 
-        let offchain = offchain::Behaviour::new(peer_score_handle);
+        let injected = injected::Behaviour::new(peer_score_handle);
 
         Ok(Self {
             custom_connection_limits,
@@ -599,7 +599,7 @@ impl Behaviour {
             kad,
             gossipsub,
             db_sync,
-            offchain,
+            injected,
         })
     }
 }
