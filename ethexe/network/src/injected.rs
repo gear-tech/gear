@@ -74,7 +74,9 @@ impl Behaviour {
         Self { inner, peer_score }
     }
 
-    pub fn send_transaction(&mut self, _data: SignedInjectedTransaction) {
+    pub fn send_transaction(&mut self, transaction: SignedInjectedTransaction) {
+        log::warn!("`send_transaction` is ignored for now: {transaction:?}");
+
         // TODO: send to actual peer when validator discovery is ready
         // let peer: PeerId = PeerId::random();
         //
