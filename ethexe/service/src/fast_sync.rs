@@ -27,6 +27,7 @@ use ethexe_common::{
         FullBlockData, HashStorageRO, OnChainStorageRO, OnChainStorageRW,
     },
     events::{BlockEvent, RouterEvent},
+    network::{AnnouncesRequest, AnnouncesRequestUntil},
 };
 use ethexe_compute::ComputeService;
 use ethexe_db::{
@@ -51,7 +52,10 @@ use ethexe_runtime_common::{
 use futures::StreamExt;
 use gprimitives::{ActorId, CodeId, H256};
 use parity_scale_codec::Decode;
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::{
+    collections::{BTreeMap, BTreeSet, HashMap},
+    num::NonZeroU32,
+};
 
 struct EventData {
     /// Latest committed since latest prepared block batch
@@ -186,18 +190,20 @@ async fn collect_announce(
         return Ok(announce);
     }
 
-    Ok(net_fetch(
+    let response = net_fetch(
         network,
-        db_sync::AnnouncesRequest {
+        AnnouncesRequest {
             head: announce_hash,
-            max_chain_len: 1,
+            until: AnnouncesRequestUntil::ChainLen(NonZeroU32::MIN),
         }
         .into(),
     )
     .await?
-    .unwrap_announces()
-    .pop()
-    .expect("announce must be present"))
+    .unwrap_announces();
+
+    // Response is checked so we can just take the first announce
+    let (_, mut announces) = response.into_parts();
+    Ok(announces.remove(0))
 }
 
 /// Collects a set of valid code IDs that are not yet validated in the local database.
