@@ -485,7 +485,9 @@ impl Service {
                                 );
                             }
                         }
-                        NetworkEvent::InjectedTransaction(_transaction) => {}
+                        NetworkEvent::InjectedTransaction(_transaction) => {
+                            // TODO: handle transaction
+                        }
                         NetworkEvent::PeerBlocked(_) | NetworkEvent::PeerConnected(_) => {}
                     }
                 }
@@ -545,7 +547,7 @@ impl Service {
                             response_sender,
                         } => {
                             if validator_address == Some(transaction.data().recipient) {
-                                // handle transaction like for `NetworkEvent::InjectedTransaction(_)`
+                                // TODO: handle transaction like for `NetworkEvent::InjectedTransaction(_)`
                             } else {
                                 let Some(network) = network.as_mut() else {
                                     continue;
