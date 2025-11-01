@@ -18,9 +18,7 @@
 
 use super::MergeParams;
 use clap::Parser;
-use ethexe_processor::{
-    ProcessorConfig, RunnerConfig, DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER,
-};
+use ethexe_processor::{DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, RunnerConfig};
 use ethexe_rpc::RpcConfig;
 use ethexe_service::config::NodeConfig;
 use serde::Deserialize;

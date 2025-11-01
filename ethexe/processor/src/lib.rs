@@ -234,10 +234,8 @@ impl Processor {
         self.creator.set_chain_head(handler.announce.block_hash);
 
         let ctx = CommonRunContext::new(&mut handler.transitions);
-        let run_config = RunnerConfig::common(
-            self.config().chunk_processing_threads,
-            block_gas_limit,
-        );
+        let run_config =
+            RunnerConfig::common(self.config().chunk_processing_threads, block_gas_limit);
 
         run::run(self.db.clone(), self.creator.clone(), run_config, ctx).await;
     }

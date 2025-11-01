@@ -99,10 +99,7 @@ pub struct ProgramApi {
 
 impl ProgramApi {
     pub fn new(db: Database, runner_config: RunnerConfig) -> Self {
-        Self {
-            db,
-            runner_config,
-        }
+        Self { db, runner_config }
     }
 
     fn read_queue(&self, hash: H256) -> Option<MessageQueue> {
@@ -150,7 +147,7 @@ impl ProgramServer for ProgramApi {
                 program_id.into(),
                 payload.0,
                 value,
-                self.runner_config,
+                self.runner_config.clone(),
             )
             .await
             .map_err(errors::runtime)

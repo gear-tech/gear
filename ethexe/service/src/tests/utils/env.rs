@@ -56,8 +56,7 @@ use ethexe_network::{
 };
 use ethexe_observer::{EthereumConfig, ObserverEvent, ObserverService};
 use ethexe_processor::{
-    DEFAULT_BLOCK_GAS_LIMIT, DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, DEFAULT_CHUNK_PROCESSING_THREADS,
-    Processor, ProcessorConfig,
+    DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, DEFAULT_CHUNK_PROCESSING_THREADS, Processor, RunnerConfig,
 };
 use ethexe_rpc::{RpcConfig, RpcService, test_utils::RpcClient};
 use ethexe_signer::Signer;
@@ -726,15 +725,16 @@ impl NodeConfig {
     }
 
     pub fn service_rpc(mut self, rpc_port: u16) -> Self {
+        let runner_config = RunnerConfig::overlay(
+            DEFAULT_CHUNK_PROCESSING_THREADS as usize,
+            DEFAULT_BLOCK_GAS_LIMIT,
+            DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER,
+        );
         let service_rpc_config = RpcConfig {
             listen_addr: SocketAddr::new("127.0.0.1".parse().unwrap(), rpc_port),
             cors: None,
             dev: false,
-            processor_config: ProcessorConfig::overlay(
-                DEFAULT_CHUNK_PROCESSING_THREADS as usize,
-                DEFAULT_BLOCK_GAS_LIMIT,
-                DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER,
-            ),
+            runner_config,
         };
         self.rpc = Some(service_rpc_config);
 

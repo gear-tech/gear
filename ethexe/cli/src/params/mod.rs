@@ -89,11 +89,8 @@ impl Params {
         let network = network
             .and_then(|p| p.into_config(net_dir, ethereum.router_address).transpose())
             .transpose()?;
-        let rpc = rpc.and_then(|p| p.into_config(dev));
+        let rpc = rpc.and_then(|p| p.into_config(&node));
         let prometheus = prometheus.and_then(|p| p.into_config());
-
-        let node = node.into_config()?;
-        let rpc = self.rpc.and_then(|p| p.into_config(&node));
         Ok(Config {
             node,
             ethereum,

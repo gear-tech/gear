@@ -50,7 +50,7 @@ impl OverlaidState {
             storage: &db,
         };
         transition_controller.update_state(base_program, |state, _, _| {
-            state.queue.modify_queue(&db, |queue| {
+            state.canonical_queue.modify_queue(&db, |queue| {
                 log::debug!("Base program {base_program} queue will be nullified");
                 log::debug!("Queue state - {:#?}", queue);
                 // Last dispatch is the one for which overlaid executor was created.
@@ -150,7 +150,7 @@ impl OverlaidState {
             storage: &self.db,
         };
         transition_controller.update_state(program_id, |state, _, _| {
-            state.queue.modify_queue(&self.db, |queue| {
+            state.canonical_queue.modify_queue(&self.db, |queue| {
                 log::debug!("Queue state before nullification - {:#?}", queue);
                 queue.clear();
                 log::debug!("Queue state after nullification - {:#?}", queue);

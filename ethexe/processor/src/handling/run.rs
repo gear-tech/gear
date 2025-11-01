@@ -138,7 +138,11 @@ impl RunnerConfig {
         }
     }
 
-    pub fn overlay(chunk_processing_threads: usize, block_gas_limit: u64, gas_multiplier: u64) -> Self {
+    pub fn overlay(
+        chunk_processing_threads: usize,
+        block_gas_limit: u64,
+        gas_multiplier: u64,
+    ) -> Self {
         Self {
             chunk_processing_threads,
             block_gas_limit: block_gas_limit.saturating_mul(gas_multiplier),
@@ -344,7 +348,7 @@ fn states(
     in_block_transitions
         .states_iter()
         .filter_map(|(&actor_id, &state)| {
-            if state.cached_queue_size == 0 {
+            if state.canonical_queue_size == 0 {
                 return None;
             }
             let actor_state = chunks_splitting::ActorStateHashWithQueueSize::new(actor_id, state);
@@ -381,7 +385,7 @@ mod chunks_splitting {
     pub(crate) struct ActorStateHashWithQueueSize {
         actor_id: ActorId,
         hash: H256,
-        cached_queue_size: usize,
+        canonical_queue_size: usize,
     }
 
     impl ActorStateHashWithQueueSize {
@@ -389,12 +393,12 @@ mod chunks_splitting {
             Self {
                 actor_id,
                 hash: state.hash,
-                cached_queue_size: state.cached_queue_size as usize,
+                canonical_queue_size: state.canonical_queue_size as usize,
             }
         }
 
         pub(super) fn into_inner(self) -> (ActorId, H256, usize) {
-            (self.actor_id, self.hash, self.cached_queue_size)
+            (self.actor_id, self.hash, self.canonical_queue_size)
         }
     }
 
@@ -646,10 +650,9 @@ mod chunk_execution_processing {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ethexe_common::{BlockHeader, StateHashWithQueueSize, gear::Origin};
+    use ethexe_common::{BlockHeader, MaybeHashOf, StateHashWithQueueSize, gear::Origin};
     use ethexe_runtime_common::state::{
-        ActiveProgram, Dispatch, MaybeHashOf, MessageQueueHashWithSize, Program, ProgramState,
-        Storage,
+        ActiveProgram, Dispatch, MessageQueueHashWithSize, Program, ProgramState, Storage,
     };
     use gprimitives::{ActorId, MessageId};
     use std::collections::{BTreeMap, HashMap};
@@ -731,7 +734,11 @@ mod tests {
                     memory_infix: Default::default(),
                     initialized: true,
                 }),
-                queue: MessageQueueHashWithSize {
+                canonical_queue: MessageQueueHashWithSize {
+                    hash: MaybeHashOf::empty(),
+                    cached_queue_size: 0,
+                },
+                injected_queue: MessageQueueHashWithSize {
                     hash: MaybeHashOf::empty(),
                     cached_queue_size: 0,
                 },
@@ -742,7 +749,7 @@ mod tests {
                 executable_balance: 100_000_000_000_000,
             };
 
-            pid_state.queue.modify_queue(&db, |queue| {
+            pid_state.canonical_queue.modify_queue(&db, |queue| {
                 for id in messages {
                     let dispatch =
                         Dispatch::new(&db, id, source, vec![], 0, false, Origin::Ethereum, false)
@@ -781,7 +788,8 @@ mod tests {
         let pid1_state_hash = db.write_program_state(pid1_state);
         let pid1_state_hash_with_queue_size = StateHashWithQueueSize {
             hash: pid1_state_hash,
-            cached_queue_size: 0,
+            canonical_queue_size: 0,
+            injected_queue_size: 0,
         };
 
         // Create a proper state for pid2
@@ -790,7 +798,8 @@ mod tests {
         let pid2_state_hash = db.write_program_state(pid2_state);
         let pid2_state_hash_with_queue_size = StateHashWithQueueSize {
             hash: pid2_state_hash,
-            cached_queue_size: 0,
+            canonical_queue_size: 0,
+            injected_queue_size: 0,
         };
 
         // Create in block transitions
@@ -810,7 +819,7 @@ mod tests {
 
         access_state(pid2, &mut in_block_transitions, &db, |state, storage, _| {
             let mut queue = state
-                .queue
+                .canonical_queue
                 .query(storage)
                 .expect("Failed to read queue for pid2");
             assert_eq!(queue.len(), 2);
@@ -822,7 +831,7 @@ mod tests {
         });
         access_state(pid1, &mut in_block_transitions, &db, |state, storage, _| {
             let queue = state
-                .queue
+                .canonical_queue
                 .query(storage)
                 .expect("Failed to read queue for pid1");
             assert_eq!(queue.len(), 3);
@@ -832,7 +841,7 @@ mod tests {
             OverlaidState::new(base_program, db.clone(), &mut in_block_transitions);
         access_state(pid2, &mut in_block_transitions, &db, |state, storage, _| {
             let mut queue = state
-                .queue
+                .canonical_queue
                 .query(storage)
                 .expect("Failed to read queue for pid2");
             assert_eq!(queue.len(), 1);
@@ -844,7 +853,7 @@ mod tests {
         assert!(overlaid_ctx.nullify_queue(pid1, &mut in_block_transitions));
         access_state(pid1, &mut in_block_transitions, &db, |state, storage, _| {
             let queue = state
-                .queue
+                .canonical_queue
                 .query(storage)
                 .expect("Failed to read queue for pid1");
             assert_eq!(queue.len(), 0);
