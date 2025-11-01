@@ -74,12 +74,12 @@ impl Behaviour {
         Self { inner, peer_score }
     }
 
-    #[allow(clippy::redundant_closure_call)]
-    pub fn send_transaction(&mut self, data: SignedInjectedTransaction) {
-        let peer: PeerId = (|| todo!("send to actual peer when validator discovery is ready"))();
-
-        self.inner
-            .send_request(&peer, Request::InjectedTransaction(data));
+    pub fn send_transaction(&mut self, _data: SignedInjectedTransaction) {
+        // TODO: send to actual peer when validator discovery is ready
+        // let peer: PeerId = PeerId::random();
+        //
+        // self.inner
+        //     .send_request(&peer, Request::InjectedTransaction(data));
     }
 
     fn handle_inner_event(
