@@ -39,8 +39,9 @@ use ethexe_common::{
 use ethexe_db::{Database, verifier::IntegrityVerifier};
 use ethexe_ethereum::deploy::ContractsDeploymentParams;
 use ethexe_observer::EthereumConfig;
+use ethexe_processor::{DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, RunnerConfig};
 use ethexe_prometheus::PrometheusConfig;
-use ethexe_rpc::RpcConfig;
+use ethexe_rpc::{RpcConfig, test_utils::JsonRpcResponse};
 use ethexe_runtime_common::state::{Expiring, MailboxMessage, PayloadLookup, Storage};
 use ethexe_signer::Signer;
 use ethexe_tx_pool::{OffchainTransaction, RawOffchainTransaction, TxPoolEvent};
@@ -108,10 +109,16 @@ async fn basics() {
         config.ethereum.router_address,
     ));
 
+    let runner_config = RunnerConfig::overlay(
+        config.node.chunk_processing_threads,
+        config.node.block_gas_limit,
+        DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER,
+    );
     config.rpc = Some(RpcConfig {
         listen_addr: SocketAddr::new(Ipv4Addr::LOCALHOST.into(), 9944),
         cors: None,
         dev: true,
+        runner_config,
     });
 
     config.prometheus = Some(PrometheusConfig::new(
@@ -1058,6 +1065,7 @@ async fn tx_pool_gossip() {
         env.signer.signed_data(sender_pub_key, ethexe_tx).unwrap()
     };
 
+    let tx_hash = signed_ethexe_tx.tx_hash();
     let (transaction, signature) = signed_ethexe_tx.clone().into_parts();
 
     // Send request
@@ -1068,14 +1076,12 @@ async fn tx_pool_gossip() {
         .await
         .expect("failed sending request");
     assert!(resp.status().is_success());
-
-    // This way the response from RPC server is checked to be `Ok`.
-    // In case of error RPC returns the `Ok` response with error message.
-    let resp = resp
-        .json::<serde_json::Value>()
+    let resp_tx_hash = JsonRpcResponse::new(resp)
         .await
-        .expect("failed to deserialize json response from rpc");
-    assert!(resp.get("result").is_some());
+        .expect("failed to deserialize json response from rpc")
+        .try_extract_res::<H256>()
+        .expect("failed to deserialize reply info");
+    assert_eq!(resp_tx_hash, tx_hash);
 
     // Tx executable validation takes time, so wait for event.
     node1
@@ -1090,7 +1096,6 @@ async fn tx_pool_gossip() {
         .unwrap();
 
     // Check that node-1 received the message
-    let tx_hash = signed_ethexe_tx.tx_hash();
     let node1_db_tx = node1
         .db
         .get_offchain_transaction(tx_hash)

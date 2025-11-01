@@ -185,6 +185,9 @@ impl Database {
         self.block_small_data(block_hash).map(f)
     }
 
+    /// Mutates `BlockSmallData` for the given block hash.
+    ///
+    /// If data wasn't found, it will be created with default values and then mutated.
     fn mutate_small_data(&self, block_hash: H256, f: impl FnOnce(&mut BlockSmallData)) {
         let mut data = self.block_small_data(block_hash).unwrap_or_default();
         f(&mut data);
