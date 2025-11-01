@@ -317,14 +317,14 @@ mod tests {
         chain.blocks[last].as_prepared_mut().announces = None;
 
         // create 2 missing announces from blocks last - 2 and last - 1
-        let announce8 = Announce::with_default_gas(
+        let announce2 = Announce::with_default_gas(
             chain.blocks[last - 2].hash,
             chain.block_top_announce_hash(last - 3),
         );
-        let announce9 =
-            Announce::with_default_gas(chain.blocks[last - 1].hash, announce8.to_hash());
+        let announce1 =
+            Announce::with_default_gas(chain.blocks[last - 1].hash, announce2.to_hash());
 
-        chain.blocks[last].as_prepared_mut().last_committed_announce = announce9.to_hash();
+        chain.blocks[last].as_prepared_mut().last_committed_announce = announce1.to_hash();
         let chain = chain.setup(&ctx.core.db);
         let block = chain.blocks[last].to_simple();
 
@@ -335,22 +335,25 @@ mod tests {
             .process_prepared_block(block.hash)
             .unwrap();
         assert!(state.is_initial(), "got {:?}", state);
+
+        let tail = chain.block_top_announce_hash(last - 4);
         let expected_request = AnnouncesRequest {
             head: chain.blocks[last].as_prepared().last_committed_announce,
-            until: chain.block_top_announce_hash(last - 3).into(),
+            until: tail.into(),
         };
         assert_eq!(state.context().output, vec![expected_request.into()]);
 
         let response = AnnouncesResponse {
             announces: vec![
+                chain.announces.get(&tail).unwrap().announce.clone(),
                 chain
                     .announces
                     .get(&chain.block_top_announce_hash(last - 3))
                     .unwrap()
                     .announce
                     .clone(),
-                announce8.clone(),
-                announce9.clone(),
+                announce2.clone(),
+                announce1.clone(),
             ],
         }
         .try_into_checked(expected_request)
@@ -551,5 +554,84 @@ mod tests {
             state.context().output[1],
             ConsensusEvent::Warning(_)
         ));
+    }
+
+    #[test]
+    fn commitment_with_delay() {
+        gear_utils::init_default_logger();
+
+        let (ctx, _, _) = mock_validator_context();
+        let last = 10;
+        let mut chain = BlockChain::mock(last as u32);
+
+        // create unknown announce for block last - 6
+        let unknown_announce = Announce::with_default_gas(
+            chain.blocks[last - 6].hash,
+            chain.block_top_announce_hash(last - 7),
+        );
+        let unknown_announce_hash = unknown_announce.to_hash();
+
+        // remove announces from 5 latest blocks
+        for idx in last - 4..=last {
+            chain.blocks[idx]
+                .as_prepared_mut()
+                .announces
+                .iter()
+                .flatten()
+                .for_each(|ah| {
+                    chain.announces.remove(ah);
+                });
+            chain.blocks[idx].as_prepared_mut().announces = None;
+
+            // set unknown_announce as last committed announce
+            chain.blocks[idx].as_prepared_mut().last_committed_announce = unknown_announce_hash;
+        }
+
+        let chain = chain.setup(&ctx.core.db);
+        let block = chain.blocks[last].to_simple();
+
+        let state = Initial::create_with_chain_head(ctx, block.clone())
+            .unwrap()
+            .process_synced_block(block.hash)
+            .unwrap()
+            .process_prepared_block(block.hash)
+            .unwrap();
+
+        assert!(state.is_initial(), "got {:?}", state);
+
+        let expected_request = AnnouncesRequest {
+            head: chain.blocks[last].as_prepared().last_committed_announce,
+            until: chain.block_top_announce_hash(last - 8).into(),
+        };
+        assert_eq!(state.context().output, vec![expected_request.into()]);
+
+        let response = AnnouncesResponse {
+            announces: vec![
+                chain
+                    .announces
+                    .get(&chain.block_top_announce_hash(last - 8))
+                    .unwrap()
+                    .announce
+                    .clone(),
+                chain
+                    .announces
+                    .get(&chain.block_top_announce_hash(last - 7))
+                    .unwrap()
+                    .announce
+                    .clone(),
+                unknown_announce,
+            ],
+        }
+        .try_into_checked(expected_request)
+        .unwrap();
+
+        let state = state.process_announces_response(response).unwrap();
+        assert!(state.is_subordinate(), "got {:?}", state);
+        assert_eq!(
+            state.context().output.len(),
+            1,
+            "No additional output expected, got {:?}",
+            state.context().output
+        );
     }
 }

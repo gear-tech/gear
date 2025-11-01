@@ -23,13 +23,14 @@
 //! The main components are:
 //! - [`ConsensusService`]: A trait defining the core interface for consensus services
 //! - [`ConsensusEvent`]: An enum representing various consensus events which have to be processed by outer services
-//! - [`SimpleConnectService`]: A basic implementation of "connect-node"
-//! - [`ValidatorService`]: Service for handling block validation
+//! - [`ConnectService`]: An implementation of consensus to run "connect-node"
+//! - [`ValidatorService`]: An implementation of consensus to run "validator-node"
 //!
 //! The crate is organized into several modules:
 //! - `connect`: Connection management functionality
 //! - `validator`: Block validation services and implementations
 //! - `utils`: Utility functions and shared data structures
+//! - `announces`: Logic for handling announce branching and related operations
 
 use anyhow::Result;
 use ethexe_common::{

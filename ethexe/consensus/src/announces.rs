@@ -1,4 +1,4 @@
-use anyhow::{Result, anyhow};
+use anyhow::{Result, anyhow, ensure};
 use ethexe_common::{
     Announce, HashOf, SimpleBlockData,
     db::{AnnounceStorageRW, BlockMetaStorageRW, LatestDataStorageRO, OnChainStorageRO},
@@ -46,7 +46,7 @@ impl<DB: AnnounceStorageRW + BlockMetaStorageRW + OnChainStorageRO + LatestDataS
     }
 
     fn include_announce(&self, announce: Announce) -> Result<HashOf<Announce>> {
-        tracing::trace!(announce = %announce.to_hash(), "Including announce");
+        tracing::trace!(announce = %announce.to_hash(), "Including announce...");
 
         let block_hash = announce.block_hash;
         let announce_hash = self.set_announce(announce);
@@ -114,7 +114,9 @@ pub fn propagate_announces(
 
         announces_chain_recovery_if_needed(
             db,
+            &block,
             last_committed_announce_hash,
+            commitment_delay_limit,
             &mut missing_announces,
         )?;
 
@@ -136,29 +138,116 @@ pub fn propagate_announces(
                 commitment_delay_limit,
             )?;
         }
+
+        debug_assert!(
+            db.block_meta(block.hash)
+                .announces
+                .into_iter()
+                .flatten()
+                .next()
+                .is_some(),
+            "at least one announce must be propagated for block({})",
+            block.hash
+        );
     }
 
     Ok(())
 }
 
+/// Recover announces chain if it was committed but not included yet by this node.
+/// For example node has following chain:
+/// ```text
+/// [B1] <-- [B2] <-- [B3] <-- [B4] <-- [B5]  (blocks)
+///  |        |        |        |
+/// (A1) <-- (A2) <-- (A3) <-- (A4)  (announces)
+/// ```
+/// Then node checks events that unknown announce `(A3')` was committed at block `B5`.
+/// Then node have to recover the chain of announces to include `(A3')` and its predecessors:
+/// ```text
+/// [B1] <-- [B2] <-- [B3] <-- [B4] <-- [B5]  (blocks)
+///  |        |        |        |
+/// (A1) <-- (A2) <-- (A3) <-- (A4)  (announces)
+///   \
+///     ---- (A2') <- (A3') <- (A4') (recovered announces)
+/// ```
+/// where `(A3')` and `(A2')` are committed
+/// and must be presented in `missing_announces` if they are not included yet,
+/// and `(A4')` is base announce propagated from `(A3')`.
 fn announces_chain_recovery_if_needed(
     db: &impl DBExt,
+    block: &SimpleBlockData,
     last_committed_announce_hash: HashOf<Announce>,
+    commitment_delay_limit: u32,
     missing_announces: &mut HashMap<HashOf<Announce>, Announce>,
 ) -> Result<()> {
-    let mut announce_hash = last_committed_announce_hash;
-    while !db.announce_is_included(announce_hash) {
-        tracing::debug!(announce = %announce_hash, "Committed announces was not included yet, including...");
+    // TODO +_+_+: append recovery from rejected announces
+    // if node received announce, which was rejected because of incorrect parent,
+    // but later we receive event from ethereum that parent announce was committed,
+    // than node should use previously rejected announce to recover the chain.
 
-        let announce = missing_announces.remove(&announce_hash).ok_or_else(|| {
+    // Recover backwards the chain of committed announces till last included one
+    // According to T1, this chain must not be longer than commitment_delay_limit
+    let mut last_committed_announce_block_hash = None;
+    let mut current_announce_hash = last_committed_announce_hash;
+    let mut count = 0;
+    while count < commitment_delay_limit && !db.announce_is_included(current_announce_hash) {
+        tracing::debug!(announce = %current_announce_hash, "Committed announces was not included yet, try to recover...");
+
+        let announce = missing_announces.remove(&current_announce_hash).ok_or_else(|| {
             anyhow!(
-                "Committed announce {announce_hash} is missing, but not found in missing announces"
+                "Committed announce {current_announce_hash} is missing, but not found in missing announces"
             )
         })?;
 
-        announce_hash = announce.parent;
+        last_committed_announce_block_hash.get_or_insert(announce.block_hash);
+
+        current_announce_hash = announce.parent;
+        count += 1;
 
         db.include_announce(announce)?;
+    }
+
+    let Some(last_committed_announce_block_hash) = last_committed_announce_block_hash else {
+        // No committed announces were missing, no need to recover
+        return Ok(());
+    };
+
+    // If error: DB is corrupted, or incorrect commitment detected (have not base announce committed after commitment delay limit)
+    ensure!(
+        db.announce_is_included(current_announce_hash),
+        "{current_announce_hash} is not included after checking {commitment_delay_limit} announces",
+    );
+
+    // Recover forward the chain filling with base announces
+
+    // First collect a chain of blocks from `last_committed_announce_block_hash` to `block` (exclusive)
+    // According to T1, this chain must not be longer than commitment_delay_limit
+    let mut current_block_hash = block.header.parent_hash;
+    let mut chain = VecDeque::new();
+    let mut count = 0;
+    while count < commitment_delay_limit && current_block_hash != last_committed_announce_block_hash
+    {
+        chain.push_front(current_block_hash);
+        current_block_hash = db
+            .block_header(current_block_hash)
+            .ok_or_else(|| anyhow!("header not found for block({current_block_hash})"))?
+            .parent_hash;
+        count += 1;
+    }
+
+    // If error: DB is corrupted, or incorrect commitment detected (have not base announce committed after commitment delay limit)
+    ensure!(
+        current_block_hash == last_committed_announce_block_hash,
+        "last committed announce block {last_committed_announce_block_hash} not found \
+        in parent chain of block {} within {commitment_delay_limit} blocks",
+        block.hash
+    );
+
+    // Now propagate base announces along the chain
+    let mut parent_announce_hash = last_committed_announce_hash;
+    for block_hash in chain {
+        let new_base_announce = Announce::base(block_hash, parent_announce_hash);
+        parent_announce_hash = db.include_announce(new_base_announce)?;
     }
 
     Ok(())
@@ -224,6 +313,12 @@ fn propagate_one_base_announce(
         {
             // We found last committed announce in the neighbor branch, until commitment delay limit
             // that means this branch is already expired.
+            tracing::trace!(
+                predecessor = %predecessor,
+                parent_announce = %parent_announce_hash,
+                latest_committed_announce = %last_committed_announce_hash,
+                "neighbor announce branch contains last committed announce, so parent announce branch is expired",
+            );
             return Ok(());
         };
 
@@ -332,10 +427,7 @@ fn find_announces_common_predecessor(
         .announces
         .ok_or_else(|| anyhow!("announces not found for block {block_hash}"))?;
 
-    for _ in 0..commitment_delay_limit
-        .checked_sub(1)
-        .ok_or_else(|| anyhow!("unsupported 0 commitment delay limit"))?
-    {
+    for _ in 0..commitment_delay_limit {
         if announces.contains(&start_announce_hash) {
             if announces.len() != 1 {
                 return Err(anyhow!(
