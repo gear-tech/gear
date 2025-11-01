@@ -17,20 +17,22 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{mock::*, tests::DEFAULT_GAS_LIMIT};
-use ark_bls12_381::{Bls12_381, G1Affine, G1Projective as G1, G2Affine, G2Projective as G2};
-use ark_ec::{
-    Group, ScalarMul, VariableBaseMSM,
-    bls12::Bls12Config,
-    hashing::{HashToCurve, curve_maps::wb, map_to_curve_hasher::MapToCurveBasedHasher},
-    pairing::Pairing,
-    short_weierstrass::{Projective as SWProjective, SWCurveConfig},
-};
-use ark_ff::{biginteger::BigInt, fields::field_hashers::DefaultFieldHasher};
-use ark_scale::hazmat::ArkScaleProjective;
 use ark_std::{UniformRand, ops::Mul};
+use builtins_common::bls12_381::{
+    Request, Response,
+    ark_bls12_381::{self, Bls12_381, G1Affine, G1Projective as G1, G2Affine, G2Projective as G2},
+    ark_ec::{
+        Group, ScalarMul, VariableBaseMSM,
+        bls12::Bls12Config,
+        hashing::{HashToCurve, curve_maps::wb, map_to_curve_hasher::MapToCurveBasedHasher},
+        pairing::Pairing,
+        short_weierstrass::{Projective as SWProjective, SWCurveConfig},
+    },
+    ark_ff::{biginteger::BigInt, fields::field_hashers::DefaultFieldHasher},
+    ark_scale::{self, hazmat::ArkScaleProjective},
+};
 use common::Origin;
 use frame_support::assert_ok;
-use gbuiltin_bls381::*;
 use gear_core::ids::ActorId;
 use gear_core_errors::{ErrorReplyReason, ReplyCode, SimpleExecutionError};
 use gear_runtime_interface::DST_G2;
@@ -159,12 +161,14 @@ fn multi_miller_loop() {
             RuntimeOrigin::signed(SIGNER),
             builtin_id,
             payload.clone(),
-            gas_info.min_limit / 2,
+            gas_info.min_limit/2,
             0,
             false,
         ));
 
         run_to_next_block();
+
+        log::warn!("Executed msg");
 
         // An error reply should have been sent.
         assert!(System::events().into_iter().any(|e| match e.event {
@@ -185,7 +189,7 @@ fn multi_miller_loop() {
             RuntimeOrigin::signed(SIGNER),
             builtin_id,
             payload.clone(),
-            gas_info.min_limit,
+            gas_info.min_limit + 1,
             0,
             false,
         ));
