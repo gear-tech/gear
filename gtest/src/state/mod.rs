@@ -21,6 +21,7 @@
 pub(crate) mod accounts;
 pub(crate) mod bank;
 pub(crate) mod blocks;
+pub(crate) mod bridge;
 pub(crate) mod gas_tree;
 pub(crate) mod mailbox;
 pub(crate) mod nonce;
@@ -226,15 +227,21 @@ mod tests {
         // Fill the actors storage.
         ProgramsStorageManager::insert_program(
             predef_acc1,
-            GTestProgram::Default(Program::Active(prog1)),
+            GTestProgram::Default {
+                primary: Program::Active(prog1),
+            },
         );
         ProgramsStorageManager::insert_program(
             predef_acc2,
-            GTestProgram::Default(Program::Active(prog2)),
+            GTestProgram::Default {
+                primary: Program::Active(prog2),
+            },
         );
         ProgramsStorageManager::insert_program(
             predef_acc3,
-            GTestProgram::Default(Program::Active(prog3)),
+            GTestProgram::Default {
+                primary: Program::Active(prog3),
+            },
         );
 
         // Fill the bank storage.
@@ -315,11 +322,17 @@ mod tests {
         assert_eq!(new_acc1_balance_overlaid, EXISTENTIAL_DEPOSIT * 1000);
 
         // Adjust actors storage the same way.
-        let acc2_actor_ty = GTestProgram::Default(Program::Exited(H256::random().cast()));
-        let acc3_actor_ty = GTestProgram::Default(Program::Terminated(H256::random().cast()));
+        let acc2_actor_ty = GTestProgram::Default {
+            primary: Program::Exited(H256::random().cast()),
+        };
+        let acc3_actor_ty = GTestProgram::Default {
+            primary: Program::Terminated(H256::random().cast()),
+        };
         ProgramsStorageManager::insert_program(
             new_acc,
-            GTestProgram::Default(Program::Active(create_active_program())),
+            GTestProgram::Default {
+                primary: Program::Active(create_active_program()),
+            },
         );
         ProgramsStorageManager::modify_program(predef_acc1, |actor| {
             *actor.expect("checked") = acc2_actor_ty;

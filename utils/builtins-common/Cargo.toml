@@ -1,0 +1,51 @@
+[package]
+name = "builtins-common"
+description = "Common utilities for gear protocol built-ins"
+documentation = "https://docs.rs/builtins-common"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+parity-scale-codec = { workspace = true, features = ["derive"] }
+scale-info = { workspace = true, features = ["derive"] }
+gear-core.workspace = true
+derive_more.workspace = true
+log.workspace = true
+
+# bls12-381 related deps
+gbuiltin-bls381 = { workspace = true, optional = true }
+sha2 = { workspace = true, optional = true }
+
+# eth-bridge related deps
+gbuiltin-eth-bridge = { workspace = true, optional = true }
+gprimitives = { workspace = true, optional = true }
+sha3 = { workspace = true, optional = true }
+
+[lints]
+workspace = true
+
+[features]
+default = ["bls12-381-std", "eth-bridge-std"]
+eth-bridge = [
+    "gbuiltin-eth-bridge",
+    "gprimitives",
+    "sha3",
+]
+eth-bridge-std = [
+    "gbuiltin-eth-bridge/std",
+    "gprimitives/std",
+    "sha3/std",
+]
+bls12-381 = [
+    "gbuiltin-bls381",
+    "sha2",
+]
+bls12-381-std = [
+    "gbuiltin-bls381/std",
+    "sha2/std",
+]

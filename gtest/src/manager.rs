@@ -19,6 +19,7 @@
 use crate::{
     EXISTENTIAL_DEPOSIT, GAS_ALLOWANCE, GAS_MULTIPLIER, MAX_RESERVATIONS, MAX_USER_GAS_LIMIT,
     ProgramBuilder, RESERVE_FOR, Result, TestError, VALUE_PER_GAS,
+    builtins::{BLS12_381_ID, ETH_BRIDGE_ID},
     constants::{BlockNumber, Gas, Value},
     error::usage_panic,
     log::{BlockRunResult, CoreLog},
@@ -101,6 +102,7 @@ pub(crate) struct ExtManager {
     pub(crate) code_metadata: BTreeMap<CodeId, CodeMetadata>,
     pub(crate) messages_processing_enabled: bool,
     pub(crate) first_incomplete_tasks_block: Option<u32>,
+    pub(crate) builtins: BTreeSet<ActorId>,
 
     // Last block execution info
     pub(crate) succeed: BTreeSet<MessageId>,
@@ -113,9 +115,11 @@ pub(crate) struct ExtManager {
 
 impl ExtManager {
     pub(crate) fn new() -> Self {
+        let builtins = BTreeSet::from([BLS12_381_ID, ETH_BRIDGE_ID]);
         Self {
             blocks_manager: BlocksManager,
             messages_processing_enabled: true,
+            builtins,
             ..Default::default()
         }
     }
@@ -307,5 +311,9 @@ impl ExtManager {
     /// (auxiliaries and internal ones).
     pub(crate) fn disable_overlay(&self) {
         state::disable_overlay();
+    }
+
+    pub(crate) fn is_builtin(&self, id: ActorId) -> bool {
+        self.builtins.contains(&id)
     }
 }

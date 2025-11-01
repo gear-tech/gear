@@ -206,6 +206,7 @@ ark-ec = { version = "0.4.2", default-features = false }
 ark-ff = { version = "0.4.2", default-features = false }
 ark-scale = { version = "0.0.12", default-features = false }
 sha2 = { version = "0.10.8", default-features = false }
+sha3 = { version = "0.10.8", default-features = false }
 arrayvec = { version = "0.7.4", default-features = false }
 indexmap = { version = "2.2.6", default-features = false }
 tracing = { version = "0.1.40", default-features = false }
@@ -224,6 +225,7 @@ dlmalloc = { package = "gear-dlmalloc", version = "0.2.0" }
 # Internal deps
 numerated = { path = "common/numerated" }
 authorship = { package = "gear-authorship", path = "node/authorship" }
+builtins-common = { path = "utils/builtins-common", default-features = false }
 common = { package = "gear-common", path = "common", default-features = false }
 core-processor = { package = "gear-core-processor", path = "core-processor", default-features = false }
 galloc = { path = "galloc" }

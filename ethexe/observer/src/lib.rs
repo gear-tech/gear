@@ -89,6 +89,9 @@ impl Stream for ObserverService {
     type Item = Result<ObserverEvent>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        // If subscription stream finished working, a new subscription is requested to be created.
+        // The subscription creation request is a future itself, and it is polled here. If it's ready,
+        // a new stream from it is created and used further to poll the next header.
         if let Some(future) = self.subscription_future.as_mut() {
             match future.poll_unpin(cx) {
                 Poll::Ready(Ok(subscription)) => self.headers_stream = subscription.into_stream(),
@@ -207,9 +210,23 @@ impl ObserverService {
         })
     }
 
-    // TODO #4563: this is a temporary solution.
-    // Choose a better place for this, out of ObserverService.
+    // TODO #4563: this is a temporary solution
     /// If genesis block is not yet fully setup in the database, we need to do it
+    /// Populates database with genesis block data.
+    ///
+    /// Basically, requests data for the block, which is considered to be a genesis block
+    /// inside the `Router` contract on Ethereum. The data is processed the following way:
+    /// - header is stored in the database
+    /// - events are set as empty
+    /// - block is set as synced
+    /// - block is set as computed
+    /// - block is set as latest synced block (it's height)
+    /// - block is set as latest computed block
+    /// - previous non-empty block for the genesis one is set to blake2b256(0)
+    /// - all the runtime storages related to the block (message queue, tasks schedule, codes queue) also programs states,
+    ///   and processing outcome (state transitions) are set to default (empty) values.
+    ///
+    /// If genesis block was computed earlier, this function returns immediately.
     async fn pre_process_genesis_for_db(
         db: &Database,
         provider: &RootProvider,
