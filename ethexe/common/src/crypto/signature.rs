@@ -141,6 +141,31 @@ impl Encode for Signature {
     }
 }
 
+#[cfg(feature = "std")]
+impl<'de> serde::Deserialize<'de> for Signature {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let bytes: &[u8] = serde::Deserialize::deserialize(deserializer)?;
+        let bytes: [u8; SIGNATURE_SIZE] = bytes
+            .try_into()
+            .map_err(|_err| serde::de::Error::custom("Invalid signature size"))?;
+        Signature::from_pre_eip155_bytes(bytes)
+            .ok_or_else(|| serde::de::Error::custom("Invalid bytes"))
+    }
+}
+
+#[cfg(feature = "std")]
+impl serde::Serialize for Signature {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        self.into_pre_eip155_bytes().serialize(serializer)
+    }
+}
+
 impl Hash for Signature {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.into_pre_eip155_bytes().hash(state);

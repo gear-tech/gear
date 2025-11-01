@@ -22,6 +22,7 @@ use gprimitives::{ActorId, H256};
 use parity_scale_codec::{Decode, Encode};
 
 /// NOTE: resulting message_id is a hash of `(self.transaction, self.validity)`.
+#[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
 #[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 pub struct SignedInjectedTransaction {
     /// Transaction itself.
@@ -32,6 +33,7 @@ pub struct SignedInjectedTransaction {
     signature: Signature,
 }
 
+#[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
 #[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 pub struct InjectedTransaction {
     /// Destination program inside `Gear.exe`.
@@ -44,6 +46,7 @@ pub struct InjectedTransaction {
     value: u128,
 }
 
+#[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
 #[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 pub struct ValidityParams {
     /// Reference block number.

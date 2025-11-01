@@ -38,7 +38,7 @@ use ethexe_network::{
 use ethexe_observer::{ObserverEvent, ObserverService};
 use ethexe_processor::{Processor, ProcessorConfig};
 use ethexe_prometheus::{PrometheusEvent, PrometheusService};
-use ethexe_rpc::{RpcEvent, RpcService};
+use ethexe_rpc::{InjectedTransactionAcceptance, RpcEvent, RpcService};
 use ethexe_service_utils::{OptionFuture as _, OptionStreamNext as _};
 use ethexe_signer::Signer;
 use ethexe_tx_pool::{TxPoolEvent, TxPoolService};
@@ -532,6 +532,12 @@ impl Service {
                                     "Response receiver for the `RpcEvent::OffchainTransaction` was dropped: {e:#?}"
                                 );
                             }
+                        }
+                        RpcEvent::InjectedTransaction {
+                            transaction: _,
+                            response_sender,
+                        } => {
+                            let _res = response_sender.send(InjectedTransactionAcceptance::Accept);
                         }
                     }
                 }
