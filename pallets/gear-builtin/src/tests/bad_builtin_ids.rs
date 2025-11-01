@@ -20,7 +20,7 @@ use crate::{self as pallet_gear_builtin, ActorWithId, BuiltinActor, BuiltinReply
 use builtins_common::{BuiltinActorError, BuiltinContext};
 use frame_support::{
     PalletId, construct_runtime, parameter_types,
-    traits::{ConstBool, ConstU32, ConstU64, FindAuthor, OnFinalize, OnInitialize},
+    traits::{ConstU32, ConstU64, FindAuthor, OnFinalize, OnInitialize},
 };
 use frame_support_test::TestRandomness;
 use frame_system::{self as system, pallet_prelude::BlockNumberFor};

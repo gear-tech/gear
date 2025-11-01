@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::errors;
-use ethexe_common::db::CodesStorageRead;
+use ethexe_common::db::CodesStorageRO;
 use ethexe_db::Database;
 use gprimitives::H256;
 use jsonrpsee::{

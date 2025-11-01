@@ -976,37 +976,29 @@ pub mod runtime_types {
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 pub enum ScheduledTask<_0, _1, _2> {
                     #[codec(index = 0)]
-                    PauseProgram(runtime_types::gprimitives::ActorId),
-                    #[codec(index = 1)]
-                    RemoveCode(runtime_types::gprimitives::CodeId),
-                    #[codec(index = 2)]
                     RemoveFromMailbox(_0, runtime_types::gprimitives::MessageId),
-                    #[codec(index = 3)]
+                    #[codec(index = 1)]
                     RemoveFromWaitlist(
                         runtime_types::gprimitives::ActorId,
                         runtime_types::gprimitives::MessageId,
                     ),
-                    #[codec(index = 4)]
-                    RemovePausedProgram(runtime_types::gprimitives::ActorId),
-                    #[codec(index = 5)]
+                    #[codec(index = 2)]
                     WakeMessage(
                         runtime_types::gprimitives::ActorId,
                         runtime_types::gprimitives::MessageId,
                     ),
-                    #[codec(index = 6)]
+                    #[codec(index = 3)]
                     SendDispatch(_1),
-                    #[codec(index = 7)]
+                    #[codec(index = 4)]
                     SendUserMessage {
                         message_id: runtime_types::gprimitives::MessageId,
                         to_mailbox: _2,
                     },
-                    #[codec(index = 8)]
+                    #[codec(index = 5)]
                     RemoveGasReservation(
                         runtime_types::gprimitives::ActorId,
                         runtime_types::gprimitives::ReservationId,
                     ),
-                    #[codec(index = 9)]
-                    RemoveResumeSession(::core::primitive::u32),
                 }
             }
         }
@@ -3399,8 +3391,9 @@ pub mod runtime_types {
                     #[doc = "Root extrinsic that sets fee for the transport of messages."]
                     set_fee { fee: ::core::primitive::u128 },
                     #[codec(index = 4)]
-                    #[doc = "Extrinsic that verifies some block finality."]
-                    submit_known_finality {
+                    #[doc = "Extrinsic that verifies some block finality that resets"]
+                    #[doc = "overflowed within the current era queue."]
+                    reset_overflowed_queue {
                         encoded_finality_proof:
                             ::subxt::ext::subxt_core::alloc::vec::Vec<::core::primitive::u8>,
                     },
@@ -3409,22 +3402,27 @@ pub mod runtime_types {
                 #[doc = "Pallet Gear Eth Bridge's error."]
                 pub enum Error {
                     #[codec(index = 0)]
+                    #[doc = "The error happens when bridge queue is temporarily overflowed"]
+                    #[doc = "and needs cleanup to proceed."]
+                    BridgeCleanupRequired,
+                    #[codec(index = 1)]
                     #[doc = "The error happens when bridge got called before"]
                     #[doc = "proper initialization after deployment."]
                     BridgeIsNotYetInitialized,
-                    #[codec(index = 1)]
+                    #[codec(index = 2)]
                     #[doc = "The error happens when bridge got called when paused."]
                     BridgeIsPaused,
-                    #[codec(index = 2)]
+                    #[codec(index = 3)]
                     #[doc = "The error happens when bridging message sent with too big payload."]
                     MaxPayloadSizeExceeded,
-                    #[codec(index = 3)]
+                    #[codec(index = 4)]
                     #[doc = "The error happens when bridging thorough builtin and message value"]
                     #[doc = "is inapplicable to operation or insufficient."]
                     InsufficientValueApplied,
-                    #[codec(index = 4)]
-                    #[doc = "The error happens when incorrect finality proof provided."]
-                    InvalidFinalityProof,
+                    #[codec(index = 5)]
+                    #[doc = "The error happens when attempted to reset overflowed queue, but"]
+                    #[doc = "queue isn't overflowed or incorrect finality proof provided."]
+                    InvalidQueueReset,
                 }
                 #[derive(Debug, crate::gp::Decode, crate::gp::DecodeAsType, crate::gp::Encode)]
                 #[doc = "Pallet Gear Eth Bridge's event."]
@@ -3462,6 +3460,9 @@ pub mod runtime_types {
                         root: ::subxt::ext::subxt_core::utils::H256,
                     },
                     #[codec(index = 7)]
+                    #[doc = "Queue has been overflowed and now requires reset."]
+                    QueueOverflowed,
+                    #[codec(index = 8)]
                     #[doc = "Queue was reset."]
                     #[doc = ""]
                     #[doc = "Related to bridge clearing on initialization of the second block in a new era."]
@@ -10763,7 +10764,7 @@ pub mod calls {
         Unpause,
         SendEthMessage,
         SetFee,
-        SubmitKnownFinality,
+        ResetOverflowedQueue,
     }
     impl CallInfo for GearEthBridgeCall {
         const PALLET: &'static str = "GearEthBridge";
@@ -10773,7 +10774,7 @@ pub mod calls {
                 Self::Unpause => "unpause",
                 Self::SendEthMessage => "send_eth_message",
                 Self::SetFee => "set_fee",
-                Self::SubmitKnownFinality => "submit_known_finality",
+                Self::ResetOverflowedQueue => "reset_overflowed_queue",
             }
         }
     }
@@ -11612,7 +11613,7 @@ pub mod storage {
         ClearTimer,
         MessageNonce,
         QueueChanged,
-        ResetQueueOnInit,
+        QueueOverflowedSince,
         TransportFee,
     }
     impl StorageInfo for GearEthBridgeStorage {
@@ -11630,7 +11631,7 @@ pub mod storage {
                 Self::ClearTimer => "ClearTimer",
                 Self::MessageNonce => "MessageNonce",
                 Self::QueueChanged => "QueueChanged",
-                Self::ResetQueueOnInit => "ResetQueueOnInit",
+                Self::QueueOverflowedSince => "QueueOverflowedSince",
                 Self::TransportFee => "TransportFee",
             }
         }

@@ -61,7 +61,7 @@ use runtime_primitives::{Balance, BlockNumber, Hash, Moment, Nonce};
 use scale_info::TypeInfo;
 use sp_api::impl_runtime_apis;
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
-use sp_core::{ConstBool, ConstU8, ConstU64, H256, OpaqueMetadata, crypto::KeyTypeId};
+use sp_core::{ConstU8, ConstU64, H256, OpaqueMetadata, crypto::KeyTypeId};
 use sp_runtime::{
     ApplyExtrinsicResult, FixedU128, Perbill, Percent, Permill, Perquintill, RuntimeDebug,
     create_runtime_str, generic, impl_opaque_keys,
@@ -76,9 +76,6 @@ use sp_std::{
     prelude::*,
 };
 use sp_version::RuntimeVersion;
-
-#[cfg(not(feature = "dev"))]
-use sp_runtime::traits::OpaqueKeys;
 
 #[cfg(any(feature = "std", test))]
 use {
@@ -116,10 +113,6 @@ pub use frame_support::{
 pub use gear_runtime_common::{
     AVERAGE_ON_INITIALIZE_RATIO, BlockHashCount, DealWithFees, GAS_LIMIT_MIN_PERCENTAGE_NUM,
     NORMAL_DISPATCH_LENGTH_RATIO, NORMAL_DISPATCH_WEIGHT_RATIO, VALUE_PER_GAS,
-    constants::{
-        RENT_DISABLED_DELTA_WEEK_FACTOR, RENT_FREE_PERIOD_MONTH_FACTOR, RENT_RESUME_WEEK_FACTOR,
-        RESUME_SESSION_DURATION_HOUR_FACTOR,
-    },
     impl_runtime_apis_plus_common,
 };
 pub use pallet_gear::manager::{ExtManager, HandleKind};
@@ -430,7 +423,6 @@ impl_opaque_keys! {
     }
 }
 
-#[cfg(feature = "dev")]
 mod grandpa_keys_handler {
     use super::{AccountId, GearEthBridge, Grandpa};
     use frame_support::traits::OneSessionHandler;
@@ -486,16 +478,12 @@ mod grandpa_keys_handler {
     }
 }
 
-#[cfg(feature = "dev")]
 pub type VaraSessionHandler = (
     Babe,
     grandpa_keys_handler::GrandpaAndGearEthBridge,
     ImOnline,
     AuthorityDiscovery,
 );
-
-#[cfg(not(feature = "dev"))]
-pub type VaraSessionHandler = <SessionKeys as OpaqueKeys>::KeyTypeIdProviders;
 
 impl pallet_session::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
@@ -996,6 +984,7 @@ parameter_types! {
 
 /// The type used to represent the kinds of proxying allowed.
 #[derive(
+    Default,
     Copy,
     Clone,
     Eq,
@@ -1009,18 +998,13 @@ parameter_types! {
     scale_info::TypeInfo,
 )]
 pub enum ProxyType {
+    #[default]
     Any,
     NonTransfer,
     Governance,
     Staking,
     IdentityJudgement,
     CancelProxy,
-}
-
-impl Default for ProxyType {
-    fn default() -> Self {
-        Self::Any
-    }
 }
 
 impl From<BuiltinProxyType> for ProxyType {
@@ -1043,7 +1027,7 @@ impl InstanceFilter<RuntimeCall> for ProxyType {
             ProxyType::NonTransfer => {
                 // Dev pallets.
                 #[cfg(feature = "dev")]
-                if matches!(c, |RuntimeCall::GearEthBridge(..)| RuntimeCall::Sudo(..)) {
+                if matches!(c, RuntimeCall::Sudo(..)) {
                     return false;
                 }
 
@@ -1053,6 +1037,7 @@ impl InstanceFilter<RuntimeCall> for ProxyType {
                     RuntimeCall::Balances(..) | RuntimeCall::Vesting(..)
                     // Gear pallets.
                     | RuntimeCall::Gear(..)
+                    | RuntimeCall::GearEthBridge(..)
                     | RuntimeCall::GearVoucher(..)
                     | RuntimeCall::StakingRewards(..)
                 )
@@ -1166,18 +1151,7 @@ impl pallet_gear::Config for Runtime {
     type Scheduler = GearScheduler;
     type QueueRunner = Gear;
     type BuiltinDispatcherFactory = GearBuiltin;
-    type ProgramRentFreePeriod = ConstU32<{ MONTHS * RENT_FREE_PERIOD_MONTH_FACTOR }>;
-    type ProgramResumeMinimalRentPeriod = ConstU32<{ WEEKS * RENT_RESUME_WEEK_FACTOR }>;
-    type ProgramRentCostPerBlock = ConstU128<RENT_COST_PER_BLOCK>;
-    type ProgramResumeSessionDuration = ConstU32<{ HOURS * RESUME_SESSION_DURATION_HOUR_FACTOR }>;
 
-    #[cfg(feature = "runtime-benchmarks")]
-    type ProgramRentEnabled = ConstBool<true>;
-
-    #[cfg(not(feature = "runtime-benchmarks"))]
-    type ProgramRentEnabled = ConstBool<false>;
-
-    type ProgramRentDisabledDelta = ConstU32<{ WEEKS * RENT_DISABLED_DELTA_WEEK_FACTOR }>;
     type RentPoolId = pallet_gear_staking_rewards::RentPoolId<Self>;
 }
 
@@ -1199,26 +1173,13 @@ impl pallet_gear_messenger::Config for Runtime {
     type CurrentBlockNumber = Gear;
 }
 
-/// Builtin actors arranged in a tuple.
-///
-/// # Security
-/// Make sure to mint ED for each new builtin actor added to the tuple.
-#[cfg(not(feature = "dev"))]
-pub type BuiltinActors = (
-    ActorWithId<1, pallet_gear_builtin::bls12_381::Actor<Runtime>>,
-    ActorWithId<2, pallet_gear_builtin::staking::Actor<Runtime>>,
-    // The ID = 3 is for the pallet_gear_eth_bridge::Actor.
-    ActorWithId<4, pallet_gear_builtin::proxy::Actor<Runtime>>,
-);
-
-#[cfg(feature = "dev")]
 const ETH_BRIDGE_BUILTIN_ID: u64 = 3;
 
 /// Builtin actors arranged in a tuple.
 ///
 /// # Security
 /// Make sure to mint ED for each new builtin actor added to the tuple.
-#[cfg(feature = "dev")]
+/// (see migrations.rs/LockEdForBuiltin).
 pub type BuiltinActors = (
     ActorWithId<1, pallet_gear_builtin::bls12_381::Actor<Runtime>>,
     ActorWithId<2, pallet_gear_builtin::staking::Actor<Runtime>>,
@@ -1240,22 +1201,19 @@ parameter_types! {
     pub GearEthBridgePauserAccount: AccountId = GearEthBridgePalletId::get().into_sub_account_truncating("bridge_pauser");
 }
 
-#[cfg(feature = "dev")]
 parameter_types! {
     pub GearEthBridgeBuiltinAddress: AccountId
         = GearBuiltin::generate_actor_id(ETH_BRIDGE_BUILTIN_ID).into_bytes().into();
 }
 
-#[cfg(feature = "dev")]
 pub struct GearEthBridgeAdminAccounts;
-#[cfg(feature = "dev")]
+
 impl SortedMembers<AccountId> for GearEthBridgeAdminAccounts {
     fn sorted_members() -> Vec<AccountId> {
         vec![GearEthBridgeAdminAccount::get()]
     }
 }
 
-#[cfg(feature = "dev")]
 impl pallet_gear_eth_bridge::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type PalletId = GearEthBridgePalletId;
@@ -1650,9 +1608,8 @@ mod runtime {
     #[runtime::pallet_index(109)]
     pub type GearBuiltin = pallet_gear_builtin;
 
-    // Uncomment me, once ready for prod runtime.
-    // #[runtime::pallet_index(110)]
-    // pub type GearEthBridge = pallet_gear_eth_bridge;
+    #[runtime::pallet_index(110)]
+    pub type GearEthBridge = pallet_gear_eth_bridge;
 
     // NOTE (!): `pallet_sudo` used to be idx(99).
     // NOTE (!): `pallet_airdrop` used to be idx(198).
@@ -1699,7 +1656,7 @@ mod tests;
 #[cfg(test)]
 mod integration_tests;
 
-#[cfg(all(feature = "runtime-benchmarks", feature = "dev"))]
+#[cfg(feature = "runtime-benchmarks")]
 mod benches {
     define_benchmarks!(
         // Substrate pallets
@@ -1712,21 +1669,6 @@ mod benches {
         [pallet_gear_voucher, GearVoucher]
         [pallet_gear_builtin, GearBuiltin]
         [pallet_gear_eth_bridge, GearEthBridge]
-    );
-}
-
-#[cfg(all(feature = "runtime-benchmarks", not(feature = "dev")))]
-mod benches {
-    define_benchmarks!(
-        // Substrate pallets
-        [frame_system, SystemBench::<Runtime>]
-        [pallet_balances, Balances]
-        [pallet_timestamp, Timestamp]
-        [pallet_utility, Utility]
-        // Gear pallets
-        [pallet_gear, Gear]
-        [pallet_gear_voucher, GearVoucher]
-        [pallet_gear_builtin, GearBuiltin]
     );
 }
 
@@ -1873,15 +1815,7 @@ impl_runtime_apis_plus_common! {
 
     impl pallet_gear_eth_bridge_rpc_runtime_api::GearEthBridgeApi<Block> for Runtime {
         fn merkle_proof(hash: H256) -> Option<pallet_gear_eth_bridge_rpc_runtime_api::Proof> {
-            match () {
-                #[cfg(not(feature = "dev"))]
-                () => {
-                    let _ = hash;
-                    None
-                },
-                #[cfg(feature = "dev")]
-                () => GearEthBridge::merkle_proof(hash),
-            }
+            GearEthBridge::merkle_proof(hash)
         }
     }
 

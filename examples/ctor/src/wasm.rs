@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2024-2025 Gear Technologies Inc.
+// Copyright (C) 2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -16,26 +16,35 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::abi::{IWrappedVara, utils::*};
-use ethexe_common::events::WVaraEvent;
-use gprimitives::U256;
+use gstd::{prelude::*, static_mut, static_ref};
 
-impl From<IWrappedVara::Approval> for WVaraEvent {
-    fn from(value: IWrappedVara::Approval) -> Self {
-        Self::Approval {
-            owner: address_to_actor_id(value.owner),
-            spender: address_to_actor_id(value.spender),
-            value: U256(value.value.into_limbs()),
-        }
+static mut CTORS: u64 = 0;
+static mut DTORS: u64 = 0;
+
+gstd::ctor! {
+    unsafe extern "C" fn() {
+        *static_mut!(CTORS) += 1;
     }
 }
 
-impl From<IWrappedVara::Transfer> for WVaraEvent {
-    fn from(value: IWrappedVara::Transfer) -> Self {
-        Self::Transfer {
-            from: address_to_actor_id(value.from),
-            to: address_to_actor_id(value.to),
-            value: uint256_to_u128_lossy(value.value),
-        }
+gstd::dtor! {
+    unsafe extern "C" fn() {
+        *static_mut!(DTORS) += 1;
+    }
+}
+
+#[unsafe(no_mangle)]
+extern "C" fn init() {
+    unsafe {
+        assert_eq!(*static_mut!(CTORS), 1);
+        assert_eq!(*static_ref!(DTORS), 0);
+    }
+}
+
+#[unsafe(no_mangle)]
+extern "C" fn handle() {
+    unsafe {
+        assert_eq!(*static_ref!(CTORS), 2);
+        assert_eq!(*static_ref!(DTORS), 1);
     }
 }

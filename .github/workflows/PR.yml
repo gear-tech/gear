@@ -20,6 +20,7 @@ jobs:
     with:
       macos: ${{ contains(github.event.pull_request.labels.*.name, 'E2-forcemacos') }}
       windows: ${{ contains(github.event.pull_request.labels.*.name, 'E1-forcenatwin') }}
+      linux-aarch64: ${{ contains(github.event.pull_request.labels.*.name, 'E5-forcelinuxaarch64') }}
       release: ${{ contains(github.event.pull_request.labels.*.name, 'E3-forcerelease') }}
       production: ${{ contains(github.event.pull_request.labels.*.name, 'E4-forceproduction') }}
 

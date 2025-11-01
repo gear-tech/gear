@@ -16643,7 +16643,7 @@ pub(crate) mod utils {
         iter,
     };
 
-    pub(super) const DEFAULT_GAS_LIMIT: u64 = 200_000_000;
+    pub(super) const DEFAULT_GAS_LIMIT: u64 = 450_000_000;
     pub(super) const DEFAULT_SALT: &[u8; 4] = b"salt";
     pub(super) const EMPTY_PAYLOAD: &[u8; 0] = b"";
     pub(super) const OUTGOING_WITH_VALUE_IN_HANDLE_VALUE_GAS: u64 = 10000000;

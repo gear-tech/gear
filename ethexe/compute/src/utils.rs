@@ -18,8 +18,8 @@
 
 use crate::{ComputeError, Result};
 use ethexe_common::{
-    AnnounceHash, SimpleBlockData,
-    db::{AnnounceStorageRead, BlockMeta, BlockMetaStorageRead, OnChainStorageRead},
+    Announce, HashOf, SimpleBlockData,
+    db::{AnnounceStorageRO, BlockMeta, BlockMetaStorageRO, OnChainStorageRO},
 };
 use gprimitives::H256;
 use std::collections::VecDeque;
@@ -27,7 +27,7 @@ use std::collections::VecDeque;
 /// Collect a chain of blocks from the head to the last block that satisfies the filter.
 /// Stops when the filter returns false for the block meta.
 /// Returns a chain sorted in order from the oldest to the newest block (head is newest).
-pub fn collect_chain<DB: BlockMetaStorageRead + OnChainStorageRead>(
+pub fn collect_chain<DB: BlockMetaStorageRO + OnChainStorageRO>(
     db: &DB,
     head: H256,
     mut filter: impl FnMut(&BlockMeta) -> bool,
@@ -59,9 +59,9 @@ pub fn collect_chain<DB: BlockMetaStorageRead + OnChainStorageRead>(
 /// For example, if node accidentally drops a block
 /// after computing an announce, the announce will be marked as computed, but not included
 /// in the block.
-pub fn announce_is_computed_and_included<DB: BlockMetaStorageRead + AnnounceStorageRead>(
+pub fn announce_is_computed_and_included<DB: BlockMetaStorageRO + AnnounceStorageRO>(
     db: &DB,
-    announce_hash: AnnounceHash,
+    announce_hash: HashOf<Announce>,
     block_hash: H256,
 ) -> Result<bool> {
     if !db.announce_meta(announce_hash).computed {

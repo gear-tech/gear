@@ -22,10 +22,14 @@
 
 extern crate alloc;
 
+pub mod consensus;
 mod crypto;
 pub mod db;
 pub mod events;
 pub mod gear;
+mod hash;
+pub mod injected;
+pub mod network;
 mod primitives;
 pub mod tx_pool;
 mod utils;
@@ -36,6 +40,7 @@ pub mod mock;
 pub use crypto::*;
 pub use gear_core;
 pub use gprimitives;
+pub use hash::*;
 pub use k256;
 pub use primitives::*;
 pub use sha3;

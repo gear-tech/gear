@@ -23,14 +23,14 @@ use crate::{
 };
 use alloy::{
     consensus::{SidecarBuilder, SimpleCoder},
-    eips::BlockId,
+    eips::{BlockId, eip7594::BlobTransactionSidecarVariant},
     primitives::{Address, B256, Bytes, fixed_bytes},
     providers::{PendingTransactionBuilder, Provider, ProviderBuilder, RootProvider},
     rpc::types::{Filter, eth::state::AccountOverride},
 };
 use anyhow::{Result, anyhow};
 use ethexe_common::{
-    Address as LocalAddress, Digest,
+    Address as LocalAddress, Digest, ValidatorsVec,
     ecdsa::ContractSignature,
     gear::{AggregatedPublicKey, BatchCommitment, CodeState, SignatureType, Timelines},
 };
@@ -110,7 +110,29 @@ impl Router {
         let builder = self
             .instance
             .requestCodeValidation(code_id.into_bytes().into())
-            .sidecar(SidecarBuilder::<SimpleCoder>::from_slice(code).build()?);
+            .sidecar(BlobTransactionSidecarVariant::Eip7594(
+                SidecarBuilder::<SimpleCoder>::from_slice(code).build_7594()?,
+            ));
+        let pending_builder = builder.send().await?;
+
+        Ok(PendingCodeRequestBuilder {
+            code_id,
+            pending_builder,
+        })
+    }
+
+    pub async fn request_code_validation_with_sidecar_old(
+        &self,
+        code: &[u8],
+    ) -> Result<PendingCodeRequestBuilder> {
+        let code_id = CodeId::generate(code);
+
+        let builder = self
+            .instance
+            .requestCodeValidation(code_id.into_bytes().into())
+            .sidecar(BlobTransactionSidecarVariant::Eip4844(
+                SidecarBuilder::<SimpleCoder>::from_slice(code).build()?,
+            ));
         let pending_builder = builder.send().await?;
 
         Ok(PendingCodeRequestBuilder {
@@ -261,12 +283,33 @@ impl RouterQuery {
             .map_err(Into::into)
     }
 
+    pub async fn middleware(&self) -> Result<LocalAddress> {
+        self.instance
+            .middleware()
+            .call()
+            .await
+            .map(|res| LocalAddress(res.into()))
+            .map_err(Into::into)
+    }
+
     pub async fn wvara_address(&self) -> Result<Address> {
         self.instance.wrappedVara().call().await.map_err(Into::into)
     }
 
     pub async fn middleware_address(&self) -> Result<Address> {
         self.instance.middleware().call().await.map_err(Into::into)
+    }
+
+    pub async fn validators_at(&self, block: H256) -> Result<ValidatorsVec> {
+        let validators: Vec<_> = self
+            .instance
+            .validators()
+            .call()
+            .block(B256::from(block.0).into())
+            .await
+            .map(|res| res.into_iter().map(|v| LocalAddress(v.into())).collect())
+            .map_err(Into::<anyhow::Error>::into)?;
+        validators.try_into().map_err(Into::into)
     }
 
     pub async fn validators_aggregated_public_key(&self) -> Result<AggregatedPublicKey> {
@@ -294,16 +337,6 @@ impl RouterQuery {
         self.instance
             .validators()
             .call()
-            .await
-            .map(|res| res.into_iter().map(|v| LocalAddress(v.into())).collect())
-            .map_err(Into::into)
-    }
-
-    pub async fn validators_at(&self, block: H256) -> Result<Vec<LocalAddress>> {
-        self.instance
-            .validators()
-            .call()
-            .block(B256::from(block.0).into())
             .await
             .map(|res| res.into_iter().map(|v| LocalAddress(v.into())).collect())
             .map_err(Into::into)

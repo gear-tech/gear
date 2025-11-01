@@ -27,9 +27,7 @@ use frame_support::{
     PalletId, construct_runtime,
     pallet_prelude::{DispatchClass, Weight},
     parameter_types,
-    traits::{
-        ConstBool, ConstU32, ConstU64, FindAuthor, Get, InstanceFilter, OnFinalize, OnInitialize,
-    },
+    traits::{ConstU32, ConstU64, FindAuthor, Get, InstanceFilter, OnFinalize, OnInitialize},
 };
 use frame_support_test::TestRandomness;
 use frame_system::{self as system, limits::BlockWeights, pallet_prelude::BlockNumberFor};
@@ -104,6 +102,7 @@ parameter_types! {
 }
 
 #[derive(
+    Default,
     Copy,
     Clone,
     Eq,
@@ -117,18 +116,13 @@ parameter_types! {
     scale_info::TypeInfo,
 )]
 pub enum ProxyType {
+    #[default]
     Any,
     NonTransfer,
     Governance,
     Staking,
     IdentityJudgement,
     CancelProxy,
-}
-
-impl Default for ProxyType {
-    fn default() -> Self {
-        Self::Any
-    }
 }
 
 impl From<BuiltinProxyType> for ProxyType {

@@ -20,7 +20,6 @@ use crate::{
     ActorId, Config, MessageId,
     async_runtime::{self, Lock, ReplyPoll, signals},
     errors::{Error, Result},
-    msg::macros::impl_futures,
     prelude::Vec,
 };
 use core::{
