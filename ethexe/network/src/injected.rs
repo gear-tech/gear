@@ -243,3 +243,44 @@ impl NetworkBehaviour for Behaviour {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::utils::tests::init_logger;
+    use ethexe_common::{injected::InjectedTransaction, mock::Mock};
+    use ethexe_signer::Signer;
+    use libp2p::Swarm;
+    use libp2p_swarm_test::SwarmExt;
+
+    async fn new_swarm() -> Swarm<Behaviour> {
+        let mut swarm =
+            Swarm::new_ephemeral_tokio(|_keypair| Behaviour::new(peer_score::Handle::new_test()));
+        swarm.listen().with_memory_addr_external().await;
+        swarm
+    }
+
+    #[tokio::test]
+    async fn smoke() {
+        init_logger();
+
+        let mut alice = new_swarm().await;
+        let mut bob = new_swarm().await;
+        alice.connect(&mut bob).await;
+
+        let transaction = InjectedTransaction::mock(());
+        let signer = Signer::memory();
+        let pub_key = signer.generate_key().unwrap();
+        let transaction = signer.signed_data(pub_key, transaction).unwrap();
+
+        // TODO: replace with `Behaviour::send_transaction()` when it works
+        alice.behaviour_mut().inner.send_request(
+            bob.local_peer_id(),
+            Request::InjectedTransaction(transaction.clone()),
+        );
+        tokio::spawn(alice.loop_on_next());
+
+        let event = bob.next_behaviour_event().await;
+        assert_eq!(event, Event::NewInjectedTransaction(transaction));
+    }
+}
