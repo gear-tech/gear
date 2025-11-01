@@ -726,7 +726,7 @@ impl NodeConfig {
 
     pub fn service_rpc(mut self, rpc_port: u16) -> Self {
         let runner_config = RunnerConfig::overlay(
-            DEFAULT_CHUNK_PROCESSING_THREADS as usize,
+            DEFAULT_CHUNK_PROCESSING_THREADS.get(),
             DEFAULT_BLOCK_GAS_LIMIT,
             DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER,
         );
