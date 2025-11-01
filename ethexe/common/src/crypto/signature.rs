@@ -175,11 +175,13 @@ impl Hash for Signature {
 /// A signed data structure, that contains the data and its signature.
 /// Always valid after construction.
 #[derive(Clone, Encode, PartialEq, Eq, Debug, Display)]
+#[cfg_attr(feature = "std", derive(serde::Serialize))]
 #[display("SignedData({data}, {signature})")]
 pub struct SignedData<T: Sized> {
     data: T,
     signature: Signature,
     #[codec(skip)]
+    #[cfg_attr(feature = "std", serde(skip))]
     public_key: PublicKey,
 }
 
@@ -226,6 +228,26 @@ where
         let data = T::decode(input)?;
         let signature = Signature::decode(input)?;
         Self::try_from_parts(data, signature).map_err(CodecError::from)
+    }
+}
+
+#[cfg(feature = "std")]
+impl<'de, T: Sized + serde::Deserialize<'de>> serde::Deserialize<'de> for SignedData<T>
+where
+    for<'a> Digest: From<&'a T>,
+{
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[derive(serde::Deserialize)]
+        struct Inner<T> {
+            data: T,
+            signature: Signature,
+        }
+
+        let Inner { data, signature } = serde::Deserialize::deserialize(deserializer)?;
+        Self::try_from_parts(data, signature).map_err(serde::de::Error::custom)
     }
 }
 

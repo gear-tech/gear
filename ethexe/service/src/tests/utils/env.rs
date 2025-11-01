@@ -858,6 +858,11 @@ impl Node {
             }
         };
 
+        let validator_address = self
+            .validator_config
+            .as_ref()
+            .map(|c| c.public_key.to_address());
+
         let (sender, receiver) = broadcast::channel(2048);
 
         let blob_loader = LocalBlobLoader::new(self.blob_storage.clone()).into_box();
@@ -921,6 +926,7 @@ impl Node {
             rpc,
             sender,
             self.fast_sync,
+            validator_address,
         );
 
         let name = self.name.clone();

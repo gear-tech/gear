@@ -465,6 +465,10 @@ impl NetworkService {
     pub fn publish_offchain_transaction(&mut self, data: SignedOffchainTransaction) {
         self.swarm.behaviour_mut().gossipsub.publish(data);
     }
+
+    pub fn send_injected_transaction(&mut self, data: SignedInjectedTransaction) {
+        self.swarm.behaviour_mut().offchain.send_transaction(data);
+    }
 }
 
 impl Drop for NetworkService {
