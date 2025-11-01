@@ -49,4 +49,3 @@ bls12-381-std = [
     "gbuiltin-bls381/std",
     "sha2/std",
 ]
-
