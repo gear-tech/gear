@@ -471,6 +471,7 @@ impl Service {
                                 );
                             }
                         }
+                        NetworkEvent::InjectedTransaction(_transaction) => {}
                         NetworkEvent::PeerBlocked(_) | NetworkEvent::PeerConnected(_) => {}
                     }
                 }

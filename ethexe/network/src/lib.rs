@@ -36,6 +36,7 @@ use anyhow::{Context, anyhow};
 use ethexe_common::{
     Address,
     ecdsa::PublicKey,
+    injected::SignedInjectedTransaction,
     network::{SignedValidatorMessage, VerifiedValidatorMessage},
     tx_pool::SignedOffchainTransaction,
 };
@@ -76,6 +77,7 @@ impl<T> NetworkServiceDatabase for T where T: DbSyncDatabase + ValidatorDatabase
 pub enum NetworkEvent {
     ValidatorMessage(VerifiedValidatorMessage),
     OffchainTransaction(SignedOffchainTransaction),
+    InjectedTransaction(SignedInjectedTransaction),
     PeerBlocked(PeerId),
     PeerConnected(PeerId),
 }

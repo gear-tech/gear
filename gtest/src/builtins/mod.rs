@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2024-2025 Gear Technologies Inc.
+// Copyright (C) 2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -16,35 +16,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! ethexe common types and traits.
+//! Builtin actors implementations for gtest.
 
-#![cfg_attr(not(feature = "std"), no_std)]
+mod bls12_381;
+mod eth_bridge;
 
-extern crate alloc;
+pub use bls12_381::{BLS12_381_ID, Bls12_381Request, Bls12_381Response};
+pub use eth_bridge::{ETH_BRIDGE_ID, EthBridgeRequest, EthBridgeResponse};
 
-pub mod consensus;
-mod crypto;
-pub mod db;
-pub mod events;
-pub mod gear;
-mod hash;
-pub mod injected;
-pub mod network;
-mod primitives;
-pub mod tx_pool;
-mod utils;
-
-#[cfg(feature = "mock")]
-pub mod mock;
-
-pub use crypto::*;
-pub use gear_core;
-pub use gprimitives;
-pub use hash::*;
-pub use k256;
-pub use primitives::*;
-pub use sha3;
-pub use utils::*;
-
-/// Default block gas limit for the node.
-pub const DEFAULT_BLOCK_GAS_LIMIT: u64 = 4_000_000_000_000;
+pub(crate) use bls12_381::BlsOpsGasCostsImpl;
+pub(crate) use eth_bridge::process_eth_bridge_dispatch;

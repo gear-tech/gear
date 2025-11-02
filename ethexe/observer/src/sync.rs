@@ -116,6 +116,7 @@ impl<DB: SyncDB> ChainSync<DB> {
         Ok(chain)
     }
 
+    /// Loads blocks if there is a gap between the `header`'s height and the latest synced block height.
     async fn pre_load_data(&self, header: &BlockHeader) -> Result<HashMap<H256, BlockData>> {
         let Some(latest) = self.db.latest_data() else {
             tracing::warn!("latest data is not set in the database");
@@ -124,7 +125,7 @@ impl<DB: SyncDB> ChainSync<DB> {
 
         if header.height <= latest.synced_block_height {
             tracing::warn!(
-                "Get a block with number {} <= latest synced block number: {}, maybe a reorg",
+                "Got a block with number {} <= latest synced block number: {}, maybe a reorg",
                 header.height,
                 latest.synced_block_height
             );
