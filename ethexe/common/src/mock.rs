@@ -20,7 +20,7 @@ pub use tap::Tap;
 
 use crate::{
     Announce, BlockData, BlockHeader, CodeBlobInfo, Digest, HashOf, ProgramStates,
-    ProtocolTimelines, Schedule, SimpleBlockData,
+    ProtocolTimelines, Schedule, SimpleBlockData, ValidatorsVec,
     consensus::BatchCommitmentValidationRequest,
     db::*,
     events::BlockEvent,
@@ -282,6 +282,7 @@ pub struct BlockChain {
     pub blocks: VecDeque<BlockFullData>,
     pub announces: BTreeMap<HashOf<Announce>, AnnounceData>,
     pub codes: BTreeMap<CodeId, CodeData>,
+    pub validators: ValidatorsVec,
 }
 
 impl BlockChain {
@@ -320,9 +321,13 @@ impl BlockChain {
             blocks,
             announces,
             codes,
+            validators,
         } = self.clone();
 
         db.set_latest_data(LatestData::default());
+
+        let timelines = ProtocolTimelines::mock(());
+        db.set_protocol_timelines(timelines);
 
         if let Some(genesis) = blocks.front() {
             db.mutate_latest_data(|latest| {
@@ -355,6 +360,7 @@ impl BlockChain {
                 db.set_block_header(hash, header);
                 db.set_block_events(hash, &events);
                 db.set_block_synced(hash);
+                db.set_validators(timelines.era_from_ts(header.timestamp), validators.clone());
             }
 
             if let Some(PreparedBlockData {
@@ -413,9 +419,9 @@ impl BlockChain {
     }
 }
 
-impl Mock<u32> for BlockChain {
+impl Mock<(u32, ValidatorsVec)> for BlockChain {
     /// `len` - length of chain not counting genesis block
-    fn mock(len: u32) -> Self {
+    fn mock((len, validators): (u32, ValidatorsVec)) -> Self {
         // i = 0 - genesis parent
         // i = 1 - genesis
         // i = 2 - first block
@@ -488,7 +494,15 @@ impl Mock<u32> for BlockChain {
             blocks,
             announces,
             codes: Default::default(),
+            validators,
         }
+    }
+}
+
+impl Mock<u32> for BlockChain {
+    /// `len` - length of chain not counting genesis block
+    fn mock(len: u32) -> Self {
+        BlockChain::mock((len, Default::default()))
     }
 }
 

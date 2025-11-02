@@ -135,7 +135,7 @@ impl Initial {
 mod tests {
     use super::*;
     use crate::{ConsensusEvent, validator::mock::*};
-    use ethexe_common::{ValidatorsVec, db::*, mock::*};
+    use ethexe_common::{ValidatorsVec, mock::*};
     use gprimitives::H256;
     use nonempty::nonempty;
 
@@ -164,11 +164,7 @@ mod tests {
         ]
         .into();
 
-        let block = BlockChain::mock(2).setup(&ctx.core.db).blocks[2].to_simple();
-        ctx.core.db.set_validators(
-            ctx.core.timelines.era_from_ts(block.header.timestamp),
-            validators,
-        );
+        let block = BlockChain::mock((2, validators)).setup(&ctx.core.db).blocks[2].to_simple();
 
         let initial = Initial::create_with_chain_head(ctx, block.clone()).unwrap();
         let producer = initial
@@ -184,8 +180,6 @@ mod tests {
     async fn switch_to_subordinate() {
         let (ctx, keys, _mock_eth) = mock_validator_context();
 
-        let block = BlockChain::mock(1).setup(&ctx.core.db).blocks[1].to_simple();
-
         let validators: ValidatorsVec = nonempty![
             ctx.core.pub_key.to_address(),
             keys[1].to_address(),
@@ -193,11 +187,7 @@ mod tests {
         ]
         .into();
 
-        ctx.core.db.set_block_header(block.hash, block.header);
-        ctx.core.db.set_validators(
-            ctx.core.timelines.era_from_ts(block.header.timestamp),
-            validators,
-        );
+        let block = BlockChain::mock((1, validators)).setup(&ctx.core.db).blocks[1].to_simple();
 
         let initial = Initial::create_with_chain_head(ctx, block.clone()).unwrap();
         let state = initial.process_synced_block(block.hash).unwrap();
