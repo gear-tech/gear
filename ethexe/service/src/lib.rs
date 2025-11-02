@@ -23,7 +23,9 @@ use ethexe_blob_loader::{
     BlobLoader, BlobLoaderEvent, BlobLoaderService, ConsensusLayerConfig,
     local::{LocalBlobLoader, LocalBlobStorage},
 };
-use ethexe_common::{Address, ecdsa::PublicKey, gear::CodeState, network::VerifiedValidatorMessage};
+use ethexe_common::{
+    Address, ecdsa::PublicKey, gear::CodeState, network::VerifiedValidatorMessage,
+};
 use ethexe_compute::{ComputeEvent, ComputeService};
 use ethexe_consensus::{
     ConsensusEvent, ConsensusService, SimpleConnectService, ValidatorConfig, ValidatorService,
