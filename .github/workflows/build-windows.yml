@@ -28,7 +28,7 @@ jobs:
     name: build-windows (${{ matrix.profiles.name }})
     steps:
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: "ACTIONS: Setup linker"
         uses: ./.github/actions/setup-linker
@@ -65,7 +65,7 @@ jobs:
           ${{ matrix.profiles.flags }}
 
       - name: "ACTIONS: Upload workspace"
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: nextest-workspace-${{ matrix.profiles.name }}-x86_64-pc-windows-msvc
           path: workspace.tar.zst
@@ -81,7 +81,7 @@ jobs:
     name: test-windows (${{ matrix.profiles.name }})
     steps:
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: "Install: Rust toolchain"
         uses: ./.github/actions/install-rust
@@ -95,12 +95,12 @@ jobs:
           $tmp | Remove-Item
 
       - name: "ACTIONS: Download workspace"
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           name: nextest-workspace-${{ matrix.profiles.name }}-x86_64-pc-windows-msvc
 
       - name: "ACTIONS: Download node"
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           name: node-and-runtime-release-x86_64-pc-windows-msvc
           path: target/release
