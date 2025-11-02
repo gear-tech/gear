@@ -26,9 +26,12 @@ use ethexe_common::{
     db::{LatestDataStorageRW, OnChainStorageRW},
     events::{BlockEvent, RouterEvent},
 };
-use ethexe_ethereum::router::RouterQuery;
+use ethexe_ethereum::{
+    middleware::{ElectionProvider, MiddlewareQuery},
+    router::RouterQuery,
+};
 use gprimitives::H256;
-use std::collections::HashMap;
+use std::{collections::HashMap, ops::Add};
 
 pub(crate) trait SyncDB: OnChainStorageRW + LatestDataStorageRW + Clone {}
 impl<T: OnChainStorageRW + LatestDataStorageRW + Clone> SyncDB for T {}
@@ -53,7 +56,7 @@ impl<DB: SyncDB> ChainSync<DB> {
         let blocks_data = self.pre_load_data(&header).await?;
         let chain = self.load_chain(block, header, blocks_data).await?;
 
-        self.propagate_validators(block, header).await?;
+        self.ensure_validators(block, header).await?;
         self.mark_chain_as_synced(chain.into_iter().rev());
 
         Ok(block)
@@ -154,20 +157,39 @@ impl<DB: SyncDB> ChainSync<DB> {
         .await
     }
 
-    // Propagate validators from the parent block. If start new era, fetch new validators from the router.
-    async fn propagate_validators(&self, block: H256, header: BlockHeader) -> Result<()> {
-        let validators = match self.db.block_validators(header.parent_hash) {
-            Some(validators) if !self.should_fetch_validators(header)? => validators,
-            _ => {
-                RouterQuery::from_provider(
-                    self.config.router_address.0.into(),
-                    self.provider.clone(),
-                )
-                .validators_at(block)
-                .await?
-            }
-        };
-        self.db.set_block_validators(block, validators.clone());
+    /// This function guarantees the next things:
+    /// 1. if there is no validators for current era in database - it fetches them.
+    /// 2. if the election result is `finalized` it requests for next era validators and sets them in database.
+    ///
+    /// See [`Self::election_timestamp_finalized`] for the our timestamp `finalization` rules.
+    async fn ensure_validators(&self, block_hash: H256, header: BlockHeader) -> Result<()> {
+        let timelines = self
+            .db
+            .protocol_timelines()
+            .ok_or_else(|| anyhow!("protocol timelines not found in database"))?;
+        let chain_head_era = timelines.era_from_ts(header.timestamp);
+
+        // If we don't have validators for current era - set them.
+        if self.db.validators(chain_head_era).is_none() {
+            let router_query = RouterQuery::from_provider(
+                self.config.router_address.into(),
+                self.provider.clone(),
+            );
+            let validators = router_query.validators_at(block_hash).await?;
+            self.db.set_validators(chain_head_era, validators);
+        }
+
+        // Fetch next era validators if timestamp `finalized` and we don't set them in database already.
+        if let Some(election_ts) = self.election_timestamp_finalized(header)
+            && self.db.validators(chain_head_era.add(1)).is_none()
+        {
+            let middleware_query =
+                MiddlewareQuery::new(self.provider.clone(), self.config.middleware_address);
+            let next_era_validators = middleware_query.make_election_at(election_ts, 10).await?;
+            self.db
+                .set_validators(chain_head_era.add(1), next_era_validators);
+        }
+
         Ok(())
     }
 
@@ -189,25 +211,17 @@ impl<DB: SyncDB> ChainSync<DB> {
         }
     }
 
-    /// NOTE: we don't need to fetch validators for block from zero era, because of
-    /// it will be fetched in [`crate::ObserverService::pre_process_genesis_for_db`]
-    fn should_fetch_validators(&self, chain_head: BlockHeader) -> Result<bool> {
-        let timelines = self
-            .db
-            .protocol_timelines()
-            .ok_or_else(|| anyhow!("ProtocolTimelines not found in database"))?;
-        let chain_head_era = timelines.era_from_ts(chain_head.timestamp);
+    /// Function checks the `election_ts` in current era is `finalized` and if it true returns it.
+    ///
+    /// By `finalization` we mean the 64 blocks, because of it is closely to real finalization time and
+    /// reorgs for 64 blocks can not happen.
+    fn election_timestamp_finalized(&self, chain_head: BlockHeader) -> Option<u64> {
+        let timelines = self.db.protocol_timelines()?;
 
-        if chain_head_era == 0 {
-            return Ok(false);
-        }
+        let election_ts = timelines.era_end_ts(chain_head.timestamp) - timelines.election;
 
-        let parent = self.db.block_header(chain_head.parent_hash).ok_or(anyhow!(
-            "header not found for block({:?})",
-            chain_head.parent_hash
-        ))?;
-
-        let parent_era_index = timelines.era_from_ts(parent.timestamp);
-        Ok(chain_head_era > parent_era_index)
+        (chain_head.timestamp.saturating_sub(election_ts)
+            > alloy::eips::merge::SLOT_DURATION_SECS * 64)
+            .then_some(election_ts)
     }
 }
