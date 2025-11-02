@@ -19,7 +19,7 @@
 pub use tap::Tap;
 
 use crate::{
-    Address, Announce, BlockData, BlockHeader, CodeBlobInfo, Digest, HashOf, ProgramStates,
+    Announce, BlockData, BlockHeader, CodeBlobInfo, Digest, HashOf, ProgramStates,
     ProtocolTimelines, Schedule, SimpleBlockData, ValidatorsVec,
     consensus::BatchCommitmentValidationRequest,
     db::*,
@@ -32,7 +32,6 @@ use alloc::{collections::BTreeMap, vec};
 use gear_core::code::{CodeMetadata, InstrumentedCode};
 use gprimitives::{CodeId, H256};
 use itertools::Itertools;
-use nonempty::nonempty;
 use std::collections::{BTreeSet, VecDeque};
 
 // TODO #4881: use `proptest::Arbitrary` instead
@@ -189,7 +188,6 @@ impl Mock<()> for InjectedTransaction {
 pub struct SyncedBlockData {
     pub header: BlockHeader,
     pub events: Vec<BlockEvent>,
-    pub validators: ValidatorsVec,
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -298,6 +296,7 @@ pub struct BlockChain {
     pub blocks: VecDeque<BlockFullData>,
     pub announces: BTreeMap<HashOf<Announce>, AnnounceData>,
     pub codes: BTreeMap<CodeId, CodeData>,
+    pub validators: ValidatorsVec,
 }
 
 impl BlockChain {
@@ -336,9 +335,13 @@ impl BlockChain {
             blocks,
             announces,
             codes,
+            validators,
         } = self.clone();
 
         db.set_latest_data(LatestData::default());
+
+        let timelines = ProtocolTimelines::mock(());
+        db.set_protocol_timelines(timelines);
 
         if let Some(genesis) = blocks.front() {
             db.mutate_latest_data(|latest| {
@@ -364,19 +367,14 @@ impl BlockChain {
             prepared,
         } in blocks
         {
-            if let Some(SyncedBlockData {
-                header,
-                events,
-                validators,
-            }) = synced
-            {
+            if let Some(SyncedBlockData { header, events }) = synced {
                 db.mutate_latest_data(|latest| latest.synced_block_height = header.height)
                     .unwrap();
 
                 db.set_block_header(hash, header);
                 db.set_block_events(hash, &events);
                 db.set_block_synced(hash);
-                db.set_block_validators(hash, validators);
+                db.set_validators(timelines.era_from_ts(header.timestamp), validators.clone());
             }
 
             if let Some(PreparedBlockData {
@@ -468,7 +466,6 @@ impl Mock<(u32, ValidatorsVec)> for BlockChain {
                                 parent_hash,
                             },
                             events: Default::default(),
-                            validators: validators.clone(),
                         }),
                         prepared: Some(PreparedBlockData {
                             codes_queue: Default::default(),
@@ -511,6 +508,7 @@ impl Mock<(u32, ValidatorsVec)> for BlockChain {
             blocks,
             announces,
             codes: Default::default(),
+            validators,
         }
     }
 }
@@ -518,7 +516,7 @@ impl Mock<(u32, ValidatorsVec)> for BlockChain {
 impl Mock<u32> for BlockChain {
     /// `len` - length of chain not counting genesis block
     fn mock(len: u32) -> Self {
-        BlockChain::mock((len, nonempty![Address([123; 20])].into()))
+        BlockChain::mock((len, Default::default()))
     }
 }
 
@@ -555,7 +553,6 @@ impl SimpleBlockData {
     {
         db.set_block_header(self.hash, self.header);
         db.set_block_events(self.hash, &[]);
-        db.set_block_validators(self.hash, nonempty![Address([123; 20])].into());
         db.set_block_synced(self.hash);
         self
     }
@@ -579,7 +576,6 @@ impl BlockData {
     {
         db.set_block_header(self.hash, self.header);
         db.set_block_events(self.hash, &self.events);
-        db.set_block_validators(self.hash, nonempty![Address([123; 20])].into());
         db.set_block_synced(self.hash);
         self
     }

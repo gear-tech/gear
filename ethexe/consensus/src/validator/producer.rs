@@ -197,7 +197,7 @@ impl Producer {
 
         Ok(Self {
             ctx,
-            block,
+            block: block.clone(),
             validators,
             state: State::Preparing {
                 codes_timer: Some(timer),

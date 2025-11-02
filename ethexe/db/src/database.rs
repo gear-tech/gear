@@ -53,7 +53,8 @@ enum Key {
     // TODO (kuzmindev): use `HashOf<T>` here
     BlockSmallData(H256) = 0,
     BlockEvents(H256) = 1,
-    ValidatorSet(H256) = 2,
+
+    ValidatorSet(u64) = 2,
 
     AnnounceProgramStates(HashOf<Announce>) = 3,
     AnnounceOutcome(HashOf<Announce>) = 4,
@@ -85,8 +86,12 @@ impl Key {
     fn to_bytes(&self) -> Vec<u8> {
         let prefix = self.prefix();
         match self {
-            Self::BlockSmallData(hash) | Self::BlockEvents(hash) | Self::ValidatorSet(hash) => {
+            Self::BlockSmallData(hash) | Self::BlockEvents(hash) => {
                 [prefix.as_ref(), hash.as_ref()].concat()
+            }
+
+            Self::ValidatorSet(era_index) => {
+                [prefix.as_ref(), era_index.to_le_bytes().as_ref()].concat()
             }
             Self::AnnounceProgramStates(hash)
             | Self::AnnounceOutcome(hash)
@@ -503,9 +508,9 @@ impl OnChainStorageRO for Database {
             .unwrap_or_default()
     }
 
-    fn block_validators(&self, block_hash: H256) -> Option<ValidatorsVec> {
+    fn validators(&self, era_index: u64) -> Option<ValidatorsVec> {
         self.kv
-            .get(&Key::ValidatorSet(block_hash).to_bytes())
+            .get(&Key::ValidatorSet(era_index).to_bytes())
             .map(|data| {
                 Decode::decode(&mut data.as_slice())
                     .expect("Failed to decode data into `ValidatorsVec`")
@@ -543,10 +548,9 @@ impl OnChainStorageRW for Database {
         });
     }
 
-    fn set_block_validators(&self, block_hash: H256, validator_set: ValidatorsVec) {
-        tracing::trace!("Set validator set for {block_hash}: {validator_set:?}");
+    fn set_validators(&self, era_index: u64, validator_set: ValidatorsVec) {
         self.kv.put(
-            &Key::ValidatorSet(block_hash).to_bytes(),
+            &Key::ValidatorSet(era_index).to_bytes(),
             validator_set.encode(),
         );
     }

@@ -133,8 +133,6 @@ impl NetworkConfig {
 
 /// Config from other services
 pub struct NetworkRuntimeConfig {
-    pub genesis_timestamp: u64,
-    pub era_duration: u64,
     pub genesis_block_hash: H256,
 }
 
@@ -191,12 +189,6 @@ impl NetworkService {
             router_address,
         } = config;
 
-        let NetworkRuntimeConfig {
-            genesis_timestamp,
-            era_duration,
-            genesis_block_hash,
-        } = runtime_config;
-
         let keypair = NetworkService::generate_keypair(signer, public_key)?;
 
         let behaviour_config = BehaviourConfig {
@@ -234,9 +226,7 @@ impl NetworkService {
         }
 
         let validators = Validators::new(
-            genesis_timestamp,
-            era_duration,
-            genesis_block_hash,
+            runtime_config.genesis_block_hash,
             ValidatorDatabase::clone_boxed(&db),
             swarm.behaviour().peer_score.handle(),
         )
@@ -612,7 +602,7 @@ mod tests {
         utils::tests::init_logger,
     };
     use async_trait::async_trait;
-    use ethexe_common::{BlockHeader, db::OnChainStorageRW, gear::CodeState};
+    use ethexe_common::{BlockHeader, ProtocolTimelines, db::OnChainStorageRW, gear::CodeState};
     use ethexe_db::{Database, MemDb};
     use ethexe_signer::{FSKeyStorage, Signer};
     use gprimitives::{ActorId, CodeId, H256};
@@ -691,6 +681,11 @@ mod tests {
 
     fn new_service_with(db: Database, data_provider: DataProvider) -> NetworkService {
         const GENESIS_BLOCK: H256 = H256::zero();
+        const TIMELINES: ProtocolTimelines = ProtocolTimelines {
+            genesis_ts: 1_000_000,
+            era: 1,
+            election: 1,
+        };
 
         db.set_block_header(
             GENESIS_BLOCK,
@@ -700,7 +695,8 @@ mod tests {
                 parent_hash: Default::default(),
             },
         );
-        db.set_block_validators(GENESIS_BLOCK, nonempty![Address::default()].into());
+        db.set_validators(0, nonempty![Address::default()].into());
+        db.set_protocol_timelines(TIMELINES);
 
         let key_storage = FSKeyStorage::tmp();
         let signer = Signer::new(key_storage);
@@ -708,8 +704,6 @@ mod tests {
         let config = NetworkConfig::new_test(key, Address::default());
 
         let runtime_config = NetworkRuntimeConfig {
-            genesis_timestamp: 1_000_000,
-            era_duration: 1,
             genesis_block_hash: GENESIS_BLOCK,
         };
 
