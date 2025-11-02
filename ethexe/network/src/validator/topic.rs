@@ -221,7 +221,9 @@ mod tests {
     const GENESIS_CHAIN_HEAD: H256 = H256::zero();
     const CHAIN_HEAD_TIMESTAMP: u64 = GENESIS_TIMESTAMP + (ERA_DURATION * 10);
 
-    fn new_validators() -> (ValidatorTopic, ValidatorList, Database) {
+    fn new_validators_with(
+        validators: impl Into<nonempty::NonEmpty<Address>>,
+    ) -> (ValidatorTopic, ValidatorList, Database) {
         let db = Database::memory();
         db.set_block_header(
             GENESIS_CHAIN_HEAD,
@@ -231,15 +233,19 @@ mod tests {
                 parent_hash: H256::random(),
             },
         );
-        db.set_block_validators(GENESIS_CHAIN_HEAD, nonempty![Address::default()]);
 
-        let list = ValidatorList::new(
-            GENESIS_TIMESTAMP,
-            ERA_DURATION,
-            GENESIS_CHAIN_HEAD,
-            ValidatorDatabase::clone_boxed(&db),
-        )
-        .unwrap();
+        use ethexe_common::ProtocolTimelines;
+        db.set_protocol_timelines(ProtocolTimelines {
+            genesis_ts: GENESIS_TIMESTAMP,
+            era: ERA_DURATION,
+            election: ERA_DURATION / 2,
+        });
+
+        let genesis_era = (CHAIN_HEAD_TIMESTAMP - GENESIS_TIMESTAMP) / ERA_DURATION;
+        db.set_validators(genesis_era, validators.into().into());
+
+        let list =
+            ValidatorList::new(GENESIS_CHAIN_HEAD, ValidatorDatabase::clone_boxed(&db)).unwrap();
 
         let topic = ValidatorTopic::new(
             ValidatorDatabase::clone_boxed(&db),
@@ -247,6 +253,10 @@ mod tests {
         );
 
         (topic, list, db)
+    }
+
+    fn new_validators() -> (ValidatorTopic, ValidatorList, Database) {
+        new_validators_with(nonempty![Address::default()])
     }
 
     fn new_validator_message() -> (Address, SignedValidatorMessage, H256) {
@@ -273,12 +283,10 @@ mod tests {
     fn unknown_block() {
         const BOB_BLOCK_TIMESTAMP: u64 = CHAIN_HEAD_TIMESTAMP + (ERA_DURATION * 100);
 
-        let (mut alice, mut alice_list, alice_db) = new_validators();
         let (bob_address, bob_message, bob_block) = new_validator_message();
         let bob_verified = bob_message.clone().into_verified();
 
-        alice_db.set_block_validators(GENESIS_CHAIN_HEAD, nonempty![bob_address]);
-        alice_list.set_chain_head(GENESIS_CHAIN_HEAD).unwrap();
+        let (mut alice, mut alice_list, alice_db) = new_validators_with(nonempty![bob_address]);
 
         let err = alice.inner_verify(&alice_list, &bob_verified).unwrap_err();
         assert_eq!(err, VerificationError::UnknownBlock { block: bob_block });
@@ -307,7 +315,8 @@ mod tests {
                 parent_hash: Default::default(),
             },
         );
-        alice_db.set_block_validators(new_chain_head, nonempty![bob_address]);
+        let new_era = alice_list.block_era_index(BOB_BLOCK_TIMESTAMP);
+        alice_db.set_validators(new_era, nonempty![bob_address].into());
         alice_list.set_chain_head(new_chain_head).unwrap();
         alice.on_new_era(&alice_list);
 
@@ -316,9 +325,10 @@ mod tests {
 
     #[test]
     fn too_old_era() {
-        let (mut alice, mut alice_list, alice_db) = new_validators();
         let (bob_address, bob_message, bob_block) = new_validator_message();
         let bob_verified = bob_message.clone().into_verified();
+
+        let (mut alice, alice_list, alice_db) = new_validators_with(nonempty![bob_address]);
 
         alice_db.set_block_header(
             bob_block,
@@ -328,8 +338,6 @@ mod tests {
                 parent_hash: Default::default(),
             },
         );
-        alice_db.set_block_validators(GENESIS_CHAIN_HEAD, nonempty![bob_address]);
-        alice_list.set_chain_head(GENESIS_CHAIN_HEAD).unwrap();
 
         let chain_head_era = alice_list.block_era_index(CHAIN_HEAD_TIMESTAMP);
 
@@ -353,9 +361,10 @@ mod tests {
 
     #[test]
     fn old_era() {
-        let (mut alice, mut alice_list, alice_db) = new_validators();
         let (bob_address, bob_message, bob_block) = new_validator_message();
         let bob_verified = bob_message.clone().into_verified();
+
+        let (mut alice, alice_list, alice_db) = new_validators_with(nonempty![bob_address]);
 
         alice_db.set_block_header(
             bob_block,
@@ -365,8 +374,6 @@ mod tests {
                 parent_hash: Default::default(),
             },
         );
-        alice_db.set_block_validators(GENESIS_CHAIN_HEAD, nonempty![bob_address]);
-        alice_list.set_chain_head(GENESIS_CHAIN_HEAD).unwrap();
 
         let chain_head_era = alice_list.block_era_index(CHAIN_HEAD_TIMESTAMP);
 
@@ -392,9 +399,10 @@ mod tests {
     fn too_new_era() {
         const BOB_BLOCK_TIMESTAMP: u64 = CHAIN_HEAD_TIMESTAMP + (ERA_DURATION * 2);
 
-        let (mut alice, mut alice_list, alice_db) = new_validators();
         let (bob_address, bob_message, bob_block) = new_validator_message();
         let bob_verified = bob_message.clone().into_verified();
+
+        let (mut alice, alice_list, alice_db) = new_validators_with(nonempty![bob_address]);
 
         alice_db.set_block_header(
             bob_block,
@@ -404,8 +412,6 @@ mod tests {
                 parent_hash: Default::default(),
             },
         );
-        alice_db.set_block_validators(GENESIS_CHAIN_HEAD, nonempty![bob_address]);
-        alice_list.set_chain_head(GENESIS_CHAIN_HEAD).unwrap();
 
         let chain_head_era = alice_list.block_era_index(CHAIN_HEAD_TIMESTAMP);
 
@@ -430,9 +436,10 @@ mod tests {
     fn new_era() {
         const BOB_BLOCK_TIMESTAMP: u64 = CHAIN_HEAD_TIMESTAMP + ERA_DURATION;
 
-        let (mut alice, mut alice_list, alice_db) = new_validators();
         let (bob_address, bob_message, bob_block) = new_validator_message();
         let bob_verified = bob_message.clone().into_verified();
+
+        let (mut alice, mut alice_list, alice_db) = new_validators_with(nonempty![bob_address]);
 
         alice_db.set_block_header(
             bob_block,
@@ -442,8 +449,6 @@ mod tests {
                 parent_hash: Default::default(),
             },
         );
-        alice_db.set_block_validators(GENESIS_CHAIN_HEAD, nonempty![bob_address]);
-        alice_list.set_chain_head(GENESIS_CHAIN_HEAD).unwrap();
 
         let chain_head_era = alice_list.block_era_index(CHAIN_HEAD_TIMESTAMP);
 
@@ -472,7 +477,8 @@ mod tests {
                 parent_hash: Default::default(),
             },
         );
-        alice_db.set_block_validators(new_chain_head, nonempty![bob_address]);
+        let new_era = alice_list.block_era_index(BOB_BLOCK_TIMESTAMP);
+        alice_db.set_validators(new_era, nonempty![bob_address].into());
         alice_list.set_chain_head(new_chain_head).unwrap();
         alice.on_new_era(&alice_list);
 
@@ -504,12 +510,10 @@ mod tests {
 
     #[test]
     fn success() {
-        let (mut alice, mut alice_list, alice_db) = new_validators();
         let (bob_address, bob_message, bob_block) = new_validator_message();
         let bob_verified = bob_message.clone().into_verified();
 
-        alice_db.set_block_validators(GENESIS_CHAIN_HEAD, nonempty![bob_address]);
-        alice_list.set_chain_head(GENESIS_CHAIN_HEAD).unwrap();
+        let (mut alice, alice_list, alice_db) = new_validators_with(nonempty![bob_address]);
 
         alice_db.set_block_header(
             bob_block,
@@ -533,8 +537,6 @@ mod tests {
     fn reverify_cached_messages_with_bad_peer() {
         const NEXT_ERA_TIMESTAMP: u64 = CHAIN_HEAD_TIMESTAMP + ERA_DURATION;
 
-        let (mut alice, mut alice_list, alice_db) = new_validators();
-
         // Bob creates a valid message for next era (will be cached)
         let (bob_address, bob_message, bob_block) = new_validator_message();
         let bob_verified = bob_message.clone().into_verified();
@@ -545,6 +547,9 @@ mod tests {
 
         // Dave creates a message for next era (will be cached, then become invalid when not a validator)
         let (dave_address, dave_message, dave_block) = new_validator_message();
+
+        let (mut alice, mut alice_list, alice_db) =
+            new_validators_with(nonempty![bob_address, charlie_address, dave_address]);
 
         // Setup all blocks for next era
         alice_db.set_block_header(
@@ -573,13 +578,6 @@ mod tests {
                 parent_hash: Default::default(),
             },
         );
-
-        // Set current validators (including all three)
-        alice_db.set_block_validators(
-            GENESIS_CHAIN_HEAD,
-            nonempty![bob_address, charlie_address, dave_address],
-        );
-        alice_list.set_chain_head(GENESIS_CHAIN_HEAD).unwrap();
 
         // All three messages are cached (NewEra)
         let bob_source = PeerId::random();
@@ -613,7 +611,8 @@ mod tests {
                 parent_hash: Default::default(),
             },
         );
-        alice_db.set_block_validators(new_chain_head, nonempty![bob_address, charlie_address]);
+        let new_era = alice_list.block_era_index(NEXT_ERA_TIMESTAMP);
+        alice_db.set_validators(new_era, nonempty![bob_address, charlie_address].into());
         alice_list.set_chain_head(new_chain_head).unwrap();
         alice.on_new_era(&alice_list);
 
