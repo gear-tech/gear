@@ -40,7 +40,6 @@ use ethexe_common::{
 use ethexe_signer::Signer;
 use futures::{Stream, future::Either, ready, stream::FusedStream};
 use gprimitives::H256;
-use hpke::Deserializable;
 use libp2p::{
     Multiaddr, PeerId, Swarm, Transport, connection_limits,
     core::{muxing::StreamMuxerBox, transport, transport::ListenerId, upgrade},
@@ -522,13 +521,8 @@ impl NetworkService {
         // put new identity to KAD
         {
             let current_era_index = self.validator_list.current_era_index();
-            let offchain_transaction_key =
-                utils::hpke::PublicKey::from_bytes(&[0; 32]).expect("infallible");
 
-            match behaviour
-                .validator_discovery
-                .identity(current_era_index, offchain_transaction_key)
-            {
+            match behaviour.validator_discovery.identity(current_era_index) {
                 Some(Ok(identity)) => {
                     if let Err(err) = behaviour.kad.put_record(identity, kad::Quorum::Majority) {
                         log::warn!("failed to put record into local storage: {err}");

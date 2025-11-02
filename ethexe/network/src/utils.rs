@@ -31,22 +31,6 @@ use std::{
     marker::PhantomData,
 };
 
-#[allow(unused)]
-pub(crate) mod hpke {
-    pub use hpke::*;
-
-    pub type Kem = kem::X25519HkdfSha256;
-    pub type Aead = aead::ChaCha20Poly1305;
-    pub type Kdf = kdf::HkdfSha256;
-
-    pub type AeadCtxS = aead::AeadCtxS<Aead, Kdf, Kem>;
-    pub type AeadCtxR = aead::AeadCtxR<Aead, Kdf, Kem>;
-
-    pub type PublicKey = <Kem as hpke::Kem>::PublicKey;
-    pub type PrivateKey = <Kem as hpke::Kem>::PrivateKey;
-    pub type EncappedKey = <Kem as hpke::Kem>::EncappedKey;
-}
-
 pub struct ParityScaleCodec<Req, Resp>(PhantomData<(Req, Resp)>);
 
 impl<Req, Resp> ParityScaleCodec<Req, Resp> {

@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{db_sync::PeerId, utils::hpke, validator::list::ValidatorList};
+use crate::{db_sync::PeerId, validator::list::ValidatorList};
 use anyhow::Context;
 use ethexe_common::{
     Address, ToDigest,
@@ -24,7 +24,6 @@ use ethexe_common::{
     sha3::Keccak256,
 };
 use ethexe_signer::Signer;
-use hpke::{Deserializable, Serializable};
 use libp2p::{
     Multiaddr,
     core::{Endpoint, PeerRecord, SignedEnvelope, transport::PortUse},
@@ -46,7 +45,6 @@ pub type SignedValidatorIdentity = SignedData<ValidatorIdentity>;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatorIdentity {
     peer_record: PeerRecord,
-    offchain_transaction_key: hpke::PublicKey,
     era_index: u64,
     creation_time: u128,
 }
@@ -55,7 +53,6 @@ impl ToDigest for ValidatorIdentity {
     fn update_hasher(&self, hasher: &mut Keccak256) {
         let Self {
             peer_record,
-            offchain_transaction_key,
             era_index,
             creation_time,
         } = self;
@@ -64,7 +61,6 @@ impl ToDigest for ValidatorIdentity {
             .to_signed_envelope()
             .into_protobuf_encoding()
             .update_hasher(hasher);
-        offchain_transaction_key.to_bytes().update_hasher(hasher);
         era_index.to_be_bytes().update_hasher(hasher);
         creation_time.to_be_bytes().update_hasher(hasher);
     }
@@ -74,17 +70,13 @@ impl Encode for ValidatorIdentity {
     fn encode_to<T: Output + ?Sized>(&self, dest: &mut T) {
         let Self {
             peer_record,
-            offchain_transaction_key,
             era_index,
             creation_time,
         } = self;
 
         let peer_record: Vec<u8> = peer_record.to_signed_envelope().into_protobuf_encoding();
-        let offchain_transaction_key: [u8; size_of::<hpke::PublicKey>()] =
-            offchain_transaction_key.to_bytes().into();
 
         peer_record.encode_to(dest);
-        offchain_transaction_key.encode_to(dest);
         era_index.encode_to(dest);
         creation_time.encode_to(dest);
     }
@@ -101,18 +93,11 @@ impl Decode for ValidatorIdentity {
             parity_scale_codec::Error::from("failed to decode peer record").chain(e.to_string())
         })?;
 
-        let offchain_transaction_key = <[u8; size_of::<hpke::PublicKey>()]>::decode(input)?;
-        let offchain_transaction_key = hpke::PublicKey::from_bytes(&offchain_transaction_key)
-            .map_err(|e| {
-                parity_scale_codec::Error::from("failed to decode public key").chain(e.to_string())
-            })?;
-
         let era_index = u64::decode(input)?;
         let creation_time = u128::decode(input)?;
 
         Ok(Self {
             peer_record,
-            offchain_transaction_key,
             era_index,
             creation_time,
         })
@@ -162,11 +147,7 @@ impl Behaviour {
             .map(move |address| Self::identity_key(current_era_index, address))
     }
 
-    pub fn identity(
-        &self,
-        current_era_index: u64,
-        offchain_transaction_key: hpke::PublicKey,
-    ) -> Option<anyhow::Result<kad::Record>> {
+    pub fn identity(&self, current_era_index: u64) -> Option<anyhow::Result<kad::Record>> {
         let validator_key = self.validator_key?;
 
         let f = || {
@@ -181,7 +162,6 @@ impl Behaviour {
 
             let identity = ValidatorIdentity {
                 peer_record,
-                offchain_transaction_key,
                 era_index: current_era_index,
                 creation_time,
             };
@@ -290,7 +270,6 @@ mod tests {
         let keypair = Keypair::generate_secp256k1();
         let identity = ValidatorIdentity {
             peer_record: PeerRecord::new(&keypair, vec![]).unwrap(),
-            offchain_transaction_key: hpke::PublicKey::from_bytes(&[0xfe; 32]).unwrap(),
             era_index: 123,
             creation_time: 999_999,
         };
