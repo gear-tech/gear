@@ -236,9 +236,15 @@ impl Service {
         };
 
         let network = if let Some(net_config) = &config.network {
-            // TODO: use normal path
-            let network_signer = config.node.key_path.join("../net");
-            let network_signer = Signer::fs(network_signer);
+            // TODO: #4918 create Signer object correctly for test/prod environments
+            let network_signer = Signer::fs(
+                config
+                    .node
+                    .key_path
+                    .parent()
+                    .context("key_path has no parent directory")?
+                    .join("net"),
+            );
 
             let runtime_config = NetworkRuntimeConfig {
                 genesis_block_hash: observer.genesis_block_hash(),
@@ -248,15 +254,6 @@ impl Service {
                 external_data_provider: Box::new(RouterDataProvider(router_query)),
                 db: Box::new(db.clone()),
             };
-            // TODO: #4918 create Signer object correctly for test/prod environments
-            let signer = Signer::fs(
-                config
-                    .node
-                    .key_path
-                    .parent()
-                    .context("key_path has no parent directory")?
-                    .join("net"),
-            );
 
             let network = NetworkService::new(net_config.clone(), runtime_config)
                 .with_context(|| "failed to create network service")?;
