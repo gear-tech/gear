@@ -242,11 +242,9 @@ impl NetworkService {
             swarm.behaviour_mut().kad.add_address(&peer_id, multiaddr);
         }
 
-        let validator_list = ValidatorList::new(
-            runtime_config.genesis_block_hash,
-            ValidatorDatabase::clone_boxed(&db),
-        )
-        .context("failed to create validator list")?;
+        let validator_list =
+            ValidatorList::new(genesis_block_hash, ValidatorDatabase::clone_boxed(&db))
+                .context("failed to create validator list")?;
 
         let validator_topic = ValidatorTopic::new(
             ValidatorDatabase::clone_boxed(&db),
@@ -421,7 +419,7 @@ impl NetworkService {
                 }
             }
             BehaviourEvent::Kad(kad::Event::OutboundQueryProgressed {
-                id,
+                id: _,
                 result,
                 stats: _,
                 step: _,

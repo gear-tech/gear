@@ -21,12 +21,7 @@
 
 use crate::validator::ValidatorDatabase;
 use anyhow::Context;
-use ethexe_common::{
-    Address, BlockHeader, ProtocolTimelines, ValidatorsVec,
-    db::OnChainStorageRO,
-    network::{SignedValidatorMessage, VerifiedValidatorMessage},
-};
-use ethexe_db::Database;
+use ethexe_common::{Address, BlockHeader, ProtocolTimelines, ValidatorsVec, db::OnChainStorageRO};
 use gprimitives::H256;
 use nonempty::NonEmpty;
 
@@ -46,8 +41,6 @@ struct ChainHead {
 /// Messages from era N+1 are rechecked after the next validator set arrives.
 pub(crate) struct ValidatorList {
     timelines: ProtocolTimelines,
-    cached_messages: CachedMessages,
-    verified_messages: VecDeque<VerifiedValidatorMessage>,
     db: Box<dyn ValidatorDatabase>,
     chain_head: ChainHead,
 }
@@ -69,12 +62,12 @@ impl ValidatorList {
         })
     }
 
-    fn get_chain_head(
+    fn get_chain_head<F>(
         db: &impl ValidatorDatabase,
         timelines: &ProtocolTimelines,
         chain_head: H256,
         filter: F,
-    ) -> anyhow::Result<ChainHead>
+    ) -> anyhow::Result<Option<ChainHead>>
     where
         F: FnOnce(&BlockHeader) -> bool,
     {
@@ -102,11 +95,12 @@ impl ValidatorList {
     ///
     /// Previously cached messages are rechecked once the new context is available.
     pub(crate) fn set_chain_head(&mut self, chain_head: H256) -> anyhow::Result<bool> {
-        let chain_head = Self::get_chain_head(&self.db, &self.timelines, chain_head, |chain_head_header| {
-            let new_era = self.block_era_index(chain_head_header.timestamp);
-            let old_era = self.current_era_index();
-            new_era <= old_era
-        })?;
+        let chain_head =
+            Self::get_chain_head(&self.db, &self.timelines, chain_head, |chain_head_header| {
+                let new_era = self.timelines.era_from_ts(chain_head_header.timestamp);
+                let old_era = self.current_era_index();
+                new_era <= old_era
+            })?;
 
         match chain_head {
             Some(chain_head) => {
@@ -118,7 +112,11 @@ impl ValidatorList {
     }
 
     pub(crate) fn current_era_index(&self) -> u64 {
-        self.block_era_index(self.chain_head.header.timestamp)
+        self.timelines.era_from_ts(self.chain_head.header.timestamp)
+    }
+
+    pub(crate) fn block_era_index(&self, block_ts: u64) -> u64 {
+        self.timelines.era_from_ts(block_ts)
     }
 
     pub(crate) fn current_validators(&self) -> impl Iterator<Item = Address> {
@@ -139,8 +137,4 @@ impl ValidatorList {
     // TODO: make actual implementation when `NextEraValidatorsCommitted` event is emitted before era transition
     #[allow(dead_code)]
     pub(crate) fn set_next_era_validators(&mut self) {}
-
-    pub(crate) fn block_era_index(&self, block_ts: u64) -> u64 {
-        (block_ts - self.genesis_timestamp) / self.era_duration
-    }
 }

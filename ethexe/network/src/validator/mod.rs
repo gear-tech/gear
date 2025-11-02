@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use ethexe_common::db::OnChainStorageRead;
+use ethexe_common::db::OnChainStorageRO;
 use ethexe_db::Database;
 
 pub(crate) mod discovery;
@@ -24,7 +24,7 @@ pub(crate) mod list;
 pub(crate) mod topic;
 
 #[auto_impl::auto_impl(&, Box)]
-pub trait ValidatorDatabase: Send + OnChainStorageRead {
+pub trait ValidatorDatabase: Send + OnChainStorageRO {
     fn clone_boxed(&self) -> Box<dyn ValidatorDatabase>;
 }
 

@@ -210,7 +210,7 @@ mod tests {
     use super::*;
     use assert_matches::assert_matches;
     use ethexe_common::{
-        Announce, BlockHeader, db::OnChainStorageWrite, mock::Mock, network::ValidatorMessage,
+        Announce, BlockHeader, db::OnChainStorageRW, mock::Mock, network::ValidatorMessage,
     };
     use ethexe_db::Database;
     use ethexe_signer::Signer;
