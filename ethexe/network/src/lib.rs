@@ -253,12 +253,17 @@ impl NetworkService {
             swarm.behaviour().peer_score.handle(),
         );
 
-        Ok(Self {
+        let mut this = Self {
             swarm,
             listeners,
             validator_list,
             validator_topic,
-        })
+        };
+
+        // bootstrap validator structures
+        this.on_new_era();
+
+        Ok(this)
     }
 
     fn generate_keypair(signer: &Signer, key: PublicKey) -> anyhow::Result<identity::Keypair> {
@@ -416,36 +421,45 @@ impl NetworkService {
                 }
             }
             BehaviourEvent::Kad(kad::Event::OutboundQueryProgressed {
-                id: _,
+                id,
                 result,
                 stats: _,
                 step: _,
-            }) => match result {
-                kad::QueryResult::GetRecord(get_record_result) => match get_record_result {
-                    Ok(kad::GetRecordOk::FoundRecord(peer_record)) => {
-                        let behaviour = self.swarm.behaviour_mut();
-                        if let Err(err) = behaviour
-                            .validator_discovery
-                            .put_identity(&self.validator_list, peer_record.record)
-                        {
-                            log::trace!("failed to put identity: {err}");
+            }) => {
+                let behaviour = self.swarm.behaviour_mut();
+
+                match result {
+                    kad::QueryResult::GetRecord(get_record_result) => match get_record_result {
+                        Ok(kad::GetRecordOk::FoundRecord(peer_record)) => {
+                            if let Err(err) = behaviour
+                                .validator_discovery
+                                .put_identity(&self.validator_list, peer_record.record)
+                            {
+                                log::trace!("failed to put identity: {err}");
+                            }
                         }
-                    }
-                    Ok(kad::GetRecordOk::FinishedWithNoAdditionalRecord {
-                        cache_candidates: _,
-                    }) => {}
-                    Err(err) => {
-                        log::warn!("failed to get record: {err}");
-                    }
-                },
-                kad::QueryResult::PutRecord(put_record_result) => match put_record_result {
-                    Ok(_) => {}
-                    Err(err) => {
-                        log::warn!("failed to put record: {err}");
-                    }
-                },
-                _ => {}
-            },
+                        Ok(kad::GetRecordOk::FinishedWithNoAdditionalRecord {
+                            cache_candidates: _,
+                        }) => {}
+                        Err(kad::GetRecordError::NotFound {
+                            key,
+                            closest_peers: _,
+                        }) => {
+                            behaviour.kad.get_record(key);
+                        }
+                        Err(err) => {
+                            log::warn!("failed to get record: {err}");
+                        }
+                    },
+                    kad::QueryResult::PutRecord(put_record_result) => match put_record_result {
+                        Ok(_) => {}
+                        Err(err) => {
+                            log::warn!("failed to put record: {err}");
+                        }
+                    },
+                    _ => {}
+                }
+            }
             BehaviourEvent::Kad(_) => {}
             //
             BehaviourEvent::Gossipsub(gossipsub::Event::Message { source, validator }) => {
@@ -483,7 +497,7 @@ impl NetworkService {
                 return Some(NetworkEvent::InjectedTransaction(transaction));
             }
             //
-            BehaviourEvent::ValidatorDiscovery(e) => match e {},
+            BehaviourEvent::ValidatorDiscovery(validator::discovery::Event::GetIdentities) => {}
         }
 
         None
@@ -501,14 +515,15 @@ impl NetworkService {
         self.swarm.behaviour().db_sync.handle()
     }
 
-    pub fn set_chain_head(&mut self, chain_head: H256) -> anyhow::Result<()> {
-        self.validator_list.set_chain_head(chain_head)?;
-        self.validator_topic.on_chain_head(&self.validator_list);
+    fn on_new_era(&mut self) {
+        // revalidate cached messages
+        self.validator_topic.on_new_era(&self.validator_list);
 
-        let current_era_index = self.validator_list.current_era_index();
         let behaviour = self.swarm.behaviour_mut();
 
+        // put new identity to KAD
         {
+            let current_era_index = self.validator_list.current_era_index();
             let offchain_transaction_key =
                 utils::hpke::PublicKey::from_bytes(&[0; 32]).expect("infallible");
 
@@ -530,13 +545,20 @@ impl NetworkService {
             }
         }
 
+        // get other validator identities
+        for key in behaviour
+            .validator_discovery
+            .identity_keys(&self.validator_list)
         {
-            for validator in self.validator_list.current_validators() {
-                let key = behaviour
-                    .validator_discovery
-                    .identity_key(validator, current_era_index);
-                behaviour.kad.get_record(key);
-            }
+            behaviour.kad.get_record(key);
+        }
+    }
+
+    pub fn set_chain_head(&mut self, chain_head: H256) -> anyhow::Result<()> {
+        let era_changed = self.validator_list.set_chain_head(chain_head)?;
+
+        if era_changed {
+            self.on_new_era();
         }
 
         Ok(())

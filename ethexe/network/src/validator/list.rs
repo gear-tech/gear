@@ -60,9 +60,11 @@ impl ValidatorList {
         let timelines = db
             .protocol_timelines()
             .context("protocol timelines not found in db")?;
+        let chain_head = Self::get_chain_head(&db, &timelines, genesis_block_hash, |_| false)?
+            .expect("filter is always false");
         Ok(Self {
             timelines,
-            chain_head: Self::get_chain_head(&db, &timelines, genesis_block_hash)?,
+            chain_head,
             db,
         })
     }
@@ -71,26 +73,48 @@ impl ValidatorList {
         db: &impl ValidatorDatabase,
         timelines: &ProtocolTimelines,
         chain_head: H256,
-    ) -> anyhow::Result<ChainHead> {
+        filter: F,
+    ) -> anyhow::Result<ChainHead>
+    where
+        F: FnOnce(&BlockHeader) -> bool,
+    {
         let chain_head_header = db
             .block_header(chain_head)
             .context("chain head header not found")?;
+
+        if filter(&chain_head_header) {
+            return Ok(None);
+        }
+
         let validators = db
             .validators(timelines.era_from_ts(chain_head_header.timestamp))
             .context("validators not found")?;
-        Ok(ChainHead {
+
+        let chain_head = ChainHead {
             header: chain_head_header,
             current_validators: validators,
             next_validators: None,
-        })
+        };
+        Ok(Some(chain_head))
     }
 
     /// Refresh the current chain head and validator set snapshot.
     ///
     /// Previously cached messages are rechecked once the new context is available.
-    pub(crate) fn set_chain_head(&mut self, chain_head: H256) -> anyhow::Result<()> {
-        self.chain_head = Self::get_chain_head(&self.db, &self.timelines, chain_head)?;
-        Ok(())
+    pub(crate) fn set_chain_head(&mut self, chain_head: H256) -> anyhow::Result<bool> {
+        let chain_head = Self::get_chain_head(&self.db, &self.timelines, chain_head, |chain_head_header| {
+            let new_era = self.block_era_index(chain_head_header.timestamp);
+            let old_era = self.current_era_index();
+            new_era <= old_era
+        })?;
+
+        match chain_head {
+            Some(chain_head) => {
+                self.chain_head = chain_head;
+                Ok(true)
+            }
+            None => Ok(false),
+        }
     }
 
     pub(crate) fn current_era_index(&self) -> u64 {

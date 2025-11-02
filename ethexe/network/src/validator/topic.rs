@@ -142,7 +142,7 @@ impl ValidatorTopic {
         Ok(())
     }
 
-    pub(crate) fn on_chain_head(&mut self, list: &ValidatorList) {
+    pub(crate) fn on_new_era(&mut self, list: &ValidatorList) {
         let cached_messages =
             mem::replace(&mut self.cached_messages, LruCache::new(MAX_CACHED_PEERS));
         'cached: for (source, messages) in cached_messages {
@@ -309,7 +309,7 @@ mod tests {
         );
         alice_db.set_block_validators(new_chain_head, nonempty![bob_address]);
         alice_list.set_chain_head(new_chain_head).unwrap();
-        alice.on_chain_head(&alice_list);
+        alice.on_new_era(&alice_list);
 
         assert_eq!(alice.next_message(), Some(bob_verified));
     }
@@ -474,7 +474,7 @@ mod tests {
         );
         alice_db.set_block_validators(new_chain_head, nonempty![bob_address]);
         alice_list.set_chain_head(new_chain_head).unwrap();
-        alice.on_chain_head(&alice_list);
+        alice.on_new_era(&alice_list);
 
         assert_eq!(alice.next_message(), Some(bob_verified));
     }
@@ -615,7 +615,7 @@ mod tests {
         );
         alice_db.set_block_validators(new_chain_head, nonempty![bob_address, charlie_address]);
         alice_list.set_chain_head(new_chain_head).unwrap();
-        alice.on_chain_head(&alice_list);
+        alice.on_new_era(&alice_list);
 
         // Bob and Charlie should be verified, Dave should fail but not block others
         let mut verified = vec![];

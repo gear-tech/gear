@@ -120,7 +120,9 @@ impl Decode for ValidatorIdentity {
 }
 
 #[derive(Debug)]
-pub enum Event {}
+pub enum Event {
+    GetIdentities,
+}
 
 #[derive(Debug)]
 pub struct Behaviour {
@@ -144,13 +146,20 @@ impl Behaviour {
         }
     }
 
-    pub fn identity_key(&self, validator: Address, current_era_index: u64) -> kad::RecordKey {
+    fn identity_key(current_era_index: u64, validator: Address) -> kad::RecordKey {
         let vec = [
-            validator.0.as_slice(),
+            b"/validator-identity/",
             current_era_index.to_be_bytes().as_slice(),
+            validator.0.as_slice(),
         ]
         .concat();
         kad::RecordKey::from(vec)
+    }
+
+    pub fn identity_keys(&self, list: &ValidatorList) -> impl Iterator<Item = kad::RecordKey> {
+        let current_era_index = list.current_era_index();
+        list.current_validators()
+            .map(move |address| Self::identity_key(current_era_index, address))
     }
 
     pub fn identity(
@@ -181,7 +190,7 @@ impl Behaviour {
                 .signed_data(validator_key, identity)
                 .context("failed to sign validator identity")?;
 
-            let key = self.identity_key(validator_key.to_address(), current_era_index);
+            let key = Self::identity_key(current_era_index, validator_key.to_address());
             let record = kad::Record::new(key, identity.encode());
             Ok(record)
         };
@@ -202,6 +211,8 @@ impl Behaviour {
     ) -> anyhow::Result<()> {
         let identity = SignedValidatorIdentity::decode(&mut &identity.value[..])
             .context("failed to decode signed validator identity")?;
+
+        log::error!("validator identity: {:?}", identity.data());
 
         anyhow::ensure!(
             list.contains_any_validator(identity.address()),
