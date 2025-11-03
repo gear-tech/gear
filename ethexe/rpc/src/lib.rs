@@ -215,10 +215,6 @@ impl FusedStream for RpcReceiver {
 
 #[derive(Debug)]
 pub enum RpcEvent {
-    OffchainTransaction {
-        transaction: SignedOffchainTransaction,
-        response_sender: Option<oneshot::Sender<Result<H256>>>,
-    },
     InjectedTransaction {
         transaction: SignedInjectedTransaction,
         response_sender: oneshot::Sender<InjectedTransactionAcceptance>,

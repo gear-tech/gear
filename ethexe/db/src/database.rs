@@ -32,8 +32,10 @@ use ethexe_common::{
     },
     events::BlockEvent,
     gear::StateTransition,
+    injected::InjectedTransaction,
     tx_pool::SignedOffchainTransaction,
 };
+
 use ethexe_runtime_common::state::{
     Allocations, DispatchStash, Mailbox, MemoryPages, MemoryPagesRegion, MessageQueue,
     ProgramState, Storage, UserMailbox, Waitlist,
@@ -46,7 +48,7 @@ use gear_core::{
 };
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
-use std::collections::BTreeSet;
+use std::collections::{BTreeSet, HashSet};
 
 #[repr(u64)]
 enum Key {
@@ -67,8 +69,7 @@ enum Key {
     CodeUploadInfo(CodeId) = 10,
     CodeValid(CodeId) = 11,
 
-    // TODO (kuzmindev): use `HashOf<T>` here
-    SignedTransaction(H256) = 12,
+    InjectedTransactions = 12,
 
     LatestData = 13,
     Timelines = 14,
@@ -98,8 +99,6 @@ impl Key {
             | Self::AnnounceSchedule(hash)
             | Self::AnnounceMeta(hash) => [prefix.as_ref(), hash.hash().as_ref()].concat(),
 
-            Self::SignedTransaction(hash) => [prefix.as_ref(), hash.0.as_ref()].concat(),
-
             Self::ProgramToCodeId(program_id) => [prefix.as_ref(), program_id.as_ref()].concat(),
 
             Self::CodeMetadata(code_id)
@@ -112,7 +111,9 @@ impl Key {
                 code_id.as_ref(),
             ]
             .concat(),
-            Self::LatestData | Self::Timelines => prefix.as_ref().to_vec(),
+            Self::InjectedTransactions | Self::LatestData | Self::Timelines => {
+                prefix.as_ref().to_vec()
+            }
         }
     }
 }
@@ -167,20 +168,20 @@ impl Database {
         self.cas.write(data)
     }
 
-    pub fn get_offchain_transaction(&self, tx_hash: H256) -> Option<SignedOffchainTransaction> {
-        self.kv
-            .get(&Key::SignedTransaction(tx_hash).to_bytes())
-            .map(|data| {
-                Decode::decode(&mut data.as_slice())
-                    .expect("failed to data into `SignedTransaction`")
-            })
-    }
+    // pub fn get_offchain_transaction(&self, tx_hash: H256) -> Option<SignedOffchainTransaction> {
+    //     self.kv
+    //         .get(&Key::SignedTransaction(tx_hash).to_bytes())
+    //         .map(|data| {
+    //             Decode::decode(&mut data.as_slice())
+    //                 .expect("failed to data into `SignedTransaction`")
+    //         })
+    // }
 
-    pub fn set_offchain_transaction(&self, tx: SignedOffchainTransaction) {
-        let tx_hash = tx.tx_hash();
-        self.kv
-            .put(&Key::SignedTransaction(tx_hash).to_bytes(), tx.encode());
-    }
+    // pub fn set_offchain_transaction(&self, tx: SignedOffchainTransaction) {
+    //     let tx_hash = tx.tx_hash();
+    //     self.kv
+    //         .put(&Key::SignedTransaction(tx_hash).to_bytes(), tx.encode());
+    // }
 
     fn with_small_data<R>(
         &self,
@@ -668,32 +669,31 @@ impl LatestDataStorageRW for Database {
 mod tests {
     use super::*;
     use ethexe_common::{
-        ecdsa::PrivateKey,
         events::RouterEvent,
         tx_pool::{OffchainTransaction, RawOffchainTransaction::SendMessage},
     };
     use gear_core::code::{InstantiatedSectionSizes, InstrumentationStatus};
 
-    #[test]
-    fn test_offchain_transaction() {
-        let db = Database::memory();
+    // #[test]
+    // fn test_offchain_transaction() {
+    //     let db = Database::memory();
 
-        let private_key = PrivateKey::from([1; 32]);
-        let tx = SignedOffchainTransaction::create(
-            private_key,
-            OffchainTransaction {
-                raw: SendMessage {
-                    program_id: H256::random().into(),
-                    payload: H256::random().0.to_vec(),
-                },
-                reference_block: H256::random(),
-            },
-        )
-        .unwrap();
-        let tx_hash = tx.tx_hash();
-        db.set_offchain_transaction(tx.clone());
-        assert_eq!(db.get_offchain_transaction(tx_hash), Some(tx));
-    }
+    //     let private_key = PrivateKey::from([1; 32]);
+    //     let tx = SignedOffchainTransaction::create(
+    //         private_key,
+    //         OffchainTransaction {
+    //             raw: SendMessage {
+    //                 program_id: H256::random().into(),
+    //                 payload: H256::random().0.to_vec(),
+    //             },
+    //             reference_block: H256::random(),
+    //         },
+    //     )
+    //     .unwrap();
+    //     let tx_hash = tx.tx_hash();
+    //     db.set_offchain_transaction(tx.clone());
+    //     assert_eq!(db.get_offchain_transaction(tx_hash), Some(tx));
+    // }
 
     #[test]
     fn test_announce() {

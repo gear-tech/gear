@@ -17,7 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    DEFAULT_BLOCK_GAS_LIMIT, HashOf, ToDigest, events::BlockEvent, injected::InjectedTransaction,
+    DEFAULT_BLOCK_GAS_LIMIT, HashOf, ToDigest, events::BlockEvent,
+    injected::SignedInjectedTransaction,
 };
 use alloc::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
@@ -81,7 +82,9 @@ pub struct Announce {
     pub block_hash: H256,
     pub parent: HashOf<Self>,
     pub gas_allowance: Option<u64>,
-    pub injected_transactions: Vec<InjectedTransaction>,
+    // TODO kuzmindev: remove InjectedTransaction from Announce and store only its hashes.
+    // Need to impelement `PublicAnnounce` struct which will contain full bodies of injected transactions.
+    pub injected_transactions: Vec<SignedInjectedTransaction>,
 }
 
 impl Announce {

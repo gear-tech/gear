@@ -472,8 +472,8 @@ impl Service {
                                 }
                             };
                         }
-                        NetworkEvent::InjectedTransaction(_transaction) => {
-                            // TODO: handle transaction
+                        NetworkEvent::InjectedTransaction(transaction) => {
+                            consensus.receive_injected_transaction(transaction)?;
                         }
                         NetworkEvent::PeerBlocked(_) | NetworkEvent::PeerConnected(_) => {}
                     }
@@ -507,34 +507,12 @@ impl Service {
                     log::info!("Received RPC event: {event:#?}");
 
                     match event {
-                        RpcEvent::OffchainTransaction {
-                            transaction,
-                            response_sender,
-                        } => {
-                            let res = tx_pool.process_offchain_transaction(transaction).context(
-                                "Failed to process offchain transaction received from RPC",
-                            );
-
-                            let Some(response_sender) = response_sender else {
-                                unreachable!(
-                                    "Response sender isn't set for the `RpcEvent::OffchainTransaction` event"
-                                );
-                            };
-                            if let Err(e) = response_sender.send(res) {
-                                // No panic case as a responsibility of the service is fulfilled.
-                                // The dropped receiver signalizes that the rpc service has crashed
-                                // or is malformed, so problems should be handled there.
-                                log::error!(
-                                    "Response receiver for the `RpcEvent::OffchainTransaction` was dropped: {e:#?}"
-                                );
-                            }
-                        }
                         RpcEvent::InjectedTransaction {
                             transaction,
                             response_sender,
                         } => {
                             if validator_address == Some(transaction.data().recipient) {
-                                // TODO: handle transaction like for `NetworkEvent::InjectedTransaction(_)`
+                                consensus.receive_injected_transaction(transaction)?;
                             } else {
                                 let Some(network) = network.as_mut() else {
                                     continue;

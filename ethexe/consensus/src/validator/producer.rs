@@ -26,6 +26,7 @@ use ethexe_common::{
     Announce, HashOf, SimpleBlockData, ValidatorsVec,
     db::{AnnounceStorageRW, BlockMetaStorageRO, BlockMetaStorageRW},
     gear::BatchCommitment,
+    injected::{InjectedTransaction, SignedInjectedTransaction},
     network::ValidatorMessage,
 };
 use ethexe_service_utils::Timer;
@@ -137,6 +138,14 @@ impl StateHandler for Producer {
         }
     }
 
+    fn process_injected_transaction(
+        mut self,
+        tx: SignedInjectedTransaction,
+    ) -> Result<ValidatorState> {
+        self.ctx.core.process_injected_transaction(tx)?;
+        Ok(self.into())
+    }
+
     fn poll_next_state(mut self, cx: &mut Context<'_>) -> Result<(Poll<()>, ValidatorState)> {
         match &mut self.state {
             State::Preparing {
@@ -217,12 +226,17 @@ impl Producer {
         let parent =
             utils::parent_main_line_announce(&self.ctx.core.db, self.block.header.parent_hash)?;
 
+        let injected_transactions = self
+            .ctx
+            .core
+            .injected_pool
+            .get_valid_txs_for(self.block.hash);
+
         let announce = Announce {
             block_hash: self.block.hash,
             parent,
             gas_allowance: Some(self.ctx.core.block_gas_limit),
-            // TODO #4639: append off-chain transactions
-            injected_transactions: Vec::new(),
+            injected_transactions,
         };
 
         let announce_hash = self.ctx.core.db.set_announce(announce.clone());

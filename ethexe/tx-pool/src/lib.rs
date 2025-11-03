@@ -20,8 +20,8 @@
 
 mod validation;
 
-#[cfg(test)]
-mod tests;
+// #[cfg(test)]
+// mod tests;
 
 use anyhow::{Context as _, Result};
 pub use ethexe_common::tx_pool::{
@@ -66,40 +66,40 @@ impl TxPoolService {
         }
     }
 
-    /// Basically validates the transaction and includes the transaction
-    /// to the ready queue, so it's returned by the service stream.
-    fn validate(
-        &self,
-        transaction: SignedOffchainTransaction,
-    ) -> Result<SignedOffchainTransaction> {
-        TxValidator::new(transaction, self.db.clone())
-            .with_all_checks()
-            .validate()
-            .context("Tx validation failed")
-    }
+    // Basically validates the transaction and includes the transaction
+    // to the ready queue, so it's returned by the service stream.
+    // fn validate(
+    //     &self,
+    //     transaction: SignedOffchainTransaction,
+    // ) -> Result<SignedOffchainTransaction> {
+    //     TxValidator::new(transaction, self.db.clone())
+    //         .with_all_checks()
+    //         .validate()
+    //         .context("Tx validation failed")
+    // }
 
-    pub fn process_offchain_transaction(
-        &mut self,
-        transaction: SignedOffchainTransaction,
-    ) -> Result<H256> {
-        let validated_tx = self
-            .validate(transaction)
-            .context("Failed to validate offchain transaction")?;
-        let tx_hash = validated_tx.tx_hash();
+    // pub fn process_offchain_transaction(
+    //     &mut self,
+    //     transaction: SignedOffchainTransaction,
+    // ) -> Result<H256> {
+    //     let validated_tx = self
+    //         .validate(transaction)
+    //         .context("Failed to validate offchain transaction")?;
+    //     let tx_hash = validated_tx.tx_hash();
 
-        // Set valid transaction
-        self.db.set_offchain_transaction(validated_tx.clone());
+    //     // Set valid transaction
+    //     self.db.set_offchain_transaction(validated_tx.clone());
 
-        // Propagate transaction
-        self.events
-            .push_back(TxPoolEvent::PublishOffchainTransaction(validated_tx));
-        self.wake();
+    //     // Propagate transaction
+    //     self.events
+    //         .push_back(TxPoolEvent::PublishOffchainTransaction(validated_tx));
+    //     self.wake();
 
-        // TODO (breathx) Execute transaction
-        log::info!("Unimplemented tx execution");
+    //     // TODO (breathx) Execute transaction
+    //     log::info!("Unimplemented tx execution");
 
-        Ok(tx_hash)
-    }
+    //     Ok(tx_hash)
+    // }
 }
 
 impl Stream for TxPoolService {

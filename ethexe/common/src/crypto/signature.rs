@@ -174,7 +174,7 @@ impl Hash for Signature {
 
 /// A signed data structure, that contains the data and its signature.
 /// Always valid after construction.
-#[derive(Clone, Encode, PartialEq, Eq, Debug, Display)]
+#[derive(Clone, Encode, PartialEq, Eq, Debug, Display, Hash)]
 #[cfg_attr(feature = "std", derive(serde::Serialize))]
 #[display("SignedData({data}, {signature})")]
 pub struct SignedData<T: Sized> {

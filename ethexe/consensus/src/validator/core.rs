@@ -24,11 +24,12 @@ use async_trait::async_trait;
 use ethexe_common::{
     Address, Announce, Digest, HashOf, ProtocolTimelines, SimpleBlockData, ToDigest, ValidatorsVec,
     consensus::BatchCommitmentValidationRequest,
-    db::BlockMetaStorageRO,
+    db::{BlockMetaStorageRO, OnChainStorageRO},
     ecdsa::PublicKey,
     gear::{
         BatchCommitment, ChainCommitment, CodeCommitment, RewardsCommitment, ValidatorsCommitment,
     },
+    injected::{InjectedTransaction, SignedInjectedTransaction, check_mortality_at},
 };
 use ethexe_db::Database;
 use ethexe_ethereum::middleware::ElectionProvider;
@@ -54,6 +55,8 @@ pub struct ValidatorCore {
     pub committer: Box<dyn BatchCommitter>,
     #[debug(skip)]
     pub middleware: MiddlewareWrapper,
+    #[debug(skip)]
+    pub injected_pool: InjectedTxPool,
 
     /// Maximum deepness for chain commitment validation.
     pub validate_chain_deepness_limit: u32,
@@ -74,6 +77,7 @@ impl Clone for ValidatorCore {
             db: self.db.clone(),
             committer: self.committer.clone_boxed(),
             middleware: self.middleware.clone(),
+            injected_pool: self.injected_pool.clone(),
             validate_chain_deepness_limit: self.validate_chain_deepness_limit,
             chain_deepness_threshold: self.chain_deepness_threshold,
             block_gas_limit: self.block_gas_limit,
@@ -281,6 +285,52 @@ impl ValidatorCore {
         } else {
             Ok(digest)
         }
+    }
+
+    pub fn process_injected_transaction(&mut self, tx: SignedInjectedTransaction) -> Result<()> {
+        // Because of implementation main service [`ethexe-service::Service`] guarantees that
+        // in current step `tx.recipient` equals to current validator's address.
+        // self.db
+        // tracing::trace!(tx = %tx, "Receive new injected transaction");
+        self.injected_pool.insert_tx(tx);
+        Ok(())
+    }
+}
+
+#[derive(Clone)]
+pub(crate) struct InjectedTxPool<DB = Database> {
+    inner: HashSet<SignedInjectedTransaction>,
+    db: DB,
+}
+
+impl<DB: OnChainStorageRO> InjectedTxPool<DB> {
+    pub fn new(db: DB) -> Self {
+        Self {
+            inner: HashSet::new(),
+            db,
+        }
+    }
+
+    pub fn insert_tx(&mut self, tx: SignedInjectedTransaction) {
+        // TODO: maybe also should add into database
+        self.inner.insert(tx);
+    }
+
+    pub fn get_valid_txs_for(&self, block_hash: H256) -> Vec<SignedInjectedTransaction> {
+        let mut valid_txs = vec![];
+        // TODO kuzmindev: add mechanism to check that tx was successfully added in previous announces
+        // or was added by other validators.
+        for tx in self.inner.iter() {
+            match check_mortality_at(&self.db, tx, block_hash) {
+                Ok(valid) if valid => {
+                    valid_txs.push(tx.clone());
+                }
+                _ => {
+                    continue;
+                }
+            }
+        }
+        valid_txs
     }
 }
 

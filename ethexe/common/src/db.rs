@@ -22,7 +22,10 @@
 
 use crate::{
     Announce, BlockHeader, CodeBlobInfo, Digest, HashOf, ProgramStates, ProtocolTimelines,
-    Schedule, ValidatorsVec, events::BlockEvent, gear::StateTransition,
+    Schedule, ValidatorsVec,
+    events::BlockEvent,
+    gear::StateTransition,
+    injected::{InjectedTransaction, SignedInjectedTransaction},
 };
 use alloc::{
     collections::{BTreeSet, VecDeque},
@@ -121,6 +124,27 @@ pub trait OnChainStorageRW: OnChainStorageRO {
     fn set_validators(&self, era_index: u64, validator_set: ValidatorsVec);
     fn set_block_synced(&self, block_hash: H256);
 }
+
+// #[auto_impl::auto_impl(&)]
+// pub trait InjectedStorageRO {
+//     /// Returns the vector of [`InjectedTransaction`], which validator can use in future announces.
+//     fn get_injected_transactions(&self) -> Option<HashSet<InjectedTransaction>>;
+// }
+
+// #[auto_impl::auto_impl(&)]
+// pub trait InjectedStorageRW: InjectedStorageRO {
+//     /// Inserts new [`InjectedTransaction`] into pool.
+//     fn insert_injected_transaction(&self, tx: InjectedTransaction);
+
+//     /// Modifies the local pool of injected transactions.
+//     fn modify_injected_transactions<U>(
+//         &self,
+//         f: impl FnOnce(&mut HashSet<InjectedTransaction>) -> U,
+//     ) -> U;
+
+//     /// Removes all [`InjectedTransaction`]s from pool that are present in the given set.
+//     fn release_injected_transactions(&self) -> HashSet<InjectedTransaction>;
+// }
 
 #[derive(Debug, Clone, Default, Encode, Decode, PartialEq, Eq, Hash)]
 pub struct AnnounceMeta {

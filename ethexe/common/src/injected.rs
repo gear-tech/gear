@@ -16,11 +16,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{Address, ToDigest, db::OnChainStorageRO, ecdsa::SignedData};
+use crate::{Address, HashOf, ToDigest, db::OnChainStorageRO, ecdsa::SignedData};
 use alloc::vec::Vec;
 use anyhow::{Result, anyhow};
 use core::hash::Hash;
-use gprimitives::{ActorId, H256};
+use gprimitives::{ActorId, H256, MessageId};
 use parity_scale_codec::{Decode, Encode};
 use sha3::Keccak256;
 
@@ -33,6 +33,20 @@ use sha3::Keccak256;
 pub const BLOCK_HASHES_WINDOW_SIZE: u32 = 32;
 
 pub type SignedInjectedTransaction = SignedData<InjectedTransaction>;
+
+impl SignedInjectedTransaction {
+    /// Returns the hash of [`InjectedTransaction`].
+    pub fn hash(&self) -> HashOf<SignedInjectedTransaction> {
+        // Safety because of implementation.
+        unsafe { HashOf::new(gear_core::utils::hash(&self.data().encode()).into()) }
+    }
+
+    // TODO kuzmindev: make sure, that MessageId must be created from InjectedTx, not from signed one.
+    /// Creates [`MessageId`] from [`InjectedTransaction`].
+    pub fn message_id(&self) -> MessageId {
+        MessageId::new(self.hash().hash().0)
+    }
+}
 
 #[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
 #[derive(Debug, Clone, Encode, Decode, PartialEq, Eq, Hash)]
@@ -82,8 +96,6 @@ pub struct Promise {
     pub payload: Vec<u8>,
     /// Value attached to the reply.
     pub value: u128,
-    // Reply code of the reply.
-    // pub code: ReplyCode,
 }
 
 // TODO #4808: branch check must be until genesis block

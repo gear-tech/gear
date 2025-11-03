@@ -34,6 +34,7 @@ use ethexe_common::{
         AggregatedPublicKey, BatchCommitment, ChainCommitment, CodeCommitment, RewardsCommitment,
         ValidatorsCommitment,
     },
+    injected::InjectedTransaction,
 };
 use ethexe_signer::Signer;
 use gprimitives::{CodeId, H256, U256};

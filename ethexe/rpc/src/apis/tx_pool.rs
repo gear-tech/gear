@@ -21,7 +21,7 @@
 use crate::{RpcEvent, errors};
 use ethexe_common::{
     ecdsa::Signature,
-    tx_pool::{OffchainTransaction, SignedOffchainTransaction},
+    injected::{InjectedTransaction, SignedInjectedTransaction},
 };
 use gprimitives::H256;
 use jsonrpsee::{
@@ -36,7 +36,7 @@ pub trait TransactionPool {
     #[method(name = "transactionPool_sendMessage")]
     async fn send_message(
         &self,
-        ethexe_tx: OffchainTransaction,
+        injected_tx: InjectedTransaction,
         signature: Vec<u8>,
     ) -> RpcResult<H256>;
 }
@@ -56,7 +56,7 @@ impl TransactionPoolApi {
 impl TransactionPoolServer for TransactionPoolApi {
     async fn send_message(
         &self,
-        ethexe_tx: OffchainTransaction,
+        injected_tx: InjectedTransaction,
         signature: Vec<u8>,
     ) -> RpcResult<H256> {
         let signature = Signature::decode(&mut signature.as_slice()).map_err(|e| {
@@ -64,19 +64,19 @@ impl TransactionPoolServer for TransactionPoolApi {
             errors::internal()
         })?;
 
-        let signed_ethexe_tx = SignedOffchainTransaction::try_from_parts(ethexe_tx, signature)
+        let signed_injected_tx = SignedInjectedTransaction::try_from_parts(injected_tx, signature)
             .map_err(|e| {
                 log::error!("{e}");
                 errors::internal()
             })?;
 
-        log::debug!("Called send_message with vars: {signed_ethexe_tx:#?}");
+        log::debug!("Called send_message with vars: {signed_injected_tx:#?}");
 
         let (response_sender, response_receiver) = oneshot::channel();
         self.rpc_sender
-            .send(RpcEvent::OffchainTransaction {
-                transaction: signed_ethexe_tx,
-                response_sender: Some(response_sender),
+            .send(RpcEvent::InjectedTransaction {
+                transaction: signed_injected_tx,
+                response_sender,
             })
             .map_err(|e| {
                 // That could be a panic case, as rpc_receiver must not be dropped,
@@ -96,6 +96,6 @@ impl TransactionPoolServer for TransactionPoolApi {
             errors::internal()
         })?;
 
-        res.map_err(errors::tx_pool)
+        todo!()
     }
 }

@@ -42,9 +42,6 @@ pub type TestingEventReceiver = Receiver<TestingEvent>;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum TestingRpcEvent {
-    OffchainTransaction {
-        transaction: SignedOffchainTransaction,
-    },
     InjectedTransaction {
         transaction: SignedInjectedTransaction,
     },
@@ -53,12 +50,6 @@ pub enum TestingRpcEvent {
 impl TestingRpcEvent {
     fn new(event: &RpcEvent) -> Self {
         match event {
-            RpcEvent::OffchainTransaction {
-                transaction,
-                response_sender: _,
-            } => Self::OffchainTransaction {
-                transaction: transaction.clone(),
-            },
             RpcEvent::InjectedTransaction {
                 transaction,
                 response_sender: _,

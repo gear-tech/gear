@@ -26,6 +26,7 @@ use ethexe_common::{
     Address, Announce, HashOf, SimpleBlockData,
     consensus::{VerifiedAnnounce, VerifiedValidationRequest},
     db::{AnnounceStorageRW, BlockMetaStorageRW, OnChainStorageRO},
+    injected::SignedInjectedTransaction,
 };
 use ethexe_db::Database;
 use futures::{Stream, stream::FusedStream};
@@ -186,6 +187,12 @@ impl ConsensusService for SimpleConnectService {
 
         self.pending_announces.push_back(announce);
 
+        Ok(())
+    }
+
+    fn receive_injected_transaction(&mut self, tx: SignedInjectedTransaction) -> Result<()> {
+        // In "connect-node" consensus service we do not process injected transactions.
+        tracing::warn!("Received injected transaction: {tx:?}. Ignoring it.");
         Ok(())
     }
 

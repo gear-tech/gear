@@ -23,13 +23,47 @@ use ethexe_common::{
     db::{CodesStorageRO, CodesStorageRW},
     events::{MirrorRequestEvent, RouterRequestEvent},
     gear::{Origin, ValueClaim},
+    injected::SignedInjectedTransaction,
 };
 use ethexe_runtime_common::state::{
     Dispatch, Expiring, MailboxMessage, ModifiableStorage, PayloadLookup,
 };
 use gear_core::{ids::ActorId, message::SuccessReplyReason};
+use gprimitives::MessageId;
 
 impl ProcessingHandler {
+    pub(crate) fn handle_injected_transaction(
+        &mut self,
+        tx: SignedInjectedTransaction,
+    ) -> Result<()> {
+        self.update_state(tx.data().destination, |state, storage, _| -> Result<()> {
+            // Build source from sender's Ethereum address
+            let source = tx.public_key().to_address().into();
+
+            let message_id = tx.message_id();
+            let is_init = state.requires_init_message();
+
+            let raw_tx = tx.into_data();
+
+            let dispatch = Dispatch::new(
+                storage,
+                message_id,
+                source,
+                raw_tx.payload,
+                raw_tx.value,
+                is_init,
+                Origin::Injected,
+                false,
+            )?;
+
+            state
+                .injected_queue
+                .modify_queue(storage, |queue| queue.queue(dispatch));
+
+            Ok(())
+        })
+    }
+
     pub(crate) fn handle_router_event(&mut self, event: RouterRequestEvent) -> Result<()> {
         match event {
             RouterRequestEvent::ProgramCreated { actor_id, code_id } => {

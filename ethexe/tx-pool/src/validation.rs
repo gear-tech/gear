@@ -61,160 +61,160 @@ impl TxValidator {
     }
 }
 
-impl TxValidator {
-    /// Runs all stateful and stateless sync validators for the transaction.
-    pub(crate) fn validate(self) -> Result<SignedOffchainTransaction> {
-        if self.mortality_check && !self.check_mortality()? {
-            bail!("Transaction reference block hash is out of recent blocks window");
-        }
+// impl TxValidator {
+//     /// Runs all stateful and stateless sync validators for the transaction.
+//     pub(crate) fn validate(self) -> Result<SignedOffchainTransaction> {
+//         if self.mortality_check && !self.check_mortality()? {
+//             bail!("Transaction reference block hash is out of recent blocks window");
+//         }
 
-        if self.uniqueness_check {
-            self.check_uniqueness()?;
-        }
+//         if self.uniqueness_check {
+//             self.check_uniqueness()?;
+//         }
 
-        Ok(self.transaction)
-    }
+//         Ok(self.transaction)
+//     }
 
-    /// Validates transaction mortality.
-    ///
-    /// Basically checks that transaction reference block hash is within the recent blocks window.
-    fn check_mortality(&self) -> Result<bool> {
-        // TODO #4809: checking mortality for latest block is not fully correct approach,
-        // but can be applied presently.
-        let _latest_block_hash = self
-            .db
-            .latest_data()
-            .ok_or_else(|| anyhow!("Latest data not found"))?
-            .prepared_block_hash;
-        // ethexe_common::injected::check_mortality_at(&self.db, &self.transaction, latest_block_hash)
-        todo!()
-    }
+    // Validates transaction mortality.
+    //
+    // Basically checks that transaction reference block hash is within the recent blocks window.
+    // fn check_mortality(&self) -> Result<bool> {
+    //     // TODO #4809: checking mortality for latest block is not fully correct approach,
+    //     // but can be applied presently.
+    //     let _latest_block_hash = self
+    //         .db
+    //         .latest_data()
+    //         .ok_or_else(|| anyhow!("Latest data not found"))?
+    //         .prepared_block_hash;
+    //     // ethexe_common::injected::check_mortality_at(&self.db, &self.transaction, latest_block_hash)
+    //     todo!()
+    // }
 
-    /// Validates transaction uniqueness.
-    ///
-    /// Basically checks that transaction is not already in the database.
-    fn check_uniqueness(&self) -> Result<()> {
-        let tx_hash = self.transaction.tx_hash();
+    // Validates transaction uniqueness.
+    //
+    // Basically checks that transaction is not already in the database.
+    // fn check_uniqueness(&self) -> Result<()> {
+    //     let tx_hash = self.transaction.tx_hash();
 
-        // TODO #4505
-        if self.db.get_offchain_transaction(tx_hash).is_none() {
-            Ok(())
-        } else {
-            Err(anyhow!("Transaction already exists"))
-        }
-    }
-}
+    //     // TODO #4505
+    //     if self.db.get_offchain_transaction(tx_hash).is_none() {
+    //         Ok(())
+    //     } else {
+    //         Err(anyhow!("Transaction already exists"))
+    //     }
+    // }
+// }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use crate::tests::{self, BlocksManager};
-    use ethexe_db::Database;
-    use gprimitives::H256;
+// #[cfg(test)]
+// mod tests {
+//     use super::*;
+//     use crate::tests::{self, BlocksManager};
+//     use ethexe_db::Database;
+//     use gprimitives::H256;
 
-    macro_rules! assert_ok {
-        ( $x:expr ) => {
-            assert!($x.is_ok());
-        };
-    }
+//     macro_rules! assert_ok {
+//         ( $x:expr ) => {
+//             assert!($x.is_ok());
+//         };
+//     }
 
-    macro_rules! assert_err {
-        ( $x:expr ) => {
-            assert!($x.is_err());
-        };
-    }
+//     macro_rules! assert_err {
+//         ( $x:expr ) => {
+//             assert!($x.is_err());
+//         };
+//     }
 
-    #[test]
-    fn test_valid_mortality() {
-        let db = Database::memory();
-        let bm = BlocksManager::new(db.clone());
+//     #[test]
+//     fn test_valid_mortality() {
+//         let db = Database::memory();
+//         let bm = BlocksManager::new(db.clone());
 
-        // Test valid mortality
-        bm.add_block();
-        let (block_hash, _) = bm.add_block();
+//         // Test valid mortality
+//         bm.add_block();
+//         let (block_hash, _) = bm.add_block();
 
-        let signed_tx = tests::generate_signed_ethexe_tx(block_hash);
+//         let signed_tx = tests::generate_signed_ethexe_tx(block_hash);
 
-        bm.add_block();
+//         bm.add_block();
 
-        TxValidator::new(signed_tx, db)
-            .with_mortality_check()
-            .validate()
-            .expect("internal error: transaction validation failed");
-    }
+//         TxValidator::new(signed_tx, db)
+//             .with_mortality_check()
+//             .validate()
+//             .expect("internal error: transaction validation failed");
+//     }
 
-    #[test]
-    fn test_invalid_mortality_non_existent_block() {
-        let db = Database::memory();
-        let non_window_block_hash = H256::random();
-        let invalid_transaction = tests::generate_signed_ethexe_tx(non_window_block_hash);
+//     #[test]
+//     fn test_invalid_mortality_non_existent_block() {
+//         let db = Database::memory();
+//         let non_window_block_hash = H256::random();
+//         let invalid_transaction = tests::generate_signed_ethexe_tx(non_window_block_hash);
 
-        let tx_validator = TxValidator::new(invalid_transaction, db).with_mortality_check();
+//         let tx_validator = TxValidator::new(invalid_transaction, db).with_mortality_check();
 
-        assert_err!(tx_validator.validate());
-    }
+//         assert_err!(tx_validator.validate());
+//     }
 
-    #[test]
-    fn test_invalid_mortality_rotten_tx() {
-        let db = Database::memory();
-        let bm = BlocksManager::new(db.clone());
+//     #[test]
+//     fn test_invalid_mortality_rotten_tx() {
+//         let db = Database::memory();
+//         let bm = BlocksManager::new(db.clone());
 
-        let first_block_hash = bm.add_block().0;
-        let second_block_hash = bm.add_block().0;
+//         let first_block_hash = bm.add_block().0;
+//         let second_block_hash = bm.add_block().0;
 
-        // Add more 30 blocks
-        (0..30).for_each(|_| {
-            bm.add_block();
-        });
+//         // Add more 30 blocks
+//         (0..30).for_each(|_| {
+//             bm.add_block();
+//         });
 
-        let transaction1 = TxValidator::new(
-            tests::generate_signed_ethexe_tx(first_block_hash),
-            db.clone(),
-        )
-        .with_mortality_check()
-        .validate()
-        .expect("internal error: transaction1 validation failed");
+//         let transaction1 = TxValidator::new(
+//             tests::generate_signed_ethexe_tx(first_block_hash),
+//             db.clone(),
+//         )
+//         .with_mortality_check()
+//         .validate()
+//         .expect("internal error: transaction1 validation failed");
 
-        let transaction2 = TxValidator::new(
-            tests::generate_signed_ethexe_tx(second_block_hash),
-            db.clone(),
-        )
-        .with_mortality_check()
-        .validate()
-        .expect("internal error: transaction2 validation failed");
+//         let transaction2 = TxValidator::new(
+//             tests::generate_signed_ethexe_tx(second_block_hash),
+//             db.clone(),
+//         )
+//         .with_mortality_check()
+//         .validate()
+//         .expect("internal error: transaction2 validation failed");
 
-        // Adding a new block to the db, which should remove the first block from window
-        bm.add_block();
+//         // Adding a new block to the db, which should remove the first block from window
+//         bm.add_block();
 
-        // `db` is `Arc`, so no need to instantiate a new validator.
-        assert_err!(
-            TxValidator::new(transaction1, db.clone())
-                .with_mortality_check()
-                .validate()
-        );
-        assert_ok!(
-            TxValidator::new(transaction2, db.clone())
-                .with_mortality_check()
-                .validate()
-        );
-    }
+//         // `db` is `Arc`, so no need to instantiate a new validator.
+//         assert_err!(
+//             TxValidator::new(transaction1, db.clone())
+//                 .with_mortality_check()
+//                 .validate()
+//         );
+//         assert_ok!(
+//             TxValidator::new(transaction2, db.clone())
+//                 .with_mortality_check()
+//                 .validate()
+//         );
+//     }
 
-    #[test]
-    fn test_uniqueness_validation() {
-        let db = Database::memory();
-        let transaction = tests::generate_signed_ethexe_tx(H256::random());
+//     #[test]
+//     fn test_uniqueness_validation() {
+//         let db = Database::memory();
+//         let transaction = tests::generate_signed_ethexe_tx(H256::random());
 
-        let transaction = TxValidator::new(transaction, db.clone())
-            .with_uniqueness_check()
-            .validate()
-            .expect("internal error: uniqueness validation failed");
+//         let transaction = TxValidator::new(transaction, db.clone())
+//             .with_uniqueness_check()
+//             .validate()
+//             .expect("internal error: uniqueness validation failed");
 
-        db.set_offchain_transaction(transaction.clone());
+//         db.set_offchain_transaction(transaction.clone());
 
-        assert_err!(
-            TxValidator::new(transaction, db.clone())
-                .with_uniqueness_check()
-                .validate()
-        );
-    }
-}
+//         assert_err!(
+//             TxValidator::new(transaction, db.clone())
+//                 .with_uniqueness_check()
+//                 .validate()
+//         );
+//     }
+// }
