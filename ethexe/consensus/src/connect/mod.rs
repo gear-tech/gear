@@ -29,7 +29,7 @@ use anyhow::{Result, anyhow};
 use ethexe_common::{
     Address, Announce, HashOf, SimpleBlockData,
     consensus::{VerifiedAnnounce, VerifiedValidationRequest},
-    db::{AnnounceStorageRO, OnChainStorageRO},
+    db::OnChainStorageRO,
     network::{AnnouncesRequest, CheckedAnnouncesResponse},
 };
 use ethexe_db::Database;
@@ -222,7 +222,11 @@ impl ConsensusService for ConnectService {
             && sender == *producer
             && announce.block_hash == block.hash
         {
-            match announces::accept_announce(&self.db, announce, self.commitment_delay_limit)? {
+            match announces::accept_announce(
+                &self.db,
+                announce.clone(),
+                self.commitment_delay_limit,
+            )? {
                 AnnounceStatus::Rejected { announce, reason } => {
                     tracing::warn!(
                         announce = %announce.to_hash(),
@@ -230,12 +234,13 @@ impl ConsensusService for ConnectService {
                         producer = %producer,
                         "Announce rejected",
                     );
+
+                    self.output
+                        .push_back(ConsensusEvent::AnnounceRejected(announce.to_hash()));
                 }
                 AnnounceStatus::Accepted(announce_hash) => {
-                    let announce = self.db.announce(announce_hash).ok_or(anyhow!(
-                        "announce not found after acceptance: {announce_hash}"
-                    ))?;
-
+                    self.output
+                        .push_back(ConsensusEvent::AnnounceAccepted(announce_hash));
                     self.output
                         .push_back(ConsensusEvent::ComputeAnnounce(announce));
 

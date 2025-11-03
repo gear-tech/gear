@@ -19,7 +19,8 @@ async-trait.workspace = true
 tokio.workspace = true
 parity-scale-codec = { workspace = true, features = ["std", "derive"] }
 tracing.workspace = true
-anyhow.workspace = true
+anyhow = { workspace = true, features = ["std"] }
+thiserror.workspace = true
 futures.workspace = true
 derive_more.workspace = true
 nonempty.workspace = true

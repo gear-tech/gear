@@ -46,7 +46,7 @@ use ethexe_signer::Signer;
 use ethexe_tx_pool::{TxPoolEvent, TxPoolService};
 use futures::{StreamExt, stream::FuturesUnordered};
 use gprimitives::{ActorId, CodeId, H256};
-use std::{collections::BTreeSet, pin::Pin, sync::Arc};
+use std::{collections::BTreeSet, pin::Pin, sync::Arc, time::Duration};
 
 pub mod config;
 
@@ -220,7 +220,10 @@ impl Service {
                         signatures_threshold: threshold,
                         slot_duration: config.ethereum.block_time,
                         block_gas_limit: config.node.block_gas_limit,
-                        commitment_delay_limit: 3, // TODO +_+_+: set from router
+                        // TODO +_+_+: commitment_delay_limit is a protocol specific constant
+                        // which better to be configurable by router contract
+                        commitment_delay_limit: 3,
+                        producer_delay: Duration::ZERO,
                     },
                 )?)
             } else {
@@ -563,6 +566,9 @@ impl Service {
                         };
 
                         network_fetcher.push(network.db_sync_handle().request(request.into()));
+                    }
+                    ConsensusEvent::AnnounceAccepted(_) | ConsensusEvent::AnnounceRejected(_) => {
+                        // TODO #4940: consider to publish network message
                     }
                 },
                 Event::TxPool(event) => match event {

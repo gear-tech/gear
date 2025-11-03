@@ -88,7 +88,12 @@ pub trait ConsensusService:
     Debug, Clone, PartialEq, Eq, derive_more::From, derive_more::IsVariant, derive_more::Unwrap,
 )]
 pub enum ConsensusEvent {
-    // TODO +_+_+: change to hash of announce
+    /// Announce from producer was accepted
+    #[from(skip)]
+    AnnounceAccepted(HashOf<Announce>),
+    /// Announce from producer was rejected
+    #[from(skip)]
+    AnnounceRejected(HashOf<Announce>),
     /// Outer service have to compute announce
     ComputeAnnounce(Announce),
     /// Outer service have to publish signed message

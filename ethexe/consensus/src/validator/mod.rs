@@ -116,6 +116,8 @@ pub struct ValidatorConfig {
     pub block_gas_limit: u64,
     /// Delay limit for commitment
     pub commitment_delay_limit: u32,
+    /// Producer delay before creating new announce after block prepared
+    pub producer_delay: Duration,
 }
 
 impl ValidatorService {
@@ -153,6 +155,7 @@ impl ValidatorService {
                 chain_deepness_threshold: CHAIN_DEEPNESS_THRESHOLD,
                 block_gas_limit: config.block_gas_limit,
                 commitment_delay_limit: config.commitment_delay_limit,
+                producer_delay: config.producer_delay,
             },
             pending_events: VecDeque::new(),
             output: VecDeque::new(),

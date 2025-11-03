@@ -1,4 +1,4 @@
-use anyhow::{Result, anyhow, ensure};
+use anyhow::{Context, Result, anyhow, ensure};
 use ethexe_common::{
     Announce, HashOf, SimpleBlockData,
     db::{AnnounceStorageRW, BlockMetaStorageRW, LatestDataStorageRO, OnChainStorageRO},
@@ -8,11 +8,18 @@ use ethexe_ethereum::primitives::map::HashMap;
 use gprimitives::H256;
 use std::collections::{BTreeSet, VecDeque};
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
+#[error("Announce {_0} is already included")]
+pub struct AnnounceAlreadyIncludedError(HashOf<Announce>);
+
 pub trait DBExt:
     AnnounceStorageRW + BlockMetaStorageRW + OnChainStorageRO + LatestDataStorageRO
 {
     fn collect_blocks_without_announces(&self, head: H256) -> Result<VecDeque<SimpleBlockData>>;
-    fn include_announce(&self, announce: Announce) -> Result<HashOf<Announce>>;
+    fn include_announce(
+        &self,
+        announce: Announce,
+    ) -> Result<HashOf<Announce>, AnnounceAlreadyIncludedError>;
     fn announce_is_included(&self, announce_hash: HashOf<Announce>) -> bool;
     fn announces_parents(
         &self,
@@ -45,7 +52,10 @@ impl<DB: AnnounceStorageRW + BlockMetaStorageRW + OnChainStorageRO + LatestDataS
         Ok(blocks)
     }
 
-    fn include_announce(&self, announce: Announce) -> Result<HashOf<Announce>> {
+    fn include_announce(
+        &self,
+        announce: Announce,
+    ) -> Result<HashOf<Announce>, AnnounceAlreadyIncludedError> {
         tracing::trace!(announce = %announce.to_hash(), "Including announce...");
 
         let block_hash = announce.block_hash;
@@ -56,9 +66,9 @@ impl<DB: AnnounceStorageRW + BlockMetaStorageRW + OnChainStorageRO + LatestDataS
             not_yet_included = meta.announces.get_or_insert_default().insert(announce_hash);
         });
 
-        not_yet_included.then_some(announce_hash).ok_or_else(|| {
-            anyhow!("announce {announce_hash} for block {block_hash} was already included")
-        })
+        not_yet_included
+            .then_some(announce_hash)
+            .ok_or(AnnounceAlreadyIncludedError(announce_hash))
     }
 
     fn announce_is_included(&self, announce_hash: HashOf<Announce>) -> bool {
@@ -170,8 +180,7 @@ pub fn propagate_announces(
 ///   \
 ///     ---- (A2') <- (A3') <- (A4') (recovered announces)
 /// ```
-/// where `(A3')` and `(A2')` are committed
-/// and must be presented in `missing_announces` if they are not included yet,
+/// where `(A3')` and `(A2')` are committed and must be presented in `missing_announces`,
 /// and `(A4')` is base announce propagated from `(A3')`.
 fn announces_chain_recovery_if_needed(
     db: &impl DBExt,
@@ -180,7 +189,7 @@ fn announces_chain_recovery_if_needed(
     commitment_delay_limit: u32,
     missing_announces: &mut HashMap<HashOf<Announce>, Announce>,
 ) -> Result<()> {
-    // TODO +_+_+: append recovery from rejected announces
+    // TODO: #4941 append recovery from rejected announces
     // if node received announce, which was rejected because of incorrect parent,
     // but later we receive event from ethereum that parent announce was committed,
     // than node should use previously rejected announce to recover the chain.
@@ -204,7 +213,8 @@ fn announces_chain_recovery_if_needed(
         current_announce_hash = announce.parent;
         count += 1;
 
-        db.include_announce(announce)?;
+        db.include_announce(announce)
+            .context("Failed to include missed announce while recovering chain")?;
     }
 
     let Some(last_committed_announce_block_hash) = last_committed_announce_block_hash else {
@@ -247,7 +257,9 @@ fn announces_chain_recovery_if_needed(
     let mut parent_announce_hash = last_committed_announce_hash;
     for block_hash in chain {
         let new_base_announce = Announce::base(block_hash, parent_announce_hash);
-        parent_announce_hash = db.include_announce(new_base_announce)?;
+        parent_announce_hash = db
+            .include_announce(new_base_announce)
+            .context("Failed to include new base announce while recovering chain")?;
     }
 
     Ok(())
@@ -519,9 +531,26 @@ pub fn best_announce(
     Ok(best_announce_hash)
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, derive_more::Display)]
+pub enum AnnounceRejectionReason {
+    #[display("Unsuitable parent: expected {expected:?}, found {found:?}")]
+    UnsuitableParent {
+        expected: HashOf<Announce>,
+        found: HashOf<Announce>,
+    },
+    #[display("Announce is already included: {_0}")]
+    AlreadyIncluded(AnnounceAlreadyIncludedError),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, derive_more::Display)]
 pub enum AnnounceStatus {
+    #[display("Announce {_0} accepted")]
     Accepted(HashOf<Announce>),
-    Rejected { announce: Announce, reason: String },
+    #[display("Announce {announce:?} rejected: {reason:?}")]
+    Rejected {
+        announce: Announce,
+        reason: AnnounceRejectionReason,
+    },
 }
 
 pub fn accept_announce(
@@ -530,10 +559,14 @@ pub fn accept_announce(
     commitment_delay_limit: u32,
 ) -> Result<AnnounceStatus> {
     let best_parent = best_parent_announce(db, announce.block_hash, commitment_delay_limit)?;
-    if best_parent != announce.parent {
+    let announce_parent = announce.parent;
+    if best_parent != announce_parent {
         return Ok(AnnounceStatus::Rejected {
             announce,
-            reason: format!("best parent is {best_parent}"),
+            reason: AnnounceRejectionReason::UnsuitableParent {
+                expected: best_parent,
+                found: announce_parent,
+            },
         });
     }
 
@@ -541,7 +574,7 @@ pub fn accept_announce(
         Ok(announce_hash) => Ok(AnnounceStatus::Accepted(announce_hash)),
         Err(err) => Ok(AnnounceStatus::Rejected {
             announce,
-            reason: format!("{err}"),
+            reason: AnnounceRejectionReason::AlreadyIncluded(err),
         }),
     }
 }

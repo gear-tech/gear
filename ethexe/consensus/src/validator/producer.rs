@@ -48,9 +48,9 @@ pub struct Producer {
 
 #[derive(Debug, derive_more::IsVariant)]
 enum State {
-    WaitingForCodes {
+    Delay {
         #[debug(skip)]
-        codes_timer: Option<Timer>,
+        timer: Option<Timer>,
     },
     WaitingAnnounceComputed(HashOf<Announce>),
     AggregateBatchCommitment {
@@ -102,9 +102,7 @@ impl StateHandler for Producer {
 
     fn poll_next_state(mut self, cx: &mut Context<'_>) -> Result<(Poll<()>, ValidatorState)> {
         match &mut self.state {
-            State::WaitingForCodes {
-                codes_timer: Some(timer),
-            } => {
+            State::Delay { timer: Some(timer) } => {
                 if timer.poll_unpin(cx).is_ready() {
                     self.create_announce()?;
                     return Ok((Poll::Ready(()), self.into()));
@@ -143,8 +141,7 @@ impl Producer {
             "Producer is not in the list of validators"
         );
 
-        // +_+_+ make timer configurable
-        let mut timer = Timer::new("collect codes", ctx.core.slot_duration / 6);
+        let mut timer = Timer::new("producer delay", ctx.core.producer_delay);
         timer.start(());
 
         ctx.pending_events.clear();
@@ -153,9 +150,7 @@ impl Producer {
             ctx,
             block,
             validators,
-            state: State::WaitingForCodes {
-                codes_timer: Some(timer),
-            },
+            state: State::Delay { timer: Some(timer) },
         }
         .into())
     }
@@ -181,11 +176,17 @@ impl Producer {
             off_chain_transactions: Vec::new(),
         };
 
-        // TODO +_+_+: consider to support case:
-        // abuse from rpc - the same eth block is announced multiple times,
-        // then the same announce is created multiple times, and include_announce would fail,
-        // because announce is already included.
-        let announce_hash = self.ctx.core.db.include_announce(announce.clone())?;
+        let announce_hash = match self.ctx.core.db.include_announce(announce.clone()) {
+            Ok(announce_hash) => announce_hash,
+            Err(err) => {
+                // Can happen in case of abuse from rpc - the same eth block is announced multiple times,
+                // then the same announce is created multiple times, and include_announce would fail.
+                self.warning(format!(
+                    "Failed to include announce created {announce:?}: {err}"
+                ));
+                return Ok(());
+            }
+        };
 
         let message = ValidatorMessage {
             block: self.block.hash,
@@ -434,7 +435,7 @@ mod tests {
 
             let producer = self.unwrap_producer();
             assert!(
-                producer.state.is_waiting_for_codes(),
+                producer.state.is_delay(),
                 "Works only for waiting for codes state, got {:?}",
                 producer.state
             );

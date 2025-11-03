@@ -883,6 +883,7 @@ impl Node {
                             slot_duration: self.block_time,
                             block_gas_limit: DEFAULT_BLOCK_GAS_LIMIT,
                             commitment_delay_limit: 3,
+                            producer_delay: self.block_time / 6,
                         },
                     )
                     .unwrap(),
@@ -1068,7 +1069,7 @@ impl Node {
 
         network.publish_message(signed);
 
-        // TODO +_+_+: temporary workaround for network message publishing
+        // TODO: #4939 temporary workaround for network message publishing
         // current approach relies on the network event loop to publish messages.
         let f = async {
             loop {

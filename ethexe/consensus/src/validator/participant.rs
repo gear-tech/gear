@@ -20,11 +20,11 @@ use super::{
     DefaultProcessing, PendingEvent, StateHandler, ValidatorContext, ValidatorState,
     initial::Initial,
 };
-use crate::{BatchCommitmentValidationReply, ConsensusEvent};
+use crate::{BatchCommitmentValidationReply, ConsensusEvent, validator::core::ValidationStatus};
 use anyhow::Result;
 use derive_more::{Debug, Display};
 use ethexe_common::{
-    Address, Digest, SimpleBlockData,
+    Address, SimpleBlockData,
     consensus::{BatchCommitmentValidationRequest, VerifiedValidationRequest},
     network::ValidatorMessage,
 };
@@ -49,7 +49,7 @@ enum State {
     WaitingForValidationRequest,
     ProcessingValidationRequest {
         #[debug(skip)]
-        future: BoxFuture<'static, Result<Digest>>,
+        future: BoxFuture<'static, Result<ValidationStatus>>,
     },
 }
 
@@ -85,7 +85,7 @@ impl StateHandler for Participant {
             && let Poll::Ready(res) = future.poll_unpin(cx)
         {
             match res {
-                Ok(digest) => {
+                Ok(ValidationStatus::Accepted(digest)) => {
                     let reply = self
                         .ctx
                         .core
@@ -111,7 +111,11 @@ impl StateHandler for Participant {
                     self.ctx
                         .output(ConsensusEvent::PublishMessage(reply.into()));
                 }
-                Err(err) => self.warning(format!("reject validation request: {err}")),
+                Ok(ValidationStatus::Rejected { request, reason }) => {
+                    self.ctx
+                        .warning(format!("reject validation request {request:?} : {reason}",));
+                }
+                Err(err) => return Err(err),
             }
 
             // NOTE: In both cases it returns to the initial state,
@@ -184,7 +188,7 @@ impl Participant {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{ConsensusEvent, mock::*, validator::mock::*};
+    use crate::{mock::*, validator::mock::*};
     use ethexe_common::{Digest, ToDigest, gear::CodeCommitment, mock::*};
 
     #[test]
@@ -204,7 +208,7 @@ mod tests {
         let (mut ctx, keys, _) = mock_validator_context();
         let producer = keys[0];
         let alice = keys[1];
-        let block = SimpleBlockData::mock(());
+        let block = BlockChain::mock(2).setup(&ctx.core.db).blocks[2].to_simple();
 
         // Validation request from alice - must be kept
         ctx.pending(PendingEvent::ValidationRequest(
@@ -290,14 +294,12 @@ mod tests {
         let state = Participant::create(ctx, block, producer.to_address()).unwrap();
         assert!(state.is_participant());
 
-        let (state, event) = state
+        state
             .process_validation_request(verified_request)
             .unwrap()
             .wait_for_event()
             .await
-            .unwrap();
-        assert!(state.is_initial());
-        assert!(matches!(event, ConsensusEvent::Warning(_)));
+            .expect_err("database is empty - must fail");
     }
 
     #[tokio::test]

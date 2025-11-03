@@ -181,7 +181,10 @@ impl Subordinate {
                 Ok(self.into())
             }
             AnnounceStatus::Rejected { announce, reason } => {
-                tracing::warn!("Received announce {announce:?} is rejected: {reason}");
+                self.warning(format!(
+                    "Received announce {announce:?} is rejected: {reason:?}"
+                ));
+
                 Initial::create(self.ctx)
             }
         }
