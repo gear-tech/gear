@@ -44,7 +44,7 @@ use std::{
 use tokio::{time, time::Interval};
 
 const MAX_VALIDATOR_IDENTITIES: NonZeroUsize = NonZeroUsize::new(100).unwrap();
-const GET_IDENTITIES_INTERVAL: Duration = Duration::from_secs(60);
+const QUERY_IDENTITIES_INTERVAL: Duration = Duration::from_secs(60);
 const PUT_IDENTITY_INTERVAL: Duration = Duration::from_secs(60);
 
 pub type SignedValidatorIdentity = SignedData<ValidatorIdentity>;
@@ -113,7 +113,7 @@ impl Decode for ValidatorIdentity {
 
 #[derive(Debug)]
 pub enum Event {
-    GetIdentities,
+    QueryIdentities,
     PutIdentity,
 }
 
@@ -124,7 +124,7 @@ pub struct Behaviour {
     signer: Signer,
     identities: LruCache<Address, SignedValidatorIdentity>,
     external_addresses: ExternalAddresses,
-    get_identities_interval: Interval,
+    query_identities_interval: Interval,
     put_identity_interval: Interval,
 }
 
@@ -136,7 +136,7 @@ impl Behaviour {
             signer,
             identities: LruCache::new(MAX_VALIDATOR_IDENTITIES),
             external_addresses: ExternalAddresses::default(),
-            get_identities_interval: time::interval(GET_IDENTITIES_INTERVAL),
+            query_identities_interval: time::interval(QUERY_IDENTITIES_INTERVAL),
             put_identity_interval: time::interval(PUT_IDENTITY_INTERVAL),
         }
     }
@@ -266,8 +266,8 @@ impl NetworkBehaviour for Behaviour {
         &mut self,
         cx: &mut std::task::Context<'_>,
     ) -> Poll<ToSwarm<Self::ToSwarm, THandlerInEvent<Self>>> {
-        if self.get_identities_interval.poll_tick(cx).is_ready() {
-            return Poll::Ready(ToSwarm::GenerateEvent(Event::GetIdentities));
+        if self.query_identities_interval.poll_tick(cx).is_ready() {
+            return Poll::Ready(ToSwarm::GenerateEvent(Event::QueryIdentities));
         }
 
         if self.put_identity_interval.poll_tick(cx).is_ready() {

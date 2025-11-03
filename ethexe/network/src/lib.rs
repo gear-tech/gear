@@ -494,7 +494,7 @@ impl NetworkService {
                 return Some(NetworkEvent::InjectedTransaction(transaction));
             }
             //
-            BehaviourEvent::ValidatorDiscovery(validator::discovery::Event::GetIdentities) => {
+            BehaviourEvent::ValidatorDiscovery(validator::discovery::Event::QueryIdentities) => {
                 let behaviour = self.swarm.behaviour_mut();
                 for key in behaviour
                     .validator_discovery
