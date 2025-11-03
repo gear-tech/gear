@@ -17,9 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    Address, Announce, HashOf,
+    Address, Announce, HashOf, ToDigest,
     consensus::{BatchCommitmentValidationReply, BatchCommitmentValidationRequest},
-    crypto::ToDigest,
     ecdsa::{SignedData, VerifiedData},
 };
 use alloc::vec::Vec;
