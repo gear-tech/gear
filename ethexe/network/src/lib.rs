@@ -20,6 +20,7 @@ mod custom_connection_limits;
 pub mod db_sync;
 mod gossipsub;
 mod injected;
+mod kad;
 pub mod peer_score;
 mod utils;
 mod validator;
@@ -44,9 +45,7 @@ use libp2p::{
     Multiaddr, PeerId, Swarm, Transport, connection_limits,
     core::{muxing::StreamMuxerBox, transport, transport::ListenerId, upgrade},
     futures::StreamExt,
-    identify, identity, kad,
-    kad::store::RecordStore,
-    mdns,
+    identify, identity, mdns,
     multiaddr::Protocol,
     ping,
     swarm::{
@@ -69,10 +68,6 @@ pub const AGENT_VERSION: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO
 const MAX_ESTABLISHED_INCOMING_PER_PEER_CONNECTIONS: u32 = 1;
 const MAX_ESTABLISHED_OUTBOUND_PER_PEER_CONNECTIONS: u32 = 1;
 const MAX_ESTABLISHED_INCOMING_CONNECTIONS: u32 = 100;
-
-const KAD_RECORD_TTL_SECS: u64 = 3600 * 3; // 3 hours
-const KAD_RECORD_TTL: Duration = Duration::from_secs(KAD_RECORD_TTL_SECS);
-const KAD_PUBLISHING_INTERVAL: Duration = Duration::from_secs(KAD_RECORD_TTL_SECS / 4);
 
 pub trait NetworkServiceDatabase: DbSyncDatabase + ValidatorDatabase {}
 impl<T> NetworkServiceDatabase for T where T: DbSyncDatabase + ValidatorDatabase {}
@@ -240,7 +235,7 @@ impl NetworkService {
                 })
                 .context("bootstrap nodes are not allowed without peer ID")?;
 
-            swarm.behaviour_mut().kad.add_address(&peer_id, multiaddr);
+            swarm.behaviour_mut().kad.add_address(peer_id, multiaddr);
         }
 
         let validator_list =
@@ -398,7 +393,7 @@ impl NetworkService {
                 // add listen addresses of new peers to KadDHT
                 // according to `identify` and `kad` protocols docs
                 for listen_addr in info.listen_addrs {
-                    behaviour.kad.add_address(&peer_id, listen_addr);
+                    behaviour.kad.add_address(peer_id, listen_addr);
                 }
             }
             identify::Event::Error { peer_id, error, .. } => {
@@ -438,7 +433,7 @@ impl NetworkService {
 
     fn handle_kad_event(&mut self, event: kad::Event) {
         match event {
-            kad::Event::RoutingUpdated { peer, .. } => {
+            kad::Event::RoutingUpdated { peer } => {
                 let behaviour = self.swarm.behaviour_mut();
                 if let Some(mdns4) = behaviour.mdns4.as_ref()
                     && mdns4.discovered_nodes().any(|&p| p == peer)
@@ -446,63 +441,22 @@ impl NetworkService {
                     // we don't want local peers to appear in KadDHT.
                     // event can be emitted few times in a row for
                     // the same peer, so we just ignore `None`
-                    let _res = behaviour.kad.remove_peer(&peer);
+                    let _res = behaviour.kad.remove_peer(peer);
                 }
             }
-            kad::Event::InboundRequest {
-                request:
-                    kad::InboundRequest::PutRecord {
-                        source,
-                        connection: _,
-                        record,
-                    },
-            } => {
+            kad::Event::InboundPutRecord { source, validator } => {
                 let behaviour = self.swarm.behaviour_mut();
-                let record =
-                    record.expect("`StoreInserts::FilterBoth` implies `record` is always present");
+                let res = validator.validate(&mut behaviour.kad, |record| {
+                    behaviour
+                        .validator_discovery
+                        .put_identity(&self.validator_list, record)
+                });
 
-                match behaviour
-                    .validator_discovery
-                    .put_identity(&self.validator_list, &record)
-                {
-                    Ok(()) => {
-                        let _res = behaviour.kad.store_mut().put(record);
-                    }
-                    Err(err) => {
-                        log::trace!("failed to put identity: {err}");
-                        behaviour.peer_score.handle().invalid_data(source);
-                    }
+                if let Err(err) = res {
+                    log::trace!("failed to put identity: {err}");
+                    behaviour.peer_score.handle().invalid_data(source);
                 }
             }
-            kad::Event::OutboundQueryProgressed {
-                id: _,
-                result,
-                stats: _,
-                step: _,
-            } => match result {
-                kad::QueryResult::GetRecord(get_record_result) => match get_record_result {
-                    Ok(_) => {
-                        // handled in `kad::Event::InboundRequest`
-                    }
-                    Err(kad::GetRecordError::NotFound {
-                        key,
-                        closest_peers: _,
-                    }) => {
-                        log::trace!("record {key:?} not found");
-                    }
-                    Err(err) => {
-                        log::warn!("failed to get record: {err}");
-                    }
-                },
-                kad::QueryResult::PutRecord(put_record_result) => match put_record_result {
-                    Ok(_) => {}
-                    Err(err) => {
-                        log::warn!("failed to put record: {err}");
-                    }
-                },
-                _ => {}
-            },
-            _ => {}
         }
     }
 
@@ -563,8 +517,7 @@ impl NetworkService {
 
                 match behaviour.validator_discovery.identity(&self.validator_list) {
                     Some(Ok(identity)) => {
-                        if let Err(err) = behaviour.kad.put_record(identity, kad::Quorum::Majority)
-                        {
+                        if let Err(err) = behaviour.kad.put_record(identity) {
                             log::warn!("failed to put record into local storage: {err}");
                         }
                     }
@@ -671,7 +624,7 @@ pub(crate) struct Behaviour {
     pub mdns4: Toggle<mdns::tokio::Behaviour>,
     // global traversal discovery
     // TODO: consider to cache records in fs
-    pub kad: kad::Behaviour<kad::store::MemoryStore>,
+    pub kad: kad::Behaviour,
     // general communication
     pub gossipsub: gossipsub::Behaviour,
     // database synchronization protocol
@@ -730,14 +683,7 @@ impl Behaviour {
                 .transpose()?,
         );
 
-        let mut kad = kad::Config::default();
-        kad.disjoint_query_paths(true)
-            .set_record_ttl(Some(KAD_RECORD_TTL))
-            .set_publication_interval(Some(KAD_PUBLISHING_INTERVAL))
-            .set_record_filtering(kad::StoreInserts::FilterBoth);
-        let mut kad =
-            kad::Behaviour::with_config(peer_id, kad::store::MemoryStore::new(peer_id), kad);
-        kad.set_mode(Some(kad::Mode::Server));
+        let kad = kad::Behaviour::new(peer_id);
 
         let gossipsub =
             gossipsub::Behaviour::new(keypair.clone(), peer_score_handle.clone(), router_address)

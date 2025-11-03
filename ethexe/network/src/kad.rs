@@ -1,0 +1,249 @@
+// This file is part of Gear.
+//
+// Copyright (C) 2025 Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+use libp2p::{
+    Multiaddr, PeerId,
+    core::{Endpoint, transport::PortUse},
+    kad,
+    kad::{
+        Addresses, EntryView, KBucketKey, QueryId, Quorum, Record, RecordKey, store,
+        store::{MemoryStore, RecordStore},
+    },
+    swarm::{
+        ConnectionDenied, ConnectionId, FromSwarm, NetworkBehaviour, THandler, THandlerInEvent,
+        THandlerOutEvent, ToSwarm,
+    },
+};
+use std::{
+    task::{Context, Poll, ready},
+    time::Duration,
+};
+
+const KAD_RECORD_TTL_SECS: u64 = 3600 * 3; // 3 hours
+const KAD_RECORD_TTL: Duration = Duration::from_secs(KAD_RECORD_TTL_SECS);
+const KAD_PUBLISHING_INTERVAL: Duration = Duration::from_secs(KAD_RECORD_TTL_SECS / 4);
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct PutRecordValidator {
+    record: Record,
+}
+
+impl PutRecordValidator {
+    pub fn validate<F, T, E>(self, behaviour: &mut Behaviour, f: F) -> Result<T, E>
+    where
+        F: FnOnce(&Record) -> Result<T, E>,
+    {
+        let Self { record } = self;
+        let res = f(&record);
+        if res.is_ok() {
+            let _res = behaviour.inner.store_mut().put(record);
+        }
+        res
+    }
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub enum Event {
+    RoutingUpdated {
+        peer: PeerId,
+    },
+    InboundPutRecord {
+        source: PeerId,
+        validator: PutRecordValidator,
+    },
+}
+
+pub struct Behaviour {
+    inner: kad::Behaviour<MemoryStore>,
+}
+
+impl Behaviour {
+    pub fn new(peer: PeerId) -> Self {
+        let mut inner = kad::Config::default();
+        inner
+            .disjoint_query_paths(true)
+            .set_record_ttl(Some(KAD_RECORD_TTL))
+            .set_publication_interval(Some(KAD_PUBLISHING_INTERVAL))
+            .set_record_filtering(kad::StoreInserts::FilterBoth);
+        let mut inner = kad::Behaviour::with_config(peer, MemoryStore::new(peer), inner);
+        inner.set_mode(Some(kad::Mode::Server));
+        Self { inner }
+    }
+
+    pub fn add_address(&mut self, peer_id: PeerId, multiaddr: Multiaddr) {
+        self.inner.add_address(&peer_id, multiaddr);
+    }
+
+    pub fn remove_peer(
+        &mut self,
+        peer_id: PeerId,
+    ) -> Option<EntryView<KBucketKey<PeerId>, Addresses>> {
+        self.inner.remove_peer(&peer_id)
+    }
+
+    pub fn get_record(&mut self, key: RecordKey) -> QueryId {
+        self.inner.get_record(key)
+    }
+
+    pub fn put_record(&mut self, record: Record) -> Result<QueryId, store::Error> {
+        self.inner.put_record(record, Quorum::All)
+    }
+
+    fn handle_inner_event(&mut self, event: kad::Event) -> Poll<Event> {
+        match event {
+            kad::Event::RoutingUpdated { peer, .. } => {
+                return Poll::Ready(Event::RoutingUpdated { peer });
+            }
+            kad::Event::InboundRequest {
+                request:
+                    kad::InboundRequest::PutRecord {
+                        source,
+                        connection: _,
+                        record,
+                    },
+            } => {
+                let record =
+                    record.expect("`StoreInserts::FilterBoth` implies `record` is always present");
+                let validator = PutRecordValidator { record };
+                return Poll::Ready(Event::InboundPutRecord { source, validator });
+            }
+            kad::Event::OutboundQueryProgressed {
+                id: _,
+                result,
+                stats: _,
+                step: _,
+            } => match result {
+                kad::QueryResult::GetRecord(get_record_result) => match get_record_result {
+                    Ok(_) => {
+                        // handled in `kad::Event::InboundRequest`
+                    }
+                    Err(kad::GetRecordError::NotFound {
+                        key,
+                        closest_peers: _,
+                    }) => {
+                        log::trace!("record {key:?} not found");
+                    }
+                    Err(err) => {
+                        log::warn!("failed to get record: {err}");
+                    }
+                },
+                kad::QueryResult::PutRecord(put_record_result) => match put_record_result {
+                    Ok(_) => {}
+                    Err(err) => {
+                        log::warn!("failed to put record: {err}");
+                    }
+                },
+                _ => {}
+            },
+            _ => {}
+        }
+
+        Poll::Pending
+    }
+}
+
+impl NetworkBehaviour for Behaviour {
+    type ConnectionHandler = THandler<kad::Behaviour<MemoryStore>>;
+    type ToSwarm = Event;
+
+    fn handle_pending_inbound_connection(
+        &mut self,
+        connection_id: ConnectionId,
+        local_addr: &Multiaddr,
+        remote_addr: &Multiaddr,
+    ) -> Result<(), ConnectionDenied> {
+        self.inner
+            .handle_pending_inbound_connection(connection_id, local_addr, remote_addr)
+    }
+
+    fn handle_established_inbound_connection(
+        &mut self,
+        connection_id: ConnectionId,
+        peer: PeerId,
+        local_addr: &Multiaddr,
+        remote_addr: &Multiaddr,
+    ) -> Result<THandler<Self>, ConnectionDenied> {
+        self.inner.handle_established_inbound_connection(
+            connection_id,
+            peer,
+            local_addr,
+            remote_addr,
+        )
+    }
+
+    fn handle_pending_outbound_connection(
+        &mut self,
+        connection_id: ConnectionId,
+        maybe_peer: Option<PeerId>,
+        addresses: &[Multiaddr],
+        effective_role: Endpoint,
+    ) -> Result<Vec<Multiaddr>, ConnectionDenied> {
+        self.inner.handle_pending_outbound_connection(
+            connection_id,
+            maybe_peer,
+            addresses,
+            effective_role,
+        )
+    }
+
+    fn handle_established_outbound_connection(
+        &mut self,
+        connection_id: ConnectionId,
+        peer: PeerId,
+        addr: &Multiaddr,
+        role_override: Endpoint,
+        port_use: PortUse,
+    ) -> Result<THandler<Self>, ConnectionDenied> {
+        self.inner.handle_established_outbound_connection(
+            connection_id,
+            peer,
+            addr,
+            role_override,
+            port_use,
+        )
+    }
+
+    fn on_swarm_event(&mut self, event: FromSwarm) {
+        self.inner.on_swarm_event(event)
+    }
+
+    fn on_connection_handler_event(
+        &mut self,
+        peer_id: PeerId,
+        connection_id: ConnectionId,
+        event: THandlerOutEvent<Self>,
+    ) {
+        self.inner
+            .on_connection_handler_event(peer_id, connection_id, event)
+    }
+
+    fn poll(
+        &mut self,
+        cx: &mut Context<'_>,
+    ) -> Poll<ToSwarm<Self::ToSwarm, THandlerInEvent<Self>>> {
+        let to_swarm = ready!(self.inner.poll(cx));
+        match to_swarm {
+            ToSwarm::GenerateEvent(event) => {
+                self.handle_inner_event(event).map(ToSwarm::GenerateEvent)
+            }
+            to_swarm => Poll::Ready(to_swarm.map_out::<Event>(|_event| {
+                unreachable!("`ToSwarm::GenerateEvent` is handled above")
+            })),
+        }
+    }
+}
