@@ -20,7 +20,7 @@
 
 use crate::SignedOffchainTransaction;
 use anyhow::{Result, anyhow, bail};
-use ethexe_common::{db::LatestDataStorageRO, tx_pool};
+use ethexe_common::db::LatestDataStorageRO;
 use ethexe_db::Database;
 
 // TODO #4424
@@ -81,12 +81,13 @@ impl TxValidator {
     fn check_mortality(&self) -> Result<bool> {
         // TODO #4809: checking mortality for latest block is not fully correct approach,
         // but can be applied presently.
-        let latest_block_hash = self
+        let _latest_block_hash = self
             .db
             .latest_data()
             .ok_or_else(|| anyhow!("Latest data not found"))?
             .prepared_block_hash;
-        tx_pool::check_mortality_at(&self.db, &self.transaction, latest_block_hash)
+        // ethexe_common::injected::check_mortality_at(&self.db, &self.transaction, latest_block_hash)
+        todo!()
     }
 
     /// Validates transaction uniqueness.

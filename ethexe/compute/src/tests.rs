@@ -215,7 +215,7 @@ fn new_announce(db: &Database, block_hash: H256, gas_allowance: Option<u64>) -> 
         block_hash,
         parent: parent_announce_hash,
         gas_allowance,
-        off_chain_transactions: vec![],
+        injected_transactions: vec![],
     }
 }
 

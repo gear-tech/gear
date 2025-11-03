@@ -193,7 +193,7 @@ impl Processor {
         announce: Announce,
         events: Vec<BlockRequestEvent>,
     ) -> Result<BlockProcessingResult> {
-        if !announce.off_chain_transactions.is_empty() {
+        if !announce.injected_transactions.is_empty() {
             todo!("#4639 off-chain transactions and gas allowance are not supported yet");
         }
 

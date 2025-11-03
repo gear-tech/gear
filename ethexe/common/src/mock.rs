@@ -74,7 +74,7 @@ impl Mock<(H256, HashOf<Announce>)> for Announce {
             block_hash,
             parent,
             gas_allowance: Some(100),
-            off_chain_transactions: vec![],
+            injected_transactions: vec![],
         }
     }
 }

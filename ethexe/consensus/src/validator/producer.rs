@@ -222,7 +222,7 @@ impl Producer {
             parent,
             gas_allowance: Some(self.ctx.core.block_gas_limit),
             // TODO #4639: append off-chain transactions
-            off_chain_transactions: Vec::new(),
+            injected_transactions: Vec::new(),
         };
 
         let announce_hash = self.ctx.core.db.set_announce(announce.clone());

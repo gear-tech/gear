@@ -30,7 +30,6 @@ pub mod export {
 
 use crate::{
     db_sync::DbSyncDatabase,
-    gossipsub::MessageAcceptance,
     validator::{ValidatorDatabase, Validators},
 };
 use anyhow::{Context, anyhow};
@@ -77,7 +76,6 @@ impl<T> NetworkServiceDatabase for T where T: DbSyncDatabase + ValidatorDatabase
 #[derive(derive_more::Debug, Eq, PartialEq, Clone)]
 pub enum NetworkEvent {
     ValidatorMessage(VerifiedValidatorMessage),
-    OffchainTransaction(SignedOffchainTransaction),
     InjectedTransaction(SignedInjectedTransaction),
     PeerBlocked(PeerId),
     PeerConnected(PeerId),
@@ -404,10 +402,13 @@ impl NetworkService {
                             self.validators.verify_message_initially(source, message);
                         (acceptance, message.map(NetworkEvent::ValidatorMessage))
                     }
-                    gossipsub::Message::Offchain(transaction) => (
-                        MessageAcceptance::Accept,
-                        Some(NetworkEvent::OffchainTransaction(transaction)),
-                    ),
+                    gossipsub::Message::Offchain(_transaction) => {
+                        todo!("lol")
+                        //     (
+                        //     MessageAcceptance::Accept,
+                        //     Some(NetworkEvent::OffchainTransaction(transaction)),
+                        // )
+                    }
                 });
 
                 return event;

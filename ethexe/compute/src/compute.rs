@@ -179,7 +179,7 @@ mod tests {
             block_hash,
             parent: db.latest_data().unwrap().genesis_announce_hash,
             gas_allowance: Some(100),
-            off_chain_transactions: vec![],
+            injected_transactions: vec![],
         };
         let announce_hash = announce.to_hash();
 

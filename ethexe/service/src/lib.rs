@@ -472,13 +472,6 @@ impl Service {
                                 }
                             };
                         }
-                        NetworkEvent::OffchainTransaction(transaction) => {
-                            if let Err(e) = tx_pool.process_offchain_transaction(transaction) {
-                                log::warn!(
-                                    "Failed to process offchain transaction received by p2p: {e}"
-                                );
-                            }
-                        }
                         NetworkEvent::InjectedTransaction(_transaction) => {
                             // TODO: handle transaction
                         }

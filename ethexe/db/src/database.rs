@@ -703,7 +703,7 @@ mod tests {
             block_hash: H256::random(),
             parent: HashOf::random(),
             gas_allowance: Some(1000),
-            off_chain_transactions: vec![],
+            injected_transactions: vec![],
         };
         let announce_hash = db.set_announce(announce.clone());
         assert_eq!(announce_hash, announce.to_hash());
