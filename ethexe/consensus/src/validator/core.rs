@@ -160,7 +160,7 @@ impl ValidatorCore {
         };
 
         let mut elected_validators = self.middleware.make_election_at(request).await?;
-        // Sort elected validators, because of we can not guarantee the determinism of validators order.
+        // Sort elected validators, because of we can not guarantee the determenism of validators order.
         elected_validators.sort();
 
         let commitment = utils::validators_commitment(block_era + 1, elected_validators)?;

@@ -20,8 +20,8 @@ nonempty.workspace = true
 anyhow.workspace = true
 auto_impl.workspace = true
 gsigner = { workspace = true, features = ["secp256k1", "codec"] }
+sha3.workspace = true
 
-sha3 = { version = "0.10", default-features = false }
 k256 = { version = "0.13.4", features = ["ecdsa"], default-features = false }
 
 # mock deps

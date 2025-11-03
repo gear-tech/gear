@@ -234,7 +234,7 @@ mod tests {
             unimplemented!()
         }
 
-        fn block_validators(&self, _block_hash: H256) -> Option<crate::ValidatorsVec> {
+        fn validators(&self, _era_index: u64) -> Option<crate::ValidatorsVec> {
             unimplemented!()
         }
     }
