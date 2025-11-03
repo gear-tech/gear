@@ -22,13 +22,18 @@
 pub use crate::schemes::secp256k1::{Address, FromActorIdError, ValidatorsVec};
 
 #[cfg(any(feature = "sr25519", feature = "ed25519"))]
-use alloc::string::String;
+use crate::error::{Result, SignerError};
 #[cfg(any(feature = "sr25519", feature = "ed25519"))]
-use anyhow::{Result, anyhow};
+use alloc::{
+    format,
+    string::{String, ToString},
+};
 #[cfg(any(feature = "sr25519", feature = "ed25519"))]
 use core::fmt;
 #[cfg(any(feature = "sr25519", feature = "ed25519"))]
-use sp_core::crypto::{Ss58AddressFormat, Ss58Codec};
+use sp_core::crypto::Ss58AddressFormat;
+#[cfg(all(feature = "serde", any(feature = "sr25519", feature = "ed25519")))]
+use sp_core::crypto::Ss58Codec;
 
 /// Substrate SS58 address wrapper.
 #[cfg(any(feature = "sr25519", feature = "ed25519"))]
@@ -94,6 +99,7 @@ impl SubstrateAddress {
     }
 
     /// Decode an SS58 address string to public key bytes.
+    #[cfg(feature = "serde")]
     pub fn from_ss58(ss58: &str) -> Result<Self> {
         #[cfg(feature = "sr25519")]
         if let Ok(public) = sp_core::sr25519::Public::from_ss58check(ss58) {
@@ -113,7 +119,9 @@ impl SubstrateAddress {
             });
         }
 
-        Err(anyhow!("Invalid SS58 encoding: {ss58}"))
+        Err(SignerError::InvalidAddress(format!(
+            "Invalid SS58 encoding: {ss58}"
+        )))
     }
 
     /// Re-encode address to a different SS58 format (e.g., VARA).
@@ -138,7 +146,7 @@ impl SubstrateAddress {
                 Ok(public.to_ss58check_with_version(format))
             }
             #[cfg(not(any(feature = "sr25519", feature = "ed25519")))]
-            _ => Err(anyhow!("No Substrate-compatible scheme enabled")),
+            _ => Err(SignerError::FeatureNotEnabled("substrate address encoding")),
         }
     }
 }

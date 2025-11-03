@@ -18,13 +18,9 @@
 
 //! Keyring manager for sr25519 keys with polkadot-js compatibility.
 
-use super::Keystore;
-use crate::{
-    address::{SubstrateAddress, SubstrateCryptoScheme},
-    keyring::{Keyring as GenericKeyring, KeystoreEntry},
-};
+use super::{Keystore, PrivateKey};
+use crate::keyring::{Keyring as GenericKeyring, KeystoreEntry};
 use anyhow::Result;
-use schnorrkel::Keypair;
 use std::path::PathBuf;
 
 /// sr25519 keyring backed by the generic [`GenericKeyring`].
@@ -35,18 +31,23 @@ impl Keyring {
     pub fn add(
         &mut self,
         name: &str,
-        keypair: Keypair,
+        private_key: PrivateKey,
         passphrase: Option<&[u8]>,
     ) -> Result<Keystore> {
+        let keypair = private_key.keypair();
         let keystore = Keystore::encrypt(keypair, passphrase)?.with_name(name);
         self.store(name, keystore)
     }
 
     /// Create a new key in the keyring.
-    pub fn create(&mut self, name: &str, passphrase: Option<&[u8]>) -> Result<(Keystore, Keypair)> {
-        let keypair = Keypair::generate();
-        let keystore = self.add(name, keypair.clone(), passphrase)?;
-        Ok((keystore, keypair))
+    pub fn create(
+        &mut self,
+        name: &str,
+        passphrase: Option<&[u8]>,
+    ) -> Result<(Keystore, PrivateKey)> {
+        let private_key = PrivateKey::random();
+        let keystore = self.add(name, private_key.clone(), passphrase)?;
+        Ok((keystore, private_key))
     }
 
     /// Create a vanity key with the specified SS58 prefix.
@@ -55,19 +56,18 @@ impl Keyring {
         name: &str,
         prefix: &str,
         passphrase: Option<&[u8]>,
-    ) -> Result<(Keystore, Keypair)> {
-        let keypair = loop {
-            let keypair = Keypair::generate();
-            let public_key = keypair.public.to_bytes();
-            let address = SubstrateAddress::new(public_key, SubstrateCryptoScheme::Sr25519)?;
+    ) -> Result<(Keystore, PrivateKey)> {
+        let private_key = loop {
+            let candidate = PrivateKey::random();
+            let address = candidate.public_key().to_address()?;
 
             if address.as_ss58().starts_with(prefix) {
-                break keypair;
+                break candidate;
             }
         };
 
-        let keystore = self.add(name, keypair.clone(), passphrase)?;
-        Ok((keystore, keypair))
+        let keystore = self.add(name, private_key.clone(), passphrase)?;
+        Ok((keystore, private_key))
     }
 
     /// Import a polkadot-js compatible keystore file.

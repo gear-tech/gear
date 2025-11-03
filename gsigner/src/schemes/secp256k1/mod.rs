@@ -65,18 +65,19 @@ impl SignatureScheme for Secp256k1 {
     type Address = Address;
     type Digest = Digest;
 
+    #[cfg(feature = "std")]
     fn generate_keypair() -> (Self::PrivateKey, Self::PublicKey) {
         let private_key = PrivateKey::random();
-        let public_key = PublicKey::from(private_key);
+        let public_key = private_key.public_key();
         (private_key, public_key)
     }
 
     fn public_key(private_key: &Self::PrivateKey) -> Self::PublicKey {
-        PublicKey::from(*private_key)
+        private_key.public_key()
     }
 
     fn sign(private_key: &Self::PrivateKey, data: &[u8]) -> Result<Self::Signature> {
-        Signature::create(*private_key, data)
+        Signature::create(private_key, data)
             .map_err(|e| SignerError::Crypto(format!("Signing failed: {e}")))
     }
 

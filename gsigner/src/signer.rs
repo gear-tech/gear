@@ -52,8 +52,7 @@ impl<S: SignatureScheme> Signer<S> {
     /// Create a signer with filesystem storage at the specified path.
     pub fn fs(path: PathBuf) -> Self
     where
-        S::PrivateKey: serde::Serialize + serde::de::DeserializeOwned,
-        S::PublicKey: serde::Serialize + serde::de::DeserializeOwned,
+        S::PrivateKey: crate::traits::SeedableKey,
     {
         fs::create_dir_all(&path).expect("Failed to create storage directory");
         Self::new(FSKeyStorage::<S>::from_path(path))
@@ -62,8 +61,7 @@ impl<S: SignatureScheme> Signer<S> {
     /// Create a signer with temporary filesystem storage.
     pub fn fs_temporary() -> Self
     where
-        S::PrivateKey: serde::Serialize + serde::de::DeserializeOwned,
-        S::PublicKey: serde::Serialize + serde::de::DeserializeOwned,
+        S::PrivateKey: crate::traits::SeedableKey,
     {
         Self::new(FSKeyStorage::<S>::tmp())
     }

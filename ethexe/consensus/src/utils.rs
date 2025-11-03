@@ -240,7 +240,9 @@ pub fn validators_commitment(era: u64, validators: ValidatorsVec) -> Result<Vali
         .serialize()?
         .try_into()
         .unwrap();
-    let public_key_uncompressed = PublicKey(public_key_compressed).to_uncompressed();
+    let public_key_uncompressed = PublicKey::from_bytes(public_key_compressed)
+        .expect("valid aggregated public key")
+        .to_uncompressed();
     let (public_key_x_bytes, public_key_y_bytes) = public_key_uncompressed.split_at(32);
 
     let aggregated_public_key = AggregatedPublicKey {

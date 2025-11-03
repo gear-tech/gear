@@ -21,9 +21,8 @@
 use crate::{
     SignerError,
     error::Result,
-    traits::{KeyStorage, SignatureScheme},
+    traits::{KeyStorage, SeedableKey, SignatureScheme},
 };
-use serde::{Serialize, de::DeserializeOwned};
 use std::{fs, marker::PhantomData, path::PathBuf};
 use tempfile::TempDir;
 
@@ -74,8 +73,7 @@ impl<S: SignatureScheme> FSKeyStorage<S> {
 impl<S> KeyStorage<S> for FSKeyStorage<S>
 where
     S: SignatureScheme,
-    S::PrivateKey: Serialize + DeserializeOwned,
-    S::PublicKey: Serialize + DeserializeOwned,
+    S::PrivateKey: SeedableKey,
 {
     fn empty() -> Self {
         Self::tmp()
@@ -85,8 +83,8 @@ where
         let public_key = S::public_key(&private_key);
         let key_file = self.path.join(self.key_filename(&public_key));
 
-        let serialized = serde_json::to_vec_pretty(&private_key)?;
-        fs::write(key_file, serialized)?;
+        let seed = SeedableKey::seed(&private_key);
+        fs::write(key_file, seed.as_ref())?;
 
         Ok(public_key)
     }
@@ -99,7 +97,8 @@ where
         }
 
         let bytes = fs::read(key_path)?;
-        let private_key = serde_json::from_slice(&bytes)?;
+        let seed = decode_seed::<S::PrivateKey>(&bytes)?;
+        let private_key = SeedableKey::from_seed(seed)?;
 
         Ok(private_key)
     }
@@ -116,7 +115,9 @@ where
             let entry = entry?;
             if entry.file_type()?.is_file() {
                 let bytes = fs::read(entry.path())?;
-                if let Ok(private_key) = serde_json::from_slice::<S::PrivateKey>(&bytes) {
+                if let Ok(seed) = decode_seed::<S::PrivateKey>(&bytes)
+                    && let Ok(private_key) = SeedableKey::from_seed(seed)
+                {
                     keys.push(S::public_key(&private_key));
                 }
             }
@@ -134,4 +135,21 @@ where
         }
         Ok(())
     }
+}
+
+fn decode_seed<P>(bytes: &[u8]) -> Result<<P as SeedableKey>::Seed>
+where
+    P: SeedableKey,
+{
+    let mut seed = <P as SeedableKey>::Seed::default();
+    let slice = seed.as_mut();
+    if bytes.len() != slice.len() {
+        return Err(SignerError::InvalidKey(format!(
+            "Invalid seed length: expected {}, got {}",
+            slice.len(),
+            bytes.len()
+        )));
+    }
+    slice.copy_from_slice(bytes);
+    Ok(seed)
 }

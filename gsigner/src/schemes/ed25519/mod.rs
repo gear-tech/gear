@@ -21,41 +21,45 @@
 use crate::{
     address::{SubstrateAddress, SubstrateCryptoScheme},
     error::{Result, SignerError},
+    substrate_utils::SpPairWrapper,
     traits::SignatureScheme,
 };
-use alloc::vec::Vec;
-use rand::{RngCore, rngs::OsRng};
+use alloc::{
+    string::{String, ToString},
+    vec::Vec,
+};
+use core::convert::TryInto;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use sp_core::{
-    Pair as _,
-    ed25519::{self, Pair as SpPair},
+    crypto::{ByteArray, Pair as PairTrait},
+    ed25519::{self, Pair as SpPair, Public as SpPublic, Signature as SpSignature},
 };
-use zeroize::Zeroizing;
 
 #[cfg(all(feature = "serde", feature = "keyring"))]
 pub mod keyring;
 #[cfg(all(feature = "serde", feature = "keyring"))]
 pub use keyring::{Keyring, Keystore as KeyringKeystore};
 
+/// Seed type alias matching `sp_core::ed25519::Pair`.
+pub type Seed = <SpPair as PairTrait>::Seed;
+
 /// ed25519 signature scheme marker type.
 #[derive(Debug, Clone, Copy)]
 pub struct Ed25519;
 
-/// ed25519 private key stored as zeroizing seed bytes.
+/// ed25519 private key stored as `sp_core::ed25519::Pair`.
 #[derive(Clone)]
-pub struct PrivateKey {
-    seed: Zeroizing<[u8; 32]>,
-}
+pub struct PrivateKey(SpPairWrapper<SpPair>);
 
 /// ed25519 public key (32 bytes).
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(
     feature = "codec",
     derive(parity_scale_codec::Encode, parity_scale_codec::Decode)
 )]
-pub struct PublicKey([u8; 32]);
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct PublicKey(SpPublic);
 
 /// ed25519 signature (64 bytes).
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -63,52 +67,73 @@ pub struct PublicKey([u8; 32]);
     feature = "codec",
     derive(parity_scale_codec::Encode, parity_scale_codec::Decode)
 )]
-pub struct Signature([u8; 64]);
+pub struct Signature(SpSignature);
 
 impl PrivateKey {
     /// Generate a new random private key.
+    #[cfg(feature = "std")]
     pub fn random() -> Self {
-        let mut seed = Zeroizing::new([0u8; 32]);
-        OsRng.fill_bytes(seed.as_mut());
-        Self { seed }
+        Self(SpPairWrapper::generate())
+    }
+
+    /// Create a private key from the underlying seed type.
+    pub fn from_pair_seed(seed: Seed) -> Self {
+        Self(SpPairWrapper::from_pair_seed(seed))
     }
 
     /// Create a private key from raw 32-byte seed.
     pub fn from_seed(seed: [u8; 32]) -> Result<Self> {
-        SpPair::from_seed_slice(&seed).map_err(|e| SignerError::InvalidKey(e.to_string()))?;
-        Ok(Self {
-            seed: Zeroizing::new(seed),
-        })
+        SpPairWrapper::from_seed_bytes(&seed).map(Self)
     }
+
     /// Import from Substrate SURI (mnemonic, dev URIs, derivation paths).
     pub fn from_suri(suri: &str, password: Option<&str>) -> Result<Self> {
-        let (pair, _) = SpPair::from_string_with_seed(suri, password)
-            .map_err(|e| SignerError::InvalidKey(e.to_string()))?;
-        Ok(Self::from_sp_pair(pair))
+        SpPairWrapper::from_suri(suri, password).map(Self)
     }
 
     /// Create from mnemonic phrase, optionally protected with a password.
     pub fn from_phrase(phrase: &str, password: Option<&str>) -> Result<Self> {
-        let (pair, _) = SpPair::from_phrase(phrase, password)
-            .map_err(|e| SignerError::InvalidKey(e.to_string()))?;
-        Ok(Self::from_sp_pair(pair))
+        SpPairWrapper::from_phrase(phrase, password).map(Self)
     }
 
     /// Export as seed bytes.
     pub fn to_bytes(&self) -> [u8; 32] {
-        *self.seed
+        self.seed()
+            .as_ref()
+            .try_into()
+            .expect("ed25519 seed has fixed length")
     }
 
-    fn pair(&self) -> Result<SpPair> {
-        SpPair::from_seed_slice(self.seed.as_ref())
-            .map_err(|e| SignerError::InvalidKey(e.to_string()))
+    /// Return the underlying pair reference.
+    pub fn as_pair(&self) -> &SpPair {
+        self.0.pair()
     }
 
-    fn from_sp_pair(pair: SpPair) -> Self {
-        let raw = pair.to_raw_vec();
-        let mut seed = Zeroizing::new([0u8; 32]);
-        seed.as_mut().copy_from_slice(&raw[..32]);
-        Self { seed }
+    /// Return corresponding public key.
+    pub fn public_key(&self) -> PublicKey {
+        PublicKey(self.0.pair().public())
+    }
+
+    /// Return the underlying seed.
+    pub fn seed(&self) -> Seed {
+        self.0.seed()
+    }
+
+    /// Construct from an existing Substrate pair.
+    pub(crate) fn from_pair(pair: SpPair) -> Self {
+        Self(SpPairWrapper::new(pair))
+    }
+}
+
+impl crate::traits::SeedableKey for PrivateKey {
+    type Seed = Seed;
+
+    fn from_seed(seed: Self::Seed) -> Result<Self> {
+        Ok(PrivateKey::from_pair_seed(seed))
+    }
+
+    fn seed(&self) -> Self::Seed {
+        PrivateKey::seed(self)
     }
 }
 
@@ -118,7 +143,7 @@ impl Serialize for PrivateKey {
     where
         S: serde::Serializer,
     {
-        serializer.serialize_bytes(self.seed.as_ref())
+        serializer.serialize_bytes(self.seed().as_ref())
     }
 }
 
@@ -132,9 +157,9 @@ impl<'de> Deserialize<'de> for PrivateKey {
         if bytes.len() != 32 {
             return Err(serde::de::Error::custom("Invalid ed25519 seed length"));
         }
-        let mut array = [0u8; 32];
-        array.copy_from_slice(&bytes);
-        Self::from_seed(array).map_err(|e| serde::de::Error::custom(e.to_string()))
+        let mut seed = Seed::default();
+        seed.as_mut().copy_from_slice(&bytes);
+        Ok(PrivateKey::from_pair_seed(seed))
     }
 }
 
@@ -144,83 +169,90 @@ impl core::fmt::Debug for PrivateKey {
     }
 }
 
+impl core::fmt::Display for PrivateKey {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "0x{}", hex::encode(self.seed().as_ref()))
+    }
+}
+
 impl PartialEq for PrivateKey {
     fn eq(&self, other: &Self) -> bool {
-        self.seed.as_ref() == other.seed.as_ref()
+        self.to_bytes() == other.to_bytes()
     }
 }
 
 impl Eq for PrivateKey {}
 
-impl Default for PrivateKey {
-    fn default() -> Self {
-        Self {
-            seed: Zeroizing::new([0u8; 32]),
-        }
-    }
-}
-
 impl PublicKey {
     /// Construct from raw bytes.
     pub fn from_bytes(bytes: [u8; 32]) -> Self {
-        Self(bytes)
+        Self(SpPublic::from_raw(bytes))
     }
 
     /// Return raw public key bytes.
-    pub fn to_bytes(&self) -> [u8; 32] {
+    pub fn to_bytes(self) -> [u8; 32] {
         self.0
+            .as_slice()
+            .try_into()
+            .expect("ed25519 public key has fixed length")
     }
 
     /// Return hex-encoded representation.
-    pub fn to_hex(&self) -> String {
-        hex::encode(self.0)
+    pub fn to_hex(self) -> String {
+        hex::encode(self.0.as_slice())
     }
 
     /// Return SS58 address using the default Vara prefix.
-    pub fn to_address(&self) -> Result<SubstrateAddress> {
-        SubstrateAddress::new(self.0, SubstrateCryptoScheme::Ed25519)
+    pub fn to_address(self) -> Result<SubstrateAddress> {
+        SubstrateAddress::new(self.to_bytes(), SubstrateCryptoScheme::Ed25519)
             .map_err(|e| SignerError::InvalidAddress(e.to_string()))
     }
 }
 
 impl core::fmt::Debug for PublicKey {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "PublicKey(0x{})", hex::encode(self.0))
+        write!(f, "PublicKey(0x{})", self.to_hex())
+    }
+}
+
+impl core::fmt::Display for PublicKey {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "0x{}", self.to_hex())
     }
 }
 
 impl From<ed25519::Public> for PublicKey {
     fn from(public: ed25519::Public) -> Self {
-        Self(public.0)
+        Self(public)
     }
 }
 
 impl From<PublicKey> for ed25519::Public {
     fn from(key: PublicKey) -> Self {
-        ed25519::Public::from_raw(key.0)
+        key.0
     }
 }
 
 impl Signature {
     /// Construct signature from raw bytes.
     pub fn from_bytes(bytes: [u8; 64]) -> Self {
-        Self(bytes)
+        Self(SpSignature::from_raw(bytes))
     }
 
     /// Return raw signature bytes.
-    pub fn to_bytes(&self) -> [u8; 64] {
-        self.0
+    pub fn to_bytes(self) -> [u8; 64] {
+        self.0.into()
     }
 
     /// Return hex representation of the signature.
-    pub fn to_hex(&self) -> String {
-        hex::encode(self.0)
+    pub fn to_hex(self) -> String {
+        hex::encode(self.to_bytes())
     }
 }
 
 impl core::fmt::Debug for Signature {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        write!(f, "Signature(0x{})", hex::encode(self.0))
+        write!(f, "Signature(0x{})", self.to_hex())
     }
 }
 
@@ -230,7 +262,7 @@ impl Serialize for Signature {
     where
         S: serde::Serializer,
     {
-        serializer.serialize_bytes(&self.0)
+        serializer.serialize_bytes(&self.to_bytes())
     }
 }
 
@@ -246,19 +278,7 @@ impl<'de> Deserialize<'de> for Signature {
         }
         let mut arr = [0u8; 64];
         arr.copy_from_slice(&bytes);
-        Ok(Self(arr))
-    }
-}
-
-impl From<ed25519::Signature> for Signature {
-    fn from(sig: ed25519::Signature) -> Self {
-        Self(sig.0)
-    }
-}
-
-impl From<Signature> for ed25519::Signature {
-    fn from(sig: Signature) -> Self {
-        ed25519::Signature::from_raw(sig.0)
+        Ok(Self(SpSignature::from_raw(arr)))
     }
 }
 
@@ -269,22 +289,19 @@ impl SignatureScheme for Ed25519 {
     type Address = SubstrateAddress;
     type Digest = Vec<u8>;
 
+    #[cfg(feature = "std")]
     fn generate_keypair() -> (Self::PrivateKey, Self::PublicKey) {
         let private_key = PrivateKey::random();
-        let public_key = Self::public_key(&private_key);
+        let public_key = private_key.public_key();
         (private_key, public_key)
     }
 
     fn public_key(private_key: &Self::PrivateKey) -> Self::PublicKey {
-        let pair = private_key
-            .pair()
-            .expect("stored ed25519 seed is always valid");
-        PublicKey::from(pair.public())
+        private_key.public_key()
     }
 
     fn sign(private_key: &Self::PrivateKey, data: &[u8]) -> Result<Self::Signature> {
-        let pair = private_key.pair()?;
-        Ok(Signature::from(pair.sign(data)))
+        Ok(Signature(private_key.as_pair().sign(data)))
     }
 
     fn verify(
@@ -292,9 +309,7 @@ impl SignatureScheme for Ed25519 {
         data: &[u8],
         signature: &Self::Signature,
     ) -> Result<()> {
-        let sp_signature: ed25519::Signature = (*signature).into();
-        let sp_public: ed25519::Public = (*public_key).into();
-        if SpPair::verify(&sp_signature, data, &sp_public) {
+        if SpPair::verify(&signature.0, data, &public_key.0) {
             Ok(())
         } else {
             Err(SignerError::Crypto("Verification failed".to_string()))
@@ -312,7 +327,7 @@ impl SignatureScheme for Ed25519 {
     }
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "std"))]
 mod tests {
     use super::*;
 

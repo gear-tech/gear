@@ -195,6 +195,8 @@ pub struct Meta {
     pub name: String,
     #[serde(rename = "whenCreated")]
     pub when_created: u128,
+    #[serde(rename = "keyType", default = "Meta::default_key_type")]
+    pub key_type: String,
 }
 
 impl Default for Meta {
@@ -205,7 +207,14 @@ impl Default for Meta {
                 .duration_since(UNIX_EPOCH)
                 .expect("time went backwards")
                 .as_millis(),
+            key_type: Meta::default_key_type(),
         }
+    }
+}
+
+impl Meta {
+    fn default_key_type() -> String {
+        crate::substrate_utils::pair_key_type_string::<sp_core::sr25519::Pair>()
     }
 }
 

@@ -55,7 +55,7 @@ impl Sr25519SignerExt for Signer<Sr25519> {
     ) -> Result<Signature> {
         let private_key = self.get_private_key(public_key)?;
         let ctx = signing_context(context);
-        let keypair = private_key.keypair()?;
+        let keypair = private_key.keypair();
         let signature = keypair.sign(ctx.bytes(data));
         Ok(Signature::from(signature))
     }

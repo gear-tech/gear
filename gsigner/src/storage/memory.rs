@@ -88,7 +88,7 @@ mod tests {
         let mut storage = MemoryKeyStorage::<Secp256k1>::new();
         let (private_key, expected_public_key) = Secp256k1::generate_keypair();
 
-        let public_key = storage.add_key(private_key).unwrap();
+        let public_key = storage.add_key(private_key.clone()).unwrap();
         assert_eq!(public_key, expected_public_key);
 
         assert!(storage.has_key(public_key).unwrap());

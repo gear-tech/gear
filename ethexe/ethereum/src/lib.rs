@@ -300,7 +300,14 @@ mod tests {
         let signature = sender.sign_hash_sync(&hash).expect("signature");
 
         let recovered_vk = signature.recover_from_prehash(&hash).expect("recover");
-        let recovered_address = gsigner::secp256k1::PublicKey::from(recovered_vk).to_address();
+        let recovered_bytes: [u8; 33] = recovered_vk
+            .to_encoded_point(true)
+            .as_bytes()
+            .try_into()
+            .expect("compressed size");
+        let recovered_address = gsigner::secp256k1::PublicKey::from_bytes(recovered_bytes)
+            .expect("valid public key")
+            .to_address();
 
         assert_eq!(recovered_address, address);
     }

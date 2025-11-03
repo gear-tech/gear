@@ -36,8 +36,7 @@ schnorrkel = { workspace = true, optional = true }
 serde = { workspace = true, features = ["derive", "alloc"], optional = true }
 serde_json = { workspace = true, features = ["std"], optional = true }
 sha3 = { version = "0.10", default-features = false, optional = true }
-sp-core = { workspace = true, features = ["std", "full_crypto"], optional = true }
-sp-runtime = { workspace = true, features = ["std"], optional = true }
+sp-core = { workspace = true, default-features = false, features = ["full_crypto", "serde"], optional = true }
 tempfile = { workspace = true, optional = true }
 thiserror = { workspace = true }
 tracing = { workspace = true, default-features = false, features = ["std"], optional = true }
@@ -50,29 +49,19 @@ zeroize = { version = "1.8", features = ["zeroize_derive"] }
 default = ["std", "secp256k1", "sr25519", "ed25519", "codec"]
 std = [
     "dep:anyhow",
+    "dep:rand",
     "dep:serde_json",
     "dep:tempfile",
     "dep:tracing",
-    "serde",
-]
-secp256k1 = ["k256", "sha3", "dep:gprimitives", "dep:alloy-primitives"]
-sr25519 = [
-    "std",
-    "schnorrkel",
-    "nacl",
-    "sp-core",
-    "sp-runtime",
+    "dep:tracing-subscriber",
     "dep:base64",
-    "dep:rand",
-    "serde",
+    "serde/std",
+    "sp-core/std",
 ]
-ed25519 = [
-    "std",
-    "sp-core",
-    "dep:rand",
-    "serde",
-]
-cli = ["std", "clap", "colored", "tracing-subscriber"]
+secp256k1 = ["dep:sp-core", "dep:k256", "dep:sha3", "dep:gprimitives", "dep:alloy-primitives"]
+sr25519 = ["dep:sp-core", "dep:schnorrkel", "dep:nacl", "serde"]
+ed25519 = ["dep:sp-core", "serde"]
+cli = ["std", "clap", "colored", "dep:tracing-subscriber"]
 codec = ["dep:parity-scale-codec"]
 keyring = ["std", "serde"]
 serde = ["dep:serde"]

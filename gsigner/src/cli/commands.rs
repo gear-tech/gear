@@ -241,6 +241,17 @@ pub enum Secp256k1KeyringCommands {
         #[arg(short = 'k', long, help = "Private key (0x... hex)")]
         private_key: String,
     },
+    #[command(about = "Import a key from SURI or mnemonic")]
+    ImportSuri {
+        #[arg(short, long, help = "Keyring directory")]
+        path: PathBuf,
+        #[arg(short, long, help = "Key name")]
+        name: String,
+        #[arg(short = 'u', long, help = "SURI string or mnemonic")]
+        suri: String,
+        #[arg(short = 'w', long, help = "Password for SURI derivation")]
+        password: Option<String>,
+    },
     #[command(about = "List keys in keyring")]
     List {
         #[arg(short, long, help = "Keyring directory")]

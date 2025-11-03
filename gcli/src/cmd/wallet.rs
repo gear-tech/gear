@@ -21,7 +21,10 @@ use anyhow::{Result, anyhow};
 use clap::Parser;
 use colored::Colorize;
 use gsdk::ext::sp_core::{Pair, sr25519};
-use gsigner::cli::{GSignerCommands, display_result, execute_command};
+use gsigner::{
+    cli::{GSignerCommands, display_result, execute_command},
+    sr25519::PrivateKey,
+};
 use schnorrkel::Keypair;
 
 const DEFAULT_DEV: &str = "//Alice";
@@ -67,8 +70,9 @@ impl Wallet {
         let pair = sr25519::Pair::from_string(&uri.unwrap_or_else(|| DEFAULT_DEV.into()), None)
             .map_err(|e| anyhow!("Failed to create keypair from the input uri: {e}"))?;
         let keypair: Keypair = pair.into();
+        let private_key = PrivateKey::from_keypair(keypair);
 
-        keyring.add(name, keypair, None)?;
+        keyring.add(name, private_key, None)?;
         keyring.set_primary(name)?;
         println!("Successfully switched to dev account {} !", name.cyan());
         Ok(())

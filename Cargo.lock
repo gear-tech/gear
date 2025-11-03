@@ -7274,7 +7274,6 @@ dependencies = [
  "serde_json",
  "sha3",
  "sp-core",
- "sp-runtime",
  "tempfile",
  "thiserror 2.0.12",
  "tracing",

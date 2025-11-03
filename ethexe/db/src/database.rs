@@ -671,7 +671,7 @@ mod tests {
     fn test_offchain_transaction() {
         let db = Database::memory();
 
-        let private_key = PrivateKey::from([1; 32]);
+        let private_key = PrivateKey::from_seed([1; 32]).expect("seed is valid");
         let tx = SignedOffchainTransaction::create(
             private_key,
             OffchainTransaction {

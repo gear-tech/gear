@@ -57,13 +57,13 @@ pub trait Secp256k1SignerExt {
 impl Secp256k1SignerExt for Signer<Secp256k1> {
     fn sign_recoverable(&self, public_key: PublicKey, data: &[u8]) -> Result<Signature> {
         let private_key = self.get_private_key(public_key)?;
-        Signature::create(private_key, data)
+        Signature::create(&private_key, data)
             .map_err(|e| SignerError::Crypto(format!("Signature creation failed: {e}")))
     }
 
     fn sign_digest(&self, public_key: PublicKey, digest: &super::Digest) -> Result<Signature> {
         let private_key = self.get_private_key(public_key)?;
-        Signature::create_from_digest(private_key, digest)
+        Signature::create_from_digest(&private_key, digest)
             .map_err(|e| SignerError::Crypto(format!("Signature creation failed: {e}")))
     }
 
@@ -72,7 +72,7 @@ impl Secp256k1SignerExt for Signer<Secp256k1> {
         T: super::ToDigest,
     {
         let private_key = self.get_private_key(public_key)?;
-        SignedData::create(private_key, data)
+        SignedData::create(&private_key, data)
             .map_err(|e| SignerError::Crypto(format!("SignedData creation failed: {e}")))
     }
 
@@ -83,7 +83,7 @@ impl Secp256k1SignerExt for Signer<Secp256k1> {
         data: &[u8],
     ) -> Result<ContractSignature> {
         let private_key = self.get_private_key(public_key)?;
-        ContractSignature::create(contract_address, private_key, data)
+        ContractSignature::create(contract_address, &private_key, data)
             .map_err(|e| SignerError::Crypto(format!("Contract signature creation failed: {e}")))
     }
 
@@ -94,7 +94,7 @@ impl Secp256k1SignerExt for Signer<Secp256k1> {
         digest: &super::Digest,
     ) -> Result<ContractSignature> {
         let private_key = self.get_private_key(public_key)?;
-        ContractSignature::create_from_digest(contract_address, private_key, digest)
+        ContractSignature::create_from_digest(contract_address, &private_key, digest)
             .map_err(|e| SignerError::Crypto(format!("Contract signature creation failed: {e}")))
     }
 }

@@ -25,11 +25,19 @@ use super::commands::*;
 use anyhow::Result;
 use std::path::PathBuf;
 
+#[cfg(any(feature = "secp256k1", feature = "ed25519", feature = "sr25519"))]
+use crate::{
+    substrate_utils::pair_key_type_string,
+    traits::{SeedableKey, SignatureScheme},
+};
+
 /// Result of key generation
 #[derive(Debug, Clone)]
 pub struct KeyGenerationResult {
     pub public_key: String,
     pub address: String,
+    pub scheme: String,
+    pub key_type: String,
 }
 
 /// Result of key import
@@ -37,6 +45,8 @@ pub struct KeyGenerationResult {
 pub struct KeyImportResult {
     pub public_key: String,
     pub address: String,
+    pub scheme: String,
+    pub key_type: String,
 }
 
 /// Result of signing operation
@@ -68,6 +78,8 @@ pub struct ListKeysResult {
 pub struct KeyInfo {
     pub public_key: String,
     pub address: String,
+    pub scheme: String,
+    pub key_type: String,
 }
 
 /// Result of keyring operations
@@ -83,6 +95,8 @@ pub struct KeyringDetails {
     pub name: String,
     pub public_key: String,
     pub address: String,
+    pub scheme: String,
+    pub key_type: Option<String>,
     pub keystore_name: Option<String>,
     pub private_key: Option<String>,
 }
@@ -100,6 +114,8 @@ pub struct KeystoreInfo {
     pub public_key: Option<String>,
     pub address: String,
     pub created: String,
+    pub scheme: String,
+    pub key_type: Option<String>,
 }
 
 #[cfg(feature = "keyring")]
@@ -182,7 +198,7 @@ pub enum Sr25519Result {
 #[cfg(feature = "secp256k1")]
 pub fn execute_secp256k1_command(command: Secp256k1Commands) -> Result<Secp256k1Result> {
     use crate::{
-        Address, SignatureScheme, Signer,
+        Address, Signer,
         schemes::secp256k1::{PublicKey, Secp256k1, Secp256k1SignerExt, Signature},
     };
 
@@ -195,6 +211,8 @@ pub fn execute_secp256k1_command(command: Secp256k1Commands) -> Result<Secp256k1
             Ok(Secp256k1Result::Generate(KeyGenerationResult {
                 public_key: public_key.to_hex(),
                 address: format!("0x{}", hex::encode(address)),
+                scheme: Secp256k1::scheme_name().to_string(),
+                key_type: pair_key_type_string::<sp_core::ecdsa::Pair>(),
             }))
         }
         Secp256k1Commands::Sign {
@@ -266,6 +284,8 @@ pub fn execute_secp256k1_command(command: Secp256k1Commands) -> Result<Secp256k1
                     KeyInfo {
                         public_key: key.to_hex(),
                         address: format!("0x{}", hex::encode(address)),
+                        scheme: Secp256k1::scheme_name().to_string(),
+                        key_type: pair_key_type_string::<sp_core::ecdsa::Pair>(),
                     }
                 })
                 .collect();
@@ -283,7 +303,7 @@ pub fn execute_secp256k1_command(_command: Secp256k1Commands) -> Result<Secp256k
 #[cfg(feature = "ed25519")]
 pub fn execute_ed25519_command(command: Ed25519Commands) -> Result<Ed25519Result> {
     use crate::{
-        SignatureScheme, Signer,
+        Signer,
         schemes::ed25519::{Ed25519, PrivateKey, PublicKey, Signature},
     };
 
@@ -296,6 +316,8 @@ pub fn execute_ed25519_command(command: Ed25519Commands) -> Result<Ed25519Result
             Ok(Ed25519Result::Generate(KeyGenerationResult {
                 public_key: hex::encode(public_key.to_bytes()),
                 address: address.as_ss58().to_string(),
+                scheme: Ed25519::scheme_name().to_string(),
+                key_type: pair_key_type_string::<sp_core::ed25519::Pair>(),
             }))
         }
         Ed25519Commands::Import {
@@ -311,6 +333,8 @@ pub fn execute_ed25519_command(command: Ed25519Commands) -> Result<Ed25519Result
             Ok(Ed25519Result::Import(KeyImportResult {
                 public_key: hex::encode(public_key.to_bytes()),
                 address: address.as_ss58().to_string(),
+                scheme: Ed25519::scheme_name().to_string(),
+                key_type: pair_key_type_string::<sp_core::ed25519::Pair>(),
             }))
         }
         Ed25519Commands::Sign {
@@ -382,6 +406,8 @@ pub fn execute_ed25519_command(command: Ed25519Commands) -> Result<Ed25519Result
                     KeyInfo {
                         public_key: hex::encode(key.to_bytes()),
                         address: address.as_ss58().to_string(),
+                        scheme: Ed25519::scheme_name().to_string(),
+                        key_type: pair_key_type_string::<sp_core::ed25519::Pair>(),
                     }
                 })
                 .collect();
@@ -399,7 +425,7 @@ pub fn execute_ed25519_command(_command: Ed25519Commands) -> Result<Ed25519Resul
 #[cfg(feature = "sr25519")]
 pub fn execute_sr25519_command(command: Sr25519Commands) -> Result<Sr25519Result> {
     use crate::{
-        SignatureScheme, Signer,
+        Signer,
         schemes::sr25519::{PublicKey, Signature, Sr25519, Sr25519SignerExt},
     };
 
@@ -412,6 +438,8 @@ pub fn execute_sr25519_command(command: Sr25519Commands) -> Result<Sr25519Result
             Ok(Sr25519Result::Generate(KeyGenerationResult {
                 public_key: hex::encode(public_key.to_bytes()),
                 address: address.as_ss58().to_string(),
+                scheme: Sr25519::scheme_name().to_string(),
+                key_type: pair_key_type_string::<sp_core::sr25519::Pair>(),
             }))
         }
         Sr25519Commands::Import {
@@ -429,6 +457,8 @@ pub fn execute_sr25519_command(command: Sr25519Commands) -> Result<Sr25519Result
             Ok(Sr25519Result::Import(KeyImportResult {
                 public_key: hex::encode(public_key.to_bytes()),
                 address: address.as_ss58().to_string(),
+                scheme: Sr25519::scheme_name().to_string(),
+                key_type: pair_key_type_string::<sp_core::sr25519::Pair>(),
             }))
         }
         Sr25519Commands::Sign {
@@ -511,6 +541,8 @@ pub fn execute_sr25519_command(command: Sr25519Commands) -> Result<Sr25519Result
                     KeyInfo {
                         public_key: hex::encode(key.to_bytes()),
                         address: address.as_ss58().to_string(),
+                        scheme: Sr25519::scheme_name().to_string(),
+                        key_type: pair_key_type_string::<sp_core::sr25519::Pair>(),
                     }
                 })
                 .collect();
@@ -529,8 +561,10 @@ pub fn execute_sr25519_command(_command: Sr25519Commands) -> Result<Sr25519Resul
 fn execute_sr25519_keyring_command(
     command: Sr25519KeyringCommands,
 ) -> Result<KeyringCommandResult> {
-    use crate::schemes::sr25519::Keyring;
-    use schnorrkel::Keypair;
+    use crate::{
+        schemes::sr25519::{Keyring, PrivateKey, Sr25519},
+        traits::SignatureScheme,
+    };
 
     match command {
         Sr25519KeyringCommands::Create { path } => {
@@ -546,22 +580,24 @@ fn execute_sr25519_keyring_command(
             password,
         } => {
             let mut keyring = Keyring::load(path)?;
-            let keypair = Keypair::generate();
+            let private_key = PrivateKey::random();
             let passphrase = password.as_ref().map(|p| p.as_bytes());
 
-            let keystore = keyring.add(&name, keypair.clone(), passphrase)?;
-            let address = crate::address::SubstrateAddress::new(
-                keypair.public.to_bytes(),
-                crate::address::SubstrateCryptoScheme::Sr25519,
-            )?;
+            let keystore = keyring.add(&name, private_key.clone(), passphrase)?;
+            let public_key = private_key.public_key();
+            let address = public_key.to_address()?;
+            let key_type = keystore.meta.key_type.clone();
+            let keystore_name = keystore.meta.name.clone();
 
             Ok(KeyringCommandResult::Keyring(KeyringResult {
                 message: format!("Added key '{name}'"),
                 details: Some(KeyringDetails {
                     name,
-                    public_key: hex::encode(keypair.public.to_bytes()),
+                    public_key: hex::encode(public_key.to_bytes()),
                     address: address.as_ss58().to_string(),
-                    keystore_name: Some(keystore.meta.name),
+                    scheme: Sr25519::scheme_name().to_string(),
+                    key_type: Some(key_type),
+                    keystore_name: Some(keystore_name),
                     private_key: None,
                 }),
             }))
@@ -575,19 +611,21 @@ fn execute_sr25519_keyring_command(
             let mut keyring = Keyring::load(path)?;
             let passphrase = password.as_ref().map(|p| p.as_bytes());
 
-            let (keystore, keypair) = keyring.create_vanity(&name, &prefix, passphrase)?;
-            let address = crate::address::SubstrateAddress::new(
-                keypair.public.to_bytes(),
-                crate::address::SubstrateCryptoScheme::Sr25519,
-            )?;
+            let (keystore, private_key) = keyring.create_vanity(&name, &prefix, passphrase)?;
+            let public_key = private_key.public_key();
+            let address = public_key.to_address()?;
+            let key_type = keystore.meta.key_type.clone();
+            let keystore_name = keystore.meta.name.clone();
 
             Ok(KeyringCommandResult::Keyring(KeyringResult {
                 message: format!("Generated vanity key '{name}'"),
                 details: Some(KeyringDetails {
                     name,
-                    public_key: hex::encode(keypair.public.to_bytes()),
+                    public_key: hex::encode(public_key.to_bytes()),
                     address: address.as_ss58().to_string(),
-                    keystore_name: Some(keystore.meta.name),
+                    scheme: Sr25519::scheme_name().to_string(),
+                    key_type: Some(key_type),
+                    keystore_name: Some(keystore_name),
                     private_key: None,
                 }),
             }))
@@ -603,6 +641,8 @@ fn execute_sr25519_keyring_command(
                     public_key: ks.public_key().ok().map(hex::encode),
                     address: ks.address.clone(),
                     created: ks.meta.when_created.to_string(),
+                    scheme: Sr25519::scheme_name().to_string(),
+                    key_type: Some(ks.meta.key_type.clone()),
                 })
                 .collect();
 
@@ -616,7 +656,10 @@ fn execute_sr25519_keyring_command(
 fn execute_secp256k1_keyring_command(
     command: Secp256k1KeyringCommands,
 ) -> Result<KeyringCommandResult> {
-    use crate::schemes::secp256k1::keyring::Keyring;
+    use crate::{
+        schemes::secp256k1::{Secp256k1, keyring::Keyring},
+        traits::SignatureScheme,
+    };
 
     match command {
         Secp256k1KeyringCommands::Create { path } => {
@@ -630,6 +673,8 @@ fn execute_secp256k1_keyring_command(
             let mut keyring = Keyring::load(path)?;
             let (keystore, private_key) = keyring.create(&name)?;
             let private_hex = private_key.to_string();
+            let key_type = keystore.meta.key_type.clone();
+            let keystore_name = format!("{}.json", keystore.name);
 
             Ok(KeyringCommandResult::Keyring(KeyringResult {
                 message: format!("Generated key '{name}'"),
@@ -637,7 +682,9 @@ fn execute_secp256k1_keyring_command(
                     name,
                     public_key: keystore.public_key.clone(),
                     address: keystore.address.clone(),
-                    keystore_name: Some(format!("{}.json", keystore.name)),
+                    scheme: Secp256k1::scheme_name().to_string(),
+                    key_type: Some(key_type),
+                    keystore_name: Some(keystore_name),
                     private_key: Some(private_hex),
                 }),
             }))
@@ -650,6 +697,8 @@ fn execute_secp256k1_keyring_command(
             let mut keyring = Keyring::load(path)?;
             let keystore = keyring.add_hex(&name, &private_key)?;
             let normalized_private = keystore.private_key()?.to_string();
+            let key_type = keystore.meta.key_type.clone();
+            let keystore_name = format!("{}.json", keystore.name.clone());
 
             Ok(KeyringCommandResult::Keyring(KeyringResult {
                 message: format!("Imported key '{name}'"),
@@ -657,8 +706,35 @@ fn execute_secp256k1_keyring_command(
                     name,
                     public_key: keystore.public_key.clone(),
                     address: keystore.address.clone(),
-                    keystore_name: Some(format!("{}.json", keystore.name)),
+                    scheme: Secp256k1::scheme_name().to_string(),
+                    key_type: Some(key_type),
+                    keystore_name: Some(keystore_name),
                     private_key: Some(normalized_private),
+                }),
+            }))
+        }
+        Secp256k1KeyringCommands::ImportSuri {
+            path,
+            name,
+            suri,
+            password,
+        } => {
+            let mut keyring = Keyring::load(path)?;
+            let (keystore, private_key) = keyring.import_suri(&name, &suri, password.as_deref())?;
+            let private_hex = private_key.to_string();
+            let key_type = keystore.meta.key_type.clone();
+            let keystore_name = format!("{}.json", keystore.name.clone());
+
+            Ok(KeyringCommandResult::Keyring(KeyringResult {
+                message: format!("Imported key '{name}'"),
+                details: Some(KeyringDetails {
+                    name,
+                    public_key: keystore.public_key.clone(),
+                    address: keystore.address.clone(),
+                    scheme: Secp256k1::scheme_name().to_string(),
+                    key_type: Some(key_type),
+                    keystore_name: Some(keystore_name),
+                    private_key: Some(private_hex),
                 }),
             }))
         }
@@ -673,6 +749,8 @@ fn execute_secp256k1_keyring_command(
                     public_key: Some(ks.public_key.clone()),
                     address: ks.address.clone(),
                     created: ks.meta.when_created.to_string(),
+                    scheme: Secp256k1::scheme_name().to_string(),
+                    key_type: Some(ks.meta.key_type.clone()),
                 })
                 .collect();
 
@@ -687,7 +765,10 @@ fn execute_secp256k1_keyring_command(
 fn execute_ed25519_keyring_command(
     command: Ed25519KeyringCommands,
 ) -> Result<KeyringCommandResult> {
-    use crate::schemes::ed25519::keyring::Keyring;
+    use crate::{
+        schemes::ed25519::{Ed25519, keyring::Keyring},
+        traits::SignatureScheme,
+    };
 
     match command {
         Ed25519KeyringCommands::Create { path } => {
@@ -701,6 +782,8 @@ fn execute_ed25519_keyring_command(
             let mut keyring = Keyring::load(path)?;
             let (keystore, private_key) = keyring.create(&name)?;
             let private_hex = hex::encode(private_key.to_bytes());
+            let key_type = keystore.meta.key_type.clone();
+            let keystore_name = format!("{}.json", keystore.name);
 
             Ok(KeyringCommandResult::Keyring(KeyringResult {
                 message: format!("Generated key '{name}'"),
@@ -708,7 +791,9 @@ fn execute_ed25519_keyring_command(
                     name,
                     public_key: keystore.public_key.clone(),
                     address: keystore.address.clone(),
-                    keystore_name: Some(format!("{}.json", keystore.name)),
+                    scheme: Ed25519::scheme_name().to_string(),
+                    key_type: Some(key_type),
+                    keystore_name: Some(keystore_name),
                     private_key: Some(private_hex),
                 }),
             }))
@@ -717,6 +802,8 @@ fn execute_ed25519_keyring_command(
             let mut keyring = Keyring::load(path)?;
             let keystore = keyring.add_hex(&name, &seed)?;
             let private_hex = hex::encode(keystore.private_key()?.to_bytes());
+            let key_type = keystore.meta.key_type.clone();
+            let keystore_name = format!("{}.json", keystore.name.clone());
 
             Ok(KeyringCommandResult::Keyring(KeyringResult {
                 message: format!("Imported key '{name}'"),
@@ -724,7 +811,9 @@ fn execute_ed25519_keyring_command(
                     name,
                     public_key: keystore.public_key.clone(),
                     address: keystore.address.clone(),
-                    keystore_name: Some(format!("{}.json", keystore.name)),
+                    scheme: Ed25519::scheme_name().to_string(),
+                    key_type: Some(key_type),
+                    keystore_name: Some(keystore_name),
                     private_key: Some(private_hex),
                 }),
             }))
@@ -738,6 +827,8 @@ fn execute_ed25519_keyring_command(
             let mut keyring = Keyring::load(path)?;
             let (keystore, private_key) = keyring.import_suri(&name, &suri, password.as_deref())?;
             let private_hex = hex::encode(private_key.to_bytes());
+            let key_type = keystore.meta.key_type.clone();
+            let keystore_name = format!("{}.json", keystore.name.clone());
 
             Ok(KeyringCommandResult::Keyring(KeyringResult {
                 message: format!("Imported key '{name}'"),
@@ -745,7 +836,9 @@ fn execute_ed25519_keyring_command(
                     name,
                     public_key: keystore.public_key.clone(),
                     address: keystore.address.clone(),
-                    keystore_name: Some(format!("{}.json", keystore.name)),
+                    scheme: Ed25519::scheme_name().to_string(),
+                    key_type: Some(key_type),
+                    keystore_name: Some(keystore_name),
                     private_key: Some(private_hex),
                 }),
             }))
@@ -761,6 +854,8 @@ fn execute_ed25519_keyring_command(
                     public_key: Some(ks.public_key.clone()),
                     address: ks.address.clone(),
                     created: ks.meta.when_created.to_string(),
+                    scheme: Ed25519::scheme_name().to_string(),
+                    key_type: Some(ks.meta.key_type.clone()),
                 })
                 .collect();
 
@@ -774,8 +869,7 @@ fn execute_ed25519_keyring_command(
 // Helper function to create signer with optional storage
 fn create_signer<S: crate::traits::SignatureScheme>(storage: Option<PathBuf>) -> crate::Signer<S>
 where
-    S::PublicKey: serde::Serialize + serde::de::DeserializeOwned,
-    S::PrivateKey: serde::Serialize + serde::de::DeserializeOwned,
+    S::PrivateKey: SeedableKey,
 {
     if let Some(path) = storage {
         crate::Signer::fs(path)

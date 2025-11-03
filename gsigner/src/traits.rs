@@ -43,6 +43,7 @@ pub trait SignatureScheme: Debug + Send + Sync + 'static {
     type Digest: AsRef<[u8]>;
 
     /// Generate a new random keypair.
+    #[cfg(feature = "std")]
     fn generate_keypair() -> (Self::PrivateKey, Self::PublicKey);
 
     /// Derive public key from private key.
@@ -60,6 +61,20 @@ pub trait SignatureScheme: Debug + Send + Sync + 'static {
 
     /// Get the scheme name for display purposes.
     fn scheme_name() -> &'static str;
+}
+
+/// Trait implemented by private key types that can be reconstructed from their seed.
+pub trait SeedableKey: Clone {
+    /// Seed type associated with the private key.
+    type Seed: Clone + Default + AsRef<[u8]> + AsMut<[u8]> + Send + Sync + 'static;
+
+    /// Reconstruct the private key from its seed.
+    fn from_seed(seed: Self::Seed) -> Result<Self>
+    where
+        Self: Sized;
+
+    /// Export the private key seed.
+    fn seed(&self) -> Self::Seed;
 }
 
 /// Trait for key storage backends.

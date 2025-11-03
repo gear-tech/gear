@@ -55,6 +55,10 @@ fn display_keyring_result(result: &KeyringResult) {
             format!("{}:", address_label(&details.address)).bright_blue(),
             details.address
         );
+        println!("  {} {}", "Scheme:".bright_blue(), details.scheme.as_str());
+        if let Some(key_type) = &details.key_type {
+            println!("  {} {}", "Key type:".bright_blue(), key_type);
+        }
         if let Some(private_key) = &details.private_key {
             println!("  {} {}", "Private key:".bright_red(), private_key);
         }
@@ -86,6 +90,10 @@ fn display_keyring_list(result: &KeyringListResult) {
                 ks.address
             );
             println!("    {} {}", "Created:".bright_black(), ks.created);
+            println!("    {} {}", "Scheme:".bright_black(), ks.scheme);
+            if let Some(key_type) = &ks.key_type {
+                println!("    {} {}", "Key type:".bright_black(), key_type);
+            }
         }
     }
 }
@@ -96,6 +104,8 @@ fn display_secp256k1_result(result: &Secp256k1Result) {
             println!("{}", "✓ Generated secp256k1 keypair".green().bold());
             println!("  {} {}", "Public key:".bright_blue(), r.public_key);
             println!("  {} {}", "Address:".bright_blue(), r.address);
+            println!("  {} {}", "Scheme:".bright_blue(), r.scheme);
+            println!("  {} {}", "Key type:".bright_blue(), r.key_type);
         }
         Secp256k1Result::Sign(r) => {
             println!("{}", "✓ Signed data".green().bold());
@@ -118,6 +128,8 @@ fn display_secp256k1_result(result: &Secp256k1Result) {
                 for key in &r.keys {
                     println!("  {} {}", "•".bright_blue(), key.public_key);
                     println!("    {} {}", "Address:".bright_black(), key.address);
+                    println!("    {} {}", "Scheme:".bright_black(), key.scheme);
+                    println!("    {} {}", "Key type:".bright_black(), key.key_type);
                 }
             }
         }
@@ -134,11 +146,15 @@ fn display_ed25519_result(result: &Ed25519Result) {
             println!("{}", "✓ Generated ed25519 keypair".green().bold());
             println!("  {} {}", "Public key:".bright_blue(), r.public_key);
             println!("  {} {}", "SS58 Address:".bright_blue(), r.address);
+            println!("  {} {}", "Scheme:".bright_blue(), r.scheme);
+            println!("  {} {}", "Key type:".bright_blue(), r.key_type);
         }
         Ed25519Result::Import(r) => {
             println!("{}", "✓ Imported ed25519 key from SURI".green().bold());
             println!("  {} {}", "Public key:".bright_blue(), r.public_key);
             println!("  {} {}", "SS58 Address:".bright_blue(), r.address);
+            println!("  {} {}", "Scheme:".bright_blue(), r.scheme);
+            println!("  {} {}", "Key type:".bright_blue(), r.key_type);
         }
         Ed25519Result::Sign(r) => {
             println!("{}", "✓ Signed data".green().bold());
@@ -161,6 +177,8 @@ fn display_ed25519_result(result: &Ed25519Result) {
                 for key in &r.keys {
                     println!("  {} {}", "•".bright_blue(), key.public_key);
                     println!("    {} {}", "SS58:".bright_black(), key.address);
+                    println!("    {} {}", "Scheme:".bright_black(), key.scheme);
+                    println!("    {} {}", "Key type:".bright_black(), key.key_type);
                 }
             }
         }
@@ -177,11 +195,15 @@ fn display_sr25519_result(result: &Sr25519Result) {
             println!("{}", "✓ Generated sr25519 keypair".green().bold());
             println!("  {} {}", "Public key:".bright_blue(), r.public_key);
             println!("  {} {}", "SS58 Address:".bright_blue(), r.address);
+            println!("  {} {}", "Scheme:".bright_blue(), r.scheme);
+            println!("  {} {}", "Key type:".bright_blue(), r.key_type);
         }
         Sr25519Result::Import(r) => {
             println!("{}", "✓ Imported sr25519 key from SURI".green().bold());
             println!("  {} {}", "Public key:".bright_blue(), r.public_key);
             println!("  {} {}", "SS58 Address:".bright_blue(), r.address);
+            println!("  {} {}", "Scheme:".bright_blue(), r.scheme);
+            println!("  {} {}", "Key type:".bright_blue(), r.key_type);
         }
         Sr25519Result::Sign(r) => {
             println!("{}", "✓ Signed data".green().bold());
@@ -208,6 +230,8 @@ fn display_sr25519_result(result: &Sr25519Result) {
                 for key in &r.keys {
                     println!("  {} {}", "•".bright_blue(), key.public_key);
                     println!("    {} {}", "SS58:".bright_black(), key.address);
+                    println!("    {} {}", "Scheme:".bright_black(), key.scheme);
+                    println!("    {} {}", "Key type:".bright_black(), key.key_type);
                 }
             }
         }

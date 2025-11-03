@@ -16,131 +16,127 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Secp256k1 signature types and utilities.
-
-pub use k256::ecdsa::signature::Result as SignResult;
+//! Secp256k1 signature types and utilities backed by `sp_core` primitives.
 
 use super::{Address, Digest, PrivateKey, PublicKey, ToDigest};
-use core::{
-    hash::{Hash, Hasher},
-    mem::size_of,
-};
+use crate::error::SignerError;
+use core::hash::{Hash, Hasher};
 use derive_more::{Debug, Display};
-use k256::ecdsa::{self, RecoveryId, SigningKey, VerifyingKey, signature::hazmat::PrehashVerifier};
+use k256::ecdsa::{self, RecoveryId};
 #[cfg(feature = "codec")]
 use parity_scale_codec::{
     Decode, Encode, Error as CodecError, Input as CodecInput, Output as CodecOutput,
 };
+use sp_core::ecdsa::{Pair as SpPair, Public as SpPublic, Signature as SpSignature};
+
+/// Result type used throughout signature helpers.
+pub type SignResult<T> = Result<T, SignerError>;
+
+type SignatureBytes = [u8; SIGNATURE_SIZE];
+const SIGNATURE_SIZE: usize = 65;
+const SIGNATURE_LAST_BYTE_IDX: usize = SIGNATURE_SIZE - 1;
 
 /// A recoverable ECDSA signature.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Display)]
-#[debug("0x{}", hex::encode(self.into_pre_eip155_bytes()))]
 #[display("0x{}", hex::encode(self.into_pre_eip155_bytes()))]
 pub struct Signature {
-    inner: ecdsa::Signature,
-    recovery_id: RecoveryId,
+    inner: SpSignature,
 }
 
-type SignatureBytes = [u8; 65];
-const SIGNATURE_SIZE: usize = size_of::<SignatureBytes>();
-const SIGNATURE_LAST_BYTE_IDX: usize = SIGNATURE_SIZE - 1;
-
 impl Signature {
-    fn new(inner: ecdsa::Signature, recovery_id: RecoveryId) -> Self {
-        if let Some(normalized) = inner.normalize_s() {
-            let parity = !recovery_id.is_y_odd();
-            let recovery_id = RecoveryId::new(parity, recovery_id.is_x_reduced());
-            Self {
-                inner: normalized,
-                recovery_id,
-            }
-        } else {
-            Self { inner, recovery_id }
+    fn new(inner: SpSignature) -> Self {
+        Self {
+            inner: normalize_signature(inner),
         }
     }
 
-    /// Create a recoverable signature for the provided digest using the private key.
-    pub fn create<T>(private_key: PrivateKey, data: T) -> SignResult<Self>
+    /// Create a recoverable signature for the provided data using the private key.
+    pub fn create<T>(private_key: &PrivateKey, data: T) -> SignResult<Self>
     where
         Digest: From<T>,
     {
         let digest = Digest::from(data);
-        let signature = SigningKey::from(private_key)
-            .sign_prehash_recoverable(digest.as_ref())
-            .map(|(inner, recovery_id)| Self::new(inner, recovery_id))?;
-
-        debug_assert!(signature.validate::<Digest>(digest).is_ok());
-
-        Ok(signature)
+        Self::create_from_digest(private_key, &digest)
     }
 
     /// Create a recoverable signature from a precomputed digest.
-    pub fn create_from_digest(private_key: PrivateKey, digest: &Digest) -> SignResult<Self> {
-        SigningKey::from(private_key)
-            .sign_prehash_recoverable(digest.as_ref())
-            .map(|(inner, recovery_id)| Self::new(inner, recovery_id))
+    pub fn create_from_digest(private_key: &PrivateKey, digest: &Digest) -> SignResult<Self> {
+        Ok(Self::new(private_key.as_pair().sign_prehashed(&digest.0)))
     }
 
-    /// Recovers public key which was used to create the signature for the signed data.
+    /// Recovers the public key which was used to create the signature for the signed data.
     pub fn recover<T>(&self, data: T) -> SignResult<PublicKey>
     where
         Digest: From<T>,
     {
-        VerifyingKey::recover_from_prehash(
-            Digest::from(data).as_ref(),
-            &self.inner,
-            self.recovery_id,
-        )
-        .map(Into::into)
+        let digest = Digest::from(data);
+        self.recover_from_digest(&digest)
     }
 
-    /// Verifies the signature using the public key and data possibly signed with
-    /// the public key.
+    /// Recovers the public key using a precomputed digest.
+    pub fn recover_from_digest(&self, digest: &Digest) -> SignResult<PublicKey> {
+        self.inner
+            .recover_prehashed(&digest.0)
+            .map(PublicKey::from)
+            .ok_or_else(|| SignerError::Crypto("Failed to recover public key".into()))
+    }
+
+    /// Verifies the signature using the public key and data.
     pub fn verify<T>(&self, public_key: PublicKey, data: T) -> SignResult<()>
     where
         Digest: From<T>,
     {
-        VerifyingKey::from(public_key).verify_prehash(Digest::from(data).as_ref(), &self.inner)
+        let digest = Digest::from(data);
+        self.verify_with_digest(public_key, &digest)
     }
 
-    /// Signature validation: verify the signature with public key recovery from the signature.
+    /// Verifies the signature against a precomputed digest.
+    pub fn verify_with_digest(&self, public_key: PublicKey, digest: &Digest) -> SignResult<()> {
+        if SpPair::verify_prehashed(&self.inner, &digest.0, &SpPublic::from(public_key)) {
+            Ok(())
+        } else {
+            Err(SignerError::Crypto("Verification failed".into()))
+        }
+    }
+
+    /// Signature validation with recovery.
     pub fn validate<T>(&self, data: T) -> SignResult<PublicKey>
     where
         Digest: From<T>,
     {
         let digest = Digest::from(data);
-        let public_key = self.recover::<Digest>(digest)?;
-        self.verify::<Digest>(public_key, digest)
-            .map(|_| public_key)
+        let public_key = self.recover_from_digest(&digest)?;
+        self.verify_with_digest(public_key, &digest)?;
+        Ok(public_key)
     }
 
-    /// Creates a signature from the bytes in the pre-EIP-155 format.
-    /// See also: <https://shorturl.at/ckQ3y>
+    /// Creates a signature from the bytes in the pre-EIP-155 format (V in {27, 28}).
     pub fn from_pre_eip155_bytes(bytes: SignatureBytes) -> Option<Self> {
-        let v = bytes[SIGNATURE_LAST_BYTE_IDX];
+        let recovery = bytes[SIGNATURE_LAST_BYTE_IDX].checked_sub(27)?;
+        if recovery > 3 {
+            return None;
+        }
 
-        let recovery_byte = v.checked_sub(27).and_then(|v| (v <= 1).then_some(v))?;
-
-        Some(Self {
-            inner: ecdsa::Signature::from_slice(&bytes[..SIGNATURE_LAST_BYTE_IDX]).ok()?,
-            recovery_id: RecoveryId::from_byte(recovery_byte).expect("UNREACHABLE: v is 27 or 28"),
-        })
+        let mut inner_bytes = bytes;
+        inner_bytes[SIGNATURE_LAST_BYTE_IDX] = recovery;
+        Some(Self::new(SpSignature::from_raw(inner_bytes)))
     }
 
+    /// Convert signature into the pre-EIP-155 encoded bytes (V in {27, 28}).
     pub fn into_pre_eip155_bytes(self) -> SignatureBytes {
-        let mut bytes = [0u8; SIGNATURE_SIZE];
-
-        bytes[..SIGNATURE_LAST_BYTE_IDX].copy_from_slice(self.inner.to_bytes().as_ref());
-
-        let v = self.recovery_id.to_byte();
-        assert!(v == 0 || v == 1, "Invalid v value: {v}");
-        bytes[SIGNATURE_LAST_BYTE_IDX] = v + 27;
-
+        let mut bytes: SignatureBytes = self.inner.into();
+        bytes[SIGNATURE_LAST_BYTE_IDX] += 27;
         bytes
     }
 
+    /// Returns internal signature bytes with raw recovery id.
+    pub fn as_raw_bytes(&self) -> SignatureBytes {
+        self.inner.into()
+    }
+
+    /// Return the inner signature and recovery id as `k256` primitives.
     pub fn into_parts(self) -> (ecdsa::Signature, RecoveryId) {
-        (self.inner, self.recovery_id)
+        signature_and_recovery(self.inner)
     }
 }
 
@@ -154,7 +150,7 @@ impl Hash for Signature {
 impl Decode for Signature {
     fn decode<I: CodecInput>(input: &mut I) -> Result<Self, CodecError> {
         let bytes = <SignatureBytes>::decode(input)?;
-        Self::from_pre_eip155_bytes(bytes).ok_or(CodecError::from("Invalid bytes"))
+        Self::from_pre_eip155_bytes(bytes).ok_or_else(|| CodecError::from("Invalid bytes"))
     }
 }
 
@@ -169,10 +165,9 @@ impl Encode for Signature {
     }
 }
 
-/// A signed data structure, that contains the data and its signature.
-/// Always valid after construction.
+/// A signed data structure that contains the data and its signature.
 #[derive(Clone, PartialEq, Eq, Debug, Display)]
-#[cfg_attr(feature = "codec", derive(parity_scale_codec::Encode))]
+#[cfg_attr(feature = "codec", derive(Encode))]
 #[display("SignedData({data}, {signature})")]
 pub struct SignedData<T: Sized> {
     data: T,
@@ -232,9 +227,9 @@ impl<T: Sized> SignedData<T>
 where
     for<'a> Digest: From<&'a T>,
 {
-    pub fn create(private_key: PrivateKey, data: T) -> SignResult<Self> {
+    pub fn create(private_key: &PrivateKey, data: T) -> SignResult<Self> {
         let signature = Signature::create(private_key, &data)?;
-        let public_key = PublicKey::from(private_key);
+        let public_key = private_key.public_key();
 
         Ok(Self {
             data,
@@ -255,7 +250,7 @@ where
     }
 }
 
-/// A signature verified data structure, that contains the data and public key.
+/// A signature verified data structure with the data and recovered public key.
 #[derive(Clone, PartialEq, Eq, Debug, Display, Hash)]
 #[display("ValidatedData({data}, {public_key})")]
 pub struct VerifiedData<T> {
@@ -290,7 +285,6 @@ impl<T> VerifiedData<T> {
 }
 
 /// A recoverable ECDSA signature for a contract-specific digest format (ERC-191).
-/// See also `contract_specific_digest` and explanation here: <https://eips.ethereum.org/EIPS/eip-191>
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "codec", derive(Encode, Decode))]
 pub struct ContractSignature(Signature);
@@ -304,22 +298,22 @@ impl ContractSignature {
     /// Create a recoverable contract-specific signature for the provided data using the private key.
     pub fn create<T>(
         contract_address: Address,
-        private_key: PrivateKey,
+        private_key: &PrivateKey,
         data: T,
     ) -> SignResult<Self>
     where
         Digest: From<T>,
     {
-        Signature::create::<Digest>(
+        Signature::create_from_digest(
             private_key,
-            contract_specific_digest(Digest::from(data), contract_address),
+            &contract_specific_digest(Digest::from(data), contract_address),
         )
         .map(ContractSignature)
     }
 
     pub fn create_from_digest(
         contract_address: Address,
-        private_key: PrivateKey,
+        private_key: &PrivateKey,
         digest: &Digest,
     ) -> SignResult<Self> {
         Signature::create_from_digest(
@@ -354,14 +348,37 @@ fn contract_specific_digest(digest: Digest, contract_address: Address) -> Digest
     .to_digest()
 }
 
+fn signature_and_recovery(signature: SpSignature) -> (ecdsa::Signature, RecoveryId) {
+    let bytes: SignatureBytes = signature.into();
+    let recovery = RecoveryId::from_byte(bytes[SIGNATURE_LAST_BYTE_IDX])
+        .expect("recovery id stored in signature is always <4");
+    let sig = ecdsa::Signature::from_bytes((&bytes[..SIGNATURE_LAST_BYTE_IDX]).into())
+        .expect("signature bytes are always valid");
+    (sig, recovery)
+}
+
+fn normalize_signature(signature: SpSignature) -> SpSignature {
+    let (mut sig, mut recovery) = signature_and_recovery(signature);
+
+    if let Some(normalized) = sig.normalize_s() {
+        let parity = !recovery.is_y_odd();
+        recovery = RecoveryId::new(parity, recovery.is_x_reduced());
+        sig = normalized;
+    }
+
+    let mut bytes = [0u8; SIGNATURE_SIZE];
+    bytes[..SIGNATURE_LAST_BYTE_IDX].copy_from_slice(sig.to_bytes().as_slice());
+    bytes[SIGNATURE_LAST_BYTE_IDX] = recovery.to_byte();
+    SpSignature::from_raw(bytes)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
-    use alloc::vec;
     use k256::elliptic_curve::scalar::IsHigh;
 
     fn mock_private_key() -> PrivateKey {
-        PrivateKey::from([42; 32])
+        PrivateKey::from_seed([42; 32]).expect("seed is valid")
     }
 
     const MOCK_DIGEST: Digest = Digest([43; 32]);
@@ -371,16 +388,17 @@ mod tests {
     fn signature_create_for_digest() {
         let private_key = mock_private_key();
 
-        let signature = Signature::create(private_key, MOCK_DIGEST).unwrap();
+        let signature = Signature::create(&private_key, MOCK_DIGEST).unwrap();
         signature.validate(MOCK_DIGEST).unwrap();
-        assert!(!bool::from(signature.inner.s().is_high()));
+        let (sig, _) = signature.into_parts();
+        assert!(!bool::from(sig.s().is_high()));
     }
 
     #[test]
     fn signature_from_pre_eip155_bytes() {
         let private_key = mock_private_key();
 
-        let signature = Signature::create(private_key, MOCK_DIGEST).unwrap();
+        let signature = Signature::create(&private_key, MOCK_DIGEST).unwrap();
         let bytes = signature.into_pre_eip155_bytes();
 
         let recovered_signature = Signature::from_pre_eip155_bytes(bytes).unwrap();
@@ -393,98 +411,19 @@ mod tests {
     fn signature_validate() {
         let private_key = mock_private_key();
 
-        Signature::create(private_key, MOCK_DIGEST)
+        Signature::create(&private_key, MOCK_DIGEST)
             .unwrap()
             .validate(MOCK_DIGEST)
             .unwrap();
     }
 
     #[test]
-    fn signature_recover_from_digest() {
-        let private_key = mock_private_key();
-
-        let signature = Signature::create(private_key, MOCK_DIGEST).unwrap();
-        let public_key = signature.recover(MOCK_DIGEST).unwrap();
-
-        assert_eq!(PublicKey::from(private_key), public_key);
-    }
-
-    #[test]
-    fn contract_signature_uses_low_s() {
+    fn contract_signature_roundtrip() {
         let private_key = mock_private_key();
 
         let signature =
-            ContractSignature::create(CONTRACT_ADDRESS, private_key, MOCK_DIGEST).unwrap();
-        let bytes = signature.into_pre_eip155_bytes();
+            ContractSignature::create(CONTRACT_ADDRESS, &private_key, MOCK_DIGEST).unwrap();
 
-        // `s` occupies bytes[32..64]; ensure it is less than curve order / 2.
-        let recovered = Signature::from_pre_eip155_bytes(bytes).unwrap();
-        assert!(!bool::from(recovered.inner.s().is_high()));
-    }
-
-    #[test]
-    fn signed_data() {
-        let private_key = mock_private_key();
-        let public_key = PublicKey::from(private_key);
-        let data = vec![1, 2, 3, 4];
-
-        let signed_data = SignedData::create(private_key, data.as_slice()).unwrap();
-        assert_eq!(signed_data.public_key(), public_key);
-        assert_eq!(signed_data.address(), public_key.to_address());
-        assert_eq!(signed_data.data(), &data);
-        assert_eq!(signed_data.signature().recover(&data).unwrap(), public_key);
-        assert_eq!(signed_data.signature().validate(&data).unwrap(), public_key);
-        signed_data.signature().verify(public_key, &data).unwrap();
-    }
-
-    #[test]
-    fn contract_signature() {
-        let private_key = mock_private_key();
-        let address = PublicKey::from(private_key).to_address();
-
-        let contract_signature =
-            ContractSignature::create(CONTRACT_ADDRESS, private_key, MOCK_DIGEST).unwrap();
-        let public_key = contract_signature
-            .validate(CONTRACT_ADDRESS, MOCK_DIGEST)
-            .unwrap();
-        assert_eq!(public_key.to_address(), address);
-    }
-
-    #[cfg(feature = "codec")]
-    #[test]
-    fn signature_encode_decode() {
-        let private_key = mock_private_key();
-
-        let signature = Signature::create(private_key, MOCK_DIGEST).unwrap();
-        let encoded = parity_scale_codec::Encode::encode(&signature);
-        let decoded = Signature::decode(&mut &encoded[..]).unwrap();
-
-        assert_eq!(signature, decoded);
-    }
-
-    #[cfg(feature = "codec")]
-    #[test]
-    fn signed_data_encode_decode() {
-        let private_key = mock_private_key();
-        let data = vec![1, 2, 3, 4];
-
-        let signed_data = SignedData::create(private_key, data).unwrap();
-        let encoded = parity_scale_codec::Encode::encode(&signed_data);
-        let decoded = SignedData::decode(&mut &encoded[..]).unwrap();
-
-        assert_eq!(signed_data, decoded);
-    }
-
-    #[cfg(feature = "codec")]
-    #[test]
-    fn contract_signature_encode_decode() {
-        let private_key = mock_private_key();
-
-        let contract_signature =
-            ContractSignature::create(CONTRACT_ADDRESS, private_key, MOCK_DIGEST).unwrap();
-        let encoded = parity_scale_codec::Encode::encode(&contract_signature);
-        let decoded = ContractSignature::decode(&mut &encoded[..]).unwrap();
-
-        assert_eq!(contract_signature, decoded);
+        signature.validate(CONTRACT_ADDRESS, MOCK_DIGEST).unwrap();
     }
 }

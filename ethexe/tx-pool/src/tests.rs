@@ -37,7 +37,11 @@ pub(crate) fn generate_signed_ethexe_tx(reference_block_hash: H256) -> SignedOff
         reference_block: reference_block_hash,
     };
 
-    SignedOffchainTransaction::create(H256::random().0.into(), transaction).unwrap()
+    SignedOffchainTransaction::create(
+        ethexe_common::PrivateKey::from_seed(H256::random().0).expect("seed conversion"),
+        transaction,
+    )
+    .unwrap()
 }
 
 pub(crate) struct BlocksManager {

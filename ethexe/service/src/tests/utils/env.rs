@@ -600,8 +600,10 @@ impl TestEnv {
                 .zip(validator_identifiers.iter())
                 .map(|(public_key, id)| {
                     let signing_share = *secret_shares[id].signing_share();
-                    let private_key =
-                        PrivateKey::from(<[u8; 32]>::try_from(signing_share.serialize()).unwrap());
+                    let private_key = PrivateKey::from_seed(
+                        <[u8; 32]>::try_from(signing_share.serialize()).unwrap(),
+                    )
+                    .expect("valid signing share seed");
                     ValidatorConfig {
                         public_key,
                         session_public_key: signer.storage_mut().add_key(private_key).unwrap(),

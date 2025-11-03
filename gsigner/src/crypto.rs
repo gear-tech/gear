@@ -38,12 +38,12 @@ pub mod secp256k1 {
 pub mod sr25519 {
     #[cfg(all(feature = "serde", feature = "keyring"))]
     pub use crate::schemes::sr25519::Keyring;
-    #[cfg(feature = "serde")]
+    #[cfg(all(feature = "serde", feature = "std"))]
     pub use crate::schemes::sr25519::Keystore;
+    #[cfg(feature = "std")]
+    pub use crate::schemes::sr25519::Sr25519SignerExt;
     pub use crate::{
-        schemes::sr25519::{
-            self as primitives, PrivateKey, PublicKey, Signature, Sr25519, Sr25519SignerExt,
-        },
+        schemes::sr25519::{self as primitives, PrivateKey, PublicKey, Signature, Sr25519},
         substrate::SubstratePair,
     };
 }

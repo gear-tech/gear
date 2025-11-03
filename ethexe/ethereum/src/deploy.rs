@@ -47,7 +47,7 @@ use roast_secp256k1_evm::frost::{
     Identifier,
     keys::{self, IdentifierList, PublicKeyPackage, VerifiableSecretSharingCommitment},
 };
-use std::collections::BTreeSet;
+use std::{collections::BTreeSet, convert::TryInto};
 
 /// The offset for mirror address calculation in router deployment.
 const MIRROR_DEPLOYMENT_NONCE_OFFSET: u64 = 2;
@@ -462,7 +462,9 @@ fn aggregated_public_key(
         .expect("conversion failed")
         .try_into()
         .unwrap();
-    let public_key_uncompressed = PublicKey::from_bytes(public_key_compressed).to_uncompressed();
+    let public_key_uncompressed = PublicKey::from_bytes(public_key_compressed)
+        .expect("verifying key produces valid compressed bytes")
+        .to_uncompressed();
     let (public_key_x_bytes, public_key_y_bytes) = public_key_uncompressed.split_at(32);
 
     AggregatedPublicKey {

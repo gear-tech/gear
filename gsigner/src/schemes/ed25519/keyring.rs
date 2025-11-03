@@ -18,11 +18,10 @@
 
 //! Keyring manager for ed25519 keys.
 
-use super::{Ed25519, PrivateKey, PublicKey};
+use super::{PrivateKey, PublicKey};
 use crate::{
     address::SubstrateAddress,
     keyring::{Keyring as GenericKeyring, KeystoreEntry},
-    traits::SignatureScheme,
 };
 use anyhow::{Result, anyhow};
 use hex;
@@ -49,6 +48,8 @@ pub struct Keystore {
 pub struct Meta {
     #[serde(rename = "whenCreated")]
     pub when_created: u128,
+    #[serde(rename = "keyType", default = "Meta::default_key_type")]
+    pub key_type: String,
 }
 
 impl Default for Meta {
@@ -58,14 +59,21 @@ impl Default for Meta {
                 .duration_since(UNIX_EPOCH)
                 .expect("time went backwards")
                 .as_millis(),
+            key_type: Meta::default_key_type(),
         }
+    }
+}
+
+impl Meta {
+    fn default_key_type() -> String {
+        crate::substrate_utils::pair_key_type_string::<sp_core::ed25519::Pair>()
     }
 }
 
 impl Keystore {
     /// Create a keystore entry from a private key.
     pub fn from_private_key(name: &str, private_key: PrivateKey) -> Result<Self> {
-        let public_key = Ed25519::public_key(&private_key);
+        let public_key = private_key.public_key();
         let address = public_key
             .to_address()
             .map_err(|err| anyhow!("Failed to derive address: {err}"))?;
@@ -104,6 +112,7 @@ impl Keystore {
     /// Decode the stored address.
     pub fn address(&self) -> Result<SubstrateAddress> {
         SubstrateAddress::from_ss58(&self.address)
+            .map_err(|err| anyhow!("Invalid SS58 address: {err}"))
     }
 }
 

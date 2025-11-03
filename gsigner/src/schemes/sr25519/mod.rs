@@ -21,7 +21,13 @@
 use crate::{
     address::{SubstrateAddress, SubstrateCryptoScheme},
     error::{Result, SignerError},
+    substrate_utils::SpPairWrapper,
     traits::SignatureScheme,
+};
+use alloc::{
+    format,
+    string::{String, ToString},
+    vec::Vec,
 };
 use schnorrkel::{
     KEYPAIR_LENGTH, Keypair, PublicKey as SchnorrkelPublicKey, Signature as SchnorrkelSignature,
@@ -30,24 +36,23 @@ use schnorrkel::{
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use sp_core::{
-    Pair as _,
-    crypto::{Ss58AddressFormat, Ss58Codec},
-    sr25519::{self, Pair as SpPair},
+    crypto::{Pair as PairTrait, Ss58AddressFormat, Ss58Codec},
+    sr25519::{self, Pair as SpPair, Public as SpPublic, Signature as SpSignature},
 };
-use std::vec::Vec;
-use zeroize::Zeroizing;
 
+#[cfg(feature = "std")]
 mod signer_ext;
 
 #[cfg(all(feature = "serde", feature = "keyring"))]
 pub mod keyring;
-#[cfg(feature = "serde")]
+#[cfg(all(feature = "serde", feature = "std"))]
 pub mod keystore;
 
 #[cfg(all(feature = "serde", feature = "keyring"))]
 pub use keyring::Keyring;
-#[cfg(feature = "serde")]
+#[cfg(all(feature = "serde", feature = "std"))]
 pub use keystore::Keystore;
+#[cfg(feature = "std")]
 pub use signer_ext::Sr25519SignerExt;
 
 const SIGNING_CONTEXT: &[u8] = b"gsigner";
@@ -62,20 +67,21 @@ fn default_ss58_format() -> Ss58AddressFormat {
 #[derive(Debug, Clone, Copy)]
 pub struct Sr25519;
 
-/// sr25519 private key stored as zeroizing keypair bytes (schnorrkel half-ed25519 form).
+/// sr25519 private key backed by `sp_core::sr25519::Pair`.
 #[derive(Clone)]
-pub struct PrivateKey {
-    keypair: Zeroizing<[u8; KEYPAIR_LENGTH]>,
-}
+pub struct PrivateKey(SpPairWrapper<SpPair>);
+
+/// Seed type alias matching `sp_core::sr25519::Pair`.
+pub type Seed = <SpPair as PairTrait>::Seed;
 
 /// sr25519 public key (32 bytes).
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[cfg_attr(
     feature = "codec",
     derive(parity_scale_codec::Encode, parity_scale_codec::Decode)
 )]
-pub struct PublicKey([u8; 32]);
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct PublicKey(SpPublic);
 
 /// sr25519 signature (64 bytes).
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -83,74 +89,100 @@ pub struct PublicKey([u8; 32]);
     feature = "codec",
     derive(parity_scale_codec::Encode, parity_scale_codec::Decode)
 )]
-pub struct Signature([u8; 64]);
+pub struct Signature(SpSignature);
 
 impl PrivateKey {
     /// Generate a new random private key.
+    #[cfg(feature = "std")]
     pub fn random() -> Self {
-        Self::from_keypair(Keypair::generate())
+        Self(SpPairWrapper::generate())
     }
 
-    /// Reconstruct schnorrkel keypair from stored bytes.
-    pub(crate) fn keypair(&self) -> Result<Keypair> {
-        Keypair::from_half_ed25519_bytes(self.keypair.as_ref())
-            .map_err(|e| SignerError::Crypto(format!("Invalid keypair bytes: {e:?}")))
-    }
-
-    /// Create a private key from schnorrkel keypair.
+    /// Create a private key from a Schnorrkel keypair.
     pub fn from_keypair(keypair: Keypair) -> Self {
-        let mut bytes = Zeroizing::new([0u8; KEYPAIR_LENGTH]);
-        bytes
-            .as_mut()
-            .copy_from_slice(&keypair.to_half_ed25519_bytes());
-        Self { keypair: bytes }
+        Self(SpPairWrapper::new(keypair.into()))
+    }
+
+    /// Create from the underlying seed type.
+    pub fn from_pair_seed(seed: Seed) -> Self {
+        Self(SpPairWrapper::from_pair_seed(seed))
     }
 
     /// Create from Substrate SURI (mnemonic, raw seed, dev accounts, derivation paths etc.).
     pub fn from_suri(suri: &str, password: Option<&str>) -> Result<Self> {
-        let (pair, _) = SpPair::from_string_with_seed(suri, password)
-            .map_err(|e| SignerError::InvalidKey(e.to_string()))?;
-        Ok(Self::from_sp_pair(pair))
+        SpPairWrapper::from_suri(suri, password).map(Self)
     }
 
     /// Create from mnemonic phrase, optionally protected with a password.
     pub fn from_phrase(phrase: &str, password: Option<&str>) -> Result<Self> {
-        let (pair, _) = SpPair::from_phrase(phrase, password)
-            .map_err(|e| SignerError::InvalidKey(e.to_string()))?;
-        Ok(Self::from_sp_pair(pair))
+        SpPairWrapper::from_phrase(phrase, password).map(Self)
     }
 
     /// Create from raw 32-byte seed.
     pub fn from_seed(seed: [u8; 32]) -> Result<Self> {
-        let pair =
-            SpPair::from_seed_slice(&seed).map_err(|e| SignerError::InvalidKey(e.to_string()))?;
-        Ok(Self::from_sp_pair(pair))
+        SpPairWrapper::from_seed_bytes(&seed).map(Self)
     }
 
     /// Export as schnorrkel keypair bytes.
     pub fn to_bytes(&self) -> [u8; KEYPAIR_LENGTH] {
-        *self.keypair
+        let raw = self.0.to_raw_vec();
+        let mut bytes = [0u8; KEYPAIR_LENGTH];
+        let copy_len = core::cmp::min(bytes.len(), raw.len());
+        bytes[..copy_len].copy_from_slice(&raw[..copy_len]);
+        bytes
     }
 
-    fn from_sp_pair(pair: SpPair) -> Self {
-        let schnorrkel: Keypair = pair.into();
-        Self::from_keypair(schnorrkel)
+    /// Convert to Schnorrkel keypair (for custom signing contexts).
+    pub fn keypair(&self) -> Keypair {
+        self.0.pair().clone().into()
+    }
+
+    /// Access underlying sp_core pair.
+    pub fn as_pair(&self) -> &SpPair {
+        self.0.pair()
+    }
+
+    /// Return public key.
+    pub fn public_key(&self) -> PublicKey {
+        PublicKey(self.0.pair().public())
+    }
+
+    /// Return the raw seed bytes.
+    pub fn seed(&self) -> Seed {
+        self.0.seed()
+    }
+
+    /// Construct from an existing Substrate pair.
+    pub(crate) fn from_pair(pair: SpPair) -> Self {
+        Self(SpPairWrapper::new(pair))
+    }
+}
+
+impl crate::traits::SeedableKey for PrivateKey {
+    type Seed = Seed;
+
+    fn from_seed(seed: Self::Seed) -> crate::error::Result<Self> {
+        Ok(PrivateKey::from_pair_seed(seed))
+    }
+
+    fn seed(&self) -> Self::Seed {
+        PrivateKey::seed(self)
     }
 }
 
 #[cfg(feature = "serde")]
 impl Serialize for PrivateKey {
-    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    fn serialize<S>(&self, serializer: S) -> core::result::Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
-        serializer.serialize_bytes(self.keypair.as_ref())
+        serializer.serialize_bytes(&self.to_bytes())
     }
 }
 
 #[cfg(feature = "serde")]
 impl<'de> Deserialize<'de> for PrivateKey {
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    fn deserialize<D>(deserializer: D) -> core::result::Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
@@ -158,68 +190,58 @@ impl<'de> Deserialize<'de> for PrivateKey {
         if bytes.len() != KEYPAIR_LENGTH {
             return Err(serde::de::Error::custom("Invalid sr25519 keypair length"));
         }
-        let mut array = [0u8; KEYPAIR_LENGTH];
-        array.copy_from_slice(&bytes);
-        Ok(Self {
-            keypair: Zeroizing::new(array),
-        })
+        let keypair = Keypair::from_half_ed25519_bytes(&bytes)
+            .map_err(|e| serde::de::Error::custom(format!("Invalid keypair bytes: {e:?}")))?;
+        Ok(Self::from_keypair(keypair))
     }
 }
 
-impl std::fmt::Debug for PrivateKey {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl core::fmt::Debug for PrivateKey {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         f.write_str("PrivateKey(<redacted>)")
     }
 }
 
 impl PartialEq for PrivateKey {
     fn eq(&self, other: &Self) -> bool {
-        self.keypair.as_ref() == other.keypair.as_ref()
+        self.to_bytes() == other.to_bytes()
     }
 }
 
 impl Eq for PrivateKey {}
 
-impl Default for PrivateKey {
-    fn default() -> Self {
-        Self {
-            keypair: Zeroizing::new([0u8; KEYPAIR_LENGTH]),
-        }
-    }
-}
-
 impl PublicKey {
     /// Construct from raw bytes.
     pub fn from_bytes(bytes: [u8; 32]) -> Self {
-        Self(bytes)
+        Self(SpPublic::from_raw(bytes))
     }
 
     /// Return raw public key bytes.
-    pub fn to_bytes(&self) -> [u8; 32] {
-        self.0
+    pub fn to_bytes(self) -> [u8; 32] {
+        self.0.into()
     }
 
     /// Return hex-encoded representation.
-    pub fn to_hex(&self) -> String {
-        hex::encode(self.0)
+    pub fn to_hex(self) -> String {
+        hex::encode(self.to_bytes())
     }
 
     /// Return SS58 address using the default Vara prefix.
-    pub fn to_address(&self) -> Result<SubstrateAddress> {
-        SubstrateAddress::new(self.0, SubstrateCryptoScheme::Sr25519)
+    pub fn to_address(self) -> Result<SubstrateAddress> {
+        SubstrateAddress::new(self.to_bytes(), SubstrateCryptoScheme::Sr25519)
             .map_err(|e| SignerError::InvalidAddress(e.to_string()))
     }
 }
 
-impl std::fmt::Debug for PublicKey {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "PublicKey(0x{})", hex::encode(self.0))
+impl core::fmt::Debug for PublicKey {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "PublicKey(0x{})", self.to_hex())
     }
 }
 
 impl From<SchnorrkelPublicKey> for PublicKey {
     fn from(key: SchnorrkelPublicKey) -> Self {
-        Self(key.to_bytes())
+        Self(SpPublic::from_raw(key.to_bytes()))
     }
 }
 
@@ -227,54 +249,59 @@ impl TryFrom<PublicKey> for SchnorrkelPublicKey {
     type Error = SignerError;
 
     fn try_from(key: PublicKey) -> Result<Self> {
-        SchnorrkelPublicKey::from_bytes(&key.0)
+        SchnorrkelPublicKey::from_bytes(key.0.as_ref())
             .map_err(|e| SignerError::InvalidKey(format!("Invalid public key: {e:?}")))
     }
 }
 
 impl From<sr25519::Public> for PublicKey {
     fn from(public: sr25519::Public) -> Self {
-        Self(public.0)
+        Self(public)
     }
 }
 
 impl From<PublicKey> for sr25519::Public {
     fn from(key: PublicKey) -> Self {
-        sr25519::Public::from_raw(key.0)
+        key.0
     }
 }
 
 impl Signature {
     /// Construct signature from raw bytes.
     pub fn from_bytes(bytes: [u8; 64]) -> Self {
-        Self(bytes)
+        Self(SpSignature::from_raw(bytes))
     }
 
     /// Return raw signature bytes.
-    pub fn to_bytes(&self) -> [u8; 64] {
-        self.0
+    pub fn to_bytes(self) -> [u8; 64] {
+        self.0.into()
+    }
+
+    /// Return hex-encoded representation.
+    pub fn to_hex(self) -> String {
+        hex::encode(self.to_bytes())
     }
 }
 
-impl std::fmt::Debug for Signature {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Signature(0x{})", hex::encode(self.0))
+impl core::fmt::Debug for Signature {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        write!(f, "Signature(0x{})", self.to_hex())
     }
 }
 
 #[cfg(feature = "serde")]
 impl Serialize for Signature {
-    fn serialize<S>(&self, serializer: S) -> std::result::Result<S::Ok, S::Error>
+    fn serialize<S>(&self, serializer: S) -> core::result::Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
-        serializer.serialize_bytes(&self.0)
+        serializer.serialize_bytes(self.0.as_ref())
     }
 }
 
 #[cfg(feature = "serde")]
 impl<'de> Deserialize<'de> for Signature {
-    fn deserialize<D>(deserializer: D) -> std::result::Result<Self, D::Error>
+    fn deserialize<D>(deserializer: D) -> core::result::Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
@@ -284,13 +311,13 @@ impl<'de> Deserialize<'de> for Signature {
         }
         let mut arr = [0u8; 64];
         arr.copy_from_slice(&bytes);
-        Ok(Self(arr))
+        Ok(Self(SpSignature::from_raw(arr)))
     }
 }
 
 impl From<SchnorrkelSignature> for Signature {
     fn from(sig: SchnorrkelSignature) -> Self {
-        Self(sig.to_bytes())
+        Self(SpSignature::from_raw(sig.to_bytes()))
     }
 }
 
@@ -298,20 +325,20 @@ impl TryFrom<Signature> for SchnorrkelSignature {
     type Error = SignerError;
 
     fn try_from(sig: Signature) -> Result<Self> {
-        SchnorrkelSignature::from_bytes(&sig.0)
+        SchnorrkelSignature::from_bytes(sig.0.as_ref())
             .map_err(|e| SignerError::InvalidSignature(format!("Invalid signature: {e:?}")))
     }
 }
 
 impl From<sr25519::Signature> for Signature {
     fn from(sig: sr25519::Signature) -> Self {
-        Self(sig.0)
+        Self(sig)
     }
 }
 
 impl From<Signature> for sr25519::Signature {
     fn from(sig: Signature) -> Self {
-        sr25519::Signature::from_raw(sig.0)
+        sig.0
     }
 }
 
@@ -322,21 +349,19 @@ impl SignatureScheme for Sr25519 {
     type Address = SubstrateAddress;
     type Digest = Vec<u8>;
 
+    #[cfg(feature = "std")]
     fn generate_keypair() -> (Self::PrivateKey, Self::PublicKey) {
         let private_key = PrivateKey::random();
-        let public_key = Self::public_key(&private_key);
+        let public_key = private_key.public_key();
         (private_key, public_key)
     }
 
     fn public_key(private_key: &Self::PrivateKey) -> Self::PublicKey {
-        let keypair = private_key
-            .keypair()
-            .expect("stored sr25519 keypair is always valid");
-        PublicKey::from(keypair.public)
+        private_key.public_key()
     }
 
     fn sign(private_key: &Self::PrivateKey, data: &[u8]) -> Result<Self::Signature> {
-        let keypair = private_key.keypair()?;
+        let keypair = private_key.keypair();
         let context = signing_context(SIGNING_CONTEXT);
         Ok(Signature::from(keypair.sign(context.bytes(data))))
     }
@@ -347,10 +372,8 @@ impl SignatureScheme for Sr25519 {
         signature: &Self::Signature,
     ) -> Result<()> {
         let context = signing_context(SIGNING_CONTEXT);
-        let schnorrkel_pub = SchnorrkelPublicKey::from_bytes(&public_key.0)
-            .map_err(|e| SignerError::InvalidKey(format!("Invalid public key: {e:?}")))?;
-        let schnorrkel_sig = SchnorrkelSignature::from_bytes(&signature.0)
-            .map_err(|e| SignerError::InvalidSignature(format!("Invalid signature: {e:?}")))?;
+        let schnorrkel_pub = SchnorrkelPublicKey::try_from(*public_key)?;
+        let schnorrkel_sig = SchnorrkelSignature::try_from(*signature)?;
 
         schnorrkel_pub
             .verify(context.bytes(data), &schnorrkel_sig)
@@ -376,7 +399,7 @@ pub fn ss58_address(public_key: &[u8; 32]) -> Result<SubstrateAddress> {
     SubstrateAddress::from_ss58(&ss58).map_err(|e| SignerError::InvalidAddress(e.to_string()))
 }
 
-#[cfg(test)]
+#[cfg(all(test, feature = "std"))]
 mod tests {
     use super::*;
 

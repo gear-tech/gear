@@ -28,7 +28,6 @@ use anyhow::{Result, anyhow};
 use core::ops::{Deref, DerefMut};
 use derive_more::{Debug, Display};
 use gprimitives::{H160, H256};
-use k256::ecdsa::signature::Result as SignResult;
 use parity_scale_codec::{Decode, Encode};
 use sha3::Digest as _;
 
@@ -49,8 +48,11 @@ impl SignedOffchainTransaction {
         self.0.into_parts()
     }
 
-    pub fn create(private_key: PrivateKey, data: OffchainTransaction) -> SignResult<Self> {
-        SignedData::create(private_key, data).map(Self)
+    pub fn create(
+        private_key: PrivateKey,
+        data: OffchainTransaction,
+    ) -> Result<Self, gsigner::SignerError> {
+        SignedData::create(&private_key, data).map(Self)
     }
 
     pub fn try_from_parts(

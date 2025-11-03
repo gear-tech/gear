@@ -84,13 +84,6 @@ impl From<hex::FromHexError> for SignerError {
     }
 }
 
-#[cfg(feature = "secp256k1")]
-impl From<k256::ecdsa::Error> for SignerError {
-    fn from(err: k256::ecdsa::Error) -> Self {
-        SignerError::Crypto(err.to_string())
-    }
-}
-
 #[cfg(feature = "sr25519")]
 impl From<schnorrkel::SignatureError> for SignerError {
     fn from(err: schnorrkel::SignatureError) -> Self {
