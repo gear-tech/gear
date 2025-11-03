@@ -49,6 +49,9 @@ pub trait SignatureScheme: Debug + Send + Sync + 'static {
     /// Derive public key from private key.
     fn public_key(private_key: &Self::PrivateKey) -> Self::PublicKey;
 
+    /// Return a stable byte representation of the public key.
+    fn public_key_bytes(public_key: &Self::PublicKey) -> Vec<u8>;
+
     /// Sign data with a private key.
     fn sign(private_key: &Self::PrivateKey, data: &[u8]) -> Result<Self::Signature>;
 

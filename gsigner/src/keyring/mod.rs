@@ -22,6 +22,8 @@
 //! across different signature schemes by relying on scheme-specific keystore
 //! types to implement [`KeystoreEntry`].
 
+pub mod simple;
+
 use anyhow::{Result, anyhow};
 use serde::{Deserialize, Serialize};
 use std::{

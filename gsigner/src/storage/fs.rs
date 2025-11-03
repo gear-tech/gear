@@ -23,6 +23,7 @@ use crate::{
     error::Result,
     traits::{KeyStorage, SeedableKey, SignatureScheme},
 };
+use sha2::{Digest, Sha256};
 use std::{fs, marker::PhantomData, path::PathBuf};
 use tempfile::TempDir;
 
@@ -66,7 +67,11 @@ impl<S: SignatureScheme> FSKeyStorage<S> {
     /// This method should be overridden by scheme-specific implementations
     /// to provide appropriate key naming.
     fn key_filename(&self, public_key: &S::PublicKey) -> String {
-        format!("{public_key:?}").replace(['/', '\\', ':', '*', '?', '"', '<', '>', '|'], "_")
+        let bytes = S::public_key_bytes(public_key);
+        let mut hasher = Sha256::new();
+        hasher.update(bytes);
+        let digest = hasher.finalize();
+        hex::encode(digest)
     }
 }
 

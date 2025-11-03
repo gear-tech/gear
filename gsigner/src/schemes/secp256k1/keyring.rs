@@ -20,96 +20,60 @@
 
 use super::{Address, PrivateKey, PublicKey};
 use crate::{
-    keyring::{Keyring as GenericKeyring, KeystoreEntry},
+    keyring::{
+        Keyring as GenericKeyring,
+        simple::{SimpleKeyCodec, SubstrateKeystore},
+    },
     substrate_utils::pair_from_suri,
 };
 use anyhow::{Result, anyhow};
 use core::str::FromStr;
 use serde::{Deserialize, Serialize};
-use std::time::{SystemTime, UNIX_EPOCH};
+
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize)]
+pub struct Secp256k1Codec;
+
+impl SimpleKeyCodec for Secp256k1Codec {
+    type Pair = sp_core::ecdsa::Pair;
+    type PrivateKey = PrivateKey;
+    type PublicKey = PublicKey;
+    type Address = Address;
+
+    fn derive_public(private_key: &Self::PrivateKey) -> Self::PublicKey {
+        private_key.public_key()
+    }
+
+    fn derive_address(public_key: &Self::PublicKey) -> Result<Self::Address> {
+        Ok(Address::from(*public_key))
+    }
+
+    fn encode_private(private_key: &Self::PrivateKey) -> Result<String> {
+        Ok(private_key.to_string())
+    }
+
+    fn decode_private(encoded: &str) -> Result<Self::PrivateKey> {
+        PrivateKey::from_str(encoded).map_err(|err| anyhow!("Invalid private key: {err}"))
+    }
+
+    fn encode_public(public_key: &Self::PublicKey) -> Result<String> {
+        Ok(format!("0x{}", public_key.to_hex()))
+    }
+
+    fn decode_public(encoded: &str) -> Result<Self::PublicKey> {
+        PublicKey::from_str(encoded).map_err(|err| anyhow!("Invalid public key: {err}"))
+    }
+
+    fn encode_address(address: &Self::Address) -> Result<String> {
+        Ok(format!("0x{}", address.to_hex()))
+    }
+
+    fn decode_address(encoded: &str) -> Result<Self::Address> {
+        Address::from_str(encoded).map_err(|err| anyhow!("Invalid address: {err}"))
+    }
+}
 
 /// JSON keystore representation for secp256k1 keys.
-#[derive(Clone, Serialize, Deserialize, Default)]
-pub struct Keystore {
-    /// Human readable key name.
-    pub name: String,
-    /// Hex-encoded compressed public key.
-    pub public_key: String,
-    /// Hex-encoded Ethereum address.
-    pub address: String,
-    /// Hex-encoded private key (prefixed with 0x).
-    pub private_key: String,
-    #[serde(default)]
-    pub meta: Meta,
-}
-
-/// Metadata for secp256k1 keystores.
-#[derive(Clone, Serialize, Deserialize)]
-pub struct Meta {
-    #[serde(rename = "whenCreated")]
-    pub when_created: u128,
-    #[serde(rename = "keyType", default = "Meta::default_key_type")]
-    pub key_type: String,
-}
-
-impl Default for Meta {
-    fn default() -> Self {
-        Self {
-            when_created: SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .expect("time went backwards")
-                .as_millis(),
-            key_type: Meta::default_key_type(),
-        }
-    }
-}
-
-impl Meta {
-    fn default_key_type() -> String {
-        crate::substrate_utils::pair_key_type_string::<sp_core::ecdsa::Pair>()
-    }
-}
-
-impl Keystore {
-    /// Create a keystore entry from a private key.
-    pub fn from_private_key(name: &str, private_key: PrivateKey) -> Self {
-        let public_key = private_key.public_key();
-        let address = Address::from(public_key);
-
-        Self {
-            name: name.to_string(),
-            public_key: format!("0x{}", public_key.to_hex()),
-            address: format!("0x{}", address.to_hex()),
-            private_key: format!("{private_key}"),
-            meta: Meta::default(),
-        }
-    }
-
-    /// Decode the stored private key.
-    pub fn private_key(&self) -> Result<PrivateKey> {
-        PrivateKey::from_str(&self.private_key).map_err(|err| anyhow!("Invalid private key: {err}"))
-    }
-
-    /// Decode the stored public key.
-    pub fn public_key(&self) -> Result<PublicKey> {
-        PublicKey::from_str(&self.public_key).map_err(|err| anyhow!("Invalid public key: {err}"))
-    }
-
-    /// Decode the stored address.
-    pub fn address(&self) -> Result<Address> {
-        Address::from_str(&self.address).map_err(|err| anyhow!("Invalid address: {err}"))
-    }
-}
-
-impl KeystoreEntry for Keystore {
-    fn name(&self) -> &str {
-        &self.name
-    }
-
-    fn set_name(&mut self, name: &str) {
-        self.name = name.to_string();
-    }
-}
+pub type Keystore = SubstrateKeystore<Secp256k1Codec>;
 
 /// secp256k1 keyring backed by the generic [`GenericKeyring`].
 pub type Keyring = GenericKeyring<Keystore>;
@@ -117,7 +81,7 @@ pub type Keyring = GenericKeyring<Keystore>;
 impl Keyring {
     /// Add an existing private key to the keyring.
     pub fn add(&mut self, name: &str, private_key: PrivateKey) -> Result<Keystore> {
-        let keystore = Keystore::from_private_key(name, private_key);
+        let keystore = Keystore::from_private_key(name, private_key)?;
         self.store(name, keystore)
     }
 

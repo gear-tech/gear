@@ -22,7 +22,7 @@ use crate::{
     error::{Result, SignerError},
     traits::SignatureScheme,
 };
-use alloc::format;
+use alloc::{format, vec::Vec};
 
 pub mod address;
 pub mod digest;
@@ -74,6 +74,10 @@ impl SignatureScheme for Secp256k1 {
 
     fn public_key(private_key: &Self::PrivateKey) -> Self::PublicKey {
         private_key.public_key()
+    }
+
+    fn public_key_bytes(public_key: &Self::PublicKey) -> Vec<u8> {
+        public_key.to_bytes().to_vec()
     }
 
     fn sign(private_key: &Self::PrivateKey, data: &[u8]) -> Result<Self::Signature> {

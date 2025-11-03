@@ -27,6 +27,32 @@ use alloc::{
 use hex;
 use sp_core::crypto::{CryptoTypeId, Pair as PairTrait, SecretStringError};
 
+/// Trait allowing access to the underlying seed without allocating.
+pub trait PairSeed: PairTrait {
+    fn pair_seed(pair: &Self) -> Self::Seed {
+        let raw = pair.to_raw_vec();
+        let mut seed = Self::Seed::default();
+        let dst = seed.as_mut();
+        let copy_len = core::cmp::min(dst.len(), raw.len());
+        dst[..copy_len].copy_from_slice(&raw[..copy_len]);
+        seed
+    }
+}
+
+impl PairSeed for sp_core::sr25519::Pair {}
+
+impl PairSeed for sp_core::ed25519::Pair {
+    fn pair_seed(pair: &Self) -> Self::Seed {
+        pair.seed()
+    }
+}
+
+impl PairSeed for sp_core::ecdsa::Pair {
+    fn pair_seed(pair: &Self) -> Self::Seed {
+        pair.seed()
+    }
+}
+
 /// Trait providing access to a Substrate crypto key identifier for a pair type.
 pub trait HasKeyTypeId {
     const KEY_TYPE_ID: CryptoTypeId;
@@ -123,13 +149,11 @@ impl<P: PairTrait> SpPairWrapper<P> {
         pair_from_phrase::<P>(phrase, password).map(Self)
     }
 
-    pub fn seed(&self) -> P::Seed {
-        let raw = self.0.to_raw_vec();
-        let mut seed = P::Seed::default();
-        let dst = seed.as_mut();
-        let copy_len = core::cmp::min(dst.len(), raw.len());
-        dst[..copy_len].copy_from_slice(&raw[..copy_len]);
-        seed
+    pub fn seed(&self) -> P::Seed
+    where
+        P: PairSeed,
+    {
+        P::pair_seed(self.pair())
     }
 
     pub fn to_raw_vec(&self) -> Vec<u8> {

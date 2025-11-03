@@ -19,6 +19,7 @@
 //! Ethereum address and validator helpers.
 
 use super::keys::PublicKey;
+use crate::hash::keccak256;
 use alloc::{string::String, vec::Vec};
 use core::str::FromStr;
 use derive_more::{Debug, Display, Error};
@@ -27,7 +28,6 @@ use hex::FromHexError;
 use nonempty::NonEmpty;
 #[cfg(feature = "codec")]
 use parity_scale_codec::{Decode, Encode};
-use sha3::Digest as _;
 
 /// Ethereum address type.
 ///
@@ -73,7 +73,7 @@ impl From<PublicKey> for Address {
         let public_key_uncompressed = key.to_uncompressed();
 
         let mut address = Address::default();
-        let hash = sha3::Keccak256::digest(public_key_uncompressed);
+        let hash = keccak256(&public_key_uncompressed);
         address.0[..20].copy_from_slice(&hash[12..]);
 
         address

@@ -55,6 +55,7 @@ extern crate alloc;
 pub mod address;
 pub mod crypto;
 pub mod error;
+pub mod hash;
 pub mod schemes;
 #[cfg(feature = "std")]
 pub mod signer;

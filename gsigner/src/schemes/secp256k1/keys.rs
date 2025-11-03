@@ -19,7 +19,11 @@
 //! secp256k1 key types backed by `sp_core` primitives.
 
 use super::Address;
-use crate::{error::SignerError, substrate_utils::SpPairWrapper, traits::SeedableKey};
+use crate::{
+    error::SignerError,
+    substrate_utils::{PairSeed, SpPairWrapper},
+    traits::SeedableKey,
+};
 #[cfg(feature = "serde")]
 use alloc::vec::Vec;
 use alloc::{
@@ -89,7 +93,7 @@ impl PrivateKey {
 
     /// Return the underlying seed type.
     pub fn seed(&self) -> Seed {
-        self.0.seed()
+        PairSeed::pair_seed(self.as_pair())
     }
 
     /// Construct from an existing Substrate pair.
@@ -114,11 +118,7 @@ impl SeedableKey for PrivateKey {
     type Seed = Seed;
 
     fn from_seed(seed: Self::Seed) -> crate::error::Result<Self> {
-        let bytes: [u8; 32] = seed
-            .as_ref()
-            .try_into()
-            .map_err(|_| SignerError::InvalidKey("Invalid secp256k1 seed length".into()))?;
-        PrivateKey::from_seed(bytes)
+        Ok(PrivateKey::from_pair_seed(seed))
     }
 
     fn seed(&self) -> Self::Seed {

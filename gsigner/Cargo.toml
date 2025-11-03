@@ -36,6 +36,7 @@ schnorrkel = { workspace = true, optional = true }
 serde = { workspace = true, features = ["derive", "alloc"], optional = true }
 serde_json = { workspace = true, features = ["std"], optional = true }
 sha3 = { version = "0.10", default-features = false, optional = true }
+sha2 = { workspace = true }
 sp-core = { workspace = true, default-features = false, features = ["full_crypto", "serde"], optional = true }
 tempfile = { workspace = true, optional = true }
 thiserror = { workspace = true }

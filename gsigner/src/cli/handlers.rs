@@ -125,6 +125,166 @@ enum KeyringCommandResult {
     List(KeyringListResult),
 }
 
+struct SchemeFormatter<S: SignatureScheme> {
+    scheme_name: &'static str,
+    key_type_fn: fn() -> String,
+    public_fmt: fn(&S::PublicKey) -> String,
+    address_fmt: fn(&S::Address) -> String,
+}
+
+impl<S: SignatureScheme> SchemeFormatter<S> {
+    fn scheme_name(&self) -> &'static str {
+        self.scheme_name
+    }
+
+    fn key_type(&self) -> String {
+        (self.key_type_fn)()
+    }
+
+    fn format_public(&self, public: &S::PublicKey) -> String {
+        (self.public_fmt)(public)
+    }
+
+    fn format_address(&self, address: &S::Address) -> String {
+        (self.address_fmt)(address)
+    }
+}
+
+fn with_signer<S, F, R>(storage: Option<PathBuf>, f: F) -> Result<R>
+where
+    S: crate::traits::SignatureScheme,
+    S::PrivateKey: SeedableKey,
+    F: FnOnce(crate::Signer<S>) -> Result<R>,
+{
+    let signer = create_signer::<S>(storage);
+    f(signer)
+}
+
+fn generate_key_result<S>(
+    storage: Option<PathBuf>,
+    formatter: &SchemeFormatter<S>,
+) -> Result<KeyGenerationResult>
+where
+    S: SignatureScheme,
+    S::PrivateKey: SeedableKey,
+{
+    with_signer::<S, _, _>(storage, |signer| {
+        let public_key = signer.generate_key()?;
+        let public_display = formatter.format_public(&public_key);
+        let address = signer.address(public_key);
+        let address_display = formatter.format_address(&address);
+
+        Ok(KeyGenerationResult {
+            public_key: public_display,
+            address: address_display,
+            scheme: formatter.scheme_name().to_string(),
+            key_type: formatter.key_type(),
+        })
+    })
+}
+
+fn list_keys_result<S>(
+    storage: Option<PathBuf>,
+    formatter: &SchemeFormatter<S>,
+) -> Result<ListKeysResult>
+where
+    S: SignatureScheme,
+    S::PrivateKey: SeedableKey,
+{
+    with_signer::<S, _, _>(storage, |signer| {
+        let scheme_name = formatter.scheme_name().to_string();
+        let key_type = formatter.key_type();
+
+        let keys = signer
+            .list_keys()?
+            .into_iter()
+            .map(|public_key| {
+                let public_display = formatter.format_public(&public_key);
+                let address = signer.address(public_key);
+                let address_display = formatter.format_address(&address);
+
+                KeyInfo {
+                    public_key: public_display,
+                    address: address_display,
+                    scheme: scheme_name.clone(),
+                    key_type: key_type.clone(),
+                }
+            })
+            .collect();
+
+        Ok(ListKeysResult { keys })
+    })
+}
+
+#[cfg(feature = "secp256k1")]
+fn secp256k1_formatter() -> SchemeFormatter<crate::schemes::secp256k1::Secp256k1> {
+    SchemeFormatter {
+        scheme_name: crate::schemes::secp256k1::Secp256k1::scheme_name(),
+        key_type_fn: secp256k1_key_type,
+        public_fmt: secp256k1_public_display,
+        address_fmt: secp256k1_address_display,
+    }
+}
+
+#[cfg(feature = "ed25519")]
+fn ed25519_formatter() -> SchemeFormatter<crate::schemes::ed25519::Ed25519> {
+    SchemeFormatter {
+        scheme_name: crate::schemes::ed25519::Ed25519::scheme_name(),
+        key_type_fn: ed25519_key_type,
+        public_fmt: ed25519_public_display,
+        address_fmt: substrate_address_display,
+    }
+}
+
+#[cfg(feature = "sr25519")]
+fn sr25519_formatter() -> SchemeFormatter<crate::schemes::sr25519::Sr25519> {
+    SchemeFormatter {
+        scheme_name: crate::schemes::sr25519::Sr25519::scheme_name(),
+        key_type_fn: sr25519_key_type,
+        public_fmt: sr25519_public_display,
+        address_fmt: substrate_address_display,
+    }
+}
+
+#[cfg(feature = "secp256k1")]
+fn secp256k1_key_type() -> String {
+    pair_key_type_string::<sp_core::ecdsa::Pair>()
+}
+
+#[cfg(feature = "secp256k1")]
+fn secp256k1_public_display(key: &crate::schemes::secp256k1::PublicKey) -> String {
+    key.to_hex()
+}
+
+#[cfg(feature = "secp256k1")]
+fn secp256k1_address_display(address: &crate::schemes::secp256k1::Address) -> String {
+    format!("0x{}", address.to_hex())
+}
+
+#[cfg(feature = "ed25519")]
+fn ed25519_key_type() -> String {
+    pair_key_type_string::<sp_core::ed25519::Pair>()
+}
+
+#[cfg(feature = "sr25519")]
+fn sr25519_key_type() -> String {
+    pair_key_type_string::<sp_core::sr25519::Pair>()
+}
+
+fn ed25519_public_display(key: &crate::schemes::ed25519::PublicKey) -> String {
+    hex::encode(key.to_bytes())
+}
+
+#[cfg(feature = "sr25519")]
+fn sr25519_public_display(key: &crate::schemes::sr25519::PublicKey) -> String {
+    hex::encode(key.to_bytes())
+}
+
+#[cfg(any(feature = "ed25519", feature = "sr25519"))]
+fn substrate_address_display(address: &crate::address::SubstrateAddress) -> String {
+    address.as_ss58().to_string()
+}
+
 /// Execute a gsigner command
 pub fn execute_command(command: GSignerCommands) -> Result<CommandResult> {
     match command {
@@ -198,30 +358,23 @@ pub enum Sr25519Result {
 #[cfg(feature = "secp256k1")]
 pub fn execute_secp256k1_command(command: Secp256k1Commands) -> Result<Secp256k1Result> {
     use crate::{
-        Address, Signer,
+        Address,
         schemes::secp256k1::{PublicKey, Secp256k1, Secp256k1SignerExt, Signature},
     };
 
+    let formatter = secp256k1_formatter();
+
     match command {
         Secp256k1Commands::Generate { storage } => {
-            let signer: Signer<Secp256k1> = create_signer(storage);
-            let public_key = signer.generate_key()?;
-            let address = signer.address(public_key);
-
-            Ok(Secp256k1Result::Generate(KeyGenerationResult {
-                public_key: public_key.to_hex(),
-                address: format!("0x{}", hex::encode(address)),
-                scheme: Secp256k1::scheme_name().to_string(),
-                key_type: pair_key_type_string::<sp_core::ecdsa::Pair>(),
-            }))
+            let result = generate_key_result::<Secp256k1>(storage, &formatter)?;
+            Ok(Secp256k1Result::Generate(result))
         }
         Secp256k1Commands::Sign {
             public_key,
             data,
             storage,
             contract,
-        } => {
-            let signer: Signer<Secp256k1> = create_signer(storage);
+        } => with_signer::<Secp256k1, _, _>(storage, |signer| {
             let public_key: PublicKey = public_key.parse()?;
             let data_bytes = hex::decode(&data)?;
 
@@ -239,7 +392,7 @@ pub fn execute_secp256k1_command(command: Secp256k1Commands) -> Result<Secp256k1
             };
 
             Ok(Secp256k1Result::Sign(SignResult { signature }))
-        }
+        }),
         Secp256k1Commands::Verify {
             public_key,
             data,
@@ -262,7 +415,7 @@ pub fn execute_secp256k1_command(command: Secp256k1Commands) -> Result<Secp256k1
             let address = public_key.to_address();
 
             Ok(Secp256k1Result::Address(AddressResult {
-                address: format!("0x{}", hex::encode(address)),
+                address: formatter.format_address(&address),
             }))
         }
         #[cfg(feature = "keyring")]
@@ -274,23 +427,8 @@ pub fn execute_secp256k1_command(command: Secp256k1Commands) -> Result<Secp256k1
             }
         }
         Secp256k1Commands::List { storage } => {
-            let signer: Signer<Secp256k1> = create_signer(storage);
-            let keys = signer.list_keys()?;
-
-            let key_infos: Vec<KeyInfo> = keys
-                .into_iter()
-                .map(|key| {
-                    let address = signer.address(key);
-                    KeyInfo {
-                        public_key: key.to_hex(),
-                        address: format!("0x{}", hex::encode(address)),
-                        scheme: Secp256k1::scheme_name().to_string(),
-                        key_type: pair_key_type_string::<sp_core::ecdsa::Pair>(),
-                    }
-                })
-                .collect();
-
-            Ok(Secp256k1Result::List(ListKeysResult { keys: key_infos }))
+            let result = list_keys_result::<Secp256k1>(storage, &formatter)?;
+            Ok(Secp256k1Result::List(result))
         }
     }
 }
@@ -302,47 +440,36 @@ pub fn execute_secp256k1_command(_command: Secp256k1Commands) -> Result<Secp256k
 
 #[cfg(feature = "ed25519")]
 pub fn execute_ed25519_command(command: Ed25519Commands) -> Result<Ed25519Result> {
-    use crate::{
-        Signer,
-        schemes::ed25519::{Ed25519, PrivateKey, PublicKey, Signature},
-    };
+    use crate::schemes::ed25519::{Ed25519, PrivateKey, PublicKey, Signature};
+
+    let formatter = ed25519_formatter();
 
     match command {
         Ed25519Commands::Generate { storage } => {
-            let signer: Signer<Ed25519> = create_signer(storage);
-            let public_key = signer.generate_key()?;
-            let address = signer.address(public_key);
-
-            Ok(Ed25519Result::Generate(KeyGenerationResult {
-                public_key: hex::encode(public_key.to_bytes()),
-                address: address.as_ss58().to_string(),
-                scheme: Ed25519::scheme_name().to_string(),
-                key_type: pair_key_type_string::<sp_core::ed25519::Pair>(),
-            }))
+            let result = generate_key_result::<Ed25519>(storage, &formatter)?;
+            Ok(Ed25519Result::Generate(result))
         }
         Ed25519Commands::Import {
             suri,
             password,
             storage,
-        } => {
-            let signer: Signer<Ed25519> = create_signer(storage);
+        } => with_signer::<Ed25519, _, _>(storage, |signer| {
             let private_key = PrivateKey::from_suri(&suri, password.as_deref())?;
             let public_key = signer.import_key(private_key)?;
             let address = signer.address(public_key);
 
             Ok(Ed25519Result::Import(KeyImportResult {
-                public_key: hex::encode(public_key.to_bytes()),
-                address: address.as_ss58().to_string(),
-                scheme: Ed25519::scheme_name().to_string(),
-                key_type: pair_key_type_string::<sp_core::ed25519::Pair>(),
+                public_key: formatter.format_public(&public_key),
+                address: formatter.format_address(&address),
+                scheme: formatter.scheme_name().to_string(),
+                key_type: formatter.key_type(),
             }))
-        }
+        }),
         Ed25519Commands::Sign {
             public_key,
             data,
             storage,
-        } => {
-            let signer: Signer<Ed25519> = create_signer(storage);
+        } => with_signer::<Ed25519, _, _>(storage, |signer| {
             let public_key_bytes = hex::decode(&public_key)?;
             let mut public_key_arr = [0u8; 32];
             public_key_arr.copy_from_slice(&public_key_bytes);
@@ -354,7 +481,7 @@ pub fn execute_ed25519_command(command: Ed25519Commands) -> Result<Ed25519Result
             Ok(Ed25519Result::Sign(SignResult {
                 signature: hex::encode(signature.to_bytes()),
             }))
-        }
+        }),
         Ed25519Commands::Verify {
             public_key,
             data,
@@ -384,7 +511,7 @@ pub fn execute_ed25519_command(command: Ed25519Commands) -> Result<Ed25519Result
             )?;
 
             Ok(Ed25519Result::Address(AddressResult {
-                address: address.as_ss58().to_string(),
+                address: formatter.format_address(&address),
             }))
         }
         #[cfg(feature = "keyring")]
@@ -396,23 +523,8 @@ pub fn execute_ed25519_command(command: Ed25519Commands) -> Result<Ed25519Result
             }
         }
         Ed25519Commands::List { storage } => {
-            let signer: Signer<Ed25519> = create_signer(storage);
-            let keys = signer.list_keys()?;
-
-            let key_infos: Vec<KeyInfo> = keys
-                .into_iter()
-                .map(|key| {
-                    let address = signer.address(key);
-                    KeyInfo {
-                        public_key: hex::encode(key.to_bytes()),
-                        address: address.as_ss58().to_string(),
-                        scheme: Ed25519::scheme_name().to_string(),
-                        key_type: pair_key_type_string::<sp_core::ed25519::Pair>(),
-                    }
-                })
-                .collect();
-
-            Ok(Ed25519Result::List(ListKeysResult { keys: key_infos }))
+            let result = list_keys_result::<Ed25519>(storage, &formatter)?;
+            Ok(Ed25519Result::List(result))
         }
     }
 }
@@ -429,45 +541,37 @@ pub fn execute_sr25519_command(command: Sr25519Commands) -> Result<Sr25519Result
         schemes::sr25519::{PublicKey, Signature, Sr25519, Sr25519SignerExt},
     };
 
+    let formatter = sr25519_formatter();
+
     match command {
         Sr25519Commands::Generate { storage } => {
-            let signer: Signer<Sr25519> = create_signer(storage);
-            let public_key = signer.generate_key()?;
-            let address = signer.address(public_key);
-
-            Ok(Sr25519Result::Generate(KeyGenerationResult {
-                public_key: hex::encode(public_key.to_bytes()),
-                address: address.as_ss58().to_string(),
-                scheme: Sr25519::scheme_name().to_string(),
-                key_type: pair_key_type_string::<sp_core::sr25519::Pair>(),
-            }))
+            let result = generate_key_result::<Sr25519>(storage, &formatter)?;
+            Ok(Sr25519Result::Generate(result))
         }
         Sr25519Commands::Import {
             suri,
             password,
             storage,
-        } => {
+        } => with_signer::<Sr25519, _, _>(storage, |signer| {
             use crate::schemes::sr25519::PrivateKey;
 
-            let signer: Signer<Sr25519> = create_signer(storage);
             let private_key = PrivateKey::from_suri(&suri, password.as_deref())?;
             let public_key = signer.import_key(private_key)?;
             let address = signer.address(public_key);
 
             Ok(Sr25519Result::Import(KeyImportResult {
-                public_key: hex::encode(public_key.to_bytes()),
-                address: address.as_ss58().to_string(),
-                scheme: Sr25519::scheme_name().to_string(),
-                key_type: pair_key_type_string::<sp_core::sr25519::Pair>(),
+                public_key: formatter.format_public(&public_key),
+                address: formatter.format_address(&address),
+                scheme: formatter.scheme_name().to_string(),
+                key_type: formatter.key_type(),
             }))
-        }
+        }),
         Sr25519Commands::Sign {
             public_key,
             data,
             storage,
             context,
-        } => {
-            let signer: Signer<Sr25519> = create_signer(storage);
+        } => with_signer::<Sr25519, _, _>(storage, |signer| {
             let public_key_bytes = hex::decode(&public_key)?;
             let mut public_key_arr = [0u8; 32];
             public_key_arr.copy_from_slice(&public_key_bytes);
@@ -483,7 +587,7 @@ pub fn execute_sr25519_command(command: Sr25519Commands) -> Result<Sr25519Result
             Ok(Sr25519Result::Sign(SignResult {
                 signature: hex::encode(signature.to_bytes()),
             }))
-        }
+        }),
         Sr25519Commands::Verify {
             public_key,
             data,
@@ -519,7 +623,7 @@ pub fn execute_sr25519_command(command: Sr25519Commands) -> Result<Sr25519Result
             )?;
 
             Ok(Sr25519Result::Address(AddressResult {
-                address: address.as_ss58().to_string(),
+                address: formatter.format_address(&address),
             }))
         }
         #[cfg(feature = "keyring")]
@@ -531,23 +635,8 @@ pub fn execute_sr25519_command(command: Sr25519Commands) -> Result<Sr25519Result
             }
         }
         Sr25519Commands::List { storage } => {
-            let signer: Signer<Sr25519> = create_signer(storage);
-            let keys = signer.list_keys()?;
-
-            let key_infos: Vec<KeyInfo> = keys
-                .into_iter()
-                .map(|key| {
-                    let address = signer.address(key);
-                    KeyInfo {
-                        public_key: hex::encode(key.to_bytes()),
-                        address: address.as_ss58().to_string(),
-                        scheme: Sr25519::scheme_name().to_string(),
-                        key_type: pair_key_type_string::<sp_core::sr25519::Pair>(),
-                    }
-                })
-                .collect();
-
-            Ok(Sr25519Result::List(ListKeysResult { keys: key_infos }))
+            let result = list_keys_result::<Sr25519>(storage, &formatter)?;
+            Ok(Sr25519Result::List(result))
         }
     }
 }

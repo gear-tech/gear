@@ -21,75 +21,40 @@
 use super::{PrivateKey, PublicKey};
 use crate::{
     address::SubstrateAddress,
-    keyring::{Keyring as GenericKeyring, KeystoreEntry},
+    keyring::{
+        Keyring as GenericKeyring,
+        simple::{SimpleKeyCodec, SubstrateKeystore},
+    },
 };
 use anyhow::{Result, anyhow};
 use hex;
 use serde::{Deserialize, Serialize};
-use std::time::{SystemTime, UNIX_EPOCH};
 
-/// JSON keystore representation for ed25519 keys.
-#[derive(Clone, Serialize, Deserialize, Default)]
-pub struct Keystore {
-    /// Human readable key name.
-    pub name: String,
-    /// Hex-encoded public key.
-    pub public_key: String,
-    /// SS58-encoded address.
-    pub address: String,
-    /// Hex-encoded private key seed.
-    pub private_key: String,
-    #[serde(default)]
-    pub meta: Meta,
-}
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize)]
+pub struct Ed25519Codec;
 
-/// Metadata for ed25519 keystores.
-#[derive(Clone, Serialize, Deserialize)]
-pub struct Meta {
-    #[serde(rename = "whenCreated")]
-    pub when_created: u128,
-    #[serde(rename = "keyType", default = "Meta::default_key_type")]
-    pub key_type: String,
-}
+impl SimpleKeyCodec for Ed25519Codec {
+    type Pair = sp_core::ed25519::Pair;
+    type PrivateKey = PrivateKey;
+    type PublicKey = PublicKey;
+    type Address = SubstrateAddress;
 
-impl Default for Meta {
-    fn default() -> Self {
-        Self {
-            when_created: SystemTime::now()
-                .duration_since(UNIX_EPOCH)
-                .expect("time went backwards")
-                .as_millis(),
-            key_type: Meta::default_key_type(),
-        }
+    fn derive_public(private_key: &Self::PrivateKey) -> Self::PublicKey {
+        private_key.public_key()
     }
-}
 
-impl Meta {
-    fn default_key_type() -> String {
-        crate::substrate_utils::pair_key_type_string::<sp_core::ed25519::Pair>()
-    }
-}
-
-impl Keystore {
-    /// Create a keystore entry from a private key.
-    pub fn from_private_key(name: &str, private_key: PrivateKey) -> Result<Self> {
-        let public_key = private_key.public_key();
-        let address = public_key
+    fn derive_address(public_key: &Self::PublicKey) -> Result<Self::Address> {
+        public_key
             .to_address()
-            .map_err(|err| anyhow!("Failed to derive address: {err}"))?;
-
-        Ok(Self {
-            name: name.to_string(),
-            public_key: hex::encode(public_key.to_bytes()),
-            address: address.as_ss58().to_string(),
-            private_key: hex::encode(private_key.to_bytes()),
-            meta: Meta::default(),
-        })
+            .map_err(|err| anyhow!("Failed to derive address: {err}"))
     }
 
-    /// Decode the stored private key.
-    pub fn private_key(&self) -> Result<PrivateKey> {
-        let bytes = hex::decode(&self.private_key)?;
+    fn encode_private(private_key: &Self::PrivateKey) -> Result<String> {
+        Ok(hex::encode(private_key.to_bytes()))
+    }
+
+    fn decode_private(encoded: &str) -> Result<Self::PrivateKey> {
+        let bytes = hex::decode(encoded)?;
         if bytes.len() != 32 {
             return Err(anyhow!("Invalid ed25519 seed length"));
         }
@@ -98,9 +63,12 @@ impl Keystore {
         Ok(PrivateKey::from_seed(seed)?)
     }
 
-    /// Decode the stored public key.
-    pub fn public_key(&self) -> Result<PublicKey> {
-        let bytes = hex::decode(&self.public_key)?;
+    fn encode_public(public_key: &Self::PublicKey) -> Result<String> {
+        Ok(hex::encode(public_key.to_bytes()))
+    }
+
+    fn decode_public(encoded: &str) -> Result<Self::PublicKey> {
+        let bytes = hex::decode(encoded)?;
         if bytes.len() != 32 {
             return Err(anyhow!("Invalid ed25519 public key length"));
         }
@@ -109,22 +77,17 @@ impl Keystore {
         Ok(PublicKey::from_bytes(arr))
     }
 
-    /// Decode the stored address.
-    pub fn address(&self) -> Result<SubstrateAddress> {
-        SubstrateAddress::from_ss58(&self.address)
-            .map_err(|err| anyhow!("Invalid SS58 address: {err}"))
+    fn encode_address(address: &Self::Address) -> Result<String> {
+        Ok(address.as_ss58().to_string())
+    }
+
+    fn decode_address(encoded: &str) -> Result<Self::Address> {
+        SubstrateAddress::from_ss58(encoded).map_err(|err| anyhow!("Invalid SS58 address: {err}"))
     }
 }
 
-impl KeystoreEntry for Keystore {
-    fn name(&self) -> &str {
-        &self.name
-    }
-
-    fn set_name(&mut self, name: &str) {
-        self.name = name.to_string();
-    }
-}
+/// JSON keystore representation for ed25519 keys.
+pub type Keystore = SubstrateKeystore<Ed25519Codec>;
 
 /// ed25519 keyring backed by the generic [`GenericKeyring`].
 pub type Keyring = GenericKeyring<Keystore>;

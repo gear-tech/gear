@@ -18,8 +18,8 @@
 
 //! Secp256k1 signature types and utilities backed by `sp_core` primitives.
 
-use super::{Address, Digest, PrivateKey, PublicKey, ToDigest};
-use crate::error::SignerError;
+use super::{Address, Digest, PrivateKey, PublicKey};
+use crate::{error::SignerError, hash::keccak256_iter};
 use core::hash::{Hash, Hasher};
 use derive_more::{Debug, Display};
 use k256::ecdsa::{self, RecoveryId};
@@ -339,13 +339,11 @@ impl ContractSignature {
 }
 
 fn contract_specific_digest(digest: Digest, contract_address: Address) -> Digest {
-    [
-        [0x19, 0x00].as_ref(),
+    Digest(keccak256_iter([
+        &[0x19, 0x00],
         contract_address.0.as_ref(),
         digest.as_ref(),
-    ]
-    .concat()
-    .to_digest()
+    ]))
 }
 
 fn signature_and_recovery(signature: SpSignature) -> (ecdsa::Signature, RecoveryId) {

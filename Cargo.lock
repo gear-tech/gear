@@ -7272,6 +7272,7 @@ dependencies = [
  "schnorrkel",
  "serde",
  "serde_json",
+ "sha2 0.10.8",
  "sha3",
  "sp-core",
  "tempfile",

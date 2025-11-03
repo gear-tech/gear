@@ -21,7 +21,7 @@
 use crate::{
     address::{SubstrateAddress, SubstrateCryptoScheme},
     error::{Result, SignerError},
-    substrate_utils::SpPairWrapper,
+    substrate_utils::{PairSeed, SpPairWrapper},
     traits::SignatureScheme,
 };
 use alloc::{
@@ -149,7 +149,7 @@ impl PrivateKey {
 
     /// Return the raw seed bytes.
     pub fn seed(&self) -> Seed {
-        self.0.seed()
+        PairSeed::pair_seed(self.as_pair())
     }
 
     /// Construct from an existing Substrate pair.
@@ -358,6 +358,10 @@ impl SignatureScheme for Sr25519 {
 
     fn public_key(private_key: &Self::PrivateKey) -> Self::PublicKey {
         private_key.public_key()
+    }
+
+    fn public_key_bytes(public_key: &Self::PublicKey) -> Vec<u8> {
+        public_key.to_bytes().to_vec()
     }
 
     fn sign(private_key: &Self::PrivateKey, data: &[u8]) -> Result<Self::Signature> {
