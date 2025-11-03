@@ -102,6 +102,7 @@ pub struct TestEnv {
     pub threshold: u64,
     pub block_time: Duration,
     pub continuous_block_generation: bool,
+    pub commitment_delay_limit: u32,
 
     router_query: RouterQuery,
     /// In order to reduce amount of observers, we create only one observer and broadcast events to all subscribers.
@@ -127,6 +128,7 @@ impl TestEnv {
             continuous_block_generation,
             network,
             deploy_params,
+            commitment_delay_limit,
         } = config;
 
         log::info!(
@@ -335,9 +337,9 @@ impl TestEnv {
         Ok(TestEnv {
             eth_cfg,
             wallets,
-            provider,
             blobs_storage,
             election_provider: MockElectionProvider::new(),
+            provider,
             ethereum,
             signer,
             validators: validator_configs,
@@ -345,6 +347,7 @@ impl TestEnv {
             threshold,
             block_time,
             continuous_block_generation,
+            commitment_delay_limit,
             router_query,
             broadcaster,
             db,
@@ -697,6 +700,8 @@ pub struct TestEnvConfig {
     pub network: EnvNetworkConfig,
     /// Smart contracts deploy configuration.
     pub deploy_params: ContractsDeploymentParams,
+    /// Commitment delay limit in blocks.
+    pub commitment_delay_limit: u32,
 }
 
 impl Default for TestEnvConfig {
@@ -717,6 +722,7 @@ impl Default for TestEnvConfig {
             continuous_block_generation: false,
             network: EnvNetworkConfig::Disabled,
             deploy_params: Default::default(),
+            commitment_delay_limit: 3,
         }
     }
 }

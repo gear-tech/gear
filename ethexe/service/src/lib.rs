@@ -220,7 +220,7 @@ impl Service {
                         signatures_threshold: threshold,
                         slot_duration: config.ethereum.block_time,
                         block_gas_limit: config.node.block_gas_limit,
-                        // TODO +_+_+: commitment_delay_limit is a protocol specific constant
+                        // TODO: #4942 commitment_delay_limit is a protocol specific constant
                         // which better to be configurable by router contract
                         commitment_delay_limit: 3,
                         producer_delay: Duration::ZERO,

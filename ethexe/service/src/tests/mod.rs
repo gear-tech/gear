@@ -1023,14 +1023,13 @@ async fn multiple_validators() {
     );
     validators[0].start_service().await;
 
-    // TODO: +_+_+ make 3 blocks configurable in test env
-    // IMPORTANT: mine 3 block to send a new block event
+    // IMPORTANT: mine some blocks
     // to force validator 0 and validator 2 to have the same announces chain.
     // While validator 0 and 1 were down, validator 2 produced announce alone
     // and supposed that best chain is its own, but as soon as this announce is not committed
     // to ethereum yet, other validators don't see it and have different best chain.
-    // To avoid such situation, we just mine few blocks to be sure
-    for _ in 0..3 {
+    // To avoid such situation, we just mine few blocks to be sure validators would be on the same chain.
+    for _ in 0..env.commitment_delay_limit {
         env.force_new_block().await;
     }
 
@@ -1358,7 +1357,7 @@ async fn fast_sync() {
     // this announces was not committed, so Bob would not see them during fast-sync
     // and would not have them in his database. This is normal situation, after a few blocks Bob and Alice should
     // converge to the same chain of announces.
-    for _ in 0..3 {
+    for _ in 0..env.commitment_delay_limit {
         env.skip_blocks(1).await;
     }
 
@@ -1599,25 +1598,21 @@ async fn announces_conflicts() {
             })
             .await;
 
-        // TODO +_+_+: consider to generate separate event about announce accept/reject and publish in network
         // Validators 1..=6 must not accept this announce, so computation task should never happen
-        let waiting_for_computation_tasks = listeners.iter_mut().map(|l| {
+        futures::future::join_all(listeners.iter_mut().map(|l| {
             l.apply_until(|event| {
                 Ok(matches!(
                     event,
-                    TestingEvent::Consensus(ConsensusEvent::ComputeAnnounce(announce))
-                        if announce.to_hash() == announce_hash
+                    TestingEvent::Consensus(ConsensusEvent::AnnounceRejected(rejected_announce_hash))
+                        if rejected_announce_hash == announce_hash
                 )
                 .then_some(()))
             })
-        });
-
-        tokio::time::timeout(
-            env.block_time * 5,
-            futures::future::join_all(waiting_for_computation_tasks),
-        )
+        }))
         .await
-        .expect_err("Timeout expected");
+        .into_iter()
+        .collect::<Result<Vec<()>, _>>()
+        .unwrap();
 
         (listeners, validator0, wait_for_pong)
     };
@@ -1736,24 +1731,21 @@ async fn announces_conflicts() {
             })
             .await;
 
-        // TODO +_+_+: consider to generate separate event about announce accept/reject and publish in network
-        // Validators 1..=5 must not accept this announce, so computation task should never happen
-        let waiting_for_computation_tasks = listeners.iter_mut().map(|l| {
+        // Validators 1..=5 must reject this announce, so computation task should never happen
+        futures::future::join_all(listeners.iter_mut().map(|l| {
             l.apply_until(|event| {
                 Ok(matches!(
                     event,
-                    TestingEvent::Consensus(ConsensusEvent::ComputeAnnounce(announce))
-                        if announce.to_hash() == announce7_hash
+                    TestingEvent::Consensus(ConsensusEvent::AnnounceRejected(announce_hash))
+                        if announce_hash == announce7_hash
                 )
                 .then_some(()))
             })
-        });
-        tokio::time::timeout(
-            env.block_time * 5,
-            futures::future::join_all(waiting_for_computation_tasks),
-        )
+        }))
         .await
-        .expect_err("Timeout expected");
+        .into_iter()
+        .collect::<Result<Vec<_>, _>>()
+        .unwrap();
 
         wait_for_pong
     };

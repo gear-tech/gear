@@ -175,12 +175,16 @@ impl Subordinate {
             self.ctx.core.commitment_delay_limit,
         )? {
             AnnounceStatus::Accepted(announce_hash) => {
+                self.ctx
+                    .output(ConsensusEvent::AnnounceAccepted(announce_hash));
                 self.ctx.output(ConsensusEvent::ComputeAnnounce(announce));
                 self.state = State::WaitingAnnounceComputed { announce_hash };
 
                 Ok(self.into())
             }
             AnnounceStatus::Rejected { announce, reason } => {
+                self.ctx
+                    .output(ConsensusEvent::AnnounceRejected(announce.to_hash()));
                 self.warning(format!(
                     "Received announce {announce:?} is rejected: {reason:?}"
                 ));
@@ -232,7 +236,10 @@ mod tests {
         assert!(s.is_subordinate(), "got {s:?}");
         assert_eq!(
             s.context().output,
-            vec![ConsensusEvent::ComputeAnnounce(announce1.data().clone())]
+            vec![
+                ConsensusEvent::AnnounceAccepted(announce1.data().to_hash()),
+                ConsensusEvent::ComputeAnnounce(announce1.data().clone())
+            ]
         );
         // announce2 must stay in pending events, because it's not from current producer.
         assert_eq!(
@@ -287,7 +294,13 @@ mod tests {
         // All pending events except first MAX_PENDING_EVENTS will be removed.
         let s = Subordinate::create(ctx, block.clone(), producer.to_address(), true).unwrap();
         assert!(s.is_subordinate(), "got {s:?}");
-        assert_eq!(s.context().output, vec![announce.data().clone().into()]);
+        assert_eq!(
+            s.context().output,
+            vec![
+                ConsensusEvent::AnnounceAccepted(announce.data().to_hash()),
+                announce.data().clone().into()
+            ]
+        );
         assert_eq!(s.context().pending_events.len(), MAX_PENDING_EVENTS);
     }
 
@@ -310,14 +323,26 @@ mod tests {
         // After receiving valid announce - subordinate sends it to computation.
         let s = s.process_announce(announce.clone()).unwrap();
         assert!(s.is_subordinate(), "got {s:?}");
-        assert_eq!(s.context().output, vec![announce.data().clone().into()]);
+        assert_eq!(
+            s.context().output,
+            vec![
+                ConsensusEvent::AnnounceAccepted(announce.data().to_hash()),
+                announce.data().clone().into()
+            ]
+        );
 
         // After announce is computed, subordinate switches to participant state.
         let s = s
             .process_computed_announce(announce.data().to_hash())
             .unwrap();
         assert!(s.is_participant(), "got {s:?}");
-        assert_eq!(s.context().output, vec![announce.data().clone().into()]);
+        assert_eq!(
+            s.context().output,
+            vec![
+                ConsensusEvent::AnnounceAccepted(announce.data().to_hash()),
+                ConsensusEvent::ComputeAnnounce(announce.data().clone())
+            ]
+        );
     }
 
     #[test]
@@ -340,7 +365,13 @@ mod tests {
         // After receiving valid announce - subordinate sends it to computation.
         let s = s.process_announce(announce.clone()).unwrap();
         assert!(s.is_subordinate(), "got {s:?}");
-        assert_eq!(s.context().output, vec![announce.data().clone().into()]);
+        assert_eq!(
+            s.context().output,
+            vec![
+                ConsensusEvent::AnnounceAccepted(announce.data().to_hash()),
+                announce.data().clone().into()
+            ]
+        );
 
         // After announce is computed, not-validator subordinate switches to initial state.
         let s = s
@@ -356,24 +387,27 @@ mod tests {
         let alice = keys[1];
         let block = BlockChain::mock(1).setup(&ctx.core.db).blocks[1].to_simple();
         let parent_announce_hash = ctx.core.db.top_announce_hash(block.header.parent_hash);
-        let announce_producer = ctx
+        let producer_announce = ctx
             .core
             .signer
             .mock_verified_data(producer, (block.hash, parent_announce_hash));
-        let announce_alice = ctx
+        let alice_announce = ctx
             .core
             .signer
             .mock_verified_data(alice, (block.hash, parent_announce_hash));
 
-        ctx.pending(PendingEvent::Announce(announce_producer.clone()));
-        ctx.pending(PendingEvent::Announce(announce_alice.clone()));
+        ctx.pending(PendingEvent::Announce(producer_announce.clone()));
+        ctx.pending(PendingEvent::Announce(alice_announce.clone()));
 
         let s = Subordinate::create(ctx, block.clone(), producer.to_address(), true).unwrap();
         assert_eq!(
             s.context().output,
-            vec![announce_producer.data().clone().into()]
+            vec![
+                ConsensusEvent::AnnounceAccepted(producer_announce.data().to_hash()),
+                producer_announce.data().clone().into()
+            ]
         );
-        assert_eq!(s.context().pending_events, vec![announce_alice.into()]);
+        assert_eq!(s.context().pending_events, vec![alice_announce.into()]);
     }
 
     #[test]
@@ -404,5 +438,33 @@ mod tests {
         let s = s.process_computed_announce(HashOf::random()).unwrap();
         assert_eq!(s.context().output.len(), 1);
         assert!(matches!(s.context().output[0], ConsensusEvent::Warning(_)));
+    }
+
+    #[test]
+    fn reject_announce_from_producer() {
+        let (ctx, pub_keys, _) = mock_validator_context();
+        let producer = pub_keys[0];
+        let chain = BlockChain::mock(1).setup(&ctx.core.db);
+        let block = chain.blocks[1].to_simple();
+        let announce = ctx.core.signer.mock_verified_data(producer, block.hash);
+
+        // Subordinate waits for block prepared and announce after creation.
+        let s = Subordinate::create(ctx, block.clone(), producer.to_address(), true).unwrap();
+        assert!(s.is_subordinate(), "got {s:?}");
+        assert_eq!(s.context().output, vec![]);
+
+        // After receiving invalid announce - subordinate rejects it and switches to initial state.
+        let s = s.process_announce(announce.clone()).unwrap();
+        assert!(s.is_initial(), "got {s:?}");
+        assert_eq!(s.context().output.len(), 2);
+        assert_eq!(
+            s.context().output[0],
+            ConsensusEvent::AnnounceRejected(announce.data().to_hash())
+        );
+        assert!(
+            s.context().output[1].is_warning(),
+            "got {:?}",
+            s.context().output[1]
+        );
     }
 }

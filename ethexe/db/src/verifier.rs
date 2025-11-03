@@ -44,6 +44,7 @@ pub enum IntegrityVerifierError {
     BlockAnnouncesLenNotOne(H256),
     NoBlockLastCommittedBatch(H256),
     NoBlockLastCommittedAnnounce(H256),
+    BlockAnnouncesIsEmpty(H256),
     NoBlockAnnounces(H256),
     NoBlockHeader(H256),
 
@@ -159,8 +160,11 @@ impl DatabaseVisitor for IntegrityVerifier {
             self.errors
                 .push(IntegrityVerifierError::NoBlockLastCommittedAnnounce(block));
         }
-        if let Some(_announces) = meta.announces {
-            // TODO +_+_+: check announces somehow
+        if let Some(announces) = meta.announces {
+            if announces.is_empty() {
+                self.errors
+                    .push(IntegrityVerifierError::BlockAnnouncesIsEmpty(block));
+            }
         } else {
             self.errors
                 .push(IntegrityVerifierError::NoBlockAnnounces(block));
