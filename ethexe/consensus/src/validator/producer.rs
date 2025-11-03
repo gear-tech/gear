@@ -148,7 +148,7 @@ impl Producer {
 
         Ok(Self {
             ctx,
-            block,
+            block: block.clone(),
             validators,
             state: State::Delay { timer: Some(timer) },
         }

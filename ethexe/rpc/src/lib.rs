@@ -24,6 +24,7 @@ use apis::{
 use ethexe_blob_loader::local::LocalBlobStorage;
 use ethexe_common::tx_pool::SignedOffchainTransaction;
 use ethexe_db::Database;
+use ethexe_processor::RunnerConfig;
 use futures::{FutureExt, Stream, stream::FusedStream};
 use gprimitives::H256;
 use jsonrpsee::{
@@ -67,6 +68,9 @@ pub struct RpcConfig {
     pub cors: Option<Vec<String>>,
     /// Dev mode.
     pub dev: bool,
+    /// Runner config is created with the data
+    /// for processor, but with gas limit multiplier applied.
+    pub runner_config: RunnerConfig,
 }
 
 pub struct RpcService {
@@ -102,7 +106,10 @@ impl RpcService {
             .to_service_builder();
 
         let mut module = JsonrpcModule::new(());
-        module.merge(ProgramServer::into_rpc(ProgramApi::new(self.db.clone())))?;
+        module.merge(ProgramServer::into_rpc(ProgramApi::new(
+            self.db.clone(),
+            self.config.runner_config,
+        )))?;
         module.merge(BlockServer::into_rpc(BlockApi::new(self.db.clone())))?;
         module.merge(CodeServer::into_rpc(CodeApi::new(self.db.clone())))?;
         module.merge(TransactionPoolServer::into_rpc(TransactionPoolApi::new(

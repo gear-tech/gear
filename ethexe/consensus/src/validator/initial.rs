@@ -200,7 +200,7 @@ impl ValidatorContext {
         let validators = self
             .core
             .db
-            .block_validators(block.hash)
+            .validators(self.core.timelines.era_from_ts(block.header.timestamp))
             .ok_or(anyhow!("validators not found for block({})", block.hash))?;
 
         let producer = utils::block_producer_for(
@@ -235,7 +235,9 @@ mod tests {
 
     use super::*;
     use crate::{ConsensusEvent, validator::mock::*};
-    use ethexe_common::{Announce, HashOf, db::*, mock::*, network::AnnouncesResponse};
+    use ethexe_common::{
+        Announce, HashOf, ValidatorsVec, db::*, mock::*, network::AnnouncesResponse,
+    };
     use gprimitives::H256;
     use nonempty::nonempty;
 
@@ -259,7 +261,7 @@ mod tests {
         gear_utils::init_default_logger();
 
         let (ctx, keys, _) = mock_validator_context();
-        let validators = nonempty![
+        let validators: ValidatorsVec = nonempty![
             ctx.core.pub_key.to_address(),
             keys[0].to_address(),
             keys[1].to_address(),
@@ -283,7 +285,7 @@ mod tests {
         gear_utils::init_default_logger();
 
         let (ctx, keys, _) = mock_validator_context();
-        let validators = nonempty![
+        let validators: ValidatorsVec = nonempty![
             ctx.core.pub_key.to_address(),
             keys[1].to_address(),
             keys[2].to_address(),

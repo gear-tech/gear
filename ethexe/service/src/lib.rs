@@ -17,16 +17,14 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::config::{Config, ConfigPublicKey};
-use anyhow::{Context, Result, anyhow, bail};
+use anyhow::{Context, Result, bail};
 use async_trait::async_trait;
 use core::panic;
 use ethexe_blob_loader::{
     BlobLoader, BlobLoaderEvent, BlobLoaderService, ConsensusLayerConfig,
     local::{LocalBlobLoader, LocalBlobStorage},
 };
-use ethexe_common::{
-    db::OnChainStorageRO, ecdsa::PublicKey, gear::CodeState, network::VerifiedValidatorMessage,
-};
+use ethexe_common::{ecdsa::PublicKey, gear::CodeState, network::VerifiedValidatorMessage};
 use ethexe_compute::{ComputeEvent, ComputeService};
 use ethexe_consensus::{
     ConnectService, ConsensusEvent, ConsensusService, ValidatorConfig, ValidatorService,
@@ -242,12 +240,7 @@ impl Service {
         };
 
         let network = if let Some(net_config) = &config.network {
-            let timelines = db
-                .protocol_timelines()
-                .ok_or_else(|| anyhow!("protocol timelines not found in database"))?;
             let runtime_config = NetworkRuntimeConfig {
-                genesis_timestamp: timelines.genesis_ts,
-                era_duration: timelines.era,
                 genesis_block_hash: observer.genesis_block_hash(),
             };
             // TODO: #4918 create Signer object correctly for test/prod environments
@@ -489,6 +482,7 @@ impl Service {
                                 );
                             }
                         }
+                        NetworkEvent::InjectedTransaction(_transaction) => {}
                         NetworkEvent::PeerBlocked(_) | NetworkEvent::PeerConnected(_) => {}
                     }
                 }

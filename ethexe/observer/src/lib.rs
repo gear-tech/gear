@@ -66,6 +66,7 @@ pub enum ObserverEvent {
 #[derive(Clone, Debug)]
 struct RuntimeConfig {
     router_address: Address,
+    middleware_address: Address,
     max_sync_depth: u32,
     batched_sync_depth: u32,
     genesis_block_hash: H256,
@@ -89,6 +90,9 @@ impl Stream for ObserverService {
     type Item = Result<ObserverEvent>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        // If subscription stream finished working, a new subscription is requested to be created.
+        // The subscription creation request is a future itself, and it is polled here. If it's ready,
+        // a new stream from it is created and used further to poll the next header.
         if let Some(future) = self.subscription_future.as_mut() {
             match future.poll_unpin(cx) {
                 Poll::Ready(Ok(subscription)) => self.headers_stream = subscription.into_stream(),
@@ -164,6 +168,7 @@ impl ObserverService {
         } = eth_cfg;
 
         let router_query = RouterQuery::new(rpc, *router_address).await?;
+        let middleware_address = router_query.middleware_address().await?.into();
 
         let provider = ProviderBuilder::default()
             .connect(rpc)
@@ -181,6 +186,7 @@ impl ObserverService {
 
         let config = RuntimeConfig {
             router_address: *router_address,
+            middleware_address,
             max_sync_depth,
             // TODO #4562: make this configurable. Important: must be greater than 1.
             batched_sync_depth: 2,
@@ -207,9 +213,23 @@ impl ObserverService {
         })
     }
 
-    // TODO #4563: this is a temporary solution.
-    // Choose a better place for this, out of ObserverService.
+    // TODO #4563: this is a temporary solution
     /// If genesis block is not yet fully setup in the database, we need to do it
+    /// Populates database with genesis block data.
+    ///
+    /// Basically, requests data for the block, which is considered to be a genesis block
+    /// inside the `Router` contract on Ethereum. The data is processed the following way:
+    /// - header is stored in the database
+    /// - events are set as empty
+    /// - block is set as synced
+    /// - block is set as computed
+    /// - block is set as latest synced block (it's height)
+    /// - block is set as latest computed block
+    /// - previous non-empty block for the genesis one is set to blake2b256(0)
+    /// - all the runtime storages related to the block (message queue, tasks schedule, codes queue) also programs states,
+    ///   and processing outcome (state transitions) are set to default (empty) values.
+    ///
+    /// If genesis block was computed earlier, this function returns immediately.
     async fn pre_process_genesis_for_db(
         db: &Database,
         provider: &RootProvider,
@@ -240,7 +260,6 @@ impl ObserverService {
             era: router_timelines.era,
             election: router_timelines.election,
         };
-
         let genesis_validators = router_query.validators_at(genesis_block_hash).await?;
 
         ethexe_common::setup_genesis_in_db(

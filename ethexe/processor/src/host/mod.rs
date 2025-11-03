@@ -36,6 +36,13 @@ pub mod runtime;
 mod context;
 mod threads;
 
+/// Returns wasm runtime bytes.
+///
+/// The returned runtime is able to perform some functions
+/// related to executing programs in the context of the gear protocol.
+/// These functions are:
+/// - `instrument_code` - instrument the code of the program.
+/// - `run` - execute messages of the program in the context of the gear protocol.
 pub fn runtime() -> Vec<u8> {
     let mut runtime = runtime::Runtime::new();
     runtime.add_start_section();
@@ -56,6 +63,16 @@ pub(crate) struct InstanceCreator {
 }
 
 impl InstanceCreator {
+    /// Instantiates a wasm runtime instance creator.
+    ///
+    /// A wasm runtime here is a runtime for executing wasm programs
+    /// in the context of the gear protocol programs execution.
+    /// That actually brings some requirements for the wasm module
+    /// instantiation, like linking expected host functions to use
+    /// lazy pages, allocator or have an access to database.
+    ///
+    /// A wasm runtime modules is expected to use some runtime interface,
+    /// which calls linked host functions.
     pub fn new(runtime: Vec<u8>) -> Result<Self> {
         let mut config = wasmtime::Config::new();
         config.cache_config_load_default()?;
@@ -121,6 +138,7 @@ impl InstanceWrapper {
         self.store.data_mut()
     }
 
+    /// Call to the exported `instrument_code` function of the wasm module.
     pub fn instrument(
         &mut self,
         original_code: impl AsRef<[u8]>,
@@ -128,6 +146,11 @@ impl InstanceWrapper {
         self.call("instrument_code", original_code)
     }
 
+    /// Call to the exported `run` function of the wasm module.
+    ///
+    /// The `run` function actually executed program's queue in accordance to
+    /// the gear protocol. The returned sequence of `JournalNote`s is later
+    /// processed out of the wasm module.
     pub fn run(
         &mut self,
         db: Database,
@@ -164,6 +187,7 @@ impl InstanceWrapper {
         Ok((mega_journal, new_state_hash, gas_spent as u64))
     }
 
+    /// Low-level call to exported from the wasm module `name` function.
     fn call<D: Decode>(&mut self, name: &'static str, input: impl AsRef<[u8]>) -> Result<D> {
         self.with_host_state(|instance_wrapper| {
             let func = instance_wrapper
