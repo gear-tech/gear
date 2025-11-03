@@ -157,10 +157,12 @@ impl Behaviour {
             .map(move |address| Self::identity_key(current_era_index, address))
     }
 
-    pub fn identity(&self, current_era_index: u64) -> Option<anyhow::Result<kad::Record>> {
+    pub fn identity(&self, list: &ValidatorList) -> Option<anyhow::Result<kad::Record>> {
         let validator_key = self.validator_key?;
 
         let f = || {
+            let current_era_index = list.current_era_index();
+
             let peer_record = self.external_addresses.as_slice().to_vec();
             let peer_record = PeerRecord::new(&self.keypair, peer_record)
                 .context("failed to sign peer record")?;

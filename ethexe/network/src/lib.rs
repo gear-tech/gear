@@ -505,9 +505,8 @@ impl NetworkService {
             }
             BehaviourEvent::ValidatorDiscovery(validator::discovery::Event::PutIdentity) => {
                 let behaviour = self.swarm.behaviour_mut();
-                let current_era_index = self.validator_list.current_era_index();
 
-                match behaviour.validator_discovery.identity(current_era_index) {
+                match behaviour.validator_discovery.identity(&self.validator_list) {
                     Some(Ok(identity)) => {
                         if let Err(err) = behaviour.kad.put_record(identity, kad::Quorum::Majority)
                         {
