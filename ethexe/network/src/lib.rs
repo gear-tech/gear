@@ -339,28 +339,50 @@ impl NetworkService {
 
     fn handle_behaviour_event(&mut self, event: BehaviourEvent) -> Option<NetworkEvent> {
         match event {
-            BehaviourEvent::CustomConnectionLimits(infallible) => match infallible {},
-            //
-            BehaviourEvent::ConnectionLimits(infallible) => match infallible {},
-            //
-            BehaviourEvent::PeerScore(peer_score::Event::PeerBlocked {
+            BehaviourEvent::CustomConnectionLimits(event) => match event {},
+            BehaviourEvent::ConnectionLimits(event) => match event {},
+            BehaviourEvent::PeerScore(event) => return self.handle_peer_score_event(event),
+            BehaviourEvent::Ping(event) => self.handle_ping_event(event),
+            BehaviourEvent::Identify(event) => self.handle_identify_event(event),
+            BehaviourEvent::Mdns4(event) => self.handle_mdns_event(event),
+            BehaviourEvent::Kad(event) => self.handle_kad_event(event),
+            BehaviourEvent::Gossipsub(event) => return self.handle_gossipsub_event(event),
+            BehaviourEvent::DbSync(_event) => {}
+            BehaviourEvent::Injected(event) => return self.handle_injected_event(event),
+            BehaviourEvent::ValidatorDiscovery(event) => {
+                self.handle_validator_discovery_event(event)
+            }
+        }
+
+        None
+    }
+
+    fn handle_peer_score_event(&mut self, event: peer_score::Event) -> Option<NetworkEvent> {
+        match event {
+            peer_score::Event::PeerBlocked {
                 peer_id,
                 last_reason: _,
-            }) => return Some(NetworkEvent::PeerBlocked(peer_id)),
-            BehaviourEvent::PeerScore(_) => {}
-            //
-            BehaviourEvent::Ping(ping::Event {
-                peer,
-                connection: _,
-                result,
-            }) => {
-                if let Err(e) = result {
-                    log::debug!("ping to {peer} failed: {e}. Disconnecting...");
-                    let _res = self.swarm.disconnect_peer_id(peer);
-                }
-            }
-            //
-            BehaviourEvent::Identify(identify::Event::Received { peer_id, info, .. }) => {
+            } => Some(NetworkEvent::PeerBlocked(peer_id)),
+            _ => None,
+        }
+    }
+
+    fn handle_ping_event(&mut self, event: ping::Event) {
+        let ping::Event {
+            peer,
+            connection: _,
+            result,
+        } = event;
+
+        if let Err(e) = result {
+            log::debug!("ping to {peer} failed: {e}. Disconnecting...");
+            let _res = self.swarm.disconnect_peer_id(peer);
+        }
+    }
+
+    fn handle_identify_event(&mut self, event: identify::Event) {
+        match event {
+            identify::Event::Received { peer_id, info, .. } => {
                 let behaviour = self.swarm.behaviour_mut();
 
                 if info.protocol_version != PROTOCOL_VERSION || info.agent_version != AGENT_VERSION
@@ -379,7 +401,7 @@ impl NetworkService {
                     behaviour.kad.add_address(&peer_id, listen_addr);
                 }
             }
-            BehaviourEvent::Identify(identify::Event::Error { peer_id, error, .. }) => {
+            identify::Event::Error { peer_id, error, .. } => {
                 log::debug!("{peer_id} is not identified: {error}");
                 self.swarm
                     .behaviour()
@@ -387,9 +409,13 @@ impl NetworkService {
                     .handle()
                     .unsupported_protocol(peer_id);
             }
-            BehaviourEvent::Identify(_) => {}
-            //
-            BehaviourEvent::Mdns4(mdns::Event::Discovered(peers)) => {
+            _ => {}
+        }
+    }
+
+    fn handle_mdns_event(&mut self, event: mdns::Event) {
+        match event {
+            mdns::Event::Discovered(peers) => {
                 for (peer_id, multiaddr) in peers {
                     if let Err(e) = self.swarm.dial(
                         DialOpts::peer_id(peer_id)
@@ -402,13 +428,17 @@ impl NetworkService {
                     }
                 }
             }
-            BehaviourEvent::Mdns4(mdns::Event::Expired(peers)) => {
+            mdns::Event::Expired(peers) => {
                 for (peer_id, _multiaddr) in peers {
                     let _res = self.swarm.disconnect_peer_id(peer_id);
                 }
             }
-            //
-            BehaviourEvent::Kad(kad::Event::RoutingUpdated { peer, .. }) => {
+        }
+    }
+
+    fn handle_kad_event(&mut self, event: kad::Event) {
+        match event {
+            kad::Event::RoutingUpdated { peer, .. } => {
                 let behaviour = self.swarm.behaviour_mut();
                 if let Some(mdns4) = behaviour.mdns4.as_ref()
                     && mdns4.discovered_nodes().any(|&p| p == peer)
@@ -419,37 +449,37 @@ impl NetworkService {
                     let _res = behaviour.kad.remove_peer(&peer);
                 }
             }
-            BehaviourEvent::Kad(kad::Event::InboundRequest { request }) => {
-                if let kad::InboundRequest::PutRecord {
-                    source,
-                    connection: _,
-                    record,
-                } = request
-                {
-                    let behaviour = self.swarm.behaviour_mut();
-                    let record = record
-                        .expect("`StoreInserts::FilterBoth` implies `record` is always present");
+            kad::Event::InboundRequest {
+                request:
+                    kad::InboundRequest::PutRecord {
+                        source,
+                        connection: _,
+                        record,
+                    },
+            } => {
+                let behaviour = self.swarm.behaviour_mut();
+                let record =
+                    record.expect("`StoreInserts::FilterBoth` implies `record` is always present");
 
-                    match behaviour
-                        .validator_discovery
-                        .put_identity(&self.validator_list, &record)
-                    {
-                        Ok(()) => {
-                            let _res = behaviour.kad.store_mut().put(record);
-                        }
-                        Err(err) => {
-                            log::trace!("failed to put identity: {err}");
-                            behaviour.peer_score.handle().invalid_data(source);
-                        }
+                match behaviour
+                    .validator_discovery
+                    .put_identity(&self.validator_list, &record)
+                {
+                    Ok(()) => {
+                        let _res = behaviour.kad.store_mut().put(record);
+                    }
+                    Err(err) => {
+                        log::trace!("failed to put identity: {err}");
+                        behaviour.peer_score.handle().invalid_data(source);
                     }
                 }
             }
-            BehaviourEvent::Kad(kad::Event::OutboundQueryProgressed {
+            kad::Event::OutboundQueryProgressed {
                 id: _,
                 result,
                 stats: _,
                 step: _,
-            }) => match result {
+            } => match result {
                 kad::QueryResult::GetRecord(get_record_result) => match get_record_result {
                     Ok(_) => {
                         // handled in `kad::Event::InboundRequest`
@@ -472,44 +502,54 @@ impl NetworkService {
                 },
                 _ => {}
             },
-            BehaviourEvent::Kad(_) => {}
-            //
-            BehaviourEvent::Gossipsub(gossipsub::Event::Message { source, validator }) => {
+            _ => {}
+        }
+    }
+
+    fn handle_gossipsub_event(&mut self, event: gossipsub::Event) -> Option<NetworkEvent> {
+        match event {
+            gossipsub::Event::Message { source, validator } => {
                 let gossipsub = &mut self.swarm.behaviour_mut().gossipsub;
 
-                let event =
-                    validator.validate(gossipsub, |message| match message {
-                        gossipsub::Message::Commitments(message) => {
-                            let (acceptance, message) = self
-                                .validator_topic
-                                .verify_message_initially(&self.validator_list, source, message);
-                            (acceptance, message.map(NetworkEvent::ValidatorMessage))
-                        }
-                        gossipsub::Message::Offchain(transaction) => (
-                            MessageAcceptance::Accept,
-                            Some(NetworkEvent::OffchainTransaction(transaction)),
-                        ),
-                    });
-
-                return event;
+                validator.validate(gossipsub, |message| match message {
+                    gossipsub::Message::Commitments(message) => {
+                        let (acceptance, message) = self.validator_topic.verify_message_initially(
+                            &self.validator_list,
+                            source,
+                            message,
+                        );
+                        (acceptance, message.map(NetworkEvent::ValidatorMessage))
+                    }
+                    gossipsub::Message::Offchain(transaction) => (
+                        MessageAcceptance::Accept,
+                        Some(NetworkEvent::OffchainTransaction(transaction)),
+                    ),
+                })
             }
-            BehaviourEvent::Gossipsub(gossipsub::Event::PublishFailure {
+            gossipsub::Event::PublishFailure {
                 error,
                 message,
                 topic,
-            }) => {
+            } => {
                 log::warn!(
                     "failed to publish gossip `{message:?}` message to {topic} topic: {error}"
                 );
+                None
             }
-            //
-            BehaviourEvent::DbSync(_) => {}
-            //
-            BehaviourEvent::Injected(injected::Event::NewInjectedTransaction(transaction)) => {
-                return Some(NetworkEvent::InjectedTransaction(transaction));
+        }
+    }
+
+    fn handle_injected_event(&mut self, event: injected::Event) -> Option<NetworkEvent> {
+        match event {
+            injected::Event::NewInjectedTransaction(transaction) => {
+                Some(NetworkEvent::InjectedTransaction(transaction))
             }
-            //
-            BehaviourEvent::ValidatorDiscovery(validator::discovery::Event::QueryIdentities) => {
+        }
+    }
+
+    fn handle_validator_discovery_event(&mut self, event: validator::discovery::Event) {
+        match event {
+            validator::discovery::Event::QueryIdentities => {
                 let behaviour = self.swarm.behaviour_mut();
                 for key in behaviour
                     .validator_discovery
@@ -518,7 +558,7 @@ impl NetworkService {
                     behaviour.kad.get_record(key);
                 }
             }
-            BehaviourEvent::ValidatorDiscovery(validator::discovery::Event::PutIdentity) => {
+            validator::discovery::Event::PutIdentity => {
                 let behaviour = self.swarm.behaviour_mut();
 
                 match behaviour.validator_discovery.identity(&self.validator_list) {
@@ -537,8 +577,6 @@ impl NetworkService {
                 }
             }
         }
-
-        None
     }
 
     pub fn local_peer_id(&self) -> PeerId {
