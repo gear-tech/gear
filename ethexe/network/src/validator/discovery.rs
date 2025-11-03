@@ -197,7 +197,7 @@ impl Behaviour {
     pub fn put_identity(
         &mut self,
         list: &ValidatorList,
-        identity: kad::Record,
+        identity: &kad::Record,
     ) -> anyhow::Result<()> {
         let identity = SignedValidatorIdentity::decode(&mut &identity.value[..])
             .context("failed to decode signed validator identity")?;

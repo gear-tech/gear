@@ -44,7 +44,9 @@ use libp2p::{
     Multiaddr, PeerId, Swarm, Transport, connection_limits,
     core::{muxing::StreamMuxerBox, transport, transport::ListenerId, upgrade},
     futures::StreamExt,
-    identify, identity, kad, mdns,
+    identify, identity, kad,
+    kad::store::RecordStore,
+    mdns,
     multiaddr::Protocol,
     ping,
     swarm::{
@@ -417,46 +419,59 @@ impl NetworkService {
                     let _res = behaviour.kad.remove_peer(&peer);
                 }
             }
+            BehaviourEvent::Kad(kad::Event::InboundRequest { request }) => {
+                if let kad::InboundRequest::PutRecord {
+                    source,
+                    connection: _,
+                    record,
+                } = request
+                {
+                    let behaviour = self.swarm.behaviour_mut();
+                    let record = record
+                        .expect("`StoreInserts::FilterBoth` implies `record` is always present");
+
+                    match behaviour
+                        .validator_discovery
+                        .put_identity(&self.validator_list, &record)
+                    {
+                        Ok(()) => {
+                            let _res = behaviour.kad.store_mut().put(record);
+                        }
+                        Err(err) => {
+                            log::trace!("failed to put identity: {err}");
+                            behaviour.peer_score.handle().invalid_data(source);
+                        }
+                    }
+                }
+            }
             BehaviourEvent::Kad(kad::Event::OutboundQueryProgressed {
                 id: _,
                 result,
                 stats: _,
                 step: _,
-            }) => {
-                let behaviour = self.swarm.behaviour_mut();
-
-                match result {
-                    kad::QueryResult::GetRecord(get_record_result) => match get_record_result {
-                        Ok(kad::GetRecordOk::FoundRecord(peer_record)) => {
-                            if let Err(err) = behaviour
-                                .validator_discovery
-                                .put_identity(&self.validator_list, peer_record.record)
-                            {
-                                log::trace!("failed to put identity: {err}");
-                            }
-                        }
-                        Ok(kad::GetRecordOk::FinishedWithNoAdditionalRecord {
-                            cache_candidates: _,
-                        }) => {}
-                        Err(kad::GetRecordError::NotFound {
-                            key,
-                            closest_peers: _,
-                        }) => {
-                            log::trace!("record {key:?} not found");
-                        }
-                        Err(err) => {
-                            log::warn!("failed to get record: {err}");
-                        }
-                    },
-                    kad::QueryResult::PutRecord(put_record_result) => match put_record_result {
-                        Ok(_) => {}
-                        Err(err) => {
-                            log::warn!("failed to put record: {err}");
-                        }
-                    },
-                    _ => {}
-                }
-            }
+            }) => match result {
+                kad::QueryResult::GetRecord(get_record_result) => match get_record_result {
+                    Ok(_) => {
+                        // handled in `kad::Event::InboundRequest`
+                    }
+                    Err(kad::GetRecordError::NotFound {
+                        key,
+                        closest_peers: _,
+                    }) => {
+                        log::trace!("record {key:?} not found");
+                    }
+                    Err(err) => {
+                        log::warn!("failed to get record: {err}");
+                    }
+                },
+                kad::QueryResult::PutRecord(put_record_result) => match put_record_result {
+                    Ok(_) => {}
+                    Err(err) => {
+                        log::warn!("failed to put record: {err}");
+                    }
+                },
+                _ => {}
+            },
             BehaviourEvent::Kad(_) => {}
             //
             BehaviourEvent::Gossipsub(gossipsub::Event::Message { source, validator }) => {
@@ -680,7 +695,8 @@ impl Behaviour {
         let mut kad = kad::Config::default();
         kad.disjoint_query_paths(true)
             .set_record_ttl(Some(KAD_RECORD_TTL))
-            .set_publication_interval(Some(KAD_PUBLISHING_INTERVAL));
+            .set_publication_interval(Some(KAD_PUBLISHING_INTERVAL))
+            .set_record_filtering(kad::StoreInserts::FilterBoth);
         let mut kad =
             kad::Behaviour::with_config(peer_id, kad::store::MemoryStore::new(peer_id), kad);
         kad.set_mode(Some(kad::Mode::Server));
