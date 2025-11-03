@@ -442,7 +442,7 @@ impl NetworkService {
                             key,
                             closest_peers: _,
                         }) => {
-                            behaviour.kad.get_record(key);
+                            log::trace!("record {key:?} not found");
                         }
                         Err(err) => {
                             log::warn!("failed to get record: {err}");
@@ -494,7 +494,34 @@ impl NetworkService {
                 return Some(NetworkEvent::InjectedTransaction(transaction));
             }
             //
-            BehaviourEvent::ValidatorDiscovery(validator::discovery::Event::GetIdentities) => {}
+            BehaviourEvent::ValidatorDiscovery(validator::discovery::Event::GetIdentities) => {
+                let behaviour = self.swarm.behaviour_mut();
+                for key in behaviour
+                    .validator_discovery
+                    .identity_keys(&self.validator_list)
+                {
+                    behaviour.kad.get_record(key);
+                }
+            }
+            BehaviourEvent::ValidatorDiscovery(validator::discovery::Event::PutIdentity) => {
+                let behaviour = self.swarm.behaviour_mut();
+                let current_era_index = self.validator_list.current_era_index();
+
+                match behaviour.validator_discovery.identity(current_era_index) {
+                    Some(Ok(identity)) => {
+                        if let Err(err) = behaviour.kad.put_record(identity, kad::Quorum::Majority)
+                        {
+                            log::warn!("failed to put record into local storage: {err}");
+                        }
+                    }
+                    Some(Err(err)) => {
+                        log::warn!("failed to create validator identity: {err}");
+                    }
+                    None => {
+                        // validator public key is not set
+                    }
+                }
+            }
         }
 
         None
@@ -515,35 +542,6 @@ impl NetworkService {
     fn on_new_era(&mut self) {
         // revalidate cached messages
         self.validator_topic.on_new_era(&self.validator_list);
-
-        let behaviour = self.swarm.behaviour_mut();
-
-        // put new identity to KAD
-        {
-            let current_era_index = self.validator_list.current_era_index();
-
-            match behaviour.validator_discovery.identity(current_era_index) {
-                Some(Ok(identity)) => {
-                    if let Err(err) = behaviour.kad.put_record(identity, kad::Quorum::Majority) {
-                        log::warn!("failed to put record into local storage: {err}");
-                    }
-                }
-                Some(Err(err)) => {
-                    log::warn!("failed to create validator identity: {err}");
-                }
-                None => {
-                    // validator public key is not set
-                }
-            }
-        }
-
-        // get other validator identities
-        for key in behaviour
-            .validator_discovery
-            .identity_keys(&self.validator_list)
-        {
-            behaviour.kad.get_record(key);
-        }
     }
 
     pub fn set_chain_head(&mut self, chain_head: H256) -> anyhow::Result<()> {
@@ -565,7 +563,10 @@ impl NetworkService {
     }
 
     pub fn send_injected_transaction(&mut self, data: SignedInjectedTransaction) {
-        self.swarm.behaviour_mut().injected.send_transaction(data);
+        let behaviour = self.swarm.behaviour_mut();
+        behaviour
+            .injected
+            .send_transaction(&mut behaviour.validator_discovery, data);
     }
 }
 

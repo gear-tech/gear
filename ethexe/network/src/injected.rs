@@ -20,6 +20,7 @@ use crate::{
     db_sync::{Multiaddr, PeerId},
     peer_score,
     utils::ParityScaleCodec,
+    validator,
 };
 use ethexe_common::injected::SignedInjectedTransaction;
 use libp2p::{
@@ -74,14 +75,22 @@ impl Behaviour {
         Self { inner, peer_score }
     }
 
-    pub fn send_transaction(&mut self, transaction: SignedInjectedTransaction) {
-        log::warn!("`send_transaction` is ignored for now: {transaction:?}");
-
-        // TODO: send to actual peer when validator discovery is ready
-        // let peer: PeerId = PeerId::random();
-        //
-        // self.inner
-        //     .send_request(&peer, Request::InjectedTransaction(data));
+    pub fn send_transaction(
+        &mut self,
+        discovery: &mut validator::discovery::Behaviour,
+        transaction: SignedInjectedTransaction,
+    ) {
+        if let Some(identity) = discovery.get_identity(transaction.data().recipient) {
+            let peer = identity.data().peer_record.peer_id();
+            self.inner
+                .send_request(&peer, Request::InjectedTransaction(transaction));
+        } else {
+            log::warn!(
+                "Received transaction for unknown validator: {}, transaction={:?}",
+                transaction.data().recipient,
+                transaction
+            );
+        }
     }
 
     fn handle_inner_event(

@@ -36,17 +36,24 @@ use libp2p::{
 };
 use lru::LruCache;
 use parity_scale_codec::{Decode, Encode, Input, Output};
-use std::{collections::VecDeque, num::NonZeroUsize, task::Poll, time::SystemTime};
+use std::{
+    num::NonZeroUsize,
+    task::Poll,
+    time::{Duration, SystemTime},
+};
+use tokio::{time, time::Interval};
 
 const MAX_VALIDATOR_IDENTITIES: NonZeroUsize = NonZeroUsize::new(100).unwrap();
+const GET_IDENTITIES_INTERVAL: Duration = Duration::from_secs(60);
+const PUT_IDENTITY_INTERVAL: Duration = Duration::from_secs(60);
 
 pub type SignedValidatorIdentity = SignedData<ValidatorIdentity>;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatorIdentity {
-    peer_record: PeerRecord,
-    era_index: u64,
-    creation_time: u128,
+    pub peer_record: PeerRecord,
+    pub era_index: u64,
+    pub creation_time: u128,
 }
 
 impl ToDigest for ValidatorIdentity {
@@ -107,27 +114,30 @@ impl Decode for ValidatorIdentity {
 #[derive(Debug)]
 pub enum Event {
     GetIdentities,
+    PutIdentity,
 }
 
 #[derive(Debug)]
 pub struct Behaviour {
-    pending_events: VecDeque<Event>,
     keypair: Keypair,
     validator_key: Option<PublicKey>,
     signer: Signer,
     identities: LruCache<Address, SignedValidatorIdentity>,
     external_addresses: ExternalAddresses,
+    get_identities_interval: Interval,
+    put_identity_interval: Interval,
 }
 
 impl Behaviour {
     pub fn new(keypair: Keypair, validator_key: Option<PublicKey>, signer: Signer) -> Self {
         Self {
-            pending_events: VecDeque::new(),
             keypair,
             validator_key,
             signer,
             identities: LruCache::new(MAX_VALIDATOR_IDENTITIES),
             external_addresses: ExternalAddresses::default(),
+            get_identities_interval: time::interval(GET_IDENTITIES_INTERVAL),
+            put_identity_interval: time::interval(PUT_IDENTITY_INTERVAL),
         }
     }
 
@@ -178,8 +188,6 @@ impl Behaviour {
         Some(f())
     }
 
-    // TODO: use for private offchain transactions
-    #[allow(dead_code)]
     pub fn get_identity(&mut self, address: Address) -> Option<&SignedValidatorIdentity> {
         self.identities.get(&address)
     }
@@ -197,6 +205,12 @@ impl Behaviour {
         anyhow::ensure!(
             list.contains_any_validator(identity.address()),
             "received identity is not in any validator list"
+        );
+
+        anyhow::ensure!(
+            identity.data().era_index == list.current_era_index()
+                || identity.data().era_index == list.current_era_index() + 1,
+            "received identity has invalid era index"
         );
 
         if let Some(old_identity) = self.identities.peek(&identity.address())
@@ -250,10 +264,14 @@ impl NetworkBehaviour for Behaviour {
 
     fn poll(
         &mut self,
-        _cx: &mut std::task::Context<'_>,
+        cx: &mut std::task::Context<'_>,
     ) -> Poll<ToSwarm<Self::ToSwarm, THandlerInEvent<Self>>> {
-        if let Some(event) = self.pending_events.pop_front() {
-            return Poll::Ready(ToSwarm::GenerateEvent(event));
+        if self.get_identities_interval.poll_tick(cx).is_ready() {
+            return Poll::Ready(ToSwarm::GenerateEvent(Event::GetIdentities));
+        }
+
+        if self.put_identity_interval.poll_tick(cx).is_ready() {
+            return Poll::Ready(ToSwarm::GenerateEvent(Event::PutIdentity));
         }
 
         Poll::Pending
