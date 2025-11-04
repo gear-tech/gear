@@ -35,10 +35,9 @@ pub struct Api {
 }
 
 #[derive(Debug, Clone, Default)]
-pub struct ApiBuilder<'a, F = fn(WsClientBuilder) -> WsClientBuilder> {
+pub struct ApiBuilder<'a> {
     uri: Option<Cow<'a, str>>,
     timeout: Option<Duration>,
-    configure_ws: F,
 }
 
 impl Api {
@@ -53,12 +52,11 @@ impl Api {
         ApiBuilder {
             uri: None,
             timeout: None,
-            configure_ws: std::convert::identity,
         }
     }
 }
 
-impl<'a, F: FnOnce(WsClientBuilder) -> WsClientBuilder> ApiBuilder<'a, F> {
+impl<'a> ApiBuilder<'a> {
     pub fn uri(mut self, uri: impl Into<Cow<'a, str>>) -> Self {
         self.uri = Some(uri.into());
         self
@@ -67,17 +65,6 @@ impl<'a, F: FnOnce(WsClientBuilder) -> WsClientBuilder> ApiBuilder<'a, F> {
     pub const fn timeout(mut self, timeout: Duration) -> Self {
         self.timeout = Some(timeout);
         self
-    }
-
-    pub fn configure_ws<NewF: FnOnce(WsClientBuilder) -> WsClientBuilder>(
-        self,
-        f: NewF,
-    ) -> ApiBuilder<'a, NewF> {
-        ApiBuilder {
-            uri: self.uri,
-            timeout: self.timeout,
-            configure_ws: f,
-        }
     }
 
     pub async fn build(self) -> Result<Api> {
@@ -90,12 +77,12 @@ impl<'a, F: FnOnce(WsClientBuilder) -> WsClientBuilder> ApiBuilder<'a, F> {
 
         let timeout = self.timeout.unwrap_or(Api::DEFAULT_TIMEOUT);
 
-        let client_builder = WsClientBuilder::new()
+        let client = WsClientBuilder::new()
             .max_request_size(ONE_HUNDRED_MEGABYTES)
             .connection_timeout(timeout)
-            .request_timeout(timeout);
-        let client_builder = (self.configure_ws)(client_builder);
-        let client = client_builder.build(uri).await?;
+            .request_timeout(timeout)
+            .build(uri)
+            .await?;
 
         Ok(RpcClient::new(client))
     }
