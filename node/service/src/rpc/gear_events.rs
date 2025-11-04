@@ -81,8 +81,8 @@ pub struct UserMessageSentJson {
 #[derive(Clone, Debug, serde::Serialize)]
 pub struct UserMessageReplyJson {
     pub to: [u8; 32],
-    pub code_raw: Bytes,
-    pub code: String,
+    pub code: Bytes,
+    pub code_description: String,
 }
 
 impl UserMessageSentJson {
@@ -91,8 +91,8 @@ impl UserMessageSentJson {
             let (to, code) = details.into_parts();
             UserMessageReplyJson {
                 to: to.into_bytes(),
-                code_raw: Bytes(code.to_bytes().to_vec()),
-                code: code.to_string(),
+                code: Bytes(code.to_bytes().to_vec()),
+                code_description: code.to_string(),
             }
         });
 

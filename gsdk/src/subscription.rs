@@ -311,26 +311,25 @@ impl<'de> Deserialize<'de> for UserMessageSent {
         #[derive(Deserialize)]
         struct RawReplyDetails {
             to: [u8; 32],
-            code_raw: Bytes,
-            #[serde(default)]
-            code: Option<String>,
+            code: Bytes,
+            code_description: Option<String>,
         }
 
         let raw = RawUserMessageSent::deserialize(deserializer)?;
         let payload = raw.payload.0;
         let reply = match raw.reply {
             Some(reply) => {
-                let code_raw: [u8; 4] = reply
-                    .code_raw
+                let code_bytes: [u8; 4] = reply
+                    .code
                     .0
                     .as_slice()
                     .try_into()
-                    .map_err(|_| DeError::custom("invalid reply.code_raw length"))?;
+                    .map_err(|_| DeError::custom("invalid reply.code length"))?;
 
                 Some(UserMessageReply {
                     to: MessageId::from(reply.to),
-                    code: ReplyCode::from_bytes(code_raw),
-                    code_text: reply.code,
+                    code: ReplyCode::from_bytes(code_bytes),
+                    code_text: reply.code_description,
                 })
             }
             None => None,
