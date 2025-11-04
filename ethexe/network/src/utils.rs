@@ -224,20 +224,18 @@ impl<T: fmt::Debug> fmt::Debug for AlternateCollectionFmt<T> {
 #[derive(Debug)]
 pub struct ExponentialBackoffInterval {
     delay: Pin<Box<time::Sleep>>,
-    factor: u32,
-    max: Duration,
     next_duration: Duration,
 }
 
 impl ExponentialBackoffInterval {
-    pub fn new() -> Self {
-        const START: Duration = Duration::from_secs(2);
+    const START: Duration = Duration::from_secs(2);
+    const FACTOR: u32 = 2;
+    const MAX: Duration = Duration::from_mins(10);
 
+    pub fn new() -> Self {
         Self {
-            delay: Box::pin(time::sleep(START)),
-            factor: 2,
-            max: Duration::from_mins(10),
-            next_duration: START,
+            delay: Box::pin(time::sleep(Self::START)),
+            next_duration: Self::START,
         }
     }
 
@@ -248,14 +246,14 @@ impl ExponentialBackoffInterval {
     }
 
     pub fn tick_at_max(&mut self) {
-        self.next_duration = self.max;
+        self.next_duration = Self::MAX;
         self.inner_reset();
     }
 
     pub fn poll_tick(&mut self, cx: &mut Context) -> Poll<()> {
         ready!(self.delay.as_mut().poll(cx));
 
-        self.next_duration = (self.next_duration * self.factor).min(self.max);
+        self.next_duration = (self.next_duration * Self::FACTOR).min(Self::MAX);
         self.inner_reset();
 
         Poll::Ready(())
@@ -264,9 +262,13 @@ impl ExponentialBackoffInterval {
 
 #[cfg(test)]
 pub(crate) mod tests {
-    use crate::{db_sync::PeerId, utils::ConnectionMap};
+    use crate::{
+        db_sync::PeerId,
+        utils::{ConnectionMap, ExponentialBackoffInterval},
+    };
     use libp2p::swarm::ConnectionId;
-    use std::collections::HashSet;
+    use std::{collections::HashSet, future};
+    use tokio::time;
     use tracing_subscriber::EnvFilter;
 
     pub fn init_logger() {
@@ -337,5 +339,50 @@ pub(crate) mod tests {
             map.inner.into_keys().collect::<HashSet<PeerId>>(),
             HashSet::default()
         );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn interval_smoke() {
+        let mut interval = ExponentialBackoffInterval::new();
+        assert_eq!(
+            interval.next_duration,
+            ExponentialBackoffInterval::START * ExponentialBackoffInterval::FACTOR.pow(0)
+        );
+
+        future::poll_fn(|cx| interval.poll_tick(cx)).await;
+        assert_eq!(
+            interval.next_duration,
+            ExponentialBackoffInterval::START * ExponentialBackoffInterval::FACTOR.pow(1)
+        );
+
+        future::poll_fn(|cx| interval.poll_tick(cx)).await;
+        assert_eq!(
+            interval.next_duration,
+            ExponentialBackoffInterval::START * ExponentialBackoffInterval::FACTOR.pow(2)
+        );
+
+        while interval.next_duration != ExponentialBackoffInterval::MAX {
+            future::poll_fn(|cx| interval.poll_tick(cx)).await;
+        }
+
+        assert_eq!(interval.next_duration, ExponentialBackoffInterval::MAX);
+        assert_eq!(interval.next_duration, ExponentialBackoffInterval::MAX);
+        assert_eq!(interval.next_duration, ExponentialBackoffInterval::MAX);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn interval_tick_at_max() {
+        let mut interval = ExponentialBackoffInterval::new();
+        interval.tick_at_max();
+
+        let instant = time::Instant::now();
+
+        future::poll_fn(|cx| interval.poll_tick(cx)).await;
+        assert_eq!(interval.next_duration, ExponentialBackoffInterval::MAX);
+        assert_eq!(instant.elapsed(), ExponentialBackoffInterval::MAX);
+
+        future::poll_fn(|cx| interval.poll_tick(cx)).await;
+        assert_eq!(interval.next_duration, ExponentialBackoffInterval::MAX);
+        assert_eq!(instant.elapsed(), ExponentialBackoffInterval::MAX * 2);
     }
 }
