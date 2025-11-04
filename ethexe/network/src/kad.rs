@@ -16,12 +16,14 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use crate::validator::discovery::SignedValidatorIdentity;
+use ethexe_common::Address;
 use libp2p::{
     Multiaddr, PeerId,
     core::{Endpoint, transport::PortUse},
     kad,
     kad::{
-        Addresses, EntryView, KBucketKey, QueryId, Quorum, Record, RecordKey, store,
+        Addresses, EntryView, GetRecordResult, KBucketKey, PutRecordResult, QueryId, Quorum, store,
         store::{MemoryStore, RecordStore},
     },
     swarm::{
@@ -29,6 +31,7 @@ use libp2p::{
         THandlerOutEvent, ToSwarm,
     },
 };
+use parity_scale_codec::{Decode, Encode};
 use std::{
     task::{Context, Poll, ready},
     time::Duration,
@@ -38,33 +41,90 @@ const KAD_RECORD_TTL_SECS: u64 = 3600 * 3; // 3 hours
 const KAD_RECORD_TTL: Duration = Duration::from_secs(KAD_RECORD_TTL_SECS);
 const KAD_PUBLISHING_INTERVAL: Duration = Duration::from_secs(KAD_RECORD_TTL_SECS / 4);
 
+#[derive(Debug, PartialEq, Eq, Encode, Decode)]
+pub struct ValidatorIdentityKey {
+    pub current_era: u64,
+    pub validator: Address,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+pub struct ValidatorIdentityRecord {
+    pub key: ValidatorIdentityKey,
+    pub value: SignedValidatorIdentity,
+}
+
+#[derive(Debug, PartialEq, Eq, Encode, Decode, derive_more::From)]
+pub enum RecordKey {
+    ValidatorIdentity(ValidatorIdentityKey),
+}
+
+impl RecordKey {
+    fn into_kad_key(self) -> kad::RecordKey {
+        kad::RecordKey::new(&self.encode())
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, derive_more::From)]
+pub enum Record {
+    ValidatorIdentity(ValidatorIdentityRecord),
+}
+
+impl Record {
+    fn new(record: &kad::Record) -> Result<Self, parity_scale_codec::Error> {
+        let key: RecordKey = Decode::decode(&mut &record.key.as_ref()[..])?;
+        match key {
+            RecordKey::ValidatorIdentity(key) => {
+                let value: SignedValidatorIdentity = Decode::decode(&mut &record.value[..])?;
+                Ok(Self::ValidatorIdentity(ValidatorIdentityRecord {
+                    key,
+                    value,
+                }))
+            }
+        }
+    }
+
+    fn into_kad_record(self) -> kad::Record {
+        match self {
+            Record::ValidatorIdentity(ValidatorIdentityRecord { key, value }) => {
+                kad::Record::new(RecordKey::ValidatorIdentity(key).encode(), value.encode())
+            }
+        }
+    }
+}
+
 #[derive(Debug, PartialEq, Eq)]
 pub struct PutRecordValidator {
+    original_record: kad::Record,
     record: Record,
 }
 
 impl PutRecordValidator {
     pub fn validate<F, T, E>(self, behaviour: &mut Behaviour, f: F) -> Result<T, E>
     where
-        F: FnOnce(&Record) -> Result<T, E>,
+        F: FnOnce(Record) -> Result<T, E>,
     {
-        let Self { record } = self;
-        let res = f(&record);
+        let Self {
+            original_record,
+            record,
+        } = self;
+        let res = f(record);
         if res.is_ok() {
-            let _res = behaviour.inner.store_mut().put(record);
+            let _res = behaviour.inner.store_mut().put(original_record);
         }
         res
     }
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug)]
 pub enum Event {
     RoutingUpdated {
         peer: PeerId,
     },
+    GetRecord(GetRecordResult),
+    PutRecord(PutRecordResult),
     InboundPutRecord {
         source: PeerId,
-        validator: PutRecordValidator,
+        validator: Box<PutRecordValidator>,
     },
 }
 
@@ -96,12 +156,13 @@ impl Behaviour {
         self.inner.remove_peer(&peer_id)
     }
 
-    pub fn get_record(&mut self, key: RecordKey) -> QueryId {
-        self.inner.get_record(key)
+    pub fn get_record(&mut self, key: impl Into<RecordKey>) -> QueryId {
+        self.inner.get_record(key.into().into_kad_key())
     }
 
-    pub fn put_record(&mut self, record: Record) -> Result<QueryId, store::Error> {
-        self.inner.put_record(record, Quorum::All)
+    pub fn put_record(&mut self, record: impl Into<Record>) -> Result<QueryId, store::Error> {
+        self.inner
+            .put_record(record.into().into_kad_record(), Quorum::All)
     }
 
     fn handle_inner_event(&mut self, event: kad::Event) -> Poll<Event> {
@@ -117,10 +178,23 @@ impl Behaviour {
                         record,
                     },
             } => {
-                let record =
+                let original_record =
                     record.expect("`StoreInserts::FilterBoth` implies `record` is always present");
-                let validator = PutRecordValidator { record };
-                return Poll::Ready(Event::InboundPutRecord { source, validator });
+                let record = match Record::new(&original_record) {
+                    Ok(record) => record,
+                    Err(_err) => {
+                        // TODO: peer score
+                        return Poll::Pending;
+                    }
+                };
+                let validator = PutRecordValidator {
+                    original_record,
+                    record,
+                };
+                return Poll::Ready(Event::InboundPutRecord {
+                    source,
+                    validator: Box::new(validator),
+                });
             }
             kad::Event::OutboundQueryProgressed {
                 id: _,
@@ -128,26 +202,12 @@ impl Behaviour {
                 stats: _,
                 step: _,
             } => match result {
-                kad::QueryResult::GetRecord(get_record_result) => match get_record_result {
-                    Ok(_) => {
-                        // handled in `kad::Event::InboundRequest`
-                    }
-                    Err(kad::GetRecordError::NotFound {
-                        key,
-                        closest_peers: _,
-                    }) => {
-                        log::trace!("record {key:?} not found");
-                    }
-                    Err(err) => {
-                        log::warn!("failed to get record: {err}");
-                    }
-                },
-                kad::QueryResult::PutRecord(put_record_result) => match put_record_result {
-                    Ok(_) => {}
-                    Err(err) => {
-                        log::warn!("failed to put record: {err}");
-                    }
-                },
+                kad::QueryResult::GetRecord(result) => {
+                    return Poll::Ready(Event::GetRecord(result));
+                }
+                kad::QueryResult::PutRecord(result) => {
+                    return Poll::Ready(Event::PutRecord(result));
+                }
                 _ => {}
             },
             _ => {}

@@ -444,9 +444,17 @@ impl NetworkService {
                     let _res = behaviour.kad.remove_peer(peer);
                 }
             }
+            kad::Event::GetRecord(_result) => {}
+            kad::Event::PutRecord(result) => match result {
+                Ok(_) => {}
+                Err(err) => {
+                    log::trace!("failed to put record: {err:?}");
+                }
+            },
             kad::Event::InboundPutRecord { source, validator } => {
                 let behaviour = self.swarm.behaviour_mut();
                 let res = validator.validate(&mut behaviour.kad, |record| {
+                    let kad::Record::ValidatorIdentity(record) = record;
                     behaviour
                         .validator_discovery
                         .put_identity(&self.validator_list, record)

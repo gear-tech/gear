@@ -16,7 +16,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{db_sync::PeerId, validator::list::ValidatorList};
+use crate::{
+    db_sync::PeerId,
+    kad::{ValidatorIdentityKey, ValidatorIdentityRecord},
+    utils::ExponentialBackoffInterval,
+    validator::list::ValidatorList,
+};
 use anyhow::Context;
 use ethexe_common::{
     Address, ToDigest,
@@ -28,7 +33,6 @@ use libp2p::{
     Multiaddr,
     core::{Endpoint, PeerRecord, SignedEnvelope, transport::PortUse},
     identity::Keypair,
-    kad,
     swarm::{
         ConnectionDenied, ConnectionId, ExternalAddresses, FromSwarm, NetworkBehaviour, THandler,
         THandlerInEvent, THandlerOutEvent, ToSwarm, dummy,
@@ -41,11 +45,8 @@ use std::{
     task::Poll,
     time::{Duration, SystemTime},
 };
-use tokio::{time, time::Interval};
 
 const MAX_VALIDATOR_IDENTITIES: NonZeroUsize = NonZeroUsize::new(100).unwrap();
-const QUERY_IDENTITIES_INTERVAL: Duration = Duration::from_secs(60);
-const PUT_IDENTITY_INTERVAL: Duration = Duration::from_secs(60);
 
 pub type SignedValidatorIdentity = SignedData<ValidatorIdentity>;
 
@@ -124,8 +125,8 @@ pub struct Behaviour {
     signer: Signer,
     identities: LruCache<Address, SignedValidatorIdentity>,
     external_addresses: ExternalAddresses,
-    query_identities_interval: Interval,
-    put_identity_interval: Interval,
+    query_identities_interval: ExponentialBackoffInterval,
+    put_identity_interval: ExponentialBackoffInterval,
 }
 
 impl Behaviour {
@@ -136,32 +137,31 @@ impl Behaviour {
             signer,
             identities: LruCache::new(MAX_VALIDATOR_IDENTITIES),
             external_addresses: ExternalAddresses::default(),
-            query_identities_interval: time::interval(QUERY_IDENTITIES_INTERVAL),
-            put_identity_interval: time::interval(PUT_IDENTITY_INTERVAL),
+            query_identities_interval: ExponentialBackoffInterval::new(),
+            put_identity_interval: ExponentialBackoffInterval::new(),
         }
     }
 
-    fn identity_key(current_era_index: u64, validator: Address) -> kad::RecordKey {
-        let vec = [
-            b"/validator-identity/",
-            current_era_index.to_be_bytes().as_slice(),
-            validator.0.as_slice(),
-        ]
-        .concat();
-        kad::RecordKey::from(vec)
-    }
-
-    pub fn identity_keys(&self, list: &ValidatorList) -> impl Iterator<Item = kad::RecordKey> {
-        let current_era_index = list.current_era_index();
+    pub fn identity_keys(
+        &self,
+        list: &ValidatorList,
+    ) -> impl Iterator<Item = ValidatorIdentityKey> {
+        let current_era = list.current_era_index();
         list.current_validators()
-            .map(move |address| Self::identity_key(current_era_index, address))
+            .map(move |address| ValidatorIdentityKey {
+                current_era,
+                validator: address,
+            })
     }
 
-    pub fn identity(&self, list: &ValidatorList) -> Option<anyhow::Result<kad::Record>> {
+    pub fn identity(
+        &self,
+        list: &ValidatorList,
+    ) -> Option<anyhow::Result<ValidatorIdentityRecord>> {
         let validator_key = self.validator_key?;
 
         let f = || {
-            let current_era_index = list.current_era_index();
+            let current_era = list.current_era_index();
 
             let peer_record = self.external_addresses.as_slice().to_vec();
             let peer_record = PeerRecord::new(&self.keypair, peer_record)
@@ -174,7 +174,7 @@ impl Behaviour {
 
             let identity = ValidatorIdentity {
                 peer_record,
-                era_index: current_era_index,
+                era_index: current_era,
                 creation_time,
             };
             let identity = self
@@ -182,8 +182,14 @@ impl Behaviour {
                 .signed_data(validator_key, identity)
                 .context("failed to sign validator identity")?;
 
-            let key = Self::identity_key(current_era_index, validator_key.to_address());
-            let record = kad::Record::new(key, identity.encode());
+            let key = ValidatorIdentityKey {
+                current_era,
+                validator: validator_key.to_address(),
+            };
+            let record = ValidatorIdentityRecord {
+                key,
+                value: identity,
+            };
             Ok(record)
         };
 
@@ -197,12 +203,14 @@ impl Behaviour {
     pub fn put_identity(
         &mut self,
         list: &ValidatorList,
-        identity: &kad::Record,
+        record: ValidatorIdentityRecord,
     ) -> anyhow::Result<()> {
-        let identity = SignedValidatorIdentity::decode(&mut &identity.value[..])
-            .context("failed to decode signed validator identity")?;
+        log::error!("validator identity record: {record:?}");
 
-        log::error!("validator identity: {:?}", identity.data());
+        let ValidatorIdentityRecord {
+            key: _,
+            value: identity,
+        } = record;
 
         anyhow::ensure!(
             list.contains_any_validator(identity.address()),

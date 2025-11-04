@@ -29,7 +29,11 @@ use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet, hash_map::Entry},
     fmt, io,
     marker::PhantomData,
+    pin::Pin,
+    task::{Context, Poll, ready},
+    time::Duration,
 };
+use tokio::{time, time::Instant};
 
 pub struct ParityScaleCodec<Req, Resp>(PhantomData<(Req, Resp)>);
 
@@ -214,6 +218,47 @@ impl<T: fmt::Debug> fmt::Debug for AlternateCollectionFmt<T> {
                 items = self.items
             ))
         }
+    }
+}
+
+#[derive(Debug)]
+pub struct ExponentialBackoffInterval {
+    delay: Pin<Box<time::Sleep>>,
+    factor: u32,
+    max: Duration,
+    next_duration: Duration,
+}
+
+impl ExponentialBackoffInterval {
+    pub fn new() -> Self {
+        const START: Duration = Duration::from_secs(2);
+
+        Self {
+            delay: Box::pin(time::sleep(START)),
+            factor: 2,
+            max: Duration::from_mins(10),
+            next_duration: START,
+        }
+    }
+
+    fn inner_reset(&mut self) {
+        self.delay
+            .as_mut()
+            .reset(Instant::now() + self.next_duration);
+    }
+
+    pub fn tick_at_max(&mut self) {
+        self.next_duration = self.max;
+        self.inner_reset();
+    }
+
+    pub fn poll_tick(&mut self, cx: &mut Context) -> Poll<()> {
+        ready!(self.delay.as_mut().poll(cx));
+
+        self.next_duration = (self.next_duration * self.factor).min(self.max);
+        self.inner_reset();
+
+        Poll::Ready(())
     }
 }
 
