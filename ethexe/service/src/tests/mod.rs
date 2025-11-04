@@ -28,7 +28,7 @@ use crate::{
         Wallets, init_logger,
     },
 };
-use alloy::providers::{Provider as _, ext::AnvilApi};
+use alloy::providers::{Provider as _, WalletProvider, ext::AnvilApi};
 use ethexe_common::{
     ScheduledTask,
     db::*,
@@ -586,6 +586,108 @@ async fn mailbox() {
         .announce_schedule(announce_hash)
         .expect("must exist");
     assert!(schedule.is_empty(), "{schedule:?}");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ntest::timeout(60_000)]
+async fn value_in_reply() {
+    init_logger();
+
+    let mut env = TestEnv::new(Default::default()).await.unwrap();
+
+    let mut node = env.new_node(NodeConfig::default().validator(env.validators[0]));
+    node.start_service().await;
+
+    let res = env
+        .upload_code(demo_piggy_bank::WASM_BINARY)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    let code_id = res.code_id;
+    let res = env
+        .create_program(code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    let _ = env
+        .send_message(res.program_id, b"", 0)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    let piggy_bank_id = res.program_id;
+
+    let wvara = env.ethereum.router().wvara();
+
+    assert_eq!(wvara.query().decimals().await.unwrap(), 12);
+
+    let piggy_bank = env.ethereum.mirror(piggy_bank_id.to_address_lossy().into());
+
+    let on_eth_balance = piggy_bank.get_balance().await.unwrap();
+    assert_eq!(on_eth_balance, 0);
+
+    let state_hash = piggy_bank.query().state_hash().await.unwrap();
+    let local_balance = node.db.program_state(state_hash).unwrap().balance;
+    assert_eq!(local_balance, 0);
+
+    // 1_000 ETH
+    const VALUE_SENT: u128 = 1_000 * ETHER;
+
+    let mut listener = env.observer_events_publisher().subscribe().await;
+
+    piggy_bank.owned_balance_top_up(VALUE_SENT).await.unwrap();
+
+    listener
+        .apply_until_block_event(|e| {
+            Ok(matches!(e, BlockEvent::Router(RouterEvent::BatchCommitted { .. })).then_some(()))
+        })
+        .await
+        .unwrap();
+
+    let on_eth_balance = piggy_bank.get_balance().await.unwrap();
+    assert_eq!(on_eth_balance, VALUE_SENT);
+
+    let state_hash = piggy_bank.query().state_hash().await.unwrap();
+    let local_balance = node.db.program_state(state_hash).unwrap().balance;
+    assert_eq!(local_balance, VALUE_SENT);
+
+    env.approve_wvara(piggy_bank_id).await;
+
+    let res = env
+        .send_message(piggy_bank_id, b"smash_with_reply", 0)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Manual));
+    assert_eq!(res.value, VALUE_SENT);
+
+    let on_eth_balance = piggy_bank.get_balance().await.unwrap();
+    assert_eq!(on_eth_balance, 0);
+
+    let state_hash = piggy_bank.query().state_hash().await.unwrap();
+    let local_balance = node.db.program_state(state_hash).unwrap().balance;
+    assert_eq!(local_balance, 0);
+
+    let sender_address = env.ethereum.provider().default_signer_address();
+    assert_eq!(
+        env.ethereum
+            .provider()
+            .get_balance(sender_address)
+            .await
+            .unwrap(),
+        VALUE_SENT
+    );
 }
 
 #[tokio::test(flavor = "multi_thread")]
