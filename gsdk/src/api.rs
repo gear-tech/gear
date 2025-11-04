@@ -20,10 +20,7 @@ use crate::{
     Blocks, Events, Result, TxInBlock, config::GearConfig, metadata::Event, signer::Signer,
 };
 use core::ops::{Deref, DerefMut};
-use jsonrpsee::{
-    client_transport::ws::{Url, WsTransportClientBuilder},
-    core::client::Client,
-};
+use jsonrpsee::{client_transport::ws::Url, ws_client::WsClientBuilder};
 use std::{borrow::Cow, time::Duration};
 use subxt::{OnlineClient, backend::rpc::RpcClient, ext::subxt_rpcs::LegacyRpcMethods};
 
@@ -38,9 +35,10 @@ pub struct Api {
 }
 
 #[derive(Debug, Clone, Default)]
-pub struct ApiBuilder<'a> {
+pub struct ApiBuilder<'a, F = fn(WsClientBuilder) -> WsClientBuilder> {
     uri: Option<Cow<'a, str>>,
     timeout: Option<Duration>,
+    configure_ws: F,
 }
 
 impl Api {
@@ -55,11 +53,12 @@ impl Api {
         ApiBuilder {
             uri: None,
             timeout: None,
+            configure_ws: std::convert::identity,
         }
     }
 }
 
-impl<'a> ApiBuilder<'a> {
+impl<'a, F: FnOnce(WsClientBuilder) -> WsClientBuilder> ApiBuilder<'a, F> {
     pub fn uri(mut self, uri: impl Into<Cow<'a, str>>) -> Self {
         self.uri = Some(uri.into());
         self
@@ -68,6 +67,17 @@ impl<'a> ApiBuilder<'a> {
     pub const fn timeout(mut self, timeout: Duration) -> Self {
         self.timeout = Some(timeout);
         self
+    }
+
+    pub fn configure_ws<NewF: FnOnce(WsClientBuilder) -> WsClientBuilder>(
+        self,
+        f: NewF,
+    ) -> ApiBuilder<'a, NewF> {
+        ApiBuilder {
+            uri: self.uri,
+            timeout: self.timeout,
+            configure_ws: f,
+        }
     }
 
     pub async fn build(self) -> Result<Api> {
@@ -80,15 +90,12 @@ impl<'a> ApiBuilder<'a> {
 
         let timeout = self.timeout.unwrap_or(Api::DEFAULT_TIMEOUT);
 
-        let (sender, receiver) = WsTransportClientBuilder::default()
+        let client_builder = WsClientBuilder::new()
             .max_request_size(ONE_HUNDRED_MEGABYTES)
             .connection_timeout(timeout)
-            .build(uri)
-            .await?;
-
-        let client = Client::builder()
-            .request_timeout(timeout)
-            .build_with_tokio(sender, receiver);
+            .request_timeout(timeout);
+        let client_builder = (self.configure_ws)(client_builder);
+        let client = client_builder.build(uri).await.unwrap();
 
         Ok(RpcClient::new(client))
     }
@@ -96,7 +103,7 @@ impl<'a> ApiBuilder<'a> {
 
 impl Api {
     /// Constructs an instance of [`Self`].
-    pub async fn new<'a>(uri: impl Into<Cow<'a, str>>) -> Result<Self> {
+    pub async fn new(uri: &str) -> Result<Self> {
         Self::builder().uri(uri).build().await
     }
 

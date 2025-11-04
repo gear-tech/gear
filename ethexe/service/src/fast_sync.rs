@@ -18,15 +18,16 @@
 
 use crate::Service;
 use alloy::{eips::BlockId, providers::Provider};
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Context, Result};
 use ethexe_common::{
-    Address, Announce, AnnounceHash, BlockData, CodeAndIdUnchecked, Digest, ProgramStates,
+    Address, Announce, BlockData, CodeAndIdUnchecked, Digest, HashOf, ProgramStates,
     StateHashWithQueueSize,
     db::{
-        AnnounceStorageRead, BlockMetaStorageRead, CodesStorageRead, CodesStorageWrite,
-        FullAnnounceData, FullBlockData, HashStorageRead, OnChainStorageRead, OnChainStorageWrite,
+        AnnounceStorageRO, BlockMetaStorageRO, CodesStorageRO, CodesStorageRW, FullAnnounceData,
+        FullBlockData, HashStorageRO, OnChainStorageRO, OnChainStorageRW,
     },
     events::{BlockEvent, RouterEvent},
+    network::{AnnouncesRequest, AnnouncesRequestUntil},
 };
 use ethexe_compute::ComputeService;
 use ethexe_db::{
@@ -50,15 +51,17 @@ use ethexe_runtime_common::{
 };
 use futures::StreamExt;
 use gprimitives::{ActorId, CodeId, H256};
-use nonempty::NonEmpty;
 use parity_scale_codec::Decode;
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::{
+    collections::{BTreeMap, BTreeSet, HashMap},
+    num::NonZeroU32,
+};
 
 struct EventData {
     /// Latest committed since latest prepared block batch
     latest_committed_batch: Digest,
     /// Latest committed on the chain and not computed announce hash
-    latest_committed_announce: AnnounceHash,
+    latest_committed_announce: HashOf<Announce>,
 }
 
 impl EventData {
@@ -88,7 +91,7 @@ impl EventData {
         db: &Database,
         highest_block: H256,
     ) -> Result<Option<Self>> {
-        let mut latest_committed: Option<(Digest, Option<AnnounceHash>)> = None;
+        let mut latest_committed: Option<(Digest, Option<HashOf<Announce>>)> = None;
 
         let mut block = highest_block;
         'prepared: while !db.block_meta(block).prepared {
@@ -181,24 +184,26 @@ async fn collect_program_code_ids(
 async fn collect_announce(
     network: &mut NetworkService,
     db: &Database,
-    announce_hash: AnnounceHash,
+    announce_hash: HashOf<Announce>,
 ) -> Result<Announce> {
     if let Some(announce) = db.announce(announce_hash) {
         return Ok(announce);
     }
 
-    Ok(net_fetch(
+    let response = net_fetch(
         network,
-        db_sync::AnnouncesRequest {
+        AnnouncesRequest {
             head: announce_hash,
-            max_chain_len: 1,
+            until: AnnouncesRequestUntil::ChainLen(NonZeroU32::MIN),
         }
         .into(),
     )
     .await?
-    .unwrap_announces()
-    .pop()
-    .expect("announce must be present"))
+    .unwrap_announces();
+
+    // Response is checked so we can just take the first announce
+    let (_, mut announces) = response.into_parts();
+    Ok(announces.remove(0))
 }
 
 /// Collects a set of valid code IDs that are not yet validated in the local database.
@@ -689,16 +694,12 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
         db.set_program_code_id(program_id, code_id);
     }
 
-    let validators = NonEmpty::from_vec(observer.router_query().validators_at(block_hash).await?)
-        .ok_or(anyhow!("validator set is empty"))?;
-
     ethexe_common::setup_start_block_in_db(
         db,
         block_hash,
         FullBlockData {
             header,
             events,
-            validators,
             // NOTE: there is no invariant that fast sync should recover codes queue
             codes_queue: Default::default(),
             announces: [announce_hash].into(),

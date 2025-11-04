@@ -17,14 +17,13 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    Address, Announce, AnnounceHash, SimpleBlockData,
+    Announce, HashOf, ProtocolTimelines, SimpleBlockData, ValidatorsVec,
     db::{
-        AnnounceStorageWrite, BlockMeta, BlockMetaStorageWrite, FullAnnounceData, FullBlockData,
-        LatestData, LatestDataStorageWrite, OnChainStorageWrite,
+        AnnounceStorageRW, BlockMeta, BlockMetaStorageRW, FullAnnounceData, FullBlockData,
+        LatestData, LatestDataStorageRW, OnChainStorageRW,
     },
 };
 use gprimitives::H256;
-use nonempty::NonEmpty;
 
 /// Decodes hexed string to a byte array.
 pub fn decode_to_array<const N: usize>(s: &str) -> Result<[u8; N], hex::FromHexError> {
@@ -46,7 +45,7 @@ pub const fn u64_into_uint48_be_bytes_lossy(val: u64) -> [u8; 6] {
 }
 
 pub fn setup_start_block_in_db<
-    DB: OnChainStorageWrite + BlockMetaStorageWrite + AnnounceStorageWrite + LatestDataStorageWrite,
+    DB: OnChainStorageRW + BlockMetaStorageRW + AnnounceStorageRW + LatestDataStorageRW,
 >(
     db: &DB,
     start_block_hash: H256,
@@ -76,13 +75,14 @@ pub fn setup_start_block_in_db<
 }
 
 pub fn setup_genesis_in_db<
-    DB: OnChainStorageWrite + BlockMetaStorageWrite + AnnounceStorageWrite + LatestDataStorageWrite,
+    DB: OnChainStorageRW + BlockMetaStorageRW + AnnounceStorageRW + LatestDataStorageRW,
 >(
     db: &DB,
     genesis_block: SimpleBlockData,
-    validators: NonEmpty<Address>,
+    genesis_validators: ValidatorsVec,
+    timelines: ProtocolTimelines,
 ) {
-    let genesis_announce = Announce::base(genesis_block.hash, AnnounceHash::zero());
+    let genesis_announce = Announce::base(genesis_block.hash, HashOf::zero());
     let genesis_announce_hash = setup_announce_in_db(
         db,
         FullAnnounceData {
@@ -99,14 +99,21 @@ pub fn setup_genesis_in_db<
         FullBlockData {
             header: genesis_block.header,
             events: Default::default(),
-            validators: validators.clone(),
-
             codes_queue: Default::default(),
             announces: [genesis_announce_hash].into(),
             last_committed_batch: Default::default(),
-            last_committed_announce: Default::default(),
+            last_committed_announce: HashOf::zero(),
         },
     );
+
+    // We understand, that genesis block is always in era 0, but we calculate it from timestamp to prevent some
+    // possible mismatches in future.
+    db.set_validators(
+        timelines.era_from_ts(genesis_block.header.timestamp),
+        genesis_validators,
+    );
+
+    db.set_protocol_timelines(timelines);
 
     if let Some(latest) = db.latest_data() {
         assert_eq!(
@@ -130,14 +137,13 @@ pub fn setup_genesis_in_db<
     }
 }
 
-pub fn setup_block_in_db<DB: OnChainStorageWrite + BlockMetaStorageWrite>(
+pub fn setup_block_in_db<DB: OnChainStorageRW + BlockMetaStorageRW>(
     db: &DB,
     block_hash: H256,
     block_data: FullBlockData,
 ) {
     db.set_block_header(block_hash, block_data.header);
     db.set_block_events(block_hash, &block_data.events);
-    db.set_block_validators(block_hash, block_data.validators);
     db.set_block_synced(block_hash);
 
     db.mutate_block_meta(block_hash, |meta| {
@@ -151,10 +157,10 @@ pub fn setup_block_in_db<DB: OnChainStorageWrite + BlockMetaStorageWrite>(
     });
 }
 
-pub fn setup_announce_in_db<DB: AnnounceStorageWrite>(
+pub fn setup_announce_in_db<DB: AnnounceStorageRW>(
     db: &DB,
     announce_data: FullAnnounceData,
-) -> AnnounceHash {
+) -> HashOf<Announce> {
     let announce_hash = announce_data.announce.to_hash();
     db.set_announce(announce_data.announce);
     db.set_announce_program_states(announce_hash, announce_data.program_states);

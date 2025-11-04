@@ -24,7 +24,7 @@ use alloy::{
 };
 use ethexe_common::{
     CodeAndIdUnchecked, CodeBlobInfo,
-    db::{CodesStorageRead, OnChainStorageRead},
+    db::{CodesStorageRO, OnChainStorageRO},
 };
 use futures::{
     FutureExt, Stream, StreamExt,
@@ -128,7 +128,7 @@ impl ConsensusLayerBlobReader {
 
     async fn read_blob_from_tx_hash(&self, tx_hash: H256, attempts: Option<u8>) -> Result<Vec<u8>> {
         //TODO: read genesis from `{ethereum_beacon_rpc}/eth/v1/beacon/genesis` with caching into some static
-        const BEACON_GENESIS_BLOCK_TIME: u64 = 1695902400;
+        const BEACON_GENESIS_BLOCK_TIME: u64 = 1742213400;
 
         let tx = self
             .provider
@@ -194,8 +194,8 @@ impl ConsensusLayerBlobReader {
     }
 }
 
-pub trait Database: CodesStorageRead + OnChainStorageRead + Unpin + Send + Clone + 'static {}
-impl<T: CodesStorageRead + OnChainStorageRead + Unpin + Send + Clone + 'static> Database for T {}
+pub trait Database: CodesStorageRO + OnChainStorageRO + Unpin + Send + Clone + 'static {}
+impl<T: CodesStorageRO + OnChainStorageRO + Unpin + Send + Clone + 'static> Database for T {}
 
 pub struct BlobLoader<DB: Database> {
     futures: FuturesUnordered<BoxFuture<'static, Result<CodeAndIdUnchecked>>>,

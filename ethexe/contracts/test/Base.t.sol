@@ -21,11 +21,15 @@ import {Gear} from "../src/libraries/Gear.sol";
 
 import {IDefaultStakerRewards} from "symbiotic-rewards/src/interfaces/defaultStakerRewards/IDefaultStakerRewards.sol";
 import {DefaultStakerRewards} from "symbiotic-rewards/src/contracts/defaultStakerRewards/DefaultStakerRewards.sol";
-import {DefaultStakerRewardsFactory} from
-    "symbiotic-rewards/src/contracts/defaultStakerRewards/DefaultStakerRewardsFactory.sol";
-import {DefaultOperatorRewards} from "symbiotic-rewards/src/contracts/defaultOperatorRewards/DefaultOperatorRewards.sol";
-import {DefaultOperatorRewardsFactory} from
-    "symbiotic-rewards/src/contracts/defaultOperatorRewards/DefaultOperatorRewardsFactory.sol";
+import {
+    DefaultStakerRewardsFactory
+} from "symbiotic-rewards/src/contracts/defaultStakerRewards/DefaultStakerRewardsFactory.sol";
+import {
+    DefaultOperatorRewards
+} from "symbiotic-rewards/src/contracts/defaultOperatorRewards/DefaultOperatorRewards.sol";
+import {
+    DefaultOperatorRewardsFactory
+} from "symbiotic-rewards/src/contracts/defaultOperatorRewards/DefaultOperatorRewardsFactory.sol";
 
 contract Base is POCBaseTest {
     using MessageHashUtils for address;
@@ -105,25 +109,25 @@ contract Base is POCBaseTest {
         vm.startPrank(admin, admin);
         {
             router = Router(
-                Upgrades.deployTransparentProxy(
-                    "Router.sol",
-                    admin,
-                    abi.encodeCall(
-                        Router.initialize,
-                        (
-                            admin,
-                            mirrorAddress,
-                            wrappedVaraAddress,
-                            middlewareAddress,
-                            uint256(eraDuration),
-                            uint256(electionDuration),
-                            uint256(validationDelay),
-                            _aggregatedPublicKey,
-                            "",
-                            _validators
+                payable(Upgrades.deployTransparentProxy(
+                        "Router.sol",
+                        admin,
+                        abi.encodeCall(
+                            Router.initialize,
+                            (
+                                admin,
+                                mirrorAddress,
+                                wrappedVaraAddress,
+                                middlewareAddress,
+                                uint256(eraDuration),
+                                uint256(electionDuration),
+                                uint256(validationDelay),
+                                _aggregatedPublicKey,
+                                "",
+                                _validators
+                            )
                         )
-                    )
-                )
+                    ))
             );
         }
         vm.stopPrank();
@@ -174,9 +178,8 @@ contract Base is POCBaseTest {
         {
             middleware.registerVault(_vault, _rewards);
             operatorVaultOptInService.optIn(_vault);
-            IOperatorSpecificDelegator(IVault(_vault).delegator()).setNetworkLimit(
-                middleware.subnetwork(), type(uint256).max
-            );
+            IOperatorSpecificDelegator(IVault(_vault).delegator())
+                .setNetworkLimit(middleware.subnetwork(), type(uint256).max);
         }
         vm.stopPrank();
     }
@@ -372,9 +375,7 @@ contract Base is POCBaseTest {
                 delegatorParams: abi.encode(
                     IOperatorSpecificDelegator.InitParams({
                         baseParams: IBaseDelegator.BaseParams({
-                            defaultAdminRoleHolder: _operator,
-                            hook: address(0),
-                            hookSetRoleHolder: _operator
+                            defaultAdminRoleHolder: _operator, hook: address(0), hookSetRoleHolder: _operator
                         }),
                         networkLimitSetRoleHolders: networkLimitSetRoleHolders,
                         operator: _operator

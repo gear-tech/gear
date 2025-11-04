@@ -23,22 +23,27 @@
 
 use anyhow::{Result, anyhow};
 use ethexe_common::{
-    Address, AnnounceHash, Digest, SimpleBlockData, ToDigest,
+    Address, Announce, Digest, HashOf, SimpleBlockData, ToDigest, ValidatorsVec,
     consensus::BatchCommitmentValidationReply,
-    db::{AnnounceStorageRead, BlockMetaStorageRead, CodesStorageRead, OnChainStorageRead},
+    db::{
+        AnnounceStorageRO, AnnounceStorageRW, BlockMetaStorageRO, BlockMetaStorageRW,
+        CodesStorageRO, OnChainStorageRO,
+    },
     ecdsa::{ContractSignature, PublicKey},
     gear::{
-        BatchCommitment, ChainCommitment, CodeCommitment, RewardsCommitment, ValidatorsCommitment,
+        AggregatedPublicKey, BatchCommitment, ChainCommitment, CodeCommitment, RewardsCommitment,
+        ValidatorsCommitment,
     },
 };
 use ethexe_signer::Signer;
-use gprimitives::CodeId;
-use nonempty::NonEmpty;
+use gprimitives::{CodeId, H256, U256};
 use parity_scale_codec::{Decode, Encode};
-use std::{
-    collections::{BTreeMap, HashSet},
-    hash::Hash,
+use rand::SeedableRng;
+use roast_secp256k1_evm::frost::{
+    Identifier,
+    keys::{self, IdentifierList},
 };
+use std::collections::{BTreeMap, HashSet, VecDeque};
 
 /// A batch commitment, that has been signed by multiple validators.
 /// This structure manages the collection of signatures from different validators
@@ -126,7 +131,7 @@ impl MultisignedBatchCommitment {
     }
 }
 
-pub fn aggregate_code_commitments<DB: CodesStorageRead>(
+pub fn aggregate_code_commitments<DB: CodesStorageRO>(
     db: &DB,
     codes: impl IntoIterator<Item = CodeId>,
     fail_if_not_found: bool,
@@ -146,11 +151,9 @@ pub fn aggregate_code_commitments<DB: CodesStorageRead>(
     Ok(commitments)
 }
 
-pub fn aggregate_chain_commitment<
-    DB: BlockMetaStorageRead + OnChainStorageRead + AnnounceStorageRead,
->(
+pub fn aggregate_chain_commitment<DB: BlockMetaStorageRO + OnChainStorageRO + AnnounceStorageRO>(
     db: &DB,
-    head_announce: AnnounceHash,
+    head_announce: HashOf<Announce>,
     fail_if_not_computed: bool,
     max_deepness: Option<u32>,
 ) -> Result<Option<(ChainCommitment, u32)>> {
@@ -208,7 +211,51 @@ pub fn aggregate_chain_commitment<
     )))
 }
 
-pub fn create_batch_commitment<DB: BlockMetaStorageRead>(
+// TODO(kuzmindev): this is a temporal solution. In future need to impelement DKG algorithm.
+pub fn validators_commitment(era: u64, validators: ValidatorsVec) -> Result<ValidatorsCommitment> {
+    let validators_identifiers = validators
+        .iter()
+        .map(|validator| {
+            let mut bytes = [0u8; 32];
+            bytes[12..32].copy_from_slice(&validator.0);
+            Identifier::deserialize(&bytes).unwrap()
+        })
+        .collect::<Vec<_>>();
+
+    let identifiers = IdentifierList::Custom(&validators_identifiers);
+
+    let rng = rand_chacha::ChaCha8Rng::from_seed([1u8; 32]);
+
+    let (mut secret_shares, public_key_package) =
+        keys::generate_with_dealer(validators.len() as u16, 1, identifiers, rng).unwrap();
+
+    let verifiable_secret_sharing_commitment = secret_shares
+        .pop_first()
+        .map(|(_key, value)| value.commitment().clone())
+        .expect("Expect at least one identifier");
+
+    let public_key_compressed: [u8; 33] = public_key_package
+        .verifying_key()
+        .serialize()?
+        .try_into()
+        .unwrap();
+    let public_key_uncompressed = PublicKey(public_key_compressed).to_uncompressed();
+    let (public_key_x_bytes, public_key_y_bytes) = public_key_uncompressed.split_at(32);
+
+    let aggregated_public_key = AggregatedPublicKey {
+        x: U256::from_big_endian(public_key_x_bytes),
+        y: U256::from_big_endian(public_key_y_bytes),
+    };
+
+    Ok(ValidatorsCommitment {
+        aggregated_public_key,
+        verifiable_secret_sharing_commitment,
+        validators,
+        era_index: era,
+    })
+}
+
+pub fn create_batch_commitment<DB: BlockMetaStorageRO>(
     db: &DB,
     block: &SimpleBlockData,
     chain_commitment: Option<ChainCommitment>,
@@ -216,7 +263,15 @@ pub fn create_batch_commitment<DB: BlockMetaStorageRead>(
     validators_commitment: Option<ValidatorsCommitment>,
     rewards_commitment: Option<RewardsCommitment>,
 ) -> Result<Option<BatchCommitment>> {
-    if chain_commitment.is_none() && code_commitments.is_empty() {
+    if chain_commitment.is_none()
+        && code_commitments.is_empty()
+        && validators_commitment.is_none()
+        && rewards_commitment.is_none()
+    {
+        tracing::debug!(
+            "No commitments for block {} - skip batch commitment",
+            block.hash
+        );
         return Ok(None);
     }
 
@@ -241,9 +296,37 @@ pub fn create_batch_commitment<DB: BlockMetaStorageRead>(
     }))
 }
 
-pub fn has_duplicates<T: Hash + Eq>(data: &[T]) -> bool {
+pub fn has_duplicates<T: std::hash::Hash + Eq>(data: &[T]) -> bool {
     let mut seen = HashSet::new();
     data.iter().any(|item| !seen.insert(item))
+}
+
+/// Finds the block with the earliest timestamp that is still within the specified election period.
+pub fn election_block_in_era<DB: OnChainStorageRO>(
+    db: &DB,
+    mut block: SimpleBlockData,
+    election_ts: u64,
+) -> Result<SimpleBlockData> {
+    if block.header.timestamp < election_ts {
+        anyhow::bail!("election not reached yet");
+    }
+
+    loop {
+        let parent_header = db.block_header(block.header.parent_hash).ok_or(anyhow!(
+            "block header not found for({})",
+            block.header.parent_hash
+        ))?;
+        if parent_header.timestamp < election_ts {
+            break;
+        }
+
+        block = SimpleBlockData {
+            hash: block.header.parent_hash,
+            header: parent_header,
+        };
+    }
+
+    Ok(block)
 }
 
 // TODO #4553: temporary implementation, should be improved
@@ -262,7 +345,7 @@ pub const fn block_producer_index(validators_amount: usize, slot: u64) -> usize 
 /// # Returns
 /// The address of the producer for the given timestamp slot.
 pub fn block_producer_for(
-    validators: &NonEmpty<Address>,
+    validators: &ValidatorsVec,
     timestamp: u64,
     slot_duration: u64,
 ) -> Address {
@@ -272,6 +355,68 @@ pub fn block_producer_for(
         .get(index)
         .cloned()
         .unwrap_or_else(|| unreachable!("index must be valid"))
+}
+
+// NOTE: this is temporary main line announce, will be smarter in future
+/// Returns announce hash which is supposed to be the announce
+/// from main announces chain for this node.
+/// Used to identify parent announce when creating announce for new block,
+/// or accepting announce from producer.
+pub fn parent_main_line_announce<DB: BlockMetaStorageRO>(
+    db: &DB,
+    parent_hash: H256,
+) -> Result<HashOf<Announce>> {
+    db.block_meta(parent_hash)
+        .announces
+        .into_iter()
+        .flatten()
+        .next()
+        .ok_or_else(|| anyhow!("No announces found for {parent_hash} in block meta storage"))
+}
+
+// TODO #4813: support announce branching and mortality
+/// Creates announces chain till the specified block, from the nearest ancestor without announces,
+/// by appending base announces.
+pub fn propagate_announces_for_skipped_blocks<
+    DB: BlockMetaStorageRO + BlockMetaStorageRW + AnnounceStorageRW + OnChainStorageRO,
+>(
+    db: &DB,
+    block_hash: H256,
+) -> Result<()> {
+    let mut current_block_hash = block_hash;
+    let mut blocks = VecDeque::new();
+    // tries to found a block with at least one announce
+    let mut announce_hash = loop {
+        let announce_hash = db
+            .block_meta(current_block_hash)
+            .announces
+            .into_iter()
+            .flatten()
+            .next();
+
+        if let Some(announce_hash) = announce_hash {
+            break announce_hash;
+        }
+
+        blocks.push_front(current_block_hash);
+        current_block_hash = db
+            .block_header(current_block_hash)
+            .ok_or_else(|| anyhow!("Block header not found for {current_block_hash}"))?
+            .parent_hash;
+    };
+
+    // the newest block with announce is found, create announces chain till the target block
+    for block_hash in blocks {
+        // TODO #4814: hack - use here with default gas announce to avoid unknown announces in tests,
+        // this will be fixed by unknown announces handling later
+        let announce = Announce::with_default_gas(block_hash, announce_hash);
+        announce_hash = db.set_announce(announce);
+        db.mutate_block_meta(block_hash, |meta| {
+            meta.announces.get_or_insert_default().insert(announce_hash);
+        });
+    }
+
+    Ok(())
 }
 
 #[cfg(test)]
@@ -293,11 +438,12 @@ mod tests {
 
     #[test]
     fn producer_for_calculates_correct_producer() {
-        let validators = NonEmpty::from_vec(vec![
+        let validators = vec![
             Address::from([1; 20]),
             Address::from([2; 20]),
             Address::from([3; 20]),
-        ])
+        ]
+        .try_into()
         .unwrap();
         let timestamp = 10;
 

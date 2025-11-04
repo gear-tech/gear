@@ -20,7 +20,8 @@ use crate::Event;
 use anyhow::{Result, anyhow};
 use ethexe_blob_loader::BlobLoaderEvent;
 use ethexe_common::{
-    AnnounceHash, SimpleBlockData, db::*, events::BlockEvent, tx_pool::SignedOffchainTransaction,
+    Announce, HashOf, SimpleBlockData, db::*, events::BlockEvent,
+    tx_pool::SignedOffchainTransaction,
 };
 use ethexe_compute::ComputeEvent;
 use ethexe_consensus::ConsensusEvent;
@@ -103,7 +104,7 @@ pub enum AnnounceId {
     #[default]
     Any,
     /// Wait for announce computed with a specific hash
-    AnnounceHash(AnnounceHash),
+    AnnounceHash(HashOf<Announce>),
     /// Wait for announce computed with a specific block hash
     BlockHash(H256),
 }
@@ -139,7 +140,9 @@ impl ServiceEventsListener<'_> {
                     if self
                         .db
                         .announce(announce_hash)
-                        .ok_or_else(|| anyhow!("Announce not found in listener's node DB"))
+                        .ok_or_else(|| {
+                            anyhow!("Announce {announce_hash} not found in listener's node DB")
+                        })
                         .unwrap()
                         .block_hash
                         == waited_block_hash

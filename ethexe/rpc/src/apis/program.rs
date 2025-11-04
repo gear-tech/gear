@@ -17,12 +17,15 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{errors, utils};
-use ethexe_common::db::{AnnounceStorageRead, CodesStorageRead};
+use ethexe_common::{
+    HashOf,
+    db::{AnnounceStorageRO, CodesStorageRO},
+};
 use ethexe_db::Database;
-use ethexe_processor::Processor;
+use ethexe_processor::{Processor, ProcessorConfig, RunnerConfig};
 use ethexe_runtime_common::state::{
-    DispatchStash, HashOf, Mailbox, MemoryPages, MessageQueue, Program, ProgramState, Storage,
-    Waitlist,
+    DispatchStash, Mailbox, MemoryPages, MessageQueue, Program, ProgramState, QueriableStorage,
+    Storage, Waitlist,
 };
 use gear_core::rpc::ReplyInfo;
 use gprimitives::{H160, H256};
@@ -91,11 +94,12 @@ pub trait Program {
 
 pub struct ProgramApi {
     db: Database,
+    runner_config: RunnerConfig,
 }
 
 impl ProgramApi {
-    pub fn new(db: Database) -> Self {
-        Self { db }
+    pub fn new(db: Database, runner_config: RunnerConfig) -> Self {
+        Self { db, runner_config }
     }
 
     fn read_queue(&self, hash: H256) -> Option<MessageQueue> {
@@ -129,8 +133,11 @@ impl ProgramServer for ProgramApi {
 
         // TODO (breathx): spawn in a new thread and catch panics. (?) Generally catch runtime panics (?).
         // TODO (breathx): optimize here instantiation if matches actual runtime.
-        let processor = Processor::new(self.db.clone()).map_err(|_| errors::internal())?;
-
+        let processor_config = ProcessorConfig {
+            chunk_processing_threads: self.runner_config.chunk_processing_threads(),
+        };
+        let processor = Processor::with_config(processor_config, self.db.clone())
+            .map_err(|_| errors::internal())?;
         let mut overlaid_processor = processor.overlaid();
 
         overlaid_processor
@@ -140,6 +147,7 @@ impl ProgramServer for ProgramApi {
                 program_id.into(),
                 payload.0,
                 value,
+                self.runner_config.clone(),
             )
             .await
             .map_err(errors::runtime)
@@ -207,9 +215,9 @@ impl ProgramServer for ProgramApi {
 
         let canonical_queue = canonical_queue.query(&self.db).ok();
         let injected_queue = injected_queue.query(&self.db).ok();
-        let waitlist = waitlist_hash.query(&self.db).ok();
-        let stash = stash_hash.query(&self.db).ok();
-        let mailbox = mailbox_hash.query(&self.db).ok();
+        let waitlist = self.db.query(&waitlist_hash).ok();
+        let stash = self.db.query(&stash_hash).ok();
+        let mailbox = self.db.query(&mailbox_hash).ok();
 
         Ok(FullProgramState {
             program,

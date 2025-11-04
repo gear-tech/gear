@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2024-2025 Gear Technologies Inc.
+// Copyright (C) 2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -16,26 +16,38 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::abi::{IWrappedVara, utils::*};
-use ethexe_common::events::WVaraEvent;
+//! Bridge builtin storage manager.
+
+use std::thread::LocalKey;
+
+use crate::state::WithOverlay;
 use gprimitives::U256;
 
-impl From<IWrappedVara::Approval> for WVaraEvent {
-    fn from(value: IWrappedVara::Approval) -> Self {
-        Self::Approval {
-            owner: address_to_actor_id(value.owner),
-            spender: address_to_actor_id(value.spender),
-            value: U256(value.value.into_limbs()),
-        }
-    }
+thread_local! {
+    pub(super) static BRIDGE_MESSAGE_NONCE: WithOverlay<U256> = Default::default();
 }
 
-impl From<IWrappedVara::Transfer> for WVaraEvent {
-    fn from(value: IWrappedVara::Transfer) -> Self {
-        Self::Transfer {
-            from: address_to_actor_id(value.from),
-            to: address_to_actor_id(value.to),
-            value: uint256_to_u128_lossy(value.value),
-        }
+fn storage() -> &'static LocalKey<WithOverlay<U256>> {
+    &BRIDGE_MESSAGE_NONCE
+}
+
+pub(crate) struct BridgeBuiltinStorage;
+
+impl BridgeBuiltinStorage {
+    /// Get the current message nonce.
+    pub(crate) fn fetch_nonce() -> U256 {
+        storage().with(|nonce| {
+            let mut data = nonce.data_mut();
+            let ret = *data;
+            *data = data.saturating_add(U256::one());
+
+            ret
+        })
+    }
+
+    pub(crate) fn clear() {
+        storage().with(|nonce| {
+            *nonce.data_mut() = U256::zero();
+        });
     }
 }
