@@ -229,6 +229,10 @@ impl Behaviour {
 
         Ok(())
     }
+
+    pub fn max_put_identity_interval(&mut self) {
+        self.put_identity_interval.tick_at_max();
+    }
 }
 
 impl NetworkBehaviour for Behaviour {

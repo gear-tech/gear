@@ -432,6 +432,8 @@ impl NetworkService {
     }
 
     fn handle_kad_event(&mut self, event: kad::Event) {
+        let behaviour = self.swarm.behaviour_mut();
+
         match event {
             kad::Event::RoutingUpdated { peer } => {
                 let behaviour = self.swarm.behaviour_mut();
@@ -444,26 +446,47 @@ impl NetworkService {
                     let _res = behaviour.kad.remove_peer(peer);
                 }
             }
-            kad::Event::GetRecord(_result) => {}
-            kad::Event::PutRecord(result) => match result {
-                Ok(_) => {}
+            kad::Event::GetRecord(result) => match result {
+                Ok(ok) => {
+                    let kad::GetRecordOk { peer, record } = *ok;
+                    let kad::Record::ValidatorIdentity(record) = record;
+                    let res = behaviour
+                        .validator_discovery
+                        .put_identity(&self.validator_list, record);
+
+                    if let Err(err) = res {
+                        log::trace!("failed to verify identity: {err}");
+                        if let Some(peer) = peer {
+                            behaviour.peer_score.handle().invalid_data(peer);
+                        } else {
+                            #[cfg(debug_assertions)]
+                            unreachable!("failed to verify identity we got from local storage");
+                        }
+                    }
+                }
                 Err(err) => {
-                    log::trace!("failed to put record: {err:?}");
+                    log::trace!("failed to get identity: {err}");
                 }
             },
-            kad::Event::InboundPutRecord { source, validator } => {
-                let behaviour = self.swarm.behaviour_mut();
-                let res = validator.validate(&mut behaviour.kad, |record| {
-                    let kad::Record::ValidatorIdentity(record) = record;
-                    behaviour
-                        .validator_discovery
-                        .put_identity(&self.validator_list, record)
-                });
-
-                if let Err(err) = res {
-                    log::trace!("failed to put identity: {err}");
-                    behaviour.peer_score.handle().invalid_data(source);
+            kad::Event::PutRecord(result) => match result {
+                Ok(kad::RecordKey::ValidatorIdentity(_key)) => {
+                    log::trace!("validator identity put successfully");
+                    behaviour.validator_discovery.max_put_identity_interval();
                 }
+                Err(err) => {
+                    log::debug!("failed to put record: {err:?}");
+                }
+            },
+            kad::Event::InboundPutRecord {
+                source: _,
+                validator,
+            } => {
+                let behaviour = self.swarm.behaviour_mut();
+                validator.validate(&mut behaviour.kad, |record| {
+                    let kad::Record::ValidatorIdentity(_record) = record;
+                    // TODO: consider to validate era index and validator address before insertion in store
+                    true
+                });
             }
         }
     }
@@ -691,7 +714,7 @@ impl Behaviour {
                 .transpose()?,
         );
 
-        let kad = kad::Behaviour::new(peer_id);
+        let kad = kad::Behaviour::new(peer_id, peer_score_handle.clone());
 
         let gossipsub =
             gossipsub::Behaviour::new(keypair.clone(), peer_score_handle.clone(), router_address)

@@ -23,8 +23,8 @@ use libp2p::{
     core::{Endpoint, transport::PortUse},
     kad,
     kad::{
-        Addresses, EntryView, GetRecordError, KBucketKey, PeerRecord, PutRecordError, PutRecordOk,
-        QueryId, Quorum, store,
+        Addresses, EntryView, KBucketKey, PeerRecord, PutRecordError, PutRecordOk, QueryId, Quorum,
+        store,
         store::{MemoryStore, RecordStore},
     },
     swarm::{
@@ -104,20 +104,31 @@ pub struct PutRecordValidator {
 }
 
 impl PutRecordValidator {
-    pub fn validate<F, T, E>(self, behaviour: &mut Behaviour, f: F) -> Result<T, E>
+    pub fn validate<F>(self, behaviour: &mut Behaviour, f: F)
     where
-        F: FnOnce(Record) -> Result<T, E>,
+        F: FnOnce(Record) -> bool,
     {
         let Self {
             original_record,
             record,
         } = self;
-        let res = f(record);
-        if res.is_ok() {
+        let success = f(record);
+        if success {
             let _res = behaviour.inner.store_mut().put(original_record);
         }
-        res
     }
+}
+
+#[derive(Debug)]
+pub struct GetRecordOk {
+    pub peer: Option<PeerId>,
+    pub record: Record,
+}
+
+#[derive(Debug, PartialEq, Eq, derive_more::Display)]
+pub enum GetRecordError {
+    #[display("Record not found: key={key:?}")]
+    NotFound { key: RecordKey },
 }
 
 #[derive(Debug)]
@@ -125,9 +136,11 @@ pub enum Event {
     RoutingUpdated {
         peer: PeerId,
     },
-    GetRecord(Result<Box<Record>, GetRecordError>),
+    GetRecord(Result<Box<GetRecordOk>, GetRecordError>),
     PutRecord(Result<RecordKey, PutRecordError>),
     InboundPutRecord {
+        // might be used in the future
+        #[allow(unused)]
         source: PeerId,
         validator: Box<PutRecordValidator>,
     },
@@ -219,19 +232,31 @@ impl Behaviour {
                                         // NOTE: not backward compatible if `Record` have new variant, and it is decoded by the old node
                                         self.peer_score.invalid_data(peer);
                                     } else {
-                                        debug_assert!(false, "local storage is corrupted")
+                                        #[cfg(debug_assertions)]
+                                        unreachable!("local storage is corrupted");
                                     }
                                     return Poll::Pending;
                                 }
                             };
-                            Ok(Box::new(record))
+                            Ok(Box::new(GetRecordOk { peer, record }))
                         }
                         Ok(kad::GetRecordOk::FinishedWithNoAdditionalRecord {
                             cache_candidates: _,
                         }) => {
                             return Poll::Pending;
                         }
-                        Err(err) => Err(err),
+                        Err(kad::GetRecordError::NotFound {
+                            key,
+                            closest_peers: _,
+                        }) => {
+                            let key = RecordKey::new(&key)
+                                .expect("invalid record key that we got from local storage");
+                            Err(GetRecordError::NotFound { key })
+                        }
+                        Err(err) => {
+                            log::trace!("failed to get record: {err}");
+                            return Poll::Pending;
+                        }
                     };
                     return Poll::Ready(Event::GetRecord(result));
                 }
