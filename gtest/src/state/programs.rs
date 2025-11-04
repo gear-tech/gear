@@ -33,57 +33,43 @@ pub(crate) const PLACEHOLDER_MESSAGE_ID: MessageId =
     MessageId::new(*b"PLACEHOLDER_MESSAGE_ID\0\0\0\0\0\0\0\0\0\0");
 
 /// Enum representing either a regular or mock WASM program in gtest.
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub(crate) enum GTestProgram {
     /// Regular program execution using the default runtime.
-    Default(Program<BlockNumber>),
+    Default { primary: Program<BlockNumber> },
     /// Mock program execution using custom test logic.
-    Mock(MockWasmProgram),
+    Mock {
+        primary: Program<BlockNumber>,
+        handlers: Box<dyn WasmProgram>,
+    },
 }
 
 impl GTestProgram {
     pub(crate) fn as_primary_program(&self) -> &Program<BlockNumber> {
         match self {
-            GTestProgram::Default(program) => program,
-            GTestProgram::Mock(mock) => &mock.primary,
+            GTestProgram::Default { primary } => primary,
+            GTestProgram::Mock { primary, .. } => primary,
         }
     }
 
     pub(crate) fn as_primary_program_mut(&mut self) -> &mut Program<BlockNumber> {
         match self {
-            GTestProgram::Default(program) => program,
-            GTestProgram::Mock(mock) => &mut mock.primary,
+            GTestProgram::Default { primary } => primary,
+            GTestProgram::Mock { primary, .. } => primary,
         }
     }
 }
 
-/// Structure containing mock WASM program logic and associated program data.
-#[derive(Debug)]
-pub(crate) struct MockWasmProgram {
-    handlers: Box<dyn WasmProgram>,
-    primary: Program<BlockNumber>,
-}
-
-impl MockWasmProgram {
-    /// Create a new mock WASM program with the given logic and program data.
-    pub(crate) fn new(handlers_impls: Box<dyn WasmProgram>, primary: Program<BlockNumber>) -> Self {
-        Self {
-            handlers: handlers_impls,
-            primary,
-        }
-    }
-
-    /// Get a mutable reference to the mock program logic.
-    pub(crate) fn handlers_mut(&mut self) -> &mut dyn WasmProgram {
-        &mut *self.handlers
-    }
-}
-
-impl Clone for MockWasmProgram {
+impl Clone for GTestProgram {
     fn clone(&self) -> Self {
-        Self {
-            handlers: self.handlers.clone_boxed(),
-            primary: self.primary.clone(),
+        match self {
+            GTestProgram::Default { primary } => GTestProgram::Default {
+                primary: primary.clone(),
+            },
+            GTestProgram::Mock { primary, handlers } => GTestProgram::Mock {
+                primary: primary.clone(),
+                handlers: handlers.clone_boxed(),
+            },
         }
     }
 }
@@ -177,7 +163,7 @@ impl ProgramsStorageManager {
             storage
                 .data()
                 .get(&id)
-                .map(|gtest_program| matches!(gtest_program, GTestProgram::Mock(_)))
+                .map(|gtest_program| matches!(gtest_program, GTestProgram::Mock { .. }))
                 .unwrap_or(false)
         })
     }

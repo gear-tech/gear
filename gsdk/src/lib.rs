@@ -33,7 +33,7 @@ pub use crate::{
     },
 };
 pub use gear_core::rpc::GasInfo;
-pub use subxt::dynamic::Value;
+pub use subxt::{self, dynamic::Value};
 
 use crate::metadata::runtime_types::{
     gear_common::gas_provider::node::{GasNode, GasNodeId},
