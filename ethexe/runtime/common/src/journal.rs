@@ -71,7 +71,9 @@ impl<S: Storage> NativeJournalHandler<'_, S> {
             self.controller
                 .update_state(dispatch.source(), |state, _, transitions| {
                     if dispatch.value() != 0 {
-                        state.balance -= dispatch.value();
+                        state.balance = state.balance.checked_sub(dispatch.value()).expect(
+                            "Insufficient balance: underflow in state.balance -= dispatch.value()",
+                        );
                     }
 
                     transitions.modify_transition(dispatch.source(), |transition| {
