@@ -40,11 +40,7 @@ use libp2p::{
 };
 use lru::LruCache;
 use parity_scale_codec::{Decode, Encode, Input, Output};
-use std::{
-    num::NonZeroUsize,
-    task::Poll,
-    time::{Duration, SystemTime},
-};
+use std::{num::NonZeroUsize, task::Poll, time::SystemTime};
 
 const MAX_VALIDATOR_IDENTITIES: NonZeroUsize = NonZeroUsize::new(100).unwrap();
 

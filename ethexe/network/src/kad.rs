@@ -23,7 +23,8 @@ use libp2p::{
     core::{Endpoint, transport::PortUse},
     kad,
     kad::{
-        Addresses, EntryView, GetRecordResult, KBucketKey, PutRecordResult, QueryId, Quorum, store,
+        Addresses, EntryView, GetRecordError, KBucketKey, PutRecordError, PutRecordOk, QueryId,
+        Quorum, store,
         store::{MemoryStore, RecordStore},
     },
     swarm::{
@@ -59,6 +60,10 @@ pub enum RecordKey {
 }
 
 impl RecordKey {
+    fn new(key: &kad::RecordKey) -> Result<Self, parity_scale_codec::Error> {
+        Decode::decode(&mut &key.as_ref()[..])
+    }
+
     fn into_kad_key(self) -> kad::RecordKey {
         kad::RecordKey::new(&self.encode())
     }
@@ -71,7 +76,7 @@ pub enum Record {
 
 impl Record {
     fn new(record: &kad::Record) -> Result<Self, parity_scale_codec::Error> {
-        let key: RecordKey = Decode::decode(&mut &record.key.as_ref()[..])?;
+        let key = RecordKey::new(&record.key)?;
         match key {
             RecordKey::ValidatorIdentity(key) => {
                 let value: SignedValidatorIdentity = Decode::decode(&mut &record.value[..])?;
@@ -120,8 +125,8 @@ pub enum Event {
     RoutingUpdated {
         peer: PeerId,
     },
-    GetRecord(GetRecordResult),
-    PutRecord(PutRecordResult),
+    GetRecord(Result<Box<Record>, GetRecordError>),
+    PutRecord(Result<RecordKey, PutRecordError>),
     InboundPutRecord {
         source: PeerId,
         validator: Box<PutRecordValidator>,
@@ -203,9 +208,41 @@ impl Behaviour {
                 step: _,
             } => match result {
                 kad::QueryResult::GetRecord(result) => {
+                    let result = match result {
+                        Ok(kad::GetRecordOk::FoundRecord(peer_record)) => {
+                            let record = match Record::new(&peer_record.record) {
+                                Ok(record) => record,
+                                Err(_err) => {
+                                    // TODO: peer score
+                                    return Poll::Pending;
+                                }
+                            };
+                            Ok(Box::new(record))
+                        }
+                        Ok(kad::GetRecordOk::FinishedWithNoAdditionalRecord {
+                            cache_candidates: _,
+                        }) => {
+                            return Poll::Pending;
+                        }
+                        Err(err) => Err(err),
+                    };
                     return Poll::Ready(Event::GetRecord(result));
                 }
                 kad::QueryResult::PutRecord(result) => {
+                    let result = match result {
+                        Ok(PutRecordOk { key }) => {
+                            let key = match RecordKey::new(&key) {
+                                Ok(key) => key,
+                                Err(_err) => {
+                                    // TODO: peer score
+                                    return Poll::Pending;
+                                }
+                            };
+
+                            Ok(key)
+                        }
+                        Err(err) => Err(err),
+                    };
                     return Poll::Ready(Event::PutRecord(result));
                 }
                 _ => {}
