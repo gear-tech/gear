@@ -43,7 +43,7 @@ impl FailedPage {
     }
 }
 
-#[derive(Debug, thiserror::Error, derive_more::TryUnwrap, derive_more::Unwrap)]
+#[derive(Debug, thiserror::Error, derive_more::Unwrap)]
 pub enum Error {
     #[error("the queried event not found")]
     EventNotFound,
