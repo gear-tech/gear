@@ -7209,7 +7209,6 @@ dependencies = [
 name = "gsdk"
 version = "1.9.2"
 dependencies = [
- "base64 0.21.7",
  "colored",
  "demo-fungible-token",
  "demo-messenger",
@@ -7217,7 +7216,6 @@ dependencies = [
  "demo-waiter",
  "derive_more 2.0.1",
  "futures",
- "futures-util",
  "gear-core",
  "gear-core-errors",
  "gear-node-wrapper",
