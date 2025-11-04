@@ -24,10 +24,12 @@ use gear_core::{
 };
 use gear_core_errors::{ReplyCode, SuccessReplyReason};
 use gsdk::{Api, Result};
-use jsonrpsee::types::error::ErrorObject;
 use parity_scale_codec::Encode;
 use std::{borrow::Cow, process::Command, str::FromStr, time::Instant};
-use subxt::{Error as SubxtError, error::RpcError, utils::H256};
+use subxt::{
+    ext::subxt_rpcs::{self, UserError},
+    utils::H256,
+};
 use utils::{alice_account_id, dev_node};
 
 mod utils;
@@ -49,11 +51,16 @@ async fn pallet_errors_formatting() -> Result<()> {
         .await
         .expect_err("Must return error");
 
-    let expected_err = ErrorObject::owned(
-        8000,
-        "Runtime error",
-        Some("\"Extrinsic `gear.upload_program` failed: 'ProgramConstructionFailed'\""),
-    );
+    let expected_err = subxt_rpcs::Error::User(UserError {
+        code: 8000,
+        message: "Runtime error".into(),
+        data: Some(
+            serde_json::value::to_raw_value(
+                "Extrinsic `gear.upload_program` failed: 'ProgramConstructionFailed'",
+            )
+            .unwrap(),
+        ),
+    });
 
     assert_eq!(err.to_string(), expected_err.to_string());
 
@@ -279,20 +286,17 @@ async fn test_runtime_wasm_blob_version_history() -> Result<()> {
         .runtime_wasm_blob_version(Some(no_method_block_hash))
         .await
         .unwrap_err()
-        .unwrap_subxt();
+        .unwrap_subxt_rpc();
 
-    let err = ErrorObject::owned(
-        9000,
-        "Unable to find WASM blob version in WASM blob",
-        None::<String>,
-    );
+    let err = subxt_rpcs::Error::User(UserError {
+        code: 9000,
+        message: "Unable to find WASM blob version in WASM blob".into(),
+        data: None,
+    });
 
-    if let SubxtError::Rpc(RpcError::ClientError(e)) = *wasm_blob_version_err {
-        assert_eq!(e.to_string(), err.to_string());
-        return Ok(());
-    }
+    assert_eq!(wasm_blob_version_err.to_string(), err.to_string());
 
-    panic!("Error does not match: {wasm_blob_version_err:?}");
+    Ok(())
 }
 
 #[tokio::test]
