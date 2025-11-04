@@ -69,13 +69,20 @@ impl<S: Storage> NativeJournalHandler<'_, S> {
     ) {
         if dispatch.is_reply() {
             self.controller
-                .transitions
-                .modify_transition(dispatch.source(), |transition| {
-                    let stored = dispatch.into_parts().1;
+                .update_state(dispatch.source(), |state, _, transitions| {
+                    if dispatch.value() != 0 {
+                        state.balance = state.balance.checked_sub(dispatch.value()).expect(
+                            "Insufficient balance: underflow in state.balance -= dispatch.value()",
+                        );
+                    }
 
-                    transition
-                        .messages
-                        .push(Message::from_stored(stored, self.call_reply))
+                    transitions.modify_transition(dispatch.source(), |transition| {
+                        let stored = dispatch.into_parts().1;
+
+                        transition
+                            .messages
+                            .push(Message::from_stored(stored, self.call_reply))
+                    });
                 });
 
             return;
