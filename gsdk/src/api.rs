@@ -95,7 +95,7 @@ impl<'a, F: FnOnce(WsClientBuilder) -> WsClientBuilder> ApiBuilder<'a, F> {
             .connection_timeout(timeout)
             .request_timeout(timeout);
         let client_builder = (self.configure_ws)(client_builder);
-        let client = client_builder.build(uri).await.unwrap();
+        let client = client_builder.build(uri).await?;
 
         Ok(RpcClient::new(client))
     }

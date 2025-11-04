@@ -70,7 +70,7 @@ pub enum Error {
     InvalidUrl(#[from] url::ParseError),
 
     #[error(transparent)]
-    WsHandshake(#[from] jsonrpsee::client_transport::ws::WsHandshakeError),
+    ClientError(#[from] jsonrpsee::core::ClientError),
 
     #[error(transparent)]
     Subxt(#[from] Box<subxt::Error>),
