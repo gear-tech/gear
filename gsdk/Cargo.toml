@@ -13,10 +13,8 @@ repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-base64.workspace = true
 colored.workspace = true
 derive_more.workspace = true
-futures-util.workspace = true
 futures.workspace = true
 gear-core = { workspace = true, features = ["std"] }
 gear-core-errors.workspace = true
