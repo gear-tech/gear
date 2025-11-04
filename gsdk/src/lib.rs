@@ -64,6 +64,7 @@ mod ensure_versions;
 pub mod ext {
     pub use sp_core;
     pub use sp_runtime::{self, codec, scale_info};
+    pub use subxt::utils;
 }
 pub mod gp {
     //! generated code preludes.
