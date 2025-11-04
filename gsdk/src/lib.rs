@@ -22,7 +22,7 @@
 
 //! Gear api
 pub use crate::{
-    api::Api,
+    api::{Api, ApiBuilder},
     config::GearConfig,
     metadata::Event,
     result::{Error, Result},

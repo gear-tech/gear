@@ -24,41 +24,66 @@ use jsonrpsee::{
     client_transport::ws::{Url, WsTransportClientBuilder},
     core::client::Client,
 };
-use std::time::Duration;
+use std::{borrow::Cow, time::Duration};
 use subxt::{OnlineClient, backend::rpc::RpcClient, ext::subxt_rpcs::LegacyRpcMethods};
-
-const DEFAULT_GEAR_ENDPOINT: &str = "wss://rpc.vara.network:443";
-const DEFAULT_TIMEOUT: Duration = Duration::from_secs(60);
 
 const ONE_HUNDRED_MEGABYTES: u32 = 100 * 1024 * 1024;
 
 /// Gear api wrapper.
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Api {
     rpc: RpcClient,
     legacy_methods: LegacyRpcMethods<GearConfig>,
     client: OnlineClient<GearConfig>,
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct ApiBuilder<'a> {
+    uri: Option<Cow<'a, str>>,
+    timeout: Option<Duration>,
+}
+
 impl Api {
-    /// Create new API client.
-    pub async fn new(uri: impl Into<Option<&str>>) -> Result<Self> {
-        Self::with_timeout(uri, DEFAULT_TIMEOUT).await
+    /// Default API endpoint.
+    pub const DEFAULT_ENDPOINT: &str = "wss://rpc.vara.network:443";
+
+    /// Default timeout duration.
+    pub const DEFAULT_TIMEOUT: Duration = Duration::from_secs(60);
+
+    /// Creates an [`Api`] builder.
+    pub const fn builder<'a>() -> ApiBuilder<'a> {
+        ApiBuilder {
+            uri: None,
+            timeout: None,
+        }
+    }
+}
+
+impl<'a> ApiBuilder<'a> {
+    pub fn uri(mut self, uri: impl Into<Cow<'a, str>>) -> Self {
+        self.uri = Some(uri.into());
+        self
     }
 
-    pub async fn with_timeout(uri: impl Into<Option<&str>>, timeout: Duration) -> Result<Self> {
-        let uri: Option<&str> = uri.into();
-        let rpc_client = Self::rpc_client(uri.unwrap_or(DEFAULT_GEAR_ENDPOINT), timeout).await?;
-
-        Self::from_rpc_client(rpc_client).await
+    pub const fn timeout(mut self, timeout: Duration) -> Self {
+        self.timeout = Some(timeout);
+        self
     }
 
-    async fn rpc_client(uri: &str, timeout: Duration) -> Result<RpcClient> {
-        let url = Url::parse(uri)?;
+    pub async fn build(self) -> Result<Api> {
+        Api::from_rpc_client(self.rpc_client().await?).await
+    }
+
+    async fn rpc_client(self) -> Result<RpcClient> {
+        let uri = self.uri.as_ref().map_or(Api::DEFAULT_ENDPOINT, Cow::as_ref);
+        let uri = Url::parse(uri)?;
+
+        let timeout = self.timeout.unwrap_or(Api::DEFAULT_TIMEOUT);
+
         let (sender, receiver) = WsTransportClientBuilder::default()
             .max_request_size(ONE_HUNDRED_MEGABYTES)
             .connection_timeout(timeout)
-            .build(url)
+            .build(uri)
             .await?;
 
         let client = Client::builder()
@@ -67,7 +92,15 @@ impl Api {
 
         Ok(RpcClient::new(client))
     }
+}
 
+impl Api {
+    /// Constructs an instance of [`Self`].
+    pub async fn new<'a>(uri: impl Into<Cow<'a, str>>) -> Result<Self> {
+        Self::builder().uri(uri).build().await
+    }
+
+    /// Construcs an instance of [`Api`] from [`RpcClient`].
     pub async fn from_rpc_client(rpc: RpcClient) -> Result<Self> {
         let legacy_methods = LegacyRpcMethods::new(rpc.clone());
         let client = OnlineClient::from_rpc_client(rpc.clone()).await?;
