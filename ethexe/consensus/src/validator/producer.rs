@@ -21,7 +21,7 @@ use super::{
 };
 use crate::{
     ConsensusEvent,
-    announces::{self, DBExt},
+    announces::{self, DBAnnouncesExt},
     validator::DefaultProcessing,
 };
 use anyhow::{Result, anyhow};

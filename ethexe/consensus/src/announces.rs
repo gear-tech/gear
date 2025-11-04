@@ -1,3 +1,93 @@
+// This file is part of Gear.
+//
+// Copyright (C) 2025 Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+//! # Theory of Announce Propagation
+//!
+//! ## Definitions
+//! - `block` - an ethereum block.
+//! - `announce` - see [Announce](ethexe_common::Announce).
+//! - `announce.block` - block for which announce was created.
+//! - `announce.committed_block` - block where announce was committed (if it was committed).
+//! - `announce.branch` - linked chain of announces starting from `start_announce` to `announce` itself.
+//! - `base announce` - announce which does not have any injected transactions and gas allowance.
+//! - `not-base announce` - any announce which is cannot be classified as base announce.
+//! - `commitment_delay_limit` - protocol parameter defining maximal delay (in blocks)
+//!   for committing announces not-base announces.
+//! - `start_block` - genesis block (for ethexe) or defined by fast_sync block,
+//!   It's guaranteed that it's predecessor of any new chain head coming from ethereum.
+//!   Always has only one announce, which is called `start_announce`.
+//! - `block.announces` - set of announces connected to the `block`. All announces in this set
+//!   are created for this `block`.
+//! - `included announce` - announce which has been included in `block.announces` of `announce.block`.
+//!   It's guaranteed that if announce is included, than announce body is set in db also.
+//! - `block.last_committed_announce` - last committed announce at `block` (can be committed in predecessors).
+//! - `propagated block` - block for which announces were propagated. Must have at least one announce in `block.announces`.
+//! - `not propagated block` - block for which announces were not propagated yet. Announces must be None in database.
+//!
+//! ## Statements
+//! Statements below correct only if majority ( > 2/3 ) of validators are correct and honest.
+//!
+//! ### STATEMENT1 (S1)
+//! Any not base `announce` created by producer for some `block` can be committed in `block1` only if
+//! 1) `block1` is a strict successor of `block`
+//! 2) `block1.height - block.height <= commitment_delay_limit`
+//!
+//! ### STATEMENT2 (S2)
+//! If it's known at `block` that `announce1` has been committed
+//! and `announce2` has been committed after `announce1`, then
+//! 1) `announce2` is strict successor of `announce1`
+//! 2) `announce2.block` is a strict successor of `announce1.block`
+//! 3) `announce2.committed_block` is a successor of `announce1.committed_block`
+//!
+//! ### Statement3 (S3)
+//! About local announces propagation. For correctness, strict rules must be followed to propagate announces.
+//! If we have `block1` and `block2`, where `block2.parent == block1`, then
+//! for any announce from `block2.announces` next statements must be true:
+//! 1) `block1.announces.contains(announce.parent)`
+//! 2) `announce.chain.contains(block2.last_committed_announce)`
+//! 3) Any not-base announce1 from `announce.chain` is committed before `commitment_delay_limit`, except
+//!    maybe `commitment_delay_limit` newest announces in the `announce.chain`.
+//!
+//! ## Theorem and Consequences
+//!
+//! ### Definitions for Theorem 1
+//! - `block` - new received block from ethereum network.
+//! - `lpb` - last propagated block, i.e. last predecessor of `block` for which announces were propagated.
+//! - `chain` - ordered set of not propagated blocks till `block` (+_+_+ inclusive?).
+//!
+//! ### THEOREM 1 (T1)
+//! If `announce` is any announce committed in any blocks from `chain`
+//! and `announce` is not yet included by this node, then it must exists
+//! `cpa` (common predecessor announce), which is
+//! 1) included by this node
+//! 2) strict predecessor of `announce`
+//! 3) strict predecessor of at least one announce from `lpb.announces`
+//! 4) `lpb.height - commitment_delay_limit < cpa.block.height < lpb.height`
+//!
+//! ### T1 Consequences
+//! If `announce` is committed in some block from `chain` and
+//! this `announce` is not included yet, then
+//! 1) (T1S1) `announce.block.height > lpb.height - commitment_delay_limit`
+//! 2) (T1S2) if `announce1` is predecessor of any announce from `lpb.announces`
+//!    and `announce1.block.height <= lpb.height - commitment_delay_limit`,
+//!    then `announce1` is strict predecessor of `announce` and is predecessor of each
+//!    announce from `lpb.announces`.
+
 use anyhow::{Context, Result, anyhow, ensure};
 use ethexe_common::{
     Announce, HashOf, SimpleBlockData,
@@ -12,23 +102,30 @@ use std::collections::{BTreeSet, VecDeque};
 #[error("Announce {_0} is already included")]
 pub struct AnnounceAlreadyIncludedError(HashOf<Announce>);
 
-pub trait DBExt:
+pub trait DBAnnouncesExt:
     AnnounceStorageRW + BlockMetaStorageRW + OnChainStorageRO + LatestDataStorageRO
 {
+    /// Collects blocks from the chain head backwards till the first propagated block found.
     fn collect_blocks_without_announces(&self, head: H256) -> Result<VecDeque<SimpleBlockData>>;
+
+    /// Include announce into the database and link it to its block.
     fn include_announce(
         &self,
         announce: Announce,
     ) -> Result<HashOf<Announce>, AnnounceAlreadyIncludedError>;
+
+    /// Check whether announce is already included.
     fn announce_is_included(&self, announce_hash: HashOf<Announce>) -> bool;
+
+    /// Get set of parents for the given set of announces.
     fn announces_parents(
         &self,
         announces: impl IntoIterator<Item = HashOf<Announce>>,
     ) -> Result<BTreeSet<HashOf<Announce>>>;
 }
 
-impl<DB: AnnounceStorageRW + BlockMetaStorageRW + OnChainStorageRO + LatestDataStorageRO> DBExt
-    for DB
+impl<DB: AnnounceStorageRW + BlockMetaStorageRW + OnChainStorageRO + LatestDataStorageRO>
+    DBAnnouncesExt for DB
 {
     fn collect_blocks_without_announces(&self, head: H256) -> Result<VecDeque<SimpleBlockData>> {
         let mut blocks = VecDeque::new();
@@ -98,8 +195,14 @@ impl<DB: AnnounceStorageRW + BlockMetaStorageRW + OnChainStorageRO + LatestDataS
     }
 }
 
+/// Propagate announces along the provided chain of blocks.
+/// if some committed in blocks from chain announces are missing,
+/// they must be presented in `missing_announces` map.
+/// Missing announces will be included in the database
+/// during propagation in recovery process, see [`announces_chain_recovery_if_needed`].
+/// After successful propagation all blocks in the chain will become propagated.
 pub fn propagate_announces(
-    db: &impl DBExt,
+    db: &impl DBAnnouncesExt,
     chain: VecDeque<SimpleBlockData>,
     commitment_delay_limit: u32,
     mut missing_announces: HashMap<HashOf<Announce>, Announce>,
@@ -183,7 +286,7 @@ pub fn propagate_announces(
 /// where `(A3')` and `(A2')` are committed and must be presented in `missing_announces`,
 /// and `(A4')` is base announce propagated from `(A3')`.
 fn announces_chain_recovery_if_needed(
-    db: &impl DBExt,
+    db: &impl DBAnnouncesExt,
     block: &SimpleBlockData,
     last_committed_announce_hash: HashOf<Announce>,
     commitment_delay_limit: u32,
@@ -265,10 +368,10 @@ fn announces_chain_recovery_if_needed(
     Ok(())
 }
 
-/// Create a new base announce from provided parent announce hash.
-/// Compute the announce and store related data in the database.
+/// Create a new base announce from provided parent announce hash,
+/// if it's not break the rules defined in S3.
 fn propagate_one_base_announce(
-    db: &impl DBExt,
+    db: &impl DBAnnouncesExt,
     block_hash: H256,
     parent_announce_hash: HashOf<Announce>,
     last_committed_announce_hash: HashOf<Announce>,
@@ -350,8 +453,10 @@ fn propagate_one_base_announce(
     Ok(())
 }
 
+/// Check whether there are missing announces to be requested from peers.
+/// If there are missing announces, returns announces request to get them.
 pub fn check_for_missing_announces(
-    db: &impl DBExt,
+    db: &impl DBAnnouncesExt,
     head: H256,
     last_with_announces_block_hash: H256,
     commitment_delay_limit: u32,
@@ -408,7 +513,7 @@ pub fn check_for_missing_announces(
 
         Ok(None)
     } else {
-        // announce is unknown, or not included, so there can be missing announces
+        // announce is not included, so there can be missing announces
         // and node needs to request all announces till definitely known one
         let common_predecessor_announce_hash = find_announces_common_predecessor(
             db,
@@ -423,9 +528,9 @@ pub fn check_for_missing_announces(
     }
 }
 
-/// Returns announce hash from T1S3 or global start announce
+/// Returns hash of announce from T1S2 or start_announce
 fn find_announces_common_predecessor(
-    db: &impl DBExt,
+    db: &impl DBAnnouncesExt,
     block_hash: H256,
     commitment_delay_limit: u32,
 ) -> Result<HashOf<Announce>> {
@@ -459,17 +564,18 @@ fn find_announces_common_predecessor(
     } else {
         // common predecessor not found by some reasons
         // This can happen for example, if some old not base announce was committed
-        // and T1S3 cannot be applied.
+        // and T1S2 cannot be applied.
         Err(anyhow!(
             "Common predecessor for announces in block {block_hash} in nearest {commitment_delay_limit} blocks not found",
         ))
     }
 }
 
-/// Returns announce hash, which is supposed to be best to produce a new announce above.
+/// Returns announce hash, which is supposed to be best
+/// to produce a new announce above at `block_hash`.
 /// Used to produce new announce or validate announce from producer.
 pub fn best_parent_announce(
-    db: &impl DBExt,
+    db: &impl DBAnnouncesExt,
     block_hash: H256,
     commitment_delay_limit: u32,
 ) -> Result<HashOf<Announce>> {
@@ -481,8 +587,9 @@ pub fn best_parent_announce(
     best_announce(db, parent_announces, commitment_delay_limit)
 }
 
+/// Returns announce hash, which is supposed to be best among provided announces.
 pub fn best_announce(
-    db: &impl DBExt,
+    db: &impl DBAnnouncesExt,
     announces: impl IntoIterator<Item = HashOf<Announce>>,
     commitment_delay_limit: u32,
 ) -> Result<HashOf<Announce>> {
@@ -553,8 +660,12 @@ pub enum AnnounceStatus {
     },
 }
 
+/// Tries to accept provided announce: check it and include into database.
+/// it accept announce it must be
+/// 1) have suitable parent announce - currently it must be known and best (see [`best_parent_announce`]).
+/// 2) not included yet.
 pub fn accept_announce(
-    db: &impl DBExt,
+    db: &impl DBAnnouncesExt,
     announce: Announce,
     commitment_delay_limit: u32,
 ) -> Result<AnnounceStatus> {

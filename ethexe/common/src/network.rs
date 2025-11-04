@@ -98,6 +98,7 @@ pub enum AnnouncesRequestUntil {
     ChainLen(NonZeroU32),
 }
 
+// +_+_+ fix inclusive or not inclusive
 /// Request announces body (see [`Announce`]) chain from `head_announce_hash` to `tail_announce_hash`.
 /// `tail_announce_hash` must not be included in response.
 /// If `tail_announce_hash` is None, then only data `head_announce_hash` must be returned.

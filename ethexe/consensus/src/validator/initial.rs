@@ -23,7 +23,7 @@ use super::{
     subordinate::Subordinate,
 };
 use crate::{
-    announces::{self, DBExt},
+    announces::{self, DBAnnouncesExt},
     utils,
 };
 use anyhow::{Result, anyhow};

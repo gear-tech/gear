@@ -41,6 +41,7 @@ pub struct BlockMeta {
     /// Block has been prepared, meaning:
     /// all metadata is ready, all predecessors till start block are prepared too.
     pub prepared: bool,
+    // TODO: +_+_+ remove announces from here
     /// Set of announces included in the block.
     pub announces: Option<BTreeSet<HashOf<Announce>>>,
     /// Queue of code ids waiting for validation status commitment on-chain.

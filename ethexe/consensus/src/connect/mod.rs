@@ -22,7 +22,7 @@
 
 use crate::{
     BatchCommitmentValidationReply, ConsensusEvent, ConsensusService,
-    announces::{self, AnnounceStatus, DBExt},
+    announces::{self, AnnounceStatus, DBAnnouncesExt},
     utils,
 };
 use anyhow::{Result, anyhow};
