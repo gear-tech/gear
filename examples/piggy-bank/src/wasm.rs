@@ -23,7 +23,7 @@ extern "C" fn handle() {
     msg::with_read_on_stack_or_heap(|msg| {
         let available_value = exec::value_available();
         let value = msg::value();
-        let mut payload = msg.expect("Failed to load payload bytes");
+        let payload = msg.expect("Failed to load payload bytes");
         debug!("inserted: {value}, total: {available_value}");
 
         if payload == b"smash" {

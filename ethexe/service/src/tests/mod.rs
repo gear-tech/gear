@@ -28,7 +28,10 @@ use crate::{
         Wallets, init_logger,
     },
 };
-use alloy::providers::{Provider as _, WalletProvider, ext::AnvilApi};
+use alloy::{
+    primitives::U256,
+    providers::{Provider as _, WalletProvider, ext::AnvilApi},
+};
 use ethexe_common::{
     ScheduledTask,
     db::*,
@@ -680,14 +683,15 @@ async fn value_in_reply() {
     assert_eq!(local_balance, 0);
 
     let sender_address = env.ethereum.provider().default_signer_address();
-    assert_eq!(
-        env.ethereum
-            .provider()
-            .get_balance(sender_address)
-            .await
-            .unwrap(),
-        VALUE_SENT
-    );
+    let measurement_error: U256 = (ETHER / 50).try_into().unwrap(); // 0.02 ETH for gas costs
+    let default_anvil_balance: U256 = (10_000 * ETHER).try_into().unwrap();
+    let balance = env
+        .ethereum
+        .provider()
+        .get_balance(sender_address)
+        .await
+        .unwrap();
+    assert!(default_anvil_balance - balance <= measurement_error);
 }
 
 #[tokio::test(flavor = "multi_thread")]
