@@ -16,9 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! ethexe common db types and traits.
-
-// TODO #4547: move types to another module(s)
+//! Common db types and traits.
 
 use crate::{
     Announce, BlockHeader, CodeBlobInfo, Digest, HashOf, ProgramStates, ProtocolTimelines,
@@ -41,7 +39,7 @@ pub struct BlockMeta {
     /// Block has been prepared, meaning:
     /// all metadata is ready, all predecessors till start block are prepared too.
     pub prepared: bool,
-    // TODO: +_+_+ remove announces from here
+    // TODO: #4945 remove announces from here
     /// Set of announces included in the block.
     pub announces: Option<BTreeSet<HashOf<Announce>>>,
     /// Queue of code ids waiting for validation status commitment on-chain.

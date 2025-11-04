@@ -68,12 +68,12 @@
 //! ### Definitions for Theorem 1
 //! - `block` - new received block from ethereum network.
 //! - `lpb` - last propagated block, i.e. last predecessor of `block` for which announces were propagated.
-//! - `chain` - ordered set of not propagated blocks till `block` (+_+_+ inclusive?).
+//! - `chain` - ordered set of not propagated blocks till `block` (inclusive).
 //!
 //! ### THEOREM 1 (T1)
-//! If `announce` is any announce committed in any blocks from `chain`
-//! and `announce` is not yet included by this node, then it must exists
-//! `cpa` (common predecessor announce), which is
+//! If `announce` is any announce committed in any block from `chain`
+//! and `announce` is not yet included by this node, then `cpa` must exists
+//! (common predecessor announce), which is
 //! 1) included by this node
 //! 2) strict predecessor of `announce`
 //! 3) strict predecessor of at least one announce from `lpb.announces`

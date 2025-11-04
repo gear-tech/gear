@@ -98,10 +98,9 @@ pub enum AnnouncesRequestUntil {
     ChainLen(NonZeroU32),
 }
 
-// +_+_+ fix inclusive or not inclusive
-/// Request announces body (see [`Announce`]) chain from `head_announce_hash` to `tail_announce_hash`.
-/// `tail_announce_hash` must not be included in response.
-/// If `tail_announce_hash` is None, then only data `head_announce_hash` must be returned.
+/// Request announces body (see [`Announce`]) chain from `head_announce_hash`,
+/// to announce defined by `until` condition.
+/// If `until` is `Tail`, then tail must not be included in the response.
 #[derive(PartialEq, Eq, Hash, Debug, Clone, Copy, Encode, Decode)]
 pub struct AnnouncesRequest {
     /// Hash of the requested chain head announce
@@ -156,24 +155,23 @@ impl AnnouncesResponse {
     ) -> Result<CheckedAnnouncesResponse, AnnouncesResponseError> {
         let Self { announces } = self;
 
-        let Some((tail, head)) = announces.first().zip(announces.last()) else {
+        let Some((first, last)) = announces.first().zip(announces.last()) else {
             return Err(AnnouncesResponseError::Empty);
         };
 
-        if request.head != head.to_hash() {
+        if request.head != last.to_hash() {
             return Err(AnnouncesResponseError::HeadMismatch {
                 expected: request.head,
-                received: head.to_hash(),
+                received: last.to_hash(),
             });
         }
 
-        let response_tail_hash = tail.to_hash();
         match request.until {
             AnnouncesRequestUntil::Tail(request_tail_hash) => {
-                if request_tail_hash != response_tail_hash {
+                if request_tail_hash != first.parent {
                     return Err(AnnouncesResponseError::TailMismatch {
                         expected: request_tail_hash,
-                        received: response_tail_hash,
+                        received: first.parent,
                     });
                 }
             }
@@ -188,8 +186,8 @@ impl AnnouncesResponse {
         }
 
         // Check chain linking
-        let mut expected_parent_hash = response_tail_hash;
-        for announce in announces.iter().skip(1) {
+        let mut expected_parent_hash = first.parent;
+        for announce in announces.iter() {
             if announce.parent != expected_parent_hash {
                 return Err(AnnouncesResponseError::ChainIsNotLinked);
             }
@@ -237,7 +235,7 @@ mod tests {
     fn try_into_checked_accepts_valid_tail_range() {
         let announces = make_chain(3);
         let head_hash = announces.last().unwrap().to_hash();
-        let tail_hash = announces.first().unwrap().to_hash();
+        let tail_hash = announces.first().unwrap().parent;
 
         let request = AnnouncesRequest {
             head: head_hash,
@@ -298,8 +296,8 @@ mod tests {
     fn try_into_checked_rejects_head_mismatch() {
         let announces = make_chain(2);
         let actual_head = announces.last().unwrap().to_hash();
-        let wrong_head = HashOf::zero();
-        let tail_hash = announces.first().unwrap().to_hash();
+        let wrong_head = HashOf::random();
+        let tail_hash = announces.first().unwrap().parent;
 
         let response = AnnouncesResponse { announces };
 
@@ -322,18 +320,16 @@ mod tests {
     #[test]
     fn try_into_checked_rejects_tail_mismatch() {
         let announces = make_chain(3);
-        let actual_tail = announces.first().unwrap().to_hash();
+        let actual_tail = announces.first().unwrap().parent;
         let head_hash = announces.last().unwrap().to_hash();
-        let wrong_tail = HashOf::zero();
+        let wrong_tail = HashOf::random();
 
-        let err = AnnouncesResponse {
-            announces: announces.clone(),
-        }
-        .try_into_checked(AnnouncesRequest {
-            head: head_hash,
-            until: AnnouncesRequestUntil::Tail(wrong_tail),
-        })
-        .unwrap_err();
+        let err = AnnouncesResponse { announces }
+            .try_into_checked(AnnouncesRequest {
+                head: head_hash,
+                until: AnnouncesRequestUntil::Tail(wrong_tail),
+            })
+            .unwrap_err();
 
         match err {
             AnnouncesResponseError::TailMismatch { expected, received } => {
@@ -370,7 +366,7 @@ mod tests {
         let mut announces = make_chain(3);
         announces[1].parent = HashOf::zero();
         let head_hash = announces.last().unwrap().to_hash();
-        let tail_hash = announces.first().unwrap().to_hash();
+        let tail_hash = announces.first().unwrap().parent;
 
         let err = AnnouncesResponse { announces }
             .try_into_checked(AnnouncesRequest {
