@@ -16,15 +16,15 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::validator::discovery::SignedValidatorIdentity;
+use crate::{peer_score, validator::discovery::SignedValidatorIdentity};
 use ethexe_common::Address;
 use libp2p::{
     Multiaddr, PeerId,
     core::{Endpoint, transport::PortUse},
     kad,
     kad::{
-        Addresses, EntryView, GetRecordError, KBucketKey, PutRecordError, PutRecordOk, QueryId,
-        Quorum, store,
+        Addresses, EntryView, GetRecordError, KBucketKey, PeerRecord, PutRecordError, PutRecordOk,
+        QueryId, Quorum, store,
         store::{MemoryStore, RecordStore},
     },
     swarm::{
@@ -135,10 +135,11 @@ pub enum Event {
 
 pub struct Behaviour {
     inner: kad::Behaviour<MemoryStore>,
+    peer_score: peer_score::Handle,
 }
 
 impl Behaviour {
-    pub fn new(peer: PeerId) -> Self {
+    pub fn new(peer: PeerId, peer_score: peer_score::Handle) -> Self {
         let mut inner = kad::Config::default();
         inner
             .disjoint_query_paths(true)
@@ -147,7 +148,7 @@ impl Behaviour {
             .set_record_filtering(kad::StoreInserts::FilterBoth);
         let mut inner = kad::Behaviour::with_config(peer, MemoryStore::new(peer), inner);
         inner.set_mode(Some(kad::Mode::Server));
-        Self { inner }
+        Self { inner, peer_score }
     }
 
     pub fn add_address(&mut self, peer_id: PeerId, multiaddr: Multiaddr) {
@@ -209,11 +210,17 @@ impl Behaviour {
             } => match result {
                 kad::QueryResult::GetRecord(result) => {
                     let result = match result {
-                        Ok(kad::GetRecordOk::FoundRecord(peer_record)) => {
-                            let record = match Record::new(&peer_record.record) {
+                        Ok(kad::GetRecordOk::FoundRecord(PeerRecord { peer, record })) => {
+                            let record = match Record::new(&record) {
                                 Ok(record) => record,
-                                Err(_err) => {
-                                    // TODO: peer score
+                                Err(err) => {
+                                    log::trace!("failed to get record: {err}");
+                                    if let Some(peer) = peer {
+                                        // NOTE: not backward compatible if `Record` have new variant, and it is decoded by the old node
+                                        self.peer_score.invalid_data(peer);
+                                    } else {
+                                        debug_assert!(false, "local storage is corrupted")
+                                    }
                                     return Poll::Pending;
                                 }
                             };
@@ -231,14 +238,9 @@ impl Behaviour {
                 kad::QueryResult::PutRecord(result) => {
                     let result = match result {
                         Ok(PutRecordOk { key }) => {
-                            let key = match RecordKey::new(&key) {
-                                Ok(key) => key,
-                                Err(_err) => {
-                                    // TODO: peer score
-                                    return Poll::Pending;
-                                }
-                            };
-
+                            let key = RecordKey::new(&key)
+                                // we are the ones who called `Kad::put_record` and thus the key must be decoded without issues
+                                .expect("invalid record key that we put ourselves");
                             Ok(key)
                         }
                         Err(err) => Err(err),
