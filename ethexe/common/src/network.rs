@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2024-2025 Gear Technologies Inc.
+// Copyright (C) 2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -16,22 +16,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-fn main() {
-    #[cfg(not(any(windows, target_os = "cygwin")))]
-    #[cfg(any(target_arch = "x86_64", target_arch = "x86"))]
-    {
-        use rustc_version::{Version, VersionMeta, version_meta};
+use crate::consensus::{BatchCommitmentValidationReply, SignedAnnounce, SignedValidationRequest};
+use parity_scale_codec::{Decode, Encode};
 
-        let VersionMeta {
-            semver: Version { major, minor, .. },
-            commit_date,
-            ..
-        } = version_meta().expect("failed to get rustc version");
-
-        if major >= 1 && minor >= 89 && commit_date != Some("2025-06-05".into()) {
-            panic!(
-                "Rust >= 1.89 is not supported, use Rust 1.88: https://github.com/wasmerio/wasmer/issues/5610"
-            );
-        }
-    }
+#[derive(Debug, Clone, Encode, Decode, derive_more::From, Eq, PartialEq)]
+pub enum NetworkMessage {
+    ProducerBlock(SignedAnnounce),
+    RequestBatchValidation(SignedValidationRequest),
+    ApproveBatch(BatchCommitmentValidationReply),
 }

@@ -20,13 +20,12 @@ use super::{
     DefaultProcessing, PendingEvent, StateHandler, ValidatorContext, ValidatorState,
     initial::Initial,
 };
-use crate::{
-    BatchCommitmentValidationReply, BatchCommitmentValidationRequest, ConsensusEvent,
-    SignedValidationRequest,
-};
+use crate::{BatchCommitmentValidationReply, ConsensusEvent, SignedValidationRequest};
 use anyhow::Result;
 use derive_more::{Debug, Display};
-use ethexe_common::{Address, Digest, SimpleBlockData};
+use ethexe_common::{
+    Address, Digest, SimpleBlockData, consensus::BatchCommitmentValidationRequest,
+};
 use futures::{FutureExt, future::BoxFuture};
 use std::task::Poll;
 

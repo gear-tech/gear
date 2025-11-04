@@ -1615,37 +1615,29 @@ pub mod runtime_types {
                 #[encode_as_type(crate_path = "::subxt::ext::scale_encode")]
                 pub enum ScheduledTask<_0, _1, _2> {
                     #[codec(index = 0)]
-                    PauseProgram(runtime_types::gprimitives::ActorId),
-                    #[codec(index = 1)]
-                    RemoveCode(runtime_types::gprimitives::CodeId),
-                    #[codec(index = 2)]
                     RemoveFromMailbox(_0, runtime_types::gprimitives::MessageId),
-                    #[codec(index = 3)]
+                    #[codec(index = 1)]
                     RemoveFromWaitlist(
                         runtime_types::gprimitives::ActorId,
                         runtime_types::gprimitives::MessageId,
                     ),
-                    #[codec(index = 4)]
-                    RemovePausedProgram(runtime_types::gprimitives::ActorId),
-                    #[codec(index = 5)]
+                    #[codec(index = 2)]
                     WakeMessage(
                         runtime_types::gprimitives::ActorId,
                         runtime_types::gprimitives::MessageId,
                     ),
-                    #[codec(index = 6)]
+                    #[codec(index = 3)]
                     SendDispatch(_1),
-                    #[codec(index = 7)]
+                    #[codec(index = 4)]
                     SendUserMessage {
                         message_id: runtime_types::gprimitives::MessageId,
                         to_mailbox: _2,
                     },
-                    #[codec(index = 8)]
+                    #[codec(index = 5)]
                     RemoveGasReservation(
                         runtime_types::gprimitives::ActorId,
                         runtime_types::gprimitives::ReservationId,
                     ),
-                    #[codec(index = 9)]
-                    RemoveResumeSession(::core::primitive::u32),
                 }
             }
         }

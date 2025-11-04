@@ -22,10 +22,12 @@
 
 extern crate alloc;
 
+pub mod consensus;
 mod crypto;
 pub mod db;
 pub mod events;
 pub mod gear;
+pub mod network;
 mod primitives;
 pub mod tx_pool;
 mod utils;
