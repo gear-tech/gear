@@ -24,6 +24,7 @@ use ethexe_common::{
     db::{AnnounceStorageRO, AnnounceStorageRW, BlockMetaStorageRO, CodesStorageRW},
     events::{BlockRequestEvent, MirrorRequestEvent},
     gear::StateTransition,
+    injected::InjectedTxPromise,
 };
 use ethexe_db::Database;
 use ethexe_runtime_common::state::Storage;
@@ -127,6 +128,7 @@ pub struct BlockProcessingResult {
     pub transitions: Vec<StateTransition>,
     pub states: ProgramStates,
     pub schedule: Schedule,
+    pub promises: Vec<InjectedTxPromise>,
 }
 
 #[derive(Clone, Debug)]
@@ -204,7 +206,9 @@ impl Processor {
 
         let mut handler = self.handler(announce.clone())?;
 
-        for tx in announce.injected_transactions {}
+        for tx in announce.injected_transactions {
+            handler.handle_injected_transaction(tx)?;
+        }
 
         for event in events {
             match event {
@@ -221,11 +225,12 @@ impl Processor {
 
         handler.run_schedule();
 
-        let (transitions, states, schedule) = handler.transitions.finalize();
+        let (transitions, states, schedule, promises) = handler.transitions.finalize();
         Ok(BlockProcessingResult {
             transitions,
             states,
             schedule,
+            promises,
         })
     }
 
@@ -322,7 +327,7 @@ impl OverlaidProcessor {
 
         // Setting program states and schedule for the block is not necessary, but important for testing.
         {
-            let (_, states, schedule) = handler.transitions.finalize();
+            let (_, states, schedule, _) = handler.transitions.finalize();
             self.0.db.set_announce_program_states(announce_hash, states);
             self.0.db.set_announce_schedule(announce_hash, schedule);
         }

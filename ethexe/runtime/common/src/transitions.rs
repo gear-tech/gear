@@ -21,12 +21,16 @@ use alloc::{
     vec::Vec,
 };
 use anyhow::{Result, anyhow};
-use core::num::NonZero;
+use core::{hash::Hash, num::NonZero};
 use ethexe_common::{
-    BlockHeader, ProgramStates, Schedule, ScheduledTask, StateHashWithQueueSize,
+    BlockHeader, HashOf, ProgramStates, Schedule, ScheduledTask, StateHashWithQueueSize,
     gear::{Message, StateTransition, ValueClaim},
+    injected::InjectedTxPromise,
 };
-use gprimitives::{ActorId, H256};
+use gear_core::buffer::Payload;
+use gprimitives::{ActorId, H256, MessageId};
+
+type MaybeInjectedReply = Option<(Vec<u8>, H256)>;
 
 /// In-memory store for the state transitions
 /// that are going to be applied in the current block.
@@ -43,14 +47,22 @@ pub struct InBlockTransitions {
     states: ProgramStates,
     schedule: Schedule,
     modifications: BTreeMap<ActorId, NonFinalTransition>,
+    injected_replies: BTreeMap<MessageId, MaybeInjectedReply>,
 }
 
 impl InBlockTransitions {
-    pub fn new(header: BlockHeader, states: ProgramStates, schedule: Schedule) -> Self {
+    pub fn new(
+        header: BlockHeader,
+        states: ProgramStates,
+        schedule: Schedule,
+        injected_messages: Vec<MessageId>,
+    ) -> Self {
+        let injected_replies = injected_messages.into_iter().map(|id| (id, None)).collect();
         Self {
             header,
             states,
             schedule,
+            injected_replies,
             ..Default::default()
         }
     }
@@ -126,6 +138,13 @@ impl InBlockTransitions {
         self.modifications.insert(actor_id, Default::default());
     }
 
+    pub fn modify_injected_replies(
+        &mut self,
+        f: impl FnOnce(&mut BTreeMap<MessageId, MaybeInjectedReply>),
+    ) {
+        f(&mut self.injected_replies)
+    }
+
     pub fn modify_state(
         &mut self,
         actor_id: ActorId,
@@ -169,13 +188,37 @@ impl InBlockTransitions {
         f(initial_state, transition)
     }
 
-    pub fn finalize(self) -> (Vec<StateTransition>, ProgramStates, Schedule) {
+    pub fn finalize(
+        self,
+    ) -> (
+        Vec<StateTransition>,
+        ProgramStates,
+        Schedule,
+        Vec<InjectedTxPromise>,
+    ) {
         let Self {
             states,
             schedule,
             modifications,
+            injected_replies,
             ..
         } = self;
+
+        let promises = injected_replies
+            .into_iter()
+            .filter_map(|(message_id, maybe_reply)| {
+                maybe_reply.map(|(payload, state_hash)| {
+                    // Safety: we trust that message_id was created from a valid SignedInjectedTransaction.
+                    let injected_tx_hash = unsafe { HashOf::new(message_id.into_bytes().into()) };
+
+                    InjectedTxPromise {
+                        injected_tx_hash,
+                        payload,
+                        state_hash,
+                    }
+                })
+            })
+            .collect();
 
         let mut res = Vec::with_capacity(modifications.len());
 
@@ -198,9 +241,12 @@ impl InBlockTransitions {
             }
         }
 
-        (res, states, schedule)
+        (res, states, schedule, promises)
     }
 }
+
+/// Type alias for the injected transaction reply.
+pub type InjectedReply = (MessageId, MaybeInjectedReply);
 
 #[derive(Debug, Default)]
 pub struct NonFinalTransition {

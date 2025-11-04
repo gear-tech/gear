@@ -97,7 +97,7 @@ impl Key {
             Self::AnnounceProgramStates(hash)
             | Self::AnnounceOutcome(hash)
             | Self::AnnounceSchedule(hash)
-            | Self::AnnounceMeta(hash) => [prefix.as_ref(), hash.hash().as_ref()].concat(),
+            | Self::AnnounceMeta(hash) => [prefix.as_ref(), hash.inner().as_ref()].concat(),
 
             Self::ProgramToCodeId(program_id) => [prefix.as_ref(), program_id.as_ref()].concat(),
 
@@ -368,7 +368,7 @@ impl Storage for Database {
     }
 
     fn message_queue(&self, hash: HashOf<MessageQueue>) -> Option<MessageQueue> {
-        self.cas.read(hash.hash()).map(|data| {
+        self.cas.read(hash.inner()).map(|data| {
             MessageQueue::decode(&mut &data[..]).expect("Failed to decode data into `MessageQueue`")
         })
     }
@@ -378,7 +378,7 @@ impl Storage for Database {
     }
 
     fn waitlist(&self, hash: HashOf<Waitlist>) -> Option<Waitlist> {
-        self.cas.read(hash.hash()).map(|data| {
+        self.cas.read(hash.inner()).map(|data| {
             Waitlist::decode(&mut data.as_slice()).expect("Failed to decode data into `Waitlist`")
         })
     }
@@ -388,7 +388,7 @@ impl Storage for Database {
     }
 
     fn dispatch_stash(&self, hash: HashOf<DispatchStash>) -> Option<DispatchStash> {
-        self.cas.read(hash.hash()).map(|data| {
+        self.cas.read(hash.inner()).map(|data| {
             DispatchStash::decode(&mut data.as_slice())
                 .expect("Failed to decode data into `DispatchStash`")
         })
@@ -399,7 +399,7 @@ impl Storage for Database {
     }
 
     fn mailbox(&self, hash: HashOf<Mailbox>) -> Option<Mailbox> {
-        self.cas.read(hash.hash()).map(|data| {
+        self.cas.read(hash.inner()).map(|data| {
             Mailbox::decode(&mut data.as_slice()).expect("Failed to decode data into `Mailbox`")
         })
     }
@@ -409,7 +409,7 @@ impl Storage for Database {
     }
 
     fn user_mailbox(&self, hash: HashOf<UserMailbox>) -> Option<UserMailbox> {
-        self.cas.read(hash.hash()).map(|data| {
+        self.cas.read(hash.inner()).map(|data| {
             UserMailbox::decode(&mut data.as_slice())
                 .expect("Failed to decode data into `UserMailbox`")
         })
@@ -420,13 +420,13 @@ impl Storage for Database {
     }
 
     fn memory_pages(&self, hash: HashOf<MemoryPages>) -> Option<MemoryPages> {
-        self.cas.read(hash.hash()).map(|data| {
+        self.cas.read(hash.inner()).map(|data| {
             MemoryPages::decode(&mut &data[..]).expect("Failed to decode data into `MemoryPages`")
         })
     }
 
     fn memory_pages_region(&self, hash: HashOf<MemoryPagesRegion>) -> Option<MemoryPagesRegion> {
-        self.cas.read(hash.hash()).map(|data| {
+        self.cas.read(hash.inner()).map(|data| {
             MemoryPagesRegion::decode(&mut &data[..])
                 .expect("Failed to decode data into `MemoryPagesRegion`")
         })
@@ -444,7 +444,7 @@ impl Storage for Database {
     }
 
     fn allocations(&self, hash: HashOf<Allocations>) -> Option<Allocations> {
-        self.cas.read(hash.hash()).map(|data| {
+        self.cas.read(hash.inner()).map(|data| {
             Allocations::decode(&mut &data[..]).expect("Failed to decode data into `Allocations`")
         })
     }
@@ -455,7 +455,7 @@ impl Storage for Database {
 
     fn payload(&self, hash: HashOf<Payload>) -> Option<Payload> {
         self.cas
-            .read(hash.hash())
+            .read(hash.inner())
             .map(|data| Payload::try_from(data).expect("Failed to decode data into `Payload`"))
     }
 
@@ -464,7 +464,7 @@ impl Storage for Database {
     }
 
     fn page_data(&self, hash: HashOf<PageBuf>) -> Option<PageBuf> {
-        self.cas.read(hash.hash()).map(|data| {
+        self.cas.read(hash.inner()).map(|data| {
             PageBuf::decode(&mut data.as_slice()).expect("Failed to decode data into `PageBuf`")
         })
     }
@@ -559,7 +559,7 @@ impl OnChainStorageRW for Database {
 
 impl AnnounceStorageRO for Database {
     fn announce(&self, hash: HashOf<Announce>) -> Option<Announce> {
-        self.cas.read(hash.hash()).map(|data| {
+        self.cas.read(hash.inner()).map(|data| {
             Announce::decode(&mut &data[..]).expect("Failed to decode data into `ProducerBlock`")
         })
     }

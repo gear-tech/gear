@@ -81,10 +81,17 @@ impl Processor {
             .announce_schedule(announce.parent)
             .ok_or(ProcessorError::AnnounceScheduleNotFound(announce.parent))?;
 
+        let injected_messages = announce
+            .injected_transactions
+            .iter()
+            .map(|tx| tx.message_id())
+            .collect();
+
         let transitions = InBlockTransitions::new(
             corresponding_block_header,
             parent_final_states,
             parent_final_schedule,
+            injected_messages,
         );
 
         Ok(ProcessingHandler {

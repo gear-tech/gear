@@ -35,6 +35,7 @@ thread_local! {
             transitions: Vec::new(),
             states: BTreeMap::new(),
             schedule: BTreeMap::new(),
+            promises: Vec::new(),
         }
     ) };
 }
@@ -55,6 +56,7 @@ impl ProcessorExt for MockProcessor {
                 transitions: vec![],
                 states: BTreeMap::new(),
                 schedule: BTreeMap::new(),
+                promises: vec![],
             }
         });
 

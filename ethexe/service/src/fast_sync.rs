@@ -415,26 +415,26 @@ impl DatabaseVisitor for RequestManager {
     fn on_db_error(&mut self, error: DatabaseIteratorError) {
         let (hash, metadata) = match error {
             DatabaseIteratorError::NoMemoryPages(hash) => {
-                (hash.hash(), RequestMetadata::MemoryPages)
+                (hash.inner(), RequestMetadata::MemoryPages)
             }
             DatabaseIteratorError::NoMemoryPagesRegion(hash) => {
-                (hash.hash(), RequestMetadata::MemoryPagesRegion)
+                (hash.inner(), RequestMetadata::MemoryPagesRegion)
             }
-            DatabaseIteratorError::NoPageData(hash) => (hash.hash(), RequestMetadata::Data),
+            DatabaseIteratorError::NoPageData(hash) => (hash.inner(), RequestMetadata::Data),
             DatabaseIteratorError::NoMessageQueue(hash) => {
-                (hash.hash(), RequestMetadata::MessageQueue)
+                (hash.inner(), RequestMetadata::MessageQueue)
             }
-            DatabaseIteratorError::NoWaitlist(hash) => (hash.hash(), RequestMetadata::Waitlist),
+            DatabaseIteratorError::NoWaitlist(hash) => (hash.inner(), RequestMetadata::Waitlist),
             DatabaseIteratorError::NoDispatchStash(hash) => {
-                (hash.hash(), RequestMetadata::DispatchStash)
+                (hash.inner(), RequestMetadata::DispatchStash)
             }
-            DatabaseIteratorError::NoMailbox(hash) => (hash.hash(), RequestMetadata::Mailbox),
+            DatabaseIteratorError::NoMailbox(hash) => (hash.inner(), RequestMetadata::Mailbox),
             DatabaseIteratorError::NoUserMailbox(hash) => {
-                (hash.hash(), RequestMetadata::UserMailbox)
+                (hash.inner(), RequestMetadata::UserMailbox)
             }
-            DatabaseIteratorError::NoAllocations(hash) => (hash.hash(), RequestMetadata::Data),
+            DatabaseIteratorError::NoAllocations(hash) => (hash.inner(), RequestMetadata::Data),
             DatabaseIteratorError::NoProgramState(hash) => (hash, RequestMetadata::ProgramState),
-            DatabaseIteratorError::NoPayload(hash) => (hash.hash(), RequestMetadata::Data),
+            DatabaseIteratorError::NoPayload(hash) => (hash.inner(), RequestMetadata::Data),
             DatabaseIteratorError::NoBlockHeader(_)
             | DatabaseIteratorError::NoBlockEvents(_)
             | DatabaseIteratorError::NoAnnounceProgramStates(_)

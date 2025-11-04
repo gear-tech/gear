@@ -567,7 +567,7 @@ async fn many_waits() {
         amount as usize
     );
 
-    let (_outcomes, states, schedule) = handler.transitions.finalize();
+    let (_outcomes, states, schedule, _) = handler.transitions.finalize();
     processor
         .db
         .set_announce_program_states(block1_announce_hash, states);
@@ -877,7 +877,7 @@ async fn overlay_execution_noop() {
     assert_eq!(async_mq.len(), 3);
 
     // Finalize (from the ethexe-processor point of view) the block
-    let (_, states, schedule) = handler_block2.transitions.finalize();
+    let (_, states, schedule, _) = handler_block2.transitions.finalize();
     processor
         .db
         .set_announce_program_states(block2_announce_hash, states);
@@ -902,7 +902,7 @@ async fn overlay_execution_noop() {
 
     let handler_block3 = processor.handler(block3_announce).unwrap();
     let block3_announce = handler_block3.announce;
-    let (_, states, schedule) = handler_block3.transitions.finalize();
+    let (_, states, schedule, _) = handler_block3.transitions.finalize();
     processor
         .db
         .set_announce_program_states(block3_announce_hash, states);

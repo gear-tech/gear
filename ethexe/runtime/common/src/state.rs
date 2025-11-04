@@ -1272,7 +1272,7 @@ impl Storage for MemStorage {
     }
 
     fn message_queue(&self, hash: HashOf<MessageQueue>) -> Option<MessageQueue> {
-        self.read(hash.hash())
+        self.read(hash.inner())
     }
 
     fn write_message_queue(&self, queue: MessageQueue) -> HashOf<MessageQueue> {
@@ -1280,7 +1280,7 @@ impl Storage for MemStorage {
     }
 
     fn waitlist(&self, hash: HashOf<Waitlist>) -> Option<Waitlist> {
-        self.read(hash.hash())
+        self.read(hash.inner())
     }
 
     fn write_waitlist(&self, waitlist: Waitlist) -> HashOf<Waitlist> {
@@ -1288,7 +1288,7 @@ impl Storage for MemStorage {
     }
 
     fn dispatch_stash(&self, hash: HashOf<DispatchStash>) -> Option<DispatchStash> {
-        self.read(hash.hash())
+        self.read(hash.inner())
     }
 
     fn write_dispatch_stash(&self, stash: DispatchStash) -> HashOf<DispatchStash> {
@@ -1296,7 +1296,7 @@ impl Storage for MemStorage {
     }
 
     fn mailbox(&self, hash: HashOf<Mailbox>) -> Option<Mailbox> {
-        self.read(hash.hash())
+        self.read(hash.inner())
     }
 
     fn write_mailbox(&self, mailbox: Mailbox) -> HashOf<Mailbox> {
@@ -1304,7 +1304,7 @@ impl Storage for MemStorage {
     }
 
     fn user_mailbox(&self, hash: HashOf<UserMailbox>) -> Option<UserMailbox> {
-        self.read(hash.hash())
+        self.read(hash.inner())
     }
 
     fn write_user_mailbox(&self, user_mailbox: UserMailbox) -> HashOf<UserMailbox> {
@@ -1312,11 +1312,11 @@ impl Storage for MemStorage {
     }
 
     fn memory_pages(&self, hash: HashOf<MemoryPages>) -> Option<MemoryPages> {
-        self.read(hash.hash())
+        self.read(hash.inner())
     }
 
     fn memory_pages_region(&self, hash: HashOf<MemoryPagesRegion>) -> Option<MemoryPagesRegion> {
-        self.read(hash.hash())
+        self.read(hash.inner())
     }
 
     fn write_memory_pages(&self, pages: MemoryPages) -> HashOf<MemoryPages> {
@@ -1331,7 +1331,7 @@ impl Storage for MemStorage {
     }
 
     fn allocations(&self, hash: HashOf<Allocations>) -> Option<Allocations> {
-        self.read(hash.hash())
+        self.read(hash.inner())
     }
 
     fn write_allocations(&self, allocations: Allocations) -> HashOf<Allocations> {
@@ -1339,7 +1339,7 @@ impl Storage for MemStorage {
     }
 
     fn payload(&self, hash: HashOf<Payload>) -> Option<Payload> {
-        self.read(hash.hash())
+        self.read(hash.inner())
     }
 
     fn write_payload(&self, payload: Payload) -> HashOf<Payload> {
@@ -1347,7 +1347,7 @@ impl Storage for MemStorage {
     }
 
     fn page_data(&self, hash: HashOf<PageBuf>) -> Option<PageBuf> {
-        self.read(hash.hash())
+        self.read(hash.inner())
     }
 
     fn write_page_data(&self, data: PageBuf) -> HashOf<PageBuf> {

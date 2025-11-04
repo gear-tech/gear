@@ -44,7 +44,7 @@ impl SignedInjectedTransaction {
     // TODO kuzmindev: make sure, that MessageId must be created from InjectedTx, not from signed one.
     /// Creates [`MessageId`] from [`InjectedTransaction`].
     pub fn message_id(&self) -> MessageId {
-        MessageId::new(self.hash().hash().0)
+        MessageId::new(self.hash().inner().0)
     }
 }
 
@@ -90,12 +90,37 @@ impl ToDigest for InjectedTransaction {
     }
 }
 
-#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
-pub struct Promise {
+/// [`InjectedTxPromise`] represents the guaranteed reply for [`InjectedTransaction`].
+/// It contains the `payload` and the resulting `state_hash` after processing the transaction.
+///
+/// Note: Validator must ensure the validity of the promise, because of it can be slashed for
+/// providing an invalid promise.
+#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq, Hash)]
+pub struct InjectedTxPromise {
+    /// Hash of the injected transaction this reply corresponds to.
+    pub injected_tx_hash: HashOf<SignedInjectedTransaction>,
     /// Payload of the reply.
     pub payload: Vec<u8>,
-    /// Value attached to the reply.
-    pub value: u128,
+    /// State hash after processing the injected transaction.
+    pub state_hash: H256,
+}
+
+/// Signed wrapped on top of [`InjectedTxPromise`].
+/// It will be shared among other validators as a proof of promise.
+pub type SignedInjectedTxPromise = SignedData<InjectedTxPromise>;
+
+impl ToDigest for InjectedTxPromise {
+    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
+        let Self {
+            injected_tx_hash,
+            payload,
+            state_hash,
+        } = self;
+
+        injected_tx_hash.inner().0.update_hasher(hasher);
+        payload.update_hasher(hasher);
+        state_hash.0.update_hasher(hasher);
+    }
 }
 
 // TODO #4808: branch check must be until genesis block

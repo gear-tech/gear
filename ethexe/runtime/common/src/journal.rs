@@ -16,7 +16,7 @@ use gear_core::{
     env::MessageWaitedType,
     gas::GasAllowanceCounter,
     memory::PageBuf,
-    message::{Dispatch as CoreDispatch, StoredDispatch},
+    message::{Dispatch as CoreDispatch, DispatchKind, StoredDispatch},
     pages::{GearPage, WasmPage, numerated::tree::IntervalsTree},
     reservation::GasReserver,
 };
@@ -205,6 +205,21 @@ impl<S: Storage> JournalHandler for NativeJournalHandler<'_, S> {
 
         let destination = dispatch.destination();
         let dispatch = dispatch.into_stored();
+
+        if self.dispatch_origin == Origin::Injected && dispatch.kind() == DispatchKind::Reply {
+            self.controller
+                .transitions
+                .modify_injected_replies(|injected_replies| {
+                    // Note: update only for known injected messages.
+                    if let Some(maybe_reply) = injected_replies.get_mut(&message_id) {
+                        *maybe_reply = Some((
+                            dispatch.payload_bytes().to_vec(),
+                            // TODO: use here real state hash after processing injected transaction.
+                            H256::zero(),
+                        ));
+                    }
+                });
+        }
 
         if self.controller.transitions.is_program(&destination) {
             let dispatch = Dispatch::from_core_stored(

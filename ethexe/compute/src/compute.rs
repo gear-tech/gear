@@ -116,6 +116,7 @@ impl<P: ProcessorExt> ComputeSubService<P> {
             transitions,
             states,
             schedule,
+            promises,
         } = processing_result;
 
         db.set_announce_outcome(announce_hash, transitions);

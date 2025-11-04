@@ -22,10 +22,7 @@
 
 use crate::{
     Announce, BlockHeader, CodeBlobInfo, Digest, HashOf, ProgramStates, ProtocolTimelines,
-    Schedule, ValidatorsVec,
-    events::BlockEvent,
-    gear::StateTransition,
-    injected::{InjectedTransaction, SignedInjectedTransaction},
+    Schedule, ValidatorsVec, events::BlockEvent, gear::StateTransition,
 };
 use alloc::{
     collections::{BTreeSet, VecDeque},
