@@ -62,6 +62,7 @@ mod utils;
 mod ensure_versions;
 
 pub mod ext {
+    pub use sp_core;
     pub use sp_runtime::{self, codec, scale_info};
 }
 pub mod gp {
