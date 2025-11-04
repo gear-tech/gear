@@ -6664,7 +6664,6 @@ dependencies = [
  "gear-runtime-common",
  "gear-runtime-interface",
  "gear-runtime-primitives",
- "hex",
  "jsonrpsee 0.24.7",
  "log",
  "pallet-gear",

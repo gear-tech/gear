@@ -15,7 +15,6 @@ futures.workspace = true
 jsonrpsee = { workspace = true, features = ["server"] }
 log.workspace = true
 serde = { workspace = true, features = ["derive"] }
-hex.workspace = true
 parking_lot.workspace = true
 parity-scale-codec = { workspace = true, features = ["std", "derive"] }
 

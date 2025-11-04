@@ -198,7 +198,7 @@ pub struct PayloadFilter {
     /// Starting offset within the payload where the pattern must appear.
     pub offset: u32,
     /// Pattern that must be present at the provided offset.
-    pub pattern: Vec<u8>,
+    pub pattern: Bytes,
 }
 
 impl PayloadFilter {
@@ -206,7 +206,7 @@ impl PayloadFilter {
     pub fn new(offset: u32, pattern: impl Into<Vec<u8>>) -> Self {
         Self {
             offset,
-            pattern: pattern.into(),
+            pattern: Bytes(pattern.into()),
         }
     }
 }
