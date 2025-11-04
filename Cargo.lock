@@ -6098,6 +6098,7 @@ dependencies = [
  "hex-literal",
  "log",
  "parity-scale-codec",
+ "sp-core",
  "subxt",
  "thiserror 2.0.12",
  "tokio",
