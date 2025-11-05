@@ -6,7 +6,7 @@ use crate::{
     },
 };
 use alloc::{collections::BTreeMap, vec::Vec};
-use core::{mem, num::NonZero};
+use core::{mem, num::NonZero, panic};
 use core_processor::common::{DispatchOutcome, JournalHandler, JournalNote};
 use ethexe_common::{
     ScheduledTask,
@@ -17,7 +17,7 @@ use gear_core::{
     gas::GasAllowanceCounter,
     memory::PageBuf,
     message::{Dispatch as CoreDispatch, StoredDispatch},
-    pages::{GearPage, WasmPage, numerated::tree::IntervalsTree},
+    pages::{GearPage, WasmPage, num_traits::Zero as _, numerated::tree::IntervalsTree},
     reservation::GasReserver,
 };
 use gear_core_errors::SignalCode;
@@ -42,6 +42,22 @@ impl<S: Storage> NativeJournalHandler<'_, S> {
         dispatch: Dispatch,
         delay: u32,
     ) {
+        if delay.is_zero() && !dispatch.value.is_zero() {
+            let source = dispatch.source;
+            // Decrease sender's balance and value_to_receive
+            self.controller.update_state(source, |state, _, transitions| {
+                state.balance -= dispatch.value;
+                log::error!(
+                    "Program to Program immediate dispatch: decreasing balance of {source} by {} to {}",
+                    dispatch.value,
+                    state.balance
+                );
+                transitions.modify_transition(source, |transition| {
+                    transition.value_to_receive -= i128::try_from(dispatch.value).expect("value fits into i128");
+                });
+            });
+        }
+
         self.controller
             .update_state(destination, |state, storage: &S, transitions| {
                 if let Ok(non_zero_delay) = delay.try_into() {
@@ -206,6 +222,7 @@ impl<S: Storage> JournalHandler for NativeJournalHandler<'_, S> {
         delay: u32,
         reservation: Option<ReservationId>,
     ) {
+        // Reservations are deprecated and gas_limited message dispatches are not supported anymore.
         if reservation.is_some() || dispatch.gas_limit().map(|v| v != 0).unwrap_or(false) {
             unreachable!("deprecated: {dispatch:?}");
         }
@@ -327,16 +344,54 @@ impl<S: Storage> JournalHandler for NativeJournalHandler<'_, S> {
     }
 
     fn send_value(&mut self, from: ActorId, to: ActorId, value: u128, _locked: bool) {
-        // TODO (breathx): implement rest of cases.
-        if self.controller.transitions.state_of(&from).is_some() {
+        if value.is_zero() {
+            // Nothing to do
             return;
         }
 
-        self.controller.update_state(to, |state, _, transitions| {
-            state.balance += value;
+        let src_is_prog = self.controller.transitions.is_program(&from);
+        let dst_is_prog = self.controller.transitions.is_program(&to);
 
-            transitions.modify_transition(to, |transition| transition.value_to_receive += value);
-        });
+        match (src_is_prog, dst_is_prog) {
+            (true, true) => {
+                // Program to Program value transfer
+                self.controller.update_state(to, |state, _, transitions| {
+                    state.balance += value;
+
+                    log::error!(
+                        "Program to Program value transfer: increasing balance of {to} by {} from {} ,resulting in {}",
+                        value,
+                        from,
+                        state.balance
+                    );
+
+                    transitions.modify_transition(to, |transition| transition.value_to_receive += i128::try_from(value).expect("value fits into i128"));
+                });
+            }
+            (false, true) => {
+                // User to Program value transfer
+                self.controller.update_state(to, |state, _, transitions| {
+                    state.balance += value;
+
+                    log::error!(
+                        "User to Program value transfer: increasing balance of {to} by {} from {}, resulting in {}",
+                        value,
+                        from,
+                        state.balance,
+                    );
+
+                    transitions.modify_transition(to, |transition| transition.value_to_receive += i128::try_from(value).expect("value fits into i128"));
+                });
+            }
+            (true, false) => {
+                // Program to User value transfer
+                unreachable!("Program to User value transfer is not supported");
+            }
+            (false, false) => {
+                // User to User value transfer is not supported
+                unreachable!("User to User value transfer is not supported");
+            }
+        }
     }
 
     fn store_new_programs(

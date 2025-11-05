@@ -155,6 +155,7 @@ library Gear {
         bool exited;
         address inheritor;
         uint128 valueToReceive;
+        bool valueToReceiveNegativeSign;
         ValueClaim[] valueClaims;
         Message[] messages;
     }
@@ -283,12 +284,13 @@ library Gear {
         bool exited,
         address inheritor,
         uint128 valueToReceive,
+        bool valueToReceiveNegativeSign,
         bytes32 valueClaimsHash,
         bytes32 messagesHashesHash
     ) internal pure returns (bytes32) {
         return keccak256(
             abi.encodePacked(
-                actor, newStateHash, exited, inheritor, valueToReceive, valueClaimsHash, messagesHashesHash
+                actor, newStateHash, exited, inheritor, valueToReceive, valueToReceiveNegativeSign, valueClaimsHash, messagesHashesHash
             )
         );
     }

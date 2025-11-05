@@ -491,6 +491,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
     {
         bytes memory transitionsHashes;
 
+        // At first perform all transitions, this may increase router balance,
         for (uint256 i = 0; i < _transitions.length; i++) {
             Gear.StateTransition calldata transition = _transitions[i];
 
@@ -498,14 +499,22 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
                 router.protocolData.programs[transition.actorId] != 0, "couldn't perform transition for unknown program"
             );
 
-            if (transition.valueToReceive != 0) {
-                (bool success,) = transition.actorId.call{value: transition.valueToReceive}("");
-                require(success, "transfer to actor failed");
-            }
-
             bytes32 transitionHash = IMirror(transition.actorId).performStateTransition(transition);
 
             transitionsHashes = bytes.concat(transitionsHashes, transitionHash);
+        }
+
+        // Then transfer values to actors, this may decrease router balance.
+        for (uint256 i = 0; i < _transitions.length; i++) {
+            Gear.StateTransition calldata transition = _transitions[i];
+
+            if (transition.valueToReceive != 0 && !transition.valueToReceiveNegativeSign) {
+                (bool success, ) = transition.actorId.call{value: transition.valueToReceive}(
+                    abi.encodeWithSelector(IMirror.f.selector)
+                );
+
+                require(success, "failed to transfer value to mirror during state transition");
+            }
         }
 
         return keccak256(transitionsHashes);

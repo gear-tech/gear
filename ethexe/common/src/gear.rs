@@ -365,6 +365,7 @@ pub struct StateTransition {
     pub exited: bool,
     pub inheritor: ActorId,
     pub value_to_receive: u128,
+    pub value_to_receive_negative_sign: bool,
     pub value_claims: Vec<ValueClaim>,
     pub messages: Vec<Message>,
 }
@@ -378,6 +379,7 @@ impl ToDigest for StateTransition {
             exited,
             inheritor,
             value_to_receive,
+            value_to_receive_negative_sign,
             value_claims,
             messages,
         } = self;
@@ -387,6 +389,7 @@ impl ToDigest for StateTransition {
         hasher.update([*exited as u8]);
         hasher.update(inheritor.to_address_lossy());
         hasher.update(value_to_receive.to_be_bytes());
+        hasher.update([*value_to_receive_negative_sign as u8]);
         hasher.update(value_claims.to_digest());
         hasher.update(messages.to_digest());
     }

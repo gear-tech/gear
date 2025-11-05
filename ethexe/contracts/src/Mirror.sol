@@ -166,10 +166,15 @@ contract Mirror is IMirror {
         implementationSlot.value = _abiInterface;
     }
 
-    // NOTE (breathx): value to receive should be already handled in router.
+    // NOTE (breathx): value to receive should be already handled in router, expect if negative sign is set.
     function performStateTransition(Gear.StateTransition calldata _transition) external onlyRouter returns (bytes32) {
         /// @dev Verify that the transition belongs to this contract.
         require(_transition.actorId == address(this), "actorId must be this contract");
+
+        if (_transition.valueToReceive != 0 && _transition.valueToReceiveNegativeSign) {
+            (bool success, ) = msg.sender.call{value: _transition.valueToReceive}("");
+            require(success, "failed to transfer value to router during state transition");
+        }
 
         /// @dev Send all outgoing messages.
         bytes32 messagesHashesHash = _sendMessages(_transition.messages);
@@ -196,6 +201,7 @@ contract Mirror is IMirror {
             _transition.exited,
             _transition.inheritor,
             _transition.valueToReceive,
+            _transition.valueToReceiveNegativeSign,
             valueClaimsHash,
             messagesHashesHash
         );
@@ -218,17 +224,31 @@ contract Mirror is IMirror {
         return id;
     }
 
+    function f() external payable {}
+
     // TODO (breathx): consider when to emit event: on success in decoder, on failure etc.
     // TODO (breathx): make decoder gas configurable.
     // TODO (breathx): handle if goes to mailbox or not.
     function _sendMessages(Gear.Message[] calldata _messages) private returns (bytes32) {
-        bytes memory messagesHashes;
+        uint256 len = _messages.length;
 
-        for (uint256 i = 0; i < _messages.length; i++) {
+        // we know every Gear.messageHash(...) is 32 bytes, so allocate once
+        bytes memory messagesHashes = new bytes(len * 32);
+
+        uint256 offset;
+        for (uint256 i = 0; i < len; i++) {
             Gear.Message calldata message = _messages[i];
 
-            messagesHashes = bytes.concat(messagesHashes, Gear.messageHash(message));
+            // get the hash for this message
+            bytes32 h = Gear.messageHash(message);
 
+            // store it at messagesHashes[offset : offset+32]
+            assembly ("memory-safe") {
+                mstore(add(add(messagesHashes, 0x20), offset), h)
+            }
+            offset += 32;
+
+            // send the message
             if (message.replyDetails.to == 0) {
                 _sendMailboxedMessage(message);
             } else {

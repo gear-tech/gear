@@ -70,6 +70,11 @@ impl ProcessingHandler {
         match event {
             MirrorRequestEvent::OwnedBalanceTopUpRequested { value } => {
                 self.update_state(actor_id, |state, _, _| {
+                    log::error!(
+                        "Owned balance top-up: increasing balance of {actor_id} by {} ,resulting in {}",
+                        value,
+                        state.balance + value
+                    );
                     state.balance += value;
                 });
             }
