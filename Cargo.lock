@@ -4942,6 +4942,7 @@ dependencies = [
  "ethexe-common",
  "ethexe-db",
  "ethexe-ethereum",
+ "ethexe-network",
  "ethexe-service-utils",
  "ethexe-signer",
  "futures",

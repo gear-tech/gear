@@ -76,7 +76,6 @@ pub(crate) enum TestingEvent {
     Prometheus(PrometheusEvent),
     Rpc(TestingRpcEvent),
     TxPool(TxPoolEvent),
-    Fetching,
 }
 
 impl TestingEvent {
@@ -90,7 +89,6 @@ impl TestingEvent {
             Event::Prometheus(event) => Self::Prometheus(event.clone()),
             Event::Rpc(event) => Self::Rpc(TestingRpcEvent::new(event)),
             Event::TxPool(event) => Self::TxPool(event.clone()),
-            Event::Fetching(_) => Self::Fetching,
         }
     }
 }

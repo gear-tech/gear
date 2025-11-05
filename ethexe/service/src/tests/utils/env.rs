@@ -865,6 +865,20 @@ impl Node {
             .await
             .unwrap();
 
+        let (sender, receiver) = broadcast::channel(2048);
+
+        let blob_loader = LocalBlobLoader::new(self.blob_storage.clone()).into_box();
+
+        let wait_for_network = self.network_bootstrap_address.is_some();
+
+        let network = self.construct_network_service();
+        if let Some(addr) = self.network_address.as_ref() {
+            let peer_id = network.as_ref().unwrap().local_peer_id();
+            self.multiaddr = Some(format!("{addr}/p2p/{peer_id}"));
+        }
+
+        let db_sync_handle = network.as_ref().map(|network| network.db_sync_handle());
+
         let consensus: Pin<Box<dyn ConsensusService>> = {
             if let Some(config) = self.validator_config.as_ref() {
                 let ethereum = Ethereum::new(
@@ -889,25 +903,19 @@ impl Node {
                             commitment_delay_limit: 3,
                             producer_delay: self.block_time / 6,
                         },
+                        db_sync_handle,
                     )
                     .unwrap(),
                 )
             } else {
-                Box::pin(ConnectService::new(self.db.clone(), self.block_time, 3))
+                Box::pin(ConnectService::new(
+                    self.db.clone(),
+                    self.block_time,
+                    3,
+                    db_sync_handle,
+                ))
             }
         };
-
-        let (sender, receiver) = broadcast::channel(2048);
-
-        let blob_loader = LocalBlobLoader::new(self.blob_storage.clone()).into_box();
-
-        let wait_for_network = self.network_bootstrap_address.is_some();
-
-        let network = self.construct_network_service();
-        if let Some(addr) = self.network_address.as_ref() {
-            let peer_id = network.as_ref().unwrap().local_peer_id();
-            self.multiaddr = Some(format!("{addr}/p2p/{peer_id}"));
-        }
 
         let tx_pool_service = TxPoolService::new(self.db.clone());
 
