@@ -42,7 +42,6 @@ use crate::{
 };
 use gear_core::ids::*;
 use gsdk_codegen::storage_fetch;
-use hex::ToHex;
 use sp_core::crypto::Ss58Codec;
 use sp_runtime::AccountId32;
 use std::collections::HashMap;
@@ -390,9 +389,7 @@ impl Api {
                 .await?
                 .fetch_raw(lookup_bytes)
                 .await?
-                .ok_or_else(|| {
-                    FailedPage::new(page, program_id.as_ref().encode_hex()).not_found()
-                })?;
+                .ok_or_else(|| FailedPage::new(page, program_id).not_found())?;
 
             pages.insert(page, encoded_page);
         }

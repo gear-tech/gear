@@ -39,7 +39,6 @@ use gear_core::{
     ids::*,
     memory::{PageBuf, PageBufInner},
 };
-use hex::ToHex;
 use parity_scale_codec::Encode;
 use sp_runtime::AccountId32;
 use std::sync::Arc;
@@ -162,7 +161,7 @@ impl SignerStorage {
                 ],
             );
             let page_buf_inner = PageBufInner::try_from(program_page.1.clone())
-                .map_err(|_| FailedPage::new(*program_page.0, program_id.encode_hex()).invalid())?;
+                .map_err(|_| FailedPage::new(*program_page.0, program_id).invalid())?;
             let value = PageBuf::from_inner(page_buf_inner);
             program_pages_to_set.push((addr, value));
         }

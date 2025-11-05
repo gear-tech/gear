@@ -20,17 +20,18 @@
 
 pub use crate::tx_status::{TxError, TxStatusExt, TxSuccess};
 
+use gear_core::ids::ActorId;
 use subxt::ext::{scale_encode, subxt_rpcs};
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, derive_more::Display)]
 #[display("Page {index} of Program {program}")]
 pub struct FailedPage {
     pub index: u32,
-    pub program: String,
+    pub program: ActorId,
 }
 
 impl FailedPage {
-    pub fn new(index: u32, program: String) -> Self {
+    pub fn new(index: u32, program: ActorId) -> Self {
         Self { index, program }
     }
 
