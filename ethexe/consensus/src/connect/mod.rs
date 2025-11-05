@@ -34,7 +34,11 @@ use ethexe_common::{
     network::{AnnouncesRequest, CheckedAnnouncesResponse},
 };
 use ethexe_db::Database;
-use futures::{Stream, stream::FusedStream};
+use ethexe_network::db_sync::{Handle, HandleFuture, HandleResult, Request, Response};
+use futures::{
+    Stream, StreamExt,
+    stream::{FusedStream, FuturesUnordered},
+};
 use gprimitives::H256;
 use lru::LruCache;
 use std::{
@@ -107,6 +111,11 @@ pub struct ConnectService {
     state: State,
     pending_announces: LruCache<(Address, H256), Announce>,
     output: VecDeque<ConsensusEvent>,
+
+    #[debug(skip)]
+    db_sync_handle: Option<Handle>,
+    #[debug(skip)]
+    db_sync_requests: FuturesUnordered<HandleFuture>,
 }
 
 impl ConnectService {
@@ -116,7 +125,12 @@ impl ConnectService {
     /// - `db`: Database instance.
     /// - `slot_duration`: Duration of each slot in the consensus protocol.
     /// - `commitment_delay_limit`: Maximum allowed delay for announce to be committed.
-    pub fn new(db: Database, slot_duration: Duration, commitment_delay_limit: u32) -> Self {
+    pub fn new(
+        db: Database,
+        slot_duration: Duration,
+        commitment_delay_limit: u32,
+        db_sync_handle: Option<Handle>,
+    ) -> Self {
         Self {
             db,
             slot_duration,
@@ -124,6 +138,8 @@ impl ConnectService {
             state: State::WaitingForBlock,
             pending_announces: LruCache::new(MAX_PENDING_ANNOUNCES),
             output: VecDeque::new(),
+            db_sync_handle,
+            db_sync_requests: FuturesUnordered::new(),
         }
     }
 
@@ -135,6 +151,64 @@ impl ConnectService {
         } else {
             self.state = State::WaitingForAnnounce { block, producer };
         }
+    }
+
+    fn request_announces(&mut self, request: AnnouncesRequest) {
+        let handle = self
+            .db_sync_handle
+            .as_ref()
+            .unwrap_or_else(|| panic!("Requesting announces requires network service"));
+
+        self.db_sync_requests
+            .push(handle.request(Request::Announces(request)));
+    }
+
+    fn handle_db_sync_result(&mut self, result: HandleResult) -> Result<()> {
+        match result {
+            Ok(Response::Announces(response)) => self.on_announces_response(response),
+            Ok(resp) => panic!("unexpected db-sync response: {resp:?}"),
+            Err((_, request)) => {
+                let handle = self
+                    .db_sync_handle
+                    .as_ref()
+                    .unwrap_or_else(|| panic!("Retrying announces requires network service"));
+
+                self.db_sync_requests.push(handle.retry(request));
+                Ok(())
+            }
+        }
+    }
+
+    fn on_announces_response(&mut self, response: CheckedAnnouncesResponse) -> Result<()> {
+        let State::WaitingForMissingAnnounces {
+            block,
+            producer,
+            chain,
+            waiting_request,
+        } = &mut self.state
+        else {
+            return Ok(());
+        };
+
+        let block = block.clone();
+        let producer = *producer;
+
+        let (request, announces) = response.into_parts();
+
+        if waiting_request != &request {
+            return Ok(());
+        }
+
+        announces::propagate_announces(
+            &self.db,
+            mem::take(chain),
+            self.commitment_delay_limit,
+            announces.into_iter().map(|a| (a.to_hash(), a)).collect(),
+        )?;
+
+        self.process_after_propagation(block, producer);
+
+        Ok(())
     }
 }
 
@@ -285,48 +359,32 @@ impl ConsensusService for ConnectService {
     fn receive_validation_reply(&mut self, _reply: BatchCommitmentValidationReply) -> Result<()> {
         Ok(())
     }
-
-    fn receive_announces_response(&mut self, response: CheckedAnnouncesResponse) -> Result<()> {
-        let State::WaitingForMissingAnnounces {
-            block,
-            producer,
-            chain,
-            waiting_request,
-        } = &mut self.state
-        else {
-            return Ok(());
-        };
-
-        let block = block.clone();
-        let producer = *producer;
-
-        let (request, announces) = response.into_parts();
-
-        if waiting_request != &request {
-            return Ok(());
-        }
-
-        announces::propagate_announces(
-            &self.db,
-            mem::take(chain),
-            self.commitment_delay_limit,
-            announces.into_iter().map(|a| (a.to_hash(), a)).collect(),
-        )?;
-
-        self.process_after_propagation(block, producer);
-
-        Ok(())
-    }
 }
 
 impl Stream for ConnectService {
     type Item = Result<ConsensusEvent>;
 
-    fn poll_next(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        if let Some(event) = self.output.pop_front() {
-            Poll::Ready(Some(Ok(event)))
-        } else {
-            Poll::Pending
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        loop {
+            if let Poll::Ready(Some(result)) = self.db_sync_requests.poll_next_unpin(cx) {
+                if let Err(err) = self.handle_db_sync_result(result) {
+                    return Poll::Ready(Some(Err(err)));
+                }
+
+                continue;
+            }
+
+            if let Some(event) = self.output.pop_front() {
+                match event {
+                    ConsensusEvent::RequestAnnounces(request) => {
+                        self.request_announces(request);
+                        continue;
+                    }
+                    _ => return Poll::Ready(Some(Ok(event))),
+                }
+            }
+
+            return Poll::Pending;
         }
     }
 }
@@ -334,5 +392,221 @@ impl Stream for ConnectService {
 impl FusedStream for ConnectService {
     fn is_terminated(&self) -> bool {
         false
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ethexe_common::{
+        Announce, HashOf,
+        db::{BlockMetaStorageRO, BlockMetaStorageRW},
+        mock::{BlockChain, DBMockExt, Mock},
+        network::{AnnouncesRequestUntil, AnnouncesResponse},
+    };
+    use ethexe_db::Database;
+    use ethexe_network::db_sync::{Request, Response, test_utils::HandleStub};
+    use futures::{FutureExt, future::poll_fn};
+    use std::{pin::Pin, time::Duration};
+    use tokio::time::timeout;
+
+    fn collect_announces(
+        chain: &BlockChain,
+        head: HashOf<Announce>,
+        until: &AnnouncesRequestUntil,
+    ) -> Vec<Announce> {
+        let mut announces = Vec::new();
+        match until {
+            AnnouncesRequestUntil::Tail(tail) => {
+                let mut current = head;
+                loop {
+                    let announce = chain
+                        .announces
+                        .get(&current)
+                        .expect("announce not found")
+                        .announce
+                        .clone();
+                    announces.push(announce.clone());
+                    if current == *tail {
+                        break;
+                    }
+                    current = announce.parent;
+                }
+            }
+            AnnouncesRequestUntil::ChainLen(len) => {
+                let mut current = head;
+                for _ in 0..len.get() {
+                    let announce = chain
+                        .announces
+                        .get(&current)
+                        .expect("announce not found")
+                        .announce
+                        .clone();
+                    announces.push(announce.clone());
+                    current = announce.parent;
+                }
+            }
+        }
+        announces.reverse();
+        announces
+    }
+
+    #[tokio::test]
+    async fn applies_announces_response() {
+        let head_index = 5usize;
+        let remote_chain = BlockChain::mock(head_index as u32);
+        let head_hash = remote_chain.blocks.back().unwrap().hash;
+        let remote_db = Database::memory();
+        let remote_chain = remote_chain.setup(&remote_db);
+
+        let local_db = remote_db.clone();
+        let missing_hashes = [
+            remote_chain.blocks.get(head_index - 2).unwrap().hash,
+            remote_chain.blocks.get(head_index - 1).unwrap().hash,
+            head_hash,
+        ];
+        for hash in missing_hashes.iter() {
+            local_db.mutate_block_meta(*hash, |meta| meta.announces = None);
+        }
+        let missing_head = remote_chain.block_top_announce_hash(head_index - 2);
+        local_db.mutate_block_meta(head_hash, |meta| {
+            meta.last_committed_announce = Some(missing_head);
+        });
+        let chain = local_db
+            .collect_blocks_without_announces(head_hash)
+            .expect("missing chain");
+        let last_with_announces = chain.front().expect("non-empty chain").header.parent_hash;
+        let waiting_request =
+            announces::check_for_missing_announces(&local_db, head_hash, last_with_announces, 3)
+                .expect("request check failed")
+                .expect("request expected");
+
+        let mut connect = ConnectService::new(local_db.clone(), Duration::from_secs(1), 3, None);
+
+        connect.state = State::WaitingForMissingAnnounces {
+            block: local_db.simple_block_data(head_hash),
+            producer: Address::default(),
+            chain,
+            waiting_request: waiting_request.clone(),
+        };
+
+        let announces =
+            collect_announces(&remote_chain, waiting_request.head, &waiting_request.until);
+        let response = AnnouncesResponse { announces }
+            .try_into_checked(waiting_request)
+            .expect("valid response");
+        connect
+            .handle_db_sync_result(Ok(Response::Announces(response)))
+            .unwrap();
+
+        assert!(connect.output.is_empty(), "no immediate events expected");
+        match &connect.state {
+            State::WaitingForAnnounce { block, .. } => {
+                assert_eq!(block.hash, head_hash);
+            }
+            other => panic!("unexpected state after response: {other:?}"),
+        }
+        let announces = local_db
+            .block_meta(head_hash)
+            .announces
+            .expect("announces must be propagated");
+        assert!(!announces.is_empty(), "expected announces to be stored");
+    }
+
+    #[tokio::test]
+    async fn fetches_missing_announces_via_handle_stub() {
+        let head_index = 5usize;
+        let remote_chain = BlockChain::mock(head_index as u32);
+        let head_hash = remote_chain.blocks.back().unwrap().hash;
+        let remote_db = Database::memory();
+        let remote_chain = remote_chain.setup(&remote_db);
+
+        let local_db = remote_db.clone();
+        let missing_hashes = [
+            remote_chain.blocks.get(head_index - 2).unwrap().hash,
+            remote_chain.blocks.get(head_index - 1).unwrap().hash,
+            head_hash,
+        ];
+        for hash in missing_hashes.iter() {
+            local_db.mutate_block_meta(*hash, |meta| meta.announces = None);
+        }
+        let last_known = remote_chain.block_top_announce_hash(head_index - 2);
+        local_db.mutate_block_meta(head_hash, |meta| {
+            meta.last_committed_announce = Some(last_known);
+        });
+
+        let mut handle_stub = HandleStub::new();
+        let mut connect = ConnectService::new(
+            local_db.clone(),
+            Duration::from_secs(1),
+            3,
+            Some(handle_stub.handle()),
+        );
+
+        let chain = local_db
+            .collect_blocks_without_announces(head_hash)
+            .expect("missing chain");
+        let last_with_announces = chain.front().expect("non-empty chain").header.parent_hash;
+        let expected_request =
+            announces::check_for_missing_announces(&local_db, head_hash, last_with_announces, 3)
+                .expect("request check failed")
+                .expect("request expected");
+
+        let head_block = local_db.simple_block_data(head_hash);
+        connect.receive_new_chain_head(head_block.clone()).unwrap();
+        connect.receive_synced_block(head_block.hash).unwrap();
+        connect.receive_prepared_block(head_block.hash).unwrap();
+
+        // Drive the service once to flush the request into the db-sync handle.
+        poll_fn(|cx| Pin::new(&mut connect).poll_next(cx)).now_or_never();
+
+        let (_, inner_request, responder) =
+            timeout(Duration::from_secs(1), handle_stub.recv_request())
+                .await
+                .expect("timeout waiting for stub request");
+        let Request::Announces(stub_request) = inner_request else {
+            panic!("unexpected request: {inner_request:?}");
+        };
+        assert_eq!(
+            stub_request, expected_request,
+            "request forwarded to db-sync"
+        );
+
+        let request = stub_request.clone();
+        let announces = collect_announces(&remote_chain, request.head, &request.until);
+        let response = AnnouncesResponse { announces }
+            .try_into_checked(request)
+            .expect("valid response");
+        responder
+            .send(Ok(Response::Announces(response)))
+            .expect("send response");
+
+        // Drive the service once more to process the response future.
+        timeout(
+            Duration::from_secs(1),
+            poll_fn(|cx| {
+                let _ = Pin::new(&mut connect).poll_next(cx);
+                if matches!(connect.state, State::WaitingForAnnounce { .. }) {
+                    Poll::Ready(())
+                } else {
+                    Poll::Pending
+                }
+            }),
+        )
+        .await
+        .expect("timeout processing response");
+
+        match &connect.state {
+            State::WaitingForAnnounce { block, .. } => {
+                assert_eq!(block.hash, head_hash);
+            }
+            state => panic!("unexpected state after response: {state:?}"),
+        }
+
+        let announces = local_db
+            .block_meta(head_hash)
+            .announces
+            .expect("announces must be propagated");
+        assert!(!announces.is_empty(), "expected announces to be stored");
     }
 }

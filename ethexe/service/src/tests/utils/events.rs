@@ -69,7 +69,6 @@ pub(crate) enum TestingEvent {
     BlobLoader(BlobLoaderEvent),
     Prometheus(PrometheusEvent),
     Rpc(TestingRpcEvent),
-    Fetching,
 }
 
 impl TestingEvent {
@@ -82,7 +81,6 @@ impl TestingEvent {
             Event::BlobLoader(event) => Self::BlobLoader(event.clone()),
             Event::Prometheus(event) => Self::Prometheus(event.clone()),
             Event::Rpc(event) => Self::Rpc(TestingRpcEvent::new(event)),
-            Event::Fetching(_) => Self::Fetching,
         }
     }
 }

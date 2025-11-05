@@ -31,8 +31,7 @@ use ethexe_consensus::{
 use ethexe_db::{Database, RocksDatabase};
 use ethexe_ethereum::{Ethereum, router::RouterQuery};
 use ethexe_network::{
-    NetworkEvent, NetworkRuntimeConfig, NetworkService,
-    db_sync::{self, ExternalDataProvider},
+    NetworkEvent, NetworkRuntimeConfig, NetworkService, db_sync::ExternalDataProvider,
 };
 use ethexe_observer::{ObserverEvent, ObserverService};
 use ethexe_processor::{Processor, ProcessorConfig};
@@ -40,9 +39,9 @@ use ethexe_prometheus::{PrometheusEvent, PrometheusService};
 use ethexe_rpc::{InjectedTransactionAcceptance, RpcEvent, RpcServer};
 use ethexe_service_utils::{OptionFuture as _, OptionStreamNext as _};
 use ethexe_signer::Signer;
-use futures::{StreamExt, stream::FuturesUnordered};
+use futures::StreamExt;
 use gprimitives::{ActorId, CodeId, H256};
-use std::{collections::BTreeSet, num::NonZero, pin::Pin, time::Duration};
+use std::{collections::BTreeSet, num::NonZero, pin::Pin, sync::Arc, time::Duration};
 
 pub mod config;
 
@@ -59,7 +58,6 @@ pub enum Event {
     BlobLoader(BlobLoaderEvent),
     Prometheus(PrometheusEvent),
     Rpc(RpcEvent),
-    Fetching(db_sync::HandleResult),
 }
 
 #[derive(Clone)]
@@ -190,41 +188,6 @@ impl Service {
             Self::get_config_public_key(config.node.validator_session, &signer)
                 .with_context(|| "failed to get validator session private key")?;
 
-        let consensus: Pin<Box<dyn ConsensusService>> = {
-            if let Some(pub_key) = validator_pub_key {
-                let ethereum = Ethereum::new(
-                    &config.ethereum.rpc,
-                    config.ethereum.router_address.into(),
-                    signer.clone(),
-                    pub_key.to_address(),
-                )
-                .await?;
-                Box::pin(ValidatorService::new(
-                    signer.clone(),
-                    ethereum.middleware().query(),
-                    ethereum.router(),
-                    db.clone(),
-                    ValidatorConfig {
-                        pub_key,
-                        signatures_threshold: threshold,
-                        slot_duration: config.ethereum.block_time,
-                        block_gas_limit: config.node.block_gas_limit,
-                        // TODO: #4942 commitment_delay_limit is a protocol specific constant
-                        // which better to be configurable by router contract
-                        commitment_delay_limit: COMMITMENT_DELAY_LIMIT,
-                        producer_delay: Duration::ZERO,
-                        router_address: config.ethereum.router_address,
-                    },
-                )?)
-            } else {
-                Box::pin(ConnectService::new(
-                    db.clone(),
-                    config.ethereum.block_time,
-                    3,
-                ))
-            }
-        };
-
         let prometheus = if let Some(config) = config.prometheus.clone() {
             Some(PrometheusService::new(config)?)
         } else {
@@ -256,6 +219,45 @@ impl Service {
             Some(network)
         } else {
             None
+        };
+
+        let db_sync_handle = network.as_ref().map(|network| network.db_sync_handle());
+
+        let consensus: Pin<Box<dyn ConsensusService>> = {
+            if let Some(pub_key) = validator_pub_key {
+                let ethereum = Ethereum::new(
+                    &config.ethereum.rpc,
+                    config.ethereum.router_address.into(),
+                    signer.clone(),
+                    pub_key.to_address(),
+                )
+                .await?;
+                Box::pin(ValidatorService::new(
+                    signer.clone(),
+                    Arc::new(ethereum.middleware().query()),
+                    ethereum.router(),
+                    db.clone(),
+                    ValidatorConfig {
+                        pub_key,
+                        signatures_threshold: threshold,
+                        slot_duration: config.ethereum.block_time,
+                        block_gas_limit: config.node.block_gas_limit,
+                        // TODO: #4942 commitment_delay_limit is a protocol specific constant
+                        // which better to be configurable by router contract
+                        commitment_delay_limit: COMMITMENT_DELAY_LIMIT,
+                        producer_delay: Duration::ZERO,
+                        router_address: config.ethereum.router_address,
+                    },
+                    db_sync_handle,
+                )?)
+            } else {
+                Box::pin(ConnectService::new(
+                    db.clone(),
+                    config.ethereum.block_time,
+                    COMMITMENT_DELAY_LIMIT,
+                    db_sync_handle,
+                ))
+            }
         };
 
         let rpc = config
@@ -371,8 +373,6 @@ impl Service {
             .send(tests::utils::TestingEvent::ServiceStarted)
             .expect("failed to broadcast service STARTED event");
 
-        let mut network_fetcher = FuturesUnordered::new();
-
         loop {
             let event: Event = tokio::select! {
                 event = compute.select_next_some() => event?.into(),
@@ -382,7 +382,6 @@ impl Service {
                 event = blob_loader.select_next_some() => event?.into(),
                 event = prometheus.maybe_next_some() => event.into(),
                 event = rpc.maybe_next_some() => event.into(),
-                fetching_result = network_fetcher.maybe_next_some() => Event::Fetching(fetching_result),
                 _ = rpc_handle.as_mut().maybe() => {
                     log::info!("`RPCWorker` has terminated, shutting down...");
                     continue;
@@ -531,12 +530,8 @@ impl Service {
                     ConsensusEvent::Warning(msg) => {
                         log::warn!("Consensus service warning: {msg}");
                     }
-                    ConsensusEvent::RequestAnnounces(request) => {
-                        let Some(network) = network.as_mut() else {
-                            panic!("Requesting announces is not allowed without network service");
-                        };
-
-                        network_fetcher.push(network.db_sync_handle().request(request.into()));
+                    ConsensusEvent::RequestAnnounces(_) => {
+                        unreachable!("announces requests must be handled within consensus service")
                     }
                     ConsensusEvent::AnnounceAccepted(_) | ConsensusEvent::AnnounceRejected(_) => {
                         // TODO #4940: consider to publish network message
@@ -550,26 +545,6 @@ impl Service {
                         // TODO kuzmindev: also should be sent to network peer, that waits for transaction promise
                     }
                 },
-                Event::Fetching(result) => {
-                    let Some(network) = network.as_mut() else {
-                        unreachable!("Fetching event is impossible without network service");
-                    };
-
-                    match result {
-                        Ok(db_sync::Response::Announces(response)) => {
-                            consensus.receive_announces_response(response)?;
-                        }
-                        Ok(resp) => {
-                            panic!("only announces are requested currently, but got: {resp:?}");
-                        }
-                        Err((err, request)) => {
-                            log::trace!(
-                                "Retry fetching external data for request {request:?} due to error: {err:?}"
-                            );
-                            network_fetcher.push(network.db_sync_handle().retry(request));
-                        }
-                    }
-                }
             }
         }
     }

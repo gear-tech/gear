@@ -955,6 +955,20 @@ impl Node {
             .await
             .unwrap();
 
+        let (sender, receiver) = broadcast::channel(2048);
+
+        let blob_loader = LocalBlobLoader::new(self.blob_storage.clone()).into_box();
+
+        let wait_for_network = self.network_bootstrap_address.is_some();
+
+        let network = self.construct_network_service();
+        if let Some(addr) = self.network_address.as_ref() {
+            let peer_id = network.as_ref().unwrap().local_peer_id();
+            self.multiaddr = Some(format!("{addr}/p2p/{peer_id}"));
+        }
+
+        let db_sync_handle = network.as_ref().map(|network| network.db_sync_handle());
+
         let consensus: Pin<Box<dyn ConsensusService>> = {
             if let Some(config) = self.validator_config.as_ref() {
                 let committer = if let Some(custom_committer) = self.custom_committer.take() {
@@ -987,6 +1001,7 @@ impl Node {
                             producer_delay: self.block_time / 6,
                             router_address: self.eth_cfg.router_address,
                         },
+                        db_sync_handle,
                     )
                     .unwrap(),
                 )
@@ -995,10 +1010,12 @@ impl Node {
                     self.db.clone(),
                     self.block_time,
                     self.commitment_delay_limit,
+                    db_sync_handle,
                 ))
             }
         };
 
+<<<<<<< HEAD
         let validator_address = self
             .validator_config
             .as_ref()
@@ -1029,6 +1046,13 @@ impl Node {
             .service_rpc_config
             .as_ref()
             .map(|service_rpc_config| RpcServer::new(service_rpc_config.clone(), self.db.clone()));
+=======
+        let tx_pool_service = TxPoolService::new(self.db.clone());
+
+        let rpc = self.service_rpc_config.as_ref().map(|service_rpc_config| {
+            RpcService::new(service_rpc_config.clone(), self.db.clone(), None)
+        });
+>>>>>>> e791af611 (added db_sync Handle implementation for consensus)
 
         self.receiver = Some(receiver);
 
