@@ -24,7 +24,7 @@ use anyhow::{Result, anyhow};
 use derive_more::{Debug, Display};
 use ethexe_common::{
     Announce, HashOf, SimpleBlockData, ValidatorsVec,
-    db::{AnnounceStorageRW, BlockMetaStorageRO, BlockMetaStorageRW},
+    db::{AnnounceStorageRW, BlockMetaStorageRO, BlockMetaStorageRW, InjectedStorageRO},
     gear::BatchCommitment,
     injected::{InjectedTransaction, SignedInjectedTransaction},
     network::ValidatorMessage,
@@ -226,11 +226,7 @@ impl Producer {
         let parent =
             utils::parent_main_line_announce(&self.ctx.core.db, self.block.header.parent_hash)?;
 
-        let injected_transactions = self
-            .ctx
-            .core
-            .injected_pool
-            .get_valid_txs_for(self.block.hash);
+        let injected_transactions = self.ctx.core.injected_pool.collect_txs_for(self.block.hash);
 
         let announce = Announce {
             block_hash: self.block.hash,

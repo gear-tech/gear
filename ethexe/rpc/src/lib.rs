@@ -29,7 +29,6 @@ use ethexe_common::{injected::SignedInjectedTransaction, tx_pool::SignedOffchain
 use ethexe_db::Database;
 use ethexe_processor::RunnerConfig;
 use futures::{FutureExt, Stream, stream::FusedStream};
-use gprimitives::H256;
 use jsonrpsee::{
     Methods, RpcModule as JsonrpcModule,
     server::{

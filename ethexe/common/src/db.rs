@@ -22,12 +22,16 @@
 
 use crate::{
     Announce, BlockHeader, CodeBlobInfo, Digest, HashOf, ProgramStates, ProtocolTimelines,
-    Schedule, ValidatorsVec, events::BlockEvent, gear::StateTransition,
+    Schedule, ValidatorsVec,
+    events::BlockEvent,
+    gear::StateTransition,
+    injected::{InjectedTransaction, InjectedTxPromise, SignedInjectedTransaction},
 };
 use alloc::{
     collections::{BTreeSet, VecDeque},
     vec::Vec,
 };
+use alloy_primitives::Signed;
 use gear_core::{
     code::{CodeMetadata, InstrumentedCode},
     ids::{ActorId, CodeId},
@@ -60,6 +64,54 @@ impl BlockMeta {
             last_committed_batch: Some(Default::default()),
             last_committed_announce: Some(Default::default()),
         }
+    }
+}
+
+/// Status of an injected transaction.
+#[derive(Debug, Copy, Clone, Encode, Decode, PartialEq, Eq, Hash)]
+pub enum InjectedTxStatus {
+    Pending,
+    // TODO kuzmindev: by meaning this should be named IncludedInAnnounce and store announce hash instead of block hash,
+    // but for simplicity implementation we use block hash.
+    IncludedInBlock(H256),
+}
+
+/// Metadata associated with an injected transaction.
+#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq, Hash)]
+pub struct InjectedTxWithMeta {
+    /// The transaction itself.
+    pub tx: SignedInjectedTransaction,
+    /// Status of the injected transaction.
+    pub status: InjectedTxStatus,
+    // TODO kuzmindev: Maybe also should add promise here
+    pub promise: Option<InjectedTxPromise>,
+}
+
+impl InjectedTxWithMeta {
+    /// Creates a new [`InjectedTxWithMeta`] instance with `Pending` status.
+    pub fn new_pending(tx: SignedInjectedTransaction) -> Self {
+        Self {
+            tx,
+            status: InjectedTxStatus::Pending,
+            promise: None,
+        }
+    }
+
+    /// Creates a new [`InjectedTxWithMeta`] instance with `IncludedInBlock` status.
+    ///
+    /// This method is used when validator receives
+    /// [`Announce`] containing the corresponding injected transaction.
+    pub fn new_included(tx: SignedInjectedTransaction, block_hash: H256) -> Self {
+        Self {
+            tx,
+            status: InjectedTxStatus::IncludedInBlock(block_hash),
+            promise: None,
+        }
+    }
+
+    /// Returns the hash of the injected transaction.
+    pub fn tx_hash(&self) -> HashOf<InjectedTransaction> {
+        self.tx.data().hash()
     }
 }
 
@@ -122,26 +174,22 @@ pub trait OnChainStorageRW: OnChainStorageRO {
     fn set_block_synced(&self, block_hash: H256);
 }
 
-// #[auto_impl::auto_impl(&)]
-// pub trait InjectedStorageRO {
-//     /// Returns the vector of [`InjectedTransaction`], which validator can use in future announces.
-//     fn get_injected_transactions(&self) -> Option<HashSet<InjectedTransaction>>;
-// }
+#[auto_impl::auto_impl(&)]
+pub trait InjectedStorageRO {
+    fn injected_transaction(&self, hash: HashOf<InjectedTransaction>)
+    -> Option<InjectedTxWithMeta>;
+}
 
-// #[auto_impl::auto_impl(&)]
-// pub trait InjectedStorageRW: InjectedStorageRO {
-//     /// Inserts new [`InjectedTransaction`] into pool.
-//     fn insert_injected_transaction(&self, tx: InjectedTransaction);
+#[auto_impl::auto_impl(&)]
+pub trait InjectedStorageRW: InjectedStorageRO {
+    fn set_injected_transaction(&self, tx: InjectedTxWithMeta);
 
-//     /// Modifies the local pool of injected transactions.
-//     fn modify_injected_transactions<U>(
-//         &self,
-//         f: impl FnOnce(&mut HashSet<InjectedTransaction>) -> U,
-//     ) -> U;
-
-//     /// Removes all [`InjectedTransaction`]s from pool that are present in the given set.
-//     fn release_injected_transactions(&self) -> HashSet<InjectedTransaction>;
-// }
+    fn mutate_injected_tx<U>(
+        &self,
+        hash: HashOf<InjectedTransaction>,
+        f: impl FnOnce(&mut InjectedTxWithMeta) -> U,
+    ) -> Option<U>;
+}
 
 #[derive(Debug, Clone, Default, Encode, Decode, PartialEq, Eq, Hash)]
 pub struct AnnounceMeta {

@@ -472,7 +472,7 @@ impl Service {
                                 }
                                 VerifiedValidatorMessage::InjectedTxPromise(promise) => {
                                     let promise = promise.map(|p| p.payload);
-                                    let (promise, _pub_key) = promise.into_parts();
+                                    let (_promise, _pub_key) = promise.into_parts();
 
                                     // TODO kuzmindev: implement handling injected tx promise in some way
                                 }

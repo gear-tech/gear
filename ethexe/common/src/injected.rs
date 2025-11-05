@@ -34,20 +34,6 @@ pub const BLOCK_HASHES_WINDOW_SIZE: u32 = 32;
 
 pub type SignedInjectedTransaction = SignedData<InjectedTransaction>;
 
-impl SignedInjectedTransaction {
-    /// Returns the hash of [`InjectedTransaction`].
-    pub fn hash(&self) -> HashOf<SignedInjectedTransaction> {
-        // Safety because of implementation.
-        unsafe { HashOf::new(gear_core::utils::hash(&self.data().encode()).into()) }
-    }
-
-    // TODO kuzmindev: make sure, that MessageId must be created from InjectedTx, not from signed one.
-    /// Creates [`MessageId`] from [`InjectedTransaction`].
-    pub fn message_id(&self) -> MessageId {
-        MessageId::new(self.hash().inner().0)
-    }
-}
-
 #[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
 #[derive(Debug, Clone, Encode, Decode, PartialEq, Eq, Hash)]
 pub struct InjectedTransaction {
@@ -90,6 +76,20 @@ impl ToDigest for InjectedTransaction {
     }
 }
 
+impl InjectedTransaction {
+    /// Returns the hash of [`InjectedTransaction`].
+    pub fn hash(&self) -> HashOf<InjectedTransaction> {
+        // Safety because of implementation.
+        unsafe { HashOf::new(gear_core::utils::hash(&self.encode()).into()) }
+    }
+
+    // TODO kuzmindev: make sure, that MessageId must be created from InjectedTx, not from signed one.
+    /// Creates [`MessageId`] from [`InjectedTransaction`].
+    pub fn message_id(&self) -> MessageId {
+        MessageId::new(self.hash().inner().0)
+    }
+}
+
 /// [`InjectedTxPromise`] represents the guaranteed reply for [`InjectedTransaction`].
 /// It contains the `payload` and the resulting `state_hash` after processing the transaction.
 ///
@@ -98,7 +98,7 @@ impl ToDigest for InjectedTransaction {
 #[derive(Debug, Clone, Encode, Decode, PartialEq, Eq, Hash)]
 pub struct InjectedTxPromise {
     /// Hash of the injected transaction this reply corresponds to.
-    pub injected_tx_hash: HashOf<SignedInjectedTransaction>,
+    pub tx_hash: HashOf<InjectedTransaction>,
     /// Payload of the reply.
     pub payload: Vec<u8>,
     /// State hash after processing the injected transaction.
@@ -112,12 +112,12 @@ pub type SignedInjectedTxPromise = SignedData<InjectedTxPromise>;
 impl ToDigest for InjectedTxPromise {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
         let Self {
-            injected_tx_hash,
+            tx_hash,
             payload,
             state_hash,
         } = self;
 
-        injected_tx_hash.inner().0.update_hasher(hasher);
+        tx_hash.inner().0.update_hasher(hasher);
         payload.update_hasher(hasher);
         state_hash.0.update_hasher(hasher);
     }

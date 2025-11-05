@@ -20,8 +20,8 @@ use crate::{ComputeError, ProcessorExt, Result, service::SubService};
 use ethexe_common::{
     Announce, HashOf,
     db::{
-        AnnounceStorageRO, AnnounceStorageRW, BlockMetaStorageRO, LatestDataStorageRW,
-        OnChainStorageRO,
+        AnnounceStorageRO, AnnounceStorageRW, BlockMetaStorageRO, InjectedStorageRW,
+        LatestDataStorageRW, OnChainStorageRO,
     },
 };
 use ethexe_db::Database;
@@ -124,6 +124,13 @@ impl<P: ProcessorExt> ComputeSubService<P> {
         db.set_announce_schedule(announce_hash, schedule);
         db.mutate_announce_meta(announce_hash, |meta| {
             meta.computed = true;
+        });
+
+        // Add promises for injected transactions.
+        promises.into_iter().for_each(|promise| {
+            db.mutate_injected_tx(promise.tx_hash, |tx_with_meta| {
+                tx_with_meta.promise = Some(promise);
+            });
         });
 
         db.mutate_latest_data(|data| {

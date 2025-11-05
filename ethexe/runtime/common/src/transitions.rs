@@ -209,10 +209,10 @@ impl InBlockTransitions {
             .filter_map(|(message_id, maybe_reply)| {
                 maybe_reply.map(|(payload, state_hash)| {
                     // Safety: we trust that message_id was created from a valid SignedInjectedTransaction.
-                    let injected_tx_hash = unsafe { HashOf::new(message_id.into_bytes().into()) };
+                    let tx_hash = unsafe { HashOf::new(message_id.into_bytes().into()) };
 
                     InjectedTxPromise {
-                        injected_tx_hash,
+                        tx_hash,
                         payload,
                         state_hash,
                     }

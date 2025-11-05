@@ -24,7 +24,10 @@ use async_trait::async_trait;
 use ethexe_common::{
     Address, Announce, Digest, HashOf, ProtocolTimelines, SimpleBlockData, ToDigest, ValidatorsVec,
     consensus::BatchCommitmentValidationRequest,
-    db::{BlockMetaStorageRO, OnChainStorageRO},
+    db::{
+        BlockMetaStorageRO, InjectedStorageRW, InjectedTxStatus, InjectedTxWithMeta,
+        OnChainStorageRO,
+    },
     ecdsa::PublicKey,
     gear::{
         BatchCommitment, ChainCommitment, CodeCommitment, RewardsCommitment, ValidatorsCommitment,
@@ -36,7 +39,7 @@ use ethexe_ethereum::middleware::ElectionProvider;
 use ethexe_signer::Signer;
 use gprimitives::H256;
 use hashbrown::{HashMap, HashSet};
-use std::{sync::Arc, time::Duration};
+use std::{hash::Hash, sync::Arc, time::Duration};
 use tokio::sync::RwLock;
 
 #[derive(derive_more::Debug)]
@@ -290,20 +293,21 @@ impl ValidatorCore {
     pub fn process_injected_transaction(&mut self, tx: SignedInjectedTransaction) -> Result<()> {
         // Because of implementation main service [`ethexe-service::Service`] guarantees that
         // in current step `tx.recipient` equals to current validator's address.
-        // self.db
-        // tracing::trace!(tx = %tx, "Receive new injected transaction");
-        self.injected_pool.insert_tx(tx);
+
+        tracing::trace!(tx = ?tx, "Receive new injected transaction");
+        self.injected_pool.handle_tx(tx);
         Ok(())
     }
 }
 
+/// [`InjectedTxPool`] is a local pool of injected transactions, which validator can include in announces.
 #[derive(Clone)]
 pub(crate) struct InjectedTxPool<DB = Database> {
-    inner: HashSet<SignedInjectedTransaction>,
+    inner: HashSet<HashOf<InjectedTransaction>>,
     db: DB,
 }
 
-impl<DB: OnChainStorageRO> InjectedTxPool<DB> {
+impl<DB: OnChainStorageRO + InjectedStorageRW> InjectedTxPool<DB> {
     pub fn new(db: DB) -> Self {
         Self {
             inner: HashSet::new(),
@@ -311,26 +315,40 @@ impl<DB: OnChainStorageRO> InjectedTxPool<DB> {
         }
     }
 
-    pub fn insert_tx(&mut self, tx: SignedInjectedTransaction) {
-        // TODO: maybe also should add into database
-        self.inner.insert(tx);
+    pub fn handle_tx(&mut self, tx: SignedInjectedTransaction) {
+        self.inner.insert(tx.data().hash());
+        self.db
+            .set_injected_transaction(InjectedTxWithMeta::new_pending(tx));
     }
 
-    pub fn get_valid_txs_for(&self, block_hash: H256) -> Vec<SignedInjectedTransaction> {
-        let mut valid_txs = vec![];
-        // TODO kuzmindev: add mechanism to check that tx was successfully added in previous announces
-        // or was added by other validators.
-        for tx in self.inner.iter() {
-            match check_mortality_at(&self.db, tx, block_hash) {
+    /// Returns the injected transactions that are valid and can be included to announce.
+    pub fn collect_txs_for(&self, block_hash: H256) -> Vec<SignedInjectedTransaction> {
+        let mut txs_for_block = vec![];
+
+        // TODO kuzmindev: add mechanism to check that tx may added in previous announces.
+        for tx_hash in self.inner.iter() {
+            let tx_with_meta = match self.db.injected_transaction(*tx_hash) {
+                Some(tx) => tx,
+                None => continue,
+            };
+
+            // Ignoring already included transactions.
+            // TODO: check that tx was included in the same chain of announces.
+            if matches!(tx_with_meta.status, InjectedTxStatus::IncludedInBlock(_)) {
+                continue;
+            }
+
+            match check_mortality_at(&self.db, &tx_with_meta.tx, block_hash) {
                 Ok(valid) if valid => {
-                    valid_txs.push(tx.clone());
+                    txs_for_block.push(tx_with_meta.tx);
                 }
                 _ => {
                     continue;
                 }
             }
         }
-        valid_txs
+
+        txs_for_block
     }
 }
 

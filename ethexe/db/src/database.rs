@@ -27,12 +27,13 @@ use ethexe_common::{
     ValidatorsVec,
     db::{
         AnnounceMeta, AnnounceStorageRO, AnnounceStorageRW, BlockMeta, BlockMetaStorageRO,
-        BlockMetaStorageRW, CodesStorageRO, CodesStorageRW, HashStorageRO, LatestData,
-        LatestDataStorageRO, LatestDataStorageRW, OnChainStorageRO, OnChainStorageRW,
+        BlockMetaStorageRW, CodesStorageRO, CodesStorageRW, HashStorageRO, InjectedStorageRO,
+        InjectedStorageRW, InjectedTxWithMeta, LatestData, LatestDataStorageRO,
+        LatestDataStorageRW, OnChainStorageRO, OnChainStorageRW,
     },
     events::BlockEvent,
     gear::StateTransition,
-    injected::InjectedTransaction,
+    injected::{InjectedTransaction, SignedInjectedTransaction},
     tx_pool::SignedOffchainTransaction,
 };
 
@@ -48,7 +49,10 @@ use gear_core::{
 };
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
-use std::collections::{BTreeSet, HashSet};
+use std::{
+    collections::{BTreeSet, HashSet},
+    hash::Hash,
+};
 
 #[repr(u64)]
 enum Key {
@@ -69,7 +73,7 @@ enum Key {
     CodeUploadInfo(CodeId) = 10,
     CodeValid(CodeId) = 11,
 
-    InjectedTransactions = 12,
+    InjectedTransaction(HashOf<InjectedTransaction>) = 12,
 
     LatestData = 13,
     Timelines = 14,
@@ -99,6 +103,8 @@ impl Key {
             | Self::AnnounceSchedule(hash)
             | Self::AnnounceMeta(hash) => [prefix.as_ref(), hash.inner().as_ref()].concat(),
 
+            Self::InjectedTransaction(hash) => [prefix.as_ref(), hash.inner().as_ref()].concat(),
+
             Self::ProgramToCodeId(program_id) => [prefix.as_ref(), program_id.as_ref()].concat(),
 
             Self::CodeMetadata(code_id)
@@ -111,9 +117,7 @@ impl Key {
                 code_id.as_ref(),
             ]
             .concat(),
-            Self::InjectedTransactions | Self::LatestData | Self::Timelines => {
-                prefix.as_ref().to_vec()
-            }
+            Self::LatestData | Self::Timelines => prefix.as_ref().to_vec(),
         }
     }
 }
@@ -167,21 +171,6 @@ impl Database {
     pub fn write_hash(&self, data: &[u8]) -> H256 {
         self.cas.write(data)
     }
-
-    // pub fn get_offchain_transaction(&self, tx_hash: H256) -> Option<SignedOffchainTransaction> {
-    //     self.kv
-    //         .get(&Key::SignedTransaction(tx_hash).to_bytes())
-    //         .map(|data| {
-    //             Decode::decode(&mut data.as_slice())
-    //                 .expect("failed to data into `SignedTransaction`")
-    //         })
-    // }
-
-    // pub fn set_offchain_transaction(&self, tx: SignedOffchainTransaction) {
-    //     let tx_hash = tx.tx_hash();
-    //     self.kv
-    //         .put(&Key::SignedTransaction(tx_hash).to_bytes(), tx.encode());
-    // }
 
     fn with_small_data<R>(
         &self,
@@ -554,6 +543,47 @@ impl OnChainStorageRW for Database {
             &Key::ValidatorSet(era_index).to_bytes(),
             validator_set.encode(),
         );
+    }
+}
+
+impl InjectedStorageRO for Database {
+    fn injected_transaction(
+        &self,
+        hash: HashOf<InjectedTransaction>,
+    ) -> Option<ethexe_common::db::InjectedTxWithMeta> {
+        self.kv
+            .get(&Key::InjectedTransaction(hash).to_bytes())
+            .map(|data| {
+                InjectedTxWithMeta::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `InjectedTxWithMeta`")
+            })
+    }
+}
+
+impl InjectedStorageRW for Database {
+    fn set_injected_transaction(&self, tx_with_meta: InjectedTxWithMeta) {
+        let tx_hash = tx_with_meta.tx_hash();
+
+        tracing::trace!("Set injected transaction {tx_hash}");
+        self.kv.put(
+            &Key::InjectedTransaction(tx_hash).to_bytes(),
+            tx_with_meta.encode(),
+        );
+    }
+
+    fn mutate_injected_tx<U>(
+        &self,
+        hash: HashOf<InjectedTransaction>,
+        f: impl FnOnce(&mut InjectedTxWithMeta) -> U,
+    ) -> Option<U> {
+        let mut tx = self.injected_transaction(hash)?;
+
+        let r = Some(f(&mut tx));
+        self.set_injected_transaction(tx);
+
+        tracing::trace!("Mutate injected transaction {hash}");
+
+        r
     }
 }
 

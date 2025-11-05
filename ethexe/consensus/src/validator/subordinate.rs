@@ -26,7 +26,7 @@ use derive_more::{Debug, Display};
 use ethexe_common::{
     Address, Announce, HashOf, SimpleBlockData,
     consensus::{VerifiedAnnounce, VerifiedValidationRequest},
-    db::{AnnounceStorageRW, BlockMetaStorageRW},
+    db::{AnnounceStorageRW, BlockMetaStorageRW, InjectedStorageRW, InjectedTxWithMeta},
 };
 use gprimitives::H256;
 use std::mem;
@@ -231,6 +231,12 @@ impl Subordinate {
             .mutate_block_meta(announce.block_hash, |meta| {
                 meta.announces.get_or_insert_default().insert(announce_hash);
             });
+
+        // Also, before sending announce for computation we set injected txs in database.
+        announce.injected_transactions.iter().for_each(|tx| {
+            let tx_with_meta = InjectedTxWithMeta::new_included(tx.clone(), announce.block_hash);
+            self.ctx.core.db.set_injected_transaction(tx_with_meta);
+        });
 
         self.ctx.output(ConsensusEvent::ComputeAnnounce(announce));
         self.state = State::WaitingAnnounceComputed { announce_hash };
