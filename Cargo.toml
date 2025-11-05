@@ -168,8 +168,6 @@ region = "3.0.2"
 reqwest = { version = "0.12.8", default-features = false }
 roast-secp256k1-evm = { version = "0.1.0", git = "https://github.com/gear-tech/roast", branch = "gear-v0.1.0" }
 scale-info = { version = "2.11", default-features = false }
-scale-decode = "0.16.0"
-scale-encode = "0.10.0"
 serde = { version = "^1", default-features = false }
 serde_json = { version = "1.0.135", default-features = false, features = [
     "alloc",
@@ -562,7 +560,6 @@ ignored = [
     "frame-system-benchmarking",
     "frame-system-rpc-runtime-api",
     "vara-runtime",
-    "scale-decode",
     "scale-info",
     "parity-scale-codec",
     "pallet-authorship",
