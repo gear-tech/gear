@@ -132,15 +132,6 @@ impl OngoingResponses {
         let mut announces = VecDeque::new();
         let mut announce_hash = head;
         for _ in 0..MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE.get() {
-            let Some(announce) = db.announce(announce_hash) else {
-                return Err(ProcessAnnounceError::AnnounceMissing {
-                    hash: announce_hash,
-                });
-            };
-
-            let parent = announce.parent;
-            announces.push_front(announce);
-
             match until {
                 AnnouncesRequestUntil::Tail(tail) if announce_hash == tail => {
                     return Ok(AnnouncesResponse {
@@ -170,7 +161,13 @@ impl OngoingResponses {
                 }
             }
 
-            announce_hash = parent;
+            let Some(announce) = db.announce(announce_hash) else {
+                return Err(ProcessAnnounceError::AnnounceMissing {
+                    hash: announce_hash,
+                });
+            };
+            announce_hash = announce.parent;
+            announces.push_front(announce);
         }
 
         // TODO #4874: use peer score to punish the peer for such requests
@@ -397,7 +394,9 @@ mod tests {
 
         let tail = make_announce(10, HashOf::random());
         let tail_hash = db.set_announce(tail.clone());
-        let head = make_announce(11, tail_hash);
+        let middle = make_announce(11, tail_hash);
+        let middle_hash = db.set_announce(middle.clone());
+        let head = make_announce(12, middle_hash);
         let head_hash = db.set_announce(head.clone());
 
         let genesis = HashOf::random();
@@ -410,7 +409,7 @@ mod tests {
         };
 
         let response = OngoingResponses::process_announce_request(&db, request).unwrap();
-        assert_eq!(response.announces, vec![tail, head]);
+        assert_eq!(response.announces, vec![middle, head]);
         response.try_into_checked(request).unwrap();
     }
 

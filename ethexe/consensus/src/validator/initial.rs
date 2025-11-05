@@ -23,7 +23,7 @@ use super::{
     subordinate::Subordinate,
 };
 use crate::{
-    announces::{self, DBExt},
+    announces::{self, DBAnnouncesExt},
     utils,
 };
 use anyhow::{Result, anyhow};
@@ -347,7 +347,6 @@ mod tests {
 
         let response = AnnouncesResponse {
             announces: vec![
-                chain.announces.get(&tail).unwrap().announce.clone(),
                 chain
                     .announces
                     .get(&chain.block_top_announce_hash(last - 3))
@@ -609,12 +608,6 @@ mod tests {
 
         let response = AnnouncesResponse {
             announces: vec![
-                chain
-                    .announces
-                    .get(&chain.block_top_announce_hash(last - 8))
-                    .unwrap()
-                    .announce
-                    .clone(),
                 chain
                     .announces
                     .get(&chain.block_top_announce_hash(last - 7))
