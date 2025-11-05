@@ -127,5 +127,5 @@ interface IMirror {
 
     function performStateTransition(Gear.StateTransition calldata transition) external returns (bytes32);
 
-    function f() external payable;
+    function ownedBalanceTopUpFromRouter() external payable;
 }

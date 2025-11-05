@@ -25,4 +25,3 @@ seed.bin
 .direnv/
 .ipynb_checkpoints
 .jupyter
-ethexe/contracts/bin

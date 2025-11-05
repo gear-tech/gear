@@ -290,7 +290,14 @@ library Gear {
     ) internal pure returns (bytes32) {
         return keccak256(
             abi.encodePacked(
-                actor, newStateHash, exited, inheritor, valueToReceive, valueToReceiveNegativeSign, valueClaimsHash, messagesHashesHash
+                actor,
+                newStateHash,
+                exited,
+                inheritor,
+                valueToReceive,
+                valueToReceiveNegativeSign,
+                valueClaimsHash,
+                messagesHashesHash
             )
         );
     }

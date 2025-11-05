@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.28;
 
+import {Hashes} from "frost-secp256k1-evm/utils/cryptography/Hashes.sol";
 import {Memory} from "frost-secp256k1-evm/utils/Memory.sol";
 import {ERC1967Utils} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Utils.sol";
 import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
@@ -172,7 +173,7 @@ contract Mirror is IMirror {
         require(_transition.actorId == address(this), "actorId must be this contract");
 
         if (_transition.valueToReceive != 0 && _transition.valueToReceiveNegativeSign) {
-            (bool success, ) = msg.sender.call{value: _transition.valueToReceive}("");
+            (bool success,) = router.call{value: _transition.valueToReceive}("");
             require(success, "failed to transfer value to router during state transition");
         }
 
@@ -224,7 +225,7 @@ contract Mirror is IMirror {
         return id;
     }
 
-    function f() external payable {}
+    function ownedBalanceTopUpFromRouter() external payable onlyRouter {}
 
     // TODO (breathx): consider when to emit event: on success in decoder, on failure etc.
     // TODO (breathx): make decoder gas configurable.
@@ -233,19 +234,18 @@ contract Mirror is IMirror {
         uint256 len = _messages.length;
 
         // we know every Gear.messageHash(...) is 32 bytes, so allocate once
-        bytes memory messagesHashes = new bytes(len * 32);
+        uint256 messagesHashesLen = len * 32;
+        uint256 messagesHashesMemPtr = Memory.allocate(messagesHashesLen);
 
-        uint256 offset;
+        uint256 offset = 0;
+
         for (uint256 i = 0; i < len; i++) {
             Gear.Message calldata message = _messages[i];
 
             // get the hash for this message
             bytes32 h = Gear.messageHash(message);
-
             // store it at messagesHashes[offset : offset+32]
-            assembly ("memory-safe") {
-                mstore(add(add(messagesHashes, 0x20), offset), h)
-            }
+            Memory.writeWord(messagesHashesMemPtr, offset, uint256(h));
             offset += 32;
 
             // send the message
@@ -256,7 +256,7 @@ contract Mirror is IMirror {
             }
         }
 
-        return keccak256(messagesHashes);
+        return bytes32(Hashes.efficientKeccak256(messagesHashesMemPtr, 0, messagesHashesLen));
     }
 
     /// @dev Value never sent since goes to mailbox.

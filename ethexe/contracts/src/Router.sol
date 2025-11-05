@@ -509,8 +509,8 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
             Gear.StateTransition calldata transition = _transitions[i];
 
             if (transition.valueToReceive != 0 && !transition.valueToReceiveNegativeSign) {
-                (bool success, ) = transition.actorId.call{value: transition.valueToReceive}(
-                    abi.encodeWithSelector(IMirror.f.selector)
+                (bool success,) = transition.actorId.call{value: transition.valueToReceive}(
+                    abi.encodeWithSelector(IMirror.ownedBalanceTopUpFromRouter.selector)
                 );
 
                 require(success, "failed to transfer value to mirror during state transition");
