@@ -18,16 +18,20 @@
 
 use crate::{TxInBlock, TxStatus};
 
-/// Sealed trait for [`TxStatus`].
-pub trait IsTxStatus {}
+mod private {
+    use crate::TxStatus;
+
+    /// Sealed trait marker.
+    pub trait Sealed {}
+
+    impl Sealed for TxStatus {}
+}
 
 /// Extension trait for [`TxStatus`] that adds
 /// conversion to [`Result<TxSuccess, TxError>`].
-pub trait TxStatusExt: IsTxStatus {
+pub trait TxStatusExt: private::Sealed {
     fn into_result(self) -> Result<TxSuccess, TxError>;
 }
-
-impl IsTxStatus for TxStatus {}
 
 impl TxStatusExt for TxStatus {
     fn into_result(self) -> Result<TxSuccess, TxError> {
