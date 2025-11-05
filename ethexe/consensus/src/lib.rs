@@ -89,21 +89,20 @@ pub trait ConsensusService:
 )]
 pub enum ConsensusEvent {
     /// Announce from producer was accepted
-    #[from(skip)]
     AnnounceAccepted(HashOf<Announce>),
     /// Announce from producer was rejected
-    #[from(skip)]
     AnnounceRejected(HashOf<Announce>),
     /// Outer service have to compute announce
+    #[from]
     ComputeAnnounce(Announce),
     /// Outer service have to publish signed message
+    #[from]
     PublishMessage(SignedValidatorMessage),
     /// Outer service have to request announces
+    #[from]
     RequestAnnounces(AnnouncesRequest),
     /// Informational event: commitment was successfully submitted, tx hash is provided
-    #[from(skip)]
     CommitmentSubmitted(H256),
     /// Informational event: during service processing, a warning situation was detected
-    #[from(skip)]
     Warning(String),
 }

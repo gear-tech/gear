@@ -112,8 +112,7 @@ impl StateHandler for Participant {
                         .output(ConsensusEvent::PublishMessage(reply.into()));
                 }
                 Ok(ValidationStatus::Rejected { request, reason }) => {
-                    self.ctx
-                        .warning(format!("reject validation request {request:?} : {reason}",));
+                    self.warning(format!("reject validation request {request:?} : {reason}"));
                 }
                 Err(err) => return Err(err),
             }

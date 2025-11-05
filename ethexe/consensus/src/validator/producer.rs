@@ -104,8 +104,8 @@ impl StateHandler for Producer {
         match &mut self.state {
             State::Delay { timer: Some(timer) } => {
                 if timer.poll_unpin(cx).is_ready() {
-                    self.create_announce()?;
-                    return Ok((Poll::Ready(()), self.into()));
+                    let state = self.produce_announce()?;
+                    return Ok((Poll::Ready(()), state));
                 }
             }
             State::AggregateBatchCommitment { future } => match future.poll_unpin(cx) {
@@ -155,7 +155,7 @@ impl Producer {
         .into())
     }
 
-    fn create_announce(&mut self) -> Result<()> {
+    fn produce_announce(mut self) -> Result<ValidatorState> {
         if !self.ctx.core.db.block_meta(self.block.hash).prepared {
             return Err(anyhow!(
                 "Impossible, block must be prepared before creating announce"
@@ -176,17 +176,19 @@ impl Producer {
             off_chain_transactions: Vec::new(),
         };
 
-        let announce_hash = match self.ctx.core.db.include_announce(announce.clone()) {
-            Ok(announce_hash) => announce_hash,
-            Err(err) => {
-                // Can happen in case of abuse from rpc - the same eth block is announced multiple times,
-                // then the same announce is created multiple times, and include_announce would fail.
-                self.warning(format!(
-                    "Failed to include announce created {announce:?}: {err}"
-                ));
-                return Ok(());
-            }
-        };
+        let (announce_hash, newly_included) =
+            self.ctx.core.db.include_announce(announce.clone())?;
+        if !newly_included {
+            // This can happen in case of abuse from rpc - the same eth block is announced multiple times,
+            // then the same announce is created multiple times, and include_announce would return already included.
+            // In this case we just go to initial state, without publishing anything and computing announce again.
+            self.warning(format!(
+                "Announce created {announce:?} is already included at {}",
+                self.block.hash
+            ));
+
+            return Initial::create(self.ctx);
+        }
 
         let message = ValidatorMessage {
             block: self.block.hash,
@@ -203,7 +205,7 @@ impl Producer {
             .output(ConsensusEvent::PublishMessage(message.into()));
         self.ctx.output(ConsensusEvent::ComputeAnnounce(announce));
 
-        Ok(())
+        Ok(self.into())
     }
 }
 
@@ -418,6 +420,8 @@ mod tests {
         assert!(batch.batch().chain_commitment.is_none());
         assert_eq!(batch.batch().code_commitments.len(), 2);
     }
+
+    // TODO: test that zero timer works as expected
 
     #[async_trait]
     trait ProducerExt: Sized {

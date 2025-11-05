@@ -1603,7 +1603,7 @@ async fn announces_conflicts() {
             })
             .await;
 
-        // Validators 1..=6 must not accept this announce, so computation task should never happen
+        // Validators 1..=6 must reject this announce
         futures::future::join_all(listeners.iter_mut().map(|l| {
             l.apply_until(|event| {
                 Ok(matches!(
@@ -1636,8 +1636,7 @@ async fn announces_conflicts() {
             assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Manual));
         });
 
-        // Wait till all validators accept announce for the latest block,
-        // which is from validator 2, because commitment forces anvil to produce new block.
+        // Wait till all validators accept announce for the latest block
         let latest_block = env.latest_block().await.hash;
         let mut latest_computed_announce_hash = HashOf::zero();
         for listener in &mut listeners {
@@ -1703,11 +1702,7 @@ async fn announces_conflicts() {
             })
             .await;
         for listener in &mut listeners {
-            let announce_hash = listener.wait_for_announce_computed(announce6_hash).await;
-            assert_eq!(
-                announce_hash, announce_hash,
-                "Announce from validator 6 must be accepted"
-            );
+            listener.wait_for_announce_computed(announce6_hash).await;
         }
 
         // Commitment does not sent by validator 6,
@@ -1736,7 +1731,7 @@ async fn announces_conflicts() {
             })
             .await;
 
-        // Validators 1..=5 must reject this announce, so computation task should never happen
+        // Validators 1..=5 must reject this announce
         futures::future::join_all(listeners.iter_mut().map(|l| {
             l.apply_until(|event| {
                 Ok(matches!(

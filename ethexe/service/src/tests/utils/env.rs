@@ -1002,7 +1002,7 @@ impl Node {
             .expect("infallible; always ok")
     }
 
-    pub fn construct_network_service(&self) -> Option<NetworkService> {
+    fn construct_network_service(&self) -> Option<NetworkService> {
         assert!(
             self.running_service_handle.is_none(),
             "Network service is already running"

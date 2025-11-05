@@ -278,9 +278,11 @@ where
 
     fn into_context(self) -> ValidatorContext;
 
-    fn warning(&mut self, warning: String) {
+    fn warning(&mut self, warning: impl fmt::Display) {
         let warning = format!("{self} - {warning}");
-        self.context_mut().warning(warning);
+        self.context_mut()
+            .output
+            .push_back(ConsensusEvent::Warning(warning));
     }
 
     fn process_new_head(self, block: SimpleBlockData) -> Result<ValidatorState> {
@@ -368,7 +370,7 @@ impl StateHandler for ValidatorState {
         delegate_call!(self => into_context())
     }
 
-    fn warning(&mut self, warning: String) {
+    fn warning(&mut self, warning: impl fmt::Display) {
         delegate_call!(self => warning(warning))
     }
 
@@ -505,10 +507,6 @@ struct ValidatorContext {
 }
 
 impl ValidatorContext {
-    pub fn warning(&mut self, warning: String) {
-        self.output.push_back(ConsensusEvent::Warning(warning));
-    }
-
     pub fn output(&mut self, event: impl Into<ConsensusEvent>) {
         self.output.push_back(event.into());
     }
