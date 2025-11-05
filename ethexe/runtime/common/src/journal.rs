@@ -10,7 +10,7 @@ use core::{mem, num::NonZero, panic};
 use core_processor::common::{DispatchOutcome, JournalHandler, JournalNote};
 use ethexe_common::{
     ScheduledTask,
-    gear::{Message, Origin},
+    gear::{Message, Origin, ValueClaim},
 };
 use gear_core::{
     env::MessageWaitedType,
@@ -108,6 +108,22 @@ impl<S: Storage> NativeJournalHandler<'_, S> {
 
         self.controller
             .update_state(dispatch.source(), |state, storage, transitions| {
+                let value = dispatch.value();
+
+                if value != 0 {
+                    state.balance = state.balance.checked_sub(value).expect(
+                        "Insufficient balance: underflow in state.balance -= dispatch.value()",
+                    );
+
+                    transitions.modify_transition(dispatch.source(), |transition| {
+                        transition.claims.push(ValueClaim {
+                            message_id: dispatch.id(),
+                            destination: dispatch.destination(),
+                            value,
+                        });
+                    });
+                }
+
                 if let Ok(non_zero_delay) = delay.try_into() {
                     let expiry = transitions.schedule_task(
                         non_zero_delay,
