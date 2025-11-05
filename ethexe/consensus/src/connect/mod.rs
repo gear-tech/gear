@@ -23,7 +23,7 @@
 use crate::{
     BatchCommitmentValidationReply, ConsensusEvent, ConsensusService,
     announces::{self, AnnounceStatus, DBAnnouncesExt},
-    utils,
+    utils::{self, AnnouncesRequestState},
 };
 use anyhow::{Result, anyhow};
 use ethexe_common::{
@@ -34,11 +34,8 @@ use ethexe_common::{
     network::{AnnouncesRequest, CheckedAnnouncesResponse},
 };
 use ethexe_db::Database;
-use ethexe_network::db_sync::{Handle, HandleFuture, HandleResult, Request, Response};
-use futures::{
-    Stream, StreamExt,
-    stream::{FusedStream, FuturesUnordered},
-};
+use ethexe_network::db_sync::Handle;
+use futures::{Stream, stream::FusedStream};
 use gprimitives::H256;
 use lru::LruCache;
 use std::{
@@ -97,6 +94,7 @@ enum State {
         producer: Address,
         chain: VecDeque<SimpleBlockData>,
         waiting_request: AnnouncesRequest,
+        announces_fetch: Option<AnnouncesRequestState>,
     },
 }
 
@@ -114,8 +112,6 @@ pub struct ConnectService {
 
     #[debug(skip)]
     db_sync_handle: Option<Handle>,
-    #[debug(skip)]
-    db_sync_requests: FuturesUnordered<HandleFuture>,
 }
 
 impl ConnectService {
@@ -125,6 +121,8 @@ impl ConnectService {
     /// - `db`: Database instance.
     /// - `slot_duration`: Duration of each slot in the consensus protocol.
     /// - `commitment_delay_limit`: Maximum allowed delay for announce to be committed.
+    /// - `db_sync_handle`: Optional network handle used for db-sync requests; when `None`,
+    ///   announces are not fetched from peers.
     pub fn new(
         db: Database,
         slot_duration: Duration,
@@ -139,7 +137,6 @@ impl ConnectService {
             pending_announces: LruCache::new(MAX_PENDING_ANNOUNCES),
             output: VecDeque::new(),
             db_sync_handle,
-            db_sync_requests: FuturesUnordered::new(),
         }
     }
 
@@ -154,28 +151,18 @@ impl ConnectService {
     }
 
     fn request_announces(&mut self, request: AnnouncesRequest) {
-        let handle = self
-            .db_sync_handle
-            .as_ref()
-            .unwrap_or_else(|| panic!("Requesting announces requires network service"));
+        let Some(handle) = self.db_sync_handle.clone() else {
+            tracing::debug!("Skipping announces request: network handle is not available");
+            return;
+        };
 
-        self.db_sync_requests
-            .push(handle.request(Request::Announces(request)));
-    }
-
-    fn handle_db_sync_result(&mut self, result: HandleResult) -> Result<()> {
-        match result {
-            Ok(Response::Announces(response)) => self.on_announces_response(response),
-            Ok(resp) => panic!("unexpected db-sync response: {resp:?}"),
-            Err((_, request)) => {
-                let handle = self
-                    .db_sync_handle
-                    .as_ref()
-                    .unwrap_or_else(|| panic!("Retrying announces requires network service"));
-
-                self.db_sync_requests.push(handle.retry(request));
-                Ok(())
+        match &mut self.state {
+            State::WaitingForMissingAnnounces {
+                announces_fetch, ..
+            } => {
+                *announces_fetch = Some(AnnouncesRequestState::new(&handle, request));
             }
+            state => panic!("Announces request in unexpected state: {state:?}"),
         }
     }
 
@@ -185,6 +172,7 @@ impl ConnectService {
             producer,
             chain,
             waiting_request,
+            ..
         } = &mut self.state
         else {
             return Ok(());
@@ -281,6 +269,7 @@ impl ConsensusService for ConnectService {
                 producer,
                 chain,
                 waiting_request: request,
+                announces_fetch: None,
             };
 
             self.output
@@ -366,12 +355,26 @@ impl Stream for ConnectService {
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         loop {
-            if let Poll::Ready(Some(result)) = self.db_sync_requests.poll_next_unpin(cx) {
-                if let Err(err) = self.handle_db_sync_result(result) {
-                    return Poll::Ready(Some(Err(err)));
-                }
+            if let Some(handle) = self.db_sync_handle.clone() {
+                if let State::WaitingForMissingAnnounces {
+                    announces_fetch, ..
+                } = &mut self.state
+                {
+                    if let Some(mut fetch) = announces_fetch.take() {
+                        match fetch.poll(&handle, cx) {
+                            Poll::Ready(response) => {
+                                if let Err(err) = self.on_announces_response(response) {
+                                    return Poll::Ready(Some(Err(err)));
+                                }
 
-                continue;
+                                continue;
+                            }
+                            Poll::Pending => {
+                                *announces_fetch = Some(fetch);
+                            }
+                        }
+                    }
+                }
             }
 
             if let Some(event) = self.output.pop_front() {
@@ -426,11 +429,12 @@ mod tests {
                         .expect("announce not found")
                         .announce
                         .clone();
-                    announces.push(announce.clone());
+                    let parent = announce.parent;
                     if current == *tail {
                         break;
                     }
-                    current = announce.parent;
+                    announces.push(announce);
+                    current = parent;
                 }
             }
             AnnouncesRequestUntil::ChainLen(len) => {
@@ -488,6 +492,7 @@ mod tests {
             producer: Address::default(),
             chain,
             waiting_request: waiting_request.clone(),
+            announces_fetch: None,
         };
 
         let announces =
@@ -495,9 +500,7 @@ mod tests {
         let response = AnnouncesResponse { announces }
             .try_into_checked(waiting_request)
             .expect("valid response");
-        connect
-            .handle_db_sync_result(Ok(Response::Announces(response)))
-            .unwrap();
+        connect.on_announces_response(response).unwrap();
 
         assert!(connect.output.is_empty(), "no immediate events expected");
         match &connect.state {

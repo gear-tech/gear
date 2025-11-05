@@ -41,6 +41,7 @@
 
 use crate::{
     BatchCommitmentValidationReply, ConsensusEvent, ConsensusService,
+    utils::AnnouncesRequestState,
     validator::{
         coordinator::Coordinator,
         core::{MiddlewareWrapper, ValidatorCore},
@@ -63,13 +64,9 @@ use ethexe_common::{
 };
 use ethexe_db::Database;
 use ethexe_ethereum::middleware::ElectionProvider;
-use ethexe_network::db_sync::{Handle, HandleFuture, HandleResult, Request, Response};
+use ethexe_network::db_sync::Handle;
 use ethexe_signer::Signer;
-use futures::{
-    Stream, StreamExt,
-    future::BoxFuture,
-    stream::{FusedStream, FuturesUnordered},
-};
+use futures::{Stream, StreamExt, future::BoxFuture, stream::FusedStream};
 use gprimitives::H256;
 use initial::Initial;
 use std::{
@@ -106,7 +103,7 @@ const MAX_CHAIN_DEEPNESS: u32 = 10000;
 pub struct ValidatorService {
     inner: Option<ValidatorState>,
     db_sync_handle: Option<Handle>,
-    db_sync_requests: FuturesUnordered<HandleFuture>,
+    announces_fetch: Option<AnnouncesRequestState>,
 }
 
 /// Configuration parameters for the validator service.
@@ -135,6 +132,8 @@ impl ValidatorService {
     /// * `signer` - The signer used for cryptographic operations
     /// * `db` - The database instance
     /// * `config` - Configuration parameters for the validator
+    /// * `db_sync_handle` - Optional network handle used for db-sync requests; when `None`,
+    ///   announces are not fetched from peers
     ///
     /// # Returns
     /// A new `ValidatorService` instance
@@ -175,7 +174,7 @@ impl ValidatorService {
         Ok(Self {
             inner: Some(Initial::create(ctx)?),
             db_sync_handle,
-            db_sync_requests: FuturesUnordered::new(),
+            announces_fetch: None,
         })
     }
 
@@ -208,31 +207,12 @@ impl ValidatorService {
     }
 
     fn request_announces(&mut self, request: AnnouncesRequest) {
-        let handle = self
-            .db_sync_handle
-            .as_ref()
-            .unwrap_or_else(|| panic!("Requesting announces requires network service"));
+        let Some(handle) = self.db_sync_handle.clone() else {
+            tracing::debug!("Skipping announces request: network handle is not available");
+            return;
+        };
 
-        self.db_sync_requests
-            .push(handle.request(Request::Announces(request)));
-    }
-
-    fn handle_db_sync_result(&mut self, result: HandleResult) -> Result<()> {
-        match result {
-            Ok(Response::Announces(response)) => {
-                self.update_inner(|inner| inner.process_announces_response(response))
-            }
-            Ok(resp) => panic!("unexpected db-sync response: {resp:?}"),
-            Err((_, request)) => {
-                let handle = self
-                    .db_sync_handle
-                    .as_ref()
-                    .unwrap_or_else(|| panic!("Retrying announces requires network service"));
-
-                self.db_sync_requests.push(handle.retry(request));
-                Ok(())
-            }
-        }
+        self.announces_fetch = Some(AnnouncesRequestState::new(&handle, request));
     }
 }
 
@@ -283,12 +263,23 @@ impl Stream for ValidatorService {
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         loop {
-            if let Poll::Ready(Some(result)) = self.db_sync_requests.poll_next_unpin(cx) {
-                if let Err(err) = self.handle_db_sync_result(result) {
-                    return Poll::Ready(Some(Err(err)));
-                }
+            if let Some(handle) = self.db_sync_handle.clone() {
+                if let Some(mut fetch) = self.announces_fetch.take() {
+                    match fetch.poll(&handle, cx) {
+                        Poll::Ready(response) => {
+                            if let Err(err) = self
+                                .update_inner(|inner| inner.process_announces_response(response))
+                            {
+                                return Poll::Ready(Some(Err(err)));
+                            }
 
-                continue;
+                            continue;
+                        }
+                        Poll::Pending => {
+                            self.announces_fetch = Some(fetch);
+                        }
+                    }
+                }
             }
 
             let mut event = None;

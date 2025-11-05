@@ -31,7 +31,9 @@ use ethexe_common::{
         AggregatedPublicKey, BatchCommitment, ChainCommitment, CodeCommitment, RewardsCommitment,
         StateTransition, ValidatorsCommitment,
     },
+    network::{AnnouncesRequest, CheckedAnnouncesResponse},
 };
+use ethexe_network::db_sync::{Handle, HandleFuture, Request, Response};
 use ethexe_signer::Signer;
 use gprimitives::{CodeId, U256};
 use parity_scale_codec::{Decode, Encode};
@@ -40,7 +42,12 @@ use roast_secp256k1_evm::frost::{
     Identifier,
     keys::{self, IdentifierList},
 };
-use std::collections::{BTreeMap, HashSet};
+use std::{
+    collections::{BTreeMap, HashSet},
+    fmt,
+    pin::Pin,
+    task::{Context, Poll},
+};
 
 /// A batch commitment, that has been signed by multiple validators.
 /// This structure manages the collection of signatures from different validators
@@ -452,6 +459,47 @@ fn sort_transitions_by_value_to_receive(transitions: &mut [StateTransition]) {
         rhs.value_to_receive_negative_sign
             .cmp(&lhs.value_to_receive_negative_sign)
     });
+}
+
+/// Single announces request future that retries on failure.
+pub(crate) struct AnnouncesRequestState {
+    future: HandleFuture,
+}
+
+impl fmt::Debug for AnnouncesRequestState {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("AnnouncesRequestState").finish()
+    }
+}
+
+impl AnnouncesRequestState {
+    pub(crate) fn new(handle: &Handle, request: AnnouncesRequest) -> Self {
+        Self {
+            future: handle.request(Request::Announces(request)),
+        }
+    }
+
+    pub(crate) fn poll(
+        &mut self,
+        handle: &Handle,
+        cx: &mut Context<'_>,
+    ) -> Poll<CheckedAnnouncesResponse> {
+        loop {
+            match Pin::new(&mut self.future).poll(cx) {
+                Poll::Ready(Ok(Response::Announces(response))) => return Poll::Ready(response),
+                Poll::Ready(Ok(other)) => panic!("unexpected db-sync response: {other:?}"),
+                Poll::Ready(Err((failure, request))) => {
+                    tracing::warn!(
+                        request_id = ?request.id(),
+                        %failure,
+                        "Announces request failed, retrying",
+                    );
+                    self.future = handle.retry(request);
+                }
+                Poll::Pending => return Poll::Pending,
+            }
+        }
+    }
 }
 
 #[cfg(test)]
