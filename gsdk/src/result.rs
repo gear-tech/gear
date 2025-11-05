@@ -36,7 +36,7 @@ impl FailedPage {
     }
 
     pub fn invalid(self) -> Error {
-        Error::PageInvalid(self)
+        Error::InvalidPage(self)
     }
 
     pub fn not_found(self) -> Error {
@@ -59,7 +59,7 @@ pub enum Error {
     ProgramTerminated,
 
     #[error("{0} is invalid")]
-    PageInvalid(FailedPage),
+    InvalidPage(FailedPage),
 
     #[error("{0} was not found in the storage")]
     PageNotFound(FailedPage),
