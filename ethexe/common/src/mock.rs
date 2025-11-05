@@ -25,6 +25,7 @@ use crate::{
     db::*,
     events::BlockEvent,
     gear::{BatchCommitment, ChainCommitment, CodeCommitment, Message, StateTransition},
+    injected::InjectedTransaction,
     network::ValidatorMessage,
 };
 use alloc::{collections::BTreeMap, vec};
@@ -166,6 +167,19 @@ impl<T: Mock<()>> Mock<()> for ValidatorMessage<T> {
         Self {
             block: H256::random(),
             payload: T::mock(()),
+        }
+    }
+}
+
+impl Mock<()> for InjectedTransaction {
+    fn mock((): ()) -> Self {
+        Self {
+            recipient: Default::default(),
+            destination: Default::default(),
+            payload: vec![],
+            value: 0,
+            reference_block: Default::default(),
+            salt: vec![],
         }
     }
 }

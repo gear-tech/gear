@@ -23,7 +23,9 @@ use ethexe_blob_loader::{
     BlobLoader, BlobLoaderEvent, BlobLoaderService, ConsensusLayerConfig,
     local::{LocalBlobLoader, LocalBlobStorage},
 };
-use ethexe_common::{ecdsa::PublicKey, gear::CodeState, network::VerifiedValidatorMessage};
+use ethexe_common::{
+    Address, ecdsa::PublicKey, gear::CodeState, network::VerifiedValidatorMessage,
+};
 use ethexe_compute::{ComputeEvent, ComputeService};
 use ethexe_consensus::{
     ConsensusEvent, ConsensusService, SimpleConnectService, ValidatorConfig, ValidatorService,
@@ -36,7 +38,7 @@ use ethexe_network::{
 use ethexe_observer::{ObserverEvent, ObserverService};
 use ethexe_processor::{Processor, ProcessorConfig};
 use ethexe_prometheus::{PrometheusEvent, PrometheusService};
-use ethexe_rpc::{RpcEvent, RpcService};
+use ethexe_rpc::{InjectedTransactionAcceptance, RpcEvent, RpcService};
 use ethexe_service_utils::{OptionFuture as _, OptionStreamNext as _};
 use ethexe_signer::Signer;
 use ethexe_tx_pool::{TxPoolEvent, TxPoolService};
@@ -104,6 +106,7 @@ pub struct Service {
     rpc: Option<RpcService>,
 
     fast_sync: bool,
+    validator_address: Option<Address>,
 
     #[cfg(test)]
     sender: tests::utils::TestingEventSender,
@@ -190,6 +193,7 @@ impl Service {
 
         let validator_pub_key = Self::get_config_public_key(config.node.validator, &signer)
             .with_context(|| "failed to get validator private key")?;
+        let validator_address = validator_pub_key.map(|key| key.to_address());
 
         // TODO #4642: use validator session key
         let _validator_pub_key_session =
@@ -282,6 +286,7 @@ impl Service {
             rpc,
             tx_pool,
             fast_sync,
+            validator_address,
             #[cfg(test)]
             sender: unreachable!(),
         })
@@ -310,6 +315,7 @@ impl Service {
         rpc: Option<RpcService>,
         sender: tests::utils::TestingEventSender,
         fast_sync: bool,
+        validator_address: Option<Address>,
     ) -> Self {
         let compute = ComputeService::new(db.clone(), processor);
 
@@ -326,6 +332,7 @@ impl Service {
             tx_pool,
             sender,
             fast_sync,
+            validator_address,
         }
     }
 
@@ -352,6 +359,7 @@ impl Service {
             mut prometheus,
             rpc,
             fast_sync: _,
+            validator_address,
             #[cfg(test)]
             sender,
         } = self;
@@ -471,7 +479,9 @@ impl Service {
                                 );
                             }
                         }
-                        NetworkEvent::InjectedTransaction(_transaction) => {}
+                        NetworkEvent::InjectedTransaction(_transaction) => {
+                            // TODO: handle transaction
+                        }
                         NetworkEvent::PeerBlocked(_) | NetworkEvent::PeerConnected(_) => {}
                     }
                 }
@@ -525,6 +535,22 @@ impl Service {
                                     "Response receiver for the `RpcEvent::OffchainTransaction` was dropped: {e:#?}"
                                 );
                             }
+                        }
+                        RpcEvent::InjectedTransaction {
+                            transaction,
+                            response_sender,
+                        } => {
+                            if validator_address == Some(transaction.data().recipient) {
+                                // TODO: handle transaction like for `NetworkEvent::InjectedTransaction(_)`
+                            } else {
+                                let Some(network) = network.as_mut() else {
+                                    continue;
+                                };
+
+                                network.send_injected_transaction(transaction);
+                            }
+
+                            let _res = response_sender.send(InjectedTransactionAcceptance::Accept);
                         }
                     }
                 }
