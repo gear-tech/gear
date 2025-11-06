@@ -21,7 +21,7 @@ use ethexe_common::{
     BlockHeader, HashOf,
     db::*,
     events::{BlockRequestEvent, MirrorRequestEvent, RouterRequestEvent},
-    gear::Origin,
+    gear::MessageType,
 };
 use ethexe_runtime_common::{ScheduleRestorer, state::Dispatch};
 use gear_core::ids::prelude::CodeIdExt;
@@ -87,7 +87,7 @@ fn handle_injected_message(
             payload,
             value,
             is_init,
-            Origin::Injected,
+            MessageType::Injected,
             call_reply,
         )?;
 

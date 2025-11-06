@@ -18,8 +18,8 @@
 
 use crate::{Database, ProcessorError, Result};
 use core_processor::common::JournalNote;
-use ethexe_common::gear::Origin;
-use ethexe_runtime_common::{ProcessingQueueKind, ProgramJournals, unpack_i64_to_u32};
+use ethexe_common::gear::MessageType;
+use ethexe_runtime_common::{ProgramJournals, unpack_i64_to_u32};
 use gear_core::{
     code::{CodeMetadata, InstrumentedCode},
     ids::ActorId,
@@ -134,7 +134,7 @@ impl InstanceWrapper {
         db: Database,
         program_id: ActorId,
         state_hash: H256,
-        queue_kind: ProcessingQueueKind,
+        queue_type: MessageType,
         maybe_instrumented_code: Option<InstrumentedCode>,
         maybe_code_metadata: Option<CodeMetadata>,
         gas_allowance: u64,
@@ -145,7 +145,7 @@ impl InstanceWrapper {
         let arg = (
             program_id,
             state_hash,
-            queue_kind,
+            queue_type,
             maybe_instrumented_code,
             maybe_code_metadata,
             gas_allowance,
@@ -157,9 +157,9 @@ impl InstanceWrapper {
         let mut mega_journal = Vec::with_capacity(ptr_lens.len());
 
         for ptr_len in ptr_lens {
-            let journal_and_origin: (Vec<JournalNote>, Origin, bool) =
+            let journal_and_message_type: (Vec<JournalNote>, MessageType, bool) =
                 self.get_call_output(ptr_len)?;
-            mega_journal.push(journal_and_origin);
+            mega_journal.push(journal_and_message_type);
         }
 
         let new_state_hash = threads::with_params(|params| params.state_hash);

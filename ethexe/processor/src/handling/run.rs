@@ -104,10 +104,14 @@
 //! In the future, we could introduce a weight multiplier to the queue size to improve partitioning efficiency.
 //! This weight multiplier could be calculated based on program execution time statistics.
 
-use ethexe_common::{StateHashWithQueueSize, db::CodesStorageRO, gear::CHUNK_PROCESSING_GAS_LIMIT};
+use ethexe_common::{
+    StateHashWithQueueSize,
+    db::CodesStorageRO,
+    gear::{CHUNK_PROCESSING_GAS_LIMIT, MessageType},
+};
 use ethexe_db::Database;
 use ethexe_runtime_common::{
-    InBlockTransitions, JournalHandler, ProcessingQueueKind, ProgramJournals, TransitionController,
+    InBlockTransitions, JournalHandler, ProgramJournals, TransitionController,
 };
 use gear_core::gas::GasAllowanceCounter;
 use gprimitives::{ActorId, H256};
@@ -138,7 +142,7 @@ pub async fn run(
         in_block_transitions,
         &mut allowance_counter,
         chunk_size,
-        ProcessingQueueKind::Injected,
+        MessageType::Injected,
     )
     .await;
 
@@ -150,7 +154,7 @@ pub async fn run(
             in_block_transitions,
             &mut allowance_counter,
             chunk_size,
-            ProcessingQueueKind::Canonical,
+            MessageType::Canonical,
         )
         .await;
     }
@@ -162,7 +166,7 @@ async fn run_inner(
     in_block_transitions: &mut InBlockTransitions,
     allowance_counter: &mut GasAllowanceCounter,
     chunk_size: usize,
-    processing_queue_kind: ProcessingQueueKind,
+    processing_queue_type: MessageType,
 ) -> bool {
     let mut join_set = JoinSet::new();
     let mut is_out_of_gas_for_block = false;
@@ -171,9 +175,9 @@ async fn run_inner(
         let states: Vec<_> = in_block_transitions
             .states_iter()
             .filter_map(|(&actor_id, &state)| {
-                let queue_size = match processing_queue_kind {
-                    ProcessingQueueKind::Canonical => state.canonical_queue_size,
-                    ProcessingQueueKind::Injected => state.injected_queue_size,
+                let queue_size = match processing_queue_type {
+                    MessageType::Canonical => state.canonical_queue_size,
+                    MessageType::Injected => state.injected_queue_size,
                 };
 
                 if queue_size == 0 {
@@ -184,7 +188,7 @@ async fn run_inner(
             })
             .collect();
 
-        let chunks = split_to_chunks(chunk_size, states, processing_queue_kind);
+        let chunks = split_to_chunks(chunk_size, states, processing_queue_type);
 
         if chunks.is_empty() {
             // No more chunks to process. Stopping.
@@ -208,7 +212,7 @@ async fn run_inner(
                         &mut executor,
                         program_id,
                         state_hash,
-                        processing_queue_kind,
+                        processing_queue_type,
                         gas_allowance_for_chunk,
                     );
                     (chunk_pos, program_id, new_state_hash, jn, gas_spent)
@@ -240,10 +244,10 @@ async fn run_inner(
                     unreachable!("Program journal is `None`, this should never happen");
                 };
 
-                for (journal, dispatch_origin, call_reply) in program_journals {
+                for (journal, message_type, call_reply) in program_journals {
                     let mut journal_handler = JournalHandler {
                         program_id,
-                        dispatch_origin,
+                        message_type,
                         call_reply,
                         controller: TransitionController {
                             transitions: in_block_transitions,
@@ -274,7 +278,7 @@ async fn run_inner(
 fn split_to_chunks(
     chunk_size: usize,
     states: Vec<(ActorId, StateHashWithQueueSize)>,
-    queue_kind: ProcessingQueueKind,
+    queue_type: MessageType,
 ) -> Vec<Vec<(ActorId, H256)>> {
     fn chunk_idx(queue_size: usize, number_of_chunks: usize) -> usize {
         // Simplest implementation of chunk partitioning '| 1 | 2 | 3 | 4 | ..'
@@ -294,9 +298,9 @@ fn split_to_chunks(
         },
     ) in states
     {
-        let queue_size = match queue_kind {
-            ProcessingQueueKind::Canonical => canonical_queue_size as usize,
-            ProcessingQueueKind::Injected => injected_queue_size as usize,
+        let queue_size = match queue_type {
+            MessageType::Canonical => canonical_queue_size as usize,
+            MessageType::Injected => injected_queue_size as usize,
         };
 
         let chunk_idx = chunk_idx(queue_size, number_of_chunks);
@@ -321,7 +325,7 @@ fn run_runtime(
     executor: &mut InstanceWrapper,
     program_id: ActorId,
     state_hash: H256,
-    queue_kind: ProcessingQueueKind,
+    queue_type: MessageType,
     gas_allowance: u64,
 ) -> (ProgramJournals, H256, u64) {
     let code_id = db.program_code_id(program_id).expect("Code ID must be set");
@@ -334,7 +338,7 @@ fn run_runtime(
             db,
             program_id,
             state_hash,
-            queue_kind,
+            queue_type,
             instrumented_code,
             code_metadata,
             gas_allowance,
@@ -378,11 +382,7 @@ mod tests {
             .take(STATE_SIZE),
         );
 
-        let chunks = split_to_chunks(
-            CHUNK_PROCESSING_THREADS,
-            states,
-            ProcessingQueueKind::Canonical,
-        );
+        let chunks = split_to_chunks(CHUNK_PROCESSING_THREADS, states, MessageType::Canonical);
 
         // Checking chunks partitioning
         let accum_chunks = chunks

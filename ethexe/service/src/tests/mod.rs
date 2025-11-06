@@ -33,7 +33,7 @@ use ethexe_common::{
     ScheduledTask,
     db::*,
     events::{BlockEvent, MirrorEvent, RouterEvent},
-    gear::Origin,
+    gear::MessageType,
     mock::*,
 };
 use ethexe_db::{Database, verifier::IntegrityVerifier};
@@ -483,7 +483,7 @@ async fn mailbox() {
                     value: MailboxMessage {
                         payload: mid_payload.clone(),
                         value: 0,
-                        origin: Origin::Ethereum,
+                        message_type: MessageType::Canonical,
                     },
                     expiry,
                 },
@@ -494,7 +494,7 @@ async fn mailbox() {
                     value: MailboxMessage {
                         payload: ping_payload,
                         value: 0,
-                        origin: Origin::Ethereum,
+                        message_type: MessageType::Canonical,
                     },
                     expiry,
                 },
@@ -542,7 +542,7 @@ async fn mailbox() {
                 value: MailboxMessage {
                     payload: mid_payload,
                     value: 0,
-                    origin: Origin::Ethereum,
+                    message_type: MessageType::Canonical,
                 },
                 expiry,
             },
