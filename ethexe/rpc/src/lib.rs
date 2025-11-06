@@ -18,14 +18,13 @@
 
 pub use crate::apis::InjectedTransactionAcceptance;
 
-use crate::apis::{InjectedApi, InjectedServer};
 use anyhow::{Result, anyhow};
 use apis::{
-    BlockApi, BlockServer, CodeApi, CodeServer, DevApi, DevServer, ProgramApi, ProgramServer,
-    TransactionPoolApi, TransactionPoolServer,
+    BlockApi, BlockServer, CodeApi, CodeServer, DevApi, DevServer, InjectedApi, InjectedServer,
+    ProgramApi, ProgramServer,
 };
 use ethexe_blob_loader::local::LocalBlobStorage;
-use ethexe_common::{injected::SignedInjectedTransaction, tx_pool::SignedOffchainTransaction};
+use ethexe_common::injected::SignedInjectedTransaction;
 use ethexe_db::Database;
 use ethexe_processor::RunnerConfig;
 use futures::{FutureExt, Stream, stream::FusedStream};
@@ -114,9 +113,6 @@ impl RpcService {
         )))?;
         module.merge(BlockServer::into_rpc(BlockApi::new(self.db.clone())))?;
         module.merge(CodeServer::into_rpc(CodeApi::new(self.db.clone())))?;
-        module.merge(TransactionPoolServer::into_rpc(TransactionPoolApi::new(
-            rpc_sender.clone(),
-        )))?;
         module.merge(InjectedServer::into_rpc(InjectedApi::new(rpc_sender)))?;
 
         if self.config.dev {

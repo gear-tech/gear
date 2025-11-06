@@ -21,13 +21,12 @@ use alloc::{
     vec::Vec,
 };
 use anyhow::{Result, anyhow};
-use core::{hash::Hash, num::NonZero};
+use core::num::NonZero;
 use ethexe_common::{
     BlockHeader, HashOf, ProgramStates, Schedule, ScheduledTask, StateHashWithQueueSize,
     gear::{Message, StateTransition, ValueClaim},
     injected::InjectedTxPromise,
 };
-use gear_core::buffer::Payload;
 use gprimitives::{ActorId, H256, MessageId};
 
 type MaybeInjectedReply = Option<(Vec<u8>, H256)>;
@@ -244,9 +243,6 @@ impl InBlockTransitions {
         (res, states, schedule, promises)
     }
 }
-
-/// Type alias for the injected transaction reply.
-pub type InjectedReply = (MessageId, MaybeInjectedReply);
 
 #[derive(Debug, Default)]
 pub struct NonFinalTransition {

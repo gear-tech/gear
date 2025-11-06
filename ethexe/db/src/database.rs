@@ -33,8 +33,7 @@ use ethexe_common::{
     },
     events::BlockEvent,
     gear::StateTransition,
-    injected::{InjectedTransaction, SignedInjectedTransaction},
-    tx_pool::SignedOffchainTransaction,
+    injected::InjectedTransaction,
 };
 
 use ethexe_runtime_common::state::{
@@ -49,10 +48,7 @@ use gear_core::{
 };
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
-use std::{
-    collections::{BTreeSet, HashSet},
-    hash::Hash,
-};
+use std::collections::BTreeSet;
 
 #[repr(u64)]
 enum Key {
@@ -698,10 +694,7 @@ impl LatestDataStorageRW for Database {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ethexe_common::{
-        events::RouterEvent,
-        tx_pool::{OffchainTransaction, RawOffchainTransaction::SendMessage},
-    };
+    use ethexe_common::events::RouterEvent;
     use gear_core::code::{InstantiatedSectionSizes, InstrumentationStatus};
 
     // #[test]

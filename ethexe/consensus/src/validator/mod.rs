@@ -58,7 +58,7 @@ use ethexe_common::{
     consensus::{VerifiedAnnounce, VerifiedValidationRequest},
     db::OnChainStorageRO,
     ecdsa::PublicKey,
-    injected::{InjectedTransaction, SignedInjectedTransaction},
+    injected::SignedInjectedTransaction,
 };
 use ethexe_db::Database;
 use ethexe_ethereum::{middleware::ElectionProvider, router::Router};

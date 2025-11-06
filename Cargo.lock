@@ -5178,7 +5178,6 @@ dependencies = [
  "ethexe-runtime-common",
  "ethexe-service-utils",
  "ethexe-signer",
- "ethexe-tx-pool",
  "futures",
  "gear-core",
  "gear-core-errors",
@@ -5213,21 +5212,6 @@ dependencies = [
  "ethexe-common",
  "parity-scale-codec",
  "tempfile",
-]
-
-[[package]]
-name = "ethexe-tx-pool"
-version = "1.9.2"
-dependencies = [
- "anyhow",
- "ethexe-common",
- "ethexe-db",
- "futures",
- "gear-utils",
- "gprimitives",
- "log",
- "parity-scale-codec",
- "tokio",
 ]
 
 [[package]]

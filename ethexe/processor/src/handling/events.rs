@@ -29,7 +29,6 @@ use ethexe_runtime_common::state::{
     Dispatch, Expiring, MailboxMessage, ModifiableStorage, PayloadLookup,
 };
 use gear_core::{ids::ActorId, message::SuccessReplyReason};
-use gprimitives::MessageId;
 
 impl ProcessingHandler {
     pub(crate) fn handle_injected_transaction(

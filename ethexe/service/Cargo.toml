@@ -22,7 +22,6 @@ ethexe-common = { workspace = true, features = ["std", "mock"] }
 ethexe-runtime-common.workspace = true
 ethexe-prometheus.workspace = true
 ethexe-rpc.workspace = true
-ethexe-tx-pool.workspace = true
 gear-core.workspace = true
 gprimitives = { workspace = true, features = ["std", "ethexe"] }
 log.workspace = true

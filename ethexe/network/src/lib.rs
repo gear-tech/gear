@@ -30,6 +30,7 @@ pub mod export {
 
 use crate::{
     db_sync::DbSyncDatabase,
+    gossipsub::MessageAcceptance,
     validator::{ValidatorDatabase, Validators},
 };
 use anyhow::{Context, anyhow};
@@ -38,7 +39,6 @@ use ethexe_common::{
     ecdsa::PublicKey,
     injected::SignedInjectedTransaction,
     network::{SignedValidatorMessage, VerifiedValidatorMessage},
-    tx_pool::SignedOffchainTransaction,
 };
 use ethexe_signer::Signer;
 use futures::{Stream, future::Either, ready, stream::FusedStream};
@@ -402,13 +402,10 @@ impl NetworkService {
                             self.validators.verify_message_initially(source, message);
                         (acceptance, message.map(NetworkEvent::ValidatorMessage))
                     }
-                    gossipsub::Message::Offchain(_transaction) => {
-                        todo!("lol")
-                        //     (
-                        //     MessageAcceptance::Accept,
-                        //     Some(NetworkEvent::OffchainTransaction(transaction)),
-                        // )
-                    }
+                    gossipsub::Message::Injected(transaction) => (
+                        MessageAcceptance::Accept,
+                        Some(NetworkEvent::InjectedTransaction(transaction)),
+                    ),
                 });
 
                 return event;
@@ -454,9 +451,9 @@ impl NetworkService {
     }
 
     // TODO kuzmindev: to remove
-    pub fn publish_offchain_transaction(&mut self, data: SignedOffchainTransaction) {
-        self.swarm.behaviour_mut().gossipsub.publish(data);
-    }
+    // pub fn publish_offchain_transaction(&mut self, data: SignedOffchainTransaction) {
+    //     self.swarm.behaviour_mut().gossipsub.publish(data);
+    // }
 
     pub fn send_injected_transaction(&mut self, data: SignedInjectedTransaction) {
         self.swarm.behaviour_mut().injected.send_transaction(data);

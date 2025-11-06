@@ -50,7 +50,7 @@ use scale_info::{
     scale::{self, Decode, Encode, MaxEncodedLen},
 };
 #[cfg(feature = "serde")]
-use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 /// The error type returned when conversion fails.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]

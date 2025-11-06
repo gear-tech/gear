@@ -41,7 +41,6 @@ use ethexe_prometheus::{PrometheusEvent, PrometheusService};
 use ethexe_rpc::{InjectedTransactionAcceptance, RpcEvent, RpcService};
 use ethexe_service_utils::{OptionFuture as _, OptionStreamNext as _};
 use ethexe_signer::Signer;
-use ethexe_tx_pool::{TxPoolEvent, TxPoolService};
 use futures::StreamExt;
 use gprimitives::{ActorId, CodeId, H256};
 use std::{collections::BTreeSet, pin::Pin, sync::Arc};
@@ -61,7 +60,6 @@ pub enum Event {
     BlobLoader(BlobLoaderEvent),
     Prometheus(PrometheusEvent),
     Rpc(RpcEvent),
-    TxPool(TxPoolEvent),
 }
 
 #[derive(Clone)]
@@ -98,7 +96,6 @@ pub struct Service {
     compute: ComputeService,
     consensus: Pin<Box<dyn ConsensusService>>,
     signer: Signer,
-    tx_pool: TxPoolService,
 
     // Optional services
     network: Option<NetworkService>,
@@ -267,8 +264,6 @@ impl Service {
             .as_ref()
             .map(|config| RpcService::new(config.clone(), db.clone(), local_blob_storage_for_rpc));
 
-        let tx_pool = TxPoolService::new(db.clone());
-
         let compute = ComputeService::new(db.clone(), processor);
 
         let fast_sync = config.node.fast_sync;
@@ -284,7 +279,6 @@ impl Service {
             signer,
             prometheus,
             rpc,
-            tx_pool,
             fast_sync,
             validator_address,
             #[cfg(test)]
@@ -308,7 +302,6 @@ impl Service {
         blob_loader: Box<dyn BlobLoaderService>,
         processor: Processor,
         signer: Signer,
-        tx_pool: TxPoolService,
         consensus: Pin<Box<dyn ConsensusService>>,
         network: Option<NetworkService>,
         prometheus: Option<PrometheusService>,
@@ -329,7 +322,6 @@ impl Service {
             network,
             prometheus,
             rpc,
-            tx_pool,
             sender,
             fast_sync,
             validator_address,
@@ -355,7 +347,6 @@ impl Service {
             mut compute,
             mut consensus,
             signer: _signer,
-            mut tx_pool,
             mut prometheus,
             rpc,
             fast_sync: _,
@@ -391,7 +382,6 @@ impl Service {
                 event = blob_loader.select_next_some() => event?.into(),
                 event = prometheus.maybe_next_some() => event.into(),
                 event = rpc.maybe_next_some() => event.into(),
-                event = tx_pool.select_next_some() => event.into(),
                 _ = rpc_handle.as_mut().maybe() => {
                     log::info!("`RPCWorker` has terminated, shutting down...");
                     continue;
@@ -529,22 +519,6 @@ impl Service {
 
                             let _res = response_sender.send(InjectedTransactionAcceptance::Accept);
                         }
-                        RpcEvent::InjectedTransaction {
-                            transaction,
-                            response_sender,
-                        } => {
-                            if validator_address == Some(transaction.data().recipient) {
-                                // TODO: handle transaction like for `NetworkEvent::InjectedTransaction(_)`
-                            } else {
-                                let Some(network) = network.as_mut() else {
-                                    continue;
-                                };
-
-                                network.send_injected_transaction(transaction);
-                            }
-
-                            let _res = response_sender.send(InjectedTransactionAcceptance::Accept);
-                        }
                     }
                 }
                 Event::Consensus(event) => match event {
@@ -561,19 +535,6 @@ impl Service {
                     }
                     ConsensusEvent::Warning(msg) => {
                         log::warn!("Consensus service warning: {msg}");
-                    }
-                },
-                Event::TxPool(event) => match event {
-                    TxPoolEvent::PublishOffchainTransaction(transaction) => {
-                        let Some(n) = network.as_mut() else {
-                            log::debug!(
-                                "Validated offchain transaction won't be propagated, network service isn't defined"
-                            );
-
-                            continue;
-                        };
-
-                        n.publish_offchain_transaction(transaction);
                     }
                 },
             }

@@ -31,7 +31,6 @@ use alloy::{
     node_bindings::{Anvil, AnvilInstance},
     providers::{Provider as _, RootProvider, ext::AnvilApi},
     rpc::types::{Header as RpcHeader, anvil::MineOptions},
-    transports::http::reqwest,
 };
 use ethexe_blob_loader::{
     BlobLoaderService,
@@ -60,11 +59,9 @@ use ethexe_processor::{
 };
 use ethexe_rpc::{InjectedTransactionAcceptance, RpcConfig, RpcService, test_utils::RpcClient};
 use ethexe_signer::Signer;
-use ethexe_tx_pool::TxPoolService;
 use futures::StreamExt;
 use gear_core_errors::ReplyCode;
 use gprimitives::{ActorId, CodeId, H160, H256, MessageId};
-use parity_scale_codec::Encode;
 use rand::{SeedableRng, prelude::StdRng};
 use roast_secp256k1_evm::frost::{
     Identifier, SigningKey, keys,
@@ -897,8 +894,6 @@ impl Node {
             network
         });
 
-        let tx_pool_service = TxPoolService::new(self.db.clone());
-
         let rpc = self.service_rpc_config.as_ref().map(|service_rpc_config| {
             RpcService::new(service_rpc_config.clone(), self.db.clone(), None)
         });
@@ -911,7 +906,6 @@ impl Node {
             blob_loader,
             processor,
             self.signer.clone(),
-            tx_pool_service,
             consensus,
             network,
             None,
@@ -980,7 +974,7 @@ impl Node {
         tx: SignedInjectedTransaction,
     ) -> anyhow::Result<InjectedTransactionAcceptance> {
         let rpc_client = self.rpc_client().expect("no rpc client provided by node");
-        rpc_client.send_injected_tx(tx).await.map_err(Into::into)
+        rpc_client.send_injected_tx(tx).await
     }
 
     pub fn listener(&mut self) -> ServiceEventsListener<'_> {

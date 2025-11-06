@@ -28,4 +28,3 @@ pub use code::{CodeApi, CodeServer};
 pub use dev::{DevApi, DevServer};
 pub use injected::{InjectedApi, InjectedClient, InjectedServer, InjectedTransactionAcceptance};
 pub use program::{ProgramApi, ProgramServer};
-pub use tx_pool::{TransactionPoolApi, TransactionPoolServer};

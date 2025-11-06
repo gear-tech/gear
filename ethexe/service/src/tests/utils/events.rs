@@ -21,7 +21,7 @@ use anyhow::{Result, anyhow};
 use ethexe_blob_loader::BlobLoaderEvent;
 use ethexe_common::{
     Announce, HashOf, SimpleBlockData, db::*, events::BlockEvent,
-    injected::SignedInjectedTransaction, tx_pool::SignedOffchainTransaction,
+    injected::SignedInjectedTransaction,
 };
 use ethexe_compute::ComputeEvent;
 use ethexe_consensus::ConsensusEvent;
@@ -30,7 +30,6 @@ use ethexe_network::NetworkEvent;
 use ethexe_observer::ObserverEvent;
 use ethexe_prometheus::PrometheusEvent;
 use ethexe_rpc::RpcEvent;
-use ethexe_tx_pool::TxPoolEvent;
 use gprimitives::H256;
 use tokio::sync::{
     broadcast,
@@ -56,12 +55,6 @@ impl TestingRpcEvent {
             } => Self::InjectedTransaction {
                 transaction: transaction.clone(),
             },
-            RpcEvent::InjectedTransaction {
-                transaction,
-                response_sender: _,
-            } => Self::InjectedTransaction {
-                transaction: transaction.clone(),
-            },
         }
     }
 }
@@ -81,7 +74,6 @@ pub(crate) enum TestingEvent {
     BlobLoader(BlobLoaderEvent),
     Prometheus(PrometheusEvent),
     Rpc(TestingRpcEvent),
-    TxPool(TxPoolEvent),
 }
 
 impl TestingEvent {
@@ -94,7 +86,6 @@ impl TestingEvent {
             Event::BlobLoader(event) => Self::BlobLoader(event.clone()),
             Event::Prometheus(event) => Self::Prometheus(event.clone()),
             Event::Rpc(event) => Self::Rpc(TestingRpcEvent::new(event)),
-            Event::TxPool(event) => Self::TxPool(event.clone()),
         }
     }
 }

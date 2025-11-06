@@ -29,16 +29,15 @@ use crate::{
     },
 };
 use alloy::{
-    primitives::{Address, U256},
+    primitives::U256,
     providers::{Provider as _, WalletProvider, ext::AnvilApi},
-    transports::http::reqwest::StatusCode,
 };
 use ethexe_common::{
     ScheduledTask,
     db::*,
     events::{BlockEvent, MirrorEvent, RouterEvent},
     gear::MessageType,
-    injected::{InjectedTransaction, SignedInjectedTransaction},
+    injected::InjectedTransaction,
     mock::*,
     network::SignedValidatorMessage,
 };
@@ -48,7 +47,7 @@ use ethexe_ethereum::deploy::ContractsDeploymentParams;
 use ethexe_observer::EthereumConfig;
 use ethexe_processor::{DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, RunnerConfig};
 use ethexe_prometheus::PrometheusConfig;
-use ethexe_rpc::{RpcConfig, test_utils::JsonRpcResponse};
+use ethexe_rpc::RpcConfig;
 use ethexe_runtime_common::state::{Expiring, MailboxMessage, PayloadLookup, Storage};
 use ethexe_signer::Signer;
 use gear_core::{
@@ -1611,15 +1610,16 @@ async fn injected_tx_processing() {
     let mut node_events_listener = node.listener();
     node_events_listener
         .apply_until(|event| {
-            if let TestingEvent::Consensus(ConsensusEvent::ComputeAnnounce(announce)) = event {
-                if announce.injected_transactions.len() == 1 {
-                    return Ok(Some(()));
-                }
+            if let TestingEvent::Consensus(ConsensusEvent::ComputeAnnounce(announce)) = event
+                && announce.injected_transactions.len() == 1
+            {
+                return Ok(Some(()));
             };
 
             Ok(None)
         })
-        .await;
+        .await
+        .unwrap();
     tracing::info!("receive announce with injected transaction");
 
     node_events_listener

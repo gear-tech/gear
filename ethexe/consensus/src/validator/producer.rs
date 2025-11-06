@@ -28,18 +28,14 @@ use ethexe_common::{
         AnnounceStorageRO, AnnounceStorageRW, BlockMetaStorageRO, BlockMetaStorageRW,
         InjectedStorageRO,
     },
-    ecdsa::SignedData,
     gear::BatchCommitment,
-    injected::{InjectedTransaction, SignedInjectedTransaction},
+    injected::SignedInjectedTransaction,
     network::{SignedValidatorMessage, ValidatorInjectedTxPromise, ValidatorMessage},
 };
 use ethexe_service_utils::Timer;
 use futures::{FutureExt, future::BoxFuture};
 use gprimitives::H256;
-use std::{
-    hash::Hash,
-    task::{Context, Poll},
-};
+use std::task::{Context, Poll};
 
 /// [`Producer`] is the state of the validator, which creates a new block
 /// and publish it to the network. It waits for the block to be computed

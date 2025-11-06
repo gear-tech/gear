@@ -23,7 +23,9 @@ use crate::{
     peer_score,
 };
 use anyhow::anyhow;
-use ethexe_common::{Address, network::SignedValidatorMessage, tx_pool::SignedOffchainTransaction};
+use ethexe_common::{
+    Address, injected::SignedInjectedTransaction, network::SignedValidatorMessage,
+};
 use libp2p::{
     core::{Endpoint, transport::PortUse},
     gossipsub,
@@ -43,21 +45,21 @@ use std::{
 #[derive(Debug, derive_more::From)]
 pub enum Message {
     Commitments(SignedValidatorMessage),
-    Offchain(SignedOffchainTransaction),
+    Injected(SignedInjectedTransaction),
 }
 
 impl Message {
     fn topic_hash(&self, behaviour: &Behaviour) -> TopicHash {
         match self {
             Message::Commitments(_) => behaviour.commitments_topic.hash(),
-            Message::Offchain(_) => behaviour.offchain_topic.hash(),
+            Message::Injected(_) => behaviour.offchain_topic.hash(),
         }
     }
 
     fn encode(&self) -> Vec<u8> {
         match self {
             Message::Commitments(message) => message.encode(),
-            Message::Offchain(transaction) => transaction.encode(),
+            Message::Injected(transaction) => transaction.encode(),
         }
     }
 }
@@ -178,7 +180,7 @@ impl Behaviour {
                 let res = if topic == self.commitments_topic.hash() {
                     SignedValidatorMessage::decode(&mut &data[..]).map(Message::Commitments)
                 } else if topic == self.offchain_topic.hash() {
-                    SignedOffchainTransaction::decode(&mut &data[..]).map(Message::Offchain)
+                    SignedInjectedTransaction::decode(&mut &data[..]).map(Message::Injected)
                 } else {
                     unreachable!("topic we never subscribed to: {topic:?}");
                 };

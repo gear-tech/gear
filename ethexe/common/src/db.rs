@@ -31,7 +31,6 @@ use alloc::{
     collections::{BTreeSet, VecDeque},
     vec::Vec,
 };
-use alloy_primitives::Signed;
 use gear_core::{
     code::{CodeMetadata, InstrumentedCode},
     ids::{ActorId, CodeId},

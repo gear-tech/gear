@@ -20,12 +20,9 @@
 
 use crate::{InjectedTransactionAcceptance, apis::InjectedClient};
 use anyhow::{Result as AnyhowResult, bail};
-use ethexe_common::{
-    injected::{InjectedTransaction, SignedInjectedTransaction},
-    tx_pool::OffchainTransaction,
-};
+use ethexe_common::injected::SignedInjectedTransaction;
 use jsonrpsee::{http_client::HttpClient, types::ErrorObjectOwned};
-use reqwest::{Client, Response, Result};
+use reqwest::{Response, Result};
 use serde::{Deserialize, de::DeserializeOwned};
 
 /// Client for the ethexe rpc server.
@@ -49,22 +46,6 @@ impl RpcClient {
             .await
             .map_err(Into::into)
     }
-}
-
-#[test]
-fn check_serialize_injected_tx() {
-    let injected_tx = InjectedTransaction {
-        recipient: ethexe_common::Address::default(),
-        destination: gprimitives::ActorId::zero(),
-        payload: b"PING".to_vec(),
-        value: 0,
-        reference_block: gprimitives::H256::random(),
-        salt: vec![1u8],
-    };
-
-    let serialized_tx = serde_json::to_string(&injected_tx).unwrap();
-    let deserialized_tx = serde_json::from_str(&serialized_tx).unwrap();
-    assert_eq!(injected_tx, deserialized_tx);
 }
 
 /// Response from the ethexe rpc server.
