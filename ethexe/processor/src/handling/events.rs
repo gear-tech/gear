@@ -22,7 +22,7 @@ use ethexe_common::{
     ScheduledTask,
     db::{CodesStorageRO, CodesStorageRW},
     events::{MirrorRequestEvent, RouterRequestEvent},
-    gear::{Origin, ValueClaim},
+    gear::{MessageType, ValueClaim},
     injected::SignedInjectedTransaction,
 };
 use ethexe_runtime_common::state::{
@@ -51,7 +51,7 @@ impl ProcessingHandler {
                 raw_tx.payload,
                 raw_tx.value,
                 is_init,
-                Origin::Injected,
+                MessageType::Injected,
                 false,
             )?;
 
@@ -128,7 +128,7 @@ impl ProcessingHandler {
                         payload,
                         value,
                         is_init,
-                        Origin::Ethereum,
+                        MessageType::Canonical,
                         call_reply,
                     )?;
 
@@ -179,7 +179,7 @@ impl ProcessingHandler {
                         source,
                         payload,
                         value,
-                        Origin::Ethereum,
+                        MessageType::Canonical,
                         false,
                     )?;
 
@@ -225,7 +225,7 @@ impl ProcessingHandler {
                         PayloadLookup::empty(),
                         0,
                         SuccessReplyReason::Auto,
-                        Origin::Ethereum,
+                        MessageType::Canonical,
                         false,
                     );
 

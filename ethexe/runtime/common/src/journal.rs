@@ -10,7 +10,7 @@ use core::{mem, num::NonZero};
 use core_processor::common::{DispatchOutcome, JournalHandler, JournalNote};
 use ethexe_common::{
     ScheduledTask,
-    gear::{Message, Origin},
+    gear::{Message, MessageType},
 };
 use gear_core::{
     env::MessageWaitedType,
@@ -26,7 +26,7 @@ use gprimitives::{ActorId, CodeId, H256, MessageId, ReservationId};
 // Handles unprocessed journal notes during chunk processing.
 pub struct NativeJournalHandler<'a, S: Storage> {
     pub program_id: ActorId,
-    pub dispatch_origin: Origin,
+    pub message_type: MessageType,
     pub call_reply: bool,
     pub controller: TransitionController<'a, S>,
     pub gas_allowance_counter: &'a GasAllowanceCounter,
@@ -54,9 +54,8 @@ impl<S: Storage> NativeJournalHandler<'_, S> {
                         stash.add_to_program(dispatch, expiry);
                     });
                 } else {
-                    state
-                        .canonical_queue
-                        .modify_queue(storage, |queue| queue.queue(dispatch));
+                    let queue = state.queue_from_msg_type(dispatch.message_type);
+                    queue.modify_queue(storage, |queue| queue.queue(dispatch));
                 }
             })
     }
@@ -88,7 +87,7 @@ impl<S: Storage> NativeJournalHandler<'_, S> {
             return;
         }
 
-        let dispatch_origin = self.dispatch_origin;
+        let message_type = self.message_type;
 
         self.controller
             .update_state(dispatch.source(), |state, storage, transitions| {
@@ -103,7 +102,7 @@ impl<S: Storage> NativeJournalHandler<'_, S> {
 
                     let user_id = dispatch.destination();
                     let dispatch =
-                        Dispatch::from_core_stored(storage, dispatch, dispatch_origin, false);
+                        Dispatch::from_core_stored(storage, dispatch, message_type, false);
 
                     storage.modify(&mut state.stash_hash, |stash| {
                         stash.add_to_user(dispatch, expiry, user_id);
@@ -122,7 +121,7 @@ impl<S: Storage> NativeJournalHandler<'_, S> {
                         .write_payload_raw(dispatch.payload_bytes().to_vec())
                         .expect("failed to write payload");
 
-                    let message = MailboxMessage::new(payload, dispatch.value(), dispatch_origin);
+                    let message = MailboxMessage::new(payload, dispatch.value(), message_type);
 
                     storage.modify(&mut state.mailbox_hash, |mailbox| {
                         mailbox.add_and_store_user_mailbox(
@@ -186,7 +185,9 @@ impl<S: Storage> JournalHandler for NativeJournalHandler<'_, S> {
 
         self.controller
             .update_state(program_id, |state, storage, _| {
-                state.canonical_queue.modify_queue(storage, |queue| {
+                let queue = state.queue_from_msg_type(self.message_type);
+
+                queue.modify_queue(storage, |queue| {
                     let head = queue
                         .dequeue()
                         .expect("an attempt to consume message from empty queue");
@@ -213,7 +214,7 @@ impl<S: Storage> JournalHandler for NativeJournalHandler<'_, S> {
         let destination = dispatch.destination();
         let dispatch = dispatch.into_stored();
 
-        if self.dispatch_origin == Origin::Injected && dispatch.kind() == DispatchKind::Reply {
+        if self.message_type == MessageType::Injected && dispatch.kind() == DispatchKind::Reply {
             self.controller
                 .transitions
                 .modify_injected_replies(|injected_replies| {
@@ -232,7 +233,7 @@ impl<S: Storage> JournalHandler for NativeJournalHandler<'_, S> {
             let dispatch = Dispatch::from_core_stored(
                 self.controller.storage,
                 dispatch,
-                self.dispatch_origin,
+                self.message_type,
                 false,
             );
 
@@ -256,7 +257,7 @@ impl<S: Storage> JournalHandler for NativeJournalHandler<'_, S> {
             NonZero::<u32>::try_from(duration).expect("must be checked on backend side");
 
         let program_id = self.program_id;
-        let dispatch_origin = self.dispatch_origin;
+        let message_type = self.message_type;
         let call_reply = self.call_reply;
 
         self.controller
@@ -267,9 +268,11 @@ impl<S: Storage> JournalHandler for NativeJournalHandler<'_, S> {
                 );
 
                 let dispatch =
-                    Dispatch::from_core_stored(storage, dispatch, dispatch_origin, call_reply);
+                    Dispatch::from_core_stored(storage, dispatch, message_type, call_reply);
 
-                state.canonical_queue.modify_queue(storage, |queue| {
+                let queue = state.queue_from_msg_type(message_type);
+
+                queue.modify_queue(storage, |queue| {
                     let head = queue
                         .dequeue()
                         .expect("an attempt to wait message from empty queue");
@@ -312,9 +315,8 @@ impl<S: Storage> JournalHandler for NativeJournalHandler<'_, S> {
                     return;
                 };
 
-                state
-                    .canonical_queue
-                    .modify_queue(storage, |queue| queue.queue(dispatch));
+                let queue = state.queue_from_msg_type(dispatch.message_type);
+                queue.modify_queue(storage, |queue| queue.queue(dispatch));
 
                 transitions
                     .remove_task(

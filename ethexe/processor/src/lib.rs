@@ -241,7 +241,7 @@ impl Processor {
         let run_config =
             RunnerConfig::common(self.config().chunk_processing_threads, block_gas_limit);
 
-        run::run(self.db.clone(), self.creator.clone(), run_config, ctx).await;
+        run::run(ctx, self.db.clone(), self.creator.clone(), run_config).await;
     }
 }
 
@@ -310,11 +310,11 @@ impl OverlaidProcessor {
 
         let ctx = OverlaidRunContext::new(program_id, self.0.db.clone(), &mut handler.transitions);
 
-        run::run(
+        run::run_overlaid(
+            ctx,
             self.0.db.clone(),
             self.0.creator.clone(),
             runner_config,
-            ctx,
         )
         .await;
 
