@@ -18,43 +18,60 @@
 
 //! Utilities for tests.
 
+use crate::{InjectedTransactionAcceptance, apis::InjectedClient};
 use anyhow::{Result as AnyhowResult, bail};
-use ethexe_common::tx_pool::OffchainTransaction;
-use jsonrpsee::types::ErrorObjectOwned;
+use ethexe_common::{
+    injected::{InjectedTransaction, SignedInjectedTransaction},
+    tx_pool::OffchainTransaction,
+};
+use jsonrpsee::{http_client::HttpClient, types::ErrorObjectOwned};
 use reqwest::{Client, Response, Result};
 use serde::{Deserialize, de::DeserializeOwned};
 
 /// Client for the ethexe rpc server.
 pub struct RpcClient {
-    client: Client,
-    url: String,
+    http_client: HttpClient,
 }
 
 impl RpcClient {
     pub fn new(url: String) -> Self {
-        let client = Client::new();
-
-        Self { client, url }
+        let http_client = HttpClient::builder().build(url).unwrap();
+        Self { http_client }
     }
 
-    /// Send message using transaction pool API (`transactionPool_sendMessage`) of the ethexe rpc server.
-    pub async fn send_message(
+    /// Send message using transaction pool API (`injected_sendTransaction`) of the ethexe rpc server.
+    pub async fn send_injected_tx(
         &self,
-        ethexe_tx: OffchainTransaction,
-        signature: Vec<u8>,
-    ) -> Result<Response> {
-        let body = serde_json::json!({
-            "jsonrpc": "2.0",
-            "method": "transactionPool_sendMessage",
-            "params": {
-                "ethexe_tx": ethexe_tx,
-                "signature": signature,
-            },
-            "id": 1,
-        });
+        tx: SignedInjectedTransaction,
+    ) -> AnyhowResult<InjectedTransactionAcceptance> {
+        let js = serde_json::json!({
+            "transaction": tx.clone(),
+        }
+        );
 
-        self.client.post(&self.url).json(&body).send().await
+        tracing::info!("encoded json transaction: {js:#?}");
+
+        self.http_client
+            .send_transaction(tx)
+            .await
+            .map_err(Into::into)
     }
+}
+
+#[test]
+fn check_serialize_injected_tx() {
+    let injected_tx = InjectedTransaction {
+        recipient: ethexe_common::Address::default(),
+        destination: gprimitives::ActorId::zero(),
+        payload: b"PING".to_vec(),
+        value: 0,
+        reference_block: gprimitives::H256::random(),
+        salt: vec![1u8],
+    };
+
+    let serialized_tx = serde_json::to_string(&injected_tx).unwrap();
+    let deserialized_tx = serde_json::from_str(&serialized_tx).unwrap();
+    assert_eq!(injected_tx, deserialized_tx);
 }
 
 /// Response from the ethexe rpc server.

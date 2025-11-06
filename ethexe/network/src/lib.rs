@@ -453,6 +453,7 @@ impl NetworkService {
         self.swarm.behaviour_mut().gossipsub.publish(data.into())
     }
 
+    // TODO kuzmindev: to remove
     pub fn publish_offchain_transaction(&mut self, data: SignedOffchainTransaction) {
         self.swarm.behaviour_mut().gossipsub.publish(data);
     }

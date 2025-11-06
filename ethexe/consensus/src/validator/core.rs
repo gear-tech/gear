@@ -316,6 +316,7 @@ impl<DB: OnChainStorageRO + InjectedStorageRW> InjectedTxPool<DB> {
     }
 
     pub fn handle_tx(&mut self, tx: SignedInjectedTransaction) {
+        tracing::info!(tx = ?tx, "handle new injected tx");
         self.inner.insert(tx.data().hash());
         self.db
             .set_injected_transaction(InjectedTxWithMeta::new_pending(tx));
@@ -323,6 +324,7 @@ impl<DB: OnChainStorageRO + InjectedStorageRW> InjectedTxPool<DB> {
 
     /// Returns the injected transactions that are valid and can be included to announce.
     pub fn collect_txs_for(&self, block_hash: H256) -> Vec<SignedInjectedTransaction> {
+        tracing::info!(tx_pool = ?self.inner, "start collecting injected transactions");
         let mut txs_for_block = vec![];
 
         // TODO kuzmindev: add mechanism to check that tx may added in previous announces.

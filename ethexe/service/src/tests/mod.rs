@@ -28,14 +28,20 @@ use crate::{
         Wallets, init_logger,
     },
 };
-use alloy::providers::{Provider as _, ext::AnvilApi};
+use alloy::{
+    primitives::Address,
+    providers::{Provider as _, ext::AnvilApi},
+    transports::http::reqwest::StatusCode,
+};
 use ethexe_common::{
     ScheduledTask,
     db::*,
     events::{BlockEvent, MirrorEvent, RouterEvent},
     gear::Origin,
+    injected::{InjectedTransaction, SignedInjectedTransaction},
     mock::*,
 };
+use ethexe_consensus::ConsensusEvent;
 use ethexe_db::{Database, verifier::IntegrityVerifier};
 use ethexe_ethereum::deploy::ContractsDeploymentParams;
 use ethexe_observer::EthereumConfig;
@@ -1435,4 +1441,79 @@ async fn validators_election() {
         .await
         .unwrap();
     assert!(res.valid);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ntest::timeout(60_000)]
+async fn injected_tx_processing() {
+    init_logger();
+
+    let env_config = TestEnvConfig {
+        network: EnvNetworkConfig::Enabled,
+        ..Default::default()
+    };
+
+    let mut env = TestEnv::new(env_config).await.unwrap();
+
+    let validator_cfg = env.validators[0];
+    let mut node = env.new_node(
+        NodeConfig::default()
+            .service_rpc(8008)
+            .validator(validator_cfg),
+    );
+    node.start_service().await;
+
+    // 1. Creating a ping - program
+    let res = env
+        .upload_code(demo_ping::WASM_BINARY)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    let code_id = res.code_id;
+    let res = env
+        .create_program(code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    let ping_actor_id = res.program_id;
+
+    let injected_tx = InjectedTransaction {
+        recipient: validator_cfg.public_key.to_address(),
+        destination: ping_actor_id,
+        payload: b"PING".to_vec(),
+        value: 0,
+        reference_block: node.db.latest_data().unwrap().prepared_block_hash,
+        salt: vec![1u8],
+    };
+
+    let signed_tx = env
+        .signer
+        .signed_data(validator_cfg.public_key, injected_tx)
+        .unwrap();
+
+    tracing::info!(tx = ?signed_tx, "signed injected tx");
+
+    let _response = node.send_injected_transaction(signed_tx).await.unwrap();
+    tracing::info!("successfully send injected tx to rpc");
+
+    let mut node_events_listener = node.listener();
+    env.provider.anvil_mine(Some(10), Some(2)).await.unwrap();
+
+    node_events_listener
+        .apply_until(|event| {
+            if let TestingEvent::Consensus(ConsensusEvent::ComputeAnnounce(announce)) = event {
+                if announce.injected_transactions.len() == 1 {
+                    return Ok(Some(()));
+                }
+            };
+
+            Ok(None)
+        })
+        .await;
 }

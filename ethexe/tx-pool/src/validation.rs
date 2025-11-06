@@ -75,34 +75,34 @@ impl TxValidator {
 //         Ok(self.transaction)
 //     }
 
-    // Validates transaction mortality.
-    //
-    // Basically checks that transaction reference block hash is within the recent blocks window.
-    // fn check_mortality(&self) -> Result<bool> {
-    //     // TODO #4809: checking mortality for latest block is not fully correct approach,
-    //     // but can be applied presently.
-    //     let _latest_block_hash = self
-    //         .db
-    //         .latest_data()
-    //         .ok_or_else(|| anyhow!("Latest data not found"))?
-    //         .prepared_block_hash;
-    //     // ethexe_common::injected::check_mortality_at(&self.db, &self.transaction, latest_block_hash)
-    //     todo!()
-    // }
+// Validates transaction mortality.
+//
+// Basically checks that transaction reference block hash is within the recent blocks window.
+// fn check_mortality(&self) -> Result<bool> {
+//     // TODO #4809: checking mortality for latest block is not fully correct approach,
+//     // but can be applied presently.
+//     let _latest_block_hash = self
+//         .db
+//         .latest_data()
+//         .ok_or_else(|| anyhow!("Latest data not found"))?
+//         .prepared_block_hash;
+//     // ethexe_common::injected::check_mortality_at(&self.db, &self.transaction, latest_block_hash)
+//     todo!()
+// }
 
-    // Validates transaction uniqueness.
-    //
-    // Basically checks that transaction is not already in the database.
-    // fn check_uniqueness(&self) -> Result<()> {
-    //     let tx_hash = self.transaction.tx_hash();
+// Validates transaction uniqueness.
+//
+// Basically checks that transaction is not already in the database.
+// fn check_uniqueness(&self) -> Result<()> {
+//     let tx_hash = self.transaction.tx_hash();
 
-    //     // TODO #4505
-    //     if self.db.get_offchain_transaction(tx_hash).is_none() {
-    //         Ok(())
-    //     } else {
-    //         Err(anyhow!("Transaction already exists"))
-    //     }
-    // }
+//     // TODO #4505
+//     if self.db.get_offchain_transaction(tx_hash).is_none() {
+//         Ok(())
+//     } else {
+//         Err(anyhow!("Transaction already exists"))
+//     }
+// }
 // }
 
 // #[cfg(test)]

@@ -30,7 +30,7 @@ pub enum InjectedTransactionAcceptance {
     Accept,
 }
 
-#[rpc(server)]
+#[rpc(server, client)]
 pub trait Injected {
     #[method(name = "injected_sendTransaction")]
     async fn send_transaction(
@@ -56,7 +56,7 @@ impl InjectedServer for InjectedApi {
         &self,
         transaction: SignedInjectedTransaction,
     ) -> RpcResult<InjectedTransactionAcceptance> {
-        log::debug!("Called send_message with vars: {transaction:?}");
+        tracing::info!(tx = ?transaction, "called injected_sendTransaction");
 
         let (response_sender, response_receiver) = oneshot::channel();
         self.rpc_sender

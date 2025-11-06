@@ -31,6 +31,8 @@ use jsonrpsee::{
 use parity_scale_codec::Decode;
 use tokio::sync::{mpsc, oneshot};
 
+// TODO: REMOVE TX POOL
+
 #[rpc(server)]
 pub trait TransactionPool {
     #[method(name = "transactionPool_sendMessage")]

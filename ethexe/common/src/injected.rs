@@ -39,9 +39,10 @@ pub type SignedInjectedTransaction = SignedData<InjectedTransaction>;
 pub struct InjectedTransaction {
     /// Address of validator the transaction intended for
     pub recipient: Address,
-    /// Destination program inside `Gear.exe`.
+    /// Destination program inside `Vara.eth`.
     pub destination: ActorId,
     /// Payload of the message.
+    #[cfg_attr(feature = "std", serde(with = "hex_bytes"))]
     pub payload: Vec<u8>,
     /// Value attached to the message.
     ///
@@ -53,7 +54,30 @@ pub struct InjectedTransaction {
     /// transactions to be sent simultaneously.
     ///
     /// NOTE: this is also a salt for MessageId generation.
+    // #[cfg_attr(feature = "std", serde(with = "hex"))]
+    #[cfg_attr(feature = "std", serde(with = "hex_bytes"))]
     pub salt: Vec<u8>,
+}
+
+#[cfg(feature = "std")]
+mod hex_bytes {
+    use serde::{Deserialize, Deserializer, Serializer};
+
+    pub fn serialize<S>(bytes: &[u8], serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_str(&format!("0x{}", hex::encode(bytes)))
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Vec<u8>, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        let s = s.strip_prefix("0x").unwrap_or(&s);
+        hex::decode(s).map_err(serde::de::Error::custom)
+    }
 }
 
 impl ToDigest for InjectedTransaction {

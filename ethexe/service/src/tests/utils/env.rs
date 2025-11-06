@@ -31,6 +31,7 @@ use alloy::{
     node_bindings::{Anvil, AnvilInstance},
     providers::{Provider as _, RootProvider, ext::AnvilApi},
     rpc::types::{Header as RpcHeader, anvil::MineOptions},
+    transports::http::reqwest,
 };
 use ethexe_blob_loader::{
     BlobLoaderService,
@@ -40,6 +41,7 @@ use ethexe_common::{
     Address, CodeAndId, DEFAULT_BLOCK_GAS_LIMIT,
     ecdsa::{PrivateKey, PublicKey},
     events::{BlockEvent, MirrorEvent, RouterEvent},
+    injected::SignedInjectedTransaction,
 };
 use ethexe_consensus::{ConsensusService, SimpleConnectService, ValidatorService};
 use ethexe_db::Database;
@@ -56,12 +58,13 @@ use ethexe_observer::{EthereumConfig, ObserverEvent, ObserverService};
 use ethexe_processor::{
     DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, DEFAULT_CHUNK_PROCESSING_THREADS, Processor, RunnerConfig,
 };
-use ethexe_rpc::{RpcConfig, RpcService, test_utils::RpcClient};
+use ethexe_rpc::{InjectedTransactionAcceptance, RpcConfig, RpcService, test_utils::RpcClient};
 use ethexe_signer::Signer;
 use ethexe_tx_pool::TxPoolService;
 use futures::StreamExt;
 use gear_core_errors::ReplyCode;
 use gprimitives::{ActorId, CodeId, H160, H256, MessageId};
+use parity_scale_codec::Encode;
 use rand::{SeedableRng, prelude::StdRng};
 use roast_secp256k1_evm::frost::{
     Identifier, SigningKey, keys,
@@ -970,6 +973,14 @@ impl Node {
         self.service_rpc_config
             .as_ref()
             .map(|rpc| RpcClient::new(format!("http://{}", rpc.listen_addr)))
+    }
+
+    pub async fn send_injected_transaction(
+        &self,
+        tx: SignedInjectedTransaction,
+    ) -> anyhow::Result<InjectedTransactionAcceptance> {
+        let rpc_client = self.rpc_client().expect("no rpc client provided by node");
+        rpc_client.send_injected_tx(tx).await.map_err(Into::into)
     }
 
     pub fn listener(&mut self) -> ServiceEventsListener<'_> {
