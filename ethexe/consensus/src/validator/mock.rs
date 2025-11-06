@@ -134,6 +134,7 @@ pub fn mock_validator_context() -> (ValidatorContext, Vec<PublicKey>, MockEthere
     let (signer, _, mut keys) = crate::mock::init_signer_with_keys(10);
     let ethereum = MockEthereum::default();
     let db = Database::memory();
+    let timelines = ProtocolTimelines::mock(());
 
     let ctx = ValidatorContext {
         core: ValidatorCore {
@@ -141,7 +142,7 @@ pub fn mock_validator_context() -> (ValidatorContext, Vec<PublicKey>, MockEthere
             signatures_threshold: 1,
             router_address: 12345.into(),
             pub_key: keys.pop().unwrap(),
-            timelines: ProtocolTimelines::mock(()),
+            timelines,
             block_gas_limit: DEFAULT_BLOCK_GAS_LIMIT,
             signer,
             db: db.clone(),
@@ -154,11 +155,7 @@ pub fn mock_validator_context() -> (ValidatorContext, Vec<PublicKey>, MockEthere
         output: VecDeque::new(),
     };
 
-    ctx.core.db.set_protocol_timelines(ProtocolTimelines {
-        genesis_ts: 0,
-        era: 12 * 60 * 60,
-        election: 10 * 60,
-    });
+    ctx.core.db.set_protocol_timelines(timelines);
 
     (ctx, keys, ethereum)
 }

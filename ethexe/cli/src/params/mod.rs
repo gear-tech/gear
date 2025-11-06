@@ -82,7 +82,6 @@ impl Params {
 
         let node = node.context("missing node params")?;
         let net_dir = node.net_dir();
-        let dev = node.dev;
 
         let ethereum = ethereum.context("missing ethereum params")?;
         let node = node.into_config()?;
@@ -90,9 +89,8 @@ impl Params {
         let network = network
             .and_then(|p| p.into_config(net_dir, ethereum.router_address).transpose())
             .transpose()?;
-        let rpc = rpc.and_then(|p| p.into_config(dev));
+        let rpc = rpc.and_then(|p| p.into_config(&node));
         let prometheus = prometheus.and_then(|p| p.into_config());
-
         Ok(Config {
             node,
             ethereum,

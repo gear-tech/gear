@@ -55,6 +55,14 @@ impl StateHandler for Initial {
         self.ctx
     }
 
+    fn process_new_head(mut self, block: SimpleBlockData) -> Result<ValidatorState> {
+        // TODO #4555: block producer could be calculated right here, using propagation from previous blocks.
+
+        self.state = State::WaitingForSyncedBlock(block);
+
+        Ok(self.into())
+    }
+
     fn process_synced_block(self, block_hash: H256) -> Result<ValidatorState> {
         match &self.state {
             State::WaitingForSyncedBlock(block) if block.hash == block_hash => {
@@ -62,7 +70,7 @@ impl StateHandler for Initial {
                     .ctx
                     .core
                     .db
-                    .block_validators(block_hash)
+                    .validators(self.ctx.core.timelines.era_from_ts(block.header.timestamp))
                     .ok_or(anyhow!("validators not found for block({block_hash})"))?;
                 let producer = utils::block_producer_for(
                     &validators,
@@ -115,16 +123,11 @@ impl Initial {
         .into())
     }
 
-    // TODO #4555: block producer could be calculated right here, using propagation from previous blocks.
     pub fn create_with_chain_head(
         ctx: ValidatorContext,
         block: SimpleBlockData,
     ) -> Result<ValidatorState> {
-        Ok(Self {
-            ctx,
-            state: State::WaitingForSyncedBlock(block),
-        }
-        .into())
+        Self::create(ctx)?.process_new_head(block)
     }
 }
 
@@ -132,7 +135,7 @@ impl Initial {
 mod tests {
     use super::*;
     use crate::{ConsensusEvent, validator::mock::*};
-    use ethexe_common::{ValidatorsVec, db::*, mock::*};
+    use ethexe_common::{ValidatorsVec, mock::*};
     use gprimitives::H256;
     use nonempty::nonempty;
 
@@ -146,7 +149,7 @@ mod tests {
     #[test]
     fn create_with_chain_head_success() {
         let (ctx, _, _) = mock_validator_context();
-        let block = SimpleBlockData::mock(());
+        let block = BlockChain::mock(1).setup(&ctx.core.db).blocks[1].to_simple();
         let initial = Initial::create_with_chain_head(ctx, block).unwrap();
         assert!(initial.is_initial());
     }
@@ -154,17 +157,14 @@ mod tests {
     #[tokio::test]
     async fn switch_to_producer() {
         let (ctx, keys, _mock_eth) = mock_validator_context();
-        let validators = nonempty![
+        let validators: ValidatorsVec = nonempty![
             ctx.core.pub_key.to_address(),
             keys[0].to_address(),
             keys[1].to_address(),
         ]
         .into();
 
-        let mut block = SimpleBlockData::mock(());
-        block.header.timestamp = 0;
-        ctx.core.db.set_block_header(block.hash, block.header);
-        ctx.core.db.set_block_validators(block.hash, validators);
+        let block = BlockChain::mock((2, validators)).setup(&ctx.core.db).blocks[2].to_simple();
 
         let initial = Initial::create_with_chain_head(ctx, block.clone()).unwrap();
         let producer = initial
@@ -180,9 +180,6 @@ mod tests {
     async fn switch_to_subordinate() {
         let (ctx, keys, _mock_eth) = mock_validator_context();
 
-        let mut block = SimpleBlockData::mock(());
-        block.header.timestamp = 1;
-
         let validators: ValidatorsVec = nonempty![
             ctx.core.pub_key.to_address(),
             keys[1].to_address(),
@@ -190,8 +187,7 @@ mod tests {
         ]
         .into();
 
-        ctx.core.db.set_block_header(block.hash, block.header);
-        ctx.core.db.set_block_validators(block.hash, validators);
+        let block = BlockChain::mock((1, validators)).setup(&ctx.core.db).blocks[1].to_simple();
 
         let initial = Initial::create_with_chain_head(ctx, block.clone()).unwrap();
         let state = initial.process_synced_block(block.hash).unwrap();
@@ -205,7 +201,7 @@ mod tests {
     #[test]
     fn process_synced_block_rejected() {
         let (ctx, _, _) = mock_validator_context();
-        let block = SimpleBlockData::mock(());
+        let block = BlockChain::mock(1).setup(&ctx.core.db).blocks[1].to_simple();
 
         let initial = Initial::create(ctx)
             .unwrap()

@@ -21,7 +21,7 @@ use anyhow::{Result, anyhow};
 use ethexe_blob_loader::BlobLoaderEvent;
 use ethexe_common::{
     Announce, HashOf, SimpleBlockData, db::*, events::BlockEvent,
-    tx_pool::SignedOffchainTransaction,
+    injected::SignedInjectedTransaction, tx_pool::SignedOffchainTransaction,
 };
 use ethexe_compute::ComputeEvent;
 use ethexe_consensus::ConsensusEvent;
@@ -45,6 +45,9 @@ pub enum TestingRpcEvent {
     OffchainTransaction {
         transaction: SignedOffchainTransaction,
     },
+    InjectedTransaction {
+        transaction: SignedInjectedTransaction,
+    },
 }
 
 impl TestingRpcEvent {
@@ -54,6 +57,12 @@ impl TestingRpcEvent {
                 transaction,
                 response_sender: _,
             } => Self::OffchainTransaction {
+                transaction: transaction.clone(),
+            },
+            RpcEvent::InjectedTransaction {
+                transaction,
+                response_sender: _,
+            } => Self::InjectedTransaction {
                 transaction: transaction.clone(),
             },
         }
@@ -140,7 +149,9 @@ impl ServiceEventsListener<'_> {
                     if self
                         .db
                         .announce(announce_hash)
-                        .ok_or_else(|| anyhow!("Announce not found in listener's node DB"))
+                        .ok_or_else(|| {
+                            anyhow!("Announce {announce_hash} not found in listener's node DB")
+                        })
                         .unwrap()
                         .block_hash
                         == waited_block_hash

@@ -16,14 +16,18 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+pub use crate::apis::InjectedTransactionAcceptance;
+
+use crate::apis::{InjectedApi, InjectedServer};
 use anyhow::{Result, anyhow};
 use apis::{
     BlockApi, BlockServer, CodeApi, CodeServer, DevApi, DevServer, ProgramApi, ProgramServer,
     TransactionPoolApi, TransactionPoolServer,
 };
 use ethexe_blob_loader::local::LocalBlobStorage;
-use ethexe_common::tx_pool::SignedOffchainTransaction;
+use ethexe_common::{injected::SignedInjectedTransaction, tx_pool::SignedOffchainTransaction};
 use ethexe_db::Database;
+use ethexe_processor::RunnerConfig;
 use futures::{FutureExt, Stream, stream::FusedStream};
 use gprimitives::H256;
 use jsonrpsee::{
@@ -67,6 +71,9 @@ pub struct RpcConfig {
     pub cors: Option<Vec<String>>,
     /// Dev mode.
     pub dev: bool,
+    /// Runner config is created with the data
+    /// for processor, but with gas limit multiplier applied.
+    pub runner_config: RunnerConfig,
 }
 
 pub struct RpcService {
@@ -102,12 +109,16 @@ impl RpcService {
             .to_service_builder();
 
         let mut module = JsonrpcModule::new(());
-        module.merge(ProgramServer::into_rpc(ProgramApi::new(self.db.clone())))?;
+        module.merge(ProgramServer::into_rpc(ProgramApi::new(
+            self.db.clone(),
+            self.config.runner_config,
+        )))?;
         module.merge(BlockServer::into_rpc(BlockApi::new(self.db.clone())))?;
         module.merge(CodeServer::into_rpc(CodeApi::new(self.db.clone())))?;
         module.merge(TransactionPoolServer::into_rpc(TransactionPoolApi::new(
-            rpc_sender,
+            rpc_sender.clone(),
         )))?;
+        module.merge(InjectedServer::into_rpc(InjectedApi::new(rpc_sender)))?;
 
         if self.config.dev {
             module.merge(DevServer::into_rpc(DevApi::new(
@@ -207,5 +218,9 @@ pub enum RpcEvent {
     OffchainTransaction {
         transaction: SignedOffchainTransaction,
         response_sender: Option<oneshot::Sender<Result<H256>>>,
+    },
+    InjectedTransaction {
+        transaction: SignedInjectedTransaction,
+        response_sender: oneshot::Sender<InjectedTransactionAcceptance>,
     },
 }

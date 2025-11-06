@@ -28,6 +28,7 @@ pub mod db;
 pub mod events;
 pub mod gear;
 mod hash;
+pub mod injected;
 pub mod network;
 mod primitives;
 pub mod tx_pool;

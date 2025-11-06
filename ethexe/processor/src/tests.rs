@@ -17,16 +17,22 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::*;
+use anyhow::{Result, anyhow};
 use ethexe_common::{
     BlockHeader, HashOf,
     db::*,
     events::{BlockRequestEvent, MirrorRequestEvent, RouterRequestEvent},
     gear::MessageType,
 };
-use ethexe_runtime_common::{ScheduleRestorer, state::Dispatch};
+use ethexe_db::MemDb;
+use ethexe_runtime_common::{
+    ScheduleRestorer,
+    state::{Dispatch, MessageQueue},
+};
 use gear_core::ids::prelude::CodeIdExt;
 use gprimitives::{ActorId, MessageId};
 use parity_scale_codec::Encode;
+use std::collections::BTreeSet;
 use utils::*;
 
 fn init_genesis_block(processor: &mut Processor) -> H256 {
@@ -658,6 +664,357 @@ async fn many_waits() {
     for (_pid, message) in handler.transitions.current_messages() {
         assert_eq!(message.payload, b"Hello, world!");
     }
+}
+
+// Tests that when overlay execution is performed, it doesn't change the original state.
+#[tokio::test(flavor = "multi_thread")]
+async fn overlay_execution_noop() {
+    init_logger();
+
+    // Define message id generator.
+    let mut message_nonce: u64 = 0;
+    let mut get_next_message_id = || {
+        message_nonce += 1;
+        MessageId::from(message_nonce)
+    };
+
+    // Define function to get message queue from state hash.
+    let get_mq_from_state_hash =
+        |state_hash: H256, processor: &Processor| -> Result<MessageQueue> {
+            let state = processor
+                .db
+                .program_state(state_hash)
+                .ok_or(anyhow!("failed to read pid state"))?;
+
+            state.canonical_queue.query(&processor.db)
+        };
+
+    // Define function to get message queue from a specific block for a specific program.
+    let get_program_mq = |pid: ActorId,
+                          announce_hash: HashOf<Announce>,
+                          processor: &Processor|
+     -> Result<MessageQueue> {
+        let states = processor
+            .db
+            .announce_program_states(announce_hash)
+            .ok_or(anyhow!("failed to get block states"))?;
+        let pid_state = states
+            .get(&pid)
+            .ok_or(anyhow!("failed to get pid state hash"))?;
+
+        get_mq_from_state_hash(pid_state.hash, processor)
+    };
+
+    let user_id = ActorId::from(10);
+
+    let db = MemDb::default();
+    let mut processor = Processor::new(Database::from_one(&db)).unwrap();
+
+    // -----------------------------------------------------------------------------
+    // ----------------------------- Initialize db ---------------------------------
+    // -----------------------------------------------------------------------------
+    let parent = init_genesis_block(&mut processor);
+    let parent_announce_hash = HashOf::zero();
+    let block1 = init_new_block_from_parent(&mut processor, parent);
+
+    let block1_announce = Announce::with_default_gas(block1, parent_announce_hash);
+    let block1_announce_hash = block1_announce.to_hash();
+
+    let ping_id = ActorId::from(0x10000000);
+    let async_id = ActorId::from(0x20000000);
+
+    // -----------------------------------------------------------------------------
+    // ----------------------------- Upload codes ----------------------------------
+    // -----------------------------------------------------------------------------
+    let ping_code_id = processor
+        .handle_new_code(demo_ping::WASM_BINARY)
+        .expect("failed to call runtime api")
+        .expect("code failed verification or instrumentation");
+
+    let async_code_id = processor
+        .handle_new_code(demo_async::WASM_BINARY)
+        .expect("failed to call runtime api")
+        .expect("code failed verification or instrumentation");
+
+    let events = vec![
+        // Create ping program, top up balance and send init message.
+        BlockRequestEvent::Router(RouterRequestEvent::ProgramCreated {
+            actor_id: ping_id,
+            code_id: ping_code_id,
+        }),
+        BlockRequestEvent::Mirror {
+            actor_id: ping_id,
+            event: MirrorRequestEvent::ExecutableBalanceTopUpRequested {
+                value: 10_000_000_000,
+            },
+        },
+        BlockRequestEvent::Mirror {
+            actor_id: ping_id,
+            event: MirrorRequestEvent::MessageQueueingRequested {
+                id: get_next_message_id(),
+                source: user_id,
+                payload: b"PING".to_vec(),
+                value: 0,
+                call_reply: false,
+            },
+        },
+        // Сreate async program, top up balance and send init message.
+        BlockRequestEvent::Router(RouterRequestEvent::ProgramCreated {
+            actor_id: async_id,
+            code_id: async_code_id,
+        }),
+        BlockRequestEvent::Mirror {
+            actor_id: async_id,
+            event: MirrorRequestEvent::ExecutableBalanceTopUpRequested {
+                value: 10_000_000_000,
+            },
+        },
+        BlockRequestEvent::Mirror {
+            actor_id: async_id,
+            event: MirrorRequestEvent::MessageQueueingRequested {
+                id: get_next_message_id(),
+                source: user_id,
+                payload: ping_id.encode(),
+                value: 0,
+                call_reply: false,
+            },
+        },
+    ];
+
+    // Check no block states before processing events.
+    let res = get_program_mq(ping_id, block1_announce_hash, &processor);
+    assert_eq!(
+        res.unwrap_err().to_string(),
+        "failed to get block states".to_string()
+    );
+    assert!(get_program_mq(async_id, block1_announce_hash, &processor).is_err());
+
+    // Process events
+    let BlockProcessingResult {
+        states, schedule, ..
+    } = processor
+        .process_announce(block1_announce, events)
+        .await
+        .expect("failed to process events");
+
+    processor
+        .db
+        .set_announce_program_states(block1_announce_hash, states);
+    processor
+        .db
+        .set_announce_schedule(block1_announce_hash, schedule);
+
+    // Check that program have empty queues
+    let ping_mq =
+        get_program_mq(ping_id, block1_announce_hash, &processor).expect("ping mq wasn't found");
+    let async_mq =
+        get_program_mq(async_id, block1_announce_hash, &processor).expect("async mq wasn't found");
+    assert!(ping_mq.is_empty());
+    assert!(async_mq.is_empty());
+
+    // -----------------------------------------------------------------------------
+    // ------------------ Create a block with non-empty queues ---------------------
+    // -----------------------------------------------------------------------------
+    // This block won't be processed, but there will be messages saved into corresponding queues.
+    // This is needed to test a case when RPC calculate reply for handle procedure is called when
+    // programs already have some state.
+
+    let block2 = init_new_block_from_parent(&mut processor, block1);
+    let block2_announce = Announce::with_default_gas(block2, block1_announce_hash);
+    let block2_announce_hash = block2_announce.to_hash();
+
+    let mut handler_block2 = processor.handler(block2_announce).unwrap();
+
+    // Manually add messages to programs queues
+    let new_block_ping_mid1 = get_next_message_id();
+    handler_block2
+        .handle_mirror_event(
+            ping_id,
+            MirrorRequestEvent::MessageQueueingRequested {
+                id: new_block_ping_mid1,
+                source: user_id,
+                payload: b"PING".to_vec(),
+                value: 0,
+                call_reply: false,
+            },
+        )
+        .expect("failed to send message");
+
+    let new_block_ping_mid2 = get_next_message_id();
+    handler_block2
+        .handle_mirror_event(
+            ping_id,
+            MirrorRequestEvent::MessageQueueingRequested {
+                id: new_block_ping_mid2,
+                source: user_id,
+                payload: b"PING".to_vec(),
+                value: 0,
+                call_reply: false,
+            },
+        )
+        .expect("failed to send message");
+
+    let new_block_async_mid1 = get_next_message_id();
+    handler_block2
+        .handle_mirror_event(
+            async_id,
+            MirrorRequestEvent::MessageQueueingRequested {
+                id: new_block_async_mid1,
+                source: user_id,
+                payload: demo_async::Command::Common.encode().encode(),
+                value: 0,
+                call_reply: false,
+            },
+        )
+        .expect("failed to send message");
+    let new_block_async_mid2 = get_next_message_id();
+    handler_block2
+        .handle_mirror_event(
+            async_id,
+            MirrorRequestEvent::MessageQueueingRequested {
+                id: new_block_async_mid2,
+                source: user_id,
+                payload: demo_async::Command::Common.encode().encode(),
+                value: 0,
+                call_reply: false,
+            },
+        )
+        .expect("failed to send message");
+    let new_block_async_mid3 = get_next_message_id();
+    handler_block2
+        .handle_mirror_event(
+            async_id,
+            MirrorRequestEvent::MessageQueueingRequested {
+                id: new_block_async_mid3,
+                source: user_id,
+                payload: demo_async::Command::Common.encode().encode(),
+                value: 0,
+                call_reply: false,
+            },
+        )
+        .expect("failed to send message");
+
+    // Handler ops wrote to the storage states of particular programs,
+    // but block programs states are not updated yet. That the reason state hash
+    // can't be obtained from the db.
+    let ping_state_hash = handler_block2
+        .transitions
+        .state_of(&ping_id)
+        .expect("failed to get ping state");
+    let ping_mq = get_mq_from_state_hash(ping_state_hash.hash, &processor)
+        .expect("failed to get ping message queue");
+    assert_eq!(ping_mq.len(), 2);
+
+    let async_state_hash = handler_block2
+        .transitions
+        .state_of(&async_id)
+        .expect("failed to get async state");
+    let async_mq = get_mq_from_state_hash(async_state_hash.hash, &processor)
+        .expect("failed to get async message queue");
+    assert_eq!(async_mq.len(), 3);
+
+    // Finalize (from the ethexe-processor point of view) the block
+    let (_, states, schedule) = handler_block2.transitions.finalize();
+    processor
+        .db
+        .set_announce_program_states(block2_announce_hash, states);
+    processor
+        .db
+        .set_announce_schedule(block2_announce_hash, schedule);
+
+    // Same checks as above, but with obtaining states from db
+    let ping_mq =
+        get_program_mq(ping_id, block2_announce_hash, &processor).expect("ping mq wasn't found");
+    assert_eq!(ping_mq.len(), 2);
+    let async_mq =
+        get_program_mq(async_id, block2_announce_hash, &processor).expect("async mq wasn't found");
+    assert_eq!(async_mq.len(), 3);
+
+    // -----------------------------------------------------------------------------
+    // -------------- Create a new block without processing queues -----------------
+    // -----------------------------------------------------------------------------
+    let block3 = init_new_block_from_parent(&mut processor, block2);
+    let block3_announce = Announce::with_default_gas(block3, block2_announce_hash);
+    let block3_announce_hash = block3_announce.to_hash();
+
+    let handler_block3 = processor.handler(block3_announce).unwrap();
+    let block3_announce = handler_block3.announce;
+    let (_, states, schedule) = handler_block3.transitions.finalize();
+    processor
+        .db
+        .set_announce_program_states(block3_announce_hash, states);
+    processor
+        .db
+        .set_announce_schedule(block3_announce_hash, schedule);
+
+    // Check queues are still not empty in the block3.
+    let ping_mq =
+        get_program_mq(ping_id, block3_announce_hash, &processor).expect("ping mq wasn't found");
+    assert_eq!(ping_mq.len(), 2);
+    let async_mq =
+        get_program_mq(async_id, block3_announce_hash, &processor).expect("async mq wasn't found");
+    assert_eq!(async_mq.len(), 3);
+
+    // -----------------------------------------------------------------------------
+    // ------------------------ Run in overlay a message ---------------------------
+    // -----------------------------------------------------------------------------
+
+    // Setup the block3 block meta
+    processor.db.mutate_block_meta(block3, |meta| {
+        meta.announces = Some(BTreeSet::from([block3_announce_hash]));
+    });
+    // Set announce so overlay finds it
+    processor.db.set_announce(block3_announce);
+
+    // Now send message using overlay on the block3.
+    let mut overlaid_processor = processor.clone().overlaid();
+    let runner_config = RunnerConfig::overlay(
+        processor.config().chunk_processing_threads,
+        DEFAULT_BLOCK_GAS_LIMIT,
+        DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER,
+    );
+    let reply_info = overlaid_processor
+        .execute_for_reply(
+            block3,
+            user_id,
+            async_id,
+            demo_async::Command::Common.encode(),
+            0,
+            runner_config,
+        )
+        .await
+        .expect("failed to call execute_for_reply");
+    assert_eq!(reply_info.payload, MessageId::zero().encode());
+
+    // -----------------------------------------------------------------------------
+    // -------------------------- Check message queues -----------------------------
+    // -----------------------------------------------------------------------------
+    // Check mq states on overlaid processor for block3
+    let ping_mq = get_program_mq(ping_id, block3_announce_hash, &overlaid_processor.0)
+        .expect("ping mq wasn't found");
+    assert_eq!(ping_mq.len(), 0);
+    let async_mq = get_program_mq(async_id, block3_announce_hash, &overlaid_processor.0)
+        .expect("async mq wasn't found");
+    assert_eq!(async_mq.len(), 0);
+
+    // Check mq states on the main processor for block3
+    let mut ping_mq =
+        get_program_mq(ping_id, block3_announce_hash, &processor).expect("ping mq wasn't found");
+    assert_eq!(ping_mq.len(), 2);
+    let ping_msg1 = ping_mq.dequeue().expect("mq is empty");
+    assert_eq!(ping_msg1.id, new_block_ping_mid1);
+    let ping_msg2 = ping_mq.dequeue().expect("mq is empty");
+    assert_eq!(ping_msg2.id, new_block_ping_mid2);
+
+    let mut async_mq =
+        get_program_mq(async_id, block3_announce_hash, &processor).expect("async mq wasn't found");
+    assert_eq!(async_mq.len(), 3);
+    let async_msg1 = async_mq.dequeue().expect("mq is empty");
+    assert_eq!(async_msg1.id, new_block_async_mid1);
+    let async_msg2 = async_mq.dequeue().expect("mq is empty");
+    assert_eq!(async_msg2.id, new_block_async_mid2);
+    let async_msg3 = async_mq.dequeue().expect("mq is empty");
+    assert_eq!(async_msg3.id, new_block_async_mid3);
 }
 
 mod utils {

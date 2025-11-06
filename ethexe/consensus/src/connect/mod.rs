@@ -25,7 +25,7 @@ use anyhow::{Result, anyhow};
 use ethexe_common::{
     Address, Announce, HashOf, SimpleBlockData,
     consensus::{VerifiedAnnounce, VerifiedValidationRequest},
-    db::OnChainStorageRO,
+    db::{AnnounceStorageRW, BlockMetaStorageRW, OnChainStorageRO},
 };
 use ethexe_db::Database;
 use futures::{Stream, stream::FusedStream};
@@ -100,7 +100,12 @@ impl ConsensusService for SimpleConnectService {
         if let State::WaitingForSyncedBlock { block } = &self.state
             && block.hash == block_hash
         {
-            let validators = self.db.block_validators(block_hash).ok_or(anyhow!(
+            let timelines = self
+                .db
+                .protocol_timelines()
+                .ok_or_else(|| anyhow!("protocol timelines not found in database"))?;
+            let block_era = timelines.era_from_ts(block.header.timestamp);
+            let validators = self.db.validators(block_era).ok_or(anyhow!(
                 "validators not found for synced block({block_hash})"
             ))?;
             let producer = utils::block_producer_for(
@@ -121,6 +126,8 @@ impl ConsensusService for SimpleConnectService {
         if let State::WaitingForPreparedBlock { block, producer } = &self.state
             && block.hash == prepared_block_hash
         {
+            utils::propagate_announces_for_skipped_blocks(&self.db, block.header.parent_hash)?;
+
             if let Some(index) = self.pending_announces.iter().position(|announce| {
                 announce.address() == *producer && announce.data().block_hash == block.hash
             }) {
@@ -155,8 +162,16 @@ impl ConsensusService for SimpleConnectService {
         if let State::WaitingForAnnounce { block, producer } = &self.state
             && announce.address() == *producer
             && announce.data().block_hash == block.hash
+            && announce.data().parent
+                == utils::parent_main_line_announce(&self.db, block.header.parent_hash)?
         {
             let (announce, _) = announce.into_parts();
+
+            let announce_hash = self.db.set_announce(announce.clone());
+            self.db.mutate_block_meta(block.hash, |meta| {
+                meta.announces.get_or_insert_default().insert(announce_hash);
+            });
+
             self.output
                 .push_back(ConsensusEvent::ComputeAnnounce(announce));
             self.state = State::WaitingForBlock;
@@ -164,13 +179,10 @@ impl ConsensusService for SimpleConnectService {
         }
 
         if self.pending_announces.len() == MAX_PENDING_ANNOUNCES {
-            let old_announce = self.pending_announces.pop_front().unwrap();
-            tracing::trace!(
-                "Pending announces limit reached, dropping oldest announce: {:?} from {}",
-                old_announce.data(),
-                old_announce.address()
-            );
+            let _ = self.pending_announces.pop_front().unwrap();
         }
+
+        tracing::warn!("Receive unexpected {announce:?}, save to pending announces");
 
         self.pending_announces.push_back(announce);
 
