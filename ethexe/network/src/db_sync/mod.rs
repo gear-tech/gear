@@ -28,11 +28,11 @@ pub(crate) use crate::{
 };
 use async_trait::async_trait;
 use ethexe_common::{
-    Announce, HashOf,
     db::{
         AnnounceStorageRO, BlockMetaStorageRO, CodesStorageRO, HashStorageRO, LatestDataStorageRO,
     },
     gear::CodeState,
+    network::{AnnouncesRequest, AnnouncesResponse, CheckedAnnouncesResponse},
 };
 use ethexe_db::Database;
 use futures::FutureExt;
@@ -223,14 +223,6 @@ pub struct ValidCodesRequest {
     pub validated_count: u64,
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub struct AnnouncesRequest {
-    /// The hash of head announce
-    pub head: HashOf<Announce>,
-    /// Max chain length to return
-    pub max_chain_len: u64,
-}
-
 #[derive(Debug, Clone, Eq, PartialEq, derive_more::From)]
 pub enum Request {
     Hashes(HashesRequest),
@@ -263,7 +255,7 @@ pub enum Response {
         #[debug("{:?}", AlternateCollectionFmt::map(_0, "programs"))] BTreeMap<ActorId, CodeId>,
     ),
     ValidCodes(#[debug("{:?}", AlternateCollectionFmt::set(_0, "codes"))] BTreeSet<CodeId>),
-    Announces(Vec<Announce>),
+    Announces(CheckedAnnouncesResponse),
 }
 
 pub type HandleResult = Result<Response, (RequestFailure, RetriableRequest)>;
@@ -332,21 +324,13 @@ pub(crate) struct InnerProgramIdsRequest {
     at: H256,
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Encode, Decode)]
-pub struct InnerAnnouncesRequest {
-    /// The hash of head announce
-    pub head: HashOf<Announce>,
-    /// Max chain length to return
-    pub max_chain_len: u64,
-}
-
 /// Network-only type to be encoded-decoded and sent over the network
 #[derive(Debug, Clone, Eq, PartialEq, Encode, Decode, derive_more::From)]
 pub(crate) enum InnerRequest {
     Hashes(HashesRequest),
     ProgramIds(InnerProgramIdsRequest),
     ValidCodes,
-    Announces(InnerAnnouncesRequest),
+    Announces(AnnouncesRequest),
 }
 
 #[derive(Debug, Default, Eq, PartialEq, Encode, Decode)]
@@ -361,7 +345,7 @@ pub(crate) enum InnerResponse {
     Hashes(InnerHashesResponse),
     ProgramIds(InnerProgramIdsResponse),
     ValidCodes(BTreeSet<CodeId>),
-    Announces(Vec<Announce>),
+    Announces(AnnouncesResponse),
 }
 
 type InnerBehaviour = request_response::Behaviour<ParityScaleCodec<InnerRequest, InnerResponse>>;
@@ -618,7 +602,7 @@ pub(crate) mod tests {
     use super::*;
     use crate::{tests::DataProvider, utils::tests::init_logger};
     use assert_matches::assert_matches;
-    use ethexe_common::{StateHashWithQueueSize, db::*};
+    use ethexe_common::{Announce, HashOf, StateHashWithQueueSize, db::*};
     use ethexe_db::{Database, MemDb};
     use libp2p::{
         Swarm, Transport,

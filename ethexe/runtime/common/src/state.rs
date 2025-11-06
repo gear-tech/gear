@@ -34,7 +34,7 @@ use core::{
 };
 use ethexe_common::{
     HashOf, MaybeHashOf,
-    gear::{Message, Origin},
+    gear::{Message, MessageType},
 };
 pub use gear_core::program::ProgramState as InitStatus;
 use gear_core::{
@@ -417,6 +417,16 @@ impl ProgramState {
             && self.injected_queue.hash.is_empty()
             && self.waitlist_hash.is_empty()
     }
+
+    pub fn queue_from_msg_type(
+        &mut self,
+        message_type: MessageType,
+    ) -> &mut MessageQueueHashWithSize {
+        match message_type {
+            MessageType::Canonical => &mut self.canonical_queue,
+            MessageType::Injected => &mut self.injected_queue,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, Hash)]
@@ -436,8 +446,8 @@ pub struct Dispatch {
     pub details: Option<MessageDetails>,
     /// Message previous executions context.
     pub context: Option<ContextStore>,
-    /// Origin of the message.
-    pub origin: Origin,
+    /// Type of the message.
+    pub message_type: MessageType,
     /// If to call on eth.
     /// Currently only used for replies: assert_eq!(message.call, replyToThisMessage.call);
     pub call: bool,
@@ -452,7 +462,7 @@ impl Dispatch {
         payload: Vec<u8>,
         value: u128,
         is_init: bool,
-        origin: Origin,
+        message_type: MessageType,
         call: bool,
     ) -> Result<Self> {
         let payload = storage.write_payload_raw(payload)?;
@@ -471,7 +481,7 @@ impl Dispatch {
             value,
             details: None,
             context: None,
-            origin,
+            message_type,
             call,
         })
     }
@@ -482,7 +492,7 @@ impl Dispatch {
         source: ActorId,
         payload: Vec<u8>,
         value: u128,
-        origin: Origin,
+        message_type: MessageType,
         call: bool,
     ) -> Result<Self> {
         let payload_hash = storage.write_payload_raw(payload)?;
@@ -493,7 +503,7 @@ impl Dispatch {
             payload_hash,
             value,
             SuccessReplyReason::Manual,
-            origin,
+            message_type,
             call,
         ))
     }
@@ -504,7 +514,7 @@ impl Dispatch {
         payload: PayloadLookup,
         value: u128,
         reply_code: impl Into<ReplyCode>,
-        origin: Origin,
+        message_type: MessageType,
         call: bool,
     ) -> Self {
         Self {
@@ -515,7 +525,7 @@ impl Dispatch {
             value,
             details: Some(ReplyDetails::new(reply_to, reply_code.into()).into()),
             context: None,
-            origin,
+            message_type,
             call,
         }
     }
@@ -523,7 +533,7 @@ impl Dispatch {
     pub fn from_core_stored<S: Storage>(
         storage: &S,
         value: StoredDispatch,
-        origin: Origin,
+        message_type: MessageType,
         call_reply: bool,
     ) -> Self {
         let (kind, message, context) = value.into_parts();
@@ -541,7 +551,7 @@ impl Dispatch {
             value,
             details,
             context,
-            origin,
+            message_type,
             call: call_reply,
         }
     }
@@ -621,6 +631,18 @@ impl MessageQueue {
 
     pub fn store<S: Storage>(self, storage: &S) -> MaybeHashOf<Self> {
         MaybeHashOf::from_inner((!self.0.is_empty()).then(|| storage.write_message_queue(self)))
+    }
+}
+
+/// Methods introduced due to solution to #4513.
+/// Remove when becomes unnecessary.
+impl MessageQueue {
+    pub fn clear(&mut self) {
+        self.0.clear()
+    }
+
+    pub fn pop_back(&mut self) -> Option<Dispatch> {
+        self.0.pop_back()
     }
 }
 
@@ -755,15 +777,15 @@ impl DispatchStash {
 pub struct MailboxMessage {
     pub payload: PayloadLookup,
     pub value: Value,
-    pub origin: Origin,
+    pub message_type: MessageType,
 }
 
 impl MailboxMessage {
-    pub fn new(payload: PayloadLookup, value: Value, origin: Origin) -> Self {
+    pub fn new(payload: PayloadLookup, value: Value, message_type: MessageType) -> Self {
         Self {
             payload,
             value,
-            origin,
+            message_type,
         }
     }
 }
@@ -773,7 +795,7 @@ impl From<Dispatch> for MailboxMessage {
         Self {
             payload: dispatch.payload,
             value: dispatch.value,
-            origin: dispatch.origin,
+            message_type: dispatch.message_type,
         }
     }
 }

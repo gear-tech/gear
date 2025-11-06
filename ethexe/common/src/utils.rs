@@ -79,7 +79,7 @@ pub fn setup_genesis_in_db<
 >(
     db: &DB,
     genesis_block: SimpleBlockData,
-    validators: ValidatorsVec,
+    genesis_validators: ValidatorsVec,
     timelines: ProtocolTimelines,
 ) {
     let genesis_announce = Announce::base(genesis_block.hash, HashOf::zero());
@@ -99,12 +99,18 @@ pub fn setup_genesis_in_db<
         FullBlockData {
             header: genesis_block.header,
             events: Default::default(),
-            validators,
             codes_queue: Default::default(),
             announces: [genesis_announce_hash].into(),
             last_committed_batch: Default::default(),
             last_committed_announce: HashOf::zero(),
         },
+    );
+
+    // We understand, that genesis block is always in era 0, but we calculate it from timestamp to prevent some
+    // possible mismatches in future.
+    db.set_validators(
+        timelines.era_from_ts(genesis_block.header.timestamp),
+        genesis_validators,
     );
 
     db.set_protocol_timelines(timelines);
@@ -139,7 +145,6 @@ pub fn setup_block_in_db<DB: OnChainStorageRW + BlockMetaStorageRW>(
     db.set_block_header(block_hash, block_data.header);
     db.set_block_events(block_hash, &block_data.events);
     db.set_block_synced(block_hash);
-    db.set_block_validators(block_hash, block_data.validators);
 
     db.mutate_block_meta(block_hash, |meta| {
         *meta = BlockMeta {

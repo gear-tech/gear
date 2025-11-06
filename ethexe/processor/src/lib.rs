@@ -21,7 +21,7 @@
 use core::num::NonZero;
 use ethexe_common::{
     Announce, CodeAndIdUnchecked, HashOf, ProgramStates, Schedule,
-    db::{AnnounceStorageRO, BlockMetaStorageRO, CodesStorageRW},
+    db::{AnnounceStorageRO, AnnounceStorageRW, BlockMetaStorageRO, CodesStorageRW},
     events::{BlockRequestEvent, MirrorRequestEvent},
     gear::StateTransition,
 };
@@ -31,11 +31,12 @@ use gear_core::{ids::prelude::CodeIdExt, rpc::ReplyInfo};
 use gprimitives::{ActorId, CodeId, H256, MessageId};
 use handling::{
     ProcessingHandler,
-    run::{self, RunnerConfig},
+    run::{self, CommonRunContext, OverlaidRunContext},
 };
 use host::InstanceCreator;
 
 pub use common::LocalOutcome;
+pub use handling::run::RunnerConfig;
 
 pub mod host;
 
@@ -47,6 +48,12 @@ mod tests;
 
 // Default amount of virtual threads to use for programs processing.
 pub const DEFAULT_CHUNK_PROCESSING_THREADS: NonZero<usize> = NonZero::new(16).unwrap();
+
+// Default block gas limit for the node.
+pub const DEFAULT_BLOCK_GAS_LIMIT: u64 = 4_000_000_000_000;
+
+// Default multiplier for the block gas limit in overlay execution.
+pub const DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER: u64 = 10;
 
 #[derive(thiserror::Error, Debug)]
 pub enum ProcessorError {
@@ -227,16 +234,11 @@ impl Processor {
 
         self.creator.set_chain_head(handler.announce.block_hash);
 
-        run::run(
-            self.db.clone(),
-            self.creator.clone(),
-            &mut handler.transitions,
-            RunnerConfig {
-                chunk_processing_threads: self.config().chunk_processing_threads,
-                block_gas_limit,
-            },
-        )
-        .await;
+        let ctx = CommonRunContext::new(&mut handler.transitions);
+        let run_config =
+            RunnerConfig::common(self.config().chunk_processing_threads, block_gas_limit);
+
+        run::run(ctx, self.db.clone(), self.creator.clone(), run_config).await;
     }
 }
 
@@ -252,6 +254,7 @@ impl OverlaidProcessor {
         program_id: ActorId,
         payload: Vec<u8>,
         value: u128,
+        runner_config: RunnerConfig,
     ) -> Result<ReplyInfo> {
         self.0.creator.set_chain_head(block_hash);
 
@@ -302,13 +305,29 @@ impl OverlaidProcessor {
             },
         )?;
 
-        self.0.process_queue(&mut handler).await;
+        let ctx = OverlaidRunContext::new(program_id, self.0.db.clone(), &mut handler.transitions);
 
-        let res = handler
-            .transitions
-            .current_messages()
+        run::run_overlaid(
+            ctx,
+            self.0.db.clone(),
+            self.0.creator.clone(),
+            runner_config,
+        )
+        .await;
+
+        // Getting message to users now, because later transitions are moved.
+        let current_messages = handler.transitions.current_messages();
+
+        // Setting program states and schedule for the block is not necessary, but important for testing.
+        {
+            let (_, states, schedule) = handler.transitions.finalize();
+            self.0.db.set_announce_program_states(announce_hash, states);
+            self.0.db.set_announce_schedule(announce_hash, schedule);
+        }
+
+        let res = current_messages
             .into_iter()
-            .find_map(|(_source, message)| {
+            .find_map(|(_, message)| {
                 message.reply_details.and_then(|details| {
                     (details.to_message_id() == MessageId::zero()).then(|| ReplyInfo {
                         payload: message.payload,

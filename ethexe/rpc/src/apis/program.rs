@@ -22,7 +22,7 @@ use ethexe_common::{
     db::{AnnounceStorageRO, CodesStorageRO},
 };
 use ethexe_db::Database;
-use ethexe_processor::Processor;
+use ethexe_processor::{Processor, ProcessorConfig, RunnerConfig};
 use ethexe_runtime_common::state::{
     DispatchStash, Mailbox, MemoryPages, MessageQueue, Program, ProgramState, QueriableStorage,
     Storage, Waitlist,
@@ -94,11 +94,12 @@ pub trait Program {
 
 pub struct ProgramApi {
     db: Database,
+    runner_config: RunnerConfig,
 }
 
 impl ProgramApi {
-    pub fn new(db: Database) -> Self {
-        Self { db }
+    pub fn new(db: Database, runner_config: RunnerConfig) -> Self {
+        Self { db, runner_config }
     }
 
     fn read_queue(&self, hash: H256) -> Option<MessageQueue> {
@@ -132,8 +133,11 @@ impl ProgramServer for ProgramApi {
 
         // TODO (breathx): spawn in a new thread and catch panics. (?) Generally catch runtime panics (?).
         // TODO (breathx): optimize here instantiation if matches actual runtime.
-        let processor = Processor::new(self.db.clone()).map_err(|_| errors::internal())?;
-
+        let processor_config = ProcessorConfig {
+            chunk_processing_threads: self.runner_config.chunk_processing_threads(),
+        };
+        let processor = Processor::with_config(processor_config, self.db.clone())
+            .map_err(|_| errors::internal())?;
         let mut overlaid_processor = processor.overlaid();
 
         overlaid_processor
@@ -143,6 +147,7 @@ impl ProgramServer for ProgramApi {
                 program_id.into(),
                 payload.0,
                 value,
+                self.runner_config.clone(),
             )
             .await
             .map_err(errors::runtime)

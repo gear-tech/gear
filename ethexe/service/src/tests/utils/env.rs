@@ -32,14 +32,12 @@ use alloy::{
     providers::{Provider as _, RootProvider, ext::AnvilApi},
     rpc::types::{Header as RpcHeader, anvil::MineOptions},
 };
-use anyhow::anyhow;
 use ethexe_blob_loader::{
     BlobLoaderService,
     local::{LocalBlobLoader, LocalBlobStorage},
 };
 use ethexe_common::{
     Address, CodeAndId, DEFAULT_BLOCK_GAS_LIMIT,
-    db::OnChainStorageRO,
     ecdsa::{PrivateKey, PublicKey},
     events::{BlockEvent, MirrorEvent, RouterEvent},
 };
@@ -56,7 +54,9 @@ use ethexe_network::{
     NetworkConfig, NetworkEvent, NetworkRuntimeConfig, NetworkService, export::Multiaddr,
 };
 use ethexe_observer::{EthereumConfig, ObserverEvent, ObserverService};
-use ethexe_processor::Processor;
+use ethexe_processor::{
+    DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, DEFAULT_CHUNK_PROCESSING_THREADS, Processor, RunnerConfig,
+};
 use ethexe_rpc::{RpcConfig, RpcService, test_utils::RpcClient};
 use ethexe_signer::Signer;
 use ethexe_tx_pool::TxPoolService;
@@ -283,16 +283,7 @@ impl TestEnv {
             config.listen_addresses = [multiaddr.clone()].into();
             config.external_addresses = [multiaddr.clone()].into();
 
-            let timelines = db
-                .protocol_timelines()
-                .ok_or_else(|| anyhow!("protocol timelines not found in database"))
-                .unwrap();
-
-            let runtime_config = NetworkRuntimeConfig {
-                genesis_timestamp: timelines.genesis_ts,
-                era_duration: timelines.era,
-                genesis_block_hash,
-            };
+            let runtime_config = NetworkRuntimeConfig { genesis_block_hash };
 
             let mut service = NetworkService::new(
                 config,
@@ -731,10 +722,16 @@ impl NodeConfig {
     }
 
     pub fn service_rpc(mut self, rpc_port: u16) -> Self {
+        let runner_config = RunnerConfig::overlay(
+            DEFAULT_CHUNK_PROCESSING_THREADS.get(),
+            DEFAULT_BLOCK_GAS_LIMIT,
+            DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER,
+        );
         let service_rpc_config = RpcConfig {
             listen_addr: SocketAddr::new("127.0.0.1".parse().unwrap(), rpc_port),
             cors: None,
             dev: false,
+            runner_config,
         };
         self.rpc = Some(service_rpc_config);
 
@@ -868,6 +865,11 @@ impl Node {
             }
         };
 
+        let validator_address = self
+            .validator_config
+            .as_ref()
+            .map(|c| c.public_key.to_address());
+
         let (sender, receiver) = broadcast::channel(2048);
 
         let blob_loader = LocalBlobLoader::new(self.blob_storage.clone()).into_box();
@@ -886,15 +888,7 @@ impl Node {
                 config.bootstrap_addresses = [multiaddr].into();
             }
 
-            let timelines = self
-                .db
-                .protocol_timelines()
-                .ok_or_else(|| anyhow!("protocol timelines not found in database"))
-                .unwrap();
-
             let runtime_config = NetworkRuntimeConfig {
-                genesis_timestamp: timelines.genesis_ts,
-                era_duration: timelines.era,
                 genesis_block_hash: observer.genesis_block_hash(),
             };
 
@@ -931,6 +925,7 @@ impl Node {
             rpc,
             sender,
             self.fast_sync,
+            validator_address,
         );
 
         let name = self.name.clone();
