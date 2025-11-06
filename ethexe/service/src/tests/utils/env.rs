@@ -682,7 +682,7 @@ impl Default for TestEnvConfig {
             continuous_block_generation: false,
             network: EnvNetworkConfig::Disabled,
             deploy_params: Default::default(),
-            compute_config: ComputeConfig::new_with_zero_maturity(),
+            compute_config: ComputeConfig::without_quarantine(),
         }
     }
 }

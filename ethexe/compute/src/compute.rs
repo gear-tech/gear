@@ -24,7 +24,6 @@ use ethexe_common::{
         LatestDataStorageRW, OnChainStorageRO,
     },
     events::BlockEvent,
-    gear::CANONICAL_EVENTS_MATURITY_PERIOD,
 };
 use ethexe_db::Database;
 use ethexe_processor::BlockProcessingResult;
@@ -38,27 +37,27 @@ use std::{
 #[derive(Debug, Clone, Copy)]
 pub struct ComputeConfig {
     /// The delay in **blocks** in which events from Ethereum will be a be appply.
-    events_maturity_period: u8,
+    canonical_quarantine: u8,
 }
 
 impl ComputeConfig {
     /// Must use only in testing purposes.
     /// For production purposes must to use [`ComputeConfig::production`]
-    pub fn new_with_zero_maturity() -> Self {
+    pub fn without_quarantine() -> Self {
         Self {
-            events_maturity_period: 0,
+            canonical_quarantine: 0,
         }
     }
 
-    /// Constructs [`ComputeConfig`] for using in production purposes.
-    pub fn production() -> Self {
+    /// Constructs [`ComputeConfig`] with provided `canonical_quarantine`.
+    pub fn with_custom_quarantine(canonical_quarantine: u8) -> Self {
         Self {
-            events_maturity_period: CANONICAL_EVENTS_MATURITY_PERIOD,
+            canonical_quarantine,
         }
     }
 
-    pub fn events_maturity_period(&self) -> u8 {
-        self.events_maturity_period
+    pub fn canonical_quarantine(&self) -> u8 {
+        self.canonical_quarantine
     }
 }
 
@@ -137,8 +136,11 @@ impl<P: ProcessorExt> ComputeSubService<P> {
     ) -> Result<HashOf<Announce>> {
         let block_hash = announce.block_hash;
 
-        let matured_events =
-            Self::find_matured_cononical_events(db, block_hash, config.events_maturity_period)?;
+        let matured_events = Self::find_canonical_events_post_quarantine(
+            db,
+            block_hash,
+            config.canonical_quarantine(),
+        )?;
 
         let request_events = matured_events
             .into_iter()
@@ -171,10 +173,10 @@ impl<P: ProcessorExt> ComputeSubService<P> {
     }
 
     /// Finds events from Ethereum in database which can be processed in current block.
-    fn find_matured_cononical_events(
+    fn find_canonical_events_post_quarantine(
         db: &Database,
         mut block_hash: H256,
-        events_maturity_period: u8,
+        canonical_quarantine: u8,
     ) -> Result<Vec<BlockEvent>> {
         let genesis_block = db
             .latest_data()
@@ -185,7 +187,7 @@ impl<P: ProcessorExt> ComputeSubService<P> {
             .block_header(block_hash)
             .ok_or_else(|| ComputeError::BlockHeaderNotFound(block_hash))?;
 
-        for _ in 0..events_maturity_period {
+        for _ in 0..canonical_quarantine {
             if block_hash == genesis_block {
                 return Ok(Default::default());
             }
@@ -244,7 +246,7 @@ mod tests {
 
         let db = Database::memory();
         let block_hash = BlockChain::mock(1).setup(&db).blocks[1].hash;
-        let config = ComputeConfig::new_with_zero_maturity();
+        let config = ComputeConfig::without_quarantine();
         let mut service = ComputeSubService::new(config, db.clone(), MockProcessor);
 
         let announce = Announce {

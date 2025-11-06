@@ -138,7 +138,7 @@ impl TestEnv {
         mark_as_not_prepared(&mut chain);
         chain = chain.setup(&db);
 
-        let config = ComputeConfig::new_with_zero_maturity();
+        let config = ComputeConfig::without_quarantine();
         let compute = ComputeService::new(config, db.clone(), Processor::new(db.clone()).unwrap());
 
         TestEnv { db, compute, chain }

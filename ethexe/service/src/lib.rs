@@ -269,8 +269,8 @@ impl Service {
 
         let tx_pool = TxPoolService::new(db.clone());
 
-        // In production we are using **16** blocks as a connonical events maturity period.
-        let compute_config = ComputeConfig::production();
+        let compute_config =
+            ComputeConfig::with_custom_quarantine(config.node.canonical_quarantine);
         let compute = ComputeService::new(compute_config, db.clone(), processor);
 
         let fast_sync = config.node.fast_sync;

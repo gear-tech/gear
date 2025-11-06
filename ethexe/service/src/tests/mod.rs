@@ -36,7 +36,7 @@ use ethexe_common::{
     ScheduledTask,
     db::*,
     events::{BlockEvent, MirrorEvent, RouterEvent},
-    gear::MessageType,
+    gear::{CANONICAL_QUARANTINE, MessageType},
     mock::*,
 };
 use ethexe_compute::ComputeConfig;
@@ -83,6 +83,7 @@ async fn basics() {
         blocking_threads: None,
         chunk_processing_threads: 16,
         block_gas_limit: 4_000_000_000_000,
+        canonical_quarantine: 0,
         dev: true,
         fast_sync: false,
     };
@@ -1551,7 +1552,7 @@ async fn execution_with_canonical_events_maturity() {
     init_logger();
 
     let config = TestEnvConfig {
-        compute_config: ComputeConfig::production(),
+        compute_config: ComputeConfig::with_custom_quarantine(CANONICAL_QUARANTINE),
         ..Default::default()
     };
     let mut env = TestEnv::new(config).await.unwrap();
@@ -1578,7 +1579,7 @@ async fn execution_with_canonical_events_maturity() {
         .unwrap();
     assert_eq!(res.code_id, uploaded_code.code_id);
 
-    let events_maturity_period = env.compute_config.events_maturity_period();
+    let canonical_quarantine = env.compute_config.canonical_quarantine();
     let message_id = env
         .send_message(res.program_id, b"PING", 0)
         .await
@@ -1591,7 +1592,7 @@ async fn execution_with_canonical_events_maturity() {
 
     // Skipping events to reach canonical events maturity
     let mut skipped_blocks = 0;
-    while skipped_blocks < events_maturity_period {
+    while skipped_blocks < canonical_quarantine {
         env.provider.anvil_mine(Some(1), None).await.unwrap();
         tokio::time::sleep(Duration::from_millis(150)).await;
 

@@ -139,7 +139,7 @@ mod tests {
 
         let db = DB::memory();
         let processor = MockProcessor;
-        let config = ComputeConfig::new_with_zero_maturity();
+        let config = ComputeConfig::without_quarantine();
         let mut service = ComputeService::new(config, db.clone(), processor);
 
         let chain = BlockChain::mock(1).setup(&db);
@@ -164,7 +164,7 @@ mod tests {
         let db = DB::memory();
         let processor = MockProcessor;
 
-        let config = ComputeConfig::new_with_zero_maturity();
+        let config = ComputeConfig::without_quarantine();
         let mut service = ComputeService::new(config, db.clone(), processor);
         let chain = BlockChain::mock(1).setup(&db);
 
@@ -204,7 +204,7 @@ mod tests {
 
         let db = DB::memory();
         let processor = MockProcessor;
-        let config = ComputeConfig::new_with_zero_maturity();
+        let config = ComputeConfig::without_quarantine();
         let mut service = ComputeService::new(config, db.clone(), processor);
 
         // Create test code
