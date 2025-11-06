@@ -710,3 +710,241 @@ pub fn accept_announce(
         })
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ethexe_common::{db::*, mock::*};
+    use ethexe_db::Database;
+
+    #[test]
+    fn test_propagate_announces() {
+        // last block index (2..inf)
+        let last = 10;
+        // first not propagated block index (2..=last)
+        let fnp = last - 4;
+        // commitment delay limit (1..inf)
+        let cdl = 3usize;
+        // (with two announces) block index which contains two announces (currently supported fnp - 1)
+        let wta = fnp - 1;
+
+        let mut chain = BlockChain::mock(last as u32);
+        (fnp..=last).for_each(|i| {
+            chain.blocks[i]
+                .as_prepared_mut()
+                .announces
+                .take()
+                .iter()
+                .flatten()
+                .for_each(|announce_hash| {
+                    chain.announces.remove(announce_hash);
+                });
+        });
+
+        // append not-base announce at block with_two_announces
+        let base_announce_hash = chain.block_top_announce_hash(wta);
+        let announce = Announce::with_default_gas(
+            chain.blocks[wta].hash,
+            chain.block_top_announce(wta).announce.parent,
+        );
+        let not_base_announce_hash = announce.to_hash();
+        chain.blocks[wta]
+            .as_prepared_mut()
+            .announces
+            .as_mut()
+            .unwrap()
+            .insert(not_base_announce_hash);
+        chain.announces.insert(
+            not_base_announce_hash,
+            AnnounceData {
+                announce,
+                computed: None,
+            },
+        );
+
+        let block_hash_and_announces_amount = |db: &Database, chain: &BlockChain, idx: usize| {
+            let block_hash = chain.blocks[idx].hash;
+            let announces_amount = db
+                .block_meta(block_hash)
+                .announces
+                .unwrap_or_else(|| panic!("announces not found for block {block_hash}"))
+                .len();
+            (block_hash, announces_amount)
+        };
+
+        // Simple case: propagate announces
+        {
+            let db = Database::memory();
+            chain.clone().setup(&db);
+
+            let blocks = db
+                .collect_blocks_without_announces(chain.blocks[last].hash)
+                .unwrap();
+            propagate_announces(&db, blocks, cdl as u32, Default::default()).unwrap();
+
+            for i in 0..=last {
+                let (block_hash, announces_amount) =
+                    block_hash_and_announces_amount(&db, &chain, i);
+
+                if i < wta {
+                    assert_eq!(announces_amount, 1, "Block {i} {block_hash}");
+                } else if i >= wta && i < wta + cdl {
+                    assert_eq!(announces_amount, 2, "Block {i} {block_hash}");
+                } else {
+                    assert_eq!(announces_amount, 1, "Block {i} {block_hash}");
+                }
+            }
+        }
+
+        // Committed base announce
+        {
+            let db = Database::memory();
+            let mut chain = chain.clone();
+
+            (fnp..=last).for_each(|i| {
+                chain.blocks[i].as_prepared_mut().last_committed_announce = base_announce_hash;
+            });
+
+            let chain = chain.setup(&db);
+
+            let blocks = db
+                .collect_blocks_without_announces(chain.blocks[last].hash)
+                .unwrap();
+            propagate_announces(&db, blocks, cdl as u32, Default::default()).unwrap();
+
+            for i in 0..=last {
+                let (block_hash, announces_amount) =
+                    block_hash_and_announces_amount(&db, &chain, i);
+                if i == wta {
+                    assert_eq!(announces_amount, 2, "Block {i} {block_hash}");
+                } else {
+                    assert_eq!(announces_amount, 1, "Block {i} {block_hash}");
+                }
+            }
+
+            assert_eq!(
+                db.announce(db.top_announce_hash(chain.blocks[fnp].hash))
+                    .unwrap()
+                    .parent,
+                base_announce_hash
+            );
+        }
+
+        // Committed not-base announce
+        {
+            let db = Database::memory();
+            let mut chain = chain.clone();
+
+            (fnp..=last).for_each(|i| {
+                chain.blocks[i].as_prepared_mut().last_committed_announce = not_base_announce_hash;
+            });
+
+            let chain = chain.setup(&db);
+
+            let blocks = db
+                .collect_blocks_without_announces(chain.blocks[last].hash)
+                .unwrap();
+            propagate_announces(&db, blocks, cdl as u32, Default::default()).unwrap();
+
+            for i in 0..=last {
+                let (block_hash, announces_amount) =
+                    block_hash_and_announces_amount(&db, &chain, i);
+                if i == wta {
+                    assert_eq!(announces_amount, 2, "Block {i} {block_hash}");
+                } else {
+                    assert_eq!(announces_amount, 1, "Block {i} {block_hash}");
+                }
+            }
+
+            assert_eq!(
+                db.announce(db.top_announce_hash(chain.blocks[fnp].hash))
+                    .unwrap()
+                    .parent,
+                not_base_announce_hash
+            );
+        }
+
+        // Committed delayed
+        {
+            // Delay of not-base announce commitment (wta..=min(wta + cdl, last))
+            let committed_at_idx = wta + 3;
+
+            let db = Database::memory();
+            let mut chain = chain.clone();
+
+            (committed_at_idx..=last).for_each(|i| {
+                chain.blocks[i].as_prepared_mut().last_committed_announce = not_base_announce_hash;
+            });
+
+            let chain = chain.setup(&db);
+
+            let blocks = db
+                .collect_blocks_without_announces(chain.blocks[last].hash)
+                .unwrap();
+            propagate_announces(&db, blocks, cdl as u32, Default::default()).unwrap();
+
+            for i in 0..=last {
+                let (block_hash, announces_amount) =
+                    block_hash_and_announces_amount(&db, &chain, i);
+
+                if i < wta {
+                    assert_eq!(announces_amount, 1, "Block {i} {block_hash}");
+                } else if i >= wta && i < committed_at_idx {
+                    assert_eq!(announces_amount, 2, "Block {i} {block_hash}");
+                } else {
+                    assert_eq!(announces_amount, 1, "Block {i} {block_hash}");
+                }
+            }
+        }
+
+        // Missing announce
+        {
+            // Block where the missing announce is created (fnp.saturating_sub(cdl)..fnp)
+            let created_at_idx = fnp - 2;
+            // Block where the missing announce is committed (fnp..=min(created_at_idx + cdl, last))
+            let committed_at_idx = created_at_idx + 3;
+
+            let db = Database::memory();
+            let mut chain = chain.clone();
+
+            let parent = chain.block_top_announce(created_at_idx).announce.parent;
+            let missing_announce =
+                Announce::with_default_gas(chain.blocks[created_at_idx].hash, parent);
+            let missing_announce_hash = missing_announce.to_hash();
+
+            (committed_at_idx..=last).for_each(|i| {
+                chain.blocks[i].as_prepared_mut().last_committed_announce = missing_announce_hash;
+            });
+
+            let chain = chain.setup(&db);
+
+            let blocks = db
+                .collect_blocks_without_announces(chain.blocks[last].hash)
+                .unwrap();
+            propagate_announces(
+                &db,
+                blocks,
+                cdl as u32,
+                [(missing_announce_hash, missing_announce)]
+                    .into_iter()
+                    .collect(),
+            )
+            .unwrap();
+
+            for i in 0..=last {
+                let (block_hash, announces_amount) =
+                    block_hash_and_announces_amount(&db, &chain, i);
+
+                if i < created_at_idx {
+                    assert_eq!(announces_amount, 1, "Block {i} {block_hash}");
+                } else if i >= created_at_idx && i < wta {
+                    assert_eq!(announces_amount, 2, "Block {i} {block_hash}");
+                } else if i >= wta && i < committed_at_idx {
+                    assert_eq!(announces_amount, 3, "Block {i} {block_hash}");
+                } else {
+                    assert_eq!(announces_amount, 1, "Block {i} {block_hash}");
+                }
+            }
+        }
+    }
+}
