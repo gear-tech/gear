@@ -56,6 +56,12 @@ impl TestingRpcEvent {
             } => Self::InjectedTransaction {
                 transaction: transaction.clone(),
             },
+            RpcEvent::InjectedTransaction {
+                transaction,
+                response_sender: _,
+            } => Self::InjectedTransaction {
+                transaction: transaction.clone(),
+            },
         }
     }
 }

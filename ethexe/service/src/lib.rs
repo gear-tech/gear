@@ -529,6 +529,22 @@ impl Service {
 
                             let _res = response_sender.send(InjectedTransactionAcceptance::Accept);
                         }
+                        RpcEvent::InjectedTransaction {
+                            transaction,
+                            response_sender,
+                        } => {
+                            if validator_address == Some(transaction.data().recipient) {
+                                // TODO: handle transaction like for `NetworkEvent::InjectedTransaction(_)`
+                            } else {
+                                let Some(network) = network.as_mut() else {
+                                    continue;
+                                };
+
+                                network.send_injected_transaction(transaction);
+                            }
+
+                            let _res = response_sender.send(InjectedTransactionAcceptance::Accept);
+                        }
                     }
                 }
                 Event::Consensus(event) => match event {

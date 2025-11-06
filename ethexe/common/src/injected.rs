@@ -54,7 +54,6 @@ pub struct InjectedTransaction {
     /// transactions to be sent simultaneously.
     ///
     /// NOTE: this is also a salt for MessageId generation.
-    // #[cfg_attr(feature = "std", serde(with = "hex"))]
     #[cfg_attr(feature = "std", serde(with = "hex_bytes"))]
     pub salt: Vec<u8>,
 }

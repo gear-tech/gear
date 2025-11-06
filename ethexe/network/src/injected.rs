@@ -36,7 +36,7 @@ use parity_scale_codec::{Decode, Encode};
 use std::task::{Context, Poll, ready};
 
 const STREAM_PROTOCOL: StreamProtocol =
-    StreamProtocol::new(concat!("/ethexe/offchain-tx/", env!("CARGO_PKG_VERSION")));
+    StreamProtocol::new(concat!("/ethexe/injected-tx/", env!("CARGO_PKG_VERSION")));
 
 #[derive(Debug, Encode, Decode)]
 pub(crate) enum Request {
