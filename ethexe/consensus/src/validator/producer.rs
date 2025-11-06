@@ -24,15 +24,22 @@ use anyhow::{Result, anyhow};
 use derive_more::{Debug, Display};
 use ethexe_common::{
     Announce, HashOf, SimpleBlockData, ValidatorsVec,
-    db::{AnnounceStorageRW, BlockMetaStorageRO, BlockMetaStorageRW, InjectedStorageRO},
+    db::{
+        AnnounceStorageRO, AnnounceStorageRW, BlockMetaStorageRO, BlockMetaStorageRW,
+        InjectedStorageRO,
+    },
+    ecdsa::SignedData,
     gear::BatchCommitment,
     injected::{InjectedTransaction, SignedInjectedTransaction},
-    network::ValidatorMessage,
+    network::{SignedValidatorMessage, ValidatorInjectedTxPromise, ValidatorMessage},
 };
 use ethexe_service_utils::Timer;
 use futures::{FutureExt, future::BoxFuture};
 use gprimitives::H256;
-use std::task::{Context, Poll};
+use std::{
+    hash::Hash,
+    task::{Context, Poll},
+};
 
 /// [`Producer`] is the state of the validator, which creates a new block
 /// and publish it to the network. It waits for the block to be computed
@@ -116,6 +123,43 @@ impl StateHandler for Producer {
     ) -> Result<ValidatorState> {
         match &self.state {
             State::WaitingAnnounceComputed(expected) if *expected == announce_hash => {
+                // TODO kuzmindev: change the behabior of giving promises
+                let announce = self
+                    .ctx
+                    .core
+                    .db
+                    .announce(announce_hash)
+                    .ok_or_else(|| anyhow!("computed announce must exists in database"))?;
+
+                tracing::info!("Processing announce's transactions");
+
+                for tx in announce.injected_transactions.iter() {
+                    let Some(tx_with_meta) =
+                        self.ctx.core.db.injected_transaction(tx.data().hash())
+                    else {
+                        tracing::error!("not found injected tx_with_meta in db");
+                        continue;
+                    };
+
+                    if let Some(promise) = tx_with_meta.promise {
+                        let validator_promise = ValidatorInjectedTxPromise {
+                            block: announce.block_hash,
+                            payload: promise,
+                        };
+                        let signed_promise = self
+                            .ctx
+                            .core
+                            .signer
+                            .signed_data(self.ctx.core.pub_key, validator_promise)?;
+
+                        self.output(ConsensusEvent::PublishMessage(
+                            SignedValidatorMessage::InjectedTxPromise(signed_promise),
+                        ));
+                    } else {
+                        tracing::error!("not found promise for injected transaction");
+                    }
+                }
+
                 self.state = State::AggregateBatchCommitment {
                     future: self
                         .ctx
@@ -226,7 +270,11 @@ impl Producer {
         let parent =
             utils::parent_main_line_announce(&self.ctx.core.db, self.block.header.parent_hash)?;
 
-        let injected_transactions = self.ctx.core.injected_pool.collect_txs_for(self.block.hash);
+        let injected_transactions = self
+            .ctx
+            .core
+            .injected_pool
+            .collect_txs_for(self.block.hash)?;
 
         let announce = Announce {
             block_hash: self.block.hash,

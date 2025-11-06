@@ -25,8 +25,8 @@ use ethexe_common::{
     Address, Announce, Digest, HashOf, ProtocolTimelines, SimpleBlockData, ToDigest, ValidatorsVec,
     consensus::BatchCommitmentValidationRequest,
     db::{
-        BlockMetaStorageRO, InjectedStorageRW, InjectedTxStatus, InjectedTxWithMeta,
-        OnChainStorageRO,
+        AnnounceStorageRO, BlockMetaStorageRO, InjectedStorageRW, InjectedTxStatus,
+        InjectedTxWithMeta, LatestDataStorageRO, OnChainStorageRO,
     },
     ecdsa::PublicKey,
     gear::{
@@ -307,7 +307,10 @@ pub(crate) struct InjectedTxPool<DB = Database> {
     db: DB,
 }
 
-impl<DB: OnChainStorageRO + InjectedStorageRW> InjectedTxPool<DB> {
+impl<DB> InjectedTxPool<DB>
+where
+    DB: OnChainStorageRO + InjectedStorageRW + LatestDataStorageRO + AnnounceStorageRO,
+{
     pub fn new(db: DB) -> Self {
         Self {
             inner: HashSet::new(),
@@ -323,7 +326,7 @@ impl<DB: OnChainStorageRO + InjectedStorageRW> InjectedTxPool<DB> {
     }
 
     /// Returns the injected transactions that are valid and can be included to announce.
-    pub fn collect_txs_for(&self, block_hash: H256) -> Vec<SignedInjectedTransaction> {
+    pub fn collect_txs_for(&self, block_hash: H256) -> Result<Vec<SignedInjectedTransaction>> {
         tracing::info!(tx_pool = ?self.inner, "start collecting injected transactions");
         let mut txs_for_block = vec![];
 
@@ -336,7 +339,9 @@ impl<DB: OnChainStorageRO + InjectedStorageRW> InjectedTxPool<DB> {
 
             // Ignoring already included transactions.
             // TODO: check that tx was included in the same chain of announces.
-            if matches!(tx_with_meta.status, InjectedTxStatus::IncludedInBlock(_)) {
+            if matches!(tx_with_meta.status, InjectedTxStatus::IncludedInBlock(_))
+                || utils::injected_tx_already_included(&self.db, tx_with_meta.tx_hash())?
+            {
                 continue;
             }
 
@@ -350,7 +355,7 @@ impl<DB: OnChainStorageRO + InjectedStorageRW> InjectedTxPool<DB> {
             }
         }
 
-        txs_for_block
+        Ok(txs_for_block)
     }
 }
 

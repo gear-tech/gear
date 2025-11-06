@@ -40,6 +40,7 @@ use ethexe_common::{
     gear::Origin,
     injected::{InjectedTransaction, SignedInjectedTransaction},
     mock::*,
+    network::SignedValidatorMessage,
 };
 use ethexe_consensus::ConsensusEvent;
 use ethexe_db::{Database, verifier::IntegrityVerifier};
@@ -1605,9 +1606,9 @@ async fn injected_tx_processing() {
     let _response = node.send_injected_transaction(signed_tx).await.unwrap();
     tracing::info!("successfully send injected tx to rpc");
 
-    let mut node_events_listener = node.listener();
-    env.provider.anvil_mine(Some(10), Some(2)).await.unwrap();
+    // env.provider.anvil_mine(Some(10), Some(2)).await.unwrap();
 
+    let mut node_events_listener = node.listener();
     node_events_listener
         .apply_until(|event| {
             if let TestingEvent::Consensus(ConsensusEvent::ComputeAnnounce(announce)) = event {
@@ -1619,4 +1620,23 @@ async fn injected_tx_processing() {
             Ok(None)
         })
         .await;
+    tracing::info!("receive announce with injected transaction");
+
+    node_events_listener
+        .apply_until(|event| {
+            if let TestingEvent::Consensus(ConsensusEvent::PublishMessage(
+                SignedValidatorMessage::InjectedTxPromise(promise),
+            )) = event
+            {
+                let promise = promise.into_data().payload;
+                tracing::info!("RECEIVE promise: {promise:?}");
+                assert_eq!(promise.payload, b"PONG");
+
+                return Ok(Some(()));
+            }
+
+            Ok(None)
+        })
+        .await
+        .unwrap();
 }

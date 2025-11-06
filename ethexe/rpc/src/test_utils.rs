@@ -44,13 +44,6 @@ impl RpcClient {
         &self,
         tx: SignedInjectedTransaction,
     ) -> AnyhowResult<InjectedTransactionAcceptance> {
-        let js = serde_json::json!({
-            "transaction": tx.clone(),
-        }
-        );
-
-        tracing::info!("encoded json transaction: {js:#?}");
-
         self.http_client
             .send_transaction(tx)
             .await
