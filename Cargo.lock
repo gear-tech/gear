@@ -4951,6 +4951,7 @@ dependencies = [
  "nonempty 0.12.0",
  "ntest",
  "parity-scale-codec",
+ "proptest",
  "rand 0.8.5",
  "rand_chacha 0.3.1",
  "roast-secp256k1-evm",

@@ -255,6 +255,13 @@ pub fn propagate_announces(
             };
         }
 
+        // If error: DB is corrupted, or statements S1-S3 were violated by validators
+        ensure!(
+            !new_base_announces.is_empty(),
+            "at least one announce must be propagated for block({})",
+            block.hash
+        );
+
         db.mutate_block_meta(block.hash, |meta| {
             debug_assert!(
                 meta.announces.is_none(),
@@ -263,18 +270,6 @@ pub fn propagate_announces(
             );
             meta.announces = Some(new_base_announces);
         });
-
-        // If error: DB is corrupted, or incorrect commitment detected (have not-base announce committed without propagation)
-        ensure!(
-            db.block_meta(block.hash)
-                .announces
-                .into_iter()
-                .flatten()
-                .next()
-                .is_some(),
-            "at least one announce must be propagated for block({})",
-            block.hash
-        );
     }
 
     Ok(())
@@ -716,18 +711,13 @@ mod tests {
     use super::*;
     use ethexe_common::{db::*, mock::*};
     use ethexe_db::Database;
+    use proptest::{
+        prelude::{Just, Strategy},
+        proptest,
+        test_runner::Config as ProptestConfig,
+    };
 
-    #[test]
-    fn test_propagate_announces() {
-        // last block index (2..inf)
-        let last = 10;
-        // first not propagated block index (2..=last)
-        let fnp = last - 4;
-        // commitment delay limit (1..inf)
-        let cdl = 3usize;
-        // (with two announces) block index which contains two announces (currently supported fnp - 1)
-        let wta = fnp - 1;
-
+    fn make_chain(last: usize, fnp: usize, wta: usize) -> BlockChain {
         let mut chain = BlockChain::mock(last as u32);
         (fnp..=last).for_each(|i| {
             chain.blocks[i]
@@ -742,40 +732,100 @@ mod tests {
         });
 
         // append not-base announce at block with_two_announces
-        let base_announce_hash = chain.block_top_announce_hash(wta);
         let announce = Announce::with_default_gas(
             chain.blocks[wta].hash,
             chain.block_top_announce(wta).announce.parent,
         );
-        let not_base_announce_hash = announce.to_hash();
+        let announce_hash = announce.to_hash();
         chain.blocks[wta]
             .as_prepared_mut()
             .announces
             .as_mut()
             .unwrap()
-            .insert(not_base_announce_hash);
+            .insert(announce_hash);
         chain.announces.insert(
-            not_base_announce_hash,
+            announce_hash,
             AnnounceData {
                 announce,
                 computed: None,
             },
         );
 
-        let block_hash_and_announces_amount = |db: &Database, chain: &BlockChain, idx: usize| {
-            let block_hash = chain.blocks[idx].hash;
-            let announces_amount = db
-                .block_meta(block_hash)
-                .announces
-                .unwrap_or_else(|| panic!("announces not found for block {block_hash}"))
-                .len();
-            (block_hash, announces_amount)
-        };
+        chain
+    }
 
-        // Simple case: propagate announces
-        {
+    fn block_hash_and_announces_amount(
+        db: &Database,
+        chain: &BlockChain,
+        idx: usize,
+    ) -> (H256, usize) {
+        let block_hash = chain.blocks[idx].hash;
+        let announces_amount = db
+            .block_meta(block_hash)
+            .announces
+            .unwrap_or_else(|| panic!("announces not found for block {block_hash}"))
+            .len();
+        (block_hash, announces_amount)
+    }
+
+    #[derive(Debug, Clone)]
+    struct PropBaseParams {
+        /// first not propagated block index in chain
+        fnp: usize,
+        /// last block index in chain
+        last: usize,
+        /// commitment delay limit
+        cdl: usize,
+        /// with two announces block index
+        wta: usize,
+    }
+
+    fn base_params() -> impl Strategy<Value = PropBaseParams> {
+        (2usize..=100)
+            .prop_flat_map(|last| (2..=last, Just(last), 1usize..=1000))
+            .prop_flat_map(|(fnp, last, cdl)| {
+                Just(PropBaseParams {
+                    fnp,
+                    last,
+                    cdl,
+                    // only wta == fnp - 1 is supported in current tests
+                    wta: fnp - 1,
+                })
+            })
+    }
+
+    fn base_params_and_committed_at() -> impl Strategy<Value = (PropBaseParams, usize)> {
+        // committed_at - block where the missing announce was committed (wta + 1..=min(wta + cdl, last))
+        base_params().prop_flat_map(|p| {
+            let committed_at = (p.wta + 1)..=p.last.min(p.wta + p.cdl);
+            (Just(p), committed_at)
+        })
+    }
+
+    fn base_params_and_created_committed_at()
+    -> impl Strategy<Value = (PropBaseParams, usize, usize)> {
+        // created_at - block where the missing announce is created (fnp.saturating_sub(cdl)..fnp)
+        // committed_at - Block where the missing announce is committed (fnp..=min(created_at + cdl, last))
+        base_params()
+            .prop_flat_map(|p| {
+                let created_at = p.fnp.saturating_sub(p.cdl)..p.fnp;
+                (Just(p), created_at)
+            })
+            .prop_flat_map(|(p, created_at)| {
+                let committed_at = p.fnp..=p.last.min(created_at + p.cdl);
+                (Just(p), Just(created_at), committed_at)
+            })
+    }
+
+    proptest! {
+        #![proptest_config(ProptestConfig::with_cases(1000))]
+
+        #[test]
+        fn proptest_propagation(p in base_params()) {
+            let PropBaseParams { fnp, last, cdl, wta } = p;
+
             let db = Database::memory();
-            chain.clone().setup(&db);
+            let chain = make_chain(last, fnp, wta).setup(&db);
 
             let blocks = db
                 .collect_blocks_without_announces(chain.blocks[last].hash)
@@ -796,13 +846,16 @@ mod tests {
             }
         }
 
-        // Committed base announce
-        {
+        #[test]
+        fn proptest_propagation_with_committed_announce(p in base_params()) {
+            let PropBaseParams { fnp, last, cdl, wta } = p;
+
             let db = Database::memory();
-            let mut chain = chain.clone();
+            let mut chain = make_chain(last, fnp, wta);
 
             (fnp..=last).for_each(|i| {
-                chain.blocks[i].as_prepared_mut().last_committed_announce = base_announce_hash;
+                chain.blocks[i].as_prepared_mut().last_committed_announce =
+                    chain.block_top_announce_hash(wta);
             });
 
             let chain = chain.setup(&db);
@@ -815,6 +868,7 @@ mod tests {
             for i in 0..=last {
                 let (block_hash, announces_amount) =
                     block_hash_and_announces_amount(&db, &chain, i);
+
                 if i == wta {
                     assert_eq!(announces_amount, 2, "Block {i} {block_hash}");
                 } else {
@@ -826,55 +880,22 @@ mod tests {
                 db.announce(db.top_announce_hash(chain.blocks[fnp].hash))
                     .unwrap()
                     .parent,
-                base_announce_hash
+                chain.block_top_announce_hash(wta)
             );
         }
 
-        // Committed not-base announce
-        {
+        #[test]
+        fn proptest_propagation_committed_delayed((p, committed_at) in base_params_and_committed_at()) {
+            let PropBaseParams { fnp, last, cdl, wta } = p;
+
             let db = Database::memory();
-            let mut chain = chain.clone();
+            let mut chain = make_chain(last, fnp, wta);
 
-            (fnp..=last).for_each(|i| {
-                chain.blocks[i].as_prepared_mut().last_committed_announce = not_base_announce_hash;
-            });
+            let committed_announce_hash = chain.block_top_announce(wta).announce.to_hash();
 
-            let chain = chain.setup(&db);
-
-            let blocks = db
-                .collect_blocks_without_announces(chain.blocks[last].hash)
-                .unwrap();
-            propagate_announces(&db, blocks, cdl as u32, Default::default()).unwrap();
-
-            for i in 0..=last {
-                let (block_hash, announces_amount) =
-                    block_hash_and_announces_amount(&db, &chain, i);
-                if i == wta {
-                    assert_eq!(announces_amount, 2, "Block {i} {block_hash}");
-                } else {
-                    assert_eq!(announces_amount, 1, "Block {i} {block_hash}");
-                }
+            for i in committed_at..=last {
+                chain.blocks[i].as_prepared_mut().last_committed_announce = committed_announce_hash;
             }
-
-            assert_eq!(
-                db.announce(db.top_announce_hash(chain.blocks[fnp].hash))
-                    .unwrap()
-                    .parent,
-                not_base_announce_hash
-            );
-        }
-
-        // Committed delayed
-        {
-            // Delay of not-base announce commitment (wta..=min(wta + cdl, last))
-            let committed_at_idx = wta + 3;
-
-            let db = Database::memory();
-            let mut chain = chain.clone();
-
-            (committed_at_idx..=last).for_each(|i| {
-                chain.blocks[i].as_prepared_mut().last_committed_announce = not_base_announce_hash;
-            });
 
             let chain = chain.setup(&db);
 
@@ -889,7 +910,7 @@ mod tests {
 
                 if i < wta {
                     assert_eq!(announces_amount, 1, "Block {i} {block_hash}");
-                } else if i >= wta && i < committed_at_idx {
+                } else if i >= wta && i < committed_at {
                     assert_eq!(announces_amount, 2, "Block {i} {block_hash}");
                 } else {
                     assert_eq!(announces_amount, 1, "Block {i} {block_hash}");
@@ -897,22 +918,22 @@ mod tests {
             }
         }
 
-        // Missing announce
-        {
-            // Block where the missing announce is created (fnp.saturating_sub(cdl)..fnp)
-            let created_at_idx = fnp - 2;
-            // Block where the missing announce is committed (fnp..=min(created_at_idx + cdl, last))
-            let committed_at_idx = created_at_idx + 3;
+        #[test]
+        fn proptest_propagation_missing((p, created_at, committed_at) in base_params_and_created_committed_at()) {
+            let PropBaseParams { fnp, last, cdl, wta } = p;
 
             let db = Database::memory();
-            let mut chain = chain.clone();
+            let mut chain = make_chain(last, fnp, wta);
 
-            let parent = chain.block_top_announce(created_at_idx).announce.parent;
-            let missing_announce =
-                Announce::with_default_gas(chain.blocks[created_at_idx].hash, parent);
+            let missing_announce = Announce {
+                block_hash: chain.blocks[created_at].hash,
+                parent: chain.block_top_announce(created_at).announce.parent,
+                gas_allowance: Some(43),
+                off_chain_transactions: Default::default()
+            };
             let missing_announce_hash = missing_announce.to_hash();
 
-            (committed_at_idx..=last).for_each(|i| {
+            (committed_at..=last).for_each(|i| {
                 chain.blocks[i].as_prepared_mut().last_committed_announce = missing_announce_hash;
             });
 
@@ -935,11 +956,11 @@ mod tests {
                 let (block_hash, announces_amount) =
                     block_hash_and_announces_amount(&db, &chain, i);
 
-                if i < created_at_idx {
+                if i < created_at {
                     assert_eq!(announces_amount, 1, "Block {i} {block_hash}");
-                } else if i >= created_at_idx && i < wta {
+                } else if i >= created_at && i < wta {
                     assert_eq!(announces_amount, 2, "Block {i} {block_hash}");
-                } else if i >= wta && i < committed_at_idx {
+                } else if i >= wta && i < committed_at {
                     assert_eq!(announces_amount, 3, "Block {i} {block_hash}");
                 } else {
                     assert_eq!(announces_amount, 1, "Block {i} {block_hash}");
