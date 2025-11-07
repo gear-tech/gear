@@ -20,7 +20,7 @@ use crate::errors;
 use anyhow::Result;
 use ethexe_common::{
     Announce, HashOf, SimpleBlockData,
-    db::{BlockMetaStorageRO, LatestDataStorageRO, OnChainStorageRO},
+    db::{AnnounceStorageRO, BlockMetaStorageRO, LatestDataStorageRO, OnChainStorageRO},
 };
 use hyper::header::HeaderValue;
 use jsonrpsee::core::RpcResult;
@@ -42,9 +42,7 @@ pub(crate) fn try_into_cors(maybe_cors: Option<Vec<String>>) -> Result<CorsLayer
     }
 }
 
-pub fn block_header_at_or_latest<
-    DB: BlockMetaStorageRO + OnChainStorageRO + LatestDataStorageRO,
->(
+pub fn block_at_or_latest<DB: BlockMetaStorageRO + OnChainStorageRO + LatestDataStorageRO>(
     db: &DB,
     at: impl Into<Option<H256>>,
 ) -> RpcResult<SimpleBlockData> {
@@ -64,23 +62,44 @@ pub fn block_header_at_or_latest<
         .ok_or_else(|| errors::db("Block header for requested hash wasn't found"))
 }
 
-/// NOTE: does not return latest computed announce - instead use announce from latest prepared block.
-pub fn announce_at_or_latest<DB: BlockMetaStorageRO + OnChainStorageRO + LatestDataStorageRO>(
+// TODO: #4948 not perfect solution, better to take the last synced block, and iterate back until
+// found not expired announce from `at`, after commitment_delay_limit each block contains
+// only one not expired announce. In current solution we can return expired announce in some cases.
+/// Try to return latest computed announce hash or computed announce at given block hash.
+/// If `at` contains many announces, then we prefer not-base one (if any), else take the first one.
+pub fn announce_at_or_latest<DB: BlockMetaStorageRO + LatestDataStorageRO + AnnounceStorageRO>(
     db: &DB,
     at: impl Into<Option<H256>>,
 ) -> RpcResult<HashOf<Announce>> {
-    let block_hash = block_header_at_or_latest(db, at)?.hash;
+    if let Some(at) = at.into() {
+        let computed_announces: Vec<_> = db
+            .block_meta(at)
+            .announces
+            .into_iter()
+            .flatten()
+            .filter(|announce_hash| db.announce_meta(*announce_hash).computed)
+            .collect();
 
-    db.block_meta(block_hash)
-        .announces
-        .ok_or_else(|| {
-            log::error!("Prepared block meta doesn't contain announces");
-            errors::db("Block meta doesn't contain announces, can't get announce outcome")
-        })?
-        .into_iter()
-        .next()
-        .ok_or_else(|| {
-            log::error!("Prepared block meta doesn't contain any announces");
-            errors::db("Block meta doesn't contain any announces, can't get announce outcome")
-        })
+        if let Some(non_base_announce) = computed_announces.iter().find(|&&announce_hash| {
+            db.announce(announce_hash)
+                .map(|a| !a.is_base())
+                .unwrap_or_else(|| {
+                    log::error!(
+                        "Failed to get body for included announce {announce_hash}, at {at}"
+                    );
+                    false
+                })
+        }) {
+            Ok(*non_base_announce)
+        } else {
+            computed_announces.into_iter().next().ok_or_else(|| {
+                log::error!("No computed announces found at given block {at:?}");
+                errors::db("No computed announces found at given block hash")
+            })
+        }
+    } else {
+        db.latest_data()
+            .ok_or_else(|| errors::db("Latest data wasn't found"))
+            .map(|data| data.computed_announce_hash)
+    }
 }
