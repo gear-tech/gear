@@ -785,7 +785,40 @@ async fn value_send_program_to_user() {
     let local_balance = node.db.program_state(state_hash).unwrap().balance;
     assert_eq!(local_balance, 0);
 
+    let router_address = env.ethereum.router().address();
+    let router_balance = env
+        .ethereum
+        .provider()
+        .get_balance(router_address.into())
+        .await
+        .map(ethexe_ethereum::abi::utils::uint256_to_u128_lossy)
+        .unwrap();
+
+    assert_eq!(router_balance, VALUE_SENT);
+
     let sender_address = env.ethereum.provider().default_signer_address();
+
+    let program_state = node.db.program_state(state_hash).unwrap();
+    let mailbox = node
+        .db
+        .mailbox(program_state.mailbox_hash.to_inner().unwrap())
+        .unwrap();
+    let user_mailbox = mailbox.into_values(&node.db)[&sender_address.into()].clone();
+    let mailboxed_msg_id = user_mailbox.into_keys().next().unwrap();
+
+    piggy_bank.claim_value(mailboxed_msg_id).await.unwrap();
+
+    listener
+        .apply_until_block_event(|e| match e {
+            BlockEvent::Mirror {
+                actor_id,
+                event: MirrorEvent::ValueClaimed { claimed_id, .. },
+            } if actor_id == piggy_bank_id && claimed_id == mailboxed_msg_id => Ok(Some(())),
+            _ => Ok(None),
+        })
+        .await
+        .unwrap();
+
     let measurement_error: U256 = (ETHER / 50).try_into().unwrap(); // 0.02 ETH for gas costs
     let default_anvil_balance: U256 = (10_000 * ETHER).try_into().unwrap();
     let balance = env

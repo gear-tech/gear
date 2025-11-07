@@ -491,6 +491,8 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
     {
         bytes memory transitionsHashes;
 
+        // FIXME: correctly handle value transfers in both directions
+
         // At first perform all transitions, this may increase router balance,
         for (uint256 i = 0; i < _transitions.length; i++) {
             Gear.StateTransition calldata transition = _transitions[i];

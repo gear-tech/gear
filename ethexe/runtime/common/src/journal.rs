@@ -111,6 +111,7 @@ impl<S: Storage> NativeJournalHandler<'_, S> {
             .update_state(dispatch.source(), |state, storage, transitions| {
                 let value = dispatch.value();
 
+                // TODO: check mb need to charge value at the end of processing
                 if value != 0 {
                     state.balance = state.balance.checked_sub(value).expect(
                         "Insufficient balance: underflow in state.balance -= dispatch.value()",
@@ -164,18 +165,8 @@ impl<S: Storage> NativeJournalHandler<'_, S> {
                         )
                     });
 
-                    if dispatch.value() != 0 {
-                        state.balance = state.balance.checked_sub(dispatch.value()).expect(
-                            "Insufficient balance: underflow in state.balance -= dispatch.value()",
-                        );
-                    }
-
                     transitions.modify_transition(dispatch.source(), |transition| {
-                        let value = dispatch.value();
                         let stored = dispatch.into_parts().1;
-
-                        transition.value_to_receive -=
-                            i128::try_from(value).expect("value fits into i128");
 
                         transition
                             .messages
