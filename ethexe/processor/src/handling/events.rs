@@ -133,6 +133,9 @@ impl ProcessingHandler {
                     };
 
                     transitions.modify_transition(actor_id, |transition| {
+                        transition.value_to_receive += i128::try_from(claimed_value)
+                            .expect("claimed_value doesn't fit in i128");
+
                         transition.claims.push(ValueClaim {
                             message_id: replied_to,
                             destination: source,
