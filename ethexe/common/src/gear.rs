@@ -426,8 +426,8 @@ impl ToDigest for [ValueClaim] {
 
 #[derive(Clone, Copy, Debug, Encode, Decode, PartialEq, Eq, Default, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
-pub enum Origin {
+pub enum MessageType {
     #[default]
-    Ethereum,
-    OffChain,
+    Canonical,
+    Injected,
 }
