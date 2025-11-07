@@ -10,7 +10,7 @@ use core::{mem, num::NonZero, panic};
 use core_processor::common::{DispatchOutcome, JournalHandler, JournalNote};
 use ethexe_common::{
     ScheduledTask,
-    gear::{Message, Origin, ValueClaim},
+    gear::{Message, Origin},
 };
 use gear_core::{
     env::MessageWaitedType,
@@ -46,7 +46,9 @@ impl<S: Storage> NativeJournalHandler<'_, S> {
             let source = dispatch.source;
             // Decrease sender's balance and value_to_receive
             self.controller.update_state(source, |state, _, transitions| {
-                state.balance -= dispatch.value;
+                state.balance = state.balance.checked_sub(dispatch.value).expect(
+                    "Insufficient balance: underflow in state.balance -= dispatch.value()",
+                );
                 log::error!(
                     "Program to Program immediate dispatch: decreasing balance of {source} by {} to {}",
                     dispatch.value,
@@ -116,11 +118,8 @@ impl<S: Storage> NativeJournalHandler<'_, S> {
                     );
 
                     transitions.modify_transition(dispatch.source(), |transition| {
-                        transition.claims.push(ValueClaim {
-                            message_id: dispatch.id(),
-                            destination: dispatch.destination(),
-                            value,
-                        });
+                        transition.value_to_receive -=
+                            i128::try_from(value).expect("value fits into i128");
                     });
                 }
 
