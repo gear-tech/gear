@@ -1548,7 +1548,7 @@ async fn validators_election() {
 
 #[tokio::test(flavor = "multi_thread")]
 #[ntest::timeout(60_000)]
-async fn injected_tx_processing() {
+async fn injected_tx_fungible_token() {
     init_logger();
 
     let env_config = TestEnvConfig {
@@ -1558,17 +1558,25 @@ async fn injected_tx_processing() {
 
     let mut env = TestEnv::new(env_config).await.unwrap();
 
-    let validator_cfg = env.validators[0];
+    let pubkey = env.validators[0].public_key;
     let mut node = env.new_node(
         NodeConfig::default()
             .service_rpc(8008)
-            .validator(validator_cfg),
+            .validator(env.validators[0]),
     );
     node.start_service().await;
 
-    // 1. Creating a ping - program
+    // 1. Create Fungible token config
+    let token_config = demo_fungible_token::InitConfig {
+        name: "USD Tether".to_string(),
+        symbol: "USDT".to_string(),
+        decimals: 10,
+        initial_capacity: None,
+    };
+
+    // 2. Uploading code and creating program
     let res = env
-        .upload_code(demo_ping::WASM_BINARY)
+        .upload_code(demo_fungible_token::WASM_BINARY)
         .await
         .unwrap()
         .wait_for()
@@ -1584,37 +1592,35 @@ async fn injected_tx_processing() {
         .await
         .unwrap();
 
-    let ping_actor_id = res.program_id;
+    let usdt_actor_id = res.program_id;
 
-    let injected_tx = InjectedTransaction {
-        recipient: validator_cfg.public_key.to_address(),
-        destination: ping_actor_id,
-        payload: b"PING".to_vec(),
+    // 3. Initialize program
+    let init_tx = InjectedTransaction {
+        recipient: pubkey.to_address(),
+        destination: usdt_actor_id,
+        payload: token_config.encode(),
         value: 0,
         reference_block: node.db.latest_data().unwrap().prepared_block_hash,
         salt: vec![1u8],
     };
-
-    let signed_tx = env
-        .signer
-        .signed_data(validator_cfg.public_key, injected_tx)
-        .unwrap();
-
-    tracing::info!(tx = ?signed_tx, "signed injected tx");
-
-    let _response = node.send_injected_transaction(signed_tx).await.unwrap();
+    let signed_tx = env.signer.signed_data(pubkey, init_tx).unwrap();
+    let _ = node.send_injected_transaction(signed_tx).await.unwrap();
     tracing::info!("successfully send injected tx to rpc");
 
-    // env.provider.anvil_mine(Some(10), Some(2)).await.unwrap();
-
-    let mut node_events_listener = node.listener();
-    node_events_listener
+    // Listen for tx inclusion
+    node.listener()
         .apply_until(|event| {
-            if let TestingEvent::Consensus(ConsensusEvent::ComputeAnnounce(announce)) = event
-                && announce.injected_transactions.len() == 1
+            if let TestingEvent::Consensus(ConsensusEvent::PublishMessage(
+                SignedValidatorMessage::InjectedTxPromise(promise),
+            )) = event
             {
+                let promise = promise.into_data().payload;
+                assert!(
+                    promise.payload.is_empty(),
+                    "Expect empty payload, because of initializing Fungible Token returns nothing"
+                );
                 return Ok(Some(()));
-            };
+            }
 
             Ok(None)
         })
@@ -1622,15 +1628,35 @@ async fn injected_tx_processing() {
         .unwrap();
     tracing::info!("receive announce with injected transaction");
 
-    node_events_listener
+    // 4. Try ming some tokens
+    let amount: u128 = 5_000_000_000;
+    let mint_action = demo_fungible_token::FTAction::Mint(amount);
+    let mint_tx = InjectedTransaction {
+        recipient: pubkey.to_address(),
+        destination: usdt_actor_id,
+        payload: mint_action.encode(),
+        value: 0,
+        reference_block: node.db.latest_data().unwrap().prepared_block_hash,
+        salt: vec![1u8],
+    };
+
+    let signed_tx = env.signer.signed_data(pubkey, mint_tx).unwrap();
+    let _ = node.send_injected_transaction(signed_tx).await.unwrap();
+    let expected_reply = demo_fungible_token::FTEvent::Transfer {
+        from: ActorId::new([0u8; 32]),
+        to: pubkey.to_address().into(),
+        amount,
+    };
+
+    // Listen for inclusion and check the expected payload.
+    node.listener()
         .apply_until(|event| {
             if let TestingEvent::Consensus(ConsensusEvent::PublishMessage(
                 SignedValidatorMessage::InjectedTxPromise(promise),
             )) = event
             {
                 let promise = promise.into_data().payload;
-                tracing::info!("RECEIVE promise: {promise:?}");
-                assert_eq!(promise.payload, b"PONG");
+                assert_eq!(promise.payload, expected_reply.encode());
 
                 return Ok(Some(()));
             }
