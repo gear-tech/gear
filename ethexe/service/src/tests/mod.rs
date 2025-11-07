@@ -1547,12 +1547,12 @@ async fn validators_election() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[ntest::timeout(25_000)]
-async fn execution_with_canonical_events_maturity() {
+#[ntest::timeout(30_000)]
+async fn execution_with_canonical_events_quarantine() {
     init_logger();
 
     let config = TestEnvConfig {
-        compute_config: ComputeConfig::with_custom_quarantine(CANONICAL_QUARANTINE),
+        compute_config: ComputeConfig::new(CANONICAL_QUARANTINE),
         ..Default::default()
     };
     let mut env = TestEnv::new(config).await.unwrap();

@@ -41,18 +41,18 @@ pub struct ComputeConfig {
 }
 
 impl ComputeConfig {
+    /// Constructs [`ComputeConfig`] with provided `canonical_quarantine`.
+    /// In production builds `canonical_quarantine` should be equal [`ethexe_common::gear::CANONICAL_QUARANTINE`].
+    pub fn new(canonical_quarantine: u8) -> Self {
+        Self {
+            canonical_quarantine,
+        }
+    }
+
     /// Must use only in testing purposes.
     pub fn without_quarantine() -> Self {
         Self {
             canonical_quarantine: 0,
-        }
-    }
-
-    /// Constructs [`ComputeConfig`] with provided `canonical_quarantine`.
-    /// In production builds `canonical_quarantine` should be equal [`ethexe_common::gear::CANONICAL_QUARANTINE`].
-    pub fn with_custom_quarantine(canonical_quarantine: u8) -> Self {
-        Self {
-            canonical_quarantine,
         }
     }
 

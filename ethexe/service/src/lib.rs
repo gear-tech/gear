@@ -269,8 +269,7 @@ impl Service {
 
         let tx_pool = TxPoolService::new(db.clone());
 
-        let compute_config =
-            ComputeConfig::with_custom_quarantine(config.node.canonical_quarantine);
+        let compute_config = ComputeConfig::new(config.node.canonical_quarantine);
         let compute = ComputeService::new(compute_config, db.clone(), processor);
 
         let fast_sync = config.node.fast_sync;
