@@ -491,9 +491,8 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
     {
         bytes memory transitionsHashes;
 
-        // FIXME: correctly handle value transfers in both directions
+        // TODO: check for sorted transitions
 
-        // At first perform all transitions, this may increase router balance,
         for (uint256 i = 0; i < _transitions.length; i++) {
             Gear.StateTransition calldata transition = _transitions[i];
 
@@ -501,22 +500,15 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
                 router.protocolData.programs[transition.actorId] != 0, "couldn't perform transition for unknown program"
             );
 
-            bytes32 transitionHash = IMirror(transition.actorId).performStateTransition(transition);
-
-            transitionsHashes = bytes.concat(transitionsHashes, transitionHash);
-        }
-
-        // Then transfer values to actors, this may decrease router balance.
-        for (uint256 i = 0; i < _transitions.length; i++) {
-            Gear.StateTransition calldata transition = _transitions[i];
+            uint128 value = 0;
 
             if (transition.valueToReceive != 0 && !transition.valueToReceiveNegativeSign) {
-                (bool success,) = transition.actorId.call{value: transition.valueToReceive}(
-                    abi.encodeWithSelector(IMirror.ownedBalanceTopUpFromRouter.selector)
-                );
-
-                require(success, "failed to transfer value to mirror during state transition");
+                value = transition.valueToReceive;
             }
+
+            bytes32 transitionHash = IMirror(transition.actorId).performStateTransition{value: value}(transition);
+
+            transitionsHashes = bytes.concat(transitionsHashes, transitionHash);
         }
 
         return keccak256(transitionsHashes);

@@ -168,7 +168,12 @@ contract Mirror is IMirror {
     }
 
     // NOTE (breathx): value to receive should be already handled in router, expect if negative sign is set.
-    function performStateTransition(Gear.StateTransition calldata _transition) external onlyRouter returns (bytes32) {
+    function performStateTransition(Gear.StateTransition calldata _transition)
+        external
+        payable
+        onlyRouter
+        returns (bytes32)
+    {
         /// @dev Verify that the transition belongs to this contract.
         require(_transition.actorId == address(this), "actorId must be this contract");
 
@@ -224,8 +229,6 @@ contract Mirror is IMirror {
 
         return id;
     }
-
-    function ownedBalanceTopUpFromRouter() external payable onlyRouter {}
 
     // TODO (breathx): consider when to emit event: on success in decoder, on failure etc.
     // TODO (breathx): make decoder gas configurable.

@@ -125,7 +125,5 @@ interface IMirror {
 
     function initialize(address initializer, address abiInterface, bool isSmall) external;
 
-    function performStateTransition(Gear.StateTransition calldata transition) external returns (bytes32);
-
-    function ownedBalanceTopUpFromRouter() external payable;
+    function performStateTransition(Gear.StateTransition calldata transition) external payable returns (bytes32);
 }
