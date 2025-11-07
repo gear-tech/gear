@@ -137,11 +137,33 @@ impl InBlockTransitions {
         self.modifications.insert(actor_id, Default::default());
     }
 
-    pub fn modify_injected_replies(
+    // TODO: to remove
+    pub fn _modify_injected_replies(
         &mut self,
         f: impl FnOnce(&mut BTreeMap<MessageId, MaybeInjectedReply>),
     ) {
         f(&mut self.injected_replies)
+    }
+
+    /// Register new reply for injected transaction.
+    /// ## Params:
+    /// - `injected_actor_id` - program id which runs the injected message
+    /// - `message_id` - the id of injected message, (contructs from [`ethexe_common::injected::InjectedTransaction::hash`]).
+    /// - `reply`  - the reply for injected transaction.
+    pub fn register_injected_reply(
+        &mut self,
+        injected_actor_id: &ActorId,
+        message_id: MessageId,
+        reply: Vec<u8>,
+    ) {
+        let Some(state_with_queue) = self.state_of(injected_actor_id) else {
+            // TODO: think, maybe should return error or panic
+            return;
+        };
+
+        if let Some(maybe_reply) = self.injected_replies.get_mut(&message_id) {
+            *maybe_reply = Some((reply, state_with_queue.hash));
+        }
     }
 
     pub fn modify_state(

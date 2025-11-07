@@ -104,6 +104,7 @@ impl<S: Storage> TransitionController<'_, S> {
         let injected_queue_size = state.injected_queue.cached_queue_size;
         let new_state_hash = self.storage.write_program_state(state);
 
+        log::error!("state was successfully modified");
         self.transitions.modify_state(
             program_id,
             new_state_hash,

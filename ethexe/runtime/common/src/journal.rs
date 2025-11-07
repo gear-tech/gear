@@ -215,18 +215,11 @@ impl<S: Storage> JournalHandler for NativeJournalHandler<'_, S> {
         let dispatch = dispatch.into_stored();
 
         if self.message_type == MessageType::Injected && dispatch.kind() == DispatchKind::Reply {
-            self.controller
-                .transitions
-                .modify_injected_replies(|injected_replies| {
-                    // Note: update only for known injected messages.
-                    if let Some(maybe_reply) = injected_replies.get_mut(&message_id) {
-                        *maybe_reply = Some((
-                            dispatch.payload_bytes().to_vec(),
-                            // TODO: use here real state hash after processing injected transaction.
-                            H256::zero(),
-                        ));
-                    }
-                });
+            self.controller.transitions.register_injected_reply(
+                &dispatch.source(),
+                message_id,
+                dispatch.payload_bytes().to_vec(),
+            );
         }
 
         if self.controller.transitions.is_program(&destination) {

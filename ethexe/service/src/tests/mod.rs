@@ -1565,6 +1565,7 @@ async fn injected_tx_fungible_token() {
             .validator(env.validators[0]),
     );
     node.start_service().await;
+    let db = node.db.clone();
 
     // 1. Create Fungible token config
     let token_config = demo_fungible_token::InitConfig {
@@ -1605,7 +1606,6 @@ async fn injected_tx_fungible_token() {
     };
     let signed_tx = env.signer.signed_data(pubkey, init_tx).unwrap();
     let _ = node.send_injected_transaction(signed_tx).await.unwrap();
-    tracing::info!("successfully send injected tx to rpc");
 
     // Listen for tx inclusion
     node.listener()
@@ -1619,6 +1619,17 @@ async fn injected_tx_fungible_token() {
                     promise.payload.is_empty(),
                     "Expect empty payload, because of initializing Fungible Token returns nothing"
                 );
+
+                // Check state
+                let usdt_state = db.program_state(promise.state_hash).unwrap();
+                assert!(usdt_state.canonical_queue.is_empty());
+                // assert!(usdt_state.injected_queue.is_empty());
+                assert!(usdt_state.waitlist_hash.is_empty());
+                assert!(usdt_state.stash_hash.is_empty());
+                assert!(usdt_state.mailbox_hash.is_empty());
+                assert_eq!(usdt_state.balance, 0);
+                // assert_eq!(usdt_state.executable_balance, 0);
+
                 return Ok(Some(()));
             }
 
@@ -1626,7 +1637,8 @@ async fn injected_tx_fungible_token() {
         })
         .await
         .unwrap();
-    tracing::info!("receive announce with injected transaction");
+
+    tracing::info!("✅ Fungible token successfuly initialized");
 
     // 4. Try ming some tokens
     let amount: u128 = 5_000_000_000;
@@ -1648,6 +1660,9 @@ async fn injected_tx_fungible_token() {
         amount,
     };
 
+    // Mine extra blocks because of node works too fast.
+    env.provider.anvil_mine(Some(10), None).await.unwrap();
+
     // Listen for inclusion and check the expected payload.
     node.listener()
         .apply_until(|event| {
@@ -1658,6 +1673,16 @@ async fn injected_tx_fungible_token() {
                 let promise = promise.into_data().payload;
                 assert_eq!(promise.payload, expected_reply.encode());
 
+                // Check state
+                let usdt_state = db.program_state(promise.state_hash).unwrap();
+                assert!(usdt_state.canonical_queue.is_empty());
+                // assert!(usdt_state.injected_queue.is_empty());
+                assert!(usdt_state.waitlist_hash.is_empty());
+                assert!(usdt_state.stash_hash.is_empty());
+                assert!(usdt_state.mailbox_hash.is_empty());
+                assert_eq!(usdt_state.balance, 0);
+                // assert_eq!(usdt_state.executable_balance, 0);
+
                 return Ok(Some(()));
             }
 
@@ -1665,4 +1690,5 @@ async fn injected_tx_fungible_token() {
         })
         .await
         .unwrap();
+    tracing::info!("✅ Tokens mint successfuly");
 }
