@@ -97,8 +97,6 @@ impl<S: Storage> NativeJournalHandler<'_, S> {
                     transitions.modify_transition(dispatch.source(), |transition| {
                         let stored = dispatch.into_parts().1;
 
-                        // FIXME: TODO: should  be decrease value_to_receive here?
-
                         transition
                             .messages
                             .push(Message::from_stored(stored, self.call_reply))
@@ -177,7 +175,8 @@ impl<S: Storage> NativeJournalHandler<'_, S> {
                         let value = dispatch.value();
                         let stored = dispatch.into_parts().1;
 
-                        transition.value_to_receive -= i128::try_from(value).expect("value fits into i128");
+                        transition.value_to_receive -=
+                            i128::try_from(value).expect("value fits into i128");
 
                         transition
                             .messages

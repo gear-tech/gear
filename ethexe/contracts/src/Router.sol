@@ -112,7 +112,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
         // All protocol data must be removed - so leave it zeroed in new router.
     }
 
-    // # Views;
+    // # Views.
     function genesisBlockHash() public view returns (bytes32) {
         return _router().genesisBlock.hash;
     }
