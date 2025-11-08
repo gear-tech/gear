@@ -5122,7 +5122,6 @@ name = "ethexe-rpc"
 version = "1.9.2"
 dependencies = [
  "anyhow",
- "ethexe-blob-loader",
  "ethexe-common",
  "ethexe-db",
  "ethexe-processor",
