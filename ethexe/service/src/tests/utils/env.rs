@@ -41,6 +41,7 @@ use ethexe_common::{
     ecdsa::{PrivateKey, PublicKey},
     events::{BlockEvent, MirrorEvent, RouterEvent},
 };
+use ethexe_compute::{ComputeConfig, ComputeService};
 use ethexe_consensus::{ConsensusService, SimpleConnectService, ValidatorService};
 use ethexe_db::Database;
 use ethexe_ethereum::{
@@ -100,6 +101,7 @@ pub struct TestEnv {
     pub threshold: u64,
     pub block_time: Duration,
     pub continuous_block_generation: bool,
+    pub compute_config: ComputeConfig,
 
     router_query: RouterQuery,
     /// In order to reduce amount of observers, we create only one observer and broadcast events to all subscribers.
@@ -125,6 +127,7 @@ impl TestEnv {
             continuous_block_generation,
             network,
             deploy_params,
+            compute_config,
         } = config;
 
         log::info!(
@@ -329,6 +332,7 @@ impl TestEnv {
             threshold,
             block_time,
             continuous_block_generation,
+            compute_config,
             router_query,
             broadcaster,
             db,
@@ -382,6 +386,7 @@ impl TestEnv {
             network_bootstrap_address,
             service_rpc_config,
             fast_sync,
+            compute_config: self.compute_config,
         }
     }
 
@@ -655,6 +660,8 @@ pub struct TestEnvConfig {
     pub network: EnvNetworkConfig,
     /// Smart contracts deploy configuration.
     pub deploy_params: ContractsDeploymentParams,
+    /// Compute service configuration
+    pub compute_config: ComputeConfig,
 }
 
 impl Default for TestEnvConfig {
@@ -675,6 +682,7 @@ impl Default for TestEnvConfig {
             continuous_block_generation: false,
             network: EnvNetworkConfig::Disabled,
             deploy_params: Default::default(),
+            compute_config: ComputeConfig::without_quarantine(),
         }
     }
 }
@@ -810,6 +818,7 @@ pub struct Node {
     network_bootstrap_address: Option<String>,
     service_rpc_config: Option<RpcConfig>,
     fast_sync: bool,
+    compute_config: ComputeConfig,
 }
 
 impl Node {
@@ -820,6 +829,7 @@ impl Node {
         );
 
         let processor = Processor::new(self.db.clone()).unwrap();
+        let compute = ComputeService::new(self.compute_config, self.db.clone(), processor);
 
         let observer = ObserverService::new(&self.eth_cfg, u32::MAX, self.db.clone())
             .await
@@ -854,6 +864,11 @@ impl Node {
                 Box::pin(SimpleConnectService::new(self.db.clone(), self.block_time))
             }
         };
+
+        let validator_address = self
+            .validator_config
+            .as_ref()
+            .map(|c| c.public_key.to_address());
 
         let (sender, receiver) = broadcast::channel(2048);
 
@@ -901,7 +916,7 @@ impl Node {
             self.db.clone(),
             observer,
             blob_loader,
-            processor,
+            compute,
             self.signer.clone(),
             tx_pool_service,
             consensus,
@@ -910,6 +925,7 @@ impl Node {
             rpc,
             sender,
             self.fast_sync,
+            validator_address,
         );
 
         let name = self.name.clone();

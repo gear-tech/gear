@@ -22,7 +22,7 @@ use ethexe_common::{
     ScheduledTask,
     db::{CodesStorageRO, CodesStorageRW},
     events::{MirrorRequestEvent, RouterRequestEvent},
-    gear::{Origin, ValueClaim},
+    gear::{MessageType, ValueClaim},
 };
 use ethexe_runtime_common::state::{
     Dispatch, Expiring, MailboxMessage, ModifiableStorage, PayloadLookup,
@@ -95,7 +95,7 @@ impl ProcessingHandler {
                         payload,
                         value,
                         is_init,
-                        Origin::Ethereum,
+                        MessageType::Canonical,
                         call_reply,
                     )?;
 
@@ -146,7 +146,7 @@ impl ProcessingHandler {
                         source,
                         payload,
                         value,
-                        Origin::Ethereum,
+                        MessageType::Canonical,
                         false,
                     )?;
 
@@ -192,7 +192,7 @@ impl ProcessingHandler {
                         PayloadLookup::empty(),
                         0,
                         SuccessReplyReason::Auto,
-                        Origin::Ethereum,
+                        MessageType::Canonical,
                         false,
                     );
 
