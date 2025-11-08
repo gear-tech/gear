@@ -52,9 +52,7 @@ pub enum BlobLoaderError {
     // `ConsensusLayerBlobReader` errors
     #[error("transport error: {0}")]
     Transport(#[from] RpcError<TransportErrorKind>),
-    #[error("failed to initialize or access genesis block time")]
-    GenesisBlockTimeOnceLock,
-    #[error("failed to found transaction by hash: {0}")]
+    #[error("failed to find transaction by hash: {0}")]
     TransactionNotFound(H256),
     #[error("failed to get blob versioned hashes from transaction: {0}")]
     BlobVersionedHashesNotFound(H256),
