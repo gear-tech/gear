@@ -34,8 +34,11 @@ use futures::{
 };
 use gprimitives::{CodeId, H256};
 use reqwest::Client;
-use std::{collections::HashSet, fmt, hash::RandomState, pin::Pin, sync::OnceLock, task::Poll};
-use tokio::time::{self, Duration};
+use std::{collections::HashSet, fmt, hash::RandomState, pin::Pin, task::Poll};
+use tokio::{
+    sync::OnceCell,
+    time::{self, Duration},
+};
 
 pub mod local;
 
@@ -49,7 +52,7 @@ pub enum BlobLoaderError {
     // `ConsensusLayerBlobReader` errors
     #[error("transport error: {0}")]
     Transport(#[from] RpcError<TransportErrorKind>),
-    #[error("failed to get access to genesis block time OnceLock")]
+    #[error("failed to initialize or access genesis block time")]
     GenesisBlockTimeOnceLock,
     #[error("failed to found transaction by hash: {0}")]
     TransactionNotFound(H256),
@@ -130,14 +133,11 @@ impl ConsensusLayerBlobReader {
     }
 
     async fn read_blob_from_tx_hash(&self, tx_hash: H256, attempts: Option<u8>) -> Result<Vec<u8>> {
-        static BEACON_GENESIS_BLOCK_TIME: OnceLock<u64> = OnceLock::new();
+        static BEACON_GENESIS_BLOCK_TIME: OnceCell<u64> = OnceCell::const_new();
 
-        if BEACON_GENESIS_BLOCK_TIME.get().is_none() {
-            let genesis_time = self.read_genesis_time().await?;
-            BEACON_GENESIS_BLOCK_TIME
-                .set(genesis_time)
-                .map_err(|_| BlobLoaderError::GenesisBlockTimeOnceLock)?;
-        }
+        let beacon_genesis_block_time = *BEACON_GENESIS_BLOCK_TIME
+            .get_or_try_init(|| self.read_genesis_time())
+            .await?;
 
         let tx = self
             .provider
@@ -157,10 +157,7 @@ impl ConsensusLayerBlobReader {
             .get_block_by_hash(block_hash)
             .await?
             .ok_or(BlobLoaderError::BlockNotFound(H256(block_hash.0)))?;
-        let slot = (block.header.timestamp
-            - BEACON_GENESIS_BLOCK_TIME
-                .get()
-                .ok_or(BlobLoaderError::GenesisBlockTimeOnceLock)?)
+        let slot = (block.header.timestamp - beacon_genesis_block_time)
             / self.config.beacon_block_time.as_secs();
 
         let attempts = attempts.unwrap_or(0);
