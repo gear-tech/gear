@@ -18,9 +18,10 @@
 
 use alloy::{
     consensus::{SidecarCoder, SimpleCoder, Transaction},
-    eips::eip4844::kzg_to_versioned_hash,
+    primitives::B256,
     providers::{Provider, ProviderBuilder, RootProvider},
-    rpc::types::beacon::sidecar::BeaconBlobBundle,
+    rpc::types::beacon::{genesis::GenesisResponse, sidecar::GetBlobsResponse},
+    transports::{RpcError, TransportErrorKind},
 };
 use ethexe_common::{
     CodeAndIdUnchecked, CodeBlobInfo,
@@ -33,7 +34,7 @@ use futures::{
 };
 use gprimitives::{CodeId, H256};
 use reqwest::Client;
-use std::{collections::HashSet, fmt, hash::RandomState, pin::Pin, task::Poll};
+use std::{collections::HashSet, fmt, hash::RandomState, pin::Pin, sync::OnceLock, task::Poll};
 use tokio::time::{self, Duration};
 
 pub mod local;
@@ -47,7 +48,9 @@ pub enum BlobLoaderEvent {
 pub enum BlobLoaderError {
     // `ConsensusLayerBlobReader` errors
     #[error("transport error: {0}")]
-    Transport(#[from] alloy::transports::RpcError<alloy::transports::TransportErrorKind>),
+    Transport(#[from] RpcError<TransportErrorKind>),
+    #[error("failed to get access to genesis block time OnceLock")]
+    GenesisBlockTimeOnceLock,
     #[error("failed to found transaction by hash: {0}")]
     TransactionNotFound(H256),
     #[error("failed to get blob versioned hashes from transaction: {0}")]
@@ -127,8 +130,14 @@ impl ConsensusLayerBlobReader {
     }
 
     async fn read_blob_from_tx_hash(&self, tx_hash: H256, attempts: Option<u8>) -> Result<Vec<u8>> {
-        //TODO: read genesis from `{ethereum_beacon_rpc}/eth/v1/beacon/genesis` with caching into some static
-        const BEACON_GENESIS_BLOCK_TIME: u64 = 1742213400;
+        static BEACON_GENESIS_BLOCK_TIME: OnceLock<u64> = OnceLock::new();
+
+        if BEACON_GENESIS_BLOCK_TIME.get().is_none() {
+            let genesis_time = self.read_genesis_time().await?;
+            BEACON_GENESIS_BLOCK_TIME
+                .set(genesis_time)
+                .map_err(|_| BlobLoaderError::GenesisBlockTimeOnceLock)?;
+        }
 
         let tx = self
             .provider
@@ -148,14 +157,17 @@ impl ConsensusLayerBlobReader {
             .get_block_by_hash(block_hash)
             .await?
             .ok_or(BlobLoaderError::BlockNotFound(H256(block_hash.0)))?;
-        let slot = (block.header.timestamp - BEACON_GENESIS_BLOCK_TIME)
+        let slot = (block.header.timestamp
+            - BEACON_GENESIS_BLOCK_TIME
+                .get()
+                .ok_or(BlobLoaderError::GenesisBlockTimeOnceLock)?)
             / self.config.beacon_block_time.as_secs();
 
         let attempts = attempts.unwrap_or(0);
         let mut count = 0;
         let blob_bundle = loop {
             log::trace!("trying to get blob, attempt #{}", count + 1);
-            let blob_bundle_result = self.read_blob_bundle(slot).await;
+            let blob_bundle_result = self.read_blob_bundle(slot, &blob_versioned_hashes).await;
             if blob_bundle_result.is_ok() || count >= attempts {
                 break blob_bundle_result;
             } else {
@@ -164,32 +176,46 @@ impl ConsensusLayerBlobReader {
             }
         }?;
 
-        let mut blobs = Vec::with_capacity(blob_versioned_hashes.len());
-        for blob_data in blob_bundle.into_iter().filter(|blob_data| {
-            blob_versioned_hashes
-                .contains(&kzg_to_versioned_hash(blob_data.kzg_commitment.as_ref()))
-        }) {
-            blobs.push(*blob_data.blob);
-        }
-
         let mut coder = SimpleCoder::default();
         let data = coder
-            .decode_all(&blobs)
+            .decode_all(&blob_bundle.data)
             .ok_or(BlobLoaderError::DecodeBlobs)?
             .concat();
 
         Ok(data)
     }
 
-    async fn read_blob_bundle(&self, slot: u64) -> reqwest::Result<BeaconBlobBundle> {
+    async fn read_genesis_time(&self) -> reqwest::Result<u64> {
+        let ethereum_beacon_rpc = &self.config.ethereum_beacon_rpc;
+        let response = self
+            .http_client
+            .get(format!("{ethereum_beacon_rpc}/eth/v1/beacon/genesis"))
+            .send()
+            .await?
+            .json::<GenesisResponse>()
+            .await?;
+
+        Ok(response.data.genesis_time)
+    }
+
+    async fn read_blob_bundle(
+        &self,
+        slot: u64,
+        versioned_hashes: &HashSet<&B256>,
+    ) -> reqwest::Result<GetBlobsResponse> {
         let ethereum_beacon_rpc = &self.config.ethereum_beacon_rpc;
         self.http_client
             .get(format!(
-                "{ethereum_beacon_rpc}/eth/v1/beacon/blob_sidecars/{slot}"
+                "{ethereum_beacon_rpc}/eth/v1/beacon/blobs/{slot}?versioned_hashes={}",
+                versioned_hashes
+                    .iter()
+                    .map(|versioned_hash| versioned_hash.to_string())
+                    .collect::<Vec<_>>()
+                    .join(",")
             ))
             .send()
             .await?
-            .json::<BeaconBlobBundle>()
+            .json::<GetBlobsResponse>()
             .await
     }
 }
@@ -288,6 +314,44 @@ impl<DB: Database> BlobLoaderService for BlobLoader<DB> {
                     .boxed(),
             );
         }
+
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ethexe_common::gear_core::ids::prelude::CodeIdExt;
+
+    #[tokio::test]
+    async fn test_read_code_from_tx_hash() -> Result<()> {
+        let consensus_cfg = ConsensusLayerConfig {
+            ethereum_rpc: "https://hoodi-reth-rpc.gear-tech.io".into(),
+            ethereum_beacon_rpc: "https://ethereum-hoodi-beacon-api.publicnode.com".into(),
+            beacon_block_time: Duration::from_secs(12),
+        };
+        let blobs_reader = ConsensusLayerBlobReader {
+            provider: ProviderBuilder::default()
+                .connect(&consensus_cfg.ethereum_rpc)
+                .await?,
+            http_client: Client::new(),
+            config: consensus_cfg,
+        };
+        let expected_code_id = "0x94892c2d1acaeb2d47e2ea79fe580a5b41c534f21333be1a86fe611ba4e0b7dc"
+            .parse()
+            .unwrap();
+        let CodeAndIdUnchecked { code, code_id } = blobs_reader
+            .read_code_from_tx_hash(
+                expected_code_id,
+                "0xee7f0082b6ad2fb1d409f39e5b169e102c27e4cf86b69a8a4006224cc91b4ae3"
+                    .parse()
+                    .unwrap(),
+                Some(3),
+            )
+            .await?;
+        assert_eq!(code_id, expected_code_id);
+        assert_eq!(code_id, CodeId::generate(&code));
 
         Ok(())
     }
