@@ -11,10 +11,6 @@
 # (optional, default: false).
 # tmp = false
 
-# Flag to run node in development mode.
-# (optional, default: false).
-# dev = false
-
 # Public key of the validator, if node should act as one.
 # Provided in the format of 33-byte hex string:
 # - `yParityCompressed`, compressed `publicKeyY`,
@@ -90,7 +86,7 @@
 ### Ethereum-specific parameters.
 [ethereum]
 # Ethereum RPC endpoint.
-# (optional, default: http://localhost:8545).
+# (optional, default: ws://localhost:8545).
 # rpc = "http://localhost:8545"
 
 # Ethereum Beacon RPC endpoint.

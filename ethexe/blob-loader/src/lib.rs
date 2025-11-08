@@ -40,8 +40,6 @@ use tokio::{
     time::{self, Duration},
 };
 
-pub mod local;
-
 #[derive(Clone, PartialEq, Eq)]
 pub enum BlobLoaderEvent {
     BlobLoaded(CodeAndIdUnchecked),
@@ -74,10 +72,6 @@ pub enum BlobLoaderError {
     // `BlobLoader` errors
     #[error("failed to get code blob info for: {0}")]
     CodeBlobInfoNotFound(CodeId),
-
-    // `LocalBlobLoader` errors
-    #[error("failed to get code from local storage: {0}")]
-    LocalCodeNotFound(CodeId),
 }
 
 type Result<T> = std::result::Result<T, BlobLoaderError>;
@@ -131,12 +125,6 @@ impl ConsensusLayerBlobReader {
     }
 
     async fn read_blob_from_tx_hash(&self, tx_hash: H256, attempts: Option<u8>) -> Result<Vec<u8>> {
-        static BEACON_GENESIS_BLOCK_TIME: OnceCell<u64> = OnceCell::const_new();
-
-        let beacon_genesis_block_time = *BEACON_GENESIS_BLOCK_TIME
-            .get_or_try_init(|| self.read_genesis_time())
-            .await?;
-
         let tx = self
             .provider
             .get_transaction_by_hash(tx_hash.0.into())
@@ -155,8 +143,22 @@ impl ConsensusLayerBlobReader {
             .get_block_by_hash(block_hash)
             .await?
             .ok_or(BlobLoaderError::BlockNotFound(H256(block_hash.0)))?;
-        let slot = (block.header.timestamp - beacon_genesis_block_time)
-            / self.config.beacon_block_time.as_secs();
+
+        // detect anvil by chain id
+        // TODO: remove this after merge https://github.com/foundry-rs/foundry/pull/12503
+        let slot = if let Some(chain_id) = tx.chain_id()
+            && chain_id == 31337
+        {
+            block.header.number
+        } else {
+            static BEACON_GENESIS_BLOCK_TIME: OnceCell<u64> = OnceCell::const_new();
+
+            let beacon_genesis_block_time = *BEACON_GENESIS_BLOCK_TIME
+                .get_or_try_init(|| self.read_genesis_time())
+                .await?;
+            (block.header.timestamp - beacon_genesis_block_time)
+                / self.config.beacon_block_time.as_secs()
+        };
 
         let attempts = attempts.unwrap_or(0);
         let mut count = 0;
@@ -323,7 +325,7 @@ mod tests {
     async fn test_read_code_from_tx_hash() -> Result<()> {
         let consensus_cfg = ConsensusLayerConfig {
             ethereum_rpc: "https://hoodi-reth-rpc.gear-tech.io".into(),
-            ethereum_beacon_rpc: "https://ethereum-hoodi-beacon-api.publicnode.com".into(),
+            ethereum_beacon_rpc: "https://hoodi-lighthouse-rpc.gear-tech.io".into(),
             beacon_block_time: Duration::from_secs(12),
         };
         let blobs_reader = ConsensusLayerBlobReader {
