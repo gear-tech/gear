@@ -119,8 +119,6 @@ interface IMirror {
 
     function executableBalanceTopUp(uint128 value) external;
 
-    function transferLockedValueToInheritor() external;
-
     /* Router-driven state and funds management */
 
     function initialize(address initializer, address abiInterface, bool isSmall) external;

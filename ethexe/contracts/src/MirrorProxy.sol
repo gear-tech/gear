@@ -43,10 +43,6 @@ contract MirrorProxy {
         _delegate();
     }
 
-    function transferLockedValueToInheritor() external {
-        _delegate();
-    }
-
     /* MirrorProxy implementation */
 
     function _delegate() internal {
