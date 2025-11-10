@@ -485,13 +485,32 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
         return Gear.validatorsCommitmentHash(_commitment);
     }
 
+    function _checkTransitionsSortedByValueSign(Gear.StateTransition[] calldata _transitions) private pure {
+        bool isPositiveFound = false;
+
+        for (uint256 i = 1; i < _transitions.length; i++) {
+            // If positive sign found after negative sign - transitions are not sorted.
+            if (!_transitions[i].valueToReceiveNegativeSign) {
+                isPositiveFound = true;
+                continue;
+            }
+
+            require(
+                !(
+                    isPositiveFound && _transitions[i].valueToReceiveNegativeSign
+                ),
+                "state transitions must be sorted by valueToReceiveNegativeSign in ascending order"
+            );
+        }
+    }
+
     function _commitTransitions(Storage storage router, Gear.StateTransition[] calldata _transitions)
         private
         returns (bytes32)
     {
         bytes memory transitionsHashes;
 
-        // TODO: check for sorted transitions
+        _checkTransitionsSortedByValueSign(_transitions);
 
         for (uint256 i = 0; i < _transitions.length; i++) {
             Gear.StateTransition calldata transition = _transitions[i];

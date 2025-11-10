@@ -424,14 +424,16 @@ pub fn propagate_announces_for_skipped_blocks<
 }
 
 fn sort_transitions_by_value_to_receive(transitions: &mut Vec<StateTransition>) {
+    use std::cmp::Ordering;
+
     transitions.sort_by(|lhs, rhs| {
         match (
             lhs.value_to_receive_negative_sign,
             rhs.value_to_receive_negative_sign,
         ) {
-            (true, false) => return std::cmp::Ordering::Less,
-            (false, true) => return std::cmp::Ordering::Greater,
-            _ => std::cmp::Ordering::Equal,
+            (true, false) => return Ordering::Less,
+            (false, true) => return Ordering::Greater,
+            _ => Ordering::Equal,
         }
     });
 }
