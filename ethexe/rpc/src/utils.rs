@@ -42,19 +42,19 @@ pub(crate) fn try_into_cors(maybe_cors: Option<Vec<String>>) -> Result<CorsLayer
     }
 }
 
-pub fn block_at_or_latest<DB: BlockMetaStorageRO + OnChainStorageRO + LatestDataStorageRO>(
+pub fn block_at_or_latest_synced<DB: OnChainStorageRO + LatestDataStorageRO>(
     db: &DB,
     at: impl Into<Option<H256>>,
 ) -> RpcResult<SimpleBlockData> {
     let hash = if let Some(hash) = at.into() {
-        if !db.block_meta(hash).prepared {
-            return Err(errors::db("Requested block is not prepared"));
+        if !db.block_synced(hash) {
+            return Err(errors::db("Requested block is not synced"));
         }
         hash
     } else {
         db.latest_data()
             .ok_or_else(|| errors::db("Latest data wasn't found"))?
-            .prepared_block_hash
+            .start_block_hash
     };
 
     db.block_header(hash)
@@ -67,7 +67,9 @@ pub fn block_at_or_latest<DB: BlockMetaStorageRO + OnChainStorageRO + LatestData
 // only one not expired announce. In current solution we can return expired announce in some cases.
 /// Try to return latest computed announce hash or computed announce at given block hash.
 /// If `at` contains many announces, then we prefer not-base one (if any), else take the first one.
-pub fn announce_at_or_latest<DB: BlockMetaStorageRO + LatestDataStorageRO + AnnounceStorageRO>(
+pub fn announce_at_or_latest_computed<
+    DB: BlockMetaStorageRO + LatestDataStorageRO + AnnounceStorageRO,
+>(
     db: &DB,
     at: impl Into<Option<H256>>,
 ) -> RpcResult<HashOf<Announce>> {
