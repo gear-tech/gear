@@ -47,7 +47,7 @@ impl ProcessingHandler {
                 storage,
                 message_id,
                 source,
-                raw_tx.payload,
+                raw_tx.payload.0,
                 raw_tx.value,
                 is_init,
                 MessageType::Injected,

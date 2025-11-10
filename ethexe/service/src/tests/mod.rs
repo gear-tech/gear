@@ -1565,7 +1565,6 @@ async fn injected_tx_fungible_token() {
             .validator(env.validators[0]),
     );
     node.start_service().await;
-    let db = node.db.clone();
 
     // 1. Create Fungible token config
     let token_config = demo_fungible_token::InitConfig {
@@ -1599,10 +1598,10 @@ async fn injected_tx_fungible_token() {
     let init_tx = InjectedTransaction {
         recipient: pubkey.to_address(),
         destination: usdt_actor_id,
-        payload: token_config.encode(),
+        payload: token_config.encode().into(),
         value: 0,
         reference_block: node.db.latest_data().unwrap().prepared_block_hash,
-        salt: vec![1u8],
+        salt: vec![1u8].into(),
     };
     let signed_tx = env.signer.signed_data(pubkey, init_tx).unwrap();
     let _ = node.send_injected_transaction(signed_tx).await.unwrap();
@@ -1611,24 +1610,20 @@ async fn injected_tx_fungible_token() {
     node.listener()
         .apply_until(|event| {
             if let TestingEvent::Consensus(ConsensusEvent::PublishMessage(
-                SignedValidatorMessage::InjectedTxPromise(promise),
+                SignedValidatorMessage::InjectedPromise(promise),
             )) = event
             {
                 let promise = promise.into_data().payload;
                 assert!(
-                    promise.payload.is_empty(),
+                    promise.reply.payload.is_empty(),
                     "Expect empty payload, because of initializing Fungible Token returns nothing"
                 );
 
-                // Check state
-                let usdt_state = db.program_state(promise.state_hash).unwrap();
-                assert!(usdt_state.canonical_queue.is_empty());
-                // assert!(usdt_state.injected_queue.is_empty());
-                assert!(usdt_state.waitlist_hash.is_empty());
-                assert!(usdt_state.stash_hash.is_empty());
-                assert!(usdt_state.mailbox_hash.is_empty());
-                assert_eq!(usdt_state.balance, 0);
-                // assert_eq!(usdt_state.executable_balance, 0);
+                assert_eq!(
+                    promise.reply.code,
+                    ReplyCode::Success(SuccessReplyReason::Auto)
+                );
+                assert_eq!(promise.reply.value, 0);
 
                 return Ok(Some(()));
             }
@@ -1646,42 +1641,36 @@ async fn injected_tx_fungible_token() {
     let mint_tx = InjectedTransaction {
         recipient: pubkey.to_address(),
         destination: usdt_actor_id,
-        payload: mint_action.encode(),
+        payload: mint_action.encode().into(),
         value: 0,
         reference_block: node.db.latest_data().unwrap().prepared_block_hash,
-        salt: vec![1u8],
+        salt: vec![1u8].into(),
     };
 
     let signed_tx = env.signer.signed_data(pubkey, mint_tx).unwrap();
     let _ = node.send_injected_transaction(signed_tx).await.unwrap();
-    let expected_reply = demo_fungible_token::FTEvent::Transfer {
+    let expected_event = demo_fungible_token::FTEvent::Transfer {
         from: ActorId::new([0u8; 32]),
         to: pubkey.to_address().into(),
         amount,
     };
 
-    // Mine extra blocks because of node works too fast.
-    env.provider.anvil_mine(Some(10), None).await.unwrap();
-
     // Listen for inclusion and check the expected payload.
     node.listener()
         .apply_until(|event| {
             if let TestingEvent::Consensus(ConsensusEvent::PublishMessage(
-                SignedValidatorMessage::InjectedTxPromise(promise),
+                SignedValidatorMessage::InjectedPromise(promise),
             )) = event
             {
                 let promise = promise.into_data().payload;
-                assert_eq!(promise.payload, expected_reply.encode());
+                assert_eq!(promise.reply.payload, expected_event.encode());
 
-                // Check state
-                let usdt_state = db.program_state(promise.state_hash).unwrap();
-                assert!(usdt_state.canonical_queue.is_empty());
-                // assert!(usdt_state.injected_queue.is_empty());
-                assert!(usdt_state.waitlist_hash.is_empty());
-                assert!(usdt_state.stash_hash.is_empty());
-                assert!(usdt_state.mailbox_hash.is_empty());
-                assert_eq!(usdt_state.balance, 0);
-                // assert_eq!(usdt_state.executable_balance, 0);
+                assert_eq!(
+                    promise.reply.code,
+                    ReplyCode::Success(SuccessReplyReason::Manual)
+                );
+
+                assert_eq!(promise.reply.value, 0);
 
                 return Ok(Some(()));
             }

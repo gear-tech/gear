@@ -25,12 +25,13 @@ use crate::{
     Schedule, ValidatorsVec,
     events::BlockEvent,
     gear::StateTransition,
-    injected::{InjectedTransaction, InjectedTxPromise, SignedInjectedTransaction},
+    injected::{InjectedPromise, InjectedTransaction, SignedInjectedTransaction, VALIDITY_WINDOW},
 };
 use alloc::{
     collections::{BTreeSet, VecDeque},
     vec::Vec,
 };
+use derive_more::Deref;
 use gear_core::{
     code::{CodeMetadata, InstrumentedCode},
     ids::{ActorId, CodeId},
@@ -63,54 +64,6 @@ impl BlockMeta {
             last_committed_batch: Some(Default::default()),
             last_committed_announce: Some(Default::default()),
         }
-    }
-}
-
-/// Status of an injected transaction.
-#[derive(Debug, Copy, Clone, Encode, Decode, PartialEq, Eq, Hash)]
-pub enum InjectedTxStatus {
-    Pending,
-    // TODO kuzmindev: by meaning this should be named IncludedInAnnounce and store announce hash instead of block hash,
-    // but for simplicity implementation we use block hash.
-    IncludedInBlock(H256),
-}
-
-/// Metadata associated with an injected transaction.
-#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq, Hash)]
-pub struct InjectedTxWithMeta {
-    /// The transaction itself.
-    pub tx: SignedInjectedTransaction,
-    /// Status of the injected transaction.
-    pub status: InjectedTxStatus,
-    // TODO kuzmindev: Maybe also should add promise here
-    pub promise: Option<InjectedTxPromise>,
-}
-
-impl InjectedTxWithMeta {
-    /// Creates a new [`InjectedTxWithMeta`] instance with `Pending` status.
-    pub fn new_pending(tx: SignedInjectedTransaction) -> Self {
-        Self {
-            tx,
-            status: InjectedTxStatus::Pending,
-            promise: None,
-        }
-    }
-
-    /// Creates a new [`InjectedTxWithMeta`] instance with `IncludedInBlock` status.
-    ///
-    /// This method is used when validator receives
-    /// [`Announce`] containing the corresponding injected transaction.
-    pub fn new_included(tx: SignedInjectedTransaction, block_hash: H256) -> Self {
-        Self {
-            tx,
-            status: InjectedTxStatus::IncludedInBlock(block_hash),
-            promise: None,
-        }
-    }
-
-    /// Returns the hash of the injected transaction.
-    pub fn tx_hash(&self) -> HashOf<InjectedTransaction> {
-        self.tx.data().hash()
     }
 }
 
@@ -175,24 +128,58 @@ pub trait OnChainStorageRW: OnChainStorageRO {
 
 #[auto_impl::auto_impl(&)]
 pub trait InjectedStorageRO {
-    fn injected_transaction(&self, hash: HashOf<InjectedTransaction>)
-    -> Option<InjectedTxWithMeta>;
+    /// Returns the transactions by its hash.
+    fn injected_transaction(
+        &self,
+        hash: HashOf<InjectedTransaction>,
+    ) -> Option<SignedInjectedTransaction>;
+
+    /// Returns the promise by transaction hash.
+    fn injected_promise(&self, hash: HashOf<InjectedTransaction>) -> Option<InjectedPromise>;
 }
 
 #[auto_impl::auto_impl(&)]
 pub trait InjectedStorageRW: InjectedStorageRO {
-    fn set_injected_transaction(&self, tx: InjectedTxWithMeta);
-
-    fn mutate_injected_tx<U>(
-        &self,
-        hash: HashOf<InjectedTransaction>,
-        f: impl FnOnce(&mut InjectedTxWithMeta) -> U,
-    ) -> Option<U>;
+    fn set_injected_transaction(&self, tx: SignedInjectedTransaction);
+    fn set_injected_promise(&self, promise: InjectedPromise);
 }
 
 #[derive(Debug, Clone, Default, Encode, Decode, PartialEq, Eq, Hash)]
 pub struct AnnounceMeta {
     pub computed: bool,
+}
+
+/// Ring buffer which stores recent included transactions for each
+/// announce within [`crate::injected::VALIDITY_WINDOW`].
+#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq, Hash, Deref)]
+pub struct RecentIncludedTxs(VecDeque<(HashOf<Announce>, Vec<HashOf<InjectedTransaction>>)>);
+
+impl Default for RecentIncludedTxs {
+    fn default() -> Self {
+        Self(VecDeque::with_capacity(VALIDITY_WINDOW.into()))
+    }
+}
+
+impl RecentIncludedTxs {
+    /// Checks that transaction with tx_hash was already included in previous [`VALIDITY_WINDOW`] announces.
+    pub fn contains(&self, tx_hash: &HashOf<InjectedTransaction>) -> bool {
+        self.0.iter().any(|(_, txs)| txs.contains(tx_hash))
+    }
+
+    pub fn insert(&mut self, announce: Announce) {
+        let txs_hashes = announce
+            .injected_transactions
+            .iter()
+            .map(|tx| tx.data().hash())
+            .collect();
+
+        // If buffer is full - remove the latest one.
+        if self.0.len() == VALIDITY_WINDOW as usize {
+            self.0.pop_front();
+        }
+
+        self.0.push_back((announce.to_hash(), txs_hashes));
+    }
 }
 
 #[auto_impl::auto_impl(&, Box)]
@@ -202,6 +189,7 @@ pub trait AnnounceStorageRO {
     fn announce_outcome(&self, announce_hash: HashOf<Announce>) -> Option<Vec<StateTransition>>;
     fn announce_schedule(&self, announce_hash: HashOf<Announce>) -> Option<Schedule>;
     fn announce_meta(&self, announce_hash: HashOf<Announce>) -> AnnounceMeta;
+    fn announce_recent_txs(&self, hash: HashOf<Announce>) -> RecentIncludedTxs;
 }
 
 #[auto_impl::auto_impl(&)]
@@ -214,6 +202,8 @@ pub trait AnnounceStorageRW: AnnounceStorageRO {
     );
     fn set_announce_outcome(&self, announce_hash: HashOf<Announce>, outcome: Vec<StateTransition>);
     fn set_announce_schedule(&self, announce_hash: HashOf<Announce>, schedule: Schedule);
+    fn set_announce_recent_txs(&self, announce_hash: HashOf<Announce>, txs: RecentIncludedTxs);
+
     fn mutate_announce_meta(
         &self,
         announce_hash: HashOf<Announce>,

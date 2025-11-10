@@ -27,14 +27,13 @@ use ethexe_common::{
     consensus::BatchCommitmentValidationReply,
     db::{
         AnnounceStorageRO, AnnounceStorageRW, BlockMetaStorageRO, BlockMetaStorageRW,
-        CodesStorageRO, LatestDataStorageRO, OnChainStorageRO,
+        CodesStorageRO, OnChainStorageRO,
     },
     ecdsa::{ContractSignature, PublicKey},
     gear::{
         AggregatedPublicKey, BatchCommitment, ChainCommitment, CodeCommitment, RewardsCommitment,
         ValidatorsCommitment,
     },
-    injected::{BLOCK_HASHES_WINDOW_SIZE, InjectedTransaction},
 };
 use ethexe_signer::Signer;
 use gprimitives::{CodeId, H256, U256};
@@ -418,33 +417,6 @@ pub fn propagate_announces_for_skipped_blocks<
     }
 
     Ok(())
-}
-
-/// Checks that [`InjectedTransaction`] was included in previous [`BLOCK_HASHES_WINDOW_SIZE`] announces.
-pub fn injected_tx_already_included<DB: AnnounceStorageRO + LatestDataStorageRO>(
-    db: &DB,
-    tx_hash: HashOf<InjectedTransaction>,
-) -> Result<bool> {
-    let mut latest_announce = db
-        .latest_data()
-        .ok_or_else(|| anyhow!("not found latest data in storage"))?
-        .computed_announce_hash;
-
-    for _ in 0..BLOCK_HASHES_WINDOW_SIZE {
-        let Some(announce) = db.announce(latest_announce) else {
-            return Ok(false);
-        };
-
-        for tx in announce.injected_transactions {
-            if tx.data().hash() == tx_hash {
-                return Ok(true);
-            }
-        }
-
-        latest_announce = announce.parent;
-    }
-
-    Ok(false)
 }
 
 #[cfg(test)]

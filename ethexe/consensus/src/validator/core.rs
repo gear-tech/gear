@@ -18,21 +18,21 @@
 
 //! Validator core utils and parameters.
 
-use crate::utils::{self, MultisignedBatchCommitment};
+use crate::{
+    utils::{self, MultisignedBatchCommitment},
+    validator::tx_pool::InjectedTxPool,
+};
 use anyhow::{Result, anyhow, ensure};
 use async_trait::async_trait;
 use ethexe_common::{
     Address, Announce, Digest, HashOf, ProtocolTimelines, SimpleBlockData, ToDigest, ValidatorsVec,
     consensus::BatchCommitmentValidationRequest,
-    db::{
-        AnnounceStorageRO, BlockMetaStorageRO, InjectedStorageRW, InjectedTxStatus,
-        InjectedTxWithMeta, LatestDataStorageRO, OnChainStorageRO,
-    },
+    db::BlockMetaStorageRO,
     ecdsa::PublicKey,
     gear::{
         BatchCommitment, ChainCommitment, CodeCommitment, RewardsCommitment, ValidatorsCommitment,
     },
-    injected::{InjectedTransaction, SignedInjectedTransaction, check_mortality_at},
+    injected::SignedInjectedTransaction,
 };
 use ethexe_db::Database;
 use ethexe_ethereum::middleware::ElectionProvider;
@@ -297,65 +297,6 @@ impl ValidatorCore {
         tracing::trace!(tx = ?tx, "Receive new injected transaction");
         self.injected_pool.handle_tx(tx);
         Ok(())
-    }
-}
-
-/// [`InjectedTxPool`] is a local pool of injected transactions, which validator can include in announces.
-#[derive(Clone)]
-pub(crate) struct InjectedTxPool<DB = Database> {
-    inner: HashSet<HashOf<InjectedTransaction>>,
-    db: DB,
-}
-
-impl<DB> InjectedTxPool<DB>
-where
-    DB: OnChainStorageRO + InjectedStorageRW + LatestDataStorageRO + AnnounceStorageRO,
-{
-    pub fn new(db: DB) -> Self {
-        Self {
-            inner: HashSet::new(),
-            db,
-        }
-    }
-
-    pub fn handle_tx(&mut self, tx: SignedInjectedTransaction) {
-        tracing::info!(tx = ?tx, "handle new injected tx");
-        self.inner.insert(tx.data().hash());
-        self.db
-            .set_injected_transaction(InjectedTxWithMeta::new_pending(tx));
-    }
-
-    /// Returns the injected transactions that are valid and can be included to announce.
-    pub fn collect_txs_for(&self, block_hash: H256) -> Result<Vec<SignedInjectedTransaction>> {
-        tracing::info!(tx_pool = ?self.inner, "start collecting injected transactions");
-        let mut txs_for_block = vec![];
-
-        // TODO kuzmindev: add mechanism to check that tx may added in previous announces.
-        for tx_hash in self.inner.iter() {
-            let tx_with_meta = match self.db.injected_transaction(*tx_hash) {
-                Some(tx) => tx,
-                None => continue,
-            };
-
-            // Ignoring already included transactions.
-            // TODO: check that tx was included in the same chain of announces.
-            if matches!(tx_with_meta.status, InjectedTxStatus::IncludedInBlock(_))
-                || utils::injected_tx_already_included(&self.db, tx_with_meta.tx_hash())?
-            {
-                continue;
-            }
-
-            match check_mortality_at(&self.db, &tx_with_meta.tx, block_hash) {
-                Ok(valid) if valid => {
-                    txs_for_block.push(tx_with_meta.tx);
-                }
-                _ => {
-                    continue;
-                }
-            }
-        }
-
-        Ok(txs_for_block)
     }
 }
 

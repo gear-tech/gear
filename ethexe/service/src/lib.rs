@@ -460,7 +460,7 @@ impl Service {
                                     let (reply, _) = reply.into_parts();
                                     consensus.receive_validation_reply(reply)?
                                 }
-                                VerifiedValidatorMessage::InjectedTxPromise(promise) => {
+                                VerifiedValidatorMessage::InjectedPromise(promise) => {
                                     let promise = promise.map(|p| p.payload);
                                     let (_promise, _pub_key) = promise.into_parts();
 
@@ -500,7 +500,7 @@ impl Service {
                     }
                 }
                 Event::Rpc(event) => {
-                    log::info!("Received RPC event: {event:#?}");
+                    log::info!("Received RPC event: {event:?}");
 
                     match event {
                         RpcEvent::InjectedTransaction {

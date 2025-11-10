@@ -21,6 +21,7 @@ use crate::{ConsensusEvent, utils::MultisignedBatchCommitment, validator::core::
 use anyhow::Result;
 use async_trait::async_trait;
 use derive_more::{Debug, Display};
+use ethexe_common::injected::SignedInjectedTransaction;
 use ethexe_ethereum::router::Router;
 use futures::{FutureExt, future::BoxFuture};
 use gprimitives::H256;
@@ -65,6 +66,14 @@ impl StateHandler for Submitter {
             }
             Poll::Pending => Ok((Poll::Pending, self.into())),
         }
+    }
+
+    fn process_injected_transaction(
+        mut self,
+        tx: SignedInjectedTransaction,
+    ) -> Result<ValidatorState> {
+        self.ctx.core.process_injected_transaction(tx)?;
+        Ok(self.into())
     }
 }
 

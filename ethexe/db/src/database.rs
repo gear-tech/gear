@@ -28,12 +28,12 @@ use ethexe_common::{
     db::{
         AnnounceMeta, AnnounceStorageRO, AnnounceStorageRW, BlockMeta, BlockMetaStorageRO,
         BlockMetaStorageRW, CodesStorageRO, CodesStorageRW, HashStorageRO, InjectedStorageRO,
-        InjectedStorageRW, InjectedTxWithMeta, LatestData, LatestDataStorageRO,
-        LatestDataStorageRW, OnChainStorageRO, OnChainStorageRW,
+        InjectedStorageRW, LatestData, LatestDataStorageRO, LatestDataStorageRW, OnChainStorageRO,
+        OnChainStorageRW, RecentIncludedTxs,
     },
     events::BlockEvent,
     gear::StateTransition,
-    injected::InjectedTransaction,
+    injected::{InjectedPromise, InjectedTransaction, SignedInjectedTransaction},
 };
 
 use ethexe_runtime_common::state::{
@@ -62,17 +62,19 @@ enum Key {
     AnnounceOutcome(HashOf<Announce>) = 4,
     AnnounceSchedule(HashOf<Announce>) = 5,
     AnnounceMeta(HashOf<Announce>) = 6,
+    AnnounceRecentTransactions(HashOf<Announce>) = 7,
 
-    ProgramToCodeId(ActorId) = 7,
-    InstrumentedCode(u32, CodeId) = 8,
-    CodeMetadata(CodeId) = 9,
-    CodeUploadInfo(CodeId) = 10,
-    CodeValid(CodeId) = 11,
+    ProgramToCodeId(ActorId) = 8,
+    InstrumentedCode(u32, CodeId) = 9,
+    CodeMetadata(CodeId) = 10,
+    CodeUploadInfo(CodeId) = 11,
+    CodeValid(CodeId) = 12,
 
-    InjectedTransaction(HashOf<InjectedTransaction>) = 12,
+    InjectedTransaction(HashOf<InjectedTransaction>) = 13,
+    InjectedPromise(HashOf<InjectedTransaction>) = 14,
 
-    LatestData = 13,
-    Timelines = 14,
+    LatestData = 15,
+    Timelines = 16,
 }
 
 impl Key {
@@ -97,9 +99,14 @@ impl Key {
             Self::AnnounceProgramStates(hash)
             | Self::AnnounceOutcome(hash)
             | Self::AnnounceSchedule(hash)
-            | Self::AnnounceMeta(hash) => [prefix.as_ref(), hash.inner().as_ref()].concat(),
+            | Self::AnnounceMeta(hash)
+            | Self::AnnounceRecentTransactions(hash) => {
+                [prefix.as_ref(), hash.inner().as_ref()].concat()
+            }
 
-            Self::InjectedTransaction(hash) => [prefix.as_ref(), hash.inner().as_ref()].concat(),
+            Self::InjectedTransaction(hash) | Self::InjectedPromise(hash) => {
+                [prefix.as_ref(), hash.inner().as_ref()].concat()
+            }
 
             Self::ProgramToCodeId(program_id) => [prefix.as_ref(), program_id.as_ref()].concat(),
 
@@ -546,40 +553,40 @@ impl InjectedStorageRO for Database {
     fn injected_transaction(
         &self,
         hash: HashOf<InjectedTransaction>,
-    ) -> Option<ethexe_common::db::InjectedTxWithMeta> {
+    ) -> Option<SignedInjectedTransaction> {
         self.kv
             .get(&Key::InjectedTransaction(hash).to_bytes())
             .map(|data| {
-                InjectedTxWithMeta::decode(&mut data.as_slice())
-                    .expect("Failed to decode data into `InjectedTxWithMeta`")
+                SignedInjectedTransaction::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `SignedInjectedTransaction`")
+            })
+    }
+
+    fn injected_promise(&self, hash: HashOf<InjectedTransaction>) -> Option<InjectedPromise> {
+        self.kv
+            .get(&Key::InjectedPromise(hash).to_bytes())
+            .map(|data| {
+                InjectedPromise::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `SignedInjectedPromise`")
             })
     }
 }
 
 impl InjectedStorageRW for Database {
-    fn set_injected_transaction(&self, tx_with_meta: InjectedTxWithMeta) {
-        let tx_hash = tx_with_meta.tx_hash();
+    fn set_injected_transaction(&self, tx: SignedInjectedTransaction) {
+        let tx_hash = tx.data().hash();
 
-        tracing::trace!("Set injected transaction {tx_hash}");
-        self.kv.put(
-            &Key::InjectedTransaction(tx_hash).to_bytes(),
-            tx_with_meta.encode(),
-        );
+        tracing::trace!(injected_tx_hash = ?tx_hash, "Set injected transaction");
+        self.kv
+            .put(&Key::InjectedTransaction(tx_hash).to_bytes(), tx.encode());
     }
 
-    fn mutate_injected_tx<U>(
-        &self,
-        hash: HashOf<InjectedTransaction>,
-        f: impl FnOnce(&mut InjectedTxWithMeta) -> U,
-    ) -> Option<U> {
-        let mut tx = self.injected_transaction(hash)?;
-
-        let r = Some(f(&mut tx));
-        self.set_injected_transaction(tx);
-
-        tracing::trace!("Mutate injected transaction {hash}");
-
-        r
+    fn set_injected_promise(&self, promise: InjectedPromise) {
+        tracing::trace!(injected_tx_hash = ?promise.tx_hash, "Set injected promise");
+        self.kv.put(
+            &Key::InjectedPromise(promise.tx_hash).to_bytes(),
+            promise.encode(),
+        );
     }
 }
 
@@ -626,6 +633,16 @@ impl AnnounceStorageRO for Database {
             })
             .unwrap_or_default()
     }
+
+    fn announce_recent_txs(&self, hash: HashOf<Announce>) -> RecentIncludedTxs {
+        self.kv
+            .get(&Key::AnnounceRecentTransactions(hash).to_bytes())
+            .map(|data| {
+                RecentIncludedTxs::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `RecentIncludedTxs`")
+            })
+            .unwrap_or_default()
+    }
 }
 
 impl AnnounceStorageRW for Database {
@@ -660,6 +677,13 @@ impl AnnounceStorageRW for Database {
         self.kv.put(
             &Key::AnnounceSchedule(announce_hash).to_bytes(),
             schedule.encode(),
+        );
+    }
+
+    fn set_announce_recent_txs(&self, announce_hash: HashOf<Announce>, txs: RecentIncludedTxs) {
+        self.kv.put(
+            &Key::AnnounceRecentTransactions(announce_hash).to_bytes(),
+            txs.encode(),
         );
     }
 

@@ -128,9 +128,7 @@ impl<P: ProcessorExt> ComputeSubService<P> {
 
         // Add promises for injected transactions.
         promises.into_iter().for_each(|promise| {
-            db.mutate_injected_tx(promise.tx_hash, |tx_with_meta| {
-                tx_with_meta.promise = Some(promise);
-            });
+            db.set_injected_promise(promise);
         });
 
         db.mutate_latest_data(|data| {

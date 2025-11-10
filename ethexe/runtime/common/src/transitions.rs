@@ -25,11 +25,10 @@ use core::num::NonZero;
 use ethexe_common::{
     BlockHeader, HashOf, ProgramStates, Schedule, ScheduledTask, StateHashWithQueueSize,
     gear::{Message, StateTransition, ValueClaim},
-    injected::InjectedTxPromise,
+    injected::InjectedPromise,
 };
+use gear_core::rpc::ReplyInfo;
 use gprimitives::{ActorId, H256, MessageId};
-
-type MaybeInjectedReply = Option<(Vec<u8>, H256)>;
 
 /// In-memory store for the state transitions
 /// that are going to be applied in the current block.
@@ -46,7 +45,7 @@ pub struct InBlockTransitions {
     states: ProgramStates,
     schedule: Schedule,
     modifications: BTreeMap<ActorId, NonFinalTransition>,
-    injected_replies: BTreeMap<MessageId, MaybeInjectedReply>,
+    injected_replies: BTreeMap<MessageId, Option<ReplyInfo>>,
 }
 
 impl InBlockTransitions {
@@ -137,32 +136,10 @@ impl InBlockTransitions {
         self.modifications.insert(actor_id, Default::default());
     }
 
-    // TODO: to remove
-    pub fn _modify_injected_replies(
-        &mut self,
-        f: impl FnOnce(&mut BTreeMap<MessageId, MaybeInjectedReply>),
-    ) {
-        f(&mut self.injected_replies)
-    }
-
     /// Register new reply for injected transaction.
-    /// ## Params:
-    /// - `injected_actor_id` - program id which runs the injected message
-    /// - `message_id` - the id of injected message, (contructs from [`ethexe_common::injected::InjectedTransaction::hash`]).
-    /// - `reply`  - the reply for injected transaction.
-    pub fn register_injected_reply(
-        &mut self,
-        injected_actor_id: &ActorId,
-        message_id: MessageId,
-        reply: Vec<u8>,
-    ) {
-        let Some(state_with_queue) = self.state_of(injected_actor_id) else {
-            // TODO: think, maybe should return error or panic
-            return;
-        };
-
-        if let Some(maybe_reply) = self.injected_replies.get_mut(&message_id) {
-            *maybe_reply = Some((reply, state_with_queue.hash));
+    pub fn handle_injected_reply(&mut self, message_id: &MessageId, reply: ReplyInfo) {
+        if let Some(maybe_reply) = self.injected_replies.get_mut(message_id) {
+            *maybe_reply = Some(reply);
         }
     }
 
@@ -215,7 +192,7 @@ impl InBlockTransitions {
         Vec<StateTransition>,
         ProgramStates,
         Schedule,
-        Vec<InjectedTxPromise>,
+        Vec<InjectedPromise>,
     ) {
         let Self {
             states,
@@ -228,15 +205,11 @@ impl InBlockTransitions {
         let promises = injected_replies
             .into_iter()
             .filter_map(|(message_id, maybe_reply)| {
-                maybe_reply.map(|(payload, state_hash)| {
+                maybe_reply.map(|reply| {
                     // Safety: we trust that message_id was created from a valid SignedInjectedTransaction.
                     let tx_hash = unsafe { HashOf::new(message_id.into_bytes().into()) };
 
-                    InjectedTxPromise {
-                        tx_hash,
-                        payload,
-                        state_hash,
-                    }
+                    InjectedPromise { tx_hash, reply }
                 })
             })
             .collect();

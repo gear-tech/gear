@@ -4899,6 +4899,7 @@ dependencies = [
  "auto_impl",
  "derive_more 2.0.1",
  "gear-core",
+ "gear-core-errors",
  "gprimitives",
  "hex",
  "itertools 0.13.0",
@@ -4908,6 +4909,7 @@ dependencies = [
  "roast-secp256k1-evm",
  "serde",
  "sha3",
+ "sp-core",
  "tap",
 ]
 

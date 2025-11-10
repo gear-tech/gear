@@ -26,6 +26,7 @@ use derive_more::{Debug, Display};
 use ethexe_common::{
     Address, Digest, SimpleBlockData,
     consensus::{BatchCommitmentValidationRequest, VerifiedValidationRequest},
+    injected::SignedInjectedTransaction,
     network::ValidatorMessage,
 };
 use futures::{FutureExt, future::BoxFuture};
@@ -120,6 +121,14 @@ impl StateHandler for Participant {
         } else {
             Ok((Poll::Pending, self.into()))
         }
+    }
+
+    fn process_injected_transaction(
+        mut self,
+        tx: SignedInjectedTransaction,
+    ) -> Result<ValidatorState> {
+        self.ctx.core.process_injected_transaction(tx)?;
+        Ok(self.into())
     }
 }
 

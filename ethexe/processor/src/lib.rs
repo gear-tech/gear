@@ -24,7 +24,7 @@ use ethexe_common::{
     db::{AnnounceStorageRO, AnnounceStorageRW, BlockMetaStorageRO, CodesStorageRW},
     events::{BlockRequestEvent, MirrorRequestEvent},
     gear::StateTransition,
-    injected::InjectedTxPromise,
+    injected::InjectedPromise,
 };
 use ethexe_db::Database;
 use ethexe_runtime_common::state::Storage;
@@ -128,7 +128,7 @@ pub struct BlockProcessingResult {
     pub transitions: Vec<StateTransition>,
     pub states: ProgramStates,
     pub schedule: Schedule,
-    pub promises: Vec<InjectedTxPromise>,
+    pub promises: Vec<InjectedPromise>,
 }
 
 #[derive(Clone, Debug)]

@@ -23,7 +23,7 @@ use super::{
 use crate::utils;
 use anyhow::{Result, anyhow};
 use derive_more::{Debug, Display};
-use ethexe_common::{SimpleBlockData, db::OnChainStorageRO};
+use ethexe_common::{SimpleBlockData, db::OnChainStorageRO, injected::SignedInjectedTransaction};
 use gprimitives::H256;
 
 /// [`Initial`] is the first state of the validator.
@@ -111,6 +111,14 @@ impl StateHandler for Initial {
             }
             _ => DefaultProcessing::synced_block(self, block_hash),
         }
+    }
+
+    fn process_injected_transaction(
+        mut self,
+        tx: SignedInjectedTransaction,
+    ) -> Result<ValidatorState> {
+        self.ctx.core.process_injected_transaction(tx)?;
+        Ok(self.into())
     }
 }
 

@@ -74,7 +74,9 @@ pub struct SimpleBlockData {
     pub header: BlockHeader,
 }
 
-#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, Hash, derive_more::Display)]
+// Because of `InjectedTransaction` uses Bytes from sp_core
+#[cfg_attr(feature = "serde", derive(Hash))]
+#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, derive_more::Display)]
 #[display(
     "Announce(block: {block_hash}, parent: {parent}, gas: {gas_allowance:?}, txs: {injected_transactions:?})"
 )]

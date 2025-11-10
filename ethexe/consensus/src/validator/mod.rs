@@ -44,11 +44,12 @@ use crate::{
     BatchCommitmentValidationReply, ConsensusEvent, ConsensusService,
     validator::{
         coordinator::Coordinator,
-        core::{InjectedTxPool, MiddlewareWrapper, ValidatorCore},
+        core::{MiddlewareWrapper, ValidatorCore},
         participant::Participant,
         producer::Producer,
         submitter::Submitter,
         subordinate::Subordinate,
+        tx_pool::InjectedTxPool,
     },
 };
 use anyhow::{Result, anyhow};
@@ -83,6 +84,7 @@ mod participant;
 mod producer;
 mod submitter;
 mod subordinate;
+mod tx_pool;
 
 #[cfg(test)]
 mod mock;
