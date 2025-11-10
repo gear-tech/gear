@@ -54,7 +54,7 @@ impl<S: Storage> NativeJournalHandler<'_, S> {
                     transitions.modify_transition(source, |transition| {
                         transition.value_to_receive = transition
                             .value_to_receive
-                            .checked_sub(i128::try_from(value).expect("value fits into i128"))
+                            .checked_sub(i128::try_from(dispatch.value).expect("value fits into i128"))
                             .expect("Insufficient balance: underflow in transition.value_to_receive -= dispatch.value()");
                     });
                 });
