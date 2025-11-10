@@ -143,13 +143,6 @@ contract Mirror is IMirror {
         emit ExecutableBalanceTopUpRequested(_value);
     }
 
-    function transferLockedValueToInheritor() public onlyIfExited {
-        uint256 balance = address(this).balance;
-        // casting to 'uint128' is safe because ETH supply is less than `type(uint128).max`
-        // forge-lint: disable-next-line(unsafe-typecast)
-        _transferEther(inheritor, uint128(balance));
-    }
-
     /* Router-driven state and funds management */
 
     function initialize(address _initializer, address _abiInterface, bool _isSmall) public onlyRouter {
@@ -434,7 +427,14 @@ contract Mirror is IMirror {
         inheritor = _inheritor;
 
         /// @dev Transfer all available balance to the inheritor.
-        transferLockedValueToInheritor();
+        _transferLockedValueToInheritor();
+    }
+
+    function _transferLockedValueToInheritor() private onlyIfExited {
+        uint256 balance = address(this).balance;
+        // casting to 'uint128' is safe because ETH supply is less than `type(uint128).max`
+        // forge-lint: disable-next-line(unsafe-typecast)
+        _transferEther(inheritor, uint128(balance));
     }
 
     function _updateStateHash(bytes32 _stateHash) private {
