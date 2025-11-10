@@ -52,8 +52,10 @@ impl<S: Storage> NativeJournalHandler<'_, S> {
                     );
 
                     transitions.modify_transition(source, |transition| {
-                        transition.value_to_receive -=
-                            i128::try_from(dispatch.value).expect("value fits into i128");
+                        transition.value_to_receive = transition
+                            .value_to_receive
+                            .checked_sub(i128::try_from(value).expect("value fits into i128"))
+                            .expect("Insufficient balance: underflow in transition.value_to_receive -= dispatch.value()");
                     });
                 });
         }
@@ -109,15 +111,16 @@ impl<S: Storage> NativeJournalHandler<'_, S> {
             .update_state(dispatch.source(), |state, storage, transitions| {
                 let value = dispatch.value();
 
-                // TODO: check mb need to charge value at the end of processing
                 if value != 0 {
                     state.balance = state.balance.checked_sub(value).expect(
                         "Insufficient balance: underflow in state.balance -= dispatch.value()",
                     );
 
                     transitions.modify_transition(dispatch.source(), |transition| {
-                        transition.value_to_receive -=
-                            i128::try_from(value).expect("value fits into i128");
+                        transition.value_to_receive = transition
+                            .value_to_receive
+                            .checked_sub(i128::try_from(value).expect("value fits into i128"))
+                            .expect("Insufficient balance: underflow in transition.value_to_receive -= dispatch.value()");
                     });
                 }
 
@@ -205,7 +208,9 @@ impl<S: Storage> JournalHandler for NativeJournalHandler<'_, S> {
 
         if self.controller.transitions.is_program(&inheritor) {
             self.controller.update_state(inheritor, |state, _, _| {
-                state.balance += balance;
+                state.balance = state.balance.checked_add(balance).expect(
+                    "Overflow in state.balance += balance during exit dispatch value transfer",
+                );
             })
         }
     }
@@ -369,14 +374,19 @@ impl<S: Storage> JournalHandler for NativeJournalHandler<'_, S> {
         let dst_is_prog = self.controller.transitions.is_program(&to);
 
         match (src_is_prog, dst_is_prog) {
+            // User to Program or Program to Program value transfer
             (true, true) | (false, true) => {
-                // Program to Program value transfer
                 self.controller.update_state(to, |state, _, transitions| {
-                    state.balance += value;
+                    state.balance = state
+                        .balance
+                        .checked_add(value)
+                        .expect("Overflow in state.balance += value during value transfer");
 
                     transitions.modify_transition(to, |transition| {
-                        transition.value_to_receive +=
-                            i128::try_from(value).expect("value fits into i128")
+                        transition.value_to_receive = transition
+                            .value_to_receive
+                            .checked_add(i128::try_from(value).expect("value fits into i128"))
+                            .expect("Overflow in transition.value_to_receive += value");
                     });
                 });
             }

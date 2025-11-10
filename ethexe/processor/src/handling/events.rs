@@ -70,12 +70,18 @@ impl ProcessingHandler {
         match event {
             MirrorRequestEvent::OwnedBalanceTopUpRequested { value } => {
                 self.update_state(actor_id, |state, _, _| {
-                    state.balance += value;
+                    state.balance = state
+                        .balance
+                        .checked_add(value)
+                        .expect("Overflow in state.balance += value");
                 });
             }
             MirrorRequestEvent::ExecutableBalanceTopUpRequested { value } => {
                 self.update_state(actor_id, |state, _, _| {
-                    state.executable_balance += value;
+                    state.executable_balance = state
+                        .executable_balance
+                        .checked_add(value)
+                        .expect("Overflow in state.executable_balance += value");
                 });
             }
             MirrorRequestEvent::MessageQueueingRequested {
@@ -128,8 +134,13 @@ impl ProcessingHandler {
                     };
 
                     transitions.modify_transition(actor_id, |transition| {
-                        transition.value_to_receive += i128::try_from(claimed_value)
-                            .expect("claimed_value doesn't fit in i128");
+                        transition.value_to_receive = transition
+                            .value_to_receive
+                            .checked_add(
+                                i128::try_from(claimed_value)
+                                    .expect("claimed_value doesn't fit in i128"),
+                            )
+                            .expect("Overflow in transition.value_to_receive += claimed_value");
 
                         transition.claims.push(ValueClaim {
                             message_id: replied_to,
@@ -177,8 +188,13 @@ impl ProcessingHandler {
                     };
 
                     transitions.modify_transition(actor_id, |transition| {
-                        transition.value_to_receive += i128::try_from(claimed_value)
-                            .expect("claimed_value doesn't fit in i128");
+                        transition.value_to_receive = transition
+                            .value_to_receive
+                            .checked_add(
+                                i128::try_from(claimed_value)
+                                    .expect("claimed_value doesn't fit in i128"),
+                            )
+                            .expect("Overflow in transition.value_to_receive += claimed_value");
 
                         transition.claims.push(ValueClaim {
                             message_id: claimed_id,
