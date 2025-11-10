@@ -26,7 +26,7 @@ use ethexe_blob_loader::{
 use ethexe_common::{
     Address, ecdsa::PublicKey, gear::CodeState, network::VerifiedValidatorMessage,
 };
-use ethexe_compute::{ComputeEvent, ComputeService};
+use ethexe_compute::{ComputeConfig, ComputeEvent, ComputeService};
 use ethexe_consensus::{
     ConsensusEvent, ConsensusService, SimpleConnectService, ValidatorConfig, ValidatorService,
 };
@@ -264,7 +264,8 @@ impl Service {
             .as_ref()
             .map(|config| RpcService::new(config.clone(), db.clone(), local_blob_storage_for_rpc));
 
-        let compute = ComputeService::new(db.clone(), processor);
+        let compute_config = ComputeConfig::new(config.node.canonical_quarantine);
+        let compute = ComputeService::new(compute_config, db.clone(), processor);
 
         let fast_sync = config.node.fast_sync;
 
@@ -300,7 +301,7 @@ impl Service {
         db: Database,
         observer: ObserverService,
         blob_loader: Box<dyn BlobLoaderService>,
-        processor: Processor,
+        compute: ComputeService,
         signer: Signer,
         consensus: Pin<Box<dyn ConsensusService>>,
         network: Option<NetworkService>,
@@ -310,8 +311,6 @@ impl Service {
         fast_sync: bool,
         validator_address: Option<Address>,
     ) -> Self {
-        let compute = ComputeService::new(db.clone(), processor);
-
         Self {
             db,
             observer,
