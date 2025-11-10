@@ -45,19 +45,17 @@ impl<S: Storage> NativeJournalHandler<'_, S> {
         if delay.is_zero() && !dispatch.value.is_zero() {
             let source = dispatch.source;
             // Decrease sender's balance and value_to_receive
-            self.controller.update_state(source, |state, _, transitions| {
-                state.balance = state.balance.checked_sub(dispatch.value).expect(
-                    "Insufficient balance: underflow in state.balance -= dispatch.value()",
-                );
-                log::error!(
-                    "Program to Program immediate dispatch: decreasing balance of {source} by {} to {}",
-                    dispatch.value,
-                    state.balance
-                );
-                transitions.modify_transition(source, |transition| {
-                    transition.value_to_receive -= i128::try_from(dispatch.value).expect("value fits into i128");
+            self.controller
+                .update_state(source, |state, _, transitions| {
+                    state.balance = state.balance.checked_sub(dispatch.value).expect(
+                        "Insufficient balance: underflow in state.balance -= dispatch.value()",
+                    );
+
+                    transitions.modify_transition(source, |transition| {
+                        transition.value_to_receive -=
+                            i128::try_from(dispatch.value).expect("value fits into i128");
+                    });
                 });
-            });
         }
 
         self.controller
@@ -371,34 +369,15 @@ impl<S: Storage> JournalHandler for NativeJournalHandler<'_, S> {
         let dst_is_prog = self.controller.transitions.is_program(&to);
 
         match (src_is_prog, dst_is_prog) {
-            (true, true) => {
+            (true, true) | (false, true) => {
                 // Program to Program value transfer
                 self.controller.update_state(to, |state, _, transitions| {
                     state.balance += value;
 
-                    log::error!(
-                        "Program to Program value transfer: increasing balance of {to} by {} from {} ,resulting in {}",
-                        value,
-                        from,
-                        state.balance
-                    );
-
-                    transitions.modify_transition(to, |transition| transition.value_to_receive += i128::try_from(value).expect("value fits into i128"));
-                });
-            }
-            (false, true) => {
-                // User to Program value transfer
-                self.controller.update_state(to, |state, _, transitions| {
-                    state.balance += value;
-
-                    log::error!(
-                        "User to Program value transfer: increasing balance of {to} by {} from {}, resulting in {}",
-                        value,
-                        from,
-                        state.balance,
-                    );
-
-                    transitions.modify_transition(to, |transition| transition.value_to_receive += i128::try_from(value).expect("value fits into i128"));
+                    transitions.modify_transition(to, |transition| {
+                        transition.value_to_receive +=
+                            i128::try_from(value).expect("value fits into i128")
+                    });
                 });
             }
             (true, false) => {
