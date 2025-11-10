@@ -145,7 +145,6 @@ impl ConsensusLayerBlobReader {
             .ok_or(BlobLoaderError::BlockNotFound(H256(block_hash.0)))?;
 
         // detect anvil by chain id
-        // TODO: remove this after merge https://github.com/foundry-rs/foundry/pull/12503
         let slot = if let Some(chain_id) = tx.chain_id()
             && chain_id == 31337
         {
