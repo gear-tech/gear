@@ -24,7 +24,8 @@ use ethexe_blob_loader::{
     local::{LocalBlobLoader, LocalBlobStorage},
 };
 use ethexe_common::{
-    Address, ecdsa::PublicKey, gear::CodeState, network::VerifiedValidatorMessage,
+    Address, db::InjectedStorageRW, ecdsa::PublicKey, gear::CodeState,
+    network::VerifiedValidatorMessage,
 };
 use ethexe_compute::{ComputeConfig, ComputeEvent, ComputeService};
 use ethexe_consensus::{
@@ -460,10 +461,12 @@ impl Service {
                                     consensus.receive_validation_reply(reply)?
                                 }
                                 VerifiedValidatorMessage::InjectedPromise(promise) => {
+                                    // TODO: verify that this transaction is for current validator and then send it to consensus.
                                     let promise = promise.map(|p| p.payload);
-                                    let (_promise, _pub_key) = promise.into_parts();
+                                    let (promise, _pub_key) = promise.into_parts();
 
-                                    // TODO kuzmindev: implement handling injected tx promise in some way
+                                    // TODO kuzmindev: this is a temporary solution, should be implemented by handling in some service.
+                                    self.db.set_injected_promise(promise);
                                 }
                             };
                         }

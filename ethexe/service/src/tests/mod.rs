@@ -24,8 +24,8 @@ use crate::{
     Service,
     config::{self, Config},
     tests::utils::{
-        EnvNetworkConfig, Node, NodeConfig, TestEnv, TestEnvConfig, TestingEvent, ValidatorsConfig,
-        Wallets, init_logger,
+        EnvNetworkConfig, Node, NodeConfig, TestEnv, TestEnvConfig, TestingEvent, TestingRpcEvent,
+        ValidatorsConfig, Wallets, init_logger,
     },
 };
 use alloy::{
@@ -56,7 +56,7 @@ use gear_core::{
     message::{ReplyCode, SuccessReplyReason},
 };
 use gear_core_errors::{ErrorReplyReason, SimpleExecutionError, SimpleUnavailableActorError};
-use gprimitives::{ActorId, H256, MessageId};
+use gprimitives::{ActorId, H160, H256, MessageId};
 use parity_scale_codec::Encode;
 use std::{
     collections::{BTreeMap, BTreeSet},
@@ -1121,97 +1121,96 @@ async fn multiple_validators() {
     assert_eq!(res.payload, res.message_id.encode().as_slice());
 }
 
-// #[tokio::test(flavor = "multi_thread")]
-// #[ntest::timeout(60_000)]
-// async fn tx_pool_gossip() {
-//     init_logger();
+#[tokio::test(flavor = "multi_thread")]
+#[ntest::timeout(60_000)]
+async fn injected_tx_send_gossip() {
+    init_logger();
 
-//     let test_env_config = TestEnvConfig {
-//         validators: ValidatorsConfig::PreDefined(2),
-//         network: EnvNetworkConfig::Enabled,
-//         ..Default::default()
-//     };
+    let test_env_config = TestEnvConfig {
+        validators: ValidatorsConfig::PreDefined(2),
+        network: EnvNetworkConfig::Enabled,
+        ..Default::default()
+    };
 
-//     // Setup env of 2 nodes, one of them knows about the other one.
-//     let mut env = TestEnv::new(test_env_config).await.unwrap();
+    // Setup env of 2 nodes, one of them knows about the other one.
+    let mut env = TestEnv::new(test_env_config).await.unwrap();
 
-//     log::info!("📗 Starting node 0");
-//     let mut node0 = env.new_node(
-//         NodeConfig::default()
-//             .validator(env.validators[0])
-//             .service_rpc(9505),
-//     );
-//     node0.start_service().await;
+    let validator0_pubkey = env.validators[0].public_key;
+    let validator1_pubkey = env.validators[1].public_key;
 
-//     log::info!("📗 Starting node 1");
-//     let mut node1 = env.new_node(NodeConfig::default().validator(env.validators[1]));
-//     node1.start_service().await;
+    log::info!("📗 Starting node 0");
+    let mut node0 = env.new_node(
+        NodeConfig::default()
+            .validator(env.validators[0])
+            .service_rpc(9505),
+    );
+    node0.start_service().await;
 
-//     log::info!("Populate node-0 and node-1 with 2 valid blocks");
+    log::info!("📗 Starting node 1");
+    let mut node1 = env.new_node(
+        NodeConfig::default()
+            .service_rpc(9506)
+            .validator(env.validators[1]),
+    );
+    node1.start_service().await;
 
-//     env.force_new_block().await;
-//     env.force_new_block().await;
+    log::info!("Populate node-0 and node-1 with 2 valid blocks");
 
-//     // Give some time for nodes to process the blocks
-//     tokio::time::sleep(Duration::from_secs(2)).await;
-//     let reference_block = node0
-//         .db
-//         .latest_data()
-//         .expect("latest data not found")
-//         .prepared_block_hash;
+    env.force_new_block().await;
+    env.force_new_block().await;
 
-//     // Prepare tx data
-//     let signed_ethexe_tx = {
-//         let sender_pub_key = env.signer.generate_key().expect("failed generating key");
+    // Give some time for nodes to process the blocks
+    tokio::time::sleep(Duration::from_secs(1)).await;
+    let reference_block = node0
+        .db
+        .latest_data()
+        .expect("latest data not found")
+        .prepared_block_hash;
 
-//         let ethexe_tx = OffchainTransaction {
-//             raw: RawOffchainTransaction::SendMessage {
-//                 program_id: H160::random(),
-//                 payload: vec![],
-//             },
-//             // referring to the latest valid block hash
-//             reference_block,
-//         };
-//         env.signer.signed_data(sender_pub_key, ethexe_tx).unwrap()
-//     };
+    // Prepare tx data
+    let tx = InjectedTransaction {
+        recipient: validator1_pubkey.to_address(),
+        destination: ActorId::from(H160::random()),
+        payload: H256::random().0.to_vec().into(),
+        value: 0,
+        reference_block,
+        salt: H256::random().0.to_vec().into(),
+    };
 
-//     let tx_hash = signed_ethexe_tx.tx_hash();
-//     let (transaction, signature) = signed_ethexe_tx.clone().into_parts();
+    let tx_for_node1 = env
+        .signer
+        .signed_data(validator0_pubkey, tx.clone())
+        .unwrap();
 
-//     // Send request
-//     log::info!("Sending tx pool request to node-1");
-//     let rpc_client = node0.rpc_client().expect("rpc server is set");
-//     let resp = rpc_client
-//         .send_message(transaction, signature.encode())
-//         .await
-//         .expect("failed sending request");
-//     assert!(resp.status().is_success());
-//     let resp_tx_hash = JsonRpcResponse::new(resp)
-//         .await
-//         .expect("failed to deserialize json response from rpc")
-//         .try_extract_res::<H256>()
-//         .expect("failed to deserialize reply info");
-//     assert_eq!(resp_tx_hash, tx_hash);
+    // Send request
+    log::info!("Sending tx pool request to node-1");
+    let _r = node1
+        .send_injected_transaction(tx_for_node1.clone())
+        .await
+        .expect("rpc server is set");
 
-//     // Tx executable validation takes time, so wait for event.
-//     node1
-//         .listener()
-//         .wait_for(|event| {
-//             Ok(matches!(
-//                 event,
-//                 TestingEvent::TxPool(TxPoolEvent::PublishOffchainTransaction(_))
-//             ))
-//         })
-//         .await
-//         .unwrap();
+    // Tx executable validation takes time, so wait for event.
+    node1
+        .listener()
+        .wait_for(|event| {
+            // TODO kuzmindev: after validators discovery will be done replace to wait for inclusion tx into announce from node1
+            if let TestingEvent::Rpc(TestingRpcEvent::InjectedTransaction { transaction }) = event
+                && transaction == tx_for_node1
+            {
+                return Ok(true);
+            }
+            Ok(false)
+        })
+        .await
+        .unwrap();
 
-//     // Check that node-1 received the message
-//     let node1_db_tx = node1
-//         .db
-//         .get_offchain_transaction(tx_hash)
-//         .expect("tx not found");
-//     assert_eq!(node1_db_tx, signed_ethexe_tx);
-// }
+    // Check that node-1 save received tx.
+    let node1_db_tx = node1
+        .db
+        .injected_transaction(tx.hash())
+        .expect("tx not found");
+    assert_eq!(node1_db_tx, tx_for_node1);
+}
 
 #[tokio::test(flavor = "multi_thread")]
 #[ntest::timeout(60_000)]

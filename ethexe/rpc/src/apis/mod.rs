@@ -21,7 +21,6 @@ mod code;
 mod dev;
 mod injected;
 mod program;
-mod tx_pool;
 
 pub use block::{BlockApi, BlockServer};
 pub use code::{CodeApi, CodeServer};

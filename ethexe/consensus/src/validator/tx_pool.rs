@@ -29,7 +29,7 @@ use std::collections::HashSet;
 /// [`InjectedTxPool`] is a local pool of injected transactions, which validator can include in announces.
 #[derive(Clone)]
 pub(crate) struct InjectedTxPool<DB = Database> {
-    inner: HashSet<HashOf<InjectedTransaction>>,
+    inner: HashSet<(H256, HashOf<InjectedTransaction>)>,
     db: DB,
 }
 
@@ -45,8 +45,11 @@ where
     }
 
     pub fn handle_tx(&mut self, tx: SignedInjectedTransaction) {
-        tracing::info!(tx = ?tx.data().hash(), "handle new injected tx");
-        if self.inner.insert(tx.data().hash()) {
+        let tx_hash = tx.data().hash();
+        let reference_block = tx.data().reference_block;
+        tracing::info!(tx_hash = ?tx_hash, reference_block = ?reference_block,  "handle new injected tx");
+
+        if self.inner.insert((reference_block, tx_hash)) {
             // Write tx in database only if its not already contains in pool.
             self.db.set_injected_transaction(tx);
         }
@@ -54,70 +57,70 @@ where
 
     /// Returns the injected transactions that are valid and can be included to announce.
     pub fn collect_txs_for(
-        &self,
+        &mut self,
         block_hash: H256,
         parent_announce: HashOf<Announce>,
     ) -> Result<Vec<SignedInjectedTransaction>> {
         tracing::info!(block = ?block_hash, "start collecting injected transactions");
 
-        let included_txs = self.db.announce_recent_txs(parent_announce);
+        let already_included_txs = self.db.announce_recent_txs(parent_announce);
+        let mut collected_txs = vec![];
+        let mut outdated_txs = vec![];
 
-        let mut txs_for_block = vec![];
-
-        for tx_hash in self.inner.iter() {
+        for (reference_block, tx_hash) in self.inner.iter() {
             let Some(tx) = self.db.injected_transaction(*tx_hash) else {
                 continue;
             };
 
-            // Skip transaction if its not valid
-            match self.check_validity_at(&tx, block_hash) {
-                Ok(true) if !included_txs.contains(tx_hash) => {
-                    txs_for_block.push(tx);
-                }
-                _ => continue,
+            if !self.reference_block_within_validity_window(*reference_block, block_hash)? {
+                outdated_txs.push((*reference_block, *tx_hash));
+                continue;
+            }
+
+            if self.reference_block_on_current_branch(*reference_block, block_hash)?
+                && !already_included_txs.contains(tx_hash)
+            {
+                collected_txs.push(tx);
             }
         }
 
-        Ok(txs_for_block)
+        outdated_txs.into_iter().for_each(|key| {
+            self.inner.remove(&key);
+        });
+
+        Ok(collected_txs)
+    }
+
+    fn reference_block_within_validity_window(
+        &self,
+        reference_block: H256,
+        chain_head: H256,
+    ) -> Result<bool> {
+        let reference_block_height = self
+            .db
+            .block_header(reference_block)
+            .ok_or_else(|| anyhow!("Block header not found for reference block {reference_block}"))?
+            .height;
+
+        let chain_head_height = self
+            .db
+            .block_header(chain_head)
+            .ok_or_else(|| anyhow!("Block header not found for hash: {chain_head}"))?
+            .height;
+
+        Ok(reference_block_height <= chain_head_height
+            && reference_block_height + VALIDITY_WINDOW as u32 > chain_head_height)
     }
 
     // TODO #4808: branch check must be until genesis block
-    /// Checks if the transaction is still valid at the given block.
-    /// Checking windows is in `transaction_height..transaction_height + VALIDITY_WINDOW`
-    ///
-    /// # Returns
-    /// - `true` if the transaction is still valid at the given block
-    /// - `false` otherwise
-    pub fn check_validity_at(
+    fn reference_block_on_current_branch(
         &self,
-        tx: &SignedInjectedTransaction,
-        block_hash: H256,
+        reference_block: H256,
+        chain_head: H256,
     ) -> Result<bool> {
-        let transaction_block_hash = tx.data().reference_block;
-        let transaction_height = self
-            .db
-            .block_header(transaction_block_hash)
-            .ok_or_else(|| {
-                anyhow!("Block header not found for reference block {transaction_block_hash}")
-            })?
-            .height;
-
-        let block_height = self
-            .db
-            .block_header(block_hash)
-            .ok_or_else(|| anyhow!("Block header not found for hash: {block_hash}"))?
-            .height;
-
-        if transaction_height > block_height
-            || transaction_height + VALIDITY_WINDOW as u32 <= block_height
-        {
-            return Ok(false);
-        }
-
-        // Check transaction inclusion in the block branch.
-        let mut block_hash = block_hash;
+        let mut block_hash = chain_head;
         for _ in 0..VALIDITY_WINDOW {
-            if block_hash == transaction_block_hash {
+            if block_hash == reference_block {
                 return Ok(true);
             }
 
@@ -163,26 +166,28 @@ mod tests {
 
         let tx_pool = InjectedTxPool::new(db);
 
+        let is_valid = |tx: &SignedInjectedTransaction, at_block: H256| {
+            let reference_block = tx.data().reference_block;
+            tx_pool
+                .reference_block_within_validity_window(reference_block, at_block)
+                .unwrap()
+                && tx_pool
+                    .reference_block_on_current_branch(reference_block, at_block)
+                    .unwrap()
+        };
+
         let tx = mock_tx(blocks[0].hash);
         for block in blocks.iter().take(VALIDITY_WINDOW as usize) {
-            assert!(tx_pool.check_validity_at(&tx, block.hash).unwrap());
+            assert!(is_valid(&tx, block.hash));
         }
-        assert!(
-            !tx_pool
-                .check_validity_at(&tx, blocks[(VALIDITY_WINDOW + 1).into()].hash)
-                .unwrap()
-        );
+        assert!(!is_valid(&tx, blocks[(VALIDITY_WINDOW + 1).into()].hash));
 
         let tx = mock_tx(blocks[10].hash);
-        assert!(!tx_pool.check_validity_at(&tx, blocks[5].hash).unwrap());
-        assert!(!tx_pool.check_validity_at(&tx, blocks[9].hash).unwrap());
+        assert!(!is_valid(&tx, blocks[5].hash));
+        assert!(!is_valid(&tx, blocks[9].hash));
         for block in blocks.iter().take((VALIDITY_WINDOW + 10) as usize).skip(10) {
-            assert!(tx_pool.check_validity_at(&tx, block.hash).unwrap());
+            assert!(is_valid(&tx, block.hash));
         }
-        assert!(
-            !tx_pool
-                .check_validity_at(&tx, blocks[(VALIDITY_WINDOW * 2).into()].hash)
-                .unwrap()
-        );
+        assert!(!is_valid(&tx, blocks[(VALIDITY_WINDOW * 2).into()].hash));
     }
 }
