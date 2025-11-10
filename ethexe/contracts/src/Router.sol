@@ -489,7 +489,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
         bool isPositiveFound = false;
 
         for (uint256 i = 1; i < _transitions.length; i++) {
-            // If positive sign found after negative sign - transitions are not sorted.
+            // If negative sign found after positive sign - transitions are not sorted.
             if (!_transitions[i].valueToReceiveNegativeSign) {
                 isPositiveFound = true;
                 continue;
