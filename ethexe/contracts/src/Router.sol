@@ -497,7 +497,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
 
             require(
                 !(isPositiveFound && _transitions[i].valueToReceiveNegativeSign),
-                "state transitions must be sorted by valueToReceiveNegativeSign in ascending order"
+                "state transitions must be sorted by valueToReceiveNegativeSign in descending order"
             );
         }
     }
