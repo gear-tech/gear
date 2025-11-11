@@ -18,18 +18,16 @@
 
 //! Subscription implementation.
 
-use crate::{config::GearConfig, metadata::Event, result::Result};
+use crate::{Result, config::GearConfig, metadata::Event};
 use futures::{Stream, StreamExt};
 use gear_core::ids::{ActorId, MessageId};
 use gear_core_errors::ReplyCode;
 use serde::{Deserialize, Deserializer, Serialize, de::Error as DeError};
-use sp_core::{Bytes, H256};
+use sp_core::Bytes;
 use std::{convert::TryInto, marker::Unpin, ops::Deref, pin::Pin, task::Poll};
 use subxt::{
-    OnlineClient,
-    backend::{StreamOfResults, rpc::RpcSubscription},
-    blocks::Block,
-    events::Events as SubxtEvents,
+    OnlineClient, backend::StreamOfResults, blocks::Block, events::Events as SubxtEvents,
+    ext::subxt_rpcs::client::RpcSubscription, utils::H256,
 };
 
 type SubxtBlock = Block<GearConfig, OnlineClient<GearConfig>>;
@@ -217,15 +215,19 @@ impl UserMessageSentFilter {
         Self::default()
     }
 
+    fn actor_to_h256(actor: ActorId) -> H256 {
+        H256::from_slice(actor.as_ref())
+    }
+
     /// Restrict events to the provided source actor.
     pub fn with_source(mut self, source: ActorId) -> Self {
-        self.source = Some(source.into());
+        self.source = Some(Self::actor_to_h256(source));
         self
     }
 
     /// Restrict events to the provided destination actor.
     pub fn with_destination(mut self, destination: ActorId) -> Self {
-        self.destination = Some(destination.into());
+        self.destination = Some(Self::actor_to_h256(destination));
         self
     }
 

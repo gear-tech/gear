@@ -20,31 +20,62 @@ use crate::{ComputeError, ProcessorExt, Result, service::SubService};
 use ethexe_common::{
     Announce, HashOf,
     db::{
-        AnnounceStorageRO, AnnounceStorageRW, BlockMetaStorageRO, LatestDataStorageRW,
-        OnChainStorageRO,
+        AnnounceStorageRO, AnnounceStorageRW, BlockMetaStorageRO, LatestDataStorageRO,
+        LatestDataStorageRW, OnChainStorageRO,
     },
+    events::BlockEvent,
 };
 use ethexe_db::Database;
 use ethexe_processor::BlockProcessingResult;
 use futures::future::BoxFuture;
+use gprimitives::H256;
 use std::{
     collections::VecDeque,
     task::{Context, Poll},
 };
 
+#[derive(Debug, Clone, Copy)]
+pub struct ComputeConfig {
+    /// The delay in **blocks** in which events from Ethereum will be appply.
+    canonical_quarantine: u8,
+}
+
+impl ComputeConfig {
+    /// Constructs [`ComputeConfig`] with provided `canonical_quarantine`.
+    /// In production builds `canonical_quarantine` should be equal [`ethexe_common::gear::CANONICAL_QUARANTINE`].
+    pub fn new(canonical_quarantine: u8) -> Self {
+        Self {
+            canonical_quarantine,
+        }
+    }
+
+    /// Must use only in testing purposes.
+    pub fn without_quarantine() -> Self {
+        Self {
+            canonical_quarantine: 0,
+        }
+    }
+
+    pub fn canonical_quarantine(&self) -> u8 {
+        self.canonical_quarantine
+    }
+}
+
 pub struct ComputeSubService<P: ProcessorExt> {
     db: Database,
     processor: P,
+    config: ComputeConfig,
 
     input: VecDeque<Announce>,
     computation: Option<BoxFuture<'static, Result<HashOf<Announce>>>>,
 }
 
 impl<P: ProcessorExt> ComputeSubService<P> {
-    pub fn new(db: Database, processor: P) -> Self {
+    pub fn new(config: ComputeConfig, db: Database, processor: P) -> Self {
         Self {
             db,
             processor,
+            config,
             input: VecDeque::new(),
             computation: None,
         }
@@ -56,6 +87,7 @@ impl<P: ProcessorExt> ComputeSubService<P> {
 
     async fn compute(
         db: Database,
+        config: ComputeConfig,
         mut processor: P,
         announce: Announce,
     ) -> Result<HashOf<Announce>> {
@@ -89,7 +121,7 @@ impl<P: ProcessorExt> ComputeSubService<P> {
         }
 
         for (announce_hash, announce) in announces_chain {
-            Self::compute_one(&db, &mut processor, announce_hash, announce).await?;
+            Self::compute_one(&db, &mut processor, announce_hash, announce, config).await?;
         }
 
         Ok(announce_hash)
@@ -100,17 +132,24 @@ impl<P: ProcessorExt> ComputeSubService<P> {
         processor: &mut P,
         announce_hash: HashOf<Announce>,
         announce: Announce,
+        config: ComputeConfig,
     ) -> Result<HashOf<Announce>> {
         let block_hash = announce.block_hash;
 
-        let events = db
-            .block_events(block_hash)
-            .ok_or(ComputeError::BlockEventsNotFound(block_hash))?
+        let matured_events = Self::find_canonical_events_post_quarantine(
+            db,
+            block_hash,
+            config.canonical_quarantine(),
+        )?;
+
+        let request_events = matured_events
             .into_iter()
             .filter_map(|event| event.to_request())
             .collect();
 
-        let processing_result = processor.process_announce(announce.clone(), events).await?;
+        let processing_result = processor
+            .process_announce(announce.clone(), request_events)
+            .await?;
 
         let BlockProcessingResult {
             transitions,
@@ -132,6 +171,39 @@ impl<P: ProcessorExt> ComputeSubService<P> {
 
         Ok(announce_hash)
     }
+
+    /// Finds events from Ethereum in database which can be processed in current block.
+    fn find_canonical_events_post_quarantine(
+        db: &Database,
+        mut block_hash: H256,
+        canonical_quarantine: u8,
+    ) -> Result<Vec<BlockEvent>> {
+        let genesis_block = db
+            .latest_data()
+            .ok_or_else(|| ComputeError::LatestDataNotFound)?
+            .genesis_block_hash;
+
+        let mut block_header = db
+            .block_header(block_hash)
+            .ok_or_else(|| ComputeError::BlockHeaderNotFound(block_hash))?;
+
+        for _ in 0..canonical_quarantine {
+            if block_hash == genesis_block {
+                return Ok(Default::default());
+            }
+
+            let parent_hash = block_header.parent_hash;
+            let parent_header = db
+                .block_header(parent_hash)
+                .ok_or(ComputeError::BlockHeaderNotFound(parent_hash))?;
+
+            block_hash = parent_hash;
+            block_header = parent_header;
+        }
+
+        db.block_events(block_hash)
+            .ok_or(ComputeError::BlockEventsNotFound(block_hash))
+    }
 }
 
 impl<P: ProcessorExt> SubService for ComputeSubService<P> {
@@ -143,6 +215,7 @@ impl<P: ProcessorExt> SubService for ComputeSubService<P> {
         {
             self.computation = Some(Box::pin(Self::compute(
                 self.db.clone(),
+                self.config,
                 self.processor.clone(),
                 announce,
             )));
@@ -163,7 +236,7 @@ impl<P: ProcessorExt> SubService for ComputeSubService<P> {
 mod tests {
     use super::*;
     use crate::tests::{MockProcessor, PROCESSOR_RESULT};
-    use ethexe_common::{db::*, gear::StateTransition, mock::*};
+    use ethexe_common::{gear::StateTransition, mock::*};
     use gprimitives::{ActorId, H256};
 
     #[tokio::test]
@@ -173,7 +246,8 @@ mod tests {
 
         let db = Database::memory();
         let block_hash = BlockChain::mock(1).setup(&db).blocks[1].hash;
-        let mut service = ComputeSubService::new(db.clone(), MockProcessor);
+        let config = ComputeConfig::without_quarantine();
+        let mut service = ComputeSubService::new(config, db.clone(), MockProcessor);
 
         let announce = Announce {
             block_hash,

@@ -75,6 +75,12 @@
 # (optional, max block gas limit: 9_000_000_000_000, default: 4_000_000_000_000).
 # block-gas-limit = 4_000_000_000_000
 
+# Number of blocks that must pass before applying canonical (Ethereum) events.
+# NOTE: Customize this parameter only for development purposes. In production, your node
+#       may fail to reach consensus with other nodes if this value is changed.
+# (optional, default: 16)
+# canonical-quarantine = 16
+
 # Do P2P database synchronization before the main loop.
 # (optional, default: false).
 # fast-sync = false

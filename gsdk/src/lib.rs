@@ -50,7 +50,6 @@ use subxt::{
 
 mod api;
 pub mod backtrace;
-mod client;
 pub mod config;
 mod constants;
 pub mod events;
@@ -60,17 +59,22 @@ mod rpc;
 pub mod signer;
 mod storage;
 pub mod subscription;
+mod tx_status;
 mod utils;
+
+mod ensure_versions;
 
 pub mod ext {
     pub use sp_core;
     pub use sp_runtime::{self, codec, scale_info};
+    pub use subxt::utils;
 }
 pub mod gp {
     //! generated code preludes.
     pub use subxt::ext::{
         codec::{Decode, Encode},
         scale_decode::DecodeAsType,
+        scale_encode::EncodeAsType,
     };
 }
 
