@@ -40,8 +40,8 @@ use ethexe_common::{
     mock::*,
     network::ValidatorMessage,
 };
-use ethexe_consensus::ConsensusEvent;
 use ethexe_compute::ComputeConfig;
+use ethexe_consensus::ConsensusEvent;
 use ethexe_db::{Database, verifier::IntegrityVerifier};
 use ethexe_ethereum::deploy::ContractsDeploymentParams;
 use ethexe_observer::{EthereumConfig, ObserverEvent};
