@@ -56,7 +56,7 @@ impl InjectedServer for InjectedApi {
         &self,
         transaction: SignedInjectedTransaction,
     ) -> RpcResult<InjectedTransactionAcceptance> {
-        tracing::debug!("Called injected_sendTransaction with vars: {transaction:?}");
+        tracing::trace!("Called injected_sendTransaction with vars: {transaction:?}");
 
         let (response_sender, response_receiver) = oneshot::channel();
         self.rpc_sender
