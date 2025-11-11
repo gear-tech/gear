@@ -22,6 +22,16 @@ jobs:
       - run: cargo binstall --no-confirm cargo-shear
       - run: cargo shear
 
+  cargo-hakari:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-hakari
+      - run: cargo hakari generate --diff
+      - run: cargo hakari manage-deps --dry-run
+
   fmt:
     runs-on: ubuntu-latest
     steps:
