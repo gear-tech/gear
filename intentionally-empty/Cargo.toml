@@ -558,6 +558,7 @@ nix = { version = "0.26" }
 nom = { version = "7" }
 num-complex = { version = "0.4", default-features = false, features = ["std"] }
 openssl = { version = "0.10", features = ["vendored"] }
+openssl-sys = { version = "0.9", default-features = false, features = ["vendored"] }
 rand_chacha-274715c4dabd11b0 = { package = "rand_chacha", version = "0.9" }
 rand_core-274715c4dabd11b0 = { package = "rand_core", version = "0.9", default-features = false, features = ["os_rng", "std"] }
 ring-986da7b5efc2b80e = { package = "ring", version = "0.16", features = ["std"] }
@@ -589,6 +590,7 @@ nix = { version = "0.26" }
 nom = { version = "7" }
 num-complex = { version = "0.4", default-features = false, features = ["std"] }
 openssl = { version = "0.10", features = ["vendored"] }
+openssl-sys = { version = "0.9", default-features = false, features = ["vendored"] }
 prettyplease = { version = "0.2", default-features = false, features = ["verbatim"] }
 rand_chacha-274715c4dabd11b0 = { package = "rand_chacha", version = "0.9" }
 rand_core-274715c4dabd11b0 = { package = "rand_core", version = "0.9", default-features = false, features = ["os_rng", "std"] }
@@ -620,6 +622,7 @@ nix = { version = "0.26" }
 nom = { version = "7" }
 num-complex = { version = "0.4", default-features = false, features = ["std"] }
 openssl = { version = "0.10", features = ["vendored"] }
+openssl-sys = { version = "0.9", default-features = false, features = ["vendored"] }
 rand_chacha-274715c4dabd11b0 = { package = "rand_chacha", version = "0.9" }
 rand_core-274715c4dabd11b0 = { package = "rand_core", version = "0.9", default-features = false, features = ["os_rng", "std"] }
 ring-986da7b5efc2b80e = { package = "ring", version = "0.16", features = ["std"] }
@@ -650,6 +653,7 @@ nix = { version = "0.26" }
 nom = { version = "7" }
 num-complex = { version = "0.4", default-features = false, features = ["std"] }
 openssl = { version = "0.10", features = ["vendored"] }
+openssl-sys = { version = "0.9", default-features = false, features = ["vendored"] }
 prettyplease = { version = "0.2", default-features = false, features = ["verbatim"] }
 rand_chacha-274715c4dabd11b0 = { package = "rand_chacha", version = "0.9" }
 rand_core-274715c4dabd11b0 = { package = "rand_core", version = "0.9", default-features = false, features = ["os_rng", "std"] }
@@ -675,6 +679,7 @@ itertools-594e8ee84c453af0 = { package = "itertools", version = "0.13", default-
 libc = { version = "0.2", default-features = false, features = ["extra_traits"] }
 miniz_oxide = { version = "0.7", default-features = false, features = ["with-alloc"] }
 nom = { version = "7" }
+openssl-sys = { version = "0.9", default-features = false, features = ["vendored"] }
 rand_chacha-274715c4dabd11b0 = { package = "rand_chacha", version = "0.9" }
 rand_core-274715c4dabd11b0 = { package = "rand_core", version = "0.9", default-features = false, features = ["os_rng", "std"] }
 ring-986da7b5efc2b80e = { package = "ring", version = "0.16", features = ["std"] }
@@ -699,6 +704,7 @@ itertools-594e8ee84c453af0 = { package = "itertools", version = "0.13", default-
 libc = { version = "0.2", default-features = false, features = ["extra_traits"] }
 miniz_oxide = { version = "0.7", default-features = false, features = ["with-alloc"] }
 nom = { version = "7" }
+openssl-sys = { version = "0.9", default-features = false, features = ["vendored"] }
 prettyplease = { version = "0.2", default-features = false, features = ["verbatim"] }
 rand_chacha-274715c4dabd11b0 = { package = "rand_chacha", version = "0.9" }
 rand_core-274715c4dabd11b0 = { package = "rand_core", version = "0.9", default-features = false, features = ["os_rng", "std"] }

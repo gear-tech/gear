@@ -8587,6 +8587,7 @@ dependencies = [
  "object 0.32.2",
  "once_cell",
  "openssl",
+ "openssl-sys",
  "pallet-nomination-pools-runtime-api",
  "pallet-staking-reward-fn",
  "pallet-staking-runtime-api",
