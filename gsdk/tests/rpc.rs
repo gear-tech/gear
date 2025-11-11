@@ -335,10 +335,9 @@ async fn test_runtime_wasm_blob_version() -> Result<()> {
 async fn test_runtime_wasm_blob_version_history() -> Result<()> {
     let api = Api::new("wss://archive-rpc.vara.network:443").await?;
 
-    let no_method_block_hash = H256::from_str(
-        "0xa84349fc30b8f2d02cc31d49fe8d4a45b6de5a3ac1f1ad975b8920b0628dd6b9",
-    )
-    .unwrap();
+    let no_method_block_hash =
+        H256::from_str("0xa84349fc30b8f2d02cc31d49fe8d4a45b6de5a3ac1f1ad975b8920b0628dd6b9")
+            .unwrap();
 
     let wasm_blob_version_err = api
         .runtime_wasm_blob_version(Some(no_method_block_hash))
