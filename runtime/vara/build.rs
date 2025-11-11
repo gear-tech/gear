@@ -16,7 +16,27 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-#[cfg(feature = "std")]
+#[cfg(all(feature = "std", not(fuzz)))]
+fn build_runtime() {
+    let builder = substrate_wasm_builder::WasmBuilder::init_with_defaults();
+
+    #[cfg(feature = "metadata-hash")]
+    let builder = {
+        const TOKEN_SYMBOL: &str = if cfg!(not(feature = "dev")) {
+            "VARA"
+        } else {
+            "TVARA"
+        };
+
+        const DECIMALS: u8 = 12;
+
+        builder.enable_metadata_hash(TOKEN_SYMBOL, DECIMALS)
+    };
+
+    builder.build()
+}
+
+#[cfg(all(feature = "std", not(fuzz)))]
 fn skip_build_on_intellij_sync() {
     // Intellij Rust uses rustc wrapper during project sync
     let is_intellij = std::env::var("RUSTC_WRAPPER")
@@ -27,38 +47,12 @@ fn skip_build_on_intellij_sync() {
     }
 }
 
-#[cfg(all(feature = "std", not(feature = "metadata-hash")))]
 fn main() {
     substrate_build_script_utils::generate_cargo_keys();
+
     #[cfg(all(feature = "std", not(fuzz)))]
     {
         skip_build_on_intellij_sync();
-        substrate_wasm_builder::WasmBuilder::build_using_defaults()
+        build_runtime();
     }
-}
-
-#[cfg(all(feature = "std", feature = "metadata-hash"))]
-fn main() {
-    substrate_build_script_utils::generate_cargo_keys();
-    #[cfg(all(feature = "std", not(fuzz)))]
-    {
-        const TOKEN_SYMBOL: &str = if cfg!(not(feature = "dev")) {
-            "VARA"
-        } else {
-            "TVARA"
-        };
-
-        const DECIMALS: u8 = 12;
-
-        skip_build_on_intellij_sync();
-
-        substrate_wasm_builder::WasmBuilder::init_with_defaults()
-            .enable_metadata_hash(TOKEN_SYMBOL, DECIMALS)
-            .build()
-    }
-}
-
-#[cfg(not(feature = "std"))]
-fn main() {
-    substrate_build_script_utils::generate_cargo_keys();
 }
