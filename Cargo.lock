@@ -6430,6 +6430,8 @@ dependencies = [
  "paste",
  "proptest",
  "rand 0.8.5",
+ "scale-decode 0.16.0",
+ "scale-encode",
  "scale-info",
  "serde",
  "tracing-subscriber",
@@ -6463,6 +6465,8 @@ version = "1.9.2"
 dependencies = [
  "enum-iterator 1.5.0",
  "parity-scale-codec",
+ "scale-decode 0.16.0",
+ "scale-encode",
  "scale-info",
  "serde",
  "thiserror 2.0.12",

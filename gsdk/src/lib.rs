@@ -24,7 +24,8 @@
 pub use crate::{
     api::{Api, ApiBuilder},
     config::GearConfig,
-    metadata::Event,
+    convert::{IntoSubstrate, IntoSubxt},
+    gear::Event,
     result::{Error, Result},
     signer::PairSigner,
     subscription::{
@@ -35,13 +36,15 @@ pub use crate::{
 pub use gear_core::rpc::GasInfo;
 pub use subxt::{self, dynamic::Value};
 
-use crate::metadata::runtime_types::{
-    gear_common::gas_provider::node::{GasNode, GasNodeId},
-    gear_core::program::ActiveProgram,
+use crate::{
+    gear::runtime_types::gear_common::gas_provider::node::{GasNode, GasNodeId},
+    metadata::runtime_types::gear_core::program::ActiveProgram,
 };
-use gear_core::ids::{MessageId, ReservationId};
+use gear_core::{
+    ids::{MessageId, ReservationId},
+    memory::PageBuf,
+};
 use parity_scale_codec::Decode;
-use sp_runtime::AccountId32;
 use std::collections::HashMap;
 use subxt::{
     OnlineClient,
@@ -49,12 +52,31 @@ use subxt::{
 };
 
 /// Generated runtime API types.
+// FIXME: substitute `gear_core::page::Page`,
+//        requires `subxt` to support const parameters.
 #[subxt::subxt(
     runtime_metadata_path = "vara_runtime.scale",
+    derive_for_all_types = "Clone, ::subxt::ext::codec::Encode, ::subxt::ext::codec::Decode",
     substitute_type(
         path = "sp_arithmetic::per_things::Percent",
         with = "::subxt::utils::Static<::sp_runtime::Percent>"
-    )
+    ),
+    substitute_type(path = "gprimitives::CodeId", with = "::gear_core::ids::CodeId"),
+    substitute_type(path = "gprimitives::MessageId", with = "::gear_core::ids::MessageId"),
+    substitute_type(path = "gprimitives::ActorId", with = "::gear_core::ids::ActorId"),
+    substitute_type(
+        path = "gprimitives::ReservationId",
+        with = "::gear_core::ids::ReservationId"
+    ),
+    substitute_type(
+        path = "gear_core::program::MemoryInfix",
+        with = "::gear_core::program::MemoryInfix"
+    ),
+    substitute_type(
+        path = "gear_core::memory::PageBuf",
+        with = "::gear_core::memory::PageBuf"
+    ),
+    generate_docs
 )]
 pub mod gear {}
 
@@ -62,6 +84,7 @@ mod api;
 pub mod backtrace;
 pub mod config;
 mod constants;
+mod convert;
 pub mod events;
 pub mod metadata;
 pub mod result;
@@ -95,10 +118,10 @@ pub type BlockNumber = u32;
 pub type GearGasNodeId = GasNodeId<MessageId, ReservationId>;
 
 /// Gear gas node.
-pub type GearGasNode = GasNode<AccountId32, GearGasNodeId, u64, u128>;
+pub type GearGasNode = GasNode<subxt::utils::AccountId32, GearGasNodeId, u64, u128>;
 
 /// Gear pages.
-pub type GearPages = HashMap<u32, Vec<u8>>;
+pub type GearPages = HashMap<u32, PageBuf>;
 
 /// Transaction in block.
 pub type TxInBlock = SubxtTxInBlock<GearConfig, OnlineClient<GearConfig>>;

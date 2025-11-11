@@ -22,27 +22,9 @@ pub use crate::tx_status::{TxError, TxStatusExt, TxSuccess};
 
 use gear_core::ids::ActorId;
 use subxt::ext::{scale_encode, subxt_rpcs};
-
-#[derive(Debug, Clone, PartialEq, Eq, Hash, derive_more::Display)]
-#[display("Page {index} of Program {program}")]
-pub struct FailedPage {
-    pub index: u32,
-    pub program: ActorId,
-}
-
-impl FailedPage {
-    pub fn new(index: u32, program: ActorId) -> Self {
-        Self { index, program }
-    }
-
-    pub fn invalid(self) -> Error {
-        Error::InvalidPage(self)
-    }
-
-    pub fn not_found(self) -> Error {
-        Error::PageNotFound(self)
-    }
-}
+///
+/// Custom Result
+pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Debug, thiserror::Error, derive_more::Unwrap)]
 pub enum Error {
@@ -95,11 +77,29 @@ pub enum Error {
     Metadata(#[from] subxt::error::MetadataError),
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Hash, derive_more::Display)]
+#[display("Page {index} of Program {program}")]
+pub struct FailedPage {
+    pub index: u32,
+    pub program: ActorId,
+}
+
+impl FailedPage {
+    pub fn new(index: u32, program: ActorId) -> Self {
+        Self { index, program }
+    }
+
+    pub fn invalid(self) -> Error {
+        Error::InvalidPage(self)
+    }
+
+    pub fn not_found(self) -> Error {
+        Error::PageNotFound(self)
+    }
+}
+
 impl From<subxt::Error> for Error {
     fn from(error: subxt::Error) -> Self {
         Self::Subxt(Box::new(error))
     }
 }
-
-/// Custom Result
-pub type Result<T, E = Error> = std::result::Result<T, E>;

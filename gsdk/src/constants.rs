@@ -19,12 +19,12 @@
 //! Runtime constants query methods
 
 use crate::{
-    Api,
+    Api, IntoSubstrate,
     gear::{self, runtime_types::gear_common::GasMultiplier},
     result::Result,
 };
-use sp_runtime::Percent;
-use subxt::{constants, utils::AccountId32};
+use sp_runtime::{AccountId32, Percent};
+use subxt::constants;
 
 impl Api {
     /// Query constant
@@ -51,6 +51,7 @@ impl Api {
     /// Get treasury address set.
     pub fn treasury_address(&self) -> Result<AccountId32> {
         self.constant(&gear::constants().gear_bank().treasury_address())
+            .map(|id| id.into_substrate())
     }
 
     /// Get treasury gas payouts fee percent.

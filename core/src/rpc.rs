@@ -21,12 +21,16 @@
 use alloc::vec::Vec;
 use gear_core_errors::ReplyCode;
 use parity_scale_codec::{Decode, Encode};
+use scale_decode::DecodeAsType;
+use scale_encode::EncodeAsType;
 use scale_info::TypeInfo;
 
 /// Pre-calculated gas consumption estimate for a message.
 ///
 /// Intended to be used as a result in `calculateGasFor*` RPC calls.
-#[derive(Clone, Debug, Default, PartialEq, Eq, Encode, Decode, TypeInfo)]
+#[derive(
+    Clone, Debug, Default, PartialEq, Eq, Encode, EncodeAsType, Decode, DecodeAsType, TypeInfo,
+)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct GasInfo {
     /// The minimum amount of gas required for successful execution.
@@ -46,7 +50,7 @@ pub struct GasInfo {
 /// Pre-calculated reply information.
 ///
 /// Intended to be used as a result in `calculateReplyFor*` RPC calls.
-#[derive(Clone, Debug, PartialEq, Eq, Encode, Decode, TypeInfo)]
+#[derive(Clone, Debug, PartialEq, Eq, Encode, EncodeAsType, Decode, DecodeAsType, TypeInfo)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct ReplyInfo {
     /// Payload of the reply.
@@ -67,7 +71,9 @@ pub struct ReplyInfo {
     PartialEq,
     Eq,
     Encode,
+    EncodeAsType,
     Decode,
+    DecodeAsType,
     TypeInfo,
     derive_more::From,
     derive_more::Into,

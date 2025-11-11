@@ -26,6 +26,7 @@ use gear_core::{
 use gear_core_errors::{ReplyCode, SuccessReplyReason};
 use gsdk::{Api, Error, Event, Result};
 use parity_scale_codec::Encode;
+use sp_runtime::AccountId32;
 use std::{borrow::Cow, process::Command, str::FromStr, time::Instant};
 use subxt::{
     ext::subxt_rpcs::{self, UserError},
@@ -383,7 +384,7 @@ async fn test_original_code_storage() -> Result<()> {
     let block_hash = rpc.latest_finalized_block_ref().await?.hash();
     let code = signer
         .api()
-        .original_code_storage_at(program.code_id.0.into(), Some(block_hash))
+        .original_code_storage_at(program.code_id.into_bytes().into(), Some(block_hash))
         .await?;
 
     assert_eq!(
