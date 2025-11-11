@@ -312,9 +312,7 @@ impl<'de> Deserialize<'de> for ActorId {
         D: Deserializer<'de>,
     {
         let str = String::deserialize(deserializer)?;
-
         let hex_str = str.strip_prefix("0x").unwrap_or(&str);
-
         let bytes = hex::decode(hex_str)
             .map_err(|e| serde::de::Error::custom(format!("Invalid hex: {}", e)))?;
 
