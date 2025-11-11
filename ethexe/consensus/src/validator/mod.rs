@@ -481,7 +481,7 @@ impl DefaultProcessing {
         tx: SignedInjectedTransaction,
     ) -> Result<ValidatorState> {
         let mut s = s.into();
-        s.warning(format!("unexpected injected transaction: {tx:?}"));
+        s.context_mut().core.process_injected_transaction(tx)?;
         Ok(s)
     }
 }

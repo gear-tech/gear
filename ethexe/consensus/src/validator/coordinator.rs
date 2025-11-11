@@ -72,14 +72,6 @@ impl StateHandler for Coordinator {
             Ok(self.into())
         }
     }
-
-    fn process_injected_transaction(
-        mut self,
-        tx: ethexe_common::injected::SignedInjectedTransaction,
-    ) -> Result<ValidatorState> {
-        self.ctx.core.process_injected_transaction(tx)?;
-        Ok(self.into())
-    }
 }
 
 impl Coordinator {

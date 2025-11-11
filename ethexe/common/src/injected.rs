@@ -84,7 +84,6 @@ impl InjectedTransaction {
 }
 
 /// [`InjectedPromise`] represents the guaranteed reply for [`InjectedTransaction`].
-/// It contains the `payload` and the resulting `state_hash` after processing the transaction.
 ///
 /// Note: Validator must ensure the validity of the promise, because of it can be slashed for
 /// providing an invalid promise.
@@ -110,7 +109,7 @@ impl ToDigest for ReplyInfo {
     }
 }
 
-/// Signed wrapped on top of [`InjectedPromise`].
+/// Signed wrapper on top of [`InjectedPromise`].
 /// It will be shared among other validators as a proof of promise.
 pub type SignedInjectedPromise = SignedData<InjectedPromise>;
 

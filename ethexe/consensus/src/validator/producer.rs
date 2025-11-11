@@ -29,7 +29,6 @@ use ethexe_common::{
         InjectedStorageRO,
     },
     gear::BatchCommitment,
-    injected::SignedInjectedTransaction,
     network::{SignedValidatorMessage, ValidatorInjectedPromise, ValidatorMessage},
 };
 use ethexe_service_utils::Timer;
@@ -170,14 +169,6 @@ impl StateHandler for Producer {
             }
             _ => DefaultProcessing::computed_announce(self, announce_hash),
         }
-    }
-
-    fn process_injected_transaction(
-        mut self,
-        tx: SignedInjectedTransaction,
-    ) -> Result<ValidatorState> {
-        self.ctx.core.process_injected_transaction(tx)?;
-        Ok(self.into())
     }
 
     fn poll_next_state(mut self, cx: &mut Context<'_>) -> Result<(Poll<()>, ValidatorState)> {

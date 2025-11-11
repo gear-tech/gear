@@ -27,7 +27,6 @@ use ethexe_common::{
     Address, Announce, HashOf, SimpleBlockData,
     consensus::{VerifiedAnnounce, VerifiedValidationRequest},
     db::{AnnounceStorageRW, BlockMetaStorageRW, InjectedStorageRW},
-    injected::SignedInjectedTransaction,
 };
 use gprimitives::H256;
 use std::mem;
@@ -161,14 +160,6 @@ impl StateHandler for Subordinate {
         } else {
             DefaultProcessing::validation_request(self, request)
         }
-    }
-
-    fn process_injected_transaction(
-        mut self,
-        tx: SignedInjectedTransaction,
-    ) -> Result<ValidatorState> {
-        self.ctx.core.process_injected_transaction(tx)?;
-        Ok(self.into())
     }
 }
 

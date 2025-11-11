@@ -31,7 +31,6 @@ mod hash;
 pub mod injected;
 pub mod network;
 mod primitives;
-// pub mod tx_pool;
 mod utils;
 
 #[cfg(feature = "mock")]
