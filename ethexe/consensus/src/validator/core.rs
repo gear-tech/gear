@@ -18,23 +18,20 @@
 
 //! Validator core utils and parameters.
 
-use crate::{
-    announces,
-    utils::{self, MultisignedBatchCommitment},
-};
+use crate::{announces, utils};
 use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use ethexe_common::{
     Address, Announce, Digest, HashOf, ProtocolTimelines, SimpleBlockData, ToDigest, ValidatorsVec,
     consensus::BatchCommitmentValidationRequest,
     db::BlockMetaStorageRO,
-    ecdsa::PublicKey,
+    ecdsa::{ContractSignature, PublicKey},
     gear::{
         BatchCommitment, ChainCommitment, CodeCommitment, RewardsCommitment, ValidatorsCommitment,
     },
 };
 use ethexe_db::Database;
-use ethexe_ethereum::middleware::ElectionProvider;
+use ethexe_ethereum::{middleware::ElectionProvider, router::Router};
 use ethexe_signer::Signer;
 use gprimitives::{CodeId, H256};
 use hashbrown::{HashMap, HashSet};
@@ -170,7 +167,7 @@ impl ValidatorCore {
         };
 
         let mut elected_validators = self.middleware.make_election_at(request).await?;
-        // Sort elected validators, because of we can not guarantee the determenism of validators order.
+        // Sort elected validators, because of we can not guarantee the determinism of validators order.
         elected_validators.sort();
 
         let commitment = utils::validators_commitment(block_era + 1, elected_validators)?;
@@ -345,10 +342,21 @@ pub trait BatchCommitter: Send {
     ///
     /// # Arguments
     /// * `batch` - The batch of commitments to commit
+    /// * `signatures` - The signatures for the batch commitments
     ///
     /// # Returns
     /// The hash of the transaction that was sent to the blockchain
-    async fn commit_batch(self: Box<Self>, batch: MultisignedBatchCommitment) -> Result<H256>;
+    async fn commit(
+        self: Box<Self>,
+        batch: BatchCommitment,
+        signatures: Vec<ContractSignature>,
+    ) -> Result<H256>;
+}
+
+impl<T: BatchCommitter + 'static> From<T> for Box<dyn BatchCommitter> {
+    fn from(committer: T) -> Self {
+        Box::new(committer)
+    }
 }
 
 /// [`ElectionRequest`] determines the moment when validators election happen.
@@ -362,24 +370,24 @@ pub struct ElectionRequest {
 
 /// [`MiddlewareWrapper`] is a wrapper around the dyn [`ElectionProvider`] trait.
 /// It caches the elections results to reduce the number of rpc calls.
-#[derive(Clone)]
 pub struct MiddlewareWrapper {
-    inner: Arc<dyn ElectionProvider + 'static>,
+    inner: Box<dyn ElectionProvider>,
     cached_elections: Arc<RwLock<HashMap<ElectionRequest, ValidatorsVec>>>,
 }
 
-impl MiddlewareWrapper {
-    #[allow(unused)]
-    pub fn from_inner<M: ElectionProvider + 'static>(inner: M) -> Self {
+impl Clone for MiddlewareWrapper {
+    fn clone(&self) -> Self {
         Self {
-            inner: Arc::new(inner),
-            cached_elections: Arc::new(RwLock::new(HashMap::new())),
+            inner: self.inner.clone_boxed(),
+            cached_elections: self.cached_elections.clone(),
         }
     }
+}
 
-    pub fn from_inner_arc(inner: Arc<dyn ElectionProvider + 'static>) -> Self {
+impl MiddlewareWrapper {
+    pub fn from_inner(inner: impl Into<Box<dyn ElectionProvider>>) -> Self {
         Self {
-            inner,
+            inner: inner.into(),
             cached_elections: Arc::new(RwLock::new(HashMap::new())),
         }
     }
@@ -400,5 +408,22 @@ impl MiddlewareWrapper {
             .insert(request, elected_validators.clone());
 
         Ok(elected_validators)
+    }
+}
+
+#[async_trait]
+impl BatchCommitter for Router {
+    fn clone_boxed(&self) -> Box<dyn BatchCommitter> {
+        Box::new(self.clone())
+    }
+
+    async fn commit(
+        self: Box<Self>,
+        batch: BatchCommitment,
+        signatures: Vec<ContractSignature>,
+    ) -> Result<H256> {
+        tracing::debug!("Batch commitment to submit: {batch:?}");
+
+        self.commit_batch(batch, signatures).await
     }
 }

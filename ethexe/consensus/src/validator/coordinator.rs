@@ -16,8 +16,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use super::{StateHandler, ValidatorContext, ValidatorState, submitter::Submitter};
-use crate::{BatchCommitmentValidationReply, ConsensusEvent, utils::MultisignedBatchCommitment};
+use super::{StateHandler, ValidatorContext, ValidatorState};
+use crate::{
+    BatchCommitmentValidationReply, ConsensusEvent, utils::MultisignedBatchCommitment,
+    validator::initial::Initial,
+};
 use anyhow::{Result, anyhow, ensure};
 use derive_more::Display;
 use ethexe_common::{
@@ -67,7 +70,7 @@ impl StateHandler for Coordinator {
         }
 
         if self.multisigned_batch.signatures().len() as u64 >= self.ctx.core.signatures_threshold {
-            Submitter::create(self.ctx, self.multisigned_batch)
+            Self::submission(self.ctx, self.multisigned_batch)
         } else {
             Ok(self.into())
         }
@@ -98,7 +101,7 @@ impl Coordinator {
         )?;
 
         if multisigned_batch.signatures().len() as u64 >= ctx.core.signatures_threshold {
-            return Submitter::create(ctx, multisigned_batch);
+            return Self::submission(ctx, multisigned_batch);
         }
 
         let payload = BatchCommitmentValidationRequest::new(multisigned_batch.batch());
@@ -117,6 +120,22 @@ impl Coordinator {
             multisigned_batch,
         }
         .into())
+    }
+
+    pub fn submission(
+        mut ctx: ValidatorContext,
+        multisigned_batch: MultisignedBatchCommitment,
+    ) -> Result<ValidatorState> {
+        tracing::trace!("Starting submission of multisigned batch commitment");
+
+        if ctx.submission_task.is_some() {
+            ctx.output(ConsensusEvent::Warning(
+                "New submission task coming, but old is not completed yet - abort old one".into(),
+            ));
+        }
+        let (batch, signatures) = multisigned_batch.into_parts();
+        ctx.submission_task = Some(ctx.core.committer.clone_boxed().commit(batch, signatures));
+        return Initial::create(ctx);
     }
 }
 
@@ -236,7 +255,8 @@ mod tests {
         ));
 
         coordinator = coordinator.process_validation_reply(reply4).unwrap();
-        assert!(coordinator.is_submitter());
+        assert!(coordinator.is_initial());
         assert_eq!(coordinator.context().output.len(), 3);
+        assert!(coordinator.context().submission_task.is_some());
     }
 }

@@ -24,8 +24,8 @@ use crate::{
     Service,
     config::{self, Config},
     tests::utils::{
-        EnvNetworkConfig, Node, NodeConfig, TestEnv, TestEnvConfig, TestingEvent, ValidatorsConfig,
-        Wallets, init_logger,
+        EnvNetworkConfig, Node, NodeConfig, ObserverEventsListener, TestEnv, TestEnvConfig,
+        TestingEvent, ValidatorsConfig, Wallets, init_logger,
     },
 };
 use alloy::{
@@ -35,14 +35,15 @@ use alloy::{
 use ethexe_common::{
     Announce, HashOf, ScheduledTask,
     db::*,
+    ecdsa::ContractSignature,
     events::{BlockEvent, MirrorEvent, RouterEvent},
-    gear::MessageType,
+    gear::{BatchCommitment, MessageType},
     mock::*,
     network::ValidatorMessage,
 };
-use ethexe_consensus::ConsensusEvent;
+use ethexe_consensus::{BatchCommitter, ConsensusEvent};
 use ethexe_db::{Database, verifier::IntegrityVerifier};
-use ethexe_ethereum::deploy::ContractsDeploymentParams;
+use ethexe_ethereum::{deploy::ContractsDeploymentParams, router::Router};
 use ethexe_observer::EthereumConfig;
 use ethexe_processor::{DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, RunnerConfig};
 use ethexe_prometheus::PrometheusConfig;
@@ -1871,3 +1872,183 @@ async fn announces_conflicts() {
         });
     }
 }
+
+// #[tokio::test(flavor = "multi_thread")]
+// #[ntest::timeout(60_000)]
+// async fn catch_up() {
+//     init_logger();
+
+//     #[derive(Clone)]
+//     struct LateCommitter {
+//         router: Router,
+//         listener: ObserverEventsListener,
+//     }
+
+//     #[async_trait::async_trait]
+//     impl BatchCommitter for LateCommitter {
+//         fn clone_boxed(&self) -> Box<dyn BatchCommitter> {
+//             Box::new(self.clone())
+//         }
+
+//         async fn commit(
+//             mut self: Box<Self>,
+//             batch: BatchCommitment,
+//             signatures: Vec<ContractSignature>,
+//         ) -> anyhow::Result<H256> {
+//             log::info!("📗 LateCommitter committing batch {:?}", batch);
+
+//             self.listener.wait_for_next_block().await?;
+
+//             self.router.commit_batch(batch, signatures).await
+//         }
+//     }
+
+//     let config = TestEnvConfig {
+//         network: EnvNetworkConfig::Enabled,
+//         ..Default::default()
+//     };
+//     let mut env = TestEnv::new(config).await.unwrap();
+
+//     log::info!("📗 Starting Alice");
+//     let mut alice = env.new_node(NodeConfig::named("Alice").validator(env.validators[0]));
+//     alice.custom_committer = Some(Box::new(LateCommitter {
+//         router: env.ethereum.router().clone(),
+//         listener: env.observer_events_publisher().subscribe().await,
+//     }));
+//     alice.start_service().await;
+
+//     // log::info!("📗 Starting Bob");
+//     // let mut bob = env.new_node(NodeConfig::named("Bob"));
+//     // bob.start_service().await;
+
+//     let ping_code_id = {
+//         let wait_for = env.upload_code(demo_ping::WASM_BINARY).await.unwrap();
+//         env.force_new_block().await;
+//         wait_for.wait_for().await.unwrap().code_id
+//     };
+
+//     let ping_id = env
+//         .create_program(ping_code_id, 500_000_000_000_000)
+//         .await
+//         .unwrap()
+//         .wait_for()
+//         .await
+//         .unwrap()
+//         .program_id;
+
+//     // Wait until both nodes process the program creation
+//     let last_block = env.latest_block().await;
+//     // let last_announce_hash = bob
+//     //     .listener()
+//     //     .wait_for_announce_computed(last_block.hash)
+//     //     .await;
+
+//     log::info!("📗 Stopping Alice to control commitments manually");
+//     alice.stop_service().await;
+
+//     // alice.custom_committer = Some(
+//     //     Box::new()
+//     // )
+
+//     // // Send two messages (generates two blocks) and send two announces to the network manually
+//     // let listener = env.observer_events_publisher().subscribe().await;
+//     // for i in 0..2 {
+//     //     env.send_message(ping_id, b"PING", 0).await.unwrap();
+//     //     let block = listener.wait_for_next_block().await.unwrap();
+//     //     alice.publish_validator_message(ValidatorMessage {
+//     //         block: block.hash,
+//     //         payload: Announce::with_default_gas(block.hash, last_announce_hash),
+//     //     })
+//     // }
+
+//     // // alice.publish_validator_message(ValidatorMessage {
+//     // //     block
+//     // // })
+
+//     // log::info!("📗 Sending messages to programs");
+
+//     // for (i, program_id) in program_ids.into_iter().enumerate() {
+//     //     let reply_info = env
+//     //         .send_message(program_id, &(i as u64).encode(), 0)
+//     //         .await
+//     //         .unwrap()
+//     //         .wait_for()
+//     //         .await
+//     //         .unwrap();
+//     //     assert_eq!(
+//     //         reply_info.code,
+//     //         ReplyCode::Success(SuccessReplyReason::Manual)
+//     //     );
+//     // }
+
+//     // let latest_block = env.latest_block().await.hash.0.into();
+//     // alice
+//     //     .listener()
+//     //     .wait_for_announce_computed(latest_block)
+//     //     .await;
+//     // bob.listener()
+//     //     .wait_for_announce_computed(latest_block)
+//     //     .await;
+
+//     // log::info!("📗 Stopping Bob");
+//     // bob.stop_service().await;
+
+//     // assert_chain(
+//     //     latest_block,
+//     //     bob.latest_fast_synced_block.take().unwrap(),
+//     //     &alice,
+//     //     &bob,
+//     // );
+
+//     // for (i, program_id) in program_ids.into_iter().enumerate() {
+//     //     let i = (i * 3) as u64;
+//     //     let reply_info = env
+//     //         .send_message(program_id, &i.encode(), 0)
+//     //         .await
+//     //         .unwrap()
+//     //         .wait_for()
+//     //         .await
+//     //         .unwrap();
+//     //     assert_eq!(
+//     //         reply_info.code,
+//     //         ReplyCode::Success(SuccessReplyReason::Manual)
+//     //     );
+//     // }
+
+//     // env.skip_blocks(100).await;
+
+//     // let latest_block: H256 = env.latest_block().await.hash.0.into();
+//     // alice
+//     //     .listener()
+//     //     .wait_for_announce_computed(latest_block)
+//     //     .await;
+
+//     // log::info!("📗 Starting Bob again to check how it handles partially empty database");
+//     // bob.start_service().await;
+
+//     // // Mine some blocks so Bob can produce the event we will wait for.
+//     // // We mine several blocks here to ensure that Bob and Alice would converge to the same chain of announces.
+//     // // Why do we need that? Because Bob was disabled he missed some announces that Alice produced,
+//     // // this announces was not committed, so Bob would not see them during fast-sync
+//     // // and would not have them in his database. This is normal situation, after a few blocks Bob and Alice should
+//     // // converge to the same chain of announces.
+//     // for _ in 0..env.commitment_delay_limit {
+//     //     env.skip_blocks(1).await;
+//     // }
+
+//     // let latest_block = env.latest_block().await.hash.0.into();
+//     // alice
+//     //     .listener()
+//     //     .wait_for_announce_computed(latest_block)
+//     //     .await;
+//     // bob.listener()
+//     //     .wait_for_announce_computed(latest_block)
+//     //     .await;
+
+//     // assert_chain(
+//     //     latest_block,
+//     //     bob.latest_fast_synced_block.take().unwrap(),
+//     //     &alice,
+//     //     &bob,
+//     // );
+// }

@@ -20,7 +20,7 @@ use crate::Event;
 use anyhow::Result;
 use ethexe_blob_loader::BlobLoaderEvent;
 use ethexe_common::{
-    Address, Announce, HashOf, SimpleBlockData, db::*, events::BlockEvent,
+    Announce, HashOf, SimpleBlockData, db::*, events::BlockEvent,
     injected::SignedInjectedTransaction, tx_pool::SignedOffchainTransaction,
 };
 use ethexe_compute::ComputeEvent;
@@ -107,8 +107,6 @@ impl TestingEvent {
 pub struct ServiceEventsListener<'a> {
     pub receiver: &'a mut TestingEventReceiver,
     pub db: Database,
-    #[allow(unused)]
-    pub router_address: Address,
 }
 
 #[derive(Debug, Default, Clone, Copy, derive_more::From)]
@@ -219,6 +217,16 @@ impl Clone for ObserverEventsListener {
 impl ObserverEventsListener {
     pub async fn next_event(&mut self) -> Result<ObserverEvent> {
         self.receiver.recv().await.map_err(Into::into)
+    }
+
+    #[allow(unused)]
+    pub async fn wait_for_next_block(&mut self) -> Result<SimpleBlockData> {
+        loop {
+            let event = self.next_event().await?;
+            if let ObserverEvent::Block(block) = event {
+                return Ok(block);
+            }
+        }
     }
 
     #[allow(unused)]

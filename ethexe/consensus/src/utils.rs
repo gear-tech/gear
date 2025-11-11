@@ -123,8 +123,8 @@ impl MultisignedBatchCommitment {
     ///
     /// # Returns
     /// A tuple containing the batch commitment and the map of signatures
-    pub fn into_parts(self) -> (BatchCommitment, BTreeMap<Address, ContractSignature>) {
-        (self.batch, self.signatures)
+    pub fn into_parts(self) -> (BatchCommitment, Vec<ContractSignature>) {
+        (self.batch, self.signatures.into_values().collect())
     }
 }
 

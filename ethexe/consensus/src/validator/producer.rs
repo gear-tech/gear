@@ -217,7 +217,7 @@ mod tests {
         validator::{PendingEvent, mock::*},
     };
     use async_trait::async_trait;
-    use ethexe_common::{Digest, HashOf, ToDigest, db::*, gear::CodeCommitment, mock::*};
+    use ethexe_common::{Digest, HashOf, db::*, gear::CodeCommitment, mock::*};
     use nonempty::nonempty;
 
     #[tokio::test]
@@ -301,16 +301,20 @@ mod tests {
         }
         .setup(&state.context().core.db);
 
-        let (state, event) = state
+        let mut state = state
             .process_computed_announce(announce_hash)
             .unwrap()
-            .wait_for_event()
+            .wait_for_state(|state| matches!(state, ValidatorState::Initial(_)))
             .await
             .unwrap();
 
-        dbg!(&event);
-        assert!(state.is_initial());
-        assert!(event.is_commitment_submitted());
+        let _tx = state
+            .context_mut()
+            .submission_task
+            .take()
+            .expect("expect submission task here")
+            .await
+            .unwrap();
 
         // Check that we have a batch with commitments after submitting
         let (committed_batch, signatures) = eth
@@ -318,18 +322,10 @@ mod tests {
             .read()
             .await
             .clone()
-            .expect("Expected that batch is committed")
-            .into_parts();
+            .expect("Expected that batch is committed");
+
         assert_eq!(committed_batch, batch);
         assert_eq!(signatures.len(), 1);
-        let (address, signature) = signatures.into_iter().next().unwrap();
-        assert_eq!(
-            signature
-                .validate(state.context().core.router_address, batch.to_digest())
-                .unwrap()
-                .to_address(),
-            address
-        );
     }
 
     #[tokio::test]
@@ -395,30 +391,30 @@ mod tests {
             .await
             .unwrap();
 
-        let (state, event) = state
+        let mut state = state
             .process_computed_announce(announce_hash)
             .unwrap()
-            .wait_for_event()
+            .wait_for_state(|state| matches!(state, ValidatorState::Initial(_)))
             .await
             .unwrap();
-        assert!(
-            state.is_initial(),
-            "State must go to initial, actual: {state}"
-        );
-        assert!(
-            event.is_commitment_submitted(),
-            "Event must be commitment submitted, actual: {event:?}"
-        );
 
-        let batch = eth
+        let _tx = state
+            .context_mut()
+            .submission_task
+            .take()
+            .expect("expect submission task here")
+            .await
+            .unwrap();
+
+        let (batch, signatures) = eth
             .committed_batch
             .read()
             .await
             .clone()
             .expect("Expected that batch is committed");
-        assert_eq!(batch.signatures().len(), 1);
-        assert!(batch.batch().chain_commitment.is_none());
-        assert_eq!(batch.batch().code_commitments.len(), 2);
+        assert_eq!(signatures.len(), 1);
+        assert_eq!(batch.chain_commitment, None);
+        assert_eq!(batch.code_commitments.len(), 2);
     }
 
     // TODO: test that zero timer works as expected
