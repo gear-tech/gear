@@ -10,6 +10,7 @@ repository.workspace = true
 [dependencies]
 gstd.workspace = true
 async-recursion.workspace = true
+intentionally-empty.workspace = true
 
 [build-dependencies]
 gear-wasm-builder.workspace = true

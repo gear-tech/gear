@@ -57,6 +57,7 @@ frame-benchmarking-cli = { workspace = true, optional = true }
 
 # Program CLI
 gcli = { workspace = true, optional = true }
+intentionally-empty.workspace = true
 
 [build-dependencies]
 substrate-build-script-utils.workspace = true

@@ -21,3 +21,4 @@ tabled.workspace = true
 pallet-gear = { workspace = true, features = ["std"] }
 frame-support = { workspace = true, features = ["std"] }
 vara-runtime = { workspace = true, features = ["std"] }
+intentionally-empty.workspace = true

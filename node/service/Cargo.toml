@@ -88,6 +88,7 @@ frame-benchmarking = { workspace = true, features = ["std"] }
 frame-benchmarking-cli.workspace = true
 substrate-frame-rpc-system.workspace = true
 substrate-state-trie-migration-rpc.workspace = true
+intentionally-empty.workspace = true
 
 [build-dependencies]
 

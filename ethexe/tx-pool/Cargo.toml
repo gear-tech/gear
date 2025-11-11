@@ -18,6 +18,7 @@ parity-scale-codec = { workspace = true, features = ["std", "derive"] }
 tokio = { workspace = true, features = ["sync", "rt"] }
 log.workspace = true
 futures.workspace = true
+intentionally-empty.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["sync", "rt", "macros"] }

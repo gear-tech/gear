@@ -19,3 +19,4 @@ gear-core.workspace = true
 gear-core-errors = { workspace = true, features = ["codec"] }
 gear-common.workspace = true
 pallet-gear-rpc-runtime-api.workspace = true
+intentionally-empty.workspace = true

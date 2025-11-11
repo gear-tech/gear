@@ -11,6 +11,7 @@ repository.workspace = true
 gstd.workspace = true
 parity-scale-codec.workspace = true
 hex-literal.workspace = true
+intentionally-empty.workspace = true
 
 [build-dependencies]
 gear-wasm-builder.workspace = true

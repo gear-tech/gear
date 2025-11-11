@@ -16,6 +16,7 @@ parity-scale-codec = { workspace = true, features = ["derive"], optional = true 
 scale-info = { workspace = true, features = ["derive"], optional = true }
 serde = { workspace = true, features = ["derive"], optional = true }
 thiserror.workspace = true
+intentionally-empty.workspace = true
 
 [features]
 codec = ["parity-scale-codec", "scale-info"]

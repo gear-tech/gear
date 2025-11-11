@@ -39,6 +39,7 @@ sp-inherents = { workspace = true, features = ["std"] }
 
 # Substrate Other
 prometheus-endpoint.workspace = true
+intentionally-empty.workspace = true
 
 [dev-dependencies]
 sc-transaction-pool.workspace = true

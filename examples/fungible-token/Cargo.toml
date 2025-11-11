@@ -12,6 +12,7 @@ gstd.workspace = true
 hashbrown.workspace = true
 parity-scale-codec.workspace = true
 scale-info.workspace = true
+intentionally-empty.workspace = true
 
 [build-dependencies]
 gear-wasm-builder.workspace = true

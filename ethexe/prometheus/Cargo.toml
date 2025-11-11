@@ -20,3 +20,4 @@ hyper = { version = "0.14.16", default-features = false, features = [
 log.workspace = true
 prometheus.workspace = true
 tokio.workspace = true
+intentionally-empty.workspace = true

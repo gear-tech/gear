@@ -7,6 +7,7 @@ license.workspace = true
 
 [dependencies]
 gstd = { workspace = true, features = ["debug"] }
+intentionally-empty.workspace = true
 
 [dev-dependencies]
 gear-core.workspace = true

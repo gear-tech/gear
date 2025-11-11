@@ -122,6 +122,7 @@ pallet-gear-builtin-rpc-runtime-api.workspace = true
 pallet-gear-eth-bridge-rpc-runtime-api.workspace = true
 runtime-primitives.workspace = true
 gbuiltin-proxy.workspace = true
+intentionally-empty.workspace = true
 
 [dev-dependencies]
 sp-io.workspace = true

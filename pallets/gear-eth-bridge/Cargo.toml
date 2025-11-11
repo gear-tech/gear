@@ -36,6 +36,7 @@ pallet-grandpa.workspace = true
 sp-consensus-grandpa.workspace = true
 sp-runtime.workspace = true
 sp-std.workspace = true
+intentionally-empty.workspace = true
 
 [dev-dependencies]
 gprimitives.workspace = true

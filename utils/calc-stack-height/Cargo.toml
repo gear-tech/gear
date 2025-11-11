@@ -16,3 +16,4 @@ log.workspace = true
 tracing-subscriber.workspace = true
 anyhow = { workspace = true, features = ["std"] }
 wat.workspace = true
+intentionally-empty.workspace = true
