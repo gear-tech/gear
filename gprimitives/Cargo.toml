@@ -17,6 +17,8 @@ bytemuck = { workspace = true, features = ["derive"] }
 derive_more.workspace = true
 primitive-types = { workspace = true, features = ["scale-info", "rustc-hex"] }
 scale-info = { workspace = true, features = ["derive"], optional = true }
+scale-decode = { workspace = true, optional = true }
+scale-encode = { workspace = true, optional = true }
 serde = { workspace = true, features = ["derive"], optional = true }
 hex.workspace = true
 gear-ss58.workspace = true
@@ -25,6 +27,6 @@ thiserror.workspace = true
 [features]
 default = ["std"]
 std = []
-codec = ["dep:scale-info"]
+codec = ["dep:scale-info", "dep:scale-encode", "dep:scale-decode"]
 serde = ["dep:serde", "primitive-types/serde", "std"]
 ethexe = ["dep:alloy-primitives", "dep:alloy-sol-types"]
