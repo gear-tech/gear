@@ -29,8 +29,20 @@ use std::collections::HashSet;
 /// [`InjectedTxPool`] is a local pool of injected transactions, which validator can include in announces.
 #[derive(Clone)]
 pub(crate) struct InjectedTxPool<DB = Database> {
+    /// HashSet of (reference_block, injected_tx_hash).
     inner: HashSet<(H256, HashOf<InjectedTransaction>)>,
     db: DB,
+}
+
+#[derive(Debug, Copy, Clone, PartialEq, Eq)]
+enum TxValidityStatus {
+    /// Transaction is valid and can be included into announce.
+    Valid,
+    /// Transaction is outdated and should be remove from pool.
+    Outdated,
+    /// Transaction's reference block not on current branch.
+    /// Keep tx in pool in case of reorg.
+    NotOnCurrentBranch,
 }
 
 impl<DB> InjectedTxPool<DB>
@@ -47,7 +59,7 @@ where
     pub fn handle_tx(&mut self, tx: SignedInjectedTransaction) {
         let tx_hash = tx.data().hash();
         let reference_block = tx.data().reference_block;
-        tracing::info!(tx_hash = ?tx_hash, reference_block = ?reference_block,  "handle new injected tx");
+        tracing::trace!(tx_hash = ?tx_hash, reference_block = ?reference_block,  "handle new injected tx");
 
         if self.inner.insert((reference_block, tx_hash)) {
             // Write tx in database only if its not already contains in pool.
@@ -56,17 +68,17 @@ where
     }
 
     /// Returns the injected transactions that are valid and can be included to announce.
-    pub fn collect_txs_for(
+    pub fn select_for_announce(
         &mut self,
         block_hash: H256,
         parent_announce: HashOf<Announce>,
     ) -> Result<Vec<SignedInjectedTransaction>> {
-        tracing::info!(block = ?block_hash, "start collecting injected transactions");
+        tracing::trace!(block = ?block_hash, "start collecting injected transactions");
 
         let already_included_txs =
             tx_pool_utils::collect_recent_included_txs(&self.db, parent_announce);
 
-        let mut collected_txs = vec![];
+        let mut selected_txs = vec![];
         let mut outdated_txs = vec![];
 
         for (reference_block, tx_hash) in self.inner.iter() {
@@ -74,15 +86,16 @@ where
                 continue;
             };
 
-            if !self.reference_block_within_validity_window(*reference_block, block_hash)? {
-                outdated_txs.push((*reference_block, *tx_hash));
-                continue;
-            }
-
-            if self.reference_block_on_current_branch(*reference_block, block_hash)?
-                && !already_included_txs.contains(tx_hash)
-            {
-                collected_txs.push(tx);
+            match self.check_tx_validity(*reference_block, block_hash)? {
+                TxValidityStatus::Valid => {
+                    if !already_included_txs.contains(tx_hash) {
+                        selected_txs.push(tx);
+                    }
+                }
+                TxValidityStatus::NotOnCurrentBranch => {
+                    tracing::trace!(tx_hash = ?tx_hash, "tx on different branch, keeping in pool");
+                }
+                TxValidityStatus::Outdated => outdated_txs.push((*reference_block, *tx_hash)),
             }
         }
 
@@ -90,7 +103,24 @@ where
             self.inner.remove(&key);
         });
 
-        Ok(collected_txs)
+        Ok(selected_txs)
+    }
+
+    /// To determine the validity of transaction is enough to check the validity of its reference block.
+    fn check_tx_validity(
+        &self,
+        reference_block: H256,
+        chain_head: H256,
+    ) -> Result<TxValidityStatus> {
+        if !self.reference_block_within_validity_window(reference_block, chain_head)? {
+            return Ok(TxValidityStatus::Outdated);
+        }
+
+        if !self.reference_block_on_current_branch(reference_block, chain_head)? {
+            return Ok(TxValidityStatus::NotOnCurrentBranch);
+        }
+
+        Ok(TxValidityStatus::Valid)
     }
 
     fn reference_block_within_validity_window(
@@ -145,6 +175,7 @@ mod tx_pool_utils {
         announce: HashOf<Announce>,
     ) -> HashSet<HashOf<InjectedTransaction>> {
         let mut txs = HashSet::new();
+
         let mut announce_hash = announce;
         for _ in 0..VALIDITY_WINDOW {
             let Some(announce) = db.announce(announce_hash) else {
