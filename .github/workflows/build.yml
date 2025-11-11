@@ -222,6 +222,8 @@ jobs:
           eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
           eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
           key: "${{ matrix.profiles.name }}"
+          # we run `cargo build` and `cargo test` for the whole workspace, so it's better not to rebuild
+          keep-workspace-hack: true
 
       - name: "Install: Foundry"
         uses: foundry-rs/foundry-toolchain@v1
@@ -279,6 +281,8 @@ jobs:
           eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
           eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
           cache-all-crates: true
+          # `crates-io` invokes `cargo build` many times inside
+          keep-workspace-hack: true
 
       - name: "Test: crates-io packages publishing"
         run: cargo +stable run --release -p crates-io publish --simulate --registry-path /tmp/cargo-http-registry
@@ -476,6 +480,12 @@ jobs:
         with:
           name: examples-release-wasm32-gear
           path: examples-artifact
+
+      - name: "ACTIONS: Disable workspace hack"
+        uses: ./.github/actions/cargo-hakari
+        with:
+          # production binaries should not have additional features enabled
+          args: disable
 
       - name: "Build: Production binaries"
         run: cargo build -p wasm-proc -p gear-cli -F cli --profile production

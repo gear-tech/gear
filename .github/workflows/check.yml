@@ -22,16 +22,6 @@ jobs:
       - run: cargo binstall --no-confirm cargo-shear
       - run: cargo shear --exclude=intentionally-empty
 
-  cargo-hakari:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-hakari
-      - run: cargo hakari generate --diff
-      - run: cargo hakari manage-deps --dry-run
-
   fmt:
     runs-on: ubuntu-latest
     steps:
@@ -157,6 +147,47 @@ jobs:
           key: "${{ matrix.name }}"
 
       - name: "Check clippy"
+        run: ./scripts/gear.sh clippy gear --all-targets --all-features --locked
+
+  workspace-hack:
+    runs-on: ubuntu-latest
+    steps:
+      - name: "ACTIONS: Checkout"
+        uses: actions/checkout@v4
+
+      - name: "Install: Setup linker"
+        uses: ./.github/actions/setup-linker
+
+      - name: "Install: Rust toolchain"
+        uses: ./.github/actions/install-rust
+
+      - name: "Install: Rust stable toolchain"
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: wasm32v1-none
+
+      - name: "Install: cargo-hakari"
+        uses: taiki-e/install-action@v2
+        with:
+          tool: cargo-hakari
+
+      - name: "Check if workspace hack Cargo.toml is up-to-date"
+        run: cargo hakari generate --diff
+
+      - name: "Check if all workspace crates depend on workspace hack"
+        run: cargo hakari manage-deps --dry-run
+
+      - name: "ACTIONS: Setup caching"
+        uses: ./.github/actions/rust-cache
+        with:
+          us-access-key-id: "${{ secrets.GEAR_CI_S3_US_ACCESS_KEY_ID }}"
+          us-secret-access-key: "${{ secrets.GEAR_CI_S3_US_SECRET_ACCESS_KEY }}"
+          eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
+          eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
+          # we want to test the hack that doesn't interfere with some Substrate features
+          keep-workspace-hack: true
+
+      - name: "Check clippy with workspace hack enabled"
         run: ./scripts/gear.sh clippy gear --all-targets --all-features --locked
 
   wasm:

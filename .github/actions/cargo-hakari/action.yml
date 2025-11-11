@@ -1,0 +1,18 @@
+name: cargo-hakari
+author: ark0f
+description: Run `cargo hakari`
+
+inputs:
+  args:
+    required: true
+    description: Arguments for `cargo hakari`
+
+runs:
+  using: composite
+  steps:
+    - uses: taiki-e/install-action@v2
+      with:
+        tool: cargo-hakari
+
+    - run: cargo hakari ${{ inputs.args }}
+      shell: bash
