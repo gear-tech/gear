@@ -561,6 +561,7 @@ unexpected_cfgs = { level = "warn", check-cfg = [
 
 [workspace.metadata.cargo-shear]
 ignored = [
+    "intentionally-empty",
     "frame-benchmarking",
     "frame-system-benchmarking",
     "frame-system-rpc-runtime-api",
