@@ -78,6 +78,116 @@ use subxt::{
         path = "gear_core::memory::PageBuf",
         with = "::gear_core::memory::PageBuf"
     ),
+    substitute_type(
+        path = "gear_core::message::user::UserStoredMessage",
+        with = "::gear_core::message::UserStoredMessage"
+    ),
+    substitute_type(
+        path = "gear_core::code::instrumented::InstrumentedCode",
+        with = "::gear_core::code::InstrumentedCode"
+    ),
+    substitute_type(
+        path = "gear_core::code::instrumented::InstantiatedSectionSizes",
+        with = "::gear_core::code::InstantiatedSectionSizes"
+    ),
+    substitute_type(
+        path = "gear_core::code::metadata::CodeMetadata",
+        with = "::gear_core::code::CodeMetadata"
+    ),
+    substitute_type(
+        path = "gear_core::code::metadata::InstrumentationStatus",
+        with = "::gear_core::code::InstrumentationStatus"
+    ),
+    substitute_type(path = "gear_core::limited::vec::LimitedVec", with = "::std::vec::Vec"),
+    substitute_type(
+        path = "gear_core::message::common::MessageDetails",
+        with = "::gear_core::message::MessageDetails"
+    ),
+    substitute_type(
+        path = "gear_core::message::common::ReplyDetails",
+        with = "::gear_core::message::ReplyDetails"
+    ),
+    substitute_type(
+        path = "gear_core::message::common::SignalDetails",
+        with = "::gear_core::message::SignalDetails"
+    ),
+    substitute_type(
+        path = "gear_core::message::context::ContextStore",
+        with = "::gear_core::message::ContextStore"
+    ),
+    substitute_type(
+        path = "gear_core::message::stored::StoredDelayedDispatch",
+        with = "::gear_core::message::StoredDelayedDispatch"
+    ),
+    substitute_type(
+        path = "gear_core::message::stored::StoredDispatch",
+        with = "::gear_core::message::StoredDispatch"
+    ),
+    substitute_type(
+        path = "gear_core::message::stored::StoredMessage",
+        with = "::gear_core::message::StoredMessage"
+    ),
+    substitute_type(
+        path = "gear_core::message::user::UserMessage",
+        with = "::gear_core::message::UserMessage"
+    ),
+    substitute_type(
+        path = "gear_core::message::DispatchKind",
+        with = "::gear_core::message::DispatchKind"
+    ),
+    substitute_type(
+        path = "gear_core::percent::Percent",
+        with = "::gear_core::percent::Percent"
+    ),
+    substitute_type(
+        path = "gear_core::program::ProgramState",
+        with = "::gear_core::program::ProgramState"
+    ),
+    substitute_type(
+        path = "gear_core::reservation::GasReservationSlot",
+        with = "::gear_core::reservation::GasReservationSlot"
+    ),
+    substitute_type(
+        path = "gear_core::reservation::ReservationNonce",
+        with = "::gear_core::reservation::ReservationNonce"
+    ),
+    substitute_type(path = "gear_core::rpc::GasInfo", with = "::gear_core::rpc::GasInfo"),
+    substitute_type(
+        path = "gear_core::rpc::ReplyInfo",
+        with = "::gear_core::rpc::ReplyInfo"
+    ),
+    substitute_type(
+        path = "gear_core::tasks::ScheduledTask",
+        with = "::gear_core::tasks::ScheduledTask"
+    ),
+    substitute_type(
+        path = "gear_core_errors::simple::ErrorReplyReason",
+        with = "::gear_core_errors::ErrorReplyReason"
+    ),
+    substitute_type(
+        path = "gear_core_errors::simple::ErrorReplyReason",
+        with = "::gear_core_errors::ErrorReplyReason"
+    ),
+    substitute_type(
+        path = "gear_core_errors::simple::ReplyCode",
+        with = "::gear_core_errors::ReplyCode"
+    ),
+    substitute_type(
+        path = "gear_core_errors::simple::SignalCode",
+        with = "::gear_core_errors::SignalCode"
+    ),
+    substitute_type(
+        path = "gear_core_errors::simple::SimpleExecutionError",
+        with = "::gear_core_errors::SimpleExecutionError"
+    ),
+    substitute_type(
+        path = "gear_core_errors::simple::SimpleUnavailableActorError",
+        with = "::gear_core_errors::SimpleUnavailableActorError"
+    ),
+    substitute_type(
+        path = "gear_core_errors::simple::SuccessReplyReason",
+        with = "::gear_core_errors::SuccessReplyReason"
+    ),
     generate_docs
 )]
 pub mod gear {}
@@ -99,9 +209,13 @@ mod utils;
 mod ensure_versions;
 
 pub mod ext {
+    pub use subxt::ext::*;
+
+    pub use gear_core;
+    pub use gear_core_errors;
     pub use sp_core;
     pub use sp_runtime::{self, codec, scale_info};
-    pub use subxt::utils;
+    pub use subxt;
 }
 pub mod gp {
     //! generated code preludes.

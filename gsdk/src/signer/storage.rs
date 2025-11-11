@@ -24,7 +24,6 @@ use crate::{
         runtime_types::{
             frame_system::pallet::Call,
             gear_core::{
-                code::{instrumented::InstrumentedCode, metadata::CodeMetadata},
                 pages::Page,
                 program::{ActiveProgram, Program},
             },
@@ -35,8 +34,11 @@ use crate::{
     signer::{Inner, utils::EventsResult},
     utils::storage_address_bytes,
 };
-use gear_core::{ids::*, program::MemoryInfix};
-use parity_scale_codec::Encode;
+use gear_core::{
+    code::{CodeMetadata, InstrumentedCode},
+    ids::*,
+    program::MemoryInfix,
+};
 use sp_runtime::AccountId32;
 use std::sync::Arc;
 use subxt::{metadata::EncodeWithMetadata, storage::Address};

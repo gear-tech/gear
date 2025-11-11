@@ -26,7 +26,6 @@ gear-core-errors.workspace = true
 futures.workspace = true
 anyhow.workspace = true
 hex.workspace = true
-subxt.workspace = true
 parity-scale-codec.workspace = true
 thiserror.workspace = true
 async-trait.workspace = true

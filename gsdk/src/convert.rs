@@ -53,3 +53,31 @@ impl IntoSubstrate for subxt::utils::AccountId32 {
         self.0.into()
     }
 }
+
+impl<A: IntoSubstrate, B> IntoSubstrate for subxt::utils::MultiAddress<A, B> {
+    type Target = sp_runtime::MultiAddress<A::Target, B>;
+
+    fn into_substrate(self) -> Self::Target {
+        match self {
+            Self::Id(id) => Self::Target::Id(id.into_substrate()),
+            Self::Index(index) => Self::Target::Index(index),
+            Self::Raw(items) => Self::Target::Raw(items),
+            Self::Address32(address) => Self::Target::Address32(address),
+            Self::Address20(address) => Self::Target::Address20(address),
+        }
+    }
+}
+
+impl<A: IntoSubxt, B> IntoSubxt for sp_runtime::MultiAddress<A, B> {
+    type Target = subxt::utils::MultiAddress<A::Target, B>;
+
+    fn into_subxt(self) -> Self::Target {
+        match self {
+            Self::Id(id) => Self::Target::Id(id.into_subxt()),
+            Self::Index(index) => Self::Target::Index(index),
+            Self::Raw(items) => Self::Target::Raw(items),
+            Self::Address32(address) => Self::Target::Address32(address),
+            Self::Address20(address) => Self::Target::Address20(address),
+        }
+    }
+}

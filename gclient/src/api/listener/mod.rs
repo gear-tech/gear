@@ -19,20 +19,17 @@
 mod iterator;
 mod subscription;
 
-pub use gsdk::metadata::{Event, gear::Event as GearEvent};
+pub use gsdk::gear::{Event, gear::Event as GearEvent};
 pub use iterator::*;
 
 use crate::{Error, Result};
 use async_trait::async_trait;
-use gear_core::ids::MessageId;
-use gear_core_errors::ReplyCode;
-use gsdk::metadata::runtime_types::{
-    gear_common::event::DispatchStatus as GenDispatchStatus,
-    gear_core::message::{
-        common::ReplyDetails as GenReplyDetails, user::UserMessage as GenUserMessage,
-    },
-    gprimitives::MessageId as GenMId,
+use gear_core::{
+    ids::MessageId,
+    message::{ReplyDetails, UserMessage},
 };
+use gear_core_errors::ReplyCode;
+use gsdk::gear::runtime_types::gear_common::event::DispatchStatus as GenDispatchStatus;
 
 /// Dispatch status returned after processing a message.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]

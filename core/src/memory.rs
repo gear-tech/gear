@@ -135,14 +135,26 @@ impl Debug for PageBuf {
 }
 
 impl Deref for PageBuf {
-    type Target = [u8; GearPage::SIZE as usize];
+    type Target = [u8];
     fn deref(&self) -> &Self::Target {
-        &self.0
+        &*self.0
     }
 }
 
 impl DerefMut for PageBuf {
     fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut *self.0
+    }
+}
+
+impl AsRef<[u8; GearPage::SIZE as usize]> for PageBuf {
+    fn as_ref(&self) -> &[u8; GearPage::SIZE as usize] {
+        &self.0
+    }
+}
+
+impl AsMut<[u8; GearPage::SIZE as usize]> for PageBuf {
+    fn as_mut(&mut self) -> &mut [u8; GearPage::SIZE as usize] {
         &mut self.0
     }
 }
@@ -150,7 +162,12 @@ impl DerefMut for PageBuf {
 impl PageBuf {
     /// Returns new page buffer with zeroed data.
     pub fn new_zeroed() -> PageBuf {
-        Self([0; GearPage::SIZE as usize].into())
+        Self::filled_with(0)
+    }
+
+    /// Returns new page buffer filled with given byte.
+    pub fn filled_with(byte: u8) -> PageBuf {
+        Self([byte; GearPage::SIZE as usize].into())
     }
 
     /// Creates PageBuf from inner buffer. If the buffer has

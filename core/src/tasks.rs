@@ -18,9 +18,16 @@
 
 //! The module provides primitives for all available regular or time-dependent tasks.
 
+#![expect(
+    deprecated,
+    reason = "`scale_{encode,decode}` generates code that uses deprecated enum variant to {en,de}code it"
+)]
+
 use crate::ids::{ActorId, MessageId, ReservationId};
 use gsys::Gas;
 use parity_scale_codec::{Decode, Encode, MaxEncodedLen};
+use scale_decode::DecodeAsType;
+use scale_encode::EncodeAsType;
 use scale_info::TypeInfo;
 
 /// Alias for ScheduledTask used in vara-runtime, generic across AccountId used.
@@ -41,7 +48,9 @@ pub type VaraScheduledTask<AccountId> = ScheduledTask<AccountId, MessageId, bool
     Ord,
     Hash,
     Encode,
+    EncodeAsType,
     Decode,
+    DecodeAsType,
     TypeInfo,
     MaxEncodedLen,
 )]

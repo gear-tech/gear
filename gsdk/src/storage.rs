@@ -25,8 +25,6 @@ use crate::{
             frame_system::{AccountInfo, EventRecord},
             gear_common::storage::primitives::Interval,
             gear_core::{
-                code::{instrumented::InstrumentedCode, metadata::CodeMetadata},
-                message::user::UserStoredMessage,
                 pages::Page,
                 program::{ActiveProgram, Program},
             },
@@ -38,7 +36,12 @@ use crate::{
     result::{Error, FailedPage, Result},
 };
 use futures::prelude::*;
-use gear_core::{ids::*, program::MemoryInfix};
+use gear_core::{
+    code::{CodeMetadata, InstrumentedCode},
+    ids::*,
+    message::UserStoredMessage,
+    program::MemoryInfix,
+};
 use gsdk_codegen::storage_fetch;
 use hex::ToHex;
 use sp_core::crypto::{AccountId32, Ss58Codec};

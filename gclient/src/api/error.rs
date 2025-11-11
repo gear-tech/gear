@@ -17,9 +17,11 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use anyhow::Error as AError;
-use gsdk::Error as GearSDKError;
+use gsdk::{
+    Error as GearSDKError,
+    ext::subxt::error::{DispatchError, Error as SubxtError},
+};
 use std::{io::Error as IOError, result::Result as StdResult};
-use subxt::error::{DispatchError, Error as SubxtError};
 
 /// `Result` type with a predefined error type ([`Error`]).
 pub type Result<T = (), E = Error> = StdResult<T, E>;
@@ -44,7 +46,7 @@ pub enum Error {
     Subxt(Box<SubxtError>),
     /// Subxt core error
     #[error(transparent)]
-    SubxtCore(#[from] Box<subxt::ext::subxt_core::Error>),
+    SubxtCore(#[from] Box<gsdk::ext::subxt_core::Error>),
     /// Occurs when an event of the expected type cannot be found.
     #[error("Expected event wasn't found")]
     EventNotFound,
@@ -149,8 +151,8 @@ impl From<GearSDKError> for Error {
     }
 }
 
-impl From<subxt::ext::subxt_core::Error> for Error {
-    fn from(value: subxt::ext::subxt_core::Error) -> Self {
+impl From<gsdk::ext::subxt_core::Error> for Error {
+    fn from(value: gsdk::ext::subxt_core::Error) -> Self {
         Self::SubxtCore(Box::new(value))
     }
 }

@@ -6243,7 +6243,6 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "sp-core",
- "subxt",
  "thiserror 2.0.12",
  "tokio",
  "tracing-subscriber",
