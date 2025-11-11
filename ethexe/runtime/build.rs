@@ -34,6 +34,7 @@ fn main() {
         substrate_wasm_builder::WasmBuilder::new()
             .with_current_project()
             .disable_runtime_version_section_check()
+            .append_to_cargo_flags(r#"--config=patch.crates-io.intentionally-empty.git="https://github.com/Kijewski/intentionally-empty""#)
             .build();
     }
 }

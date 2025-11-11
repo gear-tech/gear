@@ -45,14 +45,14 @@ arrayvec = { version = "0.7", features = ["serde"] }
 backtrace = { version = "0.3", features = ["gimli-symbolize"] }
 base64-3c51e837cfc5589a = { package = "base64", version = "0.22" }
 base64-594e8ee84c453af0 = { package = "base64", version = "0.13" }
-binary-merkle-tree = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std"] }
+binary-merkle-tree = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["std"] }
 bitflags = { version = "2", default-features = false, features = ["std"] }
 blake2 = { version = "0.10" }
 blake2b_simd = { version = "1", default-features = false, features = ["std"] }
 blake3 = { version = "1" }
 bounded-collections = { version = "0.2", default-features = false, features = ["std"] }
-bp-header-chain = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std"] }
-bp-runtime = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std"] }
+bp-header-chain = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["std"] }
+bp-runtime = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["std"] }
 bs58 = { version = "0.5" }
 byte-slice-cast = { version = "1", default-features = false, features = ["std"] }
 bytemuck = { version = "1", default-features = false, features = ["const_zeroed", "derive"] }
@@ -86,17 +86,17 @@ environmental = { version = "1" }
 ff = { version = "0.13", default-features = false, features = ["alloc"] }
 finality-grandpa = { version = "0.16", features = ["derive-codec"] }
 fixed-hash = { version = "0.8", default-features = false, features = ["std"] }
-frame-benchmarking = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", features = ["runtime-benchmarks"] }
-frame-benchmarking-cli = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", features = ["runtime-benchmarks"] }
-frame-election-provider-support = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", features = ["runtime-benchmarks", "try-runtime"] }
-frame-executive = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std", "try-runtime"] }
+frame-benchmarking = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", features = ["runtime-benchmarks"] }
+frame-benchmarking-cli = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", features = ["runtime-benchmarks"] }
+frame-election-provider-support = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", features = ["runtime-benchmarks", "try-runtime"] }
+frame-executive = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["std", "try-runtime"] }
 frame-metadata-8ee676a8f9a6c413 = { package = "frame-metadata", version = "16", default-features = false, features = ["current", "std"] }
 frame-metadata-e761569b921b4a02 = { package = "frame-metadata", version = "23", default-features = false, features = ["current", "std"] }
-frame-metadata-hash-extension = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std"] }
-frame-support = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", features = ["experimental", "runtime-benchmarks", "try-runtime"] }
-frame-system = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", features = ["runtime-benchmarks", "try-runtime"] }
-frame-system-rpc-runtime-api = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
-frame-try-runtime = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std", "try-runtime"] }
+frame-metadata-hash-extension = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["std"] }
+frame-support = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", features = ["experimental", "runtime-benchmarks", "try-runtime"] }
+frame-system = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", features = ["runtime-benchmarks", "try-runtime"] }
+frame-system-rpc-runtime-api = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+frame-try-runtime = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["std", "try-runtime"] }
 futures = { version = "0.3", features = ["bilock", "thread-pool", "unstable"] }
 futures-channel = { version = "0.3", features = ["sink", "unstable"] }
 futures-core = { version = "0.3", features = ["unstable"] }
@@ -149,39 +149,39 @@ num-traits = { version = "0.2", features = ["i128", "libm"] }
 object-51543b5218fc235c = { package = "object", version = "0.32", features = ["write"] }
 object-fa1f6196edfd7249 = { package = "object", version = "0.30", default-features = false, features = ["read_core", "write"] }
 once_cell = { version = "1" }
-pallet-authority-discovery = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std", "try-runtime"] }
-pallet-authorship = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std", "try-runtime"] }
-pallet-babe = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std", "try-runtime"] }
-pallet-bags-list = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["runtime-benchmarks", "std", "try-runtime"] }
-pallet-balances = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["runtime-benchmarks", "std", "try-runtime"] }
-pallet-bounties = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std", "try-runtime"] }
-pallet-child-bounties = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std", "try-runtime"] }
-pallet-conviction-voting = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["runtime-benchmarks", "std", "try-runtime"] }
-pallet-election-provider-multi-phase = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std", "try-runtime"] }
-pallet-grandpa = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["runtime-benchmarks", "std", "try-runtime"] }
-pallet-identity = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std", "try-runtime"] }
-pallet-im-online = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std", "try-runtime"] }
-pallet-multisig = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std", "try-runtime"] }
-pallet-nomination-pools = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std", "try-runtime"] }
-pallet-nomination-pools-runtime-api = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std"] }
-pallet-offences = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std", "try-runtime"] }
-pallet-preimage = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std", "try-runtime"] }
-pallet-proxy = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std", "try-runtime"] }
-pallet-ranked-collective = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["runtime-benchmarks", "std", "try-runtime"] }
-pallet-referenda = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["runtime-benchmarks", "std", "try-runtime"] }
-pallet-scheduler = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std", "try-runtime"] }
-pallet-session = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["historical", "std", "try-runtime"] }
-pallet-staking = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", features = ["runtime-benchmarks", "try-runtime"] }
-pallet-staking-reward-fn = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std"] }
-pallet-staking-runtime-api = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std"] }
-pallet-sudo = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std", "try-runtime"] }
-pallet-timestamp = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["runtime-benchmarks", "std", "try-runtime"] }
-pallet-transaction-payment = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std", "try-runtime"] }
-pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
-pallet-treasury = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std", "try-runtime"] }
-pallet-utility = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["runtime-benchmarks", "std", "try-runtime"] }
-pallet-vesting = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std", "try-runtime"] }
-pallet-whitelist = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std", "try-runtime"] }
+pallet-authority-discovery = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["std", "try-runtime"] }
+pallet-authorship = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["std", "try-runtime"] }
+pallet-babe = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["std", "try-runtime"] }
+pallet-bags-list = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["runtime-benchmarks", "std", "try-runtime"] }
+pallet-balances = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["runtime-benchmarks", "std", "try-runtime"] }
+pallet-bounties = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["std", "try-runtime"] }
+pallet-child-bounties = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["std", "try-runtime"] }
+pallet-conviction-voting = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["runtime-benchmarks", "std", "try-runtime"] }
+pallet-election-provider-multi-phase = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["std", "try-runtime"] }
+pallet-grandpa = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["runtime-benchmarks", "std", "try-runtime"] }
+pallet-identity = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["std", "try-runtime"] }
+pallet-im-online = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["std", "try-runtime"] }
+pallet-multisig = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["std", "try-runtime"] }
+pallet-nomination-pools = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["std", "try-runtime"] }
+pallet-nomination-pools-runtime-api = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["std"] }
+pallet-offences = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["std", "try-runtime"] }
+pallet-preimage = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["std", "try-runtime"] }
+pallet-proxy = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["std", "try-runtime"] }
+pallet-ranked-collective = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["runtime-benchmarks", "std", "try-runtime"] }
+pallet-referenda = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["runtime-benchmarks", "std", "try-runtime"] }
+pallet-scheduler = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["std", "try-runtime"] }
+pallet-session = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["historical", "std", "try-runtime"] }
+pallet-staking = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", features = ["runtime-benchmarks", "try-runtime"] }
+pallet-staking-reward-fn = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["std"] }
+pallet-staking-runtime-api = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["std"] }
+pallet-sudo = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["std", "try-runtime"] }
+pallet-timestamp = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["runtime-benchmarks", "std", "try-runtime"] }
+pallet-transaction-payment = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["std", "try-runtime"] }
+pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+pallet-treasury = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["std", "try-runtime"] }
+pallet-utility = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["runtime-benchmarks", "std", "try-runtime"] }
+pallet-vesting = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["std", "try-runtime"] }
+pallet-whitelist = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["std", "try-runtime"] }
 parity-bip39 = { version = "2", features = ["rand"] }
 parity-scale-codec = { version = "3", features = ["bytes", "derive", "full", "max-encoded-len"] }
 parity-wasm = { git = "https://github.com/gear-tech/parity-wasm", branch = "v0.45.0-sign-ext" }
@@ -205,9 +205,9 @@ ring-9067fe90e8c1f593 = { package = "ring", version = "0.17" }
 ruint = { version = "1", default-features = false, features = ["alloy-rlp", "serde", "std"] }
 rustc-hash = { version = "1" }
 rustc-hex = { version = "2", default-features = false, features = ["std"] }
-sc-cli = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
-sc-client-db = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["rocksdb", "runtime-benchmarks", "test-helpers"] }
-sc-service = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", features = ["runtime-benchmarks", "test-helpers"] }
+sc-cli = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+sc-client-db = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["rocksdb", "runtime-benchmarks", "test-helpers"] }
+sc-service = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", features = ["runtime-benchmarks", "test-helpers"] }
 scale-bits = { version = "0.7" }
 scale-decode = { version = "0.16" }
 scale-encode = { version = "0.10" }
@@ -230,49 +230,49 @@ signature = { version = "2", default-features = false, features = ["digest", "ra
 slice-group-by = { version = "0.3" }
 smallvec = { version = "1", default-features = false, features = ["const_new", "serde", "union"] }
 soketto = { version = "0.8", features = ["http"] }
-sp-allocator = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
-sp-api = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", features = ["frame-metadata"] }
-sp-application-crypto = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
-sp-arithmetic = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
-sp-authority-discovery = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
-sp-block-builder = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
-sp-consensus-babe = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
-sp-consensus-grandpa = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
-sp-consensus-slots = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
-sp-core = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
-sp-crypto-ec-utils = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["bls12-381", "std"] }
-sp-crypto-hashing-878edfa38eb8870f = { package = "sp-crypto-hashing", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
+sp-allocator = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+sp-api = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", features = ["frame-metadata"] }
+sp-application-crypto = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+sp-arithmetic = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+sp-authority-discovery = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+sp-block-builder = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+sp-consensus-babe = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+sp-consensus-grandpa = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+sp-consensus-slots = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+sp-core = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+sp-crypto-ec-utils = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["bls12-381", "std"] }
+sp-crypto-hashing-ad391088eaab6c58 = { package = "sp-crypto-hashing", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
 sp-crypto-hashing-c65f7effa3be6d31 = { package = "sp-crypto-hashing", version = "0.1", default-features = false, features = ["std"] }
-sp-externalities = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
-sp-genesis-builder = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
-sp-inherents = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
-sp-io = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", features = ["disable_oom", "disable_panic_handler"] }
-sp-keyring = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
-sp-keystore = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
-sp-metadata-ir = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std"] }
-sp-npos-elections = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std"] }
-sp-offchain = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
-sp-runtime = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", features = ["runtime-benchmarks", "try-runtime"] }
-sp-runtime-interface = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", features = ["disable_target_static_assertions"] }
-sp-session = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
-sp-staking = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", features = ["runtime-benchmarks"] }
-sp-state-machine = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
-sp-std = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
-sp-storage = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
-sp-timestamp = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std"] }
-sp-tracing = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
-sp-transaction-pool = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
-sp-trie = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
-sp-version = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
-sp-wasm-interface = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", features = ["wasmtime"] }
-sp-wasm-interface-common = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std"] }
-sp-weights = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
+sp-externalities = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+sp-genesis-builder = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+sp-inherents = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+sp-io = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", features = ["disable_oom", "disable_panic_handler"] }
+sp-keyring = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+sp-keystore = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+sp-metadata-ir = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["std"] }
+sp-npos-elections = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["std"] }
+sp-offchain = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+sp-runtime = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", features = ["runtime-benchmarks", "try-runtime"] }
+sp-runtime-interface = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", features = ["disable_target_static_assertions"] }
+sp-session = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+sp-staking = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", features = ["runtime-benchmarks"] }
+sp-state-machine = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+sp-std = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+sp-storage = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+sp-timestamp = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["std"] }
+sp-tracing = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+sp-transaction-pool = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+sp-trie = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+sp-version = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+sp-wasm-interface = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", features = ["wasmtime"] }
+sp-wasm-interface-common = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["std"] }
+sp-weights = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
 spki = { version = "0.7", default-features = false, features = ["std"] }
 ss58-registry = { version = "1", default-features = false, features = ["std"] }
 stable_deref_trait = { version = "1", default-features = false, features = ["std"] }
 strum-2f80eeee3b1b6c7e = { package = "strum", version = "0.26", features = ["derive"] }
 strum-adf3d7031871b0af = { package = "strum", version = "0.24", features = ["derive"] }
-substrate-bip39 = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std"] }
+substrate-bip39 = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["std"] }
 subtle = { version = "2" }
 subxt-metadata = { version = "0.44", default-features = false, features = ["std"] }
 syn-f595c2ba2a3f28df = { package = "syn", version = "2", features = ["extra-traits", "fold", "full", "visit", "visit-mut"] }
@@ -346,14 +346,14 @@ arrayvec = { version = "0.7", features = ["serde"] }
 backtrace = { version = "0.3", features = ["gimli-symbolize"] }
 base64-3c51e837cfc5589a = { package = "base64", version = "0.22" }
 base64-594e8ee84c453af0 = { package = "base64", version = "0.13" }
-binary-merkle-tree = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std"] }
+binary-merkle-tree = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["std"] }
 bitflags = { version = "2", default-features = false, features = ["std"] }
 blake2 = { version = "0.10" }
 blake2b_simd = { version = "1", default-features = false, features = ["std"] }
 blake3 = { version = "1" }
 bounded-collections = { version = "0.2", default-features = false, features = ["std"] }
-bp-header-chain = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std"] }
-bp-runtime = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std"] }
+bp-header-chain = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["std"] }
+bp-runtime = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["std"] }
 bs58 = { version = "0.5" }
 byte-slice-cast = { version = "1", default-features = false, features = ["std"] }
 bytemuck = { version = "1", default-features = false, features = ["const_zeroed", "derive"] }
@@ -392,18 +392,18 @@ environmental = { version = "1" }
 ff = { version = "0.13", default-features = false, features = ["alloc"] }
 finality-grandpa = { version = "0.16", features = ["derive-codec"] }
 fixed-hash = { version = "0.8", default-features = false, features = ["std"] }
-frame-benchmarking = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", features = ["runtime-benchmarks"] }
-frame-benchmarking-cli = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", features = ["runtime-benchmarks"] }
-frame-election-provider-support = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", features = ["runtime-benchmarks", "try-runtime"] }
-frame-executive = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std", "try-runtime"] }
+frame-benchmarking = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", features = ["runtime-benchmarks"] }
+frame-benchmarking-cli = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", features = ["runtime-benchmarks"] }
+frame-election-provider-support = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", features = ["runtime-benchmarks", "try-runtime"] }
+frame-executive = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["std", "try-runtime"] }
 frame-metadata-8ee676a8f9a6c413 = { package = "frame-metadata", version = "16", default-features = false, features = ["current", "std"] }
 frame-metadata-e761569b921b4a02 = { package = "frame-metadata", version = "23", default-features = false, features = ["current", "std"] }
-frame-metadata-hash-extension = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std"] }
-frame-support = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", features = ["experimental", "runtime-benchmarks", "try-runtime"] }
-frame-support-procedural = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["experimental", "std"] }
-frame-system = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", features = ["runtime-benchmarks", "try-runtime"] }
-frame-system-rpc-runtime-api = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
-frame-try-runtime = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std", "try-runtime"] }
+frame-metadata-hash-extension = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["std"] }
+frame-support = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", features = ["experimental", "runtime-benchmarks", "try-runtime"] }
+frame-support-procedural = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["experimental", "std"] }
+frame-system = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", features = ["runtime-benchmarks", "try-runtime"] }
+frame-system-rpc-runtime-api = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+frame-try-runtime = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["std", "try-runtime"] }
 futures = { version = "0.3", features = ["bilock", "thread-pool", "unstable"] }
 futures-channel = { version = "0.3", features = ["sink", "unstable"] }
 futures-core = { version = "0.3", features = ["unstable"] }
@@ -456,39 +456,39 @@ num-traits = { version = "0.2", features = ["i128", "libm"] }
 object-51543b5218fc235c = { package = "object", version = "0.32", features = ["write"] }
 object-fa1f6196edfd7249 = { package = "object", version = "0.30", default-features = false, features = ["read_core", "write"] }
 once_cell = { version = "1" }
-pallet-authority-discovery = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std", "try-runtime"] }
-pallet-authorship = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std", "try-runtime"] }
-pallet-babe = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std", "try-runtime"] }
-pallet-bags-list = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["runtime-benchmarks", "std", "try-runtime"] }
-pallet-balances = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["runtime-benchmarks", "std", "try-runtime"] }
-pallet-bounties = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std", "try-runtime"] }
-pallet-child-bounties = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std", "try-runtime"] }
-pallet-conviction-voting = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["runtime-benchmarks", "std", "try-runtime"] }
-pallet-election-provider-multi-phase = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std", "try-runtime"] }
-pallet-grandpa = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["runtime-benchmarks", "std", "try-runtime"] }
-pallet-identity = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std", "try-runtime"] }
-pallet-im-online = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std", "try-runtime"] }
-pallet-multisig = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std", "try-runtime"] }
-pallet-nomination-pools = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std", "try-runtime"] }
-pallet-nomination-pools-runtime-api = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std"] }
-pallet-offences = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std", "try-runtime"] }
-pallet-preimage = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std", "try-runtime"] }
-pallet-proxy = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std", "try-runtime"] }
-pallet-ranked-collective = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["runtime-benchmarks", "std", "try-runtime"] }
-pallet-referenda = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["runtime-benchmarks", "std", "try-runtime"] }
-pallet-scheduler = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std", "try-runtime"] }
-pallet-session = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["historical", "std", "try-runtime"] }
-pallet-staking = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", features = ["runtime-benchmarks", "try-runtime"] }
-pallet-staking-reward-fn = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std"] }
-pallet-staking-runtime-api = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std"] }
-pallet-sudo = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std", "try-runtime"] }
-pallet-timestamp = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["runtime-benchmarks", "std", "try-runtime"] }
-pallet-transaction-payment = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std", "try-runtime"] }
-pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
-pallet-treasury = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std", "try-runtime"] }
-pallet-utility = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["runtime-benchmarks", "std", "try-runtime"] }
-pallet-vesting = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std", "try-runtime"] }
-pallet-whitelist = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std", "try-runtime"] }
+pallet-authority-discovery = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["std", "try-runtime"] }
+pallet-authorship = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["std", "try-runtime"] }
+pallet-babe = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["std", "try-runtime"] }
+pallet-bags-list = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["runtime-benchmarks", "std", "try-runtime"] }
+pallet-balances = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["runtime-benchmarks", "std", "try-runtime"] }
+pallet-bounties = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["std", "try-runtime"] }
+pallet-child-bounties = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["std", "try-runtime"] }
+pallet-conviction-voting = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["runtime-benchmarks", "std", "try-runtime"] }
+pallet-election-provider-multi-phase = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["std", "try-runtime"] }
+pallet-grandpa = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["runtime-benchmarks", "std", "try-runtime"] }
+pallet-identity = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["std", "try-runtime"] }
+pallet-im-online = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["std", "try-runtime"] }
+pallet-multisig = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["std", "try-runtime"] }
+pallet-nomination-pools = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["std", "try-runtime"] }
+pallet-nomination-pools-runtime-api = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["std"] }
+pallet-offences = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["std", "try-runtime"] }
+pallet-preimage = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["std", "try-runtime"] }
+pallet-proxy = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["std", "try-runtime"] }
+pallet-ranked-collective = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["runtime-benchmarks", "std", "try-runtime"] }
+pallet-referenda = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["runtime-benchmarks", "std", "try-runtime"] }
+pallet-scheduler = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["std", "try-runtime"] }
+pallet-session = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["historical", "std", "try-runtime"] }
+pallet-staking = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", features = ["runtime-benchmarks", "try-runtime"] }
+pallet-staking-reward-fn = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["std"] }
+pallet-staking-runtime-api = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["std"] }
+pallet-sudo = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["std", "try-runtime"] }
+pallet-timestamp = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["runtime-benchmarks", "std", "try-runtime"] }
+pallet-transaction-payment = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["std", "try-runtime"] }
+pallet-transaction-payment-rpc-runtime-api = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+pallet-treasury = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["std", "try-runtime"] }
+pallet-utility = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["runtime-benchmarks", "std", "try-runtime"] }
+pallet-vesting = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["std", "try-runtime"] }
+pallet-whitelist = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["std", "try-runtime"] }
 parity-bip39 = { version = "2", features = ["rand"] }
 parity-scale-codec = { version = "3", features = ["bytes", "derive", "full", "max-encoded-len"] }
 parity-scale-codec-derive = { version = "3", default-features = false, features = ["max-encoded-len"] }
@@ -513,9 +513,9 @@ ring-9067fe90e8c1f593 = { package = "ring", version = "0.17" }
 ruint = { version = "1", default-features = false, features = ["alloy-rlp", "serde", "std"] }
 rustc-hash = { version = "1" }
 rustc-hex = { version = "2", default-features = false, features = ["std"] }
-sc-cli = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
-sc-client-db = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["rocksdb", "runtime-benchmarks", "test-helpers"] }
-sc-service = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", features = ["runtime-benchmarks", "test-helpers"] }
+sc-cli = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+sc-client-db = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["rocksdb", "runtime-benchmarks", "test-helpers"] }
+sc-service = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", features = ["runtime-benchmarks", "test-helpers"] }
 scale-bits = { version = "0.7" }
 scale-decode = { version = "0.16" }
 scale-encode = { version = "0.10" }
@@ -539,51 +539,51 @@ signature = { version = "2", default-features = false, features = ["digest", "ra
 slice-group-by = { version = "0.3" }
 smallvec = { version = "1", default-features = false, features = ["const_new", "serde", "union"] }
 soketto = { version = "0.8", features = ["http"] }
-sp-allocator = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
-sp-api = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", features = ["frame-metadata"] }
-sp-api-proc-macro = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std"] }
-sp-application-crypto = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
-sp-arithmetic = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
-sp-authority-discovery = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
-sp-block-builder = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
-sp-consensus-babe = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
-sp-consensus-grandpa = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
-sp-consensus-slots = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
-sp-core = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
-sp-crypto-ec-utils = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["bls12-381", "std"] }
-sp-crypto-hashing-878edfa38eb8870f = { package = "sp-crypto-hashing", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
+sp-allocator = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+sp-api = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", features = ["frame-metadata"] }
+sp-api-proc-macro = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["std"] }
+sp-application-crypto = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+sp-arithmetic = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+sp-authority-discovery = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+sp-block-builder = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+sp-consensus-babe = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+sp-consensus-grandpa = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+sp-consensus-slots = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+sp-core = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+sp-crypto-ec-utils = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["bls12-381", "std"] }
+sp-crypto-hashing-ad391088eaab6c58 = { package = "sp-crypto-hashing", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
 sp-crypto-hashing-c65f7effa3be6d31 = { package = "sp-crypto-hashing", version = "0.1", default-features = false, features = ["std"] }
-sp-debug-derive = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["force-debug", "std"] }
-sp-externalities = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
-sp-genesis-builder = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
-sp-inherents = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
-sp-io = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", features = ["disable_oom", "disable_panic_handler"] }
-sp-keyring = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
-sp-keystore = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
-sp-metadata-ir = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std"] }
-sp-npos-elections = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std"] }
-sp-offchain = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
-sp-runtime = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", features = ["runtime-benchmarks", "try-runtime"] }
-sp-runtime-interface = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", features = ["disable_target_static_assertions"] }
-sp-session = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
-sp-staking = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", features = ["runtime-benchmarks"] }
-sp-state-machine = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
-sp-std = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
-sp-storage = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
-sp-timestamp = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std"] }
-sp-tracing = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
-sp-transaction-pool = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
-sp-trie = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
-sp-version = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
-sp-wasm-interface = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", features = ["wasmtime"] }
-sp-wasm-interface-common = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std"] }
-sp-weights = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
+sp-debug-derive = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["force-debug", "std"] }
+sp-externalities = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+sp-genesis-builder = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+sp-inherents = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+sp-io = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", features = ["disable_oom", "disable_panic_handler"] }
+sp-keyring = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+sp-keystore = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+sp-metadata-ir = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["std"] }
+sp-npos-elections = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["std"] }
+sp-offchain = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+sp-runtime = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", features = ["runtime-benchmarks", "try-runtime"] }
+sp-runtime-interface = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", features = ["disable_target_static_assertions"] }
+sp-session = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+sp-staking = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", features = ["runtime-benchmarks"] }
+sp-state-machine = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+sp-std = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+sp-storage = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+sp-timestamp = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["std"] }
+sp-tracing = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+sp-transaction-pool = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+sp-trie = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+sp-version = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+sp-wasm-interface = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", features = ["wasmtime"] }
+sp-wasm-interface-common = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["std"] }
+sp-weights = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
 spki = { version = "0.7", default-features = false, features = ["std"] }
 ss58-registry = { version = "1", default-features = false, features = ["std"] }
 stable_deref_trait = { version = "1", default-features = false, features = ["std"] }
 strum-2f80eeee3b1b6c7e = { package = "strum", version = "0.26", features = ["derive"] }
 strum-adf3d7031871b0af = { package = "strum", version = "0.24", features = ["derive"] }
-substrate-bip39 = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std"] }
+substrate-bip39 = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["std"] }
 subtle = { version = "2" }
 subxt-metadata = { version = "0.44", default-features = false, features = ["std"] }
 syn-dff4ba8e3ae991db = { package = "syn", version = "1", features = ["extra-traits", "full", "visit"] }
