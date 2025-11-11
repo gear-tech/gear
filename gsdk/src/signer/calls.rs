@@ -263,7 +263,7 @@ impl SignerCalls {
             .run_tx(
                 gear::tx()
                     .gear_voucher()
-                    .revoke(spender.into().into_subxt().into(), voucher_id),
+                    .revoke(spender.into().into_subxt(), voucher_id),
             )
             .await
     }
@@ -299,7 +299,7 @@ impl SignerCalls {
         keep_alive: bool,
     ) -> Result<TxInBlock> {
         let call = PrepaidCall::<u128>::SendMessage {
-            destination: destination.into(),
+            destination,
             payload,
             gas_limit,
             value,
@@ -322,7 +322,7 @@ impl SignerCalls {
         keep_alive: bool,
     ) -> Result<TxInBlock> {
         let call = PrepaidCall::<u128>::SendReply {
-            reply_to_id: reply_to_id.into(),
+            reply_to_id,
             payload,
             gas_limit,
             value,

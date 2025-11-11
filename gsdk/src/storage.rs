@@ -95,10 +95,10 @@ impl Api {
             client.at_latest().await?
         };
 
-        Ok(storage
+        storage
             .fetch(address)
             .await?
-            .ok_or(Error::StorageEntryNotFound)?)
+            .ok_or(Error::StorageEntryNotFound)
     }
 
     /// Get program pages from program id.
@@ -367,7 +367,7 @@ impl Api {
         block_hash: Option<H256>,
     ) -> Result<Option<ActorId>> {
         Ok(match self.program_at(program_id, block_hash).await? {
-            Program::Exited(p) => Some(p.into()),
+            Program::Exited(p) => Some(p),
             _ => None,
         })
     }

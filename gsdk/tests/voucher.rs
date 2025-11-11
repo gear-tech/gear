@@ -17,7 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use gear_core::ids::{ActorId, CodeId, MessageId, prelude::CodeIdExt};
-use gsdk::{Api, Event, Result, TxInBlock};
+use gsdk::{
+    Api, Event, Result, TxInBlock, gear::runtime_types::pallet_gear_voucher::internal::VoucherId,
+};
 use sp_core::crypto::Ss58Codec;
 use sp_runtime::AccountId32;
 use utils::{alice_account_id, dev_node};
@@ -230,7 +232,7 @@ async fn get_last_code_id(tx: TxInBlock) -> Result<CodeId> {
             change: gsdk::gear::runtime_types::gear_common::event::CodeChangeKind::Active { .. },
         }) = event?.as_root_event::<Event>()?
         {
-            return Ok(id.into());
+            return Ok(id);
         }
     }
     panic!("code not uploaded");
@@ -239,16 +241,16 @@ async fn get_last_code_id(tx: TxInBlock) -> Result<CodeId> {
 async fn get_last_program_id(tx: TxInBlock) -> Result<ActorId> {
     for event in tx.wait_for_success().await?.iter() {
         if let Event::Gear(
-            gsdk::metadata::runtime_types::pallet_gear::pallet::Event::ProgramChanged {
+            gsdk::gear::runtime_types::pallet_gear::pallet::Event::ProgramChanged {
                 id,
                 change:
-                    gsdk::metadata::runtime_types::gear_common::event::ProgramChangeKind::ProgramSet {
+                    gsdk::gear::runtime_types::gear_common::event::ProgramChangeKind::ProgramSet {
                         ..
                     },
             },
         ) = event?.as_root_event::<Event>()?
         {
-            return Ok(id.into());
+            return Ok(id);
         }
     }
     panic!("program not created");
@@ -256,11 +258,12 @@ async fn get_last_program_id(tx: TxInBlock) -> Result<ActorId> {
 
 async fn get_last_message_id(tx: TxInBlock) -> Result<MessageId> {
     for event in tx.wait_for_success().await?.iter() {
-        if let Event::Gear(
-            gsdk::metadata::runtime_types::pallet_gear::pallet::Event::MessageQueued { id, .. },
-        ) = event?.as_root_event::<Event>()?
+        if let Event::Gear(gsdk::gear::runtime_types::pallet_gear::pallet::Event::MessageQueued {
+            id,
+            ..
+        }) = event?.as_root_event::<Event>()?
         {
-            return Ok(id.into());
+            return Ok(id);
         }
     }
     panic!("message not sent");
@@ -269,7 +272,7 @@ async fn get_last_message_id(tx: TxInBlock) -> Result<MessageId> {
 async fn get_declined_voucher_id(tx: TxInBlock) -> Result<VoucherId> {
     for event in tx.wait_for_success().await?.iter() {
         if let Event::GearVoucher(
-            gsdk::metadata::runtime_types::pallet_gear_voucher::pallet::Event::VoucherDeclined {
+            gsdk::gear::runtime_types::pallet_gear_voucher::pallet::Event::VoucherDeclined {
                 voucher_id,
                 ..
             },
@@ -284,7 +287,7 @@ async fn get_declined_voucher_id(tx: TxInBlock) -> Result<VoucherId> {
 async fn get_revoked_voucher_id(tx: TxInBlock) -> Result<VoucherId> {
     for event in tx.wait_for_success().await?.iter() {
         if let Event::GearVoucher(
-            gsdk::metadata::runtime_types::pallet_gear_voucher::pallet::Event::VoucherRevoked {
+            gsdk::gear::runtime_types::pallet_gear_voucher::pallet::Event::VoucherRevoked {
                 voucher_id,
                 ..
             },

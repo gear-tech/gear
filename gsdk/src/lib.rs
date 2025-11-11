@@ -36,9 +36,9 @@ pub use crate::{
 pub use gear_core::rpc::GasInfo;
 pub use subxt::{self, dynamic::Value};
 
-use crate::{
-    gear::runtime_types::gear_common::gas_provider::node::{GasNode, GasNodeId},
-    metadata::runtime_types::gear_core::program::ActiveProgram,
+use crate::gear::runtime_types::{
+    gear_common::gas_provider::node::{GasNode, GasNodeId},
+    gear_core::program::ActiveProgram,
 };
 use gear_core::{
     ids::{MessageId, ReservationId},
@@ -54,9 +54,11 @@ use subxt::{
 /// Generated runtime API types.
 // FIXME: substitute `gear_core::page::Page`,
 //        requires `subxt` to support const parameters.
+// FIXME: substitute `gear_core::program::ActiveProgram`,
+//        requires `scale_{encode,decode}` to support `BTreeMap`s.
 #[subxt::subxt(
     runtime_metadata_path = "vara_runtime.scale",
-    derive_for_all_types = "Clone, ::subxt::ext::codec::Encode, ::subxt::ext::codec::Decode",
+    derive_for_all_types = "Clone, PartialEq, ::subxt::ext::codec::Encode, ::subxt::ext::codec::Decode",
     substitute_type(
         path = "sp_arithmetic::per_things::Percent",
         with = "::subxt::utils::Static<::sp_runtime::Percent>"
@@ -86,7 +88,6 @@ pub mod config;
 mod constants;
 mod convert;
 pub mod events;
-pub mod metadata;
 pub mod result;
 mod rpc;
 pub mod signer;
