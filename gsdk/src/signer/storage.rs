@@ -18,7 +18,7 @@
 
 //! Storage interfaces
 use crate::{
-    Api, BlockNumber, Error, GearGasNode, GearGasNodeId, GearPages,
+    Api, BlockNumber, GearGasNode, GearGasNodeId, GearPages,
     metadata::{
         runtime_types::{
             frame_system::pallet::Call,
@@ -31,6 +31,7 @@ use crate::{
         storage::{GearBankStorage, GearGasStorage, GearProgramStorage},
         vara_runtime::RuntimeCall,
     },
+    result::FailedPage,
     signer::{Inner, utils::EventsResult},
     utils::storage_address_bytes,
 };
@@ -38,7 +39,6 @@ use gear_core::{
     ids::*,
     memory::{PageBuf, PageBufInner},
 };
-use hex::ToHex;
 use parity_scale_codec::Encode;
 use sp_runtime::AccountId32;
 use std::sync::Arc;
@@ -95,7 +95,7 @@ impl SignerStorage {
         let gas_nodes = gas_nodes.as_ref();
         let mut gas_nodes_to_set = Vec::with_capacity(gas_nodes.len());
         for gas_node in gas_nodes {
-            let addr = Api::storage(GearGasStorage::GasNodes, StaticStorageKey::new(&gas_node.0));
+            let addr = Api::storage(GearGasStorage::GasNodes, StaticStorageKey::new(gas_node.0));
             gas_nodes_to_set.push((addr, &gas_node.1));
         }
         self.set_storage(&gas_nodes_to_set).await
@@ -161,7 +161,7 @@ impl SignerStorage {
                 ],
             );
             let page_buf_inner = PageBufInner::try_from(program_page.1.clone())
-                .map_err(|_| Error::PageInvalid(*program_page.0, program_id.encode_hex()))?;
+                .map_err(|_| FailedPage::new(*program_page.0, program_id).invalid())?;
             let value = PageBuf::from_inner(page_buf_inner);
             program_pages_to_set.push((addr, value));
         }
