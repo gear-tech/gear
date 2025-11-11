@@ -29,7 +29,7 @@ use ethexe_common::{
         AnnounceMeta, AnnounceStorageRO, AnnounceStorageRW, BlockMeta, BlockMetaStorageRO,
         BlockMetaStorageRW, CodesStorageRO, CodesStorageRW, HashStorageRO, InjectedStorageRO,
         InjectedStorageRW, LatestData, LatestDataStorageRO, LatestDataStorageRW, OnChainStorageRO,
-        OnChainStorageRW, RecentIncludedTxs,
+        OnChainStorageRW,
     },
     events::BlockEvent,
     gear::StateTransition,
@@ -62,16 +62,15 @@ enum Key {
     AnnounceOutcome(HashOf<Announce>) = 4,
     AnnounceSchedule(HashOf<Announce>) = 5,
     AnnounceMeta(HashOf<Announce>) = 6,
-    AnnounceRecentTransactions(HashOf<Announce>) = 7,
 
-    ProgramToCodeId(ActorId) = 8,
-    InstrumentedCode(u32, CodeId) = 9,
-    CodeMetadata(CodeId) = 10,
-    CodeUploadInfo(CodeId) = 11,
-    CodeValid(CodeId) = 12,
+    ProgramToCodeId(ActorId) = 7,
+    InstrumentedCode(u32, CodeId) = 8,
+    CodeMetadata(CodeId) = 9,
+    CodeUploadInfo(CodeId) = 10,
+    CodeValid(CodeId) = 11,
 
-    InjectedTransaction(HashOf<InjectedTransaction>) = 13,
-    InjectedPromise(HashOf<InjectedTransaction>) = 14,
+    InjectedTransaction(HashOf<InjectedTransaction>) = 12,
+    InjectedPromise(HashOf<InjectedTransaction>) = 13,
 
     LatestData = 15,
     Timelines = 16,
@@ -99,10 +98,7 @@ impl Key {
             Self::AnnounceProgramStates(hash)
             | Self::AnnounceOutcome(hash)
             | Self::AnnounceSchedule(hash)
-            | Self::AnnounceMeta(hash)
-            | Self::AnnounceRecentTransactions(hash) => {
-                [prefix.as_ref(), hash.inner().as_ref()].concat()
-            }
+            | Self::AnnounceMeta(hash) => [prefix.as_ref(), hash.inner().as_ref()].concat(),
 
             Self::InjectedTransaction(hash) | Self::InjectedPromise(hash) => {
                 [prefix.as_ref(), hash.inner().as_ref()].concat()
@@ -633,16 +629,6 @@ impl AnnounceStorageRO for Database {
             })
             .unwrap_or_default()
     }
-
-    fn announce_recent_txs(&self, hash: HashOf<Announce>) -> RecentIncludedTxs {
-        self.kv
-            .get(&Key::AnnounceRecentTransactions(hash).to_bytes())
-            .map(|data| {
-                RecentIncludedTxs::decode(&mut data.as_slice())
-                    .expect("Failed to decode data into `RecentIncludedTxs`")
-            })
-            .unwrap_or_default()
-    }
 }
 
 impl AnnounceStorageRW for Database {
@@ -677,13 +663,6 @@ impl AnnounceStorageRW for Database {
         self.kv.put(
             &Key::AnnounceSchedule(announce_hash).to_bytes(),
             schedule.encode(),
-        );
-    }
-
-    fn set_announce_recent_txs(&self, announce_hash: HashOf<Announce>, txs: RecentIncludedTxs) {
-        self.kv.put(
-            &Key::AnnounceRecentTransactions(announce_hash).to_bytes(),
-            txs.encode(),
         );
     }
 

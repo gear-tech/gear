@@ -264,14 +264,8 @@ impl Producer {
             injected_transactions,
         };
 
-        let mut parent_txs = self.ctx.core.db.announce_recent_txs(parent);
-        parent_txs.insert(announce.clone());
-
         let announce_hash = self.ctx.core.db.set_announce(announce.clone());
-        self.ctx
-            .core
-            .db
-            .set_announce_recent_txs(announce_hash, parent_txs);
+
         self.ctx
             .core
             .db

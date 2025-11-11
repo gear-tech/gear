@@ -25,13 +25,12 @@ use crate::{
     Schedule, ValidatorsVec,
     events::BlockEvent,
     gear::StateTransition,
-    injected::{InjectedPromise, InjectedTransaction, SignedInjectedTransaction, VALIDITY_WINDOW},
+    injected::{InjectedPromise, InjectedTransaction, SignedInjectedTransaction},
 };
 use alloc::{
     collections::{BTreeSet, VecDeque},
     vec::Vec,
 };
-use derive_more::Deref;
 use gear_core::{
     code::{CodeMetadata, InstrumentedCode},
     ids::{ActorId, CodeId},
@@ -149,39 +148,6 @@ pub struct AnnounceMeta {
     pub computed: bool,
 }
 
-/// Ring buffer which stores recent included transactions for each
-/// announce within [`crate::injected::VALIDITY_WINDOW`].
-#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq, Hash, Deref)]
-pub struct RecentIncludedTxs(VecDeque<(HashOf<Announce>, Vec<HashOf<InjectedTransaction>>)>);
-
-impl Default for RecentIncludedTxs {
-    fn default() -> Self {
-        Self(VecDeque::with_capacity(VALIDITY_WINDOW.into()))
-    }
-}
-
-impl RecentIncludedTxs {
-    /// Checks that transaction with tx_hash was already included in previous [`VALIDITY_WINDOW`] announces.
-    pub fn contains(&self, tx_hash: &HashOf<InjectedTransaction>) -> bool {
-        self.0.iter().any(|(_, txs)| txs.contains(tx_hash))
-    }
-
-    pub fn insert(&mut self, announce: Announce) {
-        let txs_hashes = announce
-            .injected_transactions
-            .iter()
-            .map(|tx| tx.data().hash())
-            .collect();
-
-        // If buffer is full - remove the latest one.
-        if self.0.len() == VALIDITY_WINDOW as usize {
-            self.0.pop_front();
-        }
-
-        self.0.push_back((announce.to_hash(), txs_hashes));
-    }
-}
-
 #[auto_impl::auto_impl(&, Box)]
 pub trait AnnounceStorageRO {
     fn announce(&self, hash: HashOf<Announce>) -> Option<Announce>;
@@ -189,7 +155,6 @@ pub trait AnnounceStorageRO {
     fn announce_outcome(&self, announce_hash: HashOf<Announce>) -> Option<Vec<StateTransition>>;
     fn announce_schedule(&self, announce_hash: HashOf<Announce>) -> Option<Schedule>;
     fn announce_meta(&self, announce_hash: HashOf<Announce>) -> AnnounceMeta;
-    fn announce_recent_txs(&self, hash: HashOf<Announce>) -> RecentIncludedTxs;
 }
 
 #[auto_impl::auto_impl(&)]
@@ -202,7 +167,6 @@ pub trait AnnounceStorageRW: AnnounceStorageRO {
     );
     fn set_announce_outcome(&self, announce_hash: HashOf<Announce>, outcome: Vec<StateTransition>);
     fn set_announce_schedule(&self, announce_hash: HashOf<Announce>, schedule: Schedule);
-    fn set_announce_recent_txs(&self, announce_hash: HashOf<Announce>, txs: RecentIncludedTxs);
 
     fn mutate_announce_meta(
         &self,

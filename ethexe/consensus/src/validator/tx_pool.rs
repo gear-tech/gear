@@ -63,7 +63,9 @@ where
     ) -> Result<Vec<SignedInjectedTransaction>> {
         tracing::info!(block = ?block_hash, "start collecting injected transactions");
 
-        let already_included_txs = self.db.announce_recent_txs(parent_announce);
+        let already_included_txs =
+            tx_pool_utils::collect_recent_included_txs(&self.db, parent_announce);
+
         let mut collected_txs = vec![];
         let mut outdated_txs = vec![];
 
@@ -132,6 +134,33 @@ where
         }
 
         Ok(false)
+    }
+}
+
+mod tx_pool_utils {
+    use super::*;
+
+    pub fn collect_recent_included_txs<DB: AnnounceStorageRO>(
+        db: &DB,
+        announce: HashOf<Announce>,
+    ) -> HashSet<HashOf<InjectedTransaction>> {
+        let mut txs = HashSet::new();
+        let mut announce_hash = announce;
+        for _ in 0..VALIDITY_WINDOW {
+            let Some(announce) = db.announce(announce_hash) else {
+                break;
+            };
+            announce_hash = announce.parent;
+
+            txs.extend(
+                announce
+                    .injected_transactions
+                    .into_iter()
+                    .map(|tx| tx.data().hash()),
+            );
+        }
+
+        txs
     }
 }
 
