@@ -17,9 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{RpcEvent, errors};
-use ethexe_common::injected::SignedInjectedTransaction;
+use ethexe_common::injected::{SignedInjectedPromise, SignedInjectedTransaction};
 use jsonrpsee::{
-    core::{RpcResult, async_trait},
+    PendingSubscriptionSink, SubscriptionMessage,
+    core::{RpcResult, SubscriptionResult, async_trait},
     proc_macros::rpc,
 };
 use serde::{Deserialize, Serialize};
@@ -37,6 +38,12 @@ pub trait Injected {
         &self,
         transaction: SignedInjectedTransaction,
     ) -> RpcResult<InjectedTransactionAcceptance>;
+
+    #[subscription(name = "subscribe_transactionPromise", unsubscribe = "unsubscribe_transactionPromise", item = SignedInjectedPromise)]
+    async fn subscribe_tx_promise(
+        &self,
+        transaction: SignedInjectedTransaction,
+    ) -> SubscriptionResult;
 }
 
 #[derive(Debug, Clone)]
@@ -81,5 +88,40 @@ impl InjectedServer for InjectedApi {
             log::error!("Response sender for the `RpcEvent::InjectedTransaction` was dropped: {e}");
             errors::internal()
         })
+    }
+
+    async fn subscribe_tx_promise(
+        &self,
+        pending: PendingSubscriptionSink,
+        transaction: SignedInjectedTransaction,
+    ) -> SubscriptionResult {
+        let (response_sender, response_receiver) = oneshot::channel();
+        let (promise_sender, promise_receiver) = oneshot::channel();
+
+        self.rpc_sender
+            .send(RpcEvent::InjectedTransactionSubscription {
+                transaction,
+                response_sender,
+                promise_sender,
+            })
+            .map_err(|e| {
+                // That could be a panic case, as rpc_receiver must not be dropped,
+                // but the main service works independently from rpc and can be malformed.
+                log::error!(
+                    "Failed to send `RpcEvent::InjectedTransaction` event task: {e}. \
+                    The receiving end in the main service might have been dropped."
+                );
+                errors::internal()
+            })?;
+
+        let _accepted = response_receiver.await?;
+        let sink = pending.accept().await?;
+
+        let promise = promise_receiver.await?;
+        let json = serde_json::value::to_raw_value(&promise)?;
+        let msg = SubscriptionMessage::from_json(&json)?;
+        sink.send(msg).await?;
+
+        Ok(())
     }
 }

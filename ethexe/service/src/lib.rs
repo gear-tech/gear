@@ -520,6 +520,13 @@ impl Service {
 
                             let _res = response_sender.send(InjectedTransactionAcceptance::Accept);
                         }
+                        RpcEvent::InjectedTransactionSubscription {
+                            transaction,
+                            response_sender,
+                            promise_sender,
+                        } => {
+                            todo!()
+                        }
                     }
                 }
                 Event::Consensus(event) => match event {

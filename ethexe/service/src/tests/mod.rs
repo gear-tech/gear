@@ -1770,3 +1770,9 @@ async fn injected_tx_fungible_token() {
         .unwrap();
     tracing::info!("✅ Tokens mint successfuly");
 }
+
+#[tokio::test(flavor = "multi_thread")]
+#[ntest::timeout(60_000)]
+async fn rpc_injected_tx_subscription() {
+    init_logger();
+}
