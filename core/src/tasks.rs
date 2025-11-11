@@ -18,11 +18,6 @@
 
 //! The module provides primitives for all available regular or time-dependent tasks.
 
-#![expect(
-    deprecated,
-    reason = "`scale_{encode,decode}` generates code that uses deprecated enum variant to {en,de}code it"
-)]
-
 use crate::ids::{ActorId, MessageId, ReservationId};
 use gsys::Gas;
 use parity_scale_codec::{Decode, Encode, MaxEncodedLen};

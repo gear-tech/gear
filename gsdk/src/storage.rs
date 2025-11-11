@@ -402,9 +402,7 @@ impl Api {
                     .await?
                     .fetch(&addr)
                     .await?
-                    .ok_or_else(|| {
-                        FailedPage::new(page, program_id.as_ref().encode_hex()).not_found()
-                    })?;
+                    .ok_or_else(|| FailedPage::new(page, program_id).not_found())?;
 
                 Ok((page, page_buf))
             })
