@@ -461,7 +461,6 @@ impl Service {
                                     consensus.receive_validation_reply(reply)?
                                 }
                                 VerifiedValidatorMessage::InjectedPromise(promise) => {
-                                    // TODO: verify that this transaction is for current validator and then send it to consensus.
                                     let promise = promise.map(|p| p.payload);
                                     let (promise, _pub_key) = promise.into_parts();
 
@@ -502,7 +501,7 @@ impl Service {
                     }
                 }
                 Event::Rpc(event) => {
-                    log::info!("Received RPC event: {event:?}");
+                    log::trace!("Received RPC event: {event:?}");
 
                     match event {
                         RpcEvent::InjectedTransaction {

@@ -118,7 +118,6 @@ impl StateHandler for Producer {
     ) -> Result<ValidatorState> {
         match &self.state {
             State::WaitingAnnounceComputed(expected) if *expected == announce_hash => {
-                // TODO kuzmindev: change the behabior of giving promises
                 let announce = self
                     .ctx
                     .core

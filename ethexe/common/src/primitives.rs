@@ -74,7 +74,6 @@ pub struct SimpleBlockData {
     pub header: BlockHeader,
 }
 
-// Because of `InjectedTransaction` uses Bytes from sp_core
 #[cfg_attr(feature = "serde", derive(Hash))]
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, derive_more::Display)]
 #[display(

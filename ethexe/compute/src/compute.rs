@@ -165,7 +165,6 @@ impl<P: ProcessorExt> ComputeSubService<P> {
             meta.computed = true;
         });
 
-        // Add promises for injected transactions.
         promises.into_iter().for_each(|promise| {
             db.set_injected_promise(promise);
         });

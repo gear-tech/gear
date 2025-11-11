@@ -697,29 +697,30 @@ impl LatestDataStorageRW for Database {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ethexe_common::events::RouterEvent;
+    use ethexe_common::{Address, ecdsa::PrivateKey, events::RouterEvent};
     use gear_core::code::{InstantiatedSectionSizes, InstrumentationStatus};
 
-    // #[test]
-    // fn test_offchain_transaction() {
-    //     let db = Database::memory();
+    #[test]
+    fn test_injected_transaction() {
+        let db = Database::memory();
 
-    //     let private_key = PrivateKey::from([1; 32]);
-    //     let tx = SignedOffchainTransaction::create(
-    //         private_key,
-    //         OffchainTransaction {
-    //             raw: SendMessage {
-    //                 program_id: H256::random().into(),
-    //                 payload: H256::random().0.to_vec(),
-    //             },
-    //             reference_block: H256::random(),
-    //         },
-    //     )
-    //     .unwrap();
-    //     let tx_hash = tx.tx_hash();
-    //     db.set_offchain_transaction(tx.clone());
-    //     assert_eq!(db.get_offchain_transaction(tx_hash), Some(tx));
-    // }
+        let private_key = PrivateKey::from([1; 32]);
+        let tx = SignedInjectedTransaction::create(
+            private_key,
+            InjectedTransaction {
+                recipient: Address::default(),
+                destination: ActorId::zero(),
+                payload: vec![].into(),
+                value: 0,
+                reference_block: H256::random(),
+                salt: vec![].into(),
+            },
+        )
+        .unwrap();
+        let tx_hash = tx.data().hash();
+        db.set_injected_transaction(tx.clone());
+        assert_eq!(db.injected_transaction(tx_hash), Some(tx));
+    }
 
     #[test]
     fn test_announce() {

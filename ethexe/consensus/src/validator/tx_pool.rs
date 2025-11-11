@@ -36,7 +36,7 @@ pub(crate) struct InjectedTxPool<DB = Database> {
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq)]
 enum TxValidityStatus {
-    /// Transaction is valid and can be included into announce.
+    /// Transaction is valid and can be include into announce.
     Valid,
     /// Transaction is outdated and should be remove from pool.
     Outdated,
