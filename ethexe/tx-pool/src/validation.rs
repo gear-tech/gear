@@ -19,7 +19,8 @@
 //! Transactions validation.
 
 use crate::SignedOffchainTransaction;
-use anyhow::{Context, Result, anyhow, bail};
+use anyhow::{Result, anyhow, bail};
+use ethexe_common::{db::LatestDataStorageRO, tx_pool};
 use ethexe_db::Database;
 
 // TODO #4424
@@ -78,11 +79,14 @@ impl TxValidator {
     ///
     /// Basically checks that transaction reference block hash is within the recent blocks window.
     fn check_mortality(&self) -> Result<bool> {
-        let block_hash = self.transaction.reference_block();
-
-        self.db
-            .check_within_recent_blocks(block_hash)
-            .context("Failed to perform mortality check")
+        // TODO #4809: checking mortality for latest block is not fully correct approach,
+        // but can be applied presently.
+        let latest_block_hash = self
+            .db
+            .latest_data()
+            .ok_or_else(|| anyhow!("Latest data not found"))?
+            .prepared_block_hash;
+        tx_pool::check_mortality_at(&self.db, &self.transaction, latest_block_hash)
     }
 
     /// Validates transaction uniqueness.
@@ -132,8 +136,10 @@ mod tests {
 
         bm.add_block();
 
-        let tx_validator = TxValidator::new(signed_tx, db).with_mortality_check();
-        assert_ok!(tx_validator.validate());
+        TxValidator::new(signed_tx, db)
+            .with_mortality_check()
+            .validate()
+            .expect("internal error: transaction validation failed");
     }
 
     #[test]

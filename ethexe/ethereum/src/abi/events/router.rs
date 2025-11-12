@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::abi::{IRouter, utils::*};
-use ethexe_common::{Digest, events::RouterEvent};
+use ethexe_common::{Digest, HashOf, events::RouterEvent};
 
 impl From<IRouter::BatchCommitted> for RouterEvent {
     fn from(value: IRouter::BatchCommitted) -> Self {
@@ -27,9 +27,10 @@ impl From<IRouter::BatchCommitted> for RouterEvent {
     }
 }
 
-impl From<IRouter::HeadCommitted> for RouterEvent {
-    fn from(value: IRouter::HeadCommitted) -> Self {
-        Self::HeadCommitted(value.head.0.into())
+impl From<IRouter::AnnouncesCommitted> for RouterEvent {
+    fn from(value: IRouter::AnnouncesCommitted) -> Self {
+        // # Safety because of implementation
+        Self::AnnouncesCommitted(unsafe { HashOf::new(value.head.0.into()) })
     }
 }
 
@@ -66,11 +67,11 @@ impl From<IRouter::StorageSlotChanged> for RouterEvent {
     }
 }
 
-impl From<IRouter::NextEraValidatorsCommitted> for RouterEvent {
-    fn from(value: IRouter::NextEraValidatorsCommitted) -> Self {
-        Self::NextEraValidatorsCommitted {
-            next_era_start: value
-                .startTimestamp
+impl From<IRouter::ValidatorsCommittedForEra> for RouterEvent {
+    fn from(value: IRouter::ValidatorsCommittedForEra) -> Self {
+        Self::ValidatorsCommittedForEra {
+            era_index: value
+                .eraIndex
                 .try_into()
                 .expect("next era start timestamp is too large"),
         }

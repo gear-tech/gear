@@ -20,13 +20,14 @@ use super::{
     DefaultProcessing, PendingEvent, StateHandler, ValidatorContext, ValidatorState,
     initial::Initial,
 };
-use crate::{
-    BatchCommitmentValidationReply, BatchCommitmentValidationRequest, ConsensusEvent,
-    SignedValidationRequest,
-};
+use crate::{BatchCommitmentValidationReply, ConsensusEvent};
 use anyhow::Result;
 use derive_more::{Debug, Display};
-use ethexe_common::{Address, Digest, SimpleBlockData};
+use ethexe_common::{
+    Address, Digest, SimpleBlockData,
+    consensus::{BatchCommitmentValidationRequest, VerifiedValidationRequest},
+    network::ValidatorMessage,
+};
 use futures::{FutureExt, future::BoxFuture};
 use std::task::Poll;
 
@@ -67,7 +68,7 @@ impl StateHandler for Participant {
 
     fn process_validation_request(
         self,
-        request: SignedValidationRequest,
+        request: VerifiedValidationRequest,
     ) -> Result<ValidatorState> {
         if request.address() == self.producer {
             self.process_validation_request(request.into_parts().0)
@@ -96,7 +97,18 @@ impl StateHandler for Participant {
                         )
                         .map(|signature| BatchCommitmentValidationReply { digest, signature })?;
 
-                    self.output(ConsensusEvent::PublishValidationReply(reply));
+                    let reply = ValidatorMessage {
+                        block: self.block.hash,
+                        payload: reply,
+                    };
+
+                    let reply = self
+                        .ctx
+                        .core
+                        .signer
+                        .signed_data(self.ctx.core.pub_key, reply)?;
+
+                    self.output(ConsensusEvent::PublishMessage(reply.into()));
                 }
                 Err(err) => self.warning(format!("reject validation request: {err}")),
             }
@@ -171,19 +183,14 @@ impl Participant {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{
-        mock::*,
-        utils::{SignedProducerBlock, SignedValidationRequest},
-        validator::mock::*,
-    };
-    use ethexe_common::{Digest, ToDigest, gear::CodeCommitment};
-    use gprimitives::H256;
+    use crate::{mock::*, validator::mock::*};
+    use ethexe_common::{Digest, ToDigest, gear::CodeCommitment, mock::*};
 
     #[test]
     fn create() {
         let (ctx, pub_keys, _) = mock_validator_context();
         let producer = pub_keys[0];
-        let block = SimpleBlockData::mock(H256::random());
+        let block = SimpleBlockData::mock(());
 
         let participant = Participant::create(ctx, block, producer.to_address()).unwrap();
 
@@ -196,35 +203,27 @@ mod tests {
         let (mut ctx, keys, _) = mock_validator_context();
         let producer = keys[0];
         let alice = keys[1];
-        let block = SimpleBlockData::mock(H256::random());
+        let block = SimpleBlockData::mock(());
 
         // Validation request from alice - must be kept
-        ctx.pending(SignedValidationRequest::mock((
-            ctx.core.signer.clone(),
-            alice,
-            (),
-        )));
+        ctx.pending(PendingEvent::ValidationRequest(
+            ctx.core.signer.mock_verified_data(alice, ()),
+        ));
 
-        // Reply from producer - must be removed and processed
-        ctx.pending(SignedValidationRequest::mock((
-            ctx.core.signer.clone(),
-            producer,
-            (),
-        )));
+        // Validation request from producer - must be removed and processed
+        ctx.pending(PendingEvent::ValidationRequest(
+            ctx.core.signer.mock_verified_data(producer, ()),
+        ));
 
         // Block from producer - must be kept
-        ctx.pending(SignedProducerBlock::mock((
-            ctx.core.signer.clone(),
-            producer,
-            H256::random(),
-        )));
+        ctx.pending(PendingEvent::Announce(
+            ctx.core.signer.mock_verified_data(producer, ()),
+        ));
 
         // Block from alice - must be kept
-        ctx.pending(SignedProducerBlock::mock((
-            ctx.core.signer.clone(),
-            alice,
-            H256::random(),
-        )));
+        ctx.pending(PendingEvent::Announce(
+            ctx.core.signer.mock_verified_data(alice, ()),
+        ));
 
         let (state, event) = Participant::create(ctx, block, producer.to_address())
             .unwrap()
@@ -238,8 +237,8 @@ mod tests {
 
         let ctx = state.into_context();
         assert_eq!(ctx.pending_events.len(), 3);
-        assert!(ctx.pending_events[0].is_producer_block());
-        assert!(ctx.pending_events[1].is_producer_block());
+        assert!(ctx.pending_events[0].is_announce());
+        assert!(ctx.pending_events[1].is_announce());
         assert!(ctx.pending_events[2].is_validation_request());
     }
 
@@ -247,29 +246,32 @@ mod tests {
     async fn process_validation_request_success() {
         let (ctx, pub_keys, _) = mock_validator_context();
         let producer = pub_keys[0];
-        let batch = prepared_mock_batch_commitment(&ctx.core.db);
-        let block = simple_block_data(&ctx.core.db, batch.block_hash);
+        let batch = prepare_chain_for_batch_commitment(&ctx.core.db);
+        let block = ctx.core.db.simple_block_data(batch.block_hash);
 
-        let signed_request = ctx
+        let verified_request = ctx
             .core
             .signer
             .signed_data(producer, BatchCommitmentValidationRequest::new(&batch))
-            .unwrap();
+            .unwrap()
+            .into_verified();
 
         let state = Participant::create(ctx, block, producer.to_address()).unwrap();
         assert!(state.is_participant());
 
         let (state, event) = state
-            .process_validation_request(signed_request)
+            .process_validation_request(verified_request)
             .unwrap()
             .wait_for_event()
             .await
             .unwrap();
         assert!(state.is_initial());
 
-        let ConsensusEvent::PublishValidationReply(reply) = event else {
-            panic!("Expected PublishValidationReply event, got {event:?}");
-        };
+        let reply = event
+            .unwrap_publish_message()
+            .unwrap_approve_batch()
+            .into_data()
+            .payload;
         assert_eq!(reply.digest, batch.to_digest());
         reply
             .signature
@@ -281,14 +283,14 @@ mod tests {
     async fn process_validation_request_failure() {
         let (ctx, pub_keys, _) = mock_validator_context();
         let producer = pub_keys[0];
-        let block = SimpleBlockData::mock(H256::random());
-        let signed_request = SignedValidationRequest::mock((ctx.core.signer.clone(), producer, ()));
+        let block = SimpleBlockData::mock(());
+        let verified_request = ctx.core.signer.mock_verified_data(producer, ());
 
         let state = Participant::create(ctx, block, producer.to_address()).unwrap();
         assert!(state.is_participant());
 
         let (state, event) = state
-            .process_validation_request(signed_request)
+            .process_validation_request(verified_request)
             .unwrap()
             .wait_for_event()
             .await
@@ -301,21 +303,26 @@ mod tests {
     async fn codes_not_waiting_for_commitment_error() {
         let (ctx, pub_keys, _) = mock_validator_context();
         let producer = pub_keys[0];
-        let mut batch = prepared_mock_batch_commitment(&ctx.core.db);
-        let block = simple_block_data(&ctx.core.db, batch.block_hash);
+        let mut batch = prepare_chain_for_batch_commitment(&ctx.core.db);
+        let block = ctx.core.db.simple_block_data(batch.block_hash);
 
         // Add a code that's not in the waiting queue
         let extra_code = CodeCommitment::mock(());
         batch.code_commitments.push(extra_code);
 
         let request = BatchCommitmentValidationRequest::new(&batch);
-        let signed_request = ctx.core.signer.signed_data(producer, request).unwrap();
+        let verified_request = ctx
+            .core
+            .signer
+            .signed_data(producer, request)
+            .unwrap()
+            .into_verified();
 
         let state = Participant::create(ctx, block, producer.to_address()).unwrap();
         assert!(state.is_participant());
 
         let (state, event) = state
-            .process_validation_request(signed_request)
+            .process_validation_request(verified_request)
             .unwrap()
             .wait_for_event()
             .await
@@ -328,7 +335,7 @@ mod tests {
     async fn empty_batch_error() {
         let (ctx, pub_keys, _) = mock_validator_context();
         let producer = pub_keys[0];
-        let block = SimpleBlockData::mock(H256::random()).prepare(&ctx.core.db, H256::random());
+        let block = SimpleBlockData::mock(());
 
         // Create a request with empty blocks and codes
         let request = BatchCommitmentValidationRequest {
@@ -339,13 +346,18 @@ mod tests {
             validators: false,
         };
 
-        let signed_request = ctx.core.signer.signed_data(producer, request).unwrap();
+        let verified_request = ctx
+            .core
+            .signer
+            .signed_data(producer, request)
+            .unwrap()
+            .into_verified();
 
         let state = Participant::create(ctx, block, producer.to_address()).unwrap();
         assert!(state.is_participant());
 
         let (state, event) = state
-            .process_validation_request(signed_request)
+            .process_validation_request(verified_request)
             .unwrap()
             .wait_for_event()
             .await
@@ -358,8 +370,8 @@ mod tests {
     async fn duplicate_codes_warning() {
         let (ctx, pub_keys, _) = mock_validator_context();
         let producer = pub_keys[0];
-        let batch = prepared_mock_batch_commitment(&ctx.core.db);
-        let block = simple_block_data(&ctx.core.db, batch.block_hash);
+        let batch = prepare_chain_for_batch_commitment(&ctx.core.db);
+        let block = ctx.core.db.simple_block_data(batch.block_hash);
 
         // Create a request with duplicate codes
         let mut request = BatchCommitmentValidationRequest::new(&batch);
@@ -368,13 +380,18 @@ mod tests {
             request.codes.push(duplicate_code);
         }
 
-        let signed_request = ctx.core.signer.signed_data(producer, request).unwrap();
+        let verified_request = ctx
+            .core
+            .signer
+            .signed_data(producer, request)
+            .unwrap()
+            .into_verified();
 
-        let state = Participant::create(ctx, block.clone(), producer.to_address()).unwrap();
+        let state = Participant::create(ctx, block, producer.to_address()).unwrap();
         assert!(state.is_participant());
 
         let (state, event) = state
-            .process_validation_request(signed_request)
+            .process_validation_request(verified_request)
             .unwrap()
             .wait_for_event()
             .await
@@ -387,20 +404,25 @@ mod tests {
     async fn digest_mismatch_warning() {
         let (ctx, pub_keys, _) = mock_validator_context();
         let producer = pub_keys[0];
-        let batch = prepared_mock_batch_commitment(&ctx.core.db);
-        let block = simple_block_data(&ctx.core.db, batch.block_hash);
+        let batch = prepare_chain_for_batch_commitment(&ctx.core.db);
+        let block = ctx.core.db.simple_block_data(batch.block_hash);
 
         // Create request with incorrect digest
         let mut request = BatchCommitmentValidationRequest::new(&batch);
         request.digest = Digest::random();
 
-        let signed_request = ctx.core.signer.signed_data(producer, request).unwrap();
+        let verified_request = ctx
+            .core
+            .signer
+            .signed_data(producer, request)
+            .unwrap()
+            .into_verified();
 
         let state = Participant::create(ctx, block, producer.to_address()).unwrap();
         assert!(state.is_participant());
 
         let (state, event) = state
-            .process_validation_request(signed_request)
+            .process_validation_request(verified_request)
             .unwrap()
             .wait_for_event()
             .await

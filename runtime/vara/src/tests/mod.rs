@@ -43,27 +43,37 @@ use utils::*;
 #[cfg(feature = "dev")]
 #[test]
 fn bridge_storages_have_correct_prefixes() {
-    use frame_support::traits::StorageInstance;
-
     // # SAFETY: Do not change storage prefixes without total bridge re-deploy.
     const PALLET_PREFIX: &str = "GearEthBridge";
 
+    const AUTHORITY_SET_HASH_STORAGE_PREFIX: &str = "AuthoritySetHash";
+    const AUTHORITY_SET_HASH_PREFIX_HASH: [u8; 32] = [
+        253, 110, 2, 127, 122, 27, 216, 186, 166, 64, 108, 234, 77, 128, 217, 50, 113, 32, 253, 42,
+        221, 109, 18, 73, 191, 27, 107, 252, 59, 223, 81, 15,
+    ];
+
+    const QUEUE_MERKLE_ROOT_STORAGE_PREFIX: &str = "QueueMerkleRoot";
+    const QUEUE_MERKLE_ROOT_PREFIX_HASH: [u8; 32] = [
+        253, 110, 2, 127, 122, 27, 216, 186, 166, 64, 108, 234, 77, 128, 217, 50, 223, 80, 147, 16,
+        188, 101, 91, 191, 117, 165, 181, 99, 252, 60, 142, 238,
+    ];
+
     assert_eq!(
-        pallet_gear_eth_bridge::AuthoritySetHashPrefix::<Runtime>::pallet_prefix(),
-        PALLET_PREFIX
-    );
-    assert_eq!(
-        pallet_gear_eth_bridge::QueueMerkleRootPrefix::<Runtime>::pallet_prefix(),
-        PALLET_PREFIX
+        pallet_gear_eth_bridge::Pallet::<Runtime>::authority_set_hash_storage_info(),
+        (
+            PALLET_PREFIX,
+            AUTHORITY_SET_HASH_STORAGE_PREFIX,
+            AUTHORITY_SET_HASH_PREFIX_HASH
+        )
     );
 
     assert_eq!(
-        pallet_gear_eth_bridge::AuthoritySetHashPrefix::<Runtime>::STORAGE_PREFIX,
-        "AuthoritySetHash"
-    );
-    assert_eq!(
-        pallet_gear_eth_bridge::QueueMerkleRootPrefix::<Runtime>::STORAGE_PREFIX,
-        "QueueMerkleRoot"
+        pallet_gear_eth_bridge::Pallet::<Runtime>::queue_merkle_root_storage_info(),
+        (
+            PALLET_PREFIX,
+            QUEUE_MERKLE_ROOT_STORAGE_PREFIX,
+            QUEUE_MERKLE_ROOT_PREFIX_HASH
+        )
     );
 }
 
@@ -193,13 +203,13 @@ fn instruction_weights_heuristics_test() {
         global_set: 1_000,
         memory_current: 14_200,
 
-        i64clz: 400,
+        i64clz: 600,
         i32clz: 300,
-        i64ctz: 400,
+        i64ctz: 610,
         i32ctz: 250,
         i64popcnt: 450,
         i32popcnt: 350,
-        i64eqz: 1_300,
+        i64eqz: 2_100,
         i32eqz: 1_200,
         i32extend8s: 200,
         i32extend16s: 200,
@@ -216,7 +226,7 @@ fn instruction_weights_heuristics_test() {
 
         i64lts: 1_200,
         i32lts: 1_000,
-        i64ltu: 1_200,
+        i64ltu: 1_800,
         i32ltu: 1_000,
         i64gts: 1_800,
         i32gts: 1_000,
@@ -302,7 +312,7 @@ fn syscall_weights_test() {
         gr_send_wgas: 3_300_000.into(),
         gr_send_wgas_per_byte: 550.into(),
         gr_send_init: 1_300_000.into(),
-        gr_send_push: 2_300_000.into(),
+        gr_send_push: 2_050_000.into(),
         gr_send_push_per_byte: 550.into(),
         gr_send_commit: 2_700_000.into(),
         gr_send_commit_wgas: 2_800_000.into(),
@@ -313,7 +323,7 @@ fn syscall_weights_test() {
         gr_reply_commit_wgas: 12_000_000.into(),
         gr_reservation_reply: 9_500_000.into(),
         gr_reservation_reply_per_byte: 800.into(),
-        gr_reservation_reply_commit: 10_000_000.into(),
+        gr_reservation_reply_commit: 8_000_000.into(),
         gr_reply_push: 2_000_000.into(),
         gr_reply: 14_500_000.into(),
         gr_reply_per_byte: 750.into(),
@@ -323,15 +333,15 @@ fn syscall_weights_test() {
         gr_reply_to: 1_200_000.into(),
         gr_signal_code: 1_200_000.into(),
         gr_signal_from: 1_200_000.into(),
-        gr_reply_input: 15_000_000.into(),
-        gr_reply_input_wgas: 12_000_000.into(),
+        gr_reply_input: 11_000_000.into(),
+        gr_reply_input_wgas: 13_000_000.into(),
         gr_reply_push_input: 1_400_000.into(),
         gr_reply_push_input_per_byte: 130.into(),
         gr_send_input: 3_100_000.into(),
         gr_send_input_wgas: 3_400_000.into(),
         gr_send_push_input: 1_500_000.into(),
         gr_send_push_input_per_byte: 150.into(),
-        gr_debug: 1_500_000.into(),
+        gr_debug: 1_300_000.into(),
         gr_debug_per_byte: 500.into(),
         gr_reply_code: 1_200_000.into(),
         gr_exit: 21_000_000.into(),
@@ -363,7 +373,7 @@ fn page_costs_heuristic_test() {
         load_page_data: 10_000_000.into(),
         upload_page_data: 105_000_000.into(),
         mem_grow: 700_000.into(),
-        mem_grow_per_page: 5.into(),
+        mem_grow_per_page: 3.into(),
         parachain_read_heuristic: 0.into(),
     };
 
@@ -414,11 +424,11 @@ fn instantiation_costs_heuristic_test() {
 
     let expected_instantiation_costs = InstantiationCosts {
         code_section_per_byte: 2582.into(),
-        data_section_per_byte: 595.into(),
+        data_section_per_byte: 661.into(),
         global_section_per_byte: 3000.into(),
         table_section_per_byte: 651.into(),
         element_section_per_byte: 2523.into(),
-        type_section_per_byte: 18285.into(),
+        type_section_per_byte: 22356.into(),
     };
 
     let result = check_instantiation_costs(instantiation_costs, expected_instantiation_costs);
@@ -449,7 +459,7 @@ fn code_instrumentation_costs_heuristic_test() {
     let code_instrumentation_costs = InstrumentationWeights::<Runtime>::default().into();
 
     let expected_code_instrumentation_costs = InstrumentationCosts {
-        base: 325729000.into(),
+        base: 412026293.into(),
         per_byte: 715243.into(),
     };
 

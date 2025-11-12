@@ -26,7 +26,7 @@ use std::{env, fs};
 use tracing_subscriber::EnvFilter;
 use wasmer::{
     Exports, Extern, Function, FunctionEnv, Imports, Instance, Memory, MemoryType, Module,
-    RuntimeError, Singlepass, Store,
+    RuntimeError, Store, sys::Singlepass,
 };
 use wasmer_types::{FunctionType, TrapCode, Type};
 

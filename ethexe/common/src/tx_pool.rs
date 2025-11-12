@@ -18,8 +18,9 @@
 
 //! ethexe tx pool types
 
-use crate::{ToDigest, ecdsa::SignedData};
+use crate::{ToDigest, db::OnChainStorageRO, ecdsa::SignedData};
 use alloc::vec::Vec;
+use anyhow::{Result, anyhow};
 use derive_more::{Debug, Display};
 use gprimitives::{H160, H256};
 use parity_scale_codec::{Decode, Encode};
@@ -92,5 +93,151 @@ impl RawOffchainTransaction {
         match self {
             RawOffchainTransaction::SendMessage { payload, .. } => payload,
         }
+    }
+}
+
+// TODO #4808: branch check must be until genesis block
+/// Checks if the transaction is still valid at the given block.
+/// Checking windows is in `transaction_height..transaction_height + BLOCK_HASHES_WINDOW_SIZE`
+///
+/// # Returns
+/// - `true` if the transaction is still valid at the given block
+/// - `false` otherwise
+pub fn check_mortality_at(
+    db: &impl OnChainStorageRO,
+    tx: &SignedOffchainTransaction,
+    block_hash: H256,
+) -> Result<bool> {
+    let transaction_block_hash = tx.reference_block();
+    let transaction_height = db
+        .block_header(transaction_block_hash)
+        .ok_or_else(|| {
+            anyhow!("Block header not found for reference block {transaction_block_hash}")
+        })?
+        .height;
+
+    let block_height = db
+        .block_header(block_hash)
+        .ok_or_else(|| anyhow!("Block header not found for hash: {block_hash}"))?
+        .height;
+
+    if transaction_height > block_height
+        || transaction_height + OffchainTransaction::BLOCK_HASHES_WINDOW_SIZE <= block_height
+    {
+        return Ok(false);
+    }
+
+    // Check transaction inclusion in the block branch.
+    let mut block_hash = block_hash;
+    for _ in 0..OffchainTransaction::BLOCK_HASHES_WINDOW_SIZE {
+        if block_hash == transaction_block_hash {
+            return Ok(true);
+        }
+
+        block_hash = db
+            .block_header(block_hash)
+            .ok_or_else(|| anyhow!("Block header not found for hash: {block_hash}"))?
+            .parent_hash;
+    }
+
+    Ok(false)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{BlockHeader, ProtocolTimelines, ecdsa::PrivateKey};
+    use alloc::collections::BTreeMap;
+
+    #[derive(Default)]
+    struct MockDatabase {
+        block_headers: BTreeMap<H256, BlockHeader>,
+    }
+
+    impl OnChainStorageRO for MockDatabase {
+        fn block_header(&self, hash: H256) -> Option<BlockHeader> {
+            self.block_headers.get(&hash).cloned()
+        }
+
+        fn protocol_timelines(&self) -> Option<ProtocolTimelines> {
+            unimplemented!()
+        }
+
+        fn block_events(&self, _block_hash: H256) -> Option<Vec<crate::events::BlockEvent>> {
+            unimplemented!()
+        }
+
+        fn code_blob_info(&self, _code_id: gprimitives::CodeId) -> Option<crate::CodeBlobInfo> {
+            unimplemented!()
+        }
+
+        fn block_synced(&self, _block_hash: H256) -> bool {
+            unimplemented!()
+        }
+
+        fn block_validators(&self, _block_hash: H256) -> Option<crate::ValidatorsVec> {
+            unimplemented!()
+        }
+    }
+
+    fn mock_tx(reference_block: H256) -> SignedOffchainTransaction {
+        let raw_tx = RawOffchainTransaction::SendMessage {
+            program_id: H160::random(),
+            payload: vec![1, 2, 3],
+        };
+        SignedOffchainTransaction::create(
+            PrivateKey::random(),
+            OffchainTransaction {
+                raw: raw_tx,
+                reference_block,
+            },
+        )
+        .unwrap()
+    }
+
+    fn generate_chain(db: &mut MockDatabase, start_height: u32, count: u32) {
+        assert_ne!(start_height, 0);
+        assert_ne!(count, 0);
+        assert!(start_height + count <= u8::MAX as u32);
+
+        let mut parent_hash = H256::zero();
+        for height in start_height..start_height + count {
+            let block_hash = H256::from([height as u8; 32]);
+            db.block_headers.insert(
+                block_hash,
+                BlockHeader {
+                    height,
+                    timestamp: height as u64 * 10,
+                    parent_hash,
+                },
+            );
+            parent_hash = block_hash;
+        }
+    }
+
+    #[test]
+    fn test_check_mortality_at() {
+        let mut db = MockDatabase::default();
+        let w = OffchainTransaction::BLOCK_HASHES_WINDOW_SIZE as u8;
+
+        generate_chain(&mut db, 10, (w * 3) as u32);
+
+        let tx = mock_tx(H256::from([5; 32]));
+        check_mortality_at(&db, &tx, H256::from([15; 32])).unwrap_err();
+
+        let tx = mock_tx(H256::from([10; 32]));
+        check_mortality_at(&db, &tx, H256::from([25; 32])).unwrap();
+        assert!(check_mortality_at(&db, &tx, H256::from([35; 32])).unwrap());
+
+        let tx = mock_tx(H256::from([10; 32]));
+        assert!(check_mortality_at(&db, &tx, H256::from([10 + w - 1; 32])).unwrap());
+        assert!(!check_mortality_at(&db, &tx, H256::from([10 + w; 32])).unwrap());
+        assert!(!check_mortality_at(&db, &tx, H256::from([10 + w * 3 - 1; 32])).unwrap());
+        check_mortality_at(&db, &tx, H256::from([10 + w * 3; 32])).unwrap_err();
+
+        let tx = mock_tx(H256::from([11; 32]));
+        assert!(check_mortality_at(&db, &tx, H256::from([11; 32])).unwrap());
+        assert!(!check_mortality_at(&db, &tx, H256::from([10; 32])).unwrap());
+        check_mortality_at(&db, &tx, H256::from([9; 32])).unwrap_err();
     }
 }

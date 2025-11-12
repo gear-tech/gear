@@ -4,10 +4,10 @@
 
 Foundry consists of:
 
--   **Forge**: Ethereum testing framework (like Truffle, Hardhat and DappTools).
--   **Cast**: Swiss army knife for interacting with EVM smart contracts, sending transactions and getting chain data.
--   **Anvil**: Local Ethereum node, akin to Ganache, Hardhat Network.
--   **Chisel**: Fast, utilitarian, and verbose solidity REPL.
+- **Forge**: Ethereum testing framework (like Truffle, Hardhat and DappTools).
+- **Cast**: Swiss army knife for interacting with EVM smart contracts, sending transactions and getting chain data.
+- **Anvil**: Local Ethereum node, akin to Ganache, Hardhat Network.
+- **Chisel**: Fast, utilitarian, and verbose solidity REPL.
 
 ## Documentation
 
@@ -54,6 +54,9 @@ $ forge script script/Deployment.s.sol:DeploymentScript --slow --rpc-url $MAINNE
 $ forge script script/Deployment.s.sol:DeploymentScript --slow --rpc-url $SEPOLIA_RPC_URL --broadcast --verify -vvvv
 $ forge script script/Deployment.s.sol:DeploymentScript --slow --rpc-url $HOLESKY_RPC_URL --broadcast --verify -vvvv
 $ forge script script/Deployment.s.sol:DeploymentScript --slow --rpc-url $HOODI_RPC_URL --broadcast --verify -vvvv
+
+# Now need to update `address internal constant ROUTER` in `MirrorProxy.sol` and `MirrorProxySmall.sol`
+# to address obtained during deployment (used to verify contracts created by Router)!
 
 $ forge script script/MirrorProxy.s.sol:MirrorProxyScript --slow --rpc-url $MAINNET_RPC_URL --broadcast --verify -vvvv
 $ forge script script/MirrorProxy.s.sol:MirrorProxyScript --slow --rpc-url $SEPOLIA_RPC_URL --broadcast --verify -vvvv

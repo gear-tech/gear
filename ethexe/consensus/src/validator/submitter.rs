@@ -93,7 +93,7 @@ impl BatchCommitter for EthereumCommitter {
         let (commitment, signatures) = batch.into_parts();
         let (origins, signatures): (Vec<_>, _) = signatures.into_iter().unzip();
 
-        log::debug!("Batch commitment to submit: {commitment:?}, signed by: {origins:?}");
+        tracing::debug!("Batch commitment to submit: {commitment:?}, signed by: {origins:?}");
 
         self.router.commit_batch(commitment, signatures).await
     }
@@ -102,8 +102,8 @@ impl BatchCommitter for EthereumCommitter {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{mock::*, validator::mock::*};
-    use ethexe_common::gear::BatchCommitment;
+    use crate::validator::mock::*;
+    use ethexe_common::{gear::BatchCommitment, mock::*};
 
     #[tokio::test]
     async fn submitter() {
@@ -124,7 +124,7 @@ mod tests {
         assert!(initial.is_initial());
         assert!(matches!(event, ConsensusEvent::CommitmentSubmitted(_)));
 
-        let batch = eth.committed_batch.lock().await.clone();
+        let batch = eth.committed_batch.read().await.clone();
         assert_eq!(batch, Some(multisigned_batch));
     }
 }

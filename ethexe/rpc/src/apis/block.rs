@@ -16,10 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{common::block_header_at_or_latest, errors};
+use crate::{errors, utils};
 use ethexe_common::{
-    BlockHeader,
-    db::{BlockMetaStorageRead, OnChainStorageRead},
+    BlockHeader, SimpleBlockData,
+    db::{AnnounceStorageRO, OnChainStorageRO},
     events::BlockRequestEvent,
     gear::StateTransition,
 };
@@ -56,11 +56,12 @@ impl BlockApi {
 #[async_trait]
 impl BlockServer for BlockApi {
     async fn block_header(&self, hash: Option<H256>) -> RpcResult<(H256, BlockHeader)> {
-        block_header_at_or_latest(&self.db, hash)
+        let SimpleBlockData { hash, header } = utils::block_header_at_or_latest(&self.db, hash)?;
+        Ok((hash, header))
     }
 
     async fn block_events(&self, hash: Option<H256>) -> RpcResult<Vec<BlockRequestEvent>> {
-        let block_hash = block_header_at_or_latest(&self.db, hash)?.0;
+        let block_hash = utils::block_header_at_or_latest(&self.db, hash)?.hash;
 
         self.db
             .block_events(block_hash)
@@ -74,12 +75,10 @@ impl BlockServer for BlockApi {
     }
 
     async fn block_outcome(&self, hash: Option<H256>) -> RpcResult<Vec<StateTransition>> {
-        let block_hash = block_header_at_or_latest(&self.db, hash)?.0;
+        let announce_hash = utils::announce_at_or_latest(&self.db, hash)?;
 
         self.db
-            .block_outcome(block_hash)
-            .ok_or_else(|| errors::db("Block outcome wasn't found"))?
-            .into_transitions()
-            .ok_or_else(|| errors::db("`block_outcome` is called on forced non-empty outcome"))
+            .announce_outcome(announce_hash)
+            .ok_or_else(|| errors::db("Block outcome wasn't found"))
     }
 }
