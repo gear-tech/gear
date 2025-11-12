@@ -54,7 +54,8 @@ pub fn block_at_or_latest_synced<DB: OnChainStorageRO + LatestDataStorageRO>(
     } else {
         db.latest_data()
             .ok_or_else(|| errors::db("Latest data wasn't found"))?
-            .start_block_hash
+            .synced_block
+            .hash
     };
 
     db.block_header(hash)
