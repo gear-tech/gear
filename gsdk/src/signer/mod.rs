@@ -18,12 +18,7 @@
 
 //! Gear api with signer
 
-use crate::{
-    Api,
-    backtrace::Backtrace,
-    config::GearConfig,
-    result::{Error, Result},
-};
+use crate::{Api, backtrace::Backtrace, config::GearConfig, result::Result};
 use calls::SignerCalls;
 use core::ops::Deref;
 pub use pair_signer::PairSigner;
@@ -75,9 +70,7 @@ impl Signer {
     pub fn new(api: Api, suri: &str, passwd: Option<&str>) -> Result<Self> {
         let signer = Inner {
             api,
-            signer: PairSigner::new(
-                Pair::from_string(suri, passwd).map_err(|_| Error::InvalidSecret)?,
-            ),
+            signer: PairSigner::new(Pair::from_string(suri, passwd)?),
             nonce: None,
             backtrace: Default::default(),
         };
@@ -115,8 +108,7 @@ impl Signer {
 
     /// Change inner signer.
     pub fn change(mut self, suri: &str, passwd: Option<&str>) -> Result<Self> {
-        let signer =
-            PairSigner::new(Pair::from_string(suri, passwd).map_err(|_| Error::InvalidSecret)?);
+        let signer = PairSigner::new(Pair::from_string(suri, passwd)?);
 
         self.replace_inner(Inner {
             signer,

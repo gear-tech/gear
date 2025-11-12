@@ -17,7 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    ComputeEvent, ProcessorExt, Result, codes::CodesSubService, compute::ComputeSubService,
+    ComputeEvent, ProcessorExt, Result,
+    codes::CodesSubService,
+    compute::{ComputeConfig, ComputeSubService},
     prepare::PrepareSubService,
 };
 use ethexe_common::{Announce, CodeAndIdUnchecked};
@@ -45,10 +47,10 @@ pub struct ComputeService<P: ProcessorExt = Processor> {
 
 impl<P: ProcessorExt> ComputeService<P> {
     // TODO #4550: consider to create Processor inside ComputeService
-    pub fn new(db: Database, processor: P) -> Self {
+    pub fn new(config: ComputeConfig, db: Database, processor: P) -> Self {
         Self {
             prepare_sub_service: PrepareSubService::new(db.clone()),
-            compute_sub_service: ComputeSubService::new(db.clone(), processor.clone()),
+            compute_sub_service: ComputeSubService::new(config, db.clone(), processor.clone()),
             codes_sub_service: CodesSubService::new(db, processor),
         }
     }
@@ -137,9 +139,10 @@ mod tests {
 
         let db = DB::memory();
         let processor = MockProcessor;
-        let mut service = ComputeService::new(db.clone(), processor);
-        let chain = BlockChain::mock(1).setup(&db);
+        let config = ComputeConfig::without_quarantine();
+        let mut service = ComputeService::new(config, db.clone(), processor);
 
+        let chain = BlockChain::mock(1).setup(&db);
         let block = chain.blocks[1].to_simple().next_block().setup(&db);
 
         // Request block preparation
@@ -160,7 +163,9 @@ mod tests {
 
         let db = DB::memory();
         let processor = MockProcessor;
-        let mut service = ComputeService::new(db.clone(), processor);
+
+        let config = ComputeConfig::without_quarantine();
+        let mut service = ComputeService::new(config, db.clone(), processor);
         let chain = BlockChain::mock(1).setup(&db);
 
         let block = chain.blocks[1].to_simple().next_block().setup(&db);
@@ -194,7 +199,8 @@ mod tests {
 
         let db = DB::memory();
         let processor = MockProcessor;
-        let mut service = ComputeService::new(db.clone(), processor);
+        let config = ComputeConfig::without_quarantine();
+        let mut service = ComputeService::new(config, db.clone(), processor);
 
         // Create test code
         let code = vec![0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00]; // Simple WASM header

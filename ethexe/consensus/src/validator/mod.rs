@@ -245,21 +245,21 @@ impl Stream for ValidatorService {
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         loop {
-            if let Some(handle) = self.db_sync_handle.clone() {
-                if let Some(mut fetch) = self.announces_fetch.take() {
-                    match fetch.poll(&handle, cx) {
-                        Poll::Ready(response) => {
-                            if let Err(err) = self
-                                .update_inner(|inner| inner.process_announces_response(response))
-                            {
-                                return Poll::Ready(Some(Err(err)));
-                            }
+            if let Some(handle) = self.db_sync_handle.clone()
+                && let Some(mut fetch) = self.announces_fetch.take()
+            {
+                match fetch.poll(&handle, cx) {
+                    Poll::Ready(response) => {
+                        if let Err(err) =
+                            self.update_inner(|inner| inner.process_announces_response(response))
+                        {
+                            return Poll::Ready(Some(Err(err)));
+                        }
 
-                            continue;
-                        }
-                        Poll::Pending => {
-                            self.announces_fetch = Some(fetch);
-                        }
+                        continue;
+                    }
+                    Poll::Pending => {
+                        self.announces_fetch = Some(fetch);
                     }
                 }
             }
@@ -318,9 +318,11 @@ where
 
     fn into_context(self) -> ValidatorContext;
 
-    fn warning(&mut self, warning: String) {
+    fn warning(&mut self, warning: impl fmt::Display) {
         let warning = format!("{self} - {warning}");
-        self.context_mut().warning(warning);
+        self.context_mut()
+            .output
+            .push_back(ConsensusEvent::Warning(warning));
     }
 
     fn process_new_head(self, block: SimpleBlockData) -> Result<ValidatorState> {
@@ -408,7 +410,7 @@ impl StateHandler for ValidatorState {
         delegate_call!(self => into_context())
     }
 
-    fn warning(&mut self, warning: String) {
+    fn warning(&mut self, warning: impl fmt::Display) {
         delegate_call!(self => warning(warning))
     }
 
@@ -545,10 +547,6 @@ struct ValidatorContext {
 }
 
 impl ValidatorContext {
-    pub fn warning(&mut self, warning: String) {
-        self.output.push_back(ConsensusEvent::Warning(warning));
-    }
-
     pub fn output(&mut self, event: impl Into<ConsensusEvent>) {
         self.output.push_back(event.into());
     }

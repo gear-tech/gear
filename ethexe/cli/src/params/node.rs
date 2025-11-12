@@ -20,7 +20,10 @@ use super::MergeParams;
 use anyhow::{Context, Result, ensure};
 use clap::Parser;
 use directories::ProjectDirs;
-use ethexe_common::{DEFAULT_BLOCK_GAS_LIMIT, gear::MAX_BLOCK_GAS_LIMIT};
+use ethexe_common::{
+    DEFAULT_BLOCK_GAS_LIMIT,
+    gear::{CANONICAL_QUARANTINE, MAX_BLOCK_GAS_LIMIT},
+};
 use ethexe_processor::DEFAULT_CHUNK_PROCESSING_THREADS;
 use ethexe_service::config::{ConfigPublicKey, NodeConfig};
 use serde::Deserialize;
@@ -82,6 +85,10 @@ pub struct NodeParams {
     #[serde(rename = "block-gas-limit")]
     pub block_gas_limit: Option<u64>,
 
+    #[arg(long)]
+    #[serde(rename = "canonical-quarantine")]
+    pub canonical_quarantine: Option<u8>,
+
     /// Do P2P database synchronization before the main loop
     #[arg(long, default_value = "false")]
     #[serde(default, rename = "fast-sync")]
@@ -117,6 +124,7 @@ impl NodeParams {
                 .block_gas_limit
                 .unwrap_or(DEFAULT_BLOCK_GAS_LIMIT)
                 .min(MAX_BLOCK_GAS_LIMIT),
+            canonical_quarantine: self.canonical_quarantine.unwrap_or(CANONICAL_QUARANTINE),
             dev: self.dev,
             fast_sync: self.fast_sync,
         })
@@ -190,6 +198,7 @@ impl MergeParams for NodeParams {
                 .or(with.chunk_processing_threads),
 
             block_gas_limit: self.block_gas_limit.or(with.block_gas_limit),
+            canonical_quarantine: self.canonical_quarantine.or(with.canonical_quarantine),
 
             fast_sync: self.fast_sync || with.fast_sync,
         }

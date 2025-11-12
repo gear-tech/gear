@@ -28,19 +28,23 @@ use crate::{
         Wallets, init_logger,
     },
 };
-use alloy::providers::{Provider as _, ext::AnvilApi};
+use alloy::{
+    primitives::U256,
+    providers::{Provider as _, WalletProvider, ext::AnvilApi},
+};
 use ethexe_common::{
     Announce, HashOf, ScheduledTask,
     db::*,
     events::{BlockEvent, MirrorEvent, RouterEvent},
-    gear::Origin,
+    gear::{CANONICAL_QUARANTINE, MessageType},
     mock::*,
     network::ValidatorMessage,
 };
+use ethexe_compute::ComputeConfig;
 use ethexe_consensus::ConsensusEvent;
 use ethexe_db::{Database, verifier::IntegrityVerifier};
 use ethexe_ethereum::deploy::ContractsDeploymentParams;
-use ethexe_observer::EthereumConfig;
+use ethexe_observer::{EthereumConfig, ObserverEvent};
 use ethexe_processor::{DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, RunnerConfig};
 use ethexe_prometheus::PrometheusConfig;
 use ethexe_rpc::{RpcConfig, test_utils::JsonRpcResponse};
@@ -81,6 +85,7 @@ async fn basics() {
         blocking_threads: None,
         chunk_processing_threads: 16,
         block_gas_limit: 4_000_000_000_000,
+        canonical_quarantine: 0,
         dev: true,
         fast_sync: false,
     };
@@ -507,7 +512,7 @@ async fn mailbox() {
                     value: MailboxMessage {
                         payload: mid_payload.clone(),
                         value: 0,
-                        origin: Origin::Ethereum,
+                        message_type: MessageType::Canonical,
                     },
                     expiry,
                 },
@@ -518,7 +523,7 @@ async fn mailbox() {
                     value: MailboxMessage {
                         payload: ping_payload,
                         value: 0,
-                        origin: Origin::Ethereum,
+                        message_type: MessageType::Canonical,
                     },
                     expiry,
                 },
@@ -568,7 +573,7 @@ async fn mailbox() {
                 value: MailboxMessage {
                     payload: mid_payload,
                     value: 0,
-                    origin: Origin::Ethereum,
+                    message_type: MessageType::Canonical,
                 },
                 expiry,
             },
@@ -607,6 +612,109 @@ async fn mailbox() {
         .announce_schedule(announce_hash)
         .expect("must exist");
     assert!(schedule.is_empty(), "{schedule:?}");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ntest::timeout(60_000)]
+async fn value_in_reply() {
+    init_logger();
+
+    let mut env = TestEnv::new(Default::default()).await.unwrap();
+
+    let mut node = env.new_node(NodeConfig::default().validator(env.validators[0]));
+    node.start_service().await;
+
+    let res = env
+        .upload_code(demo_piggy_bank::WASM_BINARY)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    let code_id = res.code_id;
+    let res = env
+        .create_program(code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    let _ = env
+        .send_message(res.program_id, b"", 0)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    let piggy_bank_id = res.program_id;
+
+    let wvara = env.ethereum.router().wvara();
+
+    assert_eq!(wvara.query().decimals().await.unwrap(), 12);
+
+    let piggy_bank = env.ethereum.mirror(piggy_bank_id.to_address_lossy().into());
+
+    let on_eth_balance = piggy_bank.get_balance().await.unwrap();
+    assert_eq!(on_eth_balance, 0);
+
+    let state_hash = piggy_bank.query().state_hash().await.unwrap();
+    let local_balance = node.db.program_state(state_hash).unwrap().balance;
+    assert_eq!(local_balance, 0);
+
+    // 1_000 ETH
+    const VALUE_SENT: u128 = 1_000 * ETHER;
+
+    let mut listener = env.observer_events_publisher().subscribe().await;
+
+    piggy_bank.owned_balance_top_up(VALUE_SENT).await.unwrap();
+
+    listener
+        .apply_until_block_event(|e| {
+            Ok(matches!(e, BlockEvent::Router(RouterEvent::BatchCommitted { .. })).then_some(()))
+        })
+        .await
+        .unwrap();
+
+    let on_eth_balance = piggy_bank.get_balance().await.unwrap();
+    assert_eq!(on_eth_balance, VALUE_SENT);
+
+    let state_hash = piggy_bank.query().state_hash().await.unwrap();
+    let local_balance = node.db.program_state(state_hash).unwrap().balance;
+    assert_eq!(local_balance, VALUE_SENT);
+
+    env.approve_wvara(piggy_bank_id).await;
+
+    let res = env
+        .send_message(piggy_bank_id, b"smash_with_reply", 0)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Manual));
+    assert_eq!(res.value, VALUE_SENT);
+
+    let on_eth_balance = piggy_bank.get_balance().await.unwrap();
+    assert_eq!(on_eth_balance, 0);
+
+    let state_hash = piggy_bank.query().state_hash().await.unwrap();
+    let local_balance = node.db.program_state(state_hash).unwrap().balance;
+    assert_eq!(local_balance, 0);
+
+    let sender_address = env.ethereum.provider().default_signer_address();
+    let measurement_error: U256 = (ETHER / 50).try_into().unwrap(); // 0.02 ETH for gas costs
+    let default_anvil_balance: U256 = (10_000 * ETHER).try_into().unwrap();
+    let balance = env
+        .ethereum
+        .provider()
+        .get_balance(sender_address)
+        .await
+        .unwrap();
+    assert!(default_anvil_balance - balance <= measurement_error);
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -1508,6 +1616,94 @@ async fn validators_election() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+#[ntest::timeout(30_000)]
+async fn execution_with_canonical_events_quarantine() {
+    init_logger();
+
+    let config = TestEnvConfig {
+        compute_config: ComputeConfig::new(CANONICAL_QUARANTINE),
+        ..Default::default()
+    };
+    let mut env = TestEnv::new(config).await.unwrap();
+
+    log::info!("📗 Starting validator");
+    let mut validator = env.new_node(NodeConfig::default().validator(env.validators[0]));
+    validator.start_service().await;
+
+    let uploaded_code = env
+        .upload_code(demo_ping::WASM_BINARY)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert!(uploaded_code.valid);
+
+    let res = env
+        .create_program(uploaded_code.code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert_eq!(res.code_id, uploaded_code.code_id);
+
+    let canonical_quarantine = env.compute_config.canonical_quarantine();
+    let message_id = env
+        .send_message(res.program_id, b"PING", 0)
+        .await
+        .unwrap()
+        .message_id;
+
+    env.provider.anvil_mine(Some(1), None).await.unwrap();
+
+    let mut listener = env.observer_events_publisher().subscribe().await;
+
+    // Skipping events to reach canonical events maturity
+    let mut skipped_blocks = 0;
+    while skipped_blocks < canonical_quarantine {
+        env.provider.anvil_mine(Some(1), None).await.unwrap();
+        tokio::time::sleep(Duration::from_millis(150)).await;
+
+        if let ObserverEvent::BlockSynced(..) = listener.next_event().await.unwrap() {
+            skipped_blocks += 1
+        };
+    }
+
+    // Now waiting for the PONG reply
+    loop {
+        let synced_block = match listener.next_event().await.unwrap() {
+            ObserverEvent::BlockSynced(block_hash) => block_hash,
+            _ => {
+                continue;
+            }
+        };
+
+        let Some(block_events) = validator.db.block_events(synced_block) else {
+            continue;
+        };
+
+        for block_event in block_events {
+            if let BlockEvent::Mirror {
+                actor_id: _,
+                event:
+                    MirrorEvent::Reply {
+                        payload,
+                        value: _,
+                        reply_to,
+                        reply_code: _,
+                    },
+            } = block_event
+                && reply_to == message_id
+                && payload == b"PONG"
+            {
+                return;
+            }
+        }
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
 #[ntest::timeout(120_000)]
 async fn announces_conflicts() {
     init_logger();
@@ -1603,7 +1799,7 @@ async fn announces_conflicts() {
             })
             .await;
 
-        // Validators 1..=6 must not accept this announce, so computation task should never happen
+        // Validators 1..=6 must reject this announce
         futures::future::join_all(listeners.iter_mut().map(|l| {
             l.apply_until(|event| {
                 Ok(matches!(
@@ -1636,8 +1832,7 @@ async fn announces_conflicts() {
             assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Manual));
         });
 
-        // Wait till all validators accept announce for the latest block,
-        // which is from validator 2, because commitment forces anvil to produce new block.
+        // Wait till all validators accept announce for the latest block
         let latest_block = env.latest_block().await.hash;
         let mut latest_computed_announce_hash = HashOf::zero();
         for listener in &mut listeners {
@@ -1703,11 +1898,7 @@ async fn announces_conflicts() {
             })
             .await;
         for listener in &mut listeners {
-            let announce_hash = listener.wait_for_announce_computed(announce6_hash).await;
-            assert_eq!(
-                announce_hash, announce_hash,
-                "Announce from validator 6 must be accepted"
-            );
+            listener.wait_for_announce_computed(announce6_hash).await;
         }
 
         // Commitment does not sent by validator 6,
@@ -1736,7 +1927,7 @@ async fn announces_conflicts() {
             })
             .await;
 
-        // Validators 1..=5 must reject this announce, so computation task should never happen
+        // Validators 1..=5 must reject this announce
         futures::future::join_all(listeners.iter_mut().map(|l| {
             l.apply_until(|event| {
                 Ok(matches!(

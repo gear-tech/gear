@@ -18,12 +18,13 @@
 
 //! Subscription implementation.
 
-use crate::{config::GearConfig, metadata::Event};
-use anyhow::Result;
+use crate::{Result, config::GearConfig, metadata::Event};
 use futures::{Stream, StreamExt};
-use sp_core::H256;
 use std::{marker::Unpin, ops::Deref, pin::Pin, task::Poll};
-use subxt::{OnlineClient, backend::StreamOfResults, blocks::Block, events::Events as SubxtEvents};
+use subxt::{
+    OnlineClient, backend::StreamOfResults, blocks::Block, events::Events as SubxtEvents,
+    utils::H256,
+};
 
 type SubxtBlock = Block<GearConfig, OnlineClient<GearConfig>>;
 type BlockSubscription = StreamOfResults<SubxtBlock>;

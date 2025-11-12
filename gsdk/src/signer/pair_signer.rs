@@ -72,10 +72,6 @@ where
         self.account_id.clone()
     }
 
-    fn address(&self) -> T::Address {
-        self.account_id.clone().into()
-    }
-
     fn sign(&self, signer_payload: &[u8]) -> T::Signature {
         self.signer.sign(signer_payload).into()
     }

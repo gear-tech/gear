@@ -124,7 +124,13 @@ fn generate_runtime_types(metadata: Metadata) -> TokenStream {
         parse_quote!(Debug),
         parse_quote!(crate::gp::Encode),
         parse_quote!(crate::gp::Decode),
+        parse_quote!(crate::gp::EncodeAsType),
         parse_quote!(crate::gp::DecodeAsType),
+    ]);
+    builder.set_additional_global_attributes(vec![
+        parse_quote!(#[encode_as_type(crate_path = "::subxt::ext::scale_encode")]),
+        parse_quote!(#[decode_as_type(crate_path = "::subxt::ext::scale_decode")]),
+        parse_quote!(#[codec(crate = ::subxt::ext::codec)]),
     ]);
 
     for ty in [

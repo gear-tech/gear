@@ -113,7 +113,7 @@ use core_processor::common::JournalNote;
 use ethexe_common::{
     StateHashWithQueueSize,
     db::CodesStorageRO,
-    gear::{CHUNK_PROCESSING_GAS_LIMIT, Origin},
+    gear::{CHUNK_PROCESSING_GAS_LIMIT, MessageType},
 };
 use ethexe_db::Database;
 use ethexe_runtime_common::{
@@ -154,24 +154,86 @@ impl RunnerConfig {
     }
 }
 
-/// Runs programs queues in chunks.
+// Run all program queues
 pub async fn run(
+    run_ctx: impl RunContext,
     db: Database,
     instance_creator: InstanceCreator,
     config: RunnerConfig,
-    mut run_ctx: impl RunContext,
 ) {
-    let chunk_size = config.chunk_processing_threads;
-    let mut join_set = JoinSet::new();
     let mut allowance_counter = GasAllowanceCounter::new(config.block_gas_limit);
+    let chunk_size = config.chunk_processing_threads;
+
+    // Start with injected queues processing.
+    let (is_out_of_gas_for_block, run_ctx) = run_inner(
+        run_ctx,
+        db.clone(),
+        instance_creator.clone(),
+        &mut allowance_counter,
+        chunk_size,
+        MessageType::Injected,
+    )
+    .await;
+
+    // If gas is still left in block, process canonical (Ethereum) queues
+    if !is_out_of_gas_for_block {
+        let _ = run_inner(
+            run_ctx,
+            db,
+            instance_creator,
+            &mut allowance_counter,
+            chunk_size,
+            MessageType::Canonical,
+        )
+        .await;
+    }
+}
+
+// Convenience function to run overlaid execution
+pub async fn run_overlaid(
+    run_ctx: impl RunContext,
+    db: Database,
+    instance_creator: InstanceCreator,
+    config: RunnerConfig,
+) {
+    let mut allowance_counter = GasAllowanceCounter::new(config.block_gas_limit);
+    let chunk_size = config.chunk_processing_threads;
+
+    // TODO: Use injected queues for overlaid execution
+    let _ = run_inner(
+        run_ctx,
+        db,
+        instance_creator,
+        &mut allowance_counter,
+        chunk_size,
+        MessageType::Canonical,
+    )
+    .await;
+}
+
+// Process chosen queue type in chunks
+async fn run_inner<C: RunContext>(
+    mut run_ctx: C,
+    db: Database,
+    instance_creator: InstanceCreator,
+    allowance_counter: &mut GasAllowanceCounter,
+    chunk_size: usize,
+    processing_queue_type: MessageType,
+) -> (bool, C) {
+    let mut join_set = JoinSet::new();
     let mut is_out_of_gas_for_block = false;
 
     loop {
         // Get actual states from transitions, stored in `run_ctx`.
-        let states = run_ctx.states();
+        let states = run_ctx.states(processing_queue_type);
 
         // Prepare chunks for execution, by splitting states into chunks of the specified size.
-        let chunks = chunks_splitting::prepare_execution_chunks(chunk_size, states, &run_ctx);
+        let chunks = chunks_splitting::prepare_execution_chunks(
+            chunk_size,
+            states,
+            &run_ctx,
+            processing_queue_type,
+        );
 
         if chunks.is_empty() {
             // No more chunks to process. Stopping.
@@ -184,9 +246,10 @@ pub async fn run(
                 chunk,
                 db.clone(),
                 &instance_creator,
-                &mut allowance_counter,
+                allowance_counter,
                 &mut join_set,
                 &mut run_ctx,
+                processing_queue_type,
             );
 
             // Collect journals from all executed programs in the chunk.
@@ -198,7 +261,7 @@ pub async fn run(
             let output = chunk_execution_processing::process_chunk_execution_journals(
                 chunk_journals,
                 &db,
-                &allowance_counter,
+                allowance_counter,
                 &mut is_out_of_gas_for_block,
                 &mut run_ctx,
             );
@@ -209,13 +272,15 @@ pub async fn run(
 
             // Charge global gas allowance counter with the maximum gas spent in the chunk.
             allowance_counter.charge(max_gas_spent_in_chunk);
+        }
 
-            if is_out_of_gas_for_block {
-                // Ran out of gas for the block, stopping processing.
-                break;
-            }
+        if is_out_of_gas_for_block {
+            // Ran out of gas for the block, stop processing.
+            break;
         }
     }
+
+    (is_out_of_gas_for_block, run_ctx)
 }
 
 /// Context for running program queues in chunks.
@@ -225,7 +290,10 @@ pub async fn run(
 /// to emphasize any particular trait/feature/abstraction.
 pub(crate) trait RunContext {
     fn transitions(&mut self) -> &mut InBlockTransitions;
-    fn states(&self) -> Vec<chunks_splitting::ActorStateHashWithQueueSize>;
+    fn states(
+        &self,
+        processing_queue_type: MessageType,
+    ) -> Vec<chunks_splitting::ActorStateHashWithQueueSize>;
 
     /// Handle chunk data for a specific actor state.
     ///
@@ -238,8 +306,20 @@ pub(crate) trait RunContext {
         &self,
         execution_chunks: &mut chunks_splitting::ExecutionChunks,
         actor_state: chunks_splitting::ActorStateHashWithQueueSize,
+        queue_type: MessageType,
     ) {
-        let (actor_id, hash, queue_size) = actor_state.into_inner();
+        let chunks_splitting::ActorStateHashWithQueueSize {
+            actor_id,
+            hash,
+            canonical_queue_size,
+            injected_queue_size,
+        } = actor_state;
+
+        let queue_size = match queue_type {
+            MessageType::Canonical => canonical_queue_size,
+            MessageType::Injected => injected_queue_size,
+        };
+
         let chunk_idx = execution_chunks.chunk_idx(queue_size);
         execution_chunks.insert_into(chunk_idx, actor_id, hash);
     }
@@ -280,8 +360,11 @@ impl<'a> RunContext for CommonRunContext<'a> {
         self.in_block_transitions
     }
 
-    fn states(&self) -> Vec<chunks_splitting::ActorStateHashWithQueueSize> {
-        states(&*self.in_block_transitions)
+    fn states(
+        &self,
+        processing_queue_type: MessageType,
+    ) -> Vec<chunks_splitting::ActorStateHashWithQueueSize> {
+        states(&*self.in_block_transitions, processing_queue_type)
     }
 }
 
@@ -309,16 +392,31 @@ impl<'a> RunContext for OverlaidRunContext<'a> {
         self.in_block_transitions
     }
 
-    fn states(&self) -> Vec<chunks_splitting::ActorStateHashWithQueueSize> {
-        states(&*self.in_block_transitions)
+    fn states(
+        &self,
+        processing_queue_type: MessageType,
+    ) -> Vec<chunks_splitting::ActorStateHashWithQueueSize> {
+        states(&*self.in_block_transitions, processing_queue_type)
     }
 
     fn handle_chunk_data(
         &self,
         execution_chunks: &mut chunks_splitting::ExecutionChunks,
         actor_state: chunks_splitting::ActorStateHashWithQueueSize,
+        queue_type: MessageType,
     ) {
-        let (actor_id, hash, queue_size) = actor_state.into_inner();
+        let chunks_splitting::ActorStateHashWithQueueSize {
+            actor_id,
+            hash,
+            canonical_queue_size,
+            injected_queue_size,
+        } = actor_state;
+
+        let queue_size = match queue_type {
+            MessageType::Canonical => canonical_queue_size,
+            MessageType::Injected => injected_queue_size,
+        };
+
         if self.overlaid_ctx.base_program() == actor_id {
             // Insert base program into heaviest chunk, which is going to be executed first.
             // This is done to get faster reply from the target dispatch for which overlaid
@@ -344,11 +442,17 @@ impl<'a> RunContext for OverlaidRunContext<'a> {
 
 fn states(
     in_block_transitions: &InBlockTransitions,
+    processing_queue_type: MessageType,
 ) -> Vec<chunks_splitting::ActorStateHashWithQueueSize> {
     in_block_transitions
         .states_iter()
         .filter_map(|(&actor_id, &state)| {
-            if state.canonical_queue_size == 0 {
+            let queue_size = match processing_queue_type {
+                MessageType::Canonical => state.canonical_queue_size,
+                MessageType::Injected => state.injected_queue_size,
+            };
+
+            if queue_size == 0 {
                 return None;
             }
             let actor_state = chunks_splitting::ActorStateHashWithQueueSize::new(actor_id, state);
@@ -370,11 +474,12 @@ mod chunks_splitting {
         chunk_size: usize,
         states: Vec<ActorStateHashWithQueueSize>,
         run_ctx: &R,
+        processing_queue_type: MessageType,
     ) -> Chunks {
         let mut execution_chunks = ExecutionChunks::new(chunk_size, states.len());
 
         for state in states {
-            run_ctx.handle_chunk_data(&mut execution_chunks, state);
+            run_ctx.handle_chunk_data(&mut execution_chunks, state, processing_queue_type);
         }
 
         execution_chunks.arrange_execution_chunks()
@@ -383,9 +488,10 @@ mod chunks_splitting {
     /// A helper  struct to bundle actor id, state hash and queue size together
     /// for easier handling in chunk preparation.
     pub(crate) struct ActorStateHashWithQueueSize {
-        actor_id: ActorId,
-        hash: H256,
-        canonical_queue_size: usize,
+        pub(crate) actor_id: ActorId,
+        pub(crate) hash: H256,
+        pub(crate) canonical_queue_size: usize,
+        pub(crate) injected_queue_size: usize,
     }
 
     impl ActorStateHashWithQueueSize {
@@ -394,11 +500,8 @@ mod chunks_splitting {
                 actor_id,
                 hash: state.hash,
                 canonical_queue_size: state.canonical_queue_size as usize,
+                injected_queue_size: state.injected_queue_size as usize,
             }
-        }
-
-        pub(super) fn into_inner(self) -> (ActorId, H256, usize) {
-            (self.actor_id, self.hash, self.canonical_queue_size)
         }
     }
 
@@ -489,6 +592,7 @@ mod chunk_execution_spawn {
         allowance_counter: &mut GasAllowanceCounter,
         join_set: &mut ChunksJoinSet,
         run_ctx: &mut R,
+        processing_queue_type: MessageType,
     ) {
         for (chunk_pos, (program_id, state_hash)) in chunk.into_iter().enumerate() {
             if run_ctx.check_task_no_run(program_id) {
@@ -507,6 +611,7 @@ mod chunk_execution_spawn {
                     &mut executor,
                     program_id,
                     state_hash,
+                    processing_queue_type,
                     gas_allowance_for_chunk,
                 );
                 (chunk_pos, program_id, new_state_hash, jn, gas_spent)
@@ -519,6 +624,7 @@ mod chunk_execution_spawn {
         executor: &mut InstanceWrapper,
         program_id: ActorId,
         state_hash: H256,
+        queue_type: MessageType,
         gas_allowance: u64,
     ) -> (ProgramJournals, H256, u64) {
         let code_id = db.program_code_id(program_id).expect("Code ID must be set");
@@ -531,6 +637,7 @@ mod chunk_execution_spawn {
                 db,
                 program_id,
                 state_hash,
+                queue_type,
                 instrumented_code,
                 code_metadata,
                 gas_allowance,
@@ -545,7 +652,7 @@ mod chunk_execution_processing {
     // Aliases introduced for better readability of the chunk journals processing steps.
     type MaybeProgramChunkJournals = Option<(ActorId, ChunkJournals)>;
     type ChunkJournals = Vec<ExtendedJournal>;
-    type ExtendedJournal = (Vec<JournalNote>, Origin, bool);
+    type ExtendedJournal = (Vec<JournalNote>, MessageType, bool);
 
     /// Output of the chunk journals processing step.
     ///
@@ -620,12 +727,12 @@ mod chunk_execution_processing {
                 );
             };
 
-            for (journal, dispatch_origin, call_reply) in program_journals {
+            for (journal, message_type, call_reply) in program_journals {
                 let break_flag = run_ctx.break_early(&journal);
 
                 let mut journal_handler = JournalHandler {
                     program_id,
-                    dispatch_origin,
+                    message_type,
                     call_reply,
                     controller: TransitionController {
                         transitions: run_ctx.transitions(),
@@ -650,7 +757,7 @@ mod chunk_execution_processing {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ethexe_common::{BlockHeader, MaybeHashOf, StateHashWithQueueSize, gear::Origin};
+    use ethexe_common::{BlockHeader, MaybeHashOf, StateHashWithQueueSize, gear::MessageType};
     use ethexe_runtime_common::state::{
         ActiveProgram, Dispatch, MessageQueueHashWithSize, Program, ProgramState, Storage,
     };
@@ -692,6 +799,7 @@ mod tests {
             CHUNK_PROCESSING_THREADS,
             states,
             &common_run_context,
+            MessageType::Canonical,
         );
 
         // Checking chunks partitioning
@@ -751,9 +859,17 @@ mod tests {
 
             pid_state.canonical_queue.modify_queue(&db, |queue| {
                 for id in messages {
-                    let dispatch =
-                        Dispatch::new(&db, id, source, vec![], 0, false, Origin::Ethereum, false)
-                            .expect("Failed to create dispatch");
+                    let dispatch = Dispatch::new(
+                        &db,
+                        id,
+                        source,
+                        vec![],
+                        0,
+                        false,
+                        MessageType::Canonical,
+                        false,
+                    )
+                    .expect("Failed to create dispatch");
                     queue.queue(dispatch);
                 }
             });

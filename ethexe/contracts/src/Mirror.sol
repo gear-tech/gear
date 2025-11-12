@@ -357,8 +357,6 @@ contract Mirror is IMirror {
 
     /// @dev Non-zero value always sent since never goes to mailbox.
     function _sendReplyMessage(Gear.Message calldata _message) private {
-        _transferEther(_message.destination, _message.value);
-
         if (_message.call) {
             bool isSuccessReply = _message.replyDetails.code[0] == 0;
 
@@ -374,17 +372,19 @@ contract Mirror is IMirror {
                 );
             }
 
-            (bool success,) = _message.destination.call{gas: 500_000}(_message.payload);
+            (bool success,) = _message.destination.call{gas: 500_000, value: _message.value}(payload);
 
             if (!success) {
+                _transferEther(_message.destination, _message.value);
+
                 /// @dev In case of failed call, we emit appropriate event to inform external users.
                 emit ReplyCallFailed(_message.value, _message.replyDetails.to, _message.replyDetails.code);
-
-                return;
             }
-        }
+        } else {
+            _transferEther(_message.destination, _message.value);
 
-        emit Reply(_message.payload, _message.value, _message.replyDetails.to, _message.replyDetails.code);
+            emit Reply(_message.payload, _message.value, _message.replyDetails.to, _message.replyDetails.code);
+        }
     }
 
     // TODO (breathx): claimValues will fail if the program is exited: keep the funds on router.

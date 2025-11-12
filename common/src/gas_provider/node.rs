@@ -20,6 +20,8 @@ use super::*;
 use core::ops::{Add, Index, IndexMut};
 use enum_iterator::cardinality;
 use gear_core::ids::ReservationId;
+use scale_decode::DecodeAsType;
+use scale_encode::EncodeAsType;
 use sp_runtime::{
     codec::{self, MaxEncodedLen},
     scale_info,
@@ -27,7 +29,21 @@ use sp_runtime::{
 };
 
 /// ID of the [`GasNode`].
-#[derive(Debug, Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd, Encode, Decode, TypeInfo)]
+#[derive(
+    Debug,
+    Copy,
+    Clone,
+    Hash,
+    Eq,
+    PartialEq,
+    Ord,
+    PartialOrd,
+    Encode,
+    EncodeAsType,
+    Decode,
+    DecodeAsType,
+    TypeInfo,
+)]
 #[codec(crate = codec)]
 #[scale_info(crate = scale_info)]
 pub enum GasNodeId<T, U> {

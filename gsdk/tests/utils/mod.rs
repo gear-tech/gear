@@ -17,7 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use gear_node_wrapper::{Node, NodeInstance};
-use gsdk::ext::{sp_core::crypto::Ss58Codec, sp_runtime::AccountId32};
+use sp_core::crypto::Ss58Codec;
+use sp_runtime::AccountId32;
 use std::{env, env::consts::EXE_EXTENSION, path::PathBuf};
 
 pub fn dev_node() -> NodeInstance {

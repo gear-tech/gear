@@ -337,24 +337,22 @@ impl Stream for ConnectService {
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         loop {
-            if let Some(handle) = self.db_sync_handle.clone() {
-                if let State::WaitingForMissingAnnounces {
+            if let Some(handle) = self.db_sync_handle.clone()
+                && let State::WaitingForMissingAnnounces {
                     announces_fetch, ..
                 } = &mut self.state
-                {
-                    if let Some(mut fetch) = announces_fetch.take() {
-                        match fetch.poll(&handle, cx) {
-                            Poll::Ready(response) => {
-                                if let Err(err) = self.on_announces_response(response) {
-                                    return Poll::Ready(Some(Err(err)));
-                                }
-
-                                continue;
-                            }
-                            Poll::Pending => {
-                                *announces_fetch = Some(fetch);
-                            }
+                && let Some(mut fetch) = announces_fetch.take()
+            {
+                match fetch.poll(&handle, cx) {
+                    Poll::Ready(response) => {
+                        if let Err(err) = self.on_announces_response(response) {
+                            return Poll::Ready(Some(Err(err)));
                         }
+
+                        continue;
+                    }
+                    Poll::Pending => {
+                        *announces_fetch = Some(fetch);
                     }
                 }
             }
@@ -473,7 +471,7 @@ mod tests {
             block: local_db.simple_block_data(head_hash),
             producer: Address::default(),
             chain,
-            waiting_request: waiting_request.clone(),
+            waiting_request,
             announces_fetch: None,
         };
 
@@ -557,10 +555,9 @@ mod tests {
             "request forwarded to db-sync"
         );
 
-        let request = stub_request.clone();
-        let announces = collect_announces(&remote_chain, request.head, &request.until);
+        let announces = collect_announces(&remote_chain, stub_request.head, &stub_request.until);
         let response = AnnouncesResponse { announces }
-            .try_into_checked(request)
+            .try_into_checked(stub_request)
             .expect("valid response");
         responder
             .send(Ok(Response::Announces(response)))

@@ -24,15 +24,14 @@ use crate::Error;
 use account_id::IntoAccountId32;
 use gear_core::{ids::*, message::UserStoredMessage};
 use gsdk::{
-    ext::{
-        sp_core::{H256, crypto::Ss58Codec},
-        sp_runtime::AccountId32,
-    },
+    ext::sp_runtime::AccountId32,
     metadata::runtime_types::{
         gear_common::storage::primitives::Interval, gear_core::message::user,
         pallet_balances::types::AccountData, pallet_gear_bank::pallet::BankAccount,
     },
 };
+use sp_core::crypto::Ss58Codec;
+use subxt::utils::H256;
 
 impl GearApi {
     /// Get a message identified by `message_id` from the mailbox.

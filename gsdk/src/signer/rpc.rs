@@ -23,8 +23,8 @@ use gear_core::{
     ids::{ActorId, CodeId, MessageId},
     rpc::ReplyInfo,
 };
-use sp_core::H256;
 use std::sync::Arc;
+use subxt::utils::H256;
 
 /// Implementation of calls to node RPC for [`Signer`].
 #[derive(Clone)]

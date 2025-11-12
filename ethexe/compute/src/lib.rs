@@ -16,6 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+pub use compute::ComputeConfig;
 use ethexe_common::{Announce, CodeAndIdUnchecked, HashOf, events::BlockRequestEvent};
 use ethexe_processor::{BlockProcessingResult, Processor, ProcessorError};
 use gprimitives::{CodeId, H256};
@@ -67,8 +68,6 @@ pub enum ComputeError {
     PreparedBlockAnnouncesSetMissing(H256),
     #[error("Latest data not found")]
     LatestDataNotFound,
-    #[error("SubService closed")]
-    SubServiceClosed,
 
     #[error(transparent)]
     Processor(#[from] ProcessorError),

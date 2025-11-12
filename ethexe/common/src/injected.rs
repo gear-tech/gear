@@ -16,41 +16,52 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::ecdsa::Signature;
+use crate::{Address, ToDigest, ecdsa::SignedData};
 use alloc::vec::Vec;
 use gprimitives::{ActorId, H256};
 use parity_scale_codec::{Decode, Encode};
+use sha3::Keccak256;
 
-/// NOTE: resulting message_id is a hash of `(self.transaction, self.validity)`.
-#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
-pub struct SignedInjectedTransaction {
-    /// Transaction itself.
-    transaction: InjectedTransaction,
-    /// Validity parameters.
-    validity: ValidityParams,
-    /// Signature over `(self.transaction, self.validity)` [aka message_id].
-    signature: Signature,
-}
+pub type SignedInjectedTransaction = SignedData<InjectedTransaction>;
 
+#[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
 #[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 pub struct InjectedTransaction {
+    /// Address of validator the transaction intended for
+    pub recipient: Address,
     /// Destination program inside `Gear.exe`.
-    destination: ActorId,
+    pub destination: ActorId,
     /// Payload of the message.
-    payload: Vec<u8>,
+    pub payload: Vec<u8>,
     /// Value attached to the message.
     ///
     /// NOTE: at this moment will be zero.
-    value: u128,
-}
-
-#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
-pub struct ValidityParams {
+    pub value: u128,
     /// Reference block number.
-    reference_block: H256,
+    pub reference_block: H256,
     /// Arbitrary bytes to allow multiple synonymous
     /// transactions to be sent simultaneously.
     ///
     /// NOTE: this is also a salt for MessageId generation.
-    salt: Vec<u8>,
+    pub salt: Vec<u8>,
+}
+
+impl ToDigest for InjectedTransaction {
+    fn update_hasher(&self, hasher: &mut Keccak256) {
+        let Self {
+            recipient,
+            destination,
+            payload,
+            value,
+            reference_block,
+            salt,
+        } = self;
+
+        recipient.0.update_hasher(hasher);
+        destination.into_bytes().update_hasher(hasher);
+        payload.update_hasher(hasher);
+        value.to_be_bytes().update_hasher(hasher);
+        reference_block.0.update_hasher(hasher);
+        salt.update_hasher(hasher);
+    }
 }

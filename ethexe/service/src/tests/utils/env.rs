@@ -43,6 +43,7 @@ use ethexe_common::{
     events::{BlockEvent, MirrorEvent, RouterEvent},
     network::{SignedValidatorMessage, ValidatorMessage},
 };
+use ethexe_compute::{ComputeConfig, ComputeService};
 use ethexe_consensus::{ConnectService, ConsensusService, ValidatorService};
 use ethexe_db::Database;
 use ethexe_ethereum::{
@@ -104,6 +105,7 @@ pub struct TestEnv {
     pub block_time: Duration,
     pub continuous_block_generation: bool,
     pub commitment_delay_limit: u32,
+    pub compute_config: ComputeConfig,
 
     router_query: RouterQuery,
     /// In order to reduce amount of observers, we create only one observer and broadcast events to all subscribers.
@@ -130,6 +132,7 @@ impl TestEnv {
             network,
             deploy_params,
             commitment_delay_limit,
+            compute_config,
         } = config;
 
         log::info!(
@@ -340,6 +343,7 @@ impl TestEnv {
             block_time,
             continuous_block_generation,
             commitment_delay_limit,
+            compute_config,
             router_query,
             broadcaster,
             db,
@@ -393,6 +397,7 @@ impl TestEnv {
             network_bootstrap_address,
             service_rpc_config,
             fast_sync,
+            compute_config: self.compute_config,
         }
     }
 
@@ -694,6 +699,8 @@ pub struct TestEnvConfig {
     pub deploy_params: ContractsDeploymentParams,
     /// Commitment delay limit in blocks.
     pub commitment_delay_limit: u32,
+    /// Compute service configuration
+    pub compute_config: ComputeConfig,
 }
 
 impl Default for TestEnvConfig {
@@ -715,6 +722,7 @@ impl Default for TestEnvConfig {
             network: EnvNetworkConfig::Disabled,
             deploy_params: Default::default(),
             commitment_delay_limit: 3,
+            compute_config: ComputeConfig::without_quarantine(),
         }
     }
 }
@@ -850,6 +858,7 @@ pub struct Node {
     network_bootstrap_address: Option<String>,
     service_rpc_config: Option<RpcConfig>,
     fast_sync: bool,
+    compute_config: ComputeConfig,
 }
 
 impl Node {
@@ -860,6 +869,7 @@ impl Node {
         );
 
         let processor = Processor::new(self.db.clone()).unwrap();
+        let compute = ComputeService::new(self.compute_config, self.db.clone(), processor);
 
         let observer = ObserverService::new(&self.eth_cfg, u32::MAX, self.db.clone())
             .await
@@ -917,6 +927,11 @@ impl Node {
             }
         };
 
+        let validator_address = self
+            .validator_config
+            .as_ref()
+            .map(|c| c.public_key.to_address());
+
         let tx_pool_service = TxPoolService::new(self.db.clone());
 
         let rpc = self.service_rpc_config.as_ref().map(|service_rpc_config| {
@@ -929,7 +944,7 @@ impl Node {
             self.db.clone(),
             observer,
             blob_loader,
-            processor,
+            compute,
             self.signer.clone(),
             tx_pool_service,
             consensus,
@@ -938,6 +953,7 @@ impl Node {
             rpc,
             sender,
             self.fast_sync,
+            validator_address,
         );
 
         let name = self.name.clone();
@@ -1010,7 +1026,7 @@ impl Node {
             .expect("infallible; always ok")
     }
 
-    pub fn construct_network_service(&self) -> Option<NetworkService> {
+    fn construct_network_service(&self) -> Option<NetworkService> {
         assert!(
             self.running_service_handle.is_none(),
             "Network service is already running"

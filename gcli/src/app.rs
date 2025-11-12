@@ -26,7 +26,7 @@ use gclient::{
 };
 use gring::Keyring;
 use gsdk::Api;
-use std::env;
+use std::{env, time::Duration};
 use tracing_subscriber::EnvFilter;
 
 /// Command line gear program application abstraction.
@@ -72,8 +72,8 @@ use tracing_subscriber::EnvFilter;
 #[async_trait::async_trait]
 pub trait App: Parser + Sync {
     /// Timeout of rpc requests.
-    fn timeout(&self) -> u64 {
-        60000
+    fn timeout(&self) -> Duration {
+        Api::DEFAULT_TIMEOUT
     }
 
     /// The verbosity logging level.
@@ -110,12 +110,14 @@ pub trait App: Parser + Sync {
 
     /// Get gear api without signing in with password.
     async fn api(&self) -> anyhow::Result<GearApi> {
-        let endpoint = self.endpoint().clone();
+        let endpoint = self.endpoint();
         Api::builder()
             .timeout(self.timeout())
-            .build(endpoint.as_deref())
+            .uri(endpoint.as_deref().unwrap_or(Api::DEFAULT_ENDPOINT))
+            .build()
             .await
             .map(Into::into)
+            .map_err(Into::into)
     }
 
     /// Get signer.
@@ -124,7 +126,8 @@ pub trait App: Parser + Sync {
 
         let api = Api::builder()
             .timeout(self.timeout())
-            .build(self.endpoint().as_deref())
+            .uri(self.endpoint().as_deref().unwrap_or(Api::DEFAULT_ENDPOINT))
+            .build()
             .await?;
         let pair = Keyring::load(gring::cmd::Command::store()?)?
             .primary()?

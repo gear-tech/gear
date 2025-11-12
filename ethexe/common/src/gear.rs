@@ -38,6 +38,9 @@ pub const CHUNK_PROCESSING_GAS_LIMIT: u64 = 1_000_000_000_000;
 /// Max block gas limit for the node.
 pub const MAX_BLOCK_GAS_LIMIT: u64 = 9_000_000_000_000;
 
+/// [`CANONICAL_QUARANTINE`] defines the period of blocks to wait before applying canonical events.
+pub const CANONICAL_QUARANTINE: u8 = 16;
+
 #[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
 pub struct AggregatedPublicKey {
     pub x: U256,
@@ -426,8 +429,8 @@ impl ToDigest for [ValueClaim] {
 
 #[derive(Clone, Copy, Debug, Encode, Decode, PartialEq, Eq, Default, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
-pub enum Origin {
+pub enum MessageType {
     #[default]
-    Ethereum,
-    OffChain,
+    Canonical,
+    Injected,
 }

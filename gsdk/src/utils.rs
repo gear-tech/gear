@@ -20,17 +20,17 @@
 use crate::{
     Api,
     config::GearConfig,
-    ext::sp_core::hashing,
     metadata::{DispatchError, StorageInfo},
     result::Result,
 };
 use parity_scale_codec::Encode;
-use sp_core::H256;
+use sp_core::hashing;
 use subxt::{
     Metadata, OnlineClient,
     dynamic::Value,
     error::{DispatchError as SubxtDispatchError, Error},
     storage::{Address, DynamicAddress, Storage, StorageKey},
+    utils::H256,
 };
 
 impl Api {
@@ -57,7 +57,7 @@ impl Api {
     }
 
     /// Get storage from optional block hash.
-    pub async fn get_storage(
+    pub async fn storage_at(
         &self,
         block_hash: Option<H256>,
     ) -> Result<Storage<GearConfig, OnlineClient<GearConfig>>> {
@@ -97,9 +97,10 @@ pub(crate) fn write_storage_address_root_bytes(addr: &impl Address, out: &mut Ve
 pub(crate) fn storage_address_bytes(
     addr: &impl Address,
     metadata: &Metadata,
-) -> Result<Vec<u8>, Error> {
+) -> Result<Vec<u8>, Box<Error>> {
     let mut bytes = Vec::new();
     write_storage_address_root_bytes(addr, &mut bytes);
-    addr.append_entry_bytes(metadata, &mut bytes)?;
+    addr.append_entry_bytes(metadata, &mut bytes)
+        .map_err(|e| Box::new(e.into()))?;
     Ok(bytes)
 }

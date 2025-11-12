@@ -29,6 +29,7 @@ pkgs.mkShell.override { stdenv = pkgs.llvmPackages.stdenv; } {
     # Maintenance tools and script dependencies
     pkgs.jq
     pkgs.typos
+    pkgs.cargo-shear
 
     # Build tools
     pkgs.protobuf
@@ -37,6 +38,7 @@ pkgs.mkShell.override { stdenv = pkgs.llvmPackages.stdenv; } {
     pkgs.cmake
     pkgs.perl
     pkgs.pkg-config
+    pkgs.nodejs
 
     # Testing tools
     pkgs.cargo-nextest
