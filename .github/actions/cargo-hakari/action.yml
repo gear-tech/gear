@@ -19,6 +19,7 @@ runs:
         tool: cargo-hakari
       env:
         CARGO_BUILD_TARGET: ${{ steps.host-target.outputs.value }}
+        CARGO_ENCODED_RUSTFLAGS: ""
 
     - run: cargo hakari ${{ inputs.args }}
       shell: bash
