@@ -402,3 +402,171 @@ impl MiddlewareWrapper {
         Ok(elected_validators)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{mock::*, validator::mock::*};
+    use ethexe_common::mock::{DBMockExt, Mock};
+
+    fn unwrap_rejected_reason(status: ValidationStatus) -> ValidationRejectReason {
+        match status {
+            ValidationStatus::Rejected { reason, .. } => reason,
+            ValidationStatus::Accepted(digest) => {
+                panic!(
+                    "Expected rejection, but got acceptance with digest {:?}",
+                    digest
+                )
+            }
+        }
+    }
+
+    #[tokio::test]
+    #[ntest::timeout(3000)]
+    async fn rejects_empty_batch_request() {
+        let (ctx, _, _) = mock_validator_context();
+        let empty_request = BatchCommitmentValidationRequest {
+            digest: Digest::zero(),
+            head: None,
+            codes: vec![],
+            validators: false,
+            rewards: false,
+        };
+
+        let status = ctx
+            .core
+            .validate_batch_commitment_request(SimpleBlockData::mock(()), empty_request)
+            .await
+            .unwrap();
+
+        assert_eq!(
+            unwrap_rejected_reason(status),
+            ValidationRejectReason::EmptyBatch
+        );
+    }
+
+    #[tokio::test]
+    #[ntest::timeout(3000)]
+    async fn rejects_duplicate_code_ids() {
+        let (ctx, _, _) = mock_validator_context();
+        let mut batch = prepare_chain_for_batch_commitment(&ctx.core.db);
+        let duplicate = batch.code_commitments[0].clone();
+        batch.code_commitments.push(duplicate);
+
+        let status = ctx
+            .core
+            .validate_batch_commitment_request(
+                SimpleBlockData::mock(()),
+                BatchCommitmentValidationRequest::new(&batch),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(
+            unwrap_rejected_reason(status),
+            ValidationRejectReason::CodesHasDuplicates
+        );
+    }
+
+    #[tokio::test]
+    #[ntest::timeout(3000)]
+    async fn rejects_not_waiting_code_ids() {
+        let (ctx, _, _) = mock_validator_context();
+        let batch = prepare_chain_for_batch_commitment(&ctx.core.db);
+        let block = ctx.core.db.simple_block_data(batch.block_hash);
+        let mut request = BatchCommitmentValidationRequest::new(&batch);
+
+        let missing_code = H256::random().into();
+        request.codes.push(missing_code);
+
+        let status = ctx
+            .core
+            .validate_batch_commitment_request(block, request)
+            .await
+            .unwrap();
+
+        assert_eq!(
+            unwrap_rejected_reason(status),
+            ValidationRejectReason::CodeNotWaitingForCommitment(missing_code)
+        );
+    }
+
+    #[tokio::test]
+    #[ntest::timeout(3000)]
+    async fn rejects_non_best_chain_head() {
+        let (ctx, _, _) = mock_validator_context();
+        let batch = prepare_chain_for_batch_commitment(&ctx.core.db);
+        let block = ctx.core.db.simple_block_data(batch.block_hash);
+        let mut request = BatchCommitmentValidationRequest::new(&batch);
+        let best_head = request.head.expect("chain commitment expected");
+
+        let wrong_head = HashOf::random();
+        request.head = Some(wrong_head);
+
+        let status = ctx
+            .core
+            .validate_batch_commitment_request(block, request)
+            .await
+            .unwrap();
+
+        assert_eq!(
+            unwrap_rejected_reason(status),
+            ValidationRejectReason::HeadAnnounceIsNotBest {
+                requested: wrong_head,
+                best: best_head,
+            }
+        );
+    }
+
+    #[tokio::test]
+    #[ntest::timeout(3000)]
+    async fn rejects_digest_mismatch() {
+        let (ctx, _, _) = mock_validator_context();
+        let batch = prepare_chain_for_batch_commitment(&ctx.core.db);
+        let block = ctx.core.db.simple_block_data(batch.block_hash);
+        let mut request = BatchCommitmentValidationRequest::new(&batch);
+        let original_digest = request.digest;
+        let mut wrong_digest = original_digest;
+        while wrong_digest == original_digest {
+            wrong_digest = Digest::random();
+        }
+        request.digest = wrong_digest;
+
+        let status = ctx
+            .core
+            .validate_batch_commitment_request(block, request)
+            .await
+            .unwrap();
+
+        assert_eq!(
+            unwrap_rejected_reason(status),
+            ValidationRejectReason::BatchDigestMismatch {
+                expected: wrong_digest,
+                found: original_digest,
+            }
+        );
+    }
+
+    #[tokio::test]
+    #[ntest::timeout(3000)]
+    async fn accepts_matching_request() {
+        let (ctx, _, _) = mock_validator_context();
+        let batch = prepare_chain_for_batch_commitment(&ctx.core.db);
+        let block = ctx.core.db.simple_block_data(batch.block_hash);
+        let request = BatchCommitmentValidationRequest::new(&batch);
+        let expected_digest = request.digest;
+
+        let status = ctx
+            .core
+            .validate_batch_commitment_request(block, request)
+            .await
+            .unwrap();
+
+        match status {
+            ValidationStatus::Accepted(digest) => assert_eq!(digest, expected_digest),
+            ValidationStatus::Rejected { reason, .. } => {
+                panic!("Expected acceptance, got rejection: {reason:?}")
+            }
+        }
+    }
+}

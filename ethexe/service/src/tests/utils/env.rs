@@ -1006,7 +1006,6 @@ impl Node {
         ServiceEventsListener {
             receiver: self.receiver.as_mut().expect("channel isn't created"),
             db: self.db.clone(),
-            router_address: self.eth_cfg.router_address,
         }
     }
 
