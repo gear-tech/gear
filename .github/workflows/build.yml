@@ -417,13 +417,31 @@ jobs:
       - name: "Build: Vara mainnet runtime"
         run: cargo build -p vara-runtime -F std,try-runtime --locked ${{ matrix.profiles.flags }}
 
+      - name: "System: Save runtime artifact and clean target"
+        run: |
+          set -euo pipefail
+
+          SRC_WASM="target/x86_64-unknown-linux-gnu/${{ matrix.profiles.name }}/wbuild/vara-runtime/vara_runtime.wasm"
+          DEST_WASM="$GITHUB_WORKSPACE/runtime.wasm"
+
+          if [ ! -f "$SRC_WASM" ]; then
+            echo "Runtime artifact not found at $SRC_WASM"
+            exit 1
+          fi
+
+          cp "$SRC_WASM" "$DEST_WASM"
+
+          echo "TRY_RUNTIME_WASM=$DEST_WASM" >> $GITHUB_ENV
+
+          rm -rf target
+
       - name: "Test: Download Vara Testnet snapshot"
         run: curl -o vara_ci_testnet.snap -L https://snapshots.vara-network.io/vara-testnet.snap
 
       - name: "Test: on-runtime-upgrade try-state (Testnet)"
         run: >-
           ./try-runtime
-          --runtime target/x86_64-unknown-linux-gnu/${{ matrix.profiles.name }}/wbuild/vara-runtime/vara_runtime.wasm
+          --runtime "$TRY_RUNTIME_WASM"
           --disable-spec-name-check
           on-runtime-upgrade
           --blocktime 3000
@@ -438,7 +456,7 @@ jobs:
       - name: "Test: on-runtime-upgrade"
         run: >-
           ./try-runtime
-          --runtime target/x86_64-unknown-linux-gnu/${{ matrix.profiles.name }}/wbuild/vara-runtime/vara_runtime.wasm
+          --runtime "$TRY_RUNTIME_WASM"
           on-runtime-upgrade
           --blocktime 3000
           --checks all
