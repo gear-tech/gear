@@ -10,8 +10,10 @@ use gclient::{GearApi, Result as GClientResult};
 use gear_call_gen::{CallGenRng, ClaimValueArgs, SendReplyArgs};
 use gear_core::ids::{ActorId, MessageId};
 use generators::{Batch, BatchGenerator, BatchWithSeed, RuntimeSettings};
-use gsdk::metadata::{Event, gear::Event as GearEvent};
-use primitive_types::H256;
+use gsdk::{
+    ext::utils::H256,
+    metadata::{Event, gear::Event as GearEvent},
+};
 pub use report::CrashAlert;
 use report::{BatchRunReport, MailboxReport, Report};
 use std::{
