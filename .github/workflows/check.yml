@@ -166,6 +166,12 @@ jobs:
         with:
           targets: wasm32v1-none
 
+      - name: "Install: Compilation environment"
+        uses: ./.github/actions/setup-compilation-env
+        with:
+          target: x86_64-unknown-linux-gnu
+          token: ${{ secrets.GITHUB_TOKEN }}
+
       - name: "Install: cargo-hakari"
         uses: taiki-e/install-action@v2
         with:
