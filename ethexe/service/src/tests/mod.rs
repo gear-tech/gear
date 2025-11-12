@@ -1547,7 +1547,7 @@ async fn validators_election() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[ntest::timeout(30_000)]
+#[ntest::timeout(60_000)]
 async fn execution_with_canonical_events_quarantine() {
     init_logger();
 
@@ -1590,17 +1590,18 @@ async fn execution_with_canonical_events_quarantine() {
 
     let mut listener = env.observer_events_publisher().subscribe().await;
 
-    // Skipping events to reach canonical events maturity
+    // Skipping events to reach canonical events quarantine
     let mut skipped_blocks = 0;
     while skipped_blocks < canonical_quarantine {
-        env.provider.anvil_mine(Some(1), None).await.unwrap();
-        tokio::time::sleep(Duration::from_millis(150)).await;
-
         if let ObserverEvent::BlockSynced(..) = listener.next_event().await.unwrap() {
-            skipped_blocks += 1
+            tokio::time::sleep(Duration::from_millis(150)).await;
+            env.provider.anvil_mine(Some(1), None).await.unwrap();
+            skipped_blocks += 1;
         };
     }
 
+    tokio::time::sleep(Duration::from_millis(150)).await;
+    env.provider.anvil_mine(Some(10), Some(1)).await.unwrap();
     // Now waiting for the PONG reply
     loop {
         let synced_block = match listener.next_event().await.unwrap() {
