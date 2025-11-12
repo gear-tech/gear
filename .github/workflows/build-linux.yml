@@ -245,7 +245,7 @@ jobs:
   try-runtime:
     runs-on: ubuntu-latest
     container:
-      image: rust:slim-bullseye
+      image: rust:slim-bookworm
       options: --init
     strategy:
       matrix:
@@ -278,12 +278,74 @@ jobs:
         run: |
           curl -sL https://github.com/paritytech/try-runtime-cli/releases/download/v0.8.0/try-runtime-x86_64-unknown-linux-musl -o try-runtime
           chmod +x ./try-runtime
-        
-      - name: Show disk headroom
+
+      - name: "System: Report disk headroom (before cleanup)"
         run: |
-          echo "Workspace:" && df -hT .
-          echo "Runner temp:" && df -hT "$RUNNER_TEMP" || true
-          echo "Top space hogs:" && du -h -d1 /home/runner | sort -h | tail -20
+          set -euo pipefail
+
+          report_path() {
+            local label="$1"
+            local path="$2"
+            if [ -n "$path" ] && [ -e "$path" ]; then
+              echo "## $label ($path)"
+              df -hT "$path" || true
+            fi
+          }
+
+          WORKSPACE_DIR="${GITHUB_WORKSPACE:-.}"
+          REPORT_ROOT="$(dirname "$WORKSPACE_DIR")"
+
+          report_path "Workspace" "$WORKSPACE_DIR"
+          report_path "Workspace parent" "$REPORT_ROOT"
+          report_path "Runner temp" "${RUNNER_TEMP:-}"
+
+          if [ -d "$REPORT_ROOT" ]; then
+            echo "## Top space consumers under $REPORT_ROOT"
+            du -h -d1 "$REPORT_ROOT" | sort -h | tail -20 || true
+          fi
+
+      - name: "System: Free disk space"
+        run: |
+          set -euo pipefail
+
+          apt-get clean
+          for dir in /var/lib/apt/lists /var/cache/apt; do
+            if [ -d "$dir" ]; then
+              echo "Cleaning contents of $dir"
+              find "$dir" -mindepth 1 -maxdepth 1 -exec rm -rf {} +
+            fi
+          done
+
+          if [ -n "${RUNNER_TEMP:-}" ] && [ -d "${RUNNER_TEMP:-}" ]; then
+            find "${RUNNER_TEMP}" -mindepth 1 -maxdepth 1 -print -exec rm -rf {} +
+          fi
+
+          find /tmp -mindepth 1 -maxdepth 1 -print -exec rm -rf {} + || true
+
+      - name: "System: Report disk headroom (after cleanup)"
+        run: |
+          set -euo pipefail
+
+          report_path() {
+            local label="$1"
+            local path="$2"
+            if [ -n "$path" ] && [ -e "$path" ]; then
+              echo "## $label ($path)"
+              df -hT "$path" || true
+            fi
+          }
+
+          WORKSPACE_DIR="${GITHUB_WORKSPACE:-.}"
+          REPORT_ROOT="$(dirname "$WORKSPACE_DIR")"
+
+          report_path "Workspace" "$WORKSPACE_DIR"
+          report_path "Workspace parent" "$REPORT_ROOT"
+          report_path "Runner temp" "${RUNNER_TEMP:-}"
+
+          if [ -d "$REPORT_ROOT" ]; then
+            echo "## Top space consumers under $REPORT_ROOT"
+            du -h -d1 "$REPORT_ROOT" | sort -h | tail -20 || true
+          fi
 
       - name: "Build: Vara mainnet runtime"
         run: cargo build -p vara-runtime -F std,try-runtime --locked ${{ matrix.profiles.flags }} --target x86_64-unknown-linux-gnu
