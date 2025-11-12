@@ -76,7 +76,7 @@ where
         tracing::trace!(block = ?block_hash, "start collecting injected transactions");
 
         let already_included_txs =
-            tx_pool_utils::collect_recent_included_txs(&self.db, parent_announce);
+            tx_pool_utils::collect_recent_included_txs(&self.db, parent_announce)?;
 
         let mut selected_txs = vec![];
         let mut outdated_txs = vec![];
@@ -173,14 +173,23 @@ mod tx_pool_utils {
     pub fn collect_recent_included_txs<DB: AnnounceStorageRO>(
         db: &DB,
         announce: HashOf<Announce>,
-    ) -> HashSet<HashOf<InjectedTransaction>> {
+    ) -> Result<HashSet<HashOf<InjectedTransaction>>> {
         let mut txs = HashSet::new();
 
         let mut announce_hash = announce;
         for _ in 0..VALIDITY_WINDOW {
             let Some(announce) = db.announce(announce_hash) else {
-                break;
+                // Reach genesis_announce - correct case.
+                if announce_hash == HashOf::zero() {
+                    break;
+                }
+
+                // Reach start announce is not correct case, because of can exists earlier announces with injected txs.
+                return Err(anyhow!(
+                    "Reaching start announce is not supported; decrease VALIDITY_WINDOW"
+                ));
             };
+
             announce_hash = announce.parent;
 
             txs.extend(
@@ -191,7 +200,7 @@ mod tx_pool_utils {
             );
         }
 
-        txs
+        Ok(txs)
     }
 }
 
