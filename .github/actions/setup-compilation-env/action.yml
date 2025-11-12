@@ -77,6 +77,7 @@ runs:
         innoextract -d ${{ runner.temp }}/openssl_extracted -I app/include -I app/lib/VC/x64/MT openssl_installer.exe
         
         echo "OPENSSL_NO_VENDOR=1" >> $GITHUB_ENV
+        echo "OPENSSL_STATIC=1" >> $GITHUB_ENV
         echo "OPENSSL_INCLUDE_DIR=${{ runner.temp }}/openssl_extracted/app/include" >> $GITHUB_ENV
         echo "OPENSSL_LIB_DIR=${{ runner.temp }}/openssl_extracted/app/lib/VC/x64/MT" >> $GITHUB_ENV
         
