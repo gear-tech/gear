@@ -18,18 +18,20 @@
 
 //! Requires node to be built in release mode
 
+use futures::StreamExt;
 use gear_core::{
     ids::{ActorId, CodeId, prelude::*},
     rpc::ReplyInfo,
 };
 use gear_core_errors::{ReplyCode, SuccessReplyReason};
-use gsdk::{Api, Result};
+use gsdk::{Api, Error, Event, Result};
 use parity_scale_codec::Encode;
 use std::{borrow::Cow, process::Command, str::FromStr, time::Instant};
 use subxt::{
     ext::subxt_rpcs::{self, UserError},
     utils::H256,
 };
+use tokio::time::{Duration, timeout};
 use utils::{alice_account_id, dev_node};
 
 mod utils;
@@ -216,6 +218,62 @@ async fn test_calculate_reply_gas() -> Result<()> {
 }
 
 #[tokio::test]
+async fn test_subscribe_program_state_changes() -> Result<()> {
+    let node = dev_node();
+    let api = Api::new(node.ws().as_str()).await?;
+
+    let mut subscription = api.subscribe_program_state_changes(None).await?;
+
+    let signer = api.clone().signer("//Alice", None)?;
+    let salt = b"state-change".to_vec();
+
+    let tx = signer
+        .calls
+        .upload_program(
+            demo_messenger::WASM_BINARY.to_vec(),
+            salt,
+            vec![],
+            100_000_000_000,
+            0,
+        )
+        .await?;
+
+    let program_id = api
+        .events_of(&tx)
+        .await?
+        .into_iter()
+        .find_map(|event| {
+            if let Event::Gear(gsdk::metadata::gear::Event::ProgramChanged { id, .. }) = event {
+                Some(id)
+            } else {
+                None
+            }
+        })
+        .expect("program change event not found");
+
+    let expected_id = H256::from(program_id.0);
+
+    let change = timeout(Duration::from_secs(30), async {
+        loop {
+            let event = subscription.next().await;
+            println!("Got event: {event:?}");
+            match event {
+                Some(Ok(event)) if event.program_ids.contains(&expected_id) => break Ok(event),
+                Some(Ok(_)) => continue,
+                Some(Err(err)) => break Err(err),
+                None => break Err(Error::EventNotFound),
+            }
+        }
+    })
+    .await
+    .expect("timed out waiting for program state change")?;
+
+    assert!(change.program_ids.contains(&expected_id));
+
+    Ok(())
+}
+
+#[tokio::test]
 async fn test_runtime_wasm_blob_version() -> Result<()> {
     let git_commit_hash = || -> Cow<str> {
         // This code is taken from
@@ -277,10 +335,9 @@ async fn test_runtime_wasm_blob_version() -> Result<()> {
 async fn test_runtime_wasm_blob_version_history() -> Result<()> {
     let api = Api::new("wss://archive-rpc.vara.network:443").await?;
 
-    let no_method_block_hash = subxt::utils::H256::from_str(
-        "0xa84349fc30b8f2d02cc31d49fe8d4a45b6de5a3ac1f1ad975b8920b0628dd6b9",
-    )
-    .unwrap();
+    let no_method_block_hash =
+        H256::from_str("0xa84349fc30b8f2d02cc31d49fe8d4a45b6de5a3ac1f1ad975b8920b0628dd6b9")
+            .unwrap();
 
     let wasm_blob_version_err = api
         .runtime_wasm_blob_version(Some(no_method_block_hash))
@@ -505,7 +562,7 @@ async fn query_program_counters(
         }
     };
 
-    let storage = signer.api().storage_at(Some(block_hash)).await?;
+    let storage = signer.api().storage().at(block_hash);
     let addr = Api::storage(GearProgramStorage::ProgramStorage, Vec::<Value>::new());
 
     let mut iter = storage.iter(addr).await?;

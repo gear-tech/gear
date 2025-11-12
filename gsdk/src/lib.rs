@@ -27,7 +27,10 @@ pub use crate::{
     metadata::Event,
     result::{Error, Result},
     signer::PairSigner,
-    subscription::{Blocks, Events},
+    subscription::{
+        Blocks, Events, PayloadFilter, ProgramStateChange, ProgramStateChanges, UserMessageSent,
+        UserMessageSentFilter, UserMessageSentSubscription,
+    },
 };
 pub use gear_core::rpc::GasInfo;
 pub use subxt::{self, dynamic::Value};

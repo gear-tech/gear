@@ -17,12 +17,18 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    Blocks, Events, Result, TxInBlock, config::GearConfig, metadata::Event, signer::Signer,
+    Blocks, Events, ProgramStateChanges, Result, TxInBlock, UserMessageSentFilter,
+    UserMessageSentSubscription, config::GearConfig, metadata::Event, signer::Signer,
 };
 use core::ops::{Deref, DerefMut};
 use jsonrpsee::{client_transport::ws::Url, ws_client::WsClientBuilder};
+use sp_core::H256;
 use std::{borrow::Cow, time::Duration};
-use subxt::{OnlineClient, backend::rpc::RpcClient, ext::subxt_rpcs::LegacyRpcMethods};
+use subxt::{
+    OnlineClient,
+    backend::rpc::RpcClient,
+    ext::subxt_rpcs::{LegacyRpcMethods, rpc_params},
+};
 
 const ONE_HUNDRED_MEGABYTES: u32 = 100 * 1024 * 1024;
 
@@ -156,6 +162,40 @@ impl Api {
     /// Same as `events` but only finalized events.
     pub async fn finalized_events(&self) -> Result<Events> {
         Ok(self.client.blocks().subscribe_finalized().await?.into())
+    }
+
+    /// Subscribe to program state changes reported.
+    pub async fn subscribe_program_state_changes(
+        &self,
+        program_ids: Option<Vec<H256>>,
+    ) -> Result<ProgramStateChanges> {
+        let subscription = self
+            .rpc()
+            .subscribe(
+                "gear_subscribeProgramStateChanges",
+                rpc_params![program_ids],
+                "gear_unsubscribeProgramStateChanges",
+            )
+            .await?;
+
+        Ok(ProgramStateChanges::new(subscription))
+    }
+
+    /// Subscribe to user message notifications.
+    pub async fn subscribe_user_message_sent(
+        &self,
+        filter: UserMessageSentFilter,
+    ) -> Result<UserMessageSentSubscription> {
+        let subscription = self
+            .rpc()
+            .subscribe(
+                "gear_subscribeUserMessageSent",
+                rpc_params![filter],
+                "gear_unsubscribeUserMessageSent",
+            )
+            .await?;
+
+        Ok(UserMessageSentSubscription::new(subscription))
     }
 
     /// New signer from api

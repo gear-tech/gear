@@ -26,8 +26,11 @@ pub mod voucher;
 use crate::{EventListener, ws::WSAddress};
 use error::*;
 use gear_node_wrapper::{Node, NodeInstance};
-use gsdk::{Api, ext::sp_runtime::AccountId32, signer::Signer};
-use sp_core::sr25519;
+use gsdk::{
+    Api, ProgramStateChanges, UserMessageSentFilter, UserMessageSentSubscription,
+    ext::sp_runtime::AccountId32, signer::Signer,
+};
+use sp_core::{H256, sr25519};
 use std::{borrow::Cow, ffi::OsStr, sync::Arc, time::Duration};
 
 /// The API instance contains methods to access the node.
@@ -131,6 +134,30 @@ impl GearApi {
     pub async fn subscribe(&self) -> Result<EventListener> {
         let events = self.0.api().subscribe_finalized_blocks().await?;
         Ok(EventListener(events))
+    }
+
+    /// Subscribe to program state changes.
+    pub async fn subscribe_program_state_changes(
+        &self,
+        program_ids: Option<Vec<H256>>,
+    ) -> Result<ProgramStateChanges> {
+        self.0
+            .api()
+            .subscribe_program_state_changes(program_ids)
+            .await
+            .map_err(Into::into)
+    }
+
+    /// Subscribe to user messages.
+    pub async fn subscribe_user_message_sent(
+        &self,
+        filter: UserMessageSentFilter,
+    ) -> Result<UserMessageSentSubscription> {
+        self.0
+            .api()
+            .subscribe_user_message_sent(filter)
+            .await
+            .map_err(Into::into)
     }
 
     /// Set the number used once (`nonce`) that will be used while sending

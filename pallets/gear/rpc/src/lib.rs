@@ -23,21 +23,37 @@
 #![doc(html_favicon_url = "https://gear-tech.io/favicon.ico")]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
+use futures::StreamExt;
 use gear_common::Origin;
 use gear_core::rpc::RpcValue;
 use gear_core_errors::*;
 use jsonrpsee::{
-    core::{RpcResult, async_trait},
+    PendingSubscriptionSink,
+    core::{RpcResult, SubscriptionResult, async_trait},
     proc_macros::rpc,
+    server::SubscriptionMessage,
     types::{ErrorObjectOwned, error::ErrorObject},
 };
 pub use pallet_gear_rpc_runtime_api::GearApi as GearRuntimeApi;
 use pallet_gear_rpc_runtime_api::{GasInfo, HandleKind, ReplyInfo};
+use sc_client_api::BlockchainEvents;
+use sc_rpc::SubscriptionTaskExecutor;
 use sp_api::{ApiError, ApiExt, ApiRef, ProvideRuntimeApi};
 use sp_blockchain::HeaderBackend;
-use sp_core::{Bytes, H256};
+use sp_core::{Bytes, H256, twox_128};
 use sp_runtime::traits::Block as BlockT;
-use std::sync::Arc;
+use sp_storage::StorageKey;
+use std::{collections::BTreeSet, future::Future, pin::Pin, sync::Arc};
+
+/// Subscription item describing programs whose states changed within a block.
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(bound = "BlockHash: serde::Serialize")]
+pub struct ProgramStateChange<BlockHash> {
+    /// Hash of the block that triggered the notification.
+    pub block_hash: BlockHash,
+    /// List of programs whose states changed in that block.
+    pub program_ids: Vec<H256>,
+}
 
 /// Converts a runtime trap into a [`CallError`].
 fn runtime_error_into_rpc_error(err: impl std::fmt::Debug) -> ErrorObjectOwned {
@@ -139,6 +155,14 @@ pub trait GearApi<BlockHash, ResponseType> {
 
     #[method(name = "gear_readMetahash")]
     fn read_metahash(&self, program_id: H256, at: Option<BlockHash>) -> RpcResult<H256>;
+
+    #[subscription(
+        name = "gear_subscribeProgramStateChanges",
+        item = ProgramStateChange<BlockHash>,
+        unsubscribe = "gear_unsubscribeProgramStateChanges"
+    )]
+    fn subscribe_program_state_changes(&self, program_ids: Option<Vec<H256>>)
+    -> SubscriptionResult;
 }
 
 /// A struct that implements the [`GearApi`](/gclient/struct.GearApi.html).
@@ -148,16 +172,28 @@ pub struct Gear<C, P> {
     client: Arc<C>,
     allowance_multiplier: u64,
     max_batch_size: u64,
+    subscription_executor: SubscriptionTaskExecutor,
+    program_storage_prefix: Vec<u8>,
     _marker: std::marker::PhantomData<P>,
 }
 
 impl<C, P> Gear<C, P> {
     /// Creates a new instance of the Gear Rpc helper.
-    pub fn new(client: Arc<C>, allowance_multiplier: u64, max_batch_size: u64) -> Self {
+    pub fn new(
+        client: Arc<C>,
+        allowance_multiplier: u64,
+        max_batch_size: u64,
+        subscription_executor: SubscriptionTaskExecutor,
+    ) -> Self {
+        let mut program_storage_prefix = twox_128(b"GearProgram").to_vec();
+        program_storage_prefix.extend_from_slice(&twox_128(b"ProgramStorage"));
+
         Self {
             client,
             allowance_multiplier,
             max_batch_size,
+            subscription_executor,
+            program_storage_prefix,
             _marker: Default::default(),
         }
     }
@@ -257,8 +293,9 @@ impl From<Error> for i64 {
 impl<C, Block> GearApiServer<<Block as BlockT>::Hash, Result<u64, Vec<u8>>> for Gear<C, Block>
 where
     Block: BlockT,
-    C: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block>,
+    C: 'static + ProvideRuntimeApi<Block> + HeaderBackend<Block> + BlockchainEvents<Block>,
     C::Api: GearRuntimeApi<Block>,
+    <Block as BlockT>::Hash: serde::Serialize,
 {
     fn calculate_reply_for_handle(
         &self,
@@ -617,5 +654,130 @@ where
                 api.read_metahash(at_hash, program_id, Some(self.allowance_multiplier))
             })
         }
+    }
+
+    fn subscribe_program_state_changes(
+        &self,
+        pending: PendingSubscriptionSink,
+        program_ids: Option<Vec<H256>>,
+    ) -> SubscriptionResult {
+        let prefix = self.program_storage_prefix.clone();
+        let program_filter = if let Some(ids) = program_ids {
+            let filter = ids.into_iter().collect::<BTreeSet<_>>();
+            let limit = self.max_batch_size as usize;
+            if limit != 0 && filter.len() > limit {
+                return Err(ErrorObject::owned(
+                    8000,
+                    "Runtime error",
+                    Some(format!("Program filter size must be lower than {limit}")),
+                )
+                .into());
+            }
+            Some(filter)
+        } else {
+            None
+        };
+        let program_storage_keys = program_filter.as_ref().map(|filter| {
+            filter
+                .iter()
+                .map(|program_id| {
+                    let mut key = prefix.clone();
+                    key.extend_from_slice(program_id.as_bytes());
+                    StorageKey(key)
+                })
+                .collect::<Vec<_>>()
+        });
+        let mut stream = self
+            .client
+            .storage_changes_notification_stream(program_storage_keys.as_deref(), None)
+            .map_err(|e| ErrorObject::owned(8000, e.to_string(), None::<String>))?;
+        let executor = self.subscription_executor.clone();
+        let prefix_len = prefix.len();
+
+        let fut: Pin<Box<dyn Future<Output = ()> + Send>> = Box::pin(async move {
+            let sink = match pending.accept().await {
+                Ok(sink) => sink,
+                Err(error) => {
+                    log::debug!(
+                        target: "rpc",
+                        "failed to accept program state subscription: {error:?}",
+                    );
+                    return;
+                }
+            };
+
+            // Send acknowledgment with empty program state change
+            let ack = ProgramStateChange {
+                block_hash: <Block as BlockT>::Hash::default(),
+                program_ids: vec![],
+            };
+
+            if let Ok(initial) = SubscriptionMessage::from_json(&ack) {
+                if sink.send(initial).await.is_err() {
+                    return;
+                }
+            } else {
+                log::error!(
+                    target: "rpc",
+                    "failed to serialize initial program state subscription ack",
+                );
+            }
+
+            while let Some(notification) = stream.next().await {
+                let mut programs = BTreeSet::new();
+
+                for (child_key, storage_key, _value) in notification.changes.iter() {
+                    if child_key.is_some() {
+                        continue;
+                    }
+
+                    let key_bytes = storage_key.0.as_slice();
+
+                    if key_bytes.len() < prefix_len + H256::len_bytes() {
+                        continue;
+                    }
+
+                    if key_bytes.starts_with(&prefix) {
+                        let program_id = H256::from_slice(
+                            &key_bytes[prefix_len..prefix_len + H256::len_bytes()],
+                        );
+                        if program_filter
+                            .as_ref()
+                            .is_none_or(|filter| filter.contains(&program_id))
+                        {
+                            programs.insert(program_id);
+                        }
+                    }
+                }
+
+                if programs.is_empty() {
+                    continue;
+                }
+
+                let item = ProgramStateChange {
+                    block_hash: notification.block,
+                    program_ids: programs.into_iter().collect(),
+                };
+
+                match SubscriptionMessage::from_json(&item) {
+                    Ok(message) => {
+                        if sink.send(message).await.is_err() {
+                            break;
+                        }
+                    }
+                    Err(error) => {
+                        log::error!(
+                            target: "rpc",
+                            "failed to serialize program state change notification: {error}",
+                        );
+                        break;
+                    }
+                }
+            }
+        });
+
+        executor.spawn("gear-program-state-changes", None, fut);
+
+        Ok(())
     }
 }

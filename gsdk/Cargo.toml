@@ -24,6 +24,7 @@ indexmap = { workspace = true, features = ["std"] }
 jsonrpsee = { workspace = true, features = [ "http-client", "ws-client" ] }
 log.workspace = true
 parking_lot.workspace = true
+serde = { workspace = true, features = ["derive"] }
 serde_json = { workspace = true, features = [ "std" ] }
 sp-core = { workspace = true, features = [ "std" , "full_crypto"] }
 sp-runtime = { workspace = true, features = [ "std" ] }
