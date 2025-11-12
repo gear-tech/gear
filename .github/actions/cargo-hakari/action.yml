@@ -23,3 +23,5 @@ runs:
 
     - run: cargo hakari ${{ inputs.args }}
       shell: bash
+      env:
+        CARGO_ENCODED_RUSTFLAGS: ""
