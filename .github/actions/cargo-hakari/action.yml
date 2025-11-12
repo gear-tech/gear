@@ -10,9 +10,15 @@ inputs:
 runs:
   using: composite
   steps:
+    - id: host-target
+      run: "echo value=$(rustc -vV | grep host: | cut -d ' ' -f 2) >> $GITHUB_OUTPUT"
+      shell: bash
+
     - uses: taiki-e/install-action@v2
       with:
         tool: cargo-hakari
+      env:
+        CARGO_BUILD_TARGET: ${{ steps.host-target.outputs.value }}
 
     - run: cargo hakari ${{ inputs.args }}
       shell: bash
