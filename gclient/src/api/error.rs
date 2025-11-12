@@ -20,6 +20,7 @@ use anyhow::Error as AError;
 use gsdk::{
     Error as GearSDKError,
     ext::subxt::error::{DispatchError, Error as SubxtError},
+    gear,
 };
 use std::{io::Error as IOError, result::Result as StdResult};
 
@@ -97,12 +98,12 @@ pub enum Error {
     /// Occurs when parsing domain url failed.
     #[error(transparent)]
     Url(#[from] url::ParseError),
-    /// A wrapper of module error [`gsdk::metadata::ModuleError`].
+    /// A wrapper of module error [`gsdk::RuntimeError`].
     ///
     /// # Example
     ///
     /// ```ignore
-    /// use gclient::{errors, Error, EventProcessor, GearApi};
+    /// use gclient::{gear, Error, EventProcessor, GearApi};
     ///
     /// #[tokio::test]
     /// async fn test_upload_failed() -> anyhow::Result<()> {
@@ -115,20 +116,22 @@ pub enum Error {
     ///
     ///     assert!(matches!(
     ///         err,
-    ///         Error::Module(errors::ModuleError::Gear(errors::Gear::GasLimitTooHigh))
+    ///         Error::Runtime(gear::Error::Gear(gear::gear::Error::GasLimitTooHigh))
     ///     ));
     ///
     ///     Ok(())
     /// }
     /// ```
-    #[error(transparent)]
-    Module(gsdk::metadata::ModuleError),
+    #[error("runtime error: {0:?}")]
+    Runtime(gear::Error),
 }
 
 impl From<SubxtError> for Error {
     fn from(e: SubxtError) -> Self {
         if let SubxtError::Runtime(DispatchError::Module(m)) = e {
-            return Error::Module(m.into());
+            return m
+                .as_root_error()
+                .map_or_else(|e| Self::Subxt(Box::new(e)), Self::Runtime);
         }
 
         Error::Subxt(Box::new(e))
@@ -139,7 +142,9 @@ impl From<GearSDKError> for Error {
     fn from(e: GearSDKError) -> Self {
         let e = if let GearSDKError::Subxt(e) = e {
             if let SubxtError::Runtime(DispatchError::Module(m)) = *e {
-                return Error::Module(m.into());
+                return m
+                    .as_root_error()
+                    .map_or_else(|e| Self::Subxt(Box::new(e)), Self::Runtime);
             }
 
             GearSDKError::Subxt(e)

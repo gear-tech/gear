@@ -7248,31 +7248,24 @@ dependencies = [
 ]
 
 [[package]]
-name = "gsdk-api-gen"
-version = "0.1.0"
-dependencies = [
- "color-eyre",
- "gear-runtime-interface",
- "gear-utils",
- "heck 0.5.0",
- "hex",
- "parity-scale-codec",
- "proc-macro2",
- "quote",
- "sc-executor",
- "sc-executor-common",
- "sp-io",
- "subxt-codegen 0.37.0",
- "syn 2.0.106",
-]
-
-[[package]]
 name = "gsdk-codegen"
 version = "1.9.2"
 dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.106",
+]
+
+[[package]]
+name = "gsdk-scale-gen"
+version = "0.1.0"
+dependencies = [
+ "color-eyre",
+ "gear-runtime-interface",
+ "parity-scale-codec",
+ "sc-executor",
+ "sc-executor-common",
+ "sp-io",
 ]
 
 [[package]]
@@ -15602,19 +15595,6 @@ dependencies = [
 
 [[package]]
 name = "scale-typegen"
-version = "0.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "498d1aecf2ea61325d4511787c115791639c0fd21ef4f8e11e49dd09eff2bbac"
-dependencies = [
- "proc-macro2",
- "quote",
- "scale-info",
- "syn 2.0.106",
- "thiserror 1.0.69",
-]
-
-[[package]]
-name = "scale-typegen"
 version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "05c61b6b706a3eaad63b506ab50a1d2319f817ae01cf753adcc3f055f9f0fcd6"
@@ -17590,7 +17570,7 @@ dependencies = [
  "subxt-core",
  "subxt-lightclient",
  "subxt-macro",
- "subxt-metadata 0.44.0",
+ "subxt-metadata",
  "subxt-rpcs",
  "thiserror 2.0.12",
  "tokio",
@@ -17599,24 +17579,6 @@ dependencies = [
  "url",
  "wasm-bindgen-futures",
  "web-time",
-]
-
-[[package]]
-name = "subxt-codegen"
-version = "0.37.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d703dca0905cc5272d7cc27a4ac5f37dcaae7671acc7fef0200057cc8c317786"
-dependencies = [
- "heck 0.5.0",
- "hex",
- "parity-scale-codec",
- "proc-macro2",
- "quote",
- "scale-info",
- "scale-typegen 0.8.0",
- "subxt-metadata 0.37.0",
- "syn 2.0.106",
- "thiserror 1.0.69",
 ]
 
 [[package]]
@@ -17630,8 +17592,8 @@ dependencies = [
  "proc-macro2",
  "quote",
  "scale-info",
- "scale-typegen 0.11.1",
- "subxt-metadata 0.44.0",
+ "scale-typegen",
+ "subxt-metadata",
  "syn 2.0.106",
  "thiserror 2.0.12",
 ]
@@ -17661,7 +17623,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sp-crypto-hashing 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "subxt-metadata 0.44.0",
+ "subxt-metadata",
  "thiserror 2.0.12",
  "tracing",
 ]
@@ -17693,24 +17655,11 @@ dependencies = [
  "parity-scale-codec",
  "proc-macro-error2",
  "quote",
- "scale-typegen 0.11.1",
- "subxt-codegen 0.44.0",
- "subxt-metadata 0.44.0",
+ "scale-typegen",
+ "subxt-codegen",
+ "subxt-metadata",
  "subxt-utils-fetchmetadata",
  "syn 2.0.106",
-]
-
-[[package]]
-name = "subxt-metadata"
-version = "0.37.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "738be5890fdeff899bbffff4d9c0f244fe2a952fb861301b937e3aa40ebb55da"
-dependencies = [
- "frame-metadata 16.0.0",
- "hashbrown 0.14.5",
- "parity-scale-codec",
- "scale-info",
- "sp-crypto-hashing 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]

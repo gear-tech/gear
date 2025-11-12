@@ -249,7 +249,7 @@ impl GearApi {
                 ..
             }) = event?.as_root_event::<Event>()?
             {
-                return Ok((id.into(), destination.into(), tx.block_hash()));
+                return Ok((id, destination, tx.block_hash()));
             }
         }
 
@@ -270,7 +270,7 @@ impl GearApi {
             .into_iter()
             .map(|(code_id, salt, payload, gas_limit, value)| {
                 RuntimeCall::Gear(GearCall::create_program {
-                    code_id: code_id.into(),
+                    code_id,
                     salt: salt.as_ref().to_vec(),
                     init_payload: payload.as_ref().to_vec(),
                     gas_limit,
@@ -292,7 +292,7 @@ impl GearApi {
                     destination,
                     entry: MessageEntry::Init,
                     ..
-                }) => res.push(Ok((id.into(), destination.into()))),
+                }) => res.push(Ok((id, destination))),
                 Event::Utility(UtilityEvent::ItemFailed { error }) => {
                     res.push(Err(self.0.api().decode_error(error).into()))
                 }
@@ -436,7 +436,7 @@ impl GearApi {
                 id, value, lock, ..
             } = &gas_node.1
             {
-                accounts_with_reserved_funds.insert(id.into_substrate());
+                accounts_with_reserved_funds.insert(id.clone().into_substrate());
                 src_program_reserved_gas_total += value + lock.0[LockId::Reservation as usize];
             } else {
                 unreachable!("Unexpected gas node type");
@@ -498,7 +498,7 @@ impl GearApi {
 
         for account_with_reserved_funds in accounts_with_reserved_funds {
             let src_account_bank_data = self
-                .bank_data_at(account_with_reserved_funds, src_block_hash)
+                .bank_data_at(account_with_reserved_funds.clone(), src_block_hash)
                 .await
                 .or_else(|e| {
                     if let Error::GearSDK(GsdkError::StorageEntryNotFound) = e {
@@ -509,7 +509,7 @@ impl GearApi {
                 })?;
 
             let dest_account_data = dest_node_api
-                .account_data(account_with_reserved_funds)
+                .account_data(account_with_reserved_funds.clone())
                 .await
                 .or_else(|e| {
                     if let Error::GearSDK(GsdkError::StorageEntryNotFound) = e {
@@ -526,7 +526,7 @@ impl GearApi {
                     }
                 })?;
             let dest_account_bank_data = self
-                .bank_data_at(account_with_reserved_funds, None)
+                .bank_data_at(account_with_reserved_funds.clone(), None)
                 .await
                 .or_else(|e| {
                     if let Error::GearSDK(GsdkError::StorageEntryNotFound) = e {
@@ -538,7 +538,7 @@ impl GearApi {
 
             dest_node_api
                 .force_set_balance(
-                    account_with_reserved_funds.into_account_id(),
+                    account_with_reserved_funds.clone().into_account_id(),
                     dest_account_data.free,
                 )
                 .await?;
@@ -784,11 +784,7 @@ impl GearApi {
 
         let calls: Vec<_> = args
             .into_iter()
-            .map(|message_id| {
-                RuntimeCall::Gear(GearCall::claim_value {
-                    message_id: message_id.into(),
-                })
-            })
+            .map(|message_id| RuntimeCall::Gear(GearCall::claim_value { message_id }))
             .collect();
 
         let amount = calls.len();
@@ -799,7 +795,7 @@ impl GearApi {
         for event in tx.wait_for_success().await?.iter() {
             match event?.as_root_event::<Event>()? {
                 Event::Gear(GearEvent::UserMessageRead { id, .. }) => res.push(Ok(values
-                    .remove(&id.into())
+                    .remove(&id)
                     .expect("Data appearance guaranteed above"))),
                 Event::Utility(UtilityEvent::ItemFailed { error }) => {
                     res.push(Err(self.0.api().decode_error(error).into()))
@@ -855,7 +851,7 @@ impl GearApi {
                 ..
             }) = event?.as_root_event::<Event>()?
             {
-                return Ok((id.into(), tx.block_hash()));
+                return Ok((id, tx.block_hash()));
             }
         }
 
@@ -877,7 +873,7 @@ impl GearApi {
             .into_iter()
             .map(|(destination, payload, gas_limit, value)| {
                 RuntimeCall::Gear(GearCall::send_message {
-                    destination: destination.into(),
+                    destination,
                     payload: payload.as_ref().to_vec(),
                     gas_limit,
                     value,
@@ -898,7 +894,7 @@ impl GearApi {
                     destination,
                     entry: MessageEntry::Handle,
                     ..
-                }) => res.push(Ok((id.into(), destination.into()))),
+                }) => res.push(Ok((id, destination))),
                 Event::Utility(UtilityEvent::ItemFailed { error }) => {
                     res.push(Err(self.0.api().decode_error(error).into()))
                 }
@@ -973,7 +969,7 @@ impl GearApi {
                 ..
             }) = event?.as_root_event::<Event>()?
             {
-                return Ok((id.into(), message.value(), tx.block_hash()));
+                return Ok((id, message.value(), tx.block_hash()));
             }
         }
 
@@ -1011,7 +1007,7 @@ impl GearApi {
             .into_iter()
             .map(|(reply_to_id, payload, gas_limit, value)| {
                 RuntimeCall::Gear(GearCall::send_reply {
-                    reply_to_id: reply_to_id.into(),
+                    reply_to_id,
                     payload: payload.as_ref().to_vec(),
                     gas_limit,
                     value,
@@ -1033,10 +1029,10 @@ impl GearApi {
                     destination,
                     ..
                 }) => res.push(Ok((
-                    id.into(),
-                    destination.into(),
+                    id,
+                    destination,
                     values
-                        .remove(&reply_to_id.into())
+                        .remove(&reply_to_id)
                         .expect("Data appearance guaranteed above"),
                 ))),
                 Event::Utility(UtilityEvent::ItemFailed { error }) => {
@@ -1092,7 +1088,7 @@ impl GearApi {
                 change: CodeChangeKind::Active { .. },
             }) = event?.as_root_event::<Event>()?
             {
-                return Ok((id.into(), tx.block_hash()));
+                return Ok((id, tx.block_hash()));
             }
         }
 
@@ -1129,7 +1125,7 @@ impl GearApi {
                     id,
                     change: CodeChangeKind::Active { .. },
                 }) => {
-                    res.push(Ok(id.into()));
+                    res.push(Ok(id));
                 }
                 Event::Utility(UtilityEvent::ItemFailed { error }) => {
                     res.push(Err(self.0.api().decode_error(error).into()))
@@ -1211,7 +1207,7 @@ impl GearApi {
                 ..
             }) = event?.as_root_event::<Event>()?
             {
-                return Ok((id.into(), destination.into(), tx.block_hash()));
+                return Ok((id, destination, tx.block_hash()));
             }
         }
 
@@ -1262,7 +1258,7 @@ impl GearApi {
                     destination,
                     entry: MessageEntry::Init,
                     ..
-                }) => res.push(Ok((id.into(), destination.into()))),
+                }) => res.push(Ok((id, destination))),
                 Event::Utility(UtilityEvent::ItemFailed { error }) => {
                     res.push(Err(self.0.api().decode_error(error).into()))
                 }
@@ -1466,7 +1462,7 @@ impl GearApi {
                 change: CodeChangeKind::Active { .. },
             }) = event?.as_root_event::<Event>()?
             {
-                return Ok((id.into(), tx.block_hash()));
+                return Ok((id, tx.block_hash()));
             }
         }
 
@@ -1506,7 +1502,7 @@ impl GearApi {
                 ..
             }) = event?.as_root_event::<Event>()?
             {
-                return Ok((id.into(), tx.block_hash()));
+                return Ok((id, tx.block_hash()));
             }
         }
 
@@ -1574,7 +1570,7 @@ impl GearApi {
                 ..
             }) = event?.as_root_event::<Event>()?
             {
-                return Ok((id.into(), message.value(), tx.block_hash()));
+                return Ok((id, message.value(), tx.block_hash()));
             }
         }
 

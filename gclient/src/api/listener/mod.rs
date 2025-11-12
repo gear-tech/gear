@@ -19,16 +19,14 @@
 mod iterator;
 mod subscription;
 
+use std::collections::HashSet;
+
 pub use gsdk::gear::{Event, gear::Event as GearEvent};
 pub use iterator::*;
 
 use crate::{Error, Result};
 use async_trait::async_trait;
-use gear_core::{
-    ids::MessageId,
-    message::{ReplyDetails, UserMessage},
-};
-use gear_core_errors::ReplyCode;
+use gear_core::ids::MessageId;
 use gsdk::gear::runtime_types::gear_common::event::DispatchStatus as GenDispatchStatus;
 
 /// Dispatch status returned after processing a message.
@@ -118,8 +116,6 @@ pub trait EventProcessor {
 
     /// Check whether the message identified by `message_id` has been processed.
     async fn message_processed(&mut self, message_id: MessageId) -> Result<DispatchStatus> {
-        let message_id: GenMId = message_id.into();
-
         self.proc(|e| {
             if let Event::Gear(GearEvent::MessagesDispatched { statuses, .. }) = e {
                 statuses
@@ -139,8 +135,7 @@ pub trait EventProcessor {
         &mut self,
         message_ids: impl IntoIterator<Item = MessageId>,
     ) -> Result<Vec<(MessageId, DispatchStatus)>> {
-        let message_ids: Vec<GenMId> = message_ids.into_iter().map(Into::into).collect();
-
+        let message_ids: HashSet<_> = message_ids.into_iter().collect();
         Ok(self
             .proc_many(
                 |e| {
@@ -148,9 +143,7 @@ pub trait EventProcessor {
                         let requested: Vec<_> = statuses
                             .into_iter()
                             .filter_map(|(mid, status)| {
-                                message_ids
-                                    .contains(&mid)
-                                    .then(|| (mid.into(), status.into()))
+                                message_ids.contains(&mid).then(|| (mid, status.into()))
                             })
                             .collect();
 
@@ -179,28 +172,20 @@ pub trait EventProcessor {
         &mut self,
         message_id: MessageId,
     ) -> Result<(MessageId, Result<Vec<u8>, String>, u128)> {
-        let message_id: GenMId = message_id.into();
-
         self.proc(|e| {
-            if let Event::Gear(GearEvent::UserMessageSent {
-                message:
-                    GenUserMessage {
-                        id,
-                        payload,
-                        value,
-                        details: Some(GenReplyDetails { to, code }),
-                        ..
-                    },
-                ..
-            }) = e
+            if let Event::Gear(GearEvent::UserMessageSent { message, .. }) = e
+                && let Some(details) = message.details()
             {
-                to.eq(&message_id).then(|| {
-                    let res = ReplyCode::from(code)
-                        .is_success()
-                        .then(|| payload.0.clone())
-                        .ok_or_else(|| String::from_utf8(payload.0).expect("Infallible"));
+                details.to_message_id().eq(&message_id).then(|| {
+                    let payload = message.payload_bytes().to_vec();
 
-                    (id.into(), res, value)
+                    let res = if details.to_reply_code().is_success() {
+                        Ok(payload)
+                    } else {
+                        Err(String::from_utf8(payload).expect("Infallible"))
+                    };
+
+                    (message.id(), res, message.value())
                 })
             } else {
                 None
@@ -216,20 +201,15 @@ pub trait EventProcessor {
     /// only due to the possibility of a message's
     /// [`NotExecuted`](DispatchStatus::NotExecuted) state.
     async fn err_or_succeed(&mut self, message_id: MessageId) -> Result<Option<String>> {
-        let message_id: GenMId = message_id.into();
-
         self.proc(|e| match e {
-            Event::Gear(GearEvent::UserMessageSent {
-                message:
-                    GenUserMessage {
-                        payload,
-                        details: Some(GenReplyDetails { to, code }),
-                        ..
-                    },
-                ..
-            }) => {
-                if to == message_id && ReplyCode::from(code).is_success() {
-                    Some(Some(String::from_utf8(payload.0).expect("Infallible")))
+            Event::Gear(GearEvent::UserMessageSent { message, .. }) => {
+                if let Some(details) = message.details()
+                    && details.to_message_id() == message_id
+                    && details.to_reply_code().is_success()
+                {
+                    Some(Some(
+                        String::from_utf8(message.payload_bytes().to_vec()).expect("Infallible"),
+                    ))
                 } else {
                     None
                 }
@@ -257,24 +237,22 @@ pub trait EventProcessor {
         &mut self,
         message_ids: impl IntoIterator<Item = MessageId>,
     ) -> Result<Vec<(MessageId, Option<String>)>> {
-        let message_ids: Vec<GenMId> = message_ids.into_iter().map(Into::into).collect();
+        let message_ids: HashSet<_> = message_ids.into_iter().collect();
 
         Ok(self
             .proc_many(
                 |e| match e {
-                    Event::Gear(GearEvent::UserMessageSent {
-                        message:
-                            GenUserMessage {
-                                payload,
-                                details: Some(GenReplyDetails { to, code }),
-                                ..
-                            },
-                        ..
-                    }) => {
-                        if message_ids.contains(&to) && ReplyCode::from(code).is_success() {
+                    Event::Gear(GearEvent::UserMessageSent { message, .. }) => {
+                        if let Some(details) = message.details()
+                            && message_ids.contains(&details.to_message_id())
+                            && details.to_reply_code().is_success()
+                        {
                             Some(vec![(
-                                to.into(),
-                                Some(String::from_utf8(payload.0).expect("Infallible")),
+                                details.to_message_id(),
+                                Some(
+                                    String::from_utf8(message.payload_bytes().to_vec())
+                                        .expect("Infallible"),
+                                ),
                             )])
                         } else {
                             None
@@ -287,7 +265,7 @@ pub trait EventProcessor {
                                 if message_ids.contains(&mid)
                                     && !matches!(status, GenDispatchStatus::Failed)
                                 {
-                                    Some((MessageId::from(mid), None))
+                                    Some((mid, None))
                                 } else {
                                     None
                                 }

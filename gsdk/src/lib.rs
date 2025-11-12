@@ -25,7 +25,7 @@ pub use crate::{
     api::{Api, ApiBuilder},
     config::GearConfig,
     convert::{IntoSubstrate, IntoSubxt},
-    gear::Event,
+    gear::{runtime_types::vara_runtime::RuntimeError, Event},
     result::{Error, Result},
     signer::PairSigner,
     subscription::{
@@ -34,7 +34,7 @@ pub use crate::{
     },
 };
 pub use gear_core::rpc::GasInfo;
-pub use subxt::{self, dynamic::Value};
+pub use subxt::dynamic::Value;
 
 use crate::gear::runtime_types::{
     gear_common::gas_provider::node::{GasNode, GasNodeId},
@@ -47,8 +47,8 @@ use gear_core::{
 use parity_scale_codec::Decode;
 use std::collections::HashMap;
 use subxt::{
-    OnlineClient,
     tx::{TxInBlock as SubxtTxInBlock, TxStatus as SubxtTxStatus},
+    OnlineClient,
 };
 
 /// Generated runtime API types.

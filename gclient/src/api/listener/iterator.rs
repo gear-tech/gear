@@ -25,7 +25,6 @@ use gsdk::{
     gear::{Event, gear::Event as GearEvent},
     subscription::BlockEvents,
 };
-use subxt::utils::H256;
 
 /// Event listener that allows catching and processing events propagated through
 /// the network.

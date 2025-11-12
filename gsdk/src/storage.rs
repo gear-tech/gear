@@ -43,9 +43,7 @@ use gear_core::{
     program::MemoryInfix,
 };
 use gsdk_codegen::storage_fetch;
-use hex::ToHex;
 use sp_core::crypto::{AccountId32, Ss58Codec};
-use std::collections::HashMap;
 use subxt::{
     error::MetadataError,
     ext::subxt_core::storage::address::StorageHashers,
