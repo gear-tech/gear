@@ -373,6 +373,47 @@ jobs:
           curl -sL https://github.com/paritytech/try-runtime-cli/releases/download/v0.8.0/try-runtime-x86_64-unknown-linux-musl -o try-runtime
           chmod +x ./try-runtime
 
+      - name: "System: Report disk headroom (before cleanup)"
+        run: |
+          set -euo pipefail
+          df -hT /
+          df -hT "$GITHUB_WORKSPACE"
+          if [ -n "${RUNNER_TEMP:-}" ] && [ -d "$RUNNER_TEMP" ]; then
+            df -hT "$RUNNER_TEMP"
+          fi
+          echo "Top usage in /home/runner:"
+          du -h -d1 /home/runner | sort -h | tail -20 || true
+
+      - name: "System: Free disk space"
+        run: |
+          set -euo pipefail
+
+          sudo apt-get clean
+          sudo rm -rf /var/lib/apt/lists/*
+
+          for path in /opt/ghc /opt/hostedtoolcache /usr/local/lib/android /usr/share/dotnet "$AGENT_TOOLSDIRECTORY"; do
+            if [ -n "$path" ] && [ -e "$path" ]; then
+              sudo rm -rf "$path"
+            fi
+          done
+
+          docker image prune --all --force || true
+
+          if [ -n "${RUNNER_TEMP:-}" ] && [ -d "$RUNNER_TEMP" ]; then
+            sudo rm -rf "${RUNNER_TEMP:?}/"*
+          fi
+
+      - name: "System: Report disk headroom (after cleanup)"
+        run: |
+          set -euo pipefail
+          df -hT /
+          df -hT "$GITHUB_WORKSPACE"
+          if [ -n "${RUNNER_TEMP:-}" ] && [ -d "$RUNNER_TEMP" ]; then
+            df -hT "$RUNNER_TEMP"
+          fi
+          echo "Top usage in /home/runner:"
+          du -h -d1 /home/runner | sort -h | tail -20 || true
+
       - name: "Build: Vara mainnet runtime"
         run: cargo build -p vara-runtime -F std,try-runtime --locked ${{ matrix.profiles.flags }}
 
