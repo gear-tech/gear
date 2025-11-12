@@ -485,7 +485,7 @@ jobs:
         uses: ./.github/actions/cargo-hakari
         with:
           # production binaries should not have additional features enabled
-          args: disable
+          args: remove-deps --yes
 
       - name: "Build: Production binaries"
         run: cargo build -p wasm-proc -p gear-cli -F cli --profile production

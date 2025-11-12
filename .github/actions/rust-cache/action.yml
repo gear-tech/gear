@@ -31,7 +31,7 @@ runs:
     - uses: ./.github/actions/cargo-hakari
       if: ${{ inputs.keep-workspace-hack == 'false' }}
       with:
-        args: disable
+        args: remove-deps --yes
 
     - run: |
         if [[ "${{ runner.environment }}" == "github-hosted" ]]; then
