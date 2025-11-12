@@ -32,17 +32,16 @@ use alloy::{
     providers::{Provider as _, RootProvider, ext::AnvilApi},
     rpc::types::{Header as RpcHeader, anvil::MineOptions},
 };
-use anyhow::anyhow;
 use ethexe_blob_loader::{
     BlobLoaderService,
     local::{LocalBlobLoader, LocalBlobStorage},
 };
 use ethexe_common::{
     Address, CodeAndId, DEFAULT_BLOCK_GAS_LIMIT,
-    db::OnChainStorageRO,
     ecdsa::{PrivateKey, PublicKey},
     events::{BlockEvent, MirrorEvent, RouterEvent},
 };
+use ethexe_compute::{ComputeConfig, ComputeService};
 use ethexe_consensus::{ConsensusService, SimpleConnectService, ValidatorService};
 use ethexe_db::Database;
 use ethexe_ethereum::{
@@ -55,7 +54,9 @@ use ethexe_network::{
     NetworkConfig, NetworkEvent, NetworkRuntimeConfig, NetworkService, export::Multiaddr,
 };
 use ethexe_observer::{EthereumConfig, ObserverEvent, ObserverService};
-use ethexe_processor::Processor;
+use ethexe_processor::{
+    DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, DEFAULT_CHUNK_PROCESSING_THREADS, Processor, RunnerConfig,
+};
 use ethexe_rpc::{RpcConfig, RpcService, test_utils::RpcClient};
 use ethexe_signer::Signer;
 use ethexe_tx_pool::TxPoolService;
@@ -100,6 +101,7 @@ pub struct TestEnv {
     pub threshold: u64,
     pub block_time: Duration,
     pub continuous_block_generation: bool,
+    pub compute_config: ComputeConfig,
 
     router_query: RouterQuery,
     /// In order to reduce amount of observers, we create only one observer and broadcast events to all subscribers.
@@ -125,6 +127,7 @@ impl TestEnv {
             continuous_block_generation,
             network,
             deploy_params,
+            compute_config,
         } = config;
 
         log::info!(
@@ -280,16 +283,7 @@ impl TestEnv {
             config.listen_addresses = [multiaddr.clone()].into();
             config.external_addresses = [multiaddr.clone()].into();
 
-            let timelines = db
-                .protocol_timelines()
-                .ok_or_else(|| anyhow!("protocol timelines not found in database"))
-                .unwrap();
-
-            let runtime_config = NetworkRuntimeConfig {
-                genesis_timestamp: timelines.genesis_ts,
-                era_duration: timelines.era,
-                genesis_block_hash,
-            };
+            let runtime_config = NetworkRuntimeConfig { genesis_block_hash };
 
             let mut service = NetworkService::new(
                 config,
@@ -338,6 +332,7 @@ impl TestEnv {
             threshold,
             block_time,
             continuous_block_generation,
+            compute_config,
             router_query,
             broadcaster,
             db,
@@ -391,6 +386,7 @@ impl TestEnv {
             network_bootstrap_address,
             service_rpc_config,
             fast_sync,
+            compute_config: self.compute_config,
         }
     }
 
@@ -406,7 +402,7 @@ impl TestEnv {
         let pending_builder = self
             .ethereum
             .router()
-            .request_code_validation_with_sidecar(code)
+            .request_code_validation_with_sidecar_old(code)
             .await?;
         assert_eq!(pending_builder.code_id(), code_id);
 
@@ -664,6 +660,8 @@ pub struct TestEnvConfig {
     pub network: EnvNetworkConfig,
     /// Smart contracts deploy configuration.
     pub deploy_params: ContractsDeploymentParams,
+    /// Compute service configuration
+    pub compute_config: ComputeConfig,
 }
 
 impl Default for TestEnvConfig {
@@ -684,6 +682,7 @@ impl Default for TestEnvConfig {
             continuous_block_generation: false,
             network: EnvNetworkConfig::Disabled,
             deploy_params: Default::default(),
+            compute_config: ComputeConfig::without_quarantine(),
         }
     }
 }
@@ -723,10 +722,16 @@ impl NodeConfig {
     }
 
     pub fn service_rpc(mut self, rpc_port: u16) -> Self {
+        let runner_config = RunnerConfig::overlay(
+            DEFAULT_CHUNK_PROCESSING_THREADS.get(),
+            DEFAULT_BLOCK_GAS_LIMIT,
+            DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER,
+        );
         let service_rpc_config = RpcConfig {
             listen_addr: SocketAddr::new("127.0.0.1".parse().unwrap(), rpc_port),
             cors: None,
             dev: false,
+            runner_config,
         };
         self.rpc = Some(service_rpc_config);
 
@@ -813,6 +818,7 @@ pub struct Node {
     network_bootstrap_address: Option<String>,
     service_rpc_config: Option<RpcConfig>,
     fast_sync: bool,
+    compute_config: ComputeConfig,
 }
 
 impl Node {
@@ -823,6 +829,7 @@ impl Node {
         );
 
         let processor = Processor::new(self.db.clone()).unwrap();
+        let compute = ComputeService::new(self.compute_config, self.db.clone(), processor);
 
         let observer = ObserverService::new(&self.eth_cfg, u32::MAX, self.db.clone())
             .await
@@ -858,6 +865,11 @@ impl Node {
             }
         };
 
+        let validator_address = self
+            .validator_config
+            .as_ref()
+            .map(|c| c.public_key.to_address());
+
         let (sender, receiver) = broadcast::channel(2048);
 
         let blob_loader = LocalBlobLoader::new(self.blob_storage.clone()).into_box();
@@ -876,15 +888,7 @@ impl Node {
                 config.bootstrap_addresses = [multiaddr].into();
             }
 
-            let timelines = self
-                .db
-                .protocol_timelines()
-                .ok_or_else(|| anyhow!("protocol timelines not found in database"))
-                .unwrap();
-
             let runtime_config = NetworkRuntimeConfig {
-                genesis_timestamp: timelines.genesis_ts,
-                era_duration: timelines.era,
                 genesis_block_hash: observer.genesis_block_hash(),
             };
 
@@ -912,7 +916,7 @@ impl Node {
             self.db.clone(),
             observer,
             blob_loader,
-            processor,
+            compute,
             self.signer.clone(),
             tx_pool_service,
             consensus,
@@ -921,6 +925,7 @@ impl Node {
             rpc,
             sender,
             self.fast_sync,
+            validator_address,
         );
 
         let name = self.name.clone();

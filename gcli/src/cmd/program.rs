@@ -19,7 +19,7 @@
 //! Command `program`.
 use crate::{App, result::Result};
 use clap::Parser;
-use gclient::ext::sp_core::H256;
+use gclient::ext::utils::H256;
 
 /// Read program state, etc.
 #[derive(Clone, Debug, Parser)]

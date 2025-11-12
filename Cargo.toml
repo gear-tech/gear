@@ -116,8 +116,8 @@ members = [
 
 [workspace.dependencies]
 alloy = "1.0"
-alloy-primitives = { version = "1.1", default-features = false }
-alloy-sol-types = { version = "1.1", default-features = false }
+alloy-primitives = { version = "1.4", default-features = false }
+alloy-sol-types = { version = "1.4", default-features = false }
 anyhow = { version = "1.0.86", default-features = false }
 arbitrary = "1.3.2"
 async-recursion = "1.1.1"
@@ -144,7 +144,6 @@ enum-iterator = "1.5.0"
 environmental = "1.1.3"
 futures = { version = "0.3", default-features = false }
 futures-timer = "3.0.3"
-futures-util = "0.3.30"
 hashbrown = "0.14.5"
 hex = { version = "0.4.3", default-features = false }
 hex-literal = "0.4.1"
@@ -169,6 +168,8 @@ region = "3.0.2"
 reqwest = { version = "0.12.8", default-features = false }
 roast-secp256k1-evm = { version = "0.1.0", git = "https://github.com/gear-tech/roast", branch = "gear-v0.1.0" }
 scale-info = { version = "2.11", default-features = false }
+scale-decode = "0.16.0"
+scale-encode = "0.10.0"
 serde = { version = "^1", default-features = false }
 serde_json = { version = "1.0.135", default-features = false, features = [
     "alloc",
@@ -176,7 +177,7 @@ serde_json = { version = "1.0.135", default-features = false, features = [
 serde-json-wasm = { version = "1.0.1", default-features = false }
 sha-1 = "0.10.1"
 static_init = "1.0.3"
-subxt = "0.37.0"
+subxt = "0.44.0"
 subxt-codegen = "0.37.0"
 syn = "2.0.71"
 thiserror = { version = "2.0.12", default-features = false }
@@ -206,6 +207,7 @@ ark-ec = { version = "0.4.2", default-features = false }
 ark-ff = { version = "0.4.2", default-features = false }
 ark-scale = { version = "0.0.12", default-features = false }
 sha2 = { version = "0.10.8", default-features = false }
+sha3 = { version = "0.10.8", default-features = false }
 arrayvec = { version = "0.7.4", default-features = false }
 indexmap = { version = "2.2.6", default-features = false }
 tracing = { version = "0.1.40", default-features = false }
@@ -224,6 +226,7 @@ dlmalloc = { package = "gear-dlmalloc", version = "0.2.0" }
 # Internal deps
 numerated = { path = "common/numerated" }
 authorship = { package = "gear-authorship", path = "node/authorship" }
+builtins-common = { path = "utils/builtins-common", default-features = false }
 common = { package = "gear-common", path = "common", default-features = false }
 core-processor = { package = "gear-core-processor", path = "core-processor", default-features = false }
 galloc = { path = "galloc" }
@@ -533,11 +536,9 @@ tracing-appender = "0.2"                                     # utils/node-loader
 trybuild = "1"                                               # gstd/codegen
 wasmprinter = "0.230"                                        # utils/wasm-gen
 fail = "0.5"                                                 # gear-common
-scale-value = "^0.16"                                        # gsdk
 heck = "0.5.0"                                               # gsdk-api-gen
 etc = "0.1.19"                                               # gcli
 toml_edit = "0.22.12"                                        # crates-io
-scale-decode = "0.13.0"                                      # gsdk
 directories = "5.0.1"                                        # utils/key-finder
 num-traits = { version = "0.2", default-features = false }   # gear-core
 glob = "0.3.1"                                               # cargo-gbuild
@@ -602,6 +603,7 @@ inherits = "release"
 debug = true
 
 [patch.crates-io]
+alloy = { version = "1.0", git = "https://github.com/alessandromazza98/alloy", branch = "ale/add-eip7594-to-transaction-request" }
 # these patched dependecies force their `sign_ext` feature to be used by Substrate dependencies
 parity-wasm = { version = "0.45.0", git = "https://github.com/gear-tech/parity-wasm", branch = "v0.45.0-sign-ext" }
 wasmi-validation = { version = "0.5.0", git = "https://github.com/gear-tech/wasmi", branch = "v0.13.2-sign-ext" }
