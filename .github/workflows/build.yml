@@ -391,7 +391,7 @@ jobs:
           sudo apt-get clean
           sudo rm -rf /var/lib/apt/lists/*
 
-          for path in /opt/ghc /opt/hostedtoolcache /usr/local/lib/android /usr/share/dotnet "$AGENT_TOOLSDIRECTORY"; do
+          for path in /opt/ghc /usr/local/lib/android /usr/share/dotnet; do
             if [ -n "$path" ] && [ -e "$path" ]; then
               sudo rm -rf "$path"
             fi
