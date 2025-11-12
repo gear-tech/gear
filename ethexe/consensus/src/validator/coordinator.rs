@@ -126,8 +126,6 @@ impl Coordinator {
         mut ctx: ValidatorContext,
         multisigned_batch: MultisignedBatchCommitment,
     ) -> Result<ValidatorState> {
-        tracing::trace!("Starting submission of multisigned batch commitment");
-
         if ctx.submission_task.is_some() {
             ctx.output(ConsensusEvent::Warning(
                 "New submission task coming, but old is not completed yet - abort old one".into(),
@@ -135,7 +133,7 @@ impl Coordinator {
         }
         let (batch, signatures) = multisigned_batch.into_parts();
         ctx.submission_task = Some(ctx.core.committer.clone_boxed().commit(batch, signatures));
-        return Initial::create(ctx);
+        Initial::create(ctx)
     }
 }
 

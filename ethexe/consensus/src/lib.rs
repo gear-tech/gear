@@ -43,7 +43,7 @@ use gprimitives::H256;
 
 pub use connect::ConnectService;
 pub use utils::{block_producer_for, block_producer_index};
-pub use validator::{ValidatorConfig, ValidatorService, BatchCommitter};
+pub use validator::{BatchCommitter, ValidatorConfig, ValidatorService};
 
 mod announces;
 mod connect;

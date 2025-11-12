@@ -27,9 +27,11 @@ use hashbrown::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
+type BatchWithSignatures = (BatchCommitment, Vec<ContractSignature>);
+
 #[derive(Default, Clone)]
 pub struct MockEthereum {
-    pub committed_batch: Arc<RwLock<Option<(BatchCommitment, Vec<ContractSignature>)>>>,
+    pub committed_batch: Arc<RwLock<Option<BatchWithSignatures>>>,
     pub predefined_election_at: Arc<RwLock<HashMap<u64, ValidatorsVec>>>,
 }
 
