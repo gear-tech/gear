@@ -75,6 +75,8 @@ runs:
 
         wget -qO - https://raw.githubusercontent.com/ScoopInstaller/Main/refs/heads/master/bucket/openssl.json | jq -r '.architecture."64bit".url' | xargs wget -qO openssl_installer.exe
         innoextract -d ${{ runner.temp }}/openssl_extracted -I app/include -I app/lib/VC/x64/MT openssl_installer.exe
+        rm openssl_installer.exe
+        (cd ${{ runner.temp }}/openssl_extracted/app/lib/VC/x64/MT/ && mv libssl_static.lib libssl.lib && mv libcrypto_static.lib libcrypto.lib)
         
         echo "OPENSSL_NO_VENDOR=1" >> $GITHUB_ENV
         echo "OPENSSL_STATIC=1" >> $GITHUB_ENV
