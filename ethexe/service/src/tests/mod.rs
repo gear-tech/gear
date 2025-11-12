@@ -1207,7 +1207,7 @@ async fn injected_tx_send_gossip() {
     // Check that node-1 save received tx.
     let node1_db_tx = node1
         .db
-        .injected_transaction(tx.hash())
+        .injected_transaction(tx.to_hash())
         .expect("tx not found");
     assert_eq!(node1_db_tx, tx_for_node1);
 }
@@ -1722,7 +1722,7 @@ async fn injected_tx_fungible_token() {
         .await
         .unwrap();
 
-    tracing::info!("✅ Fungible token successfuly initialized");
+    tracing::info!("✅ Fungible token successfully initialized");
 
     // 4. Try ming some tokens
     let amount: u128 = 5_000_000_000;
@@ -1768,5 +1768,5 @@ async fn injected_tx_fungible_token() {
         })
         .await
         .unwrap();
-    tracing::info!("✅ Tokens mint successfuly");
+    tracing::info!("✅ Tokens mint successfully");
 }

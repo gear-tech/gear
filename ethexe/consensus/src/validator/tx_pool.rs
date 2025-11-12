@@ -57,7 +57,7 @@ where
     }
 
     pub fn handle_tx(&mut self, tx: SignedInjectedTransaction) {
-        let tx_hash = tx.data().hash();
+        let tx_hash = tx.data().to_hash();
         let reference_block = tx.data().reference_block;
         tracing::trace!(tx_hash = ?tx_hash, reference_block = ?reference_block,  "handle new injected tx");
 
@@ -187,7 +187,7 @@ mod tx_pool_utils {
                 announce
                     .injected_transactions
                     .into_iter()
-                    .map(|tx| tx.data().hash()),
+                    .map(|tx| tx.data().to_hash()),
             );
         }
 

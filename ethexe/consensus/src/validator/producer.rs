@@ -126,7 +126,7 @@ impl StateHandler for Producer {
                     .ok_or_else(|| anyhow!("computed announce must exists in database"))?;
 
                 for tx in announce.injected_transactions.iter() {
-                    let tx_hash = tx.data().hash();
+                    let tx_hash = tx.data().to_hash();
 
                     let Some(promise) = self.ctx.core.db.injected_promise(tx_hash) else {
                         tracing::warn!(tx_hash = ?tx_hash, "Not found promise for injected transaction");

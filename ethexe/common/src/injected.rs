@@ -72,14 +72,14 @@ impl ToDigest for InjectedTransaction {
 
 impl InjectedTransaction {
     /// Returns the hash of [`InjectedTransaction`].
-    pub fn hash(&self) -> HashOf<InjectedTransaction> {
+    pub fn to_hash(&self) -> HashOf<InjectedTransaction> {
         // Safety because of implementation.
         unsafe { HashOf::new(gear_core::utils::hash(&self.encode()).into()) }
     }
 
     /// Creates [`MessageId`] from [`InjectedTransaction`].
     pub fn message_id(&self) -> MessageId {
-        MessageId::new(self.hash().inner().0)
+        MessageId::new(self.to_hash().inner().0)
     }
 }
 

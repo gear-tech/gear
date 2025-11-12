@@ -72,8 +72,8 @@ enum Key {
     InjectedTransaction(HashOf<InjectedTransaction>) = 12,
     InjectedPromise(HashOf<InjectedTransaction>) = 13,
 
-    LatestData = 15,
-    Timelines = 16,
+    LatestData = 14,
+    Timelines = 15,
 }
 
 impl Key {
@@ -570,7 +570,7 @@ impl InjectedStorageRO for Database {
 
 impl InjectedStorageRW for Database {
     fn set_injected_transaction(&self, tx: SignedInjectedTransaction) {
-        let tx_hash = tx.data().hash();
+        let tx_hash = tx.data().to_hash();
 
         tracing::trace!(injected_tx_hash = ?tx_hash, "Set injected transaction");
         self.kv
@@ -717,7 +717,7 @@ mod tests {
             },
         )
         .unwrap();
-        let tx_hash = tx.data().hash();
+        let tx_hash = tx.data().to_hash();
         db.set_injected_transaction(tx.clone());
         assert_eq!(db.injected_transaction(tx_hash), Some(tx));
     }
