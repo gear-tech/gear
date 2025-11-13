@@ -7254,18 +7254,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "gsdk-scale-gen"
-version = "0.1.0"
-dependencies = [
- "color-eyre",
- "gear-runtime-interface",
- "parity-scale-codec",
- "sc-executor",
- "sc-executor-common",
- "sp-io",
-]
-
-[[package]]
 name = "gstd"
 version = "1.9.2"
 dependencies = [
