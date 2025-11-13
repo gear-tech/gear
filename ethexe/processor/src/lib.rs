@@ -21,10 +21,12 @@
 use core::num::NonZero;
 use ethexe_common::{
     Announce, CodeAndIdUnchecked, HashOf, ProgramStates, Schedule,
-    db::{AnnounceStorageRO, AnnounceStorageRW, BlockMetaStorageRO, CodesStorageRW},
+    db::{
+        AnnounceStorageRO, AnnounceStorageRW, BlockMetaStorageRO, CodesStorageRW, InjectedStorageRO,
+    },
     events::{BlockRequestEvent, MirrorRequestEvent},
     gear::StateTransition,
-    injected::InjectedPromise,
+    injected::{InjectedPromise, SignedInjectedTransaction},
 };
 use ethexe_db::Database;
 use ethexe_runtime_common::state::Storage;
@@ -78,6 +80,8 @@ pub enum ProcessorError {
     AnnounceScheduleNotFound(HashOf<Announce>),
     #[error("not found announces for processing announce ({0})")]
     PreparedBlockAnnouncesMissing(H256),
+    #[error("injected transaction {0:?} not found in storage")]
+    MissingInjectedTransaction(HashOf<SignedInjectedTransaction>),
     #[error("not found announce by hash ({0})")]
     AnnounceNotFound(HashOf<Announce>),
 
@@ -200,9 +204,10 @@ impl Processor {
             announce.block_hash
         );
 
-        let mut handler = self.handler(announce.clone())?;
+        let injected_transactions = self.resolve_injected_transactions(&announce)?;
+        let mut handler = self.handler(announce.clone(), &injected_transactions)?;
 
-        for tx in announce.injected_transactions {
+        for tx in injected_transactions {
             handler.handle_injected_transaction(tx)?;
         }
 
@@ -243,6 +248,21 @@ impl Processor {
 
         run::run(ctx, self.db.clone(), self.creator.clone(), run_config).await;
     }
+
+    fn resolve_injected_transactions(
+        &self,
+        announce: &Announce,
+    ) -> Result<Vec<SignedInjectedTransaction>> {
+        announce
+            .injected_transactions
+            .iter()
+            .map(|hash| {
+                self.db
+                    .injected_transaction(*hash)
+                    .ok_or(ProcessorError::MissingInjectedTransaction(*hash))
+            })
+            .collect()
+    }
 }
 
 #[derive(Clone)]
@@ -277,7 +297,8 @@ impl OverlaidProcessor {
             .announce(announce_hash)
             .ok_or(ProcessorError::AnnounceNotFound(announce_hash))?;
 
-        let mut handler = self.0.handler(announce)?;
+        let injected_transactions = self.0.resolve_injected_transactions(&announce)?;
+        let mut handler = self.0.handler(announce, &injected_transactions)?;
 
         let state_hash = handler
             .transitions

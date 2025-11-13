@@ -1207,7 +1207,7 @@ async fn injected_tx_send_gossip() {
     // Check that node-1 save received tx.
     let node1_db_tx = node1
         .db
-        .injected_transaction(tx.to_hash())
+        .injected_transaction(tx_for_node1.to_hash())
         .expect("tx not found");
     assert_eq!(node1_db_tx, tx_for_node1);
 }

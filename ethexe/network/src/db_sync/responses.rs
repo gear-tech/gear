@@ -24,8 +24,12 @@ use crate::{
     export::PeerId,
 };
 use ethexe_common::{
-    Announce, HashOf,
-    db::{AnnounceStorageRO, BlockMetaStorageRO, HashStorageRO, LatestData, LatestDataStorageRO},
+    Announce, HashOf, NetworkAnnounce,
+    db::{
+        AnnounceStorageRO, BlockMetaStorageRO, HashStorageRO, InjectedStorageRO, LatestData,
+        LatestDataStorageRO,
+    },
+    injected::SignedInjectedTransaction,
     network::{AnnouncesRequest, AnnouncesRequestUntil, AnnouncesResponse},
 };
 use libp2p::request_response;
@@ -104,7 +108,7 @@ impl OngoingResponses {
         }
     }
 
-    fn process_announce_request<DB: AnnounceStorageRO + LatestDataStorageRO>(
+    fn process_announce_request<DB: AnnounceStorageRO + LatestDataStorageRO + InjectedStorageRO>(
         db: &DB,
         request: AnnouncesRequest,
     ) -> Result<AnnouncesResponse, ProcessAnnounceError> {
@@ -137,7 +141,8 @@ impl OngoingResponses {
             };
 
             let parent = announce.parent;
-            announces.push_front(announce);
+            let network_announce = Self::to_network_announce(db, announce)?;
+            announces.push_front(network_announce);
 
             match until {
                 AnnouncesRequestUntil::Tail(tail) if announce_hash == tail => {
@@ -173,6 +178,27 @@ impl OngoingResponses {
 
         // TODO #4874: use peer score to punish the peer for such requests
         Err(ProcessAnnounceError::ReachedMaxChainLength)
+    }
+
+    fn to_network_announce<DB: InjectedStorageRO>(
+        db: &DB,
+        announce: Announce,
+    ) -> Result<NetworkAnnounce, ProcessAnnounceError> {
+        let injected_transactions = announce
+            .injected_transactions
+            .into_iter()
+            .map(|hash| {
+                db.injected_transaction(hash)
+                    .ok_or(ProcessAnnounceError::InjectedTransactionMissing { hash })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        Ok(NetworkAnnounce {
+            block_hash: announce.block_hash,
+            parent: announce.parent,
+            gas_allowance: announce.gas_allowance,
+            injected_transactions,
+        })
     }
 
     pub(crate) fn handle_response(
@@ -237,6 +263,10 @@ enum ProcessAnnounceError {
     ReachedStart { start: HashOf<Announce> },
     #[error("reached maximum chain length {MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE}")]
     ReachedMaxChainLength,
+    #[error("missing injected transaction body for hash {hash:?}")]
+    InjectedTransactionMissing {
+        hash: HashOf<SignedInjectedTransaction>,
+    },
 }
 
 #[cfg(test)]
@@ -244,7 +274,10 @@ mod tests {
     use super::*;
     use ethexe_common::{
         Announce, HashOf,
-        db::{AnnounceStorageRW, LatestDataStorageRW},
+        db::{AnnounceStorageRW, InjectedStorageRW, LatestDataStorageRW},
+        ecdsa::PrivateKey,
+        injected::{InjectedTransaction, SignedInjectedTransaction},
+        mock::Mock,
     };
     use ethexe_db::Database;
     use gprimitives::H256;
@@ -354,6 +387,66 @@ mod tests {
         assert_eq!(err, ProcessAnnounceError::ReachedStart { start });
     }
 
+    fn signed_injected_tx() -> SignedInjectedTransaction {
+        SignedInjectedTransaction::create(PrivateKey::random(), InjectedTransaction::mock(()))
+            .expect("creates tx")
+    }
+
+    #[test]
+    fn response_contains_injected_transactions() {
+        let db = Database::memory();
+        let tx = signed_injected_tx();
+        let tx_hash = tx.to_hash();
+
+        let announce = Announce {
+            block_hash: H256::random(),
+            parent: HashOf::random(),
+            gas_allowance: Some(10),
+            injected_transactions: vec![tx_hash],
+        };
+
+        let head = db.set_announce(announce);
+        db.set_injected_transaction(tx.clone());
+        set_latest_data(&db, head, head);
+
+        let request = AnnouncesRequest {
+            head,
+            until: AnnouncesRequestUntil::ChainLen(NonZeroU32::MIN),
+        };
+
+        let response = OngoingResponses::process_announce_request(&db, request).unwrap();
+        let announce = response.announces.first().expect("one announce");
+        assert_eq!(announce.injected_transactions, vec![tx]);
+    }
+
+    #[test]
+    fn response_fails_when_injected_tx_missing() {
+        let db = Database::memory();
+        let tx = signed_injected_tx();
+        let tx_hash = tx.to_hash();
+
+        let announce = Announce {
+            block_hash: H256::random(),
+            parent: HashOf::random(),
+            gas_allowance: None,
+            injected_transactions: vec![tx_hash],
+        };
+
+        let head = db.set_announce(announce);
+        set_latest_data(&db, head, head);
+
+        let request = AnnouncesRequest {
+            head,
+            until: AnnouncesRequestUntil::ChainLen(NonZeroU32::MIN),
+        };
+
+        let err = OngoingResponses::process_announce_request(&db, request).unwrap_err();
+        assert_eq!(
+            err,
+            ProcessAnnounceError::InjectedTransactionMissing { hash: tx_hash }
+        );
+    }
+
     #[test]
     fn fails_reaching_max_chain_length() {
         let db = Database::memory();
@@ -408,8 +501,9 @@ mod tests {
         };
 
         let response = OngoingResponses::process_announce_request(&db, request).unwrap();
-        assert_eq!(response.announces, vec![tail, head]);
-        response.try_into_checked(request).unwrap();
+        let announces: Vec<Announce> = response.announces.iter().map(Announce::from).collect();
+        assert_eq!(announces, vec![tail, head]);
+        response.clone().try_into_checked(request).unwrap();
     }
 
     #[test]
@@ -434,7 +528,8 @@ mod tests {
         };
 
         let response = OngoingResponses::process_announce_request(&db, request).unwrap();
-        assert_eq!(response.announces, vec![middle, head]);
-        response.try_into_checked(request).unwrap();
+        let announces: Vec<Announce> = response.announces.iter().map(Announce::from).collect();
+        assert_eq!(announces, vec![middle, head]);
+        response.clone().try_into_checked(request).unwrap();
     }
 }

@@ -24,7 +24,7 @@ use crate::{ConsensusEvent, utils, validator::participant::Participant};
 use anyhow::Result;
 use derive_more::{Debug, Display};
 use ethexe_common::{
-    Address, Announce, HashOf, SimpleBlockData,
+    Address, Announce, HashOf, NetworkAnnounce, SimpleBlockData,
     consensus::{VerifiedAnnounce, VerifiedValidationRequest},
     db::{AnnounceStorageRW, BlockMetaStorageRW, InjectedStorageRW},
 };
@@ -53,7 +53,7 @@ pub struct Subordinate {
 enum State {
     WaitingForAnnounceAndBlockPrepared {
         block_prepared: bool,
-        received_announce: Option<Announce>,
+        received_announce: Option<NetworkAnnounce>,
     },
     WaitingAnnounceComputed {
         announce_hash: HashOf<Announce>,
@@ -213,16 +213,26 @@ impl Subordinate {
         .into())
     }
 
-    fn send_announce_for_computation(mut self, announce: Announce) -> Result<ValidatorState> {
+    fn send_announce_for_computation(
+        mut self,
+        network_announce: NetworkAnnounce,
+    ) -> Result<ValidatorState> {
         let parent =
             utils::parent_main_line_announce(&self.ctx.core.db, self.block.header.parent_hash)?;
 
-        if parent != announce.parent {
+        if parent != network_announce.parent {
             self.warning(format!(
-                "Received announce {announce:?} is from invalid branch, expected parent is {parent}",
+                "Received announce {network_announce:?} is from invalid branch, expected parent is {parent}",
             ));
             return Initial::create(self.ctx);
         }
+
+        network_announce
+            .injected_transactions
+            .iter()
+            .for_each(|tx| self.ctx.core.db.set_injected_transaction(tx.clone()));
+
+        let announce: Announce = Announce::from(&network_announce);
 
         let announce_hash = self.ctx.core.db.set_announce(announce.clone());
         self.ctx
@@ -231,11 +241,6 @@ impl Subordinate {
             .mutate_block_meta(announce.block_hash, |meta| {
                 meta.announces.get_or_insert_default().insert(announce_hash);
             });
-
-        // Also, before sending announce for computation we set injected txs in database.
-        announce.injected_transactions.iter().for_each(|tx| {
-            self.ctx.core.db.set_injected_transaction(tx.clone());
-        });
 
         self.ctx.output(ConsensusEvent::ComputeAnnounce(announce));
         self.state = State::WaitingAnnounceComputed { announce_hash };
@@ -248,7 +253,12 @@ impl Subordinate {
 mod tests {
     use super::*;
     use crate::{mock::*, validator::mock::*};
-    use ethexe_common::mock::*;
+    use ethexe_common::{
+        db::InjectedStorageRO,
+        ecdsa::PrivateKey,
+        injected::{InjectedTransaction, SignedInjectedTransaction},
+        mock::*,
+    };
 
     #[test]
     fn create_empty() {
@@ -290,7 +300,9 @@ mod tests {
         let s = s.process_prepared_block(block.hash).unwrap();
         assert_eq!(
             s.context().output,
-            vec![ConsensusEvent::ComputeAnnounce(announce1.data().clone())]
+            vec![ConsensusEvent::ComputeAnnounce(Announce::from(
+                announce1.data()
+            ))]
         );
         assert!(s.is_subordinate());
 
@@ -353,7 +365,10 @@ mod tests {
             .process_prepared_block(block.hash)
             .unwrap();
         assert!(s.is_subordinate());
-        assert_eq!(s.context().output, vec![announce.data().clone().into()]);
+        assert_eq!(
+            s.context().output,
+            vec![Announce::from(announce.data()).into()]
+        );
         assert_eq!(s.context().pending_events.len(), MAX_PENDING_EVENTS);
     }
 
@@ -382,14 +397,20 @@ mod tests {
         // Announce is received, so subordinate sends it to computation.
         let s = s.process_announce(announce.clone()).unwrap();
         assert!(s.is_subordinate());
-        assert_eq!(s.context().output, vec![announce.data().clone().into()]);
+        assert_eq!(
+            s.context().output,
+            vec![Announce::from(announce.data()).into()]
+        );
 
         // After announce is computed, subordinate switches to participant state.
         let s = s
-            .process_computed_announce(announce.data().to_hash())
+            .process_computed_announce(announce.data().announce_hash())
             .unwrap();
         assert!(s.is_participant());
-        assert_eq!(s.context().output, vec![announce.data().clone().into()]);
+        assert_eq!(
+            s.context().output,
+            vec![Announce::from(announce.data()).into()]
+        );
     }
 
     #[test]
@@ -417,13 +438,56 @@ mod tests {
         // Announce is received, so subordinate sends it to computation.
         let s = s.process_announce(announce.clone()).unwrap();
         assert!(s.is_subordinate());
-        assert_eq!(s.context().output, vec![announce.data().clone().into()]);
+        assert_eq!(
+            s.context().output,
+            vec![Announce::from(announce.data()).into()]
+        );
 
         // After announce is computed, not-validator subordinate switches to initial state.
         let s = s
-            .process_computed_announce(announce.data().to_hash())
+            .process_computed_announce(announce.data().announce_hash())
             .unwrap();
         assert!(s.is_initial());
+    }
+
+    #[test]
+    fn network_announce_transactions_are_persisted() {
+        let (ctx, pub_keys, _) = mock_validator_context();
+        let producer = pub_keys[0];
+        let blocks = BlockChain::mock(1).setup(&ctx.core.db).blocks;
+        let block = blocks[1].to_simple();
+        let parent_announce_hash = blocks[0].as_prepared().announces.first().copied().unwrap();
+
+        let injected_tx =
+            SignedInjectedTransaction::create(PrivateKey::random(), InjectedTransaction::mock(()))
+                .unwrap();
+        let injected_hash = injected_tx.to_hash();
+
+        let network_announce = NetworkAnnounce {
+            block_hash: block.hash,
+            parent: parent_announce_hash,
+            gas_allowance: Some(42),
+            injected_transactions: vec![injected_tx.clone()],
+        };
+
+        let verified_announce = ctx
+            .core
+            .signer
+            .signed_data(producer, network_announce)
+            .unwrap()
+            .into_verified();
+
+        let state = Subordinate::create(ctx, block.clone(), producer.to_address(), true).unwrap();
+        let state = state.process_prepared_block(block.hash).unwrap();
+        let state = state.process_announce(verified_announce).unwrap();
+
+        let stored = state
+            .context()
+            .core
+            .db
+            .injected_transaction(injected_hash)
+            .expect("transaction persisted");
+        assert_eq!(stored, injected_tx);
     }
 
     #[test]
@@ -451,7 +515,7 @@ mod tests {
             .unwrap();
         assert_eq!(
             s.context().output,
-            vec![announce_producer.data().clone().into()]
+            vec![Announce::from(announce_producer.data()).into()]
         );
         assert_eq!(s.context().pending_events, vec![announce_alice.into()]);
     }

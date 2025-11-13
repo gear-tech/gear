@@ -18,7 +18,7 @@
 
 use crate::{Address, HashOf, ToDigest, ecdsa::SignedData};
 use core::hash::Hash;
-use gear_core::rpc::ReplyInfo;
+use gear_core::{rpc::ReplyInfo, utils};
 use gprimitives::{ActorId, H256, MessageId};
 use parity_scale_codec::{Decode, Encode};
 use sha3::Keccak256;
@@ -28,6 +28,14 @@ use sp_core::Bytes;
 pub const VALIDITY_WINDOW: u8 = 32;
 
 pub type SignedInjectedTransaction = SignedData<InjectedTransaction>;
+
+impl SignedInjectedTransaction {
+    /// Returns the hash of signed injected transaction.
+    pub fn to_hash(&self) -> HashOf<Self> {
+        // Safety: we hash the SCALE-encoded transaction which is deterministic.
+        unsafe { HashOf::new(utils::hash(&self.encode()).into()) }
+    }
+}
 
 #[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
 #[cfg_attr(feature = "serde", derive(Hash))]

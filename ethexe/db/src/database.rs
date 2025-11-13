@@ -69,7 +69,7 @@ enum Key {
     CodeUploadInfo(CodeId) = 10,
     CodeValid(CodeId) = 11,
 
-    InjectedTransaction(HashOf<InjectedTransaction>) = 12,
+    InjectedTransaction(HashOf<SignedInjectedTransaction>) = 12,
     InjectedPromise(HashOf<InjectedTransaction>) = 13,
 
     LatestData = 14,
@@ -100,9 +100,8 @@ impl Key {
             | Self::AnnounceSchedule(hash)
             | Self::AnnounceMeta(hash) => [prefix.as_ref(), hash.inner().as_ref()].concat(),
 
-            Self::InjectedTransaction(hash) | Self::InjectedPromise(hash) => {
-                [prefix.as_ref(), hash.inner().as_ref()].concat()
-            }
+            Self::InjectedTransaction(hash) => [prefix.as_ref(), hash.inner().as_ref()].concat(),
+            Self::InjectedPromise(hash) => [prefix.as_ref(), hash.inner().as_ref()].concat(),
 
             Self::ProgramToCodeId(program_id) => [prefix.as_ref(), program_id.as_ref()].concat(),
 
@@ -548,7 +547,7 @@ impl OnChainStorageRW for Database {
 impl InjectedStorageRO for Database {
     fn injected_transaction(
         &self,
-        hash: HashOf<InjectedTransaction>,
+        hash: HashOf<SignedInjectedTransaction>,
     ) -> Option<SignedInjectedTransaction> {
         self.kv
             .get(&Key::InjectedTransaction(hash).to_bytes())
@@ -570,7 +569,7 @@ impl InjectedStorageRO for Database {
 
 impl InjectedStorageRW for Database {
     fn set_injected_transaction(&self, tx: SignedInjectedTransaction) {
-        let tx_hash = tx.data().to_hash();
+        let tx_hash = tx.to_hash();
 
         tracing::trace!(injected_tx_hash = ?tx_hash, "Set injected transaction");
         self.kv
@@ -717,7 +716,7 @@ mod tests {
             },
         )
         .unwrap();
-        let tx_hash = tx.data().to_hash();
+        let tx_hash = tx.to_hash();
         db.set_injected_transaction(tx.clone());
         assert_eq!(db.injected_transaction(tx_hash), Some(tx));
     }

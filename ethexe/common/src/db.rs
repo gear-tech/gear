@@ -125,19 +125,19 @@ pub trait OnChainStorageRW: OnChainStorageRO {
     fn set_block_synced(&self, block_hash: H256);
 }
 
-#[auto_impl::auto_impl(&)]
+#[auto_impl::auto_impl(&, Box)]
 pub trait InjectedStorageRO {
     /// Returns the transactions by its hash.
     fn injected_transaction(
         &self,
-        hash: HashOf<InjectedTransaction>,
+        hash: HashOf<SignedInjectedTransaction>,
     ) -> Option<SignedInjectedTransaction>;
 
     /// Returns the promise by transaction hash.
     fn injected_promise(&self, hash: HashOf<InjectedTransaction>) -> Option<InjectedPromise>;
 }
 
-#[auto_impl::auto_impl(&)]
+#[auto_impl::auto_impl(&, Box)]
 pub trait InjectedStorageRW: InjectedStorageRO {
     fn set_injected_transaction(&self, tx: SignedInjectedTransaction);
     fn set_injected_promise(&self, promise: InjectedPromise);

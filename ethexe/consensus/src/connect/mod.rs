@@ -23,9 +23,9 @@
 use crate::{BatchCommitmentValidationReply, ConsensusEvent, ConsensusService, utils};
 use anyhow::{Result, anyhow};
 use ethexe_common::{
-    Address, Announce, HashOf, SimpleBlockData,
+    Address, Announce, HashOf, NetworkAnnounce, SimpleBlockData,
     consensus::{VerifiedAnnounce, VerifiedValidationRequest},
-    db::{AnnounceStorageRW, BlockMetaStorageRW, OnChainStorageRO},
+    db::{AnnounceStorageRW, BlockMetaStorageRW, InjectedStorageRW, OnChainStorageRO},
     injected::SignedInjectedTransaction,
 };
 use ethexe_db::Database;
@@ -132,14 +132,13 @@ impl ConsensusService for SimpleConnectService {
             if let Some(index) = self.pending_announces.iter().position(|announce| {
                 announce.address() == *producer && announce.data().block_hash == block.hash
             }) {
+                let block = block.clone();
                 let (announce, _) = self
                     .pending_announces
                     .remove(index)
                     .expect("Index must be valid")
                     .into_parts();
-                self.output
-                    .push_back(ConsensusEvent::ComputeAnnounce(announce));
-                self.state = State::WaitingForBlock;
+                self.accept_network_announce(&block, announce)?;
             } else {
                 self.state = State::WaitingForAnnounce {
                     block: block.clone(),
@@ -166,16 +165,10 @@ impl ConsensusService for SimpleConnectService {
             && announce.data().parent
                 == utils::parent_main_line_announce(&self.db, block.header.parent_hash)?
         {
+            let block = block.clone();
             let (announce, _) = announce.into_parts();
 
-            let announce_hash = self.db.set_announce(announce.clone());
-            self.db.mutate_block_meta(block.hash, |meta| {
-                meta.announces.get_or_insert_default().insert(announce_hash);
-            });
-
-            self.output
-                .push_back(ConsensusEvent::ComputeAnnounce(announce));
-            self.state = State::WaitingForBlock;
+            self.accept_network_announce(&block, announce)?;
             return Ok(());
         }
 
@@ -201,6 +194,32 @@ impl ConsensusService for SimpleConnectService {
     }
 
     fn receive_validation_reply(&mut self, _reply: BatchCommitmentValidationReply) -> Result<()> {
+        Ok(())
+    }
+}
+
+impl SimpleConnectService {
+    fn accept_network_announce(
+        &mut self,
+        block: &SimpleBlockData,
+        network_announce: NetworkAnnounce,
+    ) -> Result<()> {
+        debug_assert_eq!(block.hash, network_announce.block_hash);
+
+        for tx in &network_announce.injected_transactions {
+            self.db.set_injected_transaction(tx.clone());
+        }
+
+        let announce: Announce = Announce::from(&network_announce);
+        let announce_hash = self.db.set_announce(announce.clone());
+        self.db.mutate_block_meta(block.hash, |meta| {
+            meta.announces.get_or_insert_default().insert(announce_hash);
+        });
+
+        self.output
+            .push_back(ConsensusEvent::ComputeAnnounce(announce));
+        self.state = State::WaitingForBlock;
+
         Ok(())
     }
 }

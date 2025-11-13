@@ -286,7 +286,9 @@ impl Validators {
 mod tests {
     use super::*;
     use assert_matches::assert_matches;
-    use ethexe_common::{Announce, db::OnChainStorageRW, mock::Mock, network::ValidatorMessage};
+    use ethexe_common::{
+        NetworkAnnounce, db::OnChainStorageRW, mock::Mock, network::ValidatorMessage,
+    };
     use ethexe_signer::Signer;
     use nonempty::nonempty;
 
@@ -332,7 +334,7 @@ mod tests {
                 pub_key,
                 ValidatorMessage {
                     block,
-                    payload: Announce::mock(()),
+                    payload: NetworkAnnounce::mock(()),
                 },
             )
             .map(SignedValidatorMessage::from)

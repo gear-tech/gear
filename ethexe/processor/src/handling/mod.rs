@@ -20,6 +20,7 @@ use crate::{Processor, ProcessorError, Result};
 use ethexe_common::{
     Announce,
     db::{AnnounceStorageRO, CodesStorageRW, OnChainStorageRO},
+    injected::SignedInjectedTransaction,
 };
 use ethexe_db::Database;
 use ethexe_runtime_common::{
@@ -66,7 +67,11 @@ impl Processor {
     /// The [`InBlockTransitions`] is created using states of the parent of the block with block_hash.
     /// That's done because the parent actually has the latest view on program states. Also program states
     /// for the `block_hash` block are written to database only after the block is processed.
-    pub fn handler(&self, announce: Announce) -> Result<ProcessingHandler> {
+    pub fn handler(
+        &self,
+        announce: Announce,
+        injected_transactions: &[SignedInjectedTransaction],
+    ) -> Result<ProcessingHandler> {
         let corresponding_block_header = self
             .db
             .block_header(announce.block_hash)
@@ -81,8 +86,7 @@ impl Processor {
             .announce_schedule(announce.parent)
             .ok_or(ProcessorError::AnnounceScheduleNotFound(announce.parent))?;
 
-        let injected_messages = announce
-            .injected_transactions
+        let injected_messages = injected_transactions
             .iter()
             .map(|tx| tx.data().message_id())
             .collect();

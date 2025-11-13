@@ -23,7 +23,7 @@ use crate::{ConsensusEvent, utils, validator::DefaultProcessing};
 use anyhow::{Result, anyhow};
 use derive_more::{Debug, Display};
 use ethexe_common::{
-    Announce, HashOf, SimpleBlockData, ValidatorsVec,
+    Announce, HashOf, NetworkAnnounce, SimpleBlockData, ValidatorsVec,
     db::{
         AnnounceStorageRO, AnnounceStorageRW, BlockMetaStorageRO, BlockMetaStorageRW,
         InjectedStorageRO,
@@ -125,11 +125,15 @@ impl StateHandler for Producer {
                     .announce(announce_hash)
                     .ok_or_else(|| anyhow!("computed announce must exists in database"))?;
 
-                for tx in announce.injected_transactions.iter() {
-                    let tx_hash = tx.data().to_hash();
+                for tx_hash in announce.injected_transactions.iter() {
+                    let Some(tx) = self.ctx.core.db.injected_transaction(*tx_hash) else {
+                        tracing::warn!(?tx_hash, "Not found injected transaction body");
+                        continue;
+                    };
+                    let payload_hash = tx.data().to_hash();
 
-                    let Some(promise) = self.ctx.core.db.injected_promise(tx_hash) else {
-                        tracing::warn!(tx_hash = ?tx_hash, "Not found promise for injected transaction");
+                    let Some(promise) = self.ctx.core.db.injected_promise(payload_hash) else {
+                        tracing::warn!(payload_hash = ?payload_hash, "Not found promise for injected transaction");
                         continue;
                     };
 
@@ -256,12 +260,14 @@ impl Producer {
             .injected_pool
             .select_for_announce(self.block.hash, parent)?;
 
-        let announce = Announce {
+        let network_announce = NetworkAnnounce {
             block_hash: self.block.hash,
             parent,
             gas_allowance: Some(self.ctx.core.block_gas_limit),
             injected_transactions,
         };
+
+        let announce: Announce = Announce::from(&network_announce);
 
         let announce_hash = self.ctx.core.db.set_announce(announce.clone());
 
@@ -274,7 +280,7 @@ impl Producer {
 
         let message = ValidatorMessage {
             block: self.block.hash,
-            payload: announce.clone(),
+            payload: network_announce,
         };
         let message = self
             .ctx

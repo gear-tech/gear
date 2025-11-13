@@ -83,9 +83,7 @@ pub struct Announce {
     pub block_hash: H256,
     pub parent: HashOf<Self>,
     pub gas_allowance: Option<u64>,
-    // TODO kuzmindev: remove InjectedTransaction from Announce and store only its hashes.
-    // Need to implement `PublicAnnounce` struct which will contain full bodies of injected transactions.
-    pub injected_transactions: Vec<SignedInjectedTransaction>,
+    pub injected_transactions: Vec<HashOf<SignedInjectedTransaction>>,
 }
 
 impl Announce {
@@ -122,6 +120,61 @@ impl ToDigest for Announce {
         hasher.update(self.block_hash);
         hasher.update(self.gas_allowance.encode());
         hasher.update(self.injected_transactions.encode());
+    }
+}
+
+#[cfg_attr(feature = "serde", derive(Hash))]
+#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
+pub struct NetworkAnnounce {
+    pub block_hash: H256,
+    pub parent: HashOf<Announce>,
+    pub gas_allowance: Option<u64>,
+    pub injected_transactions: Vec<SignedInjectedTransaction>,
+}
+
+impl From<&NetworkAnnounce> for Announce {
+    fn from(value: &NetworkAnnounce) -> Self {
+        let NetworkAnnounce {
+            block_hash,
+            parent,
+            gas_allowance,
+            injected_transactions,
+        } = value;
+
+        let injected_transactions = injected_transactions
+            .iter()
+            .map(SignedInjectedTransaction::to_hash)
+            .collect();
+
+        Self {
+            block_hash: *block_hash,
+            parent: *parent,
+            gas_allowance: *gas_allowance,
+            injected_transactions,
+        }
+    }
+}
+
+impl From<NetworkAnnounce> for Announce {
+    fn from(value: NetworkAnnounce) -> Self {
+        Announce::from(&value)
+    }
+}
+
+impl NetworkAnnounce {
+    pub fn announce_hash(&self) -> HashOf<Announce> {
+        Announce::from(self).to_hash()
+    }
+
+    pub fn to_hash(&self) -> HashOf<Self> {
+        // Safety: SCALE encoding is deterministic.
+        unsafe { HashOf::new(H256(utils::hash(&self.encode()))) }
+    }
+}
+
+impl ToDigest for NetworkAnnounce {
+    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
+        Announce::from(self).update_hasher(hasher);
     }
 }
 
