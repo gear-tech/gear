@@ -133,7 +133,7 @@ impl ProcessingHandler {
                         return Ok(());
                     };
 
-                    transition.claim_value(
+                    transitions.claim_value(
                         actor_id,
                         ValueClaim {
                             message_id: replied_to,
@@ -180,7 +180,7 @@ impl ProcessingHandler {
                         return Ok(());
                     };
 
-                    transition.claim_value(
+                    transitions.claim_value(
                         actor_id,
                         ValueClaim {
                             message_id: claimed_id,
