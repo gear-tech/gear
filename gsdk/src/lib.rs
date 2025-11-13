@@ -25,7 +25,7 @@ pub use crate::{
     api::{Api, ApiBuilder},
     config::GearConfig,
     convert::{IntoSubstrate, IntoSubxt},
-    gear::{runtime_types::vara_runtime::RuntimeError, Event},
+    gear::{Event, runtime_types::vara_runtime::RuntimeError},
     result::{Error, Result},
     signer::PairSigner,
     subscription::{
@@ -47,8 +47,8 @@ use gear_core::{
 use parity_scale_codec::Decode;
 use std::collections::HashMap;
 use subxt::{
-    tx::{TxInBlock as SubxtTxInBlock, TxStatus as SubxtTxStatus},
     OnlineClient,
+    tx::{TxInBlock as SubxtTxInBlock, TxStatus as SubxtTxStatus},
 };
 
 /// Generated runtime API types.

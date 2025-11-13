@@ -18,7 +18,7 @@
 
 use std::{env, fs};
 
-use color_eyre::eyre::{bail, Context, ContextCompat, Result};
+use color_eyre::eyre::{Context, ContextCompat, Result, bail};
 use gear_runtime_interface as gear_ri;
 use parity_scale_codec::{Decode, Encode};
 use sc_executor::{WasmExecutionMethod, WasmtimeInstantiationStrategy};
