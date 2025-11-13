@@ -88,6 +88,10 @@ fn regenerate_gsdk_scale() {
         .unwrap()
         .join("wbuild/vara-runtime/vara_runtime.wasm");
 
+    if env::var("SKIP_WASM_BUILD").is_ok() || env::var("SKIP_VARA_RUNTIME_WASM_BUILD").is_ok() {
+        return;
+    }
+
     // 1. Get the wasm binary of `RUNTIME_WASM`.
     let code = fs::read(runtime_wasm_path).expect("Failed to read runtime wasm");
 
