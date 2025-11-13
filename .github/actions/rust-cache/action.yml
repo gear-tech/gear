@@ -31,6 +31,12 @@ runs:
     - uses: ./.github/actions/cargo-hakari
       if: ${{ inputs.keep-workspace-hack == 'false' }}
       with:
+        args: disable
+
+    # we have manually written deps in our hack so we also should remove the hack as dependency
+    - uses: ./.github/actions/cargo-hakari
+      if: ${{ inputs.keep-workspace-hack == 'false' }}
+      with:
         args: remove-deps --yes
 
     - run: |

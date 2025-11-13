@@ -484,7 +484,13 @@ jobs:
       - name: "ACTIONS: Disable workspace hack"
         uses: ./.github/actions/cargo-hakari
         with:
-          # production binaries should not have additional features enabled
+          # production binaries should not have additional features enabled for deps, too
+          args: disable
+
+      - name: "ACTIONS: Disable workspace hack"
+        uses: ./.github/actions/cargo-hakari
+        with:
+          # also don't compile manually written deps in the hack
           args: remove-deps --yes
 
       - name: "Build: Production binaries"

@@ -174,16 +174,15 @@ jobs:
           target: x86_64-unknown-linux-gnu
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: "Install: cargo-hakari"
-        uses: taiki-e/install-action@v2
-        with:
-          tool: cargo-hakari
-
       - name: "Check if workspace hack Cargo.toml is up-to-date"
-        run: cargo hakari generate --diff
+        uses: ./.github/actions/cargo-hakari
+        with:
+          args: generate --diff
 
       - name: "Check if all workspace crates depend on workspace hack"
-        run: cargo hakari manage-deps --dry-run
+        uses: ./.github/actions/cargo-hakari
+        with:
+          args: manage-deps --dry-run
 
       - name: "ACTIONS: Setup caching"
         uses: ./.github/actions/rust-cache
