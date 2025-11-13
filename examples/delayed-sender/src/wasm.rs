@@ -49,6 +49,13 @@ fn msg_dest() -> ActorId {
     }
 }
 
+fn delay() -> u32 {
+    match msg::load() {
+        Ok(delay) => delay,
+        Err(_) => DELAY,
+    }
+}
+
 #[unsafe(no_mangle)]
 extern "C" fn init() {
     // Send message to self
@@ -57,8 +64,9 @@ extern "C" fn init() {
     }
 
     init_msg_dest();
+    let delay = delay();
 
-    msg::send_bytes_delayed(msg_dest(), "Delayed hello!", exec::value_available(), DELAY).unwrap();
+    msg::send_bytes_delayed(msg_dest(), "Delayed hello!", exec::value_available(), delay).unwrap();
 }
 
 #[unsafe(no_mangle)]
