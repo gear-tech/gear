@@ -474,6 +474,7 @@ demo-init-wait-reply-exit = { path = "examples/init-wait-reply-exit" }
 demo-messenger = { path = "examples/messenger" }
 demo-mul-by-const = { path = "examples/mul-by-const" }
 demo-out-of-memory = { path = "examples/out-of-memory" }
+demo-panic-payload = { path = "examples/panic-payload" }
 demo-piggy-bank = { path = "examples/piggy-bank", features = ["debug"] }
 demo-ping = { path = "examples/ping" }
 demo-program-factory = { path = "examples/program-factory" }

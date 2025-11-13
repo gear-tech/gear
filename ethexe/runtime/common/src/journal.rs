@@ -10,7 +10,7 @@ use core::{mem, num::NonZero, panic};
 use core_processor::common::{DispatchOutcome, JournalHandler, JournalNote};
 use ethexe_common::{
     ScheduledTask,
-    gear::{Message, MessageType},
+    gear::{INJECTED_MESSAGE_PANIC_GAS_CHARGE_THRESHOLD, Message, MessageType},
 };
 use gear_core::{
     env::MessageWaitedType,
@@ -23,6 +23,7 @@ use gear_core::{
 };
 use gear_core_errors::SignalCode;
 use gprimitives::{ActorId, CodeId, H256, MessageId, ReservationId};
+use gsys::GasMultiplier;
 
 // Handles unprocessed journal notes during chunk processing.
 pub struct NativeJournalHandler<'a, S: Storage> {
@@ -469,6 +470,8 @@ where
     pub storage: &'s S,
     pub program_state: &'s mut ProgramState,
     pub gas_allowance_counter: &'s mut GasAllowanceCounter,
+    pub gas_multiplier: &'s GasMultiplier,
+    pub message_type: MessageType,
     pub stop_processing: bool,
 }
 
@@ -477,19 +480,19 @@ where
     S: Storage,
 {
     // Returns unhandled journal notes and new program state hash
-    pub fn handle_journal(
-        &mut self,
-        journal: impl IntoIterator<Item = JournalNote>,
-    ) -> (Vec<JournalNote>, Option<H256>) {
+    pub fn handle_journal<I>(&mut self, journal: I) -> (Vec<JournalNote>, Option<H256>)
+    where
+        I: IntoIterator<Item = JournalNote>,
+        I::IntoIter: ExactSizeIterator,
+    {
+        let journal = journal.into_iter();
         let mut page_updates = BTreeMap::new();
         let mut allocations_update = BTreeMap::new();
-        let mut notes_cnt = 0;
+        let notes_count = journal.len();
+        let mut skipped_notes = 0;
 
         let filtered: Vec<_> = journal
-            .into_iter()
             .filter_map(|note| {
-                notes_cnt += 1;
-
                 match note {
                     JournalNote::MessageDispatched {
                         message_id,
@@ -513,15 +516,21 @@ where
                     JournalNote::GasBurned {
                         message_id: _,
                         amount,
+                        is_panic,
                     } => {
-                        // TODO(romanm): reduce exec balance
                         self.gas_allowance_counter.charge(amount);
+
+                        // Special case for panicked `Injected` messages with gas spent lesser then the threshold.
+                        if !is_panic || self.should_charge_exec_balance_on_panic(amount) {
+                            self.charge_exec_balance(amount);
+                        }
                     }
                     note @ JournalNote::StopProcessing {
                         dispatch: _,
                         gas_burned,
                     } => {
                         self.gas_allowance_counter.charge(gas_burned);
+                        self.charge_exec_balance(gas_burned);
                         self.stop_processing = true;
                         return Some(note);
                     }
@@ -529,7 +538,10 @@ where
                     // * WakeMessage
                     // * SendDispatch to self
                     // * SendValue to self
-                    note => return Some(note),
+                    note => {
+                        skipped_notes += 1;
+                        return Some(note);
+                    }
                 }
 
                 None
@@ -545,7 +557,7 @@ where
         }
 
         // Some notes were processed, thus state changed
-        let maybe_state_hash = (notes_cnt != filtered.len())
+        let maybe_state_hash = (notes_count != skipped_notes)
             .then(|| self.storage.write_program_state(*self.program_state));
 
         (filtered, maybe_state_hash)
@@ -637,5 +649,22 @@ where
                 pages.remove_and_store_regions(self.storage, &removed_pages);
             })
         }
+    }
+
+    fn charge_exec_balance(&mut self, gas_burned: u64) {
+        let spent_value = self.gas_multiplier.gas_to_value(gas_burned);
+        self.program_state.executable_balance = self
+            .program_state
+            .executable_balance
+            .checked_sub(spent_value)
+            .expect(
+                "Insufficient executable balance: underflow in executable_balance -= gas_burned",
+            );
+    }
+
+    // Special case for panicked `Injected` messages with gas spent lesser then `INJECTED_MESSAGE_PANIC_GAS_CHARGE_THRESHOLD`.
+    fn should_charge_exec_balance_on_panic(&self, gas_burned: u64) -> bool {
+        gas_burned > INJECTED_MESSAGE_PANIC_GAS_CHARGE_THRESHOLD
+            || self.message_type != MessageType::Injected
     }
 }

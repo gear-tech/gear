@@ -107,6 +107,21 @@ fn handle_injected_message(
     Ok(())
 }
 
+fn executable_balance(handler: &ProcessingHandler, actor_id: ActorId) -> u128 {
+    let state_hash = handler
+        .transitions
+        .state_of(&actor_id)
+        .expect("failed to get actor state")
+        .hash;
+
+    let state = handler
+        .db
+        .program_state(state_hash)
+        .expect("failed to get program state");
+
+    state.executable_balance
+}
+
 #[tokio::test(flavor = "multi_thread")]
 async fn process_observer_event() {
     init_logger();
@@ -445,7 +460,7 @@ async fn async_and_ping() {
         .handle_mirror_event(
             async_id,
             MirrorRequestEvent::ExecutableBalanceTopUpRequested {
-                value: 10_000_000_000,
+                value: 40_000_000_000,
             },
         )
         .expect("failed to top up balance");
@@ -768,7 +783,7 @@ async fn overlay_execution_noop() {
         BlockRequestEvent::Mirror {
             actor_id: async_id,
             event: MirrorRequestEvent::ExecutableBalanceTopUpRequested {
-                value: 10_000_000_000,
+                value: 40_000_000_000,
             },
         },
         BlockRequestEvent::Mirror {
@@ -1182,7 +1197,7 @@ async fn injected_prioritized_over_canonical() {
         .handle_mirror_event(
             actor_id,
             MirrorRequestEvent::ExecutableBalanceTopUpRequested {
-                value: 10_000_000_000,
+                value: 500_000_000_000_000,
             },
         )
         .expect("failed to top up balance");
@@ -1242,4 +1257,138 @@ async fn injected_prioritized_over_canonical() {
             assert_eq!(message.payload, b"PONG");
         }
     }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn executable_balance_charged() {
+    init_logger();
+
+    let mut processor = Processor::new(Database::memory()).unwrap();
+
+    let genesis = init_genesis_block(&mut processor);
+    let block = init_new_block_from_parent(&mut processor, genesis);
+    let block_announce = Announce::with_default_gas(block, HashOf::zero());
+
+    let user_id = ActorId::from(10);
+    let actor_id = ActorId::from(0x10000);
+
+    let code_id = processor
+        .handle_new_code(demo_ping::WASM_BINARY)
+        .expect("failed to call runtime api")
+        .expect("code failed verification or instrumentation");
+
+    let mut handler = processor.handler(block_announce).unwrap();
+
+    handler
+        .handle_router_event(RouterRequestEvent::ProgramCreated { actor_id, code_id })
+        .expect("failed to create new program");
+
+    handler
+        .handle_mirror_event(
+            actor_id,
+            MirrorRequestEvent::ExecutableBalanceTopUpRequested {
+                value: 10_000_000_000,
+            },
+        )
+        .expect("failed to top up balance");
+
+    let exec_balance_before = executable_balance(&handler, actor_id);
+    assert_eq!(exec_balance_before, 10_000_000_000);
+
+    handler
+        .handle_mirror_event(
+            actor_id,
+            MirrorRequestEvent::MessageQueueingRequested {
+                id: MessageId::from(1),
+                source: user_id,
+                payload: b"PING".to_vec(),
+                value: 0,
+                call_reply: false,
+            },
+        )
+        .expect("failed to send message");
+
+    processor.process_queue(&mut handler).await;
+
+    let to_users = handler.transitions.current_messages();
+
+    assert_eq!(to_users.len(), 1);
+
+    let message = &to_users[0].1;
+    assert_eq!(message.destination, user_id);
+    assert_eq!(message.payload, b"PONG");
+
+    // Check that executable balance decreased
+    let exec_balance_after = executable_balance(&handler, actor_id);
+    assert!(exec_balance_after < exec_balance_before);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn executable_balance_injected_panic_not_charged() {
+    // Testing special case when injected message causes panic in the program.
+    // In this case executable balance should not be charged if gas burned during
+    // panicked message execution is less then the threshold (see `INJECTED_MESSAGE_PANIC_GAS_CHARGE_THRESHOLD`).
+
+    const INITIAL_EXECUTABLE_BALANCE: u64 = 10_000_000_000;
+
+    init_logger();
+
+    let mut processor = Processor::new(Database::memory()).unwrap();
+
+    let genesis = init_genesis_block(&mut processor);
+    let block = init_new_block_from_parent(&mut processor, genesis);
+    let block_announce = Announce::with_default_gas(block, HashOf::zero());
+
+    let user_id = ActorId::from(10);
+    let actor_id = ActorId::from(0x10000);
+
+    let code_id = processor
+        .handle_new_code(demo_panic_payload::WASM_BINARY)
+        .expect("failed to call runtime api")
+        .expect("code failed verification or instrumentation");
+
+    let mut handler = processor.handler(block_announce).unwrap();
+
+    handler
+        .handle_router_event(RouterRequestEvent::ProgramCreated { actor_id, code_id })
+        .expect("failed to create new program");
+
+    handler
+        .handle_mirror_event(
+            actor_id,
+            MirrorRequestEvent::ExecutableBalanceTopUpRequested {
+                value: INITIAL_EXECUTABLE_BALANCE,
+            },
+        )
+        .expect("failed to top up balance");
+
+    let exec_balance_before = executable_balance(&handler, actor_id);
+    assert_eq!(exec_balance_before, INITIAL_EXECUTABLE_BALANCE);
+
+    // We know for sure handling this message is cost less then the threshold.
+    handle_injected_message(
+        &mut handler,
+        actor_id,
+        MessageId::from(1),
+        user_id,
+        vec![],
+        0,
+        false,
+    )
+    .unwrap();
+
+    processor.process_queue(&mut handler).await;
+
+    let to_users = handler.transitions.current_messages();
+
+    assert_eq!(to_users.len(), 1);
+
+    let message = &to_users[0].1;
+    assert_eq!(message.destination, user_id);
+    // Check that panic indeed happened
+    assert_eq!(&message.payload[..13], b"panicked with");
+
+    // Check that executable balance is unchanged
+    let exec_balance_after = executable_balance(&handler, actor_id);
+    assert_eq!(exec_balance_after, INITIAL_EXECUTABLE_BALANCE);
 }

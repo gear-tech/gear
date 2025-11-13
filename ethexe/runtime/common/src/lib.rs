@@ -218,6 +218,8 @@ where
             storage: ri.storage(),
             program_state: &mut program_state,
             gas_allowance_counter: &mut queue_gas_allowance_counter,
+            gas_multiplier: &block_config.gas_multiplier,
+            message_type: queue_type,
             stop_processing: false,
         };
         let (unhandled_journal_notes, new_state_hash) = handler.handle_journal(journal);
