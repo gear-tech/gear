@@ -203,7 +203,6 @@ pub mod gear {}
 mod api;
 pub mod backtrace;
 pub mod config;
-mod constants;
 mod convert;
 pub mod events;
 pub mod result;
