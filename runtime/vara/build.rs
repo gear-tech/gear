@@ -65,10 +65,10 @@ fn main() {
     substrate_build_script_utils::generate_cargo_keys();
 }
 
-#[cfg(not(feature = "dev"))]
+#[cfg(all(feature = "std", not(feature = "dev")))]
 fn regenerate_gsdk_scale() {}
 
-#[cfg(feature = "dev")]
+#[cfg(all(feature = "std", feature = "dev"))]
 fn regenerate_gsdk_scale() {
     use gear_runtime_interface::gear_ri;
     use parity_scale_codec::{Decode, Encode};
