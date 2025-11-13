@@ -5131,6 +5131,7 @@ dependencies = [
  "async-trait",
  "demo-async",
  "demo-async-init",
+ "demo-delayed-sender",
  "demo-mul-by-const",
  "demo-piggy-bank",
  "demo-ping",

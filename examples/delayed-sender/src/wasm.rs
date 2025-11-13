@@ -17,19 +17,36 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::DELAY;
-use gstd::{MessageId, exec, msg, prelude::*};
+use gstd::{ActorId, MessageId, exec, msg, prelude::*};
 
 static mut MID: Option<MessageId> = None;
 static mut DONE: bool = false;
+static mut MSG_DEST: Option<ActorId> = None;
 
 fn send_delayed_to_self() -> bool {
     let to_self = msg::load_bytes().unwrap().as_slice() == b"self";
     if to_self {
         gstd::debug!("sending delayed message to self");
-        msg::send_bytes_delayed(exec::program_id(), b"self", 0, DELAY).unwrap();
+        msg::send_bytes_delayed(exec::program_id(), b"self", exec::value_available(), DELAY)
+            .unwrap();
     }
 
     to_self
+}
+
+fn init_msg_dest() {
+    if let Ok(dest) = msg::load() {
+        unsafe {
+            MSG_DEST = Some(dest);
+        }
+    }
+}
+
+fn msg_dest() -> ActorId {
+    match unsafe { MSG_DEST } {
+        Some(dest) => dest,
+        None => msg::source(),
+    }
 }
 
 #[unsafe(no_mangle)]
@@ -39,9 +56,9 @@ extern "C" fn init() {
         return;
     }
 
-    let delay: u32 = msg::load().unwrap();
+    init_msg_dest();
 
-    msg::send_bytes_delayed(msg::source(), "Delayed hello!", 0, delay).unwrap();
+    msg::send_bytes_delayed(msg_dest(), "Delayed hello!", exec::value_available(), DELAY).unwrap();
 }
 
 #[unsafe(no_mangle)]
@@ -55,9 +72,11 @@ extern "C" fn handle() {
     if size == 0 {
         // Another case of delayed sending, representing possible panic case of
         // sending delayed gasless messages.
-        msg::send_bytes_delayed(msg::source(), [], 0, DELAY).expect("Failed to send msg");
+        msg::send_bytes_delayed(msg_dest(), [], exec::value_available() / 2, DELAY)
+            .expect("Failed to send msg");
 
-        msg::send_bytes_delayed(msg::source(), [], 0, DELAY).expect("Failed to send msg");
+        msg::send_bytes_delayed(msg_dest(), [], exec::value_available() / 2, DELAY)
+            .expect("Failed to send msg");
 
         return;
     }

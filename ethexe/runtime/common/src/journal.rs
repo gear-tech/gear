@@ -42,7 +42,7 @@ impl<S: Storage> NativeJournalHandler<'_, S> {
         dispatch: Dispatch,
         delay: u32,
     ) {
-        if delay.is_zero() && !dispatch.value.is_zero() {
+        if !dispatch.value.is_zero() {
             let source = dispatch.source;
             // Decrease sender's balance and value_to_receive
             self.controller
@@ -111,7 +111,7 @@ impl<S: Storage> NativeJournalHandler<'_, S> {
             .update_state(dispatch.source(), |state, storage, transitions| {
                 let value = dispatch.value();
 
-                if value != 0 {
+                if !value.is_zero() {
                     state.balance = state.balance.checked_sub(value).expect(
                         "Insufficient balance: underflow in state.balance -= dispatch.value()",
                     );
