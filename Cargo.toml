@@ -94,7 +94,6 @@ members = [
     "gprimitives",
     "gsdk",
     "gsdk/codegen",
-    "gsdk/scale-gen",
     "gstd",
     "gstd/codegen",
     "gsys",

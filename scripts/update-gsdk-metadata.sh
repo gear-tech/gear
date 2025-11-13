@@ -6,6 +6,3 @@
 set -ex
 
 cargo build --package vara-runtime --features dev
-cargo run --package gsdk-scale-gen -- \
-  target/debug/wbuild/vara-runtime/vara_runtime.wasm \
-  gsdk/vara_runtime.scale
