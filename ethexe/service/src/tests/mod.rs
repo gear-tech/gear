@@ -767,8 +767,6 @@ async fn value_send_program_to_user_and_claimed() {
     let local_balance = node.db.program_state(state_hash).unwrap().balance;
     assert_eq!(local_balance, VALUE_SENT);
 
-    env.approve_wvara(piggy_bank_id).await;
-
     let res = env
         .send_message(piggy_bank_id, b"smash", 0)
         .await
@@ -902,8 +900,6 @@ async fn value_send_program_to_user_and_replied() {
     let state_hash = piggy_bank.query().state_hash().await.unwrap();
     let local_balance = node.db.program_state(state_hash).unwrap().balance;
     assert_eq!(local_balance, VALUE_SENT);
-
-    env.approve_wvara(piggy_bank_id).await;
 
     let res = env
         .send_message(piggy_bank_id, b"smash", 0)

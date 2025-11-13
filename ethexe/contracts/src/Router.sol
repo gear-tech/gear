@@ -488,7 +488,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
     function _checkTransitionsSortedByValueSign(Gear.StateTransition[] calldata _transitions) private pure {
         bool isPositiveFound = false;
 
-        for (uint256 i = 1; i < _transitions.length; i++) {
+        for (uint256 i = 0; i < _transitions.length; i++) {
             // If negative sign found after positive sign - transitions are not sorted.
             if (!_transitions[i].valueToReceiveNegativeSign) {
                 isPositiveFound = true;
