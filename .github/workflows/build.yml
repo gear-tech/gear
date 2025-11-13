@@ -414,6 +414,18 @@ jobs:
           echo "Top usage in /home/runner:"
           du -h -d1 /home/runner | sort -h | tail -20 || true
 
+      - name: "System: Enable swap"
+        run: |
+          set -euo pipefail
+          SWAP_PATH=/swapfile
+
+          sudo fallocate -l 8G "$SWAP_PATH"
+          sudo chmod 600 "$SWAP_PATH"
+          sudo mkswap "$SWAP_PATH"
+          sudo swapon "$SWAP_PATH"
+
+          echo "SWAP_PATH=$SWAP_PATH" >> $GITHUB_ENV
+
       - name: "Build: Vara mainnet runtime"
         run: cargo build -p vara-runtime -F std,try-runtime --locked ${{ matrix.profiles.flags }}
 
@@ -433,7 +445,11 @@ jobs:
 
           echo "TRY_RUNTIME_WASM=$DEST_WASM" >> $GITHUB_ENV
 
-          rm -rf target
+          if [ -d target ]; then
+            echo "Removing target directory contents..."
+            find target -mindepth 1 -maxdepth 1 -print -exec ionice -c3 nice -n 19 rm -rf {} +
+            sync
+          fi
 
       - name: "Test: Download Vara Testnet snapshot"
         run: curl -o vara_ci_testnet.snap -L https://snapshots.vara-network.io/vara-testnet.snap
@@ -463,6 +479,13 @@ jobs:
           --disable-spec-version-check
           --no-weight-warnings
           snap -p vara_ci.snap
+
+      - name: "System: Disable swap"
+        if: env.SWAP_PATH != ''
+        run: |
+          set -euo pipefail
+          sudo swapoff "$SWAP_PATH"
+          sudo rm -f "$SWAP_PATH"
 
   fuzzer:
     runs-on: [kuberunner, github-runner-01]
