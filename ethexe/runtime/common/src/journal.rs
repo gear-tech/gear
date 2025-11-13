@@ -375,7 +375,7 @@ impl<S: Storage> JournalHandler for NativeJournalHandler<'_, S> {
 
         match (src_is_prog, dst_is_prog) {
             // User to Program or Program to Program value transfer
-            (true, true) | (false, true) => {
+            (_, true) => {
                 self.controller.update_state(to, |state, _, transitions| {
                     state.balance = state
                         .balance

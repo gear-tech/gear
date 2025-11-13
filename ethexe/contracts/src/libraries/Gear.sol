@@ -154,6 +154,9 @@ library Gear {
         bytes32 newStateHash;
         bool exited;
         address inheritor;
+        /// @dev We represent `valueToReceive` as `uint128` and `bool` because each non-zero byte costs 16 gas,
+        ///      and each zero byte costs 4 gas (see https://evm.codes/about#gascosts).
+        ///      Also see `ethexe/common/src/gear.rs`.
         uint128 valueToReceive;
         bool valueToReceiveNegativeSign;
         ValueClaim[] valueClaims;

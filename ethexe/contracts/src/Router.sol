@@ -485,33 +485,24 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
         return Gear.validatorsCommitmentHash(_commitment);
     }
 
-    function _checkTransitionsSortedByValueSign(Gear.StateTransition[] calldata _transitions) private pure {
-        bool isPositiveFound = false;
-
-        for (uint256 i = 0; i < _transitions.length; i++) {
-            // If negative sign found after positive sign - transitions are not sorted.
-            if (!_transitions[i].valueToReceiveNegativeSign) {
-                isPositiveFound = true;
-                continue;
-            }
-
-            require(
-                !(isPositiveFound && _transitions[i].valueToReceiveNegativeSign),
-                "state transitions must be sorted by valueToReceiveNegativeSign in descending order"
-            );
-        }
-    }
-
     function _commitTransitions(Storage storage router, Gear.StateTransition[] calldata _transitions)
         private
         returns (bytes32)
     {
+        bool isPositiveFound = false;
         bytes memory transitionsHashes;
-
-        _checkTransitionsSortedByValueSign(_transitions);
 
         for (uint256 i = 0; i < _transitions.length; i++) {
             Gear.StateTransition calldata transition = _transitions[i];
+
+            require(
+                !(isPositiveFound && transition.valueToReceiveNegativeSign),
+                "state transitions must be sorted by valueToReceiveNegativeSign in descending order"
+            );
+
+            if (!transition.valueToReceiveNegativeSign) {
+                isPositiveFound = true;
+            }
 
             require(
                 router.protocolData.programs[transition.actorId] != 0, "couldn't perform transition for unknown program"

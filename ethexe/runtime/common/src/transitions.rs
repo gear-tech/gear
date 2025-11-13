@@ -185,21 +185,14 @@ impl InBlockTransitions {
                 .cloned()
                 .expect("failed to find state record for modified state");
 
-            let (value_to_receive, value_to_receive_negative_sign) =
-                if modification.value_to_receive >= 0 {
-                    (modification.value_to_receive as u128, false)
-                } else {
-                    (modification.value_to_receive.unsigned_abs(), true)
-                };
-
             if !modification.is_noop(new_state.hash) {
                 res.push(StateTransition {
                     actor_id,
                     new_state_hash: new_state.hash,
                     exited: modification.inheritor.is_some(),
                     inheritor: modification.inheritor.unwrap_or_default(),
-                    value_to_receive,
-                    value_to_receive_negative_sign,
+                    value_to_receive: modification.value_to_receive.unsigned_abs(),
+                    value_to_receive_negative_sign: modification.value_to_receive < 0,
                     value_claims: modification.claims,
                     messages: modification.messages,
                 });

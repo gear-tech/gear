@@ -143,6 +143,13 @@ contract Mirror is IMirror {
         emit ExecutableBalanceTopUpRequested(_value);
     }
 
+    function transferLockedValueToInheritor() public onlyIfExited {
+        uint256 balance = address(this).balance;
+        // casting to 'uint128' is safe because ETH supply is less than `type(uint128).max`
+        // forge-lint: disable-next-line(unsafe-typecast)
+        _transferEther(inheritor, uint128(balance));
+    }
+
     /* Router-driven state and funds management */
 
     function initialize(address _initializer, address _abiInterface, bool _isSmall) public onlyRouter {
@@ -160,7 +167,6 @@ contract Mirror is IMirror {
         implementationSlot.value = _abiInterface;
     }
 
-    // NOTE (breathx): value to receive should be already handled in router, expect if negative sign is set.
     function performStateTransition(Gear.StateTransition calldata _transition)
         external
         payable
@@ -170,6 +176,7 @@ contract Mirror is IMirror {
         /// @dev Verify that the transition belongs to this contract.
         require(_transition.actorId == address(this), "actorId must be this contract");
 
+        /// @dev Transfer value to router if valueToReceive is non-zero and has negative sign.
         if (_transition.valueToReceive != 0 && _transition.valueToReceiveNegativeSign) {
             (bool success,) = router.call{value: _transition.valueToReceive}("");
             require(success, "failed to transfer value to router during state transition");
@@ -427,14 +434,7 @@ contract Mirror is IMirror {
         inheritor = _inheritor;
 
         /// @dev Transfer all available balance to the inheritor.
-        _transferLockedValueToInheritor();
-    }
-
-    function _transferLockedValueToInheritor() private onlyIfExited {
-        uint256 balance = address(this).balance;
-        // casting to 'uint128' is safe because ETH supply is less than `type(uint128).max`
-        // forge-lint: disable-next-line(unsafe-typecast)
-        _transferEther(inheritor, uint128(balance));
+        transferLockedValueToInheritor();
     }
 
     function _updateStateHash(bytes32 _stateHash) private {
