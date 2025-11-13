@@ -46,6 +46,7 @@ demo-reserve-gas = { workspace = true, features = ["std"] }
 gstd = { workspace = true, features = ["debug"] }
 demo-wat.workspace = true
 demo-bls381 = { workspace = true, features = ["std"] }
+demo-ping.workspace = true
 ark-serialize = { workspace = true, features = ["derive"] }
 ark-scale = { workspace = true, features = ["hazmat"] }
 ark-bls12-381 = { workspace = true, features = ["curve"] }
