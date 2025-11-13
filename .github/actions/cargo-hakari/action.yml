@@ -14,7 +14,17 @@ runs:
       run: "echo value=$(rustc -vV | grep host: | cut -d ' ' -f 2) >> $GITHUB_OUTPUT"
       shell: bash
 
+    - id: already-installed
+      run: |
+        if cargo hakari --version; then
+          echo "value=true"  >> $GITHUB_OUTPUT
+        else
+          echo "value=false" >> $GITHUB_OUTPUT
+        fi
+      shell: bash
+
     - uses: taiki-e/install-action@v2
+      if: ${{ steps.already-installed.outputs.value == 'false' }}
       with:
         tool: cargo-hakari
       env:
