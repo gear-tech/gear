@@ -17,6 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Gear storage apis
+use futures::prelude::*;
+
 use crate::{
     Api, BlockNumber, GearGasNode, GearGasNodeId, GearPages, IntoSubstrate, IntoSubxt,
     gear::{
@@ -35,7 +37,6 @@ use crate::{
     },
     result::{Error, FailedPage, Result},
 };
-use futures::prelude::*;
 use gear_core::{
     code::{CodeMetadata, InstrumentedCode},
     ids::*,
@@ -180,18 +181,18 @@ impl Api {
     #[storage_fetch]
     pub async fn gas_nodes_at(
         &self,
-        gas_node_ids: &impl AsRef<[GearGasNodeId]>,
+        gas_node_ids: impl IntoIterator<Item = GearGasNodeId>,
         block_hash: Option<H256>,
     ) -> Result<Vec<(GearGasNodeId, GearGasNode)>> {
-        let gas_node_ids = gas_node_ids.as_ref();
-        let mut gas_nodes = Vec::with_capacity(gas_node_ids.len());
+        stream::iter(gas_node_ids)
+            .then(|gas_node_id| async move {
+                let addr = gear::storage().gear_gas().gas_nodes(gas_node_id.clone());
+                let gas_node = self.storage_fetch_at(&addr, block_hash).await?;
 
-        for gas_node_id in gas_node_ids {
-            let addr = gear::storage().gear_gas().gas_nodes(gas_node_id.clone());
-            let gas_node = self.storage_fetch_at(&addr, block_hash).await?;
-            gas_nodes.push((gas_node_id.clone(), gas_node));
-        }
-        Ok(gas_nodes)
+                Ok((gas_node_id.clone(), gas_node))
+            })
+            .try_collect()
+            .await
     }
 }
 
