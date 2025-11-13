@@ -558,7 +558,7 @@ mod tests {
 
     #[test]
     fn page_buf_encode() {
-        let mut data: PageBufInner = [199; GearPage::SIZE as usize].into();
+        let data: PageBufInner = [199; GearPage::SIZE as usize].into();
         let page_buf = PageBuf::from_inner(data);
 
         assert_eq!(page_buf.encode(), vec![199u8; GearPage::SIZE as usize])
