@@ -462,19 +462,19 @@ where
     S: Storage,
 {
     // Returns unhandled journal notes and new program state hash
-    pub fn handle_journal(
-        &mut self,
-        journal: impl IntoIterator<Item = JournalNote>,
-    ) -> (Vec<JournalNote>, Option<H256>) {
+    pub fn handle_journal<I>(&mut self, journal: I) -> (Vec<JournalNote>, Option<H256>)
+    where
+        I: IntoIterator<Item = JournalNote>,
+        I::IntoIter: ExactSizeIterator,
+    {
+        let journal = journal.into_iter();
         let mut page_updates = BTreeMap::new();
         let mut allocations_update = BTreeMap::new();
-        let mut notes_cnt = 0;
+        let notes_count = journal.len();
+        let mut skipped_notes = 0;
 
         let filtered: Vec<_> = journal
-            .into_iter()
             .filter_map(|note| {
-                notes_cnt += 1;
-
                 match note {
                     JournalNote::MessageDispatched {
                         message_id,
@@ -499,14 +499,19 @@ where
                         message_id: _,
                         amount,
                     } => {
-                        // TODO(romanm): reduce exec balance
                         self.gas_allowance_counter.charge(amount);
+                        self.program_state.executable_balance = self.program_state.executable_balance.checked_sub(amount.into()).expect(
+                            "Insufficient executable balance: underflow in executable_balance -= gas_burned",
+                        );
                     }
                     note @ JournalNote::StopProcessing {
                         dispatch: _,
                         gas_burned,
                     } => {
                         self.gas_allowance_counter.charge(gas_burned);
+                        self.program_state.executable_balance = self.program_state.executable_balance.checked_sub(gas_burned.into()).expect(
+                            "Insufficient executable balance: underflow in executable_balance -= gas_burned",
+                        );
                         self.stop_processing = true;
                         return Some(note);
                     }
@@ -514,7 +519,10 @@ where
                     // * WakeMessage
                     // * SendDispatch to self
                     // * SendValue to self
-                    note => return Some(note),
+                    note => {
+                        skipped_notes += 1;
+                        return Some(note)
+                    }
                 }
 
                 None
@@ -530,7 +538,7 @@ where
         }
 
         // Some notes were processed, thus state changed
-        let maybe_state_hash = (notes_cnt != filtered.len())
+        let maybe_state_hash = (notes_count != skipped_notes)
             .then(|| self.storage.write_program_state(*self.program_state));
 
         (filtered, maybe_state_hash)
