@@ -22,7 +22,7 @@ pub use crate::tx_status::{TxError, TxStatusExt, TxSuccess};
 
 use gear_core::ids::ActorId;
 use subxt::ext::{scale_encode, subxt_rpcs};
-///
+
 /// Custom Result
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
