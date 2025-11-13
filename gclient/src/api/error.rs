@@ -42,7 +42,9 @@ pub enum Error {
     /// Occurs when events are stopped. Unreachable.
     #[error("Events stopped (unreachable")]
     EventsStopped,
-    /// A wrapper around [`subxt::error::Error`].
+    /// A wrapper around [subxt::Error].
+    ///
+    /// [subxt::error]: `gsdk::ext::subxt::Error`
     #[error(transparent)]
     Subxt(Box<SubxtError>),
     /// Subxt core error
