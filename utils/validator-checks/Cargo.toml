@@ -19,3 +19,4 @@ tracing-subscriber.workspace = true
 tokio = { workspace = true, features = [ "full" ] }
 parity-scale-codec.workspace = true
 sp-consensus-babe = { workspace = true, features = ["std"] }
+intentionally-empty.workspace = true

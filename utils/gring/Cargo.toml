@@ -33,6 +33,7 @@ colored = { workspace = true, optional = true }
 dirs = { workspace = true, optional = true }
 hex = { workspace = true, features = ["std"], optional = true }
 tracing-subscriber = { workspace = true, optional = true }
+intentionally-empty.workspace = true
 
 [features]
 default = ["cli"]

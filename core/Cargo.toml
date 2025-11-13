@@ -36,6 +36,7 @@ numerated.workspace = true
 # Optional dependencies
 serde = { workspace = true, features = ["derive"], optional = true }
 impl-serde = { workspace = true, optional = true }
+intentionally-empty.workspace = true
 
 [dev-dependencies]
 tracing-subscriber.workspace = true

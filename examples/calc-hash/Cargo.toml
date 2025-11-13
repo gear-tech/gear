@@ -10,5 +10,6 @@ repository.workspace = true
 [dependencies]
 parity-scale-codec.workspace = true
 sha2.workspace = true
+intentionally-empty.workspace = true
 
 [build-dependencies]

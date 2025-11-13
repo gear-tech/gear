@@ -18,6 +18,7 @@ enum-iterator.workspace = true
 wasmparser.workspace = true
 wasm-encoder.workspace = true
 log.workspace = true
+intentionally-empty.workspace = true
 
 [dev-dependencies]
 wat.workspace = true

@@ -21,6 +21,7 @@ uluru.workspace = true
 fs4.workspace = true
 derive_more.workspace = true
 bytes.workspace = true
+intentionally-empty.workspace = true
 
 [dev-dependencies]
 tempfile.workspace = true

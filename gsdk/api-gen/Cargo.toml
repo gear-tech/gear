@@ -19,3 +19,4 @@ subxt-codegen.workspace = true
 syn = { workspace = true, features = ["full", "parsing"] }
 heck.workspace = true
 hex.workspace = true
+intentionally-empty.workspace = true

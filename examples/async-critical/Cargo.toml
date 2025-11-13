@@ -10,6 +10,7 @@ repository.workspace = true
 [dependencies]
 gstd.workspace = true
 parity-scale-codec.workspace = true
+intentionally-empty.workspace = true
 
 [build-dependencies]
 gear-wasm-builder.workspace = true

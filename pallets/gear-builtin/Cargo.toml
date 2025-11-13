@@ -40,6 +40,7 @@ sp-runtime = { workspace = true, features = ["serde"] }
 pallet-gear.workspace = true
 pallet-staking.workspace = true
 pallet-proxy.workspace = true
+intentionally-empty.workspace = true
 
 [dev-dependencies]
 demo-waiting-proxy.workspace = true

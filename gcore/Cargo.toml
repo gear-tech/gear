@@ -25,6 +25,7 @@ gear-stack-buffer.workspace = true
 thiserror.workspace = true
 arrayvec.workspace = true
 paste.workspace = true
+intentionally-empty.workspace = true
 
 [dev-dependencies]
 hex-literal.workspace = true

@@ -30,6 +30,7 @@ wasmer-vm = { workspace = true, optional = true }
 wasmer-compiler = { workspace = true, optional = true }
 gear-wasmer-cache = { workspace = true, optional = true }
 pathdiff = { workspace = true, optional = true }
+intentionally-empty.workspace = true
 
 [dev-dependencies]
 assert_matches.workspace = true

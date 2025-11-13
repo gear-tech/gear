@@ -20,6 +20,7 @@ log.workspace = true
 wasmparser.workspace = true
 which.workspace = true
 colored.workspace = true
+intentionally-empty.workspace = true
 
 [dev-dependencies]
 wasmer.workspace = true

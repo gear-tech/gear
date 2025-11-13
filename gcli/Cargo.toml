@@ -36,6 +36,7 @@ etc.workspace = true
 runtime-primitives.workspace = true
 url = { workspace = true, features = ["serde"] }
 toml.workspace = true
+intentionally-empty.workspace = true
 
 [dev-dependencies]
 demo-messenger.workspace = true

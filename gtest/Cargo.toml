@@ -35,6 +35,7 @@ log.workspace = true
 cargo_toml.workspace = true
 etc.workspace = true
 thiserror.workspace = true
+intentionally-empty.workspace = true
 
 [dev-dependencies]
 ark-std.workspace = true

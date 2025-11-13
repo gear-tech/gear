@@ -19,3 +19,4 @@ serde_json.workspace = true
 path-clean.workspace = true
 gear-core.workspace = true
 parity-scale-codec.workspace = true
+intentionally-empty.workspace = true

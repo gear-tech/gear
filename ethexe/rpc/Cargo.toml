@@ -30,6 +30,7 @@ serde = { workspace = true, features = ["std"] }
 ethexe-blob-loader.workspace = true
 reqwest = { workspace = true, optional = true }
 serde_json = { workspace = true, optional = true }
+intentionally-empty.workspace = true
 
 [features]
 test-utils = ["reqwest", "serde_json"]
