@@ -509,7 +509,7 @@ impl AllocationsContext {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use alloc::vec::Vec;
+    use alloc::{vec, vec::Vec};
     use core::{cell::Cell, iter};
 
     struct TestMemory(Cell<WasmPagesAmount>);
@@ -554,6 +554,14 @@ mod tests {
         data[1] = 2;
         let page_buf = PageBuf::from_inner(data);
         log::debug!("page buff = {page_buf:?}");
+    }
+
+    #[test]
+    fn page_buf_encode() {
+        let mut data: PageBufInner = [199; GearPage::SIZE as usize].into();
+        let page_buf = PageBuf::from_inner(data);
+
+        assert_eq!(page_buf.encode(), vec![199u8; GearPage::SIZE as usize])
     }
 
     #[test]
