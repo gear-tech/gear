@@ -19,8 +19,6 @@
 mod iterator;
 mod subscription;
 
-use std::collections::HashSet;
-
 pub use gsdk::gear::{Event, gear::Event as GearEvent};
 pub use iterator::*;
 
@@ -28,6 +26,7 @@ use crate::{Error, Result};
 use async_trait::async_trait;
 use gear_core::ids::MessageId;
 use gsdk::gear::runtime_types::gear_common::event::DispatchStatus as GenDispatchStatus;
+use std::collections::HashSet;
 
 /// Dispatch status returned after processing a message.
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord)]
