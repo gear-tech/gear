@@ -59,6 +59,68 @@ use subxt::{
     tx::{TxInBlock as SubxtTxInBlock, TxStatus as SubxtTxStatus},
 };
 
+mod api;
+pub mod backtrace;
+pub mod config;
+mod convert;
+pub mod events;
+pub mod prelude;
+pub mod result;
+mod rpc;
+pub mod signer;
+mod storage;
+pub mod subscription;
+mod tx_status;
+mod utils;
+
+mod ensure_versions;
+
+pub mod ext {
+    pub use subxt::ext::*;
+
+    pub use gear_core;
+    pub use gear_core_errors;
+    pub use sp_core;
+    pub use sp_runtime::{self, codec, scale_info};
+    pub use subxt;
+}
+pub mod gp {
+    //! generated code preludes.
+    pub use subxt::ext::{
+        codec::{Decode, Encode},
+        scale_decode::DecodeAsType,
+        scale_encode::EncodeAsType,
+    };
+}
+
+/// Block number type
+pub type BlockNumber = u32;
+
+/// Gear gas node id.
+pub type GearGasNodeId = GasNodeId<MessageId, ReservationId>;
+
+/// Gear gas node.
+pub type GearGasNode = GasNode<subxt::utils::AccountId32, GearGasNodeId, u64, u128>;
+
+/// Gear pages.
+pub type GearPages = HashMap<u32, PageBuf>;
+
+/// Transaction in block.
+pub type TxInBlock = SubxtTxInBlock<GearConfig, OnlineClient<GearConfig>>;
+
+/// Transaction in block with result wrapper.
+pub type TxInBlockResult = Result<TxInBlock>;
+
+/// Transaction status.
+pub type TxStatus = SubxtTxStatus<GearConfig, OnlineClient<GearConfig>>;
+
+/// Gear Program
+#[derive(Debug, Decode)]
+pub enum Program {
+    Active(ActiveProgram<BlockNumber>),
+    Terminated,
+}
+
 /// Generated runtime API types.
 // FIXME: substitute `gear_core::page::Page`,
 //        requires `subxt` to support const parameters.
@@ -199,64 +261,3 @@ use subxt::{
     generate_docs
 )]
 pub mod gear {}
-
-mod api;
-pub mod backtrace;
-pub mod config;
-mod convert;
-pub mod events;
-pub mod result;
-mod rpc;
-pub mod signer;
-mod storage;
-pub mod subscription;
-mod tx_status;
-mod utils;
-
-mod ensure_versions;
-
-pub mod ext {
-    pub use subxt::ext::*;
-
-    pub use gear_core;
-    pub use gear_core_errors;
-    pub use sp_core;
-    pub use sp_runtime::{self, codec, scale_info};
-    pub use subxt;
-}
-pub mod gp {
-    //! generated code preludes.
-    pub use subxt::ext::{
-        codec::{Decode, Encode},
-        scale_decode::DecodeAsType,
-        scale_encode::EncodeAsType,
-    };
-}
-
-/// Block number type
-pub type BlockNumber = u32;
-
-/// Gear gas node id.
-pub type GearGasNodeId = GasNodeId<MessageId, ReservationId>;
-
-/// Gear gas node.
-pub type GearGasNode = GasNode<subxt::utils::AccountId32, GearGasNodeId, u64, u128>;
-
-/// Gear pages.
-pub type GearPages = HashMap<u32, PageBuf>;
-
-/// Transaction in block.
-pub type TxInBlock = SubxtTxInBlock<GearConfig, OnlineClient<GearConfig>>;
-
-/// Transaction in block with result wrapper.
-pub type TxInBlockResult = Result<TxInBlock>;
-
-/// Transaction status.
-pub type TxStatus = SubxtTxStatus<GearConfig, OnlineClient<GearConfig>>;
-
-/// Gear Program
-#[derive(Debug, Decode)]
-pub enum Program {
-    Active(ActiveProgram<BlockNumber>),
-    Terminated,
-}
