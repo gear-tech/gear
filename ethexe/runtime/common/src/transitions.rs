@@ -148,6 +148,19 @@ impl InBlockTransitions {
         self.modify(actor_id, |_state, transition| f(transition))
     }
 
+    pub fn claim_value(&mut self, actor_id: ActorId, claim: ValueClaim) {
+        self.modify(actor_id, |_state, transition| {
+            transition.value_to_receive = transition
+                .value_to_receive
+                .checked_add(
+                    i128::try_from(claim.value).expect("claimed_value doesn't fit in i128"),
+                )
+                .expect("Overflow in transition.value_to_receive += claimed_value");
+
+            transition.claims.push(claim);
+        });
+    }
+
     pub fn modify<T>(
         &mut self,
         actor_id: ActorId,

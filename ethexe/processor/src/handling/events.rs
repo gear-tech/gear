@@ -133,21 +133,14 @@ impl ProcessingHandler {
                         return Ok(());
                     };
 
-                    transitions.modify_transition(actor_id, |transition| {
-                        transition.value_to_receive = transition
-                            .value_to_receive
-                            .checked_add(
-                                i128::try_from(claimed_value)
-                                    .expect("claimed_value doesn't fit in i128"),
-                            )
-                            .expect("Overflow in transition.value_to_receive += claimed_value");
-
-                        transition.claims.push(ValueClaim {
+                    transition.claim_value(
+                        actor_id,
+                        ValueClaim {
                             message_id: replied_to,
                             destination: source,
                             value: claimed_value,
-                        });
-                    });
+                        },
+                    );
 
                     transitions.remove_task(
                         expiry,
@@ -187,21 +180,14 @@ impl ProcessingHandler {
                         return Ok(());
                     };
 
-                    transitions.modify_transition(actor_id, |transition| {
-                        transition.value_to_receive = transition
-                            .value_to_receive
-                            .checked_add(
-                                i128::try_from(claimed_value)
-                                    .expect("claimed_value doesn't fit in i128"),
-                            )
-                            .expect("Overflow in transition.value_to_receive += claimed_value");
-
-                        transition.claims.push(ValueClaim {
+                    transition.claim_value(
+                        actor_id,
+                        ValueClaim {
                             message_id: claimed_id,
                             destination: source,
                             value: claimed_value,
-                        });
-                    });
+                        },
+                    );
 
                     transitions.remove_task(
                         expiry,
