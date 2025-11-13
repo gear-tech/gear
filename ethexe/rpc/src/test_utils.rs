@@ -20,20 +20,27 @@
 
 use crate::{InjectedTransactionAcceptance, apis::InjectedClient};
 use anyhow::{Result as AnyhowResult, bail};
-use ethexe_common::injected::SignedInjectedTransaction;
-use jsonrpsee::{http_client::HttpClient, types::ErrorObjectOwned};
+use ethexe_common::injected::{SignedInjectedPromise, SignedInjectedTransaction};
+use jsonrpsee::{
+    core::client::{Subscription, SubscriptionClientT},
+    http_client::HttpClient,
+    rpc_params,
+    types::ErrorObjectOwned,
+    ws_client::{WsClient, WsClientBuilder},
+};
 use reqwest::{Response, Result};
 use serde::{Deserialize, de::DeserializeOwned};
 
 /// Client for the ethexe rpc server.
-pub struct RpcClient {
+pub struct RpcHttpClient {
     http_client: HttpClient,
 }
 
-impl RpcClient {
+impl RpcHttpClient {
     pub fn new(url: String) -> Self {
-        let http_client = HttpClient::builder().build(url).unwrap();
-        Self { http_client }
+        Self {
+            http_client: HttpClient::builder().build(&url).unwrap(),
+        }
     }
 
     /// Send message using transaction pool API (`injected_sendTransaction`) of the ethexe rpc server.
@@ -45,6 +52,33 @@ impl RpcClient {
             .send_transaction(tx)
             .await
             .map_err(Into::into)
+    }
+}
+
+pub struct RpcWsClient {
+    ws_client: WsClient,
+}
+
+impl RpcWsClient {
+    pub async fn new(ws: impl AsRef<str>) -> AnyhowResult<Self> {
+        Ok(Self {
+            ws_client: WsClientBuilder::new().build(ws).await?,
+        })
+    }
+
+    /// Subscribes to receive promise from injected tx.
+    pub async fn subscribe_promise(
+        &self,
+        tx: SignedInjectedTransaction,
+    ) -> std::result::Result<Subscription<SignedInjectedPromise>, jsonrpsee::core::client::Error>
+    {
+        self.ws_client
+            .subscribe(
+                "subscribe_transactionPromise",
+                rpc_params!(tx),
+                "unsubscribe_transactionPromise",
+            )
+            .await
     }
 }
 

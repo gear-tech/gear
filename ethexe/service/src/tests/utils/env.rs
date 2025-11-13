@@ -58,7 +58,10 @@ use ethexe_observer::{EthereumConfig, ObserverEvent, ObserverService};
 use ethexe_processor::{
     DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, DEFAULT_CHUNK_PROCESSING_THREADS, Processor, RunnerConfig,
 };
-use ethexe_rpc::{InjectedTransactionAcceptance, RpcConfig, RpcService, test_utils::RpcClient};
+use ethexe_rpc::{
+    InjectedTransactionAcceptance, RpcConfig, RpcService,
+    test_utils::{RpcHttpClient, RpcWsClient},
+};
 use ethexe_signer::Signer;
 use futures::StreamExt;
 use gear_core_errors::ReplyCode;
@@ -973,17 +976,29 @@ impl Node {
         self.receiver = None;
     }
 
-    pub fn rpc_client(&self) -> Option<RpcClient> {
+    pub fn rpc_http_client(&self) -> Option<RpcHttpClient> {
         self.service_rpc_config
             .as_ref()
-            .map(|rpc| RpcClient::new(format!("http://{}", rpc.listen_addr)))
+            .map(|rpc| RpcHttpClient::new(format!("http://{}", rpc.listen_addr)))
+    }
+
+    pub async fn rpc_ws_client(&self) -> anyhow::Result<RpcWsClient> {
+        if let Some(rpc) = &self.service_rpc_config {
+            return Ok(RpcWsClient::new(format!("ws://{}", rpc.listen_addr)).await?);
+        }
+
+        Err(anyhow::anyhow!(
+            "No rpc config provided to initialize RpcWsClient"
+        ))
     }
 
     pub async fn send_injected_transaction(
         &self,
         tx: SignedInjectedTransaction,
     ) -> anyhow::Result<InjectedTransactionAcceptance> {
-        let rpc_client = self.rpc_client().expect("no rpc client provided by node");
+        let rpc_client = self
+            .rpc_http_client()
+            .expect("no rpc client provided by node");
         rpc_client.send_injected_tx(tx).await
     }
 

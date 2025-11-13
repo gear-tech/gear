@@ -109,99 +109,113 @@ impl RpcService {
     pub async fn run_server(self) -> Result<(ServerHandle, RpcReceiver)> {
         let (rpc_sender, rpc_receiver) = mpsc::unbounded_channel();
 
-        let listener = TcpListener::bind(self.config.listen_addr).await?;
-
-        let cors = utils::try_into_cors(self.config.cors)?;
-
+        // let listener = TcpListener::bind(self.config.listen_addr).await?;
+        let cors = utils::try_into_cors(self.config.cors.clone())?;
         let http_middleware = tower::ServiceBuilder::new().layer(cors);
 
-        let service_builder = Server::builder()
-            .set_http_middleware(http_middleware)
-            .to_service_builder();
+        let server = jsonrpsee::server::Server::builder()
+            .build(self.config.listen_addr)
+            .await?;
 
+        let handle = server.start(self.build_server_module(rpc_sender)?);
+
+        // TODO: maybe should customize handling server stopping.
+        // tokio::spawn(handle.stopped());
+
+        // let service_builder = Server::builder()
+        //     .set_http_middleware(http_middleware)
+        //     .to_service_builder();
+
+        // let (stop_handle, server_handle) = stop_channel();
+
+        // let cfg = PerConnection {
+        //     methods: module.into(),
+        //     stop_handle: stop_handle.clone(),
+        //     svc_builder: service_builder,
+        // };
+
+        // tokio::spawn(async move {
+        //     loop {
+        //         let socket = tokio::select! {
+        //             res = listener.accept() => {
+        //                 match res {
+        //                     Ok((socket, _)) => socket,
+        //                     Err(e) => {
+        //                         log::error!("Failed to accept connection: {e:?}");
+        //                         continue;
+        //                     }
+        //                 }
+        //             }
+        //             _ = cfg.stop_handle.clone().shutdown() => {
+        //                 log::info!("Shutdown signal received, stopping server.");
+        //                 break;
+        //             }
+        //         };
+
+        //         let cfg2 = cfg.clone();
+
+        //         let svc = tower::service_fn(move |req: hyper::Request<hyper::body::Incoming>| {
+        //             let PerConnection {
+        //                 methods,
+        //                 stop_handle,
+        //                 svc_builder,
+        //             } = cfg2.clone();
+
+        //             let is_ws = jsonrpsee::server::ws::is_upgrade_request(&req);
+
+        //             let mut svc = svc_builder.build(methods, stop_handle);
+
+        //             if is_ws {
+        //                 let session_close = svc.on_session_closed();
+
+        //                 tokio::spawn(async move {
+        //                     session_close.await;
+        //                     log::info!("WebSocket connection closed");
+        //                 });
+
+        //                 async move {
+        //                     log::info!("WebSocket connection accepted");
+
+        //                     svc.call(req).await.map_err(|e| anyhow!("Error: {:?}", e))
+        //                 }
+        //                 .boxed()
+        //             } else {
+        //                 async move { svc.call(req).await.map_err(|e| anyhow!("Error: {:?}", e)) }
+        //                     .boxed()
+        //             }
+        //         });
+
+        //         tokio::spawn(serve_with_graceful_shutdown(
+        //             socket,
+        //             svc,
+        //             stop_handle.clone().shutdown(),
+        //         ));
+        //     }
+        // });
+
+        Ok((handle, RpcReceiver(rpc_receiver)))
+    }
+
+    fn build_server_module(
+        &self,
+        sender: mpsc::UnboundedSender<RpcEvent>,
+    ) -> Result<jsonrpsee::server::RpcModule<()>> {
         let mut module = JsonrpcModule::new(());
         module.merge(ProgramServer::into_rpc(ProgramApi::new(
             self.db.clone(),
-            self.config.runner_config,
+            self.config.runner_config.clone(),
         )))?;
         module.merge(BlockServer::into_rpc(BlockApi::new(self.db.clone())))?;
         module.merge(CodeServer::into_rpc(CodeApi::new(self.db.clone())))?;
-        module.merge(InjectedServer::into_rpc(InjectedApi::new(rpc_sender)))?;
+        module.merge(InjectedServer::into_rpc(InjectedApi::new(sender)))?;
 
         if self.config.dev {
             module.merge(DevServer::into_rpc(DevApi::new(
-                self.blobs_storage.unwrap().clone(),
+                self.blobs_storage.clone().unwrap(),
             )))?;
         }
 
-        let (stop_handle, server_handle) = stop_channel();
-
-        let cfg = PerConnection {
-            methods: module.into(),
-            stop_handle: stop_handle.clone(),
-            svc_builder: service_builder,
-        };
-
-        tokio::spawn(async move {
-            loop {
-                let socket = tokio::select! {
-                    res = listener.accept() => {
-                        match res {
-                            Ok((socket, _)) => socket,
-                            Err(e) => {
-                                log::error!("Failed to accept connection: {e:?}");
-                                continue;
-                            }
-                        }
-                    }
-                    _ = cfg.stop_handle.clone().shutdown() => {
-                        log::info!("Shutdown signal received, stopping server.");
-                        break;
-                    }
-                };
-
-                let cfg2 = cfg.clone();
-
-                let svc = tower::service_fn(move |req: hyper::Request<hyper::body::Incoming>| {
-                    let PerConnection {
-                        methods,
-                        stop_handle,
-                        svc_builder,
-                    } = cfg2.clone();
-
-                    let is_ws = jsonrpsee::server::ws::is_upgrade_request(&req);
-
-                    let mut svc = svc_builder.build(methods, stop_handle);
-
-                    if is_ws {
-                        let session_close = svc.on_session_closed();
-
-                        tokio::spawn(async move {
-                            session_close.await;
-                            log::info!("WebSocket connection closed");
-                        });
-
-                        async move {
-                            log::info!("WebSocket connection accepted");
-
-                            svc.call(req).await.map_err(|e| anyhow!("Error: {:?}", e))
-                        }
-                        .boxed()
-                    } else {
-                        async move { svc.call(req).await.map_err(|e| anyhow!("Error: {:?}", e)) }
-                            .boxed()
-                    }
-                });
-
-                tokio::spawn(serve_with_graceful_shutdown(
-                    socket,
-                    svc,
-                    stop_handle.clone().shutdown(),
-                ));
-            }
-        });
-
-        Ok((server_handle, RpcReceiver(rpc_receiver)))
+        Ok(module)
     }
 }
 

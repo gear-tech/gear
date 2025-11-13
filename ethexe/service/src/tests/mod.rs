@@ -54,6 +54,7 @@ use ethexe_signer::Signer;
 use gear_core::{
     ids::prelude::*,
     message::{ReplyCode, SuccessReplyReason},
+    pages::num_traits::sign,
 };
 use gear_core_errors::{ErrorReplyReason, SimpleExecutionError, SimpleUnavailableActorError};
 use gprimitives::{ActorId, H160, H256, MessageId};
@@ -1650,7 +1651,7 @@ async fn injected_tx_fungible_token() {
     let pubkey = env.validators[0].public_key;
     let mut node = env.new_node(
         NodeConfig::default()
-            .service_rpc(8008)
+            .service_rpc(8090)
             .validator(env.validators[0]),
     );
     node.start_service().await;
@@ -1769,10 +1770,27 @@ async fn injected_tx_fungible_token() {
         .await
         .unwrap();
     tracing::info!("✅ Tokens mint successfuly");
-}
 
-#[tokio::test(flavor = "multi_thread")]
-#[ntest::timeout(60_000)]
-async fn rpc_injected_tx_subscription() {
-    init_logger();
+    // 5. Try transfer some tokens.
+    let actor_token_receiver = H256::random().into();
+    let transfer_event = demo_fungible_token::FTAction::Transfer {
+        from: pubkey.to_address().into(),
+        to: actor_token_receiver,
+        amount: amount / 2,
+    };
+    let transfer_tx = InjectedTransaction {
+        recipient: pubkey.to_address(),
+        destination: usdt_actor_id,
+        payload: transfer_event.encode().into(),
+        value: 0,
+        reference_block: node.db.latest_data().unwrap().prepared_block_hash,
+        salt: H256::random().0.to_vec().into(),
+    };
+    let signed_tx = env.signer.signed_data(pubkey, transfer_tx).unwrap();
+
+    // let ws_client = node.rpc_ws_client().await.unwrap();
+    // let mut promise_subscription = ws_client.subscribe_promise(signed_tx).await.unwrap();
+
+    // let _promise = promise_subscription.next().await.unwrap().unwrap();
+    // tracing::info!("promise successfully received");
 }

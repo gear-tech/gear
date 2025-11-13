@@ -24,8 +24,11 @@ use ethexe_blob_loader::{
     local::{LocalBlobLoader, LocalBlobStorage},
 };
 use ethexe_common::{
-    Address, db::InjectedStorageRW, ecdsa::PublicKey, gear::CodeState,
-    network::VerifiedValidatorMessage,
+    Address,
+    db::InjectedStorageRW,
+    ecdsa::PublicKey,
+    gear::CodeState,
+    network::{SignedValidatorMessage, VerifiedValidatorMessage},
 };
 use ethexe_compute::{ComputeConfig, ComputeEvent, ComputeService};
 use ethexe_consensus::{
@@ -507,6 +510,11 @@ impl Service {
                         RpcEvent::InjectedTransaction {
                             transaction,
                             response_sender,
+                        }
+                        | RpcEvent::InjectedTransactionSubscription {
+                            transaction,
+                            response_sender,
+                            promise_sender: _,
                         } => {
                             if validator_address == Some(transaction.data().recipient) {
                                 consensus.receive_injected_transaction(transaction)?;
@@ -520,18 +528,17 @@ impl Service {
 
                             let _res = response_sender.send(InjectedTransactionAcceptance::Accept);
                         }
-                        RpcEvent::InjectedTransactionSubscription {
-                            transaction,
-                            response_sender,
-                            promise_sender,
-                        } => {
-                            todo!()
-                        }
                     }
                 }
                 Event::Consensus(event) => match event {
                     ConsensusEvent::ComputeAnnounce(announce) => compute.compute_announce(announce),
                     ConsensusEvent::PublishMessage(message) => {
+                        // if let Some(rpc) = rpc.as_mut()
+                        //     && let SignedValidatorMessage::InjectedPromise(promise) = &event
+                        // {
+                        //     rpc.receive_promise(promise);
+                        // }
+
                         let Some(network) = network.as_mut() else {
                             continue;
                         };

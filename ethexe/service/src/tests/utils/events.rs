@@ -59,9 +59,9 @@ impl TestingRpcEvent {
                 transaction,
                 response_sender,
                 promise_sender,
-            } => {
-                todo!()
-            }
+            } => Self::InjectedTransaction {
+                transaction: transaction.clone(),
+            },
         }
     }
 }
