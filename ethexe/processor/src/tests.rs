@@ -964,7 +964,7 @@ async fn overlay_execution_noop() {
         meta.announces = Some(BTreeSet::from([block3_announce_hash]));
     });
     // Set announce so overlay finds it
-    processor.db.set_announce(block3_announce);
+    let block3_announce_hash = processor.db.set_announce(block3_announce);
 
     // Now send message using overlay on the block3.
     let mut overlaid_processor = processor.clone().overlaid();
@@ -975,7 +975,7 @@ async fn overlay_execution_noop() {
     );
     let reply_info = overlaid_processor
         .execute_for_reply(
-            block3,
+            block3_announce_hash,
             user_id,
             async_id,
             demo_async::Command::Common.encode(),
