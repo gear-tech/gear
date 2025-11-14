@@ -166,7 +166,7 @@ impl<P: ProcessorExt> ComputeSubService<P> {
         });
 
         promises.into_iter().for_each(|promise| {
-            db.set_injected_promise(promise);
+            db.set_promise(promise);
         });
 
         db.mutate_latest_data(|data| {

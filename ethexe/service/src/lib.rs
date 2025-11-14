@@ -454,7 +454,7 @@ impl Service {
                                     let (promise, _pub_key) = promise.into_parts();
 
                                     // TODO kuzmindev: this is a temporary solution, should be implemented by handling in some service.
-                                    self.db.set_injected_promise(promise);
+                                    self.db.set_promise(promise);
                                 }
                             };
                         }

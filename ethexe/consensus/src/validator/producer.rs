@@ -128,7 +128,7 @@ impl StateHandler for Producer {
                 for tx in announce.injected_transactions.iter() {
                     let tx_hash = tx.data().to_hash();
 
-                    let Some(promise) = self.ctx.core.db.injected_promise(tx_hash) else {
+                    let Some(promise) = self.ctx.core.db.promise(tx_hash) else {
                         tracing::warn!(tx_hash = ?tx_hash, "Not found promise for injected transaction");
                         continue;
                     };

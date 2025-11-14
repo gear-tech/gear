@@ -558,7 +558,7 @@ impl InjectedStorageRO for Database {
             })
     }
 
-    fn injected_promise(&self, hash: HashOf<InjectedTransaction>) -> Option<Promise> {
+    fn promise(&self, hash: HashOf<InjectedTransaction>) -> Option<Promise> {
         self.kv.get(&Key::Promise(hash).to_bytes()).map(|data| {
             Promise::decode(&mut data.as_slice()).expect("Failed to decode data into `Promise`")
         })
@@ -574,7 +574,7 @@ impl InjectedStorageRW for Database {
             .put(&Key::InjectedTransaction(tx_hash).to_bytes(), tx.encode());
     }
 
-    fn set_injected_promise(&self, promise: Promise) {
+    fn set_promise(&self, promise: Promise) {
         tracing::trace!(injected_tx_hash = ?promise.tx_hash, "Set injected tx promise");
         self.kv
             .put(&Key::Promise(promise.tx_hash).to_bytes(), promise.encode());
