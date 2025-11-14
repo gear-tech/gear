@@ -127,8 +127,7 @@ fn regenerate_gsdk_scale() {
         .unwrap();
     let versions = <Vec<u32>>::decode(&mut &versions[..]).unwrap();
 
-    // This value is taken from `subxt`, which
-    // unfortunately doesn't reexport it.
+    // List of metadata versions supported by `frame-metadata` and `subxt`
     let supported_versions = [14, 15, 16];
     let version = versions
         .into_iter()
