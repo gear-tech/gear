@@ -341,8 +341,19 @@ jobs:
     strategy:
       matrix:
         profiles: ${{ fromJSON(needs.dynamic-matrix.outputs.profiles) }}
+        network:
+          - name: testnet
+            snapshot_url: https://snapshots.vara-network.io/vara-testnet.snap
+            snapshot_file: vara_ci_testnet.snap
+            disable_spec_name_check: true
+            run_checks_all: false
+          - name: mainnet
+            snapshot_url: https://snapshots.vara-network.io/vara-mainnet.snap
+            snapshot_file: vara_ci.snap
+            disable_spec_name_check: false
+            run_checks_all: true
       fail-fast: false
-    name: try-runtime (${{ matrix.profiles.name }})
+    name: try-runtime (${{ matrix.profiles.name }} / ${{ matrix.network.name }})
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
@@ -451,34 +462,48 @@ jobs:
             sync
           fi
 
-      - name: "Test: Download Vara Testnet snapshot"
-        run: curl -o vara_ci_testnet.snap -L https://snapshots.vara-network.io/vara-testnet.snap
+      - name: "Test: Download Vara ${{ matrix.network.name }} snapshot"
+        run: curl -o "${{ matrix.network.snapshot_file }}" -L "${{ matrix.network.snapshot_url }}"
 
-      - name: "Test: on-runtime-upgrade try-state (Testnet)"
-        run: >-
-          ./try-runtime
-          --runtime "$TRY_RUNTIME_WASM"
-          --disable-spec-name-check
-          on-runtime-upgrade
-          --blocktime 3000
-          --checks try-state
-          --disable-spec-version-check
-          --no-weight-warnings
-          snap -p vara_ci_testnet.snap
+      - name: "Test: on-runtime-upgrade try-state (${{ matrix.network.name }})"
+        shell: bash
+        env:
+          SNAPSHOT_FILE: ${{ matrix.network.snapshot_file }}
+          DISABLE_SPEC_NAME_CHECK: ${{ matrix.network.disable_spec_name_check }}
+        run: |
+          set -euo pipefail
 
-      - name: "Test: Download Vara Mainnet snapshot"
-        run: curl -o vara_ci.snap -L https://snapshots.vara-network.io/vara-mainnet.snap
+          EXTRA_ARGS=()
+          if [ "$DISABLE_SPEC_NAME_CHECK" = "true" ]; then
+            EXTRA_ARGS+=(--disable-spec-name-check)
+          fi
 
-      - name: "Test: on-runtime-upgrade"
-        run: >-
-          ./try-runtime
-          --runtime "$TRY_RUNTIME_WASM"
-          on-runtime-upgrade
-          --blocktime 3000
-          --checks all
-          --disable-spec-version-check
-          --no-weight-warnings
-          snap -p vara_ci.snap
+          ./try-runtime \
+            --runtime "$TRY_RUNTIME_WASM" \
+            "${EXTRA_ARGS[@]}" \
+            on-runtime-upgrade \
+            --blocktime 3000 \
+            --checks try-state \
+            --disable-spec-version-check \
+            --no-weight-warnings \
+            snap -p "$SNAPSHOT_FILE"
+
+      - name: "Test: on-runtime-upgrade all (${{ matrix.network.name }})"
+        if: ${{ matrix.network.run_checks_all }}
+        shell: bash
+        env:
+          SNAPSHOT_FILE: ${{ matrix.network.snapshot_file }}
+        run: |
+          set -euo pipefail
+
+          ./try-runtime \
+            --runtime "$TRY_RUNTIME_WASM" \
+            on-runtime-upgrade \
+            --blocktime 3000 \
+            --checks all \
+            --disable-spec-version-check \
+            --no-weight-warnings \
+            snap -p "$SNAPSHOT_FILE"
 
       - name: "System: Disable swap"
         if: env.SWAP_PATH != ''
