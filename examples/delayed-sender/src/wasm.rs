@@ -36,7 +36,7 @@ fn send_delayed_to_self() -> bool {
 
 fn parse_msg_dest() -> Option<ActorId> {
     msg::load()
-        .map(|dest: ActorId| {
+        .inspect(|&dest: ActorId| {
             unsafe {
                 MSG_DEST = Some(dest);
             }
