@@ -35,13 +35,9 @@ fn send_delayed_to_self() -> bool {
 }
 
 fn parse_msg_dest() -> Option<ActorId> {
-    #[allow(clippy::manual_inspect)]
     msg::load()
-        .map(|dest: ActorId| {
-            unsafe {
-                MSG_DEST = Some(dest);
-            }
-            dest
+        .inspect(|&dest: &ActorId| unsafe {
+            MSG_DEST = Some(dest);
         })
         .ok()
 }
