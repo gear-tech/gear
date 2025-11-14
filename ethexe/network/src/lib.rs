@@ -37,7 +37,7 @@ use anyhow::{Context, anyhow};
 use ethexe_common::{
     Address,
     ecdsa::PublicKey,
-    injected::SignedInjectedTransaction,
+    injected::{RpcOrNetworkInjectedTx, SignedInjectedTransaction},
     network::{SignedValidatorMessage, VerifiedValidatorMessage},
 };
 use ethexe_signer::Signer;
@@ -402,9 +402,10 @@ impl NetworkService {
                             self.validators.verify_message_initially(source, message);
                         (acceptance, message.map(NetworkEvent::ValidatorMessage))
                     }
+                    // TODO kuzmindev: should return event only in case when `transaction.recipient` == `my_address`.
                     gossipsub::Message::Injected(transaction) => (
                         MessageAcceptance::Accept,
-                        Some(NetworkEvent::InjectedTransaction(transaction)),
+                        Some(NetworkEvent::InjectedTransaction(transaction.tx)),
                     ),
                 });
 
@@ -450,7 +451,7 @@ impl NetworkService {
         self.swarm.behaviour_mut().gossipsub.publish(data.into())
     }
 
-    pub fn send_injected_transaction(&mut self, data: SignedInjectedTransaction) {
+    pub fn send_injected_transaction(&mut self, data: RpcOrNetworkInjectedTx) {
         self.swarm.behaviour_mut().injected.send_transaction(data);
     }
 }

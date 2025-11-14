@@ -25,7 +25,7 @@ use core::num::NonZero;
 use ethexe_common::{
     BlockHeader, HashOf, ProgramStates, Schedule, ScheduledTask, StateHashWithQueueSize,
     gear::{Message, StateTransition, ValueClaim},
-    injected::InjectedPromise,
+    injected::Promise,
 };
 use gear_core::rpc::ReplyInfo;
 use gprimitives::{ActorId, H256, MessageId};
@@ -137,7 +137,7 @@ impl InBlockTransitions {
     }
 
     /// Register new reply for injected transaction.
-    pub fn handle_injected_reply(&mut self, message_id: &MessageId, reply: ReplyInfo) {
+    pub fn maybe_store_injected_reply(&mut self, message_id: &MessageId, reply: ReplyInfo) {
         if let Some(maybe_reply) = self.injected_replies.get_mut(message_id) {
             *maybe_reply = Some(reply);
         }
@@ -186,14 +186,7 @@ impl InBlockTransitions {
         f(initial_state, transition)
     }
 
-    pub fn finalize(
-        self,
-    ) -> (
-        Vec<StateTransition>,
-        ProgramStates,
-        Schedule,
-        Vec<InjectedPromise>,
-    ) {
+    pub fn finalize(self) -> (Vec<StateTransition>, ProgramStates, Schedule, Vec<Promise>) {
         let Self {
             states,
             schedule,
@@ -209,7 +202,7 @@ impl InBlockTransitions {
                     // Safety: we trust that message_id was created from a valid SignedInjectedTransaction.
                     let tx_hash = unsafe { HashOf::new(message_id.into_bytes().into()) };
 
-                    InjectedPromise { tx_hash, reply }
+                    Promise { tx_hash, reply }
                 })
             })
             .collect();

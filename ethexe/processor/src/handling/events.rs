@@ -38,14 +38,13 @@ impl ProcessingHandler {
         self.update_state(tx.data().destination, |state, storage, _| -> Result<()> {
             // Build source from sender's Ethereum address
             let source = tx.public_key().to_address().into();
-            let message_id = tx.data().message_id();
             let is_init = state.requires_init_message();
 
             let raw_tx = tx.into_data();
 
             let dispatch = Dispatch::new(
                 storage,
-                message_id,
+                raw_tx.to_message_id(),
                 source,
                 raw_tx.payload.0,
                 raw_tx.value,

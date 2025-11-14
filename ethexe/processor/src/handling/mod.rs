@@ -81,10 +81,11 @@ impl Processor {
             .announce_schedule(announce.parent)
             .ok_or(ProcessorError::AnnounceScheduleNotFound(announce.parent))?;
 
+        // TODO kuzmindev: Remove this when NetworkAnnounce will be implemented.
         let injected_messages = announce
             .injected_transactions
             .iter()
-            .map(|tx| tx.data().message_id())
+            .map(|tx| tx.data().to_message_id())
             .collect();
 
         let transitions = InBlockTransitions::new(

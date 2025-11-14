@@ -40,7 +40,7 @@ use ethexe_common::{
     Address, CodeAndId, DEFAULT_BLOCK_GAS_LIMIT,
     ecdsa::{PrivateKey, PublicKey},
     events::{BlockEvent, MirrorEvent, RouterEvent},
-    injected::SignedInjectedTransaction,
+    injected::RpcOrNetworkInjectedTx,
 };
 use ethexe_compute::{ComputeConfig, ComputeService};
 use ethexe_consensus::{ConsensusService, SimpleConnectService, ValidatorService};
@@ -981,7 +981,7 @@ impl Node {
 
     pub async fn send_injected_transaction(
         &self,
-        tx: SignedInjectedTransaction,
+        tx: RpcOrNetworkInjectedTx,
     ) -> anyhow::Result<InjectedTransactionAcceptance> {
         let rpc_client = self.rpc_client().expect("no rpc client provided by node");
         rpc_client.send_injected_tx(tx).await

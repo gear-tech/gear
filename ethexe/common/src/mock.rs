@@ -174,7 +174,6 @@ impl<T: Mock<()>> Mock<()> for ValidatorMessage<T> {
 impl Mock<()> for InjectedTransaction {
     fn mock((): ()) -> Self {
         Self {
-            recipient: Default::default(),
             destination: Default::default(),
             payload: vec![].into(),
             value: 0,

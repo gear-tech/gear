@@ -24,7 +24,7 @@ use apis::{
     ProgramApi, ProgramServer,
 };
 use ethexe_blob_loader::local::LocalBlobStorage;
-use ethexe_common::injected::SignedInjectedTransaction;
+use ethexe_common::injected::RpcOrNetworkInjectedTx;
 use ethexe_db::Database;
 use ethexe_processor::RunnerConfig;
 use futures::{FutureExt, Stream, stream::FusedStream};
@@ -211,7 +211,7 @@ impl FusedStream for RpcReceiver {
 #[derive(Debug)]
 pub enum RpcEvent {
     InjectedTransaction {
-        transaction: SignedInjectedTransaction,
+        transaction: RpcOrNetworkInjectedTx,
         response_sender: oneshot::Sender<InjectedTransactionAcceptance>,
     },
 }

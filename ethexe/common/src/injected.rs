@@ -32,9 +32,22 @@ pub type SignedInjectedTransaction = SignedData<InjectedTransaction>;
 #[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
 #[cfg_attr(feature = "serde", derive(Hash))]
 #[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
-pub struct InjectedTransaction {
+pub struct RpcOrNetworkInjectedTx {
     /// Address of validator the transaction intended for
     pub recipient: Address,
+    pub tx: SignedInjectedTransaction,
+}
+
+impl RpcOrNetworkInjectedTx {
+    pub fn new(recipient: Address, tx: SignedInjectedTransaction) -> Self {
+        Self { recipient, tx }
+    }
+}
+
+#[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(feature = "serde", derive(Hash))]
+#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
+pub struct InjectedTransaction {
     /// Destination program inside `Vara.eth`.
     pub destination: ActorId,
     /// Payload of the message.
@@ -53,7 +66,6 @@ pub struct InjectedTransaction {
 impl ToDigest for InjectedTransaction {
     fn update_hasher(&self, hasher: &mut Keccak256) {
         let Self {
-            recipient,
             destination,
             payload,
             value,
@@ -61,7 +73,6 @@ impl ToDigest for InjectedTransaction {
             salt,
         } = self;
 
-        recipient.0.update_hasher(hasher);
         destination.into_bytes().update_hasher(hasher);
         payload.update_hasher(hasher);
         value.to_be_bytes().update_hasher(hasher);
@@ -78,17 +89,17 @@ impl InjectedTransaction {
     }
 
     /// Creates [`MessageId`] from [`InjectedTransaction`].
-    pub fn message_id(&self) -> MessageId {
+    pub fn to_message_id(&self) -> MessageId {
         MessageId::new(self.to_hash().inner().0)
     }
 }
 
-/// [`InjectedPromise`] represents the guaranteed reply for [`InjectedTransaction`].
+/// [`Promise`] represents the guaranteed reply for [`InjectedTransaction`].
 ///
 /// Note: Validator must ensure the validity of the promise, because of it can be slashed for
 /// providing an invalid promise.
 #[derive(Debug, Clone, Encode, Decode, PartialEq, Eq, Hash)]
-pub struct InjectedPromise {
+pub struct Promise {
     /// Hash of the injected transaction this reply corresponds to.
     pub tx_hash: HashOf<InjectedTransaction>,
     /// Reply data for injected message.
@@ -109,11 +120,11 @@ impl ToDigest for ReplyInfo {
     }
 }
 
-/// Signed wrapper on top of [`InjectedPromise`].
+/// Signed wrapper on top of [`Promise`].
 /// It will be shared among other validators as a proof of promise.
-pub type SignedInjectedPromise = SignedData<InjectedPromise>;
+pub type SignedPromise = SignedData<Promise>;
 
-impl ToDigest for InjectedPromise {
+impl ToDigest for Promise {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
         let Self { tx_hash, reply } = self;
 

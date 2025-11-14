@@ -25,7 +25,7 @@ use crate::{
     Schedule, ValidatorsVec,
     events::BlockEvent,
     gear::StateTransition,
-    injected::{InjectedPromise, InjectedTransaction, SignedInjectedTransaction},
+    injected::{InjectedTransaction, Promise, SignedInjectedTransaction},
 };
 use alloc::{
     collections::{BTreeSet, VecDeque},
@@ -134,13 +134,13 @@ pub trait InjectedStorageRO {
     ) -> Option<SignedInjectedTransaction>;
 
     /// Returns the promise by transaction hash.
-    fn injected_promise(&self, hash: HashOf<InjectedTransaction>) -> Option<InjectedPromise>;
+    fn injected_promise(&self, hash: HashOf<InjectedTransaction>) -> Option<Promise>;
 }
 
 #[auto_impl::auto_impl(&)]
 pub trait InjectedStorageRW: InjectedStorageRO {
     fn set_injected_transaction(&self, tx: SignedInjectedTransaction);
-    fn set_injected_promise(&self, promise: InjectedPromise);
+    fn set_injected_promise(&self, promise: Promise);
 }
 
 #[derive(Debug, Clone, Default, Encode, Decode, PartialEq, Eq, Hash)]

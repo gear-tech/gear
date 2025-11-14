@@ -460,7 +460,7 @@ impl Service {
                                     let (reply, _) = reply.into_parts();
                                     consensus.receive_validation_reply(reply)?
                                 }
-                                VerifiedValidatorMessage::InjectedPromise(promise) => {
+                                VerifiedValidatorMessage::Promise(promise) => {
                                     let promise = promise.map(|p| p.payload);
                                     let (promise, _pub_key) = promise.into_parts();
 
@@ -508,8 +508,8 @@ impl Service {
                             transaction,
                             response_sender,
                         } => {
-                            if validator_address == Some(transaction.data().recipient) {
-                                consensus.receive_injected_transaction(transaction)?;
+                            if validator_address == Some(transaction.recipient) {
+                                consensus.receive_injected_transaction(transaction.tx)?;
                             } else {
                                 let Some(network) = network.as_mut() else {
                                     continue;

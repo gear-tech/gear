@@ -328,7 +328,7 @@ impl<'de> Deserialize<'de> for ActorId {
         }
 
         let mut actor_id = [0u8; 32];
-        actor_id[12..32].copy_from_slice(&bytes);
+        actor_id[12..].copy_from_slice(&bytes);
 
         Ok(ActorId(actor_id))
     }
