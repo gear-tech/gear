@@ -489,20 +489,10 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
         private
         returns (bytes32)
     {
-        bool isPositiveFound = false;
         bytes memory transitionsHashes;
 
         for (uint256 i = 0; i < _transitions.length; i++) {
             Gear.StateTransition calldata transition = _transitions[i];
-
-            require(
-                !(isPositiveFound && transition.valueToReceiveNegativeSign),
-                "state transitions must be sorted by valueToReceiveNegativeSign in descending order"
-            );
-
-            if (!transition.valueToReceiveNegativeSign) {
-                isPositiveFound = true;
-            }
 
             require(
                 router.protocolData.programs[transition.actorId] != 0, "couldn't perform transition for unknown program"
