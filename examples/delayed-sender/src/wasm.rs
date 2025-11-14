@@ -34,25 +34,25 @@ fn send_delayed_to_self() -> bool {
     to_self
 }
 
-fn init_msg_dest() {
-    if let Ok(dest) = msg::load() {
-        unsafe {
-            MSG_DEST = Some(dest);
-        }
-    }
+fn parse_msg_dest() -> Option<ActorId> {
+    msg::load()
+        .map(|dest: ActorId| {
+            unsafe {
+                MSG_DEST = Some(dest);
+            }
+            dest
+        })
+        .ok()
+}
+
+fn parse_delay() -> Option<u32> {
+    msg::load().ok()
 }
 
 fn msg_dest() -> ActorId {
     match unsafe { MSG_DEST } {
         Some(dest) => dest,
         None => msg::source(),
-    }
-}
-
-fn delay() -> u32 {
-    match msg::load() {
-        Ok(delay) => delay,
-        Err(_) => DELAY,
     }
 }
 
@@ -63,8 +63,18 @@ extern "C" fn init() {
         return;
     }
 
-    init_msg_dest();
-    let delay = delay();
+    // Parse message destination and delay from init payload
+    let delay = if parse_msg_dest().is_none() {
+        parse_delay().unwrap_or(DELAY)
+    } else {
+        DELAY
+    };
+
+    gstd::debug!(
+        "Init, sending delayed message to: {:?} with delay: {:?}",
+        msg_dest(),
+        delay
+    );
 
     msg::send_bytes_delayed(msg_dest(), "Delayed hello!", exec::value_available(), delay).unwrap();
 }
