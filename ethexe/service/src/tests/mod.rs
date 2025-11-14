@@ -2005,7 +2005,14 @@ async fn catch_up() {
                 batch.to_digest(),
                 batch
             );
-            self.router.commit_batch(batch, signatures).await
+            let pending = self.router.commit_batch_pending(batch, signatures).await?;
+
+            log::info!("📗 LateCommitter waiting for commitment to be mined ...");
+            self.wait_signal_sender.send(()).unwrap();
+            pending
+                .try_get_receipt()
+                .await
+                .map(|r| r.transaction_hash.0.into())
         }
     }
 
@@ -2108,27 +2115,36 @@ async fn catch_up() {
             pending.try_get_message_send_receipt().await.unwrap().1,
         );
 
+        // Waiting until Alice is ready for commitment1
         wait_signal_receiver.recv().await.unwrap();
+
+        // Force new block, so that commitment1 would skip this block
         env.force_new_block().await;
+
+        // Send signal to make commitment1 and wait until it's sent
+        commit_signal_sender.send(()).unwrap();
+        wait_signal_receiver.recv().await.unwrap();
+
+        // Wait until Alice is ready for next commitment2
+        wait_signal_receiver.recv().await.unwrap();
+
+        // Force new block to commit commitment1
+        env.force_new_block().await;
+
+        // Send signal to make commitment2,
+        // but it would not be applied because it's not above previous one
         commit_signal_sender.send(()).unwrap();
 
-        // Wait until Alice is ready for the next block
-        wait_signal_receiver.recv().await.unwrap();
-        env.force_new_block().await;
-        // This commitment would not applied because it's not above previous one
-        commit_signal_sender.send(()).unwrap();
-
-        // Now previous commitment must be applied in the forced block
+        // Now commitment1 must be applied in the forced block
         wait_for.wait_for().await.unwrap();
     }
 
     log::info!("📗 Waiting for two rejected announces from Bob");
-    bob.listener()
-        .wait_for_announce_rejected(AnnounceId::Any)
-        .await;
-    bob.listener()
-        .wait_for_announce_rejected(AnnounceId::Any)
-        .await;
+    for _ in 0..2 {
+        bob.listener()
+            .wait_for_announce_rejected(AnnounceId::Any)
+            .await;
+    }
 
     log::info!("📗 Sending third PING message, one more attempt for Bob to catch up Alice");
     {
@@ -2145,23 +2161,30 @@ async fn catch_up() {
             pending.try_get_message_send_receipt().await.unwrap().1,
         );
 
+        // Waiting until Alice is ready for commitment1
         wait_signal_receiver.recv().await.unwrap();
-        env.force_new_block().await;
-        commit_signal_sender.send(()).unwrap();
 
+        // Force new block, so that commitment1 would skip this block
+        env.force_new_block().await;
+
+        // Send signal to make commitment1 and wait until it's sent
+        commit_signal_sender.send(()).unwrap();
         wait_signal_receiver.recv().await.unwrap();
+
+        // Wait until Alice is ready for next commitment2
+        wait_signal_receiver.recv().await.unwrap();
+
+        // Force new block to commit commitment1, fail because expired
         env.force_new_block().await;
+
+        // Send signal to make commitment2 and wait until it's sent
         commit_signal_sender.send(()).unwrap();
+        wait_signal_receiver.recv().await.unwrap();
 
-        tokio::time::sleep(Duration::from_secs(1)).await;
+        // Force new block to commit commitment2, succeed
         env.force_new_block().await;
 
-        // log::info!("📗 fifth");
-        // for i in 0..10 {
-        //     env.force_new_block().await;
-        //     tokio::time::sleep(Duration::from_millis(100)).await;
-        // }
-
+        // Now commitment1 must be applied in the forced block
         wait_for.wait_for().await.unwrap();
     }
 
