@@ -53,7 +53,7 @@ impl EthereumParams {
     pub const BLOCK_TIME: u64 = 12;
 
     /// Default Ethereum RPC.
-    pub const DEFAULT_ETHEREUM_RPC: &str = "http://localhost:8545";
+    pub const DEFAULT_ETHEREUM_RPC: &str = "ws://localhost:8545";
 
     /// Default Ethereum Beacon RPC.
     pub const DEFAULT_ETHEREUM_BEACON_RPC: &str = "http://localhost:5052";

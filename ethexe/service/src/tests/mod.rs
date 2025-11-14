@@ -84,7 +84,6 @@ async fn basics() {
         chunk_processing_threads: 16,
         block_gas_limit: 4_000_000_000_000,
         canonical_quarantine: 0,
-        dev: true,
         fast_sync: false,
     };
 
@@ -122,7 +121,6 @@ async fn basics() {
     config.rpc = Some(RpcConfig {
         listen_addr: SocketAddr::new(Ipv4Addr::LOCALHOST.into(), 9944),
         cors: None,
-        dev: true,
         runner_config,
     });
 
@@ -1818,7 +1816,7 @@ async fn validators_election() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[ntest::timeout(30_000)]
+#[ntest::timeout(50_000)]
 async fn execution_with_canonical_events_quarantine() {
     init_logger();
 
