@@ -198,6 +198,7 @@ impl Processor {
             announce.block_hash
         );
 
+        // TODO kuzmindev: remove clone here
         let mut handler = self.handler(announce.clone())?;
 
         for tx in announce.injected_transactions {
