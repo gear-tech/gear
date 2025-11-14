@@ -20,10 +20,9 @@ pub use crate::apis::InjectedTransactionAcceptance;
 
 use anyhow::{Result, anyhow};
 use apis::{
-    BlockApi, BlockServer, CodeApi, CodeServer, DevApi, DevServer, InjectedApi, InjectedServer,
-    ProgramApi, ProgramServer,
+    BlockApi, BlockServer, CodeApi, CodeServer, InjectedApi, InjectedServer, ProgramApi,
+    ProgramServer,
 };
-use ethexe_blob_loader::local::LocalBlobStorage;
 use ethexe_common::injected::RpcOrNetworkInjectedTx;
 use ethexe_db::Database;
 use ethexe_processor::RunnerConfig;
@@ -67,8 +66,6 @@ pub struct RpcConfig {
     pub listen_addr: SocketAddr,
     /// CORS.
     pub cors: Option<Vec<String>>,
-    /// Dev mode.
-    pub dev: bool,
     /// Runner config is created with the data
     /// for processor, but with gas limit multiplier applied.
     pub runner_config: RunnerConfig,
@@ -77,16 +74,11 @@ pub struct RpcConfig {
 pub struct RpcService {
     config: RpcConfig,
     db: Database,
-    blobs_storage: Option<LocalBlobStorage>,
 }
 
 impl RpcService {
-    pub fn new(config: RpcConfig, db: Database, blobs_storage: Option<LocalBlobStorage>) -> Self {
-        Self {
-            config,
-            db,
-            blobs_storage,
-        }
+    pub fn new(config: RpcConfig, db: Database) -> Self {
+        Self { config, db }
     }
 
     pub const fn port(&self) -> u16 {
@@ -114,12 +106,6 @@ impl RpcService {
         module.merge(BlockServer::into_rpc(BlockApi::new(self.db.clone())))?;
         module.merge(CodeServer::into_rpc(CodeApi::new(self.db.clone())))?;
         module.merge(InjectedServer::into_rpc(InjectedApi::new(rpc_sender)))?;
-
-        if self.config.dev {
-            module.merge(DevServer::into_rpc(DevApi::new(
-                self.blobs_storage.unwrap().clone(),
-            )))?;
-        }
 
         let (stop_handle, server_handle) = stop_channel();
 

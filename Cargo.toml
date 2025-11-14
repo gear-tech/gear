@@ -115,7 +115,7 @@ members = [
 ]
 
 [workspace.dependencies]
-alloy = "1.0"
+alloy = "1.1"
 alloy-primitives = { version = "1.4", default-features = false }
 alloy-sol-types = { version = "1.4", default-features = false }
 anyhow = { version = "1.0.86", default-features = false }
@@ -602,7 +602,7 @@ inherits = "release"
 debug = true
 
 [patch.crates-io]
-alloy = { version = "1.0", git = "https://github.com/alessandromazza98/alloy", branch = "ale/add-eip7594-to-transaction-request" }
+alloy = { version = "1.1", git = "https://github.com/gear-tech/alloy" }
 # these patched dependecies force their `sign_ext` feature to be used by Substrate dependencies
 parity-wasm = { version = "0.45.0", git = "https://github.com/gear-tech/parity-wasm", branch = "v0.45.0-sign-ext" }
 wasmi-validation = { version = "0.5.0", git = "https://github.com/gear-tech/wasmi", branch = "v0.13.2-sign-ext" }

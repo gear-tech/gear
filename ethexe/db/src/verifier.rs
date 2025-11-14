@@ -29,10 +29,7 @@ use ethexe_runtime_common::state::{MessageQueue, MessageQueueHashWithSize};
 use gear_core::code::CodeMetadata;
 use gprimitives::{CodeId, H256};
 use parity_scale_codec::Encode;
-use std::{
-    collections::{BTreeSet, HashSet},
-    hash::Hash,
-};
+use std::{collections::BTreeSet, hash::Hash};
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, Hash)]
 pub enum IntegrityVerifierError {
@@ -114,6 +111,8 @@ impl IntegrityVerifier {
 
         #[cfg(debug_assertions)]
         {
+            use std::collections::HashSet;
+
             self.errors
                 .clone()
                 .into_iter()

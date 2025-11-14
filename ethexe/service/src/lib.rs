@@ -19,10 +19,7 @@
 use crate::config::{Config, ConfigPublicKey};
 use anyhow::{Context, Result, bail};
 use async_trait::async_trait;
-use ethexe_blob_loader::{
-    BlobLoader, BlobLoaderEvent, BlobLoaderService, ConsensusLayerConfig,
-    local::{LocalBlobLoader, LocalBlobStorage},
-};
+use ethexe_blob_loader::{BlobLoader, BlobLoaderEvent, BlobLoaderService, ConsensusLayerConfig};
 use ethexe_common::{
     Address, db::InjectedStorageRW, ecdsa::PublicKey, gear::CodeState,
     network::VerifiedValidatorMessage,
@@ -120,23 +117,15 @@ impl Service {
         .with_context(|| "failed to open database")?;
         let db = Database::from_one(&rocks_db);
 
-        let (blob_loader, local_blob_storage_for_rpc) = if config.node.dev {
-            let storage = LocalBlobStorage::default();
-            let blob_loader = LocalBlobLoader::new(storage.clone());
-
-            (blob_loader.into_box(), Some(storage))
-        } else {
-            let consensus_config = ConsensusLayerConfig {
-                ethereum_rpc: config.ethereum.rpc.clone(),
-                ethereum_beacon_rpc: config.ethereum.beacon_rpc.clone(),
-                beacon_block_time: alloy::eips::merge::SLOT_DURATION,
-            };
-            let blob_loader = BlobLoader::new(db.clone(), consensus_config)
-                .await
-                .context("failed to create blob loader")?;
-
-            (blob_loader.into_box(), None)
+        let consensus_config = ConsensusLayerConfig {
+            ethereum_rpc: config.ethereum.rpc.clone(),
+            ethereum_beacon_rpc: config.ethereum.beacon_rpc.clone(),
+            beacon_block_time: alloy::eips::merge::SLOT_DURATION,
         };
+        let blob_loader = BlobLoader::new(db.clone(), consensus_config)
+            .await
+            .context("failed to create blob loader")?
+            .into_box();
 
         let observer =
             ObserverService::new(&config.ethereum, config.node.eth_max_sync_depth, db.clone())
@@ -263,7 +252,7 @@ impl Service {
         let rpc = config
             .rpc
             .as_ref()
-            .map(|config| RpcService::new(config.clone(), db.clone(), local_blob_storage_for_rpc));
+            .map(|config| RpcService::new(config.clone(), db.clone()));
 
         let compute_config = ComputeConfig::new(config.node.canonical_quarantine);
         let compute = ComputeService::new(compute_config, db.clone(), processor);
