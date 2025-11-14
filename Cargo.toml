@@ -502,6 +502,7 @@ demo-wait-timeout = { path = "examples/wait-timeout" }
 demo-waiting-proxy = { path = "examples/waiting-proxy" }
 demo-wat = { path = "examples/wat" }
 
+# TODO: fix demos' feature resolving bug with workspace build
 demo-value-sender-ethexe = { path = "examples/value-sender-ethexe" }
 demo-delayed-sender-ethexe = { path = "examples/delayed-sender-ethexe" }
 
