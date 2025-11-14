@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::config::{Config, ConfigPublicKey};
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result, anyhow, bail};
 use async_trait::async_trait;
 use core::panic;
 use ethexe_blob_loader::{
@@ -356,7 +356,7 @@ impl Service {
 
     async fn run_inner(self) -> Result<()> {
         let Service {
-            db: _,
+            db,
             mut network,
             mut observer,
             mut blob_loader,
@@ -574,8 +574,8 @@ impl Service {
 
                         network.publish_message(message);
                     }
-                    ConsensusEvent::CommitmentSubmitted(tx) => {
-                        log::info!("Commitment submitted, tx: {tx}");
+                    ConsensusEvent::CommitmentSubmitted(info) => {
+                        log::info!("{info}");
                     }
                     ConsensusEvent::Warning(msg) => {
                         log::warn!("Consensus service warning: {msg}");

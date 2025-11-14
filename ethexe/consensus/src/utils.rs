@@ -208,7 +208,7 @@ pub fn aggregate_chain_commitment<DB: BlockMetaStorageRO + OnChainStorageRO + An
     )))
 }
 
-// TODO(kuzmindev): this is a temporal solution. In future need to impelement DKG algorithm.
+// TODO(kuzmindev): this is a temporal solution. In future need to implement DKG algorithm.
 pub fn validators_commitment(era: u64, validators: ValidatorsVec) -> Result<ValidatorsCommitment> {
     let validators_identifiers = validators
         .iter()
@@ -252,13 +252,14 @@ pub fn validators_commitment(era: u64, validators: ValidatorsVec) -> Result<Vali
     })
 }
 
-pub fn create_batch_commitment<DB: BlockMetaStorageRO>(
+pub fn create_batch_commitment<DB: BlockMetaStorageRO + OnChainStorageRO + AnnounceStorageRO>(
     db: &DB,
     block: &SimpleBlockData,
     chain_commitment: Option<ChainCommitment>,
     code_commitments: Vec<CodeCommitment>,
     validators_commitment: Option<ValidatorsCommitment>,
     rewards_commitment: Option<RewardsCommitment>,
+    commitment_delay_limit: u32,
 ) -> Result<Option<BatchCommitment>> {
     if chain_commitment.is_none()
         && code_commitments.is_empty()
@@ -282,15 +283,103 @@ pub fn create_batch_commitment<DB: BlockMetaStorageRO>(
             )
         })?;
 
+    let expiry = chain_commitment
+        .as_ref()
+        .map(|c| calculate_batch_expiry(db, block, c.head_announce, commitment_delay_limit))
+        .transpose()?
+        .and_then(|r| r)
+        .unwrap_or(u8::MAX);
+
+    tracing::trace!(
+        "Batch commitment expiry for block {} is {:?}",
+        block.hash,
+        expiry
+    );
+
     Ok(Some(BatchCommitment {
         block_hash: block.hash,
         timestamp: block.header.timestamp,
         previous_batch: last_committed,
+        expiry,
         chain_commitment,
         code_commitments,
         validators_commitment,
         rewards_commitment,
     }))
+}
+
+pub fn calculate_batch_expiry<DB: BlockMetaStorageRO + OnChainStorageRO + AnnounceStorageRO>(
+    db: &DB,
+    block: &SimpleBlockData,
+    head_announce_hash: HashOf<Announce>,
+    commitment_delay_limit: u32,
+) -> Result<Option<u8>> {
+    let head_announce = db
+        .announce(head_announce_hash)
+        .ok_or_else(|| anyhow!("Cannot get announce by {head_announce_hash}"))?;
+
+    let head_announce_block_header = db
+        .block_header(head_announce.block_hash)
+        .ok_or_else(|| anyhow!("block header not found for({})", head_announce.block_hash))?;
+
+    let head_delay = block
+        .header
+        .height
+        .checked_sub(head_announce_block_header.height)
+        .ok_or_else(|| {
+            anyhow!(
+                "Head announce {} has bigger height {}, than batch height {}",
+                head_announce_hash,
+                head_announce_block_header.height,
+                block.header.height,
+            )
+        })?;
+
+    // Amount of announces which we should check to determine if there are not-base announces in the commitment.
+    let Some(announces_to_check_amount) = commitment_delay_limit.checked_sub(head_delay) else {
+        // No need to set expiry - head announce is old enough, so cannot contain any not-base announces.
+        return Ok(None);
+    };
+
+    if announces_to_check_amount == 0 {
+        // No need to set expiry - head announce is old enough, so cannot contain any not-base announces.
+        return Ok(None);
+    }
+
+    let mut oldest_not_base_announce_depth = (!head_announce.is_base()).then_some(0);
+    let mut current_announce_hash = head_announce.parent;
+
+    if announces_to_check_amount == 1 {
+        // If head announce is not base and older than commitment delay limit - 1, then expiry is only 1.
+        return Ok(oldest_not_base_announce_depth.map(|_| 1));
+    }
+
+    let last_committed_announce = db
+        .block_meta(block.hash)
+        .last_committed_announce
+        .ok_or_else(|| anyhow!("last committed announce not found for block {}", block.hash))?;
+
+    // from 1 because we have already checked head announce (note announces_to_check_amount > 1)
+    for i in 1..announces_to_check_amount {
+        if current_announce_hash == last_committed_announce {
+            break;
+        }
+
+        let current_announce = db
+            .announce(current_announce_hash)
+            .ok_or_else(|| anyhow!("Cannot get announce by {current_announce_hash}",))?;
+
+        if !current_announce.is_base() {
+            oldest_not_base_announce_depth = Some(i);
+        }
+
+        current_announce_hash = current_announce.parent;
+    }
+
+    Ok(oldest_not_base_announce_depth
+        .map(|depth| announces_to_check_amount - depth)
+        .map(TryInto::try_into)
+        .transpose()?)
 }
 
 pub fn has_duplicates<T: std::hash::Hash + Eq>(data: &[T]) -> bool {
@@ -572,5 +661,55 @@ mod tests {
 
         let data = vec![1, 2, 3, 4, 5, 3];
         assert!(has_duplicates(&data));
+    }
+
+    #[test]
+    fn test_batch_expiry_calculation() {
+        {
+            let db = Database::memory();
+            let chain = BlockChain::mock(1).setup(&db);
+            let block = chain.blocks[1].to_simple();
+            let expiry =
+                calculate_batch_expiry(&db, &block, db.top_announce_hash(block.hash), 5).unwrap();
+            assert!(expiry.is_none(), "Expiry should be None");
+        }
+
+        {
+            let db = Database::memory();
+            let chain = BlockChain::mock(10)
+                .tap_mut(|c| {
+                    c.block_top_announce_mut(10).announce.gas_allowance = Some(10);
+                    c.blocks[10].as_prepared_mut().announces =
+                        Some([c.block_top_announce(10).announce.to_hash()].into());
+                })
+                .setup(&db);
+
+            let block = chain.blocks[10].to_simple();
+            let expiry =
+                calculate_batch_expiry(&db, &block, db.top_announce_hash(block.hash), 100).unwrap();
+            assert_eq!(
+                expiry,
+                Some(100),
+                "Expiry should be 100 as there is one not-base announce"
+            );
+        }
+
+        {
+            let db = Database::memory();
+            let batch = prepare_chain_for_batch_commitment(&db);
+            let block = db.simple_block_data(batch.block_hash);
+            let expiry = calculate_batch_expiry(
+                &db,
+                &block,
+                batch.chain_commitment.as_ref().unwrap().head_announce,
+                3,
+            )
+            .unwrap()
+            .unwrap();
+            assert_eq!(
+                expiry, batch.expiry,
+                "Expiry should match the one in the batch commitment"
+            );
+        }
     }
 }

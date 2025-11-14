@@ -10,9 +10,8 @@ import {WrappedVara} from "../src/WrappedVara.sol";
 
 import {Middleware} from "../src/Middleware.sol";
 import {IMiddleware} from "../src/IMiddleware.sol";
-import {
-    IDefaultOperatorRewardsFactory
-} from "symbiotic-rewards/src/interfaces/defaultOperatorRewards/IDefaultOperatorRewardsFactory.sol";
+import {IDefaultOperatorRewardsFactory} from
+    "symbiotic-rewards/src/interfaces/defaultOperatorRewards/IDefaultOperatorRewardsFactory.sol";
 
 contract DeploymentScript is Script {
     WrappedVara public wrappedVara;
@@ -42,7 +41,8 @@ contract DeploymentScript is Script {
         address middlewareAddress = vm.computeCreateAddress(deployerAddress, vm.getNonce(deployerAddress) + 3);
 
         router = Router(
-            payable(Upgrades.deployTransparentProxy(
+            payable(
+                Upgrades.deployTransparentProxy(
                     "Router.sol",
                     deployerAddress,
                     abi.encodeCall(
@@ -60,7 +60,8 @@ contract DeploymentScript is Script {
                             validatorsArray
                         )
                     )
-                ))
+                )
+            )
         );
 
         mirror = new Mirror(address(router));

@@ -40,8 +40,12 @@ library Clones {
         Memory.writeWord(
             memPtr,
             0x0280,
-            (((uint256(uint160(router)) << 0xa0)
-                        | (0x0000000000000000000000005afa156100d4575f808051368280378136915af4)))
+            (
+                (
+                    (uint256(uint160(router)) << 0xa0)
+                        | (0x0000000000000000000000005afa156100d4575f808051368280378136915af4)
+                )
+            )
         );
         Memory.writeWord(memPtr, 0x02a0, 0x3d5f803e1561029a573d5ff35b3d5ffd00000000000000000000000000000000);
 

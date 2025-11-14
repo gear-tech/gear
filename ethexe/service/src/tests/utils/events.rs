@@ -178,17 +178,52 @@ impl ServiceEventsListener<'_> {
         id: impl Into<AnnounceId>,
     ) -> HashOf<Announce> {
         let id = id.into();
-        self.apply_until(|event| match (id, event) {
-            (AnnounceId::BlockHash(_), _) => unimplemented!("do not support BlockHash here yet"),
-            (
-                AnnounceId::Any,
-                TestingEvent::Consensus(ConsensusEvent::AnnounceRejected(announce_hash)),
-            ) => Ok(Some(announce_hash)),
-            (
-                AnnounceId::AnnounceHash(waited_announce_hash),
-                TestingEvent::Consensus(ConsensusEvent::AnnounceRejected(announce_hash)),
-            ) => Ok((waited_announce_hash == announce_hash).then_some(announce_hash)),
-            _ => Ok(None),
+        self.apply_until(|event| {
+            let TestingEvent::Consensus(ConsensusEvent::AnnounceRejected(announce_hash)) = event
+            else {
+                return Ok(None);
+            };
+
+            match id {
+                AnnounceId::Any => Ok(Some(announce_hash)),
+                AnnounceId::AnnounceHash(waited_announce_hash) => {
+                    Ok((waited_announce_hash == announce_hash).then_some(announce_hash))
+                }
+                AnnounceId::BlockHash(_) => unimplemented!("do not support BlockHash here yet"),
+            }
+        })
+        .await
+        .unwrap()
+    }
+
+    pub async fn wait_for_announce_accepted(
+        &mut self,
+        id: impl Into<AnnounceId>,
+    ) -> HashOf<Announce> {
+        let id = id.into();
+        let db = self.db.clone();
+        self.apply_until(|event| {
+            let TestingEvent::Consensus(ConsensusEvent::AnnounceAccepted(announce_hash)) = event
+            else {
+                return Ok(None);
+            };
+
+            let found = match id {
+                AnnounceId::Any => Some(announce_hash),
+                AnnounceId::AnnounceHash(waited_announce_hash) => {
+                    (waited_announce_hash == announce_hash).then_some(announce_hash)
+                }
+                AnnounceId::BlockHash(block_hash) => db
+                    .announce(announce_hash)
+                    .unwrap_or_else(|| {
+                        panic!("Computed announce {announce_hash} not found in listener's node DB")
+                    })
+                    .block_hash
+                    .eq(&block_hash)
+                    .then_some(announce_hash),
+            };
+
+            Ok(found)
         })
         .await
         .unwrap()

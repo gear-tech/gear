@@ -310,8 +310,8 @@ mod tests {
 
         let _tx = state
             .context_mut()
-            .submission_task
-            .take()
+            .tasks
+            .front_mut()
             .expect("expect submission task here")
             .await
             .unwrap();
@@ -400,8 +400,8 @@ mod tests {
 
         let _tx = state
             .context_mut()
-            .submission_task
-            .take()
+            .tasks
+            .front_mut()
             .expect("expect submission task here")
             .await
             .unwrap();

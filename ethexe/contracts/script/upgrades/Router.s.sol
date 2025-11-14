@@ -16,12 +16,8 @@ contract RouterScript is Script {
 
         vm.startBroadcast(privateKey);
 
-        bytes memory data = reinitialize
-            ? abi.encodeCall(
-                Router.reinitialize,
-                () /*Router.reinitialize arguments*/
-            )
-            : new bytes(0);
+        bytes memory data =
+            reinitialize ? abi.encodeCall(Router.reinitialize, () /*Router.reinitialize arguments*/ ) : new bytes(0);
         Upgrades.upgradeProxy(routerAddress, "Router.sol", data);
 
         if (reinitialize) {

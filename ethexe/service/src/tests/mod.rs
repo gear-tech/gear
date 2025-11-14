@@ -33,7 +33,7 @@ use alloy::{
     providers::{Provider as _, WalletProvider, ext::AnvilApi},
 };
 use ethexe_common::{
-    Announce, HashOf, ScheduledTask,
+    Announce, HashOf, ScheduledTask, ToDigest,
     db::*,
     ecdsa::ContractSignature,
     events::{BlockEvent, MirrorEvent, RouterEvent},
@@ -1991,7 +1991,7 @@ async fn catch_up() {
             batch: BatchCommitment,
             signatures: Vec<ContractSignature>,
         ) -> anyhow::Result<H256> {
-            log::info!("📗 LateCommitter wait for signal");
+            log::info!("📗 LateCommitter wait for signal to commit ...");
             self.wait_signal_sender.send(()).unwrap();
             self.commit_signal_receiver
                 .lock()
@@ -2000,13 +2000,18 @@ async fn catch_up() {
                 .await
                 .unwrap();
 
-            log::info!("📗 LateCommitter committing batch {:?}", batch);
+            log::info!(
+                "📗 LateCommitter committing batch {}: {:?}",
+                batch.to_digest(),
+                batch
+            );
             self.router.commit_batch(batch, signatures).await
         }
     }
 
     let config = TestEnvConfig {
         network: EnvNetworkConfig::Enabled,
+        commitment_delay_limit: 3,
         ..Default::default()
     };
     let mut env = TestEnv::new(config).await.unwrap();
@@ -2107,9 +2112,13 @@ async fn catch_up() {
         env.force_new_block().await;
         commit_signal_sender.send(()).unwrap();
 
+        // Wait until Alice is ready for the next block
         wait_signal_receiver.recv().await.unwrap();
         env.force_new_block().await;
+        // This commitment would not applied because it's not above previous one
+        commit_signal_sender.send(()).unwrap();
 
+        // Now previous commitment must be applied in the forced block
         wait_for.wait_for().await.unwrap();
     }
 
@@ -2142,15 +2151,23 @@ async fn catch_up() {
 
         wait_signal_receiver.recv().await.unwrap();
         env.force_new_block().await;
+        commit_signal_sender.send(()).unwrap();
+
+        tokio::time::sleep(Duration::from_secs(1)).await;
+        env.force_new_block().await;
+
+        // log::info!("📗 fifth");
+        // for i in 0..10 {
+        //     env.force_new_block().await;
+        //     tokio::time::sleep(Duration::from_millis(100)).await;
+        // }
 
         wait_for.wait_for().await.unwrap();
     }
 
-    log::info!("📗 Still Bob rejects two announces, waiting...");
+    log::info!("📗 Bob accepts announce from Alice at last");
+    let latest_block = env.latest_block().await.hash;
     bob.listener()
-        .wait_for_announce_rejected(AnnounceId::Any)
-        .await;
-    bob.listener()
-        .wait_for_announce_rejected(AnnounceId::Any)
+        .wait_for_announce_accepted(latest_block)
         .await;
 }

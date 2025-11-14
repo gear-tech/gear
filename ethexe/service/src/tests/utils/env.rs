@@ -398,6 +398,7 @@ impl TestEnv {
             service_rpc_config,
             fast_sync,
             compute_config: self.compute_config,
+            commitment_delay_limit: self.commitment_delay_limit,
             running_service_handle: None,
         }
     }
@@ -860,6 +861,7 @@ pub struct Node {
     service_rpc_config: Option<RpcConfig>,
     fast_sync: bool,
     compute_config: ComputeConfig,
+    commitment_delay_limit: u32,
 
     running_service_handle: Option<JoinHandle<()>>,
 }
@@ -906,7 +908,7 @@ impl Node {
                             signatures_threshold: self.threshold,
                             slot_duration: self.block_time,
                             block_gas_limit: DEFAULT_BLOCK_GAS_LIMIT,
-                            commitment_delay_limit: 3,
+                            commitment_delay_limit: self.commitment_delay_limit,
                             producer_delay: self.block_time / 6,
                             router_address: self.eth_cfg.router_address,
                         },

@@ -67,7 +67,7 @@ use gprimitives::H256;
 use initial::Initial;
 use std::{
     collections::VecDeque,
-    fmt,
+    fmt, mem,
     pin::Pin,
     task::{Context, Poll},
     time::Duration,
@@ -157,7 +157,7 @@ impl ValidatorService {
             },
             pending_events: VecDeque::new(),
             output: VecDeque::new(),
-            submission_task: None,
+            tasks: VecDeque::new(),
         };
 
         Ok(Self {
@@ -251,19 +251,16 @@ impl Stream for ValidatorService {
             // Note: polling order is important, first we poll inner state, then submission task,
             // because polling inner state can create submission task.
             let ctx = inner.context_mut();
-            if let Some(submission_task) = ctx.submission_task.as_mut()
-                && let Poll::Ready(result) = submission_task.poll_unpin(cx)
-            {
-                ctx.submission_task.take();
-                match result {
-                    Err(err) => {
-                        ctx.output(ConsensusEvent::Warning(format!(
-                            "Commitment submission failed: {err}"
-                        )));
-                    }
-                    Ok(tx) => {
-                        ctx.output(ConsensusEvent::CommitmentSubmitted(tx));
-                    }
+            for mut task in mem::take(&mut ctx.tasks) {
+                if let Poll::Ready(result) = task.poll_unpin(cx) {
+                    // Collect finished tasks
+                    ctx.output(match result {
+                        Err(err) => ConsensusEvent::Warning(format!("task failed: {err}")),
+                        Ok(event) => event,
+                    });
+                } else {
+                    // Put back unfinished tasks
+                    ctx.tasks.push_back(task);
                 }
             }
 
@@ -530,8 +527,8 @@ struct ValidatorContext {
     output: VecDeque<ConsensusEvent>,
 
     /// Ongoing submission task, if any.
-    #[debug("{}", if submission_task.is_some() { "ongoing" } else { "none" })]
-    submission_task: Option<BoxFuture<'static, Result<H256>>>,
+    #[debug("{}", tasks.len())]
+    tasks: VecDeque<BoxFuture<'static, Result<ConsensusEvent>>>,
 }
 
 impl ValidatorContext {

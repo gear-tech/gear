@@ -18,15 +18,16 @@
 
 use super::{StateHandler, ValidatorContext, ValidatorState};
 use crate::{
-    BatchCommitmentValidationReply, ConsensusEvent, utils::MultisignedBatchCommitment,
-    validator::initial::Initial,
+    BatchCommitmentValidationReply, CommitmentSubmitted, ConsensusEvent,
+    utils::MultisignedBatchCommitment, validator::initial::Initial,
 };
 use anyhow::{Result, anyhow, ensure};
 use derive_more::Display;
 use ethexe_common::{
-    Address, ValidatorsVec, consensus::BatchCommitmentValidationRequest, gear::BatchCommitment,
-    network::ValidatorMessage,
+    Address, ToDigest, ValidatorsVec, consensus::BatchCommitmentValidationRequest,
+    gear::BatchCommitment, network::ValidatorMessage,
 };
+use futures::FutureExt;
 use std::collections::BTreeSet;
 
 /// [`Coordinator`] sends batch commitment validation request to other validators
@@ -126,13 +127,22 @@ impl Coordinator {
         mut ctx: ValidatorContext,
         multisigned_batch: MultisignedBatchCommitment,
     ) -> Result<ValidatorState> {
-        if ctx.submission_task.is_some() {
-            ctx.output(ConsensusEvent::Warning(
-                "New submission task coming, but old is not completed yet - abort old one".into(),
-            ));
-        }
         let (batch, signatures) = multisigned_batch.into_parts();
-        ctx.submission_task = Some(ctx.core.committer.clone_boxed().commit(batch, signatures));
+        let cloned_committer = ctx.core.committer.clone_boxed();
+        ctx.tasks.push_back(
+            async move {
+                let block_hash = batch.block_hash;
+                let batch_digest = batch.to_digest();
+                cloned_committer.commit(batch, signatures).await.map(|tx| {
+                    ConsensusEvent::CommitmentSubmitted(CommitmentSubmitted {
+                        block_hash,
+                        batch_digest,
+                        tx,
+                    })
+                })
+            }
+            .boxed(),
+        );
         Initial::create(ctx)
     }
 }
@@ -255,6 +265,6 @@ mod tests {
         coordinator = coordinator.process_validation_reply(reply4).unwrap();
         assert!(coordinator.is_initial());
         assert_eq!(coordinator.context().output.len(), 3);
-        assert!(coordinator.context().submission_task.is_some());
+        assert!(coordinator.context().tasks.len() == 1);
     }
 }

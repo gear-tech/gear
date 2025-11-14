@@ -167,7 +167,7 @@ pub fn mock_validator_context() -> (ValidatorContext, Vec<PublicKey>, MockEthere
         },
         pending_events: VecDeque::new(),
         output: VecDeque::new(),
-        submission_task: None,
+        tasks: Default::default(),
     };
 
     ctx.core.db.set_protocol_timelines(timelines);

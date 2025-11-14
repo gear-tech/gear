@@ -202,6 +202,11 @@ impl<DB: SyncDB> ChainSync<DB> {
 
             self.db.set_block_synced(hash);
 
+            log::debug!(
+                "✅ block {hash} synced, events: {:?}",
+                self.db.block_events(hash)
+            );
+
             let _ = self
                 .db
                 .mutate_latest_data(|data| data.synced_block_height = block_header.height)

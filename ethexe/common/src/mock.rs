@@ -121,6 +121,7 @@ impl Mock<()> for BatchCommitment {
             block_hash: H256::random(),
             timestamp: 42,
             previous_batch: Digest::random(),
+            expiry: 10,
             chain_commitment: Some(ChainCommitment::mock(HashOf::random())),
             code_commitments: vec![CodeCommitment::mock(()), CodeCommitment::mock(())],
             validators_commitment: None,

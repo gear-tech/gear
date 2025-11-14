@@ -34,7 +34,7 @@
 
 use anyhow::Result;
 use ethexe_common::{
-    Announce, HashOf, SimpleBlockData,
+    Announce, Digest, HashOf, SimpleBlockData,
     consensus::{BatchCommitmentValidationReply, VerifiedAnnounce, VerifiedValidationRequest},
     network::{AnnouncesRequest, CheckedAnnouncesResponse, SignedValidatorMessage},
 };
@@ -84,6 +84,14 @@ pub trait ConsensusService:
     fn receive_announces_response(&mut self, response: CheckedAnnouncesResponse) -> Result<()>;
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, derive_more::Display)]
+#[display("Commitment submitted, block_hash: {block_hash}, batch {batch_digest}, tx: {tx}")]
+pub struct CommitmentSubmitted {
+    block_hash: H256,
+    batch_digest: Digest,
+    tx: H256,
+}
+
 #[derive(
     Debug, Clone, PartialEq, Eq, derive_more::From, derive_more::IsVariant, derive_more::Unwrap,
 )]
@@ -102,7 +110,7 @@ pub enum ConsensusEvent {
     #[from]
     RequestAnnounces(AnnouncesRequest),
     /// Informational event: commitment was successfully submitted, tx hash is provided
-    CommitmentSubmitted(H256),
+    CommitmentSubmitted(CommitmentSubmitted),
     /// Informational event: during service processing, a warning situation was detected
     Warning(String),
 }
