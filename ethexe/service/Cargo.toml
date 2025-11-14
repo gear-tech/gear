@@ -66,8 +66,10 @@ tracing-subscriber.workspace = true
 ethexe-common = { workspace = true, features = ["mock"] }
 
 demo-ping = { workspace = true, features = ["debug", "ethexe"] }
+demo-value-sender-ethexe = { workspace = true, features = ["debug", "ethexe"] }
 demo-async = { workspace = true, features = ["debug", "ethexe"] }
 demo-async-init = { workspace = true, features = ["debug", "ethexe"] }
 demo-mul-by-const = { workspace = true, features = ["debug"] }
 demo-piggy-bank = { workspace = true, features = ["debug", "ethexe"] }
 demo-fungible-token = { workspace = true }
+demo-delayed-sender-ethexe = { workspace = true, features = ["debug", "ethexe"] }
