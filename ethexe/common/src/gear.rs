@@ -368,10 +368,11 @@ pub struct StateTransition {
     pub exited: bool,
     pub inheritor: ActorId,
     /// We represent `value_to_receive` as `u128` and `bool` because each non-zero byte costs 16 gas,
-    /// and each zero byte costs 4 gas (see https://evm.codes/about#gascosts).
+    /// and each zero byte costs 4 gas (see <https://evm.codes/about#gascosts>).
     ///
     /// Negative numbers will be stored like this:
-    /// ``` $ cast
+    /// ```
+    /// $ cast
     /// > -1 ether
     /// Type: int256
     /// Hex: 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffff21f494c589c0000
