@@ -21,6 +21,14 @@
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
 //! Gear api
+
+// TODO: use `gprimitives::H256` instead of `subxt::utils::H256`.
+//       They're the same type from `primitive_types`, but now
+//       we have different versions of `primitive_types` in
+//       up-to-date `subxt` and our out-of-date Substrate.
+//
+//       Can be done after updating Substrate.
+
 pub use crate::{
     api::{Api, ApiBuilder},
     config::GearConfig,
