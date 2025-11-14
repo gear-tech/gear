@@ -173,6 +173,27 @@ impl ServiceEventsListener<'_> {
         }
     }
 
+    pub async fn wait_for_announce_rejected(
+        &mut self,
+        id: impl Into<AnnounceId>,
+    ) -> HashOf<Announce> {
+        let id = id.into();
+        self.apply_until(|event| match (id, event) {
+            (AnnounceId::BlockHash(_), _) => unimplemented!("do not support BlockHash here yet"),
+            (
+                AnnounceId::Any,
+                TestingEvent::Consensus(ConsensusEvent::AnnounceRejected(announce_hash)),
+            ) => Ok(Some(announce_hash)),
+            (
+                AnnounceId::AnnounceHash(waited_announce_hash),
+                TestingEvent::Consensus(ConsensusEvent::AnnounceRejected(announce_hash)),
+            ) => Ok((waited_announce_hash == announce_hash).then_some(announce_hash)),
+            _ => Ok(None),
+        })
+        .await
+        .unwrap()
+    }
+
     pub async fn apply_until<R: Sized>(
         &mut self,
         mut f: impl FnMut(TestingEvent) -> Result<Option<R>>,
@@ -217,16 +238,6 @@ impl Clone for ObserverEventsListener {
 impl ObserverEventsListener {
     pub async fn next_event(&mut self) -> Result<ObserverEvent> {
         self.receiver.recv().await.map_err(Into::into)
-    }
-
-    #[allow(unused)]
-    pub async fn wait_for_next_block(&mut self) -> Result<SimpleBlockData> {
-        loop {
-            let event = self.next_event().await?;
-            if let ObserverEvent::Block(block) = event {
-                return Ok(block);
-            }
-        }
     }
 
     #[allow(unused)]

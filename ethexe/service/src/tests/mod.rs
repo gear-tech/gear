@@ -24,8 +24,8 @@ use crate::{
     Service,
     config::{self, Config},
     tests::utils::{
-        EnvNetworkConfig, Node, NodeConfig, TestEnv, TestEnvConfig, TestingEvent, ValidatorsConfig,
-        Wallets, init_logger,
+        AnnounceId, EnvNetworkConfig, Node, NodeConfig, TestEnv, TestEnvConfig, TestingEvent,
+        ValidatorsConfig, WaitForReplyTo, Wallets, init_logger,
     },
 };
 use alloy::{
@@ -35,15 +35,16 @@ use alloy::{
 use ethexe_common::{
     Announce, HashOf, ScheduledTask,
     db::*,
+    ecdsa::ContractSignature,
     events::{BlockEvent, MirrorEvent, RouterEvent},
-    gear::{CANONICAL_QUARANTINE, MessageType},
+    gear::{BatchCommitment, CANONICAL_QUARANTINE, MessageType},
     mock::*,
     network::ValidatorMessage,
 };
 use ethexe_compute::ComputeConfig;
-use ethexe_consensus::ConsensusEvent;
+use ethexe_consensus::{BatchCommitter, ConsensusEvent};
 use ethexe_db::{Database, verifier::IntegrityVerifier};
-use ethexe_ethereum::deploy::ContractsDeploymentParams;
+use ethexe_ethereum::{TryGetReceipt, deploy::ContractsDeploymentParams, router::Router};
 use ethexe_observer::{EthereumConfig, ObserverEvent};
 use ethexe_processor::{DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, RunnerConfig};
 use ethexe_prometheus::PrometheusConfig;
@@ -61,9 +62,14 @@ use parity_scale_codec::Encode;
 use std::{
     collections::{BTreeMap, BTreeSet},
     net::{Ipv4Addr, SocketAddr},
+    sync::Arc,
     time::Duration,
 };
 use tempfile::tempdir;
+use tokio::sync::{
+    Mutex,
+    mpsc::{self, UnboundedReceiver, UnboundedSender},
+};
 
 const ETHER: u128 = 1_000_000_000_000_000_000;
 
@@ -1392,7 +1398,7 @@ async fn fast_sync() {
             .unwrap();
     }
 
-    let latest_block: H256 = env.latest_block().await.hash.0.into();
+    let latest_block = env.latest_block().await.hash;
     alice
         .listener()
         .wait_for_announce_computed(latest_block)
@@ -1419,7 +1425,7 @@ async fn fast_sync() {
         );
     }
 
-    let latest_block = env.latest_block().await.hash.0.into();
+    let latest_block = env.latest_block().await.hash;
     alice
         .listener()
         .wait_for_announce_computed(latest_block)
@@ -1455,7 +1461,7 @@ async fn fast_sync() {
 
     env.skip_blocks(100).await;
 
-    let latest_block: H256 = env.latest_block().await.hash.0.into();
+    let latest_block = env.latest_block().await.hash;
     alice
         .listener()
         .wait_for_announce_computed(latest_block)
@@ -1474,7 +1480,7 @@ async fn fast_sync() {
         env.skip_blocks(1).await;
     }
 
-    let latest_block = env.latest_block().await.hash.0.into();
+    let latest_block = env.latest_block().await.hash;
     alice
         .listener()
         .wait_for_announce_computed(latest_block)
@@ -1962,182 +1968,189 @@ async fn announces_conflicts() {
     }
 }
 
-// #[tokio::test(flavor = "multi_thread")]
-// #[ntest::timeout(60_000)]
-// async fn catch_up() {
-//     init_logger();
+#[tokio::test(flavor = "multi_thread")]
+#[ntest::timeout(60_000)]
+async fn catch_up() {
+    init_logger();
 
-//     #[derive(Clone)]
-//     struct LateCommitter {
-//         router: Router,
-//         listener: ObserverEventsListener,
-//     }
+    #[derive(Clone)]
+    struct LateCommitter {
+        router: Router,
+        commit_signal_receiver: Arc<Mutex<UnboundedReceiver<()>>>,
+        wait_signal_sender: Arc<UnboundedSender<()>>,
+    }
 
-//     #[async_trait::async_trait]
-//     impl BatchCommitter for LateCommitter {
-//         fn clone_boxed(&self) -> Box<dyn BatchCommitter> {
-//             Box::new(self.clone())
-//         }
+    #[async_trait::async_trait]
+    impl BatchCommitter for LateCommitter {
+        fn clone_boxed(&self) -> Box<dyn BatchCommitter> {
+            Box::new(self.clone())
+        }
 
-//         async fn commit(
-//             mut self: Box<Self>,
-//             batch: BatchCommitment,
-//             signatures: Vec<ContractSignature>,
-//         ) -> anyhow::Result<H256> {
-//             log::info!("📗 LateCommitter committing batch {:?}", batch);
+        async fn commit(
+            mut self: Box<Self>,
+            batch: BatchCommitment,
+            signatures: Vec<ContractSignature>,
+        ) -> anyhow::Result<H256> {
+            log::info!("📗 LateCommitter wait for signal");
+            self.wait_signal_sender.send(()).unwrap();
+            self.commit_signal_receiver
+                .lock()
+                .await
+                .recv()
+                .await
+                .unwrap();
 
-//             self.listener.wait_for_next_block().await?;
+            log::info!("📗 LateCommitter committing batch {:?}", batch);
+            self.router.commit_batch(batch, signatures).await
+        }
+    }
 
-//             self.router.commit_batch(batch, signatures).await
-//         }
-//     }
+    let config = TestEnvConfig {
+        network: EnvNetworkConfig::Enabled,
+        ..Default::default()
+    };
+    let mut env = TestEnv::new(config).await.unwrap();
 
-//     let config = TestEnvConfig {
-//         network: EnvNetworkConfig::Enabled,
-//         ..Default::default()
-//     };
-//     let mut env = TestEnv::new(config).await.unwrap();
+    log::info!("📗 Starting Alice");
+    let mut alice = env.new_node(NodeConfig::named("Alice").validator(env.validators[0]));
+    alice.start_service().await;
 
-//     log::info!("📗 Starting Alice");
-//     let mut alice = env.new_node(NodeConfig::named("Alice").validator(env.validators[0]));
-//     alice.custom_committer = Some(Box::new(LateCommitter {
-//         router: env.ethereum.router().clone(),
-//         listener: env.observer_events_publisher().subscribe().await,
-//     }));
-//     alice.start_service().await;
+    log::info!("📗 Starting Bob");
+    let mut bob = env.new_node(NodeConfig::named("Bob"));
+    bob.start_service().await;
 
-//     // log::info!("📗 Starting Bob");
-//     // let mut bob = env.new_node(NodeConfig::named("Bob"));
-//     // bob.start_service().await;
+    let ping_code_id = env
+        .upload_code(demo_ping::WASM_BINARY)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap()
+        .code_id;
 
-//     let ping_code_id = {
-//         let wait_for = env.upload_code(demo_ping::WASM_BINARY).await.unwrap();
-//         env.force_new_block().await;
-//         wait_for.wait_for().await.unwrap().code_id
-//     };
+    let ping_id = env
+        .create_program(ping_code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap()
+        .program_id;
 
-//     let ping_id = env
-//         .create_program(ping_code_id, 500_000_000_000_000)
-//         .await
-//         .unwrap()
-//         .wait_for()
-//         .await
-//         .unwrap()
-//         .program_id;
+    // Wait until both stops processing
+    let latest_block = env.latest_block().await.hash;
+    let latest_announce_hash = bob
+        .listener()
+        .wait_for_announce_computed(latest_block)
+        .await;
+    assert_eq!(
+        alice
+            .listener()
+            .wait_for_announce_computed(latest_block)
+            .await,
+        latest_announce_hash
+    );
 
-//     // Wait until both nodes process the program creation
-//     let last_block = env.latest_block().await;
-//     // let last_announce_hash = bob
-//     //     .listener()
-//     //     .wait_for_announce_computed(last_block.hash)
-//     //     .await;
+    log::info!("📗 Stopping Bob");
+    bob.stop_service().await;
 
-//     log::info!("📗 Stopping Alice to control commitments manually");
-//     alice.stop_service().await;
+    log::info!("📗 Sending first PING message, so that Alice will leave Bob behind");
+    env.send_message(ping_id, b"PING", 0)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
 
-//     // alice.custom_committer = Some(
-//     //     Box::new()
-//     // )
+    // Wait until Alice stop processing
+    let latest_block = env.latest_block().await.hash;
+    alice
+        .listener()
+        .wait_for_announce_computed(latest_block)
+        .await;
 
-//     // // Send two messages (generates two blocks) and send two announces to the network manually
-//     // let listener = env.observer_events_publisher().subscribe().await;
-//     // for i in 0..2 {
-//     //     env.send_message(ping_id, b"PING", 0).await.unwrap();
-//     //     let block = listener.wait_for_next_block().await.unwrap();
-//     //     alice.publish_validator_message(ValidatorMessage {
-//     //         block: block.hash,
-//     //         payload: Announce::with_default_gas(block.hash, last_announce_hash),
-//     //     })
-//     // }
+    log::info!("📗 Stopping Alice");
+    alice.stop_service().await;
 
-//     // // alice.publish_validator_message(ValidatorMessage {
-//     // //     block
-//     // // })
+    log::info!("📗 Setting LateCommitter for Alice and starting Alice again");
+    let (commit_signal_sender, commit_signal_receiver) = mpsc::unbounded_channel();
+    let (wait_signal_sender, mut wait_signal_receiver) = mpsc::unbounded_channel();
+    alice.custom_committer = Some(Box::new(LateCommitter {
+        router: env.ethereum.router().clone(),
+        commit_signal_receiver: Arc::new(Mutex::new(commit_signal_receiver)),
+        wait_signal_sender: Arc::new(wait_signal_sender),
+    }));
+    alice.start_service().await;
 
-//     // log::info!("📗 Sending messages to programs");
+    log::info!("📗 Starting Bob");
+    bob.start_service().await;
 
-//     // for (i, program_id) in program_ids.into_iter().enumerate() {
-//     //     let reply_info = env
-//     //         .send_message(program_id, &(i as u64).encode(), 0)
-//     //         .await
-//     //         .unwrap()
-//     //         .wait_for()
-//     //         .await
-//     //         .unwrap();
-//     //     assert_eq!(
-//     //         reply_info.code,
-//     //         ReplyCode::Success(SuccessReplyReason::Manual)
-//     //     );
-//     // }
+    log::info!("📗 Disable auto mining");
+    env.provider.anvil_set_auto_mine(false).await.unwrap();
 
-//     // let latest_block = env.latest_block().await.hash.0.into();
-//     // alice
-//     //     .listener()
-//     //     .wait_for_announce_computed(latest_block)
-//     //     .await;
-//     // bob.listener()
-//     //     .wait_for_announce_computed(latest_block)
-//     //     .await;
+    log::info!("📗 Sending second PING message, Bob tries to catch up Alice");
+    {
+        let listener = env.observer_events_publisher().subscribe().await;
+        let pending = env
+            .ethereum
+            .mirror(ping_id.try_into().unwrap())
+            .send_message_pending(b"PING", 0)
+            .await
+            .unwrap();
+        env.force_new_block().await;
+        let wait_for = WaitForReplyTo::from_raw_parts(
+            listener,
+            pending.try_get_message_send_receipt().await.unwrap().1,
+        );
 
-//     // log::info!("📗 Stopping Bob");
-//     // bob.stop_service().await;
+        wait_signal_receiver.recv().await.unwrap();
+        env.force_new_block().await;
+        commit_signal_sender.send(()).unwrap();
 
-//     // assert_chain(
-//     //     latest_block,
-//     //     bob.latest_fast_synced_block.take().unwrap(),
-//     //     &alice,
-//     //     &bob,
-//     // );
+        wait_signal_receiver.recv().await.unwrap();
+        env.force_new_block().await;
 
-//     // for (i, program_id) in program_ids.into_iter().enumerate() {
-//     //     let i = (i * 3) as u64;
-//     //     let reply_info = env
-//     //         .send_message(program_id, &i.encode(), 0)
-//     //         .await
-//     //         .unwrap()
-//     //         .wait_for()
-//     //         .await
-//     //         .unwrap();
-//     //     assert_eq!(
-//     //         reply_info.code,
-//     //         ReplyCode::Success(SuccessReplyReason::Manual)
-//     //     );
-//     // }
+        wait_for.wait_for().await.unwrap();
+    }
 
-//     // env.skip_blocks(100).await;
+    log::info!("📗 Waiting for two rejected announces from Bob");
+    bob.listener()
+        .wait_for_announce_rejected(AnnounceId::Any)
+        .await;
+    bob.listener()
+        .wait_for_announce_rejected(AnnounceId::Any)
+        .await;
 
-//     // let latest_block: H256 = env.latest_block().await.hash.0.into();
-//     // alice
-//     //     .listener()
-//     //     .wait_for_announce_computed(latest_block)
-//     //     .await;
+    log::info!("📗 Sending third PING message, one more attempt for Bob to catch up Alice");
+    {
+        let listener = env.observer_events_publisher().subscribe().await;
+        let pending = env
+            .ethereum
+            .mirror(ping_id.try_into().unwrap())
+            .send_message_pending(b"PING", 0)
+            .await
+            .unwrap();
+        env.force_new_block().await;
+        let wait_for = WaitForReplyTo::from_raw_parts(
+            listener,
+            pending.try_get_message_send_receipt().await.unwrap().1,
+        );
 
-//     // log::info!("📗 Starting Bob again to check how it handles partially empty database");
-//     // bob.start_service().await;
+        wait_signal_receiver.recv().await.unwrap();
+        env.force_new_block().await;
+        commit_signal_sender.send(()).unwrap();
 
-//     // // Mine some blocks so Bob can produce the event we will wait for.
-//     // // We mine several blocks here to ensure that Bob and Alice would converge to the same chain of announces.
-//     // // Why do we need that? Because Bob was disabled he missed some announces that Alice produced,
-//     // // this announces was not committed, so Bob would not see them during fast-sync
-//     // // and would not have them in his database. This is normal situation, after a few blocks Bob and Alice should
-//     // // converge to the same chain of announces.
-//     // for _ in 0..env.commitment_delay_limit {
-//     //     env.skip_blocks(1).await;
-//     // }
+        wait_signal_receiver.recv().await.unwrap();
+        env.force_new_block().await;
 
-//     // let latest_block = env.latest_block().await.hash.0.into();
-//     // alice
-//     //     .listener()
-//     //     .wait_for_announce_computed(latest_block)
-//     //     .await;
-//     // bob.listener()
-//     //     .wait_for_announce_computed(latest_block)
-//     //     .await;
+        wait_for.wait_for().await.unwrap();
+    }
 
-//     // assert_chain(
-//     //     latest_block,
-//     //     bob.latest_fast_synced_block.take().unwrap(),
-//     //     &alice,
-//     //     &bob,
-//     // );
-// }
+    log::info!("📗 Still Bob rejects two announces, waiting...");
+    bob.listener()
+        .wait_for_announce_rejected(AnnounceId::Any)
+        .await;
+    bob.listener()
+        .wait_for_announce_rejected(AnnounceId::Any)
+        .await;
+}

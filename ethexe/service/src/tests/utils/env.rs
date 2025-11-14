@@ -153,6 +153,9 @@ impl TestEnv {
                 if let Some(genesis_timestamp) = genesis_timestamp {
                     anvil = anvil.arg(format!("--timestamp={genesis_timestamp}"));
                 }
+                if continuous_block_generation {
+                    anvil = anvil.block_time(block_time.as_secs());
+                }
 
                 let anvil = anvil.spawn();
 
@@ -1203,6 +1206,13 @@ pub struct ReplyInfo {
 }
 
 impl WaitForReplyTo {
+    pub fn from_raw_parts(listener: ObserverEventsListener, message_id: MessageId) -> Self {
+        Self {
+            listener,
+            message_id,
+        }
+    }
+
     pub async fn wait_for(mut self) -> anyhow::Result<ReplyInfo> {
         log::info!("📗 Waiting for reply to message {}", self.message_id);
 

@@ -212,7 +212,7 @@ pub struct ProtocolTimelines {
 
 impl ProtocolTimelines {
     /// Returns the era index for the given timestamp. Eras starts from 0.
-    /// If geven `ts` less than `genesis_ts` function returns `0`;
+    /// If given `ts` less than `genesis_ts` function returns `0`;
     #[inline(always)]
     pub fn era_from_ts(&self, ts: u64) -> u64 {
         if ts < self.genesis_ts {

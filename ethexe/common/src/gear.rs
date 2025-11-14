@@ -202,7 +202,7 @@ impl ToDigest for BatchCommitment {
         let Self {
             block_hash,
             timestamp,
-            previous_batch: previous_committed_block_hash,
+            previous_batch,
             chain_commitment,
             code_commitments,
             validators_commitment,
@@ -211,7 +211,7 @@ impl ToDigest for BatchCommitment {
 
         hasher.update(block_hash);
         hasher.update(crate::u64_into_uint48_be_bytes_lossy(*timestamp));
-        hasher.update(previous_committed_block_hash);
+        hasher.update(previous_batch);
         hasher.update(chain_commitment.to_digest());
         hasher.update(code_commitments.to_digest());
         hasher.update(rewards_commitment.to_digest());

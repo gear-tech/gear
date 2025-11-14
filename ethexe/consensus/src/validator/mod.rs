@@ -236,7 +236,7 @@ impl Stream for ValidatorService {
     type Item = Result<ConsensusEvent>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        tracing::trace!("Polling ValidatorService: {:?}", self.inner);
+        // tracing::trace!("Polling ValidatorService: {:?}", self.inner);
         self.update_inner(|mut inner| {
             // Waits until inner futures become pending.
             loop {
@@ -255,7 +255,16 @@ impl Stream for ValidatorService {
                 && let Poll::Ready(result) = submission_task.poll_unpin(cx)
             {
                 ctx.submission_task.take();
-                ctx.output(ConsensusEvent::CommitmentSubmitted(result?));
+                match result {
+                    Err(err) => {
+                        ctx.output(ConsensusEvent::Warning(format!(
+                            "Commitment submission failed: {err}"
+                        )));
+                    }
+                    Ok(tx) => {
+                        ctx.output(ConsensusEvent::CommitmentSubmitted(tx));
+                    }
+                }
             }
 
             Ok(inner)
