@@ -1,5 +1,5 @@
 [package]
-name = "demo-delayed-sender"
+name = "demo-value-sender-ethexe"
 version = "0.1.0"
 authors.workspace = true
 edition.workspace = true
@@ -15,6 +15,6 @@ gear-wasm-builder.workspace = true
 
 [features]
 debug = ["gstd/debug"]
-wasm-wrapper = []
-std = ["wasm-wrapper"]
+std = []
 default = ["std"]
+ethexe = ["gstd/ethexe"]

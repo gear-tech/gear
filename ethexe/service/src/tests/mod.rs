@@ -1959,7 +1959,7 @@ async fn value_send_program_to_program() {
     assert_eq!(value_receiver_local_balance, 0);
 
     let res = env
-        .upload_code(demo_value_sender::WASM_BINARY)
+        .upload_code(demo_value_sender_ethexe::WASM_BINARY)
         .await
         .unwrap()
         .wait_for()
@@ -2105,7 +2105,7 @@ async fn value_send_delayed() {
     assert_eq!(value_receiver_local_balance, 0);
 
     let res = env
-        .upload_code(demo_delayed_sender::WASM_BINARY)
+        .upload_code(demo_delayed_sender_ethexe::WASM_BINARY)
         .await
         .unwrap()
         .wait_for()
@@ -2178,7 +2178,7 @@ async fn value_send_delayed() {
 
     // Skip blocks to pass the delay
     env.provider
-        .anvil_mine(Some((demo_delayed_sender::DELAY).into()), None)
+        .anvil_mine(Some((demo_delayed_sender_ethexe::DELAY).into()), None)
         .await
         .unwrap();
     listener

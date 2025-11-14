@@ -1,5 +1,5 @@
 [package]
-name = "demo-delayed-sender"
+name = "demo-delayed-sender-ethexe"
 version = "0.1.0"
 authors.workspace = true
 edition.workspace = true
@@ -18,3 +18,4 @@ debug = ["gstd/debug"]
 wasm-wrapper = []
 std = ["wasm-wrapper"]
 default = ["std"]
+ethexe = ["gstd/ethexe"]

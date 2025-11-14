@@ -3725,6 +3725,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-delayed-sender-ethexe"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+]
+
+[[package]]
 name = "demo-distributor"
 version = "0.1.0"
 dependencies = [
@@ -4047,6 +4055,14 @@ dependencies = [
 
 [[package]]
 name = "demo-value-sender"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+]
+
+[[package]]
+name = "demo-value-sender-ethexe"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
@@ -5157,11 +5173,11 @@ dependencies = [
  "async-trait",
  "demo-async",
  "demo-async-init",
- "demo-delayed-sender",
+ "demo-delayed-sender-ethexe",
  "demo-mul-by-const",
  "demo-piggy-bank",
  "demo-ping",
- "demo-value-sender",
+ "demo-value-sender-ethexe",
  "derive_more 2.0.1",
  "ethexe-blob-loader",
  "ethexe-common",
