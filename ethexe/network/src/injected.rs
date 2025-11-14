@@ -21,7 +21,7 @@ use crate::{
     peer_score,
     utils::ParityScaleCodec,
 };
-use ethexe_common::injected::SignedInjectedTransaction;
+use ethexe_common::injected::{RpcOrNetworkInjectedTx, SignedInjectedTransaction};
 use libp2p::{
     StreamProtocol,
     core::{Endpoint, transport::PortUse},
@@ -74,7 +74,7 @@ impl Behaviour {
         Self { inner, peer_score }
     }
 
-    pub fn send_transaction(&mut self, transaction: SignedInjectedTransaction) {
+    pub fn send_transaction(&mut self, transaction: RpcOrNetworkInjectedTx) {
         log::warn!("`send_transaction` is ignored for now: {transaction:?}");
 
         // TODO: send to actual peer when validator discovery is ready

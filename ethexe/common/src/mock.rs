@@ -197,7 +197,6 @@ impl<T: Mock<()>> Mock<()> for ValidatorMessage<T> {
 impl Mock<()> for InjectedTransaction {
     fn mock((): ()) -> Self {
         Self {
-            recipient: Default::default(),
             destination: Default::default(),
             payload: vec![].into(),
             value: 0,
@@ -391,8 +390,10 @@ impl BlockChain {
         } in blocks
         {
             if let Some(SyncedBlockData { header, events }) = synced {
-                db.mutate_latest_data(|latest| latest.synced_block_height = header.height)
-                    .unwrap();
+                db.mutate_latest_data(|latest| {
+                    latest.synced_block = SimpleBlockData { hash, header }
+                })
+                .unwrap();
 
                 db.set_block_header(hash, header);
                 db.set_block_events(hash, &events);

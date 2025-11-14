@@ -20,8 +20,7 @@ use crate::Event;
 use anyhow::{Result, anyhow};
 use ethexe_blob_loader::BlobLoaderEvent;
 use ethexe_common::{
-    Announce, HashOf, SimpleBlockData, db::*, events::BlockEvent,
-    injected::SignedInjectedTransaction,
+    Announce, HashOf, SimpleBlockData, db::*, events::BlockEvent, injected::RpcOrNetworkInjectedTx,
 };
 use ethexe_compute::ComputeEvent;
 use ethexe_consensus::ConsensusEvent;
@@ -41,9 +40,7 @@ pub type TestingEventReceiver = Receiver<TestingEvent>;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum TestingRpcEvent {
-    InjectedTransaction {
-        transaction: SignedInjectedTransaction,
-    },
+    InjectedTransaction { transaction: RpcOrNetworkInjectedTx },
 }
 
 impl TestingRpcEvent {

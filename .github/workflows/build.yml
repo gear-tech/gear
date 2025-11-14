@@ -226,7 +226,7 @@ jobs:
       - name: "Install: Foundry"
         uses: foundry-rs/foundry-toolchain@v1
         with:
-          version: v1.4.2
+          version: nightly-7418317dee96a56ae61fd6327565aca36591b0dd
 
       - name: "Show: Versioning"
         run: |

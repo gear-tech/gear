@@ -33,7 +33,7 @@ use ethexe_common::{
     },
     events::BlockEvent,
     gear::StateTransition,
-    injected::{InjectedPromise, InjectedTransaction, SignedInjectedTransaction},
+    injected::{InjectedTransaction, Promise, SignedInjectedTransaction},
 };
 
 use ethexe_runtime_common::state::{
@@ -70,7 +70,7 @@ enum Key {
     CodeValid(CodeId) = 11,
 
     InjectedTransaction(HashOf<SignedInjectedTransaction>) = 12,
-    InjectedPromise(HashOf<InjectedTransaction>) = 13,
+    Promise(HashOf<InjectedTransaction>) = 13,
 
     LatestData = 14,
     Timelines = 15,
@@ -101,7 +101,7 @@ impl Key {
             | Self::AnnounceMeta(hash) => [prefix.as_ref(), hash.inner().as_ref()].concat(),
 
             Self::InjectedTransaction(hash) => [prefix.as_ref(), hash.inner().as_ref()].concat(),
-            Self::InjectedPromise(hash) => [prefix.as_ref(), hash.inner().as_ref()].concat(),
+            Self::Promise(hash) => [prefix.as_ref(), hash.inner().as_ref()].concat(),
 
             Self::ProgramToCodeId(program_id) => [prefix.as_ref(), program_id.as_ref()].concat(),
 
@@ -557,13 +557,10 @@ impl InjectedStorageRO for Database {
             })
     }
 
-    fn injected_promise(&self, hash: HashOf<InjectedTransaction>) -> Option<InjectedPromise> {
-        self.kv
-            .get(&Key::InjectedPromise(hash).to_bytes())
-            .map(|data| {
-                InjectedPromise::decode(&mut data.as_slice())
-                    .expect("Failed to decode data into `SignedInjectedPromise`")
-            })
+    fn promise(&self, hash: HashOf<InjectedTransaction>) -> Option<Promise> {
+        self.kv.get(&Key::Promise(hash).to_bytes()).map(|data| {
+            Promise::decode(&mut data.as_slice()).expect("Failed to decode data into `Promise`")
+        })
     }
 }
 
@@ -576,12 +573,10 @@ impl InjectedStorageRW for Database {
             .put(&Key::InjectedTransaction(tx_hash).to_bytes(), tx.encode());
     }
 
-    fn set_injected_promise(&self, promise: InjectedPromise) {
-        tracing::trace!(injected_tx_hash = ?promise.tx_hash, "Set injected promise");
-        self.kv.put(
-            &Key::InjectedPromise(promise.tx_hash).to_bytes(),
-            promise.encode(),
-        );
+    fn set_promise(&self, promise: Promise) {
+        tracing::trace!(injected_tx_hash = ?promise.tx_hash, "Set injected tx promise");
+        self.kv
+            .put(&Key::Promise(promise.tx_hash).to_bytes(), promise.encode());
     }
 }
 
@@ -696,7 +691,7 @@ impl LatestDataStorageRW for Database {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ethexe_common::{Address, ecdsa::PrivateKey, events::RouterEvent};
+    use ethexe_common::{SimpleBlockData, ecdsa::PrivateKey, events::RouterEvent};
     use gear_core::code::{InstantiatedSectionSizes, InstrumentationStatus};
 
     #[test]
@@ -707,7 +702,6 @@ mod tests {
         let tx = SignedInjectedTransaction::create(
             private_key,
             InjectedTransaction {
-                recipient: Address::default(),
                 destination: ActorId::zero(),
                 payload: vec![].into(),
                 value: 0,
@@ -806,7 +800,10 @@ mod tests {
         assert!(db.latest_data().is_none());
 
         let latest_data = LatestData {
-            synced_block_height: 42,
+            synced_block: SimpleBlockData {
+                hash: H256::random(),
+                header: Default::default(),
+            },
             prepared_block_hash: H256::random(),
             computed_announce_hash: HashOf::random(),
             genesis_block_hash: H256::random(),

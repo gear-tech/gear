@@ -27,7 +27,6 @@ ethexe-runtime-common = { workspace = true, features = ["std"] }
 sp-core = { workspace = true, features = ["serde"] }
 gear-core = { workspace = true, features = ["std"] }
 serde = { workspace = true, features = ["std"] }
-ethexe-blob-loader.workspace = true
 reqwest = { workspace = true, optional = true }
 serde_json = { workspace = true, optional = true }
 tracing.workspace = true

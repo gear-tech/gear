@@ -291,12 +291,8 @@ impl ValidatorCore {
     }
 
     pub fn process_injected_transaction(&mut self, tx: SignedInjectedTransaction) -> Result<()> {
-        // TODO kuzmindev : This check in future should be removed, because of by design main service [`ethexe-service::Service`]
-        // before calling this method must guarantee that `tx.recipient` equals to current validator's address.
-        if tx.data().recipient == self.pub_key.to_address() {
-            tracing::trace!(tx = ?tx, "Receive new injected transaction");
-            self.injected_pool.handle_tx(tx);
-        }
+        tracing::trace!(tx = ?tx, "Receive new injected transaction");
+        self.injected_pool.handle_tx(tx);
         Ok(())
     }
 }

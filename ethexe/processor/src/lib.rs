@@ -21,12 +21,10 @@
 use core::num::NonZero;
 use ethexe_common::{
     Announce, CodeAndIdUnchecked, HashOf, ProgramStates, Schedule,
-    db::{
-        AnnounceStorageRO, AnnounceStorageRW, BlockMetaStorageRO, CodesStorageRW, InjectedStorageRO,
-    },
+    db::{AnnounceStorageRO, AnnounceStorageRW, CodesStorageRW, InjectedStorageRO},
     events::{BlockRequestEvent, MirrorRequestEvent},
     gear::StateTransition,
-    injected::{InjectedPromise, SignedInjectedTransaction},
+    injected::{Promise, SignedInjectedTransaction},
 };
 use ethexe_db::Database;
 use ethexe_runtime_common::state::Storage;
@@ -65,10 +63,10 @@ pub enum ProcessorError {
     ProgramNotInitialized,
     #[error("reply wasn't found")]
     ReplyNotFound,
-    #[error("not found state for program ({program_id}) at block ({block_hash})")]
+    #[error("not found state for program ({program_id}) at announce ({announce_hash})")]
     StateNotFound {
         program_id: ActorId,
-        block_hash: H256,
+        announce_hash: HashOf<Announce>,
     },
     #[error("unreachable: state partially presents in storage")]
     StatePartiallyPresentsInStorage,
@@ -132,7 +130,7 @@ pub struct BlockProcessingResult {
     pub transitions: Vec<StateTransition>,
     pub states: ProgramStates,
     pub schedule: Schedule,
-    pub promises: Vec<InjectedPromise>,
+    pub promises: Vec<Promise>,
 }
 
 #[derive(Clone, Debug)]
@@ -272,24 +270,20 @@ impl OverlaidProcessor {
     // TODO (breathx): optimize for one single program.
     pub async fn execute_for_reply(
         &mut self,
-        block_hash: H256,
+        announce_hash: HashOf<Announce>,
         source: ActorId,
         program_id: ActorId,
         payload: Vec<u8>,
         value: u128,
         runner_config: RunnerConfig,
     ) -> Result<ReplyInfo> {
-        self.0.creator.set_chain_head(block_hash);
-
-        let announce_hash = self
+        let block_hash = self
             .0
             .db
-            .block_meta(block_hash)
-            .announces
-            .into_iter()
-            .flat_map(IntoIterator::into_iter)
-            .next()
-            .ok_or(ProcessorError::PreparedBlockAnnouncesMissing(block_hash))?;
+            .announce(announce_hash)
+            .ok_or(ProcessorError::AnnounceNotFound(announce_hash))?
+            .block_hash;
+        self.0.creator.set_chain_head(block_hash);
 
         let announce = self
             .0
@@ -305,7 +299,7 @@ impl OverlaidProcessor {
             .state_of(&program_id)
             .ok_or(ProcessorError::StateNotFound {
                 program_id,
-                block_hash,
+                announce_hash,
             })?
             .hash;
 

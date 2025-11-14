@@ -18,12 +18,10 @@
 
 mod block;
 mod code;
-mod dev;
 mod injected;
 mod program;
 
 pub use block::{BlockApi, BlockServer};
 pub use code::{CodeApi, CodeServer};
-pub use dev::{DevApi, DevServer};
 pub use injected::{InjectedApi, InjectedClient, InjectedServer, InjectedTransactionAcceptance};
 pub use program::{ProgramApi, ProgramServer};

@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{RpcEvent, errors};
-use ethexe_common::injected::SignedInjectedTransaction;
+use ethexe_common::injected::RpcOrNetworkInjectedTx;
 use jsonrpsee::{
     core::{RpcResult, async_trait},
     proc_macros::rpc,
@@ -35,7 +35,7 @@ pub trait Injected {
     #[method(name = "injected_sendTransaction")]
     async fn send_transaction(
         &self,
-        transaction: SignedInjectedTransaction,
+        transaction: RpcOrNetworkInjectedTx,
     ) -> RpcResult<InjectedTransactionAcceptance>;
 }
 
@@ -54,7 +54,7 @@ impl InjectedApi {
 impl InjectedServer for InjectedApi {
     async fn send_transaction(
         &self,
-        transaction: SignedInjectedTransaction,
+        transaction: RpcOrNetworkInjectedTx,
     ) -> RpcResult<InjectedTransactionAcceptance> {
         tracing::trace!("Called injected_sendTransaction with vars: {transaction:?}");
 

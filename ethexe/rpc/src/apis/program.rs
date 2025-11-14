@@ -129,7 +129,7 @@ impl ProgramServer for ProgramApi {
         payload: Bytes,
         value: u128,
     ) -> RpcResult<ReplyInfo> {
-        let block_hash = utils::block_header_at_or_latest(&self.db, at)?.hash;
+        let announce_hash = utils::announce_at_or_latest_computed(&self.db, at)?;
 
         // TODO (breathx): spawn in a new thread and catch panics. (?) Generally catch runtime panics (?).
         // TODO (breathx): optimize here instantiation if matches actual runtime.
@@ -142,7 +142,7 @@ impl ProgramServer for ProgramApi {
 
         overlaid_processor
             .execute_for_reply(
-                block_hash,
+                announce_hash,
                 source.into(),
                 program_id.into(),
                 payload.0,
@@ -154,7 +154,7 @@ impl ProgramServer for ProgramApi {
     }
 
     async fn ids(&self) -> RpcResult<Vec<H160>> {
-        let announce_hash = utils::announce_at_or_latest(&self.db, None)?;
+        let announce_hash = utils::announce_at_or_latest_computed(&self.db, None)?;
 
         Ok(self
             .db

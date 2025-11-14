@@ -226,7 +226,7 @@ impl<S: Storage> JournalHandler for NativeJournalHandler<'_, S> {
 
             self.controller
                 .transitions
-                .handle_injected_reply(&message_id, reply_info);
+                .maybe_store_injected_reply(&message_id, reply_info);
         }
 
         if self.controller.transitions.is_program(&destination) {

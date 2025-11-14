@@ -20,7 +20,13 @@ use super::{
     DefaultProcessing, PendingEvent, StateHandler, ValidatorContext, ValidatorState,
     initial::Initial,
 };
-use crate::{ConsensusEvent, utils, validator::participant::Participant};
+use crate::{
+    ConsensusEvent, utils,
+    validator::{
+        participant::Participant,
+        tx_pool::{TxValidityChecker, TxValidityStatus},
+    },
+};
 use anyhow::Result;
 use derive_more::{Debug, Display};
 use ethexe_common::{
@@ -47,6 +53,14 @@ pub struct Subordinate {
     block: SimpleBlockData,
     is_validator: bool,
     state: State,
+}
+
+#[derive(Clone, PartialEq, Eq)]
+enum AnnounceValidityStatus {
+    // Announce is valid and can be send to computation.
+    Valid,
+    // Announce is not valid and will be rejected.
+    Invalid(String),
 }
 
 #[derive(Debug, PartialEq, Eq)]
@@ -227,25 +241,58 @@ impl Subordinate {
             return Initial::create(self.ctx);
         }
 
-        network_announce
-            .injected_transactions
-            .iter()
-            .for_each(|tx| self.ctx.core.db.set_injected_transaction(tx.clone()));
+        match self.verify_announce(&network_announce)? {
+            AnnounceValidityStatus::Valid => {
+                network_announce
+                    .injected_transactions
+                    .iter()
+                    .for_each(|tx| self.ctx.core.db.set_injected_transaction(tx.clone()));
 
-        let announce: Announce = Announce::from(&network_announce);
+                let announce: Announce = Announce::from(&network_announce);
 
-        let announce_hash = self.ctx.core.db.set_announce(announce.clone());
-        self.ctx
-            .core
-            .db
-            .mutate_block_meta(announce.block_hash, |meta| {
-                meta.announces.get_or_insert_default().insert(announce_hash);
-            });
+                let announce_hash = self.ctx.core.db.set_announce(announce.clone());
+                self.ctx
+                    .core
+                    .db
+                    .mutate_block_meta(announce.block_hash, |meta| {
+                        meta.announces.get_or_insert_default().insert(announce_hash);
+                    });
 
-        self.ctx.output(ConsensusEvent::ComputeAnnounce(announce));
-        self.state = State::WaitingAnnounceComputed { announce_hash };
+                self.ctx.output(ConsensusEvent::ComputeAnnounce(announce));
+                self.state = State::WaitingAnnounceComputed { announce_hash };
+                Ok(self.into())
+            }
+            AnnounceValidityStatus::Invalid(reason) => {
+                self.ctx.warning(reason);
+                Initial::create(self.ctx)
+            }
+        }
+    }
 
-        Ok(self.into())
+    fn verify_announce(&self, announce: &NetworkAnnounce) -> Result<AnnounceValidityStatus> {
+        let tx_checker = TxValidityChecker::new_for_announce(
+            self.ctx.core.db.clone(),
+            self.block.hash,
+            announce.parent,
+        )?;
+
+        for tx in announce.injected_transactions.iter() {
+            let validity_status = tx_checker.check_tx_validity(tx)?;
+
+            if !matches!(validity_status, TxValidityStatus::Valid) {
+                tracing::trace!(
+                    announce = ?announce.to_hash(),
+                    "announce contains invalid transtion with status {validity_status:?}, rejecting announce."
+                );
+
+                return Ok(AnnounceValidityStatus::Invalid(format!(
+                    "announce({:?}) contains an invalid injected tx, reject it.",
+                    announce.to_hash()
+                )));
+            }
+        }
+
+        Ok(AnnounceValidityStatus::Valid)
     }
 }
 

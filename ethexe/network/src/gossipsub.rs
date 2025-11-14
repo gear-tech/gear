@@ -23,9 +23,7 @@ use crate::{
     peer_score,
 };
 use anyhow::anyhow;
-use ethexe_common::{
-    Address, injected::SignedInjectedTransaction, network::SignedValidatorMessage,
-};
+use ethexe_common::{Address, injected::RpcOrNetworkInjectedTx, network::SignedValidatorMessage};
 use libp2p::{
     core::{Endpoint, transport::PortUse},
     gossipsub,
@@ -45,7 +43,7 @@ use std::{
 #[derive(Debug, derive_more::From)]
 pub enum Message {
     Commitments(SignedValidatorMessage),
-    Injected(SignedInjectedTransaction),
+    Injected(RpcOrNetworkInjectedTx),
 }
 
 impl Message {
@@ -180,7 +178,7 @@ impl Behaviour {
                 let res = if topic == self.commitments_topic.hash() {
                     SignedValidatorMessage::decode(&mut &data[..]).map(Message::Commitments)
                 } else if topic == self.offchain_topic.hash() {
-                    SignedInjectedTransaction::decode(&mut &data[..]).map(Message::Injected)
+                    RpcOrNetworkInjectedTx::decode(&mut &data[..]).map(Message::Injected)
                 } else {
                     unreachable!("topic we never subscribed to: {topic:?}");
                 };

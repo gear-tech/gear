@@ -20,7 +20,7 @@
 
 use crate::{InjectedTransactionAcceptance, apis::InjectedClient};
 use anyhow::{Result as AnyhowResult, bail};
-use ethexe_common::injected::SignedInjectedTransaction;
+use ethexe_common::injected::RpcOrNetworkInjectedTx;
 use jsonrpsee::{http_client::HttpClient, types::ErrorObjectOwned};
 use reqwest::{Response, Result};
 use serde::{Deserialize, de::DeserializeOwned};
@@ -39,7 +39,7 @@ impl RpcClient {
     /// Send message using transaction pool API (`injected_sendTransaction`) of the ethexe rpc server.
     pub async fn send_injected_tx(
         &self,
-        tx: SignedInjectedTransaction,
+        tx: RpcOrNetworkInjectedTx,
     ) -> AnyhowResult<InjectedTransactionAcceptance> {
         self.http_client
             .send_transaction(tx)
