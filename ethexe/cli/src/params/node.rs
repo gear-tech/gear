@@ -46,11 +46,6 @@ pub struct NodeParams {
     #[serde(default)]
     pub tmp: bool,
 
-    /// Flag to run node in development mode.
-    #[arg(long)]
-    #[serde(default)]
-    pub dev: bool,
-
     /// Public key of the validator, if node should act as one.
     #[arg(long)]
     pub validator: Option<String>,
@@ -125,14 +120,13 @@ impl NodeParams {
                 .unwrap_or(DEFAULT_BLOCK_GAS_LIMIT)
                 .min(MAX_BLOCK_GAS_LIMIT),
             canonical_quarantine: self.canonical_quarantine.unwrap_or(CANONICAL_QUARANTINE),
-            dev: self.dev,
             fast_sync: self.fast_sync,
         })
     }
 
     /// Get path to the database directory.
     pub fn db_dir(&self) -> PathBuf {
-        if self.tmp || self.dev {
+        if self.tmp {
             Self::tmp_db()
         } else {
             self.base().join("db")
@@ -184,7 +178,6 @@ impl MergeParams for NodeParams {
         Self {
             base: self.base.or(with.base),
             tmp: self.tmp || with.tmp,
-            dev: self.dev || with.dev,
 
             validator: self.validator.or(with.validator),
             validator_session: self.validator_session.or(with.validator_session),
