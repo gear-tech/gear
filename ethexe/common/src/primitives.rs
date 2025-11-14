@@ -68,7 +68,7 @@ impl BlockData {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, Default)]
 pub struct SimpleBlockData {
     pub hash: H256,
     pub header: BlockHeader,

@@ -692,7 +692,7 @@ impl LatestDataStorageRW for Database {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ethexe_common::{ecdsa::PrivateKey, events::RouterEvent};
+    use ethexe_common::{SimpleBlockData, ecdsa::PrivateKey, events::RouterEvent};
     use gear_core::code::{InstantiatedSectionSizes, InstrumentationStatus};
 
     #[test]
@@ -801,7 +801,10 @@ mod tests {
         assert!(db.latest_data().is_none());
 
         let latest_data = LatestData {
-            synced_block_height: 42,
+            synced_block: SimpleBlockData {
+                hash: H256::random(),
+                header: Default::default(),
+            },
             prepared_block_hash: H256::random(),
             computed_announce_hash: HashOf::random(),
             genesis_block_hash: H256::random(),

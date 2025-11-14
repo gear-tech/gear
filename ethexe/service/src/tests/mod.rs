@@ -1232,10 +1232,7 @@ async fn fast_sync() {
             alice_latest_data.computed_announce_hash,
             bob_latest_data.computed_announce_hash
         );
-        assert_eq!(
-            alice_latest_data.synced_block_height,
-            bob_latest_data.synced_block_height
-        );
+        assert_eq!(alice_latest_data.synced_block, bob_latest_data.synced_block);
         assert_eq!(
             alice_latest_data.prepared_block_hash,
             bob_latest_data.prepared_block_hash

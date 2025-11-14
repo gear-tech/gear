@@ -243,7 +243,7 @@ enum ProcessAnnounceError {
 mod tests {
     use super::*;
     use ethexe_common::{
-        Announce, HashOf,
+        Announce, HashOf, SimpleBlockData,
         db::{AnnounceStorageRW, LatestDataStorageRW},
     };
     use ethexe_db::Database;
@@ -256,7 +256,10 @@ mod tests {
 
     fn set_latest_data(db: &Database, genesis: HashOf<Announce>, start: HashOf<Announce>) {
         db.set_latest_data(LatestData {
-            synced_block_height: 0,
+            synced_block: SimpleBlockData {
+                hash: H256::zero(),
+                header: Default::default(),
+            },
             prepared_block_hash: H256::zero(),
             computed_announce_hash: HashOf::zero(),
             genesis_block_hash: H256::zero(),
