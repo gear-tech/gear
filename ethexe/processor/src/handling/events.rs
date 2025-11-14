@@ -70,12 +70,18 @@ impl ProcessingHandler {
         match event {
             MirrorRequestEvent::OwnedBalanceTopUpRequested { value } => {
                 self.update_state(actor_id, |state, _, _| {
-                    state.balance += value;
+                    state.balance = state
+                        .balance
+                        .checked_add(value)
+                        .expect("Overflow in state.balance += value");
                 });
             }
             MirrorRequestEvent::ExecutableBalanceTopUpRequested { value } => {
                 self.update_state(actor_id, |state, _, _| {
-                    state.executable_balance += value;
+                    state.executable_balance = state
+                        .executable_balance
+                        .checked_add(value)
+                        .expect("Overflow in state.executable_balance += value");
                 });
             }
             MirrorRequestEvent::MessageQueueingRequested {
@@ -127,13 +133,14 @@ impl ProcessingHandler {
                         return Ok(());
                     };
 
-                    transitions.modify_transition(actor_id, |transition| {
-                        transition.claims.push(ValueClaim {
+                    transitions.claim_value(
+                        actor_id,
+                        ValueClaim {
                             message_id: replied_to,
                             destination: source,
                             value: claimed_value,
-                        });
-                    });
+                        },
+                    );
 
                     transitions.remove_task(
                         expiry,
@@ -173,13 +180,14 @@ impl ProcessingHandler {
                         return Ok(());
                     };
 
-                    transitions.modify_transition(actor_id, |transition| {
-                        transition.claims.push(ValueClaim {
+                    transitions.claim_value(
+                        actor_id,
+                        ValueClaim {
                             message_id: claimed_id,
                             destination: source,
                             value: claimed_value,
-                        });
-                    });
+                        },
+                    );
 
                     transitions.remove_task(
                         expiry,

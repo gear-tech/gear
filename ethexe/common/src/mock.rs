@@ -148,6 +148,7 @@ impl Mock<()> for StateTransition {
             new_state_hash: H256::random(),
             inheritor: H256::random().into(),
             value_to_receive: 123,
+            value_to_receive_negative_sign: false,
             value_claims: vec![],
             messages: vec![Message {
                 id: H256::random().into(),
