@@ -1,3 +1,6 @@
+src=./src
+test=./test
+script=./script
 @openzeppelin/contracts-upgradeable/=lib/openzeppelin-contracts-upgradeable/contracts/
 @openzeppelin/contracts/=lib/openzeppelin-contracts/contracts/
 @symbioticfi/core/=lib/symbiotic-rewards/lib/core/

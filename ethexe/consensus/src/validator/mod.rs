@@ -236,7 +236,6 @@ impl Stream for ValidatorService {
     type Item = Result<ConsensusEvent>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        // tracing::trace!("Polling ValidatorService: {:?}", self.inner);
         self.update_inner(|mut inner| {
             // Waits until inner futures become pending.
             loop {
@@ -247,9 +246,8 @@ impl Stream for ValidatorService {
                 }
             }
 
-            // Poll submission task if any
-            // Note: polling order is important, first we poll inner state, then submission task,
-            // because polling inner state can create submission task.
+            // Poll consensus tasks if any
+            // Note: polling tasks after is important, because polling inner state can create consensus tasks.
             let ctx = inner.context_mut();
             for mut task in mem::take(&mut ctx.tasks) {
                 if let Poll::Ready(result) = task.poll_unpin(cx) {
@@ -526,7 +524,7 @@ struct ValidatorContext {
     /// Output events for outer services. Populates during the poll.
     output: VecDeque<ConsensusEvent>,
 
-    /// Ongoing submission task, if any.
+    /// Ongoing consensus tasks, if any.
     #[debug("{}", tasks.len())]
     tasks: VecDeque<BoxFuture<'static, Result<ConsensusEvent>>>,
 }
