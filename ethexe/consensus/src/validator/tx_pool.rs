@@ -20,7 +20,7 @@ use anyhow::{Result, anyhow};
 use ethexe_common::{
     Announce, HashOf, ProgramStates,
     db::{AnnounceStorageRO, CodesStorageRO, InjectedStorageRW, OnChainStorageRO},
-    injected::{InjectedTransaction, SignedInjectedTransaction, VALIDITY_WINDOW},
+    injected::{SignedInjectedTransaction, VALIDITY_WINDOW},
 };
 use ethexe_db::Database;
 use gprimitives::H256;
