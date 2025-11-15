@@ -18,6 +18,9 @@
 
 pub use crate::apis::InjectedTransactionAcceptance;
 
+#[cfg(feature = "test-utils")]
+pub use crate::apis::InjectedClient;
+
 use anyhow::{Result, anyhow};
 use apis::{
     BlockApi, BlockServer, CodeApi, CodeServer, InjectedApi, InjectedServer, ProgramApi,

@@ -5200,6 +5200,7 @@ dependencies = [
  "gear-core",
  "gear-core-errors",
  "gprimitives",
+ "jsonrpsee",
  "log",
  "ntest",
  "parity-scale-codec",

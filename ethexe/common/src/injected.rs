@@ -84,7 +84,7 @@ impl ToDigest for InjectedTransaction {
 impl InjectedTransaction {
     /// Returns the hash of [`InjectedTransaction`].
     pub fn to_hash(&self) -> HashOf<InjectedTransaction> {
-        // Safety because of implementation.
+        // Safe because we hash corresponding type itself
         unsafe { HashOf::new(gear_core::utils::hash(&self.encode()).into()) }
     }
 
@@ -106,20 +106,6 @@ pub struct Promise {
     pub reply: ReplyInfo,
 }
 
-impl ToDigest for ReplyInfo {
-    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
-        let Self {
-            payload,
-            code,
-            value,
-        } = self;
-
-        payload.update_hasher(hasher);
-        code.to_bytes().update_hasher(hasher);
-        value.to_be_bytes().update_hasher(hasher);
-    }
-}
-
 /// Signed wrapper on top of [`Promise`].
 /// It will be shared among other validators as a proof of promise.
 pub type SignedPromise = SignedData<Promise>;
@@ -128,7 +114,7 @@ impl ToDigest for Promise {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
         let Self { tx_hash, reply } = self;
 
-        tx_hash.inner().0.update_hasher(hasher);
+        tx_hash.update_hasher(hasher);
         reply.update_hasher(hasher);
     }
 }

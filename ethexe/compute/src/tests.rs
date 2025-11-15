@@ -30,8 +30,8 @@ use gear_core::ids::prelude::CodeIdExt;
 use std::{cell::RefCell, collections::BTreeMap};
 
 thread_local! {
-    pub(crate) static PROCESSOR_RESULT: RefCell<BlockProcessingResult> = const { RefCell::new(
-        BlockProcessingResult {
+    pub(crate) static PROCESSOR_RESULT: RefCell<FinalizedBlockTransitions> = const { RefCell::new(
+        FinalizedBlockTransitions {
             transitions: Vec::new(),
             states: BTreeMap::new(),
             schedule: BTreeMap::new(),
@@ -49,10 +49,10 @@ impl ProcessorExt for MockProcessor {
         &mut self,
         _announce: Announce,
         _events: Vec<BlockRequestEvent>,
-    ) -> Result<BlockProcessingResult> {
+    ) -> Result<FinalizedBlockTransitions> {
         let result = PROCESSOR_RESULT.with_borrow(|r| r.clone());
         PROCESSOR_RESULT.with_borrow_mut(|r| {
-            *r = BlockProcessingResult {
+            *r = FinalizedBlockTransitions {
                 transitions: vec![],
                 states: BTreeMap::new(),
                 schedule: BTreeMap::new(),

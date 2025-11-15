@@ -23,5 +23,8 @@ mod program;
 
 pub use block::{BlockApi, BlockServer};
 pub use code::{CodeApi, CodeServer};
-pub use injected::{InjectedApi, InjectedClient, InjectedServer, InjectedTransactionAcceptance};
+pub use injected::{InjectedApi, InjectedServer, InjectedTransactionAcceptance};
 pub use program::{ProgramApi, ProgramServer};
+
+#[cfg(feature = "test-utils")]
+pub use injected::InjectedClient;

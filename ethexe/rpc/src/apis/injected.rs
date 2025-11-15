@@ -30,7 +30,8 @@ pub enum InjectedTransactionAcceptance {
     Accept,
 }
 
-#[rpc(server, client)]
+#[cfg_attr(not(feature = "test-utils"), rpc(server))]
+#[cfg_attr(feature = "test-utils", rpc(server, client))]
 pub trait Injected {
     #[method(name = "injected_sendTransaction")]
     async fn send_transaction(

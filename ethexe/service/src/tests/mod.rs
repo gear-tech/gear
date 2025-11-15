@@ -2270,6 +2270,8 @@ async fn injected_tx_fungible_token() {
 
     let usdt_actor_id = res.program_id;
 
+    tracing::info!("usdt actor id: {usdt_actor_id}");
+
     // 3. Initialize program
     let init_tx = InjectedTransaction {
         destination: usdt_actor_id,

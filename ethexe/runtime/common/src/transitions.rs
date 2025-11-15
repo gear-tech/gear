@@ -48,6 +48,14 @@ pub struct InBlockTransitions {
     injected_replies: BTreeMap<MessageId, Option<ReplyInfo>>,
 }
 
+#[derive(Debug, Clone, Default)]
+pub struct FinalizedBlockTransitions {
+    pub transitions: Vec<StateTransition>,
+    pub states: ProgramStates,
+    pub schedule: Schedule,
+    pub promises: Vec<Promise>,
+}
+
 impl InBlockTransitions {
     pub fn new(
         header: BlockHeader,
@@ -199,7 +207,7 @@ impl InBlockTransitions {
         f(initial_state, transition)
     }
 
-    pub fn finalize(self) -> (Vec<StateTransition>, ProgramStates, Schedule, Vec<Promise>) {
+    pub fn finalize(self) -> FinalizedBlockTransitions {
         let Self {
             states,
             schedule,
@@ -220,7 +228,7 @@ impl InBlockTransitions {
             })
             .collect();
 
-        let mut res = Vec::with_capacity(modifications.len());
+        let mut transitions = Vec::with_capacity(modifications.len());
 
         for (actor_id, modification) in modifications {
             let new_state = states
@@ -229,7 +237,7 @@ impl InBlockTransitions {
                 .expect("failed to find state record for modified state");
 
             if !modification.is_noop(new_state.hash) {
-                res.push(StateTransition {
+                transitions.push(StateTransition {
                     actor_id,
                     new_state_hash: new_state.hash,
                     exited: modification.inheritor.is_some(),
@@ -242,7 +250,12 @@ impl InBlockTransitions {
             }
         }
 
-        (res, states, schedule, promises)
+        FinalizedBlockTransitions {
+            transitions,
+            states,
+            schedule,
+            promises,
+        }
     }
 }
 
