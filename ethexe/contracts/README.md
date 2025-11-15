@@ -50,6 +50,9 @@ $ anvil
 ```shell
 $ source .env
 
+# When running local node, execute `unset ETHERSCAN_API_KEY` to skip verification
+$ ../scripts/deploy-ethereum-contracts.sh $LOCAL_RPC_URL
+
 $ ../scripts/deploy-ethereum-contracts.sh $MAINNET_RPC_URL
 $ ../scripts/deploy-ethereum-contracts.sh $HOODI_RPC_URL
 ```

@@ -32,10 +32,7 @@ use alloy::{
     providers::{Provider as _, ProviderBuilder, RootProvider, ext::AnvilApi},
     rpc::types::anvil::MineOptions,
 };
-use ethexe_blob_loader::{
-    BlobLoaderService,
-    local::{LocalBlobLoader, LocalBlobStorage},
-};
+use ethexe_blob_loader::{BlobLoader, BlobLoaderService, ConsensusLayerConfig};
 use ethexe_common::{
     Address, BlockHeader, CodeAndId, DEFAULT_BLOCK_GAS_LIMIT, SimpleBlockData, ToDigest,
     db::*,
@@ -94,7 +91,6 @@ pub struct TestEnv {
     pub eth_cfg: EthereumConfig,
     #[allow(unused)]
     pub wallets: Wallets,
-    pub blobs_storage: LocalBlobStorage,
     pub election_provider: MockElectionProvider,
     pub provider: RootProvider,
     pub ethereum: Ethereum,
@@ -139,10 +135,15 @@ impl TestEnv {
             "📗 Starting new test environment. Continuous block generation: {continuous_block_generation}"
         );
 
-        let (rpc_url, anvil) = match rpc {
-            EnvRpcConfig::ProvidedURL(rpc_url) => {
-                log::info!("📍 Using provided RPC URL: {rpc_url}");
-                (rpc_url, None)
+        let (http_rpc_url, ws_rpc_url, anvil) = match rpc {
+            EnvRpcConfig::ProvidedURL {
+                http_rpc_url,
+                ws_rpc_url,
+            } => {
+                log::info!(
+                    "📍 Using provided HTTP RPC URL: {http_rpc_url} and WS RPC URL: {ws_rpc_url}"
+                );
+                (http_rpc_url, ws_rpc_url, None)
             }
             EnvRpcConfig::CustomAnvil {
                 slots_in_epoch,
@@ -172,8 +173,12 @@ impl TestEnv {
                         .unwrap();
                 }
 
-                log::info!("📍 Anvil started at {}", anvil.ws_endpoint());
-                (anvil.ws_endpoint(), Some(anvil))
+                log::info!(
+                    "📍 Anvil started at {} and {}",
+                    anvil.endpoint(),
+                    anvil.ws_endpoint()
+                );
+                (anvil.endpoint(), anvil.ws_endpoint(), Some(anvil))
             }
         };
 
@@ -202,7 +207,7 @@ impl TestEnv {
         let ethereum = if let Some(router_address) = router_address {
             log::info!("📗 Connecting to existing router at {router_address}");
             Ethereum::new(
-                &rpc_url,
+                &ws_rpc_url,
                 router_address.parse().unwrap(),
                 signer.clone(),
                 sender_address,
@@ -212,7 +217,7 @@ impl TestEnv {
             log::info!("📗 Deploying new router");
             let validators_addresses: Vec<Address> =
                 validators.iter().map(|k| k.to_address()).collect();
-            EthereumDeployer::new(&rpc_url, signer.clone(), sender_address) // verifiable_secret_sharing_commitment,)
+            EthereumDeployer::new(&ws_rpc_url, signer.clone(), sender_address) // verifiable_secret_sharing_commitment,)
                 .await
                 .unwrap()
                 .with_validators(validators_addresses.try_into().unwrap())
@@ -229,8 +234,8 @@ impl TestEnv {
         let db = Database::memory();
 
         let eth_cfg = EthereumConfig {
-            rpc: rpc_url.clone(),
-            beacon_rpc: Default::default(),
+            rpc: ws_rpc_url.clone(),
+            beacon_rpc: http_rpc_url.clone(),
             router_address,
             block_time: config.block_time,
         };
@@ -238,8 +243,6 @@ impl TestEnv {
             .await
             .unwrap();
         let genesis_block_hash = observer.genesis_block_hash();
-
-        let blobs_storage = LocalBlobStorage::default();
 
         let provider = observer.provider().clone();
 
@@ -332,7 +335,6 @@ impl TestEnv {
         Ok(TestEnv {
             eth_cfg,
             wallets,
-            blobs_storage,
             election_provider: MockElectionProvider::new(),
             provider,
             ethereum,
@@ -386,7 +388,6 @@ impl TestEnv {
             router_query: self.router_query.clone(),
             eth_cfg: self.eth_cfg.clone(),
             receiver: None,
-            blob_storage: self.blobs_storage.clone(),
             election_provider: self.election_provider.clone(),
             signer: self.signer.clone(),
             threshold: self.threshold,
@@ -408,7 +409,6 @@ impl TestEnv {
 
         let code_and_id = CodeAndId::new(code.to_vec());
         let code_id = code_and_id.code_id();
-        self.blobs_storage.add_code(code_and_id).await;
 
         let pending_builder = self
             .ethereum
@@ -669,7 +669,10 @@ pub enum EnvNetworkConfig {
 
 pub enum EnvRpcConfig {
     #[allow(unused)]
-    ProvidedURL(String),
+    ProvidedURL {
+        http_rpc_url: String,
+        ws_rpc_url: String,
+    },
     CustomAnvil {
         slots_in_epoch: Option<u64>,
         genesis_timestamp: Option<u64>,
@@ -770,7 +773,6 @@ impl NodeConfig {
         let service_rpc_config = RpcConfig {
             listen_addr: SocketAddr::new("127.0.0.1".parse().unwrap(), rpc_port),
             cors: None,
-            dev: false,
             runner_config,
         };
         self.rpc = Some(service_rpc_config);
@@ -847,7 +849,6 @@ pub struct Node {
     router_query: RouterQuery,
     eth_cfg: EthereumConfig,
     receiver: Option<TestingEventReceiver>,
-    blob_storage: LocalBlobStorage,
     election_provider: MockElectionProvider,
     signer: Signer,
     threshold: u64,
@@ -914,7 +915,15 @@ impl Node {
 
         let (sender, receiver) = broadcast::channel(2048);
 
-        let blob_loader = LocalBlobLoader::new(self.blob_storage.clone()).into_box();
+        let consensus_config = ConsensusLayerConfig {
+            ethereum_rpc: self.eth_cfg.rpc.clone(),
+            ethereum_beacon_rpc: self.eth_cfg.beacon_rpc.clone(),
+            beacon_block_time: self.eth_cfg.block_time,
+        };
+        let blob_loader = BlobLoader::new(self.db.clone(), consensus_config)
+            .await
+            .expect("failed to create blob loader")
+            .into_box();
 
         let wait_for_network = self.network_bootstrap_address.is_some();
 
@@ -926,9 +935,10 @@ impl Node {
 
         let tx_pool_service = TxPoolService::new(self.db.clone());
 
-        let rpc = self.service_rpc_config.as_ref().map(|service_rpc_config| {
-            RpcService::new(service_rpc_config.clone(), self.db.clone(), None)
-        });
+        let rpc = self
+            .service_rpc_config
+            .as_ref()
+            .map(|service_rpc_config| RpcService::new(service_rpc_config.clone(), self.db.clone()));
 
         self.receiver = Some(receiver);
 

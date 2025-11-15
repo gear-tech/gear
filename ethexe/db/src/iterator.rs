@@ -748,6 +748,7 @@ where
             exited: _,
             inheritor: _,
             value_to_receive: _,
+            value_to_receive_negative_sign: _,
             value_claims: _,
             messages: _,
         } = state_transition;
@@ -1065,6 +1066,7 @@ pub(crate) mod tests {
                     exited: false,
                     inheritor: Default::default(),
                     value_to_receive: 0,
+                    value_to_receive_negative_sign: false,
                     value_claims: vec![],
                     messages: vec![],
                 }],
@@ -1088,6 +1090,7 @@ pub(crate) mod tests {
             exited: false,
             inheritor: ActorId::zero(),
             value_to_receive: 0,
+            value_to_receive_negative_sign: false,
             value_claims: Vec::new(),
             messages: Vec::new(),
         };
@@ -1118,6 +1121,7 @@ pub(crate) mod tests {
             exited: false,
             inheritor: ActorId::zero(),
             value_to_receive: 0,
+            value_to_receive_negative_sign: false,
             value_claims: Vec::new(),
             messages: Vec::new(),
         };
