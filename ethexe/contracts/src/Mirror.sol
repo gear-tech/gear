@@ -125,12 +125,7 @@ contract Mirror is IMirror {
         return _sendMessage(_payload, _callReply);
     }
 
-    function sendReply(bytes32 _repliedTo, bytes calldata _payload)
-        external
-        payable
-        onlyIfActive
-        onlyAfterInitMessage
-    {
+    function sendReply(bytes32 _repliedTo, bytes calldata _payload) external payable onlyIfActive onlyAfterInitMessage {
         uint128 _value = uint128(msg.value);
 
         _retrievingEther(_value);
@@ -310,14 +305,11 @@ contract Mirror is IMirror {
          *      Very important check because custom events can match our hashes!
          *      If we miss even 1 event that is emitted by Mirror, user will be able to fake protocol logic!
          */
-        if (
-            !(
-                topic1 != StateChanged.selector && topic1 != MessageQueueingRequested.selector
+        if (!(topic1 != StateChanged.selector && topic1 != MessageQueueingRequested.selector
                     && topic1 != ReplyQueueingRequested.selector && topic1 != ValueClaimingRequested.selector
-                    && topic1 != OwnedBalanceTopUpRequested.selector && topic1 != ExecutableBalanceTopUpRequested.selector
-                    && topic1 != Message.selector && topic1 != Reply.selector && topic1 != ValueClaimed.selector
-            )
-        ) {
+                    && topic1 != OwnedBalanceTopUpRequested.selector
+                    && topic1 != ExecutableBalanceTopUpRequested.selector && topic1 != Message.selector
+                    && topic1 != Reply.selector && topic1 != ValueClaimed.selector)) {
             return false;
         }
 

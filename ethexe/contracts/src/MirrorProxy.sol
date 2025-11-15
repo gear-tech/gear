@@ -27,7 +27,7 @@ contract MirrorProxy {
 
     /* Primary Gear logic */
 
-    function sendMessage(bytes calldata payload, bool callReply) external payable /*returns (bytes32)*/ {
+    function sendMessage(bytes calldata payload, bool callReply) external payable /*returns (bytes32)*/  {
         _delegate();
     }
 

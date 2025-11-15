@@ -453,11 +453,7 @@ library Gear {
         return ts1Greater && (tsGe0 == tsGe1);
     }
 
-    function validatorsThreshold(uint256 validatorsAmount, uint16 thresholdPercentage)
-        internal
-        pure
-        returns (uint256)
-    {
+    function validatorsThreshold(uint256 validatorsAmount, uint16 thresholdPercentage) internal pure returns (uint256) {
         // Dividing by 10000 to adjust for percentage
         return (validatorsAmount * uint256(thresholdPercentage) + 9999) / 10000;
     }
