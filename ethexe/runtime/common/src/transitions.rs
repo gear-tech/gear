@@ -148,6 +148,19 @@ impl InBlockTransitions {
         self.modify(actor_id, |_state, transition| f(transition))
     }
 
+    pub fn claim_value(&mut self, actor_id: ActorId, claim: ValueClaim) {
+        self.modify(actor_id, |_state, transition| {
+            transition.value_to_receive = transition
+                .value_to_receive
+                .checked_add(
+                    i128::try_from(claim.value).expect("claimed_value doesn't fit in i128"),
+                )
+                .expect("Overflow in transition.value_to_receive += claimed_value");
+
+            transition.claims.push(claim);
+        });
+    }
+
     pub fn modify<T>(
         &mut self,
         actor_id: ActorId,
@@ -191,7 +204,8 @@ impl InBlockTransitions {
                     new_state_hash: new_state.hash,
                     exited: modification.inheritor.is_some(),
                     inheritor: modification.inheritor.unwrap_or_default(),
-                    value_to_receive: modification.value_to_receive,
+                    value_to_receive: modification.value_to_receive.unsigned_abs(),
+                    value_to_receive_negative_sign: modification.value_to_receive < 0,
                     value_claims: modification.claims,
                     messages: modification.messages,
                 });
@@ -206,7 +220,7 @@ impl InBlockTransitions {
 pub struct NonFinalTransition {
     initial_state: H256,
     pub inheritor: Option<ActorId>,
-    pub value_to_receive: u128,
+    pub value_to_receive: i128,
     pub claims: Vec<ValueClaim>,
     pub messages: Vec<Message>,
 }

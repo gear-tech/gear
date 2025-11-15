@@ -88,8 +88,6 @@ impl RpcParams {
             })
             .into();
 
-        let dev = node_config.dev;
-
         let gas_limit_multiplier = self
             .gas_limit_multiplier
             .unwrap_or(DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER);
@@ -103,7 +101,6 @@ impl RpcParams {
         Some(RpcConfig {
             listen_addr,
             cors,
-            dev,
             runner_config,
         })
     }

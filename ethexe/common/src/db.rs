@@ -22,7 +22,7 @@
 
 use crate::{
     Announce, BlockHeader, CodeBlobInfo, Digest, HashOf, ProgramStates, ProtocolTimelines,
-    Schedule, ValidatorsVec, events::BlockEvent, gear::StateTransition,
+    Schedule, SimpleBlockData, ValidatorsVec, events::BlockEvent, gear::StateTransition,
 };
 use alloc::{
     collections::{BTreeSet, VecDeque},
@@ -155,8 +155,8 @@ pub trait AnnounceStorageRW: AnnounceStorageRO {
 
 #[derive(Debug, Clone, Default, Encode, Decode, PartialEq, Eq)]
 pub struct LatestData {
-    /// Latest synced block height
-    pub synced_block_height: u32,
+    /// Latest synced block
+    pub synced_block: SimpleBlockData,
     /// Latest prepared block hash
     pub prepared_block_hash: H256,
     /// Latest computed announce hash
