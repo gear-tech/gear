@@ -1,0 +1,72 @@
+name: Build *NIX
+
+on:
+  workflow_call:
+    inputs:
+      profiles:
+        type: string
+        required: true
+      targets:
+        type: string
+        required: true
+
+env:
+  TERM: xterm-256color
+  RUST_BACKTRACE: short
+  RUST_LIB_BACKTRACE: 1
+  CARGO_TERM_COLOR: always
+  CARGO_PROFILE_DEV_DEBUG: line-tables-only
+  CARGO_PROFILE_TEST_DEBUG: line-tables-only
+  CARGO_INCREMENTAL: 0
+  NEXTEST_PROFILE: ci
+
+jobs:
+  unix:
+    strategy:
+      matrix:
+        profiles: ${{ fromJSON(inputs.profiles) }}
+        targets: ${{ fromJSON(inputs.targets) }}
+      fail-fast: false
+    name: ${{ matrix.targets.name }} (${{ matrix.profiles.name }})
+    runs-on: ${{ matrix.targets.runs-on }}
+    steps:
+      - name: "ACTIONS: Checkout"
+        uses: actions/checkout@v4
+
+      - name: "Install: cargo-binstall"
+        uses: cargo-bins/cargo-binstall@main
+
+      - name: "Install: cargo-nextest"
+        run: cargo binstall --no-confirm cargo-nextest
+
+      - name: "ACTIONS: Download node"
+        uses: actions/download-artifact@v4
+        with:
+          name: node-and-runtime-release-${{ matrix.targets.target }}
+          path: target/release
+
+      - name: "Install: Rust toolchain"
+        uses: ./.github/actions/install-rust
+
+      - name: "Install: Compilation environment"
+        uses: ./.github/actions/setup-compilation-env
+        with:
+          target: "${{ matrix.targets.target }}"
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: "ACTIONS: Setup caching"
+        uses: ./.github/actions/rust-cache
+        with:
+          us-access-key-id: "${{ secrets.GEAR_CI_S3_US_ACCESS_KEY_ID }}"
+          us-secret-access-key: "${{ secrets.GEAR_CI_S3_US_SECRET_ACCESS_KEY }}"
+          eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
+          eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
+          key: "${{ matrix.profiles.name }}"
+
+      - name: "Test: Lazy pages"
+        run: >-
+          cargo nextest run
+          -p "pallet-*"
+          -p gear-lazy-pages
+          -p gear-runtime-interface
+          ${{ matrix.profiles.flags }}

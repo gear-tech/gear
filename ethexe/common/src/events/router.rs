@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::Digest;
+use crate::{Announce, Digest, HashOf};
 use gprimitives::{ActorId, CodeId, H256};
 use parity_scale_codec::{Decode, Encode};
 
@@ -25,7 +25,7 @@ pub enum Event {
     BatchCommitted {
         digest: Digest,
     },
-    HeadCommitted(H256),
+    AnnouncesCommitted(HashOf<Announce>),
     CodeGotValidated {
         code_id: CodeId,
         valid: bool,
@@ -44,8 +44,8 @@ pub enum Event {
         code_id: CodeId,
     },
     StorageSlotChanged,
-    NextEraValidatorsCommitted {
-        next_era_start: u64,
+    ValidatorsCommittedForEra {
+        era_index: u64,
     },
 }
 
@@ -72,11 +72,11 @@ impl Event {
                 RequestEvent::ProgramCreated { actor_id, code_id }
             }
             Self::StorageSlotChanged => RequestEvent::StorageSlotChanged,
-            Self::NextEraValidatorsCommitted { next_era_start } => {
-                RequestEvent::NextEraValidatorsCommitted { next_era_start }
+            Self::ValidatorsCommittedForEra { era_index } => {
+                RequestEvent::ValidatorsCommittedForEra { era_index }
             }
             Self::CodeGotValidated { .. }
-            | Self::HeadCommitted(_)
+            | Self::AnnouncesCommitted(_)
             | Self::BatchCommitted { .. } => return None,
         })
     }
@@ -100,7 +100,7 @@ pub enum RequestEvent {
         code_id: CodeId,
     },
     StorageSlotChanged,
-    NextEraValidatorsCommitted {
-        next_era_start: u64,
+    ValidatorsCommittedForEra {
+        era_index: u64,
     },
 }

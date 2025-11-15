@@ -28,6 +28,15 @@ use ethexe_common::{
 };
 use gprimitives::{ActorId, H256};
 
+/// In-memory store for the state transitions
+/// that are going to be applied in the current block.
+///
+/// The type is instantiated with states taken from the parent
+/// block, as parent block stores latest states to be possibly
+/// updated in the current block.
+///
+/// The type actually stores latest state transitions, which are going to be
+/// applied in the current block.
 #[derive(Debug, Default)]
 pub struct InBlockTransitions {
     header: BlockHeader,
@@ -55,7 +64,7 @@ impl InBlockTransitions {
     }
 
     pub fn state_of(&self, actor_id: &ActorId) -> Option<StateHashWithQueueSize> {
-        self.states.get(actor_id).cloned()
+        self.states.get(actor_id).copied()
     }
 
     pub fn states_amount(&self) -> usize {
@@ -67,7 +76,7 @@ impl InBlockTransitions {
     }
 
     pub fn known_programs(&self) -> Vec<ActorId> {
-        self.states.keys().cloned().collect()
+        self.states.keys().copied().collect()
     }
 
     pub fn current_messages(&self) -> Vec<(ActorId, Message)> {
@@ -117,10 +126,17 @@ impl InBlockTransitions {
         self.modifications.insert(actor_id, Default::default());
     }
 
-    pub fn modify_state(&mut self, actor_id: ActorId, new_state_hash: H256, queue_size: u8) {
+    pub fn modify_state(
+        &mut self,
+        actor_id: ActorId,
+        new_state_hash: H256,
+        canonical_queue_size: u8,
+        injected_queue_size: u8,
+    ) {
         self.modify(actor_id, |state, _transition| {
             state.hash = new_state_hash;
-            state.cached_queue_size = queue_size;
+            state.canonical_queue_size = canonical_queue_size;
+            state.injected_queue_size = injected_queue_size;
         })
     }
 
@@ -130,6 +146,19 @@ impl InBlockTransitions {
         f: impl FnOnce(&mut NonFinalTransition) -> T,
     ) -> T {
         self.modify(actor_id, |_state, transition| f(transition))
+    }
+
+    pub fn claim_value(&mut self, actor_id: ActorId, claim: ValueClaim) {
+        self.modify(actor_id, |_state, transition| {
+            transition.value_to_receive = transition
+                .value_to_receive
+                .checked_add(
+                    i128::try_from(claim.value).expect("claimed_value doesn't fit in i128"),
+                )
+                .expect("Overflow in transition.value_to_receive += claimed_value");
+
+            transition.claims.push(claim);
+        });
     }
 
     pub fn modify<T>(
@@ -175,7 +204,8 @@ impl InBlockTransitions {
                     new_state_hash: new_state.hash,
                     exited: modification.inheritor.is_some(),
                     inheritor: modification.inheritor.unwrap_or_default(),
-                    value_to_receive: modification.value_to_receive,
+                    value_to_receive: modification.value_to_receive.unsigned_abs(),
+                    value_to_receive_negative_sign: modification.value_to_receive < 0,
                     value_claims: modification.claims,
                     messages: modification.messages,
                 });
@@ -190,7 +220,7 @@ impl InBlockTransitions {
 pub struct NonFinalTransition {
     initial_state: H256,
     pub inheritor: Option<ActorId>,
-    pub value_to_receive: u128,
+    pub value_to_receive: i128,
     pub claims: Vec<ValueClaim>,
     pub messages: Vec<Message>,
 }

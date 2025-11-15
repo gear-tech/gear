@@ -189,16 +189,21 @@ impl TxCommand {
                     unimplemented!("Watching reply is not yet implemented");
                 }
             }
-            TxSubcommand::Upload { path_to_wasm } => {
+            TxSubcommand::Upload {
+                path_to_wasm,
+                legacy,
+            } => {
                 let code =
                     fs::read(&path_to_wasm).with_context(|| "failed to read wasm from file")?;
 
                 println!("Uploading {} to Ethereum", path_to_wasm.display(),);
 
-                let pending_builder = router
-                    .request_code_validation_with_sidecar(&code)
-                    .await
-                    .with_context(|| "failed to create code validation request")?;
+                let pending_builder = if legacy {
+                    router.request_code_validation_with_sidecar_old(&code).await
+                } else {
+                    router.request_code_validation_with_sidecar(&code).await
+                }
+                .with_context(|| "failed to create code validation request")?;
 
                 let (tx, code_id) = pending_builder
                     .send()
@@ -262,5 +267,8 @@ pub enum TxSubcommand {
         /// Path to the Wasm file.
         #[arg()]
         path_to_wasm: PathBuf,
+        /// Flag to use old blob transaction format
+        #[arg(short, long, default_value = "false")]
+        legacy: bool,
     },
 }

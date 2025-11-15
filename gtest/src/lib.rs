@@ -492,8 +492,9 @@
 #![warn(missing_docs)]
 #![doc(html_logo_url = "https://gear-tech.io/logo.png")]
 #![doc(html_favicon_url = "https://gear-tech.io/favicon.ico")]
-#![cfg_attr(docsrs, feature(doc_auto_cfg))]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 
+mod builtins;
 mod error;
 mod log;
 mod manager;
@@ -502,6 +503,10 @@ mod state;
 mod system;
 
 pub use crate::log::{BlockRunResult, CoreLog, Log};
+pub use builtins::{
+    BLS12_381_ID, Bls12_381Request, Bls12_381Response, ETH_BRIDGE_ID, EthBridgeRequest,
+    EthBridgeResponse,
+};
 pub use error::{Result, TestError};
 pub use parity_scale_codec;
 pub use program::{

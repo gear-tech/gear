@@ -20,11 +20,13 @@ use super::ProcessingHandler;
 use crate::{ProcessorError, Result};
 use ethexe_common::{
     ScheduledTask,
-    db::{CodesStorageRead, CodesStorageWrite},
-    events::{MirrorRequestEvent, RouterRequestEvent, WVaraRequestEvent},
-    gear::{Origin, ValueClaim},
+    db::{CodesStorageRO, CodesStorageRW},
+    events::{MirrorRequestEvent, RouterRequestEvent},
+    gear::{MessageType, ValueClaim},
 };
-use ethexe_runtime_common::state::{Dispatch, Expiring, MailboxMessage, PayloadLookup};
+use ethexe_runtime_common::state::{
+    Dispatch, Expiring, MailboxMessage, ModifiableStorage, PayloadLookup,
+};
 use gear_core::{ids::ActorId, message::SuccessReplyReason};
 
 impl ProcessingHandler {
@@ -43,10 +45,10 @@ impl ProcessingHandler {
 
                 self.transitions.register_new(actor_id);
             }
-            RouterRequestEvent::CodeValidationRequested { .. }
+            RouterRequestEvent::ValidatorsCommittedForEra { .. }
+            | RouterRequestEvent::CodeValidationRequested { .. }
             | RouterRequestEvent::ComputationSettingsChanged { .. }
-            | RouterRequestEvent::StorageSlotChanged
-            | RouterRequestEvent::NextEraValidatorsCommitted { .. } => {
+            | RouterRequestEvent::StorageSlotChanged => {
                 log::debug!("Handler not yet implemented: {event:?}");
             }
         };
@@ -66,9 +68,20 @@ impl ProcessingHandler {
         }
 
         match event {
+            MirrorRequestEvent::OwnedBalanceTopUpRequested { value } => {
+                self.update_state(actor_id, |state, _, _| {
+                    state.balance = state
+                        .balance
+                        .checked_add(value)
+                        .expect("Overflow in state.balance += value");
+                });
+            }
             MirrorRequestEvent::ExecutableBalanceTopUpRequested { value } => {
                 self.update_state(actor_id, |state, _, _| {
-                    state.executable_balance += value;
+                    state.executable_balance = state
+                        .executable_balance
+                        .checked_add(value)
+                        .expect("Overflow in state.executable_balance += value");
                 });
             }
             MirrorRequestEvent::MessageQueueingRequested {
@@ -88,12 +101,12 @@ impl ProcessingHandler {
                         payload,
                         value,
                         is_init,
-                        Origin::Ethereum,
+                        MessageType::Canonical,
                         call_reply,
                     )?;
 
                     state
-                        .queue
+                        .canonical_queue
                         .modify_queue(storage, |queue| queue.queue(dispatch));
 
                     Ok(())
@@ -113,20 +126,21 @@ impl ProcessingHandler {
                                 ..
                             },
                         expiry,
-                    }) = state.mailbox_hash.modify_mailbox(storage, |mailbox| {
+                    }) = storage.modify(&mut state.mailbox_hash, |mailbox| {
                         mailbox.remove_and_store_user_mailbox(storage, source, replied_to)
                     })
                     else {
                         return Ok(());
                     };
 
-                    transitions.modify_transition(actor_id, |transition| {
-                        transition.claims.push(ValueClaim {
+                    transitions.claim_value(
+                        actor_id,
+                        ValueClaim {
                             message_id: replied_to,
                             destination: source,
                             value: claimed_value,
-                        });
-                    });
+                        },
+                    );
 
                     transitions.remove_task(
                         expiry,
@@ -139,12 +153,12 @@ impl ProcessingHandler {
                         source,
                         payload,
                         value,
-                        Origin::Ethereum,
+                        MessageType::Canonical,
                         false,
                     )?;
 
                     state
-                        .queue
+                        .canonical_queue
                         .modify_queue(storage, |queue| queue.queue(reply));
 
                     Ok(())
@@ -159,20 +173,21 @@ impl ProcessingHandler {
                                 ..
                             },
                         expiry,
-                    }) = state.mailbox_hash.modify_mailbox(storage, |mailbox| {
+                    }) = storage.modify(&mut state.mailbox_hash, |mailbox| {
                         mailbox.remove_and_store_user_mailbox(storage, source, claimed_id)
                     })
                     else {
                         return Ok(());
                     };
 
-                    transitions.modify_transition(actor_id, |transition| {
-                        transition.claims.push(ValueClaim {
+                    transitions.claim_value(
+                        actor_id,
+                        ValueClaim {
                             message_id: claimed_id,
                             destination: source,
                             value: claimed_value,
-                        });
-                    });
+                        },
+                    );
 
                     transitions.remove_task(
                         expiry,
@@ -185,12 +200,12 @@ impl ProcessingHandler {
                         PayloadLookup::empty(),
                         0,
                         SuccessReplyReason::Auto,
-                        Origin::Ethereum,
+                        MessageType::Canonical,
                         false,
                     );
 
                     state
-                        .queue
+                        .canonical_queue
                         .modify_queue(storage, |queue| queue.queue(reply));
 
                     Ok(())
@@ -199,15 +214,5 @@ impl ProcessingHandler {
         };
 
         Ok(())
-    }
-
-    pub(crate) fn handle_wvara_event(&mut self, event: WVaraRequestEvent) {
-        match event {
-            WVaraRequestEvent::Transfer { from, to, value } => {
-                if self.transitions.is_program(&to) && !self.transitions.is_program(&from) {
-                    self.update_state(to, |state, _, _| state.balance += value);
-                }
-            }
-        }
     }
 }

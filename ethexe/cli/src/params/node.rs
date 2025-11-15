@@ -20,8 +20,11 @@ use super::MergeParams;
 use anyhow::{Context, Result, ensure};
 use clap::Parser;
 use directories::ProjectDirs;
-use ethexe_common::gear::MAX_BLOCK_GAS_LIMIT;
-use ethexe_processor::{DEFAULT_BLOCK_GAS_LIMIT, DEFAULT_CHUNK_PROCESSING_THREADS};
+use ethexe_common::{
+    DEFAULT_BLOCK_GAS_LIMIT,
+    gear::{CANONICAL_QUARANTINE, MAX_BLOCK_GAS_LIMIT},
+};
+use ethexe_processor::DEFAULT_CHUNK_PROCESSING_THREADS;
 use ethexe_service::config::{ConfigPublicKey, NodeConfig};
 use serde::Deserialize;
 use std::{num::NonZero, path::PathBuf};
@@ -43,11 +46,6 @@ pub struct NodeParams {
     #[serde(default)]
     pub tmp: bool,
 
-    /// Flag to run node in development mode.
-    #[arg(long)]
-    #[serde(default)]
-    pub dev: bool,
-
     /// Public key of the validator, if node should act as one.
     #[arg(long)]
     pub validator: Option<String>,
@@ -65,22 +63,26 @@ pub struct NodeParams {
     /// Number of worker threads to use in tokio runtime.
     #[arg(long)]
     #[serde(rename = "worker-threads")]
-    pub worker_threads: Option<NonZero<u8>>,
+    pub worker_threads: Option<NonZero<usize>>,
 
     /// Number of blocking threads to use in tokio runtime.
     #[arg(long)]
     #[serde(rename = "blocking-threads")]
-    pub blocking_threads: Option<NonZero<u8>>,
+    pub blocking_threads: Option<NonZero<usize>>,
 
     /// Number of threads to use for chunk processing.
     #[arg(long)]
     #[serde(rename = "chunk-processing-threads")]
-    pub chunk_processing_threads: Option<NonZero<u8>>,
+    pub chunk_processing_threads: Option<NonZero<usize>>,
 
     /// Block gas limit for the node.
     #[arg(long)]
     #[serde(rename = "block-gas-limit")]
     pub block_gas_limit: Option<u64>,
+
+    #[arg(long)]
+    #[serde(rename = "canonical-quarantine")]
+    pub canonical_quarantine: Option<u8>,
 
     /// Do P2P database synchronization before the main loop
     #[arg(long, default_value = "false")]
@@ -107,24 +109,24 @@ impl NodeParams {
             validator_session: ConfigPublicKey::new(&self.validator_session)
                 .with_context(|| "invalid `validator-session` key")?,
             eth_max_sync_depth: self.max_depth.unwrap_or(Self::DEFAULT_MAX_DEPTH).get(),
-            worker_threads: self.worker_threads.map(|v| v.get() as usize),
-            blocking_threads: self.blocking_threads.map(|v| v.get() as usize),
+            worker_threads: self.worker_threads.map(|v| v.get()),
+            blocking_threads: self.blocking_threads.map(|v| v.get()),
             chunk_processing_threads: self
                 .chunk_processing_threads
-                .unwrap_or(NonZero::new(DEFAULT_CHUNK_PROCESSING_THREADS).unwrap())
-                .get() as usize,
+                .unwrap_or(DEFAULT_CHUNK_PROCESSING_THREADS)
+                .get(),
             block_gas_limit: self
                 .block_gas_limit
                 .unwrap_or(DEFAULT_BLOCK_GAS_LIMIT)
                 .min(MAX_BLOCK_GAS_LIMIT),
-            dev: self.dev,
+            canonical_quarantine: self.canonical_quarantine.unwrap_or(CANONICAL_QUARANTINE),
             fast_sync: self.fast_sync,
         })
     }
 
     /// Get path to the database directory.
     pub fn db_dir(&self) -> PathBuf {
-        if self.tmp || self.dev {
+        if self.tmp {
             Self::tmp_db()
         } else {
             self.base().join("db")
@@ -176,7 +178,6 @@ impl MergeParams for NodeParams {
         Self {
             base: self.base.or(with.base),
             tmp: self.tmp || with.tmp,
-            dev: self.dev || with.dev,
 
             validator: self.validator.or(with.validator),
             validator_session: self.validator_session.or(with.validator_session),
@@ -190,6 +191,7 @@ impl MergeParams for NodeParams {
                 .or(with.chunk_processing_threads),
 
             block_gas_limit: self.block_gas_limit.or(with.block_gas_limit),
+            canonical_quarantine: self.canonical_quarantine.or(with.canonical_quarantine),
 
             fast_sync: self.fast_sync || with.fast_sync,
         }

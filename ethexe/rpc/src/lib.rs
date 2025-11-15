@@ -16,14 +16,17 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+pub use crate::apis::InjectedTransactionAcceptance;
+
+use crate::apis::{InjectedApi, InjectedServer};
 use anyhow::{Result, anyhow};
 use apis::{
-    BlockApi, BlockServer, CodeApi, CodeServer, DevApi, DevServer, ProgramApi, ProgramServer,
-    TransactionPoolApi, TransactionPoolServer,
+    BlockApi, BlockServer, CodeApi, CodeServer, ProgramApi, ProgramServer, TransactionPoolApi,
+    TransactionPoolServer,
 };
-use ethexe_blob_loader::local::LocalBlobStorage;
-use ethexe_common::tx_pool::SignedOffchainTransaction;
+use ethexe_common::{injected::SignedInjectedTransaction, tx_pool::SignedOffchainTransaction};
 use ethexe_db::Database;
+use ethexe_processor::RunnerConfig;
 use futures::{FutureExt, Stream, stream::FusedStream};
 use gprimitives::H256;
 use jsonrpsee::{
@@ -45,12 +48,11 @@ use tokio::{
 use tower::Service;
 
 mod apis;
-mod common;
 mod errors;
+mod utils;
 
 #[cfg(feature = "test-utils")]
 pub mod test_utils;
-pub(crate) mod util;
 
 #[derive(Clone)]
 struct PerConnection<RpcMiddleware, HttpMiddleware> {
@@ -66,23 +68,19 @@ pub struct RpcConfig {
     pub listen_addr: SocketAddr,
     /// CORS.
     pub cors: Option<Vec<String>>,
-    /// Dev mode.
-    pub dev: bool,
+    /// Runner config is created with the data
+    /// for processor, but with gas limit multiplier applied.
+    pub runner_config: RunnerConfig,
 }
 
 pub struct RpcService {
     config: RpcConfig,
     db: Database,
-    blobs_storage: Option<LocalBlobStorage>,
 }
 
 impl RpcService {
-    pub fn new(config: RpcConfig, db: Database, blobs_storage: Option<LocalBlobStorage>) -> Self {
-        Self {
-            config,
-            db,
-            blobs_storage,
-        }
+    pub fn new(config: RpcConfig, db: Database) -> Self {
+        Self { config, db }
     }
 
     pub const fn port(&self) -> u16 {
@@ -94,7 +92,7 @@ impl RpcService {
 
         let listener = TcpListener::bind(self.config.listen_addr).await?;
 
-        let cors = util::try_into_cors(self.config.cors)?;
+        let cors = utils::try_into_cors(self.config.cors)?;
 
         let http_middleware = tower::ServiceBuilder::new().layer(cors);
 
@@ -103,18 +101,16 @@ impl RpcService {
             .to_service_builder();
 
         let mut module = JsonrpcModule::new(());
-        module.merge(ProgramServer::into_rpc(ProgramApi::new(self.db.clone())))?;
+        module.merge(ProgramServer::into_rpc(ProgramApi::new(
+            self.db.clone(),
+            self.config.runner_config,
+        )))?;
         module.merge(BlockServer::into_rpc(BlockApi::new(self.db.clone())))?;
         module.merge(CodeServer::into_rpc(CodeApi::new(self.db.clone())))?;
         module.merge(TransactionPoolServer::into_rpc(TransactionPoolApi::new(
-            rpc_sender,
+            rpc_sender.clone(),
         )))?;
-
-        if self.config.dev {
-            module.merge(DevServer::into_rpc(DevApi::new(
-                self.blobs_storage.unwrap().clone(),
-            )))?;
-        }
+        module.merge(InjectedServer::into_rpc(InjectedApi::new(rpc_sender)))?;
 
         let (stop_handle, server_handle) = stop_channel();
 
@@ -208,5 +204,9 @@ pub enum RpcEvent {
     OffchainTransaction {
         transaction: SignedOffchainTransaction,
         response_sender: Option<oneshot::Sender<Result<H256>>>,
+    },
+    InjectedTransaction {
+        transaction: SignedInjectedTransaction,
+        response_sender: oneshot::Sender<InjectedTransactionAcceptance>,
     },
 }

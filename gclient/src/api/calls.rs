@@ -24,14 +24,12 @@ use gear_utils::{MemoryPageDump, ProgramMemoryDump};
 use gsdk::{
     Error as GsdkError, GearGasNode, GearGasNodeId,
     config::GearConfig,
-    ext::{
-        sp_core::H256,
-        sp_runtime::{AccountId32, MultiAddress},
-    },
+    ext::sp_runtime::{AccountId32, MultiAddress},
     metadata::{
         Convert, Event,
         balances::Event as BalancesEvent,
         gear::Event as GearEvent,
+        gear_eth_bridge::Event as GearEthBridgeEvent,
         runtime_types::{
             frame_system::pallet::Call as SystemCall,
             gear_common::event::{CodeChangeKind, MessageEntry},
@@ -53,9 +51,30 @@ use std::{
     collections::{BTreeMap, HashMap, HashSet},
     path::Path,
 };
-use subxt::blocks::ExtrinsicEvents;
+use subxt::{blocks::ExtrinsicEvents, utils::H256};
 
 impl GearApi {
+    /// Sends the pallet-gear-eth-bridge::reset_overflowed_queue extrinsic.
+    ///
+    /// This function returns a hash of the block with the transaction.
+    pub async fn reset_overflowed_queue(&self, encoded_finality_proof: Vec<u8>) -> Result<H256> {
+        let tx = self
+            .0
+            .calls
+            .reset_overflowed_queue(encoded_finality_proof)
+            .await?;
+
+        for event in tx.wait_for_success().await?.iter() {
+            if let Event::GearEthBridge(GearEthBridgeEvent::QueueReset) =
+                event?.as_root_event::<Event>()?
+            {
+                return Ok(tx.block_hash());
+            }
+        }
+
+        Err(Error::EventNotFound)
+    }
+
     /// Returns original wasm code for the given `code_id` at specified
     /// `at_block_hash`.
     pub async fn original_code_at(
@@ -335,7 +354,7 @@ impl GearApi {
             .account_data_at(src_program_id, src_block_hash)
             .await
             .or_else(|e| {
-            if let Error::GearSDK(GsdkError::StorageNotFound) = e {
+            if let Error::GearSDK(GsdkError::StorageEntryNotFound) = e {
                 Ok(AccountData {
                     free: 0u128,
                     reserved: 0,
@@ -353,7 +372,7 @@ impl GearApi {
             .bank_data_at(src_program_id, src_block_hash)
             .await
             .or_else(|e| {
-                if let Error::GearSDK(GsdkError::StorageNotFound) = e {
+                if let Error::GearSDK(GsdkError::StorageEntryNotFound) = e {
                     Ok(BankAccount { gas: 0, value: 0 })
                 } else {
                     Err(e)
@@ -366,7 +385,7 @@ impl GearApi {
             .account_data_at(bank_address.clone(), src_block_hash)
             .await
             .or_else(|e| {
-                if let Error::GearSDK(GsdkError::StorageNotFound) = e {
+                if let Error::GearSDK(GsdkError::StorageEntryNotFound) = e {
                     Ok(AccountData {
                         free: 0u128,
                         reserved: 0,
@@ -480,7 +499,7 @@ impl GearApi {
                 .bank_data_at(account_with_reserved_funds, src_block_hash)
                 .await
                 .or_else(|e| {
-                    if let Error::GearSDK(GsdkError::StorageNotFound) = e {
+                    if let Error::GearSDK(GsdkError::StorageEntryNotFound) = e {
                         Ok(BankAccount { gas: 0, value: 0 })
                     } else {
                         Err(e)
@@ -491,7 +510,7 @@ impl GearApi {
                 .account_data(account_with_reserved_funds)
                 .await
                 .or_else(|e| {
-                    if let Error::GearSDK(GsdkError::StorageNotFound) = e {
+                    if let Error::GearSDK(GsdkError::StorageEntryNotFound) = e {
                         Ok(AccountData {
                             free: 0u128,
                             reserved: 0,
@@ -509,7 +528,7 @@ impl GearApi {
                 .bank_data_at(account_with_reserved_funds, None)
                 .await
                 .or_else(|e| {
-                    if let Error::GearSDK(GsdkError::StorageNotFound) = e {
+                    if let Error::GearSDK(GsdkError::StorageEntryNotFound) = e {
                         Ok(BankAccount { gas: 0, value: 0 })
                     } else {
                         Err(e)
@@ -542,7 +561,7 @@ impl GearApi {
 
         let dest_gas_total_issuance =
             dest_node_api.0.api().total_issuance().await.or_else(|e| {
-                if let GsdkError::StorageNotFound = e {
+                if let GsdkError::StorageEntryNotFound = e {
                     Ok(0)
                 } else {
                     Err(e)
@@ -653,7 +672,7 @@ impl GearApi {
             self.account_data_at(program_id, block_hash)
                 .await
                 .or_else(|e| {
-                    if let Error::GearSDK(GsdkError::StorageNotFound) = e {
+                    if let Error::GearSDK(GsdkError::StorageEntryNotFound) = e {
                         Ok(AccountData {
                             free: 0u128,
                             reserved: 0,

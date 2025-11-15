@@ -22,7 +22,9 @@ use crate::{
     Result, TxInBlock,
     metadata::{
         Convert,
-        calls::{BalancesCall, GearCall, GearVoucherCall, SudoCall, UtilityCall},
+        calls::{
+            BalancesCall, GearCall, GearEthBridgeCall, GearVoucherCall, SudoCall, UtilityCall,
+        },
         runtime_types::{
             pallet_gear_voucher::internal::{PrepaidCall, VoucherId},
             sp_weights::weight_v2::Weight,
@@ -198,6 +200,22 @@ impl SignerCalls {
                     Value::u128(value),
                     Value::bool(false),
                 ],
+            )
+            .await
+    }
+}
+
+// pallet-gear-eth-bridge
+impl SignerCalls {
+    /// `pallet-gear-eth-bridge::reset_overflowed_queue`
+    pub async fn reset_overflowed_queue(
+        &self,
+        encoded_finality_proof: Vec<u8>,
+    ) -> Result<TxInBlock> {
+        self.0
+            .run_tx(
+                GearEthBridgeCall::ResetOverflowedQueue,
+                vec![Value::from_bytes(encoded_finality_proof)],
             )
             .await
     }

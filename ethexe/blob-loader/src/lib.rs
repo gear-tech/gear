@@ -18,13 +18,14 @@
 
 use alloy::{
     consensus::{SidecarCoder, SimpleCoder, Transaction},
-    eips::eip4844::kzg_to_versioned_hash,
+    primitives::B256,
     providers::{Provider, ProviderBuilder, RootProvider},
-    rpc::types::beacon::sidecar::BeaconBlobBundle,
+    rpc::types::beacon::{genesis::GenesisResponse, sidecar::GetBlobsResponse},
+    transports::{RpcError, TransportErrorKind},
 };
 use ethexe_common::{
     CodeAndIdUnchecked, CodeBlobInfo,
-    db::{CodesStorageRead, OnChainStorageRead},
+    db::{CodesStorageRO, OnChainStorageRO},
 };
 use futures::{
     FutureExt, Stream, StreamExt,
@@ -34,9 +35,10 @@ use futures::{
 use gprimitives::{CodeId, H256};
 use reqwest::Client;
 use std::{collections::HashSet, fmt, hash::RandomState, pin::Pin, task::Poll};
-use tokio::time::{self, Duration};
-
-pub mod local;
+use tokio::{
+    sync::OnceCell,
+    time::{self, Duration},
+};
 
 #[derive(Clone, PartialEq, Eq)]
 pub enum BlobLoaderEvent {
@@ -47,8 +49,8 @@ pub enum BlobLoaderEvent {
 pub enum BlobLoaderError {
     // `ConsensusLayerBlobReader` errors
     #[error("transport error: {0}")]
-    Transport(#[from] alloy::transports::RpcError<alloy::transports::TransportErrorKind>),
-    #[error("failed to found transaction by hash: {0}")]
+    Transport(#[from] RpcError<TransportErrorKind>),
+    #[error("failed to find transaction by hash: {0}")]
     TransactionNotFound(H256),
     #[error("failed to get blob versioned hashes from transaction: {0}")]
     BlobVersionedHashesNotFound(H256),
@@ -70,10 +72,6 @@ pub enum BlobLoaderError {
     // `BlobLoader` errors
     #[error("failed to get code blob info for: {0}")]
     CodeBlobInfoNotFound(CodeId),
-
-    // `LocalBlobLoader` errors
-    #[error("failed to get code from local storage: {0}")]
-    LocalCodeNotFound(CodeId),
 }
 
 type Result<T> = std::result::Result<T, BlobLoaderError>;
@@ -127,9 +125,6 @@ impl ConsensusLayerBlobReader {
     }
 
     async fn read_blob_from_tx_hash(&self, tx_hash: H256, attempts: Option<u8>) -> Result<Vec<u8>> {
-        //TODO: read genesis from `{ethereum_beacon_rpc}/eth/v1/beacon/genesis` with caching into some static
-        const BEACON_GENESIS_BLOCK_TIME: u64 = 1695902400;
-
         let tx = self
             .provider
             .get_transaction_by_hash(tx_hash.0.into())
@@ -148,14 +143,27 @@ impl ConsensusLayerBlobReader {
             .get_block_by_hash(block_hash)
             .await?
             .ok_or(BlobLoaderError::BlockNotFound(H256(block_hash.0)))?;
-        let slot = (block.header.timestamp - BEACON_GENESIS_BLOCK_TIME)
-            / self.config.beacon_block_time.as_secs();
+
+        // detect anvil by chain id
+        let slot = if let Some(chain_id) = tx.chain_id()
+            && chain_id == 31337
+        {
+            block.header.number
+        } else {
+            static BEACON_GENESIS_BLOCK_TIME: OnceCell<u64> = OnceCell::const_new();
+
+            let beacon_genesis_block_time = *BEACON_GENESIS_BLOCK_TIME
+                .get_or_try_init(|| self.read_genesis_time())
+                .await?;
+            (block.header.timestamp - beacon_genesis_block_time)
+                / self.config.beacon_block_time.as_secs()
+        };
 
         let attempts = attempts.unwrap_or(0);
         let mut count = 0;
         let blob_bundle = loop {
             log::trace!("trying to get blob, attempt #{}", count + 1);
-            let blob_bundle_result = self.read_blob_bundle(slot).await;
+            let blob_bundle_result = self.read_blob_bundle(slot, &blob_versioned_hashes).await;
             if blob_bundle_result.is_ok() || count >= attempts {
                 break blob_bundle_result;
             } else {
@@ -164,38 +172,52 @@ impl ConsensusLayerBlobReader {
             }
         }?;
 
-        let mut blobs = Vec::with_capacity(blob_versioned_hashes.len());
-        for blob_data in blob_bundle.into_iter().filter(|blob_data| {
-            blob_versioned_hashes
-                .contains(&kzg_to_versioned_hash(blob_data.kzg_commitment.as_ref()))
-        }) {
-            blobs.push(*blob_data.blob);
-        }
-
         let mut coder = SimpleCoder::default();
         let data = coder
-            .decode_all(&blobs)
+            .decode_all(&blob_bundle.data)
             .ok_or(BlobLoaderError::DecodeBlobs)?
             .concat();
 
         Ok(data)
     }
 
-    async fn read_blob_bundle(&self, slot: u64) -> reqwest::Result<BeaconBlobBundle> {
+    async fn read_genesis_time(&self) -> reqwest::Result<u64> {
+        let ethereum_beacon_rpc = &self.config.ethereum_beacon_rpc;
+        let response = self
+            .http_client
+            .get(format!("{ethereum_beacon_rpc}/eth/v1/beacon/genesis"))
+            .send()
+            .await?
+            .json::<GenesisResponse>()
+            .await?;
+
+        Ok(response.data.genesis_time)
+    }
+
+    async fn read_blob_bundle(
+        &self,
+        slot: u64,
+        versioned_hashes: &HashSet<&B256>,
+    ) -> reqwest::Result<GetBlobsResponse> {
         let ethereum_beacon_rpc = &self.config.ethereum_beacon_rpc;
         self.http_client
             .get(format!(
-                "{ethereum_beacon_rpc}/eth/v1/beacon/blob_sidecars/{slot}"
+                "{ethereum_beacon_rpc}/eth/v1/beacon/blobs/{slot}?versioned_hashes={}",
+                versioned_hashes
+                    .iter()
+                    .map(|versioned_hash| versioned_hash.to_string())
+                    .collect::<Vec<_>>()
+                    .join(",")
             ))
             .send()
             .await?
-            .json::<BeaconBlobBundle>()
+            .json::<GetBlobsResponse>()
             .await
     }
 }
 
-pub trait Database: CodesStorageRead + OnChainStorageRead + Unpin + Send + Clone + 'static {}
-impl<T: CodesStorageRead + OnChainStorageRead + Unpin + Send + Clone + 'static> Database for T {}
+pub trait Database: CodesStorageRO + OnChainStorageRO + Unpin + Send + Clone + 'static {}
+impl<T: CodesStorageRO + OnChainStorageRO + Unpin + Send + Clone + 'static> Database for T {}
 
 pub struct BlobLoader<DB: Database> {
     futures: FuturesUnordered<BoxFuture<'static, Result<CodeAndIdUnchecked>>>,
@@ -288,6 +310,44 @@ impl<DB: Database> BlobLoaderService for BlobLoader<DB> {
                     .boxed(),
             );
         }
+
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ethexe_common::gear_core::ids::prelude::CodeIdExt;
+
+    #[tokio::test]
+    async fn test_read_code_from_tx_hash() -> Result<()> {
+        let consensus_cfg = ConsensusLayerConfig {
+            ethereum_rpc: "https://hoodi-reth-rpc.gear-tech.io".into(),
+            ethereum_beacon_rpc: "https://hoodi-lighthouse-rpc.gear-tech.io".into(),
+            beacon_block_time: Duration::from_secs(12),
+        };
+        let blobs_reader = ConsensusLayerBlobReader {
+            provider: ProviderBuilder::default()
+                .connect(&consensus_cfg.ethereum_rpc)
+                .await?,
+            http_client: Client::new(),
+            config: consensus_cfg,
+        };
+        let expected_code_id = "0x94892c2d1acaeb2d47e2ea79fe580a5b41c534f21333be1a86fe611ba4e0b7dc"
+            .parse()
+            .unwrap();
+        let CodeAndIdUnchecked { code, code_id } = blobs_reader
+            .read_code_from_tx_hash(
+                expected_code_id,
+                "0xee7f0082b6ad2fb1d409f39e5b169e102c27e4cf86b69a8a4006224cc91b4ae3"
+                    .parse()
+                    .unwrap(),
+                Some(3),
+            )
+            .await?;
+        assert_eq!(code_id, expected_code_id);
+        assert_eq!(code_id, CodeId::generate(&code));
 
         Ok(())
     }

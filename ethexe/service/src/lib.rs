@@ -19,30 +19,29 @@
 use crate::config::{Config, ConfigPublicKey};
 use anyhow::{Context, Result, bail};
 use async_trait::async_trait;
-use ethexe_blob_loader::{
-    BlobLoader, BlobLoaderEvent, BlobLoaderService, ConsensusLayerConfig,
-    local::{LocalBlobLoader, LocalBlobStorage},
+use ethexe_blob_loader::{BlobLoader, BlobLoaderEvent, BlobLoaderService, ConsensusLayerConfig};
+use ethexe_common::{
+    Address, ecdsa::PublicKey, gear::CodeState, network::VerifiedValidatorMessage,
 };
-use ethexe_common::{ecdsa::PublicKey, gear::CodeState};
-use ethexe_compute::{BlockProcessed, ComputeEvent, ComputeService};
+use ethexe_compute::{ComputeConfig, ComputeEvent, ComputeService};
 use ethexe_consensus::{
-    BatchCommitmentValidationReply, ConsensusEvent, ConsensusService, SignedProducerBlock,
-    SignedValidationRequest, SimpleConnectService, ValidatorConfig, ValidatorService,
+    ConsensusEvent, ConsensusService, SimpleConnectService, ValidatorConfig, ValidatorService,
 };
 use ethexe_db::{Database, RocksDatabase};
-use ethexe_ethereum::router::RouterQuery;
-use ethexe_network::{NetworkEvent, NetworkService, db_sync::ExternalDataProvider};
+use ethexe_ethereum::{Ethereum, router::RouterQuery};
+use ethexe_network::{
+    NetworkEvent, NetworkRuntimeConfig, NetworkService, db_sync::ExternalDataProvider,
+};
 use ethexe_observer::{ObserverEvent, ObserverService};
 use ethexe_processor::{Processor, ProcessorConfig};
 use ethexe_prometheus::{PrometheusEvent, PrometheusService};
-use ethexe_rpc::{RpcEvent, RpcService};
+use ethexe_rpc::{InjectedTransactionAcceptance, RpcEvent, RpcService};
 use ethexe_service_utils::{OptionFuture as _, OptionStreamNext as _};
 use ethexe_signer::Signer;
-use ethexe_tx_pool::{SignedOffchainTransaction, TxPoolEvent, TxPoolService};
+use ethexe_tx_pool::{TxPoolEvent, TxPoolService};
 use futures::StreamExt;
 use gprimitives::{ActorId, CodeId, H256};
-use parity_scale_codec::{Decode, Encode};
-use std::{collections::BTreeSet, pin::Pin};
+use std::{collections::BTreeSet, pin::Pin, sync::Arc};
 
 pub mod config;
 
@@ -60,17 +59,6 @@ pub enum Event {
     Prometheus(PrometheusEvent),
     Rpc(RpcEvent),
     TxPool(TxPoolEvent),
-}
-
-// TODO #4176: consider to move this to another module
-#[derive(Debug, Clone, Encode, Decode, derive_more::From)]
-pub enum NetworkMessage {
-    ProducerBlock(SignedProducerBlock),
-    RequestBatchValidation(SignedValidationRequest),
-    ApproveBatch(BatchCommitmentValidationReply),
-    OffchainTransaction {
-        transaction: SignedOffchainTransaction,
-    },
 }
 
 #[derive(Clone)]
@@ -115,6 +103,7 @@ pub struct Service {
     rpc: Option<RpcService>,
 
     fast_sync: bool,
+    validator_address: Option<Address>,
 
     #[cfg(test)]
     sender: tests::utils::TestingEventSender,
@@ -130,23 +119,15 @@ impl Service {
         .with_context(|| "failed to open database")?;
         let db = Database::from_one(&rocks_db);
 
-        let (blob_loader, local_blob_storage_for_rpc) = if config.node.dev {
-            let storage = LocalBlobStorage::default();
-            let blob_loader = LocalBlobLoader::new(storage.clone());
-
-            (blob_loader.into_box(), Some(storage))
-        } else {
-            let consensus_config = ConsensusLayerConfig {
-                ethereum_rpc: config.ethereum.rpc.clone(),
-                ethereum_beacon_rpc: config.ethereum.beacon_rpc.clone(),
-                beacon_block_time: config.ethereum.block_time,
-            };
-            let blob_loader = BlobLoader::new(db.clone(), consensus_config)
-                .await
-                .context("failed to create blob loader")?;
-
-            (blob_loader.into_box(), None)
+        let consensus_config = ConsensusLayerConfig {
+            ethereum_rpc: config.ethereum.rpc.clone(),
+            ethereum_beacon_rpc: config.ethereum.beacon_rpc.clone(),
+            beacon_block_time: alloy::eips::merge::SLOT_DURATION,
         };
+        let blob_loader = BlobLoader::new(db.clone(), consensus_config)
+            .await
+            .context("failed to create blob loader")?
+            .into_box();
 
         let observer =
             ObserverService::new(&config.ethereum, config.node.eth_max_sync_depth, db.clone())
@@ -187,7 +168,6 @@ impl Service {
         let processor = Processor::with_config(
             ProcessorConfig {
                 chunk_processing_threads: config.node.chunk_processing_threads,
-                block_gas_limit: config.node.block_gas_limit,
             },
             db.clone(),
         )
@@ -202,29 +182,40 @@ impl Service {
 
         let validator_pub_key = Self::get_config_public_key(config.node.validator, &signer)
             .with_context(|| "failed to get validator private key")?;
+        let validator_address = validator_pub_key.map(|key| key.to_address());
 
         // TODO #4642: use validator session key
         let _validator_pub_key_session =
             Self::get_config_public_key(config.node.validator_session, &signer)
                 .with_context(|| "failed to get validator session private key")?;
 
-        let consensus: Pin<Box<dyn ConsensusService>> = if let Some(pub_key) = validator_pub_key {
-            Box::pin(
-                ValidatorService::new(
+        let consensus: Pin<Box<dyn ConsensusService>> = {
+            if let Some(pub_key) = validator_pub_key {
+                let ethereum = Ethereum::new(
+                    &config.ethereum.rpc,
+                    config.ethereum.router_address.into(),
                     signer.clone(),
+                    pub_key.to_address(),
+                )
+                .await?;
+                Box::pin(ValidatorService::new(
+                    signer.clone(),
+                    Arc::new(ethereum.middleware().query()),
+                    ethereum.router(),
                     db.clone(),
                     ValidatorConfig {
-                        ethereum_rpc: config.ethereum.rpc.clone(),
-                        router_address: config.ethereum.router_address,
                         pub_key,
                         signatures_threshold: threshold,
                         slot_duration: config.ethereum.block_time,
+                        block_gas_limit: config.node.block_gas_limit,
                     },
-                )
-                .await?,
-            )
-        } else {
-            Box::pin(SimpleConnectService::new())
+                )?)
+            } else {
+                Box::pin(SimpleConnectService::new(
+                    db.clone(),
+                    config.ethereum.block_time,
+                ))
+            }
         };
 
         let prometheus = if let Some(config) = config.prometheus.clone() {
@@ -234,15 +225,28 @@ impl Service {
         };
 
         let network = if let Some(net_config) = &config.network {
-            Some(
-                NetworkService::new(
-                    net_config.clone(),
-                    &signer,
-                    Box::new(RouterDataProvider(router_query)),
-                    db.clone(),
-                )
-                .with_context(|| "failed to create network service")?,
+            let runtime_config = NetworkRuntimeConfig {
+                genesis_block_hash: observer.genesis_block_hash(),
+            };
+            // TODO: #4918 create Signer object correctly for test/prod environments
+            let signer = Signer::fs(
+                config
+                    .node
+                    .key_path
+                    .parent()
+                    .context("key_path has no parent directory")?
+                    .join("net"),
+            );
+
+            let network = NetworkService::new(
+                net_config.clone(),
+                runtime_config,
+                &signer,
+                Box::new(RouterDataProvider(router_query)),
+                Box::new(db.clone()),
             )
+            .with_context(|| "failed to create network service")?;
+            Some(network)
         } else {
             None
         };
@@ -250,11 +254,12 @@ impl Service {
         let rpc = config
             .rpc
             .as_ref()
-            .map(|config| RpcService::new(config.clone(), db.clone(), local_blob_storage_for_rpc));
+            .map(|config| RpcService::new(config.clone(), db.clone()));
 
         let tx_pool = TxPoolService::new(db.clone());
 
-        let compute = ComputeService::new(db.clone(), processor);
+        let compute_config = ComputeConfig::new(config.node.canonical_quarantine);
+        let compute = ComputeService::new(compute_config, db.clone(), processor);
 
         let fast_sync = config.node.fast_sync;
 
@@ -271,6 +276,7 @@ impl Service {
             rpc,
             tx_pool,
             fast_sync,
+            validator_address,
             #[cfg(test)]
             sender: unreachable!(),
         })
@@ -290,7 +296,7 @@ impl Service {
         db: Database,
         observer: ObserverService,
         blob_loader: Box<dyn BlobLoaderService>,
-        processor: Processor,
+        compute: ComputeService,
         signer: Signer,
         tx_pool: TxPoolService,
         consensus: Pin<Box<dyn ConsensusService>>,
@@ -299,9 +305,8 @@ impl Service {
         rpc: Option<RpcService>,
         sender: tests::utils::TestingEventSender,
         fast_sync: bool,
+        validator_address: Option<Address>,
     ) -> Self {
-        let compute = ComputeService::new(db.clone(), processor);
-
         Self {
             db,
             observer,
@@ -315,6 +320,7 @@ impl Service {
             tx_pool,
             sender,
             fast_sync,
+            validator_address,
         }
     }
 
@@ -341,6 +347,7 @@ impl Service {
             mut prometheus,
             rpc,
             fast_sync: _,
+            validator_address,
             #[cfg(test)]
             sender,
         } = self;
@@ -389,22 +396,26 @@ impl Service {
             match event {
                 Event::Observer(event) => match event {
                     ObserverEvent::Block(block_data) => {
-                        log::info!(
-                            "📦 receive a chain head, height {}, hash {}, parent hash {}",
-                            block_data.header.height,
-                            block_data.hash,
-                            block_data.header.parent_hash,
+                        tracing::info!(
+                            height = %block_data.header.height,
+                            timestamp = %block_data.header.timestamp,
+                            hash = %block_data.hash,
+                            parent_hash = %block_data.header.parent_hash,
+                            "📦 receive a chain head",
                         );
 
                         consensus.receive_new_chain_head(block_data)?
                     }
-                    ObserverEvent::BlockSynced(block_hash) => {
+                    ObserverEvent::BlockSynced(block) => {
                         // NOTE: Observer guarantees that, if `BlockSynced` event is emitted,
                         // then from latest synced block and up to `data.block_hash`:
                         // all blocks on-chain data (see OnChainStorage) is loaded and available in database.
 
-                        compute.prepare_block(block_hash);
-                        consensus.receive_synced_block(block_hash)?;
+                        compute.prepare_block(block);
+                        consensus.receive_synced_block(block)?;
+                        if let Some(network) = network.as_mut() {
+                            network.set_chain_head(block)?;
+                        }
                     }
                 },
                 Event::BlobLoader(event) => match event {
@@ -416,10 +427,13 @@ impl Service {
                     ComputeEvent::RequestLoadCodes(codes) => {
                         blob_loader.load_codes(codes, None)?;
                     }
-                    ComputeEvent::BlockProcessed(BlockProcessed { block_hash }) => {
-                        consensus.receive_computed_block(block_hash)?
+                    ComputeEvent::AnnounceComputed(announce_hash) => {
+                        consensus.receive_computed_announce(announce_hash)?
                     }
-                    ComputeEvent::CodeProcessed(_) | ComputeEvent::BlockPrepared(..) => {
+                    ComputeEvent::BlockPrepared(block_hash) => {
+                        consensus.receive_prepared_block(block_hash)?
+                    }
+                    ComputeEvent::CodeProcessed(_) => {
                         // Nothing
                     }
                 },
@@ -429,39 +443,32 @@ impl Service {
                     };
 
                     match event {
-                        NetworkEvent::Message { source: _, data } => {
-                            let Ok(message) = NetworkMessage::decode(&mut data.as_slice())
-                                .inspect_err(|e| {
-                                    log::warn!("Failed to decode network message: {e}")
-                                })
-                            else {
-                                // TODO: use peer scoring for this case
-                                continue;
-                            };
-
+                        NetworkEvent::ValidatorMessage(message) => {
                             match message {
-                                NetworkMessage::ProducerBlock(block) => {
-                                    consensus.receive_block_from_producer(block)?
+                                VerifiedValidatorMessage::ProducerBlock(announce) => {
+                                    let announce = announce.map(|a| a.payload);
+                                    consensus.receive_announce(announce)?
                                 }
-                                NetworkMessage::RequestBatchValidation(request) => {
+                                VerifiedValidatorMessage::RequestBatchValidation(request) => {
+                                    let request = request.map(|r| r.payload);
                                     consensus.receive_validation_request(request)?
                                 }
-                                NetworkMessage::ApproveBatch(reply) => {
+                                VerifiedValidatorMessage::ApproveBatch(reply) => {
+                                    let reply = reply.map(|r| r.payload);
+                                    let (reply, _) = reply.into_parts();
                                     consensus.receive_validation_reply(reply)?
-                                }
-                                NetworkMessage::OffchainTransaction { transaction } => {
-                                    if let Err(e) =
-                                        tx_pool.process_offchain_transaction(transaction)
-                                    {
-                                        log::warn!(
-                                            "Failed to process offchain transaction received by p2p: {e}"
-                                        );
-                                    }
                                 }
                             };
                         }
-                        NetworkEvent::DbResponse { .. } => {
-                            unreachable!("`db-sync` is never used for requests in the main loop")
+                        NetworkEvent::OffchainTransaction(transaction) => {
+                            if let Err(e) = tx_pool.process_offchain_transaction(transaction) {
+                                log::warn!(
+                                    "Failed to process offchain transaction received by p2p: {e}"
+                                );
+                            }
+                        }
+                        NetworkEvent::InjectedTransaction(_transaction) => {
+                            // TODO: handle transaction
                         }
                         NetworkEvent::PeerBlocked(_) | NetworkEvent::PeerConnected(_) => {}
                     }
@@ -517,41 +524,32 @@ impl Service {
                                 );
                             }
                         }
+                        RpcEvent::InjectedTransaction {
+                            transaction,
+                            response_sender,
+                        } => {
+                            if validator_address == Some(transaction.data().recipient) {
+                                // TODO: handle transaction like for `NetworkEvent::InjectedTransaction(_)`
+                            } else {
+                                let Some(network) = network.as_mut() else {
+                                    continue;
+                                };
+
+                                network.send_injected_transaction(transaction);
+                            }
+
+                            let _res = response_sender.send(InjectedTransactionAcceptance::Accept);
+                        }
                     }
                 }
                 Event::Consensus(event) => match event {
-                    ConsensusEvent::ComputeBlock(block) => compute.process_block(block),
-                    ConsensusEvent::ComputeProducerBlock(producer_block) => {
-                        if !producer_block.off_chain_transactions.is_empty()
-                            || producer_block.gas_allowance.is_some()
-                        {
-                            todo!(
-                                "#4638 #4639 off-chain transactions and gas allowance are not supported yet"
-                            );
-                        }
-
-                        compute.process_block(producer_block.block_hash);
-                    }
-                    ConsensusEvent::PublishProducerBlock(block) => {
-                        let Some(n) = network.as_mut() else {
+                    ConsensusEvent::ComputeAnnounce(announce) => compute.compute_announce(announce),
+                    ConsensusEvent::PublishMessage(message) => {
+                        let Some(network) = network.as_mut() else {
                             continue;
                         };
 
-                        n.publish_message(NetworkMessage::from(block).encode());
-                    }
-                    ConsensusEvent::PublishValidationRequest(request) => {
-                        let Some(n) = network.as_mut() else {
-                            continue;
-                        };
-
-                        n.publish_message(NetworkMessage::from(request).encode());
-                    }
-                    ConsensusEvent::PublishValidationReply(reply) => {
-                        let Some(n) = network.as_mut() else {
-                            continue;
-                        };
-
-                        n.publish_message(NetworkMessage::from(reply).encode());
+                        network.publish_message(message);
                     }
                     ConsensusEvent::CommitmentSubmitted(tx) => {
                         log::info!("Commitment submitted, tx: {tx}");
@@ -570,7 +568,7 @@ impl Service {
                             continue;
                         };
 
-                        n.publish_offchain_transaction(NetworkMessage::from(transaction).encode());
+                        n.publish_offchain_transaction(transaction);
                     }
                 },
             }

@@ -1,26 +1,28 @@
 use crate::{
-    Config, EthMessage, WeightInfo,
-    internal::EthMessageExt,
+    Config, EthMessage, QueueId, QueueOverflowedSince, QueuesInfo, WeightInfo,
+    internal::{EthMessageExt, QueueInfo},
     mock::{mock_builtin_id as builtin_id, *},
+};
+use builtins_common::{
+    BuiltinActorError,
+    eth_bridge::{Request, Response},
 };
 use common::Origin as _;
 use frame_support::{
     Blake2_256, StorageHasher, assert_noop, assert_ok, assert_storage_noop, traits::Get,
 };
-use gbuiltin_eth_bridge::{Request, Response};
 use gear_core_errors::{ErrorReplyReason, ReplyCode, SimpleExecutionError, SuccessReplyReason};
 use pallet_gear::Event as GearEvent;
-use pallet_gear_builtin::BuiltinActorError;
 use pallet_grandpa::Event as GrandpaEvent;
 use pallet_session::Event as SessionEvent;
 use parity_scale_codec::{Decode, Encode};
 use sp_core::{H160, H256};
-use sp_runtime::traits::{BadOrigin, Keccak256};
+use sp_runtime::traits::{BadOrigin, Keccak256, UniqueSaturatedInto};
 use utils::*;
 
-const EPOCH_BLOCKS: u64 = EpochDuration::get();
-const ERA_BLOCKS: u64 = EPOCH_BLOCKS * SessionsPerEra::get() as u64;
-const WHEN_INITIALIZED: u64 = 42;
+const EPOCH_BLOCKS: u32 = EpochDuration::get() as u32;
+const ERA_BLOCKS: u32 = EPOCH_BLOCKS * SessionsPerEra::get();
+const WHEN_INITIALIZED: u32 = 42;
 
 type AuthoritySetHash = crate::AuthoritySetHash<Test>;
 type MessageNonce = crate::MessageNonce<Test>;
@@ -227,6 +229,9 @@ fn bridge_send_eth_message_works() {
 
         queue.push(hash);
 
+        let block_number = <frame_system::Pallet<Test>>::block_number().unique_saturated_into();
+        let queue_id = QueueId::<Test>::get();
+
         let (response, _, _) = run_block_with_builtin_call(
             SIGNER,
             Request::SendEthMessage {
@@ -242,7 +247,15 @@ fn bridge_send_eth_message_works() {
 
         let response = Response::decode(&mut response.as_ref()).expect("should be `Response`");
 
-        assert_eq!(response, Response::EthMessageQueued { nonce, hash });
+        assert_eq!(
+            response,
+            Response::EthMessageQueued {
+                block_number,
+                hash,
+                nonce,
+                queue_id
+            }
+        );
 
         System::assert_has_event(Event::MessageQueued { message, hash }.into());
 
@@ -278,7 +291,13 @@ fn bridge_queue_root_changes() {
 
         on_finalize_gear_block(WHEN_INITIALIZED);
 
-        System::assert_last_event(Event::QueueMerkleRootChanged(expected_root).into());
+        System::assert_last_event(
+            Event::QueueMerkleRootChanged {
+                queue_id: 0,
+                root: expected_root,
+            }
+            .into(),
+        );
         assert!(!QueueChanged::get());
 
         on_initialize(WHEN_INITIALIZED + 1);
@@ -326,7 +345,7 @@ fn bridge_updates_authorities_and_clears() {
         assert_eq!(System::events().len(), 7);
         assert!(matches!(
             System::events().last().expect("infallible").event,
-            RuntimeEvent::GearEthBridge(Event::QueueMerkleRootChanged(_))
+            RuntimeEvent::GearEthBridge(Event::QueueMerkleRootChanged { .. })
         ));
         assert!(!QueueMerkleRoot::get().expect("infallible").is_zero());
 
@@ -382,7 +401,11 @@ fn bridge_updates_authorities_and_clears() {
         System::reset_events();
 
         on_initialize(ERA_BLOCKS * 2 + 2);
-        do_events_assertion(12, 74, [Event::BridgeCleared.into()]);
+        do_events_assertion(
+            12,
+            74,
+            [Event::AuthoritySetReset.into(), Event::QueueReset.into()],
+        );
 
         assert!(!AuthoritySetHash::exists());
         assert!(QueueMerkleRoot::get().expect("infallible").is_zero());
@@ -429,7 +452,11 @@ fn bridge_updates_authorities_and_clears() {
         );
 
         on_initialize(ERA_BLOCKS * 3 + 2);
-        do_events_assertion(18, 110, [Event::BridgeCleared.into()]);
+        do_events_assertion(
+            18,
+            110,
+            [Event::AuthoritySetReset.into(), Event::QueueReset.into()],
+        );
     })
 }
 
@@ -478,7 +505,18 @@ fn bridge_queues_governance_messages_when_over_capacity() {
             0,
         );
 
-        assert_eq!(Queue::get().len(), msg_queue_len + 2);
+        // Queue wasn't reset yet.
+        assert!(QueuesInfo::<Test>::get(1).is_none());
+
+        let Some(QueueInfo::NonEmpty {
+            latest_nonce_used, ..
+        }) = QueuesInfo::<Test>::get(0)
+        else {
+            panic!("empty queue info for current id");
+        };
+
+        // Expected len is `msg_queue_len + 2`, so latest nonce (idx) used is -1.
+        assert_eq!(latest_nonce_used.as_usize(), msg_queue_len + 2 - 1);
     })
 }
 
@@ -536,10 +574,10 @@ fn bridge_max_payload_size_exceeded_err() {
 }
 
 #[test]
-fn bridge_queue_capacity_exceeded_err() {
+fn bridge_queue_capacity_exceeded_and_reset() {
     init_logger();
     new_test_ext().execute_with(|| {
-        const ERR: Error = Error::QueueCapacityExceeded;
+        const ERR: Error = Error::BridgeCleanupRequired;
 
         run_to_block(WHEN_INITIALIZED);
 
@@ -551,7 +589,16 @@ fn bridge_queue_capacity_exceeded_err() {
                 H160::zero(),
                 vec![]
             ));
+
+            // Due to not yet overflowed until the end of block.
+            assert_noop!(
+                GearEthBridge::reset_overflowed_queue(RuntimeOrigin::signed(SIGNER), vec![42]),
+                Error::InvalidQueueReset
+            );
         }
+
+        let block_number = <frame_system::Pallet<Test>>::block_number();
+        assert!(QueueOverflowedSince::<Test>::get().is_none());
 
         run_block_and_assert_messaging_error(
             Request::SendEthMessage {
@@ -560,6 +607,47 @@ fn bridge_queue_capacity_exceeded_err() {
             },
             ERR,
         );
+
+        System::assert_has_event(Event::QueueOverflowed.into());
+
+        assert_eq!(QueueOverflowedSince::<Test>::get(), Some(block_number));
+
+        // Due to wrong "finality proof".
+        assert_noop!(
+            GearEthBridge::reset_overflowed_queue(RuntimeOrigin::signed(SIGNER), vec![]),
+            Error::InvalidQueueReset
+        );
+
+        assert_eq!(QueueId::<Test>::get(), 0);
+
+        assert_ok!(GearEthBridge::reset_overflowed_queue(
+            RuntimeOrigin::signed(SIGNER),
+            vec![42]
+        ));
+        System::assert_last_event(Event::QueueReset.into());
+        assert!(QueueOverflowedSince::<Test>::get().is_none());
+
+        // Due to already reset => not overflowed.
+        assert_noop!(
+            GearEthBridge::reset_overflowed_queue(RuntimeOrigin::signed(SIGNER), vec![42]),
+            Error::InvalidQueueReset
+        );
+
+        assert_eq!(Queue::get().len(), 0);
+
+        let Some(QueueInfo::NonEmpty {
+            latest_nonce_used, ..
+        }) = QueuesInfo::<Test>::get(0)
+        else {
+            panic!("empty queue info for past id");
+        };
+
+        assert_eq!(QueueId::<Test>::get(), 1);
+
+        let capacity: u32 = <Test as crate::Config>::QueueCapacity::get();
+
+        // Expected len is eq `QueueCapacity`, so latest nonce (idx) used is -1.
+        assert_eq!(latest_nonce_used.as_usize(), capacity as usize - 1);
     })
 }
 
@@ -784,7 +872,7 @@ mod utils {
     #[track_caller]
     pub(crate) fn do_events_assertion<const N: usize>(
         session: u32,
-        block_number: u64,
+        block_number: u32,
         events: impl Into<Option<[RuntimeEvent; N]>>,
     ) {
         assert_eq!(Session::current_index(), session);

@@ -2,7 +2,6 @@ node_modules/
 target/
 target-rust-analyzer/
 target-no-lazy/
-target-rust-analyzer/
 target-xwin/
 log/
 weight-dumps/
@@ -23,3 +22,6 @@ fuzz_run
 lazy_pages_fuzz_run
 seed.bin
 .direnv/
+.ipynb_checkpoints
+.jupyter
+ethexe/contracts/bin/src

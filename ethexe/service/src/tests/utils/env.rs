@@ -22,7 +22,7 @@ use crate::{
         TestingEvent,
         events::{
             ObserverEventsListener, ObserverEventsPublisher, ServiceEventsListener,
-            TestingEventReceiver, TestingNetworkEvent,
+            TestingEventReceiver,
         },
     },
 };
@@ -32,21 +32,28 @@ use alloy::{
     providers::{Provider as _, RootProvider, ext::AnvilApi},
     rpc::types::{Header as RpcHeader, anvil::MineOptions},
 };
-use ethexe_blob_loader::{
-    BlobLoaderService,
-    local::{LocalBlobLoader, LocalBlobStorage},
-};
+use ethexe_blob_loader::{BlobLoader, BlobLoaderService, ConsensusLayerConfig};
 use ethexe_common::{
-    Address, CodeAndId,
+    Address, CodeAndId, DEFAULT_BLOCK_GAS_LIMIT,
     ecdsa::{PrivateKey, PublicKey},
     events::{BlockEvent, MirrorEvent, RouterEvent},
 };
+use ethexe_compute::{ComputeConfig, ComputeService};
 use ethexe_consensus::{ConsensusService, SimpleConnectService, ValidatorService};
 use ethexe_db::Database;
-use ethexe_ethereum::{Ethereum, deploy::EthereumDeployer, router::RouterQuery};
-use ethexe_network::{NetworkConfig, NetworkService, export::Multiaddr};
+use ethexe_ethereum::{
+    Ethereum,
+    deploy::{ContractsDeploymentParams, EthereumDeployer},
+    middleware::MockElectionProvider,
+    router::RouterQuery,
+};
+use ethexe_network::{
+    NetworkConfig, NetworkEvent, NetworkRuntimeConfig, NetworkService, export::Multiaddr,
+};
 use ethexe_observer::{EthereumConfig, ObserverEvent, ObserverService};
-use ethexe_processor::Processor;
+use ethexe_processor::{
+    DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, DEFAULT_CHUNK_PROCESSING_THREADS, Processor, RunnerConfig,
+};
 use ethexe_rpc::{RpcConfig, RpcService, test_utils::RpcClient};
 use ethexe_signer::Signer;
 use ethexe_tx_pool::TxPoolService;
@@ -61,7 +68,10 @@ use roast_secp256k1_evm::frost::{
 use std::{
     net::SocketAddr,
     pin::Pin,
-    sync::atomic::{AtomicUsize, Ordering},
+    sync::{
+        Arc,
+        atomic::{AtomicUsize, Ordering},
+    },
     time::Duration,
 };
 use tokio::{
@@ -78,7 +88,7 @@ pub struct TestEnv {
     pub eth_cfg: EthereumConfig,
     #[allow(unused)]
     pub wallets: Wallets,
-    pub blobs_storage: LocalBlobStorage,
+    pub election_provider: MockElectionProvider,
     pub provider: RootProvider,
     pub ethereum: Ethereum,
     pub signer: Signer,
@@ -87,6 +97,7 @@ pub struct TestEnv {
     pub threshold: u64,
     pub block_time: Duration,
     pub continuous_block_generation: bool,
+    pub compute_config: ComputeConfig,
 
     router_query: RouterQuery,
     /// In order to reduce amount of observers, we create only one observer and broadcast events to all subscribers.
@@ -107,19 +118,27 @@ impl TestEnv {
             block_time,
             rpc,
             wallets,
+            signer,
             router_address,
             continuous_block_generation,
             network,
+            deploy_params,
+            compute_config,
         } = config;
 
         log::info!(
             "📗 Starting new test environment. Continuous block generation: {continuous_block_generation}"
         );
 
-        let (rpc_url, anvil) = match rpc {
-            EnvRpcConfig::ProvidedURL(rpc_url) => {
-                log::info!("📍 Using provided RPC URL: {rpc_url}");
-                (rpc_url, None)
+        let (http_rpc_url, ws_rpc_url, anvil) = match rpc {
+            EnvRpcConfig::ProvidedURL {
+                http_rpc_url,
+                ws_rpc_url,
+            } => {
+                log::info!(
+                    "📍 Using provided HTTP RPC URL: {http_rpc_url} and WS RPC URL: {ws_rpc_url}"
+                );
+                (http_rpc_url, ws_rpc_url, None)
             }
             EnvRpcConfig::CustomAnvil {
                 slots_in_epoch,
@@ -127,9 +146,6 @@ impl TestEnv {
             } => {
                 let mut anvil = Anvil::new();
 
-                if continuous_block_generation {
-                    anvil = anvil.block_time(block_time.as_secs())
-                }
                 if let Some(slots_in_epoch) = slots_in_epoch {
                     anvil = anvil.arg(format!("--slots-in-an-epoch={slots_in_epoch}"));
                 }
@@ -139,12 +155,14 @@ impl TestEnv {
 
                 let anvil = anvil.spawn();
 
-                log::info!("📍 Anvil started at {}", anvil.ws_endpoint());
-                (anvil.ws_endpoint(), Some(anvil))
+                log::info!(
+                    "📍 Anvil started at {} and {}",
+                    anvil.endpoint(),
+                    anvil.ws_endpoint()
+                );
+                (anvil.endpoint(), anvil.ws_endpoint(), Some(anvil))
             }
         };
-
-        let signer = Signer::memory();
 
         let mut wallets = if let Some(wallets) = wallets {
             Wallets::custom(&signer, wallets)
@@ -153,6 +171,7 @@ impl TestEnv {
         };
 
         let validators: Vec<_> = match validators {
+            ValidatorsConfig::ProvidedValidators(validators_keys) => validators_keys,
             ValidatorsConfig::PreDefined(amount) => (0..amount).map(|_| wallets.next()).collect(),
             ValidatorsConfig::Custom(keys) => keys
                 .iter()
@@ -163,15 +182,14 @@ impl TestEnv {
                 .collect(),
         };
 
-        let (validators, verifiable_secret_sharing_commitment) =
-            Self::define_session_keys(&signer, validators);
-
+        let (validator_configs, verifiable_secret_sharing_commitment) =
+            Self::define_session_keys(&signer, validators.clone());
         let sender_address = wallets.next().to_address();
 
         let ethereum = if let Some(router_address) = router_address {
             log::info!("📗 Connecting to existing router at {router_address}");
             Ethereum::new(
-                &rpc_url,
+                &ws_rpc_url,
                 router_address.parse().unwrap(),
                 signer.clone(),
                 sender_address,
@@ -179,15 +197,14 @@ impl TestEnv {
             .await?
         } else {
             log::info!("📗 Deploying new router");
-            let validators_addresses = validators
-                .iter()
-                .map(|k| k.public_key.to_address())
-                .collect();
-            EthereumDeployer::new(&rpc_url, signer.clone(), sender_address) // verifiable_secret_sharing_commitment,)
+            let validators_addresses: Vec<Address> =
+                validators.iter().map(|k| k.to_address()).collect();
+            EthereumDeployer::new(&ws_rpc_url, signer.clone(), sender_address) // verifiable_secret_sharing_commitment,)
                 .await
                 .unwrap()
-                .with_validators(validators_addresses)
+                .with_validators(validators_addresses.try_into().unwrap())
                 .with_verifiable_secret_sharing_commitment(verifiable_secret_sharing_commitment)
+                .with_params(deploy_params)
                 .deploy()
                 .await?
         };
@@ -199,16 +216,15 @@ impl TestEnv {
         let db = Database::memory();
 
         let eth_cfg = EthereumConfig {
-            rpc: rpc_url.clone(),
-            beacon_rpc: Default::default(),
+            rpc: ws_rpc_url.clone(),
+            beacon_rpc: http_rpc_url.clone(),
             router_address,
             block_time: config.block_time,
         };
         let mut observer = ObserverService::new(&eth_cfg, u32::MAX, db.clone())
             .await
             .unwrap();
-
-        let blobs_storage = LocalBlobStorage::default();
+        let genesis_block_hash = observer.genesis_block_hash();
 
         let provider = observer.provider().clone();
 
@@ -263,19 +279,24 @@ impl TestEnv {
             let nonce = NONCE.fetch_add(1, Ordering::SeqCst) * MAX_NETWORK_SERVICES_PER_TEST;
             let address = maybe_address.unwrap_or_else(|| format!("/memory/{nonce}"));
 
-            let config_path = tempfile::tempdir().unwrap().keep();
+            let network_key = signer.generate_key().unwrap();
             let multiaddr: Multiaddr = address.parse().unwrap();
 
-            let mut config = NetworkConfig::new_test(config_path);
+            let mut config = NetworkConfig::new_test(network_key, router_address);
             config.listen_addresses = [multiaddr.clone()].into();
             config.external_addresses = [multiaddr.clone()].into();
+
+            let runtime_config = NetworkRuntimeConfig { genesis_block_hash };
+
             let mut service = NetworkService::new(
                 config,
+                runtime_config,
                 &signer,
                 Box::new(RouterDataProvider(router_query.clone())),
-                db.clone(),
+                Box::new(db.clone()),
             )
             .unwrap();
+            service.set_chain_head(genesis_block_hash).unwrap();
 
             let local_peer_id = service.local_peer_id();
 
@@ -305,14 +326,15 @@ impl TestEnv {
             eth_cfg,
             wallets,
             provider,
-            blobs_storage,
+            election_provider: MockElectionProvider::new(),
             ethereum,
             signer,
-            validators,
+            validators: validator_configs,
             sender_id: ActorId::from(H160::from(sender_address.0)),
             threshold,
             block_time,
             continuous_block_generation,
+            compute_config,
             router_query,
             broadcaster,
             db,
@@ -355,7 +377,7 @@ impl TestEnv {
             router_query: self.router_query.clone(),
             eth_cfg: self.eth_cfg.clone(),
             receiver: None,
-            blob_storage: self.blobs_storage.clone(),
+            election_provider: self.election_provider.clone(),
             signer: self.signer.clone(),
             threshold: self.threshold,
             block_time: self.block_time,
@@ -365,6 +387,7 @@ impl TestEnv {
             network_bootstrap_address,
             service_rpc_config,
             fast_sync,
+            compute_config: self.compute_config,
         }
     }
 
@@ -375,12 +398,11 @@ impl TestEnv {
 
         let code_and_id = CodeAndId::new(code.to_vec());
         let code_id = code_and_id.code_id();
-        self.blobs_storage.add_code(code_and_id).await;
 
         let pending_builder = self
             .ethereum
             .router()
-            .request_code_validation_with_sidecar(code)
+            .request_code_validation_with_sidecar_old(code)
             .await?;
         assert_eq!(pending_builder.code_id(), code_id);
 
@@ -449,6 +471,7 @@ impl TestEnv {
         wvara.approve_all(program_address.0.into()).await.unwrap();
     }
 
+    #[allow(dead_code)]
     pub async fn transfer_wvara(&self, program_id: ActorId, value: u128) {
         log::info!("📗 Transferring {value} WVara to {program_id}");
 
@@ -587,6 +610,8 @@ impl TestEnv {
 }
 
 pub enum ValidatorsConfig {
+    /// Use provided public keys
+    ProvidedValidators(Vec<PublicKey>),
     /// Take validator addresses from provided wallet, amount of validators is provided.
     PreDefined(usize),
     /// Custom validator eth-addresses in hex string format.
@@ -607,7 +632,10 @@ pub enum EnvNetworkConfig {
 
 pub enum EnvRpcConfig {
     #[allow(unused)]
-    ProvidedURL(String),
+    ProvidedURL {
+        http_rpc_url: String,
+        ws_rpc_url: String,
+    },
     CustomAnvil {
         slots_in_epoch: Option<u64>,
         genesis_timestamp: Option<u64>,
@@ -624,6 +652,8 @@ pub struct TestEnvConfig {
     pub rpc: EnvRpcConfig,
     /// By default uses anvil hardcoded wallets if custom wallets are not provided.
     pub wallets: Option<Vec<String>>,
+    /// Signer
+    pub signer: Signer,
     /// If None (by default) new router will be deployed.
     /// In case of Some(_), will connect to existing router contract.
     pub router_address: Option<String>,
@@ -631,6 +661,10 @@ pub struct TestEnvConfig {
     pub continuous_block_generation: bool,
     /// Network service configuration, disabled by default.
     pub network: EnvNetworkConfig,
+    /// Smart contracts deploy configuration.
+    pub deploy_params: ContractsDeploymentParams,
+    /// Compute service configuration
+    pub compute_config: ComputeConfig,
 }
 
 impl Default for TestEnvConfig {
@@ -646,9 +680,12 @@ impl Default for TestEnvConfig {
                 genesis_timestamp: Some(1_000_000_000),
             },
             wallets: None,
+            signer: Signer::memory(),
             router_address: None,
             continuous_block_generation: false,
             network: EnvNetworkConfig::Disabled,
+            deploy_params: Default::default(),
+            compute_config: ComputeConfig::without_quarantine(),
         }
     }
 }
@@ -688,10 +725,15 @@ impl NodeConfig {
     }
 
     pub fn service_rpc(mut self, rpc_port: u16) -> Self {
+        let runner_config = RunnerConfig::overlay(
+            DEFAULT_CHUNK_PROCESSING_THREADS.get(),
+            DEFAULT_BLOCK_GAS_LIMIT,
+            DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER,
+        );
         let service_rpc_config = RpcConfig {
             listen_addr: SocketAddr::new("127.0.0.1".parse().unwrap(), rpc_port),
             cors: None,
-            dev: false,
+            runner_config,
         };
         self.rpc = Some(service_rpc_config);
 
@@ -767,7 +809,7 @@ pub struct Node {
     router_query: RouterQuery,
     eth_cfg: EthereumConfig,
     receiver: Option<TestingEventReceiver>,
-    blob_storage: LocalBlobStorage,
+    election_provider: MockElectionProvider,
     signer: Signer,
     threshold: u64,
     block_time: Duration,
@@ -777,6 +819,7 @@ pub struct Node {
     network_bootstrap_address: Option<String>,
     service_rpc_config: Option<RpcConfig>,
     fast_sync: bool,
+    compute_config: ComputeConfig,
 }
 
 impl Node {
@@ -787,65 +830,95 @@ impl Node {
         );
 
         let processor = Processor::new(self.db.clone()).unwrap();
+        let compute = ComputeService::new(self.compute_config, self.db.clone(), processor);
+
+        let observer = ObserverService::new(&self.eth_cfg, u32::MAX, self.db.clone())
+            .await
+            .unwrap();
+
+        let consensus: Pin<Box<dyn ConsensusService>> = {
+            if let Some(config) = self.validator_config.as_ref() {
+                let ethereum = Ethereum::new(
+                    &self.eth_cfg.rpc,
+                    self.eth_cfg.router_address.into(),
+                    self.signer.clone(),
+                    config.public_key.to_address(),
+                )
+                .await
+                .unwrap();
+                Box::pin(
+                    ValidatorService::new(
+                        self.signer.clone(),
+                        Arc::new(self.election_provider.clone()),
+                        ethereum.router(),
+                        self.db.clone(),
+                        ethexe_consensus::ValidatorConfig {
+                            pub_key: config.public_key,
+                            signatures_threshold: self.threshold,
+                            slot_duration: self.block_time,
+                            block_gas_limit: DEFAULT_BLOCK_GAS_LIMIT,
+                        },
+                    )
+                    .unwrap(),
+                )
+            } else {
+                Box::pin(SimpleConnectService::new(self.db.clone(), self.block_time))
+            }
+        };
+
+        let validator_address = self
+            .validator_config
+            .as_ref()
+            .map(|c| c.public_key.to_address());
+
+        let (sender, receiver) = broadcast::channel(2048);
+
+        let consensus_config = ConsensusLayerConfig {
+            ethereum_rpc: self.eth_cfg.rpc.clone(),
+            ethereum_beacon_rpc: self.eth_cfg.beacon_rpc.clone(),
+            beacon_block_time: self.eth_cfg.block_time,
+        };
+        let blob_loader = BlobLoader::new(self.db.clone(), consensus_config)
+            .await
+            .expect("failed to create blob loader")
+            .into_box();
 
         let wait_for_network = self.network_bootstrap_address.is_some();
 
         let network = self.network_address.as_ref().map(|addr| {
-            let config_path = tempfile::tempdir().unwrap().keep();
+            let network_key = self.signer.generate_key().unwrap();
             let multiaddr: Multiaddr = addr.parse().unwrap();
 
-            let mut config = NetworkConfig::new_test(config_path);
+            let mut config = NetworkConfig::new_test(network_key, self.eth_cfg.router_address);
             config.listen_addresses = [multiaddr.clone()].into();
             config.external_addresses = [multiaddr.clone()].into();
             if let Some(bootstrap_addr) = self.network_bootstrap_address.as_ref() {
                 let multiaddr = bootstrap_addr.parse().unwrap();
                 config.bootstrap_addresses = [multiaddr].into();
             }
+
+            let runtime_config = NetworkRuntimeConfig {
+                genesis_block_hash: observer.genesis_block_hash(),
+            };
+
             let network = NetworkService::new(
                 config,
+                runtime_config,
                 &self.signer,
                 Box::new(RouterDataProvider(self.router_query.clone())),
-                self.db.clone(),
+                Box::new(self.db.clone()),
             )
             .unwrap();
             self.multiaddr = Some(format!("{addr}/p2p/{}", network.local_peer_id()));
             network
         });
 
-        let consensus: Pin<Box<dyn ConsensusService>> =
-            if let Some(config) = self.validator_config.as_ref() {
-                Box::pin(
-                    ValidatorService::new(
-                        self.signer.clone(),
-                        self.db.clone(),
-                        ethexe_consensus::ValidatorConfig {
-                            ethereum_rpc: self.eth_cfg.rpc.clone(),
-                            pub_key: config.public_key,
-                            router_address: self.eth_cfg.router_address,
-                            signatures_threshold: self.threshold,
-                            slot_duration: self.block_time,
-                        },
-                    )
-                    .await
-                    .unwrap(),
-                )
-            } else {
-                Box::pin(SimpleConnectService::new())
-            };
-
-        let (sender, receiver) = broadcast::channel(2048);
-
-        let observer = ObserverService::new(&self.eth_cfg, u32::MAX, self.db.clone())
-            .await
-            .unwrap();
-
-        let blob_loader = LocalBlobLoader::new(self.blob_storage.clone()).into_box();
-
         let tx_pool_service = TxPoolService::new(self.db.clone());
 
-        let rpc = self.service_rpc_config.as_ref().map(|service_rpc_config| {
-            RpcService::new(service_rpc_config.clone(), self.db.clone(), None)
-        });
+        let rpc = self
+            .service_rpc_config
+            .as_ref()
+            .map(|service_rpc_config| RpcService::new(service_rpc_config.clone(), self.db.clone()));
 
         self.receiver = Some(receiver);
 
@@ -853,7 +926,7 @@ impl Node {
             self.db.clone(),
             observer,
             blob_loader,
-            processor,
+            compute,
             self.signer.clone(),
             tx_pool_service,
             consensus,
@@ -862,6 +935,7 @@ impl Node {
             rpc,
             sender,
             self.fast_sync,
+            validator_address,
         );
 
         let name = self.name.clone();
@@ -870,7 +944,7 @@ impl Node {
                 .run()
                 .instrument(tracing::info_span!("node", name))
                 .await
-                .unwrap()
+                .unwrap_or_else(|err| panic!("Service {name:?} failed: {err}"));
         });
         self.running_service_handle = Some(handle);
 
@@ -894,13 +968,8 @@ impl Node {
 
         // fast sync implies network has connections
         if wait_for_network && !self.fast_sync {
-            self.wait_for(|e| {
-                matches!(
-                    e,
-                    TestingEvent::Network(TestingNetworkEvent::PeerConnected(_))
-                )
-            })
-            .await;
+            self.wait_for(|e| matches!(e, TestingEvent::Network(NetworkEvent::PeerConnected(_))))
+                .await;
         }
     }
 
@@ -926,6 +995,7 @@ impl Node {
     pub fn listener(&mut self) -> ServiceEventsListener<'_> {
         ServiceEventsListener {
             receiver: self.receiver.as_mut().expect("channel isn't created"),
+            db: self.db.clone(),
         }
     }
 

@@ -71,6 +71,13 @@ pub const FUZZER_STACK_HEIGHT_LIMIT: u32 = 65_000;
 /// does not exceed 1024 by a large margin.
 pub const DATA_SEGMENTS_AMOUNT_LIMIT: u32 = 1024;
 
+/// The maximum length of a type section in bytes.
+pub const TYPE_SECTION_LEN_LIMIT: u32 = 1024 * 20;
+
+/// Maximum number of parameters per type in the type section.
+/// 256 parameters per type should be enough for any type section in a wasm module.
+pub const TYPE_SECTION_PARAMS_PER_TYPE_LIMIT: u32 = 128;
+
 /// Definition of the cost schedule and other parameterization for the wasm vm.
 ///
 /// Its [`Default`] implementation is the designated way to initialize this type. It uses
@@ -182,6 +189,8 @@ pub struct Limits {
     /// of parameters of this function. Because the stack height instrumentation itself is
     /// is not weight metered its costs must be static (via this limit) and included in
     /// the costs of the instructions that cause them (call, call_indirect).
+    ///
+    /// NOTE: Also the limit checked against type in type section during a code validation.
     pub parameters: u32,
 
     /// Maximum number of memory pages allowed for a program.
@@ -211,6 +220,9 @@ pub struct Limits {
 
     /// The maximum number of wasm data segments allowed for a program.
     pub data_segments_amount: u32,
+
+    /// The maximum length of a type section in bytes.
+    pub type_section_len: u32,
 }
 
 /// Describes the weight for all categories of supported wasm instructions.
@@ -852,9 +864,10 @@ impl Default for Limits {
             #[cfg(fuzz)]
             stack_height: Some(FUZZER_STACK_HEIGHT_LIMIT),
             data_segments_amount: DATA_SEGMENTS_AMOUNT_LIMIT,
+            type_section_len: TYPE_SECTION_LEN_LIMIT,
             globals: 256,
             locals: 1024,
-            parameters: 128,
+            parameters: TYPE_SECTION_PARAMS_PER_TYPE_LIMIT,
             memory_pages: MAX_WASM_PAGES_AMOUNT,
             // 4k function pointers (This is in count not bytes).
             table_size: 4096,

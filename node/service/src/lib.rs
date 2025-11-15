@@ -286,32 +286,35 @@ where
         let chain_spec = config.chain_spec.cloned_box();
 
         let rpc_backend = backend.clone();
-        let rpc_extensions_builder = move |subscription_executor| {
-            let deps = crate::rpc::FullDeps {
-                client: client.clone(),
-                pool: pool.clone(),
-                select_chain: select_chain.clone(),
-                chain_spec: chain_spec.cloned_box(),
-                babe: crate::rpc::BabeDeps {
-                    keystore: keystore.clone(),
-                    babe_worker_handle: babe_worker_handle.clone(),
-                },
-                grandpa: crate::rpc::GrandpaDeps {
-                    shared_voter_state: shared_voter_state.clone(),
-                    shared_authority_set: shared_authority_set.clone(),
-                    justification_stream: justification_stream.clone(),
-                    subscription_executor,
-                    finality_provider: finality_proof_provider.clone(),
-                },
-                gear: crate::rpc::GearDeps {
-                    allowance_multiplier: rpc_calculations_multiplier,
-                    max_batch_size: rpc_max_batch_size,
-                },
-                backend: rpc_backend.clone(),
-            };
+        let rpc_extensions_builder =
+            move |subscription_executor: sc_rpc::SubscriptionTaskExecutor| {
+                let gear_subscription_executor = subscription_executor.clone();
+                let deps = crate::rpc::FullDeps {
+                    client: client.clone(),
+                    pool: pool.clone(),
+                    select_chain: select_chain.clone(),
+                    chain_spec: chain_spec.cloned_box(),
+                    babe: crate::rpc::BabeDeps {
+                        keystore: keystore.clone(),
+                        babe_worker_handle: babe_worker_handle.clone(),
+                    },
+                    grandpa: crate::rpc::GrandpaDeps {
+                        shared_voter_state: shared_voter_state.clone(),
+                        shared_authority_set: shared_authority_set.clone(),
+                        justification_stream: justification_stream.clone(),
+                        subscription_executor,
+                        finality_provider: finality_proof_provider.clone(),
+                    },
+                    gear: crate::rpc::GearDeps {
+                        allowance_multiplier: rpc_calculations_multiplier,
+                        max_batch_size: rpc_max_batch_size,
+                        subscription_executor: gear_subscription_executor,
+                    },
+                    backend: rpc_backend.clone(),
+                };
 
-            crate::rpc::create_full(deps).map_err(Into::into)
-        };
+                crate::rpc::create_full(deps).map_err(Into::into)
+            };
 
         (rpc_extensions_builder, shared_voter_state2)
     };

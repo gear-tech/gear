@@ -111,6 +111,18 @@ pub mod symbiotic_abi {
         "../contracts/lib/symbiotic-rewards/out/DefaultOperatorRewards.sol/DefaultOperatorRewards.json"
     );
 
+    alloy::sol!(
+        #[sol(rpc)]
+        DelegatorFactory,
+        "../contracts/lib/symbiotic-core/out/DelegatorFactory.sol/DelegatorFactory.json"
+    );
+
+    alloy::sol!(
+        #[sol(rpc)]
+        SlasherFactory,
+        "../contracts/lib/symbiotic-core/out/SlasherFactory.sol/SlasherFactory.json"
+    );
+
     pub mod staker_rewards_factory {
         alloy::sol!(
             #[sol(rpc)]
@@ -128,7 +140,7 @@ pub mod symbiotic_abi {
     }
 }
 
-pub(crate) mod utils {
+pub mod utils {
     use alloy::primitives::{FixedBytes, Uint};
     use gprimitives::{ActorId, CodeId, H256, MessageId, U256};
 

@@ -24,7 +24,11 @@ async-trait.workspace = true
 rand = { workspace = true, features = ["std", "std_rng"] }
 futures.workspace = true
 derive_more.workspace = true
-itertools.workspace = true
+itertools = { workspace = true, features = ["use_std"]}
+nonempty.workspace = true
+auto_impl.workspace = true
+lru.workspace = true
+thiserror.workspace = true
 
 [dependencies.libp2p]
 version = "0.55.0"
@@ -35,3 +39,4 @@ libp2p-swarm-test = { version = "0.5.0", default-features = false, features = ["
 tokio = { workspace = true, features = ["full", "test-util"] }
 tracing-subscriber.workspace = true
 assert_matches.workspace = true
+ethexe-common = { workspace = true, features = ["mock"] }

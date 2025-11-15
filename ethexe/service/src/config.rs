@@ -39,14 +39,14 @@ impl Config {
     pub fn log_info(&self) {
         log::info!("💾 Database: {}", self.node.database_path.display());
         log::info!("🔑 Key directory: {}", self.node.key_path.display());
-        if let Some(net_config) = &self.network {
-            log::info!("🛜  Network directory: {}", net_config.config_dir.display());
-        }
         log::info!("⧫  Ethereum observer RPC: {}", self.ethereum.rpc);
         log::info!(
             "📡 Ethereum router address: {}",
             self.ethereum.router_address
         );
+        if let Some(network) = &self.network {
+            log::info!("🛜  Network public key: {}", network.public_key);
+        }
     }
 }
 
@@ -61,7 +61,7 @@ pub struct NodeConfig {
     pub blocking_threads: Option<usize>,
     pub chunk_processing_threads: usize,
     pub block_gas_limit: u64,
-    pub dev: bool,
+    pub canonical_quarantine: u8,
     pub fast_sync: bool,
 }
 

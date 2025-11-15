@@ -18,16 +18,16 @@
 
 use crate::{
     db_sync::{
-        Config, Event, ExternalDataProvider, HashesRequest, InnerBehaviour, InnerHashesResponse,
-        InnerProgramIdsRequest, InnerProgramIdsResponse, InnerRequest, InnerResponse,
-        NewRequestRoundReason, PeerId, ProgramIdsRequest, Request, RequestFailure, RequestId,
-        Response, ValidCodesRequest,
+        AnnouncesRequest, Config, Event, ExternalDataProvider, HandleResult, HashesRequest,
+        InnerBehaviour, InnerHashesResponse, InnerProgramIdsRequest, InnerProgramIdsResponse,
+        InnerRequest, InnerResponse, NewRequestRoundReason, PeerId, ProgramIdsRequest, Request,
+        RequestFailure, RequestId, Response, ValidCodesRequest,
     },
     peer_score::Handle,
     utils::ConnectionMap,
 };
 use anyhow::Context as _;
-use ethexe_common::gear::CodeState;
+use ethexe_common::{gear::CodeState, network::AnnouncesResponseError};
 use futures::{FutureExt, future::BoxFuture};
 use gprimitives::{ActorId, CodeId, H256};
 use itertools::EitherOrBoth;
@@ -43,7 +43,7 @@ use std::{
     task::{Context, Poll, Waker},
     time::Duration,
 };
-use tokio::time;
+use tokio::{sync::oneshot, time};
 
 ethexe_service_utils::task_local! {
     static CONTEXT: OngoingRequestContext;
@@ -53,12 +53,11 @@ type OngoingRequestFuture = BoxFuture<'static, Result<Response, (RequestFailure,
 
 pub(crate) struct OngoingRequests {
     pending_events: VecDeque<Event>,
-    requests: HashMap<RequestId, OngoingRequestFuture>,
+    requests: HashMap<RequestId, (OngoingRequestFuture, Option<oneshot::Sender<HandleResult>>)>,
     active_requests: HashMap<OutboundRequestId, RequestId>,
     responses: HashMap<RequestId, Result<InnerResponse, ()>>,
     connections: ConnectionMap,
     waker: Option<Waker>,
-    request_id_counter: u64,
     // used in requests themselves
     peer_score_handle: Handle,
     external_data_provider: Box<dyn ExternalDataProvider>,
@@ -80,7 +79,6 @@ impl OngoingRequests {
             responses: Default::default(),
             connections: Default::default(),
             waker: None,
-            request_id_counter: 0,
             peer_score_handle,
             external_data_provider,
             request_timeout: config.request_timeout,
@@ -117,44 +115,47 @@ impl OngoingRequests {
         }
     }
 
-    fn next_request_id(&mut self) -> RequestId {
-        let id = self.request_id_counter;
-        self.request_id_counter += 1;
-        RequestId(id)
-    }
-
-    pub(crate) fn request(&mut self, request: Request) -> RequestId {
-        let request_id = self.next_request_id();
+    fn inner_request(
+        &mut self,
+        request_id: RequestId,
+        request: OngoingRequest,
+        channel: oneshot::Sender<HandleResult>,
+    ) {
         self.requests.insert(
             request_id,
-            OngoingRequest::new(request)
-                .request(
-                    self.peer_score_handle.clone(),
-                    self.external_data_provider.clone_boxed(),
-                    self.request_timeout,
-                    self.max_rounds_per_request,
-                )
-                .boxed(),
+            (
+                request
+                    .request(
+                        self.peer_score_handle.clone(),
+                        self.external_data_provider.clone_boxed(),
+                        self.request_timeout,
+                        self.max_rounds_per_request,
+                    )
+                    .boxed(),
+                Some(channel),
+            ),
         );
-        request_id
     }
 
-    pub(crate) fn retry(&mut self, request: RetriableRequest) {
+    pub(crate) fn request(
+        &mut self,
+        request_id: RequestId,
+        request: Request,
+        channel: oneshot::Sender<HandleResult>,
+    ) {
+        self.inner_request(request_id, OngoingRequest::new(request), channel);
+    }
+
+    pub(crate) fn retry(
+        &mut self,
+        request: RetriableRequest,
+        channel: oneshot::Sender<HandleResult>,
+    ) {
         let RetriableRequest {
             request_id,
             request,
         } = request;
-        self.requests.insert(
-            request_id,
-            request
-                .request(
-                    self.peer_score_handle.clone(),
-                    self.external_data_provider.clone_boxed(),
-                    self.request_timeout,
-                    self.max_rounds_per_request,
-                )
-                .boxed(),
-        );
+        self.inner_request(request_id, request, channel);
     }
 
     fn inner_on_peer(
@@ -202,8 +203,16 @@ impl OngoingRequests {
 
             let peers: HashSet<PeerId> = self.connections.peers().collect();
 
-            self.requests.retain(|&request_id, fut| {
+            self.requests.retain(|&request_id, (fut, channel)| {
                 let response = self.responses.remove(&request_id);
+
+                // it means `HandleFuture` is dropped,
+                // so we just remove the request and don't make any further work
+                if channel.as_ref().expect("always Some").is_closed() {
+                    self.pending_events.push_back(Event::RequestCancelled { request_id });
+                    return false;
+                }
+
                 let ctx = OngoingRequestContext {
                     state: OnceCell::new(),
                     peers: peers.clone(),
@@ -234,20 +243,27 @@ impl OngoingRequests {
                     };
                     self.pending_events.push_back(event);
                 } else if let Poll::Ready(res) = poll {
-                    let event = match res {
-                        Ok(response) => Event::RequestSucceed {
-                            request_id,
-                            response,
-                        },
-                        Err((error, request)) => Event::RequestFailed {
-                            request: RetriableRequest {
+                    let (event, res) = match res {
+                        Ok(response) => {
+                            (Event::RequestSucceed { request_id }, Ok(response))
+                        }
+                        Err((error, request)) => {
+                            (Event::RequestFailed { request_id, error }, Err((error, RetriableRequest {
                                 request_id,
                                 request,
                             },
-                            error,
+                            )))
                         }
                     };
+
                     self.pending_events.push_back(event);
+
+                    // channel can be dropped after `is_closed()` check during future polling
+                    let res = channel.take().expect("always Some").send(res);
+                    if res.is_err() {
+                        self.pending_events.push_back(Event::RequestCancelled { request_id });
+                    }
+
                     return false;
                 }
 
@@ -327,6 +343,8 @@ enum ResponseError {
     ProgramIds(ProgramIdsResponseError),
     #[display("{_0}")]
     ValidCodes(ValidCodesResponseError),
+    #[display("{_0}")]
+    Announces(AnnouncesResponseError),
     #[display("request and response types mismatch")]
     TypeMismatch,
     #[display("new round required")]
@@ -345,6 +363,9 @@ enum ResponseHandler {
     ValidCodes {
         request: ValidCodesRequest,
     },
+    Announces {
+        request: AnnouncesRequest,
+    },
 }
 
 impl ResponseHandler {
@@ -356,6 +377,7 @@ impl ResponseHandler {
             },
             Request::ProgramIds(request) => Self::ProgramIds { request },
             Request::ValidCodes(request) => Self::ValidCodes { request },
+            Request::Announces(request) => Self::Announces { request },
         }
     }
 
@@ -379,6 +401,7 @@ impl ResponseHandler {
                         validated_count: _,
                     },
             } => InnerRequest::ValidCodes,
+            ResponseHandler::Announces { request } => InnerRequest::Announces(*request),
         }
     }
 
@@ -553,6 +576,10 @@ impl ResponseHandler {
                     .map(Into::into)
                     .map_err(|err| (Self::ValidCodes { request }, err.into()))
             }
+            (Self::Announces { request }, InnerResponse::Announces(response)) => response
+                .try_into_checked(request)
+                .map_err(|err| (Self::Announces { request }, err.into()))
+                .map(Response::Announces),
             (this, _) => Err((this, ResponseError::TypeMismatch)),
         }
     }
@@ -654,7 +681,7 @@ impl OngoingRequest {
         {
             Ok(response) => Ok(response),
             Err((processor, err)) => {
-                log::trace!("response processing failed for request from {peer}: {err:?}");
+                log::warn!("response processing failed for request from {peer}: {err:?}");
                 peer_score_handle.invalid_data(peer);
                 self.response_handler = Some(processor);
                 Err(NewRequestRoundReason::PartialData)

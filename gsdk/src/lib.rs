@@ -18,7 +18,7 @@
 
 #![doc(html_logo_url = "https://gear-tech.io/logo.png")]
 #![doc(html_favicon_url = "https://gear-tech.io/favicon.ico")]
-#![cfg_attr(docsrs, feature(doc_auto_cfg))]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 
 //! Gear api
 pub use crate::{
@@ -27,10 +27,13 @@ pub use crate::{
     metadata::Event,
     result::{Error, Result},
     signer::PairSigner,
-    subscription::{Blocks, Events},
+    subscription::{
+        Blocks, Events, PayloadFilter, ProgramStateChange, ProgramStateChanges, UserMessageSent,
+        UserMessageSentFilter, UserMessageSentSubscription,
+    },
 };
 pub use gear_core::rpc::GasInfo;
-pub use subxt::dynamic::Value;
+pub use subxt::{self, dynamic::Value};
 
 use crate::metadata::runtime_types::{
     gear_common::gas_provider::node::{GasNode, GasNodeId},
@@ -47,7 +50,6 @@ use subxt::{
 
 mod api;
 pub mod backtrace;
-mod client;
 pub mod config;
 mod constants;
 pub mod events;
@@ -57,17 +59,22 @@ mod rpc;
 pub mod signer;
 mod storage;
 pub mod subscription;
+mod tx_status;
 mod utils;
+
+mod ensure_versions;
 
 pub mod ext {
     pub use sp_core;
     pub use sp_runtime::{self, codec, scale_info};
+    pub use subxt::utils;
 }
 pub mod gp {
     //! generated code preludes.
     pub use subxt::ext::{
         codec::{Decode, Encode},
         scale_decode::DecodeAsType,
+        scale_encode::EncodeAsType,
     };
 }
 

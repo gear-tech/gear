@@ -20,9 +20,7 @@ use crate::{
     MAX_USER_GAS_LIMIT, Result, Value, default_users_list,
     error::usage_panic,
     manager::{CUSTOM_WASM_PROGRAM_CODE_ID, ExtManager},
-    state::programs::{
-        GTestProgram, MockWasmProgram, PLACEHOLDER_MESSAGE_ID, ProgramsStorageManager,
-    },
+    state::programs::{GTestProgram, PLACEHOLDER_MESSAGE_ID, ProgramsStorageManager},
     system::System,
 };
 use gear_common::Origin;
@@ -251,16 +249,18 @@ impl ProgramBuilder {
         Program::program_with_id(
             system,
             id,
-            GTestProgram::Default(PrimaryProgram::Active(ActiveProgram {
-                allocations_tree_len: 0,
-                code_id: code_id.cast(),
-                state: ProgramState::Uninitialized {
-                    message_id: PLACEHOLDER_MESSAGE_ID,
-                },
-                expiration_block,
-                memory_infix: Default::default(),
-                gas_reservation_map: Default::default(),
-            })),
+            GTestProgram::Default {
+                primary: PrimaryProgram::Active(ActiveProgram {
+                    allocations_tree_len: 0,
+                    code_id: code_id.cast(),
+                    state: ProgramState::Uninitialized {
+                        message_id: PLACEHOLDER_MESSAGE_ID,
+                    },
+                    expiration_block,
+                    memory_infix: Default::default(),
+                    gas_reservation_map: Default::default(),
+                }),
+            },
         )
     }
 
@@ -274,6 +274,8 @@ impl ProgramBuilder {
             |module| schedule.rules(module),
             schedule.limits.stack_height,
             schedule.limits.data_segments_amount.into(),
+            schedule.limits.type_section_len.into(),
+            schedule.limits.parameters.into(),
         )
         .expect("Failed to create Program from provided code");
 
@@ -406,9 +408,14 @@ impl<'a> Program<'a> {
             expiration_block: system.0.borrow().block_height(),
         });
 
-        let mock_program = MockWasmProgram::new(Box::new(mock), primary_program);
-
-        Self::program_with_id(system, id, GTestProgram::Mock(mock_program))
+        Self::program_with_id(
+            system,
+            id,
+            GTestProgram::Mock {
+                primary: primary_program,
+                handlers: Box::new(mock),
+            },
+        )
     }
 
     /// Send message to the program.
@@ -510,23 +517,27 @@ impl<'a> Program<'a> {
             value,
             None,
         );
+        let kind = if system.is_builtin(self.id) {
+            DispatchKind::Handle
+        } else {
+            ProgramsStorageManager::modify_program(self.id, |program| {
+                let program = program.expect("Can't fail");
+                let PrimaryProgram::Active(active_program) = program.as_primary_program_mut()
+                else {
+                    usage_panic!("Program with id {} is not active - {program:?}", self.id);
+                };
+                match active_program.state {
+                    ProgramState::Uninitialized { ref mut message_id }
+                        if *message_id == PLACEHOLDER_MESSAGE_ID =>
+                    {
+                        *message_id = message.id();
 
-        let kind = ProgramsStorageManager::modify_program(self.id, |program| {
-            let program = program.expect("Can't fail");
-            let PrimaryProgram::Active(active_program) = program.as_primary_program_mut() else {
-                usage_panic!("Program with id {} is not active - {program:?}", self.id);
-            };
-            match active_program.state {
-                ProgramState::Uninitialized { ref mut message_id }
-                    if *message_id == PLACEHOLDER_MESSAGE_ID =>
-                {
-                    *message_id = message.id();
-
-                    DispatchKind::Init
+                        DispatchKind::Init
+                    }
+                    _ => DispatchKind::Handle,
                 }
-                _ => DispatchKind::Handle,
-            }
-        });
+            })
+        };
 
         system.validate_and_route_dispatch(Dispatch::new(kind, message))
     }
@@ -686,7 +697,6 @@ mod tests {
     fn test_handle_signal() {
         use demo_constructor::{Calls, Scheme, WASM_BINARY};
         let sys = System::new();
-        sys.init_logger();
 
         let user_id = DEFAULT_USER_ALICE;
         let message = "Signal handle";
@@ -718,7 +728,6 @@ mod tests {
     #[test]
     fn test_queued_message_to_failed_program() {
         let sys = System::new();
-        sys.init_logger();
 
         let user_id = DEFAULT_USER_ALICE;
 
@@ -746,7 +755,6 @@ mod tests {
     #[should_panic]
     fn test_new_message_to_failed_program() {
         let sys = System::new();
-        sys.init_logger();
 
         let user_id = DEFAULT_USER_ALICE;
 
@@ -763,7 +771,6 @@ mod tests {
     #[test]
     fn simple_balance() {
         let sys = System::new();
-        sys.init_logger();
 
         let user_id = 42;
         let mut user_spent_balance = 0;
@@ -804,7 +811,6 @@ mod tests {
     #[test]
     fn piggy_bank() {
         let sys = System::new();
-        sys.init_logger();
 
         let receiver = 42;
         let sender0 = 43;
@@ -915,7 +921,6 @@ mod tests {
     #[test]
     fn claim_zero_value() {
         let sys = System::new();
-        sys.init_logger();
 
         const RECEIVER_INITIAL_BALANCE: Value = 200 * EXISTENTIAL_DEPOSIT;
 
@@ -977,7 +982,6 @@ mod tests {
     fn save_load_memory_dump() {
         use demo_custom::{InitMessage, WASM_BINARY};
         let sys = System::new();
-        sys.init_logger();
 
         let mut prog = Program::from_binary_with_id(&sys, 420, WASM_BINARY);
 
@@ -1031,7 +1035,6 @@ mod tests {
     fn process_wait_for() {
         use demo_custom::{InitMessage, WASM_BINARY};
         let sys = System::new();
-        sys.init_logger();
 
         let prog = Program::from_binary_with_id(&sys, 420, WASM_BINARY);
 
@@ -1091,7 +1094,6 @@ mod tests {
         use demo_constructor::{WASM_BINARY, demo_exit_handle};
 
         let sys = System::new();
-        sys.init_logger();
 
         let user_id = 42;
         let mut user_balance = 4 * EXISTENTIAL_DEPOSIT;
@@ -1123,7 +1125,6 @@ mod tests {
     #[test]
     fn test_insufficient_gas() {
         let sys = System::new();
-        sys.init_logger();
 
         let prog = Program::from_binary_with_id(&sys, 137, demo_ping::WASM_BINARY);
 
@@ -1151,7 +1152,6 @@ mod tests {
         use demo_constructor::{Calls, WASM_BINARY};
 
         let sys = System::new();
-        sys.init_logger();
 
         let user_id = DEFAULT_USER_ALICE;
         let prog = Program::from_binary_with_id(&sys, 4242, WASM_BINARY);
@@ -1200,7 +1200,6 @@ mod tests {
         use demo_constructor::{Calls, WASM_BINARY};
 
         let sys = System::new();
-        sys.init_logger();
 
         let user_id = DEFAULT_USER_ALICE;
         let prog = Program::from_binary_with_id(&sys, 4242, WASM_BINARY);
@@ -1244,7 +1243,6 @@ mod tests {
         use demo_constructor::{Calls, WASM_BINARY};
 
         let sys = System::new();
-        sys.init_logger();
 
         let user_id = DEFAULT_USER_ALICE;
         let prog_id = 4242;
@@ -1308,7 +1306,6 @@ mod tests {
     #[test]
     fn tests_unused_gas_value_not_transferred() {
         let sys = System::new();
-        sys.init_logger();
 
         let user = 42;
         sys.mint_to(user, 2 * EXISTENTIAL_DEPOSIT);
@@ -1327,7 +1324,6 @@ mod tests {
         use demo_delayed_sender::DELAY;
 
         let sys = System::new();
-        sys.init_logger();
 
         let user = DEFAULT_USER_ALICE;
         let program_id = 69;
@@ -1353,7 +1349,6 @@ mod tests {
         use parity_scale_codec::Encode;
 
         let sys = System::new();
-        sys.init_logger();
 
         let user_id = ActorId::from(DEFAULT_USER_ALICE);
         let mock_program_id = ActorId::new([1; 32]);
@@ -1414,17 +1409,14 @@ mod tests {
         let proxy_scheme = Scheme::predefined(
             // init: do nothing
             Calls::builder().noop(),
-            // handle: load message payload and send it to mock program
-            Calls::builder()
-                .add_call(Call::LoadBytes)
-                .add_call(Call::StoreVec("current_payload".to_string()))
-                .add_call(Call::Send(
-                    Arg::new(mock_program_id.into_bytes()),
-                    Arg::new(vec![1, 2, 3]),
-                    None,
-                    Arg::new(0u128),
-                    Arg::new(0u32),
-                )),
+            // handle: send message to mock program
+            Calls::builder().add_call(Call::Send(
+                Arg::new(mock_program_id.into_bytes()),
+                Arg::new(vec![1, 2, 3]),
+                None,
+                Arg::new(0u128),
+                Arg::new(0u32),
+            )),
             // handle_reply: load reply payload and forward it to original sender
             Calls::builder()
                 .add_call(Call::LoadBytes)
@@ -1432,7 +1424,7 @@ mod tests {
                 .add_call(Call::Send(
                     Arg::new(user_id.into_bytes()),
                     Arg::get("reply_payload"),
-                    None,
+                    Some(Arg::new(0u64)),
                     Arg::new(0u128),
                     Arg::new(0u32),
                 )),
@@ -1458,11 +1450,8 @@ mod tests {
         // 3. Mock program should have replied "Hi from mock program"
         // 4. Proxy should have received the reply and sent it to user
 
-        // Verify the final message in user's mailbox contains the mock program's
-        // response
-        let final_mailbox = sys.get_mailbox(user_id);
         assert!(
-            final_mailbox.contains(
+            res.contains(
                 &Log::builder()
                     .source(proxy_program.id())
                     .dest(user_id)

@@ -18,8 +18,9 @@
 
 //! This is supposed to be an exact copy of Gear.sol library.
 
-use crate::{Address, Digest, ToDigest};
+use crate::{Address, Announce, Digest, HashOf, ToDigest, ValidatorsVec};
 use alloc::vec::Vec;
+use alloy_primitives::U256 as AlloyU256;
 use gear_core::message::{ReplyCode, ReplyDetails, StoredMessage, SuccessReplyReason};
 use gprimitives::{ActorId, CodeId, H256, MessageId, U256};
 use parity_scale_codec::{Decode, Encode};
@@ -36,6 +37,9 @@ pub const CHUNK_PROCESSING_GAS_LIMIT: u64 = 1_000_000_000_000;
 
 /// Max block gas limit for the node.
 pub const MAX_BLOCK_GAS_LIMIT: u64 = 9_000_000_000_000;
+
+/// [`CANONICAL_QUARANTINE`] defines the period of blocks to wait before applying canonical events.
+pub const CANONICAL_QUARANTINE: u8 = 16;
 
 #[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
 pub struct AggregatedPublicKey {
@@ -61,18 +65,22 @@ pub struct AddressBook {
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
 pub struct ChainCommitment {
     pub transitions: Vec<StateTransition>,
-    pub head: H256,
+    pub head_announce: HashOf<Announce>,
 }
 
 impl ToDigest for Option<ChainCommitment> {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
         // To avoid missing incorrect hashing while developing.
-        let Some(ChainCommitment { transitions, head }) = self else {
+        let Some(ChainCommitment {
+            transitions,
+            head_announce,
+        }) = self
+        else {
             return;
         };
 
         hasher.update(transitions.to_digest());
-        hasher.update(head);
+        hasher.update(head_announce.hash().0);
     }
 }
 
@@ -222,7 +230,7 @@ pub struct Timelines {
 pub struct ValidatorsCommitment {
     pub aggregated_public_key: AggregatedPublicKey,
     pub verifiable_secret_sharing_commitment: VerifiableSecretSharingCommitment,
-    pub validators: Vec<ActorId>,
+    pub validators: ValidatorsVec,
     pub era_index: u64,
 }
 
@@ -244,10 +252,17 @@ impl ToDigest for Option<ValidatorsCommitment> {
         hasher.update(
             validators
                 .iter()
-                .flat_map(|v| v.to_address_lossy().0.into_iter())
+                .flat_map(|v| {
+                    // Adjust to 32 bytes, because of `encodePacked` in Gear.validatorCommitmentHash
+                    let mut bytes = [0u8; 32];
+                    bytes[12..32].copy_from_slice(&v.0);
+                    bytes.into_iter()
+                })
                 .collect::<Vec<u8>>(),
         );
-        hasher.update(era_index.to_be_bytes().as_slice());
+
+        let bytes = AlloyU256::from(*era_index).to_be_bytes::<32>();
+        hasher.update(bytes);
     }
 }
 
@@ -352,7 +367,20 @@ pub struct StateTransition {
     pub new_state_hash: H256,
     pub exited: bool,
     pub inheritor: ActorId,
+    /// We represent `value_to_receive` as `u128` and `bool` because each non-zero byte costs 16 gas,
+    /// and each zero byte costs 4 gas (see <https://evm.codes/about#gascosts>).
+    ///
+    /// Negative numbers will be stored like this:
+    /// ```
+    /// $ cast
+    /// > -1 ether
+    /// Type: int256
+    /// Hex: 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffff21f494c589c0000
+    /// ```
+    ///
+    /// This is optimization on EVM side to reduce gas costs for storing and processing values.
     pub value_to_receive: u128,
+    pub value_to_receive_negative_sign: bool,
     pub value_claims: Vec<ValueClaim>,
     pub messages: Vec<Message>,
 }
@@ -366,6 +394,7 @@ impl ToDigest for StateTransition {
             exited,
             inheritor,
             value_to_receive,
+            value_to_receive_negative_sign,
             value_claims,
             messages,
         } = self;
@@ -375,6 +404,7 @@ impl ToDigest for StateTransition {
         hasher.update([*exited as u8]);
         hasher.update(inheritor.to_address_lossy());
         hasher.update(value_to_receive.to_be_bytes());
+        hasher.update([*value_to_receive_negative_sign as u8]);
         hasher.update(value_claims.to_digest());
         hasher.update(messages.to_digest());
     }
@@ -414,8 +444,8 @@ impl ToDigest for [ValueClaim] {
 
 #[derive(Clone, Copy, Debug, Encode, Decode, PartialEq, Eq, Default, PartialOrd, Ord, Hash)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
-pub enum Origin {
+pub enum MessageType {
     #[default]
-    Ethereum,
-    OffChain,
+    Canonical,
+    Injected,
 }

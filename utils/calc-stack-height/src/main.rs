@@ -26,7 +26,7 @@ use std::{env, fs};
 use tracing_subscriber::EnvFilter;
 use wasmer::{
     Exports, Extern, Function, FunctionEnv, Imports, Instance, Memory, MemoryType, Module,
-    RuntimeError, Singlepass, Store,
+    RuntimeError, Store, sys::Singlepass,
 };
 use wasmer_types::{FunctionType, TrapCode, Type};
 
@@ -126,6 +126,8 @@ fn main() -> anyhow::Result<()> {
             |module| schedule.rules(module),
             Some(mid),
             schedule.limits.data_segments_amount.into(),
+            schedule.limits.type_section_len.into(),
+            schedule.limits.parameters.into(),
         )
         .context("Code error")?;
 

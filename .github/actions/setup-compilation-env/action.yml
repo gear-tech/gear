@@ -11,6 +11,12 @@ inputs:
 runs:
   using: composite
   steps:
+    - name: "Install: cargo-xwin"
+      if: inputs.target == 'x86_64-pc-windows-msvc'
+      uses: ./.github/actions/install-cargo-xwin
+      with:
+        token: ${{ inputs.token }}
+
     - name: "Install: Rust target"
       run: |
         rustup target add ${{ inputs.target }}
@@ -35,7 +41,7 @@ runs:
       shell: bash
 
     - name: "Install: Linux cross compilers"
-      if: runner.arch == 'ARM64' && runner.os == 'Linux'
+      if: runner.arch == 'ARM64' && runner.os == 'Linux' && inputs.target == 'x86_64-unknown-linux-gnu'
       run: |
         sudo sed -i '/Types: deb/a Architectures: arm64' /etc/apt/sources.list.d/ubuntu.sources
         sudo dpkg --add-architecture amd64
@@ -55,12 +61,6 @@ runs:
         echo "PKG_CONFIG=/usr/bin/pkgconf" >> $GITHUB_ENV
         echo "HOST_PKG_CONFIG_PATH=/lib/aarch64-linux-gnu/pkgconfig" >> $GITHUB_ENV
       shell: bash
-
-    - name: "Install: cargo-xwin"
-      if: inputs.target == 'x86_64-pc-windows-msvc'
-      uses: ./.github/actions/install-cargo-xwin
-      with:
-        token: ${{ inputs.token }}
 
     - name: "Install: Windows packages"
       if: inputs.target == 'x86_64-pc-windows-msvc'

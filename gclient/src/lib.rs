@@ -129,7 +129,7 @@
 #![warn(missing_docs)]
 #![doc(html_logo_url = "https://gear-tech.io/logo.png")]
 #![doc(html_favicon_url = "https://gear-tech.io/favicon.ico")]
-#![cfg_attr(docsrs, feature(doc_auto_cfg))]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 
 mod api;
 mod utils;
@@ -137,8 +137,10 @@ mod ws;
 
 pub use api::{GearApi, error::*, listener::*};
 pub use gsdk::{
-    ext,
+    ProgramStateChange, ProgramStateChanges, UserMessageSent, UserMessageSentFilter,
+    UserMessageSentSubscription, ext,
     metadata::{self, errors},
+    subscription::UserMessageReply,
 };
 pub use utils::*;
 pub use ws::WSAddress;

@@ -33,12 +33,11 @@ impl ExtManager {
 
         if ProgramsStorageManager::is_mock_program(program_id) {
             ProgramsStorageManager::modify_program(program_id, |program| {
-                let Some(GTestProgram::Mock(mock_program)) = program else {
+                let Some(GTestProgram::Mock { handlers, .. }) = program else {
                     unreachable!("checked upper, that it's the case for a mock program");
                 };
 
-                mock_program
-                    .handlers_mut()
+                handlers
                     .state()
                     .map_err(|e| TestError::ReadStateError(e.to_string()))
             })

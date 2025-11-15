@@ -32,13 +32,13 @@ pub mod signatures {
     crate::signatures_consts! {
         IRouter;
         BATCH_COMMITTED: BatchCommitted,
-        HEAD_COMMITTED: HeadCommitted,
+        ANNOUNCES_COMMITTED: AnnouncesCommitted,
         CODE_GOT_VALIDATED: CodeGotValidated,
         CODE_VALIDATION_REQUESTED: CodeValidationRequested,
         COMPUTATION_SETTINGS_CHANGED: ComputationSettingsChanged,
         PROGRAM_CREATED: ProgramCreated,
         STORAGE_SLOT_CHANGED: StorageSlotChanged,
-        NEXT_ERA_VALIDATORS_COMMITTED: NextEraValidatorsCommitted,
+        VALIDATORS_COMMITTED_FOR_ERA: ValidatorsCommittedForEra,
     }
 
     pub const REQUESTS: &[B256] = &[
@@ -46,7 +46,7 @@ pub mod signatures {
         COMPUTATION_SETTINGS_CHANGED,
         PROGRAM_CREATED,
         STORAGE_SLOT_CHANGED,
-        NEXT_ERA_VALIDATORS_COMMITTED,
+        VALIDATORS_COMMITTED_FOR_ERA,
     ];
 }
 
@@ -57,7 +57,7 @@ pub fn try_extract_event(log: &Log) -> Result<Option<RouterEvent>> {
 
     let event = match *topic0 {
         BATCH_COMMITTED => decode_log::<IRouter::BatchCommitted>(log)?.into(),
-        HEAD_COMMITTED => decode_log::<IRouter::HeadCommitted>(log)?.into(),
+        ANNOUNCES_COMMITTED => decode_log::<IRouter::AnnouncesCommitted>(log)?.into(),
         CODE_GOT_VALIDATED => decode_log::<IRouter::CodeGotValidated>(log)?.into(),
         CODE_VALIDATION_REQUESTED => {
             let tx_hash = log
@@ -79,8 +79,8 @@ pub fn try_extract_event(log: &Log) -> Result<Option<RouterEvent>> {
         }
         PROGRAM_CREATED => decode_log::<IRouter::ProgramCreated>(log)?.into(),
         STORAGE_SLOT_CHANGED => decode_log::<IRouter::StorageSlotChanged>(log)?.into(),
-        NEXT_ERA_VALIDATORS_COMMITTED => {
-            decode_log::<IRouter::NextEraValidatorsCommitted>(log)?.into()
+        VALIDATORS_COMMITTED_FOR_ERA => {
+            decode_log::<IRouter::ValidatorsCommittedForEra>(log)?.into()
         }
         _ => unreachable!("filtered above"),
     };

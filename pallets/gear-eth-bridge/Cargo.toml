@@ -19,7 +19,7 @@ scale-info.workspace = true
 
 # Gear deps.
 common.workspace = true
-gbuiltin-eth-bridge.workspace = true
+builtins-common = { workspace = true, features = ["eth-bridge"] }
 gear-core.workspace = true
 gprimitives.workspace = true
 pallet-gear-bank.workspace = true
@@ -28,9 +28,11 @@ pallet-gear-eth-bridge-primitives.workspace = true
 
 # Substrate deps.
 binary-merkle-tree.workspace = true
+bp-header-chain.workspace = true
 frame-benchmarking = { workspace = true, optional = true }
 frame-support.workspace = true
 frame-system.workspace = true
+pallet-grandpa.workspace = true
 sp-consensus-grandpa.workspace = true
 sp-runtime.workspace = true
 sp-std.workspace = true
@@ -67,18 +69,21 @@ std = [
 
     # Gear deps.
     "common/std",
+    "builtins-common/eth-bridge-std",
     "gear-core/std",
+    "gprimitives/std",
     "pallet-gear-builtin/std",
     "pallet-gear-eth-bridge-primitives/std",
 
     # Substrate deps.
+	"bp-header-chain/std",
     "binary-merkle-tree/std",
     "frame-support/std",
     "frame-system/std",
+    "pallet-grandpa/std",
     "sp-consensus-grandpa/std",
     "sp-runtime/std",
     "sp-std/std",
-    "gprimitives/std",
 ]
 runtime-benchmarks = [
     # Gear deps.
@@ -89,6 +94,7 @@ runtime-benchmarks = [
     "frame-benchmarking/runtime-benchmarks",
     "frame-support/runtime-benchmarks",
     "frame-system/runtime-benchmarks",
+    "pallet-grandpa/runtime-benchmarks",
     "sp-runtime/runtime-benchmarks",
 ]
 try-runtime = [
@@ -98,5 +104,6 @@ try-runtime = [
     # Substrate deps.
     "frame-support/try-runtime",
     "frame-system/try-runtime",
+    "pallet-grandpa/try-runtime",
     "sp-runtime/try-runtime",
 ]

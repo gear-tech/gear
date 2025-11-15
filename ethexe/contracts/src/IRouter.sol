@@ -40,8 +40,8 @@ interface IRouter {
 
     /// @notice Emitted when all necessary state transitions have been applied and states have changed.
     /// @dev This is an *informational* event, signaling that the all transitions until head were committed.
-    /// @param head The hash of the block that was "finalized" in relation to the necessary transitions.
-    event HeadCommitted(bytes32 head);
+    /// @param head The hash of committed announces chain head.
+    event AnnouncesCommitted(bytes32 head);
 
     /// @notice Emitted when a code, previously requested for validation, receives validation results, so its CodeStatus changed.
     /// @dev This is an *informational* event, signaling the results of code validation.
@@ -56,8 +56,8 @@ interface IRouter {
 
     /// @notice Emitted when validators for the next era has been set.
     /// @dev This is an *informational* and *request* event, signaling that validators has been set for the next era.
-    /// @param startTimestamp timestamp when the new era starts.
-    event NextEraValidatorsCommitted(uint256 startTimestamp);
+    /// @param eraIndex The index of the era for which the validators have been committed.
+    event ValidatorsCommittedForEra(uint256 eraIndex);
 
     /// @notice Emitted when the computation settings have been changed.
     /// @dev This is both an *informational* and *requesting* event, signaling that an authority decided to change the computation settings. Users and program authors may want to adjust their practices, while validators need to apply the changes internally starting from the next block.
