@@ -34,6 +34,7 @@ use libp2p::{
 };
 use parity_scale_codec::{Decode, Encode};
 use std::{
+    collections::HashMap,
     task::{Context, Poll, ready},
     time::Duration,
 };
@@ -156,6 +157,7 @@ pub enum Event {
 pub struct Behaviour {
     inner: kad::Behaviour<MemoryStore>,
     peer_score: peer_score::Handle,
+    cache_candidates_records: HashMap<QueryId, kad::Record>,
 }
 
 impl Behaviour {
@@ -168,7 +170,11 @@ impl Behaviour {
             .set_record_filtering(kad::StoreInserts::FilterBoth);
         let mut inner = kad::Behaviour::with_config(peer, MemoryStore::new(peer), inner);
         inner.set_mode(Some(kad::Mode::Server));
-        Self { inner, peer_score }
+        Self {
+            inner,
+            peer_score,
+            cache_candidates_records: HashMap::new(),
+        }
     }
 
     pub fn add_address(&mut self, peer_id: PeerId, multiaddr: Multiaddr) {
@@ -230,14 +236,17 @@ impl Behaviour {
             } => match result {
                 kad::QueryResult::GetRecord(result) => {
                     let result = match result {
-                        Ok(kad::GetRecordOk::FoundRecord(PeerRecord { peer, record })) => {
+                        Ok(kad::GetRecordOk::FoundRecord(PeerRecord {
+                            peer,
+                            record: original_record,
+                        })) => {
                             if stats.num_successes() > MIN_QUORUM_PEERS
                                 && let Some(mut query) = self.inner.query_mut(&id)
                             {
                                 query.finish();
                             }
 
-                            let record = match Record::new(&record) {
+                            let record = match Record::new(&original_record) {
                                 Ok(record) => record,
                                 Err(err) => {
                                     log::trace!("failed to get record: {err}");
@@ -251,11 +260,25 @@ impl Behaviour {
                                     return Poll::Pending;
                                 }
                             };
+
+                            self.cache_candidates_records.insert(id, original_record);
+
                             Ok(Box::new(GetRecordOk { peer, record }))
                         }
                         Ok(kad::GetRecordOk::FinishedWithNoAdditionalRecord {
-                            cache_candidates: _,
+                            cache_candidates,
                         }) => {
+                            if let Some(record) = self.cache_candidates_records.remove(&id)
+                                // `put_record_to` just fails if there are no peers
+                                && !cache_candidates.is_empty()
+                            {
+                                self.inner.put_record_to(
+                                    record,
+                                    cache_candidates.into_values(),
+                                    Quorum::One,
+                                );
+                            }
+
                             return Poll::Pending;
                         }
                         Err(kad::GetRecordError::NotFound {
