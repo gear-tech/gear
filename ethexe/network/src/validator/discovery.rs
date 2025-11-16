@@ -38,11 +38,8 @@ use libp2p::{
         THandlerInEvent, THandlerOutEvent, ToSwarm, dummy,
     },
 };
-use lru::LruCache;
 use parity_scale_codec::{Decode, Encode, Input, Output};
-use std::{num::NonZeroUsize, sync::Arc, task::Poll, time::SystemTime};
-
-const MAX_VALIDATOR_IDENTITIES: NonZeroUsize = NonZeroUsize::new(100).unwrap();
+use std::{collections::HashMap, sync::Arc, task::Poll, time::SystemTime};
 
 pub type SignedValidatorIdentity = SignedData<ValidatorIdentity>;
 
@@ -124,7 +121,7 @@ pub struct Behaviour {
     validator_key: Option<PublicKey>,
     signer: Signer,
     snapshot: Arc<ValidatorListSnapshot>,
-    identities: LruCache<Address, SignedValidatorIdentity>,
+    identities: HashMap<Address, SignedValidatorIdentity>,
     external_addresses: ExternalAddresses,
     query_identities_interval: ExponentialBackoffInterval,
     put_identity_interval: ExponentialBackoffInterval,
@@ -142,7 +139,7 @@ impl Behaviour {
             validator_key,
             signer,
             snapshot,
-            identities: LruCache::new(MAX_VALIDATOR_IDENTITIES),
+            identities: HashMap::new(),
             external_addresses: ExternalAddresses::default(),
             query_identities_interval: ExponentialBackoffInterval::new(),
             put_identity_interval: ExponentialBackoffInterval::new(),
@@ -151,14 +148,16 @@ impl Behaviour {
 
     pub(crate) fn on_new_snapshot(&mut self, snapshot: Arc<ValidatorListSnapshot>) {
         self.snapshot = snapshot;
+
+        // eliminate identities that are neither in the current set nor in the next set
+        self.identities
+            .retain(|&address, _identity| self.snapshot.contains_any_validator(address));
     }
 
     fn identity_keys(&self) -> impl Iterator<Item = ValidatorIdentityKey> {
         let current_era = self.snapshot.current_era_index();
         self.snapshot
-            .current_validators
-            .iter()
-            .copied()
+            .all_validators()
             .map(move |address| ValidatorIdentityKey {
                 current_era,
                 validator: address,
@@ -227,13 +226,13 @@ impl Behaviour {
             "received identity has invalid era index"
         );
 
-        if let Some(old_identity) = self.identities.peek(&identity.address())
+        if let Some(old_identity) = self.identities.get(&identity.address())
             && old_identity.data().creation_time >= identity.data().creation_time
         {
             return Ok(());
         }
 
-        self.identities.put(identity.address(), identity);
+        self.identities.insert(identity.address(), identity);
 
         Ok(())
     }

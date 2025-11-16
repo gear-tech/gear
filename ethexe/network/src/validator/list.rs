@@ -85,6 +85,16 @@ impl ValidatorListSnapshot {
         self.timelines.era_from_ts(block_ts)
     }
 
+    pub(crate) fn all_validators(&self) -> impl Iterator<Item = Address> {
+        self.current_validators.iter().copied().chain(
+            self.next_validators
+                .as_deref()
+                .map(|vec| vec.iter().copied())
+                .into_iter()
+                .flatten(),
+        )
+    }
+
     pub(crate) fn contains_any_validator(&self, address: Address) -> bool {
         let is_current_validator = self.current_validators.contains(&address);
         let is_next_validator = self
