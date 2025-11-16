@@ -267,14 +267,7 @@ impl Behaviour {
                 .sign(&self.signer, validator_key, &self.keypair)
                 .context("failed to sign validator identity")?;
 
-            let key = ValidatorIdentityKey {
-                validator: validator_key.to_address(),
-            };
-            let record = ValidatorIdentityRecord {
-                key,
-                value: identity,
-            };
-            Ok(record)
+            Ok(ValidatorIdentityRecord { value: identity })
         };
 
         Some(f())
@@ -288,10 +281,7 @@ impl Behaviour {
         // TODO: filter our own record
         log::error!("validator identity record: {record:?}");
 
-        let ValidatorIdentityRecord {
-            key: _,
-            value: identity,
-        } = record;
+        let ValidatorIdentityRecord { value: identity } = record;
 
         anyhow::ensure!(
             self.snapshot.contains_any_validator(identity.address()),

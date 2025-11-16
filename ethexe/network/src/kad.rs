@@ -17,6 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{peer_score, validator::discovery::SignedValidatorIdentity};
+use anyhow::Context as _;
 use ethexe_common::Address;
 use libp2p::{
     Multiaddr, PeerId,
@@ -57,8 +58,15 @@ pub struct ValidatorIdentityKey {
 
 #[derive(Debug, PartialEq, Eq)]
 pub struct ValidatorIdentityRecord {
-    pub key: ValidatorIdentityKey,
     pub value: SignedValidatorIdentity,
+}
+
+impl ValidatorIdentityRecord {
+    pub fn key(&self) -> ValidatorIdentityKey {
+        ValidatorIdentityKey {
+            validator: self.value.address(),
+        }
+    }
 }
 
 #[derive(Debug, PartialEq, Eq, Encode, Decode, derive_more::From)]
@@ -82,22 +90,29 @@ pub enum Record {
 }
 
 impl Record {
-    fn new(record: &kad::Record) -> Result<Self, parity_scale_codec::Error> {
+    fn new(record: &kad::Record) -> anyhow::Result<Self> {
         let key = RecordKey::new(&record.key)?;
         match key {
             RecordKey::ValidatorIdentity(key) => {
-                let value: SignedValidatorIdentity = Decode::decode(&mut &record.value[..])?;
-                Ok(Self::ValidatorIdentity(ValidatorIdentityRecord {
-                    key,
-                    value,
-                }))
+                let value: SignedValidatorIdentity = Decode::decode(&mut &record.value[..])
+                    .context("failed to decode validator identity")?;
+
+                let ValidatorIdentityKey { validator } = key;
+                anyhow::ensure!(
+                    validator == value.address(),
+                    "validator address of record key mismatches address of record value"
+                );
+
+                Ok(Self::ValidatorIdentity(ValidatorIdentityRecord { value }))
             }
         }
     }
 
     fn into_kad_record(self) -> kad::Record {
         match self {
-            Record::ValidatorIdentity(ValidatorIdentityRecord { key, value }) => {
+            Record::ValidatorIdentity(record) => {
+                let key = record.key();
+                let ValidatorIdentityRecord { value } = record;
                 kad::Record::new(RecordKey::ValidatorIdentity(key).encode(), value.encode())
             }
         }
