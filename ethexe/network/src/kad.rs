@@ -41,6 +41,13 @@ use std::{
 const KAD_RECORD_TTL_SECS: u64 = 3600 * 3; // 3 hours
 const KAD_RECORD_TTL: Duration = Duration::from_secs(KAD_RECORD_TTL_SECS);
 const KAD_PUBLISHING_INTERVAL: Duration = Duration::from_secs(KAD_RECORD_TTL_SECS / 4);
+// From Substrate sources:
+// This number is small enough to make sure we don't
+// unnecessarily flood the network with queries, but high
+// enough to make sure we also touch peers which might have
+// old record, so that we can update them once we notice
+// they have old records.
+const MIN_QUORUM_PEERS: u32 = 4;
 
 #[derive(Debug, PartialEq, Eq, Encode, Decode)]
 pub struct ValidatorIdentityKey {
@@ -216,14 +223,20 @@ impl Behaviour {
                 });
             }
             kad::Event::OutboundQueryProgressed {
-                id: _,
+                id,
                 result,
-                stats: _,
+                stats,
                 step: _,
             } => match result {
                 kad::QueryResult::GetRecord(result) => {
                     let result = match result {
                         Ok(kad::GetRecordOk::FoundRecord(PeerRecord { peer, record })) => {
+                            if stats.num_successes() > MIN_QUORUM_PEERS
+                                && let Some(mut query) = self.inner.query_mut(&id)
+                            {
+                                query.finish();
+                            }
+
                             let record = match Record::new(&record) {
                                 Ok(record) => record,
                                 Err(err) => {
