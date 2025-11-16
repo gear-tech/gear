@@ -28,6 +28,7 @@ use ethexe_common::injected::{SignedInjectedPromise, SignedInjectedTransaction};
 use ethexe_db::Database;
 use ethexe_processor::RunnerConfig;
 use futures::{FutureExt, Stream, stream::FusedStream};
+use hyper::header::HeaderValue;
 use jsonrpsee::{
     Methods, RpcModule as JsonrpcModule,
     server::{
@@ -45,6 +46,7 @@ use tokio::{
     sync::{mpsc, oneshot},
 };
 use tower::Service;
+use tower_http::cors::{AllowOrigin, CorsLayer};
 
 mod apis;
 mod errors;
@@ -60,6 +62,19 @@ pub enum RpcEvent {
         response_sender: oneshot::Sender<InjectedTransactionAcceptance>,
     },
     InjectedTransactionSubscription {
+        transaction: SignedInjectedTransaction,
+        response_sender: oneshot::Sender<InjectedTransactionAcceptance>,
+        promise_sender: oneshot::Sender<SignedInjectedPromise>,
+    },
+}
+
+#[derive(Debug)]
+pub(crate) enum RpcEventInner {
+    InjectedTransaction {
+        transaction: SignedInjectedTransaction,
+        response_sender: oneshot::Sender<InjectedTransactionAcceptance>,
+    },
+    PromiseSubscription {
         transaction: SignedInjectedTransaction,
         response_sender: oneshot::Sender<InjectedTransactionAcceptance>,
         promise_sender: oneshot::Sender<SignedInjectedPromise>,
@@ -109,117 +124,84 @@ impl RpcService {
     pub async fn run_server(self) -> Result<(ServerHandle, RpcReceiver)> {
         let (rpc_sender, rpc_receiver) = mpsc::unbounded_channel();
 
-        // let listener = TcpListener::bind(self.config.listen_addr).await?;
-        let cors = utils::try_into_cors(self.config.cors.clone())?;
-        let http_middleware = tower::ServiceBuilder::new().layer(cors);
+        let cors_layer = self.cors_layer()?;
+        let http_middleware = tower::ServiceBuilder::new().layer(cors_layer);
 
         let server = jsonrpsee::server::Server::builder()
+            .set_http_middleware(http_middleware)
             .build(self.config.listen_addr)
             .await?;
 
-        let handle = server.start(self.build_server_module(rpc_sender)?);
-
-        // TODO: maybe should customize handling server stopping.
-        // tokio::spawn(handle.stopped());
-
-        // let service_builder = Server::builder()
-        //     .set_http_middleware(http_middleware)
-        //     .to_service_builder();
-
-        // let (stop_handle, server_handle) = stop_channel();
-
-        // let cfg = PerConnection {
-        //     methods: module.into(),
-        //     stop_handle: stop_handle.clone(),
-        //     svc_builder: service_builder,
-        // };
-
-        // tokio::spawn(async move {
-        //     loop {
-        //         let socket = tokio::select! {
-        //             res = listener.accept() => {
-        //                 match res {
-        //                     Ok((socket, _)) => socket,
-        //                     Err(e) => {
-        //                         log::error!("Failed to accept connection: {e:?}");
-        //                         continue;
-        //                     }
-        //                 }
-        //             }
-        //             _ = cfg.stop_handle.clone().shutdown() => {
-        //                 log::info!("Shutdown signal received, stopping server.");
-        //                 break;
-        //             }
-        //         };
-
-        //         let cfg2 = cfg.clone();
-
-        //         let svc = tower::service_fn(move |req: hyper::Request<hyper::body::Incoming>| {
-        //             let PerConnection {
-        //                 methods,
-        //                 stop_handle,
-        //                 svc_builder,
-        //             } = cfg2.clone();
-
-        //             let is_ws = jsonrpsee::server::ws::is_upgrade_request(&req);
-
-        //             let mut svc = svc_builder.build(methods, stop_handle);
-
-        //             if is_ws {
-        //                 let session_close = svc.on_session_closed();
-
-        //                 tokio::spawn(async move {
-        //                     session_close.await;
-        //                     log::info!("WebSocket connection closed");
-        //                 });
-
-        //                 async move {
-        //                     log::info!("WebSocket connection accepted");
-
-        //                     svc.call(req).await.map_err(|e| anyhow!("Error: {:?}", e))
-        //                 }
-        //                 .boxed()
-        //             } else {
-        //                 async move { svc.call(req).await.map_err(|e| anyhow!("Error: {:?}", e)) }
-        //                     .boxed()
-        //             }
-        //         });
-
-        //         tokio::spawn(serve_with_graceful_shutdown(
-        //             socket,
-        //             svc,
-        //             stop_handle.clone().shutdown(),
-        //         ));
-        //     }
-        // });
+        let handle = server.start(self.methods(rpc_sender)?);
 
         Ok((handle, RpcReceiver(rpc_receiver)))
     }
 
-    fn build_server_module(
-        &self,
-        sender: mpsc::UnboundedSender<RpcEvent>,
-    ) -> Result<jsonrpsee::server::RpcModule<()>> {
-        let mut module = JsonrpcModule::new(());
-        module.merge(ProgramServer::into_rpc(ProgramApi::new(
-            self.db.clone(),
-            self.config.runner_config.clone(),
-        )))?;
-        module.merge(BlockServer::into_rpc(BlockApi::new(self.db.clone())))?;
-        module.merge(CodeServer::into_rpc(CodeApi::new(self.db.clone())))?;
-        module.merge(InjectedServer::into_rpc(InjectedApi::new(sender)))?;
+    fn cors_layer(&self) -> Result<CorsLayer> {
+        let Some(cors) = self.config.cors.clone() else {
+            return Ok(CorsLayer::permissive());
+        };
 
-        if self.config.dev {
-            module.merge(DevServer::into_rpc(DevApi::new(
-                self.blobs_storage.clone().unwrap(),
-            )))?;
+        let mut list = Vec::new();
+        for origin in cors {
+            list.push(HeaderValue::from_str(&origin)?)
         }
 
-        Ok(module)
+        Ok(CorsLayer::new().allow_origin(AllowOrigin::list(list)))
+    }
+
+    fn methods(&self, sender: mpsc::UnboundedSender<RpcEvent>) -> jsonrpsee::server::RpcModule<()> {
+        let mut module = JsonrpcModule::new(());
+        module
+            .merge(ProgramServer::into_rpc(ProgramApi::new(
+                self.db.clone(),
+                self.config.runner_config.clone(),
+            )))
+            .expect("No conflicts");
+        module
+            .merge(BlockServer::into_rpc(BlockApi::new(self.db.clone())))
+            .expect("No conflicts");
+        module
+            .merge(CodeServer::into_rpc(CodeApi::new(self.db.clone())))
+            .expect("No conflicts");
+
+        module
+            .merge(InjectedServer::into_rpc(InjectedApi::new(sender)))
+            .expect("No conflicts");
+
+        if self.config.dev {
+            module
+                .merge(DevServer::into_rpc(DevApi::new(
+                    self.blobs_storage.clone().unwrap(),
+                )))
+                .expect("No conflicts");
+        }
+
+        module
+    }
+
+    fn server_apis(&self, sender: mpsc::UnboundedSender<RpcEvent>) -> RpcServerApis {
+        RpcServerApis {
+            code: CodeApi::new(self.db.clone()),
+            block: BlockApi::new(self.db.clone()),
+            program: ProgramApi::new(self.db.clone(), self.config.runner_config.clone()),
+            injected: InjectedApi::new(sender),
+            dev: self
+                .config
+                .dev
+                .then(|_| DevApi::new(self.blobs_storage).expect("expect exists")),
+        }
     }
 }
 
-pub struct RpcReceiver(mpsc::UnboundedReceiver<RpcEvent>);
+// pub struct RpcReceiver(mpsc::UnboundedReceiver<RpcEvent>);
+
+pub struct RpcReceiver {
+    // Event receiver from inner apis.
+    inner_receiver: mpsc::UnboundedReceiver<RpcEventInner>,
+    //
+    outer_receiver: mpsc::UnboundedReceiver<RpcEvent>,
+}
 
 impl Stream for RpcReceiver {
     type Item = RpcEvent;
@@ -233,4 +215,12 @@ impl FusedStream for RpcReceiver {
     fn is_terminated(&self) -> bool {
         self.0.is_closed()
     }
+}
+
+struct RpcServerApis {
+    pub code: CodeApi,
+    pub block: BlockApi,
+    pub program: ProgramApi,
+    pub injected: InjectedApi,
+    pub dev: Option<DevApi>,
 }
