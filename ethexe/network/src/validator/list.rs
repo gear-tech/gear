@@ -23,12 +23,77 @@ use crate::validator::ValidatorDatabase;
 use anyhow::Context;
 use ethexe_common::{Address, BlockHeader, ProtocolTimelines, ValidatorsVec, db::OnChainStorageRO};
 use gprimitives::H256;
-use nonempty::NonEmpty;
+use std::sync::Arc;
 
 struct ChainHead {
     header: BlockHeader,
     current_validators: ValidatorsVec,
-    next_validators: Option<NonEmpty<Address>>,
+    next_validators: Option<ValidatorsVec>,
+}
+
+impl ChainHead {
+    fn get<F>(
+        db: &impl ValidatorDatabase,
+        timelines: &ProtocolTimelines,
+        chain_head: H256,
+        filter: F,
+    ) -> anyhow::Result<Option<Self>>
+    where
+        F: FnOnce(&BlockHeader) -> bool,
+    {
+        let chain_head_header = db
+            .block_header(chain_head)
+            .context("chain head header not found")?;
+
+        if filter(&chain_head_header) {
+            return Ok(None);
+        }
+
+        let validators = db
+            .validators(timelines.era_from_ts(chain_head_header.timestamp))
+            .context("validators not found")?;
+
+        let chain_head = Self {
+            header: chain_head_header,
+            current_validators: validators,
+            next_validators: None,
+        };
+        Ok(Some(chain_head))
+    }
+}
+
+#[derive(Debug)]
+pub(crate) struct ValidatorListSnapshot {
+    pub chain_head_ts: u64,
+    pub timelines: ProtocolTimelines,
+    pub current_validators: ValidatorsVec,
+    pub next_validators: Option<ValidatorsVec>,
+}
+
+impl ValidatorListSnapshot {
+    pub(crate) fn is_older_era(&self, snapshot: &Self) -> bool {
+        let this_era = self.current_era_index();
+        let snapshot_era = snapshot.current_era_index();
+        this_era < snapshot_era
+    }
+
+    pub(crate) fn current_era_index(&self) -> u64 {
+        self.timelines.era_from_ts(self.chain_head_ts)
+    }
+
+    pub(crate) fn block_era_index(&self, block_ts: u64) -> u64 {
+        self.timelines.era_from_ts(block_ts)
+    }
+
+    pub(crate) fn contains_any_validator(&self, address: Address) -> bool {
+        let is_current_validator = self.current_validators.contains(&address);
+        let is_next_validator = self
+            .next_validators
+            .as_ref()
+            .map(|v| v.contains(&address))
+            .unwrap_or(false);
+        is_current_validator || is_next_validator
+    }
 }
 
 /// Tracks validator-signed messages and admits each one once the on-chain
@@ -49,89 +114,51 @@ impl ValidatorList {
     pub(crate) fn new(
         genesis_block_hash: H256,
         db: Box<dyn ValidatorDatabase>,
-    ) -> anyhow::Result<Self> {
+    ) -> anyhow::Result<(Self, Arc<ValidatorListSnapshot>)> {
         let timelines = db
             .protocol_timelines()
             .context("protocol timelines not found in db")?;
-        let chain_head = Self::get_chain_head(&db, &timelines, genesis_block_hash, |_| false)?
+        let chain_head = ChainHead::get(&db, &timelines, genesis_block_hash, |_| false)?
             .expect("filter is always false");
-        Ok(Self {
+        let this = Self {
             timelines,
             chain_head,
             db,
-        })
+        };
+        let snapshot = this.create_snapshot();
+        Ok((this, snapshot))
     }
 
-    fn get_chain_head<F>(
-        db: &impl ValidatorDatabase,
-        timelines: &ProtocolTimelines,
-        chain_head: H256,
-        filter: F,
-    ) -> anyhow::Result<Option<ChainHead>>
-    where
-        F: FnOnce(&BlockHeader) -> bool,
-    {
-        let chain_head_header = db
-            .block_header(chain_head)
-            .context("chain head header not found")?;
-
-        if filter(&chain_head_header) {
-            return Ok(None);
-        }
-
-        let validators = db
-            .validators(timelines.era_from_ts(chain_head_header.timestamp))
-            .context("validators not found")?;
-
-        let chain_head = ChainHead {
-            header: chain_head_header,
-            current_validators: validators,
-            next_validators: None,
+    fn create_snapshot(&self) -> Arc<ValidatorListSnapshot> {
+        let snapshot = ValidatorListSnapshot {
+            chain_head_ts: self.chain_head.header.timestamp,
+            timelines: self.timelines,
+            current_validators: self.chain_head.current_validators.clone(),
+            next_validators: self.chain_head.next_validators.clone(),
         };
-        Ok(Some(chain_head))
+        Arc::new(snapshot)
     }
 
     /// Refresh the current chain head and validator set snapshot.
     ///
     /// Previously cached messages are rechecked once the new context is available.
-    pub(crate) fn set_chain_head(&mut self, chain_head: H256) -> anyhow::Result<bool> {
+    pub(crate) fn set_chain_head(
+        &mut self,
+        chain_head: H256,
+    ) -> anyhow::Result<Option<Arc<ValidatorListSnapshot>>> {
         let chain_head =
-            Self::get_chain_head(&self.db, &self.timelines, chain_head, |chain_head_header| {
+            ChainHead::get(&self.db, &self.timelines, chain_head, |chain_head_header| {
                 let new_era = self.timelines.era_from_ts(chain_head_header.timestamp);
-                let old_era = self.current_era_index();
+                let old_era = self.timelines.era_from_ts(self.chain_head.header.timestamp);
                 new_era <= old_era
             })?;
 
-        match chain_head {
-            Some(chain_head) => {
-                self.chain_head = chain_head;
-                Ok(true)
-            }
-            None => Ok(false),
+        if let Some(chain_head) = chain_head {
+            self.chain_head = chain_head;
+            Ok(Some(self.create_snapshot()))
+        } else {
+            Ok(None)
         }
-    }
-
-    pub(crate) fn current_era_index(&self) -> u64 {
-        self.timelines.era_from_ts(self.chain_head.header.timestamp)
-    }
-
-    pub(crate) fn block_era_index(&self, block_ts: u64) -> u64 {
-        self.timelines.era_from_ts(block_ts)
-    }
-
-    pub(crate) fn current_validators(&self) -> impl Iterator<Item = Address> {
-        self.chain_head.current_validators.iter().copied()
-    }
-
-    pub(crate) fn contains_any_validator(&self, address: Address) -> bool {
-        let is_current_validator = self.chain_head.current_validators.contains(&address);
-        let is_next_validator = self
-            .chain_head
-            .next_validators
-            .as_ref()
-            .map(|v| v.contains(&address))
-            .unwrap_or(false);
-        is_current_validator || is_next_validator
     }
 
     // TODO: make actual implementation when `NextEraValidatorsCommitted` event is emitted before era transition

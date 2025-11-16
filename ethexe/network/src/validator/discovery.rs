@@ -20,7 +20,7 @@ use crate::{
     db_sync::PeerId,
     kad::{ValidatorIdentityKey, ValidatorIdentityRecord},
     utils::ExponentialBackoffInterval,
-    validator::list::ValidatorList,
+    validator::list::ValidatorListSnapshot,
 };
 use anyhow::Context;
 use ethexe_common::{
@@ -40,7 +40,7 @@ use libp2p::{
 };
 use lru::LruCache;
 use parity_scale_codec::{Decode, Encode, Input, Output};
-use std::{num::NonZeroUsize, task::Poll, time::SystemTime};
+use std::{num::NonZeroUsize, sync::Arc, task::Poll, time::SystemTime};
 
 const MAX_VALIDATOR_IDENTITIES: NonZeroUsize = NonZeroUsize::new(100).unwrap();
 
@@ -110,8 +110,12 @@ impl Decode for ValidatorIdentity {
 
 #[derive(Debug)]
 pub enum Event {
-    QueryIdentities,
-    PutIdentity,
+    QueryIdentities {
+        identities: Vec<ValidatorIdentityKey>,
+    },
+    PutIdentity {
+        identity: anyhow::Result<Box<ValidatorIdentityRecord>>,
+    },
 }
 
 #[derive(Debug)]
@@ -119,6 +123,7 @@ pub struct Behaviour {
     keypair: Keypair,
     validator_key: Option<PublicKey>,
     signer: Signer,
+    snapshot: Arc<ValidatorListSnapshot>,
     identities: LruCache<Address, SignedValidatorIdentity>,
     external_addresses: ExternalAddresses,
     query_identities_interval: ExponentialBackoffInterval,
@@ -126,11 +131,17 @@ pub struct Behaviour {
 }
 
 impl Behaviour {
-    pub fn new(keypair: Keypair, validator_key: Option<PublicKey>, signer: Signer) -> Self {
+    pub fn new(
+        keypair: Keypair,
+        validator_key: Option<PublicKey>,
+        signer: Signer,
+        snapshot: Arc<ValidatorListSnapshot>,
+    ) -> Self {
         Self {
             keypair,
             validator_key,
             signer,
+            snapshot,
             identities: LruCache::new(MAX_VALIDATOR_IDENTITIES),
             external_addresses: ExternalAddresses::default(),
             query_identities_interval: ExponentialBackoffInterval::new(),
@@ -138,26 +149,27 @@ impl Behaviour {
         }
     }
 
-    pub fn identity_keys(
-        &self,
-        list: &ValidatorList,
-    ) -> impl Iterator<Item = ValidatorIdentityKey> {
-        let current_era = list.current_era_index();
-        list.current_validators()
+    pub(crate) fn on_new_snapshot(&mut self, snapshot: Arc<ValidatorListSnapshot>) {
+        self.snapshot = snapshot;
+    }
+
+    fn identity_keys(&self) -> impl Iterator<Item = ValidatorIdentityKey> {
+        let current_era = self.snapshot.current_era_index();
+        self.snapshot
+            .current_validators
+            .iter()
+            .copied()
             .map(move |address| ValidatorIdentityKey {
                 current_era,
                 validator: address,
             })
     }
 
-    pub fn identity(
-        &self,
-        list: &ValidatorList,
-    ) -> Option<anyhow::Result<ValidatorIdentityRecord>> {
+    fn identity(&self) -> Option<anyhow::Result<ValidatorIdentityRecord>> {
         let validator_key = self.validator_key?;
 
         let f = || {
-            let current_era = list.current_era_index();
+            let current_era = self.snapshot.current_era_index();
 
             let peer_record = self.external_addresses.as_slice().to_vec();
             let peer_record = PeerRecord::new(&self.keypair, peer_record)
@@ -196,11 +208,7 @@ impl Behaviour {
         self.identities.get(&address)
     }
 
-    pub fn put_identity(
-        &mut self,
-        list: &ValidatorList,
-        record: ValidatorIdentityRecord,
-    ) -> anyhow::Result<()> {
+    pub fn put_identity(&mut self, record: ValidatorIdentityRecord) -> anyhow::Result<()> {
         log::error!("validator identity record: {record:?}");
 
         let ValidatorIdentityRecord {
@@ -209,13 +217,13 @@ impl Behaviour {
         } = record;
 
         anyhow::ensure!(
-            list.contains_any_validator(identity.address()),
+            self.snapshot.contains_any_validator(identity.address()),
             "received identity is not in any validator list"
         );
 
         anyhow::ensure!(
-            identity.data().era_index == list.current_era_index()
-                || identity.data().era_index == list.current_era_index() + 1,
+            identity.data().era_index == self.snapshot.current_era_index()
+                || identity.data().era_index == self.snapshot.current_era_index() + 1,
             "received identity has invalid era index"
         );
 
@@ -277,11 +285,17 @@ impl NetworkBehaviour for Behaviour {
         cx: &mut std::task::Context<'_>,
     ) -> Poll<ToSwarm<Self::ToSwarm, THandlerInEvent<Self>>> {
         if self.query_identities_interval.poll_tick(cx).is_ready() {
-            return Poll::Ready(ToSwarm::GenerateEvent(Event::QueryIdentities));
+            let identities = self.identity_keys().collect();
+            return Poll::Ready(ToSwarm::GenerateEvent(Event::QueryIdentities {
+                identities,
+            }));
         }
 
-        if self.put_identity_interval.poll_tick(cx).is_ready() {
-            return Poll::Ready(ToSwarm::GenerateEvent(Event::PutIdentity));
+        if self.put_identity_interval.poll_tick(cx).is_ready()
+            && let Some(identity) = self.identity()
+        {
+            let identity = identity.map(Box::new);
+            return Poll::Ready(ToSwarm::GenerateEvent(Event::PutIdentity { identity }));
         }
 
         Poll::Pending

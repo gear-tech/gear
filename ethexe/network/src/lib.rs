@@ -29,7 +29,11 @@ pub mod export {
     pub use libp2p::{Multiaddr, PeerId, multiaddr::Protocol};
 }
 
-use crate::{db_sync::DbSyncDatabase, gossipsub::MessageAcceptance, validator::ValidatorDatabase};
+use crate::{
+    db_sync::DbSyncDatabase,
+    gossipsub::MessageAcceptance,
+    validator::{ValidatorDatabase, list::ValidatorListSnapshot},
+};
 use anyhow::{Context, anyhow};
 use ethexe_common::{
     Address,
@@ -57,7 +61,7 @@ use libp2p::{
 };
 #[cfg(test)]
 use libp2p_swarm_test::SwarmExt;
-use std::{collections::HashSet, pin::Pin, task::Poll, time::Duration};
+use std::{collections::HashSet, pin::Pin, sync::Arc, task::Poll, time::Duration};
 use validator::{list::ValidatorList, topic::ValidatorTopic};
 
 pub const DEFAULT_LISTEN_PORT: u16 = 20333;
@@ -199,6 +203,10 @@ impl NetworkService {
             db,
         } = runtime_config;
 
+        let (validator_list, validator_list_snapshot) =
+            ValidatorList::new(genesis_block_hash, ValidatorDatabase::clone_boxed(&db))
+                .context("failed to create validator list")?;
+
         let keypair = NetworkService::generate_keypair(&network_signer, public_key)?;
 
         let behaviour_config = BehaviourConfig {
@@ -209,9 +217,16 @@ impl NetworkService {
             enable_mdns: transport_type.mdns_enabled(),
             validator_key,
             general_signer,
+            validator_list_snapshot: validator_list_snapshot.clone(),
         };
         let mut swarm =
             NetworkService::create_swarm(keypair.clone(), transport_type, behaviour_config)?;
+
+        let validator_topic = ValidatorTopic::new(
+            ValidatorDatabase::clone_boxed(&db),
+            swarm.behaviour().peer_score.handle(),
+            validator_list_snapshot,
+        );
 
         for multiaddr in external_addresses {
             swarm.add_external_address(multiaddr);
@@ -238,26 +253,12 @@ impl NetworkService {
             swarm.behaviour_mut().kad.add_address(peer_id, multiaddr);
         }
 
-        let validator_list =
-            ValidatorList::new(genesis_block_hash, ValidatorDatabase::clone_boxed(&db))
-                .context("failed to create validator list")?;
-
-        let validator_topic = ValidatorTopic::new(
-            ValidatorDatabase::clone_boxed(&db),
-            swarm.behaviour().peer_score.handle(),
-        );
-
-        let mut this = Self {
+        Ok(Self {
             swarm,
             listeners,
             validator_list,
             validator_topic,
-        };
-
-        // bootstrap validator structures
-        this.on_new_era();
-
-        Ok(this)
+        })
     }
 
     fn generate_keypair(signer: &Signer, key: PublicKey) -> anyhow::Result<identity::Keypair> {
@@ -450,11 +451,7 @@ impl NetworkService {
                 Ok(ok) => {
                     let kad::GetRecordOk { peer, record } = *ok;
                     let kad::Record::ValidatorIdentity(record) = record;
-                    let res = behaviour
-                        .validator_discovery
-                        .put_identity(&self.validator_list, record);
-
-                    if let Err(err) = res {
+                    if let Err(err) = behaviour.validator_discovery.put_identity(record) {
                         log::trace!("failed to verify identity: {err}");
                         if let Some(peer) = peer {
                             behaviour.peer_score.handle().invalid_data(peer);
@@ -498,11 +495,9 @@ impl NetworkService {
 
                 validator.validate(gossipsub, |message| match message {
                     gossipsub::Message::Commitments(message) => {
-                        let (acceptance, message) = self.validator_topic.verify_message_initially(
-                            &self.validator_list,
-                            source,
-                            message,
-                        );
+                        let (acceptance, message) = self
+                            .validator_topic
+                            .verify_message_initially(source, message);
                         (acceptance, message.map(NetworkEvent::ValidatorMessage))
                     }
                     gossipsub::Message::Offchain(transaction) => (
@@ -533,33 +528,24 @@ impl NetworkService {
     }
 
     fn handle_validator_discovery_event(&mut self, event: validator::discovery::Event) {
+        let behaviour = self.swarm.behaviour_mut();
+
         match event {
-            validator::discovery::Event::QueryIdentities => {
-                let behaviour = self.swarm.behaviour_mut();
-                for key in behaviour
-                    .validator_discovery
-                    .identity_keys(&self.validator_list)
-                {
+            validator::discovery::Event::QueryIdentities { identities } => {
+                for key in identities {
                     behaviour.kad.get_record(key);
                 }
             }
-            validator::discovery::Event::PutIdentity => {
-                let behaviour = self.swarm.behaviour_mut();
-
-                match behaviour.validator_discovery.identity(&self.validator_list) {
-                    Some(Ok(identity)) => {
-                        if let Err(err) = behaviour.kad.put_record(identity) {
-                            log::warn!("failed to put record into local storage: {err}");
-                        }
-                    }
-                    Some(Err(err)) => {
-                        log::warn!("failed to create validator identity: {err}");
-                    }
-                    None => {
-                        // validator public key is not set
+            validator::discovery::Event::PutIdentity { identity } => match identity {
+                Ok(identity) => {
+                    if let Err(err) = behaviour.kad.put_record(*identity) {
+                        log::warn!("failed to put record into local storage: {err}");
                     }
                 }
-            }
+                Err(err) => {
+                    log::warn!("failed to create validator identity: {err}");
+                }
+            },
         }
     }
 
@@ -575,16 +561,15 @@ impl NetworkService {
         self.swarm.behaviour().db_sync.handle()
     }
 
-    fn on_new_era(&mut self) {
-        // revalidate cached messages
-        self.validator_topic.on_new_era(&self.validator_list);
-    }
-
     pub fn set_chain_head(&mut self, chain_head: H256) -> anyhow::Result<()> {
-        let era_changed = self.validator_list.set_chain_head(chain_head)?;
+        let snapshot = self.validator_list.set_chain_head(chain_head)?;
 
-        if era_changed {
-            self.on_new_era();
+        if let Some(snapshot) = snapshot {
+            self.validator_topic.on_new_snapshot(snapshot.clone());
+            self.swarm
+                .behaviour_mut()
+                .validator_discovery
+                .on_new_snapshot(snapshot);
         }
 
         Ok(())
@@ -637,6 +622,7 @@ struct BehaviourConfig {
     enable_mdns: bool,
     validator_key: Option<PublicKey>,
     general_signer: Signer,
+    validator_list_snapshot: Arc<ValidatorListSnapshot>,
 }
 
 #[derive(NetworkBehaviour)]
@@ -676,6 +662,7 @@ impl Behaviour {
             enable_mdns,
             validator_key,
             general_signer,
+            validator_list_snapshot,
         } = config;
 
         let peer_id = keypair.public().to_peer_id();
@@ -729,8 +716,12 @@ impl Behaviour {
 
         let injected = injected::Behaviour::new(peer_score_handle);
 
-        let validator_discovery =
-            validator::discovery::Behaviour::new(keypair, validator_key, general_signer);
+        let validator_discovery = validator::discovery::Behaviour::new(
+            keypair,
+            validator_key,
+            general_signer,
+            validator_list_snapshot,
+        );
 
         Ok(Self {
             custom_connection_limits,
