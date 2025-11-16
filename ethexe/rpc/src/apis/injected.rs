@@ -19,9 +19,7 @@
 use crate::{RpcEvent, errors};
 use ethexe_common::{
     HashOf,
-    injected::{
-        InjectedPromise, InjectedTransaction, SignedInjectedPromise, SignedInjectedTransaction,
-    },
+    injected::{InjectedTransaction, Promise, RpcOrNetworkInjectedTx, SignedPromise},
 };
 use jsonrpsee::{
     PendingSubscriptionSink, SubscriptionMessage,
@@ -29,28 +27,31 @@ use jsonrpsee::{
     proc_macros::rpc,
 };
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, sync::Arc};
-use tokio::sync::{Mutex, mpsc::UnboundedSender, oneshot};
+use std::{
+    collections::HashMap,
+    sync::{Arc, Mutex},
+};
+use tokio::sync::{mpsc::UnboundedSender, oneshot};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum InjectedTransactionAcceptance {
     Accept,
 }
 
-#[rpc(server, client)]
+#[cfg_attr(not(feature = "test-utils"), rpc(server))]
+#[cfg_attr(feature = "test-utils", rpc(server, client))]
 pub trait Injected {
     #[method(name = "injected_sendTransaction")]
     async fn send_transaction(
         &self,
-        transaction: SignedInjectedTransaction,
+        transaction: RpcOrNetworkInjectedTx,
     ) -> RpcResult<InjectedTransactionAcceptance>;
 
-    #[subscription(name = "subscribe_transactionPromise", unsubscribe = "unsubscribe_transactionPromise", item = SignedInjectedPromise)]
-    async fn subscribe_promise(&self, transaction: SignedInjectedTransaction)
-    -> SubscriptionResult;
+    #[subscription(name = "subscribe_transactionPromise", unsubscribe = "unsubscribe_transactionPromise", item = SignedPromise)]
+    async fn subscribe_promise(&self, transaction: RpcOrNetworkInjectedTx) -> SubscriptionResult;
 }
 
-type PromiseReceiversMap = HashMap<HashOf<InjectedTransaction>, oneshot::Receiver<InjectedPromise>>;
+type PromiseReceiversMap = HashMap<HashOf<InjectedTransaction>, oneshot::Receiver<Promise>>;
 
 #[derive(Debug, Clone)]
 pub struct InjectedApi {
@@ -71,7 +72,7 @@ impl InjectedApi {
 impl InjectedServer for InjectedApi {
     async fn send_transaction(
         &self,
-        transaction: SignedInjectedTransaction,
+        transaction: RpcOrNetworkInjectedTx,
     ) -> RpcResult<InjectedTransactionAcceptance> {
         tracing::trace!("Called injected_sendTransaction with vars: {transaction:?}");
 
@@ -103,12 +104,12 @@ impl InjectedServer for InjectedApi {
     async fn subscribe_promise(
         &self,
         pending: PendingSubscriptionSink,
-        transaction: SignedInjectedTransaction,
+        transaction: RpcOrNetworkInjectedTx,
     ) -> SubscriptionResult {
         let (response_sender, response_receiver) = oneshot::channel();
         let (promise_sender, promise_receiver) = oneshot::channel();
 
-        let tx_hash = transaction.data().hash();
+        let tx_hash = transaction.tx.data().to_hash();
 
         self.rpc_sender
             .send(RpcEvent::InjectedTransactionSubscription {
@@ -129,7 +130,7 @@ impl InjectedServer for InjectedApi {
         let _accepted = response_receiver.await?;
         let sink = pending.accept().await?;
 
-        self.promises.lock().await.insert(tx_hash, promise_receiver);
+        // let guard = self.promises.lock().await;
 
         let promise = promise_receiver.await?;
         let json = serde_json::value::to_raw_value(&promise)?;

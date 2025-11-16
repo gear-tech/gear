@@ -121,8 +121,8 @@ checksum = "683d7910e743518b0e34f1186f92494becacb047c7b6bf616c96772180fef923"
 
 [[package]]
 name = "alloy"
-version = "1.0.42"
-source = "git+https://github.com/alessandromazza98/alloy?branch=ale%2Fadd-eip7594-to-transaction-request#cdda2ca49bfe14013f66afaba9dcfae08aa64bd2"
+version = "1.1.0"
+source = "git+https://github.com/gear-tech/alloy#7101ac47ab99c389d300a94adf0928756e387d7e"
 dependencies = [
  "alloy-consensus",
  "alloy-contract",
@@ -157,8 +157,8 @@ dependencies = [
 
 [[package]]
 name = "alloy-consensus"
-version = "1.0.42"
-source = "git+https://github.com/alessandromazza98/alloy?branch=ale%2Fadd-eip7594-to-transaction-request#cdda2ca49bfe14013f66afaba9dcfae08aa64bd2"
+version = "1.1.0"
+source = "git+https://github.com/gear-tech/alloy#7101ac47ab99c389d300a94adf0928756e387d7e"
 dependencies = [
  "alloy-eips",
  "alloy-primitives",
@@ -167,6 +167,7 @@ dependencies = [
  "alloy-trie",
  "alloy-tx-macros",
  "auto_impl",
+ "borsh",
  "c-kzg",
  "derive_more 2.0.1",
  "either",
@@ -182,8 +183,8 @@ dependencies = [
 
 [[package]]
 name = "alloy-consensus-any"
-version = "1.0.42"
-source = "git+https://github.com/alessandromazza98/alloy?branch=ale%2Fadd-eip7594-to-transaction-request#cdda2ca49bfe14013f66afaba9dcfae08aa64bd2"
+version = "1.1.0"
+source = "git+https://github.com/gear-tech/alloy#7101ac47ab99c389d300a94adf0928756e387d7e"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -195,8 +196,8 @@ dependencies = [
 
 [[package]]
 name = "alloy-contract"
-version = "1.0.42"
-source = "git+https://github.com/alessandromazza98/alloy?branch=ale%2Fadd-eip7594-to-transaction-request#cdda2ca49bfe14013f66afaba9dcfae08aa64bd2"
+version = "1.1.0"
+source = "git+https://github.com/gear-tech/alloy#7101ac47ab99c389d300a94adf0928756e387d7e"
 dependencies = [
  "alloy-consensus",
  "alloy-dyn-abi",
@@ -285,8 +286,8 @@ dependencies = [
 
 [[package]]
 name = "alloy-eips"
-version = "1.0.42"
-source = "git+https://github.com/alessandromazza98/alloy?branch=ale%2Fadd-eip7594-to-transaction-request#cdda2ca49bfe14013f66afaba9dcfae08aa64bd2"
+version = "1.1.0"
+source = "git+https://github.com/gear-tech/alloy#7101ac47ab99c389d300a94adf0928756e387d7e"
 dependencies = [
  "alloy-eip2124",
  "alloy-eip2930",
@@ -295,6 +296,7 @@ dependencies = [
  "alloy-rlp",
  "alloy-serde",
  "auto_impl",
+ "borsh",
  "c-kzg",
  "derive_more 2.0.1",
  "either",
@@ -306,13 +308,14 @@ dependencies = [
 
 [[package]]
 name = "alloy-genesis"
-version = "1.0.42"
-source = "git+https://github.com/alessandromazza98/alloy?branch=ale%2Fadd-eip7594-to-transaction-request#cdda2ca49bfe14013f66afaba9dcfae08aa64bd2"
+version = "1.1.0"
+source = "git+https://github.com/gear-tech/alloy#7101ac47ab99c389d300a94adf0928756e387d7e"
 dependencies = [
  "alloy-eips",
  "alloy-primitives",
  "alloy-serde",
  "alloy-trie",
+ "borsh",
  "serde",
  "serde_with",
 ]
@@ -344,8 +347,8 @@ dependencies = [
 
 [[package]]
 name = "alloy-json-rpc"
-version = "1.0.42"
-source = "git+https://github.com/alessandromazza98/alloy?branch=ale%2Fadd-eip7594-to-transaction-request#cdda2ca49bfe14013f66afaba9dcfae08aa64bd2"
+version = "1.1.0"
+source = "git+https://github.com/gear-tech/alloy#7101ac47ab99c389d300a94adf0928756e387d7e"
 dependencies = [
  "alloy-primitives",
  "alloy-sol-types",
@@ -358,8 +361,8 @@ dependencies = [
 
 [[package]]
 name = "alloy-network"
-version = "1.0.42"
-source = "git+https://github.com/alessandromazza98/alloy?branch=ale%2Fadd-eip7594-to-transaction-request#cdda2ca49bfe14013f66afaba9dcfae08aa64bd2"
+version = "1.1.0"
+source = "git+https://github.com/gear-tech/alloy#7101ac47ab99c389d300a94adf0928756e387d7e"
 dependencies = [
  "alloy-consensus",
  "alloy-consensus-any",
@@ -383,8 +386,8 @@ dependencies = [
 
 [[package]]
 name = "alloy-network-primitives"
-version = "1.0.42"
-source = "git+https://github.com/alessandromazza98/alloy?branch=ale%2Fadd-eip7594-to-transaction-request#cdda2ca49bfe14013f66afaba9dcfae08aa64bd2"
+version = "1.1.0"
+source = "git+https://github.com/gear-tech/alloy#7101ac47ab99c389d300a94adf0928756e387d7e"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -395,8 +398,8 @@ dependencies = [
 
 [[package]]
 name = "alloy-node-bindings"
-version = "1.0.42"
-source = "git+https://github.com/alessandromazza98/alloy?branch=ale%2Fadd-eip7594-to-transaction-request#cdda2ca49bfe14013f66afaba9dcfae08aa64bd2"
+version = "1.1.0"
+source = "git+https://github.com/gear-tech/alloy#7101ac47ab99c389d300a94adf0928756e387d7e"
 dependencies = [
  "alloy-genesis",
  "alloy-hardforks",
@@ -442,8 +445,8 @@ dependencies = [
 
 [[package]]
 name = "alloy-provider"
-version = "1.0.42"
-source = "git+https://github.com/alessandromazza98/alloy?branch=ale%2Fadd-eip7594-to-transaction-request#cdda2ca49bfe14013f66afaba9dcfae08aa64bd2"
+version = "1.1.0"
+source = "git+https://github.com/gear-tech/alloy#7101ac47ab99c389d300a94adf0928756e387d7e"
 dependencies = [
  "alloy-chains",
  "alloy-consensus",
@@ -484,8 +487,8 @@ dependencies = [
 
 [[package]]
 name = "alloy-pubsub"
-version = "1.0.42"
-source = "git+https://github.com/alessandromazza98/alloy?branch=ale%2Fadd-eip7594-to-transaction-request#cdda2ca49bfe14013f66afaba9dcfae08aa64bd2"
+version = "1.1.0"
+source = "git+https://github.com/gear-tech/alloy#7101ac47ab99c389d300a94adf0928756e387d7e"
 dependencies = [
  "alloy-json-rpc",
  "alloy-primitives",
@@ -527,8 +530,8 @@ dependencies = [
 
 [[package]]
 name = "alloy-rpc-client"
-version = "1.0.42"
-source = "git+https://github.com/alessandromazza98/alloy?branch=ale%2Fadd-eip7594-to-transaction-request#cdda2ca49bfe14013f66afaba9dcfae08aa64bd2"
+version = "1.1.0"
+source = "git+https://github.com/gear-tech/alloy#7101ac47ab99c389d300a94adf0928756e387d7e"
 dependencies = [
  "alloy-json-rpc",
  "alloy-primitives",
@@ -551,8 +554,8 @@ dependencies = [
 
 [[package]]
 name = "alloy-rpc-types"
-version = "1.0.42"
-source = "git+https://github.com/alessandromazza98/alloy?branch=ale%2Fadd-eip7594-to-transaction-request#cdda2ca49bfe14013f66afaba9dcfae08aa64bd2"
+version = "1.1.0"
+source = "git+https://github.com/gear-tech/alloy#7101ac47ab99c389d300a94adf0928756e387d7e"
 dependencies = [
  "alloy-primitives",
  "alloy-rpc-types-anvil",
@@ -565,8 +568,8 @@ dependencies = [
 
 [[package]]
 name = "alloy-rpc-types-anvil"
-version = "1.0.42"
-source = "git+https://github.com/alessandromazza98/alloy?branch=ale%2Fadd-eip7594-to-transaction-request#cdda2ca49bfe14013f66afaba9dcfae08aa64bd2"
+version = "1.1.0"
+source = "git+https://github.com/gear-tech/alloy#7101ac47ab99c389d300a94adf0928756e387d7e"
 dependencies = [
  "alloy-primitives",
  "alloy-rpc-types-eth",
@@ -576,8 +579,8 @@ dependencies = [
 
 [[package]]
 name = "alloy-rpc-types-any"
-version = "1.0.42"
-source = "git+https://github.com/alessandromazza98/alloy?branch=ale%2Fadd-eip7594-to-transaction-request#cdda2ca49bfe14013f66afaba9dcfae08aa64bd2"
+version = "1.1.0"
+source = "git+https://github.com/gear-tech/alloy#7101ac47ab99c389d300a94adf0928756e387d7e"
 dependencies = [
  "alloy-consensus-any",
  "alloy-rpc-types-eth",
@@ -586,8 +589,8 @@ dependencies = [
 
 [[package]]
 name = "alloy-rpc-types-beacon"
-version = "1.0.42"
-source = "git+https://github.com/alessandromazza98/alloy?branch=ale%2Fadd-eip7594-to-transaction-request#cdda2ca49bfe14013f66afaba9dcfae08aa64bd2"
+version = "1.1.0"
+source = "git+https://github.com/gear-tech/alloy#7101ac47ab99c389d300a94adf0928756e387d7e"
 dependencies = [
  "alloy-eips",
  "alloy-primitives",
@@ -601,8 +604,8 @@ dependencies = [
 
 [[package]]
 name = "alloy-rpc-types-engine"
-version = "1.0.42"
-source = "git+https://github.com/alessandromazza98/alloy?branch=ale%2Fadd-eip7594-to-transaction-request#cdda2ca49bfe14013f66afaba9dcfae08aa64bd2"
+version = "1.1.0"
+source = "git+https://github.com/gear-tech/alloy#7101ac47ab99c389d300a94adf0928756e387d7e"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -617,8 +620,8 @@ dependencies = [
 
 [[package]]
 name = "alloy-rpc-types-eth"
-version = "1.0.42"
-source = "git+https://github.com/alessandromazza98/alloy?branch=ale%2Fadd-eip7594-to-transaction-request#cdda2ca49bfe14013f66afaba9dcfae08aa64bd2"
+version = "1.1.0"
+source = "git+https://github.com/gear-tech/alloy#7101ac47ab99c389d300a94adf0928756e387d7e"
 dependencies = [
  "alloy-consensus",
  "alloy-consensus-any",
@@ -637,8 +640,8 @@ dependencies = [
 
 [[package]]
 name = "alloy-serde"
-version = "1.0.42"
-source = "git+https://github.com/alessandromazza98/alloy?branch=ale%2Fadd-eip7594-to-transaction-request#cdda2ca49bfe14013f66afaba9dcfae08aa64bd2"
+version = "1.1.0"
+source = "git+https://github.com/gear-tech/alloy#7101ac47ab99c389d300a94adf0928756e387d7e"
 dependencies = [
  "alloy-primitives",
  "serde",
@@ -647,8 +650,8 @@ dependencies = [
 
 [[package]]
 name = "alloy-signer"
-version = "1.0.42"
-source = "git+https://github.com/alessandromazza98/alloy?branch=ale%2Fadd-eip7594-to-transaction-request#cdda2ca49bfe14013f66afaba9dcfae08aa64bd2"
+version = "1.1.0"
+source = "git+https://github.com/gear-tech/alloy#7101ac47ab99c389d300a94adf0928756e387d7e"
 dependencies = [
  "alloy-primitives",
  "async-trait",
@@ -661,8 +664,8 @@ dependencies = [
 
 [[package]]
 name = "alloy-signer-local"
-version = "1.0.42"
-source = "git+https://github.com/alessandromazza98/alloy?branch=ale%2Fadd-eip7594-to-transaction-request#cdda2ca49bfe14013f66afaba9dcfae08aa64bd2"
+version = "1.1.0"
+source = "git+https://github.com/gear-tech/alloy#7101ac47ab99c389d300a94adf0928756e387d7e"
 dependencies = [
  "alloy-consensus",
  "alloy-network",
@@ -749,8 +752,8 @@ dependencies = [
 
 [[package]]
 name = "alloy-transport"
-version = "1.0.42"
-source = "git+https://github.com/alessandromazza98/alloy?branch=ale%2Fadd-eip7594-to-transaction-request#cdda2ca49bfe14013f66afaba9dcfae08aa64bd2"
+version = "1.1.0"
+source = "git+https://github.com/gear-tech/alloy#7101ac47ab99c389d300a94adf0928756e387d7e"
 dependencies = [
  "alloy-json-rpc",
  "auto_impl",
@@ -771,8 +774,8 @@ dependencies = [
 
 [[package]]
 name = "alloy-transport-http"
-version = "1.0.42"
-source = "git+https://github.com/alessandromazza98/alloy?branch=ale%2Fadd-eip7594-to-transaction-request#cdda2ca49bfe14013f66afaba9dcfae08aa64bd2"
+version = "1.1.0"
+source = "git+https://github.com/gear-tech/alloy#7101ac47ab99c389d300a94adf0928756e387d7e"
 dependencies = [
  "alloy-json-rpc",
  "alloy-transport",
@@ -785,8 +788,8 @@ dependencies = [
 
 [[package]]
 name = "alloy-transport-ws"
-version = "1.0.42"
-source = "git+https://github.com/alessandromazza98/alloy?branch=ale%2Fadd-eip7594-to-transaction-request#cdda2ca49bfe14013f66afaba9dcfae08aa64bd2"
+version = "1.1.0"
+source = "git+https://github.com/gear-tech/alloy#7101ac47ab99c389d300a94adf0928756e387d7e"
 dependencies = [
  "alloy-pubsub",
  "alloy-transport",
@@ -818,8 +821,8 @@ dependencies = [
 
 [[package]]
 name = "alloy-tx-macros"
-version = "1.0.42"
-source = "git+https://github.com/alessandromazza98/alloy?branch=ale%2Fadd-eip7594-to-transaction-request#cdda2ca49bfe14013f66afaba9dcfae08aa64bd2"
+version = "1.1.0"
+source = "git+https://github.com/gear-tech/alloy#7101ac47ab99c389d300a94adf0928756e387d7e"
 dependencies = [
  "darling 0.21.3",
  "proc-macro2",
@@ -3723,6 +3726,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "demo-delayed-sender-ethexe"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+]
+
+[[package]]
 name = "demo-distributor"
 version = "0.1.0"
 dependencies = [
@@ -4045,6 +4056,14 @@ dependencies = [
 
 [[package]]
 name = "demo-value-sender"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gstd",
+]
+
+[[package]]
+name = "demo-value-sender-ethexe"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
@@ -5110,7 +5129,6 @@ name = "ethexe-rpc"
 version = "1.9.2"
 dependencies = [
  "anyhow",
- "ethexe-blob-loader",
  "ethexe-common",
  "ethexe-db",
  "ethexe-processor",
@@ -5175,10 +5193,12 @@ dependencies = [
  "async-trait",
  "demo-async",
  "demo-async-init",
+ "demo-delayed-sender-ethexe",
  "demo-fungible-token",
  "demo-mul-by-const",
  "demo-piggy-bank",
  "demo-ping",
+ "demo-value-sender-ethexe",
  "derive_more 2.0.1",
  "ethexe-blob-loader",
  "ethexe-common",
@@ -5198,6 +5218,7 @@ dependencies = [
  "gear-core",
  "gear-core-errors",
  "gprimitives",
+ "jsonrpsee",
  "log",
  "ntest",
  "parity-scale-codec",
@@ -6276,6 +6297,7 @@ dependencies = [
  "demo-constructor",
  "demo-custom",
  "demo-mul-by-const",
+ "demo-ping",
  "demo-reserve-gas",
  "demo-wat",
  "futures",
@@ -6801,14 +6823,18 @@ version = "1.9.2"
 dependencies = [
  "frame-benchmarking",
  "frame-benchmarking-cli",
+ "frame-support",
+ "frame-system",
  "futures",
  "gear-authorship",
  "gear-common",
+ "gear-core",
  "gear-runtime-common",
  "gear-runtime-interface",
  "gear-runtime-primitives",
  "jsonrpsee",
  "log",
+ "pallet-gear",
  "pallet-gear-builtin-rpc",
  "pallet-gear-builtin-rpc-runtime-api",
  "pallet-gear-eth-bridge-rpc",
@@ -6819,6 +6845,8 @@ dependencies = [
  "pallet-gear-staking-rewards-rpc-runtime-api",
  "pallet-transaction-payment-rpc",
  "pallet-transaction-payment-rpc-runtime-api",
+ "parity-scale-codec",
+ "parking_lot 0.12.5",
  "sc-authority-discovery",
  "sc-chain-spec",
  "sc-client-api",
@@ -7318,6 +7346,7 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "parking_lot 0.12.5",
+ "serde",
  "serde_json",
  "sp-core",
  "sp-runtime",
@@ -11871,15 +11900,21 @@ dependencies = [
 name = "pallet-gear-rpc"
 version = "1.9.2"
 dependencies = [
+ "futures",
  "gear-common",
  "gear-core",
  "gear-core-errors",
  "jsonrpsee",
+ "log",
  "pallet-gear-rpc-runtime-api",
+ "sc-client-api",
+ "sc-rpc",
+ "serde",
  "sp-api",
  "sp-blockchain",
  "sp-core",
  "sp-runtime",
+ "sp-storage",
 ]
 
 [[package]]
@@ -15719,30 +15754,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "schemars"
-version = "0.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4cd191f9397d57d581cddd31014772520aa448f65ef991055d7f61582c65165f"
-dependencies = [
- "dyn-clone",
- "ref-cast",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "schemars"
-version = "1.1.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9558e172d4e8533736ba97870c4b2cd63f84b382a3d6eb063da41b91cce17289"
-dependencies = [
- "dyn-clone",
- "ref-cast",
- "serde",
- "serde_json",
-]
-
-[[package]]
 name = "schnellru"
 version = "0.2.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -16079,15 +16090,14 @@ dependencies = [
 
 [[package]]
 name = "serde_json"
-version = "1.0.145"
+version = "1.0.137"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "402a6f66d8c709116cf22f558eab210f5a50187f702eb4d7e5ef38d9a7f1c79c"
+checksum = "930cfb6e6abf99298aaad7d29abbef7a9999a9a8806a40088f55f0dcec03146b"
 dependencies = [
  "itoa",
  "memchr",
  "ryu",
  "serde",
- "serde_core",
 ]
 
 [[package]]
@@ -16133,18 +16143,17 @@ dependencies = [
 
 [[package]]
 name = "serde_with"
-version = "3.15.1"
+version = "3.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "aa66c845eee442168b2c8134fec70ac50dc20e760769c8ba0ad1319ca1959b04"
+checksum = "0ad483d2ab0149d5a5ebcd9972a3852711e0153d863bf5a5d0391d28883c4a20"
 dependencies = [
  "base64 0.22.1",
  "chrono",
  "hex",
  "indexmap 1.9.3",
  "indexmap 2.12.0",
- "schemars 0.9.0",
- "schemars 1.1.0",
- "serde_core",
+ "serde",
+ "serde_derive",
  "serde_json",
  "serde_with_macros",
  "time",
@@ -16152,11 +16161,11 @@ dependencies = [
 
 [[package]]
 name = "serde_with_macros"
-version = "3.15.1"
+version = "3.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b91a903660542fced4e99881aa481bdbaec1634568ee02e0b8bd57c64cb38955"
+checksum = "65569b702f41443e8bc8bbb1c5779bd0450bbe723b56198980e80ec45780bce2"
 dependencies = [
- "darling 0.21.3",
+ "darling 0.20.11",
  "proc-macro2",
  "quote",
  "syn 2.0.110",

@@ -22,10 +22,10 @@
 
 use crate::{
     Announce, BlockHeader, CodeBlobInfo, Digest, HashOf, ProgramStates, ProtocolTimelines,
-    Schedule, ValidatorsVec,
+    Schedule, SimpleBlockData, ValidatorsVec,
     events::BlockEvent,
     gear::StateTransition,
-    injected::{InjectedPromise, InjectedTransaction, SignedInjectedTransaction},
+    injected::{InjectedTransaction, Promise, SignedInjectedTransaction},
 };
 use alloc::{
     collections::{BTreeSet, VecDeque},
@@ -134,13 +134,13 @@ pub trait InjectedStorageRO {
     ) -> Option<SignedInjectedTransaction>;
 
     /// Returns the promise by transaction hash.
-    fn injected_promise(&self, hash: HashOf<InjectedTransaction>) -> Option<InjectedPromise>;
+    fn promise(&self, hash: HashOf<InjectedTransaction>) -> Option<Promise>;
 }
 
 #[auto_impl::auto_impl(&)]
 pub trait InjectedStorageRW: InjectedStorageRO {
     fn set_injected_transaction(&self, tx: SignedInjectedTransaction);
-    fn set_injected_promise(&self, promise: InjectedPromise);
+    fn set_promise(&self, promise: Promise);
 }
 
 #[derive(Debug, Clone, Default, Encode, Decode, PartialEq, Eq, Hash)]
@@ -177,8 +177,8 @@ pub trait AnnounceStorageRW: AnnounceStorageRO {
 
 #[derive(Debug, Clone, Default, Encode, Decode, PartialEq, Eq)]
 pub struct LatestData {
-    /// Latest synced block height
-    pub synced_block_height: u32,
+    /// Latest synced block
+    pub synced_block: SimpleBlockData,
     /// Latest prepared block hash
     pub prepared_block_hash: H256,
     /// Latest computed announce hash

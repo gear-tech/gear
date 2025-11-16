@@ -29,7 +29,7 @@ use ethexe_common::{
         InjectedStorageRO,
     },
     gear::BatchCommitment,
-    network::{SignedValidatorMessage, ValidatorInjectedPromise, ValidatorMessage},
+    network::{SignedValidatorMessage, ValidatorMessage, ValidatorPromise},
 };
 use ethexe_service_utils::Timer;
 use futures::{FutureExt, future::BoxFuture};
@@ -126,14 +126,14 @@ impl StateHandler for Producer {
                     .ok_or_else(|| anyhow!("computed announce must exists in database"))?;
 
                 for tx in announce.injected_transactions.iter() {
-                    let tx_hash = tx.data().hash();
+                    let tx_hash = tx.data().to_hash();
 
-                    let Some(promise) = self.ctx.core.db.injected_promise(tx_hash) else {
+                    let Some(promise) = self.ctx.core.db.promise(tx_hash) else {
                         tracing::warn!(tx_hash = ?tx_hash, "Not found promise for injected transaction");
                         continue;
                     };
 
-                    let validator_promise = ValidatorInjectedPromise {
+                    let validator_promise = ValidatorPromise {
                         block: announce.block_hash,
                         payload: promise,
                     };
@@ -144,7 +144,7 @@ impl StateHandler for Producer {
                         .signed_data(self.ctx.core.pub_key, validator_promise)?;
 
                     self.output(ConsensusEvent::PublishMessage(
-                        SignedValidatorMessage::InjectedPromise(signed_promise),
+                        SignedValidatorMessage::Promise(signed_promise),
                     ));
                 }
 

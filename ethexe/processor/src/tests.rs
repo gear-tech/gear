@@ -129,7 +129,7 @@ async fn process_observer_event() {
     let block1_announce_hash = block1_announce.to_hash();
 
     // Process and save results
-    let BlockProcessingResult {
+    let FinalizedBlockTransitions {
         states, schedule, ..
     } = processor
         .process_announce(block1_announce, vec![])
@@ -170,7 +170,7 @@ async fn process_observer_event() {
     let block2_announce_hash = block2_announce.to_hash();
 
     // Process block2 announce and save results
-    let BlockProcessingResult {
+    let FinalizedBlockTransitions {
         states, schedule, ..
     } = processor
         .process_announce(block2_announce, create_program_events)
@@ -604,7 +604,9 @@ async fn many_waits() {
         amount as usize
     );
 
-    let (_outcomes, states, schedule, _) = handler.transitions.finalize();
+    let FinalizedBlockTransitions {
+        states, schedule, ..
+    } = handler.transitions.finalize();
     processor
         .db
         .set_announce_program_states(block1_announce_hash, states);
@@ -790,7 +792,7 @@ async fn overlay_execution_noop() {
     assert!(get_program_mq(async_id, block1_announce_hash, &processor).is_err());
 
     // Process events
-    let BlockProcessingResult {
+    let FinalizedBlockTransitions {
         states, schedule, ..
     } = processor
         .process_announce(block1_announce, events)
@@ -914,7 +916,9 @@ async fn overlay_execution_noop() {
     assert_eq!(async_mq.len(), 3);
 
     // Finalize (from the ethexe-processor point of view) the block
-    let (_, states, schedule, _) = handler_block2.transitions.finalize();
+    let FinalizedBlockTransitions {
+        states, schedule, ..
+    } = handler_block2.transitions.finalize();
     processor
         .db
         .set_announce_program_states(block2_announce_hash, states);
@@ -939,7 +943,9 @@ async fn overlay_execution_noop() {
 
     let handler_block3 = processor.handler(block3_announce).unwrap();
     let block3_announce = handler_block3.announce;
-    let (_, states, schedule, _) = handler_block3.transitions.finalize();
+    let FinalizedBlockTransitions {
+        states, schedule, ..
+    } = handler_block3.transitions.finalize();
     processor
         .db
         .set_announce_program_states(block3_announce_hash, states);
@@ -964,7 +970,7 @@ async fn overlay_execution_noop() {
         meta.announces = Some(BTreeSet::from([block3_announce_hash]));
     });
     // Set announce so overlay finds it
-    processor.db.set_announce(block3_announce);
+    let block3_announce_hash = processor.db.set_announce(block3_announce);
 
     // Now send message using overlay on the block3.
     let mut overlaid_processor = processor.clone().overlaid();
@@ -975,7 +981,7 @@ async fn overlay_execution_noop() {
     );
     let reply_info = overlaid_processor
         .execute_for_reply(
-            block3,
+            block3_announce_hash,
             user_id,
             async_id,
             demo_async::Command::Common.encode(),

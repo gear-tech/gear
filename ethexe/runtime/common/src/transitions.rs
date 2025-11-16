@@ -25,7 +25,7 @@ use core::num::NonZero;
 use ethexe_common::{
     BlockHeader, HashOf, ProgramStates, Schedule, ScheduledTask, StateHashWithQueueSize,
     gear::{Message, StateTransition, ValueClaim},
-    injected::InjectedPromise,
+    injected::Promise,
 };
 use gear_core::rpc::ReplyInfo;
 use gprimitives::{ActorId, H256, MessageId};
@@ -46,6 +46,14 @@ pub struct InBlockTransitions {
     schedule: Schedule,
     modifications: BTreeMap<ActorId, NonFinalTransition>,
     injected_replies: BTreeMap<MessageId, Option<ReplyInfo>>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct FinalizedBlockTransitions {
+    pub transitions: Vec<StateTransition>,
+    pub states: ProgramStates,
+    pub schedule: Schedule,
+    pub promises: Vec<Promise>,
 }
 
 impl InBlockTransitions {
@@ -137,7 +145,7 @@ impl InBlockTransitions {
     }
 
     /// Register new reply for injected transaction.
-    pub fn handle_injected_reply(&mut self, message_id: &MessageId, reply: ReplyInfo) {
+    pub fn maybe_store_injected_reply(&mut self, message_id: &MessageId, reply: ReplyInfo) {
         if let Some(maybe_reply) = self.injected_replies.get_mut(message_id) {
             *maybe_reply = Some(reply);
         }
@@ -165,6 +173,19 @@ impl InBlockTransitions {
         self.modify(actor_id, |_state, transition| f(transition))
     }
 
+    pub fn claim_value(&mut self, actor_id: ActorId, claim: ValueClaim) {
+        self.modify(actor_id, |_state, transition| {
+            transition.value_to_receive = transition
+                .value_to_receive
+                .checked_add(
+                    i128::try_from(claim.value).expect("claimed_value doesn't fit in i128"),
+                )
+                .expect("Overflow in transition.value_to_receive += claimed_value");
+
+            transition.claims.push(claim);
+        });
+    }
+
     pub fn modify<T>(
         &mut self,
         actor_id: ActorId,
@@ -186,14 +207,7 @@ impl InBlockTransitions {
         f(initial_state, transition)
     }
 
-    pub fn finalize(
-        self,
-    ) -> (
-        Vec<StateTransition>,
-        ProgramStates,
-        Schedule,
-        Vec<InjectedPromise>,
-    ) {
+    pub fn finalize(self) -> FinalizedBlockTransitions {
         let Self {
             states,
             schedule,
@@ -209,12 +223,12 @@ impl InBlockTransitions {
                     // Safety: we trust that message_id was created from a valid SignedInjectedTransaction.
                     let tx_hash = unsafe { HashOf::new(message_id.into_bytes().into()) };
 
-                    InjectedPromise { tx_hash, reply }
+                    Promise { tx_hash, reply }
                 })
             })
             .collect();
 
-        let mut res = Vec::with_capacity(modifications.len());
+        let mut transitions = Vec::with_capacity(modifications.len());
 
         for (actor_id, modification) in modifications {
             let new_state = states
@@ -223,19 +237,25 @@ impl InBlockTransitions {
                 .expect("failed to find state record for modified state");
 
             if !modification.is_noop(new_state.hash) {
-                res.push(StateTransition {
+                transitions.push(StateTransition {
                     actor_id,
                     new_state_hash: new_state.hash,
                     exited: modification.inheritor.is_some(),
                     inheritor: modification.inheritor.unwrap_or_default(),
-                    value_to_receive: modification.value_to_receive,
+                    value_to_receive: modification.value_to_receive.unsigned_abs(),
+                    value_to_receive_negative_sign: modification.value_to_receive < 0,
                     value_claims: modification.claims,
                     messages: modification.messages,
                 });
             }
         }
 
-        (res, states, schedule, promises)
+        FinalizedBlockTransitions {
+            transitions,
+            states,
+            schedule,
+            promises,
+        }
     }
 }
 
@@ -243,7 +263,7 @@ impl InBlockTransitions {
 pub struct NonFinalTransition {
     initial_state: H256,
     pub inheritor: Option<ActorId>,
-    pub value_to_receive: u128,
+    pub value_to_receive: i128,
     pub claims: Vec<ValueClaim>,
     pub messages: Vec<Message>,
 }

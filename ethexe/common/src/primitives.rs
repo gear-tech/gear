@@ -68,7 +68,7 @@ impl BlockData {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, Default)]
 pub struct SimpleBlockData {
     pub hash: H256,
     pub header: BlockHeader,
@@ -84,7 +84,7 @@ pub struct Announce {
     pub parent: HashOf<Self>,
     pub gas_allowance: Option<u64>,
     // TODO kuzmindev: remove InjectedTransaction from Announce and store only its hashes.
-    // Need to impelement `PublicAnnounce` struct which will contain full bodies of injected transactions.
+    // Need to implement `PublicAnnounce` struct which will contain full bodies of injected transactions.
     pub injected_transactions: Vec<SignedInjectedTransaction>,
 }
 

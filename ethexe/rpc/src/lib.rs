@@ -18,13 +18,15 @@
 
 pub use crate::apis::InjectedTransactionAcceptance;
 
+#[cfg(feature = "test-utils")]
+pub use crate::apis::InjectedClient;
+
 use anyhow::{Result, anyhow};
 use apis::{
-    BlockApi, BlockServer, CodeApi, CodeServer, DevApi, DevServer, InjectedApi, InjectedServer,
-    ProgramApi, ProgramServer,
+    BlockApi, BlockServer, CodeApi, CodeServer, InjectedApi, InjectedServer, ProgramApi,
+    ProgramServer,
 };
-use ethexe_blob_loader::local::LocalBlobStorage;
-use ethexe_common::injected::{SignedInjectedPromise, SignedInjectedTransaction};
+use ethexe_common::injected::{RpcOrNetworkInjectedTx, SignedPromise};
 use ethexe_db::Database;
 use ethexe_processor::RunnerConfig;
 use futures::{FutureExt, Stream, stream::FusedStream};
@@ -58,26 +60,26 @@ pub mod test_utils;
 #[derive(Debug)]
 pub enum RpcEvent {
     InjectedTransaction {
-        transaction: SignedInjectedTransaction,
+        transaction: RpcOrNetworkInjectedTx,
         response_sender: oneshot::Sender<InjectedTransactionAcceptance>,
     },
     InjectedTransactionSubscription {
-        transaction: SignedInjectedTransaction,
+        transaction: RpcOrNetworkInjectedTx,
         response_sender: oneshot::Sender<InjectedTransactionAcceptance>,
-        promise_sender: oneshot::Sender<SignedInjectedPromise>,
+        promise_sender: oneshot::Sender<SignedPromise>,
     },
 }
 
 #[derive(Debug)]
 pub(crate) enum RpcEventInner {
     InjectedTransaction {
-        transaction: SignedInjectedTransaction,
+        transaction: RpcOrNetworkInjectedTx,
         response_sender: oneshot::Sender<InjectedTransactionAcceptance>,
     },
     PromiseSubscription {
-        transaction: SignedInjectedTransaction,
+        transaction: RpcOrNetworkInjectedTx,
         response_sender: oneshot::Sender<InjectedTransactionAcceptance>,
-        promise_sender: oneshot::Sender<SignedInjectedPromise>,
+        promise_sender: oneshot::Sender<SignedPromise>,
     },
 }
 
@@ -95,8 +97,6 @@ pub struct RpcConfig {
     pub listen_addr: SocketAddr,
     /// CORS.
     pub cors: Option<Vec<String>>,
-    /// Dev mode.
-    pub dev: bool,
     /// Runner config is created with the data
     /// for processor, but with gas limit multiplier applied.
     pub runner_config: RunnerConfig,
@@ -105,16 +105,11 @@ pub struct RpcConfig {
 pub struct RpcService {
     config: RpcConfig,
     db: Database,
-    blobs_storage: Option<LocalBlobStorage>,
 }
 
 impl RpcService {
-    pub fn new(config: RpcConfig, db: Database, blobs_storage: Option<LocalBlobStorage>) -> Self {
-        Self {
-            config,
-            db,
-            blobs_storage,
-        }
+    pub fn new(config: RpcConfig, db: Database) -> Self {
+        Self { config, db }
     }
 
     pub const fn port(&self) -> u16 {
@@ -132,9 +127,17 @@ impl RpcService {
             .build(self.config.listen_addr)
             .await?;
 
-        let handle = server.start(self.methods(rpc_sender)?);
+        let server_apis = self.server_apis(rpc_sender);
+        let injected_api = server_apis.injected.clone();
 
-        Ok((handle, RpcReceiver(rpc_receiver)))
+        let handle = server.start(server_apis.into_methods());
+
+        Ok((
+            handle,
+            RpcReceiver {
+                inner_receiver: rpc_receiver,
+            },
+        ))
     }
 
     fn cors_layer(&self) -> Result<CorsLayer> {
@@ -150,70 +153,34 @@ impl RpcService {
         Ok(CorsLayer::new().allow_origin(AllowOrigin::list(list)))
     }
 
-    fn methods(&self, sender: mpsc::UnboundedSender<RpcEvent>) -> jsonrpsee::server::RpcModule<()> {
-        let mut module = JsonrpcModule::new(());
-        module
-            .merge(ProgramServer::into_rpc(ProgramApi::new(
-                self.db.clone(),
-                self.config.runner_config.clone(),
-            )))
-            .expect("No conflicts");
-        module
-            .merge(BlockServer::into_rpc(BlockApi::new(self.db.clone())))
-            .expect("No conflicts");
-        module
-            .merge(CodeServer::into_rpc(CodeApi::new(self.db.clone())))
-            .expect("No conflicts");
-
-        module
-            .merge(InjectedServer::into_rpc(InjectedApi::new(sender)))
-            .expect("No conflicts");
-
-        if self.config.dev {
-            module
-                .merge(DevServer::into_rpc(DevApi::new(
-                    self.blobs_storage.clone().unwrap(),
-                )))
-                .expect("No conflicts");
-        }
-
-        module
-    }
-
     fn server_apis(&self, sender: mpsc::UnboundedSender<RpcEvent>) -> RpcServerApis {
         RpcServerApis {
             code: CodeApi::new(self.db.clone()),
             block: BlockApi::new(self.db.clone()),
             program: ProgramApi::new(self.db.clone(), self.config.runner_config.clone()),
             injected: InjectedApi::new(sender),
-            dev: self
-                .config
-                .dev
-                .then(|_| DevApi::new(self.blobs_storage).expect("expect exists")),
         }
     }
 }
 
-// pub struct RpcReceiver(mpsc::UnboundedReceiver<RpcEvent>);
-
 pub struct RpcReceiver {
     // Event receiver from inner apis.
-    inner_receiver: mpsc::UnboundedReceiver<RpcEventInner>,
+    inner_receiver: mpsc::UnboundedReceiver<RpcEvent>,
     //
-    outer_receiver: mpsc::UnboundedReceiver<RpcEvent>,
+    // outer_receiver: mpsc::UnboundedReceiver<RpcEvent>,
 }
 
 impl Stream for RpcReceiver {
     type Item = RpcEvent;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        self.0.poll_recv(cx)
+        self.inner_receiver.poll_recv(cx)
     }
 }
 
 impl FusedStream for RpcReceiver {
     fn is_terminated(&self) -> bool {
-        self.0.is_closed()
+        self.inner_receiver.is_closed()
     }
 }
 
@@ -222,5 +189,25 @@ struct RpcServerApis {
     pub block: BlockApi,
     pub program: ProgramApi,
     pub injected: InjectedApi,
-    pub dev: Option<DevApi>,
+}
+
+impl RpcServerApis {
+    pub fn into_methods(self) -> jsonrpsee::server::RpcModule<()> {
+        let mut module = JsonrpcModule::new(());
+
+        module
+            .merge(CodeServer::into_rpc(self.code))
+            .expect("No conflicts");
+        module
+            .merge(BlockServer::into_rpc(self.block))
+            .expect("No conflicts");
+        module
+            .merge(ProgramServer::into_rpc(self.program))
+            .expect("No conflicts");
+        module
+            .merge(InjectedServer::into_rpc(self.injected))
+            .expect("No conflicts");
+
+        module
+    }
 }

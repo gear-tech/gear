@@ -172,6 +172,7 @@ impl TryInto<H160> for ActorId {
     }
 }
 
+// TODO kuzmindev: implement Display for ActorId as Ethereum address when `ethexe` feature enabled.
 impl fmt::Display for ActorId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let byte_array = utils::ByteSliceFormatter::Array(&self.0);
@@ -328,7 +329,7 @@ impl<'de> Deserialize<'de> for ActorId {
         }
 
         let mut actor_id = [0u8; 32];
-        actor_id[12..32].copy_from_slice(&bytes);
+        actor_id[12..].copy_from_slice(&bytes);
 
         Ok(ActorId(actor_id))
     }

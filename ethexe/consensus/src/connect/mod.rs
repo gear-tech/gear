@@ -191,8 +191,8 @@ impl ConsensusService for SimpleConnectService {
     }
 
     fn receive_injected_transaction(&mut self, tx: SignedInjectedTransaction) -> Result<()> {
-        // In "connect-node" consensus service we do not process injected transactions.
-        tracing::warn!("Received injected transaction: {tx:?}. Ignoring it.");
+        // In "connect-node" we do not process injected transactions.
+        tracing::trace!("Received injected transaction: {tx:?}. Ignoring it.");
         Ok(())
     }
 
