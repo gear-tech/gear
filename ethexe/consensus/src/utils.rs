@@ -31,8 +31,8 @@ use ethexe_common::{
     },
     ecdsa::{ContractSignature, PublicKey},
     gear::{
-        AggregatedPublicKey, BatchCommitment, ChainCommitment, CodeCommitment, RewardsCommitment,
-        StateTransition, ValidatorsCommitment,
+        AggregatedPublicKey, BatchCommitment, ChainCommitment, CodeCommitment, Message,
+        RewardsCommitment, StateTransition, ValidatorsCommitment, ValueClaim,
     },
 };
 use ethexe_signer::Signer;
@@ -43,7 +43,10 @@ use roast_secp256k1_evm::frost::{
     Identifier,
     keys::{self, IdentifierList},
 };
-use std::collections::{BTreeMap, HashSet, VecDeque};
+use std::{
+    collections::{BTreeMap, HashSet, VecDeque, btree_map::Entry},
+    mem,
+};
 
 /// A batch commitment, that has been signed by multiple validators.
 /// This structure manages the collection of signatures from different validators
@@ -173,8 +176,15 @@ pub fn aggregate_chain_commitment<DB: BlockMetaStorageRO + OnChainStorageRO + An
 
     let mut announce_hash = head_announce;
     let mut counter: u32 = 0;
-    let mut transitions = vec![];
+    let mut per_block_transitions = Vec::new();
+    let mut expected_parent: Option<HashOf<Announce>> = None;
     while announce_hash != last_committed_head {
+        if let Some(expected) = expected_parent {
+            debug_assert_eq!(
+                expected, announce_hash,
+                "announce chain is broken while squashing commitments"
+            );
+        }
         if max_deepness.map(|d| counter >= d).unwrap_or(false) {
             return Err(anyhow!(
                 "Chain commitment is too deep: {block_hash} at depth {counter}"
@@ -198,62 +208,31 @@ pub fn aggregate_chain_commitment<DB: BlockMetaStorageRO + OnChainStorageRO + An
 
         sort_transitions_by_value_to_receive(&mut announce_transitions);
 
-        transitions.push(announce_transitions);
+        per_block_transitions.push(announce_transitions);
 
-        announce_hash = db
+        let parent = db
             .announce(announce_hash)
             .ok_or_else(|| anyhow!("Cannot get from db header for computed block {block_hash}"))?
             .parent;
+        expected_parent = Some(parent);
+        announce_hash = parent;
     }
 
-    let all_transitions: Vec<StateTransition> = transitions.into_iter().rev().flatten().collect();
-
-    let mut actor_transitions: BTreeMap<ActorId, Vec<StateTransition>> = BTreeMap::new();
-    for transition in all_transitions {
-        actor_transitions
-            .entry(transition.actor_id)
-            .or_default()
-            .push(transition);
-    }
-
-    let mut squashed_transitions = Vec::new();
-    for transitions_for_actor in actor_transitions.into_values() {
-        if transitions_for_actor.is_empty() {
-            continue;
-        }
-
-        let mut squashed = transitions_for_actor.last().unwrap().clone();
-
-        if transitions_for_actor.len() > 1 {
-            let mut all_messages = Vec::new();
-            let mut all_claims = Vec::new();
-            let mut total_value: u128 = 0;
-            let mut exit_inheritor: Option<ActorId> = None;
-
-            for t in &transitions_for_actor {
-                all_messages.extend_from_slice(&t.messages);
-                all_claims.extend_from_slice(&t.value_claims);
-                total_value = total_value.saturating_add(t.value_to_receive);
-
-                if t.exited {
-                    squashed.exited = true;
-                    exit_inheritor = Some(t.inheritor);
+    let mut aggregations: BTreeMap<ActorId, ActorAggregation> = BTreeMap::new();
+    for transitions in per_block_transitions.into_iter().rev() {
+        for transition in transitions {
+            match aggregations.entry(transition.actor_id) {
+                Entry::Vacant(entry) => {
+                    entry.insert(ActorAggregation::new(transition));
+                }
+                Entry::Occupied(mut entry) => {
+                    entry.get_mut().absorb(transition);
                 }
             }
-
-            if squashed.exited {
-                if let Some(inheritor) = exit_inheritor {
-                    squashed.inheritor = inheritor;
-                }
-            }
-
-            squashed.messages = all_messages;
-            squashed.value_claims = all_claims;
-            squashed.value_to_receive = total_value;
         }
-
-        squashed_transitions.push(squashed);
     }
+
+    let squashed_transitions = aggregations.into_values().map(|aggregation| aggregation.finish()).collect();
 
     Ok(Some((
         ChainCommitment {
@@ -262,6 +241,51 @@ pub fn aggregate_chain_commitment<DB: BlockMetaStorageRO + OnChainStorageRO + An
         },
         counter,
     )))
+}
+
+struct ActorAggregation {
+    newest: StateTransition,
+    messages: Vec<Message>,
+    value_claims: Vec<ValueClaim>,
+    total_value: u128,
+    exit_inheritor: Option<ActorId>,
+}
+
+impl ActorAggregation {
+    fn new(mut transition: StateTransition) -> Self {
+        let messages = mem::take(&mut transition.messages);
+        let value_claims = mem::take(&mut transition.value_claims);
+        let exit_inheritor = transition.exited.then_some(transition.inheritor);
+
+        Self {
+            total_value: transition.value_to_receive,
+            newest: transition,
+            messages,
+            value_claims,
+            exit_inheritor,
+        }
+    }
+
+    fn absorb(&mut self, mut transition: StateTransition) {
+        self.messages.append(&mut transition.messages);
+        self.value_claims.append(&mut transition.value_claims);
+        self.total_value = self.total_value.saturating_add(transition.value_to_receive);
+        if transition.exited {
+            self.exit_inheritor = Some(transition.inheritor);
+        }
+        self.newest = transition;
+    }
+
+    fn finish(mut self) -> StateTransition {
+        if let Some(inheritor) = self.exit_inheritor {
+            self.newest.inheritor = inheritor;
+            self.newest.exited = true;
+        }
+        self.newest.messages = self.messages;
+        self.newest.value_claims = self.value_claims;
+        self.newest.value_to_receive = self.total_value;
+        self.newest
+    }
 }
 
 // TODO(kuzmindev): this is a temporal solution. In future need to impelement DKG algorithm.
@@ -708,8 +732,12 @@ mod tests {
             .unwrap()
             .unwrap();
 
-        assert_eq!(commitment.transitions.len(), 1);
-        let st = &commitment.transitions[0];
+        assert!(!commitment.transitions.is_empty());
+        let st = commitment
+            .transitions
+            .iter()
+            .find(|transition| transition.actor_id == actor)
+            .expect("actor transition");
         assert_eq!(st.new_state_hash, H256::from([2; 32]));
         assert!(st.exited);
         assert_eq!(st.inheritor, inheritor_new);
