@@ -239,22 +239,22 @@ impl ExponentialBackoffInterval {
         }
     }
 
-    fn inner_reset(&mut self) {
+    fn reset(&mut self, new_duration: Duration) {
+        self.next_duration = new_duration;
         self.delay
             .as_mut()
             .reset(Instant::now() + self.next_duration);
     }
 
     pub fn tick_at_max(&mut self) {
-        self.next_duration = Self::MAX;
-        self.inner_reset();
+        self.reset(Self::MAX);
     }
 
     pub fn poll_tick(&mut self, cx: &mut Context) -> Poll<()> {
         ready!(self.delay.as_mut().poll(cx));
 
-        self.next_duration = (self.next_duration * Self::FACTOR).min(Self::MAX);
-        self.inner_reset();
+        let new_duration = (self.next_duration * Self::FACTOR).min(Self::MAX);
+        self.reset(new_duration);
 
         Poll::Ready(())
     }
