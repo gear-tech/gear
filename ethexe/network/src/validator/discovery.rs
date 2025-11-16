@@ -16,6 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Validator discovery
+//!
+//! Heavily based on Substrate authority discovery mechanism.
+
 use crate::{
     db_sync::PeerId,
     kad::{ValidatorIdentityKey, ValidatorIdentityRecord},
@@ -41,6 +45,11 @@ use libp2p::{
 use parity_scale_codec::{Decode, Encode, Input, Output};
 use std::{collections::HashMap, sync::Arc, task::Poll, time::SystemTime};
 
+/// Signed validator discovery
+///
+/// Signed by both validator key and networking key,
+/// so validator cannot provide network addresses from other peer
+/// and network peer cannot claim it is a validator.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct SignedValidatorIdentity {
     inner: ValidatorIdentity,
