@@ -81,7 +81,7 @@ impl Behaviour {
         transaction: SignedInjectedTransaction,
     ) {
         if let Some(identity) = discovery.get_identity(transaction.data().recipient) {
-            let peer = identity.data().peer_record.peer_id();
+            let peer = identity.peer_id();
             self.inner
                 .send_request(&peer, Request::InjectedTransaction(transaction));
         } else {

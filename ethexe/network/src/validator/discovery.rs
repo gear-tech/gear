@@ -25,13 +25,13 @@ use crate::{
 use anyhow::Context;
 use ethexe_common::{
     Address, ToDigest,
-    ecdsa::{PublicKey, SignedData},
+    ecdsa::{PublicKey, Signature},
     sha3::Keccak256,
 };
 use ethexe_signer::Signer;
 use libp2p::{
     Multiaddr,
-    core::{Endpoint, PeerRecord, SignedEnvelope, transport::PortUse},
+    core::{Endpoint, transport::PortUse},
     identity::Keypair,
     swarm::{
         ConnectionDenied, ConnectionId, ExternalAddresses, FromSwarm, NetworkBehaviour, THandler,
@@ -41,67 +41,157 @@ use libp2p::{
 use parity_scale_codec::{Decode, Encode, Input, Output};
 use std::{collections::HashMap, sync::Arc, task::Poll, time::SystemTime};
 
-pub type SignedValidatorIdentity = SignedData<ValidatorIdentity>;
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct SignedValidatorIdentity {
+    inner: ValidatorIdentity,
+    validator_signature: Signature,
+    validator_key: PublicKey,
+    network_signature: Vec<u8>,
+    network_key: libp2p::identity::secp256k1::PublicKey,
+}
+
+impl SignedValidatorIdentity {
+    pub(crate) fn data(&self) -> &ValidatorIdentity {
+        &self.inner
+    }
+
+    pub(crate) fn address(&self) -> Address {
+        self.validator_key.to_address()
+    }
+
+    pub(crate) fn peer_id(&self) -> PeerId {
+        libp2p::identity::PublicKey::from(self.network_key.clone()).to_peer_id()
+    }
+}
+
+impl Encode for SignedValidatorIdentity {
+    fn encode_to<T: Output + ?Sized>(&self, dest: &mut T) {
+        let Self {
+            inner,
+            validator_signature,
+            validator_key: _,
+            network_signature,
+            network_key,
+        } = self;
+
+        inner.encode_to(dest);
+        validator_signature.encode_to(dest);
+        network_signature.encode_to(dest);
+        network_key.to_bytes().encode_to(dest);
+    }
+}
+
+impl Decode for SignedValidatorIdentity {
+    fn decode<I: Input>(input: &mut I) -> Result<Self, parity_scale_codec::Error> {
+        let inner = ValidatorIdentity::decode(input)?;
+
+        let validator_signature = Signature::decode(input)?;
+        let validator_key = validator_signature.validate(&inner).map_err(|err| {
+            parity_scale_codec::Error::from("failed to validate signature").chain(err.to_string())
+        })?;
+
+        let network_signature = Vec::decode(input)?;
+        let network_key = <[u8; 33]>::decode(input)?;
+        let network_key = libp2p::identity::secp256k1::PublicKey::try_from_bytes(&network_key)
+            .map_err(|err| {
+                parity_scale_codec::Error::from("invalid network key").chain(err.to_string())
+            })?;
+        if !network_key.verify(&inner.encode(), &network_signature) {
+            return Err(parity_scale_codec::Error::from(
+                "failed to validate network signature",
+            ));
+        }
+
+        Ok(Self {
+            inner,
+            validator_signature,
+            validator_key,
+            network_signature,
+            network_key,
+        })
+    }
+}
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ValidatorIdentity {
-    pub peer_record: PeerRecord,
-    pub era_index: u64,
+    pub addresses: Vec<Multiaddr>,
     pub creation_time: u128,
 }
 
-impl ToDigest for ValidatorIdentity {
-    fn update_hasher(&self, hasher: &mut Keccak256) {
-        let Self {
-            peer_record,
-            era_index,
-            creation_time,
-        } = self;
+impl ValidatorIdentity {
+    fn sign(
+        self,
+        signer: &Signer,
+        validator_key: PublicKey,
+        keypair: &Keypair,
+    ) -> anyhow::Result<SignedValidatorIdentity> {
+        let validator_signature = signer
+            .sign(validator_key, &self)
+            .context("failed to sign validator identity with validator key")?;
+        let network_signature = keypair
+            .sign(&self.encode())
+            .context("failed to sign validator identity with networking key")?;
+        let network_key = keypair
+            .public()
+            .try_into_secp256k1()
+            .expect("we use secp256k1 for networking key");
 
-        peer_record
-            .to_signed_envelope()
-            .into_protobuf_encoding()
-            .update_hasher(hasher);
-        era_index.to_be_bytes().update_hasher(hasher);
-        creation_time.to_be_bytes().update_hasher(hasher);
+        Ok(SignedValidatorIdentity {
+            inner: self,
+            validator_signature,
+            validator_key,
+            network_signature,
+            network_key,
+        })
     }
 }
 
 impl Encode for ValidatorIdentity {
     fn encode_to<T: Output + ?Sized>(&self, dest: &mut T) {
         let Self {
-            peer_record,
-            era_index,
+            addresses,
             creation_time,
         } = self;
 
-        let peer_record: Vec<u8> = peer_record.to_signed_envelope().into_protobuf_encoding();
+        let addresses: Vec<_> = addresses.iter().map(|addr| addr.to_vec()).collect();
 
-        peer_record.encode_to(dest);
-        era_index.encode_to(dest);
+        addresses.encode_to(dest);
         creation_time.encode_to(dest);
     }
 }
 
 impl Decode for ValidatorIdentity {
     fn decode<I: Input>(input: &mut I) -> Result<Self, parity_scale_codec::Error> {
-        let peer_record = Vec::decode(input)?;
-        let peer_record = SignedEnvelope::from_protobuf_encoding(&peer_record).map_err(|e| {
-            parity_scale_codec::Error::from("failed to decode peer record signed envelope")
-                .chain(e.to_string())
-        })?;
-        let peer_record = PeerRecord::from_signed_envelope(peer_record).map_err(|e| {
-            parity_scale_codec::Error::from("failed to decode peer record").chain(e.to_string())
-        })?;
+        let addresses = <Vec<Vec<u8>>>::decode(input)?;
+        let addresses = addresses
+            .into_iter()
+            .map(Multiaddr::try_from)
+            .collect::<Result<_, _>>()
+            .map_err(|err| {
+                parity_scale_codec::Error::from("failed to parse multiaddr").chain(err.to_string())
+            })?;
 
-        let era_index = u64::decode(input)?;
         let creation_time = u128::decode(input)?;
 
         Ok(Self {
-            peer_record,
-            era_index,
+            addresses,
             creation_time,
         })
+    }
+}
+
+impl ToDigest for ValidatorIdentity {
+    fn update_hasher(&self, hasher: &mut Keccak256) {
+        let Self {
+            addresses,
+            creation_time,
+        } = self;
+
+        for address in addresses {
+            address.as_ref().update_hasher(hasher);
+        }
+
+        creation_time.to_be_bytes().update_hasher(hasher);
     }
 }
 
@@ -155,42 +245,29 @@ impl Behaviour {
     }
 
     fn identity_keys(&self) -> impl Iterator<Item = ValidatorIdentityKey> {
-        let current_era = self.snapshot.current_era_index();
         self.snapshot
             .all_validators()
-            .map(move |address| ValidatorIdentityKey {
-                current_era,
-                validator: address,
-            })
+            .map(|address| ValidatorIdentityKey { validator: address })
     }
 
     fn identity(&self) -> Option<anyhow::Result<ValidatorIdentityRecord>> {
         let validator_key = self.validator_key?;
 
         let f = || {
-            let current_era = self.snapshot.current_era_index();
-
-            let peer_record = self.external_addresses.as_slice().to_vec();
-            let peer_record = PeerRecord::new(&self.keypair, peer_record)
-                .context("failed to sign peer record")?;
-
+            let addresses = self.external_addresses.as_slice().to_vec();
             let creation_time = SystemTime::now()
                 .duration_since(SystemTime::UNIX_EPOCH)
                 .expect("SystemTime before UNIX EPOCH")
                 .as_nanos();
-
             let identity = ValidatorIdentity {
-                peer_record,
-                era_index: current_era,
+                addresses,
                 creation_time,
             };
-            let identity = self
-                .signer
-                .signed_data(validator_key, identity)
+            let identity = identity
+                .sign(&self.signer, validator_key, &self.keypair)
                 .context("failed to sign validator identity")?;
 
             let key = ValidatorIdentityKey {
-                current_era,
                 validator: validator_key.to_address(),
             };
             let record = ValidatorIdentityRecord {
@@ -208,6 +285,7 @@ impl Behaviour {
     }
 
     pub fn put_identity(&mut self, record: ValidatorIdentityRecord) -> anyhow::Result<()> {
+        // TODO: filter our own record
         log::error!("validator identity record: {record:?}");
 
         let ValidatorIdentityRecord {
@@ -220,14 +298,8 @@ impl Behaviour {
             "received identity is not in any validator list"
         );
 
-        anyhow::ensure!(
-            identity.data().era_index == self.snapshot.current_era_index()
-                || identity.data().era_index == self.snapshot.current_era_index() + 1,
-            "received identity has invalid era index"
-        );
-
         if let Some(old_identity) = self.identities.get(&identity.address())
-            && old_identity.data().creation_time >= identity.data().creation_time
+            && old_identity.data().creation_time >= identity.inner.creation_time
         {
             return Ok(());
         }
@@ -308,14 +380,17 @@ mod tests {
 
     #[test]
     fn encode_decode_identity() {
+        let signer = Signer::memory();
+        let validator_key = signer.generate_key().unwrap();
         let keypair = Keypair::generate_secp256k1();
         let identity = ValidatorIdentity {
-            peer_record: PeerRecord::new(&keypair, vec![]).unwrap(),
-            era_index: 123,
+            addresses: vec!["/ip4/127.0.0.1/tcp/123".parse().unwrap()],
             creation_time: 999_999,
         };
+        let identity = identity.sign(&signer, validator_key, &keypair).unwrap();
 
-        let decoded_identity = ValidatorIdentity::decode(&mut &identity.encode()[..]).unwrap();
+        let decoded_identity =
+            SignedValidatorIdentity::decode(&mut &identity.encode()[..]).unwrap();
         assert_eq!(identity, decoded_identity);
     }
 }

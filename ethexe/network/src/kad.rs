@@ -52,7 +52,6 @@ const MIN_QUORUM_PEERS: u32 = 4;
 
 #[derive(Debug, PartialEq, Eq, Encode, Decode)]
 pub struct ValidatorIdentityKey {
-    pub current_era: u64,
     pub validator: Address,
 }
 
