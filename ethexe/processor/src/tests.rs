@@ -1329,7 +1329,7 @@ async fn executable_balance_injected_panic_not_charged() {
     // In this case executable balance should not be charged if gas burned during
     // panicked message execution is less than the threshold (see `INJECTED_MESSAGE_PANIC_GAS_CHARGE_THRESHOLD`).
 
-    const INITIAL_EXECUTABLE_BALANCE: u64 = 10_000_000_000;
+    const INITIAL_EXECUTABLE_BALANCE: u128 = 10_000_000_000;
 
     init_logger();
 

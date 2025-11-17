@@ -520,7 +520,7 @@ where
                     } => {
                         self.gas_allowance_counter.charge(amount);
 
-                        // Special case for panicked `Injected` messages with gas spent lesser than the threshold.
+                        // Special case for panicked `Injected` messages with gas spent less than the threshold.
                         if !is_panic || self.should_charge_exec_balance_on_panic(amount) {
                             self.charge_exec_balance(amount);
                         }
@@ -662,7 +662,7 @@ where
             );
     }
 
-    // Special case for panicked `Injected` messages with gas spent lesser than `INJECTED_MESSAGE_PANIC_GAS_CHARGE_THRESHOLD`.
+    // Special case for panicked `Injected` messages with gas spent less than `INJECTED_MESSAGE_PANIC_GAS_CHARGE_THRESHOLD`.
     fn should_charge_exec_balance_on_panic(&self, gas_burned: u64) -> bool {
         gas_burned > INJECTED_MESSAGE_PANIC_GAS_CHARGE_THRESHOLD
             || self.message_type != MessageType::Injected
