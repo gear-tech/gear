@@ -13124,7 +13124,11 @@ fn check_random_works() {
                 ctx.update(random_data);
                 let expected = ctx.finalize();
 
-                assert_eq!(expected.as_slice(), msg.payload_bytes());
+                // TODO: remove after correct merge with master
+                #[allow(deprecated)]
+                {
+                    assert_eq!(expected.as_slice(), msg.payload_bytes());
+                }
             });
 
         // assert_last_dequeued(1);

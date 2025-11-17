@@ -21,33 +21,26 @@ pub use crate::apis::InjectedTransactionAcceptance;
 #[cfg(feature = "test-utils")]
 pub use crate::apis::InjectedClient;
 
-use anyhow::{Result, anyhow};
+use anyhow::Result;
 use apis::{
     BlockApi, BlockServer, CodeApi, CodeServer, InjectedApi, InjectedServer, ProgramApi,
     ProgramServer,
 };
-use ethexe_common::injected::{RpcOrNetworkInjectedTx, SignedPromise};
+use ethexe_common::injected::{Promise, RpcOrNetworkInjectedTx};
 use ethexe_db::Database;
 use ethexe_processor::RunnerConfig;
-use futures::{FutureExt, Stream, stream::FusedStream};
+use futures::{Stream, stream::FusedStream};
 use hyper::header::HeaderValue;
 use jsonrpsee::{
-    Methods, RpcModule as JsonrpcModule,
-    server::{
-        Server, ServerHandle, StopHandle, TowerServiceBuilder, serve_with_graceful_shutdown,
-        stop_channel,
-    },
+    RpcModule as JsonrpcModule,
+    server::{Server, ServerHandle},
 };
 use std::{
     net::SocketAddr,
     pin::Pin,
     task::{Context, Poll},
 };
-use tokio::{
-    net::TcpListener,
-    sync::{mpsc, oneshot},
-};
-use tower::Service;
+use tokio::sync::{mpsc, oneshot};
 use tower_http::cors::{AllowOrigin, CorsLayer};
 
 mod apis;
@@ -63,31 +56,6 @@ pub enum RpcEvent {
         transaction: RpcOrNetworkInjectedTx,
         response_sender: oneshot::Sender<InjectedTransactionAcceptance>,
     },
-    InjectedTransactionSubscription {
-        transaction: RpcOrNetworkInjectedTx,
-        response_sender: oneshot::Sender<InjectedTransactionAcceptance>,
-        promise_sender: oneshot::Sender<SignedPromise>,
-    },
-}
-
-#[derive(Debug)]
-pub(crate) enum RpcEventInner {
-    InjectedTransaction {
-        transaction: RpcOrNetworkInjectedTx,
-        response_sender: oneshot::Sender<InjectedTransactionAcceptance>,
-    },
-    PromiseSubscription {
-        transaction: RpcOrNetworkInjectedTx,
-        response_sender: oneshot::Sender<InjectedTransactionAcceptance>,
-        promise_sender: oneshot::Sender<SignedPromise>,
-    },
-}
-
-#[derive(Clone)]
-struct PerConnection<RpcMiddleware, HttpMiddleware> {
-    methods: Methods,
-    stop_handle: StopHandle,
-    svc_builder: TowerServiceBuilder<RpcMiddleware, HttpMiddleware>,
 }
 
 /// Configuration of the RPC endpoint.
@@ -102,12 +70,12 @@ pub struct RpcConfig {
     pub runner_config: RunnerConfig,
 }
 
-pub struct RpcService {
+pub struct RpcServer {
     config: RpcConfig,
     db: Database,
 }
 
-impl RpcService {
+impl RpcServer {
     pub fn new(config: RpcConfig, db: Database) -> Self {
         Self { config, db }
     }
@@ -122,7 +90,7 @@ impl RpcService {
         let cors_layer = self.cors_layer()?;
         let http_middleware = tower::ServiceBuilder::new().layer(cors_layer);
 
-        let server = jsonrpsee::server::Server::builder()
+        let server = Server::builder()
             .set_http_middleware(http_middleware)
             .build(self.config.listen_addr)
             .await?;
@@ -132,12 +100,7 @@ impl RpcService {
 
         let handle = server.start(server_apis.into_methods());
 
-        Ok((
-            handle,
-            RpcReceiver {
-                inner_receiver: rpc_receiver,
-            },
-        ))
+        Ok((handle, RpcReceiver::new(rpc_receiver, injected_api)))
     }
 
     fn cors_layer(&self) -> Result<CorsLayer> {
@@ -164,10 +127,28 @@ impl RpcService {
 }
 
 pub struct RpcReceiver {
-    // Event receiver from inner apis.
     inner_receiver: mpsc::UnboundedReceiver<RpcEvent>,
-    //
-    // outer_receiver: mpsc::UnboundedReceiver<RpcEvent>,
+    injected_api: InjectedApi,
+}
+
+impl RpcReceiver {
+    pub fn new(
+        inner_receiver: mpsc::UnboundedReceiver<RpcEvent>,
+        injected_api: InjectedApi,
+    ) -> Self {
+        Self {
+            inner_receiver,
+            injected_api,
+        }
+    }
+
+    pub fn receive_promise(&self, promise: Promise) {
+        let injected_api = self.injected_api.clone();
+
+        tokio::spawn(async move {
+            injected_api.receive_promise(promise).await;
+        });
+    }
 }
 
 impl Stream for RpcReceiver {

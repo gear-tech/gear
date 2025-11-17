@@ -39,7 +39,7 @@ use ethexe_network::{
 use ethexe_observer::{ObserverEvent, ObserverService};
 use ethexe_processor::{Processor, ProcessorConfig};
 use ethexe_prometheus::{PrometheusEvent, PrometheusService};
-use ethexe_rpc::{InjectedTransactionAcceptance, RpcEvent, RpcService};
+use ethexe_rpc::{InjectedTransactionAcceptance, RpcEvent, RpcServer};
 use ethexe_service_utils::{OptionFuture as _, OptionStreamNext as _};
 use ethexe_signer::Signer;
 use futures::StreamExt;
@@ -101,7 +101,7 @@ pub struct Service {
     // Optional services
     network: Option<NetworkService>,
     prometheus: Option<PrometheusService>,
-    rpc: Option<RpcService>,
+    rpc: Option<RpcServer>,
 
     fast_sync: bool,
     validator_address: Option<Address>,
@@ -255,7 +255,7 @@ impl Service {
         let rpc = config
             .rpc
             .as_ref()
-            .map(|config| RpcService::new(config.clone(), db.clone()));
+            .map(|config| RpcServer::new(config.clone(), db.clone()));
 
         let compute_config = ComputeConfig::new(config.node.canonical_quarantine);
         let compute = ComputeService::new(compute_config, db.clone(), processor);
@@ -299,7 +299,7 @@ impl Service {
         consensus: Pin<Box<dyn ConsensusService>>,
         network: Option<NetworkService>,
         prometheus: Option<PrometheusService>,
-        rpc: Option<RpcService>,
+        rpc: Option<RpcServer>,
         sender: tests::utils::TestingEventSender,
         fast_sync: bool,
         validator_address: Option<Address>,
@@ -499,11 +499,6 @@ impl Service {
                         RpcEvent::InjectedTransaction {
                             transaction,
                             response_sender,
-                        }
-                        | RpcEvent::InjectedTransactionSubscription {
-                            transaction,
-                            response_sender,
-                            promise_sender: _,
                         } => {
                             if validator_address == Some(transaction.recipient) {
                                 consensus.receive_injected_transaction(transaction.tx)?;
@@ -522,11 +517,11 @@ impl Service {
                 Event::Consensus(event) => match event {
                     ConsensusEvent::ComputeAnnounce(announce) => compute.compute_announce(announce),
                     ConsensusEvent::PublishMessage(message) => {
-                        // if let Some(rpc) = rpc.as_mut()
-                        //     && let SignedValidatorMessage::InjectedPromise(promise) = &event
-                        // {
-                        //     rpc.receive_promise(promise);
-                        // }
+                        if let Some(rpc) = rpc.as_mut()
+                            && let SignedValidatorMessage::Promise(promise) = &message
+                        {
+                            rpc.receive_promise(promise.clone().into_data().payload);
+                        }
 
                         let Some(network) = network.as_mut() else {
                             continue;

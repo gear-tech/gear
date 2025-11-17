@@ -17,7 +17,6 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::errors;
-use anyhow::Result;
 use ethexe_common::{
     Announce, HashOf, SimpleBlockData,
     db::{AnnounceStorageRO, BlockMetaStorageRO, LatestDataStorageRO, OnChainStorageRO},

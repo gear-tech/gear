@@ -54,7 +54,6 @@ use ethexe_signer::Signer;
 use gear_core::{
     ids::prelude::*,
     message::{ReplyCode, SuccessReplyReason},
-    pages::num_traits::sign,
 };
 use gear_core_errors::{ErrorReplyReason, SimpleExecutionError, SimpleUnavailableActorError};
 use gprimitives::{ActorId, H160, H256, MessageId};
@@ -2391,4 +2390,37 @@ async fn injected_tx_fungible_token() {
         .await
         .unwrap();
     tracing::info!("✅ State successfully changed on Ethereum");
+
+    // 5. Transfer some token and wait for promise.
+    let random_actor = ActorId::new(H256::random().0);
+    let transfer_amount = 100_000;
+    let transfer_action = demo_fungible_token::FTAction::Transfer {
+        from: pubkey.to_address().into(),
+        to: random_actor,
+        amount: transfer_amount,
+    };
+    let transfer_tx = InjectedTransaction {
+        destination: usdt_actor_id,
+        payload: transfer_action.encode().into(),
+        value: 0,
+        reference_block: node.db.latest_data().unwrap().prepared_block_hash,
+        salt: vec![1u8, 2u8, 3u8].into(),
+    };
+
+    let signed_tx = env.signer.signed_data(pubkey, transfer_tx.clone()).unwrap();
+    let rpc_tx = RpcOrNetworkInjectedTx::new(pubkey.to_address(), signed_tx);
+    let ws_client = node.rpc_ws_client().await.expect("RPC WS client");
+
+    let mut subscription = ws_client.subscribe_promise(rpc_tx).await.unwrap();
+    let promise = subscription.next().await.unwrap().unwrap();
+
+    assert_eq!(promise.tx_hash, transfer_tx.to_hash());
+
+    let expected_payload = demo_fungible_token::FTEvent::Transfer {
+        from: pubkey.to_address().into(),
+        to: random_actor,
+        amount: transfer_amount,
+    };
+    assert_eq!(promise.reply.payload, expected_payload.encode());
+    assert_eq!(promise.reply.value, 0);
 }
