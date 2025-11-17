@@ -80,7 +80,6 @@ impl KeyCommand {
                     .with_context(|| "failed to generate new keypair")?;
 
                 println!("Public key: {public}");
-                println!("Ethereum address: {}", public.to_address());
 
                 if self.network {
                     let libp2p_public = libp2p_identity::PublicKey::from(
@@ -88,6 +87,8 @@ impl KeyCommand {
                             .with_context(|| "invalid sec1 format")?,
                     );
                     println!("Peer ID: {}", libp2p_public.to_peer_id());
+                } else {
+                    println!("Ethereum address: {}", public.to_address());
                 }
             }
             KeySubcommand::Insert { private_key } => {
@@ -101,7 +102,6 @@ impl KeyCommand {
                     .with_context(|| "failed to add key")?;
 
                 println!("Public key: {public}");
-                println!("Ethereum address: {}", public.to_address());
 
                 if self.network {
                     let libp2p_public = libp2p_identity::PublicKey::from(
@@ -109,6 +109,8 @@ impl KeyCommand {
                             .with_context(|| "invalid sec1 format")?,
                     );
                     println!("Peer ID: {}", libp2p_public.to_peer_id());
+                } else {
+                    println!("Ethereum address: {}", public.to_address());
                 }
             }
             KeySubcommand::List => {

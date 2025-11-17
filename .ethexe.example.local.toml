@@ -120,7 +120,6 @@ router = "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9"
 # ```
 # Using default params file: ./.ethexe.toml
 # Public key: 0x031b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f
-# Ethereum address: 0x1a642f0e3c3af545e7acbd38b07251b3990914f1
 # Peer ID: 16Uiu2HAmEWQnHq2jLKJypwVnVoQeFCULuyop6atvq2eWjYSUjzNi
 # ```
 # (optional, default: None).
