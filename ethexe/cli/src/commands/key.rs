@@ -31,6 +31,10 @@ pub struct KeyCommand {
     #[arg(short, long)]
     pub key_store: Option<PathBuf>,
 
+    /// Use network key store.
+    #[arg(long = "net", default_value = "false")]
+    pub network: bool,
+
     /// Subcommand to run.
     #[command(subcommand)]
     pub command: KeySubcommand,
@@ -39,10 +43,15 @@ pub struct KeyCommand {
 impl KeyCommand {
     /// Merge the command with the provided params.
     pub fn with_params(mut self, params: Params) -> Self {
-        self.key_store = self
-            .key_store
-            .take()
-            .or_else(|| Some(params.node.unwrap_or_default().keys_dir()));
+        let node = params.node.unwrap_or_default();
+
+        self.key_store = self.key_store.take().or_else(|| {
+            if self.network {
+                Some(node.net_dir())
+            } else {
+                Some(node.keys_dir())
+            }
+        });
 
         self
     }
@@ -72,6 +81,14 @@ impl KeyCommand {
 
                 println!("Public key: {public}");
                 println!("Ethereum address: {}", public.to_address());
+
+                if self.network {
+                    let libp2p_public = libp2p_identity::PublicKey::from(
+                        libp2p_identity::secp256k1::PublicKey::try_from_bytes(&public.0)
+                            .with_context(|| "invalid sec1 format")?,
+                    );
+                    println!("Peer ID: {}", libp2p_public.to_peer_id());
+                }
             }
             KeySubcommand::Insert { private_key } => {
                 let private = private_key
@@ -85,6 +102,14 @@ impl KeyCommand {
 
                 println!("Public key: {public}");
                 println!("Ethereum address: {}", public.to_address());
+
+                if self.network {
+                    let libp2p_public = libp2p_identity::PublicKey::from(
+                        libp2p_identity::secp256k1::PublicKey::try_from_bytes(&public.0)
+                            .with_context(|| "invalid sec1 format")?,
+                    );
+                    println!("Peer ID: {}", libp2p_public.to_peer_id());
+                }
             }
             KeySubcommand::List => {
                 let publics = signer
