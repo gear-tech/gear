@@ -232,7 +232,10 @@ pub fn aggregate_chain_commitment<DB: BlockMetaStorageRO + OnChainStorageRO + An
         }
     }
 
-    let squashed_transitions = aggregations.into_values().map(|aggregation| aggregation.finish()).collect();
+    let squashed_transitions = aggregations
+        .into_values()
+        .map(|aggregation| aggregation.finish())
+        .collect();
 
     Ok(Some((
         ChainCommitment {
