@@ -33,7 +33,8 @@ fn main() {
     #[cfg(all(feature = "std", not(fuzz)))]
     {
         skip_build_on_intellij_sync();
-        substrate_wasm_builder::WasmBuilder::build_using_defaults()
+        substrate_wasm_builder::WasmBuilder::build_using_defaults();
+        regenerate_gsdk_scale();
     }
 }
 
@@ -54,11 +55,98 @@ fn main() {
 
         substrate_wasm_builder::WasmBuilder::init_with_defaults()
             .enable_metadata_hash(TOKEN_SYMBOL, DECIMALS)
-            .build()
+            .build();
+        regenerate_gsdk_scale();
     }
 }
 
 #[cfg(not(feature = "std"))]
 fn main() {
     substrate_build_script_utils::generate_cargo_keys();
+}
+
+#[cfg(all(feature = "std", not(feature = "dev")))]
+fn regenerate_gsdk_scale() {}
+
+#[cfg(all(feature = "std", feature = "dev"))]
+fn regenerate_gsdk_scale() {
+    use gear_runtime_interface::gear_ri;
+    use parity_scale_codec::{Decode, Encode};
+    use sc_executor::{WasmExecutionMethod, WasmtimeInstantiationStrategy};
+    use sc_executor_common::runtime_blob::RuntimeBlob;
+    use std::{env, fs, path::PathBuf};
+
+    let out_path = "../../gsdk/vara_runtime.scale";
+    let runtime_wasm_path = PathBuf::from(env::var("OUT_DIR").unwrap())
+        .ancestors()
+        .find(|dir| {
+            dir.file_name()
+                .is_some_and(|name| name.to_str() == Some("build"))
+        })
+        .unwrap()
+        .parent()
+        .unwrap()
+        .join("wbuild/vara-runtime/vara_runtime.wasm");
+
+    if env::var("SKIP_WASM_BUILD").is_ok() || env::var("SKIP_VARA_RUNTIME_WASM_BUILD").is_ok() {
+        return;
+    }
+
+    // 1. Get the wasm binary of `RUNTIME_WASM`.
+    let code = fs::read(runtime_wasm_path).expect("Failed to read runtime wasm");
+
+    let heap_pages =
+        sc_executor_common::wasm_runtime::HeapAllocStrategy::Static { extra_pages: 1024 };
+
+    // 2. Create wasm executor.
+    let executor = sc_executor::WasmExecutor::<(
+        gear_ri::HostFunctions,
+        sp_io::SubstrateHostFunctions,
+    )>::builder()
+    .with_execution_method(WasmExecutionMethod::Compiled {
+        instantiation_strategy: WasmtimeInstantiationStrategy::PoolingCopyOnWrite,
+    })
+    .with_onchain_heap_alloc_strategy(heap_pages)
+    .with_offchain_heap_alloc_strategy(heap_pages)
+    .with_max_runtime_instances(8)
+    .with_runtime_cache_size(2)
+    .build();
+
+    // 4. Extract last supported metadata version
+    let runtime_blob = RuntimeBlob::uncompress_if_needed(&code).unwrap();
+    let mut externalities = sp_io::TestExternalities::default();
+
+    let versions = executor
+        .uncached_call(
+            runtime_blob.clone(),
+            &mut externalities.ext(),
+            true,
+            "Metadata_metadata_versions",
+            &[],
+        )
+        .unwrap();
+    let versions = <Vec<u32>>::decode(&mut &versions[..]).unwrap();
+
+    // List of metadata versions supported by `frame-metadata` and `subxt`
+    let supported_versions = [14, 15, 16];
+    let version = versions
+        .into_iter()
+        .filter(|version| supported_versions.contains(version))
+        .max()
+        .expect("No supported metadata versions");
+
+    // 3. Extract metadata.
+    let option_bytes = executor
+        .uncached_call(
+            runtime_blob,
+            &mut externalities.ext(),
+            true,
+            "Metadata_metadata_at_version",
+            &version.encode(),
+        )
+        .unwrap();
+    let bytes_option = <Option<Vec<u8>>>::decode(&mut &option_bytes[..]).unwrap();
+    let metadata = bytes_option.expect("Supported metadata format is not supported (how?)");
+
+    fs::write(out_path, metadata).unwrap();
 }

@@ -9,7 +9,7 @@ use gear_call_gen::{
     UploadProgramArgs,
 };
 use gear_core::ids::{ActorId, CodeId, MessageId};
-use gsdk::ext::utils::H256;
+use gsdk::ext::subxt::utils::H256;
 
 pub type UploadProgramBatchOutput = StandardBatchOutput;
 pub type CreateProgramBatchOutput = StandardBatchOutput;

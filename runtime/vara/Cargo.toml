@@ -134,6 +134,11 @@ gear-wasm-instrument.workspace = true
 [build-dependencies]
 substrate-build-script-utils.workspace = true
 substrate-wasm-builder = { workspace = true, optional = true }
+sc-executor.workspace = true
+sc-executor-common.workspace = true
+sp-io.workspace = true
+gear-runtime-interface = { workspace = true, features = ["std"] }
+parity-scale-codec.workspace = true
 
 [features]
 default = ["std"]

@@ -22,13 +22,18 @@ use serde::{Deserialize, Serialize};
 #[cfg(feature = "codec")]
 use {
     parity_scale_codec::{Decode, Encode},
+    scale_decode::DecodeAsType,
+    scale_encode::EncodeAsType,
     scale_info::TypeInfo,
 };
 
 /// Enum representing reply code with reason of its creation.
 #[repr(u8)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Sequence, thiserror::Error)]
-#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
+#[cfg_attr(
+    feature = "codec",
+    derive(Encode, EncodeAsType, Decode, DecodeAsType, TypeInfo)
+)]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub enum ReplyCode {
     /// Success reply.
@@ -105,7 +110,10 @@ impl ReplyCode {
 /// Reason of success reply creation.
 #[repr(u8)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Sequence, thiserror::Error)]
-#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
+#[cfg_attr(
+    feature = "codec",
+    derive(Encode, EncodeAsType, Decode, DecodeAsType, TypeInfo)
+)]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub enum SuccessReplyReason {
     /// Success reply was created by system automatically.
@@ -141,7 +149,10 @@ impl SuccessReplyReason {
 // `ErrorReplyReason::from_bytes` methods.
 #[repr(u8)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Sequence, thiserror::Error)]
-#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
+#[cfg_attr(
+    feature = "codec",
+    derive(Encode, EncodeAsType, Decode, DecodeAsType, TypeInfo)
+)]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub enum ErrorReplyReason {
     /// Error reply was created due to underlying execution error.
@@ -216,7 +227,10 @@ impl ErrorReplyReason {
 /// Simplified error occurred during execution.
 #[repr(u8)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Sequence, thiserror::Error)]
-#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
+#[cfg_attr(
+    feature = "codec",
+    derive(Encode, EncodeAsType, Decode, DecodeAsType, TypeInfo)
+)]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub enum SimpleExecutionError {
     /// Message ran out of gas while executing.
@@ -272,7 +286,10 @@ impl SimpleExecutionError {
 /// Simplified error occurred because of actor unavailability.
 #[repr(u8)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Sequence, thiserror::Error)]
-#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
+#[cfg_attr(
+    feature = "codec",
+    derive(Encode, EncodeAsType, Decode, DecodeAsType, TypeInfo)
+)]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub enum SimpleUnavailableActorError {
     /// Program called `gr_exit` syscall.
@@ -326,7 +343,10 @@ impl SimpleUnavailableActorError {
 /// See [this document](../signal-code-testing.md).
 #[repr(u8)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Sequence, thiserror::Error)]
-#[cfg_attr(feature = "codec", derive(Encode, Decode, TypeInfo))]
+#[cfg_attr(
+    feature = "codec",
+    derive(Encode, EncodeAsType, Decode, DecodeAsType, TypeInfo)
+)]
 #[cfg_attr(feature = "serde", derive(Deserialize, Serialize))]
 pub enum SignalCode {
     /// Signal was sent due to some execution errors.

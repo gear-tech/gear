@@ -16,6 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use crate::ToDigest;
 use alloc::string::{String, ToString};
 use anyhow::Result;
 use core::{
@@ -27,8 +28,6 @@ use core::{
 };
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
-
-use crate::ToDigest;
 
 fn option_string<T: ToString>(value: &Option<T>) -> String {
     value

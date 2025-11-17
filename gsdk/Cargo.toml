@@ -41,8 +41,5 @@ demo-fungible-token.workspace = true
 demo-vec.workspace = true
 demo-waiter = { workspace = true, features = ["std"] }
 
-[build-dependencies]
-gear-utils.workspace = true
-
 [features]
 testing = []

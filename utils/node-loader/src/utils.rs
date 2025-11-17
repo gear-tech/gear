@@ -4,16 +4,11 @@ use futures_timer::Delay;
 use gclient::{Event, GearApi, GearEvent, WSAddress};
 use gear_call_gen::Seed;
 use gear_core::ids::{ActorId, MessageId};
-use gear_core_errors::ReplyCode;
 use gear_wasm_gen::{
     EntryPointsSet, InvocableSyscall, RegularParamType, StandardGearWasmConfigsBundle, SyscallName,
     SyscallsInjectionTypes, SyscallsParamsConfig,
 };
-use gsdk::metadata::runtime_types::{
-    gear_common::event::DispatchStatus as GenDispatchStatus,
-    gear_core::message::{common::ReplyDetails, user::UserMessage as GenUserMessage},
-    gprimitives::MessageId as GenMId,
-};
+use gsdk::gear::runtime_types::gear_common::event::DispatchStatus as GenDispatchStatus;
 use rand::rngs::SmallRng;
 use reqwest::Client;
 use std::{
@@ -113,7 +108,7 @@ pub async fn stop_node(monitor_url: String) -> Result<()> {
 
 pub async fn capture_mailbox_messages(
     api: &GearApi,
-    event_source: &[gsdk::metadata::Event],
+    event_source: &[gsdk::Event],
 ) -> Result<BTreeSet<MessageId>> {
     let to = ActorId::new(api.account_id().clone().into());
     // Mailbox message expiration threshold block number: current(last) block number + 20.
@@ -124,9 +119,7 @@ pub async fn capture_mailbox_messages(
             Event::Gear(GearEvent::UserMessageSent {
                 message,
                 expiration: Some(exp_bn),
-            }) if exp_bn >= &bn_threshold && message.destination == to.into() => {
-                Some(message.id.into())
-            }
+            }) if exp_bn >= &bn_threshold && message.destination() == to => Some(message.id()),
             _ => None,
         })
         .collect();
@@ -154,33 +147,32 @@ pub async fn capture_mailbox_messages(
 /// identifier ([`MessageId`]). Each status can be an error message in case
 /// of an error.
 pub fn err_waited_or_succeed_batch(
-    event_source: &mut [gsdk::metadata::Event],
+    event_source: &mut [gsdk::Event],
     message_ids: impl IntoIterator<Item = MessageId>,
 ) -> Vec<(MessageId, Option<String>)> {
-    let message_ids: Vec<GenMId> = message_ids.into_iter().map(Into::into).collect();
+    let message_ids: Vec<MessageId> = message_ids.into_iter().collect();
     let mut caught_ids = Vec::with_capacity(message_ids.len());
 
     event_source
         .iter_mut()
         .filter_map(|e| match e {
-            Event::Gear(GearEvent::UserMessageSent {
-                message:
-                    GenUserMessage {
-                        payload,
-                        details: Some(ReplyDetails { to, code }),
-                        ..
-                    },
-                ..
-            }) if message_ids.contains(to) => {
-                caught_ids.push(*to);
-                Some(vec![(
-                    (*to).into(),
-                    (!ReplyCode::from(code.clone()).is_success())
-                        .then(|| String::from_utf8(payload.0.to_vec()).expect("Infallible")),
-                )])
+            Event::Gear(GearEvent::UserMessageSent { message, .. }) => {
+                if let Some(details) = message.details()
+                    && message_ids.contains(&details.to_message_id())
+                {
+                    caught_ids.push(details.to_message_id());
+                    Some(vec![(
+                        details.to_message_id(),
+                        (!details.to_reply_code().is_success()).then(|| {
+                            String::from_utf8(message.payload_bytes().to_vec()).expect("Infallible")
+                        }),
+                    )])
+                } else {
+                    None
+                }
             }
             Event::Gear(GearEvent::MessageWaited { id, .. }) if message_ids.contains(id) => {
-                Some(vec![((*id).into(), None)])
+                Some(vec![(*id, None)])
             }
             Event::Gear(GearEvent::MessagesDispatched { statuses, .. }) => {
                 let requested: Vec<_> = statuses
@@ -188,7 +180,7 @@ pub fn err_waited_or_succeed_batch(
                     .filter_map(|(mid, status)| {
                         (message_ids.contains(mid) && !caught_ids.contains(mid)).then(|| {
                             (
-                                MessageId::from(*mid),
+                                *mid,
                                 matches!(status, GenDispatchStatus::Failed)
                                     .then(|| String::from("UNKNOWN")),
                             )

@@ -20,7 +20,7 @@
 use crate::{
     Api,
     config::GearConfig,
-    metadata::{Event, system::Event as SystemEvent},
+    gear::{Event, system::Event as SystemEvent},
     result::{Error, Result},
 };
 use subxt::{

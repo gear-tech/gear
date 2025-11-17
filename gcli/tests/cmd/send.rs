@@ -36,7 +36,7 @@ async fn test_command_send_works() -> Result<()> {
     assert_eq!(mailbox.len(), 1, "Alice should have 1 message in mailbox");
 
     // Send message to messenger
-    let dest = hex::encode(mailbox[0].0.source.0);
+    let dest = hex::encode(mailbox[0].0.source());
     let _ = node.run(Args::new("send").destination(dest).gas_limit("2000000000"))?;
 
     let mailbox = signer
@@ -51,7 +51,7 @@ async fn test_command_send_works() -> Result<()> {
     assert!(
         mailbox
             .iter()
-            .any(|mail| mail.0.payload.0 == demo_messenger::SEND_REPLY.encode()),
+            .any(|mail| mail.0.payload_bytes() == demo_messenger::SEND_REPLY.encode()),
         "Mailbox should have the send reply message"
     );
 

@@ -37,6 +37,8 @@ pub use handle::{HandleMessage, HandlePacket};
 pub use incoming::{IncomingDispatch, IncomingMessage};
 pub use init::{InitMessage, InitPacket};
 pub use reply::{ReplyMessage, ReplyPacket};
+use scale_decode::DecodeAsType;
+use scale_encode::EncodeAsType;
 pub use signal::SignalMessage;
 pub use stored::{StoredDelayedDispatch, StoredDispatch, StoredMessage};
 pub use user::{UserMessage, UserStoredMessage};
@@ -57,7 +59,20 @@ pub type Salt = crate::buffer::Payload;
 
 /// Entry point for dispatch processing.
 #[derive(
-    Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Hash, Decode, Encode, TypeInfo,
+    Clone,
+    Copy,
+    Debug,
+    Default,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Hash,
+    Decode,
+    DecodeAsType,
+    Encode,
+    EncodeAsType,
+    TypeInfo,
 )]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub enum DispatchKind {

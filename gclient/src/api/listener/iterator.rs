@@ -21,10 +21,10 @@ use crate::{Error, Result};
 use async_trait::async_trait;
 use gsdk::{
     Blocks,
-    metadata::{Event, gear::Event as GearEvent},
+    ext::subxt::utils::H256,
+    gear::{Event, gear::Event as GearEvent},
     subscription::BlockEvents,
 };
-use subxt::utils::H256;
 
 /// Event listener that allows catching and processing events propagated through
 /// the network.

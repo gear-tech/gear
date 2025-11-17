@@ -52,9 +52,6 @@ mod apis;
 mod errors;
 mod utils;
 
-#[cfg(feature = "test-utils")]
-pub mod test_utils;
-
 #[derive(Clone)]
 struct PerConnection<RpcMiddleware, HttpMiddleware> {
     methods: Methods,

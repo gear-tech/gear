@@ -38,7 +38,7 @@ async fn test_command_claim_works() -> Result<()> {
         .await?;
 
     assert_eq!(mailbox.len(), 1, "Mailbox should have 1 message");
-    let id = hex::encode(mailbox[0].0.id.0);
+    let id = hex::encode(mailbox[0].0.id());
 
     let treasury_before = signer
         .api()

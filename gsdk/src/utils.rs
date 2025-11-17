@@ -17,19 +17,13 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! gear api utils
-use crate::{
-    Api,
-    config::GearConfig,
-    metadata::{DispatchError, StorageInfo},
-    result::Result,
-};
+use crate::{Api, config::GearConfig, gear::DispatchError, result::Result};
 use parity_scale_codec::Encode;
 use sp_core::hashing;
 use subxt::{
     Metadata, OnlineClient,
-    dynamic::Value,
     error::{DispatchError as SubxtDispatchError, Error},
-    storage::{Address, DynamicAddress, Storage, StorageKey},
+    storage::{Address, Storage},
     utils::H256,
 };
 
@@ -69,19 +63,6 @@ impl Api {
         };
 
         Ok(storage)
-    }
-
-    /// Get the storage address from storage info.
-    pub fn storage<T: StorageInfo, Keys: StorageKey>(
-        storage: T,
-        keys: Keys,
-    ) -> DynamicAddress<Keys> {
-        subxt::dynamic::storage(T::PALLET, storage.storage_name(), keys)
-    }
-
-    /// Get the storage root address from storage info.
-    pub fn storage_root<T: StorageInfo>(storage: T) -> DynamicAddress<Vec<Value>> {
-        subxt::dynamic::storage(T::PALLET, storage.storage_name(), Default::default())
     }
 }
 

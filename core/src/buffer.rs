@@ -26,6 +26,8 @@ use core::{
 use alloc::sync::Arc;
 
 use parity_scale_codec::{Compact, MaxEncodedLen};
+use scale_decode::DecodeAsType;
+use scale_encode::EncodeAsType;
 use scale_info::{
     TypeInfo,
     scale::{Decode, Encode},
@@ -110,7 +112,9 @@ impl MaxEncodedLen for Payload {
     PartialEq,
     PartialOrd,
     Decode,
+    DecodeAsType,
     Encode,
+    EncodeAsType,
     TypeInfo,
     derive_more::From,
     derive_more::Into,

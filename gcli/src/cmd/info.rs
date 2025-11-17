@@ -25,7 +25,7 @@ use gclient::{
         sp_core::{Pair as PairT, crypto::Ss58Codec, sr25519::Pair},
         sp_runtime::AccountId32,
     },
-    metadata::runtime_types::gear_common::storage::primitives::Interval,
+    gear::runtime_types::gear_common::storage::primitives::Interval,
 };
 use gear_core::message::UserStoredMessage;
 use std::fmt;
@@ -38,7 +38,7 @@ pub enum Action {
     Mailbox {
         /// The count of mails for fetching
         #[arg(default_value = "10", short, long)]
-        count: u32,
+        count: usize,
     },
 }
 
@@ -81,7 +81,7 @@ impl Info {
     }
 
     /// Get mailbox of address
-    pub async fn mailbox(signer: GearApi, acc: AccountId32, count: u32) -> Result<()> {
+    pub async fn mailbox(signer: GearApi, acc: AccountId32, count: usize) -> Result<()> {
         let mails = signer.get_mailbox_account_messages(acc, count).await?;
         for t in mails.into_iter() {
             println!("{:#?}", Mail::from(t));

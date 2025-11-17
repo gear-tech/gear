@@ -43,7 +43,6 @@ impl RpcOrNetworkInjectedTx {
         Self { recipient, tx }
     }
 }
-
 #[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
 #[cfg_attr(feature = "serde", derive(Hash))]
 #[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]

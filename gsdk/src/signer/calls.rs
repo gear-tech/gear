@@ -19,24 +19,20 @@
 //! gear api calls
 use super::Inner;
 use crate::{
-    Result, TxInBlock,
-    metadata::{
-        Convert,
-        calls::{
-            BalancesCall, GearCall, GearEthBridgeCall, GearVoucherCall, SudoCall, UtilityCall,
-        },
+    IntoSubxt, Result, TxInBlock,
+    gear::{
+        self,
         runtime_types::{
             pallet_gear_voucher::internal::{PrepaidCall, VoucherId},
             sp_weights::weight_v2::Weight,
+            vara_runtime::RuntimeCall,
         },
-        vara_runtime::RuntimeCall,
     },
     signer::utils::EventsResult,
 };
 use gear_core::ids::*;
 use sp_runtime::AccountId32;
 use std::sync::Arc;
-use subxt::dynamic::Value;
 
 /// Implementation of calls to programs/other users for [`Signer`].
 #[derive(Clone)]
@@ -52,11 +48,9 @@ impl SignerCalls {
     ) -> Result<TxInBlock> {
         self.0
             .run_tx(
-                BalancesCall::TransferKeepAlive,
-                vec![
-                    Value::unnamed_variant("Id", [Value::from_bytes(dest.into())]),
-                    Value::u128(value),
-                ],
+                gear::tx()
+                    .balances()
+                    .transfer_keep_alive(dest.into().into_subxt().into(), value),
             )
             .await
     }
@@ -69,11 +63,9 @@ impl SignerCalls {
     ) -> Result<TxInBlock> {
         self.0
             .run_tx(
-                BalancesCall::TransferAllowDeath,
-                vec![
-                    Value::unnamed_variant("Id", [Value::from_bytes(dest.into())]),
-                    Value::u128(value),
-                ],
+                gear::tx()
+                    .balances()
+                    .transfer_allow_death(dest.into().into_subxt().into(), value),
             )
             .await
     }
@@ -86,11 +78,9 @@ impl SignerCalls {
     ) -> Result<TxInBlock> {
         self.0
             .run_tx(
-                BalancesCall::TransferAll,
-                vec![
-                    Value::unnamed_variant("Id", [Value::from_bytes(dest.into())]),
-                    Value::bool(keep_alive),
-                ],
+                gear::tx()
+                    .balances()
+                    .transfer_all(dest.into().into_subxt().into(), keep_alive),
             )
             .await
     }
@@ -109,15 +99,9 @@ impl SignerCalls {
     ) -> Result<TxInBlock> {
         self.0
             .run_tx(
-                GearCall::CreateProgram,
-                vec![
-                    Value::from_bytes(code_id),
-                    Value::from_bytes(salt),
-                    Value::from_bytes(payload),
-                    Value::u128(gas_limit as u128),
-                    Value::u128(value),
-                    Value::bool(false),
-                ],
+                gear::tx()
+                    .gear()
+                    .create_program(code_id, salt, payload, gas_limit, value, false),
             )
             .await
     }
@@ -125,7 +109,7 @@ impl SignerCalls {
     /// `pallet_gear::claim_value`
     pub async fn claim_value(&self, message_id: MessageId) -> Result<TxInBlock> {
         self.0
-            .run_tx(GearCall::ClaimValue, vec![Value::from_bytes(message_id)])
+            .run_tx(gear::tx().gear().claim_value(message_id))
             .await
     }
 
@@ -139,14 +123,9 @@ impl SignerCalls {
     ) -> Result<TxInBlock> {
         self.0
             .run_tx(
-                GearCall::SendMessage,
-                vec![
-                    Value::from_bytes(destination),
-                    Value::from_bytes(payload),
-                    Value::u128(gas_limit as u128),
-                    Value::u128(value),
-                    Value::bool(false),
-                ],
+                gear::tx()
+                    .gear()
+                    .send_message(destination, payload, gas_limit, value, false),
             )
             .await
     }
@@ -161,23 +140,16 @@ impl SignerCalls {
     ) -> Result<TxInBlock> {
         self.0
             .run_tx(
-                GearCall::SendReply,
-                vec![
-                    Value::from_bytes(reply_to_id),
-                    Value::from_bytes(payload),
-                    Value::u128(gas_limit as u128),
-                    Value::u128(value),
-                    Value::bool(false),
-                ],
+                gear::tx()
+                    .gear()
+                    .send_reply(reply_to_id, payload, gas_limit, value, false),
             )
             .await
     }
 
     /// `pallet_gear::upload_code`
     pub async fn upload_code(&self, code: Vec<u8>) -> Result<TxInBlock> {
-        self.0
-            .run_tx(GearCall::UploadCode, vec![Value::from_bytes(code)])
-            .await
+        self.0.run_tx(gear::tx().gear().upload_code(code)).await
     }
 
     /// `pallet_gear::upload_program`
@@ -191,15 +163,9 @@ impl SignerCalls {
     ) -> Result<TxInBlock> {
         self.0
             .run_tx(
-                GearCall::UploadProgram,
-                vec![
-                    Value::from_bytes(code),
-                    Value::from_bytes(salt),
-                    Value::from_bytes(payload),
-                    Value::u128(gas_limit as u128),
-                    Value::u128(value),
-                    Value::bool(false),
-                ],
+                gear::tx()
+                    .gear()
+                    .upload_program(code, salt, payload, gas_limit, value, false),
             )
             .await
     }
@@ -214,8 +180,9 @@ impl SignerCalls {
     ) -> Result<TxInBlock> {
         self.0
             .run_tx(
-                GearEthBridgeCall::ResetOverflowedQueue,
-                vec![Value::from_bytes(encoded_finality_proof)],
+                gear::tx()
+                    .gear_eth_bridge()
+                    .reset_overflowed_queue(encoded_finality_proof),
             )
             .await
     }
@@ -225,12 +192,7 @@ impl SignerCalls {
 impl SignerCalls {
     /// `pallet_utility::force_batch`
     pub async fn force_batch(&self, calls: Vec<RuntimeCall>) -> Result<TxInBlock> {
-        self.0
-            .run_tx(
-                UtilityCall::ForceBatch,
-                vec![calls.into_iter().map(Value::from).collect::<Vec<Value>>()],
-            )
-            .await
+        self.0.run_tx(gear::tx().utility().force_batch(calls)).await
     }
 }
 
@@ -239,17 +201,7 @@ impl SignerCalls {
     /// `pallet_sudo::sudo_unchecked_weight`
     pub async fn sudo_unchecked_weight(&self, call: RuntimeCall, weight: Weight) -> EventsResult {
         self.0
-            .sudo_run_tx(
-                SudoCall::SudoUncheckedWeight,
-                // As `call` implements conversion to `Value`.
-                vec![
-                    call.into(),
-                    Value::named_composite([
-                        ("ref_time", Value::u128(weight.ref_time as u128)),
-                        ("proof_size", Value::u128(weight.proof_size as u128)),
-                    ]),
-                ],
-            )
+            .sudo_run_tx(gear::tx().sudo().sudo_unchecked_weight(call, weight))
             .await
     }
 }
@@ -265,23 +217,14 @@ impl SignerCalls {
         code_uploading: bool,
         duration: u32,
     ) -> Result<TxInBlock> {
-        let programs_value = programs
-            .map(|vec| {
-                Value::unnamed_composite(vec.into_iter().map(Value::from_bytes).collect::<Vec<_>>())
-            })
-            .convert();
-
         self.0
-            .run_tx(
-                GearVoucherCall::Issue,
-                vec![
-                    Value::from_bytes(spender.into()),
-                    Value::u128(balance),
-                    programs_value,
-                    Value::bool(code_uploading),
-                    Value::from(duration),
-                ],
-            )
+            .run_tx(gear::tx().gear_voucher().issue(
+                spender.into().into_subxt(),
+                balance,
+                programs,
+                code_uploading,
+                duration,
+            ))
             .await
     }
 
@@ -297,32 +240,16 @@ impl SignerCalls {
         code_uploading: Option<bool>,
         prolong_duration: u32,
     ) -> Result<TxInBlock> {
-        let append_programs_value = append_programs
-            .map(|o| {
-                o.map(|vec| {
-                    Value::unnamed_composite(
-                        vec.into_iter().map(Value::from_bytes).collect::<Vec<_>>(),
-                    )
-                })
-                .convert()
-            })
-            .convert();
-
         self.0
-            .run_tx(
-                GearVoucherCall::Update,
-                vec![
-                    Value::from_bytes(spender.into()),
-                    Value::from_bytes(voucher_id.0),
-                    move_ownership
-                        .map(|v| Value::from_bytes(v.into()))
-                        .convert(),
-                    balance_top_up.map(Value::u128).convert(),
-                    append_programs_value,
-                    code_uploading.map(Value::bool).convert(),
-                    Value::from(prolong_duration),
-                ],
-            )
+            .run_tx(gear::tx().gear_voucher().update(
+                spender.into().into_subxt(),
+                voucher_id,
+                move_ownership.map(|id| id.into().into_subxt()),
+                balance_top_up,
+                append_programs,
+                code_uploading,
+                Some(prolong_duration),
+            ))
             .await
     }
 
@@ -334,11 +261,9 @@ impl SignerCalls {
     ) -> Result<TxInBlock> {
         self.0
             .run_tx(
-                GearVoucherCall::Revoke,
-                vec![
-                    Value::from_bytes(spender.into()),
-                    Value::from_bytes(voucher_id.0),
-                ],
+                gear::tx()
+                    .gear_voucher()
+                    .revoke(spender.into().into_subxt(), voucher_id),
             )
             .await
     }
@@ -346,10 +271,7 @@ impl SignerCalls {
     /// `pallet_gear_voucher::decline`
     pub async fn decline_voucher(&self, voucher_id: VoucherId) -> Result<TxInBlock> {
         self.0
-            .run_tx(
-                GearVoucherCall::Decline,
-                vec![Value::from_bytes(voucher_id.0)],
-            )
+            .run_tx(gear::tx().gear_voucher().decline(voucher_id))
             .await
     }
 
@@ -362,10 +284,7 @@ impl SignerCalls {
         let call = PrepaidCall::<u128>::UploadCode { code };
 
         self.0
-            .run_tx(
-                GearVoucherCall::Call,
-                vec![Value::from_bytes(voucher_id.0), call.into()],
-            )
+            .run_tx(gear::tx().gear_voucher().call(voucher_id, call))
             .await
     }
 
@@ -380,7 +299,7 @@ impl SignerCalls {
         keep_alive: bool,
     ) -> Result<TxInBlock> {
         let call = PrepaidCall::<u128>::SendMessage {
-            destination: destination.into(),
+            destination,
             payload,
             gas_limit,
             value,
@@ -388,10 +307,7 @@ impl SignerCalls {
         };
 
         self.0
-            .run_tx(
-                GearVoucherCall::Call,
-                vec![Value::from_bytes(voucher_id.0), call.into()],
-            )
+            .run_tx(gear::tx().gear_voucher().call(voucher_id, call))
             .await
     }
 
@@ -406,7 +322,7 @@ impl SignerCalls {
         keep_alive: bool,
     ) -> Result<TxInBlock> {
         let call = PrepaidCall::<u128>::SendReply {
-            reply_to_id: reply_to_id.into(),
+            reply_to_id,
             payload,
             gas_limit,
             value,
@@ -414,10 +330,7 @@ impl SignerCalls {
         };
 
         self.0
-            .run_tx(
-                GearVoucherCall::Call,
-                vec![Value::from_bytes(voucher_id.0), call.into()],
-            )
+            .run_tx(gear::tx().gear_voucher().call(voucher_id, call))
             .await
     }
 
@@ -426,10 +339,7 @@ impl SignerCalls {
         let call = PrepaidCall::<u128>::DeclineVoucher;
 
         self.0
-            .run_tx(
-                GearVoucherCall::Call,
-                vec![Value::from_bytes(voucher_id.0), call.into()],
-            )
+            .run_tx(gear::tx().gear_voucher().call(voucher_id, call))
             .await
     }
 }

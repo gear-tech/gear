@@ -100,8 +100,9 @@ impl Key {
             | Self::AnnounceSchedule(hash)
             | Self::AnnounceMeta(hash) => [prefix.as_ref(), hash.inner().as_ref()].concat(),
 
-            Self::InjectedTransaction(hash) => [prefix.as_ref(), hash.inner().as_ref()].concat(),
-            Self::Promise(hash) => [prefix.as_ref(), hash.inner().as_ref()].concat(),
+            Self::InjectedTransaction(hash) | Self::Promise(hash) => {
+                [prefix.as_ref(), hash.inner().as_ref()].concat()
+            }
 
             Self::ProgramToCodeId(program_id) => [prefix.as_ref(), program_id.as_ref()].concat(),
 

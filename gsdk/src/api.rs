@@ -18,7 +18,7 @@
 
 use crate::{
     Blocks, Events, ProgramStateChanges, Result, TxInBlock, UserMessageSentFilter,
-    UserMessageSentSubscription, config::GearConfig, metadata::Event, signer::Signer,
+    UserMessageSentSubscription, config::GearConfig, gear::Event, signer::Signer,
 };
 use core::ops::{Deref, DerefMut};
 use jsonrpsee::{client_transport::ws::Url, ws_client::WsClientBuilder};

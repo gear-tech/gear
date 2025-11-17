@@ -21,12 +21,10 @@ gear-utils.workspace = true
 gsdk = { workspace = true, features = ["testing"] }
 gear-node-wrapper.workspace = true
 gear-core.workspace = true
-gear-core-errors.workspace = true
 
 futures.workspace = true
 anyhow.workspace = true
 hex.workspace = true
-subxt.workspace = true
 parity-scale-codec.workspace = true
 thiserror.workspace = true
 async-trait.workspace = true

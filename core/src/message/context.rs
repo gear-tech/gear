@@ -31,6 +31,8 @@ use alloc::{
 };
 use gear_core_errors::{ExecutionError, ExtError, MessageError as Error, MessageError};
 use parity_scale_codec::{Decode, Encode};
+use scale_decode::DecodeAsType;
+use scale_encode::EncodeAsType;
 use scale_info::TypeInfo;
 
 use super::{DispatchKind, IncomingDispatch, Packet};
@@ -153,7 +155,9 @@ pub struct OutgoingPayloads {
 }
 
 /// Store of previous message execution context.
-#[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Decode, Encode, TypeInfo)]
+#[derive(
+    Clone, Debug, Default, PartialEq, Eq, Hash, Decode, DecodeAsType, Encode, EncodeAsType, TypeInfo,
+)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct ContextStore {
     initialized: BTreeSet<ActorId>,

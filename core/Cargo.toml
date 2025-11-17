@@ -22,6 +22,8 @@ parity-scale-codec = { workspace = true, features = [
     "max-encoded-len",
 ] }
 scale-info = { workspace = true, features = ["derive"] }
+scale-encode.workspace = true
+scale-decode.workspace = true
 derive_more.workspace = true
 log.workspace = true
 gear-wasm-instrument.workspace = true

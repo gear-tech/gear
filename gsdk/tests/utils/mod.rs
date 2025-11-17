@@ -34,5 +34,6 @@ pub fn dev_node() -> NodeInstance {
 }
 
 pub fn alice_account_id() -> AccountId32 {
-    AccountId32::from_ss58check("5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY").unwrap()
+    sp_runtime::AccountId32::from_ss58check("5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY")
+        .unwrap()
 }

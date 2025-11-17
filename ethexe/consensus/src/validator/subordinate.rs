@@ -249,7 +249,6 @@ impl Subordinate {
                     .for_each(|tx| self.ctx.core.db.set_injected_transaction(tx.clone()));
 
                 let announce: Announce = Announce::from(&network_announce);
-
                 let announce_hash = self.ctx.core.db.set_announce(announce.clone());
                 self.ctx
                     .core
