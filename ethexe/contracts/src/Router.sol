@@ -499,12 +499,13 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
                 router.protocolData.programs[transition.actorId] != 0, "couldn't perform transition for unknown program"
             );
 
-            if (transition.valueToReceive != 0) {
-                (bool success,) = transition.actorId.call{value: transition.valueToReceive}("");
-                require(success, "transfer to actor failed");
+            uint128 value = 0;
+
+            if (transition.valueToReceive != 0 && !transition.valueToReceiveNegativeSign) {
+                value = transition.valueToReceive;
             }
 
-            bytes32 transitionHash = IMirror(transition.actorId).performStateTransition(transition);
+            bytes32 transitionHash = IMirror(transition.actorId).performStateTransition{value: value}(transition);
 
             transitionsHashes = bytes.concat(transitionsHashes, transitionHash);
         }

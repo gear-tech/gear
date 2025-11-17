@@ -29,7 +29,7 @@
 # Ethereum address: 0x1a642f0e3c3af545e7acbd38b07251b3990914f1
 # ```
 # (optional, default: None).
-# validator = "0x031b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f"
+validator = "0x02ba5734d8f7091719471e7f7ed6b9df170dc70cc661ca05e688601ad984f068b0"
 
 # Public key of the validator session, if node should act as one.
 # Provided in the format of 33-byte hex string:
@@ -49,7 +49,7 @@
 # Ethereum address: 0x1a642f0e3c3af545e7acbd38b07251b3990914f1
 # ```
 # (optional, default: None).
-# validator-session = "0x031b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f"
+validator-session = "0x02ba5734d8f7091719471e7f7ed6b9df170dc70cc661ca05e688601ad984f068b0"
 
 # Max allowed height diff from head for sync directly from Ethereum.
 # (optional, must be non-zero u32, default: 100_000).
@@ -87,15 +87,15 @@
 [ethereum]
 # Ethereum RPC endpoint.
 # (optional, default: ws://localhost:8545).
-# rpc = "ws://localhost:8545"
+rpc = "ws://localhost:8545"
 
 # Ethereum Beacon RPC endpoint.
 # (optional, default: http://localhost:5052).
-# beacon-rpc = "http://localhost:5052"
+beacon-rpc = "http://localhost:8545"
 
 # Ethereum router contract address.
 # (optional).
-# router = "0x0000000000000000000000000000000000000000"
+router = "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9"
 
 # Ethereum block time in seconds.
 # (optional, default: 12).

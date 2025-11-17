@@ -21,11 +21,11 @@
 //! ## Definitions
 //! - `block` - an ethereum block.
 //! - `announce` - see [Announce](ethexe_common::Announce).
-//! - `announce.block` - block for which announce was created.
-//! - `announce.committed_block` - block where announce was committed (if it was committed).
+//! - `announce.for_block` - block for which announce was created.
+//! - `announce.committed_at_block` - block where announce was committed (if it was committed).
 //! - `announce.branch` - linked chain of announces starting from `start_announce` to `announce` itself.
 //! - `base announce` - announce which does not have any injected transactions and gas allowance.
-//! - `not-base announce` - any announce which is cannot be classified as base announce.
+//! - `not-base announce` - any announce which cannot be classified as base announce.
 //! - `commitment_delay_limit` - protocol parameter defining maximal delay (in blocks)
 //!   for committing announces not-base announces.
 //! - `start_block` - genesis block (for ethexe) or defined by fast_sync block,
@@ -33,7 +33,7 @@
 //!   Always has only one announce, which is called `start_announce`.
 //! - `block.announces` - set of announces connected to the `block`. All announces in this set
 //!   are created for this `block`.
-//! - `included announce` - announce which has been included in `block.announces` of `announce.block`.
+//! - `included announce` - announce which has been included in `block.announces` of `announce.for_block`.
 //!   It's guaranteed that if announce is included, than announce body is set in db also.
 //! - `block.last_committed_announce` - last committed announce at `block` (can be committed in predecessors).
 //! - `propagated block` - block for which announces were propagated. Must have at least one announce in `block.announces`.
@@ -51,8 +51,8 @@
 //! If it's known at `block` that `announce1` has been committed
 //! and `announce2` has been committed after `announce1`, then
 //! 1) `announce2` is strict successor of `announce1`
-//! 2) `announce2.block` is a strict successor of `announce1.block`
-//! 3) `announce2.committed_block` is a successor of `announce1.committed_block`
+//! 2) `announce2.for_block` is a strict successor of `announce1.for_block`
+//! 3) `announce2.committed_at_block` is a successor of `announce1.committed_at_block`
 //!
 //! ### STATEMENT3 (S3)
 //! About local announces propagation. For correctness, strict rules must be followed to propagate announces.
@@ -72,19 +72,19 @@
 //!
 //! ### THEOREM 1 (T1)
 //! If `announce` is any announce committed in any block from `chain`
-//! and `announce` is not yet included by this node, then `cpa` must exists
-//! (common predecessor announce), which is
+//! and `announce` is not yet included by this node,
+//! then `common_predecessor_announce` must exists, such that
 //! 1) included by this node
 //! 2) strict predecessor of `announce`
 //! 3) strict predecessor of at least one announce from `lpb.announces`
-//! 4) `lpb.height - commitment_delay_limit < cpa.block.height < lpb.height`
+//! 4) `lpb.height - commitment_delay_limit <= common_predecessor_announce.for_block.height < lpb.height`
 //!
 //! ### T1 Consequences
 //! If `announce` is committed in some block from `chain` and
 //! this `announce` is not included yet, then
-//! 1) (T1S1) `announce.block.height > lpb.height - commitment_delay_limit`
+//! 1) (T1S1) `announce.for_block.height > lpb.height - commitment_delay_limit`
 //! 2) (T1S2) if `announce1` is predecessor of any announce from `lpb.announces`
-//!    and `announce1.block.height <= lpb.height - commitment_delay_limit`,
+//!    and `announce1.for_block.height <= lpb.height - commitment_delay_limit`,
 //!    then `announce1` is strict predecessor of `announce` and is predecessor of each
 //!    announce from `lpb.announces`.
 
@@ -111,7 +111,7 @@ pub trait DBAnnouncesExt:
     fn include_announce(&self, announce: Announce) -> Result<(HashOf<Announce>, bool)>;
 
     /// Check whether announce is already included.
-    fn announce_is_included(&self, announce_hash: HashOf<Announce>) -> bool;
+    fn is_announce_included(&self, announce_hash: HashOf<Announce>) -> bool;
 
     /// Get set of parents for the given set of announces.
     fn announces_parents(
@@ -167,7 +167,7 @@ impl<DB: AnnounceStorageRW + BlockMetaStorageRW + OnChainStorageRO + LatestDataS
         }
     }
 
-    fn announce_is_included(&self, announce_hash: HashOf<Announce>) -> bool {
+    fn is_announce_included(&self, announce_hash: HashOf<Announce>) -> bool {
         // Zero announce hash is always included (it's a parent of the genesis announce)
         if announce_hash == HashOf::zero() {
             return true;
@@ -224,7 +224,7 @@ pub fn propagate_announces(
                 )
             })?;
 
-        announces_chain_recovery_if_needed(
+        recover_announces_chain_if_needed(
             db,
             &block,
             last_committed_announce_hash,
@@ -293,7 +293,7 @@ pub fn propagate_announces(
 /// ```
 /// where `(A3')` and `(A2')` are committed and must be presented in `missing_announces`,
 /// and `(A4')` is base announce propagated from `(A3')`.
-fn announces_chain_recovery_if_needed(
+fn recover_announces_chain_if_needed(
     db: &impl DBAnnouncesExt,
     block: &SimpleBlockData,
     last_committed_announce_hash: HashOf<Announce>,
@@ -310,7 +310,7 @@ fn announces_chain_recovery_if_needed(
     let mut last_committed_announce_block_hash = None;
     let mut current_announce_hash = last_committed_announce_hash;
     let mut count = 0;
-    while count < commitment_delay_limit && !db.announce_is_included(current_announce_hash) {
+    while count < commitment_delay_limit && !db.is_announce_included(current_announce_hash) {
         tracing::debug!(announce = %current_announce_hash, "Committed announces was not included yet, try to recover...");
 
         let announce = missing_announces.remove(&current_announce_hash).ok_or_else(|| {
@@ -338,7 +338,7 @@ fn announces_chain_recovery_if_needed(
 
     // If error: DB is corrupted, or incorrect commitment detected (have not-base announce committed after commitment delay limit)
     ensure!(
-        db.announce_is_included(current_announce_hash),
+        db.is_announce_included(current_announce_hash),
         "{current_announce_hash} is not included after checking {commitment_delay_limit} announces",
     );
 
@@ -478,7 +478,7 @@ pub fn check_for_missing_announces(
         .last_committed_announce
         .ok_or_else(|| anyhow!("last committed announce not found for block {head}"))?;
 
-    if db.announce_is_included(last_committed_announce_hash) {
+    if db.is_announce_included(last_committed_announce_hash) {
         // announce is already included, no need to request announces
 
         #[cfg(debug_assertions)]
@@ -511,7 +511,7 @@ pub fn check_for_missing_announces(
                 .min(100);
             while count > 0 && announce_hash != start_announce_hash {
                 assert!(
-                    db.announce_is_included(announce_hash),
+                    db.is_announce_included(announce_hash),
                     "announce {announce_hash} must be included"
                 );
 

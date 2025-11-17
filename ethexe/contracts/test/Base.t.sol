@@ -329,6 +329,7 @@ contract Base is POCBaseTest {
                 _transition.exited,
                 _transition.inheritor,
                 _transition.valueToReceive,
+                _transition.valueToReceiveNegativeSign,
                 keccak256(_valueClaimsBytes),
                 keccak256(_messagesHashesBytes)
             );

@@ -27,7 +27,7 @@ rand = "0.8"
 rand_chacha = "0.3"
 roast-secp256k1-evm.workspace = true
 hashbrown.workspace = true
-uluru.workspace = true
+lru.workspace = true
 
 [dev-dependencies]
 tokio.workspace = true

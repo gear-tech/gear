@@ -159,7 +159,11 @@ library Gear {
         bytes32 newStateHash;
         bool exited;
         address inheritor;
+        /// @dev We represent `valueToReceive` as `uint128` and `bool` because each non-zero byte costs 16 gas,
+        ///      and each zero byte costs 4 gas (see https://evm.codes/about#gascosts).
+        ///      Also see `ethexe/common/src/gear.rs`.
         uint128 valueToReceive;
+        bool valueToReceiveNegativeSign;
         ValueClaim[] valueClaims;
         Message[] messages;
     }
@@ -292,12 +296,20 @@ library Gear {
         bool exited,
         address inheritor,
         uint128 valueToReceive,
+        bool valueToReceiveNegativeSign,
         bytes32 valueClaimsHash,
         bytes32 messagesHashesHash
     ) internal pure returns (bytes32) {
         return keccak256(
             abi.encodePacked(
-                actor, newStateHash, exited, inheritor, valueToReceive, valueClaimsHash, messagesHashesHash
+                actor,
+                newStateHash,
+                exited,
+                inheritor,
+                valueToReceive,
+                valueToReceiveNegativeSign,
+                valueClaimsHash,
+                messagesHashesHash
             )
         );
     }

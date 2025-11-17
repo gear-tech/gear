@@ -19,13 +19,10 @@
 use crate::config::{Config, ConfigPublicKey};
 use anyhow::{Context, Result, bail};
 use async_trait::async_trait;
-use core::panic;
-use ethexe_blob_loader::{
-    BlobLoader, BlobLoaderEvent, BlobLoaderService, ConsensusLayerConfig,
-    local::{LocalBlobLoader, LocalBlobStorage},
-};
+use ethexe_blob_loader::{BlobLoader, BlobLoaderEvent, BlobLoaderService, ConsensusLayerConfig};
 use ethexe_common::{
-    Address, ecdsa::PublicKey, gear::CodeState, network::VerifiedValidatorMessage,
+    Address, COMMITMENT_DELAY_LIMIT, ecdsa::PublicKey, gear::CodeState,
+    network::VerifiedValidatorMessage,
 };
 use ethexe_compute::{ComputeConfig, ComputeEvent, ComputeService};
 use ethexe_consensus::{
@@ -125,23 +122,15 @@ impl Service {
         .with_context(|| "failed to open database")?;
         let db = Database::from_one(&rocks_db);
 
-        let (blob_loader, local_blob_storage_for_rpc) = if config.node.dev {
-            let storage = LocalBlobStorage::default();
-            let blob_loader = LocalBlobLoader::new(storage.clone());
-
-            (blob_loader.into_box(), Some(storage))
-        } else {
-            let consensus_config = ConsensusLayerConfig {
-                ethereum_rpc: config.ethereum.rpc.clone(),
-                ethereum_beacon_rpc: config.ethereum.beacon_rpc.clone(),
-                beacon_block_time: alloy::eips::merge::SLOT_DURATION,
-            };
-            let blob_loader = BlobLoader::new(db.clone(), consensus_config)
-                .await
-                .context("failed to create blob loader")?;
-
-            (blob_loader.into_box(), None)
+        let consensus_config = ConsensusLayerConfig {
+            ethereum_rpc: config.ethereum.rpc.clone(),
+            ethereum_beacon_rpc: config.ethereum.beacon_rpc.clone(),
+            beacon_block_time: alloy::eips::merge::SLOT_DURATION,
         };
+        let blob_loader = BlobLoader::new(db.clone(), consensus_config)
+            .await
+            .context("failed to create blob loader")?
+            .into_box();
 
         let observer =
             ObserverService::new(&config.ethereum, config.node.eth_max_sync_depth, db.clone())
@@ -224,7 +213,7 @@ impl Service {
                         block_gas_limit: config.node.block_gas_limit,
                         // TODO: #4942 commitment_delay_limit is a protocol specific constant
                         // which better to be configurable by router contract
-                        commitment_delay_limit: 3,
+                        commitment_delay_limit: COMMITMENT_DELAY_LIMIT,
                         producer_delay: Duration::ZERO,
                         router_address: config.ethereum.router_address,
                     },
@@ -274,7 +263,7 @@ impl Service {
         let rpc = config
             .rpc
             .as_ref()
-            .map(|config| RpcService::new(config.clone(), db.clone(), local_blob_storage_for_rpc));
+            .map(|config| RpcService::new(config.clone(), db.clone()));
 
         let tx_pool = TxPoolService::new(db.clone());
 
