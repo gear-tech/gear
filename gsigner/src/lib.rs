@@ -55,6 +55,7 @@ extern crate alloc;
 pub mod address;
 pub mod crypto;
 pub mod error;
+#[cfg(feature = "secp256k1")]
 pub mod hash;
 pub mod schemes;
 #[cfg(feature = "std")]

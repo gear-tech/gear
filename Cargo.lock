@@ -302,7 +302,6 @@ dependencies = [
  "alloy-primitives",
  "alloy-rlp",
  "borsh",
- "k256",
  "serde",
  "thiserror 2.0.12",
 ]
@@ -4893,8 +4892,8 @@ dependencies = [
  "ethexe-prometheus",
  "ethexe-rpc",
  "ethexe-service",
- "ethexe-signer",
  "gprimitives",
+ "gsigner",
  "hex",
  "libp2p-identity",
  "log",
@@ -4916,6 +4915,7 @@ dependencies = [
  "derive_more 2.0.1",
  "gear-core",
  "gprimitives",
+ "gsigner",
  "hex",
  "itertools 0.13.0",
  "k256",
@@ -4960,10 +4960,10 @@ dependencies = [
  "ethexe-db",
  "ethexe-ethereum",
  "ethexe-service-utils",
- "ethexe-signer",
  "futures",
  "gear-utils",
  "gprimitives",
+ "gsigner",
  "hashbrown 0.14.5",
  "nonempty 0.12.0",
  "ntest",
@@ -5003,12 +5003,12 @@ dependencies = [
  "anyhow",
  "async-trait",
  "ethexe-common",
- "ethexe-signer",
  "futures",
  "gear-core",
  "gear-core-errors",
  "gear-utils",
  "gprimitives",
+ "gsigner",
  "log",
  "nonempty 0.12.0",
  "rand 0.8.5",
@@ -5029,9 +5029,9 @@ dependencies = [
  "ethexe-common",
  "ethexe-db",
  "ethexe-service-utils",
- "ethexe-signer",
  "futures",
  "gprimitives",
+ "gsigner",
  "itertools 0.13.0",
  "libp2p 0.55.0",
  "libp2p-swarm-test",
@@ -5054,10 +5054,10 @@ dependencies = [
  "ethexe-common",
  "ethexe-db",
  "ethexe-ethereum",
- "ethexe-signer",
  "futures",
  "gear-utils",
  "gprimitives",
+ "gsigner",
  "log",
  "tokio",
  "tracing",
@@ -5194,11 +5194,11 @@ dependencies = [
  "ethexe-rpc",
  "ethexe-runtime-common",
  "ethexe-service-utils",
- "ethexe-signer",
  "futures",
  "gear-core",
  "gear-core-errors",
  "gprimitives",
+ "gsigner",
  "jsonrpsee",
  "log",
  "ntest",
@@ -5218,18 +5218,6 @@ dependencies = [
  "futures",
  "log",
  "tokio",
-]
-
-[[package]]
-name = "ethexe-signer"
-version = "1.9.2"
-dependencies = [
- "alloy",
- "anyhow",
- "derive_more 2.0.1",
- "ethexe-common",
- "parity-scale-codec",
- "tempfile",
 ]
 
 [[package]]
@@ -6233,17 +6221,19 @@ dependencies = [
  "gear-core",
  "gear-node-wrapper",
  "gear-runtime-primitives",
- "gring",
  "gsdk",
+ "gsigner",
  "hex",
  "keyring",
  "log",
  "reqwest",
  "scale-info",
+ "schnorrkel",
  "serde",
  "thiserror 2.0.12",
  "tokio",
  "toml 0.8.14",
+ "tracing",
  "tracing-subscriber",
  "url",
 ]
@@ -7264,26 +7254,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "gring"
-version = "1.9.2"
-dependencies = [
- "anyhow",
- "base64 0.21.7",
- "clap 4.5.23",
- "colored",
- "dirs",
- "gear-ss58",
- "hex",
- "nacl",
- "rand 0.8.5",
- "schnorrkel",
- "serde",
- "serde_json",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
 name = "group"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7309,6 +7279,7 @@ dependencies = [
  "gear-core-errors",
  "gear-node-wrapper",
  "gsdk-codegen",
+ "gsigner",
  "hex",
  "indexmap 2.7.1",
  "jsonrpsee",
@@ -7332,6 +7303,36 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.106",
+]
+
+[[package]]
+name = "gsigner"
+version = "1.9.2"
+dependencies = [
+ "alloy-primitives",
+ "anyhow",
+ "base64 0.21.7",
+ "clap 4.5.23",
+ "colored",
+ "derive_more 2.0.1",
+ "gprimitives",
+ "hex",
+ "k256",
+ "nacl",
+ "nonempty 0.12.0",
+ "parity-scale-codec",
+ "rand 0.8.5",
+ "schnorrkel",
+ "serde",
+ "serde_json",
+ "sha2 0.10.8",
+ "sha3",
+ "sp-core",
+ "tempfile",
+ "thiserror 2.0.12",
+ "tracing",
+ "tracing-subscriber",
+ "zeroize",
 ]
 
 [[package]]

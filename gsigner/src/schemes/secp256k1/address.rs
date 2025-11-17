@@ -28,8 +28,8 @@ use hex::FromHexError;
 use nonempty::NonEmpty;
 #[cfg(feature = "codec")]
 use parity_scale_codec::{Decode, Encode};
-#[cfg(feature = "std")]
-use serde::{Deserialize, Serialize};
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 /// Ethereum address type.
 ///
@@ -90,21 +90,21 @@ impl FromStr for Address {
     }
 }
 
-#[cfg(feature = "std")]
-impl serde::Serialize for Address {
+#[cfg(feature = "serde")]
+impl Serialize for Address {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
-        S: serde::Serializer,
+        S: Serializer,
     {
         self.to_hex().serialize(serializer)
     }
 }
 
-#[cfg(feature = "std")]
-impl<'de> serde::Deserialize<'de> for Address {
+#[cfg(feature = "serde")]
+impl<'de> Deserialize<'de> for Address {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
-        D: serde::Deserializer<'de>,
+        D: Deserializer<'de>,
     {
         let address = String::deserialize(deserializer)?;
         let address = Address::from_str(&address).map_err(serde::de::Error::custom)?;

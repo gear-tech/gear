@@ -56,10 +56,10 @@ use ethexe_processor::{
     DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, DEFAULT_CHUNK_PROCESSING_THREADS, Processor, RunnerConfig,
 };
 use ethexe_rpc::{InjectedClient, InjectedTransactionAcceptance, RpcConfig, RpcService};
-use ethexe_signer::Signer;
 use futures::StreamExt;
 use gear_core_errors::ReplyCode;
 use gprimitives::{ActorId, CodeId, H160, H256, MessageId};
+use gsigner::secp256k1::Signer;
 use jsonrpsee::http_client::HttpClient;
 use rand::{SeedableRng, prelude::StdRng};
 use roast_secp256k1_evm::frost::{
@@ -597,8 +597,9 @@ impl TestEnv {
                 .zip(validator_identifiers.iter())
                 .map(|(public_key, id)| {
                     let signing_share = *secret_shares[id].signing_share();
+                    let seed: [u8; 32] = <[u8; 32]>::try_from(signing_share.serialize()).unwrap();
                     let private_key =
-                        PrivateKey::from(<[u8; 32]>::try_from(signing_share.serialize()).unwrap());
+                        PrivateKey::from_seed(seed).expect("signing share must be valid seed");
                     ValidatorConfig {
                         public_key,
                         session_public_key: signer.storage_mut().add_key(private_key).unwrap(),

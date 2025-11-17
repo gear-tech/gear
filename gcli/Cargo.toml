@@ -22,7 +22,7 @@ color-eyre.workspace = true
 dirs.workspace = true
 tracing-subscriber.workspace = true
 gear-core.workspace = true
-gsigner = { workspace = true, features = ["std", "cli", "keyring"] }
+gsigner = { workspace = true, features = ["std", "cli", "keyring", "secp256k1", "sr25519", "ed25519", "codec"] }
 hex.workspace = true
 keyring.workspace = true
 log.workspace = true

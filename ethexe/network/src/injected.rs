@@ -249,7 +249,7 @@ mod tests {
     use super::*;
     use crate::utils::tests::init_logger;
     use ethexe_common::{injected::InjectedTransaction, mock::Mock};
-    use ethexe_signer::Signer;
+    use gsigner::secp256k1::{Secp256k1SignerExt, Signer};
     use libp2p::Swarm;
     use libp2p_swarm_test::SwarmExt;
 

@@ -83,7 +83,7 @@ impl KeyCommand {
 
                 if self.network {
                     let libp2p_public = libp2p_identity::PublicKey::from(
-                        libp2p_identity::secp256k1::PublicKey::try_from_bytes(&public.0)
+                        libp2p_identity::secp256k1::PublicKey::try_from_bytes(&public.to_bytes())
                             .with_context(|| "invalid sec1 format")?,
                     );
                     println!("Peer ID: {}", libp2p_public.to_peer_id());
@@ -105,7 +105,7 @@ impl KeyCommand {
 
                 if self.network {
                     let libp2p_public = libp2p_identity::PublicKey::from(
-                        libp2p_identity::secp256k1::PublicKey::try_from_bytes(&public.0)
+                        libp2p_identity::secp256k1::PublicKey::try_from_bytes(&public.to_bytes())
                             .with_context(|| "invalid sec1 format")?,
                     );
                     println!("Peer ID: {}", libp2p_public.to_peer_id());

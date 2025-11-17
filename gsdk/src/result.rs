@@ -43,6 +43,9 @@ pub enum Error {
     #[error("{0} is invalid")]
     InvalidPage(FailedPage),
 
+    #[error("invalid secret phrase or key material")]
+    InvalidSecret,
+
     #[error("{0} was not found in the storage")]
     PageNotFound(FailedPage),
 

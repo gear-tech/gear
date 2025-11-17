@@ -20,6 +20,8 @@
 
 use super::{Address, Digest, PrivateKey, PublicKey};
 use crate::{error::SignerError, hash::keccak256_iter};
+#[cfg(feature = "serde")]
+use alloc::{format, string::String};
 use core::hash::{Hash, Hasher};
 use derive_more::{Debug, Display};
 use k256::ecdsa::{self, RecoveryId};
@@ -27,7 +29,7 @@ use k256::ecdsa::{self, RecoveryId};
 use parity_scale_codec::{
     Decode, Encode, Error as CodecError, Input as CodecInput, Output as CodecOutput,
 };
-#[cfg(feature = "std")]
+#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use sp_core::ecdsa::{Pair as SpPair, Public as SpPublic, Signature as SpSignature};
 
@@ -167,7 +169,7 @@ impl Encode for Signature {
     }
 }
 
-#[cfg(feature = "std")]
+#[cfg(feature = "serde")]
 impl<'de> Deserialize<'de> for Signature {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -187,7 +189,7 @@ impl<'de> Deserialize<'de> for Signature {
     }
 }
 
-#[cfg(feature = "std")]
+#[cfg(feature = "serde")]
 impl Serialize for Signature {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -198,22 +200,16 @@ impl Serialize for Signature {
     }
 }
 
-impl Hash for Signature {
-    fn hash<H: Hasher>(&self, state: &mut H) {
-        self.into_pre_eip155_bytes().hash(state);
-    }
-}
-
 /// A signed data structure that contains the data and its signature.
 #[derive(Clone, PartialEq, Eq, Debug, Display, Hash)]
 #[cfg_attr(feature = "codec", derive(Encode))]
-#[cfg_attr(feature = "std", derive(Serialize))]
+#[cfg_attr(feature = "serde", derive(Serialize))]
 #[display("SignedData({data}, {signature})")]
 pub struct SignedData<T: Sized> {
     data: T,
     signature: Signature,
     #[cfg_attr(feature = "codec", codec(skip))]
-    #[cfg_attr(feature = "std", serde(skip))]
+    #[cfg_attr(feature = "serde", serde(skip))]
     public_key: PublicKey,
 }
 
@@ -264,7 +260,7 @@ where
     }
 }
 
-#[cfg(feature = "std")]
+#[cfg(feature = "serde")]
 impl<'de, T: Sized + serde::Deserialize<'de>> serde::Deserialize<'de> for SignedData<T>
 where
     for<'a> Digest: From<&'a T>,

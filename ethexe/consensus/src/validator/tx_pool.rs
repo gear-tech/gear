@@ -240,7 +240,7 @@ mod tests {
         tx.reference_block = reference_block;
         tx.destination = ActorId::zero();
 
-        SignedInjectedTransaction::create(PrivateKey::random(), tx).unwrap()
+        SignedInjectedTransaction::create(&PrivateKey::random(), tx).unwrap()
     }
 
     fn setup_announce(db: &Database, txs: Vec<SignedInjectedTransaction>) -> HashOf<Announce> {
