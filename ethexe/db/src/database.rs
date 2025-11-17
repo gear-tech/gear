@@ -704,10 +704,10 @@ mod tests {
             private_key,
             InjectedTransaction {
                 destination: ActorId::zero(),
-                // payload: vec![].into(),
+                payload: vec![].into(),
                 value: 0,
                 reference_block: H256::random(),
-                // salt: vec![].into(),
+                salt: vec![].into(),
             },
         )
         .unwrap();
