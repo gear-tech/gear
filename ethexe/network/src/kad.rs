@@ -69,7 +69,7 @@ impl ValidatorIdentityRecord {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, Encode, Decode, derive_more::From)]
+#[derive(Debug, PartialEq, Eq, Encode, Decode, derive_more::From, derive_more::Unwrap)]
 pub enum RecordKey {
     ValidatorIdentity(ValidatorIdentityKey),
 }
@@ -84,7 +84,7 @@ impl RecordKey {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, derive_more::From)]
+#[derive(Debug, PartialEq, Eq, derive_more::From, derive_more::Unwrap)]
 pub enum Record {
     ValidatorIdentity(ValidatorIdentityRecord),
 }
@@ -419,5 +419,202 @@ impl NetworkBehaviour for Behaviour {
                 unreachable!("`ToSwarm::GenerateEvent` is handled above")
             })),
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::validator::discovery::ValidatorIdentity;
+    use ethexe_signer::Signer;
+    use libp2p::{
+        Multiaddr, identity::Keypair, kad, kad::GetRecordOk as KadGetRecordOk, swarm::ConnectionId,
+    };
+    use std::{num::NonZeroUsize, str::FromStr};
+
+    fn new_identity() -> SignedValidatorIdentity {
+        let signer = Signer::memory();
+        let validator_key = signer.generate_key().unwrap();
+        let identity = ValidatorIdentity {
+            addresses: vec![Multiaddr::from_str("/ip4/127.0.0.1/tcp/30333").unwrap()],
+            creation_time: 1,
+        };
+        identity
+            .sign(&signer, validator_key, &Keypair::generate_secp256k1())
+            .expect("signing validator identity should work")
+    }
+
+    fn new_behaviour() -> Behaviour {
+        let peer_id = Keypair::generate_ed25519().public().to_peer_id();
+        Behaviour::new(peer_id, peer_score::Handle::new_test())
+    }
+
+    #[test]
+    fn record_encode_decode() {
+        let signed = new_identity();
+        let kad_record = Record::ValidatorIdentity(ValidatorIdentityRecord {
+            value: signed.clone(),
+        })
+        .into_kad_record();
+
+        let record = Record::new(&kad_record)
+            .expect("record must decode")
+            .unwrap_validator_identity();
+        assert_eq!(record.value, signed);
+    }
+
+    #[test]
+    fn record_errors_on_mismatched_validator() {
+        let signed = new_identity();
+        let mismatched_key = ValidatorIdentityKey {
+            validator: Address::from(42u64),
+        };
+        let kad_record = kad::Record::new(
+            RecordKey::ValidatorIdentity(mismatched_key).encode(),
+            signed.encode(),
+        );
+
+        Record::new(&kad_record).unwrap_err();
+    }
+
+    #[test]
+    fn validator_stores_record_after_successful_check() {
+        let signed = new_identity();
+        let mut behaviour = new_behaviour();
+        let original_record = Record::ValidatorIdentity(ValidatorIdentityRecord {
+            value: signed.clone(),
+        })
+        .into_kad_record();
+        let key = original_record.key.clone();
+        let validator = PutRecordValidator {
+            original_record,
+            record: Record::ValidatorIdentity(ValidatorIdentityRecord { value: signed }),
+        };
+
+        validator.validate(&mut behaviour, |_record| true);
+
+        assert!(behaviour.inner.store_mut().get(&key).is_some());
+    }
+
+    #[test]
+    fn validator_does_not_store_when_check_fails() {
+        let signed = new_identity();
+        let mut behaviour = new_behaviour();
+        let original_record = Record::ValidatorIdentity(ValidatorIdentityRecord {
+            value: signed.clone(),
+        })
+        .into_kad_record();
+        let key = original_record.key.clone();
+        let validator = PutRecordValidator {
+            original_record,
+            record: Record::ValidatorIdentity(ValidatorIdentityRecord { value: signed }),
+        };
+
+        validator.validate(&mut behaviour, |_record| false);
+
+        assert!(behaviour.inner.store_mut().get(&key).is_none());
+    }
+
+    #[test]
+    fn inbound_put_record_emits_event_with_validator() {
+        let signed = new_identity();
+        let mut behaviour = new_behaviour();
+        let peer = PeerId::random();
+        let kad_record = Record::ValidatorIdentity(ValidatorIdentityRecord {
+            value: signed.clone(),
+        })
+        .into_kad_record();
+        let event = kad::Event::InboundRequest {
+            request: kad::InboundRequest::PutRecord {
+                source: peer,
+                connection: ConnectionId::new_unchecked(1),
+                record: Some(kad_record),
+            },
+        };
+
+        let Poll::Ready(Event::InboundPutRecord { source, validator }) =
+            behaviour.handle_inner_event(event)
+        else {
+            panic!("poll is pending")
+        };
+
+        assert_eq!(source, peer);
+        let PutRecordValidator { record, .. } = *validator;
+        let record = record.unwrap_validator_identity();
+        assert_eq!(record.value, signed);
+    }
+
+    #[test]
+    fn get_record_success_is_reported_and_cached() {
+        let signed = new_identity();
+        let mut behaviour = new_behaviour();
+        let query_id = behaviour.get_record(RecordKey::ValidatorIdentity(ValidatorIdentityKey {
+            validator: signed.address(),
+        }));
+        let peer = PeerId::random();
+        let kad_record = Record::ValidatorIdentity(ValidatorIdentityRecord {
+            value: signed.clone(),
+        })
+        .into_kad_record();
+        let step = kad::ProgressStep {
+            count: NonZeroUsize::new(1).unwrap(),
+            last: true,
+        };
+        let event = kad::Event::OutboundQueryProgressed {
+            id: query_id,
+            result: kad::QueryResult::GetRecord(Ok(KadGetRecordOk::FoundRecord(PeerRecord {
+                peer: Some(peer),
+                record: kad_record.clone(),
+            }))),
+            stats: kad::QueryStats::empty(),
+            step,
+        };
+
+        let Poll::Ready(Event::GetRecord(Ok(result))) = behaviour.handle_inner_event(event) else {
+            unreachable!("poll is pending")
+        };
+        assert_eq!(result.peer, Some(peer));
+        assert_eq!(result.record.unwrap_validator_identity().value, signed);
+
+        assert_eq!(
+            behaviour
+                .cache_candidates_records
+                .get(&query_id)
+                .map(|rec| rec.value.clone()),
+            Some(kad_record.value)
+        );
+    }
+
+    #[test]
+    fn get_record_not_found_propagates_error() {
+        let signed = new_identity();
+        let mut behaviour = new_behaviour();
+        let validator = signed.address();
+        let query_id = behaviour.get_record(RecordKey::ValidatorIdentity(ValidatorIdentityKey {
+            validator,
+        }));
+        let kad_key =
+            RecordKey::ValidatorIdentity(ValidatorIdentityKey { validator }).into_kad_key();
+        let step = kad::ProgressStep {
+            count: NonZeroUsize::new(1).unwrap(),
+            last: true,
+        };
+        let event = kad::Event::OutboundQueryProgressed {
+            id: query_id,
+            result: kad::QueryResult::GetRecord(Err(kad::GetRecordError::NotFound {
+                key: kad_key,
+                closest_peers: Vec::new(),
+            })),
+            stats: kad::QueryStats::empty(),
+            step,
+        };
+
+        let Poll::Ready(Event::GetRecord(Err(GetRecordError::NotFound { key }))) =
+            behaviour.handle_inner_event(event)
+        else {
+            unreachable!("poll is pending")
+        };
+        let ValidatorIdentityKey { validator: got } = key.unwrap_validator_identity();
+        assert_eq!(got, validator);
     }
 }
