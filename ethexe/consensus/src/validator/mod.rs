@@ -251,11 +251,7 @@ impl Stream for ValidatorService {
             let ctx = inner.context_mut();
             for mut task in mem::take(&mut ctx.tasks) {
                 if let Poll::Ready(result) = task.poll_unpin(cx) {
-                    // Collect finished tasks
-                    ctx.output(match result {
-                        Err(err) => ConsensusEvent::Warning(format!("task failed: {err}")),
-                        Ok(event) => event,
-                    });
+                    ctx.output(result?);
                 } else {
                     // Put back unfinished tasks
                     ctx.tasks.push_back(task);

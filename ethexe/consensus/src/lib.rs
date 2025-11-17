@@ -110,6 +110,7 @@ pub enum ConsensusEvent {
     #[from]
     RequestAnnounces(AnnouncesRequest),
     /// Informational event: commitment was successfully submitted, tx hash is provided
+    #[from]
     CommitmentSubmitted(CommitmentSubmitted),
     /// Informational event: during service processing, a warning situation was detected
     Warning(String),

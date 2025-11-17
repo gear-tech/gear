@@ -21,7 +21,7 @@ use crate::{
     BatchCommitmentValidationReply, CommitmentSubmitted, ConsensusEvent,
     utils::MultisignedBatchCommitment, validator::initial::Initial,
 };
-use anyhow::{Context, Result, anyhow, ensure};
+use anyhow::{Result, anyhow, ensure};
 use derive_more::Display;
 use ethexe_common::{
     Address, ToDigest, ValidatorsVec, consensus::BatchCommitmentValidationRequest,
@@ -133,17 +133,17 @@ impl Coordinator {
             async move {
                 let block_hash = batch.block_hash;
                 let batch_digest = batch.to_digest();
-                cloned_committer
-                    .commit(batch, signatures)
-                    .await
-                    .map(|tx| {
-                        ConsensusEvent::CommitmentSubmitted(CommitmentSubmitted {
-                            block_hash,
-                            batch_digest,
-                            tx,
-                        })
-                    })
-                    .context("submission failed")
+                let event = match cloned_committer.commit(batch, signatures).await {
+                    Ok(tx) => CommitmentSubmitted {
+                        block_hash,
+                        batch_digest,
+                        tx,
+                    }.into(),
+                    Err(err) => ConsensusEvent::Warning(format!(
+                        "Failed to submit commitment for block {block_hash}, digest {batch_digest}: {err}"
+                    ))
+                };
+                Ok(event)
             }
             .boxed(),
         );

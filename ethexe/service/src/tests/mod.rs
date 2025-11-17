@@ -2557,8 +2557,23 @@ async fn announces_conflicts() {
 
 #[tokio::test(flavor = "multi_thread")]
 #[ntest::timeout(60_000)]
-async fn catch_up() {
+async fn catch_up_3() {
+    catch_up_test_case(3).await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ntest::timeout(60_000)]
+async fn catch_up_5() {
+    catch_up_test_case(5).await;
+}
+
+async fn catch_up_test_case(commitment_delay_limit: u32) {
     init_logger();
+
+    assert!(
+        commitment_delay_limit == 3 || commitment_delay_limit == 5,
+        "Only 3 or 5 commitment delay limit is supported"
+    );
 
     #[derive(Clone)]
     struct LateCommitter {
@@ -2592,11 +2607,13 @@ async fn catch_up() {
                 batch.to_digest(),
                 batch
             );
-            let pending = self.router.commit_batch_pending(batch, signatures).await?;
+            let pending = self.router.commit_batch_pending(batch, signatures).await;
+
+            // Notify that commitment is sent
+            self.wait_signal_sender.send(()).unwrap();
 
             log::info!("📗 LateCommitter waiting for commitment to be mined ...");
-            self.wait_signal_sender.send(()).unwrap();
-            pending
+            pending?
                 .try_get_receipt()
                 .await
                 .map(|r| r.transaction_hash.0.into())
@@ -2605,6 +2622,7 @@ async fn catch_up() {
 
     let config = TestEnvConfig {
         network: EnvNetworkConfig::Enabled,
+        commitment_delay_limit,
         ..Default::default()
     };
     let mut env = TestEnv::new(config).await.unwrap();
@@ -2720,6 +2738,7 @@ async fn catch_up() {
         // Send signal to make commitment2,
         // but it would not be applied because it's not above previous one
         commit_signal_sender.send(()).unwrap();
+        wait_signal_receiver.recv().await.unwrap();
 
         // Now commitment1 must be applied in the forced block
         wait_for.wait_for().await.unwrap();
@@ -2760,23 +2779,48 @@ async fn catch_up() {
         // Wait until Alice is ready for next commitment2
         wait_signal_receiver.recv().await.unwrap();
 
-        // Force new block to commit commitment1, fail because expired
+        // Force new block to commit commitment1
+        // if commitment_delay_limit == 3 => commitment1 would fail because contains expired announces
+        // if commitment_delay_limit == 5 => commitment1 would succeed
         env.force_new_block().await;
 
-        // Send signal to make commitment2 and wait until it's sent
-        commit_signal_sender.send(()).unwrap();
-        wait_signal_receiver.recv().await.unwrap();
+        if commitment_delay_limit == 3 {
+            // Waiting until Alice is ready for commitment2
+            wait_signal_receiver.recv().await.unwrap();
 
-        // Force new block to commit commitment2, succeed
-        env.force_new_block().await;
+            // Send signal to make commitment2 and wait until it's sent
+            commit_signal_sender.send(()).unwrap();
+            wait_signal_receiver.recv().await.unwrap();
 
-        // Now commitment1 must be applied in the forced block
+            // Force new block to commit commitment2, succeed
+            env.force_new_block().await;
+        } else if commitment_delay_limit == 5 {
+            // commitment1 already committed, so Alice would not commit commitment2, because it's empty
+        } else {
+            unreachable!();
+        }
+
+        // Now commitment1 or commitment2 must be applied in the forced blocks
         wait_for.wait_for().await.unwrap();
     }
 
-    log::info!("📗 Bob accepts announce from Alice at last");
     let latest_block = env.latest_block().await.hash;
-    bob.listener()
-        .wait_for_announce_accepted(latest_block)
+    let latest_announce_hash = alice
+        .listener()
+        .wait_for_announce_computed(latest_block)
         .await;
+
+    if commitment_delay_limit == 3 {
+        log::info!("📗 Bob accepts announce from Alice at last");
+        bob.listener()
+            .wait_for_announce_accepted(latest_announce_hash)
+            .await;
+    } else if commitment_delay_limit == 5 {
+        log::info!("📗 Bob still rejects announce from Alice");
+        bob.listener()
+            .wait_for_announce_rejected(latest_announce_hash)
+            .await;
+    } else {
+        unreachable!();
+    }
 }

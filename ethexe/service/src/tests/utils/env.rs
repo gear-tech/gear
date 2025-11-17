@@ -918,7 +918,11 @@ impl Node {
                     .unwrap(),
                 )
             } else {
-                Box::pin(ConnectService::new(self.db.clone(), self.block_time, 3))
+                Box::pin(ConnectService::new(
+                    self.db.clone(),
+                    self.block_time,
+                    self.commitment_delay_limit,
+                ))
             }
         };
 
