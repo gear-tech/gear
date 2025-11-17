@@ -34,6 +34,8 @@ mod ext;
 mod handler;
 pub mod precharge;
 mod processing;
+#[cfg(all(test, feature = "std"))]
+mod tests;
 
 pub use context::{ProcessExecutionContext, SystemReservationContext};
 pub use ext::{
