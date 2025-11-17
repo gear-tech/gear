@@ -169,7 +169,7 @@ impl DatabaseVisitor for IntegrityVerifier {
     }
 
     fn visit_announce(&mut self, announce_hash: HashOf<Announce>, announce: Announce) {
-        if !announce.off_chain_transactions.is_empty() {
+        if !announce.injected_transactions.is_empty() {
             self.errors
                 .push(IntegrityVerifierError::AnnounceOffChainTransactionsNotEmpty(announce_hash));
         }

@@ -21,6 +21,7 @@ use crate::{
     consensus::{BatchCommitmentValidationReply, BatchCommitmentValidationRequest},
     crypto::ToDigest,
     ecdsa::{SignedData, VerifiedData},
+    injected::Promise,
 };
 use alloc::vec::Vec;
 use core::{hash::Hash, num::NonZeroU32};
@@ -31,6 +32,7 @@ use sha3::{Digest as _, Keccak256};
 pub type ValidatorAnnounce = ValidatorMessage<Announce>;
 pub type ValidatorRequest = ValidatorMessage<BatchCommitmentValidationRequest>;
 pub type ValidatorReply = ValidatorMessage<BatchCommitmentValidationReply>;
+pub type ValidatorPromise = ValidatorMessage<Promise>;
 
 #[derive(Debug, Clone, Encode, Decode, Eq, PartialEq, Hash)]
 pub struct ValidatorMessage<T> {
@@ -65,7 +67,8 @@ impl SignedValidatorMessage {
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq, Hash, derive_more::Unwrap, derive_more::From)]
+#[cfg_attr(feature = "serde", derive(Hash))]
+#[derive(Debug, Clone, Eq, PartialEq, derive_more::Unwrap, derive_more::From)]
 pub enum VerifiedValidatorMessage {
     ProducerBlock(VerifiedData<ValidatorAnnounce>),
     RequestBatchValidation(VerifiedData<ValidatorRequest>),
@@ -114,7 +117,8 @@ pub struct AnnouncesRequest {
 /// Response for announces request.
 /// Must contain all announces for the requested range.
 /// Must be sorted from predecessors to successors.
-#[derive(PartialEq, Eq, Hash, Debug, Clone, Default, Encode, Decode)]
+#[cfg_attr(feature = "serde", derive(Hash))]
+#[derive(PartialEq, Eq, Debug, Clone, Default, Encode, Decode)]
 pub struct AnnouncesResponse {
     /// List of announces
     pub announces: Vec<Announce>,

@@ -314,7 +314,6 @@ ethexe-runtime-common = { path = "ethexe/runtime/common", default-features = fal
 ethexe-prometheus = { path = "ethexe/prometheus", default-features = false }
 ethexe-rpc = { path = "ethexe/rpc", default-features = false }
 ethexe-common = { path = "ethexe/common", default-features = false }
-ethexe-tx-pool = { path = "ethexe/tx-pool", default-features = false }
 ethexe-compute = { path = "ethexe/compute", default-features = false }
 ethexe-blob-loader = { path = "ethexe/blob-loader", default-features = false }
 

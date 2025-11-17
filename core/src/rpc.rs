@@ -50,7 +50,9 @@ pub struct GasInfo {
 /// Pre-calculated reply information.
 ///
 /// Intended to be used as a result in `calculateReplyFor*` RPC calls.
-#[derive(Clone, Debug, PartialEq, Eq, Encode, EncodeAsType, Decode, DecodeAsType, TypeInfo)]
+#[derive(
+    Clone, Debug, PartialEq, Eq, Encode, EncodeAsType, Decode, DecodeAsType, TypeInfo, Hash,
+)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct ReplyInfo {
     /// Payload of the reply.

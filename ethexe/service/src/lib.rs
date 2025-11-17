@@ -38,7 +38,6 @@ use ethexe_prometheus::{PrometheusEvent, PrometheusService};
 use ethexe_rpc::{InjectedTransactionAcceptance, RpcEvent, RpcService};
 use ethexe_service_utils::{OptionFuture as _, OptionStreamNext as _};
 use ethexe_signer::Signer;
-use ethexe_tx_pool::{TxPoolEvent, TxPoolService};
 use futures::StreamExt;
 use gprimitives::{ActorId, CodeId, H256};
 use std::{collections::BTreeSet, pin::Pin, sync::Arc};
@@ -58,7 +57,6 @@ pub enum Event {
     BlobLoader(BlobLoaderEvent),
     Prometheus(PrometheusEvent),
     Rpc(RpcEvent),
-    TxPool(TxPoolEvent),
 }
 
 #[derive(Clone)]
@@ -95,7 +93,6 @@ pub struct Service {
     compute: ComputeService,
     consensus: Pin<Box<dyn ConsensusService>>,
     signer: Signer,
-    tx_pool: TxPoolService,
 
     // Optional services
     network: Option<NetworkService>,
@@ -256,8 +253,6 @@ impl Service {
             .as_ref()
             .map(|config| RpcService::new(config.clone(), db.clone()));
 
-        let tx_pool = TxPoolService::new(db.clone());
-
         let compute_config = ComputeConfig::new(config.node.canonical_quarantine);
         let compute = ComputeService::new(compute_config, db.clone(), processor);
 
@@ -274,7 +269,6 @@ impl Service {
             signer,
             prometheus,
             rpc,
-            tx_pool,
             fast_sync,
             validator_address,
             #[cfg(test)]
@@ -298,7 +292,6 @@ impl Service {
         blob_loader: Box<dyn BlobLoaderService>,
         compute: ComputeService,
         signer: Signer,
-        tx_pool: TxPoolService,
         consensus: Pin<Box<dyn ConsensusService>>,
         network: Option<NetworkService>,
         prometheus: Option<PrometheusService>,
@@ -317,7 +310,6 @@ impl Service {
             network,
             prometheus,
             rpc,
-            tx_pool,
             sender,
             fast_sync,
             validator_address,
@@ -343,7 +335,6 @@ impl Service {
             mut compute,
             mut consensus,
             signer: _signer,
-            mut tx_pool,
             mut prometheus,
             rpc,
             fast_sync: _,
@@ -379,7 +370,6 @@ impl Service {
                 event = blob_loader.select_next_some() => event?.into(),
                 event = prometheus.maybe_next_some() => event.into(),
                 event = rpc.maybe_next_some() => event.into(),
-                event = tx_pool.select_next_some() => event.into(),
                 _ = rpc_handle.as_mut().maybe() => {
                     log::info!("`RPCWorker` has terminated, shutting down...");
                     continue;
@@ -460,15 +450,8 @@ impl Service {
                                 }
                             };
                         }
-                        NetworkEvent::OffchainTransaction(transaction) => {
-                            if let Err(e) = tx_pool.process_offchain_transaction(transaction) {
-                                log::warn!(
-                                    "Failed to process offchain transaction received by p2p: {e}"
-                                );
-                            }
-                        }
-                        NetworkEvent::InjectedTransaction(_transaction) => {
-                            // TODO: handle transaction
+                        NetworkEvent::InjectedTransaction(transaction) => {
+                            consensus.receive_injected_transaction(transaction)?;
                         }
                         NetworkEvent::PeerBlocked(_) | NetworkEvent::PeerConnected(_) => {}
                     }
@@ -499,37 +482,15 @@ impl Service {
                     }
                 }
                 Event::Rpc(event) => {
-                    log::info!("Received RPC event: {event:#?}");
+                    log::trace!("Received RPC event: {event:?}");
 
                     match event {
-                        RpcEvent::OffchainTransaction {
-                            transaction,
-                            response_sender,
-                        } => {
-                            let res = tx_pool.process_offchain_transaction(transaction).context(
-                                "Failed to process offchain transaction received from RPC",
-                            );
-
-                            let Some(response_sender) = response_sender else {
-                                unreachable!(
-                                    "Response sender isn't set for the `RpcEvent::OffchainTransaction` event"
-                                );
-                            };
-                            if let Err(e) = response_sender.send(res) {
-                                // No panic case as a responsibility of the service is fulfilled.
-                                // The dropped receiver signalizes that the rpc service has crashed
-                                // or is malformed, so problems should be handled there.
-                                log::error!(
-                                    "Response receiver for the `RpcEvent::OffchainTransaction` was dropped: {e:#?}"
-                                );
-                            }
-                        }
                         RpcEvent::InjectedTransaction {
                             transaction,
                             response_sender,
                         } => {
-                            if validator_address == Some(transaction.data().recipient) {
-                                // TODO: handle transaction like for `NetworkEvent::InjectedTransaction(_)`
+                            if validator_address == Some(transaction.recipient) {
+                                consensus.receive_injected_transaction(transaction.tx)?;
                             } else {
                                 let Some(network) = network.as_mut() else {
                                     continue;
@@ -557,18 +518,8 @@ impl Service {
                     ConsensusEvent::Warning(msg) => {
                         log::warn!("Consensus service warning: {msg}");
                     }
-                },
-                Event::TxPool(event) => match event {
-                    TxPoolEvent::PublishOffchainTransaction(transaction) => {
-                        let Some(n) = network.as_mut() else {
-                            log::debug!(
-                                "Validated offchain transaction won't be propagated, network service isn't defined"
-                            );
-
-                            continue;
-                        };
-
-                        n.publish_offchain_transaction(transaction);
+                    ConsensusEvent::Promise(_promise) => {
+                        // TODO kuzmindev: handle promise in rpc and network
                     }
                 },
             }

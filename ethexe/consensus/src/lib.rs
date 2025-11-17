@@ -32,7 +32,10 @@
 //! - `utils`: Utility functions and shared data structures
 
 use anyhow::Result;
-use ethexe_common::{Announce, HashOf, SimpleBlockData};
+use ethexe_common::{
+    Announce, HashOf, SimpleBlockData,
+    injected::{SignedInjectedTransaction, SignedPromise},
+};
 use futures::{Stream, stream::FusedStream};
 use gprimitives::H256;
 
@@ -77,6 +80,9 @@ pub trait ConsensusService:
 
     /// Process a received validation reply
     fn receive_validation_reply(&mut self, reply: BatchCommitmentValidationReply) -> Result<()>;
+
+    /// Process a received injected transaction from network
+    fn receive_injected_transaction(&mut self, tx: SignedInjectedTransaction) -> Result<()>;
 }
 
 #[derive(
@@ -93,4 +99,7 @@ pub enum ConsensusEvent {
     CommitmentSubmitted(H256),
     /// Informational event: during service processing, a warning situation was detected
     Warning(String),
+    /// Promise for [`ethexe_common::injected::InjectedTransaction`] execution.
+    #[from]
+    Promise(SignedPromise),
 }

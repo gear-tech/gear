@@ -16,6 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use crate::ToDigest;
 use alloc::string::{String, ToString};
 use anyhow::Result;
 use core::{
@@ -93,6 +94,12 @@ impl<T> Hash for HashOf<T> {
     }
 }
 
+impl<T> ToDigest for HashOf<T> {
+    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
+        self.inner().0.update_hasher(hasher);
+    }
+}
+
 impl<T> HashOf<T> {
     /// # Safety
     /// Use it only for low-level storage implementations or tests.
@@ -103,7 +110,8 @@ impl<T> HashOf<T> {
         }
     }
 
-    pub fn hash(self) -> H256 {
+    /// Note: previous named `hash()`, but renamed to `inner()` to avoid confusion with `Hash` trait.
+    pub fn inner(self) -> H256 {
         self.hash
     }
 
@@ -142,7 +150,7 @@ pub struct MaybeHashOf<T: 'static>(Option<HashOf<T>>);
 
 impl<T> Debug for MaybeHashOf<T> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        let option_string = option_string(&Self::to_inner(*self).map(HashOf::hash));
+        let option_string = option_string(&Self::to_inner(*self).map(HashOf::inner));
         write!(f, "MaybeHashOf<{}>({})", shortname::<T>(), option_string)
     }
 }

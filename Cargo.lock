@@ -4924,6 +4924,7 @@ dependencies = [
  "roast-secp256k1-evm",
  "serde",
  "sha3",
+ "sp-core",
  "tap",
 ]
 
@@ -5122,13 +5123,12 @@ dependencies = [
  "jsonrpsee",
  "log",
  "parity-scale-codec",
- "reqwest",
  "serde",
- "serde_json",
  "sp-core",
  "tokio",
  "tower 0.4.13",
  "tower-http",
+ "tracing",
 ]
 
 [[package]]
@@ -5175,6 +5175,7 @@ dependencies = [
  "demo-async",
  "demo-async-init",
  "demo-delayed-sender-ethexe",
+ "demo-fungible-token",
  "demo-mul-by-const",
  "demo-piggy-bank",
  "demo-ping",
@@ -5194,11 +5195,11 @@ dependencies = [
  "ethexe-runtime-common",
  "ethexe-service-utils",
  "ethexe-signer",
- "ethexe-tx-pool",
  "futures",
  "gear-core",
  "gear-core-errors",
  "gprimitives",
+ "jsonrpsee",
  "log",
  "ntest",
  "parity-scale-codec",
@@ -5229,21 +5230,6 @@ dependencies = [
  "ethexe-common",
  "parity-scale-codec",
  "tempfile",
-]
-
-[[package]]
-name = "ethexe-tx-pool"
-version = "1.9.2"
-dependencies = [
- "anyhow",
- "ethexe-common",
- "ethexe-db",
- "futures",
- "gear-utils",
- "gprimitives",
- "log",
- "parity-scale-codec",
- "tokio",
 ]
 
 [[package]]
@@ -6145,6 +6131,10 @@ name = "futures-timer"
 version = "3.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f288b0a4f20f9a56b5d1da57e2227c661b7b16168e2f72365f57b63326e29b24"
+dependencies = [
+ "gloo-timers",
+ "send_wrapper 0.4.0",
+]
 
 [[package]]
 name = "futures-util"
@@ -7188,6 +7178,52 @@ name = "glob"
 version = "0.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d2fabcfbdc87f4758337ca535fb41a6d701b65693ce38287d856d1674551ec9b"
+
+[[package]]
+name = "gloo-net"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "c06f627b1a58ca3d42b45d6104bf1e1a03799df472df00988b6ba21accc10580"
+dependencies = [
+ "futures-channel",
+ "futures-core",
+ "futures-sink",
+ "gloo-utils",
+ "http 1.1.0",
+ "js-sys",
+ "pin-project",
+ "serde",
+ "serde_json",
+ "thiserror 1.0.69",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
+]
+
+[[package]]
+name = "gloo-timers"
+version = "0.2.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9b995a66bb87bebce9a0f4a95aed01daca4872c050bfcb21653361c03bc35e5c"
+dependencies = [
+ "futures-channel",
+ "futures-core",
+ "js-sys",
+ "wasm-bindgen",
+]
+
+[[package]]
+name = "gloo-utils"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0b5555354113b18c547c1d3a98fbf7fb32a9ff4f6fa112ce823a21641a0ba3aa"
+dependencies = [
+ "js-sys",
+ "serde",
+ "serde_json",
+ "wasm-bindgen",
+ "web-sys",
+]
 
 [[package]]
 name = "governor"
@@ -8544,6 +8580,7 @@ dependencies = [
  "jsonrpsee-proc-macros",
  "jsonrpsee-server",
  "jsonrpsee-types",
+ "jsonrpsee-wasm-client",
  "jsonrpsee-ws-client",
  "tokio",
  "tracing",
@@ -8556,7 +8593,9 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "548125b159ba1314104f5bb5f38519e03a41862786aa3925cf349aae9cdd546e"
 dependencies = [
  "base64 0.22.1",
+ "futures-channel",
  "futures-util",
+ "gloo-net",
  "http 1.1.0",
  "jsonrpsee-core",
  "pin-project",
@@ -8596,6 +8635,7 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "tracing",
+ "wasm-bindgen-futures",
 ]
 
 [[package]]
@@ -8673,6 +8713,17 @@ dependencies = [
  "serde",
  "serde_json",
  "thiserror 1.0.69",
+]
+
+[[package]]
+name = "jsonrpsee-wasm-client"
+version = "0.24.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "42e41af42ca39657313748174d02766e5287d3a57356f16756dbd8065b933977"
+dependencies = [
+ "jsonrpsee-client-transport",
+ "jsonrpsee-core",
+ "jsonrpsee-types",
 ]
 
 [[package]]
@@ -9703,7 +9754,7 @@ dependencies = [
  "futures",
  "js-sys",
  "libp2p-core 0.40.1",
- "send_wrapper",
+ "send_wrapper 0.6.0",
  "wasm-bindgen",
  "wasm-bindgen-futures",
 ]
@@ -15894,6 +15945,12 @@ dependencies = [
 
 [[package]]
 name = "send_wrapper"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f638d531eccd6e23b980caf34876660d38e265409d8e99b397ab71eb3612fad0"
+
+[[package]]
+name = "send_wrapper"
 version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cd0b0ec5f1c1ca621c432a25813d8d60c88abe6d3e08a3eb9cf37d97a0fe3d73"
@@ -20466,7 +20523,7 @@ dependencies = [
  "log",
  "pharos",
  "rustc_version 0.4.1",
- "send_wrapper",
+ "send_wrapper 0.6.0",
  "thiserror 1.0.69",
  "wasm-bindgen",
  "wasm-bindgen-futures",

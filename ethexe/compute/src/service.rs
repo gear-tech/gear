@@ -184,7 +184,7 @@ mod tests {
                 .copied()
                 .unwrap(),
             gas_allowance: Some(42),
-            off_chain_transactions: vec![],
+            injected_transactions: vec![],
         };
         let announce_hash = announce.to_hash();
         service.compute_announce(announce);

@@ -20,8 +20,7 @@ use crate::Event;
 use anyhow::{Result, anyhow};
 use ethexe_blob_loader::BlobLoaderEvent;
 use ethexe_common::{
-    Announce, HashOf, SimpleBlockData, db::*, events::BlockEvent,
-    injected::SignedInjectedTransaction, tx_pool::SignedOffchainTransaction,
+    Announce, HashOf, SimpleBlockData, db::*, events::BlockEvent, injected::RpcOrNetworkInjectedTx,
 };
 use ethexe_compute::ComputeEvent;
 use ethexe_consensus::ConsensusEvent;
@@ -30,7 +29,6 @@ use ethexe_network::NetworkEvent;
 use ethexe_observer::ObserverEvent;
 use ethexe_prometheus::PrometheusEvent;
 use ethexe_rpc::RpcEvent;
-use ethexe_tx_pool::TxPoolEvent;
 use gprimitives::H256;
 use tokio::sync::{
     broadcast,
@@ -42,23 +40,12 @@ pub type TestingEventReceiver = Receiver<TestingEvent>;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum TestingRpcEvent {
-    OffchainTransaction {
-        transaction: SignedOffchainTransaction,
-    },
-    InjectedTransaction {
-        transaction: SignedInjectedTransaction,
-    },
+    InjectedTransaction { transaction: RpcOrNetworkInjectedTx },
 }
 
 impl TestingRpcEvent {
     fn new(event: &RpcEvent) -> Self {
         match event {
-            RpcEvent::OffchainTransaction {
-                transaction,
-                response_sender: _,
-            } => Self::OffchainTransaction {
-                transaction: transaction.clone(),
-            },
             RpcEvent::InjectedTransaction {
                 transaction,
                 response_sender: _,
@@ -84,7 +71,6 @@ pub(crate) enum TestingEvent {
     BlobLoader(BlobLoaderEvent),
     Prometheus(PrometheusEvent),
     Rpc(TestingRpcEvent),
-    TxPool(TxPoolEvent),
 }
 
 impl TestingEvent {
@@ -97,7 +83,6 @@ impl TestingEvent {
             Event::BlobLoader(event) => Self::BlobLoader(event.clone()),
             Event::Prometheus(event) => Self::Prometheus(event.clone()),
             Event::Rpc(event) => Self::Rpc(TestingRpcEvent::new(event)),
-            Event::TxPool(event) => Self::TxPool(event.clone()),
         }
     }
 }
