@@ -4896,6 +4896,7 @@ dependencies = [
  "ethexe-signer",
  "gprimitives",
  "hex",
+ "libp2p-identity",
  "log",
  "serde",
  "static_init",
@@ -9217,9 +9218,9 @@ dependencies = [
 
 [[package]]
 name = "libp2p-identity"
-version = "0.2.11"
+version = "0.2.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fbb68ea10844211a59ce46230909fd0ea040e8a192454d4cc2ee0d53e12280eb"
+checksum = "3104e13b51e4711ff5738caa1fb54467c8604c2e94d607e27745bcf709068774"
 dependencies = [
  "asn1_der",
  "bs58 0.5.1",

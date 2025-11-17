@@ -29,7 +29,7 @@
 # Ethereum address: 0x1a642f0e3c3af545e7acbd38b07251b3990914f1
 # ```
 # (optional, default: None).
-# validator = "031b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f"
+# validator = "0x031b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f"
 
 # Public key of the validator session, if node should act as one.
 # Provided in the format of 33-byte hex string:
@@ -49,7 +49,7 @@
 # Ethereum address: 0x1a642f0e3c3af545e7acbd38b07251b3990914f1
 # ```
 # (optional, default: None).
-# validator-session = "031b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f"
+# validator-session = "0x031b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f"
 
 # Max allowed height diff from head for sync directly from Ethereum.
 # (optional, must be non-zero u32, default: 100_000).
@@ -114,21 +114,21 @@
 #   [32 bytes]
 # Example of converting secp256k1 private key 0x01..01 to compressed public key:
 # ```shell
-# $ cargo run --package ethexe-cli --release -- key insert 0x0101010101010101010101010101010101010101010101010101010101010101
+# $ cargo run --package ethexe-cli --release -- key --net insert 0x0101010101010101010101010101010101010101010101010101010101010101
 # ```
 # Output:
 # ```
 # Using default params file: ./.ethexe.toml
 # Public key: 0x031b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f
-# Ethereum address: 0x1a642f0e3c3af545e7acbd38b07251b3990914f1
+# Peer ID: 16Uiu2HAmEWQnHq2jLKJypwVnVoQeFCULuyop6atvq2eWjYSUjzNi
 # ```
 # (optional, default: None).
-# key = "031b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f"
+# key = "0x031b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f"
 
 # Predefined bootnodes addresses to connect to.
 # Each address should be in multiaddr format (https://docs.libp2p.io/concepts/fundamentals/addressing/).
 # (optional, default: empty list).
-# bootnodes = []
+# bootnodes = [] # ["/ip4/{host}/udp/{port}/quic-v1/p2p/{peer_id}"]
 
 # Externally exposed network addresses of the node.
 # Each address should be in multiaddr format (https://docs.libp2p.io/concepts/fundamentals/addressing/).
