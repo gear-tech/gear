@@ -16,17 +16,16 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::BatchCommitmentValidationReply;
 use ethexe_common::{
     Address, Digest, ToDigest,
-    db::*,
+    consensus::BatchCommitmentValidationReply,
+    db::CodesStorageRW,
     ecdsa::{PrivateKey, PublicKey, SignedData, VerifiedData},
     gear::{BatchCommitment, ChainCommitment, CodeCommitment},
-    mock::*,
+    mock::{BlockChain, DBMockExt, Mock},
 };
 use ethexe_db::Database;
 use ethexe_signer::Signer;
-use std::vec;
 
 pub fn init_signer_with_keys(amount: u8) -> (Signer, Vec<PrivateKey>, Vec<PublicKey>) {
     let signer = Signer::memory();
@@ -84,17 +83,14 @@ pub fn prepare_chain_for_batch_commitment(db: &Database) -> BatchCommitment {
 }
 
 pub trait SignerMockExt {
-    fn mock_signed_data<T, M: Mock<T> + ToDigest>(
-        &self,
-        pub_key: PublicKey,
-        args: T,
-    ) -> SignedData<M>;
+    fn mock_signed_data<M, Args>(&self, pub_key: PublicKey, args: Args) -> SignedData<M>
+    where
+        M: Mock<Args> + ToDigest;
 
-    fn mock_verified_data<T, M: Mock<T> + ToDigest>(
-        &self,
-        pub_key: PublicKey,
-        args: T,
-    ) -> VerifiedData<M> {
+    fn mock_verified_data<M, Args>(&self, pub_key: PublicKey, args: Args) -> VerifiedData<M>
+    where
+        M: Mock<Args> + ToDigest,
+    {
         self.mock_signed_data(pub_key, args).into_verified()
     }
 
@@ -107,11 +103,10 @@ pub trait SignerMockExt {
 }
 
 impl SignerMockExt for Signer {
-    fn mock_signed_data<T, M: Mock<T> + ToDigest>(
-        &self,
-        pub_key: PublicKey,
-        args: T,
-    ) -> SignedData<M> {
+    fn mock_signed_data<M, Args>(&self, pub_key: PublicKey, args: Args) -> SignedData<M>
+    where
+        M: Mock<Args> + ToDigest,
+    {
         self.signed_data(pub_key, M::mock(args)).unwrap()
     }
 

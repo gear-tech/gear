@@ -31,19 +31,22 @@ use ethexe_common::{
     },
     ecdsa::{ContractSignature, PublicKey},
     gear::{
-        AggregatedPublicKey, BatchCommitment, ChainCommitment, CodeCommitment, RewardsCommitment,
-        StateTransition, ValidatorsCommitment,
+        AggregatedPublicKey, BatchCommitment, ChainCommitment, CodeCommitment, Message,
+        RewardsCommitment, StateTransition, ValidatorsCommitment, ValueClaim,
     },
 };
 use ethexe_signer::Signer;
-use gprimitives::{CodeId, H256, U256};
+use gprimitives::{ActorId, CodeId, H256, U256};
 use parity_scale_codec::{Decode, Encode};
 use rand::SeedableRng;
 use roast_secp256k1_evm::frost::{
     Identifier,
     keys::{self, IdentifierList},
 };
-use std::collections::{BTreeMap, HashSet, VecDeque};
+use std::{
+    collections::{BTreeMap, HashSet, VecDeque, btree_map::Entry},
+    mem,
+};
 
 /// A batch commitment, that has been signed by multiple validators.
 /// This structure manages the collection of signatures from different validators
@@ -173,8 +176,15 @@ pub fn aggregate_chain_commitment<DB: BlockMetaStorageRO + OnChainStorageRO + An
 
     let mut announce_hash = head_announce;
     let mut counter: u32 = 0;
-    let mut transitions = vec![];
+    let mut per_block_transitions = Vec::new();
+    let mut expected_parent: Option<HashOf<Announce>> = None;
     while announce_hash != last_committed_head {
+        if let Some(expected) = expected_parent {
+            debug_assert_eq!(
+                expected, announce_hash,
+                "announce chain is broken while squashing commitments"
+            );
+        }
         if max_deepness.map(|d| counter >= d).unwrap_or(false) {
             return Err(anyhow!(
                 "Chain commitment is too deep: {block_hash} at depth {counter}"
@@ -198,21 +208,87 @@ pub fn aggregate_chain_commitment<DB: BlockMetaStorageRO + OnChainStorageRO + An
 
         sort_transitions_by_value_to_receive(&mut announce_transitions);
 
-        transitions.push(announce_transitions);
+        per_block_transitions.push(announce_transitions);
 
-        announce_hash = db
+        let parent = db
             .announce(announce_hash)
             .ok_or_else(|| anyhow!("Cannot get from db header for computed block {block_hash}"))?
             .parent;
+        expected_parent = Some(parent);
+        announce_hash = parent;
     }
+
+    let mut aggregations: BTreeMap<ActorId, ActorAggregation> = BTreeMap::new();
+    for transitions in per_block_transitions.into_iter().rev() {
+        for transition in transitions {
+            match aggregations.entry(transition.actor_id) {
+                Entry::Vacant(entry) => {
+                    entry.insert(ActorAggregation::new(transition));
+                }
+                Entry::Occupied(mut entry) => {
+                    entry.get_mut().absorb(transition);
+                }
+            }
+        }
+    }
+
+    let squashed_transitions = aggregations
+        .into_values()
+        .map(|aggregation| aggregation.finish())
+        .collect();
 
     Ok(Some((
         ChainCommitment {
-            transitions: transitions.into_iter().rev().flatten().collect(),
+            transitions: squashed_transitions,
             head_announce,
         },
         counter,
     )))
+}
+
+struct ActorAggregation {
+    newest: StateTransition,
+    messages: Vec<Message>,
+    value_claims: Vec<ValueClaim>,
+    total_value: u128,
+    exit_inheritor: Option<ActorId>,
+}
+
+impl ActorAggregation {
+    fn new(mut transition: StateTransition) -> Self {
+        let messages = mem::take(&mut transition.messages);
+        let value_claims = mem::take(&mut transition.value_claims);
+        let exit_inheritor = transition.exited.then_some(transition.inheritor);
+
+        Self {
+            total_value: transition.value_to_receive,
+            newest: transition,
+            messages,
+            value_claims,
+            exit_inheritor,
+        }
+    }
+
+    fn absorb(&mut self, mut transition: StateTransition) {
+        self.messages.append(&mut transition.messages);
+        self.value_claims.append(&mut transition.value_claims);
+        self.total_value = self.total_value.saturating_add(transition.value_to_receive);
+        if transition.exited {
+            self.exit_inheritor = Some(transition.inheritor);
+        }
+        self.newest = transition;
+    }
+
+    fn finish(mut self) -> StateTransition {
+        if let Some(inheritor) = self.exit_inheritor {
+            self.newest.inheritor = inheritor;
+            self.newest.exited = true;
+        }
+        self.newest.messages = self.messages;
+        self.newest.value_claims = self.value_claims;
+        self.newest.value_to_receive = self.total_value;
+        self.newest
+    }
 }
 
 // TODO(kuzmindev): this is a temporal solution. In future need to impelement DKG algorithm.
@@ -595,6 +671,147 @@ mod tests {
                 .is_none()
         );
         aggregate_chain_commitment(&db, announce, true, None).unwrap_err();
+    }
+
+    #[test]
+    fn test_chain_commitment_squashing() {
+        use ethexe_common::gear::Message;
+
+        let db = Database::memory();
+        let BatchCommitment { block_hash, .. } = prepare_chain_for_batch_commitment(&db);
+        let head = db.top_announce_hash(block_hash);
+        let parent = db.announce(head).expect("announce exists").parent;
+
+        let actor = ActorId::from([7; 32]);
+        let inheritor_old = ActorId::from([8; 32]);
+        let inheritor_new = ActorId::from([9; 32]);
+
+        let m1 = Message {
+            id: Default::default(),
+            destination: inheritor_old,
+            payload: b"old".to_vec(),
+            value: 1,
+            reply_details: None,
+            call: false,
+        };
+        let m2 = Message {
+            id: Default::default(),
+            destination: inheritor_new,
+            payload: b"new".to_vec(),
+            value: 2,
+            reply_details: None,
+            call: false,
+        };
+
+        db.set_announce_outcome(
+            parent,
+            vec![StateTransition {
+                actor_id: actor,
+                new_state_hash: H256::from([1; 32]),
+                exited: true,
+                inheritor: inheritor_old,
+                value_to_receive: 1,
+                value_to_receive_negative_sign: false,
+                value_claims: vec![],
+                messages: vec![m1.clone()],
+            }],
+        );
+
+        db.set_announce_outcome(
+            head,
+            vec![StateTransition {
+                actor_id: actor,
+                new_state_hash: H256::from([2; 32]),
+                exited: true,
+                inheritor: inheritor_new,
+                value_to_receive: 2,
+                value_to_receive_negative_sign: false,
+                value_claims: vec![],
+                messages: vec![m2.clone()],
+            }],
+        );
+
+        let (commitment, _) = aggregate_chain_commitment(&db, head, false, None)
+            .unwrap()
+            .unwrap();
+
+        assert!(!commitment.transitions.is_empty());
+        let st = commitment
+            .transitions
+            .iter()
+            .find(|transition| transition.actor_id == actor)
+            .expect("actor transition");
+        assert_eq!(st.new_state_hash, H256::from([2; 32]));
+        assert!(st.exited);
+        assert_eq!(st.inheritor, inheritor_new);
+        assert_eq!(st.messages, vec![m1, m2]);
+        assert_eq!(st.value_to_receive, 3);
+    }
+
+    #[test]
+    fn test_chain_commitment_empty_when_already_committed() {
+        let db = Database::memory();
+        let BatchCommitment { block_hash, .. } = prepare_chain_for_batch_commitment(&db);
+        let head = db.top_announce_hash(block_hash);
+
+        db.mutate_block_meta(block_hash, |meta| meta.last_committed_announce = Some(head));
+
+        let (commitment, counter) = aggregate_chain_commitment(&db, head, true, None)
+            .unwrap()
+            .unwrap();
+
+        assert_eq!(counter, 0);
+        assert_eq!(commitment.head_announce, head);
+        assert!(commitment.transitions.is_empty());
+    }
+
+    #[test]
+    fn test_squashing_value_saturating_add() {
+        let db = Database::memory();
+        let BatchCommitment { block_hash, .. } = prepare_chain_for_batch_commitment(&db);
+        let head = db.top_announce_hash(block_hash);
+        let parent = db.announce(head).expect("announce exists").parent;
+
+        let actor = ActorId::from([5; 32]);
+
+        db.set_announce_outcome(
+            parent,
+            vec![StateTransition {
+                actor_id: actor,
+                new_state_hash: H256::from([1; 32]),
+                exited: false,
+                inheritor: ActorId::zero(),
+                value_to_receive: 42,
+                value_to_receive_negative_sign: false,
+                value_claims: vec![],
+                messages: vec![],
+            }],
+        );
+
+        db.set_announce_outcome(
+            head,
+            vec![StateTransition {
+                actor_id: actor,
+                new_state_hash: H256::from([2; 32]),
+                exited: false,
+                inheritor: ActorId::zero(),
+                value_to_receive: u128::MAX - 10,
+                value_to_receive_negative_sign: false,
+                value_claims: vec![],
+                messages: vec![],
+            }],
+        );
+
+        let (commitment, _) = aggregate_chain_commitment(&db, head, false, None)
+            .unwrap()
+            .unwrap();
+
+        let st = &commitment
+            .transitions
+            .iter()
+            .find(|transition| transition.actor_id == actor)
+            .expect("actor transition");
+        assert_eq!(st.value_to_receive, u128::MAX);
     }
 
     #[test]

@@ -289,6 +289,7 @@ mod tests {
     use super::*;
     use crate::{
         mock::*,
+        utils,
         validator::{PendingEvent, mock::*},
     };
     use async_trait::async_trait;
@@ -396,6 +397,28 @@ mod tests {
         assert!(event.is_commitment_submitted());
 
         let mut ctx = state.into_context();
+
+        let aggregated_chain_commitment =
+            utils::aggregate_chain_commitment(&ctx.core.db, announce_hash, false, None)
+                .expect("chain aggregation succeeds")
+                .map(|(commitment, _)| commitment);
+        let aggregated_code_commitments = utils::aggregate_code_commitments(
+            &ctx.core.db,
+            batch.code_commitments.iter().map(|c| c.id),
+            false,
+        )
+        .expect("code commitments aggregation succeeds");
+        let expected_batch = utils::create_batch_commitment(
+            &ctx.core.db,
+            &block,
+            aggregated_chain_commitment,
+            aggregated_code_commitments,
+            batch.validators_commitment.clone(),
+            batch.rewards_commitment.clone(),
+        )
+        .expect("batch creation succeeds")
+        .expect("batch is present");
+        let batch = expected_batch;
 
         // Check that we have a batch with commitments after submitting
         let (committed_batch, signatures) = eth
