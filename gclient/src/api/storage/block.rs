@@ -18,8 +18,14 @@
 
 use super::{GearApi, Result};
 use crate::Error;
-use gsdk::{config::Header, ext::sp_core::H256, metadata::vara_runtime::RuntimeEvent};
-use subxt::config::Header as _;
+use gsdk::{
+    config::Header,
+    ext::subxt::{
+        config::{Header as _, substrate::BlakeTwo256},
+        utils::H256,
+    },
+    gear::Event,
+};
 
 type GearBlock = Header;
 
@@ -62,7 +68,7 @@ impl GearApi {
 
     /// Return a hash of the last block.
     pub async fn last_block_hash(&self) -> Result<H256> {
-        Ok(self.get_block_at(None).await?.hash())
+        Ok(self.get_block_at(None).await?.hash_with(BlakeTwo256))
     }
 
     /// Return a number of the last block (also known as block height).
@@ -71,7 +77,7 @@ impl GearApi {
     }
 
     /// Return vector of events contained in the last block.
-    pub async fn last_events(&self) -> Result<Vec<RuntimeEvent>> {
+    pub async fn last_events(&self) -> Result<Vec<Event>> {
         self.0.api().get_events_at(None).await.map_err(Into::into)
     }
 
@@ -84,9 +90,10 @@ impl GearApi {
     pub async fn get_block_hash(&self, block_number: u32) -> Result<H256> {
         self.0
             .api()
-            .rpc()
+            .legacy()
             .chain_get_block_hash(Some(block_number.into()))
-            .await?
+            .await
+            .map_err(gsdk::Error::from)?
             .ok_or(Error::BlockHashNotFound)
     }
 
@@ -104,7 +111,7 @@ impl GearApi {
 
     /// Return vector of events contained in the specified block identified by
     /// the `block_hash`.
-    pub async fn events_at(&self, block_hash: H256) -> Result<Vec<RuntimeEvent>> {
+    pub async fn events_at(&self, block_hash: H256) -> Result<Vec<Event>> {
         self.0
             .api()
             .get_events_at(block_hash)
@@ -114,16 +121,12 @@ impl GearApi {
 
     /// Return vector of events contained in blocks since the block identified
     /// by the `block_hash` but no more than in `max_depth` blocks.
-    pub async fn events_since(
-        &self,
-        block_hash: H256,
-        max_depth: usize,
-    ) -> Result<Vec<RuntimeEvent>> {
+    pub async fn events_since(&self, block_hash: H256, max_depth: usize) -> Result<Vec<Event>> {
         let mut block_hashes = Vec::with_capacity(max_depth);
 
         let mut current = self.get_block_at(None).await?;
         for _ in 0..max_depth {
-            let current_hash = current.hash();
+            let current_hash = current.hash_with(BlakeTwo256);
             block_hashes.push(current_hash);
 
             if current_hash == block_hash {

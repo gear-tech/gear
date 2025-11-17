@@ -19,12 +19,11 @@
 use crate::config::{Config, ConfigPublicKey};
 use anyhow::{Context, Result, bail};
 use async_trait::async_trait;
-use ethexe_blob_loader::{
-    BlobLoader, BlobLoaderEvent, BlobLoaderService, ConsensusLayerConfig,
-    local::{LocalBlobLoader, LocalBlobStorage},
+use ethexe_blob_loader::{BlobLoader, BlobLoaderEvent, BlobLoaderService, ConsensusLayerConfig};
+use ethexe_common::{
+    Address, ecdsa::PublicKey, gear::CodeState, network::VerifiedValidatorMessage,
 };
-use ethexe_common::{ecdsa::PublicKey, gear::CodeState, network::VerifiedValidatorMessage};
-use ethexe_compute::{ComputeEvent, ComputeService};
+use ethexe_compute::{ComputeConfig, ComputeEvent, ComputeService};
 use ethexe_consensus::{
     ConsensusEvent, ConsensusService, SimpleConnectService, ValidatorConfig, ValidatorService,
 };
@@ -36,12 +35,11 @@ use ethexe_network::{
 use ethexe_observer::{ObserverEvent, ObserverService};
 use ethexe_processor::{Processor, ProcessorConfig};
 use ethexe_prometheus::{PrometheusEvent, PrometheusService};
-use ethexe_rpc::{RpcEvent, RpcService};
+use ethexe_rpc::{InjectedTransactionAcceptance, RpcEvent, RpcService};
 use ethexe_service_utils::{OptionFuture as _, OptionStreamNext as _};
-use ethexe_tx_pool::{TxPoolEvent, TxPoolService};
+use ethexe_signer::Signer;
 use futures::StreamExt;
 use gprimitives::{ActorId, CodeId, H256};
-use gsigner::secp256k1::Signer;
 use std::{collections::BTreeSet, pin::Pin, sync::Arc};
 
 pub mod config;
@@ -59,7 +57,6 @@ pub enum Event {
     BlobLoader(BlobLoaderEvent),
     Prometheus(PrometheusEvent),
     Rpc(RpcEvent),
-    TxPool(TxPoolEvent),
 }
 
 #[derive(Clone)]
@@ -96,7 +93,6 @@ pub struct Service {
     compute: ComputeService,
     consensus: Pin<Box<dyn ConsensusService>>,
     signer: Signer,
-    tx_pool: TxPoolService,
 
     // Optional services
     network: Option<NetworkService>,
@@ -104,6 +100,7 @@ pub struct Service {
     rpc: Option<RpcService>,
 
     fast_sync: bool,
+    validator_address: Option<Address>,
 
     #[cfg(test)]
     sender: tests::utils::TestingEventSender,
@@ -119,23 +116,15 @@ impl Service {
         .with_context(|| "failed to open database")?;
         let db = Database::from_one(&rocks_db);
 
-        let (blob_loader, local_blob_storage_for_rpc) = if config.node.dev {
-            let storage = LocalBlobStorage::default();
-            let blob_loader = LocalBlobLoader::new(storage.clone());
-
-            (blob_loader.into_box(), Some(storage))
-        } else {
-            let consensus_config = ConsensusLayerConfig {
-                ethereum_rpc: config.ethereum.rpc.clone(),
-                ethereum_beacon_rpc: config.ethereum.beacon_rpc.clone(),
-                beacon_block_time: alloy::eips::merge::SLOT_DURATION,
-            };
-            let blob_loader = BlobLoader::new(db.clone(), consensus_config)
-                .await
-                .context("failed to create blob loader")?;
-
-            (blob_loader.into_box(), None)
+        let consensus_config = ConsensusLayerConfig {
+            ethereum_rpc: config.ethereum.rpc.clone(),
+            ethereum_beacon_rpc: config.ethereum.beacon_rpc.clone(),
+            beacon_block_time: alloy::eips::merge::SLOT_DURATION,
         };
+        let blob_loader = BlobLoader::new(db.clone(), consensus_config)
+            .await
+            .context("failed to create blob loader")?
+            .into_box();
 
         let observer =
             ObserverService::new(&config.ethereum, config.node.eth_max_sync_depth, db.clone())
@@ -190,6 +179,7 @@ impl Service {
 
         let validator_pub_key = Self::get_config_public_key(config.node.validator, &signer)
             .with_context(|| "failed to get validator private key")?;
+        let validator_address = validator_pub_key.map(|key| key.to_address());
 
         // TODO #4642: use validator session key
         let _validator_pub_key_session =
@@ -261,11 +251,10 @@ impl Service {
         let rpc = config
             .rpc
             .as_ref()
-            .map(|config| RpcService::new(config.clone(), db.clone(), local_blob_storage_for_rpc));
+            .map(|config| RpcService::new(config.clone(), db.clone()));
 
-        let tx_pool = TxPoolService::new(db.clone());
-
-        let compute = ComputeService::new(db.clone(), processor);
+        let compute_config = ComputeConfig::new(config.node.canonical_quarantine);
+        let compute = ComputeService::new(compute_config, db.clone(), processor);
 
         let fast_sync = config.node.fast_sync;
 
@@ -280,8 +269,8 @@ impl Service {
             signer,
             prometheus,
             rpc,
-            tx_pool,
             fast_sync,
+            validator_address,
             #[cfg(test)]
             sender: unreachable!(),
         })
@@ -301,18 +290,16 @@ impl Service {
         db: Database,
         observer: ObserverService,
         blob_loader: Box<dyn BlobLoaderService>,
-        processor: Processor,
+        compute: ComputeService,
         signer: Signer,
-        tx_pool: TxPoolService,
         consensus: Pin<Box<dyn ConsensusService>>,
         network: Option<NetworkService>,
         prometheus: Option<PrometheusService>,
         rpc: Option<RpcService>,
         sender: tests::utils::TestingEventSender,
         fast_sync: bool,
+        validator_address: Option<Address>,
     ) -> Self {
-        let compute = ComputeService::new(db.clone(), processor);
-
         Self {
             db,
             observer,
@@ -323,9 +310,9 @@ impl Service {
             network,
             prometheus,
             rpc,
-            tx_pool,
             sender,
             fast_sync,
+            validator_address,
         }
     }
 
@@ -348,10 +335,10 @@ impl Service {
             mut compute,
             mut consensus,
             signer: _signer,
-            mut tx_pool,
             mut prometheus,
             rpc,
             fast_sync: _,
+            validator_address,
             #[cfg(test)]
             sender,
         } = self;
@@ -383,7 +370,6 @@ impl Service {
                 event = blob_loader.select_next_some() => event?.into(),
                 event = prometheus.maybe_next_some() => event.into(),
                 event = rpc.maybe_next_some() => event.into(),
-                event = tx_pool.select_next_some() => event.into(),
                 _ = rpc_handle.as_mut().maybe() => {
                     log::info!("`RPCWorker` has terminated, shutting down...");
                     continue;
@@ -464,14 +450,9 @@ impl Service {
                                 }
                             };
                         }
-                        NetworkEvent::OffchainTransaction(transaction) => {
-                            if let Err(e) = tx_pool.process_offchain_transaction(transaction) {
-                                log::warn!(
-                                    "Failed to process offchain transaction received by p2p: {e}"
-                                );
-                            }
+                        NetworkEvent::InjectedTransaction(transaction) => {
+                            consensus.receive_injected_transaction(transaction)?;
                         }
-                        NetworkEvent::InjectedTransaction(_transaction) => {}
                         NetworkEvent::PeerBlocked(_) | NetworkEvent::PeerConnected(_) => {}
                     }
                 }
@@ -501,30 +482,24 @@ impl Service {
                     }
                 }
                 Event::Rpc(event) => {
-                    log::info!("Received RPC event: {event:#?}");
+                    log::trace!("Received RPC event: {event:?}");
 
                     match event {
-                        RpcEvent::OffchainTransaction {
+                        RpcEvent::InjectedTransaction {
                             transaction,
                             response_sender,
                         } => {
-                            let res = tx_pool.process_offchain_transaction(transaction).context(
-                                "Failed to process offchain transaction received from RPC",
-                            );
+                            if validator_address == Some(transaction.recipient) {
+                                consensus.receive_injected_transaction(transaction.tx)?;
+                            } else {
+                                let Some(network) = network.as_mut() else {
+                                    continue;
+                                };
 
-                            let Some(response_sender) = response_sender else {
-                                unreachable!(
-                                    "Response sender isn't set for the `RpcEvent::OffchainTransaction` event"
-                                );
-                            };
-                            if let Err(e) = response_sender.send(res) {
-                                // No panic case as a responsibility of the service is fulfilled.
-                                // The dropped receiver signalizes that the rpc service has crashed
-                                // or is malformed, so problems should be handled there.
-                                log::error!(
-                                    "Response receiver for the `RpcEvent::OffchainTransaction` was dropped: {e:#?}"
-                                );
+                                network.send_injected_transaction(transaction);
                             }
+
+                            let _res = response_sender.send(InjectedTransactionAcceptance::Accept);
                         }
                     }
                 }
@@ -543,18 +518,8 @@ impl Service {
                     ConsensusEvent::Warning(msg) => {
                         log::warn!("Consensus service warning: {msg}");
                     }
-                },
-                Event::TxPool(event) => match event {
-                    TxPoolEvent::PublishOffchainTransaction(transaction) => {
-                        let Some(n) = network.as_mut() else {
-                            log::debug!(
-                                "Validated offchain transaction won't be propagated, network service isn't defined"
-                            );
-
-                            continue;
-                        };
-
-                        n.publish_offchain_transaction(transaction);
+                    ConsensusEvent::Promise(_promise) => {
+                        // TODO kuzmindev: handle promise in rpc and network
                     }
                 },
             }

@@ -16,8 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+pub use compute::ComputeConfig;
 use ethexe_common::{Announce, CodeAndIdUnchecked, HashOf, events::BlockRequestEvent};
-use ethexe_processor::{BlockProcessingResult, Processor, ProcessorError};
+use ethexe_processor::{Processor, ProcessorError};
+use ethexe_runtime_common::FinalizedBlockTransitions;
 use gprimitives::{CodeId, H256};
 pub use service::ComputeService;
 use std::collections::HashSet;
@@ -67,8 +69,6 @@ pub enum ComputeError {
     PreparedBlockAnnouncesSetMissing(H256),
     #[error("Latest data not found")]
     LatestDataNotFound,
-    #[error("SubService closed")]
-    SubServiceClosed,
 
     #[error(transparent)]
     Processor(#[from] ProcessorError),
@@ -82,7 +82,7 @@ pub trait ProcessorExt: Sized + Unpin + Send + Clone + 'static {
         &mut self,
         announce: Announce,
         events: Vec<BlockRequestEvent>,
-    ) -> impl Future<Output = Result<BlockProcessingResult>> + Send;
+    ) -> impl Future<Output = Result<FinalizedBlockTransitions>> + Send;
     fn process_upload_code(&mut self, code_and_id: CodeAndIdUnchecked) -> Result<bool>;
 }
 
@@ -91,7 +91,7 @@ impl ProcessorExt for Processor {
         &mut self,
         announce: Announce,
         events: Vec<BlockRequestEvent>,
-    ) -> Result<BlockProcessingResult> {
+    ) -> Result<FinalizedBlockTransitions> {
         self.process_announce(announce, events)
             .await
             .map_err(Into::into)

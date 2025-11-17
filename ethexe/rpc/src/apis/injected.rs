@@ -16,86 +16,71 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Transaction pool rpc interface.
-
 use crate::{RpcEvent, errors};
-use ethexe_common::{
-    ecdsa::Signature,
-    tx_pool::{OffchainTransaction, SignedOffchainTransaction},
-};
-use gprimitives::H256;
+use ethexe_common::injected::RpcOrNetworkInjectedTx;
 use jsonrpsee::{
     core::{RpcResult, async_trait},
     proc_macros::rpc,
 };
-use parity_scale_codec::Decode;
-use tokio::sync::{mpsc, oneshot};
+use serde::{Deserialize, Serialize};
+use tokio::sync::{mpsc::UnboundedSender, oneshot};
 
-#[rpc(server)]
-pub trait TransactionPool {
-    #[method(name = "transactionPool_sendMessage")]
-    async fn send_message(
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub enum InjectedTransactionAcceptance {
+    Accept,
+}
+
+#[cfg_attr(not(feature = "test-utils"), rpc(server))]
+#[cfg_attr(feature = "test-utils", rpc(server, client))]
+pub trait Injected {
+    #[method(name = "injected_sendTransaction")]
+    async fn send_transaction(
         &self,
-        ethexe_tx: OffchainTransaction,
-        signature: Vec<u8>,
-    ) -> RpcResult<H256>;
+        transaction: RpcOrNetworkInjectedTx,
+    ) -> RpcResult<InjectedTransactionAcceptance>;
 }
 
-#[derive(Clone)]
-pub struct TransactionPoolApi {
-    rpc_sender: mpsc::UnboundedSender<RpcEvent>,
+#[derive(Debug, Clone)]
+pub struct InjectedApi {
+    rpc_sender: UnboundedSender<RpcEvent>,
 }
 
-impl TransactionPoolApi {
-    pub fn new(rpc_sender: mpsc::UnboundedSender<RpcEvent>) -> Self {
+impl InjectedApi {
+    pub(crate) fn new(rpc_sender: UnboundedSender<RpcEvent>) -> Self {
         Self { rpc_sender }
     }
 }
 
 #[async_trait]
-impl TransactionPoolServer for TransactionPoolApi {
-    async fn send_message(
+impl InjectedServer for InjectedApi {
+    async fn send_transaction(
         &self,
-        ethexe_tx: OffchainTransaction,
-        signature: Vec<u8>,
-    ) -> RpcResult<H256> {
-        let signature = Signature::decode(&mut signature.as_slice()).map_err(|e| {
-            log::error!("Failed to decode signature: {e}");
-            errors::internal()
-        })?;
-
-        let signed_ethexe_tx = SignedOffchainTransaction::try_from_parts(ethexe_tx, signature)
-            .map_err(|e| {
-                log::error!("{e}");
-                errors::internal()
-            })?;
-
-        log::debug!("Called send_message with vars: {signed_ethexe_tx:#?}");
+        transaction: RpcOrNetworkInjectedTx,
+    ) -> RpcResult<InjectedTransactionAcceptance> {
+        tracing::trace!("Called injected_sendTransaction with vars: {transaction:?}");
 
         let (response_sender, response_receiver) = oneshot::channel();
         self.rpc_sender
-            .send(RpcEvent::OffchainTransaction {
-                transaction: signed_ethexe_tx,
-                response_sender: Some(response_sender),
+            .send(RpcEvent::InjectedTransaction {
+                transaction,
+                response_sender,
             })
             .map_err(|e| {
                 // That could be a panic case, as rpc_receiver must not be dropped,
                 // but the main service works independently from rpc and can be malformed.
                 log::error!(
-                    "Failed to send `RpcEvent::OffchainTransaction` event task: {e}. \
+                    "Failed to send `RpcEvent::InjectedTransaction` event task: {e}. \
                     The receiving end in the main service might have been dropped."
                 );
                 errors::internal()
             })?;
 
-        let res = response_receiver.await.map_err(|e| {
+        response_receiver.await.map_err(|e| {
             // No panic case, as a responsibility of the RPC API is fulfilled.
             // The dropped sender signalizes that the main service has crashed
             // or is malformed, so problems should be handled there.
-            log::error!("Response sender for the `RpcEvent::OffchainTransaction` was dropped: {e}");
+            log::error!("Response sender for the `RpcEvent::InjectedTransaction` was dropped: {e}");
             errors::internal()
-        })?;
-
-        res.map_err(errors::tx_pool)
+        })
     }
 }

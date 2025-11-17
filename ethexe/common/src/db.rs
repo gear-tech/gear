@@ -22,7 +22,10 @@
 
 use crate::{
     Announce, BlockHeader, CodeBlobInfo, Digest, HashOf, ProgramStates, ProtocolTimelines,
-    Schedule, ValidatorsVec, events::BlockEvent, gear::StateTransition,
+    Schedule, SimpleBlockData, ValidatorsVec,
+    events::BlockEvent,
+    gear::StateTransition,
+    injected::{InjectedTransaction, Promise, SignedInjectedTransaction},
 };
 use alloc::{
     collections::{BTreeSet, VecDeque},
@@ -122,6 +125,24 @@ pub trait OnChainStorageRW: OnChainStorageRO {
     fn set_block_synced(&self, block_hash: H256);
 }
 
+#[auto_impl::auto_impl(&)]
+pub trait InjectedStorageRO {
+    /// Returns the transactions by its hash.
+    fn injected_transaction(
+        &self,
+        hash: HashOf<InjectedTransaction>,
+    ) -> Option<SignedInjectedTransaction>;
+
+    /// Returns the promise by transaction hash.
+    fn promise(&self, hash: HashOf<InjectedTransaction>) -> Option<Promise>;
+}
+
+#[auto_impl::auto_impl(&)]
+pub trait InjectedStorageRW: InjectedStorageRO {
+    fn set_injected_transaction(&self, tx: SignedInjectedTransaction);
+    fn set_promise(&self, promise: Promise);
+}
+
 #[derive(Debug, Clone, Default, Encode, Decode, PartialEq, Eq, Hash)]
 pub struct AnnounceMeta {
     pub computed: bool,
@@ -146,6 +167,7 @@ pub trait AnnounceStorageRW: AnnounceStorageRO {
     );
     fn set_announce_outcome(&self, announce_hash: HashOf<Announce>, outcome: Vec<StateTransition>);
     fn set_announce_schedule(&self, announce_hash: HashOf<Announce>, schedule: Schedule);
+
     fn mutate_announce_meta(
         &self,
         announce_hash: HashOf<Announce>,
@@ -155,8 +177,8 @@ pub trait AnnounceStorageRW: AnnounceStorageRO {
 
 #[derive(Debug, Clone, Default, Encode, Decode, PartialEq, Eq)]
 pub struct LatestData {
-    /// Latest synced block height
-    pub synced_block_height: u32,
+    /// Latest synced block
+    pub synced_block: SimpleBlockData,
     /// Latest prepared block hash
     pub prepared_block_hash: H256,
     /// Latest computed announce hash

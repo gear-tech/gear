@@ -21,8 +21,8 @@ use crate::{Error, Result};
 use async_trait::async_trait;
 use gsdk::{
     Blocks,
-    ext::sp_core::H256,
-    metadata::{Event, gear::Event as GearEvent},
+    ext::subxt::utils::H256,
+    gear::{Event, gear::Event as GearEvent},
     subscription::BlockEvents,
 };
 

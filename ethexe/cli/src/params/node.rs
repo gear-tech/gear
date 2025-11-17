@@ -20,7 +20,10 @@ use super::MergeParams;
 use anyhow::{Context, Result, ensure};
 use clap::Parser;
 use directories::ProjectDirs;
-use ethexe_common::{DEFAULT_BLOCK_GAS_LIMIT, gear::MAX_BLOCK_GAS_LIMIT};
+use ethexe_common::{
+    DEFAULT_BLOCK_GAS_LIMIT,
+    gear::{CANONICAL_QUARANTINE, MAX_BLOCK_GAS_LIMIT},
+};
 use ethexe_processor::DEFAULT_CHUNK_PROCESSING_THREADS;
 use ethexe_service::config::{ConfigPublicKey, NodeConfig};
 use serde::Deserialize;
@@ -42,11 +45,6 @@ pub struct NodeParams {
     #[arg(long)]
     #[serde(default)]
     pub tmp: bool,
-
-    /// Flag to run node in development mode.
-    #[arg(long)]
-    #[serde(default)]
-    pub dev: bool,
 
     /// Public key of the validator, if node should act as one.
     #[arg(long)]
@@ -81,6 +79,10 @@ pub struct NodeParams {
     #[arg(long)]
     #[serde(rename = "block-gas-limit")]
     pub block_gas_limit: Option<u64>,
+
+    #[arg(long)]
+    #[serde(rename = "canonical-quarantine")]
+    pub canonical_quarantine: Option<u8>,
 
     /// Do P2P database synchronization before the main loop
     #[arg(long, default_value = "false")]
@@ -117,14 +119,14 @@ impl NodeParams {
                 .block_gas_limit
                 .unwrap_or(DEFAULT_BLOCK_GAS_LIMIT)
                 .min(MAX_BLOCK_GAS_LIMIT),
-            dev: self.dev,
+            canonical_quarantine: self.canonical_quarantine.unwrap_or(CANONICAL_QUARANTINE),
             fast_sync: self.fast_sync,
         })
     }
 
     /// Get path to the database directory.
     pub fn db_dir(&self) -> PathBuf {
-        if self.tmp || self.dev {
+        if self.tmp {
             Self::tmp_db()
         } else {
             self.base().join("db")
@@ -176,7 +178,6 @@ impl MergeParams for NodeParams {
         Self {
             base: self.base.or(with.base),
             tmp: self.tmp || with.tmp,
-            dev: self.dev || with.dev,
 
             validator: self.validator.or(with.validator),
             validator_session: self.validator_session.or(with.validator_session),
@@ -190,6 +191,7 @@ impl MergeParams for NodeParams {
                 .or(with.chunk_processing_threads),
 
             block_gas_limit: self.block_gas_limit.or(with.block_gas_limit),
+            canonical_quarantine: self.canonical_quarantine.or(with.canonical_quarantine),
 
             fast_sync: self.fast_sync || with.fast_sync,
         }

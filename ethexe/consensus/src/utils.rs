@@ -32,7 +32,7 @@ use ethexe_common::{
     ecdsa::{ContractSignature, PublicKey},
     gear::{
         AggregatedPublicKey, BatchCommitment, ChainCommitment, CodeCommitment, RewardsCommitment,
-        ValidatorsCommitment,
+        StateTransition, ValidatorsCommitment,
     },
 };
 
@@ -193,9 +193,13 @@ pub fn aggregate_chain_commitment<DB: BlockMetaStorageRO + OnChainStorageRO + An
             }
         }
 
-        transitions.push(db.announce_outcome(announce_hash).ok_or_else(|| {
-            anyhow!("Cannot get from db outcome for computed block {block_hash}")
-        })?);
+        let mut announce_transitions = db
+            .announce_outcome(announce_hash)
+            .ok_or_else(|| anyhow!("Cannot get from db outcome for computed block {block_hash}"))?;
+
+        sort_transitions_by_value_to_receive(&mut announce_transitions);
+
+        transitions.push(announce_transitions);
 
         announce_hash = db
             .announce(announce_hash)
@@ -420,6 +424,13 @@ pub fn propagate_announces_for_skipped_blocks<
     }
 
     Ok(())
+}
+
+fn sort_transitions_by_value_to_receive(transitions: &mut [StateTransition]) {
+    transitions.sort_by(|lhs, rhs| {
+        rhs.value_to_receive_negative_sign
+            .cmp(&lhs.value_to_receive_negative_sign)
+    });
 }
 
 #[cfg(test)]

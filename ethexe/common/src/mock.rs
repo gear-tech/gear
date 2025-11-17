@@ -25,6 +25,7 @@ use crate::{
     db::*,
     events::BlockEvent,
     gear::{BatchCommitment, ChainCommitment, CodeCommitment, Message, StateTransition},
+    injected::InjectedTransaction,
     network::ValidatorMessage,
 };
 use alloc::{collections::BTreeMap, vec};
@@ -73,7 +74,7 @@ impl Mock<(H256, HashOf<Announce>)> for Announce {
             block_hash,
             parent,
             gas_allowance: Some(100),
-            off_chain_transactions: vec![],
+            injected_transactions: vec![],
         }
     }
 }
@@ -147,6 +148,7 @@ impl Mock<()> for StateTransition {
             new_state_hash: H256::random(),
             inheritor: H256::random().into(),
             value_to_receive: 123,
+            value_to_receive_negative_sign: false,
             value_claims: vec![],
             messages: vec![Message {
                 id: H256::random().into(),
@@ -166,6 +168,18 @@ impl<T: Mock<()>> Mock<()> for ValidatorMessage<T> {
         Self {
             block: H256::random(),
             payload: T::mock(()),
+        }
+    }
+}
+
+impl Mock<()> for InjectedTransaction {
+    fn mock((): ()) -> Self {
+        Self {
+            destination: Default::default(),
+            payload: vec![].into(),
+            value: 0,
+            reference_block: Default::default(),
+            salt: vec![].into(),
         }
     }
 }
@@ -354,8 +368,10 @@ impl BlockChain {
         } in blocks
         {
             if let Some(SyncedBlockData { header, events }) = synced {
-                db.mutate_latest_data(|latest| latest.synced_block_height = header.height)
-                    .unwrap();
+                db.mutate_latest_data(|latest| {
+                    latest.synced_block = SimpleBlockData { hash, header }
+                })
+                .unwrap();
 
                 db.set_block_header(hash, header);
                 db.set_block_events(hash, &events);

@@ -11,10 +11,6 @@
 # (optional, default: false).
 # tmp = false
 
-# Flag to run node in development mode.
-# (optional, default: false).
-# dev = false
-
 # Public key of the validator, if node should act as one.
 # Provided in the format of 33-byte hex string:
 # - `yParityCompressed`, compressed `publicKeyY`,
@@ -33,7 +29,7 @@
 # Ethereum address: 0x1a642f0e3c3af545e7acbd38b07251b3990914f1
 # ```
 # (optional, default: None).
-# validator = "031b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f"
+# validator = "0x031b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f"
 
 # Public key of the validator session, if node should act as one.
 # Provided in the format of 33-byte hex string:
@@ -53,7 +49,7 @@
 # Ethereum address: 0x1a642f0e3c3af545e7acbd38b07251b3990914f1
 # ```
 # (optional, default: None).
-# validator-session = "031b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f"
+# validator-session = "0x031b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f"
 
 # Max allowed height diff from head for sync directly from Ethereum.
 # (optional, must be non-zero u32, default: 100_000).
@@ -75,6 +71,12 @@
 # (optional, max block gas limit: 9_000_000_000_000, default: 4_000_000_000_000).
 # block-gas-limit = 4_000_000_000_000
 
+# Number of blocks that must pass before applying canonical (Ethereum) events.
+# NOTE: Customize this parameter only for development purposes. In production, your node
+#       may fail to reach consensus with other nodes if this value is changed.
+# (optional, default: 16)
+# canonical-quarantine = 16
+
 # Do P2P database synchronization before the main loop.
 # (optional, default: false).
 # fast-sync = false
@@ -84,8 +86,8 @@
 ### Ethereum-specific parameters.
 [ethereum]
 # Ethereum RPC endpoint.
-# (optional, default: http://localhost:8545).
-# rpc = "http://localhost:8545"
+# (optional, default: ws://localhost:8545).
+# rpc = "ws://localhost:8545"
 
 # Ethereum Beacon RPC endpoint.
 # (optional, default: http://localhost:5052).
@@ -112,21 +114,21 @@
 #   [32 bytes]
 # Example of converting secp256k1 private key 0x01..01 to compressed public key:
 # ```shell
-# $ cargo run --package ethexe-cli --release -- key insert 0x0101010101010101010101010101010101010101010101010101010101010101
+# $ cargo run --package ethexe-cli --release -- key --net insert 0x0101010101010101010101010101010101010101010101010101010101010101
 # ```
 # Output:
 # ```
 # Using default params file: ./.ethexe.toml
 # Public key: 0x031b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f
-# Ethereum address: 0x1a642f0e3c3af545e7acbd38b07251b3990914f1
+# Peer ID: 16Uiu2HAmEWQnHq2jLKJypwVnVoQeFCULuyop6atvq2eWjYSUjzNi
 # ```
 # (optional, default: None).
-# key = "031b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f"
+# key = "0x031b84c5567b126440995d3ed5aaba0565d71e1834604819ff9c17f5e9d5dd078f"
 
 # Predefined bootnodes addresses to connect to.
 # Each address should be in multiaddr format (https://docs.libp2p.io/concepts/fundamentals/addressing/).
 # (optional, default: empty list).
-# bootnodes = []
+# bootnodes = [] # ["/ip4/{host}/udp/{port}/quic-v1/p2p/{peer_id}"]
 
 # Externally exposed network addresses of the node.
 # Each address should be in multiaddr format (https://docs.libp2p.io/concepts/fundamentals/addressing/).

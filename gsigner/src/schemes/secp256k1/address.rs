@@ -28,6 +28,8 @@ use hex::FromHexError;
 use nonempty::NonEmpty;
 #[cfg(feature = "codec")]
 use parity_scale_codec::{Decode, Encode};
+#[cfg(feature = "std")]
+use serde::{Deserialize, Serialize};
 
 /// Ethereum address type.
 ///
@@ -88,7 +90,29 @@ impl FromStr for Address {
     }
 }
 
-#[derive(derive_more::Debug, derive_more::Display, derive_more::Error)]
+#[cfg(feature = "std")]
+impl serde::Serialize for Address {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        self.to_hex().serialize(serializer)
+    }
+}
+
+#[cfg(feature = "std")]
+impl<'de> serde::Deserialize<'de> for Address {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let address = String::deserialize(deserializer)?;
+        let address = Address::from_str(&address).map_err(serde::de::Error::custom)?;
+        Ok(address)
+    }
+}
+
+#[derive(Debug, Display, Error)]
 #[display("{:?}", self)]
 #[debug("First 12 bytes are not 0, it is not ethereum address")]
 pub struct FromActorIdError;

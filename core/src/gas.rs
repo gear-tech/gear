@@ -20,6 +20,8 @@
 
 use crate::{costs::CostToken, reservation::UnreservedReimbursement};
 use enum_iterator::Sequence;
+use scale_decode::DecodeAsType;
+use scale_encode::EncodeAsType;
 use scale_info::scale::{Decode, Encode};
 
 /// The id of the gas lock.
@@ -310,7 +312,7 @@ pub trait CountersOwner {
 }
 
 /// Enum representing current type of gas counter.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, EncodeAsType, Decode, DecodeAsType)]
 pub enum CounterType {
     /// Gas limit counter.
     GasLimit,
@@ -319,7 +321,7 @@ pub enum CounterType {
 }
 
 /// Gas limit and gas allowance left.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, Decode)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Encode, EncodeAsType, Decode, DecodeAsType)]
 pub struct GasLeft {
     /// Left gas from gas counter.
     pub gas: u64,

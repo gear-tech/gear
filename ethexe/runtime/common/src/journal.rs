@@ -6,19 +6,20 @@ use crate::{
     },
 };
 use alloc::{collections::BTreeMap, vec::Vec};
-use core::{mem, num::NonZero};
+use core::{mem, num::NonZero, panic};
 use core_processor::common::{DispatchOutcome, JournalHandler, JournalNote};
 use ethexe_common::{
     ScheduledTask,
-    gear::{Message, Origin},
+    gear::{Message, MessageType},
 };
 use gear_core::{
     env::MessageWaitedType,
     gas::GasAllowanceCounter,
     memory::PageBuf,
-    message::{Dispatch as CoreDispatch, StoredDispatch},
-    pages::{GearPage, WasmPage, numerated::tree::IntervalsTree},
+    message::{Dispatch as CoreDispatch, DispatchKind, StoredDispatch},
+    pages::{GearPage, WasmPage, num_traits::Zero as _, numerated::tree::IntervalsTree},
     reservation::GasReserver,
+    rpc::ReplyInfo,
 };
 use gear_core_errors::SignalCode;
 use gprimitives::{ActorId, CodeId, H256, MessageId, ReservationId};
@@ -26,7 +27,7 @@ use gprimitives::{ActorId, CodeId, H256, MessageId, ReservationId};
 // Handles unprocessed journal notes during chunk processing.
 pub struct NativeJournalHandler<'a, S: Storage> {
     pub program_id: ActorId,
-    pub dispatch_origin: Origin,
+    pub message_type: MessageType,
     pub call_reply: bool,
     pub controller: TransitionController<'a, S>,
     pub gas_allowance_counter: &'a GasAllowanceCounter,
@@ -42,6 +43,24 @@ impl<S: Storage> NativeJournalHandler<'_, S> {
         dispatch: Dispatch,
         delay: u32,
     ) {
+        if !dispatch.value.is_zero() {
+            let source = dispatch.source;
+            // Decrease sender's balance and value_to_receive
+            self.controller
+                .update_state(source, |state, _, transitions| {
+                    state.balance = state.balance.checked_sub(dispatch.value).expect(
+                        "Insufficient balance: underflow in state.balance -= dispatch.value()",
+                    );
+
+                    transitions.modify_transition(source, |transition| {
+                        transition.value_to_receive = transition
+                            .value_to_receive
+                            .checked_sub(i128::try_from(dispatch.value).expect("value fits into i128"))
+                            .expect("Insufficient balance: underflow in transition.value_to_receive -= dispatch.value()");
+                    });
+                });
+        }
+
         self.controller
             .update_state(destination, |state, storage: &S, transitions| {
                 if let Ok(non_zero_delay) = delay.try_into() {
@@ -54,9 +73,8 @@ impl<S: Storage> NativeJournalHandler<'_, S> {
                         stash.add_to_program(dispatch, expiry);
                     });
                 } else {
-                    state
-                        .canonical_queue
-                        .modify_queue(storage, |queue| queue.queue(dispatch));
+                    let queue = state.queue_from_msg_type(dispatch.message_type);
+                    queue.modify_queue(storage, |queue| queue.queue(dispatch));
                 }
             })
     }
@@ -69,22 +87,44 @@ impl<S: Storage> NativeJournalHandler<'_, S> {
     ) {
         if dispatch.is_reply() {
             self.controller
-                .transitions
-                .modify_transition(dispatch.source(), |transition| {
-                    let stored = dispatch.into_parts().1;
+                .update_state(dispatch.source(), |state, _, transitions| {
+                    if dispatch.value() != 0 {
+                        state.balance = state.balance.checked_sub(dispatch.value()).expect(
+                            "Insufficient balance: underflow in state.balance -= dispatch.value()",
+                        );
+                    }
 
-                    transition
-                        .messages
-                        .push(Message::from_stored(stored, self.call_reply))
+                    transitions.modify_transition(dispatch.source(), |transition| {
+                        let stored = dispatch.into_parts().1;
+
+                        transition
+                            .messages
+                            .push(Message::from_stored(stored, self.call_reply))
+                    });
                 });
 
             return;
         }
 
-        let dispatch_origin = self.dispatch_origin;
+        let message_type = self.message_type;
 
         self.controller
             .update_state(dispatch.source(), |state, storage, transitions| {
+                let value = dispatch.value();
+
+                if !value.is_zero() {
+                    state.balance = state.balance.checked_sub(value).expect(
+                        "Insufficient balance: underflow in state.balance -= dispatch.value()",
+                    );
+
+                    transitions.modify_transition(dispatch.source(), |transition| {
+                        transition.value_to_receive = transition
+                            .value_to_receive
+                            .checked_sub(i128::try_from(value).expect("value fits into i128"))
+                            .expect("Insufficient balance: underflow in transition.value_to_receive -= dispatch.value()");
+                    });
+                }
+
                 if let Ok(non_zero_delay) = delay.try_into() {
                     let expiry = transitions.schedule_task(
                         non_zero_delay,
@@ -96,7 +136,7 @@ impl<S: Storage> NativeJournalHandler<'_, S> {
 
                     let user_id = dispatch.destination();
                     let dispatch =
-                        Dispatch::from_core_stored(storage, dispatch, dispatch_origin, false);
+                        Dispatch::from_core_stored(storage, dispatch, message_type, false);
 
                     storage.modify(&mut state.stash_hash, |stash| {
                         stash.add_to_user(dispatch, expiry, user_id);
@@ -115,7 +155,7 @@ impl<S: Storage> NativeJournalHandler<'_, S> {
                         .write_payload_raw(dispatch.payload_bytes().to_vec())
                         .expect("failed to write payload");
 
-                    let message = MailboxMessage::new(payload, dispatch.value(), dispatch_origin);
+                    let message = MailboxMessage::new(payload, dispatch.value(), message_type);
 
                     storage.modify(&mut state.mailbox_hash, |mailbox| {
                         mailbox.add_and_store_user_mailbox(
@@ -169,7 +209,9 @@ impl<S: Storage> JournalHandler for NativeJournalHandler<'_, S> {
 
         if self.controller.transitions.is_program(&inheritor) {
             self.controller.update_state(inheritor, |state, _, _| {
-                state.balance += balance;
+                state.balance = state.balance.checked_add(balance).expect(
+                    "Overflow in state.balance += balance during exit dispatch value transfer",
+                );
             })
         }
     }
@@ -179,7 +221,9 @@ impl<S: Storage> JournalHandler for NativeJournalHandler<'_, S> {
 
         self.controller
             .update_state(program_id, |state, storage, _| {
-                state.canonical_queue.modify_queue(storage, |queue| {
+                let queue = state.queue_from_msg_type(self.message_type);
+
+                queue.modify_queue(storage, |queue| {
                     let head = queue
                         .dequeue()
                         .expect("an attempt to consume message from empty queue");
@@ -199,6 +243,7 @@ impl<S: Storage> JournalHandler for NativeJournalHandler<'_, S> {
         delay: u32,
         reservation: Option<ReservationId>,
     ) {
+        // Reservations are deprecated and gas_limited message dispatches are not supported anymore.
         if reservation.is_some() || dispatch.gas_limit().map(|v| v != 0).unwrap_or(false) {
             unreachable!("deprecated: {dispatch:?}");
         }
@@ -206,11 +251,25 @@ impl<S: Storage> JournalHandler for NativeJournalHandler<'_, S> {
         let destination = dispatch.destination();
         let dispatch = dispatch.into_stored();
 
+        if self.message_type == MessageType::Injected && dispatch.kind() == DispatchKind::Reply {
+            let reply_info = ReplyInfo {
+                payload: dispatch.payload_bytes().to_vec(),
+                code: dispatch
+                    .reply_code()
+                    .expect("expect reply_code in dispatch with DispatchKind::Reply"),
+                value: dispatch.value(),
+            };
+
+            self.controller
+                .transitions
+                .maybe_store_injected_reply(&message_id, reply_info);
+        }
+
         if self.controller.transitions.is_program(&destination) {
             let dispatch = Dispatch::from_core_stored(
                 self.controller.storage,
                 dispatch,
-                self.dispatch_origin,
+                self.message_type,
                 false,
             );
 
@@ -234,7 +293,7 @@ impl<S: Storage> JournalHandler for NativeJournalHandler<'_, S> {
             NonZero::<u32>::try_from(duration).expect("must be checked on backend side");
 
         let program_id = self.program_id;
-        let dispatch_origin = self.dispatch_origin;
+        let message_type = self.message_type;
         let call_reply = self.call_reply;
 
         self.controller
@@ -245,9 +304,11 @@ impl<S: Storage> JournalHandler for NativeJournalHandler<'_, S> {
                 );
 
                 let dispatch =
-                    Dispatch::from_core_stored(storage, dispatch, dispatch_origin, call_reply);
+                    Dispatch::from_core_stored(storage, dispatch, message_type, call_reply);
 
-                state.canonical_queue.modify_queue(storage, |queue| {
+                let queue = state.queue_from_msg_type(message_type);
+
+                queue.modify_queue(storage, |queue| {
                     let head = queue
                         .dequeue()
                         .expect("an attempt to wait message from empty queue");
@@ -290,9 +351,8 @@ impl<S: Storage> JournalHandler for NativeJournalHandler<'_, S> {
                     return;
                 };
 
-                state
-                    .canonical_queue
-                    .modify_queue(storage, |queue| queue.queue(dispatch));
+                let queue = state.queue_from_msg_type(dispatch.message_type);
+                queue.modify_queue(storage, |queue| queue.queue(dispatch));
 
                 transitions
                     .remove_task(
@@ -320,16 +380,40 @@ impl<S: Storage> JournalHandler for NativeJournalHandler<'_, S> {
     }
 
     fn send_value(&mut self, from: ActorId, to: ActorId, value: u128, _locked: bool) {
-        // TODO (breathx): implement rest of cases.
-        if self.controller.transitions.state_of(&from).is_some() {
+        if value.is_zero() {
+            // Nothing to do
             return;
         }
 
-        self.controller.update_state(to, |state, _, transitions| {
-            state.balance += value;
+        let src_is_prog = self.controller.transitions.is_program(&from);
+        let dst_is_prog = self.controller.transitions.is_program(&to);
 
-            transitions.modify_transition(to, |transition| transition.value_to_receive += value);
-        });
+        match (src_is_prog, dst_is_prog) {
+            // User to Program or Program to Program value transfer
+            (_, true) => {
+                self.controller.update_state(to, |state, _, transitions| {
+                    state.balance = state
+                        .balance
+                        .checked_add(value)
+                        .expect("Overflow in state.balance += value during value transfer");
+
+                    transitions.modify_transition(to, |transition| {
+                        transition.value_to_receive = transition
+                            .value_to_receive
+                            .checked_add(i128::try_from(value).expect("value fits into i128"))
+                            .expect("Overflow in transition.value_to_receive += value");
+                    });
+                });
+            }
+            (true, false) => {
+                // Program to User value transfer
+                unreachable!("Program to User value transfer is not supported");
+            }
+            (false, false) => {
+                // User to User value transfer is not supported
+                unreachable!("User to User value transfer is not supported");
+            }
+        }
     }
 
     fn store_new_programs(

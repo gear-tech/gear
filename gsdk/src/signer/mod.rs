@@ -18,12 +18,7 @@
 
 //! Gear api with signer
 
-use crate::{
-    Api,
-    backtrace::Backtrace,
-    config::GearConfig,
-    result::{Error, Result},
-};
+use crate::{Api, backtrace::Backtrace, config::GearConfig, result::Result};
 use calls::SignerCalls;
 use core::ops::Deref;
 use gsigner::substrate::SubstratePair;

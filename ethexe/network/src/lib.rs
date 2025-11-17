@@ -19,6 +19,7 @@
 mod custom_connection_limits;
 pub mod db_sync;
 mod gossipsub;
+mod injected;
 pub mod peer_score;
 mod utils;
 mod validator;
@@ -29,16 +30,14 @@ pub mod export {
 
 use crate::{
     db_sync::DbSyncDatabase,
-    gossipsub::MessageAcceptance,
     validator::{ValidatorDatabase, Validators},
 };
 use anyhow::{Context, anyhow};
 use ethexe_common::{
     Address,
     ecdsa::PublicKey,
-    injected::SignedInjectedTransaction,
+    injected::{RpcOrNetworkInjectedTx, SignedInjectedTransaction},
     network::{SignedValidatorMessage, VerifiedValidatorMessage},
-    tx_pool::SignedOffchainTransaction,
 };
 use futures::{Stream, future::Either, ready, stream::FusedStream};
 use gprimitives::H256;
@@ -76,7 +75,6 @@ impl<T> NetworkServiceDatabase for T where T: DbSyncDatabase + ValidatorDatabase
 #[derive(derive_more::Debug, Eq, PartialEq, Clone)]
 pub enum NetworkEvent {
     ValidatorMessage(VerifiedValidatorMessage),
-    OffchainTransaction(SignedOffchainTransaction),
     InjectedTransaction(SignedInjectedTransaction),
     PeerBlocked(PeerId),
     PeerConnected(PeerId),
@@ -404,10 +402,6 @@ impl NetworkService {
                             self.validators.verify_message_initially(source, message);
                         (acceptance, message.map(NetworkEvent::ValidatorMessage))
                     }
-                    gossipsub::Message::Offchain(transaction) => (
-                        MessageAcceptance::Accept,
-                        Some(NetworkEvent::OffchainTransaction(transaction)),
-                    ),
                 });
 
                 return event;
@@ -423,6 +417,10 @@ impl NetworkService {
             }
             //
             BehaviourEvent::DbSync(_) => {}
+            //
+            BehaviourEvent::Injected(injected::Event::NewInjectedTransaction(transaction)) => {
+                return Some(NetworkEvent::InjectedTransaction(transaction));
+            }
         }
 
         None
@@ -448,8 +446,8 @@ impl NetworkService {
         self.swarm.behaviour_mut().gossipsub.publish(data.into())
     }
 
-    pub fn publish_offchain_transaction(&mut self, data: SignedOffchainTransaction) {
-        self.swarm.behaviour_mut().gossipsub.publish(data);
+    pub fn send_injected_transaction(&mut self, data: RpcOrNetworkInjectedTx) {
+        self.swarm.behaviour_mut().injected.send_transaction(data);
     }
 }
 
@@ -505,6 +503,8 @@ pub(crate) struct Behaviour {
     pub gossipsub: gossipsub::Behaviour,
     // database synchronization protocol
     pub db_sync: db_sync::Behaviour,
+    // injected transaction shenanigans
+    pub injected: injected::Behaviour,
 }
 
 impl Behaviour {
@@ -562,10 +562,12 @@ impl Behaviour {
 
         let db_sync = db_sync::Behaviour::new(
             db_sync::Config::default(),
-            peer_score_handle,
+            peer_score_handle.clone(),
             external_data_provider,
             db,
         );
+
+        let injected = injected::Behaviour::new(peer_score_handle);
 
         Ok(Self {
             custom_connection_limits,
@@ -577,6 +579,7 @@ impl Behaviour {
             kad,
             gossipsub,
             db_sync,
+            injected,
         })
     }
 }

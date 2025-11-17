@@ -18,16 +18,20 @@
 
 //! Requires node to be built in release mode
 
+use futures::StreamExt;
 use gear_core::{
     ids::{ActorId, CodeId, prelude::*},
     rpc::ReplyInfo,
 };
 use gear_core_errors::{ReplyCode, SuccessReplyReason};
-use gsdk::{Api, Error, Result};
-use jsonrpsee::types::error::ErrorObject;
+use gsdk::{Api, Error, Event, Result, gear};
 use parity_scale_codec::Encode;
 use std::{borrow::Cow, process::Command, str::FromStr, time::Instant};
-use subxt::{Error as SubxtError, error::RpcError, utils::H256};
+use subxt::{
+    ext::subxt_rpcs::{Error as SubxtRpcError, UserError},
+    utils::H256,
+};
+use tokio::time::{Duration, timeout};
 use utils::{alice_account_id, dev_node};
 
 mod utils;
@@ -47,17 +51,21 @@ async fn pallet_errors_formatting() -> Result<()> {
             None,
         )
         .await
-        .expect_err("Must return error");
+        .expect_err("Must return error")
+        .unwrap_subxt_rpc();
 
-    let expected_err = Error::Subxt(Box::new(SubxtError::Rpc(RpcError::ClientError(Box::new(
-        ErrorObject::owned(
-            8000,
-            "Runtime error",
-            Some("\"Extrinsic `gear.upload_program` failed: 'ProgramConstructionFailed'\""),
+    let expected_err = SubxtRpcError::User(UserError {
+        code: 8000,
+        message: "Runtime error".into(),
+        data: Some(
+            serde_json::value::to_raw_value(
+                "Extrinsic `gear.upload_program` failed: 'ProgramConstructionFailed'",
+            )
+            .unwrap(),
         ),
-    )))));
+    });
 
-    assert_eq!(format!("{err}"), format!("{expected_err}"));
+    assert_eq!(err.to_string(), expected_err.to_string());
 
     Ok(())
 }
@@ -194,7 +202,7 @@ async fn test_calculate_reply_gas() -> Result<()> {
         .mailbox(Some(alice_account_id().clone()), 10)
         .await?;
     assert_eq!(mailbox.len(), 1);
-    let message_id = mailbox[0].0.id.into();
+    let message_id = mailbox[0].0.id();
 
     // 3. calculate reply gas and send reply.
     let gas_info = signer
@@ -206,6 +214,62 @@ async fn test_calculate_reply_gas() -> Result<()> {
         .calls
         .send_reply(message_id, vec![], gas_info.min_limit, 0)
         .await?;
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_subscribe_program_state_changes() -> Result<()> {
+    let node = dev_node();
+    let api = Api::new(node.ws().as_str()).await?;
+
+    let mut subscription = api.subscribe_program_state_changes(None).await?;
+
+    let signer = api.clone().signer("//Alice", None)?;
+    let salt = b"state-change".to_vec();
+
+    let tx = signer
+        .calls
+        .upload_program(
+            demo_messenger::WASM_BINARY.to_vec(),
+            salt,
+            vec![],
+            100_000_000_000,
+            0,
+        )
+        .await?;
+
+    let program_id = api
+        .events_of(&tx)
+        .await?
+        .into_iter()
+        .find_map(|event| {
+            if let Event::Gear(gear::gear::Event::ProgramChanged { id, .. }) = event {
+                Some(id)
+            } else {
+                None
+            }
+        })
+        .expect("program change event not found");
+
+    let expected_id = H256::from(program_id.into_bytes());
+
+    let change = timeout(Duration::from_secs(30), async {
+        loop {
+            let event = subscription.next().await;
+            println!("Got event: {event:?}");
+            match event {
+                Some(Ok(event)) if event.program_ids.contains(&expected_id) => break Ok(event),
+                Some(Ok(_)) => continue,
+                Some(Err(err)) => break Err(err),
+                None => break Err(Error::EventNotFound),
+            }
+        }
+    })
+    .await
+    .expect("timed out waiting for program state change")?;
+
+    assert!(change.program_ids.contains(&expected_id));
 
     Ok(())
 }
@@ -272,29 +336,25 @@ async fn test_runtime_wasm_blob_version() -> Result<()> {
 async fn test_runtime_wasm_blob_version_history() -> Result<()> {
     let api = Api::new("wss://archive-rpc.vara.network:443").await?;
 
-    let no_method_block_hash = sp_core::H256::from_str(
-        "0xa84349fc30b8f2d02cc31d49fe8d4a45b6de5a3ac1f1ad975b8920b0628dd6b9",
-    )
-    .unwrap();
+    let no_method_block_hash =
+        H256::from_str("0xa84349fc30b8f2d02cc31d49fe8d4a45b6de5a3ac1f1ad975b8920b0628dd6b9")
+            .unwrap();
 
     let wasm_blob_version_err = api
         .runtime_wasm_blob_version(Some(no_method_block_hash))
         .await
         .unwrap_err()
-        .unwrap_subxt();
+        .unwrap_subxt_rpc();
 
-    let err = ErrorObject::owned(
-        9000,
-        "Unable to find WASM blob version in WASM blob",
-        None::<String>,
-    );
+    let err = SubxtRpcError::User(UserError {
+        code: 9000,
+        message: "Unable to find WASM blob version in WASM blob".into(),
+        data: None,
+    });
 
-    if let SubxtError::Rpc(RpcError::ClientError(e)) = *wasm_blob_version_err {
-        assert_eq!(e.to_string(), err.to_string());
-        return Ok(());
-    }
+    assert_eq!(wasm_blob_version_err.to_string(), err.to_string());
 
-    panic!("Error does not match: {wasm_blob_version_err:?}");
+    Ok(())
 }
 
 #[tokio::test]
@@ -324,7 +384,7 @@ async fn test_original_code_storage() -> Result<()> {
     let block_hash = rpc.latest_finalized_block_ref().await?.hash();
     let code = signer
         .api()
-        .original_code_storage_at(program.code_id.0.into(), Some(block_hash))
+        .original_code_storage_at(program.code_id.into_bytes().into(), Some(block_hash))
         .await?;
 
     assert_eq!(
@@ -478,12 +538,8 @@ async fn query_program_counters(
     uri: &str,
     block_hash: Option<H256>,
 ) -> Result<(H256, u32, u64, u64, u64)> {
-    use gsdk::{
-        BlockNumber,
-        metadata::{runtime_types::gear_core::program::Program, storage::GearProgramStorage},
-    };
+    use gsdk::gear::runtime_types::gear_core::program::Program;
     use parity_scale_codec::Decode;
-    use subxt::dynamic::Value;
 
     let signer = Api::new(uri).await?.signer("//Alice", None)?;
 
@@ -503,8 +559,8 @@ async fn query_program_counters(
         }
     };
 
-    let storage = signer.api().get_storage(Some(block_hash)).await?;
-    let addr = Api::storage(GearProgramStorage::ProgramStorage, Vec::<Value>::new());
+    let storage = signer.api().storage_at(Some(block_hash)).await?;
+    let addr = gear::storage().gear_program().program_storage_iter();
 
     let mut iter = storage.iter(addr).await?;
     let mut count_memory_page = 0u64;
@@ -512,8 +568,8 @@ async fn query_program_counters(
     let mut count_active_program = 0u64;
     while let Some(pair) = iter.next().await {
         let pair = pair?;
-        let (key, value) = (pair.key_bytes, pair.value);
-        let program = Program::<BlockNumber>::decode(&mut value.encoded())?;
+        let (key, program) = (pair.key_bytes, pair.value);
+
         count_program += 1;
 
         let program_id = ActorId::decode(&mut key.as_ref())?;

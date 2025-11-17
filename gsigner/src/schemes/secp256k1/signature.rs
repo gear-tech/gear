@@ -27,6 +27,8 @@ use k256::ecdsa::{self, RecoveryId};
 use parity_scale_codec::{
     Decode, Encode, Error as CodecError, Input as CodecInput, Output as CodecOutput,
 };
+#[cfg(feature = "std")]
+use serde::{Deserialize, Serialize};
 use sp_core::ecdsa::{Pair as SpPair, Public as SpPublic, Signature as SpSignature};
 
 /// Result type used throughout signature helpers.
@@ -165,14 +167,53 @@ impl Encode for Signature {
     }
 }
 
+#[cfg(feature = "std")]
+impl<'de> Deserialize<'de> for Signature {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let hex_string: String = serde::Deserialize::deserialize(deserializer)?;
+        let hex_string = hex_string.strip_prefix("0x").unwrap_or(&hex_string);
+
+        let bytes = hex::decode(hex_string)
+            .map_err(|_err| serde::de::Error::custom("Invalid hex string"))?;
+
+        let bytes: [u8; SIGNATURE_SIZE] = bytes
+            .try_into()
+            .map_err(|_err| serde::de::Error::custom("Invalid signature size"))?;
+        Signature::from_pre_eip155_bytes(bytes)
+            .ok_or_else(|| serde::de::Error::custom("Invalid bytes"))
+    }
+}
+
+#[cfg(feature = "std")]
+impl Serialize for Signature {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let hex_string = format!("0x{}", hex::encode(self.into_pre_eip155_bytes()));
+        hex_string.serialize(serializer)
+    }
+}
+
+impl Hash for Signature {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        self.into_pre_eip155_bytes().hash(state);
+    }
+}
+
 /// A signed data structure that contains the data and its signature.
-#[derive(Clone, PartialEq, Eq, Debug, Display)]
+#[derive(Clone, PartialEq, Eq, Debug, Display, Hash)]
 #[cfg_attr(feature = "codec", derive(Encode))]
+#[cfg_attr(feature = "std", derive(Serialize))]
 #[display("SignedData({data}, {signature})")]
 pub struct SignedData<T: Sized> {
     data: T,
     signature: Signature,
     #[cfg_attr(feature = "codec", codec(skip))]
+    #[cfg_attr(feature = "std", serde(skip))]
     public_key: PublicKey,
 }
 
@@ -220,6 +261,26 @@ where
         let data = T::decode(input)?;
         let signature = Signature::decode(input)?;
         Self::try_from_parts(data, signature).map_err(CodecError::from)
+    }
+}
+
+#[cfg(feature = "std")]
+impl<'de, T: Sized + serde::Deserialize<'de>> serde::Deserialize<'de> for SignedData<T>
+where
+    for<'a> Digest: From<&'a T>,
+{
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[derive(serde::Deserialize)]
+        struct Inner<T> {
+            data: T,
+            signature: Signature,
+        }
+
+        let Inner { data, signature } = serde::Deserialize::deserialize(deserializer)?;
+        Self::try_from_parts(data, signature).map_err(serde::de::Error::custom)
     }
 }
 
