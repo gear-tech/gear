@@ -30,4 +30,4 @@ serde = { workspace = true, features = ["std"] }
 tracing.workspace = true
 
 [features]
-test-utils = ["reqwest", "serde_json", "jsonrpsee/client"]
+test-utils = ["jsonrpsee/client"]
