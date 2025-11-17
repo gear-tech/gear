@@ -32,7 +32,10 @@
 //! - `utils`: Utility functions and shared data structures
 
 use anyhow::Result;
-use ethexe_common::{Announce, HashOf, SimpleBlockData, injected::SignedInjectedTransaction};
+use ethexe_common::{
+    Announce, HashOf, SimpleBlockData,
+    injected::{SignedInjectedTransaction, SignedPromise},
+};
 use futures::{Stream, stream::FusedStream};
 use gprimitives::H256;
 
@@ -96,4 +99,7 @@ pub enum ConsensusEvent {
     CommitmentSubmitted(H256),
     /// Informational event: during service processing, a warning situation was detected
     Warning(String),
+    /// Promise for [`ethexe_common::injected::InjectedTransaction`] execution.
+    #[from]
+    Promise(SignedPromise),
 }

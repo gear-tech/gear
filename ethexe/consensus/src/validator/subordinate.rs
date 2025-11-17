@@ -24,7 +24,7 @@ use crate::{
     ConsensusEvent, utils,
     validator::{
         participant::Participant,
-        tx_pool::{TxValidityChecker, TxValidityStatus},
+        tx_pool::{TxValidity, TxValidityChecker},
     },
 };
 use anyhow::Result;
@@ -56,7 +56,7 @@ pub struct Subordinate {
 }
 
 #[derive(Clone, PartialEq, Eq)]
-enum AnnounceValidityStatus {
+enum AnnounceValidity {
     // Announce is valid and can be send to computation.
     Valid,
     // Announce is not valid and will be rejected.
@@ -247,19 +247,19 @@ impl Subordinate {
             });
 
         match self.verify_announce(&announce)? {
-            AnnounceValidityStatus::Valid => {
+            AnnounceValidity::Valid => {
                 self.ctx.output(ConsensusEvent::ComputeAnnounce(announce));
                 self.state = State::WaitingAnnounceComputed { announce_hash };
                 Ok(self.into())
             }
-            AnnounceValidityStatus::Invalid(reason) => {
+            AnnounceValidity::Invalid(reason) => {
                 self.ctx.warning(reason);
                 Initial::create(self.ctx)
             }
         }
     }
 
-    fn verify_announce(&self, announce: &Announce) -> Result<AnnounceValidityStatus> {
+    fn verify_announce(&self, announce: &Announce) -> Result<AnnounceValidity> {
         // Verify for parent announce, because of the current is not processed.
         let tx_checker = TxValidityChecker::new_for_announce(
             self.ctx.core.db.clone(),
@@ -271,7 +271,7 @@ impl Subordinate {
             let validity_status = tx_checker.check_tx_validity(tx)?;
 
             match validity_status {
-                TxValidityStatus::Valid => {
+                TxValidity::Valid => {
                     self.ctx.core.db.set_injected_transaction(tx.clone());
                 }
 
@@ -281,7 +281,7 @@ impl Subordinate {
                         "announce contains invalid transtion with status {validity_status:?}, rejecting announce."
                     );
 
-                    return Ok(AnnounceValidityStatus::Invalid(format!(
+                    return Ok(AnnounceValidity::Invalid(format!(
                         "announce({:?}) contains an invalid injected tx, reject it.",
                         announce.to_hash()
                     )));
@@ -289,7 +289,7 @@ impl Subordinate {
             }
         }
 
-        Ok(AnnounceValidityStatus::Valid)
+        Ok(AnnounceValidity::Valid)
     }
 }
 

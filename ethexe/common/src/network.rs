@@ -53,7 +53,6 @@ pub enum SignedValidatorMessage {
     ProducerBlock(SignedData<ValidatorAnnounce>),
     RequestBatchValidation(SignedData<ValidatorRequest>),
     ApproveBatch(SignedData<ValidatorReply>),
-    Promise(SignedData<ValidatorPromise>),
 }
 
 impl SignedValidatorMessage {
@@ -64,7 +63,6 @@ impl SignedValidatorMessage {
                 request.into_verified().into()
             }
             SignedValidatorMessage::ApproveBatch(reply) => reply.into_verified().into(),
-            SignedValidatorMessage::Promise(promise) => promise.into_verified().into(),
         }
     }
 }
@@ -75,7 +73,6 @@ pub enum VerifiedValidatorMessage {
     ProducerBlock(VerifiedData<ValidatorAnnounce>),
     RequestBatchValidation(VerifiedData<ValidatorRequest>),
     ApproveBatch(VerifiedData<ValidatorReply>),
-    Promise(VerifiedData<ValidatorPromise>),
 }
 
 impl VerifiedValidatorMessage {
@@ -84,7 +81,6 @@ impl VerifiedValidatorMessage {
             VerifiedValidatorMessage::ProducerBlock(announce) => announce.data().block,
             VerifiedValidatorMessage::RequestBatchValidation(request) => request.data().block,
             VerifiedValidatorMessage::ApproveBatch(reply) => reply.data().block,
-            VerifiedValidatorMessage::Promise(promise) => promise.data().block,
         }
     }
 
@@ -93,7 +89,6 @@ impl VerifiedValidatorMessage {
             VerifiedValidatorMessage::ProducerBlock(announce) => announce.address(),
             VerifiedValidatorMessage::RequestBatchValidation(request) => request.address(),
             VerifiedValidatorMessage::ApproveBatch(reply) => reply.address(),
-            VerifiedValidatorMessage::Promise(promise) => promise.address(),
         }
     }
 }

@@ -29,7 +29,7 @@ use ethexe_common::{
         InjectedStorageRO,
     },
     gear::BatchCommitment,
-    network::{SignedValidatorMessage, ValidatorMessage, ValidatorPromise},
+    network::ValidatorMessage,
 };
 use ethexe_service_utils::Timer;
 use futures::{FutureExt, future::BoxFuture};
@@ -133,19 +133,13 @@ impl StateHandler for Producer {
                         continue;
                     };
 
-                    let validator_promise = ValidatorPromise {
-                        block: announce.block_hash,
-                        payload: promise,
-                    };
                     let signed_promise = self
                         .ctx
                         .core
                         .signer
-                        .signed_data(self.ctx.core.pub_key, validator_promise)?;
+                        .signed_data(self.ctx.core.pub_key, promise)?;
 
-                    self.output(ConsensusEvent::PublishMessage(
-                        SignedValidatorMessage::Promise(signed_promise),
-                    ));
+                    self.output(ConsensusEvent::Promise(signed_promise));
                 }
 
                 self.state = State::AggregateBatchCommitment {

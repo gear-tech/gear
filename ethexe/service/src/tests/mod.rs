@@ -39,7 +39,6 @@ use ethexe_common::{
     gear::{CANONICAL_QUARANTINE, MessageType},
     injected::{InjectedTransaction, RpcOrNetworkInjectedTx},
     mock::*,
-    network::SignedValidatorMessage,
 };
 use ethexe_compute::ComputeConfig;
 use ethexe_consensus::ConsensusEvent;
@@ -1429,7 +1428,6 @@ async fn send_injected_tx() {
     env.force_new_block().await;
 
     // Give some time for nodes to process the blocks
-    tokio::time::sleep(Duration::from_secs(1)).await;
     let reference_block = node0
         .db
         .latest_data()
@@ -1444,12 +1442,14 @@ async fn send_injected_tx() {
         reference_block,
         salt: H256::random().0.to_vec().into(),
     };
-    let signed_tx = env
-        .signer
-        .signed_data(validator0_pubkey, tx.clone())
-        .unwrap();
 
-    let tx_for_node1 = RpcOrNetworkInjectedTx::new(validator1_pubkey.to_address(), signed_tx);
+    let tx_for_node1 = RpcOrNetworkInjectedTx {
+        recipient: validator1_pubkey.to_address(),
+        tx: env
+            .signer
+            .signed_data(validator0_pubkey, tx.clone())
+            .unwrap(),
+    };
 
     // Send request
     log::info!("Sending tx pool request to node-1");
@@ -2281,17 +2281,17 @@ async fn injected_tx_fungible_token() {
         salt: vec![1u8].into(),
     };
     let signed_tx = env.signer.signed_data(pubkey, init_tx).unwrap();
-    let rpc_tx = RpcOrNetworkInjectedTx::new(pubkey.to_address(), signed_tx);
+    let rpc_tx = RpcOrNetworkInjectedTx {
+        recipient: pubkey.to_address(),
+        tx: signed_tx,
+    };
     let _ = node.send_injected_transaction(rpc_tx).await.unwrap();
 
     // Listen for tx inclusion
     node.listener()
         .apply_until(|event| {
-            if let TestingEvent::Consensus(ConsensusEvent::PublishMessage(
-                SignedValidatorMessage::Promise(promise),
-            )) = event
-            {
-                let promise = promise.into_data().payload;
+            if let TestingEvent::Consensus(ConsensusEvent::Promise(promise)) = event {
+                let promise = promise.into_data();
                 assert!(
                     promise.reply.payload.is_empty(),
                     "Expect empty payload, because of initializing Fungible Token returns nothing"
@@ -2324,8 +2324,11 @@ async fn injected_tx_fungible_token() {
         reference_block: node.db.latest_data().unwrap().prepared_block_hash,
         salt: vec![1u8].into(),
     };
-    let signed_tx = env.signer.signed_data(pubkey, mint_tx.clone()).unwrap();
-    let rpc_tx = RpcOrNetworkInjectedTx::new(pubkey.to_address(), signed_tx);
+
+    let rpc_tx = RpcOrNetworkInjectedTx {
+        recipient: pubkey.to_address(),
+        tx: env.signer.signed_data(pubkey, mint_tx.clone()).unwrap(),
+    };
 
     let _ = node.send_injected_transaction(rpc_tx).await.unwrap();
     let expected_event = demo_fungible_token::FTEvent::Transfer {
@@ -2337,11 +2340,8 @@ async fn injected_tx_fungible_token() {
     // Listen for inclusion and check the expected payload.
     node.listener()
         .apply_until(|event| {
-            if let TestingEvent::Consensus(ConsensusEvent::PublishMessage(
-                SignedValidatorMessage::Promise(promise),
-            )) = event
-            {
-                let promise = promise.into_data().payload;
+            if let TestingEvent::Consensus(ConsensusEvent::Promise(promise)) = event {
+                let promise = promise.into_data();
                 assert_eq!(promise.reply.payload, expected_event.encode());
                 assert_eq!(
                     promise.reply.code,
