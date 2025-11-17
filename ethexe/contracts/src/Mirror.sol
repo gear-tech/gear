@@ -1,6 +1,7 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.28;
 
+import {Hashes} from "frost-secp256k1-evm/utils/cryptography/Hashes.sol";
 import {Memory} from "frost-secp256k1-evm/utils/Memory.sol";
 import {ERC1967Utils} from "@openzeppelin/contracts/proxy/ERC1967/ERC1967Utils.sol";
 import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
@@ -166,10 +167,20 @@ contract Mirror is IMirror {
         implementationSlot.value = _abiInterface;
     }
 
-    // NOTE (breathx): value to receive should be already handled in router.
-    function performStateTransition(Gear.StateTransition calldata _transition) external onlyRouter returns (bytes32) {
+    function performStateTransition(Gear.StateTransition calldata _transition)
+        external
+        payable
+        onlyRouter
+        returns (bytes32)
+    {
         /// @dev Verify that the transition belongs to this contract.
         require(_transition.actorId == address(this), "actorId must be this contract");
+
+        /// @dev Transfer value to router if valueToReceive is non-zero and has negative sign.
+        if (_transition.valueToReceive != 0 && _transition.valueToReceiveNegativeSign) {
+            (bool success,) = router.call{value: _transition.valueToReceive}("");
+            require(success, "failed to transfer value to router during state transition");
+        }
 
         /// @dev Send all outgoing messages.
         bytes32 messagesHashesHash = _sendMessages(_transition.messages);
@@ -196,6 +207,7 @@ contract Mirror is IMirror {
             _transition.exited,
             _transition.inheritor,
             _transition.valueToReceive,
+            _transition.valueToReceiveNegativeSign,
             valueClaimsHash,
             messagesHashesHash
         );
@@ -222,13 +234,24 @@ contract Mirror is IMirror {
     // TODO (breathx): make decoder gas configurable.
     // TODO (breathx): handle if goes to mailbox or not.
     function _sendMessages(Gear.Message[] calldata _messages) private returns (bytes32) {
-        bytes memory messagesHashes;
+        uint256 len = _messages.length;
 
-        for (uint256 i = 0; i < _messages.length; i++) {
+        // we know every Gear.messageHash(...) is 32 bytes, so allocate once
+        uint256 messagesHashesLen = len * 32;
+        uint256 messagesHashesMemPtr = Memory.allocate(messagesHashesLen);
+
+        uint256 offset = 0;
+
+        for (uint256 i = 0; i < len; i++) {
             Gear.Message calldata message = _messages[i];
 
-            messagesHashes = bytes.concat(messagesHashes, Gear.messageHash(message));
+            // get the hash for this message
+            bytes32 h = Gear.messageHash(message);
+            // store it at messagesHashes[offset : offset+32]
+            Memory.writeWord(messagesHashesMemPtr, offset, uint256(h));
+            offset += 32;
 
+            // send the message
             if (message.replyDetails.to == 0) {
                 _sendMailboxedMessage(message);
             } else {
@@ -236,7 +259,7 @@ contract Mirror is IMirror {
             }
         }
 
-        return keccak256(messagesHashes);
+        return bytes32(Hashes.efficientKeccak256(messagesHashesMemPtr, 0, messagesHashesLen));
     }
 
     /// @dev Value never sent since goes to mailbox.

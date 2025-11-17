@@ -26,7 +26,7 @@ use ethexe_common::{
     events::BlockEvent,
 };
 use ethexe_db::Database;
-use ethexe_processor::BlockProcessingResult;
+use ethexe_runtime_common::FinalizedBlockTransitions;
 use futures::future::BoxFuture;
 use gprimitives::H256;
 use std::{
@@ -151,7 +151,7 @@ impl<P: ProcessorExt> ComputeSubService<P> {
             .process_announce(announce.clone(), request_events)
             .await?;
 
-        let BlockProcessingResult {
+        let FinalizedBlockTransitions {
             transitions,
             states,
             schedule,
@@ -263,7 +263,7 @@ mod tests {
         let announce_hash = announce.to_hash();
 
         // Create non-empty processor result with transitions
-        let non_empty_result = BlockProcessingResult {
+        let non_empty_result = FinalizedBlockTransitions {
             transitions: vec![StateTransition {
                 actor_id: ActorId::from([1; 32]),
                 new_state_hash: H256::from([2; 32]),

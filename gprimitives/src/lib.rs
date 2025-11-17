@@ -172,6 +172,7 @@ impl TryInto<H160> for ActorId {
     }
 }
 
+// TODO kuzmindev: implement Display for ActorId as Ethereum address when `ethexe` feature enabled.
 impl fmt::Display for ActorId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let byte_array = utils::ByteSliceFormatter::Array(&self.0);

@@ -28,6 +28,8 @@ use core::{
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
 
+use crate::ToDigest;
+
 fn option_string<T: ToString>(value: &Option<T>) -> String {
     value
         .as_ref()
@@ -90,6 +92,12 @@ impl<T> Copy for HashOf<T> {}
 impl<T> Hash for HashOf<T> {
     fn hash<H: Hasher>(&self, state: &mut H) {
         self.hash.hash(state)
+    }
+}
+
+impl<T> ToDigest for HashOf<T> {
+    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
+        self.inner().0.update_hasher(hasher);
     }
 }
 

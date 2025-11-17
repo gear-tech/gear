@@ -30,7 +30,6 @@ pub mod export {
 
 use crate::{
     db_sync::DbSyncDatabase,
-    gossipsub::MessageAcceptance,
     validator::{ValidatorDatabase, Validators},
 };
 use anyhow::{Context, anyhow};
@@ -402,11 +401,6 @@ impl NetworkService {
                             self.validators.verify_message_initially(source, message);
                         (acceptance, message.map(NetworkEvent::ValidatorMessage))
                     }
-                    // TODO kuzmindev: should return event only in case when `transaction.recipient` == `my_address`.
-                    gossipsub::Message::Injected(transaction) => (
-                        MessageAcceptance::Accept,
-                        Some(NetworkEvent::InjectedTransaction(transaction.tx)),
-                    ),
                 });
 
                 return event;

@@ -140,7 +140,7 @@ pub mod symbiotic_abi {
     }
 }
 
-pub(crate) mod utils {
+pub mod utils {
     use alloy::primitives::{FixedBytes, Uint};
     use gprimitives::{ActorId, CodeId, H256, MessageId, U256};
 
