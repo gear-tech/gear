@@ -2605,7 +2605,6 @@ async fn catch_up() {
 
     let config = TestEnvConfig {
         network: EnvNetworkConfig::Enabled,
-        commitment_delay_limit: 3,
         ..Default::default()
     };
     let mut env = TestEnv::new(config).await.unwrap();
