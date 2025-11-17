@@ -22,9 +22,8 @@ use gear_core::{
     ids::{ActorId, CodeId, MessageId},
     rpc::ReplyInfo,
 };
-use gsdk::GasInfo;
+use gsdk::{GasInfo, ext::subxt::utils::H256};
 use parity_scale_codec::Decode;
-use subxt::utils::H256;
 
 impl GearApi {
     /// Execute an RPC to calculate the gas required to create a program from a
@@ -274,7 +273,7 @@ impl GearApi {
     async fn rpc_request<T: gsdk::ext::sp_runtime::DeserializeOwned>(
         &self,
         method: &str,
-        params: subxt::ext::subxt_rpcs::client::RpcParams,
+        params: gsdk::ext::subxt_rpcs::client::RpcParams,
     ) -> Result<T> {
         Ok(self
             .0

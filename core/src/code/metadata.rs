@@ -23,13 +23,17 @@ use crate::{
     pages::{WasmPage, WasmPagesAmount},
 };
 use alloc::collections::BTreeSet;
+use scale_decode::DecodeAsType;
+use scale_encode::EncodeAsType;
 use scale_info::{
     TypeInfo,
     scale::{Decode, Encode},
 };
 
 /// Status of the instrumentation.
-#[derive(Clone, Copy, Debug, Decode, Encode, TypeInfo, PartialEq, Eq, Hash)]
+#[derive(
+    Clone, Copy, Debug, Decode, DecodeAsType, Encode, EncodeAsType, TypeInfo, PartialEq, Eq, Hash,
+)]
 pub enum InstrumentationStatus {
     /// Code is not instrumented yet.
     NotInstrumented,
@@ -48,7 +52,9 @@ pub enum InstrumentationStatus {
 }
 
 /// Metadata for the code.
-#[derive(Clone, Debug, Decode, Encode, TypeInfo, PartialEq, Eq, Hash)]
+#[derive(
+    Clone, Debug, Decode, DecodeAsType, Encode, EncodeAsType, TypeInfo, PartialEq, Eq, Hash,
+)]
 pub struct CodeMetadata {
     /// Original code length.
     original_code_len: u32,

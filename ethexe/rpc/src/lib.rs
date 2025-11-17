@@ -29,7 +29,7 @@ use apis::{
 use ethexe_common::injected::{Promise, RpcOrNetworkInjectedTx};
 use ethexe_db::Database;
 use ethexe_processor::RunnerConfig;
-use futures::{Stream, stream::FusedStream};
+use futures::{FutureExt, Stream, stream::FusedStream};
 use hyper::header::HeaderValue;
 use jsonrpsee::{
     RpcModule as JsonrpcModule,
@@ -46,9 +46,6 @@ use tower_http::cors::{AllowOrigin, CorsLayer};
 mod apis;
 mod errors;
 mod utils;
-
-#[cfg(feature = "test-utils")]
-pub mod test_utils;
 
 #[derive(Debug)]
 pub enum RpcEvent {

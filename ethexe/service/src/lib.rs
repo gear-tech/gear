@@ -535,6 +535,9 @@ impl Service {
                     ConsensusEvent::Warning(msg) => {
                         log::warn!("Consensus service warning: {msg}");
                     }
+                    ConsensusEvent::Promise(_promise) => {
+                        // TODO kuzmindev: handle promise in rpc and network
+                    }
                 },
             }
         }
