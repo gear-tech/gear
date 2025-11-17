@@ -51,9 +51,9 @@ pub struct InjectedTransaction {
     pub value: u128,
     /// Reference block number.
     pub reference_block: H256,
-    // Arbitrary bytes to allow multiple synonymous
-    // transactions to be sent simultaneously.
-    // NOTE: this is also a salt for MessageId generation.
+    /// Arbitrary bytes to allow multiple synonymous
+    /// transactions to be sent simultaneously.
+    /// NOTE: this is also a salt for MessageId generation.
     pub salt: Bytes,
 }
 
