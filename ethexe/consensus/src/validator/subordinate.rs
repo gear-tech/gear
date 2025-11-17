@@ -301,11 +301,14 @@ mod tests {
     use super::*;
     use crate::{mock::*, validator::mock::*};
     use ethexe_common::{
+        StateHashWithQueueSize,
         db::InjectedStorageRO,
         ecdsa::PrivateKey,
         injected::{InjectedTransaction, SignedInjectedTransaction},
         mock::*,
     };
+    use gprimitives::ActorId;
+    use std::collections::BTreeMap;
 
     #[test]
     fn create_empty() {
@@ -505,10 +508,22 @@ mod tests {
         let block = blocks[1].to_simple();
         let parent_announce_hash = blocks[0].as_prepared().announces.first().copied().unwrap();
 
+        let state = StateHashWithQueueSize {
+            hash: H256::zero(),
+            canonical_queue_size: 0,
+            injected_queue_size: 0,
+        };
+        ctx.core.db.set_announce_program_states(
+            parent_announce_hash,
+            BTreeMap::from([(ActorId::zero(), state)]),
+        );
+
+        let mut injected_tx_data = InjectedTransaction::mock(());
+        injected_tx_data.reference_block = block.header.parent_hash;
+
         let injected_tx =
-            SignedInjectedTransaction::create(PrivateKey::random(), InjectedTransaction::mock(()))
-                .unwrap();
-        let injected_hash = injected_tx.to_hash();
+            SignedInjectedTransaction::create(PrivateKey::random(), injected_tx_data).unwrap();
+        let injected_hash = injected_tx.data().to_hash();
 
         let network_announce = NetworkAnnounce {
             block_hash: block.hash,

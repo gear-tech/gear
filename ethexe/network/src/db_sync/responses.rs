@@ -29,7 +29,7 @@ use ethexe_common::{
         AnnounceStorageRO, BlockMetaStorageRO, HashStorageRO, InjectedStorageRO, LatestData,
         LatestDataStorageRO,
     },
-    injected::SignedInjectedTransaction,
+    injected::InjectedTransaction,
     network::{AnnouncesRequest, AnnouncesRequestUntil, AnnouncesResponse},
 };
 use libp2p::request_response;
@@ -264,9 +264,7 @@ enum ProcessAnnounceError {
     #[error("reached maximum chain length {MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE}")]
     ReachedMaxChainLength,
     #[error("missing injected transaction body for hash {hash:?}")]
-    InjectedTransactionMissing {
-        hash: HashOf<SignedInjectedTransaction>,
-    },
+    InjectedTransactionMissing { hash: HashOf<InjectedTransaction> },
 }
 
 #[cfg(test)]
@@ -399,7 +397,7 @@ mod tests {
     fn response_contains_injected_transactions() {
         let db = Database::memory();
         let tx = signed_injected_tx();
-        let tx_hash = tx.to_hash();
+        let tx_hash = tx.data().to_hash();
 
         let announce = Announce {
             block_hash: H256::random(),
@@ -426,7 +424,7 @@ mod tests {
     fn response_fails_when_injected_tx_missing() {
         let db = Database::memory();
         let tx = signed_injected_tx();
-        let tx_hash = tx.to_hash();
+        let tx_hash = tx.data().to_hash();
 
         let announce = Announce {
             block_hash: H256::random(),

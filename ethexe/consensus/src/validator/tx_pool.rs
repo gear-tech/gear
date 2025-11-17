@@ -20,7 +20,7 @@ use anyhow::{Result, anyhow};
 use ethexe_common::{
     Announce, HashOf, ProgramStates,
     db::{AnnounceStorageRO, CodesStorageRO, InjectedStorageRW, OnChainStorageRO},
-    injected::{SignedInjectedTransaction, VALIDITY_WINDOW},
+    injected::{InjectedTransaction, SignedInjectedTransaction, VALIDITY_WINDOW},
 };
 use ethexe_db::Database;
 use gprimitives::H256;
@@ -30,7 +30,7 @@ use std::collections::HashSet;
 #[derive(Clone)]
 pub(crate) struct InjectedTxPool<DB = Database> {
     /// HashSet of (reference_block, injected_tx_hash).
-    inner: HashSet<(H256, HashOf<SignedInjectedTransaction>)>,
+    inner: HashSet<(H256, HashOf<InjectedTransaction>)>,
     db: DB,
 }
 
@@ -61,7 +61,7 @@ where
     }
 
     pub fn handle_tx(&mut self, tx: SignedInjectedTransaction) {
-        let tx_hash = tx.to_hash();
+        let tx_hash = tx.data().to_hash();
         let reference_block = tx.data().reference_block;
         tracing::trace!(tx_hash = ?tx_hash, reference_block = ?reference_block,  "handle new injected tx");
 
@@ -116,7 +116,7 @@ where
 pub struct TxValidityChecker<DB> {
     db: DB,
     chain_head: H256,
-    recent_included_txs: HashSet<HashOf<SignedInjectedTransaction>>,
+    recent_included_txs: HashSet<HashOf<InjectedTransaction>>,
     latest_states: ProgramStates,
 }
 
@@ -142,7 +142,7 @@ impl<DB: AnnounceStorageRO + OnChainStorageRO + CodesStorageRO> TxValidityChecke
             return Ok(TxValidityStatus::NotOnCurrentBranch);
         }
 
-        if self.recent_included_txs.contains(&tx.to_hash()) {
+        if self.recent_included_txs.contains(&tx.data().to_hash()) {
             return Ok(TxValidityStatus::Duplicate);
         }
 
@@ -195,7 +195,7 @@ mod tx_pool_utils {
     pub fn collect_recent_included_txs<DB: AnnounceStorageRO>(
         db: &DB,
         announce: HashOf<Announce>,
-    ) -> Result<HashSet<HashOf<SignedInjectedTransaction>>> {
+    ) -> Result<HashSet<HashOf<InjectedTransaction>>> {
         let mut txs = HashSet::new();
 
         let mut announce_hash = announce;
@@ -245,8 +245,7 @@ mod tests {
     fn setup_announce(db: &Database, txs: Vec<SignedInjectedTransaction>) -> HashOf<Announce> {
         let mut announce = Announce::mock(());
         announce.parent = HashOf::zero();
-        announce.injected_transactions =
-            txs.iter().map(SignedInjectedTransaction::to_hash).collect();
+        announce.injected_transactions = txs.iter().map(|tx| tx.data().to_hash()).collect();
         let announce_hash = db.set_announce(announce);
 
         for tx in txs {

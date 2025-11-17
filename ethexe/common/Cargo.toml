@@ -33,6 +33,7 @@ default = ["std"]
 std = [
     "nonempty/std",
     "gear-core/std",
+    "sp-core/std",
     "gprimitives/serde",
     "serde",
     "parity-scale-codec/std",

@@ -130,7 +130,7 @@ pub trait InjectedStorageRO {
     /// Returns the transactions by its hash.
     fn injected_transaction(
         &self,
-        hash: HashOf<SignedInjectedTransaction>,
+        hash: HashOf<InjectedTransaction>,
     ) -> Option<SignedInjectedTransaction>;
 
     /// Returns the promise by transaction hash.

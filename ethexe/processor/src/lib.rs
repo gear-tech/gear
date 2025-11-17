@@ -23,7 +23,7 @@ use ethexe_common::{
     Announce, CodeAndIdUnchecked, HashOf,
     db::{AnnounceStorageRO, AnnounceStorageRW, CodesStorageRW, InjectedStorageRO},
     events::{BlockRequestEvent, MirrorRequestEvent},
-    injected::SignedInjectedTransaction,
+    injected::{InjectedTransaction, SignedInjectedTransaction},
 };
 use ethexe_db::Database;
 use ethexe_runtime_common::{FinalizedBlockTransitions, state::Storage};
@@ -78,7 +78,7 @@ pub enum ProcessorError {
     #[error("not found announces for processing announce ({0})")]
     PreparedBlockAnnouncesMissing(H256),
     #[error("injected transaction {0:?} not found in storage")]
-    MissingInjectedTransaction(HashOf<SignedInjectedTransaction>),
+    MissingInjectedTransaction(HashOf<InjectedTransaction>),
     #[error("not found announce by hash ({0})")]
     AnnounceNotFound(HashOf<Announce>),
 
