@@ -301,12 +301,11 @@ jobs:
           eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
           eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
 
-      - name: "Check: Changes in gsdk generated code"
+      - name: "Check: Changes in vara_runtime.scale file"
         run: |
-          GENERATED_CODE="gsdk/src/metadata/generated.rs"
+          SCALE_FILE="gsdk/vara_runtime.scale"
           ./scripts/update-gsdk-metadata.sh
-          if [[ $(git diff --stat $GENERATED_CODE) != '' ]]; then
-            echo "Changes found in the gsdk generated code ($GENERATED_CODE). Please update it following the instructions in \`gsdk/HOW-TO-UPDATE.md\`."
-            git --no-pager diff $GENERATED_CODE
+          if [[ $(git diff --stat $SCALE_FILE) != '' ]]; then
+            echo "Changes found in the SCALE metadata ($SCALE_FILE). Please update it following the instructions in \`gsdk/HOW-TO-UPDATE.md\`."
             exit 1
           fi
