@@ -1327,7 +1327,7 @@ async fn executable_balance_charged() {
 async fn executable_balance_injected_panic_not_charged() {
     // Testing special case when injected message causes panic in the program.
     // In this case executable balance should not be charged if gas burned during
-    // panicked message execution is less then the threshold (see `INJECTED_MESSAGE_PANIC_GAS_CHARGE_THRESHOLD`).
+    // panicked message execution is less than the threshold (see `INJECTED_MESSAGE_PANIC_GAS_CHARGE_THRESHOLD`).
 
     const INITIAL_EXECUTABLE_BALANCE: u64 = 10_000_000_000;
 
@@ -1365,7 +1365,7 @@ async fn executable_balance_injected_panic_not_charged() {
     let exec_balance_before = executable_balance(&handler, actor_id);
     assert_eq!(exec_balance_before, INITIAL_EXECUTABLE_BALANCE);
 
-    // We know for sure handling this message is cost less then the threshold.
+    // We know for sure handling this message is cost less than the threshold.
     handle_injected_message(
         &mut handler,
         actor_id,
