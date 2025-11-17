@@ -34,7 +34,8 @@ use alloy::{
 };
 use ethexe_blob_loader::{BlobLoader, BlobLoaderService, ConsensusLayerConfig};
 use ethexe_common::{
-    Address, BlockHeader, CodeAndId, DEFAULT_BLOCK_GAS_LIMIT, SimpleBlockData, ToDigest,
+    Address, BlockHeader, COMMITMENT_DELAY_LIMIT, CodeAndId, DEFAULT_BLOCK_GAS_LIMIT,
+    SimpleBlockData, ToDigest,
     db::*,
     ecdsa::{PrivateKey, PublicKey, SignedData},
     events::{BlockEvent, MirrorEvent, RouterEvent},
@@ -724,7 +725,7 @@ impl Default for TestEnvConfig {
             continuous_block_generation: false,
             network: EnvNetworkConfig::Disabled,
             deploy_params: Default::default(),
-            commitment_delay_limit: 3,
+            commitment_delay_limit: COMMITMENT_DELAY_LIMIT,
             compute_config: ComputeConfig::without_quarantine(),
         }
     }
@@ -897,7 +898,7 @@ impl Node {
                             signatures_threshold: self.threshold,
                             slot_duration: self.block_time,
                             block_gas_limit: DEFAULT_BLOCK_GAS_LIMIT,
-                            commitment_delay_limit: 3,
+                            commitment_delay_limit: COMMITMENT_DELAY_LIMIT,
                             producer_delay: self.block_time / 6,
                         },
                     )

@@ -4963,6 +4963,7 @@ dependencies = [
  "gear-utils",
  "gprimitives",
  "hashbrown 0.14.5",
+ "lru 0.16.1",
  "nonempty 0.12.0",
  "ntest",
  "parity-scale-codec",
@@ -4972,7 +4973,6 @@ dependencies = [
  "roast-secp256k1-evm",
  "tokio",
  "tracing",
- "uluru",
 ]
 
 [[package]]

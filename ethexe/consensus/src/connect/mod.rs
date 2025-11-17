@@ -35,6 +35,7 @@ use ethexe_common::{
 use ethexe_db::Database;
 use futures::{Stream, stream::FusedStream};
 use gprimitives::H256;
+use lru::LruCache;
 use std::{
     collections::VecDeque,
     mem,
@@ -43,11 +44,34 @@ use std::{
     task::{Context, Poll},
     time::Duration,
 };
-use uluru::LRUCache;
 
 /// Maximum number of pending announces to store
-const MAX_PENDING_ANNOUNCES: usize = NonZeroUsize::new(10).unwrap().get();
+const MAX_PENDING_ANNOUNCES: NonZeroUsize = NonZeroUsize::new(10).unwrap();
 
+/// State transition flow:
+///
+/// ```text
+/// WaitingForBlock (waiting for new chain head)
+///   └─ receive_new_chain_head ─► WaitingForSyncedBlock
+///
+/// WaitingForSyncedBlock (waiting block is synced)
+///   └─ receive_synced_block ─► WaitingForPreparedBlock
+///
+/// WaitingForPreparedBlock (waiting block is prepared)
+///   ├─ if missing announces ─► WaitingForMissingAnnounces
+///   └─ if no missing ─► process_after_propagation
+///
+/// WaitingForMissingAnnounces (waiting for requested missing announces from network)
+///   └─ receive_announces_response ─► process_after_propagation
+///
+/// process_after_propagation (propagation done )
+///   ├─ announce from producer already received ─► emit ComputeAnnounce ─► WaitingForBlock
+///   └─ no already received announce ─► WaitingForAnnounce
+///
+/// WaitingForAnnounce (waiting for announce from producer)
+///   ├─ expected and accepted ─► emit ComputeAnnounce and AcceptAnnounce ─► WaitingForBlock
+///   └─ unexpected ─► cached in pending_announces
+/// ```
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug)]
 enum State {
@@ -80,7 +104,7 @@ pub struct ConnectService {
     commitment_delay_limit: u32,
 
     state: State,
-    pending_announces: LRUCache<Option<(Announce, Address)>, MAX_PENDING_ANNOUNCES>,
+    pending_announces: LruCache<(Address, H256), Announce>,
     output: VecDeque<ConsensusEvent>,
 }
 
@@ -97,23 +121,13 @@ impl ConnectService {
             slot_duration,
             commitment_delay_limit,
             state: State::WaitingForBlock,
-            pending_announces: LRUCache::new(),
+            pending_announces: LruCache::new(MAX_PENDING_ANNOUNCES),
             output: VecDeque::new(),
         }
     }
 
     fn process_after_propagation(&mut self, block: SimpleBlockData, producer: Address) {
-        if let Some(announce) = self
-            .pending_announces
-            .find(|v| {
-                v.as_ref()
-                    .map(|(announce, sender)| {
-                        *sender == producer && announce.block_hash == block.hash
-                    })
-                    .unwrap_or(false)
-            })
-            .and_then(|v| v.take().map(|v| v.0))
-        {
+        if let Some(announce) = self.pending_announces.pop(&(producer, block.hash)) {
             self.output
                 .push_back(ConsensusEvent::ComputeAnnounce(announce));
             self.state = State::WaitingForBlock;
@@ -254,7 +268,8 @@ impl ConsensusService for ConnectService {
             }
         } else {
             tracing::warn!("Receive unexpected {announce:?}, save to pending announces");
-            self.pending_announces.insert(Some((announce, sender)));
+            self.pending_announces
+                .push((sender, announce.block_hash), announce);
         }
 
         Ok(())

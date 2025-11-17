@@ -21,7 +21,8 @@ use anyhow::{Context, Result, bail};
 use async_trait::async_trait;
 use ethexe_blob_loader::{BlobLoader, BlobLoaderEvent, BlobLoaderService, ConsensusLayerConfig};
 use ethexe_common::{
-    Address, ecdsa::PublicKey, gear::CodeState, network::VerifiedValidatorMessage,
+    Address, COMMITMENT_DELAY_LIMIT, ecdsa::PublicKey, gear::CodeState,
+    network::VerifiedValidatorMessage,
 };
 use ethexe_compute::{ComputeConfig, ComputeEvent, ComputeService};
 use ethexe_consensus::{
@@ -212,7 +213,7 @@ impl Service {
                         block_gas_limit: config.node.block_gas_limit,
                         // TODO: #4942 commitment_delay_limit is a protocol specific constant
                         // which better to be configurable by router contract
-                        commitment_delay_limit: 3,
+                        commitment_delay_limit: COMMITMENT_DELAY_LIMIT,
                         producer_delay: Duration::ZERO,
                     },
                 )?)

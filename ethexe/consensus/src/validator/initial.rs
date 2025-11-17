@@ -45,6 +45,35 @@ pub struct Initial {
     state: WaitingFor,
 }
 
+/// State transition flow:
+///
+/// ```text
+/// ChainHead (waiting for new chain head)
+///   |
+///   ├─ receive new chain head
+///   |
+/// SyncedBlock (waiting block is synced)
+///   |
+///   ├─ receive block is synced
+///   |
+/// PreparedBlock (waiting block is prepared)
+///   |
+///   ├─ receive block is prepared
+///   |
+///   └─ check for missing announces
+///     |
+///     ├─ if any missing announces
+///     |   |
+///     |  MissingAnnounces (waiting for requested missing announces from network)
+///     |   |
+///     |   └─ receive announces response, then do propagation
+///     |       ├─ if is producer ─► Producer
+///     |       └─ if is subordinate ─► Subordinate
+///     |
+///     └─ if no missing, then do propagation
+///         ├─ if is producer ─► Producer
+///         └─ if is subordinate ─► Subordinate
+/// ```
 #[derive(Debug)]
 enum WaitingFor {
     ChainHead,
