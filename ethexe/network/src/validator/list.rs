@@ -175,3 +175,70 @@ impl ValidatorList {
     #[allow(dead_code)]
     pub(crate) fn set_next_era_validators(&mut self) {}
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use core::convert::TryFrom;
+    use ethexe_common::db::OnChainStorageRW;
+    use ethexe_db::Database;
+
+    fn validators_vec(addresses: &[u64]) -> ValidatorsVec {
+        let addrs = addresses
+            .iter()
+            .copied()
+            .map(Address::from)
+            .collect::<Vec<_>>();
+        ValidatorsVec::try_from(addrs).expect("non-empty validator set")
+    }
+
+    fn header(height: u32, timestamp: u64) -> BlockHeader {
+        BlockHeader {
+            height,
+            timestamp,
+            parent_hash: H256::zero(),
+        }
+    }
+
+    #[test]
+    fn validator_list_advances_only_on_new_eras() {
+        let timelines = ProtocolTimelines {
+            genesis_ts: 0,
+            era: 10,
+            election: 5,
+        };
+        let genesis_hash = H256::from_low_u64_be(0);
+        let same_era_hash = H256::from_low_u64_be(1);
+        let next_era_hash = H256::from_low_u64_be(2);
+
+        let db = Database::memory();
+        db.set_protocol_timelines(timelines);
+        db.set_block_header(genesis_hash, header(0, 0));
+        db.set_block_header(same_era_hash, header(1, 5));
+        db.set_block_header(next_era_hash, header(2, 15));
+
+        let current_validators = validators_vec(&[1, 2]);
+        let next_validators = validators_vec(&[3, 4]);
+        db.set_validators(0, current_validators.clone());
+        db.set_validators(1, next_validators.clone());
+
+        let (mut list, snapshot) =
+            ValidatorList::new(genesis_hash, Box::new(db.clone())).expect("init succeeds");
+        assert_eq!(snapshot.current_era_index(), 0);
+        assert_eq!(snapshot.current_validators, current_validators);
+
+        assert!(list.set_chain_head(same_era_hash).unwrap().is_none());
+        assert_eq!(list.chain_head.header.timestamp, 0);
+
+        let next_snapshot = list
+            .set_chain_head(next_era_hash)
+            .unwrap()
+            .expect("new era snapshot");
+        assert_eq!(next_snapshot.current_era_index(), 1);
+        assert_eq!(next_snapshot.current_validators, next_validators);
+        assert_eq!(list.chain_head.header.timestamp, 15);
+
+        assert!(list.set_chain_head(genesis_hash).unwrap().is_none());
+        assert_eq!(list.chain_head.header.timestamp, 15);
+    }
+}
