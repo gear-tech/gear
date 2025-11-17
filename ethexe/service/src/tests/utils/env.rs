@@ -507,8 +507,7 @@ impl TestEnv {
         }
     }
 
-    /// Force new `blocks_amount` blocks generation on rpc node,
-    /// and wait for the block event to be generated.
+    /// Force new `blocks_amount` blocks generation on RPC node
     pub async fn skip_blocks(&self, blocks_amount: u32) {
         if self.continuous_block_generation {
             time::sleep(self.block_time * blocks_amount).await;
