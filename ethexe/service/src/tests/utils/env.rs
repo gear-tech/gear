@@ -79,6 +79,7 @@ use tokio::{
     sync::{broadcast, broadcast::Sender},
     task,
     task::JoinHandle,
+    time,
 };
 use tracing::Instrument;
 
@@ -147,6 +148,9 @@ impl TestEnv {
             } => {
                 let mut anvil = Anvil::new();
 
+                if continuous_block_generation {
+                    anvil = anvil.block_time_f64(block_time.as_secs_f64());
+                }
                 if let Some(slots_in_epoch) = slots_in_epoch {
                     anvil = anvil.arg(format!("--slots-in-an-epoch={slots_in_epoch}"));
                 }
@@ -507,16 +511,7 @@ impl TestEnv {
     /// and wait for the block event to be generated.
     pub async fn skip_blocks(&self, blocks_amount: u32) {
         if self.continuous_block_generation {
-            let mut blocks_count = 0;
-            self.observer_events_publisher()
-                .subscribe()
-                .await
-                .apply_until_block_event(|_| {
-                    blocks_count += 1;
-                    Ok((blocks_count >= blocks_amount).then_some(()))
-                })
-                .await
-                .unwrap();
+            time::sleep(self.block_time * blocks_amount).await;
         } else {
             self.provider
                 .evm_mine(Some(MineOptions::Options {

@@ -2388,3 +2388,106 @@ async fn injected_tx_fungible_token() {
         .unwrap();
     tracing::info!("✅ State successfully changed on Ethereum");
 }
+
+#[tokio::test(flavor = "multi_thread")]
+#[ntest::timeout(120_000)]
+async fn whole_network_restores() {
+    init_logger();
+
+    let config = TestEnvConfig {
+        validators: ValidatorsConfig::PreDefined(4),
+        network: EnvNetworkConfig::Enabled,
+        continuous_block_generation: true,
+        ..Default::default()
+    };
+    let mut env = TestEnv::new(config).await.unwrap();
+
+    let mut validators = vec![];
+    for (i, v) in env.validators.clone().into_iter().enumerate() {
+        log::info!("📗 Starting validator-{i}");
+        let mut validator = env.new_node(NodeConfig::named(format!("validator-{i}")).validator(v));
+        validator.start_service().await;
+        validators.push(validator);
+    }
+
+    let res = env
+        .upload_code(demo_ping::WASM_BINARY)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert!(res.valid);
+    let ping_code_id = res.code_id;
+
+    let res = env
+        .create_program(ping_code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    let ping_id = res.program_id;
+
+    let init_res = env
+        .send_message(res.program_id, b"", 0)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert_eq!(res.code_id, ping_code_id);
+    assert_eq!(init_res.payload, b"");
+    assert_eq!(init_res.value, 0);
+    assert_eq!(init_res.code, ReplyCode::Success(SuccessReplyReason::Auto));
+
+    env.approve_wvara(ping_id).await;
+
+    for (i, v) in validators.iter_mut().enumerate() {
+        log::info!("📗 Stopping validator-{i}");
+        v.stop_service().await;
+    }
+
+    let ping_wait_for = env.send_message(ping_id, b"PING", 0).await.unwrap();
+
+    let async_code_upload = env.upload_code(demo_async::WASM_BINARY).await.unwrap();
+
+    log::info!("📗 Skipping 20 blocks");
+    env.skip_blocks(20).await;
+
+    for (i, v) in validators.iter_mut().enumerate() {
+        log::info!("📗 Starting validator-{i} again");
+        v.start_service().await;
+    }
+
+    let res = ping_wait_for.wait_for().await.unwrap();
+    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Manual));
+    assert_eq!(res.payload, b"PONG");
+    assert_eq!(res.value, 0);
+
+    let res = async_code_upload.wait_for().await.unwrap();
+    assert!(res.valid);
+    let async_code_id = res.code_id;
+    let res = env
+        .create_program(async_code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    let async_id = res.program_id;
+
+    let init_res = env
+        .send_message(res.program_id, ping_id.encode().as_slice(), 0)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert_eq!(res.code_id, async_code_id);
+    assert_eq!(init_res.payload, b"");
+    assert_eq!(init_res.value, 0);
+    assert_eq!(init_res.code, ReplyCode::Success(SuccessReplyReason::Auto));
+
+    env.approve_wvara(async_id).await;
+}
