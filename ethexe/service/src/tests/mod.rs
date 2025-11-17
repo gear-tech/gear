@@ -1437,10 +1437,10 @@ async fn send_injected_tx() {
     // Prepare tx data
     let tx = InjectedTransaction {
         destination: ActorId::from(H160::random()),
-        payload: H256::random().0.to_vec().into(),
+        // payload: H256::random().0.to_vec().into(),
         value: 0,
         reference_block,
-        salt: H256::random().0.to_vec().into(),
+        // salt: H256::random().0.to_vec().into(),
     };
 
     let tx_for_node1 = RpcOrNetworkInjectedTx {
@@ -2275,10 +2275,10 @@ async fn injected_tx_fungible_token() {
     // 3. Initialize program
     let init_tx = InjectedTransaction {
         destination: usdt_actor_id,
-        payload: token_config.encode().into(),
+        // payload: token_config.encode().into(),
         value: 0,
         reference_block: node.db.latest_data().unwrap().prepared_block_hash,
-        salt: vec![1u8].into(),
+        // salt: vec![1u8].into(),
     };
     let signed_tx = env.signer.signed_data(pubkey, init_tx).unwrap();
     let rpc_tx = RpcOrNetworkInjectedTx {
@@ -2319,10 +2319,10 @@ async fn injected_tx_fungible_token() {
 
     let mint_tx = InjectedTransaction {
         destination: usdt_actor_id,
-        payload: mint_action.encode().into(),
+        // payload: mint_action.encode().into(),
         value: 0,
         reference_block: node.db.latest_data().unwrap().prepared_block_hash,
-        salt: vec![1u8].into(),
+        // salt: vec![1u8].into(),
     };
 
     let rpc_tx = RpcOrNetworkInjectedTx {

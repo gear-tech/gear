@@ -10,7 +10,7 @@ repository.workspace = true
 [dependencies]
 alloy-primitives.workspace = true
 gear-core.workspace = true
-sp-core.workspace = true
+# sp-core.workspace = true
 gprimitives.workspace = true
 parity-scale-codec.workspace = true
 hex.workspace = true

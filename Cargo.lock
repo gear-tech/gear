@@ -4924,7 +4924,6 @@ dependencies = [
  "roast-secp256k1-evm",
  "serde",
  "sha3",
- "sp-core",
  "tap",
 ]
 

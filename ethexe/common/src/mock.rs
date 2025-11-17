@@ -176,10 +176,10 @@ impl Mock<()> for InjectedTransaction {
     fn mock((): ()) -> Self {
         Self {
             destination: Default::default(),
-            payload: vec![].into(),
+            // payload: vec![].into(),
             value: 0,
             reference_block: Default::default(),
-            salt: vec![].into(),
+            // salt: vec![].into(),
         }
     }
 }

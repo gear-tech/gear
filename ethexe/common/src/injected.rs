@@ -22,7 +22,7 @@ use gear_core::rpc::ReplyInfo;
 use gprimitives::{ActorId, H256, MessageId};
 use parity_scale_codec::{Decode, Encode};
 use sha3::Keccak256;
-use sp_core::Bytes;
+// use sp_core::Bytes;
 
 /// Recent block hashes window size used to check transaction mortality.
 pub const VALIDITY_WINDOW: u8 = 32;
@@ -45,33 +45,33 @@ pub struct InjectedTransaction {
     /// Destination program inside `Vara.eth`.
     pub destination: ActorId,
     /// Payload of the message.
-    pub payload: Bytes,
+    // pub payload: Bytes,
     /// Value attached to the message.
     /// NOTE: at this moment will be zero.
     pub value: u128,
     /// Reference block number.
     pub reference_block: H256,
-    /// Arbitrary bytes to allow multiple synonymous
-    /// transactions to be sent simultaneously.
-    /// NOTE: this is also a salt for MessageId generation.
-    pub salt: Bytes,
+    // Arbitrary bytes to allow multiple synonymous
+    // transactions to be sent simultaneously.
+    // NOTE: this is also a salt for MessageId generation.
+    // pub salt: Bytes,
 }
 
 impl ToDigest for InjectedTransaction {
     fn update_hasher(&self, hasher: &mut Keccak256) {
         let Self {
             destination,
-            payload,
+            // payload,
             value,
             reference_block,
-            salt,
+            // salt,
         } = self;
 
         destination.into_bytes().update_hasher(hasher);
-        payload.update_hasher(hasher);
+        // payload.update_hasher(hasher);
         value.to_be_bytes().update_hasher(hasher);
         reference_block.0.update_hasher(hasher);
-        salt.update_hasher(hasher);
+        // salt.update_hasher(hasher);
     }
 }
 
