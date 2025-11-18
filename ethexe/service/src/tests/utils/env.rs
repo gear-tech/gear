@@ -413,6 +413,15 @@ impl TestEnv {
     pub async fn create_program(
         &self,
         code_id: CodeId,
+        initial_executable_balance: u128,
+    ) -> anyhow::Result<WaitForProgramCreation> {
+        self.create_program_with_params(code_id, H256::zero(), None, initial_executable_balance)
+            .await
+    }
+
+    pub async fn create_program_with_params(
+        &self,
+        code_id: CodeId,
         salt: H256,
         override_initializer: Option<ActorId>,
         initial_executable_balance: u128,

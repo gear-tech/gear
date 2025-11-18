@@ -23,8 +23,8 @@ use ethexe_common::Address;
 use ethexe_ethereum::Ethereum;
 use ethexe_signer::Signer;
 use gprimitives::{CodeId, H256};
-use std::{fs, ops::Deref, path::PathBuf, str::FromStr};
-use thiserror::Error;
+use sp_core::Bytes;
+use std::{fs, path::PathBuf};
 
 /// Submit a transaction.
 #[derive(Debug, Parser)]
@@ -316,7 +316,7 @@ impl TxCommand {
                 let mirror = ethereum.mirror(mirror);
 
                 let (tx, message_id) = mirror
-                    .send_message(payload, value, call_reply)
+                    .send_message(payload.0, value, call_reply)
                     .await
                     .with_context(|| "failed to send message to mirror")?;
 
@@ -412,7 +412,7 @@ pub enum TxSubcommand {
         mirror: Address,
         /// Message payload.
         #[arg()]
-        payload: Payload,
+        payload: Bytes,
         /// ETH value to send with message.
         #[arg()]
         value: u128,
@@ -423,37 +423,4 @@ pub enum TxSubcommand {
         #[arg(short, long, default_value = "false")]
         watch: bool,
     },
-}
-
-#[derive(Debug, Clone)]
-pub struct Payload(Vec<u8>);
-
-impl Deref for Payload {
-    type Target = [u8];
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl AsRef<[u8]> for Payload {
-    fn as_ref(&self) -> &[u8] {
-        self.deref()
-    }
-}
-
-#[derive(Error, Debug)]
-#[error("Invalid hex string")]
-pub struct InvalidHexString;
-
-impl FromStr for Payload {
-    type Err = InvalidHexString;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let payload = s
-            .strip_prefix("0x")
-            .and_then(|s| hex::decode(s).ok())
-            .ok_or(InvalidHexString)?;
-        Ok(Self(payload))
-    }
 }

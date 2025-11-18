@@ -165,7 +165,7 @@ async fn ping() {
         .instrumented_code(1, code_id)
         .expect("After approval, instrumented code is guaranteed to be in the database");
     let res = env
-        .create_program(code_id, H256::zero(), None, 500_000_000_000_000)
+        .create_program(code_id, 500_000_000_000_000)
         .await
         .unwrap()
         .wait_for()
@@ -237,7 +237,7 @@ async fn uninitialized_program() {
     // Case #1: Init failed due to panic in init (decoding).
     {
         let res = env
-            .create_program(code_id, H256::zero(), None, 500_000_000_000_000)
+            .create_program(code_id, 500_000_000_000_000)
             .await
             .unwrap()
             .wait_for()
@@ -281,7 +281,7 @@ async fn uninitialized_program() {
         let mut listener = env.observer_events_publisher().subscribe().await;
 
         let init_res = env
-            .create_program(code_id, H256([0x11; 32]), None, 500_000_000_000_000)
+            .create_program_with_params(code_id, H256([0x11; 32]), None, 500_000_000_000_000)
             .await
             .unwrap()
             .wait_for()
@@ -394,7 +394,7 @@ async fn mailbox() {
     let code_id = res.code_id;
 
     let res = env
-        .create_program(code_id, H256::zero(), None, 500_000_000_000_000)
+        .create_program(code_id, 500_000_000_000_000)
         .await
         .unwrap()
         .wait_for()
@@ -608,7 +608,7 @@ async fn value_reply_program_to_user() {
 
     let code_id = res.code_id;
     let res = env
-        .create_program(code_id, H256::zero(), None, 500_000_000_000_000)
+        .create_program(code_id, 500_000_000_000_000)
         .await
         .unwrap()
         .wait_for()
@@ -709,7 +709,7 @@ async fn value_send_program_to_user_and_claimed() {
 
     let code_id = res.code_id;
     let res = env
-        .create_program(code_id, H256::zero(), None, 500_000_000_000_000)
+        .create_program(code_id, 500_000_000_000_000)
         .await
         .unwrap()
         .wait_for()
@@ -843,7 +843,7 @@ async fn value_send_program_to_user_and_replied() {
 
     let code_id = res.code_id;
     let res = env
-        .create_program(code_id, H256::zero(), None, 500_000_000_000_000)
+        .create_program(code_id, 500_000_000_000_000)
         .await
         .unwrap()
         .wait_for()
@@ -980,7 +980,7 @@ async fn incoming_transfers() {
 
     let code_id = res.code_id;
     let res = env
-        .create_program(code_id, H256::zero(), None, 500_000_000_000_000)
+        .create_program(code_id, 500_000_000_000_000)
         .await
         .unwrap()
         .wait_for()
@@ -1075,7 +1075,7 @@ async fn ping_reorg() {
     node.stop_service().await;
 
     let create_program = env
-        .create_program(code_id, H256::zero(), None, 500_000_000_000_000)
+        .create_program(code_id, 500_000_000_000_000)
         .await
         .unwrap();
     let init = env
@@ -1176,7 +1176,7 @@ async fn ping_deep_sync() {
     let code_id = res.code_id;
 
     let res = env
-        .create_program(code_id, H256::zero(), None, 500_000_000_000_000)
+        .create_program(code_id, 500_000_000_000_000)
         .await
         .unwrap()
         .wait_for()
@@ -1261,7 +1261,7 @@ async fn multiple_validators() {
     let ping_code_id = res.code_id;
 
     let res = env
-        .create_program(ping_code_id, H256::zero(), None, 500_000_000_000_000)
+        .create_program(ping_code_id, 500_000_000_000_000)
         .await
         .unwrap()
         .wait_for()
@@ -1293,7 +1293,7 @@ async fn multiple_validators() {
     let async_code_id = res.code_id;
 
     let res = env
-        .create_program(async_code_id, H256::zero(), None, 500_000_000_000_000)
+        .create_program(async_code_id, 500_000_000_000_000)
         .await
         .unwrap()
         .wait_for()
@@ -1578,7 +1578,7 @@ async fn fast_sync() {
 
     for (i, program_id) in program_ids.iter_mut().enumerate() {
         let program_info = env
-            .create_program(code_id, H256([i as u8; 32]), None, 500_000_000_000_000)
+            .create_program_with_params(code_id, H256([i as u8; 32]), None, 500_000_000_000_000)
             .await
             .unwrap()
             .wait_for()
@@ -1838,12 +1838,7 @@ async fn execution_with_canonical_events_quarantine() {
     assert!(uploaded_code.valid);
 
     let res = env
-        .create_program(
-            uploaded_code.code_id,
-            H256::zero(),
-            None,
-            500_000_000_000_000,
-        )
+        .create_program(uploaded_code.code_id, 500_000_000_000_000)
         .await
         .unwrap()
         .wait_for()
@@ -1929,7 +1924,7 @@ async fn value_send_program_to_program() {
 
     let code_id = res.code_id;
     let res = env
-        .create_program(code_id, H256::zero(), None, 500_000_000_000_000)
+        .create_program(code_id, 500_000_000_000_000)
         .await
         .unwrap()
         .wait_for()
@@ -1971,7 +1966,7 @@ async fn value_send_program_to_program() {
 
     let code_id = res.code_id;
     let res = env
-        .create_program(code_id, H256::zero(), None, 500_000_000_000_000)
+        .create_program(code_id, 500_000_000_000_000)
         .await
         .unwrap()
         .wait_for()
@@ -2080,7 +2075,7 @@ async fn value_send_delayed() {
 
     let code_id = res.code_id;
     let res = env
-        .create_program(code_id, H256::zero(), None, 500_000_000_000_000)
+        .create_program(code_id, 500_000_000_000_000)
         .await
         .unwrap()
         .wait_for()
@@ -2122,7 +2117,7 @@ async fn value_send_delayed() {
 
     let code_id = res.code_id;
     let res = env
-        .create_program(code_id, H256::zero(), None, 500_000_000_000_000)
+        .create_program(code_id, 500_000_000_000_000)
         .await
         .unwrap()
         .wait_for()
@@ -2276,7 +2271,7 @@ async fn injected_tx_fungible_token() {
 
     let code_id = res.code_id;
     let res = env
-        .create_program(code_id, H256::zero(), None, 500_000_000_000_000)
+        .create_program(code_id, 500_000_000_000_000)
         .await
         .unwrap()
         .wait_for()
