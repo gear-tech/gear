@@ -27,7 +27,6 @@ ethexe-runtime-common = { workspace = true, features = ["std"] }
 sp-core = { workspace = true, features = ["serde"] }
 gear-core = { workspace = true, features = ["std"] }
 serde = { workspace = true, features = ["std"] }
-serde_json.workspace = true
 tracing.workspace = true
 dashmap.workspace = true
 

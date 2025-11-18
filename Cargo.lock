@@ -5129,7 +5129,6 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "serde",
- "serde_json",
  "sp-core",
  "tokio",
  "tower 0.4.13",

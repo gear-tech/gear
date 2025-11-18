@@ -33,9 +33,5 @@ pub fn internal() -> ErrorObject<'static> {
 }
 
 pub fn bad_request(message: String) -> ErrorObject<'static> {
-    ErrorObject::owned(
-        hyper::StatusCode::BAD_REQUEST.as_u16().into(),
-        message,
-        None::<&str>,
-    )
+    ErrorObject::owned(8000, message, None::<&str>)
 }
