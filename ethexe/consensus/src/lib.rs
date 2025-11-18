@@ -36,7 +36,7 @@ use anyhow::Result;
 use ethexe_common::{
     Announce, HashOf, SimpleBlockData,
     consensus::{BatchCommitmentValidationReply, VerifiedAnnounce, VerifiedValidationRequest},
-    network::{AnnouncesRequest, CheckedAnnouncesResponse, SignedValidatorMessage},
+    network::{AnnouncesRequest, SignedValidatorMessage},
 };
 use futures::{Stream, stream::FusedStream};
 use gprimitives::H256;
@@ -79,9 +79,6 @@ pub trait ConsensusService:
 
     /// Process a received validation reply
     fn receive_validation_reply(&mut self, reply: BatchCommitmentValidationReply) -> Result<()>;
-
-    /// Process a received announces data response
-    fn receive_announces_response(&mut self, response: CheckedAnnouncesResponse) -> Result<()>;
 }
 
 #[derive(

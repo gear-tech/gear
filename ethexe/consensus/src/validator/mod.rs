@@ -42,6 +42,7 @@
 
 use crate::{
     BatchCommitmentValidationReply, ConsensusEvent, ConsensusService,
+    utils::AnnouncesRequestState,
     validator::{
         coordinator::Coordinator,
         core::{MiddlewareWrapper, ValidatorCore},
@@ -58,10 +59,11 @@ use ethexe_common::{
     consensus::{VerifiedAnnounce, VerifiedValidationRequest},
     db::OnChainStorageRO,
     ecdsa::PublicKey,
-    network::CheckedAnnouncesResponse,
+    network::{AnnouncesRequest, CheckedAnnouncesResponse},
 };
 use ethexe_db::Database;
 use ethexe_ethereum::{middleware::ElectionProvider, router::Router};
+use ethexe_network::db_sync::Handle;
 use ethexe_signer::Signer;
 use futures::{Stream, stream::FusedStream};
 use gprimitives::H256;
@@ -101,6 +103,8 @@ const MAX_CHAIN_DEEPNESS: u32 = 10000;
 /// This service manages the validation workflow.
 pub struct ValidatorService {
     inner: Option<ValidatorState>,
+    db_sync_handle: Option<Handle>,
+    announces_fetch: Option<AnnouncesRequestState>,
 }
 
 /// Configuration parameters for the validator service.
@@ -127,6 +131,8 @@ impl ValidatorService {
     /// * `signer` - The signer used for cryptographic operations
     /// * `db` - The database instance
     /// * `config` - Configuration parameters for the validator
+    /// * `db_sync_handle` - Optional network handle used for db-sync requests; when `None`,
+    ///   announces are not fetched from peers
     ///
     /// # Returns
     /// A new `ValidatorService` instance
@@ -136,6 +142,7 @@ impl ValidatorService {
         router: Router,
         db: Database,
         config: ValidatorConfig,
+        db_sync_handle: Option<Handle>,
     ) -> Result<Self> {
         let timelines = db
             .protocol_timelines()
@@ -163,6 +170,8 @@ impl ValidatorService {
 
         Ok(Self {
             inner: Some(Initial::create(ctx)?),
+            db_sync_handle,
+            announces_fetch: None,
         })
     }
 
@@ -185,6 +194,15 @@ impl ValidatorService {
         update(inner).map(|inner| {
             self.inner = Some(inner);
         })
+    }
+
+    fn request_announces(&mut self, request: AnnouncesRequest) {
+        let Some(handle) = self.db_sync_handle.clone() else {
+            tracing::debug!("Skipping announces request: network handle is not available");
+            return;
+        };
+
+        self.announces_fetch = Some(AnnouncesRequestState::new(&handle, request));
     }
 }
 
@@ -220,35 +238,57 @@ impl ConsensusService for ValidatorService {
     fn receive_validation_reply(&mut self, reply: BatchCommitmentValidationReply) -> Result<()> {
         self.update_inner(|inner| inner.process_validation_reply(reply))
     }
-
-    fn receive_announces_response(&mut self, response: CheckedAnnouncesResponse) -> Result<()> {
-        self.update_inner(|inner| inner.process_announces_response(response))
-    }
 }
 
 impl Stream for ValidatorService {
     type Item = Result<ConsensusEvent>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let mut event = None;
-        self.update_inner(|mut inner| {
-            // Waits until some event is available or inner futures are not ready.
-            loop {
-                let (poll, state) = inner.poll_next_state(cx)?;
-                inner = state;
-                event = inner.context_mut().output.pop_front();
+        loop {
+            if let Some(handle) = self.db_sync_handle.clone()
+                && let Some(mut fetch) = self.announces_fetch.take()
+            {
+                match fetch.poll(&handle, cx) {
+                    Poll::Ready(response) => {
+                        if let Err(err) =
+                            self.update_inner(|inner| inner.process_announces_response(response))
+                        {
+                            return Poll::Ready(Some(Err(err)));
+                        }
 
-                if poll.is_pending() || event.is_some() {
-                    break;
+                        continue;
+                    }
+                    Poll::Pending => {
+                        self.announces_fetch = Some(fetch);
+                    }
                 }
             }
 
-            Ok(inner)
-        })?;
+            let mut event = None;
+            self.update_inner(|mut inner| {
+                // Waits until some event is available or inner futures are not ready.
+                loop {
+                    let (poll, state) = inner.poll_next_state(cx)?;
+                    inner = state;
+                    event = inner.context_mut().output.pop_front();
 
-        event
-            .map(|event| Poll::Ready(Some(Ok(event))))
-            .unwrap_or(Poll::Pending)
+                    if poll.is_pending() || event.is_some() {
+                        break;
+                    }
+                }
+
+                Ok(inner)
+            })?;
+
+            match event {
+                Some(ConsensusEvent::RequestAnnounces(request)) => {
+                    self.request_announces(request);
+                    continue;
+                }
+                Some(event) => return Poll::Ready(Some(Ok(event))),
+                None => return Poll::Pending,
+            }
+        }
     }
 }
 

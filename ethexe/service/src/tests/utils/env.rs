@@ -877,6 +877,28 @@ impl Node {
             .await
             .unwrap();
 
+        let (sender, receiver) = broadcast::channel(2048);
+
+        let consensus_config = ConsensusLayerConfig {
+            ethereum_rpc: self.eth_cfg.rpc.clone(),
+            ethereum_beacon_rpc: self.eth_cfg.beacon_rpc.clone(),
+            beacon_block_time: self.eth_cfg.block_time,
+        };
+        let blob_loader = BlobLoader::new(self.db.clone(), consensus_config)
+            .await
+            .expect("failed to create blob loader")
+            .into_box();
+
+        let wait_for_network = self.network_bootstrap_address.is_some();
+
+        let network = self.construct_network_service();
+        if let Some(addr) = self.network_address.as_ref() {
+            let peer_id = network.as_ref().unwrap().local_peer_id();
+            self.multiaddr = Some(format!("{addr}/p2p/{peer_id}"));
+        }
+
+        let db_sync_handle = network.as_ref().map(|network| network.db_sync_handle());
+
         let consensus: Pin<Box<dyn ConsensusService>> = {
             if let Some(config) = self.validator_config.as_ref() {
                 let ethereum = Ethereum::new(
@@ -901,11 +923,17 @@ impl Node {
                             commitment_delay_limit: COMMITMENT_DELAY_LIMIT,
                             producer_delay: self.block_time / 6,
                         },
+                        db_sync_handle,
                     )
                     .unwrap(),
                 )
             } else {
-                Box::pin(ConnectService::new(self.db.clone(), self.block_time, 3))
+                Box::pin(ConnectService::new(
+                    self.db.clone(),
+                    self.block_time,
+                    3,
+                    db_sync_handle,
+                ))
             }
         };
 
@@ -913,26 +941,6 @@ impl Node {
             .validator_config
             .as_ref()
             .map(|c| c.public_key.to_address());
-
-        let (sender, receiver) = broadcast::channel(2048);
-
-        let consensus_config = ConsensusLayerConfig {
-            ethereum_rpc: self.eth_cfg.rpc.clone(),
-            ethereum_beacon_rpc: self.eth_cfg.beacon_rpc.clone(),
-            beacon_block_time: self.eth_cfg.block_time,
-        };
-        let blob_loader = BlobLoader::new(self.db.clone(), consensus_config)
-            .await
-            .expect("failed to create blob loader")
-            .into_box();
-
-        let wait_for_network = self.network_bootstrap_address.is_some();
-
-        let network = self.construct_network_service();
-        if let Some(addr) = self.network_address.as_ref() {
-            let peer_id = network.as_ref().unwrap().local_peer_id();
-            self.multiaddr = Some(format!("{addr}/p2p/{peer_id}"));
-        }
 
         let tx_pool_service = TxPoolService::new(self.db.clone());
 
