@@ -52,8 +52,11 @@ pub fn setup_start_block_in_db<
     start_block_data: FullBlockData,
     start_announce_data: FullAnnounceData,
 ) {
-    let height = start_block_data.header.height;
     let announce_hash = start_announce_data.announce.to_hash();
+    let latest_synced_block = SimpleBlockData {
+        hash: start_block_hash,
+        header: start_block_data.header,
+    };
 
     assert_eq!(
         start_block_data.announces,
@@ -65,7 +68,7 @@ pub fn setup_start_block_in_db<
     setup_announce_in_db(db, start_announce_data);
 
     db.mutate_latest_data(|latest| {
-        latest.synced_block_height = height;
+        latest.synced_block = latest_synced_block;
         latest.prepared_block_hash = start_block_hash;
         latest.computed_announce_hash = announce_hash;
         latest.start_block_hash = start_block_hash;
@@ -126,7 +129,10 @@ pub fn setup_genesis_in_db<
         );
     } else {
         db.set_latest_data(LatestData {
-            synced_block_height: genesis_block.header.height,
+            synced_block: SimpleBlockData {
+                hash: genesis_block.hash,
+                header: genesis_block.header,
+            },
             prepared_block_hash: genesis_block.hash,
             computed_announce_hash: genesis_announce_hash,
             genesis_block_hash: genesis_block.hash,

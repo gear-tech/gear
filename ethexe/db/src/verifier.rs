@@ -30,7 +30,7 @@ use gear_core::code::CodeMetadata;
 use gprimitives::{CodeId, H256};
 use parity_scale_codec::Encode;
 use std::{
-    collections::{BTreeSet, HashMap, HashSet},
+    collections::{BTreeSet, HashMap},
     hash::Hash,
 };
 
@@ -115,6 +115,8 @@ impl IntegrityVerifier {
 
         #[cfg(debug_assertions)]
         {
+            use std::collections::HashSet;
+
             self.errors
                 .clone()
                 .into_iter()

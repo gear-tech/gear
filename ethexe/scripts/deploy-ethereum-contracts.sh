@@ -5,18 +5,25 @@ if [ $# -lt 1 ]; then
   exit 1
 fi
 
+VERIFY=""
+
+if [ -n "$ETHERSCAN_API_KEY" ]; then
+  VERIFY="--verify"
+fi
+
 set -ex
 
 RPC_URL="$1"
 
 forge clean
 
-forge script script/Deployment.s.sol:DeploymentScript --slow --rpc-url "$RPC_URL" --broadcast --verify -vvvv
+forge script script/Deployment.s.sol:DeploymentScript --slow --rpc-url "$RPC_URL" --broadcast $VERIFY -vvvv
 
 # Now need to update `address internal constant ROUTER` in `MirrorProxy.sol` and `MirrorProxySmall.sol`
 # to address obtained during deployment (used to verify contracts created by Router)!
 
-BROADCAST_PATH="broadcast/Deployment.s.sol/$(cast chain-id --rpc-url "$RPC_URL")/run-latest.json"
+CHAIN_ID=$(cast chain-id --rpc-url "$RPC_URL")
+BROADCAST_PATH="broadcast/Deployment.s.sol/$CHAIN_ID/run-latest.json"
 ROUTER_ADDRESS=$(cat "$BROADCAST_PATH" | jq '.transactions[] | select(.contractName == "Router") | .contractAddress' | tr -d '"')
 WVARA_ADDRESS=$(cat "$BROADCAST_PATH" | jq '.transactions[] | select(.contractName == "WrappedVara") | .contractAddress' | tr -d '"')
 ROUTER_PROXY_ADDRESS=$(cat "$BROADCAST_PATH" |
@@ -46,17 +53,17 @@ sed -i "s/0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE/${ROUTER_PROXY_ADDRESS}/" s
 curl \
     --data "address=$ROUTER_PROXY_ADDRESS" \
     --data "expectedimplementation=$ROUTER_ADDRESS" \
-    "https://api.etherscan.io/v2/api?chainid=560048&module=contract&action=verifyproxycontract&apikey=$ETHERSCAN_API_KEY"
+    "https://api.etherscan.io/v2/api?chainid=$CHAIN_ID&module=contract&action=verifyproxycontract&apikey=$ETHERSCAN_API_KEY"
 curl \
     --data "address=$WVARA_PROXY_ADDRESS" \
     --data "expectedimplementation=$WVARA_ADDRESS" \
-    "https://api.etherscan.io/v2/api?chainid=560048&module=contract&action=verifyproxycontract&apikey=$ETHERSCAN_API_KEY"
+    "https://api.etherscan.io/v2/api?chainid=$CHAIN_ID&module=contract&action=verifyproxycontract&apikey=$ETHERSCAN_API_KEY"
 
 # We also need to upload the MirrorProxy and MirrorProxySmall contracts
 # at least once to etherscan so that the Mirror creations by Router are shown as verified.
 
-forge script script/MirrorProxy.s.sol:MirrorProxyScript --slow --rpc-url "$RPC_URL" --broadcast --verify -vvvv
-forge script script/MirrorProxySmall.s.sol:MirrorProxySmallScript --slow --rpc-url "$RPC_URL" --broadcast --verify -vvvv
+forge script script/MirrorProxy.s.sol:MirrorProxyScript --slow --rpc-url "$RPC_URL" --broadcast $VERIFY -vvvv
+forge script script/MirrorProxySmall.s.sol:MirrorProxySmallScript --slow --rpc-url "$RPC_URL" --broadcast $VERIFY -vvvv
 
 # Cleaning up unused/dirty files.
 
