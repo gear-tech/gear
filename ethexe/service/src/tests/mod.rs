@@ -44,7 +44,7 @@ use ethexe_compute::ComputeConfig;
 use ethexe_consensus::ConsensusEvent;
 use ethexe_db::{Database, verifier::IntegrityVerifier};
 use ethexe_ethereum::deploy::ContractsDeploymentParams;
-use ethexe_observer::{EthereumConfig, ObserverEvent};
+use ethexe_observer::EthereumConfig;
 use ethexe_processor::{DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, RunnerConfig};
 use ethexe_prometheus::PrometheusConfig;
 use ethexe_rpc::RpcConfig;
@@ -1765,7 +1765,7 @@ async fn validators_election() {
         .await
         .unwrap();
 
-    tracing::info!("📗 Next validators successfully commited");
+    tracing::info!("📗 Next validators successfully committed");
 
     // Stop previous validators
     for mut node in validators.into_iter() {
@@ -1831,6 +1831,15 @@ async fn execution_with_canonical_events_quarantine() {
         .unwrap();
     assert_eq!(res.code_id, uploaded_code.code_id);
 
+    // Wait till validator stops processing for the latest block (where commitment with program creation is present)
+    let latest_block: H256 = env.latest_block().await.hash.0.into();
+    validator
+        .listener()
+        .wait_for_announce_computed(latest_block)
+        .await;
+
+    let validator_db = validator.db.clone();
+    let mut listener = validator.listener();
     let canonical_quarantine = env.compute_config.canonical_quarantine();
     let message_id = env
         .send_message(res.program_id, b"PING")
@@ -1838,34 +1847,8 @@ async fn execution_with_canonical_events_quarantine() {
         .unwrap()
         .message_id;
 
-    env.provider.anvil_mine(Some(1), None).await.unwrap();
-
-    let mut listener = env.observer_events_publisher().subscribe().await;
-
-    // Skipping events to reach canonical events maturity
-    let mut skipped_blocks = 0;
-    while skipped_blocks < canonical_quarantine {
-        env.provider.anvil_mine(Some(1), None).await.unwrap();
-        tokio::time::sleep(Duration::from_millis(150)).await;
-
-        if let ObserverEvent::BlockSynced(..) = listener.next_event().await.unwrap() {
-            skipped_blocks += 1
-        };
-    }
-
-    // Now waiting for the PONG reply
-    loop {
-        let synced_block = match listener.next_event().await.unwrap() {
-            ObserverEvent::BlockSynced(block_hash) => block_hash,
-            _ => {
-                continue;
-            }
-        };
-
-        let Some(block_events) = validator.db.block_events(synced_block) else {
-            continue;
-        };
-
+    let check_for_pong = |block_hash| {
+        let block_events = validator_db.block_events(block_hash).unwrap();
         for block_event in block_events {
             if let BlockEvent::Mirror {
                 actor_id: _,
@@ -1880,10 +1863,35 @@ async fn execution_with_canonical_events_quarantine() {
                 && reply_to == message_id
                 && payload == b"PONG"
             {
-                return;
+                return true;
             }
         }
+
+        false
+    };
+
+    // 0 - message sent
+    // 0..canonical_quarantine - quarantine period
+    // canonical_quarantine - Process event
+    // canonical_quarantine + 1 - PONG must be present
+    for _ in 0..canonical_quarantine {
+        let block_hash = listener.wait_for_block_synced().await;
+
+        assert!(!check_for_pong(block_hash), "PONG received too early");
+
+        listener.wait_for_announce_computed(block_hash).await;
+        env.force_new_block().await;
     }
+
+    // wait for block synced with PING msg processing
+    let _ = listener.wait_for_block_synced().await;
+
+    // wait for block with PONG
+    let block_hash = listener.wait_for_block_synced().await;
+    assert!(
+        check_for_pong(block_hash),
+        "PONG not received after quarantine"
+    );
 }
 
 #[tokio::test(flavor = "multi_thread")]

@@ -99,11 +99,11 @@ pub struct TestEnv {
     pub block_time: Duration,
     pub continuous_block_generation: bool,
     pub compute_config: ComputeConfig,
+    pub db: Database,
 
     router_query: RouterQuery,
     /// In order to reduce amount of observers, we create only one observer and broadcast events to all subscribers.
     broadcaster: Sender<ObserverEvent>,
-    db: Database,
     /// If network is enabled by test, then we store here:
     /// network service polling thread, bootstrap address and nonce for new node address generation.
     bootstrap_network: Option<(JoinHandle<()>, String, usize)>,
