@@ -352,11 +352,13 @@ jobs:
           - id: testnet
             display: Vara Testnet
             snapshot_url: https://snapshots.vara-network.io/vara-testnet.snap
-            args: --disable-spec-name-check --checks try-state
+            check: try-state
+            disable_spec_name_check: true
           - id: mainnet
             display: Vara Mainnet
             snapshot_url: https://snapshots.vara-network.io/vara-mainnet.snap
-            args: --checks all
+            check: all
+            disable_spec_name_check: false
       fail-fast: false
     name: try-runtime - ${{ matrix.network.display }} [${{ matrix.profiles.name }}]
     steps:
@@ -435,16 +437,26 @@ jobs:
         run: curl -o "$SNAPSHOT_FILE" -L "${{ matrix.network.snapshot_url }}"
 
       - name: "Test: on-runtime-upgrade (${{ matrix.network.display }})"
+        shell: bash
+        env:
+          CHECK: ${{ matrix.network.check }}
+          DISABLE_SPEC_NAME_CHECK: ${{ matrix.network.disable_spec_name_check }}
         run: |
           set -euo pipefail
+
+          EXTRA_ARGS=()
+          if [ "$DISABLE_SPEC_NAME_CHECK" = "true" ]; then
+            EXTRA_ARGS+=(--disable-spec-name-check)
+          fi
 
           ./try-runtime \
             --runtime "$TRY_RUNTIME_WASM" \
             on-runtime-upgrade \
+            "$CHECK" \
             --blocktime 3000 \
             --disable-spec-version-check \
             --no-weight-warnings \
-            ${{ matrix.network.args }} \
+            "${EXTRA_ARGS[@]}" \
             snap -p "$SNAPSHOT_FILE"
 
       - name: "System: Disable swap"
