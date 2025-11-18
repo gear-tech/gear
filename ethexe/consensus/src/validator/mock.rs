@@ -21,7 +21,8 @@ use crate::utils::MultisignedBatchCommitment;
 use anyhow::anyhow;
 use async_trait::async_trait;
 use ethexe_common::{
-    DEFAULT_BLOCK_GAS_LIMIT, ProtocolTimelines, ValidatorsVec, db::OnChainStorageRW, mock::Mock,
+    COMMITMENT_DELAY_LIMIT, DEFAULT_BLOCK_GAS_LIMIT, ProtocolTimelines, ValidatorsVec,
+    db::OnChainStorageRW, mock::Mock,
 };
 use hashbrown::HashMap;
 use std::sync::Arc;
@@ -90,8 +91,7 @@ impl WaitFor for ValidatorState {
         }
 
         let mut dummy = Dummy(Some(self));
-        let event = (&mut dummy).await.unwrap();
-        Ok((dummy.0.unwrap(), event))
+        (&mut dummy).await.map(|event| (dummy.0.unwrap(), event))
     }
 
     async fn wait_for_state<F>(self, f: F) -> Result<ValidatorState>
@@ -148,8 +148,11 @@ pub fn mock_validator_context() -> (ValidatorContext, Vec<PublicKey>, MockEthere
             db: db.clone(),
             committer: Box::new(ethereum.clone()),
             middleware: MiddlewareWrapper::from_inner(ethereum.clone()),
+            injected_pool: InjectedTxPool::new(db.clone()),
             validate_chain_deepness_limit: MAX_CHAIN_DEEPNESS,
             chain_deepness_threshold: CHAIN_DEEPNESS_THRESHOLD,
+            commitment_delay_limit: COMMITMENT_DELAY_LIMIT,
+            producer_delay: Duration::from_millis(1),
         },
         pending_events: VecDeque::new(),
         output: VecDeque::new(),

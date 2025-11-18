@@ -21,8 +21,9 @@
 use std::time::Duration;
 
 use demo_wat::WatExample;
-use gclient::{Error, EventProcessor, GearApi, errors};
+use gclient::{Error, EventProcessor, GearApi};
 use gear_core::{code::MAX_WASM_PAGES_AMOUNT, pages::WasmPage};
+use gsdk::gear;
 
 async fn upload_programs_and_check(
     api: &GearApi,
@@ -231,7 +232,7 @@ async fn test_upload_failed() -> anyhow::Result<()> {
     assert!(
         matches!(
             err,
-            Error::Module(errors::ModuleError::Gear(errors::Gear::GasLimitTooHigh))
+            Error::Runtime(gear::Error::Gear(gear::gear::Error::GasLimitTooHigh))
         ),
         "{err:?}"
     );

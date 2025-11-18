@@ -18,14 +18,13 @@
 
 mod block;
 mod code;
-mod dev;
 mod injected;
 mod program;
-mod tx_pool;
 
 pub use block::{BlockApi, BlockServer};
 pub use code::{CodeApi, CodeServer};
-pub use dev::{DevApi, DevServer};
 pub use injected::{InjectedApi, InjectedServer, InjectedTransactionAcceptance};
 pub use program::{ProgramApi, ProgramServer};
-pub use tx_pool::{TransactionPoolApi, TransactionPoolServer};
+
+#[cfg(feature = "test-utils")]
+pub use injected::InjectedClient;

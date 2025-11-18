@@ -147,12 +147,6 @@ contract Base is POCBaseTest {
         assertTrue(router.areValidators(_validators));
         assertEq(router.latestCommittedBatchHash(), bytes32(0));
         assertEq(router.latestCommittedBatchTimestamp(), uint48(0));
-
-        vm.startPrank(admin);
-        {
-            wrappedVara.approve(address(router), type(uint256).max);
-        }
-        vm.stopPrank();
     }
 
     function createOperatorWithStake(address _operator, uint256 _stake) internal returns (address _vault) {
@@ -325,6 +319,7 @@ contract Base is POCBaseTest {
                 _transition.exited,
                 _transition.inheritor,
                 _transition.valueToReceive,
+                _transition.valueToReceiveNegativeSign,
                 keccak256(_valueClaimsBytes),
                 keccak256(_messagesHashesBytes)
             );

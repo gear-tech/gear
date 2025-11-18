@@ -19,6 +19,7 @@
 //! Keccak256 digest type.
 
 use alloc::vec::Vec;
+use gear_core::rpc::ReplyInfo;
 use parity_scale_codec::{Decode, Encode};
 use sha3::Digest as _;
 
@@ -133,5 +134,19 @@ impl<const N: usize> ToDigest for [u8; N] {
 impl AsRef<[u8]> for Digest {
     fn as_ref(&self) -> &[u8] {
         &self.0
+    }
+}
+
+impl ToDigest for ReplyInfo {
+    fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
+        let Self {
+            payload,
+            code,
+            value,
+        } = self;
+
+        payload.update_hasher(hasher);
+        code.to_bytes().update_hasher(hasher);
+        value.to_be_bytes().update_hasher(hasher);
     }
 }

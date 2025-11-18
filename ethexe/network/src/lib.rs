@@ -30,16 +30,14 @@ pub mod export {
 
 use crate::{
     db_sync::DbSyncDatabase,
-    gossipsub::MessageAcceptance,
     validator::{ValidatorDatabase, Validators},
 };
 use anyhow::{Context, anyhow};
 use ethexe_common::{
     Address,
     ecdsa::PublicKey,
-    injected::SignedInjectedTransaction,
+    injected::{RpcOrNetworkInjectedTx, SignedInjectedTransaction},
     network::{SignedValidatorMessage, VerifiedValidatorMessage},
-    tx_pool::SignedOffchainTransaction,
 };
 use ethexe_signer::Signer;
 use futures::{Stream, future::Either, ready, stream::FusedStream};
@@ -77,7 +75,6 @@ impl<T> NetworkServiceDatabase for T where T: DbSyncDatabase + ValidatorDatabase
 #[derive(derive_more::Debug, Eq, PartialEq, Clone)]
 pub enum NetworkEvent {
     ValidatorMessage(VerifiedValidatorMessage),
-    OffchainTransaction(SignedOffchainTransaction),
     InjectedTransaction(SignedInjectedTransaction),
     PeerBlocked(PeerId),
     PeerConnected(PeerId),
@@ -231,6 +228,11 @@ impl NetworkService {
             swarm.behaviour().peer_score.handle(),
         )
         .context("failed to create validators")?;
+
+        log::info!(
+            "NetworkService created with peer id: {}",
+            swarm.local_peer_id()
+        );
 
         Ok(Self {
             swarm,
@@ -404,10 +406,6 @@ impl NetworkService {
                             self.validators.verify_message_initially(source, message);
                         (acceptance, message.map(NetworkEvent::ValidatorMessage))
                     }
-                    gossipsub::Message::Offchain(transaction) => (
-                        MessageAcceptance::Accept,
-                        Some(NetworkEvent::OffchainTransaction(transaction)),
-                    ),
                 });
 
                 return event;
@@ -452,11 +450,7 @@ impl NetworkService {
         self.swarm.behaviour_mut().gossipsub.publish(data.into())
     }
 
-    pub fn publish_offchain_transaction(&mut self, data: SignedOffchainTransaction) {
-        self.swarm.behaviour_mut().gossipsub.publish(data);
-    }
-
-    pub fn send_injected_transaction(&mut self, data: SignedInjectedTransaction) {
+    pub fn send_injected_transaction(&mut self, data: RpcOrNetworkInjectedTx) {
         self.swarm.behaviour_mut().injected.send_transaction(data);
     }
 }

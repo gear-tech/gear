@@ -24,6 +24,8 @@ use crate::{
 };
 use alloc::{collections::BTreeMap, format};
 use gear_core_errors::ReservationError;
+use scale_decode::DecodeAsType;
+use scale_encode::EncodeAsType;
 use scale_info::{
     TypeInfo,
     scale::{Decode, Encode},
@@ -38,7 +40,20 @@ use scale_info::{
 /// context is created. Also the latter is required to be instantiated only
 /// once, when incoming dispatch is created.
 #[derive(
-    Clone, Copy, Default, Debug, Eq, Hash, Ord, PartialEq, PartialOrd, Decode, Encode, TypeInfo,
+    Clone,
+    Copy,
+    Default,
+    Debug,
+    Eq,
+    Hash,
+    Ord,
+    PartialEq,
+    PartialOrd,
+    Decode,
+    DecodeAsType,
+    Encode,
+    EncodeAsType,
+    TypeInfo,
 )]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct ReservationNonce(u64);
@@ -51,7 +66,7 @@ impl From<&InnerNonce> for ReservationNonce {
 
 /// A changeable wrapper over u64 value, which is required
 /// to be used as an "active" reservations nonce in a gas reserver.
-#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
+#[derive(Debug, Clone, Encode, EncodeAsType, Decode, DecodeAsType, PartialEq, Eq)]
 struct InnerNonce(u64);
 
 impl InnerNonce {
@@ -353,7 +368,7 @@ pub type GasReservationStates = BTreeMap<ReservationId, GasReservationState>;
 /// Gas reservation state.
 ///
 /// Used to control whether reservation was created, removed or nothing happened.
-#[derive(Debug, Clone, Copy, Eq, PartialEq, Encode, Decode)]
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Encode, EncodeAsType, Decode, DecodeAsType)]
 pub enum GasReservationState {
     /// Reservation exists.
     Exists {
@@ -399,7 +414,7 @@ impl From<GasReservationSlot> for GasReservationState {
 pub type GasReservationMap = BTreeMap<ReservationId, GasReservationSlot>;
 
 /// Gas reservation slot.
-#[derive(Debug, Clone, Eq, PartialEq, Encode, Decode, TypeInfo)]
+#[derive(Debug, Clone, Eq, PartialEq, Encode, EncodeAsType, Decode, DecodeAsType, TypeInfo)]
 pub struct GasReservationSlot {
     /// Amount of reserved gas.
     pub amount: u64,

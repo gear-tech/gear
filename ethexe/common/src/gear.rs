@@ -80,7 +80,7 @@ impl ToDigest for Option<ChainCommitment> {
         };
 
         hasher.update(transitions.to_digest());
-        hasher.update(head_announce.hash().0);
+        hasher.update(head_announce.inner().0);
     }
 }
 
@@ -367,7 +367,20 @@ pub struct StateTransition {
     pub new_state_hash: H256,
     pub exited: bool,
     pub inheritor: ActorId,
+    /// We represent `value_to_receive` as `u128` and `bool` because each non-zero byte costs 16 gas,
+    /// and each zero byte costs 4 gas (see <https://evm.codes/about#gascosts>).
+    ///
+    /// Negative numbers will be stored like this:
+    /// ```
+    /// $ cast
+    /// > -1 ether
+    /// Type: int256
+    /// Hex: 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffff21f494c589c0000
+    /// ```
+    ///
+    /// This is optimization on EVM side to reduce gas costs for storing and processing values.
     pub value_to_receive: u128,
+    pub value_to_receive_negative_sign: bool,
     pub value_claims: Vec<ValueClaim>,
     pub messages: Vec<Message>,
 }
@@ -381,6 +394,7 @@ impl ToDigest for StateTransition {
             exited,
             inheritor,
             value_to_receive,
+            value_to_receive_negative_sign,
             value_claims,
             messages,
         } = self;
@@ -390,6 +404,7 @@ impl ToDigest for StateTransition {
         hasher.update([*exited as u8]);
         hasher.update(inheritor.to_address_lossy());
         hasher.update(value_to_receive.to_be_bytes());
+        hasher.update([*value_to_receive_negative_sign as u8]);
         hasher.update(value_claims.to_digest());
         hasher.update(messages.to_digest());
     }

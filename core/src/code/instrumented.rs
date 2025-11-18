@@ -20,6 +20,8 @@
 
 use crate::code::Code;
 use alloc::vec::Vec;
+use scale_decode::DecodeAsType;
+use scale_encode::EncodeAsType;
 use scale_info::{
     TypeInfo,
     scale::{Decode, Encode},
@@ -28,7 +30,9 @@ use scale_info::{
 /// Instantiated section sizes for charging during module instantiation.
 /// By "instantiated sections sizes" we mean the size of the section representation in the executor
 /// during module instantiation.
-#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, TypeInfo, Hash)]
+#[derive(
+    Clone, Debug, PartialEq, Eq, Decode, DecodeAsType, Encode, EncodeAsType, TypeInfo, Hash,
+)]
 pub struct InstantiatedSectionSizes {
     /// Code section size in bytes.
     code_section: u32,
@@ -97,7 +101,9 @@ impl InstantiatedSectionSizes {
 }
 
 /// The newtype contains the instrumented code and the corresponding id (hash).
-#[derive(Clone, Debug, Decode, Encode, TypeInfo, PartialEq, Eq, Hash)]
+#[derive(
+    Clone, Debug, Decode, DecodeAsType, Encode, EncodeAsType, TypeInfo, PartialEq, Eq, Hash,
+)]
 pub struct InstrumentedCode {
     /// Code instrumented with the latest schedule.
     bytes: Vec<u8>,

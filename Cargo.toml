@@ -94,7 +94,6 @@ members = [
     "gprimitives",
     "gsdk",
     "gsdk/codegen",
-    "gsdk/api-gen",
     "gstd",
     "gstd/codegen",
     "gsys",
@@ -115,7 +114,7 @@ members = [
 ]
 
 [workspace.dependencies]
-alloy = "1.0"
+alloy = "1.1"
 alloy-primitives = { version = "1.4", default-features = false }
 alloy-sol-types = { version = "1.4", default-features = false }
 anyhow = { version = "1.0.86", default-features = false }
@@ -123,7 +122,7 @@ arbitrary = "1.3.2"
 async-recursion = "1.1.1"
 async-trait = "0.1.81"
 base64 = "0.21.7"
-bytemuck = "1.23.2" 
+bytemuck = "1.23.2"
 byteorder = { version = "1.5.0", default-features = false }
 blake2 = { version = "0.10.6", default-features = false }
 bs58 = { version = "0.5.1", default-features = false }
@@ -178,7 +177,6 @@ serde-json-wasm = { version = "1.0.1", default-features = false }
 sha-1 = "0.10.1"
 static_init = "1.0.3"
 subxt = "0.44.0"
-subxt-codegen = "0.37.0"
 syn = "2.0.71"
 thiserror = { version = "2.0.12", default-features = false }
 tokio = { version = "1.38.0" }
@@ -316,7 +314,6 @@ ethexe-runtime-common = { path = "ethexe/runtime/common", default-features = fal
 ethexe-prometheus = { path = "ethexe/prometheus", default-features = false }
 ethexe-rpc = { path = "ethexe/rpc", default-features = false }
 ethexe-common = { path = "ethexe/common", default-features = false }
-ethexe-tx-pool = { path = "ethexe/tx-pool", default-features = false }
 ethexe-compute = { path = "ethexe/compute", default-features = false }
 ethexe-blob-loader = { path = "ethexe/blob-loader", default-features = false }
 
@@ -502,6 +499,10 @@ demo-wait-timeout = { path = "examples/wait-timeout" }
 demo-waiting-proxy = { path = "examples/waiting-proxy" }
 demo-wat = { path = "examples/wat" }
 
+# TODO: fix demos' feature resolving bug with workspace build
+demo-value-sender-ethexe = { path = "examples/value-sender-ethexe" }
+demo-delayed-sender-ethexe = { path = "examples/delayed-sender-ethexe" }
+
 # Dependencies that only used in one package
 #
 # TODO: remove these dependencies (from this file?) or add more docs.
@@ -603,7 +604,7 @@ inherits = "release"
 debug = true
 
 [patch.crates-io]
-alloy = { version = "1.0", git = "https://github.com/alessandromazza98/alloy", branch = "ale/add-eip7594-to-transaction-request" }
+alloy = { version = "1.1", git = "https://github.com/gear-tech/alloy" }
 # these patched dependecies force their `sign_ext` feature to be used by Substrate dependencies
 parity-wasm = { version = "0.45.0", git = "https://github.com/gear-tech/parity-wasm", branch = "v0.45.0-sign-ext" }
 wasmi-validation = { version = "0.5.0", git = "https://github.com/gear-tech/wasmi", branch = "v0.13.2-sign-ext" }

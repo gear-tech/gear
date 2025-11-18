@@ -49,6 +49,7 @@ use crate::{
         producer::Producer,
         submitter::Submitter,
         subordinate::Subordinate,
+        tx_pool::InjectedTxPool,
     },
 };
 use anyhow::{Result, anyhow};
@@ -58,6 +59,8 @@ use ethexe_common::{
     consensus::{VerifiedAnnounce, VerifiedValidationRequest},
     db::OnChainStorageRO,
     ecdsa::PublicKey,
+    injected::SignedInjectedTransaction,
+    network::CheckedAnnouncesResponse,
 };
 use ethexe_db::Database;
 use ethexe_ethereum::{middleware::ElectionProvider, router::Router};
@@ -82,13 +85,15 @@ mod participant;
 mod producer;
 mod submitter;
 mod subordinate;
+mod tx_pool;
 
 #[cfg(test)]
 mod mock;
 
 // TODO #4790: should be configurable
-/// Event if chain commitment does not contain any transitions
-/// and chain is not deep enough, producer still emits it to the network.
+/// If chain commitment does not contain any transitions,
+/// but announces chain depth is bigger than `CHAIN_DEEPNESS_THRESHOLD`,
+/// producer would try to submit this commitment.
 const CHAIN_DEEPNESS_THRESHOLD: u32 = 500;
 
 // TODO #4790: should be configurable
@@ -112,6 +117,10 @@ pub struct ValidatorConfig {
     pub slot_duration: Duration,
     /// Block gas limit for producer to create announces
     pub block_gas_limit: u64,
+    /// Delay limit for commitment
+    pub commitment_delay_limit: u32,
+    /// Producer delay before creating new announce after block prepared
+    pub producer_delay: Duration,
 }
 
 impl ValidatorService {
@@ -145,9 +154,12 @@ impl ValidatorService {
                 db: db.clone(),
                 committer: Box::new(EthereumCommitter { router }),
                 middleware: MiddlewareWrapper::from_inner_arc(election_provider),
+                injected_pool: InjectedTxPool::new(db),
                 validate_chain_deepness_limit: MAX_CHAIN_DEEPNESS,
                 chain_deepness_threshold: CHAIN_DEEPNESS_THRESHOLD,
                 block_gas_limit: config.block_gas_limit,
+                commitment_delay_limit: config.commitment_delay_limit,
+                producer_delay: config.producer_delay,
             },
             pending_events: VecDeque::new(),
             output: VecDeque::new(),
@@ -212,6 +224,14 @@ impl ConsensusService for ValidatorService {
     fn receive_validation_reply(&mut self, reply: BatchCommitmentValidationReply) -> Result<()> {
         self.update_inner(|inner| inner.process_validation_reply(reply))
     }
+
+    fn receive_announces_response(&mut self, response: CheckedAnnouncesResponse) -> Result<()> {
+        self.update_inner(|inner| inner.process_announces_response(response))
+    }
+
+    fn receive_injected_transaction(&mut self, tx: SignedInjectedTransaction) -> Result<()> {
+        self.update_inner(|inner| inner.process_injected_transaction(tx))
+    }
 }
 
 impl Stream for ValidatorService {
@@ -266,13 +286,11 @@ where
 
     fn into_context(self) -> ValidatorContext;
 
-    fn warning(&mut self, warning: String) {
+    fn warning(&mut self, warning: impl fmt::Display) {
         let warning = format!("{self} - {warning}");
-        self.context_mut().warning(warning);
-    }
-
-    fn output(&mut self, event: ConsensusEvent) {
-        self.context_mut().output(event);
+        self.context_mut()
+            .output
+            .push_back(ConsensusEvent::Warning(warning));
     }
 
     fn process_new_head(self, block: SimpleBlockData) -> Result<ValidatorState> {
@@ -307,6 +325,17 @@ where
         reply: BatchCommitmentValidationReply,
     ) -> Result<ValidatorState> {
         DefaultProcessing::validation_reply(self, reply)
+    }
+
+    fn process_announces_response(
+        self,
+        _response: CheckedAnnouncesResponse,
+    ) -> Result<ValidatorState> {
+        DefaultProcessing::announces_response(self, _response)
+    }
+
+    fn process_injected_transaction(self, tx: SignedInjectedTransaction) -> Result<ValidatorState> {
+        DefaultProcessing::injected_transaction(self, tx)
     }
 
     fn poll_next_state(self, _cx: &mut Context<'_>) -> Result<(Poll<()>, ValidatorState)> {
@@ -353,12 +382,8 @@ impl StateHandler for ValidatorState {
         delegate_call!(self => into_context())
     }
 
-    fn warning(&mut self, warning: String) {
+    fn warning(&mut self, warning: impl fmt::Display) {
         delegate_call!(self => warning(warning))
-    }
-
-    fn output(&mut self, event: ConsensusEvent) {
-        delegate_call!(self => output(event))
     }
 
     fn process_new_head(self, block: SimpleBlockData) -> Result<ValidatorState> {
@@ -395,8 +420,19 @@ impl StateHandler for ValidatorState {
         delegate_call!(self => process_validation_reply(reply))
     }
 
+    fn process_announces_response(
+        self,
+        response: CheckedAnnouncesResponse,
+    ) -> Result<ValidatorState> {
+        delegate_call!(self => process_announces_response(response))
+    }
+
     fn poll_next_state(self, cx: &mut Context<'_>) -> Result<(Poll<()>, ValidatorState)> {
         delegate_call!(self => poll_next_state(cx))
+    }
+
+    fn process_injected_transaction(self, tx: SignedInjectedTransaction) -> Result<ValidatorState> {
+        delegate_call!(self => process_injected_transaction(tx))
     }
 }
 
@@ -459,6 +495,26 @@ impl DefaultProcessing {
         tracing::trace!("Skip validation reply: {reply:?}");
         Ok(s.into())
     }
+
+    fn announces_response(
+        s: impl Into<ValidatorState>,
+        response: CheckedAnnouncesResponse,
+    ) -> Result<ValidatorState> {
+        let mut s = s.into();
+        s.warning(format!(
+            "unexpected announces response: {response:?}, ignored."
+        ));
+        Ok(s)
+    }
+
+    fn injected_transaction(
+        s: impl Into<ValidatorState>,
+        tx: SignedInjectedTransaction,
+    ) -> Result<ValidatorState> {
+        let mut s = s.into();
+        s.context_mut().core.process_injected_transaction(tx)?;
+        Ok(s)
+    }
 }
 
 /// The context shared across all validator states.
@@ -476,12 +532,8 @@ struct ValidatorContext {
 }
 
 impl ValidatorContext {
-    pub fn warning(&mut self, warning: String) {
-        self.output.push_back(ConsensusEvent::Warning(warning));
-    }
-
-    pub fn output(&mut self, event: ConsensusEvent) {
-        self.output.push_back(event);
+    pub fn output(&mut self, event: impl Into<ConsensusEvent>) {
+        self.output.push_back(event.into());
     }
 
     pub fn pending(&mut self, event: impl Into<PendingEvent>) {

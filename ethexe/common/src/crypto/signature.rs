@@ -147,7 +147,12 @@ impl<'de> serde::Deserialize<'de> for Signature {
     where
         D: serde::Deserializer<'de>,
     {
-        let bytes: &[u8] = serde::Deserialize::deserialize(deserializer)?;
+        let hex_string: String = serde::Deserialize::deserialize(deserializer)?;
+        let hex_string = hex_string.strip_prefix("0x").unwrap_or(&hex_string);
+
+        let bytes = hex::decode(hex_string)
+            .map_err(|_err| serde::de::Error::custom("Invalid hex string"))?;
+
         let bytes: [u8; SIGNATURE_SIZE] = bytes
             .try_into()
             .map_err(|_err| serde::de::Error::custom("Invalid signature size"))?;
@@ -162,7 +167,8 @@ impl serde::Serialize for Signature {
     where
         S: serde::Serializer,
     {
-        self.into_pre_eip155_bytes().serialize(serializer)
+        let hex_string = format!("0x{}", hex::encode(self.into_pre_eip155_bytes()));
+        hex_string.serialize(serializer)
     }
 }
 
@@ -174,7 +180,7 @@ impl Hash for Signature {
 
 /// A signed data structure, that contains the data and its signature.
 /// Always valid after construction.
-#[derive(Clone, Encode, PartialEq, Eq, Debug, Display)]
+#[derive(Clone, Encode, PartialEq, Eq, Debug, Display, Hash)]
 #[cfg_attr(feature = "std", derive(serde::Serialize))]
 #[display("SignedData({data}, {signature})")]
 pub struct SignedData<T: Sized> {
