@@ -174,19 +174,7 @@ impl InjectedServer for InjectedApi {
                 return;
             };
 
-            let json = match serde_json::value::to_raw_value(&promise) {
-                Ok(json) => json,
-                Err(err) => {
-                    tracing::error!(
-                        error = %err,
-                        promise = ?promise,
-                        "failed to deserialized promise objected"
-                    );
-                    return;
-                }
-            };
-
-            let promise_msg = match SubscriptionMessage::from_json(&json) {
+            let promise_msg = match SubscriptionMessage::from_json(&promise) {
                 Ok(msg) => msg,
                 Err(err) => {
                     tracing::error!(
