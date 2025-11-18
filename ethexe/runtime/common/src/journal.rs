@@ -670,6 +670,8 @@ where
 
 #[cfg(test)]
 mod tests {
+    use gear_core::message::StoredMessage;
+
     use super::*;
 
     use crate::state::MemStorage;
@@ -791,5 +793,50 @@ mod tests {
             handler.program_state.executable_balance,
             expected_exec_balance
         );
+    }
+
+    #[test]
+    fn notes_update_state_hash() {
+        let mut handler = init_setup(500_000_000_000, MessageType::Canonical);
+
+        // Note unhandled (not processed in RuntimeJournalHandler)
+        let (unhandled, state_hash) = handler.handle_journal(vec![JournalNote::UpdatePage {
+            program_id: ActorId::new([1u8; 32]),
+            page_number: 16.into(),
+            data: PageBuf::new_zeroed(),
+        }]);
+
+        assert!(unhandled.is_empty());
+        assert!(state_hash.is_some());
+
+        // Note will be processed in here (in RuntimeJournalHandler) and also forwarded to `NativeJournalHandler`
+        // and produce state hash update.
+        let (unhandled, state_hash) = handler.handle_journal(vec![JournalNote::StopProcessing {
+            dispatch: StoredDispatch::new(
+                DispatchKind::Handle,
+                StoredMessage::new(
+                    MessageId::new([2u8; 32]),
+                    ActorId::new([3u8; 32]),
+                    ActorId::new([4u8; 32]),
+                    Default::default(),
+                    0,
+                    None,
+                ),
+                None,
+            ),
+            gas_burned: 1000,
+        }]);
+
+        assert_eq!(unhandled.len(), 1);
+        assert!(state_hash.is_some());
+
+        // Note only processed in here (in RuntimeJournalHandler) and produce state hash update.
+        let (unhandled, state_hash) = handler.handle_journal(vec![JournalNote::GasBurned {
+            message_id: MessageId::new([0u8; 32]),
+            amount: 5000,
+            is_panic: false,
+        }]);
+        assert!(unhandled.is_empty());
+        assert!(state_hash.is_some());
     }
 }
