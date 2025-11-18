@@ -21,8 +21,7 @@ use anyhow::{Context, Result, bail};
 use async_trait::async_trait;
 use ethexe_blob_loader::{BlobLoader, BlobLoaderEvent, BlobLoaderService, ConsensusLayerConfig};
 use ethexe_common::{
-    Address, db::InjectedStorageRW, ecdsa::PublicKey, gear::CodeState,
-    network::VerifiedValidatorMessage,
+    Address, ecdsa::PublicKey, gear::CodeState, network::VerifiedValidatorMessage,
 };
 use ethexe_compute::{ComputeConfig, ComputeEvent, ComputeService};
 use ethexe_consensus::{
@@ -448,13 +447,6 @@ impl Service {
                                     let reply = reply.map(|r| r.payload);
                                     let (reply, _) = reply.into_parts();
                                     consensus.receive_validation_reply(reply)?
-                                }
-                                VerifiedValidatorMessage::Promise(promise) => {
-                                    let promise = promise.map(|p| p.payload);
-                                    let (promise, _pub_key) = promise.into_parts();
-
-                                    // TODO kuzmindev: this is a temporary solution, should be implemented by handling in some service.
-                                    self.db.set_promise(promise);
                                 }
                             };
                         }
