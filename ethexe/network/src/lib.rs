@@ -229,6 +229,11 @@ impl NetworkService {
         )
         .context("failed to create validators")?;
 
+        log::info!(
+            "NetworkService created with peer id: {}",
+            swarm.local_peer_id()
+        );
+
         Ok(Self {
             swarm,
             listeners,
