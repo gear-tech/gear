@@ -63,9 +63,9 @@ use ethexe_common::{
 };
 use ethexe_db::Database;
 use ethexe_ethereum::{middleware::ElectionProvider, router::Router};
-use ethexe_signer::Signer;
 use futures::{Stream, stream::FusedStream};
 use gprimitives::H256;
+use gsigner::secp256k1::Signer;
 use initial::Initial;
 use std::{
     collections::VecDeque,

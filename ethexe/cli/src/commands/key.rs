@@ -21,7 +21,7 @@ use crate::params::Params;
 use anyhow::{Context, Result, anyhow, bail};
 use clap::{Parser, Subcommand};
 use ethexe_common::{ToDigest as _, ecdsa::Signature};
-use ethexe_signer::Signer;
+use gsigner::secp256k1::Signer;
 use std::path::PathBuf;
 
 /// Keystore manipulations.
@@ -83,7 +83,7 @@ impl KeyCommand {
 
                 if self.network {
                     let libp2p_public = libp2p_identity::PublicKey::from(
-                        libp2p_identity::secp256k1::PublicKey::try_from_bytes(&public.0)
+                        libp2p_identity::secp256k1::PublicKey::try_from_bytes(&public.to_bytes())
                             .with_context(|| "invalid sec1 format")?,
                     );
                     println!("Peer ID: {}", libp2p_public.to_peer_id());
@@ -105,7 +105,7 @@ impl KeyCommand {
 
                 if self.network {
                     let libp2p_public = libp2p_identity::PublicKey::from(
-                        libp2p_identity::secp256k1::PublicKey::try_from_bytes(&public.0)
+                        libp2p_identity::secp256k1::PublicKey::try_from_bytes(&public.to_bytes())
                             .with_context(|| "invalid sec1 format")?,
                     );
                     println!("Peer ID: {}", libp2p_public.to_peer_id());
@@ -159,7 +159,7 @@ impl KeyCommand {
 
                     signer
                         .storage()
-                        .get_key_by_addr(address_bytes.into())?
+                        .get_key_by_address(address_bytes.into())?
                         .ok_or_else(|| anyhow!("Unrecognized eth address"))
                         .with_context(|| "invalid `key`")?
                 } else {
@@ -184,7 +184,7 @@ impl KeyCommand {
                     utils::hex_str_to_vec(message).with_context(|| "invalid `message`")?;
 
                 let signature = signer
-                    .sign(public, message)
+                    .sign(public, message.as_slice())
                     .with_context(|| "failed to sign message")?;
 
                 println!("Signature: {signature}");

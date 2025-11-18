@@ -125,6 +125,7 @@
 mod app;
 pub mod cmd;
 pub mod embed;
+pub mod keyring;
 pub mod result;
 pub mod template;
 pub mod utils;

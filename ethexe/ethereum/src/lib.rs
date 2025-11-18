@@ -18,11 +18,12 @@
 
 #![allow(dead_code, clippy::new_without_default)]
 
+use crate::wvara::WVara;
 use abi::{IMirror, IRouter};
 use alloy::{
     consensus::SignableTransaction,
     network::{Ethereum as AlloyEthereum, EthereumWallet, Network, TxSigner},
-    primitives::{Address, B256, ChainId, Signature, SignatureError},
+    primitives::{Address, B256, ChainId, Signature},
     providers::{
         Identity, PendingTransactionBuilder, PendingTransactionError, Provider, ProviderBuilder,
         RootProvider,
@@ -41,8 +42,10 @@ use alloy::{
 };
 use anyhow::{Result, anyhow};
 use async_trait::async_trait;
-use ethexe_common::{Address as LocalAddress, Digest, ecdsa::PublicKey};
-use ethexe_signer::Signer as LocalSigner;
+use gsigner::secp256k1::{
+    Address as LocalAddress, Digest as LocalDigest, PublicKey as LocalPublicKey,
+    Secp256k1SignerExt, Signer as LocalSigner,
+};
 use middleware::Middleware;
 use mirror::Mirror;
 use router::{Router, RouterQuery};
@@ -113,7 +116,7 @@ impl Ethereum {
     }
 
     pub fn mirror(&self, address: LocalAddress) -> Mirror {
-        Mirror::new(address.0.into(), self.provider())
+        Mirror::new(address.into(), self.provider())
     }
 
     pub fn router(&self) -> Router {
@@ -149,15 +152,14 @@ pub(crate) async fn create_provider(
 #[derive(Debug, Clone)]
 struct Sender {
     signer: LocalSigner,
-    sender: PublicKey,
+    sender: LocalPublicKey,
     chain_id: Option<ChainId>,
 }
 
 impl Sender {
     pub fn new(signer: LocalSigner, sender_address: LocalAddress) -> Result<Self> {
         let sender = signer
-            .storage()
-            .get_key_by_addr(sender_address)?
+            .get_key_by_address(sender_address)?
             .ok_or_else(|| anyhow!("no key found for {sender_address}"))?;
 
         Ok(Self {
@@ -175,7 +177,7 @@ impl Signer for Sender {
     }
 
     fn address(&self) -> Address {
-        self.sender.to_address().0.into()
+        self.sender.to_address().into()
     }
 
     fn chain_id(&self) -> Option<ChainId> {
@@ -190,7 +192,7 @@ impl Signer for Sender {
 #[async_trait]
 impl TxSigner<Signature> for Sender {
     fn address(&self) -> Address {
-        self.sender.to_address().0.into()
+        self.sender.to_address().into()
     }
 
     async fn sign_transaction(
@@ -203,14 +205,20 @@ impl TxSigner<Signature> for Sender {
 
 impl SignerSync for Sender {
     fn sign_hash_sync(&self, hash: &B256) -> SignerResult<Signature> {
-        let (s, r) = self
+        let digest = LocalDigest(hash.0);
+        let signature = self
             .signer
-            .sign(self.sender, Digest(hash.0))
-            .map_err(|err| SignerError::Other(err.into()))
-            .map(|s| s.into_parts())?;
-        let v = r.to_byte() as u64;
-        let v = primitives::normalize_v(v).ok_or(SignatureError::InvalidParity(v))?;
-        Ok(Signature::from_signature_and_parity(s, v))
+            .sign_digest(self.sender, &digest)
+            .map_err(|err| SignerError::Other(err.into()))?;
+        let (sig, recovery_id) = signature.into_parts();
+        let mut parity = recovery_id.is_y_odd();
+        let sig = if let Some(normalized) = sig.normalize_s() {
+            parity = !parity;
+            normalized
+        } else {
+            sig
+        };
+        Ok(Signature::from_signature_and_parity(sig, parity))
     }
 
     fn chain_id_sync(&self) -> Option<ChainId> {
@@ -276,4 +284,31 @@ macro_rules! signatures_consts {
 
 pub(crate) use signatures_consts;
 
-use crate::wvara::WVara;
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sender_signs_prehashed_message() {
+        let signer = LocalSigner::memory();
+        let public_key = signer.generate_key().unwrap();
+        let address = signer.address(public_key);
+
+        let sender = Sender::new(signer.clone(), address).expect("sender init");
+
+        let hash = B256::from([0xAA; 32]);
+        let signature = sender.sign_hash_sync(&hash).expect("signature");
+
+        let recovered_vk = signature.recover_from_prehash(&hash).expect("recover");
+        let recovered_bytes: [u8; 33] = recovered_vk
+            .to_encoded_point(true)
+            .as_bytes()
+            .try_into()
+            .expect("compressed size");
+        let recovered_address = gsigner::secp256k1::PublicKey::from_bytes(recovered_bytes)
+            .expect("valid public key")
+            .to_address();
+
+        assert_eq!(recovered_address, address);
+    }
+}

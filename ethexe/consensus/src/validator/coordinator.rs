@@ -24,6 +24,7 @@ use ethexe_common::{
     Address, ValidatorsVec, consensus::BatchCommitmentValidationRequest, gear::BatchCommitment,
     network::ValidatorMessage,
 };
+use gsigner::secp256k1::Secp256k1SignerExt;
 use std::collections::BTreeSet;
 
 /// [`Coordinator`] sends batch commitment validation request to other validators

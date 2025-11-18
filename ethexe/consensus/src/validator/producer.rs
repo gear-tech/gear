@@ -34,6 +34,7 @@ use ethexe_common::{
 use ethexe_service_utils::Timer;
 use futures::{FutureExt, future::BoxFuture};
 use gprimitives::H256;
+use gsigner::secp256k1::Secp256k1SignerExt;
 use std::task::{Context, Poll};
 
 /// [`Producer`] is the state of the validator, which creates a new block
@@ -212,8 +213,9 @@ impl Producer {
         block: SimpleBlockData,
         validators: ValidatorsVec,
     ) -> Result<ValidatorState> {
+        let my_address = ctx.core.pub_key.to_address();
         assert!(
-            validators.contains(&ctx.core.pub_key.to_address()),
+            validators.contains(&my_address),
             "Producer is not in the list of validators"
         );
 
@@ -299,7 +301,7 @@ mod tests {
     #[ntest::timeout(3000)]
     async fn create() {
         let (mut ctx, keys, _) = mock_validator_context();
-        let validators = nonempty![ctx.core.pub_key.to_address(), keys[0].to_address()];
+        let validators = nonempty![ctx.core.pub_key.to_address(), keys[0].to_address(),];
         let block = SimpleBlockData::mock(());
 
         ctx.pending(PendingEvent::ValidationRequest(
