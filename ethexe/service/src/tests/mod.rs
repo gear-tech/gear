@@ -47,7 +47,7 @@ use ethexe_ethereum::deploy::ContractsDeploymentParams;
 use ethexe_observer::{EthereumConfig, ObserverEvent};
 use ethexe_processor::{DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, RunnerConfig};
 use ethexe_prometheus::PrometheusConfig;
-use ethexe_rpc::{InjectedClient, RpcConfig};
+use ethexe_rpc::{InjectedClient, InjectedTransactionAcceptance, RpcConfig};
 use ethexe_runtime_common::state::{Expiring, MailboxMessage, PayloadLookup, Storage};
 use ethexe_signer::Signer;
 use gear_core::{
@@ -2243,7 +2243,7 @@ async fn injected_tx_fungible_token() {
             .validator(env.validators[0]),
     );
     node.start_service().await;
-    let rpc_client = node.rpc_http_client().unwrap();
+    let rpc_client = node.rpc_http_client().expect("RPC client provide by node");
 
     // 1. Create Fungible token config
     let token_config = demo_fungible_token::InitConfig {
@@ -2280,7 +2280,11 @@ async fn injected_tx_fungible_token() {
         destination: usdt_actor_id,
         payload: token_config.encode().into(),
         value: 0,
-        reference_block: node.db.latest_data().unwrap().prepared_block_hash,
+        reference_block: node
+            .db
+            .latest_data()
+            .expect("latest data exists in db")
+            .prepared_block_hash,
         salt: vec![1u8].into(),
     };
     let signed_tx = env.signer.signed_data(pubkey, init_tx).unwrap();
@@ -2288,7 +2292,11 @@ async fn injected_tx_fungible_token() {
         recipient: pubkey.to_address(),
         tx: signed_tx,
     };
-    let _ = rpc_client.send_transaction(rpc_tx).await.unwrap();
+    let acceptance = rpc_client
+        .send_transaction(rpc_tx)
+        .await
+        .expect("successfully send transaction to RPC");
+    assert!(matches!(acceptance, InjectedTransactionAcceptance::Accept));
 
     // Listen for tx inclusion
     node.listener()
@@ -2333,7 +2341,12 @@ async fn injected_tx_fungible_token() {
         tx: env.signer.signed_data(pubkey, mint_tx.clone()).unwrap(),
     };
 
-    let _ = rpc_client.send_transaction(rpc_tx).await.unwrap();
+    let acceptance = rpc_client
+        .send_transaction(rpc_tx)
+        .await
+        .expect("successfully send transaction to RPC");
+    assert!(matches!(acceptance, InjectedTransactionAcceptance::Accept));
+
     let expected_event = demo_fungible_token::FTEvent::Transfer {
         from: ActorId::new([0u8; 32]),
         to: pubkey.to_address().into(),
@@ -2411,10 +2424,22 @@ async fn injected_tx_fungible_token() {
         recipient: pubkey.to_address(),
         tx: env.signer.signed_data(pubkey, transfer_tx.clone()).unwrap(),
     };
-    let ws_client = node.rpc_ws_client().await.expect("RPC WS client");
+    let ws_client = node
+        .rpc_ws_client()
+        .await
+        .expect("RPC WS client provide by node");
 
-    let mut subscription = ws_client.subscribe_promise(rpc_tx).await.unwrap();
-    let promise = subscription.next().await.unwrap().unwrap();
+    let mut subscription = ws_client
+        .send_transaction_and_watch(rpc_tx)
+        .await
+        .expect("successully subscribe for transaction promise");
+
+    let promise = subscription
+        .next()
+        .await
+        .expect("promise from subscription")
+        .expect("transaction promise")
+        .into_data();
 
     assert_eq!(promise.tx_hash, transfer_tx.to_hash());
 
@@ -2425,4 +2450,12 @@ async fn injected_tx_fungible_token() {
     };
     assert_eq!(promise.reply.payload, expected_payload.encode());
     assert_eq!(promise.reply.value, 0);
+
+    // Check unsubscribe from subscription
+    subscription
+        .unsubscribe()
+        .await
+        .expect("successfully unsubscibe for promise");
+
+    tracing::info!("✅ Promise successfully received from RPC subscription");
 }

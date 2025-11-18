@@ -21,11 +21,8 @@ use anyhow::{Context, Result, bail};
 use async_trait::async_trait;
 use ethexe_blob_loader::{BlobLoader, BlobLoaderEvent, BlobLoaderService, ConsensusLayerConfig};
 use ethexe_common::{
-    Address,
-    db::InjectedStorageRW,
-    ecdsa::PublicKey,
-    gear::CodeState,
-    network::{SignedValidatorMessage, VerifiedValidatorMessage},
+    Address, db::InjectedStorageRW, ecdsa::PublicKey, gear::CodeState,
+    network::VerifiedValidatorMessage,
 };
 use ethexe_compute::{ComputeConfig, ComputeEvent, ComputeService};
 use ethexe_consensus::{
@@ -517,12 +514,6 @@ impl Service {
                 Event::Consensus(event) => match event {
                     ConsensusEvent::ComputeAnnounce(announce) => compute.compute_announce(announce),
                     ConsensusEvent::PublishMessage(message) => {
-                        if let Some(rpc) = rpc.as_mut()
-                            && let SignedValidatorMessage::Promise(promise) = &message
-                        {
-                            rpc.receive_promise(promise.clone().into_data().payload);
-                        }
-
                         let Some(network) = network.as_mut() else {
                             continue;
                         };
@@ -535,8 +526,12 @@ impl Service {
                     ConsensusEvent::Warning(msg) => {
                         log::warn!("Consensus service warning: {msg}");
                     }
-                    ConsensusEvent::Promise(_promise) => {
-                        // TODO kuzmindev: handle promise in rpc and network
+                    ConsensusEvent::Promise(promise) => {
+                        if let Some(rpc) = rpc.as_mut() {
+                            rpc.provide_promise(promise);
+                        }
+
+                        // TODO kuzmindev: also should be sent to network peer, that waits for transaction promise
                     }
                 },
             }

@@ -26,7 +26,7 @@ use apis::{
     BlockApi, BlockServer, CodeApi, CodeServer, InjectedApi, InjectedServer, ProgramApi,
     ProgramServer,
 };
-use ethexe_common::injected::{Promise, RpcOrNetworkInjectedTx};
+use ethexe_common::injected::{RpcOrNetworkInjectedTx, SignedPromise};
 use ethexe_db::Database;
 use ethexe_processor::RunnerConfig;
 use futures::{Stream, stream::FusedStream};
@@ -139,11 +139,11 @@ impl RpcReceiver {
         }
     }
 
-    pub fn receive_promise(&self, promise: Promise) {
+    pub fn provide_promise(&self, promise: SignedPromise) {
         let injected_api = self.injected_api.clone();
 
         tokio::spawn(async move {
-            injected_api.receive_promise(promise).await;
+            injected_api.send_promise(promise).await;
         });
     }
 }
@@ -163,10 +163,10 @@ impl FusedStream for RpcReceiver {
 }
 
 struct RpcServerApis {
-    pub code: CodeApi,
     pub block: BlockApi,
-    pub program: ProgramApi,
+    pub code: CodeApi,
     pub injected: InjectedApi,
+    pub program: ProgramApi,
 }
 
 impl RpcServerApis {
@@ -174,16 +174,16 @@ impl RpcServerApis {
         let mut module = JsonrpcModule::new(());
 
         module
-            .merge(CodeServer::into_rpc(self.code))
-            .expect("No conflicts");
-        module
             .merge(BlockServer::into_rpc(self.block))
             .expect("No conflicts");
         module
-            .merge(ProgramServer::into_rpc(self.program))
+            .merge(CodeServer::into_rpc(self.code))
             .expect("No conflicts");
         module
             .merge(InjectedServer::into_rpc(self.injected))
+            .expect("No conflicts");
+        module
+            .merge(ProgramServer::into_rpc(self.program))
             .expect("No conflicts");
 
         module

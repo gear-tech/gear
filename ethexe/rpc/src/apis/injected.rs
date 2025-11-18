@@ -19,12 +19,13 @@
 use crate::{RpcEvent, errors};
 use ethexe_common::{
     HashOf,
-    injected::{InjectedTransaction, Promise, RpcOrNetworkInjectedTx},
+    injected::{InjectedTransaction, RpcOrNetworkInjectedTx, SignedPromise},
 };
 use jsonrpsee::{
     DisconnectError, PendingSubscriptionSink, SubscriptionMessage,
     core::{RpcResult, SubscriptionResult, async_trait},
     proc_macros::rpc,
+    types::ErrorObjectOwned,
 };
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, sync::Arc};
@@ -34,7 +35,9 @@ use tokio::sync::{Mutex, mpsc::UnboundedSender, oneshot};
 pub enum InjectedTransactionAcceptance {
     Accept,
     #[allow(unused)]
-    Reject,
+    Reject {
+        reason: ErrorObjectOwned,
+    },
 }
 
 #[cfg_attr(not(feature = "test-utils"), rpc(server))]
@@ -46,11 +49,18 @@ pub trait Injected {
         transaction: RpcOrNetworkInjectedTx,
     ) -> RpcResult<InjectedTransactionAcceptance>;
 
-    #[subscription(name = "subscribe_transactionPromise", unsubscribe = "unsubscribe_transactionPromise", item = Promise)]
-    async fn subscribe_promise(&self, transaction: RpcOrNetworkInjectedTx) -> SubscriptionResult;
+    #[subscription(
+        name = "subscribe_transactionPromise",
+        unsubscribe = "unsubscribe_transactionPromise", 
+        item = SignedPromise
+    )]
+    async fn send_transaction_and_watch(
+        &self,
+        transaction: RpcOrNetworkInjectedTx,
+    ) -> SubscriptionResult;
 }
 
-type PromiseWaitersMap = HashMap<HashOf<InjectedTransaction>, oneshot::Sender<Promise>>;
+type PromiseWaitersMap = HashMap<HashOf<InjectedTransaction>, oneshot::Sender<SignedPromise>>;
 
 #[derive(Debug, Clone)]
 pub struct InjectedApi {
@@ -68,11 +78,11 @@ impl InjectedApi {
 }
 
 impl InjectedApi {
-    pub async fn receive_promise(&self, promise: Promise) {
+    pub async fn send_promise(&self, promise: SignedPromise) {
         let mut guard = self.promise_waiters.lock().await;
 
-        let Some(promise_sender) = guard.remove(&promise.tx_hash) else {
-            tracing::trace!(promise = ?promise, "receive unregistered promise");
+        let Some(promise_sender) = guard.remove(&promise.data().tx_hash) else {
+            tracing::warn!(promise = ?promise, "receive unregistered promise");
             return;
         };
 
@@ -115,7 +125,7 @@ impl InjectedServer for InjectedApi {
         })
     }
 
-    async fn subscribe_promise(
+    async fn send_transaction_and_watch(
         &self,
         pending: PendingSubscriptionSink,
         transaction: RpcOrNetworkInjectedTx,
@@ -140,8 +150,24 @@ impl InjectedServer for InjectedApi {
                 errors::internal()
             })?;
 
-        let _accepted = response_receiver.await?;
-        let sink = pending.accept().await?;
+        let subscription_sink = match response_receiver.await? {
+            InjectedTransactionAcceptance::Accept => match pending.accept().await {
+                Ok(sink) => sink,
+                Err(err) => {
+                    tracing::warn!(error = ?err, "failed to accept subscription for injected transaction promise");
+                    return Ok(());
+                }
+            },
+            InjectedTransactionAcceptance::Reject { reason } => {
+                tracing::trace!(
+                    tx_hash = ?tx_hash,
+                    reject_reason = ?reason,
+                    "reject injected transaction"
+                );
+                pending.reject(reason).await;
+                return Ok(());
+            }
+        };
 
         let mut guard = self.promise_waiters.lock().await;
         guard.insert(tx_hash, promise_sender);
@@ -163,11 +189,18 @@ impl InjectedServer for InjectedApi {
 
             let msg = SubscriptionMessage::from_json(&json).expect("correct message");
 
-            if let Err(DisconnectError(_msg)) = sink.send(msg).await {
-                tracing::trace!(
-                    "failed to send promise for subscription, because of receiver disconnect"
-                )
-            }
+            match subscription_sink.send(msg).await {
+                Ok(()) => {
+                    tracing::trace!(tx_hash = ?tx_hash, "transaction promise was send successfully");
+                }
+                Err(DisconnectError(msg)) => {
+                    tracing::warn!(
+                        tx_hash = ?tx_hash,
+                        msg = ?msg,
+                        "failed to send msg(promise) for subscription, because of receiver disconnect"
+                    )
+                }
+            };
         });
 
         Ok(())
