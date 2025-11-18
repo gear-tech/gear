@@ -499,6 +499,15 @@ impl TestEnv {
         &self,
         program_id: ActorId,
         payload: &[u8],
+    ) -> anyhow::Result<WaitForReplyTo> {
+        self.send_message_with_params(program_id, payload, 0, false)
+            .await
+    }
+
+    pub async fn send_message_with_params(
+        &self,
+        program_id: ActorId,
+        payload: &[u8],
         value: u128,
         call_reply: bool,
     ) -> anyhow::Result<WaitForReplyTo> {

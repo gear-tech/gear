@@ -174,7 +174,7 @@ async fn ping() {
     assert_eq!(res.code_id, code_id);
 
     let res = env
-        .send_message(res.program_id, b"PING", 0, false)
+        .send_message(res.program_id, b"PING")
         .await
         .unwrap()
         .wait_for()
@@ -188,7 +188,7 @@ async fn ping() {
     let ping_id = res.program_id;
 
     let res = env
-        .send_message(ping_id, b"PING", 0, false)
+        .send_message(ping_id, b"PING")
         .await
         .unwrap()
         .wait_for()
@@ -200,7 +200,7 @@ async fn ping() {
     assert_eq!(res.value, 0);
 
     let res = env
-        .send_message(ping_id, b"PUNK", 0, false)
+        .send_message(ping_id, b"PUNK")
         .await
         .unwrap()
         .wait_for()
@@ -245,7 +245,7 @@ async fn uninitialized_program() {
             .unwrap();
 
         let reply = env
-            .send_message(res.program_id, &[], 0, false)
+            .send_message(res.program_id, &[])
             .await
             .unwrap()
             .wait_for()
@@ -256,7 +256,7 @@ async fn uninitialized_program() {
         assert_eq!(reply.code, expected_err);
 
         let res = env
-            .send_message(res.program_id, &[], 0, false)
+            .send_message(res.program_id, &[])
             .await
             .unwrap()
             .wait_for()
@@ -288,7 +288,7 @@ async fn uninitialized_program() {
             .await
             .unwrap();
         let init_reply = env
-            .send_message(init_res.program_id, &init_payload, 0, false)
+            .send_message(init_res.program_id, &init_payload)
             .await
             .unwrap();
         let mirror = env.ethereum.mirror(init_res.program_id.try_into().unwrap());
@@ -319,7 +319,7 @@ async fn uninitialized_program() {
 
         // Handle message to uninitialized program.
         let res = env
-            .send_message(init_res.program_id, &[], 0, false)
+            .send_message(init_res.program_id, &[])
             .await
             .unwrap()
             .wait_for()
@@ -359,7 +359,7 @@ async fn uninitialized_program() {
 
         // Handle message handled, but panicked due to incorrect payload as expected.
         let res = env
-            .send_message(res.program_id, &[], 0, false)
+            .send_message(res.program_id, &[])
             .await
             .unwrap()
             .wait_for()
@@ -402,7 +402,7 @@ async fn mailbox() {
         .unwrap();
 
     let init_res = env
-        .send_message(res.program_id, &env.sender_id.encode(), 0, false)
+        .send_message(res.program_id, &env.sender_id.encode())
         .await
         .unwrap()
         .wait_for()
@@ -413,7 +413,7 @@ async fn mailbox() {
     let pid = res.program_id;
 
     let res = env
-        .send_message(pid, &demo_async::Command::Mutex.encode(), 0, false)
+        .send_message(pid, &demo_async::Command::Mutex.encode())
         .await
         .unwrap();
 
@@ -616,7 +616,7 @@ async fn value_reply_program_to_user() {
         .unwrap();
 
     let _ = env
-        .send_message(res.program_id, b"", 0, false)
+        .send_message(res.program_id, b"")
         .await
         .unwrap()
         .wait_for()
@@ -660,7 +660,7 @@ async fn value_reply_program_to_user() {
     assert_eq!(local_balance, VALUE_SENT);
 
     let res = env
-        .send_message(piggy_bank_id, b"smash_with_reply", 0, false)
+        .send_message(piggy_bank_id, b"smash_with_reply")
         .await
         .unwrap()
         .wait_for()
@@ -717,7 +717,7 @@ async fn value_send_program_to_user_and_claimed() {
         .unwrap();
 
     let _ = env
-        .send_message(res.program_id, b"", 0, false)
+        .send_message(res.program_id, b"")
         .await
         .unwrap()
         .wait_for()
@@ -761,7 +761,7 @@ async fn value_send_program_to_user_and_claimed() {
     assert_eq!(local_balance, VALUE_SENT);
 
     let res = env
-        .send_message(piggy_bank_id, b"smash", 0, false)
+        .send_message(piggy_bank_id, b"smash")
         .await
         .unwrap()
         .wait_for()
@@ -851,7 +851,7 @@ async fn value_send_program_to_user_and_replied() {
         .unwrap();
 
     let _ = env
-        .send_message(res.program_id, b"", 0, false)
+        .send_message(res.program_id, b"")
         .await
         .unwrap()
         .wait_for()
@@ -895,7 +895,7 @@ async fn value_send_program_to_user_and_replied() {
     assert_eq!(local_balance, VALUE_SENT);
 
     let res = env
-        .send_message(piggy_bank_id, b"smash", 0, false)
+        .send_message(piggy_bank_id, b"smash")
         .await
         .unwrap()
         .wait_for()
@@ -988,7 +988,7 @@ async fn incoming_transfers() {
         .unwrap();
 
     let _ = env
-        .send_message(res.program_id, &env.sender_id.encode(), 0, false)
+        .send_message(res.program_id, &env.sender_id.encode())
         .await
         .unwrap()
         .wait_for()
@@ -1032,7 +1032,7 @@ async fn incoming_transfers() {
     assert_eq!(local_balance, VALUE_SENT);
 
     let res = env
-        .send_message(ping_id, b"PING", VALUE_SENT, false)
+        .send_message_with_params(ping_id, b"PING", VALUE_SENT, false)
         .await
         .unwrap()
         .wait_for()
@@ -1079,7 +1079,7 @@ async fn ping_reorg() {
         .await
         .unwrap();
     let init = env
-        .send_message(create_program.program_id, b"PING", 0, false)
+        .send_message(create_program.program_id, b"PING")
         .await
         .unwrap();
 
@@ -1106,7 +1106,7 @@ async fn ping_reorg() {
     let program_created_snapshot_id = env.provider.anvil_snapshot().await.unwrap();
 
     let res = env
-        .send_message(ping_id, b"PING", 0, false)
+        .send_message(ping_id, b"PING")
         .await
         .unwrap()
         .wait_for()
@@ -1123,7 +1123,7 @@ async fn ping_reorg() {
         .unwrap();
 
     let res = env
-        .send_message(ping_id, b"PING", 0, false)
+        .send_message(ping_id, b"PING")
         .await
         .unwrap()
         .wait_for()
@@ -1137,7 +1137,7 @@ async fn ping_reorg() {
     node.db = Database::memory();
 
     log::info!("📗 Test after db cleanup and service shutting down");
-    let send_message = env.send_message(ping_id, b"PING", 0, false).await.unwrap();
+    let send_message = env.send_message(ping_id, b"PING").await.unwrap();
 
     // Skip some blocks to simulate long time without service
     env.skip_blocks(10).await;
@@ -1183,7 +1183,7 @@ async fn ping_deep_sync() {
         .await
         .unwrap();
     let init_res = env
-        .send_message(res.program_id, b"PING", 0, false)
+        .send_message(res.program_id, b"PING")
         .await
         .unwrap()
         .wait_for()
@@ -1203,7 +1203,7 @@ async fn ping_deep_sync() {
 
     env.skip_blocks(150).await;
 
-    let send_message = env.send_message(ping_id, b"PING", 0, false).await.unwrap();
+    let send_message = env.send_message(ping_id, b"PING").await.unwrap();
 
     env.skip_blocks(150).await;
 
@@ -1268,7 +1268,7 @@ async fn multiple_validators() {
         .await
         .unwrap();
     let init_res = env
-        .send_message(res.program_id, b"", 0, false)
+        .send_message(res.program_id, b"")
         .await
         .unwrap()
         .wait_for()
@@ -1300,7 +1300,7 @@ async fn multiple_validators() {
         .await
         .unwrap();
     let init_res = env
-        .send_message(res.program_id, ping_id.encode().as_slice(), 0, false)
+        .send_message(res.program_id, ping_id.encode().as_slice())
         .await
         .unwrap()
         .wait_for()
@@ -1314,12 +1314,7 @@ async fn multiple_validators() {
     let async_id = res.program_id;
 
     let res = env
-        .send_message(
-            async_id,
-            demo_async::Command::Common.encode().as_slice(),
-            0,
-            false,
-        )
+        .send_message(async_id, demo_async::Command::Common.encode().as_slice())
         .await
         .unwrap()
         .wait_for()
@@ -1338,12 +1333,7 @@ async fn multiple_validators() {
     validators[0].stop_service().await;
 
     let res = env
-        .send_message(
-            async_id,
-            demo_async::Command::Common.encode().as_slice(),
-            0,
-            false,
-        )
+        .send_message(async_id, demo_async::Command::Common.encode().as_slice())
         .await
         .unwrap()
         .wait_for()
@@ -1359,12 +1349,7 @@ async fn multiple_validators() {
     validators[1].stop_service().await;
 
     let wait_for_reply_to = env
-        .send_message(
-            async_id,
-            demo_async::Command::Common.encode().as_slice(),
-            0,
-            false,
-        )
+        .send_message(async_id, demo_async::Command::Common.encode().as_slice())
         .await
         .unwrap();
 
@@ -1589,7 +1574,7 @@ async fn fast_sync() {
 
         let value = i as u64 % 3;
         let _reply_info = env
-            .send_message(program_info.program_id, &value.encode(), 0, false)
+            .send_message(program_info.program_id, &value.encode())
             .await
             .unwrap()
             .wait_for()
@@ -1612,7 +1597,7 @@ async fn fast_sync() {
 
     for (i, program_id) in program_ids.into_iter().enumerate() {
         let reply_info = env
-            .send_message(program_id, &(i as u64).encode(), 0, false)
+            .send_message(program_id, &(i as u64).encode())
             .await
             .unwrap()
             .wait_for()
@@ -1646,7 +1631,7 @@ async fn fast_sync() {
     for (i, program_id) in program_ids.into_iter().enumerate() {
         let i = (i * 3) as u64;
         let reply_info = env
-            .send_message(program_id, &i.encode(), 0, false)
+            .send_message(program_id, &i.encode())
             .await
             .unwrap()
             .wait_for()
@@ -1848,7 +1833,7 @@ async fn execution_with_canonical_events_quarantine() {
 
     let canonical_quarantine = env.compute_config.canonical_quarantine();
     let message_id = env
-        .send_message(res.program_id, b"PING", 0, false)
+        .send_message(res.program_id, b"PING")
         .await
         .unwrap()
         .message_id;
@@ -1933,7 +1918,7 @@ async fn value_send_program_to_program() {
 
     // Send init message to value receiver program (demo_ping)
     let _ = env
-        .send_message(res.program_id, &[], 0, false)
+        .send_message(res.program_id, &[])
         .await
         .unwrap()
         .wait_for()
@@ -1975,7 +1960,7 @@ async fn value_send_program_to_program() {
 
     // Send init message to value sender program with value to be sent to value receiver
     let res = env
-        .send_message(
+        .send_message_with_params(
             res.program_id,
             &value_receiver_id.encode(),
             VALUE_SENT,
@@ -2007,7 +1992,7 @@ async fn value_send_program_to_program() {
     assert_eq!(value_sender_local_balance, VALUE_SENT);
 
     let res = env
-        .send_message(value_sender_id, &(0_u64, VALUE_SENT).encode(), 0, false)
+        .send_message(value_sender_id, &(0_u64, VALUE_SENT).encode())
         .await
         .unwrap()
         .wait_for()
@@ -2084,7 +2069,7 @@ async fn value_send_delayed() {
 
     // Send init message to value receiver program (demo_ping)
     let _ = env
-        .send_message(res.program_id, &[], 0, false)
+        .send_message(res.program_id, &[])
         .await
         .unwrap()
         .wait_for()
@@ -2126,7 +2111,7 @@ async fn value_send_delayed() {
 
     // Send init message to value sender which sends value to receiver with delay
     let res = env
-        .send_message(
+        .send_message_with_params(
             res.program_id,
             &value_receiver_id.encode(),
             VALUE_SENT,
