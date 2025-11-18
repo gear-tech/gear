@@ -22,6 +22,8 @@ use alloc::format;
 use core::cmp::Ordering;
 use num_traits::bounds::{LowerBounded, UpperBounded};
 use numerated::{Bound, Numerated, interval::Interval, iterators::IntervalIterator};
+use scale_decode::DecodeAsType;
+use scale_encode::EncodeAsType;
 use scale_info::{
     TypeInfo,
     scale::{Decode, Encode},
@@ -48,7 +50,9 @@ const _: () = assert!(WASM_PAGE_SIZE.is_multiple_of(GEAR_PAGE_SIZE));
     Copy,
     Debug,
     Decode,
+    DecodeAsType,
     Encode,
+    EncodeAsType,
     PartialEq,
     Eq,
     PartialOrd,
@@ -187,7 +191,9 @@ impl<const SIZE: u32> PartialOrd<PagesAmount<SIZE>> for Page<SIZE> {
     Copy,
     Debug,
     Decode,
+    DecodeAsType,
     Encode,
+    EncodeAsType,
     PartialEq,
     Eq,
     PartialOrd,

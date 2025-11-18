@@ -18,7 +18,7 @@
 
 //! Validator core utils and parameters.
 
-use crate::{announces, utils};
+use crate::{announces, utils, validator::tx_pool::InjectedTxPool};
 use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use ethexe_common::{
@@ -29,6 +29,7 @@ use ethexe_common::{
     gear::{
         BatchCommitment, ChainCommitment, CodeCommitment, RewardsCommitment, ValidatorsCommitment,
     },
+    injected::SignedInjectedTransaction,
 };
 use ethexe_db::Database;
 use ethexe_ethereum::{middleware::ElectionProvider, router::Router};
@@ -54,6 +55,8 @@ pub struct ValidatorCore {
     pub committer: Box<dyn BatchCommitter>,
     #[debug(skip)]
     pub middleware: MiddlewareWrapper,
+    #[debug(skip)]
+    pub injected_pool: InjectedTxPool,
 
     /// Maximum deepness for chain commitment validation.
     pub validate_chain_deepness_limit: u32,
@@ -79,6 +82,7 @@ impl Clone for ValidatorCore {
             db: self.db.clone(),
             committer: self.committer.clone_boxed(),
             middleware: self.middleware.clone(),
+            injected_pool: self.injected_pool.clone(),
             validate_chain_deepness_limit: self.validate_chain_deepness_limit,
             chain_deepness_threshold: self.chain_deepness_threshold,
             block_gas_limit: self.block_gas_limit,
@@ -303,6 +307,12 @@ impl ValidatorCore {
         }
 
         Ok(ValidationStatus::Accepted(digest))
+    }
+
+    pub fn process_injected_transaction(&mut self, tx: SignedInjectedTransaction) -> Result<()> {
+        tracing::trace!(tx = ?tx, "Receive new injected transaction");
+        self.injected_pool.handle_tx(tx);
+        Ok(())
     }
 }
 

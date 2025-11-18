@@ -928,8 +928,9 @@ mod tests {
             timestamp: 10000,
             parent_hash: H256::random(),
         };
+
         let mut in_block_transitions =
-            InBlockTransitions::new(block_header, states, Default::default());
+            InBlockTransitions::new(block_header, states, Default::default(), Default::default());
 
         let base_program = pid2;
 

@@ -36,6 +36,7 @@ use anyhow::Result;
 use ethexe_common::{
     Announce, Digest, HashOf, SimpleBlockData,
     consensus::{BatchCommitmentValidationReply, VerifiedAnnounce, VerifiedValidationRequest},
+    injected::{SignedInjectedTransaction, SignedPromise},
     network::{AnnouncesRequest, CheckedAnnouncesResponse, SignedValidatorMessage},
 };
 use futures::{Stream, stream::FusedStream};
@@ -82,6 +83,9 @@ pub trait ConsensusService:
 
     /// Process a received announces data response
     fn receive_announces_response(&mut self, response: CheckedAnnouncesResponse) -> Result<()>;
+
+    /// Process a received injected transaction from network
+    fn receive_injected_transaction(&mut self, tx: SignedInjectedTransaction) -> Result<()>;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, derive_more::Display)]
@@ -114,4 +118,7 @@ pub enum ConsensusEvent {
     CommitmentSubmitted(CommitmentSubmitted),
     /// Informational event: during service processing, a warning situation was detected
     Warning(String),
+    /// Promise for [`ethexe_common::injected::InjectedTransaction`] execution.
+    #[from]
+    Promise(SignedPromise),
 }

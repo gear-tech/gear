@@ -23,6 +23,7 @@ use ethexe_common::{
     db::{CodesStorageRO, CodesStorageRW},
     events::{MirrorRequestEvent, RouterRequestEvent},
     gear::{MessageType, ValueClaim},
+    injected::SignedInjectedTransaction,
 };
 use ethexe_runtime_common::state::{
     Dispatch, Expiring, MailboxMessage, ModifiableStorage, PayloadLookup,
@@ -30,15 +31,41 @@ use ethexe_runtime_common::state::{
 use gear_core::{ids::ActorId, message::SuccessReplyReason};
 
 impl ProcessingHandler {
+    pub(crate) fn handle_injected_transaction(
+        &mut self,
+        tx: SignedInjectedTransaction,
+    ) -> Result<()> {
+        self.update_state(tx.data().destination, |state, storage, _| -> Result<()> {
+            // Build source from sender's Ethereum address
+            let source = tx.public_key().to_address().into();
+            let is_init = state.requires_init_message();
+
+            let raw_tx = tx.into_data();
+
+            let dispatch = Dispatch::new(
+                storage,
+                raw_tx.to_message_id(),
+                source,
+                raw_tx.payload.0,
+                raw_tx.value,
+                is_init,
+                MessageType::Injected,
+                false,
+            )?;
+
+            state
+                .injected_queue
+                .modify_queue(storage, |queue| queue.queue(dispatch));
+
+            Ok(())
+        })
+    }
+
     pub(crate) fn handle_router_event(&mut self, event: RouterRequestEvent) -> Result<()> {
         match event {
             RouterRequestEvent::ProgramCreated { actor_id, code_id } => {
                 if self.db.original_code(code_id).is_none() {
                     return Err(ProcessorError::MissingCode(code_id));
-                }
-
-                if self.db.program_code_id(actor_id).is_some() {
-                    return Err(ProcessorError::DuplicatedProgram(actor_id));
                 }
 
                 self.db.set_program_code_id(actor_id, code_id);

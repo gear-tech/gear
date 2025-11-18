@@ -156,6 +156,11 @@ jobs:
     permissions:
       contents: write
     steps:
+      - name: Free disk space
+        uses: jlumbroso/free-disk-space@main
+        with:
+          large-packages: false
+
       - name: Checkout
         uses: actions/checkout@v4
         with:
@@ -226,7 +231,7 @@ jobs:
       - name: "Install: Foundry"
         uses: foundry-rs/foundry-toolchain@v1
         with:
-          version: nightly-7418317dee96a56ae61fd6327565aca36591b0dd
+          version: v1.5.0-rc1
 
       - name: "Show: Versioning"
         run: |
@@ -344,6 +349,11 @@ jobs:
       fail-fast: false
     name: try-runtime (${{ matrix.profiles.name }})
     steps:
+      - name: "ACTIONS: Free disk space"
+        uses: jlumbroso/free-disk-space@main
+        with:
+          large-packages: false
+
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
 

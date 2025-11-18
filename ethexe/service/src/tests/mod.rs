@@ -25,7 +25,7 @@ use crate::{
     config::{self, Config},
     tests::utils::{
         AnnounceId, EnvNetworkConfig, Node, NodeConfig, TestEnv, TestEnvConfig, TestingEvent,
-        ValidatorsConfig, WaitForReplyTo, Wallets, init_logger,
+        TestingRpcEvent, ValidatorsConfig, WaitForReplyTo, Wallets, init_logger,
     },
 };
 use alloy::{
@@ -38,6 +38,7 @@ use ethexe_common::{
     ecdsa::ContractSignature,
     events::{BlockEvent, MirrorEvent, RouterEvent},
     gear::{BatchCommitment, CANONICAL_QUARANTINE, MessageType},
+    injected::{InjectedTransaction, RpcOrNetworkInjectedTx},
     mock::*,
     network::ValidatorMessage,
 };
@@ -48,10 +49,9 @@ use ethexe_ethereum::{TryGetReceipt, deploy::ContractsDeploymentParams, router::
 use ethexe_observer::{EthereumConfig, ObserverEvent};
 use ethexe_processor::{DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, RunnerConfig};
 use ethexe_prometheus::PrometheusConfig;
-use ethexe_rpc::{RpcConfig, test_utils::JsonRpcResponse};
+use ethexe_rpc::RpcConfig;
 use ethexe_runtime_common::state::{Expiring, MailboxMessage, PayloadLookup, Storage};
 use ethexe_signer::Signer;
-use ethexe_tx_pool::{OffchainTransaction, RawOffchainTransaction, TxPoolEvent};
 use gear_core::{
     ids::prelude::*,
     message::{ReplyCode, SuccessReplyReason},
@@ -181,7 +181,7 @@ async fn ping() {
     assert_eq!(res.code_id, code_id);
 
     let res = env
-        .send_message(res.program_id, b"PING", 0)
+        .send_message(res.program_id, b"PING")
         .await
         .unwrap()
         .wait_for()
@@ -194,10 +194,8 @@ async fn ping() {
 
     let ping_id = res.program_id;
 
-    env.approve_wvara(ping_id).await;
-
     let res = env
-        .send_message(ping_id, b"PING", 0)
+        .send_message(ping_id, b"PING")
         .await
         .unwrap()
         .wait_for()
@@ -209,7 +207,7 @@ async fn ping() {
     assert_eq!(res.value, 0);
 
     let res = env
-        .send_message(ping_id, b"PUNK", 0)
+        .send_message(ping_id, b"PUNK")
         .await
         .unwrap()
         .wait_for()
@@ -254,7 +252,7 @@ async fn uninitialized_program() {
             .unwrap();
 
         let reply = env
-            .send_message(res.program_id, &[], 0)
+            .send_message(res.program_id, &[])
             .await
             .unwrap()
             .wait_for()
@@ -265,7 +263,7 @@ async fn uninitialized_program() {
         assert_eq!(reply.code, expected_err);
 
         let res = env
-            .send_message(res.program_id, &[], 0)
+            .send_message(res.program_id, &[])
             .await
             .unwrap()
             .wait_for()
@@ -290,14 +288,14 @@ async fn uninitialized_program() {
         let mut listener = env.observer_events_publisher().subscribe().await;
 
         let init_res = env
-            .create_program(code_id, 500_000_000_000_000)
+            .create_program_with_params(code_id, H256([0x11; 32]), None, 500_000_000_000_000)
             .await
             .unwrap()
             .wait_for()
             .await
             .unwrap();
         let init_reply = env
-            .send_message(init_res.program_id, &init_payload, 0)
+            .send_message(init_res.program_id, &init_payload)
             .await
             .unwrap();
         let mirror = env.ethereum.mirror(init_res.program_id.try_into().unwrap());
@@ -328,7 +326,7 @@ async fn uninitialized_program() {
 
         // Handle message to uninitialized program.
         let res = env
-            .send_message(init_res.program_id, &[], 0)
+            .send_message(init_res.program_id, &[])
             .await
             .unwrap()
             .wait_for()
@@ -368,7 +366,7 @@ async fn uninitialized_program() {
 
         // Handle message handled, but panicked due to incorrect payload as expected.
         let res = env
-            .send_message(res.program_id, &[], 0)
+            .send_message(res.program_id, &[])
             .await
             .unwrap()
             .wait_for()
@@ -411,7 +409,7 @@ async fn mailbox() {
         .unwrap();
 
     let init_res = env
-        .send_message(res.program_id, &env.sender_id.encode(), 0)
+        .send_message(res.program_id, &env.sender_id.encode())
         .await
         .unwrap()
         .wait_for()
@@ -421,12 +419,10 @@ async fn mailbox() {
 
     let async_pid = res.program_id;
 
-    env.approve_wvara(async_pid).await;
-
     let mut listener = env.observer_events_publisher().subscribe().await;
 
     let wait_for_mutex_request_command_reply = env
-        .send_message(async_pid, &demo_async::Command::Mutex.encode(), 0)
+        .send_message(async_pid, &demo_async::Command::Mutex.encode())
         .await
         .unwrap();
 
@@ -646,7 +642,7 @@ async fn value_reply_program_to_user() {
         .unwrap();
 
     let _ = env
-        .send_message(res.program_id, b"", 0)
+        .send_message(res.program_id, b"")
         .await
         .unwrap()
         .wait_for()
@@ -689,10 +685,8 @@ async fn value_reply_program_to_user() {
     let local_balance = node.db.program_state(state_hash).unwrap().balance;
     assert_eq!(local_balance, VALUE_SENT);
 
-    env.approve_wvara(piggy_bank_id).await;
-
     let res = env
-        .send_message(piggy_bank_id, b"smash_with_reply", 0)
+        .send_message(piggy_bank_id, b"smash_with_reply")
         .await
         .unwrap()
         .wait_for()
@@ -749,7 +743,7 @@ async fn value_send_program_to_user_and_claimed() {
         .unwrap();
 
     let _ = env
-        .send_message(res.program_id, b"", 0)
+        .send_message(res.program_id, b"")
         .await
         .unwrap()
         .wait_for()
@@ -793,7 +787,7 @@ async fn value_send_program_to_user_and_claimed() {
     assert_eq!(local_balance, VALUE_SENT);
 
     let res = env
-        .send_message(piggy_bank_id, b"smash", 0)
+        .send_message(piggy_bank_id, b"smash")
         .await
         .unwrap()
         .wait_for()
@@ -883,7 +877,7 @@ async fn value_send_program_to_user_and_replied() {
         .unwrap();
 
     let _ = env
-        .send_message(res.program_id, b"", 0)
+        .send_message(res.program_id, b"")
         .await
         .unwrap()
         .wait_for()
@@ -927,7 +921,7 @@ async fn value_send_program_to_user_and_replied() {
     assert_eq!(local_balance, VALUE_SENT);
 
     let res = env
-        .send_message(piggy_bank_id, b"smash", 0)
+        .send_message(piggy_bank_id, b"smash")
         .await
         .unwrap()
         .wait_for()
@@ -1020,7 +1014,7 @@ async fn incoming_transfers() {
         .unwrap();
 
     let _ = env
-        .send_message(res.program_id, &env.sender_id.encode(), 0)
+        .send_message(res.program_id, &env.sender_id.encode())
         .await
         .unwrap()
         .wait_for()
@@ -1063,10 +1057,8 @@ async fn incoming_transfers() {
     let local_balance = node.db.program_state(state_hash).unwrap().balance;
     assert_eq!(local_balance, VALUE_SENT);
 
-    env.approve_wvara(ping_id).await;
-
     let res = env
-        .send_message(ping_id, b"PING", VALUE_SENT)
+        .send_message_with_params(ping_id, b"PING", VALUE_SENT, false)
         .await
         .unwrap()
         .wait_for()
@@ -1122,7 +1114,7 @@ async fn ping_reorg() {
         .await
         .unwrap();
     let init = env
-        .send_message(create_program.program_id, b"PING", 0)
+        .send_message(create_program.program_id, b"PING")
         .await
         .unwrap();
 
@@ -1142,8 +1134,6 @@ async fn ping_reorg() {
 
     let ping_id = res.program_id;
 
-    env.approve_wvara(ping_id).await;
-
     log::info!(
         "📗 Create snapshot for block: {}, where ping program is already created",
         env.provider.get_block_number().await.unwrap()
@@ -1151,7 +1141,7 @@ async fn ping_reorg() {
     let program_created_snapshot_id = env.provider.anvil_snapshot().await.unwrap();
 
     let res = env
-        .send_message(ping_id, b"PING", 0)
+        .send_message(ping_id, b"PING")
         .await
         .unwrap()
         .wait_for()
@@ -1168,7 +1158,7 @@ async fn ping_reorg() {
         .unwrap();
 
     let res = env
-        .send_message(ping_id, b"PING", 0)
+        .send_message(ping_id, b"PING")
         .await
         .unwrap()
         .wait_for()
@@ -1182,7 +1172,7 @@ async fn ping_reorg() {
     node.db = Database::memory();
 
     log::info!("📗 Test after db cleanup and service shutting down");
-    let send_message = env.send_message(ping_id, b"PING", 0).await.unwrap();
+    let send_message = env.send_message(ping_id, b"PING").await.unwrap();
 
     // Skip some blocks to simulate long time without service
     env.skip_blocks(10).await;
@@ -1228,7 +1218,7 @@ async fn ping_deep_sync() {
         .await
         .unwrap();
     let init_res = env
-        .send_message(res.program_id, b"PING", 0)
+        .send_message(res.program_id, b"PING")
         .await
         .unwrap()
         .wait_for()
@@ -1248,9 +1238,7 @@ async fn ping_deep_sync() {
 
     env.skip_blocks(150).await;
 
-    env.approve_wvara(ping_id).await;
-
-    let send_message = env.send_message(ping_id, b"PING", 0).await.unwrap();
+    let send_message = env.send_message(ping_id, b"PING").await.unwrap();
 
     env.skip_blocks(150).await;
 
@@ -1315,7 +1303,7 @@ async fn multiple_validators() {
         .await
         .unwrap();
     let init_res = env
-        .send_message(res.program_id, b"", 0)
+        .send_message(res.program_id, b"")
         .await
         .unwrap()
         .wait_for()
@@ -1347,7 +1335,7 @@ async fn multiple_validators() {
         .await
         .unwrap();
     let init_res = env
-        .send_message(res.program_id, ping_id.encode().as_slice(), 0)
+        .send_message(res.program_id, ping_id.encode().as_slice())
         .await
         .unwrap()
         .wait_for()
@@ -1360,11 +1348,8 @@ async fn multiple_validators() {
 
     let async_id = res.program_id;
 
-    env.approve_wvara(ping_id).await;
-    env.approve_wvara(async_id).await;
-
     let res = env
-        .send_message(async_id, demo_async::Command::Common.encode().as_slice(), 0)
+        .send_message(async_id, demo_async::Command::Common.encode().as_slice())
         .await
         .unwrap()
         .wait_for()
@@ -1383,7 +1368,7 @@ async fn multiple_validators() {
     validators[0].stop_service().await;
 
     let res = env
-        .send_message(async_id, demo_async::Command::Common.encode().as_slice(), 0)
+        .send_message(async_id, demo_async::Command::Common.encode().as_slice())
         .await
         .unwrap()
         .wait_for()
@@ -1400,7 +1385,7 @@ async fn multiple_validators() {
     }
 
     let wait_for_reply_to = env
-        .send_message(async_id, demo_async::Command::Common.encode().as_slice(), 0)
+        .send_message(async_id, demo_async::Command::Common.encode().as_slice())
         .await
         .unwrap();
 
@@ -1434,7 +1419,7 @@ async fn multiple_validators() {
 
 #[tokio::test(flavor = "multi_thread")]
 #[ntest::timeout(60_000)]
-async fn tx_pool_gossip() {
+async fn send_injected_tx() {
     init_logger();
 
     let test_env_config = TestEnvConfig {
@@ -1446,6 +1431,9 @@ async fn tx_pool_gossip() {
     // Setup env of 2 nodes, one of them knows about the other one.
     let mut env = TestEnv::new(test_env_config).await.unwrap();
 
+    let validator0_pubkey = env.validators[0].public_key;
+    let validator1_pubkey = env.validators[1].public_key;
+
     log::info!("📗 Starting node 0");
     let mut node0 = env.new_node(
         NodeConfig::default()
@@ -1455,7 +1443,11 @@ async fn tx_pool_gossip() {
     node0.start_service().await;
 
     log::info!("📗 Starting node 1");
-    let mut node1 = env.new_node(NodeConfig::default().validator(env.validators[1]));
+    let mut node1 = env.new_node(
+        NodeConfig::default()
+            .service_rpc(9506)
+            .validator(env.validators[1]),
+    );
     node1.start_service().await;
 
     log::info!("Populate node-0 and node-1 with 2 valid blocks");
@@ -1464,7 +1456,6 @@ async fn tx_pool_gossip() {
     env.force_new_block().await;
 
     // Give some time for nodes to process the blocks
-    tokio::time::sleep(Duration::from_secs(2)).await;
     let reference_block = node0
         .db
         .latest_data()
@@ -1472,56 +1463,50 @@ async fn tx_pool_gossip() {
         .prepared_block_hash;
 
     // Prepare tx data
-    let signed_ethexe_tx = {
-        let sender_pub_key = env.signer.generate_key().expect("failed generating key");
-
-        let ethexe_tx = OffchainTransaction {
-            raw: RawOffchainTransaction::SendMessage {
-                program_id: H160::random(),
-                payload: vec![],
-            },
-            // referring to the latest valid block hash
-            reference_block,
-        };
-        env.signer.signed_data(sender_pub_key, ethexe_tx).unwrap()
+    let tx = InjectedTransaction {
+        destination: ActorId::from(H160::random()),
+        payload: H256::random().0.to_vec().into(),
+        value: 0,
+        reference_block,
+        salt: H256::random().0.to_vec().into(),
     };
 
-    let tx_hash = signed_ethexe_tx.tx_hash();
-    let (transaction, signature) = signed_ethexe_tx.clone().into_parts();
+    let tx_for_node1 = RpcOrNetworkInjectedTx {
+        recipient: validator1_pubkey.to_address(),
+        tx: env
+            .signer
+            .signed_data(validator0_pubkey, tx.clone())
+            .unwrap(),
+    };
 
     // Send request
     log::info!("Sending tx pool request to node-1");
-    let rpc_client = node0.rpc_client().expect("rpc server is set");
-    let resp = rpc_client
-        .send_message(transaction, signature.encode())
+    let _r = node1
+        .send_injected_transaction(tx_for_node1.clone())
         .await
-        .expect("failed sending request");
-    assert!(resp.status().is_success());
-    let resp_tx_hash = JsonRpcResponse::new(resp)
-        .await
-        .expect("failed to deserialize json response from rpc")
-        .try_extract_res::<H256>()
-        .expect("failed to deserialize reply info");
-    assert_eq!(resp_tx_hash, tx_hash);
+        .expect("rpc server is set");
 
     // Tx executable validation takes time, so wait for event.
     node1
         .listener()
         .wait_for(|event| {
-            Ok(matches!(
-                event,
-                TestingEvent::TxPool(TxPoolEvent::PublishOffchainTransaction(_))
-            ))
+            // TODO kuzmindev: after validators discovery will be done replace to wait for inclusion tx into announce from node1
+            if let TestingEvent::Rpc(TestingRpcEvent::InjectedTransaction { transaction }) = event
+                && transaction == tx_for_node1
+            {
+                return Ok(true);
+            }
+            Ok(false)
         })
         .await
         .unwrap();
 
-    // Check that node-1 received the message
+    // Check that node-1 save received tx.
     let node1_db_tx = node1
         .db
-        .get_offchain_transaction(tx_hash)
+        .injected_transaction(tx.to_hash())
         .expect("tx not found");
-    assert_eq!(node1_db_tx, signed_ethexe_tx);
+    assert_eq!(node1_db_tx, tx_for_node1.tx);
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -1645,7 +1630,7 @@ async fn fast_sync() {
 
     for (i, program_id) in program_ids.iter_mut().enumerate() {
         let program_info = env
-            .create_program(code_id, 500_000_000_000_000)
+            .create_program_with_params(code_id, H256([i as u8; 32]), None, 500_000_000_000_000)
             .await
             .unwrap()
             .wait_for()
@@ -1656,7 +1641,7 @@ async fn fast_sync() {
 
         let value = i as u64 % 3;
         let _reply_info = env
-            .send_message(program_info.program_id, &value.encode(), 0)
+            .send_message(program_info.program_id, &value.encode())
             .await
             .unwrap()
             .wait_for()
@@ -1679,7 +1664,7 @@ async fn fast_sync() {
 
     for (i, program_id) in program_ids.into_iter().enumerate() {
         let reply_info = env
-            .send_message(program_id, &(i as u64).encode(), 0)
+            .send_message(program_id, &(i as u64).encode())
             .await
             .unwrap()
             .wait_for()
@@ -1713,7 +1698,7 @@ async fn fast_sync() {
     for (i, program_id) in program_ids.into_iter().enumerate() {
         let i = (i * 3) as u64;
         let reply_info = env
-            .send_message(program_id, &i.encode(), 0)
+            .send_message(program_id, &i.encode())
             .await
             .unwrap()
             .wait_for()
@@ -1920,41 +1905,49 @@ async fn execution_with_canonical_events_quarantine() {
         .unwrap();
     assert_eq!(res.code_id, uploaded_code.code_id);
 
+    // Skip blocks to finish quarantine for program creation and balance top-up
+    // 0 - ProgramCreated event
+    // 1 - ExecutableBalanceTopUpRequested event
+    // 2..canonical_quarantine + 2 - quarantine period
+    env.skip_blocks(env.compute_config.canonical_quarantine() as u32 + 2)
+        .await;
+
+    env.observer_events_publisher()
+        .subscribe()
+        .await
+        .apply_until_block_event(|event| {
+            if let BlockEvent::Mirror {
+                event: MirrorEvent::StateChanged { .. },
+                ..
+            } = event
+            {
+                Ok(Some(()))
+            } else {
+                Ok(None)
+            }
+        })
+        .await
+        .unwrap();
+
+    // Wait till validator stops processing for the latest block (where commitment with program creation is present)
+    let latest_block: H256 = env.latest_block().await.hash.0.into();
+    log::info!("📗 waiting announce for block {latest_block} computed");
+    validator
+        .listener()
+        .wait_for_announce_computed(latest_block)
+        .await;
+
+    let validator_db = validator.db.clone();
+    let mut listener = validator.listener();
     let canonical_quarantine = env.compute_config.canonical_quarantine();
     let message_id = env
-        .send_message(res.program_id, b"PING", 0)
+        .send_message(res.program_id, b"PING")
         .await
         .unwrap()
         .message_id;
 
-    env.provider.anvil_mine(Some(1), None).await.unwrap();
-
-    let mut listener = env.observer_events_publisher().subscribe().await;
-
-    // Skipping events to reach canonical events maturity
-    let mut skipped_blocks = 0;
-    while skipped_blocks < canonical_quarantine {
-        env.provider.anvil_mine(Some(1), None).await.unwrap();
-        tokio::time::sleep(Duration::from_millis(150)).await;
-
-        if let ObserverEvent::BlockSynced(..) = listener.next_event().await.unwrap() {
-            skipped_blocks += 1
-        };
-    }
-
-    // Now waiting for the PONG reply
-    loop {
-        let synced_block = match listener.next_event().await.unwrap() {
-            ObserverEvent::BlockSynced(block_hash) => block_hash,
-            _ => {
-                continue;
-            }
-        };
-
-        let Some(block_events) = validator.db.block_events(synced_block) else {
-            continue;
-        };
-
+    let check_for_pong = |block_hash| {
+        let block_events = validator_db.block_events(block_hash).unwrap();
         for block_event in block_events {
             if let BlockEvent::Mirror {
                 actor_id: _,
@@ -1969,10 +1962,38 @@ async fn execution_with_canonical_events_quarantine() {
                 && reply_to == message_id
                 && payload == b"PONG"
             {
-                return;
+                return true;
             }
         }
+
+        false
+    };
+
+    // 0 - message sent
+    // 0..canonical_quarantine - quarantine period
+    // canonical_quarantine - Process event
+    // canonical_quarantine + 1 - PONG must be present
+    for _ in 0..canonical_quarantine {
+        let block_hash = listener.wait_for_block_synced().await;
+
+        assert!(!check_for_pong(block_hash), "PONG received too early");
+
+        log::info!("📗 waiting announce for block {block_hash} computed");
+        listener.wait_for_announce_computed(block_hash).await;
+        env.force_new_block().await;
     }
+
+    // wait for block synced with PING msg processing
+    log::info!("📗 waiting announce for block with PING processing synced");
+    let _ = listener.wait_for_block_synced().await;
+
+    // wait for block with PONG
+    log::info!("📗 waiting announce for block with PONG presented synced");
+    let block_hash = listener.wait_for_block_synced().await;
+    assert!(
+        check_for_pong(block_hash),
+        "PONG not received after quarantine"
+    );
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -2007,7 +2028,7 @@ async fn value_send_program_to_program() {
 
     // Send init message to value receiver program (demo_ping)
     let _ = env
-        .send_message(res.program_id, &[], 0)
+        .send_message(res.program_id, &[])
         .await
         .unwrap()
         .wait_for()
@@ -2049,7 +2070,12 @@ async fn value_send_program_to_program() {
 
     // Send init message to value sender program with value to be sent to value receiver
     let res = env
-        .send_message(res.program_id, &value_receiver_id.encode(), VALUE_SENT)
+        .send_message_with_params(
+            res.program_id,
+            &value_receiver_id.encode(),
+            VALUE_SENT,
+            false,
+        )
         .await
         .unwrap()
         .wait_for()
@@ -2076,7 +2102,7 @@ async fn value_send_program_to_program() {
     assert_eq!(value_sender_local_balance, VALUE_SENT);
 
     let res = env
-        .send_message(value_sender_id, &(0_u64, VALUE_SENT).encode(), 0)
+        .send_message(value_sender_id, &(0_u64, VALUE_SENT).encode())
         .await
         .unwrap()
         .wait_for()
@@ -2153,7 +2179,7 @@ async fn value_send_delayed() {
 
     // Send init message to value receiver program (demo_ping)
     let _ = env
-        .send_message(res.program_id, &[], 0)
+        .send_message(res.program_id, &[])
         .await
         .unwrap()
         .wait_for()
@@ -2195,7 +2221,12 @@ async fn value_send_delayed() {
 
     // Send init message to value sender which sends value to receiver with delay
     let res = env
-        .send_message(res.program_id, &value_receiver_id.encode(), VALUE_SENT)
+        .send_message_with_params(
+            res.program_id,
+            &value_receiver_id.encode(),
+            VALUE_SENT,
+            false,
+        )
         .await
         .unwrap()
         .wait_for()
@@ -2297,6 +2328,173 @@ async fn value_send_delayed() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
+#[ntest::timeout(60_000)]
+async fn injected_tx_fungible_token() {
+    init_logger();
+
+    let env_config = TestEnvConfig {
+        network: EnvNetworkConfig::Enabled,
+        ..Default::default()
+    };
+
+    let mut env = TestEnv::new(env_config).await.unwrap();
+
+    let pubkey = env.validators[0].public_key;
+    let mut node = env.new_node(
+        NodeConfig::default()
+            .service_rpc(8008)
+            .validator(env.validators[0]),
+    );
+    node.start_service().await;
+
+    // 1. Create Fungible token config
+    let token_config = demo_fungible_token::InitConfig {
+        name: "USD Tether".to_string(),
+        symbol: "USDT".to_string(),
+        decimals: 10,
+        initial_capacity: None,
+    };
+
+    // 2. Uploading code and creating program
+    let res = env
+        .upload_code(demo_fungible_token::WASM_BINARY)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    let code_id = res.code_id;
+    let res = env
+        .create_program(code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    let usdt_actor_id = res.program_id;
+
+    tracing::info!("usdt actor id: {usdt_actor_id}");
+
+    // 3. Initialize program
+    let init_tx = InjectedTransaction {
+        destination: usdt_actor_id,
+        payload: token_config.encode().into(),
+        value: 0,
+        reference_block: node.db.latest_data().unwrap().prepared_block_hash,
+        salt: vec![1u8].into(),
+    };
+    let signed_tx = env.signer.signed_data(pubkey, init_tx).unwrap();
+    let rpc_tx = RpcOrNetworkInjectedTx {
+        recipient: pubkey.to_address(),
+        tx: signed_tx,
+    };
+    let _ = node.send_injected_transaction(rpc_tx).await.unwrap();
+
+    // Listen for tx inclusion
+    node.listener()
+        .apply_until(|event| {
+            if let TestingEvent::Consensus(ConsensusEvent::Promise(promise)) = event {
+                let promise = promise.into_data();
+                assert!(
+                    promise.reply.payload.is_empty(),
+                    "Expect empty payload, because of initializing Fungible Token returns nothing"
+                );
+
+                assert_eq!(
+                    promise.reply.code,
+                    ReplyCode::Success(SuccessReplyReason::Auto)
+                );
+                assert_eq!(promise.reply.value, 0);
+
+                return Ok(Some(()));
+            }
+
+            Ok(None)
+        })
+        .await
+        .unwrap();
+
+    tracing::info!("✅ Fungible token successfully initialized");
+
+    // 4. Try ming some tokens
+    let amount: u128 = 5_000_000_000;
+    let mint_action = demo_fungible_token::FTAction::Mint(amount);
+
+    let mint_tx = InjectedTransaction {
+        destination: usdt_actor_id,
+        payload: mint_action.encode().into(),
+        value: 0,
+        reference_block: node.db.latest_data().unwrap().prepared_block_hash,
+        salt: vec![1u8].into(),
+    };
+
+    let rpc_tx = RpcOrNetworkInjectedTx {
+        recipient: pubkey.to_address(),
+        tx: env.signer.signed_data(pubkey, mint_tx.clone()).unwrap(),
+    };
+
+    let _ = node.send_injected_transaction(rpc_tx).await.unwrap();
+    let expected_event = demo_fungible_token::FTEvent::Transfer {
+        from: ActorId::new([0u8; 32]),
+        to: pubkey.to_address().into(),
+        amount,
+    };
+
+    // Listen for inclusion and check the expected payload.
+    node.listener()
+        .apply_until(|event| {
+            if let TestingEvent::Consensus(ConsensusEvent::Promise(promise)) = event {
+                let promise = promise.into_data();
+                assert_eq!(promise.reply.payload, expected_event.encode());
+                assert_eq!(
+                    promise.reply.code,
+                    ReplyCode::Success(SuccessReplyReason::Manual)
+                );
+                assert_eq!(promise.reply.value, 0);
+
+                return Ok(Some(()));
+            }
+
+            Ok(None)
+        })
+        .await
+        .unwrap();
+    tracing::info!("✅ Tokens mint successfully");
+
+    let db = node.db.clone();
+    node.listener()
+        .apply_until(|event| {
+            if let TestingEvent::Observer(ObserverEvent::BlockSynced(synced_block)) = event {
+                let Some(block_events) = db.block_events(synced_block) else {
+                    return Ok(None);
+                };
+
+                for block_event in block_events {
+                    if let BlockEvent::Mirror {
+                        actor_id,
+                        event: MirrorEvent::StateChanged { state_hash },
+                    } = block_event
+                        && actor_id == mint_tx.destination
+                    {
+                        let state = db.program_state(state_hash).expect("state should be exist");
+                        assert_eq!(state.balance, 0);
+                        assert_eq!(state.injected_queue.cached_queue_size, 0);
+                        assert_eq!(state.canonical_queue.cached_queue_size, 0);
+                        return Ok(Some(()));
+                    }
+                }
+            }
+
+            Ok(None)
+        })
+        .await
+        .unwrap();
+    tracing::info!("✅ State successfully changed on Ethereum");
+}
+
+#[tokio::test(flavor = "multi_thread")]
 #[ntest::timeout(120_000)]
 async fn announces_conflicts() {
     init_logger();
@@ -2337,7 +2535,7 @@ async fn announces_conflicts() {
         .tap(|res| assert_eq!(res.code_id, ping_code_id))
         .program_id;
 
-    env.send_message(ping_id, b"", 0)
+    env.send_message(ping_id, b"")
         .await
         .unwrap()
         .wait_for()
@@ -2353,7 +2551,7 @@ async fn announces_conflicts() {
     {
         log::info!("📗 Case 1: all validators works normally");
 
-        env.send_message(ping_id, b"PING", 0)
+        env.send_message(ping_id, b"PING")
             .await
             .unwrap()
             .wait_for()
@@ -2380,7 +2578,7 @@ async fn announces_conflicts() {
             .map(|node| node.listener())
             .collect::<Vec<_>>();
 
-        let wait_for_pong = env.send_message(ping_id, b"PING", 0).await.unwrap();
+        let wait_for_pong = env.send_message(ping_id, b"PING").await.unwrap();
 
         let block = env.latest_block().await;
         let announce = Announce::with_default_gas(block.hash, HashOf::random());
@@ -2475,7 +2673,7 @@ async fn announces_conflicts() {
             .map(|node| node.listener())
             .collect::<Vec<_>>();
 
-        let _ = env.send_message(ping_id, b"PING", 0).await.unwrap();
+        let _ = env.send_message(ping_id, b"PING").await.unwrap();
 
         // Next block producer is validator 0 - because validators 3, 4, 5 were skipped and 6 is current
         assert_eq!(env.next_block_producer_index().await, 0);
@@ -2498,7 +2696,7 @@ async fn announces_conflicts() {
         // so now next producer is the next in order - validator 0
         assert_eq!(env.next_block_producer_index().await, 0);
 
-        let wait_for_pong = env.send_message(ping_id, b"PING", 0).await.unwrap();
+        let wait_for_pong = env.send_message(ping_id, b"PING").await.unwrap();
 
         // Ignore announce6 and build announce7 on top of base announce from parent block
         // Announce is not on top of announce6 (already accepted),
@@ -2671,7 +2869,7 @@ async fn catch_up_test_case(commitment_delay_limit: u32) {
     bob.stop_service().await;
 
     log::info!("📗 Sending first PING message, so that Alice will leave Bob behind");
-    env.send_message(ping_id, b"PING", 0)
+    env.send_message(ping_id, b"PING")
         .await
         .unwrap()
         .wait_for()
@@ -2710,7 +2908,7 @@ async fn catch_up_test_case(commitment_delay_limit: u32) {
         let pending = env
             .ethereum
             .mirror(ping_id.try_into().unwrap())
-            .send_message_pending(b"PING", 0)
+            .send_message_pending(b"PING", 0, false)
             .await
             .unwrap();
         env.force_new_block().await;
@@ -2757,7 +2955,7 @@ async fn catch_up_test_case(commitment_delay_limit: u32) {
         let pending = env
             .ethereum
             .mirror(ping_id.try_into().unwrap())
-            .send_message_pending(b"PING", 0)
+            .send_message_pending(b"PING", 0, false)
             .await
             .unwrap();
         env.force_new_block().await;

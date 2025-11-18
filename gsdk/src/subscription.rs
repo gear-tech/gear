@@ -18,7 +18,7 @@
 
 //! Subscription implementation.
 
-use crate::{Result, config::GearConfig, metadata::Event};
+use crate::{Event, Result, config::GearConfig};
 use futures::{Stream, StreamExt};
 use gear_core::ids::{ActorId, MessageId};
 use gear_core_errors::ReplyCode;

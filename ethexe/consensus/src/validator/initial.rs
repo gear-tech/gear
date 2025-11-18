@@ -553,12 +553,7 @@ mod tests {
             .blocks[1]
             .to_simple();
 
-        let invalid_announce = Announce {
-            block_hash: H256::random(),
-            parent: HashOf::random(),
-            gas_allowance: None,
-            off_chain_transactions: vec![],
-        };
+        let invalid_announce = Announce::base(H256::random(), HashOf::random());
         let invalid_announce_hash = invalid_announce.to_hash();
 
         let state = Initial::create_with_chain_head(ctx, block.clone())

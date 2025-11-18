@@ -30,6 +30,7 @@ use ethexe_common::{
     Address, Announce, HashOf, SimpleBlockData,
     consensus::{VerifiedAnnounce, VerifiedValidationRequest},
     db::OnChainStorageRO,
+    injected::SignedInjectedTransaction,
     network::{AnnouncesRequest, CheckedAnnouncesResponse},
 };
 use ethexe_db::Database;
@@ -272,6 +273,12 @@ impl ConsensusService for ConnectService {
                 .push((sender, announce.block_hash), announce);
         }
 
+        Ok(())
+    }
+
+    fn receive_injected_transaction(&mut self, tx: SignedInjectedTransaction) -> Result<()> {
+        // In "connect-node" we do not process injected transactions.
+        tracing::trace!("Received injected transaction: {tx:?}. Ignoring it.");
         Ok(())
     }
 

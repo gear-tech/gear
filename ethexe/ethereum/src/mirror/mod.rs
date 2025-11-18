@@ -84,8 +84,9 @@ impl Mirror {
         &self,
         payload: impl AsRef<[u8]>,
         value: u128,
+        call_reply: bool,
     ) -> Result<(H256, MessageId)> {
-        self.send_message_pending(payload, value)
+        self.send_message_pending(payload, value, call_reply)
             .await?
             .try_get_message_send_receipt()
             .await
@@ -95,9 +96,10 @@ impl Mirror {
         &self,
         payload: impl AsRef<[u8]>,
         value: u128,
+        call_reply: bool,
     ) -> Result<PendingTransactionBuilder<network::Ethereum>> {
         self.0
-            .sendMessage(payload.as_ref().to_vec().into(), false)
+            .sendMessage(payload.as_ref().to_vec().into(), call_reply)
             .value(U256::from(value))
             .send()
             .await
@@ -137,13 +139,12 @@ impl MirrorQuery {
         Self(QueryInstance::new(Address::new(mirror_address.0), provider))
     }
 
-    pub async fn state_hash_at(&self, block: H256) -> Result<H256> {
+    pub async fn router(&self) -> Result<LocalAddress> {
         self.0
-            .stateHash()
-            .block(BlockId::hash(block.0.into()))
+            .router()
             .call()
             .await
-            .map(|res| H256(res.0))
+            .map(|res| LocalAddress(res.into()))
             .map_err(Into::into)
     }
 
@@ -156,12 +157,13 @@ impl MirrorQuery {
             .map_err(Into::into)
     }
 
-    pub async fn inheritor(&self) -> Result<LocalAddress> {
+    pub async fn state_hash_at(&self, block: H256) -> Result<H256> {
         self.0
-            .inheritor()
+            .stateHash()
+            .block(BlockId::hash(block.0.into()))
             .call()
             .await
-            .map(|res| LocalAddress(res.into()))
+            .map(|res| H256(res.0))
             .map_err(Into::into)
     }
 
@@ -174,9 +176,22 @@ impl MirrorQuery {
             .map_err(Into::into)
     }
 
-    pub async fn router(&self) -> Result<LocalAddress> {
+    pub async fn exited(&self) -> Result<bool> {
+        self.0.exited().call().await.map_err(Into::into)
+    }
+
+    pub async fn inheritor(&self) -> Result<LocalAddress> {
         self.0
-            .router()
+            .inheritor()
+            .call()
+            .await
+            .map(|res| LocalAddress(res.into()))
+            .map_err(Into::into)
+    }
+
+    pub async fn initializer(&self) -> Result<LocalAddress> {
+        self.0
+            .initializer()
             .call()
             .await
             .map(|res| LocalAddress(res.into()))

@@ -74,7 +74,7 @@ impl Mock<(H256, HashOf<Announce>)> for Announce {
             block_hash,
             parent,
             gas_allowance: Some(100),
-            off_chain_transactions: vec![],
+            injected_transactions: vec![],
         }
     }
 }
@@ -176,12 +176,11 @@ impl<T: Mock<()>> Mock<()> for ValidatorMessage<T> {
 impl Mock<()> for InjectedTransaction {
     fn mock((): ()) -> Self {
         Self {
-            recipient: Default::default(),
             destination: Default::default(),
-            payload: vec![],
+            payload: vec![].into(),
             value: 0,
             reference_block: Default::default(),
-            salt: vec![],
+            salt: vec![].into(),
         }
     }
 }

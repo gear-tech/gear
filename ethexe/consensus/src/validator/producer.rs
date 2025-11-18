@@ -27,8 +27,10 @@ use crate::{
 use anyhow::{Result, anyhow};
 use derive_more::{Debug, Display};
 use ethexe_common::{
-    Announce, HashOf, SimpleBlockData, ValidatorsVec, db::BlockMetaStorageRO,
-    gear::BatchCommitment, network::ValidatorMessage,
+    Announce, HashOf, SimpleBlockData, ValidatorsVec,
+    db::{AnnounceStorageRO, BlockMetaStorageRO, InjectedStorageRO},
+    gear::BatchCommitment,
+    network::ValidatorMessage,
 };
 use ethexe_service_utils::Timer;
 use futures::{FutureExt, future::BoxFuture};
@@ -78,6 +80,30 @@ impl StateHandler for Producer {
     ) -> Result<ValidatorState> {
         match &self.state {
             State::WaitingAnnounceComputed(expected) if *expected == announce_hash => {
+                let announce = self
+                    .ctx
+                    .core
+                    .db
+                    .announce(announce_hash)
+                    .ok_or_else(|| anyhow!("computed announce must exists in database"))?;
+
+                for tx in announce.injected_transactions.iter() {
+                    let tx_hash = tx.data().to_hash();
+
+                    let Some(promise) = self.ctx.core.db.promise(tx_hash) else {
+                        tracing::warn!(tx_hash = ?tx_hash, "Not found promise for injected transaction");
+                        continue;
+                    };
+
+                    let signed_promise = self
+                        .ctx
+                        .core
+                        .signer
+                        .signed_data(self.ctx.core.pub_key, promise)?;
+
+                    self.ctx.output(ConsensusEvent::Promise(signed_promise));
+                }
+
                 self.state = State::AggregateBatchCommitment {
                     future: self
                         .ctx
@@ -168,12 +194,17 @@ impl Producer {
             self.ctx.core.commitment_delay_limit,
         )?;
 
+        let injected_transactions = self
+            .ctx
+            .core
+            .injected_pool
+            .select_for_announce(self.block.hash, parent)?;
+
         let announce = Announce {
             block_hash: self.block.hash,
             parent,
             gas_allowance: Some(self.ctx.core.block_gas_limit),
-            // TODO #4639: append off-chain transactions
-            off_chain_transactions: Vec::new(),
+            injected_transactions,
         };
 
         let (announce_hash, newly_included) =
@@ -308,7 +339,7 @@ mod tests {
             .await
             .unwrap();
 
-        let _tx = state
+        state
             .context_mut()
             .tasks
             .front_mut()

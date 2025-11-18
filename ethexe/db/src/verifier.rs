@@ -175,7 +175,7 @@ impl DatabaseVisitor for IntegrityVerifier {
 
     #[tracing::instrument(level = "trace", skip(self))]
     fn visit_announce(&mut self, announce_hash: HashOf<Announce>, announce: Announce) {
-        if !announce.off_chain_transactions.is_empty() {
+        if !announce.injected_transactions.is_empty() {
             self.errors
                 .push(IntegrityVerifierError::AnnounceOffChainTransactionsNotEmpty(announce_hash));
         }
@@ -292,7 +292,7 @@ impl DatabaseVisitor for IntegrityVerifier {
     ) {
         if let Some(hash) = queue_hash_with_size.hash.to_inner() {
             self.cached_queue_sizes
-                .insert(hash.hash(), queue_hash_with_size.cached_queue_size);
+                .insert(hash.inner(), queue_hash_with_size.cached_queue_size);
         }
     }
 
@@ -302,7 +302,7 @@ impl DatabaseVisitor for IntegrityVerifier {
         let hash = crate::hash(&encoded_queue);
         let hash = unsafe { HashOf::new(hash) };
 
-        let cached_queue_size = self.cached_queue_sizes.remove(&hash.hash()).expect(
+        let cached_queue_size = self.cached_queue_sizes.remove(&hash.inner()).expect(
             "`visit_message_queue_hash_with_size` must be called before `visit_message_queue`",
         );
         if cached_queue_size != queue.len() as u8 {

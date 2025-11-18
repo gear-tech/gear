@@ -91,7 +91,11 @@
 use anyhow::{Result, anyhow, ensure};
 use ethexe_common::{
     Announce, HashOf, SimpleBlockData,
-    db::{AnnounceStorageRW, BlockMetaStorageRW, LatestDataStorageRO, OnChainStorageRO},
+    db::{
+        AnnounceStorageRW, BlockMetaStorageRW, InjectedStorageRW, LatestDataStorageRO,
+        OnChainStorageRO,
+    },
+    injected::{TxValidity, TxValidityChecker},
     network::{AnnouncesRequest, AnnouncesRequestUntil},
 };
 use ethexe_ethereum::primitives::map::HashMap;
@@ -99,7 +103,7 @@ use gprimitives::H256;
 use std::collections::{BTreeSet, VecDeque};
 
 pub trait DBAnnouncesExt:
-    AnnounceStorageRW + BlockMetaStorageRW + OnChainStorageRO + LatestDataStorageRO
+    AnnounceStorageRW + BlockMetaStorageRW + OnChainStorageRO + LatestDataStorageRO + InjectedStorageRW
 {
     /// Collects blocks from the chain head backwards till the first propagated block found.
     fn collect_blocks_without_announces(&self, head: H256) -> Result<VecDeque<SimpleBlockData>>;
@@ -120,8 +124,13 @@ pub trait DBAnnouncesExt:
     ) -> Result<BTreeSet<HashOf<Announce>>>;
 }
 
-impl<DB: AnnounceStorageRW + BlockMetaStorageRW + OnChainStorageRO + LatestDataStorageRO>
-    DBAnnouncesExt for DB
+impl<
+    DB: AnnounceStorageRW
+        + BlockMetaStorageRW
+        + OnChainStorageRO
+        + LatestDataStorageRO
+        + InjectedStorageRW,
+> DBAnnouncesExt for DB
 {
     fn collect_blocks_without_announces(&self, head: H256) -> Result<VecDeque<SimpleBlockData>> {
         let mut blocks = VecDeque::new();
@@ -661,6 +670,8 @@ pub enum AnnounceRejectionReason {
     },
     #[display("Announce {_0} is already included")]
     AlreadyIncluded(HashOf<Announce>),
+    #[display("Invalid transactions: {_0:?}")]
+    TxValidity(TxValidity),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, derive_more::Display)]
@@ -693,6 +704,31 @@ pub fn accept_announce(
                 found: announce_parent,
             },
         });
+    }
+
+    // Verify for parent announce, because of the current is not processed.
+    let tx_checker = TxValidityChecker::new_for_announce(db, announce.block_hash, announce.parent)?;
+
+    for tx in announce.injected_transactions.iter() {
+        let validity_status = tx_checker.check_tx_validity(tx)?;
+
+        match validity_status {
+            TxValidity::Valid => {
+                db.set_injected_transaction(tx.clone());
+            }
+
+            validity => {
+                tracing::trace!(
+                    announce = ?announce.to_hash(),
+                    "announce contains invalid transition with status {validity_status:?}, rejecting announce."
+                );
+
+                return Ok(AnnounceStatus::Rejected {
+                    announce,
+                    reason: AnnounceRejectionReason::TxValidity(validity),
+                });
+            }
+        }
     }
 
     let (announce_hash, newly_included) = db.include_announce(announce.clone())?;
@@ -929,7 +965,7 @@ mod tests {
                 block_hash: chain.blocks[created_at].hash,
                 parent: chain.block_top_announce(created_at).announce.parent,
                 gas_allowance: Some(43),
-                off_chain_transactions: Default::default()
+                injected_transactions: Default::default()
             };
             let missing_announce_hash = missing_announce.to_hash();
 

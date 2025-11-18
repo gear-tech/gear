@@ -39,6 +39,7 @@ use ethexe_common::{
     db::*,
     ecdsa::{PrivateKey, PublicKey, SignedData},
     events::{BlockEvent, MirrorEvent, RouterEvent},
+    injected::RpcOrNetworkInjectedTx,
     network::{SignedValidatorMessage, ValidatorMessage},
 };
 use ethexe_compute::{ComputeConfig, ComputeService};
@@ -57,12 +58,12 @@ use ethexe_observer::{EthereumConfig, ObserverEvent, ObserverService};
 use ethexe_processor::{
     DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, DEFAULT_CHUNK_PROCESSING_THREADS, Processor, RunnerConfig,
 };
-use ethexe_rpc::{RpcConfig, RpcService, test_utils::RpcClient};
+use ethexe_rpc::{InjectedClient, InjectedTransactionAcceptance, RpcConfig, RpcService};
 use ethexe_signer::Signer;
-use ethexe_tx_pool::TxPoolService;
 use futures::StreamExt;
 use gear_core_errors::ReplyCode;
 use gprimitives::{ActorId, CodeId, H160, H256, MessageId};
+use jsonrpsee::http_client::HttpClient;
 use rand::{SeedableRng, prelude::StdRng};
 use roast_secp256k1_evm::frost::{
     Identifier, SigningKey, keys,
@@ -100,11 +101,11 @@ pub struct TestEnv {
     pub continuous_block_generation: bool,
     pub commitment_delay_limit: u32,
     pub compute_config: ComputeConfig,
+    pub db: Database,
 
     router_query: RouterQuery,
     /// In order to reduce amount of observers, we create only one observer and broadcast events to all subscribers.
     broadcaster: Sender<ObserverEvent>,
-    db: Database,
     /// If network is enabled by test, then we store here:
     /// network service polling thread, bootstrap address and nonce for new node address generation.
     bootstrap_network: Option<(JoinHandle<()>, String, usize)>,
@@ -428,13 +429,65 @@ impl TestEnv {
         code_id: CodeId,
         initial_executable_balance: u128,
     ) -> anyhow::Result<WaitForProgramCreation> {
-        log::info!("📗 Create program, code_id {code_id}");
+        self.create_program_with_params(code_id, H256::zero(), None, initial_executable_balance)
+            .await
+    }
+
+    pub async fn create_program_with_params(
+        &self,
+        code_id: CodeId,
+        salt: H256,
+        override_initializer: Option<ActorId>,
+        initial_executable_balance: u128,
+    ) -> anyhow::Result<WaitForProgramCreation> {
+        log::info!("📗 Create program, code_id {code_id} with salt {salt:?}");
 
         let listener = self.observer_events_publisher().subscribe().await;
 
         let router = self.ethereum.router();
 
-        let (_, program_id) = router.create_program(code_id, H256::random()).await?;
+        let (_, program_id) = router
+            .create_program(code_id, salt, override_initializer)
+            .await?;
+
+        if initial_executable_balance != 0 {
+            let program_address = program_id.to_address_lossy().0.into();
+            router
+                .wvara()
+                .approve(program_address, initial_executable_balance)
+                .await?;
+
+            let mirror = self.ethereum.mirror(program_address.into_array().into());
+
+            mirror
+                .executable_balance_top_up(initial_executable_balance)
+                .await?;
+        }
+
+        Ok(WaitForProgramCreation {
+            listener,
+            program_id,
+        })
+    }
+
+    #[allow(dead_code)]
+    pub async fn create_program_with_abi_interface(
+        &self,
+        code_id: CodeId,
+        salt: H256,
+        override_initializer: Option<ActorId>,
+        abi_interface: ActorId,
+        initial_executable_balance: u128,
+    ) -> anyhow::Result<WaitForProgramCreation> {
+        log::info!("📗 Create program, code_id {code_id} with salt {salt:?}");
+
+        let listener = self.observer_events_publisher().subscribe().await;
+
+        let router = self.ethereum.router();
+
+        let (_, program_id) = router
+            .create_program_with_abi_interface(code_id, salt, override_initializer, abi_interface)
+            .await?;
 
         if initial_executable_balance != 0 {
             let program_address = program_id.to_address_lossy().0.into();
@@ -458,18 +511,31 @@ impl TestEnv {
 
     pub async fn send_message(
         &self,
-        target: ActorId,
+        program_id: ActorId,
+        payload: &[u8],
+    ) -> anyhow::Result<WaitForReplyTo> {
+        self.send_message_with_params(program_id, payload, 0, false)
+            .await
+    }
+
+    pub async fn send_message_with_params(
+        &self,
+        program_id: ActorId,
         payload: &[u8],
         value: u128,
+        call_reply: bool,
     ) -> anyhow::Result<WaitForReplyTo> {
-        log::info!("📗 Send message to {target}, payload len {}", payload.len());
+        log::info!(
+            "📗 Send message to {program_id}, payload len {}",
+            payload.len()
+        );
 
         let listener = self.observer_events_publisher().subscribe().await;
 
-        let program_address = Address::try_from(target)?;
+        let program_address = Address::try_from(program_id)?;
         let program = self.ethereum.mirror(program_address);
 
-        let (_, message_id) = program.send_message(payload, value).await?;
+        let (_, message_id) = program.send_message(payload, value, call_reply).await?;
 
         Ok(WaitForReplyTo {
             listener,
@@ -477,6 +543,7 @@ impl TestEnv {
         })
     }
 
+    #[allow(dead_code)]
     pub async fn approve_wvara(&self, program_id: ActorId) {
         log::info!("📗 Approving WVara for {program_id}");
 
@@ -951,8 +1018,6 @@ impl Node {
             self.multiaddr = Some(format!("{addr}/p2p/{peer_id}"));
         }
 
-        let tx_pool_service = TxPoolService::new(self.db.clone());
-
         let rpc = self
             .service_rpc_config
             .as_ref()
@@ -966,7 +1031,6 @@ impl Node {
             blob_loader,
             compute,
             self.signer.clone(),
-            tx_pool_service,
             consensus,
             network,
             None,
@@ -1024,10 +1088,20 @@ impl Node {
         self.receiver = None;
     }
 
-    pub fn rpc_client(&self) -> Option<RpcClient> {
-        self.service_rpc_config
-            .as_ref()
-            .map(|rpc| RpcClient::new(format!("http://{}", rpc.listen_addr)))
+    pub fn rpc_client(&self) -> Option<HttpClient> {
+        self.service_rpc_config.as_ref().map(|rpc| {
+            HttpClient::builder()
+                .build(format!("http://{}", rpc.listen_addr))
+                .expect("failed to build http client")
+        })
+    }
+
+    pub async fn send_injected_transaction(
+        &self,
+        tx: RpcOrNetworkInjectedTx,
+    ) -> anyhow::Result<InjectedTransactionAcceptance> {
+        let http_client = self.rpc_client().expect("no rpc client provided by node");
+        http_client.send_transaction(tx).await.map_err(Into::into)
     }
 
     pub fn listener(&mut self) -> ServiceEventsListener<'_> {

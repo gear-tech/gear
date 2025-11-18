@@ -16,9 +16,10 @@ use gear_core::{
     env::MessageWaitedType,
     gas::GasAllowanceCounter,
     memory::PageBuf,
-    message::{Dispatch as CoreDispatch, StoredDispatch},
+    message::{Dispatch as CoreDispatch, DispatchKind, StoredDispatch},
     pages::{GearPage, WasmPage, num_traits::Zero as _, numerated::tree::IntervalsTree},
     reservation::GasReserver,
+    rpc::ReplyInfo,
 };
 use gear_core_errors::SignalCode;
 use gprimitives::{ActorId, CodeId, H256, MessageId, ReservationId};
@@ -249,6 +250,20 @@ impl<S: Storage> JournalHandler for NativeJournalHandler<'_, S> {
 
         let destination = dispatch.destination();
         let dispatch = dispatch.into_stored();
+
+        if self.message_type == MessageType::Injected && dispatch.kind() == DispatchKind::Reply {
+            let reply_info = ReplyInfo {
+                payload: dispatch.payload_bytes().to_vec(),
+                code: dispatch
+                    .reply_code()
+                    .expect("expect reply_code in dispatch with DispatchKind::Reply"),
+                value: dispatch.value(),
+            };
+
+            self.controller
+                .transitions
+                .maybe_store_injected_reply(&message_id, reply_info);
+        }
 
         if self.controller.transitions.is_program(&destination) {
             let dispatch = Dispatch::from_core_stored(

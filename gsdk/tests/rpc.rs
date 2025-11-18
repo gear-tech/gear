@@ -24,11 +24,11 @@ use gear_core::{
     rpc::ReplyInfo,
 };
 use gear_core_errors::{ReplyCode, SuccessReplyReason};
-use gsdk::{Api, Error, Event, Result};
+use gsdk::{Api, Error, Event, Result, gear};
 use parity_scale_codec::Encode;
 use std::{borrow::Cow, process::Command, str::FromStr, time::Instant};
 use subxt::{
-    ext::subxt_rpcs::{self, UserError},
+    ext::subxt_rpcs::{Error as SubxtRpcError, UserError},
     utils::H256,
 };
 use tokio::time::{Duration, timeout};
@@ -51,9 +51,10 @@ async fn pallet_errors_formatting() -> Result<()> {
             None,
         )
         .await
-        .expect_err("Must return error");
+        .expect_err("Must return error")
+        .unwrap_subxt_rpc();
 
-    let expected_err = subxt_rpcs::Error::User(UserError {
+    let expected_err = SubxtRpcError::User(UserError {
         code: 8000,
         message: "Runtime error".into(),
         data: Some(
@@ -201,7 +202,7 @@ async fn test_calculate_reply_gas() -> Result<()> {
         .mailbox(Some(alice_account_id().clone()), 10)
         .await?;
     assert_eq!(mailbox.len(), 1);
-    let message_id = mailbox[0].0.id.into();
+    let message_id = mailbox[0].0.id();
 
     // 3. calculate reply gas and send reply.
     let gas_info = signer
@@ -243,7 +244,7 @@ async fn test_subscribe_program_state_changes() -> Result<()> {
         .await?
         .into_iter()
         .find_map(|event| {
-            if let Event::Gear(gsdk::metadata::gear::Event::ProgramChanged { id, .. }) = event {
+            if let Event::Gear(gear::gear::Event::ProgramChanged { id, .. }) = event {
                 Some(id)
             } else {
                 None
@@ -251,7 +252,7 @@ async fn test_subscribe_program_state_changes() -> Result<()> {
         })
         .expect("program change event not found");
 
-    let expected_id = H256::from(program_id.0);
+    let expected_id = H256::from(program_id.into_bytes());
 
     let change = timeout(Duration::from_secs(30), async {
         loop {
@@ -345,7 +346,7 @@ async fn test_runtime_wasm_blob_version_history() -> Result<()> {
         .unwrap_err()
         .unwrap_subxt_rpc();
 
-    let err = subxt_rpcs::Error::User(UserError {
+    let err = SubxtRpcError::User(UserError {
         code: 9000,
         message: "Unable to find WASM blob version in WASM blob".into(),
         data: None,
@@ -383,7 +384,7 @@ async fn test_original_code_storage() -> Result<()> {
     let block_hash = rpc.latest_finalized_block_ref().await?.hash();
     let code = signer
         .api()
-        .original_code_storage_at(program.code_id.0.into(), Some(block_hash))
+        .original_code_storage_at(program.code_id.into_bytes().into(), Some(block_hash))
         .await?;
 
     assert_eq!(
@@ -537,12 +538,8 @@ async fn query_program_counters(
     uri: &str,
     block_hash: Option<H256>,
 ) -> Result<(H256, u32, u64, u64, u64)> {
-    use gsdk::{
-        BlockNumber,
-        metadata::{runtime_types::gear_core::program::Program, storage::GearProgramStorage},
-    };
+    use gsdk::gear::runtime_types::gear_core::program::Program;
     use parity_scale_codec::Decode;
-    use subxt::dynamic::Value;
 
     let signer = Api::new(uri).await?.signer("//Alice", None)?;
 
@@ -562,8 +559,8 @@ async fn query_program_counters(
         }
     };
 
-    let storage = signer.api().storage().at(block_hash);
-    let addr = Api::storage(GearProgramStorage::ProgramStorage, Vec::<Value>::new());
+    let storage = signer.api().storage_at(Some(block_hash)).await?;
+    let addr = gear::storage().gear_program().program_storage_iter();
 
     let mut iter = storage.iter(addr).await?;
     let mut count_memory_page = 0u64;
@@ -571,8 +568,8 @@ async fn query_program_counters(
     let mut count_active_program = 0u64;
     while let Some(pair) = iter.next().await {
         let pair = pair?;
-        let (key, value) = (pair.key_bytes, pair.value);
-        let program = Program::<BlockNumber>::decode(&mut value.encoded())?;
+        let (key, program) = (pair.key_bytes, pair.value);
+
         count_program += 1;
 
         let program_id = ActorId::decode(&mut key.as_ref())?;

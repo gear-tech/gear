@@ -21,7 +21,7 @@ use anyhow::anyhow;
 use async_trait::async_trait;
 use ethexe_common::{
     COMMITMENT_DELAY_LIMIT, DEFAULT_BLOCK_GAS_LIMIT, ProtocolTimelines, ValidatorsVec,
-    db::OnChainStorageRW, ecdsa::ContractSignature, gear::BatchCommitment, mock::Mock,
+    db::OnChainStorageRW, ecdsa::ContractSignature, gear::BatchCommitment, mock::*,
 };
 use hashbrown::HashMap;
 use std::sync::Arc;
@@ -160,6 +160,7 @@ pub fn mock_validator_context() -> (ValidatorContext, Vec<PublicKey>, MockEthere
             db: db.clone(),
             committer: Box::new(ethereum.clone()),
             middleware: MiddlewareWrapper::from_inner(ethereum.clone()),
+            injected_pool: InjectedTxPool::new(db.clone()),
             validate_chain_deepness_limit: MAX_CHAIN_DEEPNESS,
             chain_deepness_threshold: CHAIN_DEEPNESS_THRESHOLD,
             commitment_delay_limit: COMMITMENT_DELAY_LIMIT,
