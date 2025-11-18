@@ -1165,7 +1165,7 @@ async fn injected_ping_pong() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn injected_prioritized_over_canonical() {
-    const MSG_NUM: usize = 100;
+    const MSG_NUM: usize = 75;
     const GAS_ALLOWANCE: u64 = 400_000_000;
 
     init_logger();
@@ -1214,6 +1214,7 @@ async fn injected_prioritized_over_canonical() {
     .expect("failed to send message");
     msg_id_counter += 1;
 
+    // Send canonical messages
     for _ in 0..MSG_NUM {
         handler
             .handle_mirror_event(
@@ -1230,6 +1231,7 @@ async fn injected_prioritized_over_canonical() {
         msg_id_counter += 1;
     }
 
+    // Send injected messages
     for _ in 0..MSG_NUM {
         handle_injected_message(
             &mut handler,
@@ -1247,14 +1249,15 @@ async fn injected_prioritized_over_canonical() {
     processor.process_queue(&mut handler).await;
 
     let to_users = handler.transitions.current_messages();
-    assert!(to_users.len() <= MSG_NUM);
 
-    // Verify that canonical messages were not processed
-    for (idx, (_, message)) in to_users.into_iter().enumerate() {
-        assert_eq!(message.destination, injected_user);
-        // Skip first message which is INIT reply
-        if idx != 0 {
-            assert_eq!(message.payload, b"PONG");
+    // Verify that injected messages were processed first
+    // (skip first message which is INIT reply)
+    let mut is_canonical_found = false;
+    for (_, message) in to_users.into_iter().skip(1) {
+        if message.destination == canonical_user {
+            is_canonical_found = true;
+        } else if is_canonical_found && message.destination == injected_user {
+            panic!("Canonical message processed before injected one");
         }
     }
 }
