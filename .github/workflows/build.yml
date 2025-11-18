@@ -360,6 +360,11 @@ jobs:
       fail-fast: false
     name: try-runtime - ${{ matrix.network.display }} [${{ matrix.profiles.name }}]
     steps:
+      - name: "ACTIONS: Free disk space"
+        uses: jlumbroso/free-disk-space@main
+        with:
+          large-packages: false
+          
       - name: "System: Enable swap"
         run: |
           set -euo pipefail
