@@ -84,8 +84,8 @@ impl ToDigest for InjectedTransaction {
 impl InjectedTransaction {
     /// Returns the hash of [`InjectedTransaction`].
     pub fn to_hash(&self) -> HashOf<InjectedTransaction> {
-        // Safe because we hash corresponding type itself
-        unsafe { HashOf::new(gear_core::utils::hash(&self.encode()).into()) }
+        // Safe because we hash the corresponding type itself
+        unsafe { HashOf::new(H256::from_slice(self.to_digest().as_ref())) }
     }
 
     /// Creates [`MessageId`] from [`InjectedTransaction`].

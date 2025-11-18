@@ -24,7 +24,7 @@ use alloc::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
     vec::Vec,
 };
-use gear_core::{ids::prelude::CodeIdExt as _, utils};
+use gear_core::ids::prelude::CodeIdExt as _;
 use gprimitives::{ActorId, CodeId, H256, MessageId};
 use parity_scale_codec::{Decode, Encode};
 use sha3::Digest as _;
@@ -90,8 +90,8 @@ pub struct Announce {
 
 impl Announce {
     pub fn to_hash(&self) -> HashOf<Self> {
-        // # Safety because of implementation
-        unsafe { HashOf::new(H256(utils::hash(&self.encode()))) }
+        // Safe because `HashOf` is constructed from Announce digest
+        unsafe { HashOf::new(H256::from_slice(self.to_digest().as_ref())) }
     }
 
     pub fn base(block_hash: H256, parent: HashOf<Self>) -> Self {
