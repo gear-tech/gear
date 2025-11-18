@@ -102,10 +102,6 @@ pub enum ProcessorError {
     // `ProcessingHandler` errors
     #[error("db corrupted: missing code [OR] code existence wasn't checked on Eth, code id: {0}")]
     MissingCode(CodeId),
-    #[error(
-        "db corrupted: unrecognized program [OR] program duplicates wasn't checked on Eth, actor id: {0}"
-    )]
-    DuplicatedProgram(ActorId),
 
     #[error(transparent)]
     Wasm(#[from] wasmtime::Error),

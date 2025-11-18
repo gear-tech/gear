@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::Event;
-use anyhow::{Result, anyhow};
+use anyhow::Result;
 use ethexe_blob_loader::BlobLoaderEvent;
 use ethexe_common::{
     Announce, HashOf, SimpleBlockData, db::*, events::BlockEvent, injected::RpcOrNetworkInjectedTx,
@@ -68,6 +68,7 @@ pub(crate) enum TestingEvent {
     BlobLoader(BlobLoaderEvent),
     Prometheus(PrometheusEvent),
     Rpc(TestingRpcEvent),
+    Fetching,
 }
 
 impl TestingEvent {
@@ -80,6 +81,7 @@ impl TestingEvent {
             Event::BlobLoader(event) => Self::BlobLoader(event.clone()),
             Event::Prometheus(event) => Self::Prometheus(event.clone()),
             Event::Rpc(event) => Self::Rpc(TestingRpcEvent::new(event)),
+            Event::Fetching(_) => Self::Fetching,
         }
     }
 }
@@ -105,12 +107,18 @@ impl ServiceEventsListener<'_> {
         self.receiver.recv().await.map_err(Into::into)
     }
 
-    pub async fn wait_for(&mut self, f: impl Fn(TestingEvent) -> Result<bool>) -> Result<()> {
+    pub async fn wait_for(
+        &mut self,
+        mut f: impl FnMut(TestingEvent) -> Result<bool>,
+    ) -> Result<()> {
         self.apply_until(|e| if f(e)? { Ok(Some(())) } else { Ok(None) })
             .await
     }
 
-    pub async fn wait_for_announce_computed(&mut self, id: impl Into<AnnounceId>) {
+    pub async fn wait_for_announce_computed(
+        &mut self,
+        id: impl Into<AnnounceId>,
+    ) -> HashOf<Announce> {
         let id = id.into();
         loop {
             let event = self.next_event().await.unwrap();
@@ -120,25 +128,26 @@ impl ServiceEventsListener<'_> {
 
             match id {
                 AnnounceId::Any => {
-                    return;
+                    break announce_hash;
                 }
                 AnnounceId::AnnounceHash(waited_announce_hash)
                     if waited_announce_hash == announce_hash =>
                 {
-                    return;
+                    break announce_hash;
                 }
                 AnnounceId::BlockHash(waited_block_hash) => {
                     if self
                         .db
                         .announce(announce_hash)
-                        .ok_or_else(|| {
-                            anyhow!("Announce {announce_hash} not found in listener's node DB")
+                        .unwrap_or_else(|| {
+                            panic!(
+                                "Computed announce {announce_hash} not found in listener's node DB"
+                            )
                         })
-                        .unwrap()
                         .block_hash
                         == waited_block_hash
                     {
-                        return;
+                        break announce_hash;
                     }
                 }
                 _ => continue,

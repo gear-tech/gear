@@ -16,11 +16,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use anyhow::{Result, anyhow};
+use anyhow::Result;
 use ethexe_common::{
-    Announce, HashOf, ProgramStates,
+    Announce, HashOf,
     db::{AnnounceStorageRO, CodesStorageRO, InjectedStorageRW, OnChainStorageRO},
-    injected::{InjectedTransaction, SignedInjectedTransaction, VALIDITY_WINDOW},
+    injected::{InjectedTransaction, SignedInjectedTransaction, TxValidity, TxValidityChecker},
 };
 use ethexe_db::Database;
 use gprimitives::H256;
@@ -32,21 +32,6 @@ pub(crate) struct InjectedTxPool<DB = Database> {
     /// HashSet of (reference_block, injected_tx_hash).
     inner: HashSet<(H256, HashOf<InjectedTransaction>)>,
     db: DB,
-}
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub enum TxValidity {
-    /// Transaction is valid and can be include into announce.
-    Valid,
-    /// Transaction was already include into one of previous [`VALIDITY_WINDOW`] announces.
-    Duplicate,
-    /// Transaction is outdated and should be remove from pool.
-    Outdated,
-    /// Transaction's reference block not on current branch.
-    /// Keep tx in pool in case of reorg.
-    NotOnCurrentBranch,
-    /// Transaction's destination [`gprimitives::ActorId`] not found.
-    UnknownDestination,
 }
 
 impl<DB> InjectedTxPool<DB>
@@ -113,116 +98,6 @@ where
     }
 }
 
-pub struct TxValidityChecker<DB> {
-    db: DB,
-    chain_head: H256,
-    recent_included_txs: HashSet<HashOf<InjectedTransaction>>,
-    latest_states: ProgramStates,
-}
-
-impl<DB> TxValidityChecker<DB>
-where
-    DB: AnnounceStorageRO + OnChainStorageRO + CodesStorageRO,
-{
-    pub fn new_for_announce(db: DB, chain_head: H256, announce: HashOf<Announce>) -> Result<Self> {
-        Ok(Self {
-            recent_included_txs: Self::collect_recent_included_txs(&db, announce)?,
-            latest_states: db.announce_program_states(announce).unwrap_or_default(),
-            db,
-            chain_head,
-        })
-    }
-
-    /// To determine the validity of transaction is enough to check the validity of its reference block.
-    pub fn check_tx_validity(&self, tx: &SignedInjectedTransaction) -> Result<TxValidity> {
-        let reference_block = tx.data().reference_block;
-
-        if !self.is_reference_block_within_validity_window(reference_block)? {
-            return Ok(TxValidity::Outdated);
-        }
-
-        if !self.is_reference_block_on_current_branch(reference_block)? {
-            return Ok(TxValidity::NotOnCurrentBranch);
-        }
-
-        if self.recent_included_txs.contains(&tx.data().to_hash()) {
-            return Ok(TxValidity::Duplicate);
-        }
-
-        if !self.latest_states.contains_key(&tx.data().destination) {
-            return Ok(TxValidity::UnknownDestination);
-        }
-
-        Ok(TxValidity::Valid)
-    }
-
-    fn is_reference_block_within_validity_window(&self, reference_block: H256) -> Result<bool> {
-        let reference_block_height = self
-            .db
-            .block_header(reference_block)
-            .ok_or_else(|| anyhow!("Block header not found for reference block {reference_block}"))?
-            .height;
-
-        let chain_head_height = self
-            .db
-            .block_header(self.chain_head)
-            .ok_or_else(|| anyhow!("Block header not found for hash: {}", self.chain_head))?
-            .height;
-
-        Ok(reference_block_height <= chain_head_height
-            && reference_block_height + VALIDITY_WINDOW as u32 > chain_head_height)
-    }
-
-    // TODO #4808: branch check must be until genesis block
-    fn is_reference_block_on_current_branch(&self, reference_block: H256) -> Result<bool> {
-        let mut block_hash = self.chain_head;
-        for _ in 0..VALIDITY_WINDOW {
-            if block_hash == reference_block {
-                return Ok(true);
-            }
-
-            block_hash = self
-                .db
-                .block_header(block_hash)
-                .ok_or_else(|| anyhow!("Block header not found for hash: {block_hash}"))?
-                .parent_hash;
-        }
-
-        Ok(false)
-    }
-
-    pub fn collect_recent_included_txs(
-        db: &DB,
-        announce: HashOf<Announce>,
-    ) -> Result<HashSet<HashOf<InjectedTransaction>>> {
-        let mut txs = HashSet::new();
-
-        let mut announce_hash = announce;
-        for _ in 0..VALIDITY_WINDOW {
-            let Some(announce) = db.announce(announce_hash) else {
-                // Reach genesis_announce - correct case.
-                if announce_hash == HashOf::zero() {
-                    break;
-                }
-
-                // Reach start announce is not correct case, because of can exists earlier announces with injected txs.
-                anyhow::bail!("Reaching start announce is not supported; decrease VALIDITY_WINDOW")
-            };
-
-            announce_hash = announce.parent;
-
-            txs.extend(
-                announce
-                    .injected_transactions
-                    .into_iter()
-                    .map(|tx| tx.data().to_hash()),
-            );
-        }
-
-        Ok(txs)
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -230,6 +105,7 @@ mod tests {
         SimpleBlockData, StateHashWithQueueSize,
         db::{AnnounceStorageRW, OnChainStorageRW},
         ecdsa::PrivateKey,
+        injected::VALIDITY_WINDOW,
         mock::{BlockChain, Mock},
     };
     use gprimitives::ActorId;

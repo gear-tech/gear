@@ -47,3 +47,9 @@ pub use utils::*;
 
 /// Default block gas limit for the node.
 pub const DEFAULT_BLOCK_GAS_LIMIT: u64 = 4_000_000_000_000;
+
+/// Commitment delay limit in blocks.
+/// This is the maximum number of blocks that can pass
+/// since some not-base announce was created until it can be committed,
+/// any not-base announce older than this limit must be discarded.
+pub const COMMITMENT_DELAY_LIMIT: u32 = 3;
