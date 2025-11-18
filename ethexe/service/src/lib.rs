@@ -21,16 +21,18 @@ use anyhow::{Context, Result, bail};
 use async_trait::async_trait;
 use ethexe_blob_loader::{BlobLoader, BlobLoaderEvent, BlobLoaderService, ConsensusLayerConfig};
 use ethexe_common::{
-    Address, ecdsa::PublicKey, gear::CodeState, network::VerifiedValidatorMessage,
+    Address, COMMITMENT_DELAY_LIMIT, ecdsa::PublicKey, gear::CodeState,
+    network::VerifiedValidatorMessage,
 };
 use ethexe_compute::{ComputeConfig, ComputeEvent, ComputeService};
 use ethexe_consensus::{
-    ConsensusEvent, ConsensusService, SimpleConnectService, ValidatorConfig, ValidatorService,
+    ConnectService, ConsensusEvent, ConsensusService, ValidatorConfig, ValidatorService,
 };
 use ethexe_db::{Database, RocksDatabase};
 use ethexe_ethereum::{Ethereum, router::RouterQuery};
 use ethexe_network::{
-    NetworkEvent, NetworkRuntimeConfig, NetworkService, db_sync::ExternalDataProvider,
+    NetworkEvent, NetworkRuntimeConfig, NetworkService,
+    db_sync::{self, ExternalDataProvider},
 };
 use ethexe_observer::{ObserverEvent, ObserverService};
 use ethexe_processor::{Processor, ProcessorConfig};
@@ -38,9 +40,9 @@ use ethexe_prometheus::{PrometheusEvent, PrometheusService};
 use ethexe_rpc::{InjectedTransactionAcceptance, RpcEvent, RpcServer};
 use ethexe_service_utils::{OptionFuture as _, OptionStreamNext as _};
 use ethexe_signer::Signer;
-use futures::StreamExt;
+use futures::{StreamExt, stream::FuturesUnordered};
 use gprimitives::{ActorId, CodeId, H256};
-use std::{collections::BTreeSet, pin::Pin, sync::Arc};
+use std::{collections::BTreeSet, pin::Pin, sync::Arc, time::Duration};
 
 pub mod config;
 
@@ -57,6 +59,7 @@ pub enum Event {
     BlobLoader(BlobLoaderEvent),
     Prometheus(PrometheusEvent),
     Rpc(RpcEvent),
+    Fetching(db_sync::HandleResult),
 }
 
 #[derive(Clone)]
@@ -205,12 +208,17 @@ impl Service {
                         signatures_threshold: threshold,
                         slot_duration: config.ethereum.block_time,
                         block_gas_limit: config.node.block_gas_limit,
+                        // TODO: #4942 commitment_delay_limit is a protocol specific constant
+                        // which better to be configurable by router contract
+                        commitment_delay_limit: COMMITMENT_DELAY_LIMIT,
+                        producer_delay: Duration::ZERO,
                     },
                 )?)
             } else {
-                Box::pin(SimpleConnectService::new(
+                Box::pin(ConnectService::new(
                     db.clone(),
                     config.ethereum.block_time,
+                    3,
                 ))
             }
         };
@@ -361,6 +369,8 @@ impl Service {
             .send(tests::utils::TestingEvent::ServiceStarted)
             .expect("failed to broadcast service STARTED event");
 
+        let mut network_fetcher = FuturesUnordered::new();
+
         loop {
             let event: Event = tokio::select! {
                 event = compute.select_next_some() => event?.into(),
@@ -370,6 +380,7 @@ impl Service {
                 event = blob_loader.select_next_some() => event?.into(),
                 event = prometheus.maybe_next_some() => event.into(),
                 event = rpc.maybe_next_some() => event.into(),
+                fetching_result = network_fetcher.maybe_next_some() => Event::Fetching(fetching_result),
                 _ = rpc_handle.as_mut().maybe() => {
                     log::info!("`RPCWorker` has terminated, shutting down...");
                     continue;
@@ -435,7 +446,7 @@ impl Service {
                     match event {
                         NetworkEvent::ValidatorMessage(message) => {
                             match message {
-                                VerifiedValidatorMessage::ProducerBlock(announce) => {
+                                VerifiedValidatorMessage::Announce(announce) => {
                                     let announce = announce.map(|a| a.payload);
                                     consensus.receive_announce(announce)?
                                 }
@@ -518,6 +529,16 @@ impl Service {
                     ConsensusEvent::Warning(msg) => {
                         log::warn!("Consensus service warning: {msg}");
                     }
+                    ConsensusEvent::RequestAnnounces(request) => {
+                        let Some(network) = network.as_mut() else {
+                            panic!("Requesting announces is not allowed without network service");
+                        };
+
+                        network_fetcher.push(network.db_sync_handle().request(request.into()));
+                    }
+                    ConsensusEvent::AnnounceAccepted(_) | ConsensusEvent::AnnounceRejected(_) => {
+                        // TODO #4940: consider to publish network message
+                    }
                     ConsensusEvent::Promise(promise) => {
                         if let Some(rpc) = rpc.as_mut() {
                             rpc.provide_promise(promise);
@@ -526,6 +547,26 @@ impl Service {
                         // TODO kuzmindev: also should be sent to network peer, that waits for transaction promise
                     }
                 },
+                Event::Fetching(result) => {
+                    let Some(network) = network.as_mut() else {
+                        unreachable!("Fetching event is impossible without network service");
+                    };
+
+                    match result {
+                        Ok(db_sync::Response::Announces(response)) => {
+                            consensus.receive_announces_response(response)?;
+                        }
+                        Ok(resp) => {
+                            panic!("only announces are requested currently, but got: {resp:?}");
+                        }
+                        Err((err, request)) => {
+                            log::trace!(
+                                "Retry fetching external data for request {request:?} due to error: {err:?}"
+                            );
+                            network_fetcher.push(network.db_sync_handle().retry(request));
+                        }
+                    }
+                }
             }
         }
     }

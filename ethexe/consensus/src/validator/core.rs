@@ -19,10 +19,11 @@
 //! Validator core utils and parameters.
 
 use crate::{
+    announces,
     utils::{self, MultisignedBatchCommitment},
     validator::tx_pool::InjectedTxPool,
 };
-use anyhow::{Result, anyhow, ensure};
+use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use ethexe_common::{
     Address, Announce, Digest, HashOf, ProtocolTimelines, SimpleBlockData, ToDigest, ValidatorsVec,
@@ -37,7 +38,7 @@ use ethexe_common::{
 use ethexe_db::Database;
 use ethexe_ethereum::middleware::ElectionProvider;
 use ethexe_signer::Signer;
-use gprimitives::H256;
+use gprimitives::{CodeId, H256};
 use hashbrown::{HashMap, HashSet};
 use std::{hash::Hash, sync::Arc, time::Duration};
 use tokio::sync::RwLock;
@@ -65,7 +66,12 @@ pub struct ValidatorCore {
     pub validate_chain_deepness_limit: u32,
     /// Minimum deepness threshold to create chain commitment even if there are no transitions.
     pub chain_deepness_threshold: u32,
+    /// Gas limit to be used when creating new announce.
     pub block_gas_limit: u64,
+    /// Time limit in blocks for announce to be committed after its creation.
+    pub commitment_delay_limit: u32,
+    /// Delay before producer starts to creating new announce after block prepared.
+    pub producer_delay: Duration,
 }
 
 impl Clone for ValidatorCore {
@@ -84,6 +90,8 @@ impl Clone for ValidatorCore {
             validate_chain_deepness_limit: self.validate_chain_deepness_limit,
             chain_deepness_threshold: self.chain_deepness_threshold,
             block_gas_limit: self.block_gas_limit,
+            commitment_delay_limit: self.commitment_delay_limit,
+            producer_delay: self.producer_delay,
         }
     }
 }
@@ -167,7 +175,7 @@ impl ValidatorCore {
         };
 
         let mut elected_validators = self.middleware.make_election_at(request).await?;
-        // Sort elected validators, because of we can not guarantee the determenism of validators order.
+        // Sort elected validators, because of we can not guarantee the determinism of validators order.
         elected_validators.sort();
 
         let commitment = utils::validators_commitment(block_era + 1, elected_validators)?;
@@ -186,24 +194,28 @@ impl ValidatorCore {
         mut self,
         block: SimpleBlockData,
         request: BatchCommitmentValidationRequest,
-    ) -> Result<Digest> {
-        let BatchCommitmentValidationRequest {
+    ) -> Result<ValidationStatus> {
+        let &BatchCommitmentValidationRequest {
             digest,
             head,
-            codes,
+            ref codes,
             validators,
             rewards,
-        } = request;
+        } = &request;
 
-        ensure!(
-            !(head.is_none() && codes.is_empty() && !validators),
-            "Empty batch (change when other commitments are supported)"
-        );
+        if head.is_none() && codes.is_empty() && !validators {
+            return Ok(ValidationStatus::Rejected {
+                request,
+                reason: ValidationRejectReason::EmptyBatch,
+            });
+        }
 
-        ensure!(
-            !utils::has_duplicates(codes.as_slice()),
-            "Duplicate codes in validation request"
-        );
+        if utils::has_duplicates(codes.as_slice()) {
+            return Ok(ValidationStatus::Rejected {
+                request,
+                reason: ValidationRejectReason::CodesHasDuplicates,
+            });
+        }
 
         // Check requested codes wait for commitment
         let waiting_codes = self
@@ -218,33 +230,36 @@ impl ValidatorCore {
             })?
             .into_iter()
             .collect::<HashSet<_>>();
-        ensure!(
-            codes.iter().all(|code| waiting_codes.contains(code)),
-            "Not all requested codes are waiting for commitment"
-        );
+        if let Some(&code_id) = codes.iter().find(|&id| !waiting_codes.contains(id)) {
+            return Ok(ValidationStatus::Rejected {
+                request,
+                reason: ValidationRejectReason::CodeNotWaitingForCommitment(code_id),
+            });
+        }
 
         let chain_commitment = if let Some(head) = head {
-            let local_announces = self.db.block_meta(block.hash).announces.ok_or_else(|| {
-                anyhow!(
-                    "Cannot get from db block announces for block {}",
-                    block.hash
-                )
-            })?;
-            assert_eq!(
-                local_announces.len(),
-                1,
-                "There should be only one announce in the current block"
-            );
-            let local_announce = local_announces
-                .first()
-                .copied()
-                .expect("Just checked, that there is one announce");
+            // TODO #4791: support commitment head from another block in chain,
+            // have to check head block is predecessor of current block
 
-            // TODO #4791: support head != current block hash, have to check head is predecessor of current block
-            ensure!(
-                head == local_announce,
-                "Head cannot be different from current block hash"
-            );
+            let candidates = self
+                .db
+                .block_meta(block.hash)
+                .announces
+                .into_iter()
+                .flatten();
+
+            let best_announce_hash =
+                announces::best_announce(&self.db, candidates, self.commitment_delay_limit)?;
+
+            if head != best_announce_hash {
+                return Ok(ValidationStatus::Rejected {
+                    request,
+                    reason: ValidationRejectReason::HeadAnnounceIsNotBest {
+                        requested: head,
+                        best: best_announce_hash,
+                    },
+                });
+            }
 
             utils::aggregate_chain_commitment(
                 &self.db,
@@ -257,7 +272,8 @@ impl ValidatorCore {
             None
         };
 
-        let code_commitments = utils::aggregate_code_commitments(&self.db, codes, true)?;
+        let code_commitments =
+            utils::aggregate_code_commitments(&self.db, codes.iter().copied(), true)?;
 
         let validators_commitment = if validators {
             Self::aggregate_validators_commitment(&mut self, &block).await?
@@ -281,13 +297,18 @@ impl ValidatorCore {
         )?
         .ok_or_else(|| anyhow!("Batch commitment is empty for current block"))?;
 
-        if batch.to_digest() != digest {
-            Err(anyhow!(
-                "Requested and local batch commitment digests mismatch"
-            ))
-        } else {
-            Ok(digest)
+        let batch_digest = batch.to_digest();
+        if batch_digest != digest {
+            return Ok(ValidationStatus::Rejected {
+                request,
+                reason: ValidationRejectReason::BatchDigestMismatch {
+                    expected: digest,
+                    found: batch_digest,
+                },
+            });
         }
+
+        Ok(ValidationStatus::Accepted(digest))
     }
 
     pub fn process_injected_transaction(&mut self, tx: SignedInjectedTransaction) -> Result<()> {
@@ -295,6 +316,34 @@ impl ValidatorCore {
         self.injected_pool.handle_tx(tx);
         Ok(())
     }
+}
+
+#[derive(Debug, derive_more::Display, Clone, PartialEq, Eq)]
+pub enum ValidationStatus {
+    #[display("accepted batch commitment with digest {_0:?}")]
+    Accepted(Digest),
+    #[display("rejected batch commitment request {request:?} : {reason}")]
+    Rejected {
+        request: BatchCommitmentValidationRequest,
+        reason: ValidationRejectReason,
+    },
+}
+
+#[derive(Debug, derive_more::Display, Clone, PartialEq, Eq)]
+pub enum ValidationRejectReason {
+    #[display("batch commitment is empty")]
+    EmptyBatch,
+    #[display("batch commitment request contains duplicate code ids")]
+    CodesHasDuplicates,
+    #[display("code id {_0:?} is not waiting for commitment")]
+    CodeNotWaitingForCommitment(CodeId),
+    #[display("requested head announce {requested:?} is not the best announce {best:?}")]
+    HeadAnnounceIsNotBest {
+        requested: HashOf<Announce>,
+        best: HashOf<Announce>,
+    },
+    #[display("batch commitment digest mismatch: expected {expected:?}, found {found:?}")]
+    BatchDigestMismatch { expected: Digest, found: Digest },
 }
 
 /// Trait for committing batch commitments to the blockchain.
@@ -362,5 +411,173 @@ impl MiddlewareWrapper {
             .insert(request, elected_validators.clone());
 
         Ok(elected_validators)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::{mock::*, validator::mock::*};
+    use ethexe_common::mock::{DBMockExt, Mock};
+
+    fn unwrap_rejected_reason(status: ValidationStatus) -> ValidationRejectReason {
+        match status {
+            ValidationStatus::Rejected { reason, .. } => reason,
+            ValidationStatus::Accepted(digest) => {
+                panic!(
+                    "Expected rejection, but got acceptance with digest {:?}",
+                    digest
+                )
+            }
+        }
+    }
+
+    #[tokio::test]
+    #[ntest::timeout(3000)]
+    async fn rejects_empty_batch_request() {
+        let (ctx, _, _) = mock_validator_context();
+        let empty_request = BatchCommitmentValidationRequest {
+            digest: Digest::zero(),
+            head: None,
+            codes: vec![],
+            validators: false,
+            rewards: false,
+        };
+
+        let status = ctx
+            .core
+            .validate_batch_commitment_request(SimpleBlockData::mock(()), empty_request)
+            .await
+            .unwrap();
+
+        assert_eq!(
+            unwrap_rejected_reason(status),
+            ValidationRejectReason::EmptyBatch
+        );
+    }
+
+    #[tokio::test]
+    #[ntest::timeout(3000)]
+    async fn rejects_duplicate_code_ids() {
+        let (ctx, _, _) = mock_validator_context();
+        let mut batch = prepare_chain_for_batch_commitment(&ctx.core.db);
+        let duplicate = batch.code_commitments[0].clone();
+        batch.code_commitments.push(duplicate);
+
+        let status = ctx
+            .core
+            .validate_batch_commitment_request(
+                SimpleBlockData::mock(()),
+                BatchCommitmentValidationRequest::new(&batch),
+            )
+            .await
+            .unwrap();
+
+        assert_eq!(
+            unwrap_rejected_reason(status),
+            ValidationRejectReason::CodesHasDuplicates
+        );
+    }
+
+    #[tokio::test]
+    #[ntest::timeout(3000)]
+    async fn rejects_not_waiting_code_ids() {
+        let (ctx, _, _) = mock_validator_context();
+        let batch = prepare_chain_for_batch_commitment(&ctx.core.db);
+        let block = ctx.core.db.simple_block_data(batch.block_hash);
+        let mut request = BatchCommitmentValidationRequest::new(&batch);
+
+        let missing_code = H256::random().into();
+        request.codes.push(missing_code);
+
+        let status = ctx
+            .core
+            .validate_batch_commitment_request(block, request)
+            .await
+            .unwrap();
+
+        assert_eq!(
+            unwrap_rejected_reason(status),
+            ValidationRejectReason::CodeNotWaitingForCommitment(missing_code)
+        );
+    }
+
+    #[tokio::test]
+    #[ntest::timeout(3000)]
+    async fn rejects_non_best_chain_head() {
+        let (ctx, _, _) = mock_validator_context();
+        let batch = prepare_chain_for_batch_commitment(&ctx.core.db);
+        let block = ctx.core.db.simple_block_data(batch.block_hash);
+        let mut request = BatchCommitmentValidationRequest::new(&batch);
+        let best_head = request.head.expect("chain commitment expected");
+
+        let wrong_head = HashOf::random();
+        request.head = Some(wrong_head);
+
+        let status = ctx
+            .core
+            .validate_batch_commitment_request(block, request)
+            .await
+            .unwrap();
+
+        assert_eq!(
+            unwrap_rejected_reason(status),
+            ValidationRejectReason::HeadAnnounceIsNotBest {
+                requested: wrong_head,
+                best: best_head,
+            }
+        );
+    }
+
+    #[tokio::test]
+    #[ntest::timeout(3000)]
+    async fn rejects_digest_mismatch() {
+        let (ctx, _, _) = mock_validator_context();
+        let batch = prepare_chain_for_batch_commitment(&ctx.core.db);
+        let block = ctx.core.db.simple_block_data(batch.block_hash);
+        let mut request = BatchCommitmentValidationRequest::new(&batch);
+        let original_digest = request.digest;
+        let mut wrong_digest = original_digest;
+        while wrong_digest == original_digest {
+            wrong_digest = Digest::random();
+        }
+        request.digest = wrong_digest;
+
+        let status = ctx
+            .core
+            .validate_batch_commitment_request(block, request)
+            .await
+            .unwrap();
+
+        assert_eq!(
+            unwrap_rejected_reason(status),
+            ValidationRejectReason::BatchDigestMismatch {
+                expected: wrong_digest,
+                found: original_digest,
+            }
+        );
+    }
+
+    #[tokio::test]
+    #[ntest::timeout(3000)]
+    async fn accepts_matching_request() {
+        let (ctx, _, _) = mock_validator_context();
+        let batch = prepare_chain_for_batch_commitment(&ctx.core.db);
+        let block = ctx.core.db.simple_block_data(batch.block_hash);
+        let request = BatchCommitmentValidationRequest::new(&batch);
+        let expected_digest = request.digest;
+
+        let status = ctx
+            .core
+            .validate_batch_commitment_request(block, request)
+            .await
+            .unwrap();
+
+        match status {
+            ValidationStatus::Accepted(digest) => assert_eq!(digest, expected_digest),
+            ValidationStatus::Rejected { reason, .. } => {
+                panic!("Expected acceptance, got rejection: {reason:?}")
+            }
+        }
     }
 }
