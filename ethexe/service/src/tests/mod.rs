@@ -44,7 +44,7 @@ use ethexe_compute::ComputeConfig;
 use ethexe_consensus::ConsensusEvent;
 use ethexe_db::{Database, verifier::IntegrityVerifier};
 use ethexe_ethereum::deploy::ContractsDeploymentParams;
-use ethexe_observer::EthereumConfig;
+use ethexe_observer::{EthereumConfig, ObserverEvent};
 use ethexe_processor::{DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, RunnerConfig};
 use ethexe_prometheus::PrometheusConfig;
 use ethexe_rpc::{InjectedClient, InjectedTransactionAcceptance, RpcConfig};
