@@ -1321,6 +1321,29 @@ async fn executable_balance_charged() {
     // Check that executable balance decreased
     let exec_balance_after = executable_balance(&handler, actor_id);
     assert!(exec_balance_after < exec_balance_before);
+
+    handle_injected_message(
+        &mut handler,
+        actor_id,
+        MessageId::from(2),
+        user_id,
+        vec![],
+        0,
+        false,
+    )
+    .unwrap();
+
+    let to_users = handler.transitions.current_messages();
+
+    assert_eq!(to_users.len(), 1);
+
+    let message = &to_users[0].1;
+    assert_eq!(message.destination, user_id);
+    assert_eq!(message.payload, b"PONG");
+
+    // Check that executable balance decreased on injected message as well
+    let exec_balance_after = executable_balance(&handler, actor_id);
+    assert!(exec_balance_after < exec_balance_before);
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -1365,11 +1388,27 @@ async fn executable_balance_injected_panic_not_charged() {
     let exec_balance_before = executable_balance(&handler, actor_id);
     assert_eq!(exec_balance_before, INITIAL_EXECUTABLE_BALANCE);
 
-    // We know for sure handling this message is cost less than the threshold.
+    // Init message should not panic
     handle_injected_message(
         &mut handler,
         actor_id,
         MessageId::from(1),
+        user_id,
+        ActorId::zero().encode(),
+        0,
+        false,
+    )
+    .unwrap();
+
+    processor.process_queue(&mut handler).await;
+    let init_balance = executable_balance(&handler, actor_id);
+
+    // We know for sure handling this message is cost less than the threshold.
+    // This message will cause panic in the program.
+    handle_injected_message(
+        &mut handler,
+        actor_id,
+        MessageId::from(2),
         user_id,
         vec![],
         0,
@@ -1380,15 +1419,42 @@ async fn executable_balance_injected_panic_not_charged() {
     processor.process_queue(&mut handler).await;
 
     let to_users = handler.transitions.current_messages();
+    assert_eq!(to_users.len(), 2);
 
-    assert_eq!(to_users.len(), 1);
-
-    let message = &to_users[0].1;
+    let message = &to_users[1].1;
     assert_eq!(message.destination, user_id);
     // Check that panic indeed happened
-    assert_eq!(&message.payload[..13], b"panicked with");
+    assert_eq!(&message.payload[..3], b"\xE0\x80\x80");
 
     // Check that executable balance is unchanged
     let exec_balance_after = executable_balance(&handler, actor_id);
-    assert_eq!(exec_balance_after, INITIAL_EXECUTABLE_BALANCE);
+    assert_eq!(exec_balance_after, init_balance);
+
+    // Send canonical message to make sure executable balance is charged in panic case.
+    handler
+        .handle_mirror_event(
+            actor_id,
+            MirrorRequestEvent::MessageQueueingRequested {
+                id: MessageId::from(3),
+                source: user_id,
+                payload: vec![],
+                value: 0,
+                call_reply: false,
+            },
+        )
+        .expect("failed to send message");
+
+    processor.process_queue(&mut handler).await;
+
+    let to_users = handler.transitions.current_messages();
+    assert_eq!(to_users.len(), 3);
+
+    let message = &to_users[2].1;
+    assert_eq!(message.destination, user_id);
+    // Check that panic indeed happened
+    assert_eq!(&message.payload[..3], b"\xE0\x80\x80");
+
+    // Check that executable balance decreased on canonical message
+    let exec_balance_after = executable_balance(&handler, actor_id);
+    assert!(exec_balance_after < init_balance);
 }
