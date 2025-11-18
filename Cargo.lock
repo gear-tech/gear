@@ -4899,6 +4899,7 @@ dependencies = [
  "libp2p-identity",
  "log",
  "serde",
+ "sp-core",
  "static_init",
  "tempfile",
  "tokio",

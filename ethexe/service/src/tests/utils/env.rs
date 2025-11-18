@@ -415,13 +415,65 @@ impl TestEnv {
         code_id: CodeId,
         initial_executable_balance: u128,
     ) -> anyhow::Result<WaitForProgramCreation> {
-        log::info!("📗 Create program, code_id {code_id}");
+        self.create_program_with_params(code_id, H256::zero(), None, initial_executable_balance)
+            .await
+    }
+
+    pub async fn create_program_with_params(
+        &self,
+        code_id: CodeId,
+        salt: H256,
+        override_initializer: Option<ActorId>,
+        initial_executable_balance: u128,
+    ) -> anyhow::Result<WaitForProgramCreation> {
+        log::info!("📗 Create program, code_id {code_id} with salt {salt:?}");
 
         let listener = self.observer_events_publisher().subscribe().await;
 
         let router = self.ethereum.router();
 
-        let (_, program_id) = router.create_program(code_id, H256::random()).await?;
+        let (_, program_id) = router
+            .create_program(code_id, salt, override_initializer)
+            .await?;
+
+        if initial_executable_balance != 0 {
+            let program_address = program_id.to_address_lossy().0.into();
+            router
+                .wvara()
+                .approve(program_address, initial_executable_balance)
+                .await?;
+
+            let mirror = self.ethereum.mirror(program_address.into_array().into());
+
+            mirror
+                .executable_balance_top_up(initial_executable_balance)
+                .await?;
+        }
+
+        Ok(WaitForProgramCreation {
+            listener,
+            program_id,
+        })
+    }
+
+    #[allow(dead_code)]
+    pub async fn create_program_with_abi_interface(
+        &self,
+        code_id: CodeId,
+        salt: H256,
+        override_initializer: Option<ActorId>,
+        abi_interface: ActorId,
+        initial_executable_balance: u128,
+    ) -> anyhow::Result<WaitForProgramCreation> {
+        log::info!("📗 Create program, code_id {code_id} with salt {salt:?}");
+
+        let listener = self.observer_events_publisher().subscribe().await;
+
+        let router = self.ethereum.router();
+
+        let (_, program_id) = router
+            .create_program_with_abi_interface(code_id, salt, override_initializer, abi_interface)
+            .await?;
 
         if initial_executable_balance != 0 {
             let program_address = program_id.to_address_lossy().0.into();
@@ -445,18 +497,31 @@ impl TestEnv {
 
     pub async fn send_message(
         &self,
-        target: ActorId,
+        program_id: ActorId,
+        payload: &[u8],
+    ) -> anyhow::Result<WaitForReplyTo> {
+        self.send_message_with_params(program_id, payload, 0, false)
+            .await
+    }
+
+    pub async fn send_message_with_params(
+        &self,
+        program_id: ActorId,
         payload: &[u8],
         value: u128,
+        call_reply: bool,
     ) -> anyhow::Result<WaitForReplyTo> {
-        log::info!("📗 Send message to {target}, payload len {}", payload.len());
+        log::info!(
+            "📗 Send message to {program_id}, payload len {}",
+            payload.len()
+        );
 
         let listener = self.observer_events_publisher().subscribe().await;
 
-        let program_address = Address::try_from(target)?;
+        let program_address = Address::try_from(program_id)?;
         let program = self.ethereum.mirror(program_address);
 
-        let (_, message_id) = program.send_message(payload, value).await?;
+        let (_, message_id) = program.send_message(payload, value, call_reply).await?;
 
         Ok(WaitForReplyTo {
             listener,
@@ -464,6 +529,7 @@ impl TestEnv {
         })
     }
 
+    #[allow(dead_code)]
     pub async fn approve_wvara(&self, program_id: ActorId) {
         log::info!("📗 Approving WVara for {program_id}");
 
