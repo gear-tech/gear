@@ -1458,3 +1458,67 @@ async fn executable_balance_injected_panic_not_charged() {
     let exec_balance_after = executable_balance(&handler, actor_id);
     assert!(exec_balance_after < init_balance);
 }
+
+#[tokio::test(flavor = "multi_thread")]
+async fn insufficient_executable_balance_still_charged() {
+    const INSUFFICIENT_EXECUTABLE_BALANCE: u128 = 10_000_000;
+
+    init_logger();
+
+    let mut processor = Processor::new(Database::memory()).unwrap();
+
+    let genesis = init_genesis_block(&mut processor);
+    let block = init_new_block_from_parent(&mut processor, genesis);
+    let block_announce = Announce::with_default_gas(block, HashOf::zero());
+
+    let user_id = ActorId::from(10);
+    let actor_id = ActorId::from(0x10000);
+
+    let code_id = processor
+        .handle_new_code(demo_ping::WASM_BINARY)
+        .expect("failed to call runtime api")
+        .expect("code failed verification or instrumentation");
+
+    let mut handler = processor.handler(block_announce).unwrap();
+
+    handler
+        .handle_router_event(RouterRequestEvent::ProgramCreated { actor_id, code_id })
+        .expect("failed to create new program");
+
+    handler
+        .handle_mirror_event(
+            actor_id,
+            MirrorRequestEvent::ExecutableBalanceTopUpRequested {
+                value: INSUFFICIENT_EXECUTABLE_BALANCE,
+            },
+        )
+        .expect("failed to top up balance");
+
+    // Should fail due to insufficient balance (ran out of gas)
+    handler
+        .handle_mirror_event(
+            actor_id,
+            MirrorRequestEvent::MessageQueueingRequested {
+                id: MessageId::from(1),
+                source: user_id,
+                payload: b"PING".to_vec(),
+                value: 0,
+                call_reply: false,
+            },
+        )
+        .expect("failed to send message");
+
+    processor.process_queue(&mut handler).await;
+
+    let to_users = handler.transitions.current_messages();
+    assert_eq!(to_users.len(), 1);
+
+    // Check that message processing failed due to insufficient balance (ran out of gas)
+    let message = &to_users[0].1;
+    assert_eq!(message.destination, user_id);
+    assert!(message.reply_details.unwrap().to_reply_code().is_error());
+
+    // Check that executable balance decreased
+    let exec_balance_before = executable_balance(&handler, actor_id);
+    assert!(exec_balance_before < INSUFFICIENT_EXECUTABLE_BALANCE);
+}
