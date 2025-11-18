@@ -27,6 +27,9 @@ use core::{fmt::Debug, hash::Hash};
 /// Implementors of this trait provide concrete implementations for different
 /// cryptographic algorithms (e.g., secp256k1, sr25519).
 pub trait SignatureScheme: Debug + Send + Sync + 'static {
+    /// Human-readable name of the scheme.
+    const NAME: &'static str;
+
     /// The private key type for this scheme.
     type PrivateKey: Clone + Debug + Send + Sync;
 
@@ -63,7 +66,9 @@ pub trait SignatureScheme: Debug + Send + Sync + 'static {
     fn address(public_key: &Self::PublicKey) -> Self::Address;
 
     /// Get the scheme name for display purposes.
-    fn scheme_name() -> &'static str;
+    fn scheme_name() -> &'static str {
+        Self::NAME
+    }
 }
 
 /// Trait implemented by private key types that can be reconstructed from their seed.

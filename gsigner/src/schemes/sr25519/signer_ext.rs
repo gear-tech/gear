@@ -82,14 +82,31 @@ impl Sr25519SignerExt for Signer<Sr25519> {
             schemes::sr25519::PrivateKey,
         };
 
+        let mut attempts: u64 = 0;
         loop {
+            attempts += 1;
             let candidate = PrivateKey::random();
             let public_key = Sr25519::public_key(&candidate);
             let address =
                 SubstrateAddress::new(public_key.to_bytes(), SubstrateCryptoScheme::Sr25519)?;
 
             if address.as_ss58().starts_with(prefix) {
+                if attempts.is_multiple_of(1000) {
+                    tracing::info!(
+                        "Vanity key found after {} attempts for prefix '{}'",
+                        attempts,
+                        prefix
+                    );
+                }
                 return Ok(self.import_key(candidate)?);
+            }
+
+            if attempts.is_multiple_of(1000) {
+                tracing::info!(
+                    "Still searching vanity key, attempts: {}, prefix: '{}'",
+                    attempts,
+                    prefix
+                );
             }
         }
     }

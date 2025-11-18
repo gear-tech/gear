@@ -58,11 +58,14 @@ pub mod error;
 #[cfg(feature = "secp256k1")]
 pub mod hash;
 pub mod schemes;
+#[cfg(feature = "peer-id")]
+pub mod peer_id;
 #[cfg(feature = "std")]
 pub mod signer;
 pub mod storage;
 pub mod substrate_utils;
 pub mod traits;
+pub mod utils;
 
 #[cfg(feature = "cli")]
 pub mod cli;
@@ -74,9 +77,9 @@ pub mod keyring;
 pub mod substrate;
 
 #[cfg(feature = "secp256k1")]
-pub use address::FromActorIdError;
+pub use address::Address;
 #[cfg(feature = "secp256k1")]
-pub use address::{Address, ValidatorsVec};
+pub use address::FromActorIdError;
 #[cfg(any(feature = "sr25519", feature = "ed25519"))]
 pub use address::{SubstrateAddress, SubstrateCryptoScheme};
 pub use error::{Result, SignerError};

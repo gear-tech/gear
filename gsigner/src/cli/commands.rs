@@ -55,10 +55,21 @@ pub enum GSignerCommands {
 /// Secp256k1 subcommands
 #[derive(Subcommand, Debug, Clone)]
 pub enum Secp256k1Commands {
+    #[command(about = "Clear all keys from storage")]
+    Clear {
+        #[arg(short, long, help = "Storage directory")]
+        storage: Option<PathBuf>,
+    },
     #[command(about = "Generate a new secp256k1 keypair")]
     Generate {
         #[arg(short, long, help = "Storage directory (default: memory only)")]
         storage: Option<PathBuf>,
+        #[arg(
+            long,
+            help = "Show the generated private key (hex)",
+            default_value_t = false
+        )]
+        show_secret: bool,
     },
     #[command(about = "Sign data with a secp256k1 private key")]
     Sign {
@@ -85,10 +96,43 @@ pub enum Secp256k1Commands {
         #[arg(short, long, help = "Public key (hex)")]
         public_key: String,
     },
+    #[cfg(feature = "peer-id")]
+    #[command(about = "Derive libp2p PeerId from public key")]
+    PeerId {
+        #[arg(short, long, help = "Public key (hex)")]
+        public_key: String,
+    },
+    #[command(about = "Insert a private key into storage")]
+    Insert {
+        #[arg(short, long, help = "Storage directory")]
+        storage: Option<PathBuf>,
+        #[arg(help = "Private key (hex, 32 bytes)")]
+        private_key: String,
+        #[arg(long, help = "Show the inserted private key", default_value_t = false)]
+        show_secret: bool,
+    },
+    #[command(about = "Show key info by public key or address")]
+    Show {
+        #[arg(short, long, help = "Storage directory")]
+        storage: Option<PathBuf>,
+        #[arg(help = "Public key (hex) or Ethereum address (hex)")]
+        key: String,
+        #[arg(long, help = "Show the private key", default_value_t = false)]
+        show_secret: bool,
+    },
+    #[command(about = "Recover public key from message and signature")]
+    Recover {
+        #[arg(short, long, help = "Data that was signed (hex)")]
+        data: String,
+        #[arg(short, long, help = "Signature (hex)")]
+        signature: String,
+    },
     #[command(about = "List all keys in storage")]
     List {
         #[arg(short, long, help = "Storage directory")]
         storage: Option<PathBuf>,
+        #[arg(long, help = "Show private keys (hex)", default_value_t = false)]
+        show_secret: bool,
     },
     #[cfg(feature = "keyring")]
     #[command(about = "Keyring operations")]
@@ -105,6 +149,12 @@ pub enum Ed25519Commands {
     Generate {
         #[arg(short, long, help = "Storage directory (default: memory only)")]
         storage: Option<PathBuf>,
+        #[arg(
+            long,
+            help = "Show the generated private key (hex)",
+            default_value_t = false
+        )]
+        show_secret: bool,
     },
     #[command(about = "Import ed25519 key from SURI (//Alice, mnemonic, etc.)")]
     Import {
@@ -118,6 +168,12 @@ pub enum Ed25519Commands {
         password: Option<String>,
         #[arg(short, long, help = "Storage directory (default: memory only)")]
         storage: Option<PathBuf>,
+        #[arg(
+            long,
+            help = "Show the imported private key (hex)",
+            default_value_t = false
+        )]
+        show_secret: bool,
     },
     #[command(about = "Sign data with an ed25519 private key")]
     Sign {
@@ -141,11 +197,25 @@ pub enum Ed25519Commands {
     Address {
         #[arg(short, long, help = "Public key (hex)")]
         public_key: String,
+        #[arg(
+            short = 'n',
+            long,
+            help = "Network prefix (numeric) or name from ss58-registry (e.g., polkadot, kusama, vara)"
+        )]
+        network: Option<String>,
+    },
+    #[cfg(feature = "peer-id")]
+    #[command(about = "Derive libp2p PeerId from public key")]
+    PeerId {
+        #[arg(short, long, help = "Public key (hex)")]
+        public_key: String,
     },
     #[command(about = "List all keys in storage")]
     List {
         #[arg(short, long, help = "Storage directory")]
         storage: Option<PathBuf>,
+        #[arg(long, help = "Show private keys (hex)", default_value_t = false)]
+        show_secret: bool,
     },
     #[cfg(feature = "keyring")]
     #[command(about = "Keyring operations")]
@@ -162,6 +232,12 @@ pub enum Sr25519Commands {
     Generate {
         #[arg(short, long, help = "Storage directory (default: memory only)")]
         storage: Option<PathBuf>,
+        #[arg(
+            long,
+            help = "Show the generated private key (hex)",
+            default_value_t = false
+        )]
+        show_secret: bool,
     },
     #[command(about = "Import sr25519 key from SURI (//Alice, mnemonic, etc.)")]
     Import {
@@ -175,6 +251,12 @@ pub enum Sr25519Commands {
         password: Option<String>,
         #[arg(short, long, help = "Storage directory (default: memory only)")]
         storage: Option<PathBuf>,
+        #[arg(
+            long,
+            help = "Show the imported private key (hex)",
+            default_value_t = false
+        )]
+        show_secret: bool,
     },
     #[command(about = "Sign data with a sr25519 private key")]
     Sign {
@@ -202,6 +284,12 @@ pub enum Sr25519Commands {
     Address {
         #[arg(short, long, help = "Public key (hex)")]
         public_key: String,
+        #[arg(
+            short = 'n',
+            long,
+            help = "Network prefix (numeric) or name from ss58-registry (e.g., polkadot, kusama, vara)"
+        )]
+        network: Option<String>,
     },
     #[cfg(feature = "keyring")]
     #[command(about = "Keyring operations")]
@@ -213,6 +301,8 @@ pub enum Sr25519Commands {
     List {
         #[arg(short, long, help = "Storage directory")]
         storage: Option<PathBuf>,
+        #[arg(long, help = "Show private keys (hex)", default_value_t = false)]
+        show_secret: bool,
     },
 }
 

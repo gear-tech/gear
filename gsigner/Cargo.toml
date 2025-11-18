@@ -27,7 +27,6 @@ gprimitives = { workspace = true, optional = true }
 hex = { workspace = true, default-features = false, features = ["alloc"] }
 k256 = { version = "0.13.4", default-features = false, features = ["ecdsa"], optional = true }
 nacl = { workspace = true, optional = true }
-nonempty = { workspace = true }
 parity-scale-codec = { workspace = true, default-features = false, features = [
     "derive",
 ], optional = true }
@@ -37,17 +36,19 @@ serde = { workspace = true, features = ["derive", "alloc"], optional = true }
 serde_json = { workspace = true, features = ["std"], optional = true }
 sha3 = { version = "0.10", default-features = false, optional = true }
 sha2 = { workspace = true }
+ss58-registry = { version = "1.48.0", default-features = true, optional = true }
 sp-core = { workspace = true, default-features = false, features = ["full_crypto", "serde"], optional = true }
 sp-application-crypto = { workspace = true, default-features = false, features = ["full_crypto"] }
 tempfile = { workspace = true, optional = true }
 thiserror = { workspace = true }
 tracing = { workspace = true, default-features = false, features = ["std"], optional = true }
 tracing-subscriber = { workspace = true, optional = true }
+libp2p-identity = { version = "0.2", default-features = false, features = ["serde"], optional = true }
 
 [dev-dependencies]
 
 [features]
-default = ["std", "secp256k1", "sr25519", "ed25519", "codec"]
+default = ["std", "secp256k1", "sr25519", "ed25519", "codec", "ss58-registry"]
 std = [
     "dep:anyhow",
     "dep:rand",
@@ -66,3 +67,5 @@ cli = ["std", "clap", "colored", "dep:tracing-subscriber"]
 codec = ["dep:parity-scale-codec"]
 keyring = ["std", "serde"]
 serde = ["dep:serde"]
+ss58-registry = ["dep:ss58-registry"]
+peer-id = ["dep:libp2p-identity"]

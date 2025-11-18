@@ -18,6 +18,8 @@
 
 //! Cryptographic signature scheme implementations.
 
+use crate::traits::SignatureScheme;
+
 #[cfg(feature = "secp256k1")]
 pub mod secp256k1;
 
@@ -48,11 +50,11 @@ impl SchemeType {
     pub fn name(&self) -> &'static str {
         match self {
             #[cfg(feature = "secp256k1")]
-            SchemeType::Secp256k1 => "secp256k1",
+            SchemeType::Secp256k1 => crate::schemes::secp256k1::Secp256k1::scheme_name(),
             #[cfg(feature = "sr25519")]
-            SchemeType::Sr25519 => "sr25519",
+            SchemeType::Sr25519 => crate::schemes::sr25519::Sr25519::scheme_name(),
             #[cfg(feature = "ed25519")]
-            SchemeType::Ed25519 => "ed25519",
+            SchemeType::Ed25519 => crate::schemes::ed25519::Ed25519::scheme_name(),
             #[allow(unreachable_patterns)]
             _ => unreachable!("No signature schemes enabled"),
         }

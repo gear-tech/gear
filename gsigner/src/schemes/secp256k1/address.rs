@@ -19,15 +19,13 @@
 //! Ethereum address and validator helpers.
 
 use super::keys::PublicKey;
-use crate::hash::keccak256;
-use alloc::{string::String, vec::Vec};
+use crate::{hash::keccak256, utils::decode_hex_to_array};
+use alloc::string::String;
 use core::str::FromStr;
 use derive_more::{Debug, Display, Error};
 use gprimitives::{ActorId, H160};
 use hex::FromHexError;
-use nonempty::NonEmpty;
 #[cfg(feature = "codec")]
-use parity_scale_codec::{Decode, Encode};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
@@ -89,7 +87,6 @@ impl FromStr for Address {
         decode_hex_to_array(s).map(Self)
     }
 }
-
 #[cfg(feature = "serde")]
 impl Serialize for Address {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
@@ -160,100 +157,7 @@ impl From<Address> for alloy_primitives::Address {
     }
 }
 
-fn decode_hex_to_array<const N: usize>(s: &str) -> Result<[u8; N], FromHexError> {
-    let stripped = s.strip_prefix("0x").unwrap_or(s);
-    let mut buf = [0u8; N];
-    hex::decode_to_slice(stripped, &mut buf)?;
-    Ok(buf)
-}
-
-/// [`ValidatorsVec`] is a wrapper over non-empty vector of [`Address`].
-/// It is needed because `NonEmpty` does not implement `Encode` and `Decode`.
-#[derive(
-    Debug,
-    Clone,
-    Default,
-    PartialEq,
-    Eq,
-    Hash,
-    derive_more::Deref,
-    derive_more::DerefMut,
-    derive_more::IntoIterator,
-)]
-pub struct ValidatorsVec(NonEmpty<Address>);
-
-#[cfg(feature = "codec")]
-impl Encode for ValidatorsVec {
-    fn encode(&self) -> Vec<u8> {
-        Into::<Vec<_>>::into(self.0.clone()).encode()
-    }
-}
-
-#[cfg(feature = "codec")]
-impl Decode for ValidatorsVec {
-    fn decode<I: parity_scale_codec::Input>(
-        input: &mut I,
-    ) -> Result<Self, parity_scale_codec::Error> {
-        let inner: Vec<Address> = Decode::decode(input)?;
-        NonEmpty::from_vec(inner)
-            .map(Self)
-            .ok_or(parity_scale_codec::Error::from(
-                "Failed to decode ValidatorsVec: empty vector",
-            ))
-    }
-}
-
-#[derive(Debug, Display, Error)]
-#[display("{:?}", self)]
-#[debug("ValidatorsVec cannot be create from empty collection")]
-pub struct EmptyValidatorsError;
-
-impl TryFrom<Vec<Address>> for ValidatorsVec {
-    type Error = EmptyValidatorsError;
-
-    fn try_from(value: Vec<Address>) -> Result<Self, Self::Error> {
-        NonEmpty::from_vec(value)
-            .map(Self)
-            .ok_or(EmptyValidatorsError)
-    }
-}
-
-impl TryFrom<Vec<alloy_primitives::Address>> for ValidatorsVec {
-    type Error = EmptyValidatorsError;
-
-    fn try_from(value: Vec<alloy_primitives::Address>) -> Result<Self, Self::Error> {
-        let vec: Vec<Address> = value.into_iter().map(Into::into).collect();
-        NonEmpty::from_vec(vec)
-            .map(Self)
-            .ok_or(EmptyValidatorsError)
-    }
-}
-
-impl FromIterator<Address> for Result<ValidatorsVec, EmptyValidatorsError> {
-    fn from_iter<T: IntoIterator<Item = Address>>(iter: T) -> Self {
-        let inner = iter.into_iter().collect::<Vec<_>>();
-        inner.try_into()
-    }
-}
-
-impl From<NonEmpty<Address>> for ValidatorsVec {
-    fn from(value: NonEmpty<Address>) -> Self {
-        Self(value)
-    }
-}
-
-impl From<ValidatorsVec> for Vec<Address> {
-    fn from(value: ValidatorsVec) -> Self {
-        value.0.into()
-    }
-}
-
-impl From<ValidatorsVec> for Vec<ActorId> {
-    fn from(value: ValidatorsVec) -> Self {
-        value.into_iter().map(Into::into).collect()
-    }
-}
-
+/// [`ValidatorsVec`] now lives in `ethexe-common` and is re-exported there.
 #[cfg(test)]
 mod tests {
     use super::*;

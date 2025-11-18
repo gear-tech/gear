@@ -34,7 +34,7 @@ mod signer_ext;
 #[cfg(all(feature = "serde", feature = "keyring"))]
 pub mod keyring;
 
-pub use address::{Address, EmptyValidatorsError, FromActorIdError, ValidatorsVec};
+pub use address::{Address, FromActorIdError};
 pub use digest::{Digest, ToDigest};
 pub use keys::{PrivateKey, PublicKey};
 pub use signature::{ContractSignature, Signature, SignedData, VerifiedData};
@@ -59,6 +59,8 @@ pub use keyring::{Keyring, Keystore as KeyringKeystore};
 pub struct Secp256k1;
 
 impl SignatureScheme for Secp256k1 {
+    const NAME: &'static str = "secp256k1";
+
     type PrivateKey = PrivateKey;
     type PublicKey = PublicKey;
     type Signature = Signature;

@@ -23,6 +23,7 @@ use crate::{
     error::SignerError,
     substrate_utils::{PairSeed, SpPairWrapper},
     traits::SeedableKey,
+    utils::decode_hex_to_array,
 };
 #[cfg(feature = "serde")]
 use alloc::vec::Vec;
@@ -150,7 +151,8 @@ impl FromStr for PrivateKey {
     type Err = SignerError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let bytes = decode_hex_to_array::<32>(s)?;
+        let bytes =
+            decode_hex_to_array::<32>(s).map_err(|e| SignerError::InvalidKey(e.to_string()))?;
         Self::from_seed(bytes)
     }
 }
@@ -267,7 +269,8 @@ impl FromStr for PublicKey {
     type Err = SignerError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let bytes = decode_hex_to_array::<33>(s)?;
+        let bytes =
+            decode_hex_to_array::<33>(s).map_err(|e| SignerError::InvalidKey(e.to_string()))?;
         Self::from_bytes(bytes)
     }
 }
@@ -305,19 +308,4 @@ impl<'de> Deserialize<'de> for PublicKey {
             PublicKey::from_bytes(array).map_err(|err| serde::de::Error::custom(err.to_string()))
         }
     }
-}
-
-fn decode_hex_to_array<const N: usize>(s: &str) -> Result<[u8; N], SignerError> {
-    let stripped = s.strip_prefix("0x").unwrap_or(s);
-    if stripped.len() != N * 2 {
-        return Err(SignerError::InvalidKey(format!(
-            "Expected {N} bytes hex string, got {} characters",
-            stripped.len()
-        )));
-    }
-
-    let mut buf = [0u8; N];
-    hex::decode_to_slice(stripped, &mut buf)
-        .map_err(|err| SignerError::InvalidKey(err.to_string()))?;
-    Ok(buf)
 }

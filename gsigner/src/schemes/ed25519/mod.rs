@@ -283,6 +283,8 @@ impl<'de> Deserialize<'de> for Signature {
 }
 
 impl SignatureScheme for Ed25519 {
+    const NAME: &'static str = "ed25519";
+
     type PrivateKey = PrivateKey;
     type PublicKey = PublicKey;
     type Signature = Signature;
@@ -324,10 +326,6 @@ impl SignatureScheme for Ed25519 {
         public_key
             .to_address()
             .expect("public key bytes always produce valid address")
-    }
-
-    fn scheme_name() -> &'static str {
-        "ed25519"
     }
 }
 

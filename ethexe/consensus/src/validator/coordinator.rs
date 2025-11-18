@@ -125,7 +125,7 @@ impl Coordinator {
 mod tests {
     use super::*;
     use crate::{mock::*, validator::mock::*};
-    use ethexe_common::ToDigest;
+    use ethexe_common::{ToDigest, ValidatorsVec};
     use gprimitives::H256;
     use nonempty::NonEmpty;
 
@@ -133,11 +133,12 @@ mod tests {
     fn coordinator_create_success() {
         let (mut ctx, keys, _) = mock_validator_context();
         ctx.core.signatures_threshold = 2;
-        let validators = keys
+        let validators: ValidatorsVec = keys
             .iter()
             .take(3)
             .map(|k| k.to_address())
-            .collect::<Result<_, _>>()
+            .collect::<Vec<_>>()
+            .try_into()
             .unwrap();
         let batch = BatchCommitment::default();
 

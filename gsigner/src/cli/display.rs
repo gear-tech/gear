@@ -98,14 +98,20 @@ fn display_keyring_list(result: &KeyringListResult) {
     }
 }
 
-fn display_secp256k1_result(result: &Secp256k1Result) {
+pub fn display_secp256k1_result(result: &Secp256k1Result) {
     match result {
+        Secp256k1Result::Clear(r) => {
+            println!("{} Removed {} key(s)", "✓".green().bold(), r.removed);
+        }
         Secp256k1Result::Generate(r) => {
             println!("{}", "✓ Generated secp256k1 keypair".green().bold());
             println!("  {} {}", "Public key:".bright_blue(), r.public_key);
             println!("  {} {}", "Address:".bright_blue(), r.address);
             println!("  {} {}", "Scheme:".bright_blue(), r.scheme);
             println!("  {} {}", "Key type:".bright_blue(), r.key_type);
+            if let Some(secret) = &r.secret {
+                println!("  {} {}", "Secret:".red().bold(), secret);
+            }
         }
         Secp256k1Result::Sign(r) => {
             println!("{}", "✓ Signed data".green().bold());
@@ -114,8 +120,17 @@ fn display_secp256k1_result(result: &Secp256k1Result) {
         Secp256k1Result::Verify(_) => {
             println!("{}", "✓ Signature is valid".green().bold());
         }
+        Secp256k1Result::Recover(r) => {
+            println!("{}", "✓ Recovered public key".green().bold());
+            println!("  {} {}", "Public key:".bright_blue(), r.public_key);
+            println!("  {} {}", "Address:".bright_blue(), r.address);
+        }
         Secp256k1Result::Address(r) => {
             println!("{} {}", "Address:".bright_blue(), r.address);
+        }
+        #[cfg(feature = "peer-id")]
+        Secp256k1Result::PeerId(r) => {
+            println!("{} {}", "PeerId:".bright_blue(), r.peer_id);
         }
         Secp256k1Result::List(r) => {
             if r.keys.is_empty() {
@@ -130,6 +145,9 @@ fn display_secp256k1_result(result: &Secp256k1Result) {
                     println!("    {} {}", "Address:".bright_black(), key.address);
                     println!("    {} {}", "Scheme:".bright_black(), key.scheme);
                     println!("    {} {}", "Key type:".bright_black(), key.key_type);
+                    if let Some(secret) = &key.secret {
+                        println!("    {} {}", "Secret:".red().bold(), secret);
+                    }
                 }
             }
         }
@@ -140,14 +158,20 @@ fn display_secp256k1_result(result: &Secp256k1Result) {
     }
 }
 
-fn display_ed25519_result(result: &Ed25519Result) {
+pub fn display_ed25519_result(result: &Ed25519Result) {
     match result {
+        Ed25519Result::Clear(r) => {
+            println!("{} Removed {} key(s)", "✓".green().bold(), r.removed);
+        }
         Ed25519Result::Generate(r) => {
             println!("{}", "✓ Generated ed25519 keypair".green().bold());
             println!("  {} {}", "Public key:".bright_blue(), r.public_key);
             println!("  {} {}", "SS58 Address:".bright_blue(), r.address);
             println!("  {} {}", "Scheme:".bright_blue(), r.scheme);
             println!("  {} {}", "Key type:".bright_blue(), r.key_type);
+            if let Some(secret) = &r.secret {
+                println!("  {} {}", "Secret:".red().bold(), secret);
+            }
         }
         Ed25519Result::Import(r) => {
             println!("{}", "✓ Imported ed25519 key from SURI".green().bold());
@@ -155,6 +179,9 @@ fn display_ed25519_result(result: &Ed25519Result) {
             println!("  {} {}", "SS58 Address:".bright_blue(), r.address);
             println!("  {} {}", "Scheme:".bright_blue(), r.scheme);
             println!("  {} {}", "Key type:".bright_blue(), r.key_type);
+            if let Some(secret) = &r.secret {
+                println!("  {} {}", "Secret:".red().bold(), secret);
+            }
         }
         Ed25519Result::Sign(r) => {
             println!("{}", "✓ Signed data".green().bold());
@@ -165,6 +192,10 @@ fn display_ed25519_result(result: &Ed25519Result) {
         }
         Ed25519Result::Address(r) => {
             println!("{} {}", "SS58 Address:".bright_blue(), r.address);
+        }
+        #[cfg(feature = "peer-id")]
+        Ed25519Result::PeerId(r) => {
+            println!("{} {}", "PeerId:".bright_blue(), r.peer_id);
         }
         Ed25519Result::List(r) => {
             if r.keys.is_empty() {
@@ -179,6 +210,9 @@ fn display_ed25519_result(result: &Ed25519Result) {
                     println!("    {} {}", "SS58:".bright_black(), key.address);
                     println!("    {} {}", "Scheme:".bright_black(), key.scheme);
                     println!("    {} {}", "Key type:".bright_black(), key.key_type);
+                    if let Some(secret) = &key.secret {
+                        println!("    {} {}", "Secret:".red().bold(), secret);
+                    }
                 }
             }
         }
@@ -189,14 +223,20 @@ fn display_ed25519_result(result: &Ed25519Result) {
     }
 }
 
-fn display_sr25519_result(result: &Sr25519Result) {
+pub fn display_sr25519_result(result: &Sr25519Result) {
     match result {
+        Sr25519Result::Clear(r) => {
+            println!("{} Removed {} key(s)", "✓".green().bold(), r.removed);
+        }
         Sr25519Result::Generate(r) => {
             println!("{}", "✓ Generated sr25519 keypair".green().bold());
             println!("  {} {}", "Public key:".bright_blue(), r.public_key);
             println!("  {} {}", "SS58 Address:".bright_blue(), r.address);
             println!("  {} {}", "Scheme:".bright_blue(), r.scheme);
             println!("  {} {}", "Key type:".bright_blue(), r.key_type);
+            if let Some(secret) = &r.secret {
+                println!("  {} {}", "Secret:".red().bold(), secret);
+            }
         }
         Sr25519Result::Import(r) => {
             println!("{}", "✓ Imported sr25519 key from SURI".green().bold());
@@ -204,6 +244,9 @@ fn display_sr25519_result(result: &Sr25519Result) {
             println!("  {} {}", "SS58 Address:".bright_blue(), r.address);
             println!("  {} {}", "Scheme:".bright_blue(), r.scheme);
             println!("  {} {}", "Key type:".bright_blue(), r.key_type);
+            if let Some(secret) = &r.secret {
+                println!("  {} {}", "Secret:".red().bold(), secret);
+            }
         }
         Sr25519Result::Sign(r) => {
             println!("{}", "✓ Signed data".green().bold());
@@ -214,6 +257,10 @@ fn display_sr25519_result(result: &Sr25519Result) {
         }
         Sr25519Result::Address(r) => {
             println!("{} {}", "SS58 Address:".bright_blue(), r.address);
+        }
+        #[cfg(feature = "peer-id")]
+        Sr25519Result::PeerId(r) => {
+            println!("{} {}", "PeerId:".bright_blue(), r.peer_id);
         }
         #[cfg(feature = "keyring")]
         Sr25519Result::Keyring(r) => display_keyring_result(r),
@@ -232,6 +279,9 @@ fn display_sr25519_result(result: &Sr25519Result) {
                     println!("    {} {}", "SS58:".bright_black(), key.address);
                     println!("    {} {}", "Scheme:".bright_black(), key.scheme);
                     println!("    {} {}", "Key type:".bright_black(), key.key_type);
+                    if let Some(secret) = &key.secret {
+                        println!("    {} {}", "Secret:".red().bold(), secret);
+                    }
                 }
             }
         }

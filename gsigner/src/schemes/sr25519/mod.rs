@@ -343,6 +343,8 @@ impl From<Signature> for sr25519::Signature {
 }
 
 impl SignatureScheme for Sr25519 {
+    const NAME: &'static str = "sr25519";
+
     type PrivateKey = PrivateKey;
     type PublicKey = PublicKey;
     type Signature = Signature;
@@ -388,10 +390,6 @@ impl SignatureScheme for Sr25519 {
         public_key
             .to_address()
             .expect("public key bytes always produce valid address")
-    }
-
-    fn scheme_name() -> &'static str {
-        "sr25519"
     }
 }
 

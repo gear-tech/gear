@@ -4919,6 +4919,7 @@ dependencies = [
  "hex",
  "itertools 0.13.0",
  "k256",
+ "nonempty 0.12.0",
  "parity-scale-codec",
  "roast-secp256k1-evm",
  "serde",
@@ -7317,8 +7318,8 @@ dependencies = [
  "gprimitives",
  "hex",
  "k256",
+ "libp2p-identity",
  "nacl",
- "nonempty 0.12.0",
  "parity-scale-codec",
  "rand 0.8.5",
  "schnorrkel",
@@ -7328,6 +7329,7 @@ dependencies = [
  "sha3",
  "sp-application-crypto",
  "sp-core",
+ "ss58-registry",
  "tempfile",
  "thiserror 2.0.12",
  "tracing",
@@ -9260,6 +9262,7 @@ dependencies = [
  "multihash 0.19.1",
  "quick-protobuf",
  "rand 0.8.5",
+ "serde",
  "sha2 0.10.8",
  "thiserror 2.0.12",
  "tracing",
@@ -17265,9 +17268,9 @@ dependencies = [
 
 [[package]]
 name = "ss58-registry"
-version = "1.43.0"
+version = "1.51.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5e6915280e2d0db8911e5032a5c275571af6bdded2916abd691a659be25d3439"
+checksum = "19409f13998e55816d1c728395af0b52ec066206341d939e22e7766df9b494b8"
 dependencies = [
  "Inflector",
  "num-format",

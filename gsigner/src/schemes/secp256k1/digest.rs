@@ -22,7 +22,7 @@ use alloc::vec::Vec;
 use core::iter::FromIterator;
 use sha3::Digest as _;
 
-/// Common digest type for the ethexe / gsigner ecosystem.
+/// Common digest type for the gsigner ecosystem.
 /// Presently, it is represented as 32-byte Keccak256 hash.
 /// The `ToDigest` trait is implemented for various types to facilitate hashing and signing.
 #[derive(

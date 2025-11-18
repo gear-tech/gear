@@ -23,7 +23,7 @@
 
 use super::commands::*;
 use anyhow::Result;
-use std::path::PathBuf;
+use std::{path::PathBuf, str::FromStr};
 
 #[cfg(any(feature = "secp256k1", feature = "ed25519", feature = "sr25519"))]
 use crate::{
@@ -38,6 +38,7 @@ pub struct KeyGenerationResult {
     pub address: String,
     pub scheme: String,
     pub key_type: String,
+    pub secret: Option<String>,
 }
 
 /// Result of key import
@@ -47,6 +48,7 @@ pub struct KeyImportResult {
     pub address: String,
     pub scheme: String,
     pub key_type: String,
+    pub secret: Option<String>,
 }
 
 /// Result of signing operation
@@ -67,10 +69,29 @@ pub struct AddressResult {
     pub address: String,
 }
 
+/// Result of recovering a public key from a signature
+#[derive(Debug, Clone)]
+pub struct RecoverResult {
+    pub public_key: String,
+    pub address: String,
+}
+
+/// Result of PeerId derivation
+#[derive(Debug, Clone)]
+pub struct PeerIdResult {
+    pub peer_id: String,
+}
+
 /// Result of listing keys
 #[derive(Debug, Clone)]
 pub struct ListKeysResult {
     pub keys: Vec<KeyInfo>,
+}
+
+/// Result of clearing keys
+#[derive(Debug, Clone)]
+pub struct ClearResult {
+    pub removed: usize,
 }
 
 /// Information about a key
@@ -80,6 +101,7 @@ pub struct KeyInfo {
     pub address: String,
     pub scheme: String,
     pub key_type: String,
+    pub secret: Option<String>,
 }
 
 /// Result of keyring operations
@@ -125,6 +147,25 @@ enum KeyringCommandResult {
     List(KeyringListResult),
 }
 
+#[cfg(any(feature = "ed25519", feature = "sr25519"))]
+fn parse_ss58_format(network: &Option<String>) -> Result<sp_core::crypto::Ss58AddressFormat> {
+    if let Some(net) = network {
+        // Try numeric first
+        if let Ok(prefix) = net.parse::<u16>() {
+            return Ok(sp_core::crypto::Ss58AddressFormat::custom(prefix));
+        }
+
+        // Then registry name (e.g., polkadot, kusama, vara)
+        let reg = sp_core::crypto::Ss58AddressFormatRegistry::from_str(net)
+            .map_err(|_| anyhow::anyhow!("Unknown network prefix '{net}'"))?;
+        Ok(sp_core::crypto::Ss58AddressFormat::from(reg))
+    } else {
+        Ok(sp_core::crypto::Ss58AddressFormat::custom(
+            crate::address::SubstrateAddress::DEFAULT_PREFIX,
+        ))
+    }
+}
+
 struct SchemeFormatter<S: SignatureScheme> {
     scheme_name: &'static str,
     key_type_fn: fn() -> String,
@@ -156,20 +197,25 @@ where
     S::PrivateKey: SeedableKey,
     F: FnOnce(crate::Signer<S>) -> Result<R>,
 {
-    let signer = create_signer::<S>(storage);
-    f(signer)
+    f(create_signer::<S>(storage))
 }
 
 fn generate_key_result<S>(
     storage: Option<PathBuf>,
     formatter: &SchemeFormatter<S>,
+    show_secret: bool,
 ) -> Result<KeyGenerationResult>
 where
     S: SignatureScheme,
-    S::PrivateKey: SeedableKey,
+    S::PrivateKey: SeedableKey + Clone,
 {
     with_signer::<S, _, _>(storage, |signer| {
-        let public_key = signer.generate_key()?;
+        let (private_key, public_key) = {
+            let (pk, _) = S::generate_keypair();
+            let public = signer.storage_mut().add_key(pk.clone())?;
+            (pk, public)
+        };
+
         let public_display = formatter.format_public(&public_key);
         let address = signer.address(public_key);
         let address_display = formatter.format_address(&address);
@@ -179,6 +225,7 @@ where
             address: address_display,
             scheme: formatter.scheme_name().to_string(),
             key_type: formatter.key_type(),
+            secret: show_secret.then(|| hex::encode(private_key.seed().as_ref())),
         })
     })
 }
@@ -186,6 +233,7 @@ where
 fn list_keys_result<S>(
     storage: Option<PathBuf>,
     formatter: &SchemeFormatter<S>,
+    show_secret: bool,
 ) -> Result<ListKeysResult>
 where
     S: SignatureScheme,
@@ -195,22 +243,30 @@ where
         let scheme_name = formatter.scheme_name().to_string();
         let key_type = formatter.key_type();
 
-        let keys = signer
+        let storage = signer.storage();
+        let keys = storage
             .list_keys()?
             .into_iter()
             .map(|public_key| {
                 let public_display = formatter.format_public(&public_key);
-                let address = signer.address(public_key);
+                let address = S::address(&public_key);
                 let address_display = formatter.format_address(&address);
+                let secret = if show_secret {
+                    let private_key = storage.get_private_key(public_key)?;
+                    Some(hex::encode(private_key.seed().as_ref()))
+                } else {
+                    None
+                };
 
-                KeyInfo {
+                Ok(KeyInfo {
                     public_key: public_display,
                     address: address_display,
                     scheme: scheme_name.clone(),
                     key_type: key_type.clone(),
-                }
+                    secret,
+                })
             })
-            .collect();
+            .collect::<Result<Vec<_>>>()?;
 
         Ok(ListKeysResult { keys })
     })
@@ -314,10 +370,14 @@ pub enum CommandResult {
 /// Result of secp256k1 command
 #[derive(Debug, Clone)]
 pub enum Secp256k1Result {
+    Clear(ClearResult),
     Generate(KeyGenerationResult),
     Sign(SignResult),
     Verify(VerifyResult),
+    Recover(RecoverResult),
     Address(AddressResult),
+    #[cfg(feature = "peer-id")]
+    PeerId(PeerIdResult),
     List(ListKeysResult),
     #[cfg(feature = "keyring")]
     Keyring(KeyringResult),
@@ -328,11 +388,14 @@ pub enum Secp256k1Result {
 /// Result of ed25519 command
 #[derive(Debug, Clone)]
 pub enum Ed25519Result {
+    Clear(ClearResult),
     Generate(KeyGenerationResult),
     Import(KeyImportResult),
     Sign(SignResult),
     Verify(VerifyResult),
     Address(AddressResult),
+    #[cfg(feature = "peer-id")]
+    PeerId(PeerIdResult),
     List(ListKeysResult),
     #[cfg(feature = "keyring")]
     Keyring(KeyringResult),
@@ -343,11 +406,14 @@ pub enum Ed25519Result {
 /// Result of sr25519 command
 #[derive(Debug, Clone)]
 pub enum Sr25519Result {
+    Clear(ClearResult),
     Generate(KeyGenerationResult),
     Import(KeyImportResult),
     Sign(SignResult),
     Verify(VerifyResult),
     Address(AddressResult),
+    #[cfg(feature = "peer-id")]
+    PeerId(PeerIdResult),
     #[cfg(feature = "keyring")]
     Keyring(KeyringResult),
     #[cfg(feature = "keyring")]
@@ -365,9 +431,19 @@ pub fn execute_secp256k1_command(command: Secp256k1Commands) -> Result<Secp256k1
     let formatter = secp256k1_formatter();
 
     match command {
-        Secp256k1Commands::Generate { storage } => {
-            let result = generate_key_result::<Secp256k1>(storage, &formatter)?;
+        Secp256k1Commands::Generate {
+            storage,
+            show_secret,
+        } => {
+            let result = generate_key_result::<Secp256k1>(storage, &formatter, show_secret)?;
             Ok(Secp256k1Result::Generate(result))
+        }
+        Secp256k1Commands::Clear { storage } => {
+            let signer: crate::Signer<Secp256k1> = create_signer(storage);
+            let mut storage = signer.storage_mut();
+            let len = storage.list_keys()?.len();
+            storage.clear_keys()?;
+            Ok(Secp256k1Result::Clear(ClearResult { removed: len }))
         }
         Secp256k1Commands::Sign {
             public_key,
@@ -410,12 +486,82 @@ pub fn execute_secp256k1_command(command: Secp256k1Commands) -> Result<Secp256k1
 
             Ok(Secp256k1Result::Verify(VerifyResult { valid: true }))
         }
-        Secp256k1Commands::Address { public_key } => {
+        Secp256k1Commands::Recover { data, signature } => {
+            let data_bytes = hex::decode(&data)?;
+            let sig_bytes = hex::decode(&signature)?;
+            let mut sig_arr = [0u8; 65];
+            sig_arr.copy_from_slice(&sig_bytes);
+            let signature = Signature::from_pre_eip155_bytes(sig_arr)
+                .ok_or_else(|| anyhow::anyhow!("Invalid signature"))?;
+            let public = signature.recover(&data_bytes)?;
+            let address = public.to_address();
+
+            Ok(Secp256k1Result::Recover(RecoverResult {
+                public_key: formatter.format_public(&public),
+                address: formatter.format_address(&address),
+            }))
+        }
+        Secp256k1Commands::Address { public_key, .. } => {
             let public_key: PublicKey = public_key.parse()?;
             let address = public_key.to_address();
 
             Ok(Secp256k1Result::Address(AddressResult {
                 address: formatter.format_address(&address),
+            }))
+        }
+        #[cfg(feature = "peer-id")]
+        Secp256k1Commands::PeerId { public_key } => {
+            let public_key: PublicKey = public_key.parse()?;
+            let peer_id = crate::peer_id::peer_id_from_secp256k1(&public_key)?;
+            Ok(Secp256k1Result::PeerId(PeerIdResult {
+                peer_id: peer_id.to_string(),
+            }))
+        }
+        Secp256k1Commands::Insert {
+            storage,
+            private_key,
+            show_secret,
+        } => {
+            let signer: crate::Signer<Secp256k1> = create_signer(storage);
+            let private: <Secp256k1 as SignatureScheme>::PrivateKey = private_key.parse()?;
+            let public = signer.storage_mut().add_key(private.clone())?;
+            Ok(Secp256k1Result::Generate(KeyGenerationResult {
+                public_key: formatter.format_public(&public),
+                address: formatter.format_address(&public.to_address()),
+                scheme: formatter.scheme_name().to_string(),
+                key_type: formatter.key_type(),
+                secret: show_secret.then(|| hex::encode(private.seed().as_ref())),
+            }))
+        }
+        Secp256k1Commands::Show {
+            storage,
+            key,
+            show_secret,
+        } => {
+            let signer: crate::Signer<Secp256k1> = create_signer(storage);
+            let key = key.strip_prefix("0x").unwrap_or(&key);
+            let public = if key.len() == 66 {
+                key.parse()?
+            } else if key.len() == 40 {
+                let mut addr = [0u8; 20];
+                hex::decode_to_slice(key, &mut addr)
+                    .map_err(|e| anyhow::anyhow!("Failed to parse eth address hex: {e}"))?;
+                signer
+                    .storage()
+                    .get_key_by_address(addr.into())?
+                    .ok_or_else(|| anyhow::anyhow!("Unrecognized eth address"))?
+            } else {
+                anyhow::bail!(
+                    "Invalid key length: should be 33-byte public key or 20-byte eth address"
+                );
+            };
+            let private = signer.storage().get_private_key(public)?;
+            Ok(Secp256k1Result::Generate(KeyGenerationResult {
+                public_key: formatter.format_public(&public),
+                address: formatter.format_address(&public.to_address()),
+                scheme: formatter.scheme_name().to_string(),
+                key_type: formatter.key_type(),
+                secret: show_secret.then(|| hex::encode(private.seed().as_ref())),
             }))
         }
         #[cfg(feature = "keyring")]
@@ -426,8 +572,11 @@ pub fn execute_secp256k1_command(command: Secp256k1Commands) -> Result<Secp256k1
                 KeyringCommandResult::List(r) => Ok(Secp256k1Result::KeyringList(r)),
             }
         }
-        Secp256k1Commands::List { storage } => {
-            let result = list_keys_result::<Secp256k1>(storage, &formatter)?;
+        Secp256k1Commands::List {
+            storage,
+            show_secret,
+        } => {
+            let result = list_keys_result::<Secp256k1>(storage, &formatter, show_secret)?;
             Ok(Secp256k1Result::List(result))
         }
     }
@@ -445,17 +594,21 @@ pub fn execute_ed25519_command(command: Ed25519Commands) -> Result<Ed25519Result
     let formatter = ed25519_formatter();
 
     match command {
-        Ed25519Commands::Generate { storage } => {
-            let result = generate_key_result::<Ed25519>(storage, &formatter)?;
+        Ed25519Commands::Generate {
+            storage,
+            show_secret,
+        } => {
+            let result = generate_key_result::<Ed25519>(storage, &formatter, show_secret)?;
             Ok(Ed25519Result::Generate(result))
         }
         Ed25519Commands::Import {
             suri,
             password,
             storage,
+            show_secret,
         } => with_signer::<Ed25519, _, _>(storage, |signer| {
             let private_key = PrivateKey::from_suri(&suri, password.as_deref())?;
-            let public_key = signer.import_key(private_key)?;
+            let public_key = signer.import_key(private_key.clone())?;
             let address = signer.address(public_key);
 
             Ok(Ed25519Result::Import(KeyImportResult {
@@ -463,6 +616,7 @@ pub fn execute_ed25519_command(command: Ed25519Commands) -> Result<Ed25519Result
                 address: formatter.format_address(&address),
                 scheme: formatter.scheme_name().to_string(),
                 key_type: formatter.key_type(),
+                secret: show_secret.then(|| hex::encode(private_key.to_bytes())),
             }))
         }),
         Ed25519Commands::Sign {
@@ -501,13 +655,18 @@ pub fn execute_ed25519_command(command: Ed25519Commands) -> Result<Ed25519Result
 
             Ok(Ed25519Result::Verify(VerifyResult { valid: true }))
         }
-        Ed25519Commands::Address { public_key } => {
+        Ed25519Commands::Address {
+            public_key,
+            network,
+        } => {
             let public_key_bytes = hex::decode(&public_key)?;
             let mut public_key_arr = [0u8; 32];
             public_key_arr.copy_from_slice(&public_key_bytes);
-            let address = crate::address::SubstrateAddress::new(
+            let format = parse_ss58_format(&network)?;
+            let address = crate::address::SubstrateAddress::new_with_format(
                 public_key_arr,
                 crate::address::SubstrateCryptoScheme::Ed25519,
+                format,
             )?;
 
             Ok(Ed25519Result::Address(AddressResult {
@@ -522,8 +681,22 @@ pub fn execute_ed25519_command(command: Ed25519Commands) -> Result<Ed25519Result
                 KeyringCommandResult::List(r) => Ok(Ed25519Result::KeyringList(r)),
             }
         }
-        Ed25519Commands::List { storage } => {
-            let result = list_keys_result::<Ed25519>(storage, &formatter)?;
+        #[cfg(feature = "peer-id")]
+        Ed25519Commands::PeerId { public_key } => {
+            let public_key_bytes = hex::decode(&public_key)?;
+            let mut public_key_arr = [0u8; 32];
+            public_key_arr.copy_from_slice(&public_key_bytes);
+            let public_key = PublicKey::from_bytes(public_key_arr);
+            let peer_id = crate::peer_id::peer_id_from_ed25519(&public_key)?;
+            Ok(Ed25519Result::PeerId(PeerIdResult {
+                peer_id: peer_id.to_string(),
+            }))
+        }
+        Ed25519Commands::List {
+            storage,
+            show_secret,
+        } => {
+            let result = list_keys_result::<Ed25519>(storage, &formatter, show_secret)?;
             Ok(Ed25519Result::List(result))
         }
     }
@@ -544,19 +717,23 @@ pub fn execute_sr25519_command(command: Sr25519Commands) -> Result<Sr25519Result
     let formatter = sr25519_formatter();
 
     match command {
-        Sr25519Commands::Generate { storage } => {
-            let result = generate_key_result::<Sr25519>(storage, &formatter)?;
+        Sr25519Commands::Generate {
+            storage,
+            show_secret,
+        } => {
+            let result = generate_key_result::<Sr25519>(storage, &formatter, show_secret)?;
             Ok(Sr25519Result::Generate(result))
         }
         Sr25519Commands::Import {
             suri,
             password,
             storage,
+            show_secret,
         } => with_signer::<Sr25519, _, _>(storage, |signer| {
             use crate::schemes::sr25519::PrivateKey;
 
             let private_key = PrivateKey::from_suri(&suri, password.as_deref())?;
-            let public_key = signer.import_key(private_key)?;
+            let public_key = signer.import_key(private_key.clone())?;
             let address = signer.address(public_key);
 
             Ok(Sr25519Result::Import(KeyImportResult {
@@ -564,6 +741,7 @@ pub fn execute_sr25519_command(command: Sr25519Commands) -> Result<Sr25519Result
                 address: formatter.format_address(&address),
                 scheme: formatter.scheme_name().to_string(),
                 key_type: formatter.key_type(),
+                secret: show_secret.then(|| hex::encode(private_key.to_bytes())),
             }))
         }),
         Sr25519Commands::Sign {
@@ -613,13 +791,18 @@ pub fn execute_sr25519_command(command: Sr25519Commands) -> Result<Sr25519Result
 
             Ok(Sr25519Result::Verify(VerifyResult { valid: true }))
         }
-        Sr25519Commands::Address { public_key } => {
+        Sr25519Commands::Address {
+            public_key,
+            network,
+        } => {
             let public_key_bytes = hex::decode(&public_key)?;
             let mut public_key_arr = [0u8; 32];
             public_key_arr.copy_from_slice(&public_key_bytes);
-            let address = crate::address::SubstrateAddress::new(
+            let format = parse_ss58_format(&network)?;
+            let address = crate::address::SubstrateAddress::new_with_format(
                 public_key_arr,
                 crate::address::SubstrateCryptoScheme::Sr25519,
+                format,
             )?;
 
             Ok(Sr25519Result::Address(AddressResult {
@@ -634,8 +817,11 @@ pub fn execute_sr25519_command(command: Sr25519Commands) -> Result<Sr25519Result
                 KeyringCommandResult::List(r) => Ok(Sr25519Result::KeyringList(r)),
             }
         }
-        Sr25519Commands::List { storage } => {
-            let result = list_keys_result::<Sr25519>(storage, &formatter)?;
+        Sr25519Commands::List {
+            storage,
+            show_secret,
+        } => {
+            let result = list_keys_result::<Sr25519>(storage, &formatter, show_secret)?;
             Ok(Sr25519Result::List(result))
         }
     }

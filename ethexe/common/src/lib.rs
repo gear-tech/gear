@@ -31,14 +31,16 @@ pub mod injected;
 pub mod network;
 mod primitives;
 mod utils;
+mod validators;
 
 #[cfg(feature = "mock")]
 pub mod mock;
 
 pub use gsigner::{
     Address, ContractSignature, Digest, FromActorIdError, PrivateKey, PublicKey, Signature,
-    SignedData, ToDigest, ValidatorsVec, VerifiedData,
+    SignedData, ToDigest, VerifiedData,
 };
+pub use validators::{EmptyValidatorsError, ValidatorsVec};
 pub mod ecdsa {
     pub use gsigner::secp256k1::{
         ContractSignature, PrivateKey, PublicKey, Signature, SignedData, VerifiedData,

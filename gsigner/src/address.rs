@@ -19,7 +19,7 @@
 //! Address types for different cryptographic schemes.
 
 #[cfg(feature = "secp256k1")]
-pub use crate::schemes::secp256k1::{Address, FromActorIdError, ValidatorsVec};
+pub use crate::schemes::secp256k1::{Address, FromActorIdError};
 
 #[cfg(any(feature = "sr25519", feature = "ed25519"))]
 use crate::error::{Result, SignerError};
@@ -29,7 +29,7 @@ use alloc::{
     string::{String, ToString},
 };
 #[cfg(any(feature = "sr25519", feature = "ed25519"))]
-use core::fmt;
+use derive_more::{Debug, Display};
 #[cfg(any(feature = "sr25519", feature = "ed25519"))]
 use sp_core::crypto::Ss58AddressFormat;
 #[cfg(all(feature = "serde", any(feature = "sr25519", feature = "ed25519")))]
@@ -46,7 +46,8 @@ pub enum SubstrateCryptoScheme {
 }
 
 #[cfg(any(feature = "sr25519", feature = "ed25519"))]
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash, Display, Debug)]
+#[display("{ss58}")]
 pub struct SubstrateAddress {
     /// The raw public key bytes (32 bytes for Substrate-compatible schemes).
     pub public_key: [u8; 32],
@@ -58,11 +59,23 @@ pub struct SubstrateAddress {
 
 #[cfg(any(feature = "sr25519", feature = "ed25519"))]
 impl SubstrateAddress {
-    const DEFAULT_PREFIX: u16 = 137; // Vara network
+    pub(crate) const DEFAULT_PREFIX: u16 = 137; // Vara network
 
     /// Create a new Substrate address from public key bytes for the given scheme.
     pub fn new(public_key: [u8; 32], scheme: SubstrateCryptoScheme) -> Result<Self> {
-        let format = Ss58AddressFormat::custom(Self::DEFAULT_PREFIX);
+        Self::new_with_format(
+            public_key,
+            scheme,
+            Ss58AddressFormat::custom(Self::DEFAULT_PREFIX),
+        )
+    }
+
+    /// Create a new Substrate address with a custom SS58 format.
+    pub fn new_with_format(
+        public_key: [u8; 32],
+        scheme: SubstrateCryptoScheme,
+        format: Ss58AddressFormat,
+    ) -> Result<Self> {
         let ss58 = Self::encode(public_key, format, scheme)?;
         Ok(Self {
             public_key,
@@ -148,23 +161,6 @@ impl SubstrateAddress {
             #[cfg(not(any(feature = "sr25519", feature = "ed25519")))]
             _ => Err(SignerError::FeatureNotEnabled("substrate address encoding")),
         }
-    }
-}
-
-#[cfg(any(feature = "sr25519", feature = "ed25519"))]
-impl fmt::Debug for SubstrateAddress {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        f.debug_struct("SubstrateAddress")
-            .field("ss58", &self.ss58)
-            .field("scheme", &self.scheme)
-            .finish()
-    }
-}
-
-#[cfg(any(feature = "sr25519", feature = "ed25519"))]
-impl fmt::Display for SubstrateAddress {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", self.ss58)
     }
 }
 
