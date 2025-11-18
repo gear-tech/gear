@@ -42,7 +42,6 @@ tempfile = { workspace = true, optional = true }
 thiserror = { workspace = true }
 tracing = { workspace = true, default-features = false, features = ["std"], optional = true }
 tracing-subscriber = { workspace = true, optional = true }
-zeroize = { version = "1.8", features = ["zeroize_derive"] }
 
 [dev-dependencies]
 

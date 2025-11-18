@@ -4919,7 +4919,6 @@ dependencies = [
  "hex",
  "itertools 0.13.0",
  "k256",
- "nonempty 0.12.0",
  "parity-scale-codec",
  "roast-secp256k1-evm",
  "serde",
@@ -7332,7 +7331,6 @@ dependencies = [
  "thiserror 2.0.12",
  "tracing",
  "tracing-subscriber",
- "zeroize",
 ]
 
 [[package]]
