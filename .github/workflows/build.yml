@@ -343,27 +343,34 @@ jobs:
   try-runtime:
     needs: [dynamic-matrix, node]
     runs-on: ubuntu-latest
+    env:
+      SNAPSHOT_FILE: vara_ci.snap
     strategy:
       matrix:
         profiles: ${{ fromJSON(needs.dynamic-matrix.outputs.profiles) }}
         network:
-          - name: testnet
+          - id: testnet
+            display: Vara Testnet
             snapshot_url: https://snapshots.vara-network.io/vara-testnet.snap
-            snapshot_file: vara_ci_testnet.snap
-            disable_spec_name_check: true
-            run_checks_all: false
-          - name: mainnet
+            args: --disable-spec-name-check --checks try-state
+          - id: mainnet
+            display: Vara Mainnet
             snapshot_url: https://snapshots.vara-network.io/vara-mainnet.snap
-            snapshot_file: vara_ci.snap
-            disable_spec_name_check: false
-            run_checks_all: true
+            args: --checks all
       fail-fast: false
-    name: try-runtime (${{ matrix.profiles.name }} / ${{ matrix.network.name }})
+    name: try-runtime - ${{ matrix.network.display }} [${{ matrix.profiles.name }}]
     steps:
-      - name: "ACTIONS: Free disk space"
-        uses: jlumbroso/free-disk-space@main
-        with:
-          large-packages: false
+      - name: "System: Enable swap"
+        run: |
+          set -euo pipefail
+          SWAP_PATH=/swapfile
+
+          sudo fallocate -l 8G "$SWAP_PATH"
+          sudo chmod 600 "$SWAP_PATH"
+          sudo mkswap "$SWAP_PATH"
+          sudo swapon "$SWAP_PATH"
+
+          echo "SWAP_PATH=$SWAP_PATH" >> $GITHUB_ENV
 
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
@@ -394,59 +401,6 @@ jobs:
           curl -sL https://github.com/paritytech/try-runtime-cli/releases/download/v0.8.0/try-runtime-x86_64-unknown-linux-musl -o try-runtime
           chmod +x ./try-runtime
 
-      - name: "System: Report disk headroom (before cleanup)"
-        run: |
-          set -euo pipefail
-          df -hT /
-          df -hT "$GITHUB_WORKSPACE"
-          if [ -n "${RUNNER_TEMP:-}" ] && [ -d "$RUNNER_TEMP" ]; then
-            df -hT "$RUNNER_TEMP"
-          fi
-          echo "Top usage in /home/runner:"
-          du -h -d1 /home/runner | sort -h | tail -20 || true
-
-      - name: "System: Free disk space"
-        run: |
-          set -euo pipefail
-
-          sudo apt-get clean
-          sudo rm -rf /var/lib/apt/lists/*
-
-          for path in /opt/ghc /usr/local/lib/android /usr/share/dotnet; do
-            if [ -n "$path" ] && [ -e "$path" ]; then
-              sudo rm -rf "$path"
-            fi
-          done
-
-          docker image prune --all --force || true
-
-          if [ -n "${RUNNER_TEMP:-}" ] && [ -d "$RUNNER_TEMP" ]; then
-            sudo rm -rf "${RUNNER_TEMP:?}/"*
-          fi
-
-      - name: "System: Report disk headroom (after cleanup)"
-        run: |
-          set -euo pipefail
-          df -hT /
-          df -hT "$GITHUB_WORKSPACE"
-          if [ -n "${RUNNER_TEMP:-}" ] && [ -d "$RUNNER_TEMP" ]; then
-            df -hT "$RUNNER_TEMP"
-          fi
-          echo "Top usage in /home/runner:"
-          du -h -d1 /home/runner | sort -h | tail -20 || true
-
-      - name: "System: Enable swap"
-        run: |
-          set -euo pipefail
-          SWAP_PATH=/swapfile
-
-          sudo fallocate -l 8G "$SWAP_PATH"
-          sudo chmod 600 "$SWAP_PATH"
-          sudo mkswap "$SWAP_PATH"
-          sudo swapon "$SWAP_PATH"
-
-          echo "SWAP_PATH=$SWAP_PATH" >> $GITHUB_ENV
-
       - name: "Build: Vara mainnet runtime"
         run: cargo build -p vara-runtime -F std,try-runtime --locked ${{ matrix.profiles.flags }}
 
@@ -472,37 +426,10 @@ jobs:
             sync
           fi
 
-      - name: "Test: Download Vara ${{ matrix.network.name }} snapshot"
-        run: curl -o "${{ matrix.network.snapshot_file }}" -L "${{ matrix.network.snapshot_url }}"
+      - name: "Test: Download Vara ${{ matrix.network.display }} snapshot"
+        run: curl -o "$SNAPSHOT_FILE" -L "${{ matrix.network.snapshot_url }}"
 
-      - name: "Test: on-runtime-upgrade try-state (${{ matrix.network.name }})"
-        shell: bash
-        env:
-          SNAPSHOT_FILE: ${{ matrix.network.snapshot_file }}
-          DISABLE_SPEC_NAME_CHECK: ${{ matrix.network.disable_spec_name_check }}
-        run: |
-          set -euo pipefail
-
-          EXTRA_ARGS=()
-          if [ "$DISABLE_SPEC_NAME_CHECK" = "true" ]; then
-            EXTRA_ARGS+=(--disable-spec-name-check)
-          fi
-
-          ./try-runtime \
-            --runtime "$TRY_RUNTIME_WASM" \
-            "${EXTRA_ARGS[@]}" \
-            on-runtime-upgrade \
-            --blocktime 3000 \
-            --checks try-state \
-            --disable-spec-version-check \
-            --no-weight-warnings \
-            snap -p "$SNAPSHOT_FILE"
-
-      - name: "Test: on-runtime-upgrade all (${{ matrix.network.name }})"
-        if: ${{ matrix.network.run_checks_all }}
-        shell: bash
-        env:
-          SNAPSHOT_FILE: ${{ matrix.network.snapshot_file }}
+      - name: "Test: on-runtime-upgrade (${{ matrix.network.display }})"
         run: |
           set -euo pipefail
 
@@ -510,9 +437,9 @@ jobs:
             --runtime "$TRY_RUNTIME_WASM" \
             on-runtime-upgrade \
             --blocktime 3000 \
-            --checks all \
             --disable-spec-version-check \
             --no-weight-warnings \
+            ${{ matrix.network.args }} \
             snap -p "$SNAPSHOT_FILE"
 
       - name: "System: Disable swap"
