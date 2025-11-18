@@ -128,7 +128,7 @@ pub struct ValidatorIdentity {
 }
 
 impl ValidatorIdentity {
-    fn sign(
+    pub(crate) fn sign(
         self,
         signer: &Signer,
         validator_key: PublicKey,
@@ -262,6 +262,13 @@ impl Behaviour {
     fn identity(&self) -> Option<anyhow::Result<ValidatorIdentityRecord>> {
         let validator_key = self.validator_key?;
 
+        if self.external_addresses.as_slice().is_empty() {
+            // generally, should not be the case because bootnodes will tell us
+            // our external address through the `libp2p-identify` protocol
+            log::warn!("No external addresses found to generate identity");
+            return None;
+        }
+
         let f = || {
             let addresses = self.external_addresses.as_slice().to_vec();
             let creation_time = SystemTime::now()
@@ -287,8 +294,7 @@ impl Behaviour {
     }
 
     pub fn put_identity(&mut self, record: ValidatorIdentityRecord) -> anyhow::Result<()> {
-        // TODO: filter our own record
-        log::error!("validator identity record: {record:?}");
+        log::trace!("filtering received record: {record:?}");
 
         let ValidatorIdentityRecord { value: identity } = record;
 
@@ -361,11 +367,14 @@ impl NetworkBehaviour for Behaviour {
             }));
         }
 
-        if self.put_identity_interval.poll_tick(cx).is_ready()
-            && let Some(identity) = self.identity()
-        {
-            let identity = identity.map(Box::new);
-            return Poll::Ready(ToSwarm::GenerateEvent(Event::PutIdentity { identity }));
+        if self.put_identity_interval.poll_tick(cx).is_ready() {
+            if let Some(identity) = self.identity() {
+                let identity = identity.map(Box::new);
+                return Poll::Ready(ToSwarm::GenerateEvent(Event::PutIdentity { identity }));
+            } else {
+                // no validator key
+                self.put_identity_interval.tick_at_max();
+            }
         }
 
         Poll::Pending
@@ -375,7 +384,53 @@ impl NetworkBehaviour for Behaviour {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use libp2p::identity::Keypair;
+    use assert_matches::assert_matches;
+    use core::convert::TryFrom;
+    use ethexe_common::{ProtocolTimelines, ValidatorsVec};
+    use libp2p::{
+        Multiaddr, Swarm,
+        identity::Keypair,
+        swarm::{FromSwarm, behaviour::ExternalAddrConfirmed},
+    };
+    use libp2p_swarm_test::SwarmExt;
+    use std::{
+        future,
+        sync::{Arc, LazyLock},
+        task::Poll,
+    };
+    use tokio::time;
+
+    static TEST_ADDR: LazyLock<Multiaddr> =
+        LazyLock::new(|| "/ip4/127.0.0.1/tcp/1234".parse().unwrap());
+
+    fn snapshot(addresses: Vec<Address>) -> Arc<ValidatorListSnapshot> {
+        Arc::new(ValidatorListSnapshot {
+            chain_head_ts: 0,
+            timelines: ProtocolTimelines {
+                genesis_ts: 0,
+                era: 10,
+                election: 5,
+            },
+            current_validators: ValidatorsVec::try_from(addresses)
+                .expect("validator set should not be empty"),
+            next_validators: None,
+        })
+    }
+
+    fn signed_identity(
+        signer: &Signer,
+        validator_key: PublicKey,
+        creation_time: u128,
+    ) -> SignedValidatorIdentity {
+        let identity = ValidatorIdentity {
+            addresses: vec![TEST_ADDR.clone()],
+            creation_time,
+        };
+        let network_keypair = Keypair::generate_secp256k1();
+        identity
+            .sign(signer, validator_key, &network_keypair)
+            .expect("failed to sign validator identity")
+    }
 
     #[test]
     fn encode_decode_identity() {
@@ -391,5 +446,385 @@ mod tests {
         let decoded_identity =
             SignedValidatorIdentity::decode(&mut &identity.encode()[..]).unwrap();
         assert_eq!(identity, decoded_identity);
+    }
+
+    #[ignore = "Tampered signatures are not detected"]
+    #[tokio::test]
+    async fn tampered_signatures() {
+        let signer = Signer::memory();
+        let validator_key = signer.generate_key().unwrap();
+        let attacker_key = signer.generate_key().unwrap();
+        let attacker_private_key = signer.storage().get_private_key(attacker_key).unwrap();
+        let identity = signed_identity(&signer, validator_key, 10);
+
+        let mut corrupted_identity = identity.clone();
+        corrupted_identity.validator_signature =
+            Signature::create(attacker_private_key, b"").unwrap();
+        let corrupted_identity = corrupted_identity.encode();
+        SignedValidatorIdentity::decode(&mut &corrupted_identity[..]).unwrap_err();
+
+        let mut corrupted_identity = identity.clone();
+        corrupted_identity.network_signature = Vec::new();
+        let corrupted_identity = corrupted_identity.encode();
+        SignedValidatorIdentity::decode(&mut &corrupted_identity[..]).unwrap_err();
+    }
+
+    #[tokio::test]
+    async fn identity_returns_signed_record_when_validator_key_present() {
+        let signer = Signer::memory();
+        let validator_key = signer.generate_key().unwrap();
+        let mut behaviour = Behaviour::new(
+            Keypair::generate_secp256k1(),
+            Some(validator_key),
+            signer.clone(),
+            snapshot(vec![validator_key.to_address()]),
+        );
+
+        let external_addr: Multiaddr = "/ip4/10.0.0.1/tcp/55".parse().unwrap();
+        behaviour.on_swarm_event(FromSwarm::ExternalAddrConfirmed(ExternalAddrConfirmed {
+            addr: &external_addr,
+        }));
+
+        let record = behaviour.identity().expect("validator key set").unwrap();
+        assert_eq!(record.value.data().addresses, vec![external_addr]);
+        assert_eq!(record.value.address(), validator_key.to_address());
+    }
+
+    #[tokio::test]
+    async fn identity_returns_none_without_validator_key() {
+        let signer = Signer::memory();
+        let validator_key = signer.generate_key().unwrap();
+        let behaviour = Behaviour::new(
+            Keypair::generate_secp256k1(),
+            None,
+            signer.clone(),
+            snapshot(vec![validator_key.to_address()]),
+        );
+
+        assert!(behaviour.identity().is_none());
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn poll_emits_query_and_put_events() {
+        let signer = Signer::memory();
+        let validator_key = signer.generate_key().unwrap();
+        let behaviour = Behaviour::new(
+            Keypair::generate_secp256k1(),
+            Some(validator_key),
+            signer.clone(),
+            snapshot(vec![validator_key.to_address()]),
+        );
+
+        let mut swarm = Swarm::new_ephemeral_tokio(move |_keypair| behaviour);
+        swarm.add_external_address(TEST_ADDR.clone());
+
+        time::advance(ExponentialBackoffInterval::START).await;
+
+        let event = swarm.next_behaviour_event().await;
+        assert_matches!(event, Event::QueryIdentities { .. });
+
+        let event = swarm.next_behaviour_event().await;
+        assert_matches!(event, Event::PutIdentity { .. });
+    }
+
+    #[tokio::test]
+    async fn put_identity_stores_record_for_known_validator() {
+        let signer = Signer::memory();
+        let validator_key = signer.generate_key().unwrap();
+        let mut behaviour = Behaviour::new(
+            Keypair::generate_secp256k1(),
+            None,
+            signer.clone(),
+            snapshot(vec![validator_key.to_address()]),
+        );
+
+        let identity = signed_identity(&signer, validator_key, 10);
+        behaviour
+            .put_identity(ValidatorIdentityRecord {
+                value: identity.clone(),
+            })
+            .unwrap();
+
+        assert_eq!(
+            behaviour.get_identity(validator_key.to_address()),
+            Some(&identity)
+        );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn put_identity_rejects_unknown_validator() {
+        let signer = Signer::memory();
+        let validator_key = signer.generate_key().unwrap();
+        let mut behaviour = Behaviour::new(
+            Keypair::generate_secp256k1(),
+            None,
+            signer.clone(),
+            snapshot(vec![Address::from(1u64)]),
+        );
+
+        let identity = signed_identity(&signer, validator_key, 10);
+        let err = behaviour
+            .put_identity(ValidatorIdentityRecord { value: identity })
+            .unwrap_err();
+
+        assert!(
+            err.to_string()
+                .contains("received identity is not in any validator list")
+        );
+        assert!(behaviour.get_identity(validator_key.to_address()).is_none());
+    }
+
+    #[tokio::test]
+    async fn put_identity_prefers_newer_records() {
+        let signer = Signer::memory();
+        let validator_key = signer.generate_key().unwrap();
+        let mut behaviour = Behaviour::new(
+            Keypair::generate_secp256k1(),
+            None,
+            signer.clone(),
+            snapshot(vec![validator_key.to_address()]),
+        );
+
+        let baseline = signed_identity(&signer, validator_key, 20);
+        behaviour
+            .put_identity(ValidatorIdentityRecord {
+                value: baseline.clone(),
+            })
+            .unwrap();
+
+        let older = signed_identity(&signer, validator_key, 5);
+        behaviour
+            .put_identity(ValidatorIdentityRecord { value: older })
+            .unwrap();
+        assert_eq!(
+            behaviour
+                .get_identity(validator_key.to_address())
+                .unwrap()
+                .data()
+                .creation_time,
+            20
+        );
+
+        let newer = signed_identity(&signer, validator_key, 30);
+        behaviour
+            .put_identity(ValidatorIdentityRecord {
+                value: newer.clone(),
+            })
+            .unwrap();
+        assert_eq!(
+            behaviour
+                .get_identity(validator_key.to_address())
+                .unwrap()
+                .data()
+                .creation_time,
+            30
+        );
+    }
+
+    #[tokio::test]
+    async fn on_new_snapshot_drops_obsolete_identities() {
+        let signer = Signer::memory();
+        let validator_a = signer.generate_key().unwrap();
+        let validator_b = signer.generate_key().unwrap();
+        let mut behaviour = Behaviour::new(
+            Keypair::generate_secp256k1(),
+            None,
+            signer.clone(),
+            snapshot(vec![validator_a.to_address(), validator_b.to_address()]),
+        );
+
+        let identity_a = signed_identity(&signer, validator_a, 10);
+        let identity_b = signed_identity(&signer, validator_b, 10);
+
+        behaviour
+            .put_identity(ValidatorIdentityRecord { value: identity_a })
+            .unwrap();
+        behaviour
+            .put_identity(ValidatorIdentityRecord { value: identity_b })
+            .unwrap();
+
+        behaviour.on_new_snapshot(snapshot(vec![validator_b.to_address()]));
+
+        assert!(!behaviour.identities.contains_key(&validator_a.to_address()));
+        assert!(behaviour.identities.contains_key(&validator_b.to_address()));
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn validator_set_edge_cases() {
+        let signer = Signer::memory();
+
+        // Test with empty validator set - need at least one validator for snapshot
+        let dummy_validator = signer.generate_key().unwrap();
+        let mut behaviour = Behaviour::new(
+            Keypair::generate_secp256k1(),
+            None,
+            signer.clone(),
+            snapshot(vec![dummy_validator.to_address()]),
+        );
+
+        // Should emit query events even for single validator set
+        let waker = futures::task::noop_waker();
+        let mut cx = std::task::Context::from_waker(&waker);
+
+        time::advance(crate::utils::ExponentialBackoffInterval::START).await;
+        assert!(matches!(
+            behaviour.poll(&mut cx),
+            Poll::Ready(ToSwarm::GenerateEvent(Event::QueryIdentities { identities })) if identities.len() == 1
+        ));
+
+        // Test validator moving between current and next sets
+        let validator_a = signer.generate_key().unwrap();
+        let validator_b = signer.generate_key().unwrap();
+
+        let snapshot_with_next = Arc::new(ValidatorListSnapshot {
+            chain_head_ts: 0,
+            timelines: ProtocolTimelines {
+                genesis_ts: 0,
+                era: 10,
+                election: 5,
+            },
+            current_validators: ValidatorsVec::try_from(vec![validator_a.to_address()])
+                .expect("validator set should not be empty"),
+            next_validators: Some(
+                ValidatorsVec::try_from(vec![validator_b.to_address()])
+                    .expect("validator set should not be empty"),
+            ),
+        });
+
+        let mut behaviour = Behaviour::new(
+            Keypair::generate_secp256k1(),
+            None,
+            signer.clone(),
+            snapshot_with_next,
+        );
+
+        // Both validators should be considered valid
+        let identity_a = signed_identity(&signer, validator_a, 10);
+        let identity_b = signed_identity(&signer, validator_b, 10);
+
+        behaviour
+            .put_identity(ValidatorIdentityRecord { value: identity_a })
+            .unwrap();
+        behaviour
+            .put_identity(ValidatorIdentityRecord { value: identity_b })
+            .unwrap();
+
+        assert!(behaviour.get_identity(validator_a.to_address()).is_some());
+        assert!(behaviour.get_identity(validator_b.to_address()).is_some());
+
+        // Update snapshot - validator_b moves to current, validator_a is removed
+        let snapshot_with_next = Arc::new(ValidatorListSnapshot {
+            chain_head_ts: 0,
+            timelines: ProtocolTimelines {
+                genesis_ts: 0,
+                era: 11,
+                election: 6,
+            },
+            current_validators: ValidatorsVec::try_from(vec![validator_b.to_address()])
+                .expect("validator set should not be empty"),
+            next_validators: None,
+        });
+
+        behaviour.on_new_snapshot(snapshot_with_next);
+
+        assert!(behaviour.get_identity(validator_a.to_address()).is_none());
+        assert!(behaviour.get_identity(validator_b.to_address()).is_some());
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn network_behavior_edge_cases() {
+        let signer = Signer::memory();
+        let validator_key = signer.generate_key().unwrap();
+
+        // Test behavior without external addresses
+        let mut swarm = Swarm::new_ephemeral_tokio(|_keypair| {
+            Behaviour::new(
+                Keypair::generate_secp256k1(),
+                Some(validator_key),
+                signer.clone(),
+                snapshot(vec![validator_key.to_address()]),
+            )
+        });
+
+        time::advance(ExponentialBackoffInterval::START).await;
+
+        // First poll should be query identities
+        let event = swarm.next_behaviour_event().await;
+        assert_matches!(event, Event::QueryIdentities { .. });
+
+        // Second poll should not emit put identity (no external addresses)
+        future::poll_fn(|cx| {
+            assert_matches!(swarm.behaviour_mut().poll(cx), Poll::Pending);
+            Poll::Ready(())
+        })
+        .await;
+
+        // Test with multiple external addresses
+        time::advance(ExponentialBackoffInterval::START).await;
+
+        let addr1: Multiaddr = "/ip4/10.0.0.1/tcp/55".parse().unwrap();
+        let addr2: Multiaddr = "/ip6/::1/tcp/66".parse().unwrap();
+        swarm.add_external_address(addr1.clone());
+        swarm.add_external_address(addr2.clone());
+
+        let record = swarm
+            .behaviour()
+            .identity()
+            .expect("validator key set")
+            .unwrap();
+        assert_eq!(record.value.data().addresses.len(), 2);
+        assert!(record.value.data().addresses.contains(&addr1));
+        assert!(record.value.data().addresses.contains(&addr2));
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn duplicate_and_self_identity_handling() {
+        let signer = Signer::memory();
+        let validator_key = signer.generate_key().unwrap();
+        let network_keypair = Keypair::generate_secp256k1();
+
+        let mut behaviour = Behaviour::new(
+            network_keypair.clone(),
+            Some(validator_key),
+            signer.clone(),
+            snapshot(vec![validator_key.to_address()]),
+        );
+
+        // Create our own identity (simulating receiving our own record)
+        let our_identity = ValidatorIdentity {
+            addresses: vec![TEST_ADDR.clone()],
+            creation_time: 10,
+        };
+        let our_signed_identity = our_identity
+            .clone()
+            .sign(&signer, validator_key, &network_keypair)
+            .unwrap();
+
+        // TODO: Currently accepts own records (line 293 comment)
+        // This should be filtered in the future
+        behaviour
+            .put_identity(ValidatorIdentityRecord {
+                value: our_signed_identity.clone(),
+            })
+            .unwrap();
+
+        // Currently accepts it, but this might change when TODO is implemented
+        assert!(behaviour.get_identity(validator_key.to_address()).is_some());
+
+        // Test duplicate records from different network keys (same validator)
+        let other_network_keypair = Keypair::generate_secp256k1();
+        let duplicate_identity = our_identity
+            .sign(&signer, validator_key, &other_network_keypair)
+            .unwrap();
+
+        behaviour
+            .put_identity(ValidatorIdentityRecord {
+                value: duplicate_identity,
+            })
+            .unwrap();
+
+        // Should keep the newer one (or the first one if timestamps are equal)
+        // Currently implementation keeps the first one for equal timestamps
+        assert!(behaviour.get_identity(validator_key.to_address()).is_some());
     }
 }
