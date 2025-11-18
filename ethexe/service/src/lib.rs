@@ -540,9 +540,10 @@ impl Service {
                         // TODO #4940: consider to publish network message
                     }
                     ConsensusEvent::Promise(promise) => {
-                        if let Some(rpc) = rpc.as_mut() {
-                            rpc.provide_promise(promise);
-                        }
+                        let rpc = rpc
+                            .as_mut()
+                            .expect("cannot produce promise without event from RPC");
+                        rpc.provide_promise(promise);
 
                         // TODO kuzmindev: also should be sent to network peer, that waits for transaction promise
                     }
