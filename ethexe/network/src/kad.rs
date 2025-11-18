@@ -202,6 +202,7 @@ impl Behaviour {
             .disjoint_query_paths(true)
             .set_record_ttl(Some(KAD_RECORD_TTL))
             .set_publication_interval(Some(KAD_PUBLISHING_INTERVAL))
+            // TODO: add peers to kbucket manually via identify protocol
             .set_record_filtering(kad::StoreInserts::FilterBoth);
         let mut inner = kad::Behaviour::with_config(peer, MemoryStore::new(peer), inner);
         inner.set_mode(Some(kad::Mode::Server));
@@ -292,7 +293,7 @@ impl Behaviour {
                                 Err(err) => {
                                     log::trace!("failed to get record: {err}");
                                     if let Some(peer) = peer {
-                                        // NOTE: not backward compatible if `Record` have new variant, and it is decoded by the old node
+                                        // NOTE: not backward compatible if `Record` has a new variant, and it is decoded by the old node
                                         self.peer_score.invalid_data(peer);
                                     } else {
                                         #[cfg(debug_assertions)]
@@ -452,25 +453,31 @@ impl NetworkBehaviour for Behaviour {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{utils::tests::init_logger, validator::discovery::ValidatorIdentity};
+    use crate::{
+        utils::tests::init_logger,
+        validator::discovery::{ValidatorAddresses, ValidatorIdentity},
+    };
     use assert_matches::assert_matches;
     use ethexe_signer::Signer;
     use libp2p::{
-        Multiaddr, Swarm, identity::Keypair, kad, kad::GetRecordOk as KadGetRecordOk,
-        swarm::ConnectionId,
+        Swarm, identity::Keypair, kad, kad::GetRecordOk as KadGetRecordOk, swarm::ConnectionId,
     };
     use libp2p_swarm_test::SwarmExt;
-    use std::{collections::BTreeMap, num::NonZeroUsize, str::FromStr};
+    use std::{collections::BTreeMap, num::NonZeroUsize};
 
     fn new_identity() -> SignedValidatorIdentity {
+        let keypair = Keypair::generate_secp256k1();
         let signer = Signer::memory();
         let validator_key = signer.generate_key().unwrap();
         let identity = ValidatorIdentity {
-            addresses: vec![Multiaddr::from_str("/ip4/127.0.0.1/tcp/30333").unwrap()],
+            addresses: ValidatorAddresses::new(
+                keypair.public().to_peer_id(),
+                "/ip4/127.0.0.1/tcp/30333".parse().unwrap(),
+            ),
             creation_time: 1,
         };
         identity
-            .sign(&signer, validator_key, &Keypair::generate_secp256k1())
+            .sign(&signer, validator_key, &keypair)
             .expect("signing validator identity should work")
     }
 

@@ -37,13 +37,19 @@ use libp2p::{
     Multiaddr,
     core::{Endpoint, transport::PortUse},
     identity::Keypair,
+    multiaddr,
     swarm::{
         ConnectionDenied, ConnectionId, ExternalAddresses, FromSwarm, NetworkBehaviour, THandler,
         THandlerInEvent, THandlerOutEvent, ToSwarm, dummy,
     },
 };
-use parity_scale_codec::{Decode, Encode, Input, Output};
-use std::{collections::HashMap, sync::Arc, task::Poll, time::SystemTime};
+use parity_scale_codec::{Decode, Encode, Error, Input, Output};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::Arc,
+    task::Poll,
+    time::SystemTime,
+};
 
 /// Signed validator discovery
 ///
@@ -106,19 +112,148 @@ impl Decode for SignedValidatorIdentity {
         let network_key = libp2p::identity::secp256k1::PublicKey::try_from_bytes(&network_key.0)
             .expect("we use secp256k1 for networking key");
 
-        Ok(Self {
+        let this = Self {
             inner,
             validator_signature,
             validator_key,
             network_signature,
             network_key,
-        })
+        };
+
+        if this.peer_id() != this.inner.addresses.peer_id() {
+            return Err(parity_scale_codec::Error::from(
+                "addresses peer ID differs from signature peer ID",
+            ));
+        }
+
+        Ok(this)
     }
 }
 
+/// Validator addresses
+///
+/// Contains at least 1 address.
+/// Every address ends with P2P protocol containing the same peer ID.
+///
+/// Duplicated addresses are denied during decoding.
 #[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ValidatorAddresses {
+    addresses: HashSet<Multiaddr>,
+}
+
+impl ValidatorAddresses {
+    #[cfg(test)]
+    pub(crate) fn new(peer_id: PeerId, address: Multiaddr) -> Self {
+        Self {
+            addresses: [address
+                .with_p2p(peer_id)
+                .expect("peer ID should be the same")]
+            .into(),
+        }
+    }
+
+    fn from_external_addresses(
+        peer_id: PeerId,
+        external_addresses: &ExternalAddresses,
+    ) -> Option<Self> {
+        let addresses = external_addresses.as_slice();
+        if addresses.is_empty() {
+            return None;
+        }
+
+        let addresses: HashSet<Multiaddr> = addresses
+            .iter()
+            .cloned()
+            .map(|address| {
+                address
+                    .with_p2p(peer_id)
+                    .expect("peer ID should be the same")
+            })
+            .collect();
+
+        Some(Self { addresses })
+    }
+
+    fn peer_id(&self) -> PeerId {
+        if let multiaddr::Protocol::P2p(peer_id) = self
+            .addresses
+            .iter()
+            .next()
+            .expect("always contains at least one address")
+            .iter()
+            .last()
+            .expect("always contains at least one protocol")
+        {
+            peer_id
+        } else {
+            unreachable!("always contains `p2p` protocol as last")
+        }
+    }
+}
+
+impl<const N: usize> PartialEq<[Multiaddr; N]> for ValidatorAddresses {
+    fn eq(&self, other: &[Multiaddr; N]) -> bool {
+        self.addresses.iter().eq(other)
+    }
+}
+
+impl Encode for ValidatorAddresses {
+    fn encode_to<T: Output + ?Sized>(&self, dest: &mut T) {
+        let addresses: Vec<_> = self.addresses.iter().map(|addr| addr.as_ref()).collect();
+        addresses.encode_to(dest);
+    }
+}
+
+impl Decode for ValidatorAddresses {
+    fn decode<I: Input>(input: &mut I) -> Result<Self, Error> {
+        let addresses = <Vec<Vec<u8>>>::decode(input)?;
+
+        let (addresses, _peer_id) = addresses.into_iter().try_fold(
+            (HashSet::new(), None),
+            |(mut set, mut peer_id), addr| {
+                let addr = Multiaddr::try_from(addr).map_err(|err| {
+                    parity_scale_codec::Error::from("failed to parse multiaddr")
+                        .chain(err.to_string())
+                })?;
+
+                let protocol = addr
+                    .iter()
+                    .last()
+                    .ok_or_else(|| parity_scale_codec::Error::from("address is empty"))?;
+                if let multiaddr::Protocol::P2p(address_peer_id) = protocol {
+                    let peer_id = *peer_id.get_or_insert(address_peer_id);
+                    if peer_id != address_peer_id {
+                        return Err(parity_scale_codec::Error::from("peer ID mismatch"));
+                    }
+                }
+
+                if !set.insert(addr) {
+                    return Err(parity_scale_codec::Error::from("duplicated address"));
+                }
+
+                Ok((set, peer_id))
+            },
+        )?;
+
+        if addresses.is_empty() {
+            return Err(parity_scale_codec::Error::from("empty addresses"));
+        }
+
+        Ok(Self { addresses })
+    }
+}
+
+impl ToDigest for ValidatorAddresses {
+    fn update_hasher(&self, hasher: &mut Keccak256) {
+        for address in self.addresses.iter() {
+            address.as_ref().update_hasher(hasher);
+        }
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode)]
 pub struct ValidatorIdentity {
-    pub addresses: Vec<Multiaddr>,
+    pub addresses: ValidatorAddresses,
     pub creation_time: u128,
 }
 
@@ -156,40 +291,6 @@ impl ValidatorIdentity {
     }
 }
 
-impl Encode for ValidatorIdentity {
-    fn encode_to<T: Output + ?Sized>(&self, dest: &mut T) {
-        let Self {
-            addresses,
-            creation_time,
-        } = self;
-
-        let addresses: Vec<_> = addresses.iter().map(|addr| addr.to_vec()).collect();
-
-        addresses.encode_to(dest);
-        creation_time.encode_to(dest);
-    }
-}
-
-impl Decode for ValidatorIdentity {
-    fn decode<I: Input>(input: &mut I) -> Result<Self, parity_scale_codec::Error> {
-        let addresses = <Vec<Vec<u8>>>::decode(input)?;
-        let addresses = addresses
-            .into_iter()
-            .map(Multiaddr::try_from)
-            .collect::<Result<_, _>>()
-            .map_err(|err| {
-                parity_scale_codec::Error::from("failed to parse multiaddr").chain(err.to_string())
-            })?;
-
-        let creation_time = u128::decode(input)?;
-
-        Ok(Self {
-            addresses,
-            creation_time,
-        })
-    }
-}
-
 impl ToDigest for ValidatorIdentity {
     fn update_hasher(&self, hasher: &mut Keccak256) {
         let Self {
@@ -197,10 +298,7 @@ impl ToDigest for ValidatorIdentity {
             creation_time,
         } = self;
 
-        for address in addresses {
-            address.as_ref().update_hasher(hasher);
-        }
-
+        addresses.update_hasher(hasher);
         creation_time.to_be_bytes().update_hasher(hasher);
     }
 }
@@ -269,31 +367,30 @@ impl Behaviour {
     fn identity(&self) -> Option<anyhow::Result<ValidatorIdentityRecord>> {
         let validator_key = self.validator_key?;
 
-        if self.external_addresses.as_slice().is_empty() {
+        let addresses = ValidatorAddresses::from_external_addresses(
+            self.keypair.public().to_peer_id(),
+            &self.external_addresses,
+        );
+        let Some(addresses) = addresses else {
             // generally, should not be the case because bootnodes will tell us
             // our external address through the `libp2p-identify` protocol
             log::warn!("No external addresses found to generate identity");
             return None;
-        }
-
-        let f = || {
-            let addresses = self.external_addresses.as_slice().to_vec();
-            let creation_time = SystemTime::now()
-                .duration_since(SystemTime::UNIX_EPOCH)
-                .expect("SystemTime before UNIX EPOCH")
-                .as_nanos();
-            let identity = ValidatorIdentity {
-                addresses,
-                creation_time,
-            };
-            let identity = identity
-                .sign(&self.signer, validator_key, &self.keypair)
-                .context("failed to sign validator identity")?;
-
-            Ok(ValidatorIdentityRecord { value: identity })
+        };
+        let creation_time = SystemTime::now()
+            .duration_since(SystemTime::UNIX_EPOCH)
+            .expect("SystemTime before UNIX EPOCH")
+            .as_nanos();
+        let identity = ValidatorIdentity {
+            addresses,
+            creation_time,
         };
 
-        Some(f())
+        let record = identity
+            .sign(&self.signer, validator_key, &self.keypair)
+            .context("failed to sign validator identity")
+            .map(|value| ValidatorIdentityRecord { value });
+        Some(record)
     }
 
     pub fn get_identity(&mut self, address: Address) -> Option<&SignedValidatorIdentity> {
@@ -398,13 +495,12 @@ mod tests {
     use assert_matches::assert_matches;
     use core::convert::TryFrom;
     use ethexe_common::{ProtocolTimelines, ValidatorsVec};
-    use libp2p::{
-        Multiaddr, Swarm,
-        identity::Keypair,
-        swarm::{FromSwarm, behaviour::ExternalAddrConfirmed},
-    };
+    use libp2p::{Multiaddr, Swarm, identity::Keypair};
     use libp2p_swarm_test::SwarmExt;
-    use std::sync::{Arc, LazyLock};
+    use std::{
+        str::FromStr,
+        sync::{Arc, LazyLock},
+    };
     use tokio::time;
 
     static TEST_ADDR: LazyLock<Multiaddr> =
@@ -429,11 +525,14 @@ mod tests {
         validator_key: PublicKey,
         creation_time: u128,
     ) -> SignedValidatorIdentity {
+        let network_keypair = Keypair::generate_secp256k1();
         let identity = ValidatorIdentity {
-            addresses: vec![TEST_ADDR.clone()],
+            addresses: ValidatorAddresses::new(
+                network_keypair.public().to_peer_id(),
+                TEST_ADDR.clone(),
+            ),
             creation_time,
         };
-        let network_keypair = Keypair::generate_secp256k1();
         identity
             .sign(signer, validator_key, &network_keypair)
             .expect("failed to sign validator identity")
@@ -445,7 +544,10 @@ mod tests {
         let validator_key = signer.generate_key().unwrap();
         let keypair = Keypair::generate_secp256k1();
         let identity = ValidatorIdentity {
-            addresses: vec!["/ip4/127.0.0.1/tcp/123".parse().unwrap()],
+            addresses: ValidatorAddresses::new(
+                keypair.public().to_peer_id(),
+                "/ip4/127.0.0.1/tcp/123".parse().unwrap(),
+            ),
             creation_time: 999_999,
         };
         let identity = identity.sign(&signer, validator_key, &keypair).unwrap();
@@ -457,22 +559,30 @@ mod tests {
 
     #[tokio::test]
     async fn identity_returns_signed_record_when_validator_key_present() {
+        let keypair = Keypair::generate_secp256k1();
+        let local_peer_id = keypair.public().to_peer_id();
         let signer = Signer::memory();
         let validator_key = signer.generate_key().unwrap();
-        let mut behaviour = Behaviour::new(
-            Keypair::generate_secp256k1(),
+        let behaviour = Behaviour::new(
+            keypair,
             Some(validator_key),
             signer.clone(),
             snapshot(vec![validator_key.to_address()]),
         );
+        let mut swarm = Swarm::new_ephemeral_tokio(|_keypair| behaviour);
 
-        let external_addr: Multiaddr = "/ip4/10.0.0.1/tcp/55".parse().unwrap();
-        behaviour.on_swarm_event(FromSwarm::ExternalAddrConfirmed(ExternalAddrConfirmed {
-            addr: &external_addr,
-        }));
+        let external_addr = Multiaddr::from_str("/ip4/10.0.0.1/tcp/55")
+            .unwrap()
+            .with_p2p(local_peer_id)
+            .unwrap();
+        swarm.add_external_address(external_addr.clone());
 
-        let record = behaviour.identity().expect("validator key set").unwrap();
-        assert_eq!(record.value.data().addresses, vec![external_addr]);
+        let record = swarm
+            .behaviour()
+            .identity()
+            .expect("validator key set")
+            .unwrap();
+        assert_eq!(record.value.data().addresses, [external_addr]);
         assert_eq!(record.value.address(), validator_key.to_address());
     }
 
@@ -652,7 +762,10 @@ mod tests {
 
         // Create our own identity (simulating receiving our own record)
         let our_identity = ValidatorIdentity {
-            addresses: vec![TEST_ADDR.clone()],
+            addresses: ValidatorAddresses::new(
+                network_keypair.public().to_peer_id(),
+                TEST_ADDR.clone(),
+            ),
             creation_time: 10,
         };
         let our_signed_identity = our_identity
