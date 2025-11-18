@@ -25,19 +25,16 @@ use jsonrpsee::{
     DisconnectError, PendingSubscriptionSink, SubscriptionMessage,
     core::{RpcResult, SubscriptionResult, async_trait},
     proc_macros::rpc,
-    types::ErrorObjectOwned,
+    types::ErrorObject,
 };
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, sync::Arc};
-use tokio::sync::{Mutex, mpsc::UnboundedSender, oneshot};
+use tokio::sync::{Mutex, mpsc, oneshot};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum InjectedTransactionAcceptance {
     Accept,
-    #[allow(unused)]
-    Reject {
-        reason: ErrorObjectOwned,
-    },
+    Reject { reason: String },
 }
 
 #[cfg_attr(not(feature = "test-utils"), rpc(server))]
@@ -64,12 +61,12 @@ type PromiseWaitersMap = HashMap<HashOf<InjectedTransaction>, oneshot::Sender<Si
 
 #[derive(Debug, Clone)]
 pub struct InjectedApi {
-    rpc_sender: UnboundedSender<RpcEvent>,
+    rpc_sender: mpsc::UnboundedSender<RpcEvent>,
     promise_waiters: Arc<Mutex<PromiseWaitersMap>>,
 }
 
 impl InjectedApi {
-    pub(crate) fn new(rpc_sender: UnboundedSender<RpcEvent>) -> Self {
+    pub(crate) fn new(rpc_sender: mpsc::UnboundedSender<RpcEvent>) -> Self {
         Self {
             rpc_sender,
             promise_waiters: Arc::new(Mutex::new(HashMap::new())),
@@ -101,20 +98,18 @@ impl InjectedServer for InjectedApi {
         tracing::trace!("Called injected_sendTransaction with vars: {transaction:?}");
 
         let (response_sender, response_receiver) = oneshot::channel();
-        self.rpc_sender
-            .send(RpcEvent::InjectedTransaction {
-                transaction,
-                response_sender,
-            })
-            .map_err(|e| {
-                // That could be a panic case, as rpc_receiver must not be dropped,
-                // but the main service works independently from rpc and can be malformed.
-                log::error!(
-                    "Failed to send `RpcEvent::InjectedTransaction` event task: {e}. \
-                    The receiving end in the main service might have been dropped."
-                );
-                errors::internal()
-            })?;
+        let event = RpcEvent::InjectedTransaction {
+            transaction,
+            response_sender,
+        };
+
+        if let Err(err) = self.rpc_sender.send(event) {
+            log::error!(
+                "Failed to send `RpcEvent::InjectedTransaction` event task: {err}. \
+                The receiving end in the main service might have been dropped."
+            );
+            return Err(errors::internal());
+        }
 
         response_receiver.await.map_err(|e| {
             // No panic case, as a responsibility of the RPC API is fulfilled.
@@ -135,20 +130,18 @@ impl InjectedServer for InjectedApi {
 
         let tx_hash = transaction.tx.data().to_hash();
 
-        self.rpc_sender
-            .send(RpcEvent::InjectedTransaction {
-                transaction,
-                response_sender,
-            })
-            .map_err(|e| {
-                // That could be a panic case, as rpc_receiver must not be dropped,
-                // but the main service works independently from rpc and can be malformed.
-                log::error!(
-                    "Failed to send `RpcEvent::InjectedTransaction` event task: {e}. \
-                    The receiving end in the main service might have been dropped."
-                );
-                errors::internal()
-            })?;
+        let event = RpcEvent::InjectedTransaction {
+            transaction,
+            response_sender,
+        };
+
+        if let Err(err) = self.rpc_sender.send(event) {
+            log::error!(
+                "Failed to send `RpcEvent::InjectedTransaction` event task: {err}. \
+                The receiving end in the main service might have been dropped."
+            );
+            return Err(errors::internal().into());
+        }
 
         let subscription_sink = match response_receiver.await? {
             InjectedTransactionAcceptance::Accept => match pending.accept().await {
@@ -164,7 +157,12 @@ impl InjectedServer for InjectedApi {
                     reject_reason = ?reason,
                     "reject injected transaction"
                 );
-                pending.reject(reason).await;
+                let err = ErrorObject::owned(
+                    hyper::StatusCode::BAD_REQUEST.as_u16().into(),
+                    reason,
+                    None::<&str>,
+                );
+                pending.reject(err).await;
                 return Ok(());
             }
         };
@@ -180,13 +178,7 @@ impl InjectedServer for InjectedApi {
                 }
             };
 
-            let json = match serde_json::value::to_raw_value(&promise) {
-                Ok(raw_json) => raw_json,
-                Err(_err) => {
-                    return;
-                }
-            };
-
+            let json = serde_json::value::to_raw_value(&promise).expect("correct promise object");
             let msg = SubscriptionMessage::from_json(&json).expect("correct message");
 
             match subscription_sink.send(msg).await {
