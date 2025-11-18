@@ -108,8 +108,6 @@ contract DeploymentScript is Script {
             vm.assertEq(middlewareAddress, address(middleware));
         }
 
-        wrappedVara.approve(address(router), type(uint256).max);
-
         if (vm.envExists("SENDER_ADDRESS")) {
             address senderAddress = vm.envAddress("SENDER_ADDRESS");
             bool success = wrappedVara.transfer(senderAddress, 500_000 * (10 ** wrappedVara.decimals()));

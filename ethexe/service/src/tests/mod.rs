@@ -175,7 +175,7 @@ async fn ping() {
     assert_eq!(res.code_id, code_id);
 
     let res = env
-        .send_message(res.program_id, b"PING", 0)
+        .send_message(res.program_id, b"PING")
         .await
         .unwrap()
         .wait_for()
@@ -188,10 +188,8 @@ async fn ping() {
 
     let ping_id = res.program_id;
 
-    env.approve_wvara(ping_id).await;
-
     let res = env
-        .send_message(ping_id, b"PING", 0)
+        .send_message(ping_id, b"PING")
         .await
         .unwrap()
         .wait_for()
@@ -203,7 +201,7 @@ async fn ping() {
     assert_eq!(res.value, 0);
 
     let res = env
-        .send_message(ping_id, b"PUNK", 0)
+        .send_message(ping_id, b"PUNK")
         .await
         .unwrap()
         .wait_for()
@@ -248,7 +246,7 @@ async fn uninitialized_program() {
             .unwrap();
 
         let reply = env
-            .send_message(res.program_id, &[], 0)
+            .send_message(res.program_id, &[])
             .await
             .unwrap()
             .wait_for()
@@ -259,7 +257,7 @@ async fn uninitialized_program() {
         assert_eq!(reply.code, expected_err);
 
         let res = env
-            .send_message(res.program_id, &[], 0)
+            .send_message(res.program_id, &[])
             .await
             .unwrap()
             .wait_for()
@@ -284,14 +282,14 @@ async fn uninitialized_program() {
         let mut listener = env.observer_events_publisher().subscribe().await;
 
         let init_res = env
-            .create_program(code_id, 500_000_000_000_000)
+            .create_program_with_params(code_id, H256([0x11; 32]), None, 500_000_000_000_000)
             .await
             .unwrap()
             .wait_for()
             .await
             .unwrap();
         let init_reply = env
-            .send_message(init_res.program_id, &init_payload, 0)
+            .send_message(init_res.program_id, &init_payload)
             .await
             .unwrap();
         let mirror = env.ethereum.mirror(init_res.program_id.try_into().unwrap());
@@ -322,7 +320,7 @@ async fn uninitialized_program() {
 
         // Handle message to uninitialized program.
         let res = env
-            .send_message(init_res.program_id, &[], 0)
+            .send_message(init_res.program_id, &[])
             .await
             .unwrap()
             .wait_for()
@@ -362,7 +360,7 @@ async fn uninitialized_program() {
 
         // Handle message handled, but panicked due to incorrect payload as expected.
         let res = env
-            .send_message(res.program_id, &[], 0)
+            .send_message(res.program_id, &[])
             .await
             .unwrap()
             .wait_for()
@@ -405,7 +403,7 @@ async fn mailbox() {
         .unwrap();
 
     let init_res = env
-        .send_message(res.program_id, &env.sender_id.encode(), 0)
+        .send_message(res.program_id, &env.sender_id.encode())
         .await
         .unwrap()
         .wait_for()
@@ -415,12 +413,10 @@ async fn mailbox() {
 
     let async_pid = res.program_id;
 
-    env.approve_wvara(async_pid).await;
-
     let mut listener = env.observer_events_publisher().subscribe().await;
 
     let wait_for_mutex_request_command_reply = env
-        .send_message(async_pid, &demo_async::Command::Mutex.encode(), 0)
+        .send_message(async_pid, &demo_async::Command::Mutex.encode())
         .await
         .unwrap();
 
@@ -640,7 +636,7 @@ async fn value_reply_program_to_user() {
         .unwrap();
 
     let _ = env
-        .send_message(res.program_id, b"", 0)
+        .send_message(res.program_id, b"")
         .await
         .unwrap()
         .wait_for()
@@ -683,10 +679,8 @@ async fn value_reply_program_to_user() {
     let local_balance = node.db.program_state(state_hash).unwrap().balance;
     assert_eq!(local_balance, VALUE_SENT);
 
-    env.approve_wvara(piggy_bank_id).await;
-
     let res = env
-        .send_message(piggy_bank_id, b"smash_with_reply", 0)
+        .send_message(piggy_bank_id, b"smash_with_reply")
         .await
         .unwrap()
         .wait_for()
@@ -743,7 +737,7 @@ async fn value_send_program_to_user_and_claimed() {
         .unwrap();
 
     let _ = env
-        .send_message(res.program_id, b"", 0)
+        .send_message(res.program_id, b"")
         .await
         .unwrap()
         .wait_for()
@@ -787,7 +781,7 @@ async fn value_send_program_to_user_and_claimed() {
     assert_eq!(local_balance, VALUE_SENT);
 
     let res = env
-        .send_message(piggy_bank_id, b"smash", 0)
+        .send_message(piggy_bank_id, b"smash")
         .await
         .unwrap()
         .wait_for()
@@ -877,7 +871,7 @@ async fn value_send_program_to_user_and_replied() {
         .unwrap();
 
     let _ = env
-        .send_message(res.program_id, b"", 0)
+        .send_message(res.program_id, b"")
         .await
         .unwrap()
         .wait_for()
@@ -921,7 +915,7 @@ async fn value_send_program_to_user_and_replied() {
     assert_eq!(local_balance, VALUE_SENT);
 
     let res = env
-        .send_message(piggy_bank_id, b"smash", 0)
+        .send_message(piggy_bank_id, b"smash")
         .await
         .unwrap()
         .wait_for()
@@ -1014,7 +1008,7 @@ async fn incoming_transfers() {
         .unwrap();
 
     let _ = env
-        .send_message(res.program_id, &env.sender_id.encode(), 0)
+        .send_message(res.program_id, &env.sender_id.encode())
         .await
         .unwrap()
         .wait_for()
@@ -1057,10 +1051,8 @@ async fn incoming_transfers() {
     let local_balance = node.db.program_state(state_hash).unwrap().balance;
     assert_eq!(local_balance, VALUE_SENT);
 
-    env.approve_wvara(ping_id).await;
-
     let res = env
-        .send_message(ping_id, b"PING", VALUE_SENT)
+        .send_message_with_params(ping_id, b"PING", VALUE_SENT, false)
         .await
         .unwrap()
         .wait_for()
@@ -1116,7 +1108,7 @@ async fn ping_reorg() {
         .await
         .unwrap();
     let init = env
-        .send_message(create_program.program_id, b"PING", 0)
+        .send_message(create_program.program_id, b"PING")
         .await
         .unwrap();
 
@@ -1136,8 +1128,6 @@ async fn ping_reorg() {
 
     let ping_id = res.program_id;
 
-    env.approve_wvara(ping_id).await;
-
     log::info!(
         "📗 Create snapshot for block: {}, where ping program is already created",
         env.provider.get_block_number().await.unwrap()
@@ -1145,7 +1135,7 @@ async fn ping_reorg() {
     let program_created_snapshot_id = env.provider.anvil_snapshot().await.unwrap();
 
     let res = env
-        .send_message(ping_id, b"PING", 0)
+        .send_message(ping_id, b"PING")
         .await
         .unwrap()
         .wait_for()
@@ -1162,7 +1152,7 @@ async fn ping_reorg() {
         .unwrap();
 
     let res = env
-        .send_message(ping_id, b"PING", 0)
+        .send_message(ping_id, b"PING")
         .await
         .unwrap()
         .wait_for()
@@ -1176,7 +1166,7 @@ async fn ping_reorg() {
     node.db = Database::memory();
 
     log::info!("📗 Test after db cleanup and service shutting down");
-    let send_message = env.send_message(ping_id, b"PING", 0).await.unwrap();
+    let send_message = env.send_message(ping_id, b"PING").await.unwrap();
 
     // Skip some blocks to simulate long time without service
     env.skip_blocks(10).await;
@@ -1222,7 +1212,7 @@ async fn ping_deep_sync() {
         .await
         .unwrap();
     let init_res = env
-        .send_message(res.program_id, b"PING", 0)
+        .send_message(res.program_id, b"PING")
         .await
         .unwrap()
         .wait_for()
@@ -1242,9 +1232,7 @@ async fn ping_deep_sync() {
 
     env.skip_blocks(150).await;
 
-    env.approve_wvara(ping_id).await;
-
-    let send_message = env.send_message(ping_id, b"PING", 0).await.unwrap();
+    let send_message = env.send_message(ping_id, b"PING").await.unwrap();
 
     env.skip_blocks(150).await;
 
@@ -1309,7 +1297,7 @@ async fn multiple_validators() {
         .await
         .unwrap();
     let init_res = env
-        .send_message(res.program_id, b"", 0)
+        .send_message(res.program_id, b"")
         .await
         .unwrap()
         .wait_for()
@@ -1341,7 +1329,7 @@ async fn multiple_validators() {
         .await
         .unwrap();
     let init_res = env
-        .send_message(res.program_id, ping_id.encode().as_slice(), 0)
+        .send_message(res.program_id, ping_id.encode().as_slice())
         .await
         .unwrap()
         .wait_for()
@@ -1354,11 +1342,8 @@ async fn multiple_validators() {
 
     let async_id = res.program_id;
 
-    env.approve_wvara(ping_id).await;
-    env.approve_wvara(async_id).await;
-
     let res = env
-        .send_message(async_id, demo_async::Command::Common.encode().as_slice(), 0)
+        .send_message(async_id, demo_async::Command::Common.encode().as_slice())
         .await
         .unwrap()
         .wait_for()
@@ -1377,7 +1362,7 @@ async fn multiple_validators() {
     validators[0].stop_service().await;
 
     let res = env
-        .send_message(async_id, demo_async::Command::Common.encode().as_slice(), 0)
+        .send_message(async_id, demo_async::Command::Common.encode().as_slice())
         .await
         .unwrap()
         .wait_for()
@@ -1394,7 +1379,7 @@ async fn multiple_validators() {
     }
 
     let wait_for_reply_to = env
-        .send_message(async_id, demo_async::Command::Common.encode().as_slice(), 0)
+        .send_message(async_id, demo_async::Command::Common.encode().as_slice())
         .await
         .unwrap();
 
@@ -1639,7 +1624,7 @@ async fn fast_sync() {
 
     for (i, program_id) in program_ids.iter_mut().enumerate() {
         let program_info = env
-            .create_program(code_id, 500_000_000_000_000)
+            .create_program_with_params(code_id, H256([i as u8; 32]), None, 500_000_000_000_000)
             .await
             .unwrap()
             .wait_for()
@@ -1650,7 +1635,7 @@ async fn fast_sync() {
 
         let value = i as u64 % 3;
         let _reply_info = env
-            .send_message(program_info.program_id, &value.encode(), 0)
+            .send_message(program_info.program_id, &value.encode())
             .await
             .unwrap()
             .wait_for()
@@ -1673,7 +1658,7 @@ async fn fast_sync() {
 
     for (i, program_id) in program_ids.into_iter().enumerate() {
         let reply_info = env
-            .send_message(program_id, &(i as u64).encode(), 0)
+            .send_message(program_id, &(i as u64).encode())
             .await
             .unwrap()
             .wait_for()
@@ -1707,7 +1692,7 @@ async fn fast_sync() {
     for (i, program_id) in program_ids.into_iter().enumerate() {
         let i = (i * 3) as u64;
         let reply_info = env
-            .send_message(program_id, &i.encode(), 0)
+            .send_message(program_id, &i.encode())
             .await
             .unwrap()
             .wait_for()
@@ -1914,41 +1899,24 @@ async fn execution_with_canonical_events_quarantine() {
         .unwrap();
     assert_eq!(res.code_id, uploaded_code.code_id);
 
+    // Wait till validator stops processing for the latest block (where commitment with program creation is present)
+    let latest_block: H256 = env.latest_block().await.hash.0.into();
+    validator
+        .listener()
+        .wait_for_announce_computed(latest_block)
+        .await;
+
+    let validator_db = validator.db.clone();
+    let mut listener = validator.listener();
     let canonical_quarantine = env.compute_config.canonical_quarantine();
     let message_id = env
-        .send_message(res.program_id, b"PING", 0)
+        .send_message(res.program_id, b"PING")
         .await
         .unwrap()
         .message_id;
 
-    env.provider.anvil_mine(Some(1), None).await.unwrap();
-
-    let mut listener = env.observer_events_publisher().subscribe().await;
-
-    // Skipping events to reach canonical events maturity
-    let mut skipped_blocks = 0;
-    while skipped_blocks < canonical_quarantine {
-        env.provider.anvil_mine(Some(1), None).await.unwrap();
-        tokio::time::sleep(Duration::from_millis(150)).await;
-
-        if let ObserverEvent::BlockSynced(..) = listener.next_event().await.unwrap() {
-            skipped_blocks += 1
-        };
-    }
-
-    // Now waiting for the PONG reply
-    loop {
-        let synced_block = match listener.next_event().await.unwrap() {
-            ObserverEvent::BlockSynced(block_hash) => block_hash,
-            _ => {
-                continue;
-            }
-        };
-
-        let Some(block_events) = validator.db.block_events(synced_block) else {
-            continue;
-        };
-
+    let check_for_pong = |block_hash| {
+        let block_events = validator_db.block_events(block_hash).unwrap();
         for block_event in block_events {
             if let BlockEvent::Mirror {
                 actor_id: _,
@@ -1963,10 +1931,35 @@ async fn execution_with_canonical_events_quarantine() {
                 && reply_to == message_id
                 && payload == b"PONG"
             {
-                return;
+                return true;
             }
         }
+
+        false
+    };
+
+    // 0 - message sent
+    // 0..canonical_quarantine - quarantine period
+    // canonical_quarantine - Process event
+    // canonical_quarantine + 1 - PONG must be present
+    for _ in 0..canonical_quarantine {
+        let block_hash = listener.wait_for_block_synced().await;
+
+        assert!(!check_for_pong(block_hash), "PONG received too early");
+
+        listener.wait_for_announce_computed(block_hash).await;
+        env.force_new_block().await;
     }
+
+    // wait for block synced with PING msg processing
+    let _ = listener.wait_for_block_synced().await;
+
+    // wait for block with PONG
+    let block_hash = listener.wait_for_block_synced().await;
+    assert!(
+        check_for_pong(block_hash),
+        "PONG not received after quarantine"
+    );
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -2001,7 +1994,7 @@ async fn value_send_program_to_program() {
 
     // Send init message to value receiver program (demo_ping)
     let _ = env
-        .send_message(res.program_id, &[], 0)
+        .send_message(res.program_id, &[])
         .await
         .unwrap()
         .wait_for()
@@ -2043,7 +2036,12 @@ async fn value_send_program_to_program() {
 
     // Send init message to value sender program with value to be sent to value receiver
     let res = env
-        .send_message(res.program_id, &value_receiver_id.encode(), VALUE_SENT)
+        .send_message_with_params(
+            res.program_id,
+            &value_receiver_id.encode(),
+            VALUE_SENT,
+            false,
+        )
         .await
         .unwrap()
         .wait_for()
@@ -2070,7 +2068,7 @@ async fn value_send_program_to_program() {
     assert_eq!(value_sender_local_balance, VALUE_SENT);
 
     let res = env
-        .send_message(value_sender_id, &(0_u64, VALUE_SENT).encode(), 0)
+        .send_message(value_sender_id, &(0_u64, VALUE_SENT).encode())
         .await
         .unwrap()
         .wait_for()
@@ -2147,7 +2145,7 @@ async fn value_send_delayed() {
 
     // Send init message to value receiver program (demo_ping)
     let _ = env
-        .send_message(res.program_id, &[], 0)
+        .send_message(res.program_id, &[])
         .await
         .unwrap()
         .wait_for()
@@ -2189,7 +2187,12 @@ async fn value_send_delayed() {
 
     // Send init message to value sender which sends value to receiver with delay
     let res = env
-        .send_message(res.program_id, &value_receiver_id.encode(), VALUE_SENT)
+        .send_message_with_params(
+            res.program_id,
+            &value_receiver_id.encode(),
+            VALUE_SENT,
+            false,
+        )
         .await
         .unwrap()
         .wait_for()
@@ -2498,7 +2501,7 @@ async fn announces_conflicts() {
         .tap(|res| assert_eq!(res.code_id, ping_code_id))
         .program_id;
 
-    env.send_message(ping_id, b"", 0)
+    env.send_message(ping_id, b"")
         .await
         .unwrap()
         .wait_for()
@@ -2514,7 +2517,7 @@ async fn announces_conflicts() {
     {
         log::info!("📗 Case 1: all validators works normally");
 
-        env.send_message(ping_id, b"PING", 0)
+        env.send_message(ping_id, b"PING")
             .await
             .unwrap()
             .wait_for()
@@ -2541,7 +2544,7 @@ async fn announces_conflicts() {
             .map(|node| node.listener())
             .collect::<Vec<_>>();
 
-        let wait_for_pong = env.send_message(ping_id, b"PING", 0).await.unwrap();
+        let wait_for_pong = env.send_message(ping_id, b"PING").await.unwrap();
 
         let block = env.latest_block().await;
         let announce = Announce::with_default_gas(block.hash, HashOf::random());
@@ -2636,7 +2639,7 @@ async fn announces_conflicts() {
             .map(|node| node.listener())
             .collect::<Vec<_>>();
 
-        let _ = env.send_message(ping_id, b"PING", 0).await.unwrap();
+        let _ = env.send_message(ping_id, b"PING").await.unwrap();
 
         // Next block producer is validator 0 - because validators 3, 4, 5 were skipped and 6 is current
         assert_eq!(env.next_block_producer_index().await, 0);
@@ -2659,7 +2662,7 @@ async fn announces_conflicts() {
         // so now next producer is the next in order - validator 0
         assert_eq!(env.next_block_producer_index().await, 0);
 
-        let wait_for_pong = env.send_message(ping_id, b"PING", 0).await.unwrap();
+        let wait_for_pong = env.send_message(ping_id, b"PING").await.unwrap();
 
         // Ignore announce6 and build announce7 on top of base announce from parent block
         // Announce is not on top of announce6 (already accepted),

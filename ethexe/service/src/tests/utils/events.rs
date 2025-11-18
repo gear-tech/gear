@@ -30,10 +30,7 @@ use ethexe_observer::ObserverEvent;
 use ethexe_prometheus::PrometheusEvent;
 use ethexe_rpc::RpcEvent;
 use gprimitives::H256;
-use tokio::sync::{
-    broadcast,
-    broadcast::{Receiver, Sender},
-};
+use tokio::sync::broadcast::{self, Receiver, Sender};
 
 pub type TestingEventSender = Sender<TestingEvent>;
 pub type TestingEventReceiver = Receiver<TestingEvent>;
@@ -168,6 +165,15 @@ impl ServiceEventsListener<'_> {
                 return Ok(res);
             }
         }
+    }
+
+    pub async fn wait_for_block_synced(&mut self) -> H256 {
+        self.apply_until(|event| match event {
+            TestingEvent::Observer(ObserverEvent::BlockSynced(block_hash)) => Ok(Some(block_hash)),
+            _ => Ok(None),
+        })
+        .await
+        .unwrap()
     }
 }
 
