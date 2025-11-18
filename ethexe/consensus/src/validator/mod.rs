@@ -49,6 +49,7 @@ use crate::{
         producer::Producer,
         submitter::Submitter,
         subordinate::Subordinate,
+        tx_pool::InjectedTxPool,
     },
 };
 use anyhow::{Result, anyhow};
@@ -58,6 +59,7 @@ use ethexe_common::{
     consensus::{VerifiedAnnounce, VerifiedValidationRequest},
     db::OnChainStorageRO,
     ecdsa::PublicKey,
+    injected::SignedInjectedTransaction,
     network::CheckedAnnouncesResponse,
 };
 use ethexe_db::Database;
@@ -83,6 +85,7 @@ mod participant;
 mod producer;
 mod submitter;
 mod subordinate;
+mod tx_pool;
 
 #[cfg(test)]
 mod mock;
@@ -151,6 +154,7 @@ impl ValidatorService {
                 db: db.clone(),
                 committer: Box::new(EthereumCommitter { router }),
                 middleware: MiddlewareWrapper::from_inner_arc(election_provider),
+                injected_pool: InjectedTxPool::new(db),
                 validate_chain_deepness_limit: MAX_CHAIN_DEEPNESS,
                 chain_deepness_threshold: CHAIN_DEEPNESS_THRESHOLD,
                 block_gas_limit: config.block_gas_limit,
@@ -223,6 +227,10 @@ impl ConsensusService for ValidatorService {
 
     fn receive_announces_response(&mut self, response: CheckedAnnouncesResponse) -> Result<()> {
         self.update_inner(|inner| inner.process_announces_response(response))
+    }
+
+    fn receive_injected_transaction(&mut self, tx: SignedInjectedTransaction) -> Result<()> {
+        self.update_inner(|inner| inner.process_injected_transaction(tx))
     }
 }
 
@@ -326,6 +334,10 @@ where
         DefaultProcessing::announces_response(self, _response)
     }
 
+    fn process_injected_transaction(self, tx: SignedInjectedTransaction) -> Result<ValidatorState> {
+        DefaultProcessing::injected_transaction(self, tx)
+    }
+
     fn poll_next_state(self, _cx: &mut Context<'_>) -> Result<(Poll<()>, ValidatorState)> {
         Ok((Poll::Pending, self.into()))
     }
@@ -418,6 +430,10 @@ impl StateHandler for ValidatorState {
     fn poll_next_state(self, cx: &mut Context<'_>) -> Result<(Poll<()>, ValidatorState)> {
         delegate_call!(self => poll_next_state(cx))
     }
+
+    fn process_injected_transaction(self, tx: SignedInjectedTransaction) -> Result<ValidatorState> {
+        delegate_call!(self => process_injected_transaction(tx))
+    }
 }
 
 struct DefaultProcessing;
@@ -488,6 +504,15 @@ impl DefaultProcessing {
         s.warning(format!(
             "unexpected announces response: {response:?}, ignored."
         ));
+        Ok(s)
+    }
+
+    fn injected_transaction(
+        s: impl Into<ValidatorState>,
+        tx: SignedInjectedTransaction,
+    ) -> Result<ValidatorState> {
+        let mut s = s.into();
+        s.context_mut().core.process_injected_transaction(tx)?;
         Ok(s)
     }
 }

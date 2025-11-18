@@ -20,13 +20,12 @@
 
 use core::num::NonZero;
 use ethexe_common::{
-    Announce, CodeAndIdUnchecked, HashOf, ProgramStates, Schedule,
+    Announce, CodeAndIdUnchecked, HashOf,
     db::{AnnounceStorageRO, AnnounceStorageRW, CodesStorageRW},
     events::{BlockRequestEvent, MirrorRequestEvent},
-    gear::StateTransition,
 };
 use ethexe_db::Database;
-use ethexe_runtime_common::state::Storage;
+use ethexe_runtime_common::{FinalizedBlockTransitions, state::Storage};
 use gear_core::{ids::prelude::CodeIdExt, rpc::ReplyInfo};
 use gprimitives::{ActorId, CodeId, H256, MessageId};
 use handling::{
@@ -120,13 +119,6 @@ pub enum ProcessorError {
 
 pub(crate) type Result<T> = std::result::Result<T, ProcessorError>;
 
-#[derive(Clone, Debug, Default)]
-pub struct BlockProcessingResult {
-    pub transitions: Vec<StateTransition>,
-    pub states: ProgramStates,
-    pub schedule: Schedule,
-}
-
 #[derive(Clone, Debug)]
 pub struct ProcessorConfig {
     pub chunk_processing_threads: usize,
@@ -190,17 +182,18 @@ impl Processor {
         &mut self,
         announce: Announce,
         events: Vec<BlockRequestEvent>,
-    ) -> Result<BlockProcessingResult> {
-        if !announce.off_chain_transactions.is_empty() {
-            todo!("#4639 off-chain transactions and gas allowance are not supported yet");
-        }
-
+    ) -> Result<FinalizedBlockTransitions> {
         log::debug!(
             "Processing events for {:?}: {events:#?}",
             announce.block_hash
         );
 
-        let mut handler = self.handler(announce)?;
+        // TODO kuzmindev: remove clone here
+        let mut handler = self.handler(announce.clone())?;
+
+        for tx in announce.injected_transactions {
+            handler.handle_injected_transaction(tx)?;
+        }
 
         for event in events {
             match event {
@@ -217,12 +210,7 @@ impl Processor {
 
         handler.run_schedule();
 
-        let (transitions, states, schedule) = handler.transitions.finalize();
-        Ok(BlockProcessingResult {
-            transitions,
-            states,
-            schedule,
-        })
+        Ok(handler.transitions.finalize())
     }
 
     pub async fn process_queue(&mut self, handler: &mut ProcessingHandler) {
@@ -314,7 +302,9 @@ impl OverlaidProcessor {
 
         // Setting program states and schedule for the block is not necessary, but important for testing.
         {
-            let (_, states, schedule) = handler.transitions.finalize();
+            let FinalizedBlockTransitions {
+                states, schedule, ..
+            } = handler.transitions.finalize();
             self.0.db.set_announce_program_states(announce_hash, states);
             self.0.db.set_announce_schedule(announce_hash, schedule);
         }

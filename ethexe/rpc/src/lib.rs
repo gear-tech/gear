@@ -18,17 +18,18 @@
 
 pub use crate::apis::InjectedTransactionAcceptance;
 
-use crate::apis::{InjectedApi, InjectedServer};
+#[cfg(feature = "test-utils")]
+pub use crate::apis::InjectedClient;
+
 use anyhow::{Result, anyhow};
 use apis::{
-    BlockApi, BlockServer, CodeApi, CodeServer, ProgramApi, ProgramServer, TransactionPoolApi,
-    TransactionPoolServer,
+    BlockApi, BlockServer, CodeApi, CodeServer, InjectedApi, InjectedServer, ProgramApi,
+    ProgramServer,
 };
-use ethexe_common::{injected::SignedInjectedTransaction, tx_pool::SignedOffchainTransaction};
+use ethexe_common::injected::RpcOrNetworkInjectedTx;
 use ethexe_db::Database;
 use ethexe_processor::RunnerConfig;
 use futures::{FutureExt, Stream, stream::FusedStream};
-use gprimitives::H256;
 use jsonrpsee::{
     Methods, RpcModule as JsonrpcModule,
     server::{
@@ -50,9 +51,6 @@ use tower::Service;
 mod apis;
 mod errors;
 mod utils;
-
-#[cfg(feature = "test-utils")]
-pub mod test_utils;
 
 #[derive(Clone)]
 struct PerConnection<RpcMiddleware, HttpMiddleware> {
@@ -107,9 +105,6 @@ impl RpcService {
         )))?;
         module.merge(BlockServer::into_rpc(BlockApi::new(self.db.clone())))?;
         module.merge(CodeServer::into_rpc(CodeApi::new(self.db.clone())))?;
-        module.merge(TransactionPoolServer::into_rpc(TransactionPoolApi::new(
-            rpc_sender.clone(),
-        )))?;
         module.merge(InjectedServer::into_rpc(InjectedApi::new(rpc_sender)))?;
 
         let (stop_handle, server_handle) = stop_channel();
@@ -201,12 +196,8 @@ impl FusedStream for RpcReceiver {
 
 #[derive(Debug)]
 pub enum RpcEvent {
-    OffchainTransaction {
-        transaction: SignedOffchainTransaction,
-        response_sender: Option<oneshot::Sender<Result<H256>>>,
-    },
     InjectedTransaction {
-        transaction: SignedInjectedTransaction,
+        transaction: RpcOrNetworkInjectedTx,
         response_sender: oneshot::Sender<InjectedTransactionAcceptance>,
     },
 }

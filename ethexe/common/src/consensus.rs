@@ -75,7 +75,7 @@ impl ToDigest for BatchCommitmentValidationRequest {
         } = self;
 
         hasher.update(digest);
-        head.map(|h| hasher.update(h.hash().0));
+        head.map(|h| hasher.update(h.inner().0));
         hasher.update(
             codes
                 .iter()

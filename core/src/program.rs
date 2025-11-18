@@ -23,6 +23,8 @@ use crate::{
     reservation::GasReservationMap,
 };
 use gprimitives::CodeId;
+use scale_decode::DecodeAsType;
+use scale_encode::EncodeAsType;
 use scale_info::{
     TypeInfo,
     scale::{Decode, Encode},
@@ -103,7 +105,7 @@ pub struct ActiveProgram<BlockNumber: Copy> {
 }
 
 /// Enumeration contains variants for program state.
-#[derive(Clone, Debug, Decode, Encode, PartialEq, Eq, TypeInfo)]
+#[derive(Clone, Debug, Decode, DecodeAsType, Encode, EncodeAsType, PartialEq, Eq, TypeInfo)]
 pub enum ProgramState {
     /// `init` method of a program has not yet finished its execution so
     /// the program is not considered as initialized.
@@ -116,7 +118,20 @@ pub enum ProgramState {
 }
 
 /// Struct defines infix of memory pages storage.
-#[derive(Clone, Copy, Debug, Default, Decode, Encode, PartialEq, Eq, Hash, TypeInfo)]
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    Default,
+    Decode,
+    DecodeAsType,
+    Encode,
+    EncodeAsType,
+    PartialEq,
+    Eq,
+    Hash,
+    TypeInfo,
+)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct MemoryInfix(u32);
 

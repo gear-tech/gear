@@ -24,8 +24,8 @@ use crate::{
     Service,
     config::{self, Config},
     tests::utils::{
-        EnvNetworkConfig, Node, NodeConfig, TestEnv, TestEnvConfig, TestingEvent, ValidatorsConfig,
-        Wallets, init_logger,
+        EnvNetworkConfig, Node, NodeConfig, TestEnv, TestEnvConfig, TestingEvent, TestingRpcEvent,
+        ValidatorsConfig, Wallets, init_logger,
     },
 };
 use alloy::{
@@ -37,6 +37,7 @@ use ethexe_common::{
     db::*,
     events::{BlockEvent, MirrorEvent, RouterEvent},
     gear::{CANONICAL_QUARANTINE, MessageType},
+    injected::{InjectedTransaction, RpcOrNetworkInjectedTx},
     mock::*,
     network::ValidatorMessage,
 };
@@ -47,10 +48,9 @@ use ethexe_ethereum::deploy::ContractsDeploymentParams;
 use ethexe_observer::{EthereumConfig, ObserverEvent};
 use ethexe_processor::{DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, RunnerConfig};
 use ethexe_prometheus::PrometheusConfig;
-use ethexe_rpc::{RpcConfig, test_utils::JsonRpcResponse};
+use ethexe_rpc::RpcConfig;
 use ethexe_runtime_common::state::{Expiring, MailboxMessage, PayloadLookup, Storage};
 use ethexe_signer::Signer;
-use ethexe_tx_pool::{OffchainTransaction, RawOffchainTransaction, TxPoolEvent};
 use gear_core::{
     ids::prelude::*,
     message::{ReplyCode, SuccessReplyReason},
@@ -1428,7 +1428,7 @@ async fn multiple_validators() {
 
 #[tokio::test(flavor = "multi_thread")]
 #[ntest::timeout(60_000)]
-async fn tx_pool_gossip() {
+async fn send_injected_tx() {
     init_logger();
 
     let test_env_config = TestEnvConfig {
@@ -1440,6 +1440,9 @@ async fn tx_pool_gossip() {
     // Setup env of 2 nodes, one of them knows about the other one.
     let mut env = TestEnv::new(test_env_config).await.unwrap();
 
+    let validator0_pubkey = env.validators[0].public_key;
+    let validator1_pubkey = env.validators[1].public_key;
+
     log::info!("📗 Starting node 0");
     let mut node0 = env.new_node(
         NodeConfig::default()
@@ -1449,7 +1452,11 @@ async fn tx_pool_gossip() {
     node0.start_service().await;
 
     log::info!("📗 Starting node 1");
-    let mut node1 = env.new_node(NodeConfig::default().validator(env.validators[1]));
+    let mut node1 = env.new_node(
+        NodeConfig::default()
+            .service_rpc(9506)
+            .validator(env.validators[1]),
+    );
     node1.start_service().await;
 
     log::info!("Populate node-0 and node-1 with 2 valid blocks");
@@ -1458,7 +1465,6 @@ async fn tx_pool_gossip() {
     env.force_new_block().await;
 
     // Give some time for nodes to process the blocks
-    tokio::time::sleep(Duration::from_secs(2)).await;
     let reference_block = node0
         .db
         .latest_data()
@@ -1466,56 +1472,50 @@ async fn tx_pool_gossip() {
         .prepared_block_hash;
 
     // Prepare tx data
-    let signed_ethexe_tx = {
-        let sender_pub_key = env.signer.generate_key().expect("failed generating key");
-
-        let ethexe_tx = OffchainTransaction {
-            raw: RawOffchainTransaction::SendMessage {
-                program_id: H160::random(),
-                payload: vec![],
-            },
-            // referring to the latest valid block hash
-            reference_block,
-        };
-        env.signer.signed_data(sender_pub_key, ethexe_tx).unwrap()
+    let tx = InjectedTransaction {
+        destination: ActorId::from(H160::random()),
+        payload: H256::random().0.to_vec().into(),
+        value: 0,
+        reference_block,
+        salt: H256::random().0.to_vec().into(),
     };
 
-    let tx_hash = signed_ethexe_tx.tx_hash();
-    let (transaction, signature) = signed_ethexe_tx.clone().into_parts();
+    let tx_for_node1 = RpcOrNetworkInjectedTx {
+        recipient: validator1_pubkey.to_address(),
+        tx: env
+            .signer
+            .signed_data(validator0_pubkey, tx.clone())
+            .unwrap(),
+    };
 
     // Send request
     log::info!("Sending tx pool request to node-1");
-    let rpc_client = node0.rpc_client().expect("rpc server is set");
-    let resp = rpc_client
-        .send_message(transaction, signature.encode())
+    let _r = node1
+        .send_injected_transaction(tx_for_node1.clone())
         .await
-        .expect("failed sending request");
-    assert!(resp.status().is_success());
-    let resp_tx_hash = JsonRpcResponse::new(resp)
-        .await
-        .expect("failed to deserialize json response from rpc")
-        .try_extract_res::<H256>()
-        .expect("failed to deserialize reply info");
-    assert_eq!(resp_tx_hash, tx_hash);
+        .expect("rpc server is set");
 
     // Tx executable validation takes time, so wait for event.
     node1
         .listener()
         .wait_for(|event| {
-            Ok(matches!(
-                event,
-                TestingEvent::TxPool(TxPoolEvent::PublishOffchainTransaction(_))
-            ))
+            // TODO kuzmindev: after validators discovery will be done replace to wait for inclusion tx into announce from node1
+            if let TestingEvent::Rpc(TestingRpcEvent::InjectedTransaction { transaction }) = event
+                && transaction == tx_for_node1
+            {
+                return Ok(true);
+            }
+            Ok(false)
         })
         .await
         .unwrap();
 
-    // Check that node-1 received the message
+    // Check that node-1 save received tx.
     let node1_db_tx = node1
         .db
-        .get_offchain_transaction(tx_hash)
+        .injected_transaction(tx.to_hash())
         .expect("tx not found");
-    assert_eq!(node1_db_tx, signed_ethexe_tx);
+    assert_eq!(node1_db_tx, tx_for_node1.tx);
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -2288,6 +2288,173 @@ async fn value_send_delayed() {
         .unwrap();
 
     assert_eq!(router_balance, 0);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ntest::timeout(60_000)]
+async fn injected_tx_fungible_token() {
+    init_logger();
+
+    let env_config = TestEnvConfig {
+        network: EnvNetworkConfig::Enabled,
+        ..Default::default()
+    };
+
+    let mut env = TestEnv::new(env_config).await.unwrap();
+
+    let pubkey = env.validators[0].public_key;
+    let mut node = env.new_node(
+        NodeConfig::default()
+            .service_rpc(8008)
+            .validator(env.validators[0]),
+    );
+    node.start_service().await;
+
+    // 1. Create Fungible token config
+    let token_config = demo_fungible_token::InitConfig {
+        name: "USD Tether".to_string(),
+        symbol: "USDT".to_string(),
+        decimals: 10,
+        initial_capacity: None,
+    };
+
+    // 2. Uploading code and creating program
+    let res = env
+        .upload_code(demo_fungible_token::WASM_BINARY)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    let code_id = res.code_id;
+    let res = env
+        .create_program(code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    let usdt_actor_id = res.program_id;
+
+    tracing::info!("usdt actor id: {usdt_actor_id}");
+
+    // 3. Initialize program
+    let init_tx = InjectedTransaction {
+        destination: usdt_actor_id,
+        payload: token_config.encode().into(),
+        value: 0,
+        reference_block: node.db.latest_data().unwrap().prepared_block_hash,
+        salt: vec![1u8].into(),
+    };
+    let signed_tx = env.signer.signed_data(pubkey, init_tx).unwrap();
+    let rpc_tx = RpcOrNetworkInjectedTx {
+        recipient: pubkey.to_address(),
+        tx: signed_tx,
+    };
+    let _ = node.send_injected_transaction(rpc_tx).await.unwrap();
+
+    // Listen for tx inclusion
+    node.listener()
+        .apply_until(|event| {
+            if let TestingEvent::Consensus(ConsensusEvent::Promise(promise)) = event {
+                let promise = promise.into_data();
+                assert!(
+                    promise.reply.payload.is_empty(),
+                    "Expect empty payload, because of initializing Fungible Token returns nothing"
+                );
+
+                assert_eq!(
+                    promise.reply.code,
+                    ReplyCode::Success(SuccessReplyReason::Auto)
+                );
+                assert_eq!(promise.reply.value, 0);
+
+                return Ok(Some(()));
+            }
+
+            Ok(None)
+        })
+        .await
+        .unwrap();
+
+    tracing::info!("✅ Fungible token successfully initialized");
+
+    // 4. Try ming some tokens
+    let amount: u128 = 5_000_000_000;
+    let mint_action = demo_fungible_token::FTAction::Mint(amount);
+
+    let mint_tx = InjectedTransaction {
+        destination: usdt_actor_id,
+        payload: mint_action.encode().into(),
+        value: 0,
+        reference_block: node.db.latest_data().unwrap().prepared_block_hash,
+        salt: vec![1u8].into(),
+    };
+
+    let rpc_tx = RpcOrNetworkInjectedTx {
+        recipient: pubkey.to_address(),
+        tx: env.signer.signed_data(pubkey, mint_tx.clone()).unwrap(),
+    };
+
+    let _ = node.send_injected_transaction(rpc_tx).await.unwrap();
+    let expected_event = demo_fungible_token::FTEvent::Transfer {
+        from: ActorId::new([0u8; 32]),
+        to: pubkey.to_address().into(),
+        amount,
+    };
+
+    // Listen for inclusion and check the expected payload.
+    node.listener()
+        .apply_until(|event| {
+            if let TestingEvent::Consensus(ConsensusEvent::Promise(promise)) = event {
+                let promise = promise.into_data();
+                assert_eq!(promise.reply.payload, expected_event.encode());
+                assert_eq!(
+                    promise.reply.code,
+                    ReplyCode::Success(SuccessReplyReason::Manual)
+                );
+                assert_eq!(promise.reply.value, 0);
+
+                return Ok(Some(()));
+            }
+
+            Ok(None)
+        })
+        .await
+        .unwrap();
+    tracing::info!("✅ Tokens mint successfully");
+
+    let db = node.db.clone();
+    node.listener()
+        .apply_until(|event| {
+            if let TestingEvent::Observer(ObserverEvent::BlockSynced(synced_block)) = event {
+                let Some(block_events) = db.block_events(synced_block) else {
+                    return Ok(None);
+                };
+
+                for block_event in block_events {
+                    if let BlockEvent::Mirror {
+                        actor_id,
+                        event: MirrorEvent::StateChanged { state_hash },
+                    } = block_event
+                        && actor_id == mint_tx.destination
+                    {
+                        let state = db.program_state(state_hash).expect("state should be exist");
+                        assert_eq!(state.balance, 0);
+                        assert_eq!(state.injected_queue.cached_queue_size, 0);
+                        assert_eq!(state.canonical_queue.cached_queue_size, 0);
+                        return Ok(Some(()));
+                    }
+                }
+            }
+
+            Ok(None)
+        })
+        .await
+        .unwrap();
+    tracing::info!("✅ State successfully changed on Ethereum");
 }
 
 #[tokio::test(flavor = "multi_thread")]

@@ -80,7 +80,7 @@ impl ToDigest for Option<ChainCommitment> {
         };
 
         hasher.update(transitions.to_digest());
-        hasher.update(head_announce.hash().0);
+        hasher.update(head_announce.inner().0);
     }
 }
 
