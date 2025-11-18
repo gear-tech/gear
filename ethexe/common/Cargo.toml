@@ -38,5 +38,6 @@ std = [
     "sha3/std",
     "k256/std",
     "alloy-primitives/std",
+    "sp-core/std",
 ]
 mock = ["std", "itertools/use_std", "tap"]
