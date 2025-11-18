@@ -81,7 +81,7 @@ impl RpcServer {
         self.config.listen_addr.port()
     }
 
-    pub async fn run_server(self) -> Result<(ServerHandle, RpcReceiver)> {
+    pub async fn run_server(self) -> Result<(ServerHandle, RpcService)> {
         let (rpc_sender, rpc_receiver) = mpsc::unbounded_channel();
 
         let cors_layer = self.cors_layer()?;
@@ -97,7 +97,7 @@ impl RpcServer {
 
         let handle = server.start(server_apis.into_methods());
 
-        Ok((handle, RpcReceiver::new(rpc_receiver, injected_api)))
+        Ok((handle, RpcService::new(rpc_receiver, injected_api)))
     }
 
     fn cors_layer(&self) -> Result<CorsLayer> {
@@ -123,18 +123,15 @@ impl RpcServer {
     }
 }
 
-pub struct RpcReceiver {
-    inner_receiver: mpsc::UnboundedReceiver<RpcEvent>,
+pub struct RpcService {
+    receiver: mpsc::UnboundedReceiver<RpcEvent>,
     injected_api: InjectedApi,
 }
 
-impl RpcReceiver {
-    pub fn new(
-        inner_receiver: mpsc::UnboundedReceiver<RpcEvent>,
-        injected_api: InjectedApi,
-    ) -> Self {
+impl RpcService {
+    pub fn new(receiver: mpsc::UnboundedReceiver<RpcEvent>, injected_api: InjectedApi) -> Self {
         Self {
-            inner_receiver,
+            receiver,
             injected_api,
         }
     }
@@ -148,17 +145,17 @@ impl RpcReceiver {
     }
 }
 
-impl Stream for RpcReceiver {
+impl Stream for RpcService {
     type Item = RpcEvent;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        self.inner_receiver.poll_recv(cx)
+        self.receiver.poll_recv(cx)
     }
 }
 
-impl FusedStream for RpcReceiver {
+impl FusedStream for RpcService {
     fn is_terminated(&self) -> bool {
-        self.inner_receiver.is_closed()
+        self.receiver.is_closed()
     }
 }
 
