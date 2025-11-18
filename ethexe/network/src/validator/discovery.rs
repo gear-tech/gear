@@ -55,7 +55,7 @@ pub struct SignedValidatorIdentity {
     inner: ValidatorIdentity,
     validator_signature: Signature,
     validator_key: PublicKey,
-    network_signature: Vec<u8>,
+    network_signature: Signature,
     network_key: libp2p::identity::secp256k1::PublicKey,
 }
 
@@ -80,13 +80,12 @@ impl Encode for SignedValidatorIdentity {
             validator_signature,
             validator_key: _,
             network_signature,
-            network_key,
+            network_key: _,
         } = self;
 
         inner.encode_to(dest);
         validator_signature.encode_to(dest);
         network_signature.encode_to(dest);
-        network_key.to_bytes().encode_to(dest);
     }
 }
 
@@ -99,17 +98,13 @@ impl Decode for SignedValidatorIdentity {
             parity_scale_codec::Error::from("failed to validate signature").chain(err.to_string())
         })?;
 
-        let network_signature = Vec::decode(input)?;
-        let network_key = <[u8; 33]>::decode(input)?;
-        let network_key = libp2p::identity::secp256k1::PublicKey::try_from_bytes(&network_key)
-            .map_err(|err| {
-                parity_scale_codec::Error::from("invalid network key").chain(err.to_string())
-            })?;
-        if !network_key.verify(&inner.encode(), &network_signature) {
-            return Err(parity_scale_codec::Error::from(
-                "failed to validate network signature",
-            ));
-        }
+        let network_signature = Signature::decode(input)?;
+        let network_key = network_signature.validate(&inner).map_err(|err| {
+            parity_scale_codec::Error::from("failed to validate network signature")
+                .chain(err.to_string())
+        })?;
+        let network_key = libp2p::identity::secp256k1::PublicKey::try_from_bytes(&network_key.0)
+            .expect("we use secp256k1 for networking key");
 
         Ok(Self {
             inner,
@@ -137,8 +132,14 @@ impl ValidatorIdentity {
         let validator_signature = signer
             .sign(validator_key, &self)
             .context("failed to sign validator identity with validator key")?;
-        let network_signature = keypair
-            .sign(&self.encode())
+
+        let network_private_key = keypair
+            .clone()
+            .try_into_secp256k1()
+            .expect("we use secp256k1 for networking key")
+            .secret()
+            .to_bytes();
+        let network_signature = Signature::create(network_private_key.into(), &self)
             .context("failed to sign validator identity with networking key")?;
         let network_key = keypair
             .public()
@@ -446,27 +447,6 @@ mod tests {
         let decoded_identity =
             SignedValidatorIdentity::decode(&mut &identity.encode()[..]).unwrap();
         assert_eq!(identity, decoded_identity);
-    }
-
-    #[ignore = "Tampered signatures are not detected"]
-    #[tokio::test]
-    async fn tampered_signatures() {
-        let signer = Signer::memory();
-        let validator_key = signer.generate_key().unwrap();
-        let attacker_key = signer.generate_key().unwrap();
-        let attacker_private_key = signer.storage().get_private_key(attacker_key).unwrap();
-        let identity = signed_identity(&signer, validator_key, 10);
-
-        let mut corrupted_identity = identity.clone();
-        corrupted_identity.validator_signature =
-            Signature::create(attacker_private_key, b"").unwrap();
-        let corrupted_identity = corrupted_identity.encode();
-        SignedValidatorIdentity::decode(&mut &corrupted_identity[..]).unwrap_err();
-
-        let mut corrupted_identity = identity.clone();
-        corrupted_identity.network_signature = Vec::new();
-        let corrupted_identity = corrupted_identity.encode();
-        SignedValidatorIdentity::decode(&mut &corrupted_identity[..]).unwrap_err();
     }
 
     #[tokio::test]
