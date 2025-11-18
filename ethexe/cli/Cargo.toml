@@ -34,6 +34,7 @@ libp2p-identity = { version = "0.2.12", features = ["secp256k1"] }
 serde.workspace = true
 static_init.workspace = true
 tempfile.workspace = true
+thiserror.workspace = true
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 toml.workspace = true
 
