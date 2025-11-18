@@ -7326,6 +7326,7 @@ dependencies = [
  "serde_json",
  "sha2 0.10.8",
  "sha3",
+ "sp-application-crypto",
  "sp-core",
  "tempfile",
  "thiserror 2.0.12",
