@@ -58,7 +58,7 @@ use gear_core_errors::{ErrorReplyReason, SimpleExecutionError, SimpleUnavailable
 use gprimitives::{ActorId, H160, H256, MessageId};
 use parity_scale_codec::Encode;
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{BTreeMap, BTreeSet, HashSet},
     net::{Ipv4Addr, SocketAddr},
     time::Duration,
 };
@@ -2391,7 +2391,7 @@ async fn injected_tx_fungible_token() {
 
 #[tokio::test(flavor = "multi_thread")]
 #[ntest::timeout(120_000)]
-async fn whole_network_restores() {
+async fn whole_network_restore() {
     init_logger();
 
     let config = TestEnvConfig {
@@ -2409,6 +2409,9 @@ async fn whole_network_restores() {
         validator.start_service().await;
         validators.push(validator);
     }
+
+    // make sure we receive unique messages and not repeated ones
+    let mut seen_messages = HashSet::new();
 
     let res = env
         .upload_code(demo_ping::WASM_BINARY)
@@ -2440,8 +2443,7 @@ async fn whole_network_restores() {
     assert_eq!(init_res.payload, b"");
     assert_eq!(init_res.value, 0);
     assert_eq!(init_res.code, ReplyCode::Success(SuccessReplyReason::Auto));
-
-    env.approve_wvara(ping_id).await;
+    assert!(seen_messages.insert(init_res.message_id));
 
     for (i, v) in validators.iter_mut().enumerate() {
         log::info!("📗 Stopping validator-{i}");
@@ -2464,6 +2466,7 @@ async fn whole_network_restores() {
     assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Manual));
     assert_eq!(res.payload, b"PONG");
     assert_eq!(res.value, 0);
+    assert!(seen_messages.insert(res.message_id));
 
     let res = async_code_upload.wait_for().await.unwrap();
     assert!(res.valid);
@@ -2475,7 +2478,6 @@ async fn whole_network_restores() {
         .wait_for()
         .await
         .unwrap();
-    let async_id = res.program_id;
 
     let init_res = env
         .send_message(res.program_id, ping_id.encode().as_slice(), 0)
@@ -2488,6 +2490,5 @@ async fn whole_network_restores() {
     assert_eq!(init_res.payload, b"");
     assert_eq!(init_res.value, 0);
     assert_eq!(init_res.code, ReplyCode::Success(SuccessReplyReason::Auto));
-
-    env.approve_wvara(async_id).await;
+    assert!(seen_messages.insert(init_res.message_id));
 }
