@@ -49,7 +49,7 @@ const KAD_PUBLISHING_INTERVAL: Duration = Duration::from_secs(KAD_RECORD_TTL_SEC
 // enough to make sure we also touch peers which might have
 // old record, so that we can update them once we notice
 // they have old records.
-const MIN_QUORUM_PEERS: u32 = 4;
+const KAD_MIN_QUORUM_PEERS: u32 = 4;
 
 #[derive(Debug, PartialEq, Eq, Encode, Decode)]
 pub struct ValidatorIdentityKey {
@@ -141,7 +141,7 @@ impl PutRecordValidator {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub struct GetRecordOk {
     pub peer: Option<PeerId>,
     pub record: Record,
@@ -168,14 +168,35 @@ pub enum Event {
     },
 }
 
+#[cfg(test)]
+impl Event {
+    fn unwrap_get_record(self) -> Result<Box<GetRecordOk>, GetRecordError> {
+        match self {
+            Event::GetRecord(res) => res,
+            event => unreachable!("unexpected variant: {event:?}"),
+        }
+    }
+}
+
 pub struct Behaviour {
     inner: kad::Behaviour<MemoryStore>,
     peer_score: peer_score::Handle,
     cache_candidates_records: HashMap<QueryId, kad::Record>,
+    min_quorum_peers: u32,
+    #[cfg(test)]
+    early_finished_queries: std::collections::HashSet<QueryId>,
 }
 
 impl Behaviour {
     pub fn new(peer: PeerId, peer_score: peer_score::Handle) -> Self {
+        Self::with_min_quorum(peer, peer_score, KAD_MIN_QUORUM_PEERS)
+    }
+
+    fn with_min_quorum(
+        peer: PeerId,
+        peer_score: peer_score::Handle,
+        min_quorum_peers: u32,
+    ) -> Self {
         let mut inner = kad::Config::default();
         inner
             .disjoint_query_paths(true)
@@ -188,6 +209,9 @@ impl Behaviour {
             inner,
             peer_score,
             cache_candidates_records: HashMap::new(),
+            min_quorum_peers,
+            #[cfg(test)]
+            early_finished_queries: std::collections::HashSet::new(),
         }
     }
 
@@ -254,9 +278,12 @@ impl Behaviour {
                             peer,
                             record: original_record,
                         })) => {
-                            if stats.num_successes() > MIN_QUORUM_PEERS
+                            if stats.num_successes() >= self.min_quorum_peers
                                 && let Some(mut query) = self.inner.query_mut(&id)
                             {
+                                #[cfg(test)]
+                                self.early_finished_queries.insert(query.id());
+
                                 query.finish();
                             }
 
@@ -425,12 +452,15 @@ impl NetworkBehaviour for Behaviour {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::validator::discovery::ValidatorIdentity;
+    use crate::{utils::tests::init_logger, validator::discovery::ValidatorIdentity};
+    use assert_matches::assert_matches;
     use ethexe_signer::Signer;
     use libp2p::{
-        Multiaddr, identity::Keypair, kad, kad::GetRecordOk as KadGetRecordOk, swarm::ConnectionId,
+        Multiaddr, Swarm, identity::Keypair, kad, kad::GetRecordOk as KadGetRecordOk,
+        swarm::ConnectionId,
     };
-    use std::{num::NonZeroUsize, str::FromStr};
+    use libp2p_swarm_test::SwarmExt;
+    use std::{collections::BTreeMap, num::NonZeroUsize, str::FromStr};
 
     fn new_identity() -> SignedValidatorIdentity {
         let signer = Signer::memory();
@@ -445,8 +475,49 @@ mod tests {
     }
 
     fn new_behaviour() -> Behaviour {
+        new_behaviour_with_quorum(KAD_MIN_QUORUM_PEERS)
+    }
+
+    fn new_behaviour_with_quorum(min_quorum_peers: u32) -> Behaviour {
         let peer_id = Keypair::generate_ed25519().public().to_peer_id();
-        Behaviour::new(peer_id, peer_score::Handle::new_test())
+        Behaviour::with_min_quorum(peer_id, peer_score::Handle::new_test(), min_quorum_peers)
+    }
+
+    async fn new_swarm_with_quorum(min_quorum_peers: u32) -> Swarm<Behaviour> {
+        let mut swarm = Swarm::new_ephemeral_tokio(move |keypair| {
+            let peer_id = keypair.public().to_peer_id();
+            Behaviour::with_min_quorum(peer_id, peer_score::Handle::new_test(), min_quorum_peers)
+        });
+        swarm.listen().with_memory_addr_external().await;
+        swarm
+    }
+
+    fn add_bootstrap_addresses<const N: usize>(swarms: [&mut Swarm<Behaviour>; N]) {
+        let peers: Vec<_> = swarms
+            .iter()
+            .map(|swarm| {
+                (
+                    *swarm.local_peer_id(),
+                    swarm.external_addresses().next().unwrap().clone(),
+                )
+            })
+            .collect();
+
+        for swarm in swarms {
+            for (peer_id, addr) in peers.clone() {
+                if peer_id == *swarm.local_peer_id() {
+                    continue;
+                }
+
+                swarm.behaviour_mut().add_address(peer_id, addr);
+            }
+        }
+    }
+
+    fn store_identity(behaviour: &mut Behaviour, signed: SignedValidatorIdentity) {
+        let record =
+            Record::ValidatorIdentity(ValidatorIdentityRecord { value: signed }).into_kad_record();
+        behaviour.inner.store_mut().put(record).unwrap();
     }
 
     #[test]
@@ -586,6 +657,40 @@ mod tests {
     }
 
     #[test]
+    fn finished_without_additional_record_removes_cached_entry() {
+        let signed = new_identity();
+        let mut behaviour = new_behaviour();
+        let validator = signed.address();
+        let query_id = behaviour.get_record(RecordKey::ValidatorIdentity(ValidatorIdentityKey {
+            validator,
+        }));
+        let cached_record = Record::ValidatorIdentity(ValidatorIdentityRecord {
+            value: signed.clone(),
+        })
+        .into_kad_record();
+        behaviour
+            .cache_candidates_records
+            .insert(query_id, cached_record);
+
+        let cache_candidates = BTreeMap::new();
+        let step = kad::ProgressStep {
+            count: NonZeroUsize::new(1).unwrap(),
+            last: true,
+        };
+        let event = kad::Event::OutboundQueryProgressed {
+            id: query_id,
+            result: kad::QueryResult::GetRecord(Ok(
+                KadGetRecordOk::FinishedWithNoAdditionalRecord { cache_candidates },
+            )),
+            stats: kad::QueryStats::empty(),
+            step,
+        };
+
+        assert_matches!(behaviour.handle_inner_event(event), Poll::Pending);
+        assert!(behaviour.cache_candidates_records.is_empty());
+    }
+
+    #[test]
     fn get_record_not_found_propagates_error() {
         let signed = new_identity();
         let mut behaviour = new_behaviour();
@@ -616,5 +721,94 @@ mod tests {
         };
         let ValidatorIdentityKey { validator: got } = key.unwrap_validator_identity();
         assert_eq!(got, validator);
+    }
+
+    #[tokio::test]
+    async fn query_finishes_once_quorum_reached() {
+        const MIN_QUORUM: u32 = 1;
+
+        init_logger();
+
+        let signed = new_identity();
+        let mut alice = new_swarm_with_quorum(MIN_QUORUM).await;
+        let mut bob = new_swarm_with_quorum(MIN_QUORUM).await;
+        let mut charlie = new_swarm_with_quorum(MIN_QUORUM).await;
+        alice.connect(&mut bob).await;
+        alice.connect(&mut charlie).await;
+        add_bootstrap_addresses([&mut alice, &mut bob, &mut charlie]);
+
+        store_identity(bob.behaviour_mut(), signed.clone());
+        tokio::spawn(bob.loop_on_next());
+        store_identity(charlie.behaviour_mut(), signed.clone());
+        tokio::spawn(charlie.loop_on_next());
+
+        let key = RecordKey::ValidatorIdentity(ValidatorIdentityKey {
+            validator: signed.address(),
+        });
+        let query_id = alice.behaviour_mut().get_record(key);
+
+        // skip events for Bob and Charlie
+        for _ in 0..2 {
+            let event = alice.next_behaviour_event().await;
+            assert_matches!(event, Event::RoutingUpdated { .. });
+        }
+
+        let record = alice
+            .next_behaviour_event()
+            .await
+            .unwrap_get_record()
+            .unwrap()
+            .record
+            .unwrap_validator_identity();
+        assert_eq!(record.value, signed);
+
+        // at this moment `inner` has not yet incremented succeeded requests counter
+        assert!(!alice.behaviour().early_finished_queries.contains(&query_id));
+
+        let record = alice
+            .next_behaviour_event()
+            .await
+            .unwrap_get_record()
+            .unwrap()
+            .record
+            .unwrap_validator_identity();
+        assert_eq!(record.value, signed);
+
+        assert!(alice.behaviour().early_finished_queries.contains(&query_id));
+    }
+
+    #[tokio::test]
+    async fn query_stays_active_when_quorum_not_met() {
+        const MIN_QUORUM: u32 = 100;
+
+        init_logger();
+
+        let signed = new_identity();
+        let mut alice = new_swarm_with_quorum(MIN_QUORUM).await;
+        let mut bob = new_swarm_with_quorum(MIN_QUORUM).await;
+        alice.connect(&mut bob).await;
+        add_bootstrap_addresses([&mut alice, &mut bob]);
+
+        store_identity(bob.behaviour_mut(), signed.clone());
+        tokio::spawn(bob.loop_on_next());
+
+        let key = RecordKey::ValidatorIdentity(ValidatorIdentityKey {
+            validator: signed.address(),
+        });
+        let query_id = alice.behaviour_mut().get_record(key);
+
+        let event = alice.next_behaviour_event().await;
+        assert_matches!(event, Event::RoutingUpdated { .. });
+
+        let record = alice
+            .next_behaviour_event()
+            .await
+            .unwrap_get_record()
+            .unwrap()
+            .record
+            .unwrap_validator_identity();
+        assert_eq!(record.value, signed);
+
+        assert!(!alice.behaviour().early_finished_queries.contains(&query_id));
     }
 }
