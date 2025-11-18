@@ -37,7 +37,6 @@ use ethexe_common::{
     Address, CodeAndId, DEFAULT_BLOCK_GAS_LIMIT,
     ecdsa::{PrivateKey, PublicKey},
     events::{BlockEvent, MirrorEvent, RouterEvent},
-    injected::RpcOrNetworkInjectedTx,
 };
 use ethexe_compute::{ComputeConfig, ComputeService};
 use ethexe_consensus::{ConsensusService, SimpleConnectService, ValidatorService};
@@ -55,7 +54,7 @@ use ethexe_observer::{EthereumConfig, ObserverEvent, ObserverService};
 use ethexe_processor::{
     DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, DEFAULT_CHUNK_PROCESSING_THREADS, Processor, RunnerConfig,
 };
-use ethexe_rpc::{InjectedClient, InjectedTransactionAcceptance, RpcConfig, RpcServer};
+use ethexe_rpc::{RpcConfig, RpcServer};
 use ethexe_signer::Signer;
 use futures::StreamExt;
 use gear_core_errors::ReplyCode;

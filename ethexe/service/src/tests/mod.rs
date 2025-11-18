@@ -39,7 +39,6 @@ use ethexe_common::{
     gear::{CANONICAL_QUARANTINE, MessageType},
     injected::{InjectedTransaction, RpcOrNetworkInjectedTx},
     mock::*,
-    network::SignedValidatorMessage,
 };
 use ethexe_compute::ComputeConfig;
 use ethexe_consensus::ConsensusEvent;
@@ -1443,10 +1442,6 @@ async fn send_injected_tx() {
         reference_block,
         salt: H256::random().0.to_vec().into(),
     };
-    let signed_tx = env
-        .signer
-        .signed_data(validator0_pubkey, tx.clone())
-        .unwrap();
 
     let tx_for_node1 = RpcOrNetworkInjectedTx {
         recipient: validator1_pubkey.to_address(),
@@ -2413,7 +2408,7 @@ async fn injected_tx_fungible_token() {
     };
 
     let rpc_tx = RpcOrNetworkInjectedTx {
-        receipient: pubkey.to_address(),
+        recipient: pubkey.to_address(),
         tx: env.signer.signed_data(pubkey, transfer_tx.clone()).unwrap(),
     };
     let ws_client = node.rpc_ws_client().await.expect("RPC WS client");

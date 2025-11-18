@@ -29,7 +29,7 @@ use apis::{
 use ethexe_common::injected::{Promise, RpcOrNetworkInjectedTx};
 use ethexe_db::Database;
 use ethexe_processor::RunnerConfig;
-use futures::{FutureExt, Stream, stream::FusedStream};
+use futures::{Stream, stream::FusedStream};
 use hyper::header::HeaderValue;
 use jsonrpsee::{
     RpcModule as JsonrpcModule,

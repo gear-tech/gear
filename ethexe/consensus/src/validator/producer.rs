@@ -29,7 +29,7 @@ use ethexe_common::{
         InjectedStorageRO,
     },
     gear::BatchCommitment,
-    network::{SignedValidatorMessage, ValidatorMessage, ValidatorPromise},
+    network::ValidatorMessage,
 };
 use ethexe_service_utils::Timer;
 use futures::{FutureExt, future::BoxFuture};
