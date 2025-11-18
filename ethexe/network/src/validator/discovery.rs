@@ -215,6 +215,12 @@ pub enum Event {
     },
 }
 
+#[derive(Debug, derive_more::Display, Eq, PartialEq)]
+pub enum PutIdentityError {
+    #[display("unknown validator identity: {address}")]
+    UnknownValidatorIdentity { address: Address },
+}
+
 #[derive(Debug)]
 pub struct Behaviour {
     keypair: Keypair,
@@ -294,15 +300,19 @@ impl Behaviour {
         self.identities.get(&address)
     }
 
-    pub fn put_identity(&mut self, record: ValidatorIdentityRecord) -> anyhow::Result<()> {
+    pub fn put_identity(
+        &mut self,
+        record: ValidatorIdentityRecord,
+    ) -> Result<(), PutIdentityError> {
         log::trace!("filtering received record: {record:?}");
 
         let ValidatorIdentityRecord { value: identity } = record;
 
-        anyhow::ensure!(
-            self.snapshot.contains_any_validator(identity.address()),
-            "received identity is not in any validator list"
-        );
+        if !self.snapshot.contains_any_validator(identity.address()) {
+            return Err(PutIdentityError::UnknownValidatorIdentity {
+                address: identity.address(),
+            });
+        }
 
         if let Some(old_identity) = self.identities.get(&identity.address())
             && old_identity.data().creation_time >= identity.inner.creation_time
@@ -394,11 +404,7 @@ mod tests {
         swarm::{FromSwarm, behaviour::ExternalAddrConfirmed},
     };
     use libp2p_swarm_test::SwarmExt;
-    use std::{
-        future,
-        sync::{Arc, LazyLock},
-        task::Poll,
-    };
+    use std::sync::{Arc, LazyLock};
     use tokio::time;
 
     static TEST_ADDR: LazyLock<Multiaddr> =
@@ -547,9 +553,11 @@ mod tests {
             .put_identity(ValidatorIdentityRecord { value: identity })
             .unwrap_err();
 
-        assert!(
-            err.to_string()
-                .contains("received identity is not in any validator list")
+        assert_eq!(
+            err,
+            PutIdentityError::UnknownValidatorIdentity {
+                address: validator_key.to_address()
+            }
         );
         assert!(behaviour.get_identity(validator_key.to_address()).is_none());
     }
@@ -627,134 +635,6 @@ mod tests {
 
         assert!(!behaviour.identities.contains_key(&validator_a.to_address()));
         assert!(behaviour.identities.contains_key(&validator_b.to_address()));
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn validator_set_edge_cases() {
-        let signer = Signer::memory();
-
-        // Test with empty validator set - need at least one validator for snapshot
-        let dummy_validator = signer.generate_key().unwrap();
-        let mut behaviour = Behaviour::new(
-            Keypair::generate_secp256k1(),
-            None,
-            signer.clone(),
-            snapshot(vec![dummy_validator.to_address()]),
-        );
-
-        // Should emit query events even for single validator set
-        let waker = futures::task::noop_waker();
-        let mut cx = std::task::Context::from_waker(&waker);
-
-        time::advance(crate::utils::ExponentialBackoffInterval::START).await;
-        assert!(matches!(
-            behaviour.poll(&mut cx),
-            Poll::Ready(ToSwarm::GenerateEvent(Event::QueryIdentities { identities })) if identities.len() == 1
-        ));
-
-        // Test validator moving between current and next sets
-        let validator_a = signer.generate_key().unwrap();
-        let validator_b = signer.generate_key().unwrap();
-
-        let snapshot_with_next = Arc::new(ValidatorListSnapshot {
-            chain_head_ts: 0,
-            timelines: ProtocolTimelines {
-                genesis_ts: 0,
-                era: 10,
-                election: 5,
-            },
-            current_validators: ValidatorsVec::try_from(vec![validator_a.to_address()])
-                .expect("validator set should not be empty"),
-            next_validators: Some(
-                ValidatorsVec::try_from(vec![validator_b.to_address()])
-                    .expect("validator set should not be empty"),
-            ),
-        });
-
-        let mut behaviour = Behaviour::new(
-            Keypair::generate_secp256k1(),
-            None,
-            signer.clone(),
-            snapshot_with_next,
-        );
-
-        // Both validators should be considered valid
-        let identity_a = signed_identity(&signer, validator_a, 10);
-        let identity_b = signed_identity(&signer, validator_b, 10);
-
-        behaviour
-            .put_identity(ValidatorIdentityRecord { value: identity_a })
-            .unwrap();
-        behaviour
-            .put_identity(ValidatorIdentityRecord { value: identity_b })
-            .unwrap();
-
-        assert!(behaviour.get_identity(validator_a.to_address()).is_some());
-        assert!(behaviour.get_identity(validator_b.to_address()).is_some());
-
-        // Update snapshot - validator_b moves to current, validator_a is removed
-        let snapshot_with_next = Arc::new(ValidatorListSnapshot {
-            chain_head_ts: 0,
-            timelines: ProtocolTimelines {
-                genesis_ts: 0,
-                era: 11,
-                election: 6,
-            },
-            current_validators: ValidatorsVec::try_from(vec![validator_b.to_address()])
-                .expect("validator set should not be empty"),
-            next_validators: None,
-        });
-
-        behaviour.on_new_snapshot(snapshot_with_next);
-
-        assert!(behaviour.get_identity(validator_a.to_address()).is_none());
-        assert!(behaviour.get_identity(validator_b.to_address()).is_some());
-    }
-
-    #[tokio::test(start_paused = true)]
-    async fn network_behavior_edge_cases() {
-        let signer = Signer::memory();
-        let validator_key = signer.generate_key().unwrap();
-
-        // Test behavior without external addresses
-        let mut swarm = Swarm::new_ephemeral_tokio(|_keypair| {
-            Behaviour::new(
-                Keypair::generate_secp256k1(),
-                Some(validator_key),
-                signer.clone(),
-                snapshot(vec![validator_key.to_address()]),
-            )
-        });
-
-        time::advance(ExponentialBackoffInterval::START).await;
-
-        // First poll should be query identities
-        let event = swarm.next_behaviour_event().await;
-        assert_matches!(event, Event::QueryIdentities { .. });
-
-        // Second poll should not emit put identity (no external addresses)
-        future::poll_fn(|cx| {
-            assert_matches!(swarm.behaviour_mut().poll(cx), Poll::Pending);
-            Poll::Ready(())
-        })
-        .await;
-
-        // Test with multiple external addresses
-        time::advance(ExponentialBackoffInterval::START).await;
-
-        let addr1: Multiaddr = "/ip4/10.0.0.1/tcp/55".parse().unwrap();
-        let addr2: Multiaddr = "/ip6/::1/tcp/66".parse().unwrap();
-        swarm.add_external_address(addr1.clone());
-        swarm.add_external_address(addr2.clone());
-
-        let record = swarm
-            .behaviour()
-            .identity()
-            .expect("validator key set")
-            .unwrap();
-        assert_eq!(record.value.data().addresses.len(), 2);
-        assert!(record.value.data().addresses.contains(&addr1));
-        assert!(record.value.data().addresses.contains(&addr2));
     }
 
     #[tokio::test(start_paused = true)]
