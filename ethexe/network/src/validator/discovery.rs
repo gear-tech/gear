@@ -225,6 +225,10 @@ impl Decode for ValidatorAddresses {
                     if peer_id != address_peer_id {
                         return Err(parity_scale_codec::Error::from("peer ID mismatch"));
                     }
+                } else {
+                    return Err(parity_scale_codec::Error::from(
+                        "last protocol should be P2P",
+                    ));
                 }
 
                 if !set.insert(addr) {
@@ -236,7 +240,7 @@ impl Decode for ValidatorAddresses {
         )?;
 
         if addresses.is_empty() {
-            return Err(parity_scale_codec::Error::from("empty addresses"));
+            return Err(parity_scale_codec::Error::from("no addresses"));
         }
 
         Ok(Self { addresses })
@@ -557,6 +561,54 @@ mod tests {
         assert_eq!(identity, decoded_identity);
     }
 
+    #[test]
+    fn different_peer_ids_in_identity() {
+        let signer = Signer::memory();
+        let validator_key = signer.generate_key().unwrap();
+        let keypair = Keypair::generate_secp256k1();
+        let identity = ValidatorIdentity {
+            addresses: ValidatorAddresses::new(
+                PeerId::random(),
+                "/ip4/127.0.0.1/tcp/123".parse().unwrap(),
+            ),
+            creation_time: 999_999,
+        };
+        let identity = identity.sign(&signer, validator_key, &keypair).unwrap();
+
+        SignedValidatorIdentity::decode(&mut &identity.encode()[..]).unwrap_err();
+    }
+
+    #[test]
+    fn encode_decode_validator_addresses() {
+        // no addresses
+        let addresses = ValidatorAddresses {
+            addresses: [].into(),
+        };
+        ValidatorAddresses::decode(&mut &addresses.encode()[..]).unwrap_err();
+
+        // no P2P protocol
+        let addresses = ValidatorAddresses {
+            addresses: [TEST_ADDR.clone()].into(),
+        };
+        ValidatorAddresses::decode(&mut &addresses.encode()[..]).unwrap_err();
+
+        // empty address
+        let addresses = ValidatorAddresses {
+            addresses: [Multiaddr::empty()].into(),
+        };
+        ValidatorAddresses::decode(&mut &addresses.encode()[..]).unwrap_err();
+
+        // different peer IDs
+        let addresses = ValidatorAddresses {
+            addresses: [
+                TEST_ADDR.clone().with_p2p(PeerId::random()).unwrap(),
+                TEST_ADDR.clone().with_p2p(PeerId::random()).unwrap(),
+            ]
+            .into(),
+        };
+        ValidatorAddresses::decode(&mut &addresses.encode()[..]).unwrap_err();
+    }
+
     #[tokio::test]
     async fn identity_returns_signed_record_when_validator_key_present() {
         let keypair = Keypair::generate_secp256k1();
@@ -773,15 +825,12 @@ mod tests {
             .sign(&signer, validator_key, &network_keypair)
             .unwrap();
 
-        // TODO: Currently accepts own records (line 293 comment)
-        // This should be filtered in the future
+        // NOTE: consider ignoring our own identity
         behaviour
             .put_identity(ValidatorIdentityRecord {
                 value: our_signed_identity.clone(),
             })
             .unwrap();
-
-        // Currently accepts it, but this might change when TODO is implemented
         assert!(behaviour.get_identity(validator_key.to_address()).is_some());
 
         // Test duplicate records from different network keys (same validator)
