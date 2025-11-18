@@ -139,9 +139,7 @@ impl RpcService {
     pub fn provide_promise(&self, promise: SignedPromise) {
         let injected_api = self.injected_api.clone();
 
-        tokio::spawn(async move {
-            injected_api.send_promise(promise).await;
-        });
+        injected_api.send_promise(promise);
     }
 }
 
