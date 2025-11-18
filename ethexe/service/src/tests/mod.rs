@@ -1978,17 +1978,14 @@ async fn execution_with_canonical_events_quarantine() {
 
         assert!(!check_for_pong(block_hash), "PONG received too early");
 
-        log::info!("📗 waiting announce for block {block_hash} computed");
         listener.wait_for_announce_computed(block_hash).await;
         env.force_new_block().await;
     }
 
     // wait for block synced with PING msg processing
-    log::info!("📗 waiting announce for block with PING processing synced");
     let _ = listener.wait_for_block_synced().await;
 
     // wait for block with PONG
-    log::info!("📗 waiting announce for block with PONG presented synced");
     let block_hash = listener.wait_for_block_synced().await;
     assert!(
         check_for_pong(block_hash),

@@ -429,7 +429,7 @@ mod tests {
             .await
             .unwrap();
 
-        let _tx = state
+        state
             .context_mut()
             .tasks
             .front_mut()
