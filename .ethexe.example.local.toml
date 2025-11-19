@@ -75,7 +75,7 @@ validator-session = "0x02ba5734d8f7091719471e7f7ed6b9df170dc70cc661ca05e688601ad
 # NOTE: Customize this parameter only for development purposes. In production, your node
 #       may fail to reach consensus with other nodes if this value is changed.
 # (optional, default: 16)
-# canonical-quarantine = 16
+canonical-quarantine = 0
 
 # Do P2P database synchronization before the main loop.
 # (optional, default: false).

@@ -215,6 +215,7 @@ nonempty = { version = "0.12.0", default-features = false }
 cc = "1.2.37"
 tap = "1.0.1"
 ntest = "0.9.3"
+dashmap = "5.5.3"
 
 # Published deps
 #

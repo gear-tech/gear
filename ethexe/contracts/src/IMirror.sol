@@ -101,13 +101,15 @@ interface IMirror {
 
     function router() external view returns (address);
 
-    function inheritor() external view returns (address);
-
-    function initializer() external view returns (address);
-
     function stateHash() external view returns (bytes32);
 
     function nonce() external view returns (uint256);
+
+    function exited() external view returns (bool);
+
+    function inheritor() external view returns (address);
+
+    function initializer() external view returns (address);
 
     /* Primary Gear logic */
 
