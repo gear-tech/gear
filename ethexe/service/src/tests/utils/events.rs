@@ -220,7 +220,6 @@ impl ObserverEventsListener {
         self.receiver.recv().await.map_err(Into::into)
     }
 
-    #[allow(unused)]
     pub async fn apply_until<R: Sized>(
         &mut self,
         mut f: impl FnMut(ObserverEvent) -> Result<ControlFlow<R>>,
@@ -235,14 +234,14 @@ impl ObserverEventsListener {
 
     pub async fn apply_until_block<R: Sized>(
         &mut self,
-        mut f: impl FnMut(H256) -> Result<ControlFlow<R>>,
+        mut f: impl FnMut(SimpleBlockData) -> Result<ControlFlow<R>>,
     ) -> Result<R> {
         self.apply_until(|event| {
-            let ObserverEvent::BlockSynced(block_hash) = event else {
+            let ObserverEvent::Block(block_data) = event else {
                 return Ok(ControlFlow::Continue(()));
             };
 
-            f(block_hash)
+            f(block_data)
         })
         .await
     }
@@ -255,7 +254,11 @@ impl ObserverEventsListener {
         mut f: impl FnMut(BlockEvent, &SimpleBlockData) -> Result<ControlFlow<R>>,
     ) -> Result<R> {
         let db = self.db.clone();
-        self.apply_until_block(|block_hash| {
+        self.apply_until(|event| {
+            let ObserverEvent::BlockSynced(block_hash) = event else {
+                return Ok(ControlFlow::Continue(()));
+            };
+
             let header = db.block_header(block_hash).expect("Block header not found");
             let events = db.block_events(block_hash).expect("Block events not found");
 
