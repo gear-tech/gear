@@ -145,7 +145,7 @@ checksum = "0942ffc6dcaadf03badf6e6a2d0228460359d5e34b57ccdc720b7382dfbd5ec5"
 [[package]]
 name = "alloy"
 version = "1.1.0"
-source = "git+https://github.com/gear-tech/alloy#7101ac47ab99c389d300a94adf0928756e387d7e"
+source = "git+https://github.com/gear-tech/alloy#04e64829c600baccbb12b8504defd2875f82b2b1"
 dependencies = [
  "alloy-consensus",
  "alloy-contract",
@@ -181,7 +181,7 @@ dependencies = [
 [[package]]
 name = "alloy-consensus"
 version = "1.1.0"
-source = "git+https://github.com/gear-tech/alloy#7101ac47ab99c389d300a94adf0928756e387d7e"
+source = "git+https://github.com/gear-tech/alloy#04e64829c600baccbb12b8504defd2875f82b2b1"
 dependencies = [
  "alloy-eips",
  "alloy-primitives",
@@ -207,7 +207,7 @@ dependencies = [
 [[package]]
 name = "alloy-consensus-any"
 version = "1.1.0"
-source = "git+https://github.com/gear-tech/alloy#7101ac47ab99c389d300a94adf0928756e387d7e"
+source = "git+https://github.com/gear-tech/alloy#04e64829c600baccbb12b8504defd2875f82b2b1"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -220,7 +220,7 @@ dependencies = [
 [[package]]
 name = "alloy-contract"
 version = "1.1.0"
-source = "git+https://github.com/gear-tech/alloy#7101ac47ab99c389d300a94adf0928756e387d7e"
+source = "git+https://github.com/gear-tech/alloy#04e64829c600baccbb12b8504defd2875f82b2b1"
 dependencies = [
  "alloy-consensus",
  "alloy-dyn-abi",
@@ -310,7 +310,7 @@ dependencies = [
 [[package]]
 name = "alloy-eips"
 version = "1.1.0"
-source = "git+https://github.com/gear-tech/alloy#7101ac47ab99c389d300a94adf0928756e387d7e"
+source = "git+https://github.com/gear-tech/alloy#04e64829c600baccbb12b8504defd2875f82b2b1"
 dependencies = [
  "alloy-eip2124",
  "alloy-eip2930",
@@ -332,7 +332,7 @@ dependencies = [
 [[package]]
 name = "alloy-genesis"
 version = "1.1.0"
-source = "git+https://github.com/gear-tech/alloy#7101ac47ab99c389d300a94adf0928756e387d7e"
+source = "git+https://github.com/gear-tech/alloy#04e64829c600baccbb12b8504defd2875f82b2b1"
 dependencies = [
  "alloy-eips",
  "alloy-primitives",
@@ -371,7 +371,7 @@ dependencies = [
 [[package]]
 name = "alloy-json-rpc"
 version = "1.1.0"
-source = "git+https://github.com/gear-tech/alloy#7101ac47ab99c389d300a94adf0928756e387d7e"
+source = "git+https://github.com/gear-tech/alloy#04e64829c600baccbb12b8504defd2875f82b2b1"
 dependencies = [
  "alloy-primitives",
  "alloy-sol-types",
@@ -385,7 +385,7 @@ dependencies = [
 [[package]]
 name = "alloy-network"
 version = "1.1.0"
-source = "git+https://github.com/gear-tech/alloy#7101ac47ab99c389d300a94adf0928756e387d7e"
+source = "git+https://github.com/gear-tech/alloy#04e64829c600baccbb12b8504defd2875f82b2b1"
 dependencies = [
  "alloy-consensus",
  "alloy-consensus-any",
@@ -410,7 +410,7 @@ dependencies = [
 [[package]]
 name = "alloy-network-primitives"
 version = "1.1.0"
-source = "git+https://github.com/gear-tech/alloy#7101ac47ab99c389d300a94adf0928756e387d7e"
+source = "git+https://github.com/gear-tech/alloy#04e64829c600baccbb12b8504defd2875f82b2b1"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -422,7 +422,7 @@ dependencies = [
 [[package]]
 name = "alloy-node-bindings"
 version = "1.1.0"
-source = "git+https://github.com/gear-tech/alloy#7101ac47ab99c389d300a94adf0928756e387d7e"
+source = "git+https://github.com/gear-tech/alloy#04e64829c600baccbb12b8504defd2875f82b2b1"
 dependencies = [
  "alloy-genesis",
  "alloy-hardforks",
@@ -469,7 +469,7 @@ dependencies = [
 [[package]]
 name = "alloy-provider"
 version = "1.1.0"
-source = "git+https://github.com/gear-tech/alloy#7101ac47ab99c389d300a94adf0928756e387d7e"
+source = "git+https://github.com/gear-tech/alloy#04e64829c600baccbb12b8504defd2875f82b2b1"
 dependencies = [
  "alloy-chains",
  "alloy-consensus",
@@ -511,7 +511,7 @@ dependencies = [
 [[package]]
 name = "alloy-pubsub"
 version = "1.1.0"
-source = "git+https://github.com/gear-tech/alloy#7101ac47ab99c389d300a94adf0928756e387d7e"
+source = "git+https://github.com/gear-tech/alloy#04e64829c600baccbb12b8504defd2875f82b2b1"
 dependencies = [
  "alloy-json-rpc",
  "alloy-primitives",
@@ -554,7 +554,7 @@ dependencies = [
 [[package]]
 name = "alloy-rpc-client"
 version = "1.1.0"
-source = "git+https://github.com/gear-tech/alloy#7101ac47ab99c389d300a94adf0928756e387d7e"
+source = "git+https://github.com/gear-tech/alloy#04e64829c600baccbb12b8504defd2875f82b2b1"
 dependencies = [
  "alloy-json-rpc",
  "alloy-primitives",
@@ -578,7 +578,7 @@ dependencies = [
 [[package]]
 name = "alloy-rpc-types"
 version = "1.1.0"
-source = "git+https://github.com/gear-tech/alloy#7101ac47ab99c389d300a94adf0928756e387d7e"
+source = "git+https://github.com/gear-tech/alloy#04e64829c600baccbb12b8504defd2875f82b2b1"
 dependencies = [
  "alloy-primitives",
  "alloy-rpc-types-anvil",
@@ -592,7 +592,7 @@ dependencies = [
 [[package]]
 name = "alloy-rpc-types-anvil"
 version = "1.1.0"
-source = "git+https://github.com/gear-tech/alloy#7101ac47ab99c389d300a94adf0928756e387d7e"
+source = "git+https://github.com/gear-tech/alloy#04e64829c600baccbb12b8504defd2875f82b2b1"
 dependencies = [
  "alloy-primitives",
  "alloy-rpc-types-eth",
@@ -603,7 +603,7 @@ dependencies = [
 [[package]]
 name = "alloy-rpc-types-any"
 version = "1.1.0"
-source = "git+https://github.com/gear-tech/alloy#7101ac47ab99c389d300a94adf0928756e387d7e"
+source = "git+https://github.com/gear-tech/alloy#04e64829c600baccbb12b8504defd2875f82b2b1"
 dependencies = [
  "alloy-consensus-any",
  "alloy-rpc-types-eth",
@@ -613,7 +613,7 @@ dependencies = [
 [[package]]
 name = "alloy-rpc-types-beacon"
 version = "1.1.0"
-source = "git+https://github.com/gear-tech/alloy#7101ac47ab99c389d300a94adf0928756e387d7e"
+source = "git+https://github.com/gear-tech/alloy#04e64829c600baccbb12b8504defd2875f82b2b1"
 dependencies = [
  "alloy-eips",
  "alloy-primitives",
@@ -628,7 +628,7 @@ dependencies = [
 [[package]]
 name = "alloy-rpc-types-engine"
 version = "1.1.0"
-source = "git+https://github.com/gear-tech/alloy#7101ac47ab99c389d300a94adf0928756e387d7e"
+source = "git+https://github.com/gear-tech/alloy#04e64829c600baccbb12b8504defd2875f82b2b1"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -644,7 +644,7 @@ dependencies = [
 [[package]]
 name = "alloy-rpc-types-eth"
 version = "1.1.0"
-source = "git+https://github.com/gear-tech/alloy#7101ac47ab99c389d300a94adf0928756e387d7e"
+source = "git+https://github.com/gear-tech/alloy#04e64829c600baccbb12b8504defd2875f82b2b1"
 dependencies = [
  "alloy-consensus",
  "alloy-consensus-any",
@@ -664,7 +664,7 @@ dependencies = [
 [[package]]
 name = "alloy-serde"
 version = "1.1.0"
-source = "git+https://github.com/gear-tech/alloy#7101ac47ab99c389d300a94adf0928756e387d7e"
+source = "git+https://github.com/gear-tech/alloy#04e64829c600baccbb12b8504defd2875f82b2b1"
 dependencies = [
  "alloy-primitives",
  "serde",
@@ -674,7 +674,7 @@ dependencies = [
 [[package]]
 name = "alloy-signer"
 version = "1.1.0"
-source = "git+https://github.com/gear-tech/alloy#7101ac47ab99c389d300a94adf0928756e387d7e"
+source = "git+https://github.com/gear-tech/alloy#04e64829c600baccbb12b8504defd2875f82b2b1"
 dependencies = [
  "alloy-primitives",
  "async-trait",
@@ -688,7 +688,7 @@ dependencies = [
 [[package]]
 name = "alloy-signer-local"
 version = "1.1.0"
-source = "git+https://github.com/gear-tech/alloy#7101ac47ab99c389d300a94adf0928756e387d7e"
+source = "git+https://github.com/gear-tech/alloy#04e64829c600baccbb12b8504defd2875f82b2b1"
 dependencies = [
  "alloy-consensus",
  "alloy-network",
@@ -776,7 +776,7 @@ dependencies = [
 [[package]]
 name = "alloy-transport"
 version = "1.1.0"
-source = "git+https://github.com/gear-tech/alloy#7101ac47ab99c389d300a94adf0928756e387d7e"
+source = "git+https://github.com/gear-tech/alloy#04e64829c600baccbb12b8504defd2875f82b2b1"
 dependencies = [
  "alloy-json-rpc",
  "auto_impl",
@@ -798,7 +798,7 @@ dependencies = [
 [[package]]
 name = "alloy-transport-http"
 version = "1.1.0"
-source = "git+https://github.com/gear-tech/alloy#7101ac47ab99c389d300a94adf0928756e387d7e"
+source = "git+https://github.com/gear-tech/alloy#04e64829c600baccbb12b8504defd2875f82b2b1"
 dependencies = [
  "alloy-json-rpc",
  "alloy-transport",
@@ -812,7 +812,7 @@ dependencies = [
 [[package]]
 name = "alloy-transport-ws"
 version = "1.1.0"
-source = "git+https://github.com/gear-tech/alloy#7101ac47ab99c389d300a94adf0928756e387d7e"
+source = "git+https://github.com/gear-tech/alloy#04e64829c600baccbb12b8504defd2875f82b2b1"
 dependencies = [
  "alloy-pubsub",
  "alloy-transport",
@@ -845,7 +845,7 @@ dependencies = [
 [[package]]
 name = "alloy-tx-macros"
 version = "1.1.0"
-source = "git+https://github.com/gear-tech/alloy#7101ac47ab99c389d300a94adf0928756e387d7e"
+source = "git+https://github.com/gear-tech/alloy#04e64829c600baccbb12b8504defd2875f82b2b1"
 dependencies = [
  "darling 0.21.3",
  "proc-macro2",
@@ -1894,7 +1894,7 @@ dependencies = [
  "bitflags 2.9.4",
  "cexpr",
  "clang-sys",
- "itertools 0.13.0",
+ "itertools 0.11.0",
  "log",
  "prettyplease 0.2.15",
  "proc-macro2",
@@ -7884,7 +7884,7 @@ dependencies = [
  "httpdate",
  "itoa",
  "pin-project-lite",
- "socket2 0.5.7",
+ "socket2 0.4.9",
  "tokio",
  "tower-service",
  "tracing",
@@ -10950,7 +10950,7 @@ version = "0.9.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fcc7c92f190c97f79b4a332f5e81dcf68c8420af2045c936c9be0bc9de6f63b5"
 dependencies = [
- "proc-macro-crate 3.1.0",
+ "proc-macro-crate 1.1.3",
  "proc-macro2",
  "quote",
  "syn 1.0.109",
@@ -13228,7 +13228,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "22505a5c94da8e3b7c2996394d1c933236c4d743e81a410bcca4e6989fc066a4"
 dependencies = [
  "bytes",
- "heck 0.5.0",
+ "heck 0.4.1",
  "itertools 0.12.1",
  "log",
  "multimap",
