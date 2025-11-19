@@ -4964,6 +4964,7 @@ dependencies = [
  "ethexe-service-utils",
  "ethexe-signer",
  "futures",
+ "gear-core",
  "gear-utils",
  "gprimitives",
  "hashbrown 0.14.5",
