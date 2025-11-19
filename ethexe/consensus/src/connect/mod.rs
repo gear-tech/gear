@@ -245,7 +245,6 @@ impl ConsensusService for ConnectService {
             match announces::accept_announce(
                 &self.db,
                 announce.clone(),
-                self.commitment_delay_limit,
             )? {
                 AnnounceStatus::Rejected { announce, reason } => {
                     tracing::warn!(

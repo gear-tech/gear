@@ -172,7 +172,6 @@ impl Subordinate {
         match announces::accept_announce(
             &self.ctx.core.db,
             announce.clone(),
-            self.ctx.core.commitment_delay_limit,
         )? {
             AnnounceStatus::Accepted(announce_hash) => {
                 self.ctx
