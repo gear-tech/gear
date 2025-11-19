@@ -75,7 +75,7 @@ fn init_new_block_from_parent(processor: &mut Processor, parent_hash: H256) -> H
 }
 
 fn setup_test_env_and_load_codes<const N: usize>(
-    codes: &[&[u8];N],
+    codes: &[&[u8]; N],
 ) -> (Processor, ProcessingHandler, [CodeId; N]) {
     let mut code_ids = Vec::new();
 
