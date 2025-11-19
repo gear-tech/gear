@@ -88,6 +88,7 @@
 //!    then `announce1` is strict predecessor of `announce` and is predecessor of each
 //!    announce from `lpb.announces`.
 
+use crate::tx_validation::{TxValidity, TxValidityChecker};
 use anyhow::{Result, anyhow, ensure};
 use ethexe_common::{
     Announce, HashOf, SimpleBlockData,
@@ -95,15 +96,20 @@ use ethexe_common::{
         AnnounceStorageRW, BlockMetaStorageRW, InjectedStorageRW, LatestDataStorageRO,
         OnChainStorageRO,
     },
-    injected::{TxValidity, TxValidityChecker},
     network::{AnnouncesRequest, AnnouncesRequestUntil},
 };
 use ethexe_ethereum::primitives::map::HashMap;
+use ethexe_runtime_common::state::Storage;
 use gprimitives::H256;
 use std::collections::{BTreeSet, VecDeque};
 
 pub trait DBAnnouncesExt:
-    AnnounceStorageRW + BlockMetaStorageRW + OnChainStorageRO + LatestDataStorageRO + InjectedStorageRW
+    AnnounceStorageRW
+    + BlockMetaStorageRW
+    + OnChainStorageRO
+    + LatestDataStorageRO
+    + InjectedStorageRW
+    + Storage
 {
     /// Collects blocks from the chain head backwards till the first propagated block found.
     fn collect_blocks_without_announces(&self, head: H256) -> Result<VecDeque<SimpleBlockData>>;
@@ -129,7 +135,8 @@ impl<
         + BlockMetaStorageRW
         + OnChainStorageRO
         + LatestDataStorageRO
-        + InjectedStorageRW,
+        + InjectedStorageRW
+        + Storage,
 > DBAnnouncesExt for DB
 {
     fn collect_blocks_without_announces(&self, head: H256) -> Result<VecDeque<SimpleBlockData>> {

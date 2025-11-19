@@ -13,6 +13,7 @@ ethexe-service-utils.workspace = true
 ethexe-signer.workspace = true
 ethexe-ethereum.workspace = true
 ethexe-common.workspace = true
+ethexe-runtime-common.workspace = true
 gprimitives = { workspace = true, features = ["codec", "std"] }
 
 async-trait.workspace = true

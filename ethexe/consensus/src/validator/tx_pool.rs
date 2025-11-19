@@ -16,13 +16,15 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use crate::tx_validation::{TxValidity, TxValidityChecker};
 use anyhow::Result;
 use ethexe_common::{
     Announce, HashOf,
     db::{AnnounceStorageRO, CodesStorageRO, InjectedStorageRW, OnChainStorageRO},
-    injected::{InjectedTransaction, SignedInjectedTransaction, TxValidity, TxValidityChecker},
+    injected::{InjectedTransaction, SignedInjectedTransaction},
 };
 use ethexe_db::Database;
+use ethexe_runtime_common::state::Storage;
 use gprimitives::H256;
 use std::collections::HashSet;
 
@@ -36,7 +38,7 @@ pub(crate) struct InjectedTxPool<DB = Database> {
 
 impl<DB> InjectedTxPool<DB>
 where
-    DB: OnChainStorageRO + InjectedStorageRW + AnnounceStorageRO + CodesStorageRO + Clone,
+    DB: OnChainStorageRO + InjectedStorageRW + AnnounceStorageRO + CodesStorageRO + Storage + Clone,
 {
     pub fn new(db: DB) -> Self {
         Self {
@@ -87,6 +89,9 @@ where
                     tracing::trace!(tx_hash = ?tx_hash, "tx on different branch, keeping in pool");
                 }
                 TxValidity::Outdated => outdated_txs.push((*reference_block, *tx_hash)),
+                TxValidity::UninitializedDestination => {
+                    // TODO:
+                }
             }
         }
 
