@@ -5117,6 +5117,7 @@ name = "ethexe-rpc"
 version = "1.9.2"
 dependencies = [
  "anyhow",
+ "dashmap 5.5.3",
  "ethexe-common",
  "ethexe-db",
  "ethexe-processor",

@@ -28,6 +28,7 @@ sp-core = { workspace = true, features = ["serde"] }
 gear-core = { workspace = true, features = ["std"] }
 serde = { workspace = true, features = ["std"] }
 tracing.workspace = true
+dashmap.workspace = true
 
 [features]
 test-utils = ["jsonrpsee/client"]
