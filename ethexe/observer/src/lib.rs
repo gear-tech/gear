@@ -89,21 +89,6 @@ impl Stream for ObserverService {
     type Item = Result<ObserverEvent>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        if self.sync_future.is_none()
-            && let Some(header) = self.block_sync_queue.pop_back()
-        {
-            self.sync_future = Some(self.chain_sync.clone().sync(header).boxed());
-        }
-
-        if let Some(fut) = self.sync_future.as_mut()
-            && let Poll::Ready(result) = fut.poll_unpin(cx)
-        {
-            self.sync_future = None;
-
-            let maybe_event = result.map(ObserverEvent::BlockSynced);
-            return Poll::Ready(Some(maybe_event));
-        }
-
         // If subscription stream finished working, a new subscription is requested to be created.
         // The subscription creation request is a future itself, and it is polled here. If it's ready,
         // a new stream from it is created and used further to poll the next header.
@@ -144,6 +129,21 @@ impl Stream for ObserverService {
             self.block_sync_queue.push_front(header);
 
             return Poll::Ready(Some(Ok(ObserverEvent::Block(data))));
+        }
+
+        if self.sync_future.is_none()
+            && let Some(header) = self.block_sync_queue.pop_back()
+        {
+            self.sync_future = Some(self.chain_sync.clone().sync(header).boxed());
+        }
+
+        if let Some(fut) = self.sync_future.as_mut()
+            && let Poll::Ready(result) = fut.poll_unpin(cx)
+        {
+            self.sync_future = None;
+
+            let maybe_event = result.map(ObserverEvent::BlockSynced);
+            return Poll::Ready(Some(maybe_event));
         }
 
         Poll::Pending
