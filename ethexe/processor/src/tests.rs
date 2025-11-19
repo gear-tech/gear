@@ -1155,8 +1155,8 @@ async fn injected_ping_pong() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn injected_prioritized_over_canonical() {
-    const MSG_NUM: usize = 75;
-    const GAS_ALLOWANCE: u64 = 400_000_000;
+    const MSG_NUM: usize = 100;
+    const GAS_ALLOWANCE: u64 = 600_000_000;
 
     init_logger();
 
@@ -1238,12 +1238,18 @@ async fn injected_prioritized_over_canonical() {
 
     processor.process_queue(&mut handler).await;
 
-    let to_users = handler.transitions.current_messages();
+    let mut to_users = handler.transitions.current_messages().into_iter();
+
+    // Skip INIT reply
+    let (_, init_reply) = to_users.next().unwrap();
+    assert_eq!(
+        init_reply.reply_details.unwrap().to_message_id(),
+        MessageId::from(1)
+    );
 
     // Verify that injected messages were processed first
-    // (skip first message which is INIT reply)
     let mut is_canonical_found = false;
-    for (_, message) in to_users.into_iter().skip(1) {
+    for (_, message) in to_users {
         if message.destination == canonical_user {
             is_canonical_found = true;
         } else if is_canonical_found && message.destination == injected_user {

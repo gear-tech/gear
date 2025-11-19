@@ -672,7 +672,7 @@ where
 
 #[cfg(test)]
 mod tests {
-    use gear_core::message::StoredMessage;
+    use gear_core::message::{Message as CoreMessage, StoredMessage};
 
     use super::*;
 
@@ -763,14 +763,26 @@ mod tests {
         let mut handler = init_setup(500_000_000_000, MessageType::Canonical, true);
 
         // Note unhandled (not processed in RuntimeJournalHandler)
-        let (unhandled, state_hash) = handler.handle_journal(vec![JournalNote::UpdatePage {
-            program_id: ActorId::new([1u8; 32]),
-            page_number: 16.into(),
-            data: PageBuf::new_zeroed(),
+        let (unhandled, state_hash) = handler.handle_journal(vec![JournalNote::SendDispatch {
+            message_id: MessageId::new([1u8; 32]),
+            dispatch: CoreDispatch::new(
+                DispatchKind::Handle,
+                CoreMessage::new(
+                    MessageId::new([2u8; 32]),
+                    ActorId::new([1u8; 32]),
+                    ActorId::new([2u8; 32]),
+                    Default::default(),
+                    None,
+                    0,
+                    None,
+                ),
+            ),
+            delay: 0,
+            reservation: None,
         }]);
 
-        assert!(unhandled.is_empty());
-        assert!(state_hash.is_some());
+        assert_eq!(unhandled.len(), 1);
+        assert!(state_hash.is_none());
 
         // Note will be processed in here (in RuntimeJournalHandler) and also forwarded to `NativeJournalHandler`
         // and produce state hash update.
@@ -794,10 +806,10 @@ mod tests {
         assert!(state_hash.is_some());
 
         // Note only processed in here (in RuntimeJournalHandler) and produce state hash update.
-        let (unhandled, state_hash) = handler.handle_journal(vec![JournalNote::GasBurned {
-            message_id: MessageId::new([0u8; 32]),
-            amount: 5000,
-            is_panic: false,
+        let (unhandled, state_hash) = handler.handle_journal(vec![JournalNote::UpdatePage {
+            program_id: ActorId::new([1u8; 32]),
+            page_number: 16.into(),
+            data: PageBuf::new_zeroed(),
         }]);
         assert!(unhandled.is_empty());
         assert!(state_hash.is_some());
