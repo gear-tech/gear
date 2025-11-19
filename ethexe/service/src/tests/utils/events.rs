@@ -112,8 +112,14 @@ impl ServiceEventsListener<'_> {
         &mut self,
         mut f: impl FnMut(TestingEvent) -> Result<bool>,
     ) -> Result<()> {
-        self.apply_until(|e| if f(e)? { Ok(Some(())) } else { Ok(None) })
-            .await
+        self.apply_until(|e| {
+            if f(e)? {
+                Ok(ControlFlow::Break(()))
+            } else {
+                Ok(ControlFlow::Continue(()))
+            }
+        })
+        .await
     }
 
     pub async fn wait_for_announce_computed(
@@ -158,20 +164,23 @@ impl ServiceEventsListener<'_> {
 
     pub async fn apply_until<R: Sized>(
         &mut self,
-        mut f: impl FnMut(TestingEvent) -> Result<Option<R>>,
+        mut f: impl FnMut(TestingEvent) -> Result<ControlFlow<R>>,
     ) -> Result<R> {
         loop {
             let event = self.next_event().await?;
-            if let Some(res) = f(event)? {
+            if let ControlFlow::Break(res) = f(event)? {
                 return Ok(res);
             }
         }
     }
 
     pub async fn wait_for_block_synced(&mut self) -> H256 {
-        self.apply_until(|event| match event {
-            TestingEvent::Observer(ObserverEvent::BlockSynced(block_hash)) => Ok(Some(block_hash)),
-            _ => Ok(None),
+        self.apply_until(|event| {
+            if let TestingEvent::Observer(ObserverEvent::BlockSynced(block_hash)) = event {
+                Ok(ControlFlow::Break(block_hash))
+            } else {
+                Ok(ControlFlow::Continue(()))
+            }
         })
         .await
         .unwrap()

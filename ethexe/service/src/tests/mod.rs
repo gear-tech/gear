@@ -2415,10 +2415,10 @@ async fn injected_tx_fungible_token() {
                 );
                 assert_eq!(promise.reply.value, 0);
 
-                return Ok(Some(()));
+                return Ok(ControlFlow::Break(()));
             }
 
-            Ok(None)
+            Ok(ControlFlow::Continue(()))
         })
         .await
         .unwrap();
@@ -2466,10 +2466,10 @@ async fn injected_tx_fungible_token() {
                 );
                 assert_eq!(promise.reply.value, 0);
 
-                return Ok(Some(()));
+                return Ok(ControlFlow::Break(()));
             }
 
-            Ok(None)
+            Ok(ControlFlow::Continue(()))
         })
         .await
         .unwrap();
@@ -2480,7 +2480,7 @@ async fn injected_tx_fungible_token() {
         .apply_until(|event| {
             if let TestingEvent::Observer(ObserverEvent::BlockSynced(synced_block)) = event {
                 let Some(block_events) = db.block_events(synced_block) else {
-                    return Ok(None);
+                    return Ok(ControlFlow::Continue(()));
                 };
 
                 for block_event in block_events {
@@ -2494,12 +2494,12 @@ async fn injected_tx_fungible_token() {
                         assert_eq!(state.balance, 0);
                         assert_eq!(state.injected_queue.cached_queue_size, 0);
                         assert_eq!(state.canonical_queue.cached_queue_size, 0);
-                        return Ok(Some(()));
+                        return Ok(ControlFlow::Break(()));
                     }
                 }
             }
 
-            Ok(None)
+            Ok(ControlFlow::Continue(()))
         })
         .await
         .unwrap();
@@ -2660,12 +2660,15 @@ async fn announces_conflicts() {
         // Validators 1..=6 must reject this announce
         futures::future::join_all(listeners.iter_mut().map(|l| {
             l.apply_until(|event| {
-                Ok(matches!(
+                if matches!(
                     event,
                     TestingEvent::Consensus(ConsensusEvent::AnnounceRejected(rejected_announce_hash))
                         if rejected_announce_hash == announce_hash
-                )
-                .then_some(()))
+                ) {
+                    Ok(ControlFlow::Break(()))
+                } else {
+                    Ok(ControlFlow::Continue(()))
+                }
             })
         }))
         .await
@@ -2788,12 +2791,15 @@ async fn announces_conflicts() {
         // Validators 1..=5 must reject this announce
         futures::future::join_all(listeners.iter_mut().map(|l| {
             l.apply_until(|event| {
-                Ok(matches!(
+                if matches!(
                     event,
                     TestingEvent::Consensus(ConsensusEvent::AnnounceRejected(announce_hash))
                         if announce_hash == announce7_hash
-                )
-                .then_some(()))
+                ) {
+                    Ok(ControlFlow::Break(()))
+                } else {
+                    Ok(ControlFlow::Continue(()))
+                }
             })
         }))
         .await

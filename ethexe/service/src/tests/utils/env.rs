@@ -1046,9 +1046,9 @@ impl Node {
                 .listener()
                 .apply_until(|e| {
                     if let TestingEvent::FastSyncDone(block) = e {
-                        Ok(Some(block))
+                        Ok(ControlFlow::Break(block))
                     } else {
-                        Ok(None)
+                        Ok(ControlFlow::Continue(()))
                     }
                 })
                 .await
