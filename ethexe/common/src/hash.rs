@@ -103,7 +103,8 @@ impl<T> HashOf<T> {
         }
     }
 
-    pub fn hash(self) -> H256 {
+    /// Note: previous named `hash()`, but renamed to `inner()` to avoid confusion with `Hash` trait.
+    pub fn inner(self) -> H256 {
         self.hash
     }
 
@@ -142,7 +143,7 @@ pub struct MaybeHashOf<T: 'static>(Option<HashOf<T>>);
 
 impl<T> Debug for MaybeHashOf<T> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        let option_string = option_string(&Self::to_inner(*self).map(HashOf::hash));
+        let option_string = option_string(&Self::to_inner(*self).map(HashOf::inner));
         write!(f, "MaybeHashOf<{}>({})", shortname::<T>(), option_string)
     }
 }

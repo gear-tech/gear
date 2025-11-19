@@ -19,7 +19,7 @@ async-trait.workspace = true
 tokio.workspace = true
 parity-scale-codec = { workspace = true, features = ["std", "derive"] }
 tracing.workspace = true
-anyhow.workspace = true
+anyhow = { workspace = true, features = ["std"] }
 futures.workspace = true
 derive_more.workspace = true
 nonempty.workspace = true
@@ -27,9 +27,11 @@ rand = "0.8"
 rand_chacha = "0.3"
 roast-secp256k1-evm.workspace = true
 hashbrown.workspace = true
+lru.workspace = true
 
 [dev-dependencies]
 tokio.workspace = true
 ethexe-common = { workspace = true, features = ["mock"] }
 gear-utils.workspace = true
 ntest.workspace = true
+proptest.workspace = true

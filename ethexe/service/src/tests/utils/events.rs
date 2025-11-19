@@ -17,11 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::Event;
-use anyhow::{Result, anyhow};
+use anyhow::Result;
 use ethexe_blob_loader::BlobLoaderEvent;
 use ethexe_common::{
-    Announce, HashOf, SimpleBlockData, db::*, events::BlockEvent,
-    injected::SignedInjectedTransaction, tx_pool::SignedOffchainTransaction,
+    Announce, HashOf, SimpleBlockData, db::*, events::BlockEvent, injected::RpcOrNetworkInjectedTx,
 };
 use ethexe_compute::ComputeEvent;
 use ethexe_consensus::ConsensusEvent;
@@ -30,35 +29,20 @@ use ethexe_network::NetworkEvent;
 use ethexe_observer::ObserverEvent;
 use ethexe_prometheus::PrometheusEvent;
 use ethexe_rpc::RpcEvent;
-use ethexe_tx_pool::TxPoolEvent;
 use gprimitives::H256;
-use tokio::sync::{
-    broadcast,
-    broadcast::{Receiver, Sender},
-};
+use tokio::sync::broadcast::{self, Receiver, Sender};
 
 pub type TestingEventSender = Sender<TestingEvent>;
 pub type TestingEventReceiver = Receiver<TestingEvent>;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum TestingRpcEvent {
-    OffchainTransaction {
-        transaction: SignedOffchainTransaction,
-    },
-    InjectedTransaction {
-        transaction: SignedInjectedTransaction,
-    },
+    InjectedTransaction { transaction: RpcOrNetworkInjectedTx },
 }
 
 impl TestingRpcEvent {
     fn new(event: &RpcEvent) -> Self {
         match event {
-            RpcEvent::OffchainTransaction {
-                transaction,
-                response_sender: _,
-            } => Self::OffchainTransaction {
-                transaction: transaction.clone(),
-            },
             RpcEvent::InjectedTransaction {
                 transaction,
                 response_sender: _,
@@ -84,7 +68,7 @@ pub(crate) enum TestingEvent {
     BlobLoader(BlobLoaderEvent),
     Prometheus(PrometheusEvent),
     Rpc(TestingRpcEvent),
-    TxPool(TxPoolEvent),
+    Fetching,
 }
 
 impl TestingEvent {
@@ -97,7 +81,7 @@ impl TestingEvent {
             Event::BlobLoader(event) => Self::BlobLoader(event.clone()),
             Event::Prometheus(event) => Self::Prometheus(event.clone()),
             Event::Rpc(event) => Self::Rpc(TestingRpcEvent::new(event)),
-            Event::TxPool(event) => Self::TxPool(event.clone()),
+            Event::Fetching(_) => Self::Fetching,
         }
     }
 }
@@ -123,12 +107,18 @@ impl ServiceEventsListener<'_> {
         self.receiver.recv().await.map_err(Into::into)
     }
 
-    pub async fn wait_for(&mut self, f: impl Fn(TestingEvent) -> Result<bool>) -> Result<()> {
+    pub async fn wait_for(
+        &mut self,
+        mut f: impl FnMut(TestingEvent) -> Result<bool>,
+    ) -> Result<()> {
         self.apply_until(|e| if f(e)? { Ok(Some(())) } else { Ok(None) })
             .await
     }
 
-    pub async fn wait_for_announce_computed(&mut self, id: impl Into<AnnounceId>) {
+    pub async fn wait_for_announce_computed(
+        &mut self,
+        id: impl Into<AnnounceId>,
+    ) -> HashOf<Announce> {
         let id = id.into();
         loop {
             let event = self.next_event().await.unwrap();
@@ -138,25 +128,26 @@ impl ServiceEventsListener<'_> {
 
             match id {
                 AnnounceId::Any => {
-                    return;
+                    break announce_hash;
                 }
                 AnnounceId::AnnounceHash(waited_announce_hash)
                     if waited_announce_hash == announce_hash =>
                 {
-                    return;
+                    break announce_hash;
                 }
                 AnnounceId::BlockHash(waited_block_hash) => {
                     if self
                         .db
                         .announce(announce_hash)
-                        .ok_or_else(|| {
-                            anyhow!("Announce {announce_hash} not found in listener's node DB")
+                        .unwrap_or_else(|| {
+                            panic!(
+                                "Computed announce {announce_hash} not found in listener's node DB"
+                            )
                         })
-                        .unwrap()
                         .block_hash
                         == waited_block_hash
                     {
-                        return;
+                        break announce_hash;
                     }
                 }
                 _ => continue,
@@ -166,7 +157,7 @@ impl ServiceEventsListener<'_> {
 
     pub async fn apply_until<R: Sized>(
         &mut self,
-        f: impl Fn(TestingEvent) -> Result<Option<R>>,
+        mut f: impl FnMut(TestingEvent) -> Result<Option<R>>,
     ) -> Result<R> {
         loop {
             let event = self.next_event().await?;
@@ -174,6 +165,15 @@ impl ServiceEventsListener<'_> {
                 return Ok(res);
             }
         }
+    }
+
+    pub async fn wait_for_block_synced(&mut self) -> H256 {
+        self.apply_until(|event| match event {
+            TestingEvent::Observer(ObserverEvent::BlockSynced(block_hash)) => Ok(Some(block_hash)),
+            _ => Ok(None),
+        })
+        .await
+        .unwrap()
     }
 }
 

@@ -53,7 +53,7 @@ impl StateHandler for Submitter {
     fn poll_next_state(mut self, cx: &mut Context<'_>) -> Result<(Poll<()>, ValidatorState)> {
         match self.future.poll_unpin(cx) {
             Poll::Ready(Ok(tx)) => {
-                self.output(ConsensusEvent::CommitmentSubmitted(tx));
+                self.ctx.output(ConsensusEvent::CommitmentSubmitted(tx));
 
                 Initial::create(self.ctx).map(|s| (Poll::Ready(()), s))
             }

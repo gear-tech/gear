@@ -17,36 +17,71 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{RpcEvent, errors};
-use ethexe_common::injected::SignedInjectedTransaction;
+use dashmap::DashMap;
+use ethexe_common::{
+    HashOf,
+    injected::{InjectedTransaction, RpcOrNetworkInjectedTx, SignedPromise},
+};
 use jsonrpsee::{
-    core::{RpcResult, async_trait},
+    PendingSubscriptionSink, SubscriptionMessage,
+    core::{RpcResult, SubscriptionResult, async_trait},
     proc_macros::rpc,
 };
 use serde::{Deserialize, Serialize};
-use tokio::sync::{mpsc::UnboundedSender, oneshot};
+use std::sync::Arc;
+use tokio::sync::{mpsc, oneshot};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum InjectedTransactionAcceptance {
     Accept,
+    Reject { reason: String },
 }
 
-#[rpc(server)]
+#[cfg_attr(not(feature = "test-utils"), rpc(server))]
+#[cfg_attr(feature = "test-utils", rpc(server, client))]
 pub trait Injected {
     #[method(name = "injected_sendTransaction")]
     async fn send_transaction(
         &self,
-        transaction: SignedInjectedTransaction,
+        transaction: RpcOrNetworkInjectedTx,
     ) -> RpcResult<InjectedTransactionAcceptance>;
+
+    #[subscription(
+        name = "injected_subscribeTransactionPromise",
+        unsubscribe = "injected_unsubscribeTransactionPromise", 
+        item = SignedPromise
+    )]
+    async fn send_transaction_and_watch(
+        &self,
+        transaction: RpcOrNetworkInjectedTx,
+    ) -> SubscriptionResult;
 }
 
 #[derive(Debug, Clone)]
 pub struct InjectedApi {
-    rpc_sender: UnboundedSender<RpcEvent>,
+    rpc_sender: mpsc::UnboundedSender<RpcEvent>,
+    promise_waiters: Arc<DashMap<HashOf<InjectedTransaction>, oneshot::Sender<SignedPromise>>>,
 }
 
 impl InjectedApi {
-    pub(crate) fn new(rpc_sender: UnboundedSender<RpcEvent>) -> Self {
-        Self { rpc_sender }
+    pub(crate) fn new(rpc_sender: mpsc::UnboundedSender<RpcEvent>) -> Self {
+        Self {
+            rpc_sender,
+            promise_waiters: Arc::new(DashMap::new()),
+        }
+    }
+}
+
+impl InjectedApi {
+    pub fn send_promise(&self, promise: SignedPromise) {
+        let Some((_, promise_sender)) = self.promise_waiters.remove(&promise.data().tx_hash) else {
+            tracing::warn!(promise = ?promise, "receive unregistered promise");
+            return;
+        };
+
+        if let Err(promise) = promise_sender.send(promise) {
+            tracing::trace!(promise = ?promise, "rpc promise receiver dropped");
+        }
     }
 }
 
@@ -54,25 +89,23 @@ impl InjectedApi {
 impl InjectedServer for InjectedApi {
     async fn send_transaction(
         &self,
-        transaction: SignedInjectedTransaction,
+        transaction: RpcOrNetworkInjectedTx,
     ) -> RpcResult<InjectedTransactionAcceptance> {
-        log::debug!("Called send_message with vars: {transaction:?}");
+        tracing::trace!("Called injected_sendTransaction with vars: {transaction:?}");
 
         let (response_sender, response_receiver) = oneshot::channel();
-        self.rpc_sender
-            .send(RpcEvent::InjectedTransaction {
-                transaction,
-                response_sender,
-            })
-            .map_err(|e| {
-                // That could be a panic case, as rpc_receiver must not be dropped,
-                // but the main service works independently from rpc and can be malformed.
-                log::error!(
-                    "Failed to send `RpcEvent::InjectedTransaction` event task: {e}. \
-                    The receiving end in the main service might have been dropped."
-                );
-                errors::internal()
-            })?;
+        let event = RpcEvent::InjectedTransaction {
+            transaction,
+            response_sender,
+        };
+
+        if let Err(err) = self.rpc_sender.send(event) {
+            log::error!(
+                "Failed to send `RpcEvent::InjectedTransaction` event task: {err}. \
+                The receiving end in the main service might have been dropped."
+            );
+            return Err(errors::internal());
+        }
 
         response_receiver.await.map_err(|e| {
             // No panic case, as a responsibility of the RPC API is fulfilled.
@@ -81,5 +114,86 @@ impl InjectedServer for InjectedApi {
             log::error!("Response sender for the `RpcEvent::InjectedTransaction` was dropped: {e}");
             errors::internal()
         })
+    }
+
+    async fn send_transaction_and_watch(
+        &self,
+        pending: PendingSubscriptionSink,
+        transaction: RpcOrNetworkInjectedTx,
+    ) -> SubscriptionResult {
+        let tx_hash = transaction.tx.data().to_hash();
+
+        // Checks, that transaction wasn't already send.
+        if self.promise_waiters.get(&tx_hash).is_some() {
+            tracing::warn!(tx_hash = ?tx_hash, "transaction was already sent");
+            return Err(
+                format!("transaction with the same hash was already sent: {tx_hash}").into(),
+            );
+        }
+
+        let (response_sender, response_receiver) = oneshot::channel();
+        let (promise_sender, promise_receiver) = oneshot::channel();
+
+        let event = RpcEvent::InjectedTransaction {
+            transaction,
+            response_sender,
+        };
+
+        if let Err(err) = self.rpc_sender.send(event) {
+            log::error!(
+                "Failed to send `RpcEvent::InjectedTransaction` event task: {err}. \
+                The receiving end in the main service might have been dropped."
+            );
+            return Err(errors::internal().into());
+        }
+
+        if let InjectedTransactionAcceptance::Reject { reason } = response_receiver.await? {
+            tracing::trace!(
+                tx_hash = ?tx_hash,
+                reject_reason = ?reason,
+                "reject injected transaction"
+            );
+            pending.reject(errors::bad_request(reason)).await;
+            return Ok(());
+        }
+
+        let subscription_sink = match pending.accept().await {
+            Ok(sink) => sink,
+            Err(err) => {
+                tracing::warn!(
+                    "failed to accept subscription for injected transaction promise: {err}"
+                );
+                return Ok(());
+            }
+        };
+
+        self.promise_waiters.insert(tx_hash, promise_sender);
+
+        tokio::spawn(async move {
+            let Ok(promise) = promise_receiver.await else {
+                return;
+            };
+
+            let promise_msg = match SubscriptionMessage::from_json(&promise) {
+                Ok(msg) => msg,
+                Err(err) => {
+                    tracing::error!(
+                        error = %err,
+                        "failed to create `SubscriptionMessage` from json object"
+                    );
+                    return;
+                }
+            };
+
+            if let Err(err) = subscription_sink.send(promise_msg).await {
+                tracing::warn!(
+                    tx_hash = ?tx_hash,
+                    error = %err,
+                    "failed to send subscription message"
+                )
+            }
+        });
+
+        Ok(())
     }
 }

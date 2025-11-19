@@ -38,7 +38,7 @@ impl From<ChainCommitment> for Gear::ChainCommitment {
     fn from(value: ChainCommitment) -> Self {
         Self {
             transitions: value.transitions.into_iter().map(Into::into).collect(),
-            head: value.head_announce.hash().0.into(),
+            head: value.head_announce.inner().0.into(),
         }
     }
 }
@@ -182,6 +182,7 @@ impl From<StateTransition> for Gear::StateTransition {
             exited: value.exited,
             inheritor: actor_id_to_address_lossy(value.inheritor),
             valueToReceive: value.value_to_receive,
+            valueToReceiveNegativeSign: value.value_to_receive_negative_sign,
             valueClaims: value.value_claims.into_iter().map(Into::into).collect(),
             messages: value.messages.into_iter().map(Into::into).collect(),
         }

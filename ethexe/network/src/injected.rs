@@ -22,7 +22,7 @@ use crate::{
     utils::ParityScaleCodec,
     validator,
 };
-use ethexe_common::injected::SignedInjectedTransaction;
+use ethexe_common::injected::{RpcOrNetworkInjectedTx, SignedInjectedTransaction};
 use libp2p::{
     StreamProtocol,
     core::{Endpoint, transport::PortUse},
@@ -78,7 +78,7 @@ impl Behaviour {
     pub fn send_transaction(
         &mut self,
         discovery: &mut validator::discovery::Behaviour,
-        transaction: SignedInjectedTransaction,
+        transaction: RpcOrNetworkInjectedTx,
     ) {
         if let Some(identity) = discovery.get_identity(transaction.data().recipient) {
             let peer = identity.peer_id();

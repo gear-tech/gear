@@ -23,7 +23,7 @@ use crate::{
     peer_score,
 };
 use anyhow::anyhow;
-use ethexe_common::{Address, network::SignedValidatorMessage, tx_pool::SignedOffchainTransaction};
+use ethexe_common::{Address, network::SignedValidatorMessage};
 use libp2p::{
     core::{Endpoint, transport::PortUse},
     gossipsub,
@@ -43,21 +43,18 @@ use std::{
 #[derive(Debug, derive_more::From)]
 pub enum Message {
     Commitments(SignedValidatorMessage),
-    Offchain(SignedOffchainTransaction),
 }
 
 impl Message {
     fn topic_hash(&self, behaviour: &Behaviour) -> TopicHash {
         match self {
             Message::Commitments(_) => behaviour.commitments_topic.hash(),
-            Message::Offchain(_) => behaviour.offchain_topic.hash(),
         }
     }
 
     fn encode(&self) -> Vec<u8> {
         match self {
             Message::Commitments(message) => message.encode(),
-            Message::Offchain(transaction) => transaction.encode(),
         }
     }
 }
@@ -111,7 +108,6 @@ pub(crate) struct Behaviour {
     // TODO: consider to limit queue
     message_queue: VecDeque<Message>,
     commitments_topic: IdentTopic,
-    offchain_topic: IdentTopic,
 }
 
 impl Behaviour {
@@ -121,7 +117,6 @@ impl Behaviour {
         router_address: Address,
     ) -> anyhow::Result<Self> {
         let commitments_topic = Self::topic_with_router("commitments", router_address);
-        let offchain_topic = Self::topic_with_router("offchain", router_address);
 
         let inner = ConfigBuilder::default()
             // dedup messages
@@ -140,14 +135,12 @@ impl Behaviour {
             .with_peer_score(PeerScoreParams::default(), PeerScoreThresholds::default())
             .map_err(|e| anyhow!("`gossipsub` scoring parameters error: {e}"))?;
         inner.subscribe(&commitments_topic)?;
-        inner.subscribe(&offchain_topic)?;
 
         Ok(Self {
             inner,
             peer_score,
             message_queue: VecDeque::new(),
             commitments_topic,
-            offchain_topic,
         })
     }
 
@@ -177,8 +170,6 @@ impl Behaviour {
 
                 let res = if topic == self.commitments_topic.hash() {
                     SignedValidatorMessage::decode(&mut &data[..]).map(Message::Commitments)
-                } else if topic == self.offchain_topic.hash() {
-                    SignedOffchainTransaction::decode(&mut &data[..]).map(Message::Offchain)
                 } else {
                     unreachable!("topic we never subscribed to: {topic:?}");
                 };

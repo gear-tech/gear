@@ -45,7 +45,7 @@ pub use core_processor::configs::BlockInfo;
 use gear_core::code::InstrumentedCodeAndMetadata;
 pub use journal::NativeJournalHandler as JournalHandler;
 pub use schedule::{Handler as ScheduleHandler, Restorer as ScheduleRestorer};
-pub use transitions::{InBlockTransitions, NonFinalTransition};
+pub use transitions::{FinalizedBlockTransitions, InBlockTransitions, NonFinalTransition};
 
 pub mod state;
 

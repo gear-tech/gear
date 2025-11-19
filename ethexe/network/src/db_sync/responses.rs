@@ -83,12 +83,14 @@ impl OngoingResponses {
             InnerRequest::ProgramIds(request) => InnerProgramIdsResponse(
                 db.block_meta(request.at)
                     .announces
-                    .and_then(|a| a.first().copied())
-                    .and_then(|announce_hash| {
-                        db.announce_program_states(announce_hash)
-                            .map(|states| states.into_keys().collect())
-                    })
-                    .unwrap_or_default(), // FIXME: Option might be more suitable
+                    .into_iter()
+                    .flatten()
+                    .find_map(|announce_hash| db.announce_program_states(announce_hash))
+                    .map(|states| states.into_keys().collect())
+                    .unwrap_or_else(|| {
+                        log::warn!("no program states found for block {:?}", request.at);
+                        Default::default()
+                    }), // FIXME: Option might be more suitable
             )
             .into(),
             InnerRequest::ValidCodes => db.valid_codes().into(),
@@ -130,15 +132,6 @@ impl OngoingResponses {
         let mut announces = VecDeque::new();
         let mut announce_hash = head;
         for _ in 0..MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE.get() {
-            let Some(announce) = db.announce(announce_hash) else {
-                return Err(ProcessAnnounceError::AnnounceMissing {
-                    hash: announce_hash,
-                });
-            };
-
-            let parent = announce.parent;
-            announces.push_front(announce);
-
             match until {
                 AnnouncesRequestUntil::Tail(tail) if announce_hash == tail => {
                     return Ok(AnnouncesResponse {
@@ -168,7 +161,13 @@ impl OngoingResponses {
                 }
             }
 
-            announce_hash = parent;
+            let Some(announce) = db.announce(announce_hash) else {
+                return Err(ProcessAnnounceError::AnnounceMissing {
+                    hash: announce_hash,
+                });
+            };
+            announce_hash = announce.parent;
+            announces.push_front(announce);
         }
 
         // TODO #4874: use peer score to punish the peer for such requests
@@ -243,7 +242,7 @@ enum ProcessAnnounceError {
 mod tests {
     use super::*;
     use ethexe_common::{
-        Announce, HashOf,
+        Announce, HashOf, SimpleBlockData,
         db::{AnnounceStorageRW, LatestDataStorageRW},
     };
     use ethexe_db::Database;
@@ -256,7 +255,10 @@ mod tests {
 
     fn set_latest_data(db: &Database, genesis: HashOf<Announce>, start: HashOf<Announce>) {
         db.set_latest_data(LatestData {
-            synced_block_height: 0,
+            synced_block: SimpleBlockData {
+                hash: H256::zero(),
+                header: Default::default(),
+            },
             prepared_block_hash: H256::zero(),
             computed_announce_hash: HashOf::zero(),
             genesis_block_hash: H256::zero(),
@@ -395,7 +397,9 @@ mod tests {
 
         let tail = make_announce(10, HashOf::random());
         let tail_hash = db.set_announce(tail.clone());
-        let head = make_announce(11, tail_hash);
+        let middle = make_announce(11, tail_hash);
+        let middle_hash = db.set_announce(middle.clone());
+        let head = make_announce(12, middle_hash);
         let head_hash = db.set_announce(head.clone());
 
         let genesis = HashOf::random();
@@ -408,7 +412,7 @@ mod tests {
         };
 
         let response = OngoingResponses::process_announce_request(&db, request).unwrap();
-        assert_eq!(response.announces, vec![tail, head]);
+        assert_eq!(response.announces, vec![middle, head]);
         response.try_into_checked(request).unwrap();
     }
 

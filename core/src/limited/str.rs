@@ -21,6 +21,8 @@
 use alloc::{borrow::Cow, string::String};
 use derive_more::{AsRef, Deref, Display, Into};
 use parity_scale_codec::{Decode, Encode};
+use scale_decode::DecodeAsType;
+use scale_encode::EncodeAsType;
 use scale_info::TypeInfo;
 
 /// Wrapped string to fit given amount of bytes.
@@ -40,7 +42,9 @@ use scale_info::TypeInfo;
     PartialOrd,
     Ord,
     Decode,
+    DecodeAsType,
     Encode,
+    EncodeAsType,
     Hash,
     TypeInfo,
     AsRef,
