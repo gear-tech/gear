@@ -36,7 +36,7 @@ use crate::{
 };
 use anyhow::{Context, anyhow};
 use ethexe_common::{
-    Address,
+    Address, BlockHeader, ValidatorsVec,
     ecdsa::PublicKey,
     injected::SignedInjectedTransaction,
     network::{SignedValidatorMessage, VerifiedValidatorMessage},
@@ -135,7 +135,8 @@ impl NetworkConfig {
 
 /// Config from other services
 pub struct NetworkRuntimeConfig {
-    pub genesis_block_hash: H256,
+    pub latest_block_header: BlockHeader,
+    pub latest_validators: ValidatorsVec,
     pub validator_key: Option<PublicKey>,
     pub general_signer: Signer,
     pub network_signer: Signer,
@@ -195,7 +196,8 @@ impl NetworkService {
         } = config;
 
         let NetworkRuntimeConfig {
-            genesis_block_hash,
+            latest_block_header,
+            latest_validators,
             validator_key,
             general_signer,
             network_signer,
@@ -203,9 +205,12 @@ impl NetworkService {
             db,
         } = runtime_config;
 
-        let (validator_list, validator_list_snapshot) =
-            ValidatorList::new(genesis_block_hash, ValidatorDatabase::clone_boxed(&db))
-                .context("failed to create validator list")?;
+        let (validator_list, validator_list_snapshot) = ValidatorList::new(
+            ValidatorDatabase::clone_boxed(&db),
+            latest_block_header,
+            latest_validators,
+        )
+        .context("failed to create validator list")?;
 
         let keypair = NetworkService::generate_keypair(&network_signer, public_key)?;
 
@@ -825,22 +830,17 @@ mod tests {
     }
 
     fn new_service_with(db: Database, data_provider: DataProvider) -> NetworkService {
-        const GENESIS_BLOCK: H256 = H256::zero();
+        const GENESIS_BLOCK_HEADER: BlockHeader = BlockHeader {
+            height: 0,
+            timestamp: 0,
+            parent_hash: H256::zero(),
+        };
         const TIMELINES: ProtocolTimelines = ProtocolTimelines {
             genesis_ts: 1_000_000,
             era: 1,
             election: 1,
         };
 
-        db.set_block_header(
-            GENESIS_BLOCK,
-            BlockHeader {
-                height: 0,
-                timestamp: 0,
-                parent_hash: Default::default(),
-            },
-        );
-        db.set_validators(0, nonempty![Address::default()].into());
         db.set_protocol_timelines(TIMELINES);
 
         let key_storage = FSKeyStorage::tmp();
@@ -849,7 +849,8 @@ mod tests {
         let config = NetworkConfig::new_test(key, Address::default());
 
         let runtime_config = NetworkRuntimeConfig {
-            genesis_block_hash: GENESIS_BLOCK,
+            latest_block_header: GENESIS_BLOCK_HEADER,
+            latest_validators: nonempty![Address::default()].into(),
             validator_key: None,
             general_signer: signer.clone(),
             network_signer: signer,

@@ -246,8 +246,14 @@ impl Service {
                     .join("net"),
             );
 
+            let lastest_block_data = observer
+                .latest_block()
+                .await
+                .context("failed to get lastest block")?;
+
             let runtime_config = NetworkRuntimeConfig {
-                genesis_block_hash: observer.genesis_block_hash(),
+                latest_block_header: lastest_block_data.header,
+                latest_validators: validators,
                 validator_key: validator_pub_key,
                 general_signer: signer.clone(),
                 network_signer,

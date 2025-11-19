@@ -32,6 +32,7 @@ use alloy::{
     providers::{Provider as _, RootProvider, ext::AnvilApi},
     rpc::types::{Header as RpcHeader, anvil::MineOptions},
 };
+use anyhow::Context;
 use ethexe_blob_loader::{
     BlobLoaderService,
     local::{LocalBlobLoader, LocalBlobStorage},
@@ -207,6 +208,10 @@ impl TestEnv {
         let router = ethereum.router();
         let router_query = router.query();
         let router_address = router.address();
+        let latest_validators = router_query
+            .validators()
+            .await
+            .context("failed to get latest validators")?;
 
         let db = Database::memory();
 
@@ -219,7 +224,10 @@ impl TestEnv {
         let mut observer = ObserverService::new(&eth_cfg, u32::MAX, db.clone())
             .await
             .unwrap();
-        let genesis_block_hash = observer.genesis_block_hash();
+        let latest_block = observer
+            .latest_block()
+            .await
+            .context("failed to get latest block")?;
 
         let blobs_storage = LocalBlobStorage::default();
 
@@ -284,7 +292,8 @@ impl TestEnv {
             config.external_addresses = [multiaddr.clone()].into();
 
             let runtime_config = NetworkRuntimeConfig {
-                genesis_block_hash,
+                latest_block_header: latest_block.header,
+                latest_validators,
                 validator_key: None,
                 general_signer: signer.clone(),
                 network_signer: signer.clone(),
@@ -293,7 +302,6 @@ impl TestEnv {
             };
 
             let mut service = NetworkService::new(config, runtime_config).unwrap();
-            service.set_chain_head(genesis_block_hash).unwrap();
 
             let local_peer_id = service.local_peer_id();
 
@@ -834,6 +842,8 @@ impl Node {
         let observer = ObserverService::new(&self.eth_cfg, u32::MAX, self.db.clone())
             .await
             .unwrap();
+        let latest_block = observer.latest_block().await.unwrap();
+        let latest_validators = observer.router_query().validators().await.unwrap();
 
         let consensus: Pin<Box<dyn ConsensusService>> = {
             if let Some(config) = self.validator_config.as_ref() {
@@ -889,7 +899,8 @@ impl Node {
             }
 
             let runtime_config = NetworkRuntimeConfig {
-                genesis_block_hash: observer.genesis_block_hash(),
+                latest_block_header: latest_block.header,
+                latest_validators,
                 validator_key: self.validator_config.as_ref().map(|v| v.public_key),
                 general_signer: self.signer.clone(),
                 network_signer: self.signer.clone(),

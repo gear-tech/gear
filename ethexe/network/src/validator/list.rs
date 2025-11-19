@@ -31,37 +31,6 @@ struct ChainHead {
     next_validators: Option<ValidatorsVec>,
 }
 
-impl ChainHead {
-    fn get<F>(
-        db: &impl ValidatorDatabase,
-        timelines: &ProtocolTimelines,
-        chain_head: H256,
-        filter: F,
-    ) -> anyhow::Result<Option<Self>>
-    where
-        F: FnOnce(&BlockHeader) -> bool,
-    {
-        let chain_head_header = db
-            .block_header(chain_head)
-            .context("chain head header not found")?;
-
-        if filter(&chain_head_header) {
-            return Ok(None);
-        }
-
-        let validators = db
-            .validators(timelines.era_from_ts(chain_head_header.timestamp))
-            .context("validators not found")?;
-
-        let chain_head = Self {
-            header: chain_head_header,
-            current_validators: validators,
-            next_validators: None,
-        };
-        Ok(Some(chain_head))
-    }
-}
-
 #[derive(Debug)]
 pub(crate) struct ValidatorListSnapshot {
     pub chain_head_ts: u64,
@@ -122,14 +91,18 @@ pub(crate) struct ValidatorList {
 
 impl ValidatorList {
     pub(crate) fn new(
-        genesis_block_hash: H256,
         db: Box<dyn ValidatorDatabase>,
+        latest_block_header: BlockHeader,
+        latest_validators: ValidatorsVec,
     ) -> anyhow::Result<(Self, Arc<ValidatorListSnapshot>)> {
         let timelines = db
             .protocol_timelines()
             .context("protocol timelines not found in db")?;
-        let chain_head = ChainHead::get(&db, &timelines, genesis_block_hash, |_| false)?
-            .expect("filter is always false");
+        let chain_head = ChainHead {
+            header: latest_block_header,
+            current_validators: latest_validators,
+            next_validators: None,
+        };
         let this = Self {
             timelines,
             chain_head,
@@ -156,19 +129,34 @@ impl ValidatorList {
         &mut self,
         chain_head: H256,
     ) -> anyhow::Result<Option<Arc<ValidatorListSnapshot>>> {
-        let chain_head =
-            ChainHead::get(&self.db, &self.timelines, chain_head, |chain_head_header| {
-                let new_era = self.timelines.era_from_ts(chain_head_header.timestamp);
-                let old_era = self.timelines.era_from_ts(self.chain_head.header.timestamp);
-                new_era <= old_era
-            })?;
+        let chain_head_header = self
+            .db
+            .block_header(chain_head)
+            .context("failed to get chain head block header")?;
 
-        if let Some(chain_head) = chain_head {
-            self.chain_head = chain_head;
-            Ok(Some(self.create_snapshot()))
-        } else {
-            Ok(None)
+        debug_assert_ne!(
+            chain_head_header.height, self.chain_head.header.height,
+            "`set_chain_head` called with the same chain head block"
+        );
+
+        let new_era = self.timelines.era_from_ts(chain_head_header.timestamp);
+        let old_era = self.timelines.era_from_ts(self.chain_head.header.timestamp);
+        if new_era <= old_era {
+            return Ok(None);
         }
+
+        let current_validators = self
+            .db
+            .validators(self.timelines.era_from_ts(chain_head_header.timestamp))
+            .context("validators not found")?;
+
+        self.chain_head = ChainHead {
+            header: chain_head_header,
+            current_validators,
+            next_validators: None,
+        };
+
+        Ok(Some(self.create_snapshot()))
     }
 
     // TODO: make actual implementation when `NextEraValidatorsCommitted` event is emitted before era transition
@@ -208,12 +196,13 @@ mod tests {
             election: 5,
         };
         let genesis_hash = H256::from_low_u64_be(0);
+        let genesis_block_header = header(0, 0);
         let same_era_hash = H256::from_low_u64_be(1);
         let next_era_hash = H256::from_low_u64_be(2);
 
         let db = Database::memory();
         db.set_protocol_timelines(timelines);
-        db.set_block_header(genesis_hash, header(0, 0));
+        db.set_block_header(genesis_hash, genesis_block_header);
         db.set_block_header(same_era_hash, header(1, 5));
         db.set_block_header(next_era_hash, header(2, 15));
 
@@ -222,8 +211,12 @@ mod tests {
         db.set_validators(0, current_validators.clone());
         db.set_validators(1, next_validators.clone());
 
-        let (mut list, snapshot) =
-            ValidatorList::new(genesis_hash, Box::new(db.clone())).expect("init succeeds");
+        let (mut list, snapshot) = ValidatorList::new(
+            Box::new(db.clone()),
+            genesis_block_header,
+            current_validators.clone(),
+        )
+        .expect("init succeeds");
         assert_eq!(snapshot.current_era_index(), 0);
         assert_eq!(snapshot.current_validators, current_validators);
 
