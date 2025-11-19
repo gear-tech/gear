@@ -30,6 +30,7 @@ use ethexe_observer::ObserverEvent;
 use ethexe_prometheus::PrometheusEvent;
 use ethexe_rpc::RpcEvent;
 use gprimitives::H256;
+use std::ops::ControlFlow;
 use tokio::sync::broadcast::{self, Receiver, Sender};
 
 pub type TestingEventSender = Sender<TestingEvent>;
@@ -183,7 +184,7 @@ pub struct ObserverEventsPublisher {
 }
 
 impl ObserverEventsPublisher {
-    pub async fn subscribe(&self) -> ObserverEventsListener {
+    pub fn subscribe(&self) -> ObserverEventsListener {
         ObserverEventsListener {
             receiver: self.broadcaster.subscribe(),
             db: self.db.clone(),
@@ -213,21 +214,28 @@ impl ObserverEventsListener {
     #[allow(unused)]
     pub async fn apply_until<R: Sized>(
         &mut self,
-        mut f: impl FnMut(ObserverEvent) -> Result<Option<R>>,
+        mut f: impl FnMut(ObserverEvent) -> Result<ControlFlow<R>>,
     ) -> Result<R> {
         loop {
             let event = self.next_event().await?;
-            if let Some(res) = f(event)? {
-                return Ok(res);
+            if let ControlFlow::Break(res) = f(event)? {
+                break Ok(res);
             }
         }
     }
 
-    pub async fn apply_until_block_event<R: Sized>(
+    pub async fn apply_until_block<R: Sized>(
         &mut self,
-        mut f: impl FnMut(BlockEvent) -> Result<Option<R>>,
+        mut f: impl FnMut(H256) -> Result<ControlFlow<R>>,
     ) -> Result<R> {
-        self.apply_until_block_event_with_header(|e, _h| f(e)).await
+        self.apply_until(|event| {
+            let ObserverEvent::BlockSynced(block_hash) = event else {
+                return Ok(ControlFlow::Continue(()));
+            };
+
+            f(block_hash)
+        })
+        .await
     }
 
     // NOTE: skipped by observer blocks are not iterated (possible on reorgs).
@@ -235,23 +243,12 @@ impl ObserverEventsListener {
     // TODO #4554: iterate thru skipped blocks.
     pub async fn apply_until_block_event_with_header<R: Sized>(
         &mut self,
-        mut f: impl FnMut(BlockEvent, &SimpleBlockData) -> Result<Option<R>>,
+        mut f: impl FnMut(BlockEvent, &SimpleBlockData) -> Result<ControlFlow<R>>,
     ) -> Result<R> {
-        loop {
-            let event = self.next_event().await?;
-
-            let ObserverEvent::BlockSynced(block_hash) = event else {
-                continue;
-            };
-
-            let header = self
-                .db
-                .block_header(block_hash)
-                .expect("Block header not found");
-            let events = self
-                .db
-                .block_events(block_hash)
-                .expect("Block events not found");
+        let db = self.db.clone();
+        self.apply_until_block(|block_hash| {
+            let header = db.block_header(block_hash).expect("Block header not found");
+            let events = db.block_events(block_hash).expect("Block events not found");
 
             let block_data = SimpleBlockData {
                 hash: block_hash,
@@ -259,10 +256,20 @@ impl ObserverEventsListener {
             };
 
             for event in events {
-                if let Some(res) = f(event, &block_data)? {
-                    return Ok(res);
+                if let ControlFlow::Break(res) = f(event, &block_data)? {
+                    return Ok(ControlFlow::Break(res));
                 }
             }
-        }
+
+            Ok(ControlFlow::Continue(()))
+        })
+        .await
+    }
+
+    pub async fn apply_until_block_event<R: Sized>(
+        &mut self,
+        mut f: impl FnMut(BlockEvent) -> Result<ControlFlow<R>>,
+    ) -> Result<R> {
+        self.apply_until_block_event_with_header(|e, _h| f(e)).await
     }
 }
