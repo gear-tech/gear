@@ -125,6 +125,10 @@ case "$COMMAND" in
         header "Building gear node"
         node_build "$@"; ;;
 
+      ethexe)
+        header "Building ethexe node"
+        ethexe_build "$@"; ;;
+
       gear-replay)
         header "Building gear-replay CLI"
         gear_replay_build "$@"; ;;
