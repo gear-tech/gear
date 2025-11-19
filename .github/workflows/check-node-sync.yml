@@ -18,7 +18,7 @@ jobs:
       image_name: ${{ steps.image.outputs.image_name }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Get branch
         id: branch
@@ -46,7 +46,7 @@ jobs:
       packages: write
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: Log in to the github container registry
         uses: docker/login-action@v3

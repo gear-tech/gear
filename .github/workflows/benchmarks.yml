@@ -48,7 +48,7 @@ jobs:
       available_region: ${{ steps.get-region.outputs.available_region }}
     steps:
     - name: AWS Login
-      uses: aws-actions/configure-aws-credentials@v4
+      uses: aws-actions/configure-aws-credentials@v5
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
@@ -67,7 +67,7 @@ jobs:
         echo "::add-mask::$TOKEN"
 
     - name: Checkout
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
 
     - name: Check Capacity
       id: get-region
@@ -129,7 +129,7 @@ jobs:
       pull-requests: write
     steps:
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       - name: "Install: Rust toolchain"
         uses: ./.github/actions/install-rust
@@ -157,7 +157,7 @@ jobs:
         id: upload-errors
         # This step will only run if the run-bench step failed
         if: ${{ failure() && steps.run-bench.conclusion == 'failure' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: benchmarking-errors
           path: scripts/benchmarking/benchmarking_errors.txt
@@ -177,7 +177,7 @@ jobs:
         # This step will run if benchmarking finished with no errors (upload-errors step was skipped),
         # This runs even if baremetal patching was failed - in that case, make sure to handle it.
         if: ${{ !cancelled() && steps.upload-errors.conclusion == 'skipped'}}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: weights-output
           path: scripts/benchmarking/weights-output
@@ -188,7 +188,7 @@ jobs:
 
       - name: Create commit
         if: ${{ inputs.change-type == 'commit' }}
-        uses: stefanzweifel/git-auto-commit-action@v5
+        uses: stefanzweifel/git-auto-commit-action@v7
         with:
           commit_message: "chore(runtime): update weights"
           file_pattern: >-
@@ -220,14 +220,14 @@ jobs:
     runs-on: ubuntu-latest
     steps:
     - name: AWS Login
-      uses: aws-actions/configure-aws-credentials@v4
+      uses: aws-actions/configure-aws-credentials@v5
       with:
         aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
         aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         aws-region: us-west-2
 
     - name: Checkout
-      uses: actions/checkout@v4
+      uses: actions/checkout@v5
       with:
         sparse-checkout: terraform
 
