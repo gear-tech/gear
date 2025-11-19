@@ -472,6 +472,7 @@ where
     pub gas_allowance_counter: &'s mut GasAllowanceCounter,
     pub gas_multiplier: &'s GasMultiplier,
     pub message_type: MessageType,
+    pub is_first_execution: bool,
     pub stop_processing: bool,
 }
 
@@ -665,6 +666,7 @@ where
     fn should_charge_exec_balance_on_panic(&self, gas_burned: u64) -> bool {
         gas_burned > INJECTED_MESSAGE_PANIC_GAS_CHARGE_THRESHOLD
             || self.message_type != MessageType::Injected
+            || !self.is_first_execution
     }
 }
 
@@ -679,6 +681,7 @@ mod tests {
     fn init_setup(
         exec_balance: u128,
         message_type: MessageType,
+        is_first_execution: bool,
     ) -> RuntimeJournalHandler<'static, MemStorage> {
         const INITIAL_GAS_ALLOWANCE: u64 = 1_000_000_000_000;
 
@@ -698,6 +701,7 @@ mod tests {
             gas_allowance_counter,
             gas_multiplier,
             message_type,
+            is_first_execution,
             stop_processing: false,
         }
     }
@@ -706,8 +710,8 @@ mod tests {
     fn charge_exec_balance() {
         const INITIAL_EXEC_BALANCE: u128 = 500_000_000_000;
 
-        // Special case: Injected message with panic and gas burned less than threshold
-        let mut handler = init_setup(INITIAL_EXEC_BALANCE, MessageType::Injected);
+        // Special case: Injected message first execution with panic and gas burned less than threshold
+        let mut handler = init_setup(INITIAL_EXEC_BALANCE, MessageType::Injected, true);
         handler.handle_journal(vec![JournalNote::GasBurned {
             message_id: MessageId::new([0u8; 32]),
             amount: INJECTED_MESSAGE_PANIC_GAS_CHARGE_THRESHOLD,
@@ -718,86 +722,45 @@ mod tests {
             INITIAL_EXEC_BALANCE
         );
 
-        // Normal case: Injected message with panic and gas burned more than threshold
-        let mut handler = init_setup(INITIAL_EXEC_BALANCE, MessageType::Injected);
-        handler.handle_journal(vec![JournalNote::GasBurned {
-            message_id: MessageId::new([0u8; 32]),
-            amount: INJECTED_MESSAGE_PANIC_GAS_CHARGE_THRESHOLD + 1,
-            is_panic: true,
-        }]);
-        let expected_exec_balance = INITIAL_EXEC_BALANCE
-            - handler
-                .gas_multiplier
-                .gas_to_value(INJECTED_MESSAGE_PANIC_GAS_CHARGE_THRESHOLD + 1);
-        assert_eq!(
-            handler.program_state.executable_balance,
-            expected_exec_balance
-        );
+        // Normal cases:
+        for message_type in [MessageType::Injected, MessageType::Canonical] {
+            for is_panic in [false, true] {
+                for amount in [
+                    INJECTED_MESSAGE_PANIC_GAS_CHARGE_THRESHOLD,
+                    INJECTED_MESSAGE_PANIC_GAS_CHARGE_THRESHOLD + 1,
+                ] {
+                    for is_first_execution in [true, false] {
+                        // Skip special case already tested above
+                        if message_type == MessageType::Injected
+                            && is_panic
+                            && is_first_execution
+                            && amount == INJECTED_MESSAGE_PANIC_GAS_CHARGE_THRESHOLD
+                        {
+                            continue;
+                        }
 
-        // Normal case: Injected message without panic and gas burned more than threshold
-        let mut handler = init_setup(INITIAL_EXEC_BALANCE, MessageType::Injected);
-        handler.handle_journal(vec![JournalNote::GasBurned {
-            message_id: MessageId::new([0u8; 32]),
-            amount: INJECTED_MESSAGE_PANIC_GAS_CHARGE_THRESHOLD + 1,
-            is_panic: false,
-        }]);
-        let expected_exec_balance = INITIAL_EXEC_BALANCE
-            - handler
-                .gas_multiplier
-                .gas_to_value(INJECTED_MESSAGE_PANIC_GAS_CHARGE_THRESHOLD + 1);
-        assert_eq!(
-            handler.program_state.executable_balance,
-            expected_exec_balance
-        );
-
-        // Normal case: Injected message without panic and gas burned less than threshold
-        let mut handler = init_setup(INITIAL_EXEC_BALANCE, MessageType::Injected);
-        handler.handle_journal(vec![JournalNote::GasBurned {
-            message_id: MessageId::new([0u8; 32]),
-            amount: INJECTED_MESSAGE_PANIC_GAS_CHARGE_THRESHOLD,
-            is_panic: false,
-        }]);
-        let expected_exec_balance = INITIAL_EXEC_BALANCE
-            - handler
-                .gas_multiplier
-                .gas_to_value(INJECTED_MESSAGE_PANIC_GAS_CHARGE_THRESHOLD);
-        assert_eq!(
-            handler.program_state.executable_balance,
-            expected_exec_balance
-        );
-
-        // Normal case: Canonical message with panic
-        let mut handler = init_setup(INITIAL_EXEC_BALANCE, MessageType::Canonical);
-        handler.handle_journal(vec![JournalNote::GasBurned {
-            message_id: MessageId::new([0u8; 32]),
-            amount: 500_000,
-            is_panic: true,
-        }]);
-        let expected_exec_balance =
-            INITIAL_EXEC_BALANCE - handler.gas_multiplier.gas_to_value(500_000);
-        assert_eq!(
-            handler.program_state.executable_balance,
-            expected_exec_balance
-        );
-
-        // Normal case: Canonical message without panic
-        let mut handler = init_setup(INITIAL_EXEC_BALANCE, MessageType::Canonical);
-        handler.handle_journal(vec![JournalNote::GasBurned {
-            message_id: MessageId::new([0u8; 32]),
-            amount: 250_000,
-            is_panic: false,
-        }]);
-        let expected_exec_balance =
-            INITIAL_EXEC_BALANCE - handler.gas_multiplier.gas_to_value(250_000);
-        assert_eq!(
-            handler.program_state.executable_balance,
-            expected_exec_balance
-        );
+                        let mut handler =
+                            init_setup(INITIAL_EXEC_BALANCE, message_type, is_first_execution);
+                        handler.handle_journal(vec![JournalNote::GasBurned {
+                            message_id: MessageId::new([0u8; 32]),
+                            amount,
+                            is_panic,
+                        }]);
+                        let expected_exec_balance =
+                            INITIAL_EXEC_BALANCE - handler.gas_multiplier.gas_to_value(amount);
+                        assert_eq!(
+                            handler.program_state.executable_balance,
+                            expected_exec_balance
+                        );
+                    }
+                }
+            }
+        }
     }
 
     #[test]
     fn notes_update_state_hash() {
-        let mut handler = init_setup(500_000_000_000, MessageType::Canonical);
+        let mut handler = init_setup(500_000_000_000, MessageType::Canonical, true);
 
         // Note unhandled (not processed in RuntimeJournalHandler)
         let (unhandled, state_hash) = handler.handle_journal(vec![JournalNote::UpdatePage {
