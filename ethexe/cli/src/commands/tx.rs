@@ -16,14 +16,14 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use super::utils;
 use crate::params::Params;
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use clap::{Parser, Subcommand};
 use ethexe_common::Address;
 use ethexe_ethereum::Ethereum;
-use gprimitives::H256;
+use gprimitives::{CodeId, H256};
 use gsigner::secp256k1::Signer;
+use sp_core::Bytes;
 use std::{fs, path::PathBuf};
 
 /// Submit a transaction.
@@ -112,91 +112,15 @@ impl TxCommand {
         let router_query = router.query();
 
         match self.command {
-            TxSubcommand::Create { code_id, salt } => {
-                let code_id = code_id
-                    .parse()
-                    .map_err(|e| anyhow!("{e:?}"))
-                    .with_context(|| "invalid `code-id`")?;
-
-                let salt = salt
-                    .map(|s| s.parse())
-                    .transpose()
-                    .with_context(|| "invalid `salt`")?
-                    .unwrap_or_else(H256::random);
-
-                println!("Creating program on Ethereum from code id {code_id}");
-
-                let (tx, actor_id) = router
-                    .create_program(code_id, salt)
-                    .await
-                    .with_context(|| "failed to create program")?;
-
-                println!("Completed in transaction {tx:?}");
-                println!(
-                    "Program address on Ethereum {:?}",
-                    actor_id.to_address_lossy()
-                );
-            }
-            // TODO (breathx): impl batching.
-            TxSubcommand::Message {
-                mirror,
-                payload,
-                value,
-                approve,
-                watch,
-            } => {
-                let mirror_addr: Address = mirror.parse().with_context(|| "invalid `mirror`")?;
-
-                let payload =
-                    utils::hex_str_to_vec(payload).with_context(|| "invalid `payload`")?;
-
-                let maybe_code_id = router_query
-                    .program_code_id(mirror_addr.into())
-                    .await
-                    .with_context(|| "failed to check if mirror in known by router")?;
-
-                ensure!(
-                    maybe_code_id.is_some(),
-                    "Given mirror address is not recognized by router"
-                );
-
-                if value != 0 && approve {
-                    // TODO (breathx): add separator for tokens; maybe impl gprimitive for it.
-                    println!("Approving {value} value of WVara on Ethereum for {mirror_addr}");
-
-                    let tx = router
-                        .wvara()
-                        .approve(mirror_addr.0.into(), value)
-                        .await
-                        .with_context(|| "failed to approve wvara")?;
-
-                    println!("Completed in transaction {tx:?}");
-                }
-
-                println!("Sending message on Ethereum to {mirror_addr}");
-
-                let mirror = ethereum.mirror(mirror_addr);
-
-                let (tx, message_id) = mirror
-                    .send_message(payload, value)
-                    .await
-                    .with_context(|| "failed to send message to mirror")?;
-
-                println!("Completed in transaction {tx:?}");
-                println!("Message with id {message_id} successfully sent");
-
-                if watch {
-                    unimplemented!("Watching reply is not yet implemented");
-                }
-            }
             TxSubcommand::Upload {
                 path_to_wasm,
                 legacy,
+                watch,
             } => {
                 let code =
                     fs::read(&path_to_wasm).with_context(|| "failed to read wasm from file")?;
 
-                println!("Uploading {} to Ethereum", path_to_wasm.display(),);
+                println!("Uploading {} to Ethereum", path_to_wasm.display());
 
                 let pending_builder = if legacy {
                     router.request_code_validation_with_sidecar_old(&code).await
@@ -211,17 +135,196 @@ impl TxCommand {
                     .with_context(|| "failed to request code validation")?;
 
                 println!("Completed in transaction {tx:?}");
-                println!("Waiting for approval of code id {code_id}...");
 
-                let valid = router
-                    .wait_code_validation(code_id)
+                if watch {
+                    println!("Waiting for approval of code id {code_id}...");
+
+                    let valid = router
+                        .wait_code_validation(code_id)
+                        .await
+                        .with_context(|| "failed to wait for code validation")?;
+
+                    if valid {
+                        println!("Now you can create program from code id {code_id}!");
+                    } else {
+                        bail!("Given code is invalid and failed validation");
+                    }
+                }
+            }
+            TxSubcommand::Create {
+                code_id,
+                salt,
+                initializer,
+            } => {
+                let salt = salt.unwrap_or_else(H256::random);
+                let override_initializer = initializer.map(Into::into);
+
+                println!("Creating program on Ethereum from code id {code_id} and salt {salt:?}");
+
+                let (tx, actor_id) = router
+                    .create_program(code_id, salt, override_initializer)
                     .await
-                    .with_context(|| "failed to wait for code validation")?;
+                    .with_context(|| "failed to create program")?;
 
-                if valid {
-                    println!("Now you can create program from code id {code_id}!");
-                } else {
-                    bail!("Given code is invalid and failed validation");
+                println!("Completed in transaction {tx:?}");
+                println!(
+                    "Program address on Ethereum {:?}",
+                    actor_id.to_address_lossy()
+                );
+            }
+            TxSubcommand::CreateWithAbi {
+                code_id,
+                salt,
+                initializer,
+                abi_interface,
+            } => {
+                let salt = salt.unwrap_or_else(H256::random);
+                let override_initializer = initializer.map(Into::into);
+
+                println!("Creating program on Ethereum from code id {code_id} and salt {salt:?}");
+
+                let (tx, actor_id) = router
+                    .create_program_with_abi_interface(
+                        code_id,
+                        salt,
+                        override_initializer,
+                        abi_interface.into(),
+                    )
+                    .await
+                    .with_context(|| "failed to create program")?;
+
+                println!("Completed in transaction {tx:?}");
+                println!(
+                    "Program address on Ethereum {:?}",
+                    actor_id.to_address_lossy()
+                );
+            }
+            TxSubcommand::Query { mirror } => {
+                let maybe_code_id = router_query
+                    .program_code_id(mirror.into())
+                    .await
+                    .with_context(|| "failed to check if mirror in known by router")?;
+
+                ensure!(
+                    maybe_code_id.is_some(),
+                    "Given mirror address is not recognized by router"
+                );
+
+                println!("Querying state of mirror on Ethereum at {mirror}");
+
+                let mirror = ethereum.mirror(mirror);
+                let mirror_query = mirror.query();
+
+                let router = mirror_query.router().await?;
+                let state_hash = mirror_query.state_hash().await?;
+                let nonce = mirror_query.nonce().await?;
+                let exited = mirror_query.exited().await?;
+                let inheritor = mirror_query.inheritor().await?;
+                let initializer = mirror_query.initializer().await?;
+                let balance = mirror.get_balance().await?;
+
+                println!("Mirror state:");
+                println!("  Router:          {router:?}");
+                println!("  State hash:      {state_hash:?}");
+                println!("  Nonce:           {nonce}");
+                println!("  Exited:          {exited}");
+                println!("  Inheritor:       {inheritor}",);
+                println!("  Initializer:     {initializer}",);
+                println!("  ETH Balance:     {balance} wei");
+            }
+            TxSubcommand::OwnedBalanceTopUp { mirror, value } => {
+                let maybe_code_id = router_query
+                    .program_code_id(mirror.into())
+                    .await
+                    .with_context(|| "failed to check if mirror in known by router")?;
+
+                ensure!(
+                    maybe_code_id.is_some(),
+                    "Given mirror address is not recognized by router"
+                );
+
+                println!(
+                    "Topping up owned balance of mirror on Ethereum at {mirror} by {value} wei"
+                );
+
+                let mirror = ethereum.mirror(mirror);
+
+                let tx = mirror
+                    .owned_balance_top_up(value)
+                    .await
+                    .with_context(|| "failed to top up owned balance of mirror")?;
+
+                println!("Completed in transaction {tx:?}");
+                println!("Owned balance of mirror successfully topped up");
+            }
+            TxSubcommand::ExecutableBalanceTopUp {
+                mirror,
+                value,
+                approve,
+            } => {
+                let maybe_code_id = router_query
+                    .program_code_id(mirror.into())
+                    .await
+                    .with_context(|| "failed to check if mirror in known by router")?;
+
+                ensure!(
+                    maybe_code_id.is_some(),
+                    "Given mirror address is not recognized by router"
+                );
+
+                println!(
+                    "Topping up executable balance of mirror on Ethereum at {mirror} by {value} WVARA"
+                );
+
+                let mirror = ethereum.mirror(mirror);
+
+                if value != 0 && approve {
+                    ethereum
+                        .router()
+                        .wvara()
+                        .approve(mirror.address().into(), value)
+                        .await?;
+                }
+
+                let tx = mirror
+                    .executable_balance_top_up(value)
+                    .await
+                    .with_context(|| "failed to top up executable balance of mirror")?;
+
+                println!("Completed in transaction {tx:?}");
+                println!("Executable balance of mirror successfully topped up");
+            }
+            TxSubcommand::SendMessage {
+                mirror,
+                payload,
+                value,
+                call_reply,
+                watch,
+            } => {
+                let maybe_code_id = router_query
+                    .program_code_id(mirror.into())
+                    .await
+                    .with_context(|| "failed to check if mirror in known by router")?;
+
+                ensure!(
+                    maybe_code_id.is_some(),
+                    "Given mirror address is not recognized by router"
+                );
+
+                println!("Sending message on Ethereum to {mirror}");
+
+                let mirror = ethereum.mirror(mirror);
+
+                let (tx, message_id) = mirror
+                    .send_message(payload.0, value, call_reply)
+                    .await
+                    .with_context(|| "failed to send message to mirror")?;
+
+                println!("Completed in transaction {tx:?}");
+                println!("Message with id {message_id} successfully sent");
+
+                if watch {
+                    unimplemented!("Watching reply is not yet implemented");
                 }
             }
         }
@@ -235,33 +338,6 @@ impl TxCommand {
 /// Available transaction to submit.
 #[derive(Debug, Subcommand)]
 pub enum TxSubcommand {
-    /// Create new mirror program on Ethereum.
-    Create {
-        /// Wasm code id to use.
-        #[arg(short, long, alias = "code")]
-        code_id: String,
-        /// Salt to use for program id generation. If not provided, random is used.
-        #[arg(short, long)]
-        salt: Option<String>,
-    },
-    /// Send message to mirror program on Ethereum.
-    Message {
-        /// Mirror address.
-        #[arg(short, long)]
-        mirror: String,
-        /// Message payload.
-        #[arg(short, long)]
-        payload: String,
-        /// WVara value to send with message. This amount should be approved on WVara Erc20 contract first, or given `approve` flag.
-        #[arg(short, long, default_value = "0")]
-        value: u128,
-        /// Flag to first approve given value on WVara Erc20 contract.
-        #[arg(short, long, default_value = "false")]
-        approve: bool,
-        /// Flat to watch for reply from mirror.
-        #[arg(short, long, default_value = "false")]
-        watch: bool,
-    },
     /// Upload Wasm code to Ethereum: request its validation for further program creation.
     Upload {
         /// Path to the Wasm file.
@@ -270,5 +346,81 @@ pub enum TxSubcommand {
         /// Flag to use old blob transaction format
         #[arg(short, long, default_value = "false")]
         legacy: bool,
+        /// Flag to watch for code validation result. If false, command will do not wait for validation.
+        #[arg(short, long, default_value = "false")]
+        watch: bool,
+    },
+    /// Create new mirror program on Ethereum.
+    Create {
+        /// Wasm code id to use.
+        #[arg()]
+        code_id: CodeId,
+        /// Salt to use for program id generation. If not provided, random is used.
+        #[arg(short, long)]
+        salt: Option<H256>,
+        /// Override initializer address. If not provided, sender is used.
+        #[arg(short, long)]
+        initializer: Option<Address>,
+    },
+    /// Create new mirror program on Ethereum with ABI interface.
+    CreateWithAbi {
+        /// Wasm code id to use.
+        #[arg()]
+        code_id: CodeId,
+        /// Salt to use for program id generation. If not provided, random is used.
+        #[arg(short, long)]
+        salt: Option<H256>,
+        /// Override initializer address. If not provided, sender is used.
+        #[arg(short, long)]
+        initializer: Option<Address>,
+        /// ABI interface address. Mirror contract will be stub for all methods so that it will be possible
+        /// to interact with the Sails contract via etherscan.
+        #[arg()]
+        abi_interface: Address,
+    },
+    /// Query mirror state on Ethereum.
+    Query {
+        /// Mirror address.
+        #[arg()]
+        mirror: Address,
+    },
+    /// Top up owned balance of mirror on Ethereum.
+    OwnedBalanceTopUp {
+        /// Mirror address.
+        #[arg()]
+        mirror: Address,
+        /// ETH value to top up.
+        #[arg()]
+        value: u128,
+    },
+    /// Top up executable balance of mirror on Ethereum.
+    ExecutableBalanceTopUp {
+        /// Mirror address.
+        #[arg()]
+        mirror: Address,
+        /// WVARA value to top up.
+        #[arg()]
+        value: u128,
+        /// Flag to first approve given value on WVARA ERC20 contract.
+        #[arg(short, long, default_value = "false")]
+        approve: bool,
+    },
+    /// Send message to mirror program on Ethereum.
+    SendMessage {
+        /// Mirror address.
+        #[arg()]
+        mirror: Address,
+        /// Message payload.
+        #[arg()]
+        payload: Bytes,
+        /// ETH value to send with message.
+        #[arg()]
+        value: u128,
+        /// Flag to force mirror to make call to destination actor id on reply. If false, reply will be saved as logs.
+        #[arg(short, long, default_value = "false")]
+        call_reply: bool,
+        /// Flag to watch for reply from mirror. If false, command will do not wait for reply.
+        #[arg(short, long, default_value = "false")]
+        watch: bool,
     },
 }

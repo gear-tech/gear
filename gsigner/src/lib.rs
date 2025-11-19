@@ -57,9 +57,9 @@ pub mod crypto;
 pub mod error;
 #[cfg(feature = "secp256k1")]
 pub mod hash;
-pub mod schemes;
 #[cfg(feature = "peer-id")]
 pub mod peer_id;
+pub mod schemes;
 #[cfg(feature = "std")]
 pub mod signer;
 pub mod storage;

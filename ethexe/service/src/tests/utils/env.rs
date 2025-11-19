@@ -29,18 +29,20 @@ use crate::{
 use alloy::{
     eips::BlockId,
     node_bindings::{Anvil, AnvilInstance},
-    providers::{Provider as _, RootProvider, ext::AnvilApi},
-    rpc::types::{Header as RpcHeader, anvil::MineOptions},
+    providers::{Provider as _, ProviderBuilder, RootProvider, ext::AnvilApi},
+    rpc::types::anvil::MineOptions,
 };
 use ethexe_blob_loader::{BlobLoader, BlobLoaderService, ConsensusLayerConfig};
 use ethexe_common::{
-    Address, CodeAndId, DEFAULT_BLOCK_GAS_LIMIT,
-    ecdsa::{PrivateKey, PublicKey},
+    Address, BlockHeader, COMMITMENT_DELAY_LIMIT, CodeAndId, DEFAULT_BLOCK_GAS_LIMIT,
+    SimpleBlockData, ToDigest,
+    db::*,
+    ecdsa::{PrivateKey, PublicKey, SignedData},
     events::{BlockEvent, MirrorEvent, RouterEvent},
-    injected::RpcOrNetworkInjectedTx,
+    network::{SignedValidatorMessage, ValidatorMessage},
 };
 use ethexe_compute::{ComputeConfig, ComputeService};
-use ethexe_consensus::{ConsensusService, SimpleConnectService, ValidatorService};
+use ethexe_consensus::{ConnectService, ConsensusService, ValidatorService};
 use ethexe_db::Database;
 use ethexe_ethereum::{
     Ethereum,
@@ -55,18 +57,22 @@ use ethexe_observer::{EthereumConfig, ObserverEvent, ObserverService};
 use ethexe_processor::{
     DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, DEFAULT_CHUNK_PROCESSING_THREADS, Processor, RunnerConfig,
 };
-use ethexe_rpc::{InjectedClient, InjectedTransactionAcceptance, RpcConfig, RpcService};
+use ethexe_rpc::{RpcConfig, RpcServer};
 use futures::StreamExt;
 use gear_core_errors::ReplyCode;
 use gprimitives::{ActorId, CodeId, H160, H256, MessageId};
-use gsigner::secp256k1::Signer;
-use jsonrpsee::http_client::HttpClient;
+use gsigner::secp256k1::{Secp256k1SignerExt, Signer};
+use jsonrpsee::{
+    http_client::HttpClient,
+    ws_client::{WsClient, WsClientBuilder},
+};
 use rand::{SeedableRng, prelude::StdRng};
 use roast_secp256k1_evm::frost::{
     Identifier, SigningKey, keys,
     keys::{IdentifierList, PublicKeyPackage, VerifiableSecretSharingCommitment},
 };
 use std::{
+    fmt,
     net::SocketAddr,
     pin::Pin,
     sync::{
@@ -98,12 +104,13 @@ pub struct TestEnv {
     pub threshold: u64,
     pub block_time: Duration,
     pub continuous_block_generation: bool,
+    pub commitment_delay_limit: u32,
     pub compute_config: ComputeConfig,
+    pub db: Database,
 
     router_query: RouterQuery,
     /// In order to reduce amount of observers, we create only one observer and broadcast events to all subscribers.
     broadcaster: Sender<ObserverEvent>,
-    db: Database,
     /// If network is enabled by test, then we store here:
     /// network service polling thread, bootstrap address and nonce for new node address generation.
     bootstrap_network: Option<(JoinHandle<()>, String, usize)>,
@@ -124,6 +131,7 @@ impl TestEnv {
             continuous_block_generation,
             network,
             deploy_params,
+            commitment_delay_limit,
             compute_config,
         } = config;
 
@@ -155,6 +163,19 @@ impl TestEnv {
                 }
 
                 let anvil = anvil.spawn();
+
+                // By default, anvil set system time as block time. For testing purposes we need to have constant increment.
+                if !continuous_block_generation {
+                    let provider: RootProvider = ProviderBuilder::default()
+                        .connect(anvil.ws_endpoint().as_str())
+                        .await
+                        .expect("failed to connect to anvil");
+
+                    provider
+                        .anvil_set_block_timestamp_interval(block_time.as_secs())
+                        .await
+                        .unwrap();
+                }
 
                 log::info!(
                     "📍 Anvil started at {} and {}",
@@ -315,19 +336,11 @@ impl TestEnv {
             (handle, bootstrap_address, nonce)
         });
 
-        // By default, anvil set system time as block time. For testing purposes we need to have constant increment.
-        if anvil.is_some() && !continuous_block_generation {
-            provider
-                .anvil_set_block_timestamp_interval(block_time.as_secs())
-                .await
-                .unwrap();
-        }
-
         Ok(TestEnv {
             eth_cfg,
             wallets,
-            provider,
             election_provider: MockElectionProvider::new(),
+            provider,
             ethereum,
             signer,
             validators: validator_configs,
@@ -335,6 +348,7 @@ impl TestEnv {
             threshold,
             block_time,
             continuous_block_generation,
+            commitment_delay_limit,
             compute_config,
             router_query,
             broadcaster,
@@ -415,13 +429,65 @@ impl TestEnv {
         code_id: CodeId,
         initial_executable_balance: u128,
     ) -> anyhow::Result<WaitForProgramCreation> {
-        log::info!("📗 Create program, code_id {code_id}");
+        self.create_program_with_params(code_id, H256::zero(), None, initial_executable_balance)
+            .await
+    }
+
+    pub async fn create_program_with_params(
+        &self,
+        code_id: CodeId,
+        salt: H256,
+        override_initializer: Option<ActorId>,
+        initial_executable_balance: u128,
+    ) -> anyhow::Result<WaitForProgramCreation> {
+        log::info!("📗 Create program, code_id {code_id} with salt {salt:?}");
 
         let listener = self.observer_events_publisher().subscribe().await;
 
         let router = self.ethereum.router();
 
-        let (_, program_id) = router.create_program(code_id, H256::random()).await?;
+        let (_, program_id) = router
+            .create_program(code_id, salt, override_initializer)
+            .await?;
+
+        if initial_executable_balance != 0 {
+            let program_address = program_id.to_address_lossy().0.into();
+            router
+                .wvara()
+                .approve(program_address, initial_executable_balance)
+                .await?;
+
+            let mirror = self.ethereum.mirror(program_address.into_array().into());
+
+            mirror
+                .executable_balance_top_up(initial_executable_balance)
+                .await?;
+        }
+
+        Ok(WaitForProgramCreation {
+            listener,
+            program_id,
+        })
+    }
+
+    #[allow(dead_code)]
+    pub async fn create_program_with_abi_interface(
+        &self,
+        code_id: CodeId,
+        salt: H256,
+        override_initializer: Option<ActorId>,
+        abi_interface: ActorId,
+        initial_executable_balance: u128,
+    ) -> anyhow::Result<WaitForProgramCreation> {
+        log::info!("📗 Create program, code_id {code_id} with salt {salt:?}");
+
+        let listener = self.observer_events_publisher().subscribe().await;
+
+        let router = self.ethereum.router();
+
+        let (_, program_id) = router
+            .create_program_with_abi_interface(code_id, salt, override_initializer, abi_interface)
+            .await?;
 
         if initial_executable_balance != 0 {
             let program_address = program_id.to_address_lossy().0.into();
@@ -445,18 +511,31 @@ impl TestEnv {
 
     pub async fn send_message(
         &self,
-        target: ActorId,
+        program_id: ActorId,
+        payload: &[u8],
+    ) -> anyhow::Result<WaitForReplyTo> {
+        self.send_message_with_params(program_id, payload, 0, false)
+            .await
+    }
+
+    pub async fn send_message_with_params(
+        &self,
+        program_id: ActorId,
         payload: &[u8],
         value: u128,
+        call_reply: bool,
     ) -> anyhow::Result<WaitForReplyTo> {
-        log::info!("📗 Send message to {target}, payload len {}", payload.len());
+        log::info!(
+            "📗 Send message to {program_id}, payload len {}",
+            payload.len()
+        );
 
         let listener = self.observer_events_publisher().subscribe().await;
 
-        let program_address = Address::try_from(target)?;
+        let program_address = Address::try_from(program_id)?;
         let program = self.ethereum.mirror(program_address);
 
-        let (_, message_id) = program.send_message(payload, value).await?;
+        let (_, message_id) = program.send_message(payload, value, call_reply).await?;
 
         Ok(WaitForReplyTo {
             listener,
@@ -464,6 +543,7 @@ impl TestEnv {
         })
     }
 
+    #[allow(dead_code)]
     pub async fn approve_wvara(&self, program_id: ActorId) {
         log::info!("📗 Approving WVara for {program_id}");
 
@@ -536,20 +616,46 @@ impl TestEnv {
     /// that can produce blocks for the same rpc node,
     /// then the return may be outdated.
     pub async fn next_block_producer_index(&self) -> usize {
-        let timestamp = self.latest_block().await.timestamp;
+        let timestamp = self.latest_block().await.header.timestamp;
         ethexe_consensus::block_producer_index(
             self.validators.len(),
             (timestamp + self.block_time.as_secs()) / self.block_time.as_secs(),
         )
     }
 
-    pub async fn latest_block(&self) -> RpcHeader {
-        self.provider
+    /// Waits until the next block producer index becomes equal to `index`.
+    ///
+    /// ## Note
+    /// This function is not completely thread-safe.
+    /// If you have some other threads or processes,
+    /// that can produce blocks for the same rpc node,
+    /// then the return may be outdated.
+    pub async fn wait_for_next_producer_index(&self, index: usize) {
+        loop {
+            let next_index = self.next_block_producer_index().await;
+            if next_index == index {
+                break;
+            }
+            self.skip_blocks(1).await;
+        }
+    }
+
+    pub async fn latest_block(&self) -> SimpleBlockData {
+        let header = self
+            .provider
             .get_block(BlockId::latest())
             .await
             .unwrap()
             .expect("latest block always exist")
-            .header
+            .header;
+        SimpleBlockData {
+            hash: header.hash.0.into(),
+            header: BlockHeader {
+                height: header.number as u32,
+                timestamp: header.timestamp,
+                parent_hash: header.parent_hash.0.into(),
+            },
+        }
     }
 
     pub fn define_session_keys(
@@ -665,6 +771,8 @@ pub struct TestEnvConfig {
     pub network: EnvNetworkConfig,
     /// Smart contracts deploy configuration.
     pub deploy_params: ContractsDeploymentParams,
+    /// Commitment delay limit in blocks.
+    pub commitment_delay_limit: u32,
     /// Compute service configuration
     pub compute_config: ComputeConfig,
 }
@@ -687,6 +795,7 @@ impl Default for TestEnvConfig {
             continuous_block_generation: false,
             network: EnvNetworkConfig::Disabled,
             deploy_params: Default::default(),
+            commitment_delay_limit: COMMITMENT_DELAY_LIMIT,
             compute_config: ComputeConfig::without_quarantine(),
         }
     }
@@ -859,12 +968,14 @@ impl Node {
                             signatures_threshold: self.threshold,
                             slot_duration: self.block_time,
                             block_gas_limit: DEFAULT_BLOCK_GAS_LIMIT,
+                            commitment_delay_limit: COMMITMENT_DELAY_LIMIT,
+                            producer_delay: self.block_time / 6,
                         },
                     )
                     .unwrap(),
                 )
             } else {
-                Box::pin(SimpleConnectService::new(self.db.clone(), self.block_time))
+                Box::pin(ConnectService::new(self.db.clone(), self.block_time, 3))
             }
         };
 
@@ -887,38 +998,16 @@ impl Node {
 
         let wait_for_network = self.network_bootstrap_address.is_some();
 
-        let network = self.network_address.as_ref().map(|addr| {
-            let network_key = self.signer.generate_key().unwrap();
-            let multiaddr: Multiaddr = addr.parse().unwrap();
-
-            let mut config = NetworkConfig::new_test(network_key, self.eth_cfg.router_address);
-            config.listen_addresses = [multiaddr.clone()].into();
-            config.external_addresses = [multiaddr.clone()].into();
-            if let Some(bootstrap_addr) = self.network_bootstrap_address.as_ref() {
-                let multiaddr = bootstrap_addr.parse().unwrap();
-                config.bootstrap_addresses = [multiaddr].into();
-            }
-
-            let runtime_config = NetworkRuntimeConfig {
-                genesis_block_hash: observer.genesis_block_hash(),
-            };
-
-            let network = NetworkService::new(
-                config,
-                runtime_config,
-                &self.signer,
-                Box::new(RouterDataProvider(self.router_query.clone())),
-                Box::new(self.db.clone()),
-            )
-            .unwrap();
-            self.multiaddr = Some(format!("{addr}/p2p/{}", network.local_peer_id()));
-            network
-        });
+        let network = self.construct_network_service();
+        if let Some(addr) = self.network_address.as_ref() {
+            let peer_id = network.as_ref().unwrap().local_peer_id();
+            self.multiaddr = Some(format!("{addr}/p2p/{peer_id}"));
+        }
 
         let rpc = self
             .service_rpc_config
             .as_ref()
-            .map(|service_rpc_config| RpcService::new(service_rpc_config.clone(), self.db.clone()));
+            .map(|service_rpc_config| RpcServer::new(service_rpc_config.clone(), self.db.clone()));
 
         self.receiver = Some(receiver);
 
@@ -985,20 +1074,16 @@ impl Node {
         self.receiver = None;
     }
 
-    pub fn rpc_client(&self) -> Option<HttpClient> {
-        self.service_rpc_config.as_ref().map(|rpc| {
-            HttpClient::builder()
-                .build(format!("http://{}", rpc.listen_addr))
-                .expect("failed to build http client")
-        })
+    pub fn rpc_http_client(&self) -> Option<HttpClient> {
+        let listen_addr = self.service_rpc_config.clone()?.listen_addr;
+        let url = format!("http://{}", listen_addr);
+        Some(HttpClient::builder().build(&url).unwrap())
     }
 
-    pub async fn send_injected_transaction(
-        &self,
-        tx: RpcOrNetworkInjectedTx,
-    ) -> anyhow::Result<InjectedTransactionAcceptance> {
-        let http_client = self.rpc_client().expect("no rpc client provided by node");
-        http_client.send_transaction(tx).await.map_err(Into::into)
+    pub async fn rpc_ws_client(&self) -> Option<WsClient> {
+        let listen_addr = self.service_rpc_config.clone()?.listen_addr;
+        let url = format!("ws://{listen_addr}");
+        Some(WsClientBuilder::new().build(&url).await.unwrap())
     }
 
     pub fn listener(&mut self) -> ServiceEventsListener<'_> {
@@ -1014,6 +1099,81 @@ impl Node {
             .wait_for(|e| Ok(f(e)))
             .await
             .expect("infallible; always ok")
+    }
+
+    fn construct_network_service(&self) -> Option<NetworkService> {
+        assert!(
+            self.running_service_handle.is_none(),
+            "Network service is already running"
+        );
+
+        let addr = self.network_address.as_ref()?;
+
+        let network_key = self.signer.generate_key().unwrap();
+        let multiaddr: Multiaddr = addr.parse().unwrap();
+
+        let mut config = NetworkConfig::new_test(network_key, self.eth_cfg.router_address);
+        config.listen_addresses = [multiaddr.clone()].into();
+        config.external_addresses = [multiaddr.clone()].into();
+        if let Some(bootstrap_addr) = self.network_bootstrap_address.as_ref() {
+            let multiaddr = bootstrap_addr.parse().unwrap();
+            config.bootstrap_addresses = [multiaddr].into();
+        }
+
+        let runtime_config = NetworkRuntimeConfig {
+            genesis_block_hash: self.db.latest_data().unwrap().genesis_block_hash,
+        };
+
+        let network = NetworkService::new(
+            config,
+            runtime_config,
+            &self.signer,
+            Box::new(RouterDataProvider(self.router_query.clone())),
+            Box::new(self.db.clone()),
+        )
+        .unwrap();
+
+        Some(network)
+    }
+
+    pub async fn publish_validator_message<T: fmt::Debug + ToDigest>(
+        &self,
+        message: impl Into<ValidatorMessage<T>>,
+    ) where
+        SignedValidatorMessage: From<SignedData<ValidatorMessage<T>>>,
+    {
+        let message = message.into();
+        log::info!(
+            "📗 Publishing validator message {message:?} from {:?}",
+            self.name
+        );
+
+        let signed = self
+            .signer
+            .signed_data(
+                self.validator_config
+                    .expect("validator config not set")
+                    .public_key,
+                message,
+            )
+            .unwrap();
+
+        let mut network = self
+            .construct_network_service()
+            .expect("network service is not configured");
+
+        network.publish_message(signed);
+
+        // TODO: #4939 temporary workaround for network message publishing
+        // current approach relies on the network event loop to publish messages.
+        let f = async {
+            loop {
+                let _ = network.select_next_some().await;
+            }
+        };
+        tokio::time::timeout(Duration::from_secs(3), f)
+            .await
+            .expect_err("timeout expected, because loop is infinite");
     }
 }
 

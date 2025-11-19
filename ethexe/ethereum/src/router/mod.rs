@@ -165,11 +165,62 @@ impl Router {
         Err(anyhow!("Failed to define if code is validated"))
     }
 
-    pub async fn create_program(&self, code_id: CodeId, salt: H256) -> Result<(H256, ActorId)> {
+    pub async fn create_program(
+        &self,
+        code_id: CodeId,
+        salt: H256,
+        override_initializer: Option<ActorId>,
+    ) -> Result<(H256, ActorId)> {
         let builder = self.instance.createProgram(
             code_id.into_bytes().into(),
             salt.to_fixed_bytes().into(),
-            Address::ZERO,
+            override_initializer
+                .map(|initializer| {
+                    let initializer = LocalAddress::try_from(initializer).expect("infallible");
+                    Address::new(initializer.0)
+                })
+                .unwrap_or_default(),
+        );
+        let receipt = builder.send().await?.try_get_receipt().await?;
+
+        let tx_hash = (*receipt.transaction_hash).into();
+        let mut actor_id = None;
+
+        for log in receipt.inner.logs() {
+            if log.topic0().cloned() == Some(signatures::PROGRAM_CREATED) {
+                let event = crate::decode_log::<IRouter::ProgramCreated>(log)?;
+
+                actor_id = Some((*event.actorId.into_word()).into());
+
+                break;
+            }
+        }
+
+        let actor_id = actor_id.ok_or_else(|| anyhow!("Couldn't find `ProgramCreated` log"))?;
+
+        Ok((tx_hash, actor_id))
+    }
+
+    pub async fn create_program_with_abi_interface(
+        &self,
+        code_id: CodeId,
+        salt: H256,
+        override_initializer: Option<ActorId>,
+        abi_interface: ActorId,
+    ) -> Result<(H256, ActorId)> {
+        let abi_interface = LocalAddress::try_from(abi_interface).expect("infallible");
+        let abi_interface = Address::new(abi_interface.0);
+
+        let builder = self.instance.createProgramWithAbiInterface(
+            code_id.into_bytes().into(),
+            salt.to_fixed_bytes().into(),
+            override_initializer
+                .map(|initializer| {
+                    let initializer = LocalAddress::try_from(initializer).expect("infallible");
+                    Address::new(initializer.0)
+                })
+                .unwrap_or_default(),
+            abi_interface,
         );
         let receipt = builder.send().await?.try_get_receipt().await?;
 
