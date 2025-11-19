@@ -2788,12 +2788,12 @@ async fn announces_conflicts() {
             })
             .await;
 
-        // Validators 1..=5 must reject this announce
+        // Validators 1..=5 must accept this announce, as soon as parent is known base announce
         futures::future::join_all(listeners.iter_mut().map(|l| {
             l.apply_until(|event| {
                 if matches!(
                     event,
-                    TestingEvent::Consensus(ConsensusEvent::AnnounceRejected(announce_hash))
+                    TestingEvent::Consensus(ConsensusEvent::AnnounceAccepted(announce_hash))
                         if announce_hash == announce7_hash
                 ) {
                     Ok(ControlFlow::Break(()))
@@ -2812,7 +2812,7 @@ async fn announces_conflicts() {
 
     {
         log::info!(
-            "📗 Case 5: announce from validator 0 was rejected but still validator 1 could process all in the next block"
+            "📗 Case 5: validator 0 does not commit changes, because it's stopped, so validator 1 could do this in the next block"
         );
 
         assert_eq!(env.next_block_producer_index().await, 1);

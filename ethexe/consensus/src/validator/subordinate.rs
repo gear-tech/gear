@@ -169,10 +169,7 @@ impl Subordinate {
     }
 
     fn send_announce_for_computation(mut self, announce: Announce) -> Result<ValidatorState> {
-        match announces::accept_announce(
-            &self.ctx.core.db,
-            announce.clone(),
-        )? {
+        match announces::accept_announce(&self.ctx.core.db, announce.clone())? {
             AnnounceStatus::Accepted(announce_hash) => {
                 self.ctx
                     .output(ConsensusEvent::AnnounceAccepted(announce_hash));
