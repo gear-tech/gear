@@ -90,7 +90,10 @@ where
                 }
                 TxValidity::Outdated => outdated_txs.push((*reference_block, *tx_hash)),
                 TxValidity::UninitializedDestination => {
-                    // TODO:
+                    tracing::trace!(
+                        tx_hash = ?tx_hash,
+                        "tx send to uninitialized actor, keeping in pool, because of in next blocks it can be"
+                    );
                 }
             }
         }

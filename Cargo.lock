@@ -4917,7 +4917,6 @@ dependencies = [
  "derive_more 2.0.1",
  "gear-core",
  "gprimitives",
- "hashbrown 0.14.5",
  "hex",
  "itertools 0.13.0",
  "k256",

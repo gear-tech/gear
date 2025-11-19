@@ -60,7 +60,9 @@ impl<DB: OnChainStorageRO + AnnounceStorageRO + Storage> TxValidityChecker<DB> {
         })
     }
 
-    /// To determine the validity of transaction is enough to check the validity of its reference block.
+    /// Determine [`TxValidity`] status for injected transaction, based on current:
+    /// - `chain_head` - Ethereum chain header
+    /// - `latest_included_transactions` - see [`Self::collect_recent_included_txs`].
     pub fn check_tx_validity(&self, tx: &SignedInjectedTransaction) -> Result<TxValidity> {
         let reference_block = tx.data().reference_block;
 
@@ -81,8 +83,7 @@ impl<DB: OnChainStorageRO + AnnounceStorageRO + Storage> TxValidityChecker<DB> {
         };
 
         let Some(state) = self.db.program_state(destination_state_hash.hash) else {
-            // TODO kuzmin: consider to add a new `TxValidity` veriant or return TxValidity::UnknownDestination.
-            // Not it is not implemented, because of this information is useless for user.
+            // TODO kuzmin: consider in future add a new `TxValidity` veriant or return TxValidity::UnknownDestination.
             unreachable!("program state must be found by its valid hash.")
         };
 
