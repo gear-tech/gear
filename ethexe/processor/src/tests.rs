@@ -74,6 +74,31 @@ fn init_new_block_from_parent(processor: &mut Processor, parent_hash: H256) -> H
     )
 }
 
+fn setup_test_env_and_load_codes<const N: usize>(
+    codes: &[&[u8];N],
+) -> (Processor, ProcessingHandler, [CodeId; N]) {
+    let mut code_ids = Vec::new();
+
+    let mut processor = Processor::new(Database::memory()).unwrap();
+
+    let genesis = init_genesis_block(&mut processor);
+    let block = init_new_block_from_parent(&mut processor, genesis);
+    let block_announce = Announce::with_default_gas(block, HashOf::zero());
+
+    for code in codes {
+        let code_id = processor
+            .handle_new_code(code)
+            .expect("failed to call runtime api")
+            .expect("code failed verification or instrumentation");
+
+        code_ids.push(code_id);
+    }
+
+    let handler = processor.handler(block_announce).unwrap();
+
+    (processor, handler, code_ids.try_into().unwrap())
+}
+
 fn handle_injected_message(
     handler: &mut ProcessingHandler,
     actor_id: ActorId,
@@ -318,21 +343,11 @@ fn handle_new_code_invalid() {
 async fn ping_pong() {
     init_logger();
 
-    let mut processor = Processor::new(Database::memory()).unwrap();
-
-    let genesis = init_genesis_block(&mut processor);
-    let block = init_new_block_from_parent(&mut processor, genesis);
-    let block_announce = Announce::with_default_gas(block, HashOf::zero());
+    let (mut processor, mut handler, [code_id, ..]) =
+        setup_test_env_and_load_codes(&[demo_ping::WASM_BINARY, demo_async::WASM_BINARY]);
 
     let user_id = ActorId::from(10);
     let actor_id = ActorId::from(0x10000);
-
-    let code_id = processor
-        .handle_new_code(demo_ping::WASM_BINARY)
-        .expect("failed to call runtime api")
-        .expect("code failed verification or instrumentation");
-
-    let mut handler = processor.handler(block_announce).unwrap();
 
     handler
         .handle_router_event(RouterRequestEvent::ProgramCreated { actor_id, code_id })
@@ -397,28 +412,13 @@ async fn async_and_ping() {
         message_nonce += 1;
         MessageId::from(message_nonce)
     };
+
+    let (mut processor, mut handler, [ping_code_id, upload_code_id, ..]) =
+        setup_test_env_and_load_codes(&[demo_ping::WASM_BINARY, demo_async::WASM_BINARY]);
+
     let user_id = ActorId::from(10);
-
-    let mut processor = Processor::new(Database::memory()).unwrap();
-
-    let genesis = init_genesis_block(&mut processor);
-    let block = init_new_block_from_parent(&mut processor, genesis);
-    let block_announce = Announce::with_default_gas(block, HashOf::zero());
-
     let ping_id = ActorId::from(0x10000000);
     let async_id = ActorId::from(0x20000000);
-
-    let ping_code_id = processor
-        .handle_new_code(demo_ping::WASM_BINARY)
-        .expect("failed to call runtime api")
-        .expect("code failed verification or instrumentation");
-
-    let upload_code_id = processor
-        .handle_new_code(demo_async::WASM_BINARY)
-        .expect("failed to call runtime api")
-        .expect("code failed verification or instrumentation");
-
-    let mut handler = processor.handler(block_announce).unwrap();
 
     handler
         .handle_router_event(RouterRequestEvent::ProgramCreated {
@@ -1076,22 +1076,12 @@ mod utils {
 async fn injected_ping_pong() {
     init_logger();
 
-    let mut processor = Processor::new(Database::memory()).unwrap();
-
-    let genesis = init_genesis_block(&mut processor);
-    let block = init_new_block_from_parent(&mut processor, genesis);
-    let block_announce = Announce::with_default_gas(block, Default::default());
+    let (mut processor, mut handler, [code_id, ..]) =
+        setup_test_env_and_load_codes(&[demo_ping::WASM_BINARY]);
 
     let user_1 = ActorId::from(10);
     let user_2 = ActorId::from(20);
     let actor_id = ActorId::from(0x10000);
-
-    let code_id = processor
-        .handle_new_code(demo_ping::WASM_BINARY)
-        .expect("failed to call runtime api")
-        .expect("code failed verification or instrumentation");
-
-    let mut handler = processor.handler(block_announce).unwrap();
 
     handler
         .handle_router_event(RouterRequestEvent::ProgramCreated { actor_id, code_id })
@@ -1266,21 +1256,11 @@ async fn injected_prioritized_over_canonical() {
 async fn executable_balance_charged() {
     init_logger();
 
-    let mut processor = Processor::new(Database::memory()).unwrap();
-
-    let genesis = init_genesis_block(&mut processor);
-    let block = init_new_block_from_parent(&mut processor, genesis);
-    let block_announce = Announce::with_default_gas(block, HashOf::zero());
+    let (mut processor, mut handler, [code_id, ..]) =
+        setup_test_env_and_load_codes(&[demo_ping::WASM_BINARY]);
 
     let user_id = ActorId::from(10);
     let actor_id = ActorId::from(0x10000);
-
-    let code_id = processor
-        .handle_new_code(demo_ping::WASM_BINARY)
-        .expect("failed to call runtime api")
-        .expect("code failed verification or instrumentation");
-
-    let mut handler = processor.handler(block_announce).unwrap();
 
     handler
         .handle_router_event(RouterRequestEvent::ProgramCreated { actor_id, code_id })
@@ -1359,21 +1339,11 @@ async fn executable_balance_injected_panic_not_charged() {
 
     init_logger();
 
-    let mut processor = Processor::new(Database::memory()).unwrap();
-
-    let genesis = init_genesis_block(&mut processor);
-    let block = init_new_block_from_parent(&mut processor, genesis);
-    let block_announce = Announce::with_default_gas(block, HashOf::zero());
+    let (mut processor, mut handler, [code_id, ..]) =
+        setup_test_env_and_load_codes(&[demo_panic_payload::WASM_BINARY]);
 
     let user_id = ActorId::from(10);
     let actor_id = ActorId::from(0x10000);
-
-    let code_id = processor
-        .handle_new_code(demo_panic_payload::WASM_BINARY)
-        .expect("failed to call runtime api")
-        .expect("code failed verification or instrumentation");
-
-    let mut handler = processor.handler(block_announce).unwrap();
 
     handler
         .handle_router_event(RouterRequestEvent::ProgramCreated { actor_id, code_id })
@@ -1468,21 +1438,11 @@ async fn insufficient_executable_balance_still_charged() {
 
     init_logger();
 
-    let mut processor = Processor::new(Database::memory()).unwrap();
-
-    let genesis = init_genesis_block(&mut processor);
-    let block = init_new_block_from_parent(&mut processor, genesis);
-    let block_announce = Announce::with_default_gas(block, HashOf::zero());
+    let (mut processor, mut handler, [code_id, ..]) =
+        setup_test_env_and_load_codes(&[demo_ping::WASM_BINARY]);
 
     let user_id = ActorId::from(10);
     let actor_id = ActorId::from(0x10000);
-
-    let code_id = processor
-        .handle_new_code(demo_ping::WASM_BINARY)
-        .expect("failed to call runtime api")
-        .expect("code failed verification or instrumentation");
-
-    let mut handler = processor.handler(block_announce).unwrap();
 
     handler
         .handle_router_event(RouterRequestEvent::ProgramCreated { actor_id, code_id })
