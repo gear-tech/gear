@@ -37,7 +37,7 @@ use ethexe_network::{
 use ethexe_observer::{ObserverEvent, ObserverService};
 use ethexe_processor::{Processor, ProcessorConfig};
 use ethexe_prometheus::{PrometheusEvent, PrometheusService};
-use ethexe_rpc::{InjectedTransactionAcceptance, RpcEvent, RpcService};
+use ethexe_rpc::{InjectedTransactionAcceptance, RpcEvent, RpcServer};
 use ethexe_service_utils::{OptionFuture as _, OptionStreamNext as _};
 use ethexe_signer::Signer;
 use futures::{StreamExt, stream::FuturesUnordered};
@@ -100,7 +100,7 @@ pub struct Service {
     // Optional services
     network: Option<NetworkService>,
     prometheus: Option<PrometheusService>,
-    rpc: Option<RpcService>,
+    rpc: Option<RpcServer>,
 
     fast_sync: bool,
     validator_address: Option<Address>,
@@ -260,7 +260,7 @@ impl Service {
         let rpc = config
             .rpc
             .as_ref()
-            .map(|config| RpcService::new(config.clone(), db.clone()));
+            .map(|config| RpcServer::new(config.clone(), db.clone()));
 
         let compute_config = ComputeConfig::new(config.node.canonical_quarantine);
         let compute = ComputeService::new(compute_config, db.clone(), processor);
@@ -304,7 +304,7 @@ impl Service {
         consensus: Pin<Box<dyn ConsensusService>>,
         network: Option<NetworkService>,
         prometheus: Option<PrometheusService>,
-        rpc: Option<RpcService>,
+        rpc: Option<RpcServer>,
         sender: tests::utils::TestingEventSender,
         fast_sync: bool,
         validator_address: Option<Address>,
@@ -540,8 +540,13 @@ impl Service {
                     ConsensusEvent::AnnounceAccepted(_) | ConsensusEvent::AnnounceRejected(_) => {
                         // TODO #4940: consider to publish network message
                     }
-                    ConsensusEvent::Promise(_promise) => {
-                        // TODO kuzmindev: handle promise in rpc and network
+                    ConsensusEvent::Promise(promise) => {
+                        let rpc = rpc
+                            .as_mut()
+                            .expect("cannot produce promise without event from RPC");
+                        rpc.provide_promise(promise);
+
+                        // TODO kuzmindev: also should be sent to network peer, that waits for transaction promise
                     }
                 },
                 Event::Fetching(result) => {

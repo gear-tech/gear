@@ -39,7 +39,6 @@ use ethexe_common::{
     db::*,
     ecdsa::{PrivateKey, PublicKey, SignedData},
     events::{BlockEvent, MirrorEvent, RouterEvent},
-    injected::RpcOrNetworkInjectedTx,
     network::{SignedValidatorMessage, ValidatorMessage},
 };
 use ethexe_compute::{ComputeConfig, ComputeService};
@@ -58,12 +57,15 @@ use ethexe_observer::{EthereumConfig, ObserverEvent, ObserverService};
 use ethexe_processor::{
     DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, DEFAULT_CHUNK_PROCESSING_THREADS, Processor, RunnerConfig,
 };
-use ethexe_rpc::{InjectedClient, InjectedTransactionAcceptance, RpcConfig, RpcService};
+use ethexe_rpc::{RpcConfig, RpcServer};
 use ethexe_signer::Signer;
 use futures::StreamExt;
 use gear_core_errors::ReplyCode;
 use gprimitives::{ActorId, CodeId, H160, H256, MessageId};
-use jsonrpsee::http_client::HttpClient;
+use jsonrpsee::{
+    http_client::HttpClient,
+    ws_client::{WsClient, WsClientBuilder},
+};
 use rand::{SeedableRng, prelude::StdRng};
 use roast_secp256k1_evm::frost::{
     Identifier, SigningKey, keys,
@@ -1021,7 +1023,7 @@ impl Node {
         let rpc = self
             .service_rpc_config
             .as_ref()
-            .map(|service_rpc_config| RpcService::new(service_rpc_config.clone(), self.db.clone()));
+            .map(|service_rpc_config| RpcServer::new(service_rpc_config.clone(), self.db.clone()));
 
         self.receiver = Some(receiver);
 
@@ -1088,20 +1090,16 @@ impl Node {
         self.receiver = None;
     }
 
-    pub fn rpc_client(&self) -> Option<HttpClient> {
-        self.service_rpc_config.as_ref().map(|rpc| {
-            HttpClient::builder()
-                .build(format!("http://{}", rpc.listen_addr))
-                .expect("failed to build http client")
-        })
+    pub fn rpc_http_client(&self) -> Option<HttpClient> {
+        let listen_addr = self.service_rpc_config.clone()?.listen_addr;
+        let url = format!("http://{}", listen_addr);
+        Some(HttpClient::builder().build(&url).unwrap())
     }
 
-    pub async fn send_injected_transaction(
-        &self,
-        tx: RpcOrNetworkInjectedTx,
-    ) -> anyhow::Result<InjectedTransactionAcceptance> {
-        let http_client = self.rpc_client().expect("no rpc client provided by node");
-        http_client.send_transaction(tx).await.map_err(Into::into)
+    pub async fn rpc_ws_client(&self) -> Option<WsClient> {
+        let listen_addr = self.service_rpc_config.clone()?.listen_addr;
+        let url = format!("ws://{listen_addr}");
+        Some(WsClientBuilder::new().build(&url).await.unwrap())
     }
 
     pub fn listener(&mut self) -> ServiceEventsListener<'_> {

@@ -98,6 +98,7 @@ impl InjectedTransaction {
 ///
 /// Note: Validator must ensure the validity of the promise, because of it can be slashed for
 /// providing an invalid promise.
+#[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
 #[derive(Debug, Clone, Encode, Decode, PartialEq, Eq, Hash)]
 pub struct Promise {
     /// Hash of the injected transaction this reply corresponds to.
