@@ -80,15 +80,15 @@ impl Behaviour {
         discovery: &mut validator::discovery::Behaviour,
         transaction: RpcOrNetworkInjectedTx,
     ) {
-        if let Some(identity) = discovery.get_identity(transaction.data().recipient) {
+        let RpcOrNetworkInjectedTx { recipient, tx } = transaction;
+
+        if let Some(identity) = discovery.get_identity(recipient) {
             let peer = identity.peer_id();
             self.inner
-                .send_request(&peer, Request::InjectedTransaction(transaction));
+                .send_request(&peer, Request::InjectedTransaction(tx));
         } else {
             log::warn!(
-                "Received transaction for unknown validator: {}, transaction={:?}",
-                transaction.data().recipient,
-                transaction
+                "Received transaction for unknown validator: {recipient}, transaction={tx:?}",
             );
         }
     }
