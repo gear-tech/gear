@@ -285,6 +285,12 @@ fn process_error(
     journal.push(JournalNote::GasBurned {
         message_id,
         amount: gas_burned,
+        is_panic: matches!(
+            case,
+            ProcessErrorCase::ExecutionFailed(ActorExecutionErrorReplyReason::Trap(
+                TrapExplanation::Panic(_)
+            ))
+        ),
     });
 
     let to_send_reply = !matches!(dispatch.kind(), DispatchKind::Reply | DispatchKind::Signal);
@@ -540,6 +546,7 @@ pub fn process_success(
     journal.push(JournalNote::GasBurned {
         message_id,
         amount: gas_amount.burned(),
+        is_panic: false,
     });
 
     if let Some(gas_reserver) = gas_reserver {

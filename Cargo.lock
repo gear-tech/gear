@@ -5075,6 +5075,7 @@ version = "1.9.2"
 dependencies = [
  "anyhow",
  "demo-async",
+ "demo-panic-payload",
  "demo-ping",
  "ethexe-common",
  "ethexe-db",
