@@ -59,8 +59,9 @@ use gear_core_errors::{ErrorReplyReason, SimpleExecutionError, SimpleUnavailable
 use gprimitives::{ActorId, H160, H256, MessageId};
 use parity_scale_codec::Encode;
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{BTreeMap, BTreeSet, HashSet},
     net::{Ipv4Addr, SocketAddr},
+    ops::ControlFlow,
     time::Duration,
 };
 use tempfile::tempdir;
@@ -279,7 +280,7 @@ async fn uninitialized_program() {
         }
         .encode();
 
-        let mut listener = env.observer_events_publisher().subscribe().await;
+        let mut listener = env.observer_events_publisher().subscribe();
 
         let init_res = env
             .create_program_with_params(code_id, H256([0x11; 32]), None, 500_000_000_000_000)
@@ -308,12 +309,12 @@ async fn uninitialized_program() {
                     msgs_for_reply.push(id);
 
                     if msgs_for_reply.len() == 3 {
-                        Ok(Some(()))
+                        Ok(ControlFlow::Break(()))
                     } else {
-                        Ok(None)
+                        Ok(ControlFlow::Continue(()))
                     }
                 }
-                _ => Ok(None),
+                _ => Ok(ControlFlow::Continue(())),
             })
             .await
             .unwrap();
@@ -349,9 +350,9 @@ async fn uninitialized_program() {
                             ..
                         },
                 } if actor_id == init_res.program_id && reply_to == init_reply.message_id => {
-                    Ok(Some(reply_code))
+                    Ok(ControlFlow::Break(reply_code))
                 }
-                _ => Ok(None),
+                _ => Ok(ControlFlow::Continue(())),
             })
             .await
             .unwrap();
@@ -413,7 +414,7 @@ async fn mailbox() {
 
     let async_pid = res.program_id;
 
-    let mut listener = env.observer_events_publisher().subscribe().await;
+    let mut listener = env.observer_events_publisher().subscribe();
 
     let wait_for_mutex_request_command_reply = env
         .send_message(async_pid, &demo_async::Command::Mutex.encode())
@@ -449,13 +450,13 @@ async fn mailbox() {
                     panic!("Unexpected message id {id}");
                 }
 
-                Ok(None)
+                Ok(ControlFlow::Continue(()))
             }
             BlockEvent::Router(RouterEvent::AnnouncesCommitted(ah)) if block.is_some() => {
                 announce_hash = Some(ah);
-                Ok(Some(()))
+                Ok(ControlFlow::Break(()))
             }
-            _ => Ok(None),
+            _ => Ok(ControlFlow::Continue(())),
         })
         .await
         .unwrap();
@@ -587,10 +588,12 @@ async fn mailbox() {
                 event: MirrorEvent::ValueClaimed { claimed_id, .. },
             } if actor_id == async_pid && claimed_id == mid_expected_message_id => {
                 claimed = true;
-                Ok(None)
+                Ok(ControlFlow::Continue(()))
             }
-            BlockEvent::Router(RouterEvent::AnnouncesCommitted(ah)) if claimed => Ok(Some(ah)),
-            _ => Ok(None),
+            BlockEvent::Router(RouterEvent::AnnouncesCommitted(ah)) if claimed => {
+                Ok(ControlFlow::Break(ah))
+            }
+            _ => Ok(ControlFlow::Continue(())),
         })
         .await
         .unwrap();
@@ -661,13 +664,17 @@ async fn value_reply_program_to_user() {
     // 1_000 ETH
     const VALUE_SENT: u128 = 1_000 * ETHER;
 
-    let mut listener = env.observer_events_publisher().subscribe().await;
+    let mut listener = env.observer_events_publisher().subscribe();
 
     piggy_bank.owned_balance_top_up(VALUE_SENT).await.unwrap();
 
     listener
         .apply_until_block_event(|e| {
-            Ok(matches!(e, BlockEvent::Router(RouterEvent::BatchCommitted { .. })).then_some(()))
+            if matches!(e, BlockEvent::Router(RouterEvent::BatchCommitted { .. })) {
+                Ok(ControlFlow::Break(()))
+            } else {
+                Ok(ControlFlow::Continue(()))
+            }
         })
         .await
         .unwrap();
@@ -762,13 +769,17 @@ async fn value_send_program_to_user_and_claimed() {
     // 1_000 ETH
     const VALUE_SENT: u128 = 1_000 * ETHER;
 
-    let mut listener = env.observer_events_publisher().subscribe().await;
+    let mut listener = env.observer_events_publisher().subscribe();
 
     piggy_bank.owned_balance_top_up(VALUE_SENT).await.unwrap();
 
     listener
         .apply_until_block_event(|e| {
-            Ok(matches!(e, BlockEvent::Router(RouterEvent::BatchCommitted { .. })).then_some(()))
+            if matches!(e, BlockEvent::Router(RouterEvent::BatchCommitted { .. })) {
+                Ok(ControlFlow::Break(()))
+            } else {
+                Ok(ControlFlow::Continue(()))
+            }
         })
         .await
         .unwrap();
@@ -826,8 +837,10 @@ async fn value_send_program_to_user_and_claimed() {
             BlockEvent::Mirror {
                 actor_id,
                 event: MirrorEvent::ValueClaimed { claimed_id, .. },
-            } if actor_id == piggy_bank_id && claimed_id == mailboxed_msg_id => Ok(Some(())),
-            _ => Ok(None),
+            } if actor_id == piggy_bank_id && claimed_id == mailboxed_msg_id => {
+                Ok(ControlFlow::Break(()))
+            }
+            _ => Ok(ControlFlow::Continue(())),
         })
         .await
         .unwrap();
@@ -896,13 +909,17 @@ async fn value_send_program_to_user_and_replied() {
     // 1_000 ETH
     const VALUE_SENT: u128 = 1_000 * ETHER;
 
-    let mut listener = env.observer_events_publisher().subscribe().await;
+    let mut listener = env.observer_events_publisher().subscribe();
 
     piggy_bank.owned_balance_top_up(VALUE_SENT).await.unwrap();
 
     listener
         .apply_until_block_event(|e| {
-            Ok(matches!(e, BlockEvent::Router(RouterEvent::BatchCommitted { .. })).then_some(()))
+            if matches!(e, BlockEvent::Router(RouterEvent::BatchCommitted { .. })) {
+                Ok(ControlFlow::Break(()))
+            } else {
+                Ok(ControlFlow::Continue(()))
+            }
         })
         .await
         .unwrap();
@@ -963,8 +980,10 @@ async fn value_send_program_to_user_and_replied() {
             BlockEvent::Mirror {
                 actor_id,
                 event: MirrorEvent::ValueClaimed { claimed_id, .. },
-            } if actor_id == piggy_bank_id && claimed_id == mailboxed_msg_id => Ok(Some(())),
-            _ => Ok(None),
+            } if actor_id == piggy_bank_id && claimed_id == mailboxed_msg_id => {
+                Ok(ControlFlow::Break(()))
+            }
+            _ => Ok(ControlFlow::Continue(())),
         })
         .await
         .unwrap();
@@ -1033,13 +1052,17 @@ async fn incoming_transfers() {
     // 1_000 ETH
     const VALUE_SENT: u128 = 1_000 * ETHER;
 
-    let mut listener = env.observer_events_publisher().subscribe().await;
+    let mut listener = env.observer_events_publisher().subscribe();
 
     ping.owned_balance_top_up(VALUE_SENT).await.unwrap();
 
     listener
         .apply_until_block_event(|e| {
-            Ok(matches!(e, BlockEvent::Router(RouterEvent::BatchCommitted { .. })).then_some(()))
+            if matches!(e, BlockEvent::Router(RouterEvent::BatchCommitted { .. })) {
+                Ok(ControlFlow::Break(()))
+            } else {
+                Ok(ControlFlow::Continue(()))
+            }
         })
         .await
         .unwrap();
@@ -1823,14 +1846,17 @@ async fn validators_election() {
         .unwrap();
     env.force_new_block().await;
 
-    let mut listener = env.observer_events_publisher().subscribe().await;
+    let mut listener = env.observer_events_publisher().subscribe();
     listener
         .apply_until_block_event(|event| {
-            Ok(matches!(
+            if matches!(
                 event,
                 BlockEvent::Router(RouterEvent::ValidatorsCommittedForEra { era_index: _ })
-            )
-            .then_some(()))
+            ) {
+                Ok(ControlFlow::Break(()))
+            } else {
+                Ok(ControlFlow::Continue(()))
+            }
         })
         .await
         .unwrap();
@@ -2245,7 +2271,7 @@ async fn value_send_delayed() {
 
     assert_eq!(router_balance, VALUE_SENT);
 
-    let mut listener = env.observer_events_publisher().subscribe().await;
+    let mut listener = env.observer_events_publisher().subscribe();
 
     // Skip blocks to pass the delay
     env.provider
@@ -2254,7 +2280,11 @@ async fn value_send_delayed() {
         .unwrap();
     listener
         .apply_until_block_event(|e| {
-            Ok(matches!(e, BlockEvent::Router(RouterEvent::BatchCommitted { .. })).then_some(()))
+            if matches!(e, BlockEvent::Router(RouterEvent::BatchCommitted { .. })) {
+                Ok(ControlFlow::Break(()))
+            } else {
+                Ok(ControlFlow::Continue(()))
+            }
         })
         .await
         .unwrap();
@@ -2385,10 +2415,10 @@ async fn injected_tx_fungible_token() {
                 );
                 assert_eq!(promise.reply.value, 0);
 
-                return Ok(Some(()));
+                return Ok(ControlFlow::Break(()));
             }
 
-            Ok(None)
+            Ok(ControlFlow::Continue(()))
         })
         .await
         .unwrap();
@@ -2436,10 +2466,10 @@ async fn injected_tx_fungible_token() {
                 );
                 assert_eq!(promise.reply.value, 0);
 
-                return Ok(Some(()));
+                return Ok(ControlFlow::Break(()));
             }
 
-            Ok(None)
+            Ok(ControlFlow::Continue(()))
         })
         .await
         .unwrap();
@@ -2450,7 +2480,7 @@ async fn injected_tx_fungible_token() {
         .apply_until(|event| {
             if let TestingEvent::Observer(ObserverEvent::BlockSynced(synced_block)) = event {
                 let Some(block_events) = db.block_events(synced_block) else {
-                    return Ok(None);
+                    return Ok(ControlFlow::Continue(()));
                 };
 
                 for block_event in block_events {
@@ -2464,12 +2494,12 @@ async fn injected_tx_fungible_token() {
                         assert_eq!(state.balance, 0);
                         assert_eq!(state.injected_queue.cached_queue_size, 0);
                         assert_eq!(state.canonical_queue.cached_queue_size, 0);
-                        return Ok(Some(()));
+                        return Ok(ControlFlow::Break(()));
                     }
                 }
             }
 
-            Ok(None)
+            Ok(ControlFlow::Continue(()))
         })
         .await
         .unwrap();
@@ -2630,12 +2660,15 @@ async fn announces_conflicts() {
         // Validators 1..=6 must reject this announce
         futures::future::join_all(listeners.iter_mut().map(|l| {
             l.apply_until(|event| {
-                Ok(matches!(
+                if matches!(
                     event,
                     TestingEvent::Consensus(ConsensusEvent::AnnounceRejected(rejected_announce_hash))
                         if rejected_announce_hash == announce_hash
-                )
-                .then_some(()))
+                ) {
+                    Ok(ControlFlow::Break(()))
+                } else {
+                    Ok(ControlFlow::Continue(()))
+                }
             })
         }))
         .await
@@ -2755,15 +2788,18 @@ async fn announces_conflicts() {
             })
             .await;
 
-        // Validators 1..=5 must reject this announce
+        // Validators 1..=5 must accept this announce, as soon as parent is known base announce
         futures::future::join_all(listeners.iter_mut().map(|l| {
             l.apply_until(|event| {
-                Ok(matches!(
+                if matches!(
                     event,
-                    TestingEvent::Consensus(ConsensusEvent::AnnounceRejected(announce_hash))
+                    TestingEvent::Consensus(ConsensusEvent::AnnounceAccepted(announce_hash))
                         if announce_hash == announce7_hash
-                )
-                .then_some(()))
+                ) {
+                    Ok(ControlFlow::Break(()))
+                } else {
+                    Ok(ControlFlow::Continue(()))
+                }
             })
         }))
         .await
@@ -2776,7 +2812,7 @@ async fn announces_conflicts() {
 
     {
         log::info!(
-            "📗 Case 5: announce from validator 0 was rejected but still validator 1 could process all in the next block"
+            "📗 Case 5: validator 0 does not commit changes, because it's stopped, so validator 1 could do this in the next block"
         );
 
         assert_eq!(env.next_block_producer_index().await, 1);
@@ -2788,4 +2824,108 @@ async fn announces_conflicts() {
             assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Manual));
         });
     }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ntest::timeout(120_000)]
+async fn whole_network_restore() {
+    init_logger();
+
+    let config = TestEnvConfig {
+        validators: ValidatorsConfig::PreDefined(4),
+        network: EnvNetworkConfig::Enabled,
+        continuous_block_generation: true,
+        ..Default::default()
+    };
+    let mut env = TestEnv::new(config).await.unwrap();
+
+    let mut validators = vec![];
+    for (i, v) in env.validators.clone().into_iter().enumerate() {
+        log::info!("📗 Starting validator-{i}");
+        let mut validator = env.new_node(NodeConfig::named(format!("validator-{i}")).validator(v));
+        validator.start_service().await;
+        validators.push(validator);
+    }
+
+    // make sure we receive unique messages and not repeated ones
+    let mut seen_messages = HashSet::new();
+
+    let res = env
+        .upload_code(demo_ping::WASM_BINARY)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert!(res.valid);
+    let ping_code_id = res.code_id;
+
+    let res = env
+        .create_program(ping_code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    let ping_id = res.program_id;
+
+    let init_res = env
+        .send_message(res.program_id, b"")
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert_eq!(res.code_id, ping_code_id);
+    assert_eq!(init_res.payload, b"");
+    assert_eq!(init_res.value, 0);
+    assert_eq!(init_res.code, ReplyCode::Success(SuccessReplyReason::Auto));
+    assert!(seen_messages.insert(init_res.message_id));
+
+    for (i, v) in validators.iter_mut().enumerate() {
+        log::info!("📗 Stopping validator-{i}");
+        v.stop_service().await;
+    }
+
+    let ping_wait_for = env.send_message(ping_id, b"PING").await.unwrap();
+
+    let async_code_upload = env.upload_code(demo_async::WASM_BINARY).await.unwrap();
+
+    log::info!("📗 Skipping 20 blocks");
+    env.skip_blocks(20).await;
+
+    for (i, v) in validators.iter_mut().enumerate() {
+        log::info!("📗 Starting validator-{i} again");
+        v.start_service().await;
+    }
+
+    let res = ping_wait_for.wait_for().await.unwrap();
+    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Manual));
+    assert_eq!(res.payload, b"PONG");
+    assert_eq!(res.value, 0);
+    assert!(seen_messages.insert(res.message_id));
+
+    let res = async_code_upload.wait_for().await.unwrap();
+    assert!(res.valid);
+    let async_code_id = res.code_id;
+    let res = env
+        .create_program(async_code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    let init_res = env
+        .send_message(res.program_id, ping_id.encode().as_slice())
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert_eq!(res.code_id, async_code_id);
+    assert_eq!(init_res.payload, b"");
+    assert_eq!(init_res.value, 0);
+    assert_eq!(init_res.code, ReplyCode::Success(SuccessReplyReason::Auto));
+    assert!(seen_messages.insert(init_res.message_id));
 }
