@@ -51,6 +51,10 @@ use std::{
     time::SystemTime,
 };
 
+/// From Substrate sources:
+/// Maximum number of addresses cached per authority. Additional addresses are discarded.
+const MAX_IDENTITY_ADDRESSES: usize = 10;
+
 /// Signed validator discovery
 ///
 /// Signed by both validator key and networking key,
@@ -135,7 +139,7 @@ enum FromVecOfVecError {
     #[display("no addresses")]
     NoAddresses,
     #[display("multiaddr parse error: {_0}")]
-    Multiaddr(multiaddr::Error),
+    ParseMultiaddr(multiaddr::Error),
     #[display("multiaddr is empty")]
     MultiaddrIsEmpty,
     #[display("peer ID mismatch: expected={expected}, actual={actual}")]
@@ -147,6 +151,8 @@ enum FromVecOfVecError {
     LastProtocolIsNotP2p,
     #[display("duplicated multiaddr")]
     DuplicatedMultiaddr,
+    #[display("too many addresses: expected={expected}, actual={actual}")]
+    TooManyAddresses { expected: usize, actual: usize },
 }
 
 /// Validator addresses
@@ -155,6 +161,8 @@ enum FromVecOfVecError {
 /// Every address ends with P2P protocol containing the same peer ID.
 ///
 /// Duplicated addresses are denied during decoding.
+// TODO: consider to not expect peer ID at the end of addresses
+// because it is signed by the network key (and thus the same peer ID)
 #[derive(Debug, Clone, PartialEq, Eq, derive_more::IntoIterator)]
 pub(crate) struct ValidatorAddresses {
     addresses: HashSet<Multiaddr>,
@@ -183,6 +191,7 @@ impl ValidatorAddresses {
         let addresses: HashSet<Multiaddr> = addresses
             .iter()
             .cloned()
+            .take(MAX_IDENTITY_ADDRESSES)
             .map(|address| {
                 address
                     .with_p2p(peer_id)
@@ -195,10 +204,21 @@ impl ValidatorAddresses {
 
     /// Constructor to be used in `Decode` implementation
     fn from_vec_of_vec(addresses: Vec<Vec<u8>>) -> Result<Self, FromVecOfVecError> {
+        if addresses.is_empty() {
+            return Err(FromVecOfVecError::NoAddresses);
+        }
+
+        if addresses.len() > MAX_IDENTITY_ADDRESSES {
+            return Err(FromVecOfVecError::TooManyAddresses {
+                expected: MAX_IDENTITY_ADDRESSES,
+                actual: addresses.len(),
+            });
+        }
+
         let (addresses, _peer_id) = addresses.into_iter().try_fold(
             (HashSet::new(), None),
             |(mut set, mut peer_id), addr| {
-                let addr = Multiaddr::try_from(addr).map_err(FromVecOfVecError::Multiaddr)?;
+                let addr = Multiaddr::try_from(addr).map_err(FromVecOfVecError::ParseMultiaddr)?;
 
                 let protocol = addr
                     .iter()
@@ -223,10 +243,6 @@ impl ValidatorAddresses {
                 Ok((set, peer_id))
             },
         )?;
-
-        if addresses.is_empty() {
-            return Err(FromVecOfVecError::NoAddresses);
-        }
 
         Ok(Self { addresses })
     }
@@ -633,8 +649,17 @@ mod tests {
         );
 
         assert_matches!(
+            ValidatorAddresses::from_vec_of_vec(vec![vec![0xfe]; MAX_IDENTITY_ADDRESSES + 1])
+                .unwrap_err(),
+            FromVecOfVecError::TooManyAddresses {
+                expected: MAX_IDENTITY_ADDRESSES,
+                actual: 11
+            }
+        );
+
+        assert_matches!(
             ValidatorAddresses::from_vec_of_vec(vec![vec![1]]).unwrap_err(),
-            FromVecOfVecError::Multiaddr(_)
+            FromVecOfVecError::ParseMultiaddr(_)
         );
 
         assert_matches!(
