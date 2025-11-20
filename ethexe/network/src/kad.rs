@@ -20,7 +20,7 @@ use crate::{peer_score, validator::discovery::SignedValidatorIdentity};
 use anyhow::Context as _;
 use ethexe_common::Address;
 use libp2p::{
-    Multiaddr, PeerId,
+    Multiaddr, PeerId, StreamProtocol,
     core::{Endpoint, transport::PortUse},
     kad,
     kad::{
@@ -40,6 +40,8 @@ use std::{
     time::Duration,
 };
 
+const KAD_PROTOCOL_NAME: StreamProtocol =
+    StreamProtocol::new(concat!("/ethexe/kad/", env!("CARGO_PKG_VERSION")));
 const KAD_RECORD_TTL_SECS: u64 = 3600 * 3; // 3 hours
 const KAD_RECORD_TTL: Duration = Duration::from_secs(KAD_RECORD_TTL_SECS);
 const KAD_PUBLISHING_INTERVAL: Duration = Duration::from_secs(KAD_RECORD_TTL_SECS / 4);
@@ -197,7 +199,7 @@ impl Behaviour {
         peer_score: peer_score::Handle,
         min_quorum_peers: u32,
     ) -> Self {
-        let mut inner = kad::Config::default();
+        let mut inner = kad::Config::new(KAD_PROTOCOL_NAME);
         inner
             .disjoint_query_paths(true)
             .set_record_ttl(Some(KAD_RECORD_TTL))
