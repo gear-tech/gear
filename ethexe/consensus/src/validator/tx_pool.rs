@@ -16,13 +16,15 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use crate::tx_validation::{TxValidity, TxValidityChecker};
 use anyhow::Result;
 use ethexe_common::{
     Announce, HashOf,
     db::{AnnounceStorageRO, CodesStorageRO, InjectedStorageRW, OnChainStorageRO},
-    injected::{InjectedTransaction, SignedInjectedTransaction, TxValidity, TxValidityChecker},
+    injected::{InjectedTransaction, SignedInjectedTransaction},
 };
 use ethexe_db::Database;
+use ethexe_runtime_common::state::Storage;
 use gprimitives::H256;
 use std::collections::HashSet;
 
@@ -36,7 +38,7 @@ pub(crate) struct InjectedTxPool<DB = Database> {
 
 impl<DB> InjectedTxPool<DB>
 where
-    DB: OnChainStorageRO + InjectedStorageRW + AnnounceStorageRO + CodesStorageRO + Clone,
+    DB: OnChainStorageRO + InjectedStorageRW + AnnounceStorageRO + CodesStorageRO + Storage + Clone,
 {
     pub fn new(db: DB) -> Self {
         Self {
@@ -87,6 +89,12 @@ where
                     tracing::trace!(tx_hash = ?tx_hash, "tx on different branch, keeping in pool");
                 }
                 TxValidity::Outdated => outdated_txs.push((*reference_block, *tx_hash)),
+                TxValidity::UninitializedDestination => {
+                    tracing::trace!(
+                        tx_hash = ?tx_hash,
+                        "tx send to uninitialized actor, keeping in pool, because of in next blocks it can be"
+                    );
+                }
             }
         }
 
@@ -95,140 +103,5 @@ where
         });
 
         Ok(selected_txs)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use ethexe_common::{
-        SimpleBlockData, StateHashWithQueueSize,
-        db::{AnnounceStorageRW, OnChainStorageRW},
-        ecdsa::PrivateKey,
-        injected::VALIDITY_WINDOW,
-        mock::{BlockChain, Mock},
-    };
-    use gprimitives::ActorId;
-    use std::collections::BTreeMap;
-
-    fn mock_tx(reference_block: H256) -> SignedInjectedTransaction {
-        let mut tx = InjectedTransaction::mock(());
-        tx.reference_block = reference_block;
-        tx.destination = ActorId::zero();
-
-        SignedInjectedTransaction::create(PrivateKey::random(), tx).unwrap()
-    }
-
-    fn setup_announce(db: &Database, txs: Vec<SignedInjectedTransaction>) -> HashOf<Announce> {
-        let mut announce = Announce::mock(());
-        announce.parent = HashOf::zero();
-        announce.injected_transactions = txs;
-        let announce_hash = db.set_announce(announce);
-
-        let state = StateHashWithQueueSize {
-            canonical_queue_size: 0,
-            injected_queue_size: 0,
-            hash: H256::zero(),
-        };
-        db.set_announce_program_states(announce_hash, BTreeMap::from([(ActorId::zero(), state)]));
-
-        announce_hash
-    }
-
-    #[test]
-    fn test_check_tx_validity() {
-        let db = Database::memory();
-        let blocks = BlockChain::mock(100).setup(&db).blocks;
-
-        let announce_hash = setup_announce(&db, vec![]);
-
-        let chain_head = blocks[VALIDITY_WINDOW as usize].hash;
-        let tx_checker =
-            TxValidityChecker::new_for_announce(db, chain_head, announce_hash).unwrap();
-
-        for block in blocks.iter().skip(1).take(VALIDITY_WINDOW as usize) {
-            let tx = mock_tx(block.hash);
-            assert_eq!(
-                TxValidity::Valid,
-                tx_checker.check_tx_validity(&tx).unwrap()
-            );
-        }
-    }
-
-    #[test]
-    fn test_check_tx_duplicate() {
-        let db = Database::memory();
-        let blocks = BlockChain::mock(100).setup(&db).blocks;
-
-        let tx = mock_tx(blocks[5].hash);
-        let announce_hash = setup_announce(&db, vec![tx.clone()]);
-
-        let tx_checker =
-            TxValidityChecker::new_for_announce(db, blocks[9].hash, announce_hash).unwrap();
-
-        assert_eq!(
-            TxValidity::Duplicate,
-            tx_checker.check_tx_validity(&tx).unwrap()
-        );
-    }
-
-    #[test]
-    fn test_check_tx_outdated() {
-        let db = Database::memory();
-        let blocks = BlockChain::mock(100).setup(&db).blocks;
-
-        let announce_hash = setup_announce(&db, vec![]);
-
-        let chain_head = blocks[(VALIDITY_WINDOW * 2) as usize].hash;
-        let tx_checker =
-            TxValidityChecker::new_for_announce(db, chain_head, announce_hash).unwrap();
-
-        for block in blocks.iter().take(VALIDITY_WINDOW as usize) {
-            let tx = mock_tx(block.hash);
-            assert_eq!(
-                TxValidity::Outdated,
-                tx_checker.check_tx_validity(&tx).unwrap()
-            );
-        }
-    }
-
-    #[test]
-    fn test_check_tx_not_on_current_branch() {
-        let db = Database::memory();
-        let blocks = BlockChain::mock(35).setup(&db).blocks;
-
-        let mut blocks_branch2 = vec![];
-
-        let mut parent = blocks[10].hash;
-        blocks.iter().skip(9).for_each(|block| {
-            let mut header = block.to_simple().header;
-            header.parent_hash = parent;
-
-            let hash = H256::random();
-            db.set_block_header(hash, header);
-            blocks_branch2.push(SimpleBlockData { hash, header });
-            parent = hash;
-        });
-
-        let announce_hash = setup_announce(&db, vec![]);
-
-        let tx_checker =
-            TxValidityChecker::new_for_announce(db, blocks[35].hash, announce_hash).unwrap();
-
-        for block in blocks_branch2.iter() {
-            let tx = mock_tx(block.hash);
-            assert_eq!(
-                TxValidity::NotOnCurrentBranch,
-                tx_checker.check_tx_validity(&tx).unwrap()
-            );
-        }
-
-        for block in blocks.iter().rev().take(VALIDITY_WINDOW as usize) {
-            let tx = mock_tx(block.hash);
-            assert_eq!(
-                TxValidity::Valid,
-                tx_checker.check_tx_validity(&tx).unwrap()
-            );
-        }
     }
 }

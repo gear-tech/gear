@@ -431,11 +431,7 @@ impl NetworkService {
                     }
                 }
             }
-            mdns::Event::Expired(peers) => {
-                for (peer_id, _multiaddr) in peers {
-                    let _res = self.swarm.disconnect_peer_id(peer_id);
-                }
-            }
+            mdns::Event::Expired(_peers) => {}
         }
     }
 

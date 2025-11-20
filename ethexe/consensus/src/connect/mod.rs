@@ -242,11 +242,7 @@ impl ConsensusService for ConnectService {
             && sender == *producer
             && announce.block_hash == block.hash
         {
-            match announces::accept_announce(
-                &self.db,
-                announce.clone(),
-                self.commitment_delay_limit,
-            )? {
+            match announces::accept_announce(&self.db, announce.clone())? {
                 AnnounceStatus::Rejected { announce, reason } => {
                     tracing::warn!(
                         announce = %announce.to_hash(),

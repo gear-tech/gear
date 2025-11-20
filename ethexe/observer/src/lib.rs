@@ -24,7 +24,7 @@ use alloy::{
     providers::{Provider, ProviderBuilder, RootProvider},
     pubsub::{Subscription, SubscriptionStream},
     rpc::types::eth::Header,
-    transports::{RpcError, TransportErrorKind},
+    transports::TransportResult,
 };
 use anyhow::{Context as _, Result, anyhow};
 use ethexe_common::{
@@ -37,7 +37,7 @@ use gprimitives::H256;
 use std::{
     collections::VecDeque,
     pin::Pin,
-    task::{Context, Poll},
+    task::{Context, Poll, ready},
     time::Duration,
 };
 use sync::ChainSync;
@@ -48,8 +48,7 @@ mod utils;
 #[cfg(test)]
 mod tests;
 
-type HeadersSubscriptionFuture =
-    BoxFuture<'static, std::result::Result<Subscription<Header>, RpcError<TransportErrorKind>>>;
+type HeadersSubscriptionFuture = BoxFuture<'static, TransportResult<Subscription<Header>>>;
 
 #[derive(Clone, Debug)]
 pub struct EthereumConfig {
@@ -94,14 +93,13 @@ impl Stream for ObserverService {
         // The subscription creation request is a future itself, and it is polled here. If it's ready,
         // a new stream from it is created and used further to poll the next header.
         if let Some(future) = self.subscription_future.as_mut() {
-            match future.poll_unpin(cx) {
-                Poll::Ready(Ok(subscription)) => self.headers_stream = subscription.into_stream(),
-                Poll::Ready(Err(e)) => {
-                    return Poll::Ready(Some(Err(anyhow!(
+            match ready!(future.as_mut().poll(cx)) {
+                Ok(subscription) => self.headers_stream = subscription.into_stream(),
+                Err(e) => {
+                    return Poll::Ready(Some(Err(anyhow::anyhow!(
                         "failed to create new headers stream: {e}"
                     ))));
                 }
-                Poll::Pending => return Poll::Pending,
             }
         }
 
@@ -112,8 +110,7 @@ impl Stream for ObserverService {
                 // TODO #4568: test creating a new subscription in case when Receiver becomes invalid
                 let provider = self.provider().clone();
                 let _fut = provider.get_block_by_number(alloy::eips::BlockNumberOrTag::Earliest);
-                self.subscription_future =
-                    Some(Box::pin(async move { provider.subscribe_blocks().await }));
+                self.subscription_future = Some(provider.subscribe_blocks().into_future());
 
                 cx.waker().wake_by_ref();
                 return Poll::Pending;
