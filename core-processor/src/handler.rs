@@ -35,7 +35,11 @@ pub fn handle_journal(
                 source,
                 outcome,
             } => handler.message_dispatched(message_id, source, outcome),
-            JournalNote::GasBurned { message_id, amount } => handler.gas_burned(message_id, amount),
+            JournalNote::GasBurned {
+                message_id,
+                amount,
+                is_panic: _,
+            } => handler.gas_burned(message_id, amount),
             JournalNote::ExitDispatch {
                 id_exited,
                 value_destination,

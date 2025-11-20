@@ -670,10 +670,10 @@ pub fn best_announce(
 
 #[derive(Debug, Clone, PartialEq, Eq, derive_more::Display)]
 pub enum AnnounceRejectionReason {
-    #[display("Unsuitable parent: expected {expected:?}, found {found:?}")]
-    UnsuitableParent {
-        expected: HashOf<Announce>,
-        found: HashOf<Announce>,
+    #[display("Announce {announce_hash} parent {parent_announce_hash} is unknown")]
+    UnknownParent {
+        announce_hash: HashOf<Announce>,
+        parent_announce_hash: HashOf<Announce>,
     },
     #[display("Announce {_0} is already included")]
     AlreadyIncluded(HashOf<Announce>),
@@ -694,21 +694,17 @@ pub enum AnnounceStatus {
 
 /// Tries to accept provided announce: check it and include into database.
 /// To be accepted, announce must
-/// 1) have suitable parent announce - currently it must be best (see [`best_parent_announce`]).
+/// 1) announce parent must be included by this node.
 /// 2) be not included yet.
-pub fn accept_announce(
-    db: &impl DBAnnouncesExt,
-    announce: Announce,
-    commitment_delay_limit: u32,
-) -> Result<AnnounceStatus> {
-    let best_parent = best_parent_announce(db, announce.block_hash, commitment_delay_limit)?;
-    let announce_parent = announce.parent;
-    if best_parent != announce_parent {
+pub fn accept_announce(db: &impl DBAnnouncesExt, announce: Announce) -> Result<AnnounceStatus> {
+    let announce_hash = announce.to_hash();
+    let parent_announce_hash = announce.parent;
+    if !db.is_announce_included(parent_announce_hash) {
         return Ok(AnnounceStatus::Rejected {
             announce,
-            reason: AnnounceRejectionReason::UnsuitableParent {
-                expected: best_parent,
-                found: announce_parent,
+            reason: AnnounceRejectionReason::UnknownParent {
+                announce_hash,
+                parent_announce_hash,
             },
         });
     }
