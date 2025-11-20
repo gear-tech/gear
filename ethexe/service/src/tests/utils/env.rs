@@ -42,7 +42,7 @@ use ethexe_common::{
     network::{SignedValidatorMessage, ValidatorMessage},
 };
 use ethexe_compute::{ComputeConfig, ComputeService};
-use ethexe_consensus::{ConnectService, ConsensusService, ValidatorService};
+use ethexe_consensus::{BatchCommitter, ConnectService, ConsensusService, ValidatorService};
 use ethexe_db::Database;
 use ethexe_ethereum::{
     Ethereum,
@@ -76,10 +76,7 @@ use std::{
     net::SocketAddr,
     ops::ControlFlow,
     pin::Pin,
-    sync::{
-        Arc,
-        atomic::{AtomicUsize, Ordering},
-    },
+    sync::atomic::{AtomicUsize, Ordering},
     time::Duration,
 };
 use tokio::{
@@ -393,6 +390,7 @@ impl TestEnv {
             db,
             multiaddr: None,
             latest_fast_synced_block: None,
+            custom_committer: None,
             router_query: self.router_query.clone(),
             eth_cfg: self.eth_cfg.clone(),
             receiver: None,
@@ -400,13 +398,14 @@ impl TestEnv {
             signer: self.signer.clone(),
             threshold: self.threshold,
             block_time: self.block_time,
-            running_service_handle: None,
             validator_config,
             network_address,
             network_bootstrap_address,
             service_rpc_config,
             fast_sync,
             compute_config: self.compute_config,
+            commitment_delay_limit: self.commitment_delay_limit,
+            running_service_handle: None,
         }
     }
 
@@ -921,6 +920,7 @@ pub struct Node {
     pub db: Database,
     pub multiaddr: Option<String>,
     pub latest_fast_synced_block: Option<H256>,
+    pub custom_committer: Option<Box<dyn BatchCommitter>>,
 
     router_query: RouterQuery,
     eth_cfg: EthereumConfig,
@@ -929,13 +929,15 @@ pub struct Node {
     signer: Signer,
     threshold: u64,
     block_time: Duration,
-    running_service_handle: Option<JoinHandle<()>>,
     validator_config: Option<ValidatorConfig>,
     network_address: Option<String>,
     network_bootstrap_address: Option<String>,
     service_rpc_config: Option<RpcConfig>,
     fast_sync: bool,
     compute_config: ComputeConfig,
+    commitment_delay_limit: u32,
+
+    running_service_handle: Option<JoinHandle<()>>,
 }
 
 impl Node {
@@ -954,33 +956,45 @@ impl Node {
 
         let consensus: Pin<Box<dyn ConsensusService>> = {
             if let Some(config) = self.validator_config.as_ref() {
-                let ethereum = Ethereum::new(
-                    &self.eth_cfg.rpc,
-                    self.eth_cfg.router_address.into(),
-                    self.signer.clone(),
-                    config.public_key.to_address(),
-                )
-                .await
-                .unwrap();
+                let committer = if let Some(custom_committer) = self.custom_committer.take() {
+                    custom_committer
+                } else {
+                    Ethereum::new(
+                        &self.eth_cfg.rpc,
+                        self.eth_cfg.router_address.into(),
+                        self.signer.clone(),
+                        config.public_key.to_address(),
+                    )
+                    .await
+                    .unwrap()
+                    .router()
+                    .into()
+                };
+
                 Box::pin(
                     ValidatorService::new(
                         self.signer.clone(),
-                        Arc::new(self.election_provider.clone()),
-                        ethereum.router(),
+                        self.election_provider.clone(),
+                        committer,
                         self.db.clone(),
                         ethexe_consensus::ValidatorConfig {
                             pub_key: config.public_key,
                             signatures_threshold: self.threshold,
                             slot_duration: self.block_time,
                             block_gas_limit: DEFAULT_BLOCK_GAS_LIMIT,
-                            commitment_delay_limit: COMMITMENT_DELAY_LIMIT,
+                            commitment_delay_limit: self.commitment_delay_limit,
                             producer_delay: self.block_time / 6,
+                            router_address: self.eth_cfg.router_address,
                         },
                     )
                     .unwrap(),
                 )
             } else {
-                Box::pin(ConnectService::new(self.db.clone(), self.block_time, 3))
+                Box::pin(ConnectService::new(
+                    self.db.clone(),
+                    self.block_time,
+                    self.commitment_delay_limit,
+                ))
             }
         };
 
@@ -1284,6 +1298,13 @@ pub struct ReplyInfo {
 }
 
 impl WaitForReplyTo {
+    pub fn from_raw_parts(listener: ObserverEventsListener, message_id: MessageId) -> Self {
+        Self {
+            listener,
+            message_id,
+        }
+    }
+
     pub async fn wait_for(mut self) -> anyhow::Result<ReplyInfo> {
         log::info!("📗 Waiting for reply to message {}", self.message_id);
 
