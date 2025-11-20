@@ -378,11 +378,7 @@ impl NetworkService {
                     }
                 }
             }
-            BehaviourEvent::Mdns4(mdns::Event::Expired(peers)) => {
-                for (peer_id, _multiaddr) in peers {
-                    let _res = self.swarm.disconnect_peer_id(peer_id);
-                }
-            }
+            BehaviourEvent::Mdns4(mdns::Event::Expired(_peers)) => {}
             //
             BehaviourEvent::Kad(kad::Event::RoutingUpdated { peer, .. }) => {
                 let behaviour = self.swarm.behaviour_mut();
