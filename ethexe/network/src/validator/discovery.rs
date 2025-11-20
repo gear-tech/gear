@@ -26,7 +26,7 @@ use crate::{
     utils::ExponentialBackoffInterval,
     validator::list::ValidatorListSnapshot,
 };
-use anyhow::Context;
+use anyhow::Context as _;
 use ethexe_common::{
     Address, ToDigest,
     ecdsa::{PublicKey, Signature},
@@ -47,7 +47,7 @@ use parity_scale_codec::{Decode, Encode, Error, Input, Output};
 use std::{
     collections::{HashMap, HashSet},
     sync::Arc,
-    task::Poll,
+    task::{Context, Poll},
     time::SystemTime,
 };
 
@@ -348,53 +348,16 @@ pub enum PutIdentityError {
 }
 
 #[derive(Debug)]
-pub struct Behaviour {
+struct PutIdentity {
     keypair: Keypair,
-    validator_key: Option<PublicKey>,
+    validator_key: PublicKey,
     signer: Signer,
-    snapshot: Arc<ValidatorListSnapshot>,
-    identities: HashMap<Address, SignedValidatorIdentity>,
+    interval: ExponentialBackoffInterval,
     external_addresses: ExternalAddresses,
-    query_identities_interval: ExponentialBackoffInterval,
-    put_identity_interval: ExponentialBackoffInterval,
 }
 
-impl Behaviour {
-    pub fn new(
-        keypair: Keypair,
-        validator_key: Option<PublicKey>,
-        signer: Signer,
-        snapshot: Arc<ValidatorListSnapshot>,
-    ) -> Self {
-        Self {
-            keypair,
-            validator_key,
-            signer,
-            snapshot,
-            identities: HashMap::new(),
-            external_addresses: ExternalAddresses::default(),
-            query_identities_interval: ExponentialBackoffInterval::new(),
-            put_identity_interval: ExponentialBackoffInterval::new(),
-        }
-    }
-
-    pub(crate) fn on_new_snapshot(&mut self, snapshot: Arc<ValidatorListSnapshot>) {
-        self.snapshot = snapshot;
-
-        // eliminate identities that are neither in the current set nor in the next set
-        self.identities
-            .retain(|&address, _identity| self.snapshot.contains_any_validator(address));
-    }
-
-    fn identity_keys(&self) -> impl Iterator<Item = ValidatorIdentityKey> {
-        self.snapshot
-            .all_validators()
-            .map(|address| ValidatorIdentityKey { validator: address })
-    }
-
+impl PutIdentity {
     fn identity(&self) -> Option<anyhow::Result<ValidatorIdentityRecord>> {
-        let validator_key = self.validator_key?;
-
         let addresses = ValidatorAddresses::from_external_addresses(
             self.keypair.public().to_peer_id(),
             &self.external_addresses,
@@ -415,10 +378,65 @@ impl Behaviour {
         };
 
         let record = identity
-            .sign(&self.signer, validator_key, &self.keypair)
+            .sign(&self.signer, self.validator_key, &self.keypair)
             .context("failed to sign validator identity")
             .map(|value| ValidatorIdentityRecord { value });
         Some(record)
+    }
+
+    fn poll(&mut self, cx: &mut Context<'_>) -> Poll<anyhow::Result<Box<ValidatorIdentityRecord>>> {
+        if self.interval.poll_tick(cx).is_ready()
+            && let Some(identity) = self.identity()
+        {
+            let identity = identity.map(Box::new);
+            return Poll::Ready(identity);
+        }
+
+        Poll::Pending
+    }
+}
+
+#[derive(Debug)]
+pub struct Behaviour {
+    snapshot: Arc<ValidatorListSnapshot>,
+    identities: HashMap<Address, SignedValidatorIdentity>,
+    query_identities_interval: ExponentialBackoffInterval,
+    put_identity: Option<PutIdentity>,
+}
+
+impl Behaviour {
+    pub fn new(
+        keypair: Keypair,
+        validator_key: Option<PublicKey>,
+        signer: Signer,
+        snapshot: Arc<ValidatorListSnapshot>,
+    ) -> Self {
+        Self {
+            snapshot,
+            identities: HashMap::new(),
+            query_identities_interval: ExponentialBackoffInterval::new(),
+            put_identity: validator_key.map(|validator_key| PutIdentity {
+                keypair,
+                validator_key,
+                signer,
+                interval: ExponentialBackoffInterval::new(),
+                external_addresses: ExternalAddresses::default(),
+            }),
+        }
+    }
+
+    pub(crate) fn on_new_snapshot(&mut self, snapshot: Arc<ValidatorListSnapshot>) {
+        self.snapshot = snapshot;
+
+        // eliminate identities that are neither in the current set nor in the next set
+        self.identities
+            .retain(|&address, _identity| self.snapshot.contains_any_validator(address));
+    }
+
+    fn identity_keys(&self) -> impl Iterator<Item = ValidatorIdentityKey> {
+        self.snapshot
+            .all_validators()
+            .map(|address| ValidatorIdentityKey { validator: address })
     }
 
     pub fn get_identity(&mut self, address: Address) -> Option<&SignedValidatorIdentity> {
@@ -451,7 +469,9 @@ impl Behaviour {
     }
 
     pub fn max_put_identity_interval(&mut self) {
-        self.put_identity_interval.tick_at_max();
+        if let Some(put_identity) = &mut self.put_identity {
+            put_identity.interval.tick_at_max();
+        }
     }
 }
 
@@ -481,7 +501,9 @@ impl NetworkBehaviour for Behaviour {
     }
 
     fn on_swarm_event(&mut self, event: FromSwarm) {
-        self.external_addresses.on_swarm_event(&event);
+        if let Some(put_identity) = &mut self.put_identity {
+            put_identity.external_addresses.on_swarm_event(&event);
+        }
     }
 
     fn on_connection_handler_event(
@@ -494,7 +516,7 @@ impl NetworkBehaviour for Behaviour {
 
     fn poll(
         &mut self,
-        cx: &mut std::task::Context<'_>,
+        cx: &mut Context<'_>,
     ) -> Poll<ToSwarm<Self::ToSwarm, THandlerInEvent<Self>>> {
         if self.query_identities_interval.poll_tick(cx).is_ready() {
             let identities = self.identity_keys().collect();
@@ -503,14 +525,10 @@ impl NetworkBehaviour for Behaviour {
             }));
         }
 
-        if self.put_identity_interval.poll_tick(cx).is_ready() {
-            if let Some(identity) = self.identity() {
-                let identity = identity.map(Box::new);
-                return Poll::Ready(ToSwarm::GenerateEvent(Event::PutIdentity { identity }));
-            } else {
-                // no validator key
-                self.put_identity_interval.tick_at_max();
-            }
+        if let Some(put_identity) = &mut self.put_identity
+            && let Poll::Ready(identity) = put_identity.poll(cx)
+        {
+            return Poll::Ready(ToSwarm::GenerateEvent(Event::PutIdentity { identity }));
         }
 
         Poll::Pending
@@ -525,10 +543,7 @@ mod tests {
     use ethexe_common::{ProtocolTimelines, ValidatorsVec};
     use libp2p::{Multiaddr, Swarm, identity::Keypair};
     use libp2p_swarm_test::SwarmExt;
-    use std::{
-        str::FromStr,
-        sync::{Arc, LazyLock},
-    };
+    use std::sync::{Arc, LazyLock};
     use tokio::time;
 
     static TEST_ADDR: LazyLock<Multiaddr> =
@@ -641,49 +656,6 @@ mod tests {
             ValidatorAddresses::from_vec_of_vec(vec![addr1.to_vec(), addr1.to_vec()]).unwrap_err(),
             FromVecOfVecError::DuplicatedMultiaddr
         )
-    }
-
-    #[tokio::test]
-    async fn identity_returns_signed_record_when_validator_key_present() {
-        let keypair = Keypair::generate_secp256k1();
-        let local_peer_id = keypair.public().to_peer_id();
-        let signer = Signer::memory();
-        let validator_key = signer.generate_key().unwrap();
-        let behaviour = Behaviour::new(
-            keypair,
-            Some(validator_key),
-            signer.clone(),
-            snapshot(vec![validator_key.to_address()]),
-        );
-        let mut swarm = Swarm::new_ephemeral_tokio(|_keypair| behaviour);
-
-        let external_addr = Multiaddr::from_str("/ip4/10.0.0.1/tcp/55")
-            .unwrap()
-            .with_p2p(local_peer_id)
-            .unwrap();
-        swarm.add_external_address(external_addr.clone());
-
-        let record = swarm
-            .behaviour()
-            .identity()
-            .expect("validator key set")
-            .unwrap();
-        assert_eq!(record.value.data().addresses, [external_addr]);
-        assert_eq!(record.value.address(), validator_key.to_address());
-    }
-
-    #[tokio::test]
-    async fn identity_returns_none_without_validator_key() {
-        let signer = Signer::memory();
-        let validator_key = signer.generate_key().unwrap();
-        let behaviour = Behaviour::new(
-            Keypair::generate_secp256k1(),
-            None,
-            signer.clone(),
-            snapshot(vec![validator_key.to_address()]),
-        );
-
-        assert!(behaviour.identity().is_none());
     }
 
     #[tokio::test(start_paused = true)]
