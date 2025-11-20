@@ -39,7 +39,7 @@ pub enum TxValidity {
     NotOnCurrentBranch,
     /// Transaction's destination [`gprimitives::ActorId`] not found.
     UnknownDestination,
-    /// Transaction's destination [`gprimitives::ActorId`] not initialize.
+    /// Transaction's destination [`gprimitives::ActorId`] not initialized.
     UninitializedDestination,
 }
 
@@ -83,8 +83,11 @@ impl<DB: OnChainStorageRO + AnnounceStorageRO + Storage> TxValidityChecker<DB> {
         };
 
         let Some(state) = self.db.program_state(destination_state_hash.hash) else {
-            // TODO kuzmin: consider in future add a new `TxValidity` veriant or return TxValidity::UnknownDestination.
-            unreachable!("program state must be found by its valid hash.")
+            anyhow::bail!(
+                "program state not found for actor({}) by valid hash({})",
+                tx.data().destination,
+                destination_state_hash.hash
+            )
         };
 
         if state.requires_init_message() {
