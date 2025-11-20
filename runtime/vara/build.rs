@@ -74,7 +74,7 @@ fn regenerate_gsdk_scale() {
     use std::{env, fs, path::PathBuf};
 
     let out_path = "../../gsdk/vara_runtime.scale";
-    
+
     #[cfg(not(feature = "dev"))]
     let out_path = "../../gsdk/vara_runtime_prod.scale";
 
