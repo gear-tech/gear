@@ -162,9 +162,6 @@ impl TestEnv {
                 if let Some(genesis_timestamp) = genesis_timestamp {
                     anvil = anvil.arg(format!("--timestamp={genesis_timestamp}"));
                 }
-                if continuous_block_generation {
-                    anvil = anvil.block_time(block_time.as_secs());
-                }
 
                 let anvil = anvil.spawn();
 
