@@ -67,7 +67,6 @@ fn main() {
 
 #[cfg(all(feature = "std", not(feature = "dev")))]
 fn regenerate_gsdk_scale() {
-
     use gear_runtime_interface::gear_ri;
     use parity_scale_codec::{Decode, Encode};
     use sc_executor::{WasmExecutionMethod, WasmtimeInstantiationStrategy};
