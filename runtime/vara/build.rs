@@ -74,7 +74,7 @@ fn regenerate_gsdk_scale() {
     use sc_executor_common::runtime_blob::RuntimeBlob;
     use std::{env, fs, path::PathBuf};
 
-    let out_path = "../../gsdk/vara_runtime.scale";
+    let out_path = "../../gsdk/vara_runtime_prod.scale";
     let runtime_wasm_path = PathBuf::from(env::var("OUT_DIR").unwrap())
         .ancestors()
         .find(|dir| {
@@ -157,7 +157,7 @@ fn regenerate_gsdk_scale() {
     use sc_executor_common::runtime_blob::RuntimeBlob;
     use std::{env, fs, path::PathBuf};
 
-    let out_path = "../../gsdk/vara_runtime_dev.scale";
+    let out_path = "../../gsdk/vara_runtime.scale";
     let runtime_wasm_path = PathBuf::from(env::var("OUT_DIR").unwrap())
         .ancestors()
         .find(|dir| {

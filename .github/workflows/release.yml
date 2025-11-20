@@ -79,7 +79,7 @@ jobs:
 
       - name: "Artifact: Production `vara-runtime` metadata"
         run: |
-          cp ./gsdk/vara_runtime.scale "artifact/production_vara_runtime_v${VARA_PROD_SPEC}_metadata.scale"
+          cp ./gsdk/vara_runtime_prod.scale "artifact/production_vara_runtime_v${VARA_PROD_SPEC}_metadata.scale"
 
       - name: "Artifact: Production `vara-runtime`"
         run: cp target/production/wbuild/vara-runtime/vara_runtime.compact.compressed.wasm "artifact/production_vara_runtime_v${VARA_PROD_SPEC}.wasm"
