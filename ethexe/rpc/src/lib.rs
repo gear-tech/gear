@@ -118,7 +118,7 @@ impl RpcServer {
             code: CodeApi::new(self.db.clone()),
             block: BlockApi::new(self.db.clone()),
             program: ProgramApi::new(self.db.clone(), self.config.runner_config.clone()),
-            injected: InjectedApi::new(sender),
+            injected: InjectedApi::new(self.db.clone(), sender),
         }
     }
 }

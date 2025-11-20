@@ -17,17 +17,23 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{RpcEvent, errors};
+use anyhow::Result;
 use dashmap::DashMap;
 use ethexe_common::{
-    HashOf,
-    injected::{InjectedTransaction, RpcOrNetworkInjectedTx, SignedPromise},
+    Address, HashOf, ProtocolTimelines,
+    db::{LatestData, LatestDataStorageRO, OnChainStorageRO},
+    injected::{InjectedTransaction, RpcOrNetworkInjectedTx, SignedPromise, VALIDITY_WINDOW},
 };
+use ethexe_db::Database;
+use ethexe_runtime_common::state::Storage;
 use jsonrpsee::{
     PendingSubscriptionSink, SubscriptionMessage,
     core::{RpcResult, SubscriptionResult, async_trait},
     proc_macros::rpc,
+    types::ErrorObjectOwned,
 };
 use serde::{Deserialize, Serialize};
+use sp_core::H256;
 use std::sync::Arc;
 use tokio::sync::{mpsc, oneshot};
 
@@ -59,13 +65,15 @@ pub trait Injected {
 
 #[derive(Debug, Clone)]
 pub struct InjectedApi {
+    gate: TxSafetyGate,
     rpc_sender: mpsc::UnboundedSender<RpcEvent>,
     promise_waiters: Arc<DashMap<HashOf<InjectedTransaction>, oneshot::Sender<SignedPromise>>>,
 }
 
 impl InjectedApi {
-    pub(crate) fn new(rpc_sender: mpsc::UnboundedSender<RpcEvent>) -> Self {
+    pub(crate) fn new(db: Database, rpc_sender: mpsc::UnboundedSender<RpcEvent>) -> Self {
         Self {
+            gate: TxSafetyGate::new(db),
             rpc_sender,
             promise_waiters: Arc::new(DashMap::new()),
         }
@@ -92,6 +100,8 @@ impl InjectedServer for InjectedApi {
         transaction: RpcOrNetworkInjectedTx,
     ) -> RpcResult<InjectedTransactionAcceptance> {
         tracing::trace!("Called injected_sendTransaction with vars: {transaction:?}");
+
+        self.gate.pass_transaction(&transaction)?;
 
         let (response_sender, response_receiver) = oneshot::channel();
         let event = RpcEvent::InjectedTransaction {
@@ -121,6 +131,9 @@ impl InjectedServer for InjectedApi {
         pending: PendingSubscriptionSink,
         transaction: RpcOrNetworkInjectedTx,
     ) -> SubscriptionResult {
+        tracing::trace!("Called injected_subscribeTransactionPromise with vars: {transaction:?}");
+        self.gate.pass_transaction(&transaction)?;
+
         let tx_hash = transaction.tx.data().to_hash();
 
         // Checks, that transaction wasn't already send.
@@ -193,6 +206,107 @@ impl InjectedServer for InjectedApi {
                 )
             }
         });
+
+        Ok(())
+    }
+}
+
+const REFERENCE_BLOCK_OUTDATED_TOLERANCE: u8 = 1;
+
+#[derive(Clone, derive_more::Debug)]
+pub(crate) struct TxSafetyGate<DB = Database> {
+    #[debug(skip)]
+    db: DB,
+    config: TxSafetyChecksConfig,
+    protocol_timelines: ProtocolTimelines,
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+pub(crate) struct TxSafetyChecksConfig {
+    recipient: bool,
+    reference_block: bool,
+}
+
+impl<DB: OnChainStorageRO> TxSafetyGate<DB> {
+    pub fn new(db: DB) -> Self {
+        let protocol_timelines = db
+            .protocol_timelines()
+            .expect("Not found protocol timelines in database. Unable to run RPC server.");
+
+        Self {
+            db,
+            config: TxSafetyChecksConfig::default(),
+            protocol_timelines,
+        }
+    }
+}
+
+impl<DB: Storage + LatestDataStorageRO + OnChainStorageRO + Clone> TxSafetyGate<DB> {
+    /// Validate obviously incorrect transactions. It it is invalid returns error message.
+    fn pass_transaction(&self, tx: &RpcOrNetworkInjectedTx) -> Result<(), ErrorObjectOwned> {
+        let Some(latest_data) = self.db.latest_data() else {
+            return Err(errors::db("not found latest data in RPC database"));
+        };
+
+        if self.config.recipient {
+            self.recipient_exists(&latest_data, &tx.recipient)?;
+        }
+
+        if self.config.reference_block {
+            self.ref_block_outdated(&latest_data, tx.tx.data().reference_block)?;
+        }
+
+        Ok(())
+    }
+
+    fn recipient_exists(
+        &self,
+        latest_data: &LatestData,
+        recipient: &Address,
+    ) -> Result<(), ErrorObjectOwned> {
+        let current_era = self
+            .protocol_timelines
+            .era_from_ts(latest_data.synced_block.header.timestamp);
+
+        // TODO kuzmindev: consider to add hashing validators by era.
+        let Some(validators) = self.db.validators(current_era) else {
+            tracing::warn!(era = %current_era, "not found validators");
+            return Err(errors::db("not found validators in RPC database"));
+        };
+
+        if !validators.contains(recipient) {
+            return Err(errors::bad_request(format!(
+                "there is no validator with address {recipient}"
+            )));
+        }
+
+        Ok(())
+    }
+
+    fn ref_block_outdated(
+        &self,
+        latest_data: &LatestData,
+        reference_block: H256,
+    ) -> Result<(), ErrorObjectOwned> {
+        let Some(reference_block) = self.db.block_header(reference_block) else {
+            return Err(errors::bad_request(format!(
+                "not found reference block in RPC database, block hash {reference_block}"
+            )));
+        };
+
+        let Some(ref_block_lagging) = latest_data
+            .synced_block
+            .header
+            .height
+            .checked_sub(reference_block.height)
+        else {
+            // Probably never happen.
+            return Ok(());
+        };
+
+        if ref_block_lagging > (REFERENCE_BLOCK_OUTDATED_TOLERANCE + VALIDITY_WINDOW).into() {
+            return Err(errors::bad_request("reference block is outdated".into()));
+        }
 
         Ok(())
     }
