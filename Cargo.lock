@@ -14,7 +14,7 @@ dependencies = [
 
 [[package]]
 name = "actor-system-error"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "derive_more 2.0.1",
 ]
@@ -145,7 +145,7 @@ checksum = "0942ffc6dcaadf03badf6e6a2d0228460359d5e34b57ccdc720b7382dfbd5ec5"
 [[package]]
 name = "alloy"
 version = "1.1.0"
-source = "git+https://github.com/gear-tech/alloy#7101ac47ab99c389d300a94adf0928756e387d7e"
+source = "git+https://github.com/gear-tech/alloy#04e64829c600baccbb12b8504defd2875f82b2b1"
 dependencies = [
  "alloy-consensus",
  "alloy-contract",
@@ -181,7 +181,7 @@ dependencies = [
 [[package]]
 name = "alloy-consensus"
 version = "1.1.0"
-source = "git+https://github.com/gear-tech/alloy#7101ac47ab99c389d300a94adf0928756e387d7e"
+source = "git+https://github.com/gear-tech/alloy#04e64829c600baccbb12b8504defd2875f82b2b1"
 dependencies = [
  "alloy-eips",
  "alloy-primitives",
@@ -207,7 +207,7 @@ dependencies = [
 [[package]]
 name = "alloy-consensus-any"
 version = "1.1.0"
-source = "git+https://github.com/gear-tech/alloy#7101ac47ab99c389d300a94adf0928756e387d7e"
+source = "git+https://github.com/gear-tech/alloy#04e64829c600baccbb12b8504defd2875f82b2b1"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -220,7 +220,7 @@ dependencies = [
 [[package]]
 name = "alloy-contract"
 version = "1.1.0"
-source = "git+https://github.com/gear-tech/alloy#7101ac47ab99c389d300a94adf0928756e387d7e"
+source = "git+https://github.com/gear-tech/alloy#04e64829c600baccbb12b8504defd2875f82b2b1"
 dependencies = [
  "alloy-consensus",
  "alloy-dyn-abi",
@@ -310,7 +310,7 @@ dependencies = [
 [[package]]
 name = "alloy-eips"
 version = "1.1.0"
-source = "git+https://github.com/gear-tech/alloy#7101ac47ab99c389d300a94adf0928756e387d7e"
+source = "git+https://github.com/gear-tech/alloy#04e64829c600baccbb12b8504defd2875f82b2b1"
 dependencies = [
  "alloy-eip2124",
  "alloy-eip2930",
@@ -332,7 +332,7 @@ dependencies = [
 [[package]]
 name = "alloy-genesis"
 version = "1.1.0"
-source = "git+https://github.com/gear-tech/alloy#7101ac47ab99c389d300a94adf0928756e387d7e"
+source = "git+https://github.com/gear-tech/alloy#04e64829c600baccbb12b8504defd2875f82b2b1"
 dependencies = [
  "alloy-eips",
  "alloy-primitives",
@@ -371,7 +371,7 @@ dependencies = [
 [[package]]
 name = "alloy-json-rpc"
 version = "1.1.0"
-source = "git+https://github.com/gear-tech/alloy#7101ac47ab99c389d300a94adf0928756e387d7e"
+source = "git+https://github.com/gear-tech/alloy#04e64829c600baccbb12b8504defd2875f82b2b1"
 dependencies = [
  "alloy-primitives",
  "alloy-sol-types",
@@ -385,7 +385,7 @@ dependencies = [
 [[package]]
 name = "alloy-network"
 version = "1.1.0"
-source = "git+https://github.com/gear-tech/alloy#7101ac47ab99c389d300a94adf0928756e387d7e"
+source = "git+https://github.com/gear-tech/alloy#04e64829c600baccbb12b8504defd2875f82b2b1"
 dependencies = [
  "alloy-consensus",
  "alloy-consensus-any",
@@ -410,7 +410,7 @@ dependencies = [
 [[package]]
 name = "alloy-network-primitives"
 version = "1.1.0"
-source = "git+https://github.com/gear-tech/alloy#7101ac47ab99c389d300a94adf0928756e387d7e"
+source = "git+https://github.com/gear-tech/alloy#04e64829c600baccbb12b8504defd2875f82b2b1"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -422,7 +422,7 @@ dependencies = [
 [[package]]
 name = "alloy-node-bindings"
 version = "1.1.0"
-source = "git+https://github.com/gear-tech/alloy#7101ac47ab99c389d300a94adf0928756e387d7e"
+source = "git+https://github.com/gear-tech/alloy#04e64829c600baccbb12b8504defd2875f82b2b1"
 dependencies = [
  "alloy-genesis",
  "alloy-hardforks",
@@ -469,7 +469,7 @@ dependencies = [
 [[package]]
 name = "alloy-provider"
 version = "1.1.0"
-source = "git+https://github.com/gear-tech/alloy#7101ac47ab99c389d300a94adf0928756e387d7e"
+source = "git+https://github.com/gear-tech/alloy#04e64829c600baccbb12b8504defd2875f82b2b1"
 dependencies = [
  "alloy-chains",
  "alloy-consensus",
@@ -511,7 +511,7 @@ dependencies = [
 [[package]]
 name = "alloy-pubsub"
 version = "1.1.0"
-source = "git+https://github.com/gear-tech/alloy#7101ac47ab99c389d300a94adf0928756e387d7e"
+source = "git+https://github.com/gear-tech/alloy#04e64829c600baccbb12b8504defd2875f82b2b1"
 dependencies = [
  "alloy-json-rpc",
  "alloy-primitives",
@@ -554,7 +554,7 @@ dependencies = [
 [[package]]
 name = "alloy-rpc-client"
 version = "1.1.0"
-source = "git+https://github.com/gear-tech/alloy#7101ac47ab99c389d300a94adf0928756e387d7e"
+source = "git+https://github.com/gear-tech/alloy#04e64829c600baccbb12b8504defd2875f82b2b1"
 dependencies = [
  "alloy-json-rpc",
  "alloy-primitives",
@@ -578,7 +578,7 @@ dependencies = [
 [[package]]
 name = "alloy-rpc-types"
 version = "1.1.0"
-source = "git+https://github.com/gear-tech/alloy#7101ac47ab99c389d300a94adf0928756e387d7e"
+source = "git+https://github.com/gear-tech/alloy#04e64829c600baccbb12b8504defd2875f82b2b1"
 dependencies = [
  "alloy-primitives",
  "alloy-rpc-types-anvil",
@@ -592,7 +592,7 @@ dependencies = [
 [[package]]
 name = "alloy-rpc-types-anvil"
 version = "1.1.0"
-source = "git+https://github.com/gear-tech/alloy#7101ac47ab99c389d300a94adf0928756e387d7e"
+source = "git+https://github.com/gear-tech/alloy#04e64829c600baccbb12b8504defd2875f82b2b1"
 dependencies = [
  "alloy-primitives",
  "alloy-rpc-types-eth",
@@ -603,7 +603,7 @@ dependencies = [
 [[package]]
 name = "alloy-rpc-types-any"
 version = "1.1.0"
-source = "git+https://github.com/gear-tech/alloy#7101ac47ab99c389d300a94adf0928756e387d7e"
+source = "git+https://github.com/gear-tech/alloy#04e64829c600baccbb12b8504defd2875f82b2b1"
 dependencies = [
  "alloy-consensus-any",
  "alloy-rpc-types-eth",
@@ -613,7 +613,7 @@ dependencies = [
 [[package]]
 name = "alloy-rpc-types-beacon"
 version = "1.1.0"
-source = "git+https://github.com/gear-tech/alloy#7101ac47ab99c389d300a94adf0928756e387d7e"
+source = "git+https://github.com/gear-tech/alloy#04e64829c600baccbb12b8504defd2875f82b2b1"
 dependencies = [
  "alloy-eips",
  "alloy-primitives",
@@ -628,7 +628,7 @@ dependencies = [
 [[package]]
 name = "alloy-rpc-types-engine"
 version = "1.1.0"
-source = "git+https://github.com/gear-tech/alloy#7101ac47ab99c389d300a94adf0928756e387d7e"
+source = "git+https://github.com/gear-tech/alloy#04e64829c600baccbb12b8504defd2875f82b2b1"
 dependencies = [
  "alloy-consensus",
  "alloy-eips",
@@ -644,7 +644,7 @@ dependencies = [
 [[package]]
 name = "alloy-rpc-types-eth"
 version = "1.1.0"
-source = "git+https://github.com/gear-tech/alloy#7101ac47ab99c389d300a94adf0928756e387d7e"
+source = "git+https://github.com/gear-tech/alloy#04e64829c600baccbb12b8504defd2875f82b2b1"
 dependencies = [
  "alloy-consensus",
  "alloy-consensus-any",
@@ -664,7 +664,7 @@ dependencies = [
 [[package]]
 name = "alloy-serde"
 version = "1.1.0"
-source = "git+https://github.com/gear-tech/alloy#7101ac47ab99c389d300a94adf0928756e387d7e"
+source = "git+https://github.com/gear-tech/alloy#04e64829c600baccbb12b8504defd2875f82b2b1"
 dependencies = [
  "alloy-primitives",
  "serde",
@@ -674,7 +674,7 @@ dependencies = [
 [[package]]
 name = "alloy-signer"
 version = "1.1.0"
-source = "git+https://github.com/gear-tech/alloy#7101ac47ab99c389d300a94adf0928756e387d7e"
+source = "git+https://github.com/gear-tech/alloy#04e64829c600baccbb12b8504defd2875f82b2b1"
 dependencies = [
  "alloy-primitives",
  "async-trait",
@@ -688,7 +688,7 @@ dependencies = [
 [[package]]
 name = "alloy-signer-local"
 version = "1.1.0"
-source = "git+https://github.com/gear-tech/alloy#7101ac47ab99c389d300a94adf0928756e387d7e"
+source = "git+https://github.com/gear-tech/alloy#04e64829c600baccbb12b8504defd2875f82b2b1"
 dependencies = [
  "alloy-consensus",
  "alloy-network",
@@ -776,7 +776,7 @@ dependencies = [
 [[package]]
 name = "alloy-transport"
 version = "1.1.0"
-source = "git+https://github.com/gear-tech/alloy#7101ac47ab99c389d300a94adf0928756e387d7e"
+source = "git+https://github.com/gear-tech/alloy#04e64829c600baccbb12b8504defd2875f82b2b1"
 dependencies = [
  "alloy-json-rpc",
  "auto_impl",
@@ -798,7 +798,7 @@ dependencies = [
 [[package]]
 name = "alloy-transport-http"
 version = "1.1.0"
-source = "git+https://github.com/gear-tech/alloy#7101ac47ab99c389d300a94adf0928756e387d7e"
+source = "git+https://github.com/gear-tech/alloy#04e64829c600baccbb12b8504defd2875f82b2b1"
 dependencies = [
  "alloy-json-rpc",
  "alloy-transport",
@@ -812,7 +812,7 @@ dependencies = [
 [[package]]
 name = "alloy-transport-ws"
 version = "1.1.0"
-source = "git+https://github.com/gear-tech/alloy#7101ac47ab99c389d300a94adf0928756e387d7e"
+source = "git+https://github.com/gear-tech/alloy#04e64829c600baccbb12b8504defd2875f82b2b1"
 dependencies = [
  "alloy-pubsub",
  "alloy-transport",
@@ -845,7 +845,7 @@ dependencies = [
 [[package]]
 name = "alloy-tx-macros"
 version = "1.1.0"
-source = "git+https://github.com/gear-tech/alloy#7101ac47ab99c389d300a94adf0928756e387d7e"
+source = "git+https://github.com/gear-tech/alloy#04e64829c600baccbb12b8504defd2875f82b2b1"
 dependencies = [
  "darling 0.21.3",
  "proc-macro2",
@@ -1894,7 +1894,7 @@ dependencies = [
  "bitflags 2.9.4",
  "cexpr",
  "clang-sys",
- "itertools 0.13.0",
+ "itertools 0.11.0",
  "log",
  "prettyplease 0.2.15",
  "proc-macro2",
@@ -2220,7 +2220,7 @@ dependencies = [
 
 [[package]]
 name = "builtins-common"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "derive_more 2.0.1",
  "gbuiltin-bls381",
@@ -2376,7 +2376,7 @@ dependencies = [
 
 [[package]]
 name = "calc-stack-height"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "anyhow",
  "gear-core",
@@ -2399,7 +2399,7 @@ dependencies = [
 
 [[package]]
 name = "cargo-gbuild"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "anyhow",
  "cargo_metadata",
@@ -3154,7 +3154,7 @@ dependencies = [
 
 [[package]]
 name = "crates-io"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "anyhow",
  "cargo-http-registry",
@@ -3612,7 +3612,7 @@ dependencies = [
 
 [[package]]
 name = "demo-big-data-section"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "gear-wasm-builder",
  "gstd",
@@ -3681,7 +3681,7 @@ dependencies = [
 
 [[package]]
 name = "demo-create-program-reentrance"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "gear-wasm-builder",
  "gstd",
@@ -4866,7 +4866,7 @@ checksum = "1b241177c7107d9829286c2ffdc5eee98d992d6356f3515e7f412f988b1a72fd"
 
 [[package]]
 name = "ethexe-blob-loader"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "alloy",
  "ethexe-common",
@@ -4880,7 +4880,7 @@ dependencies = [
 
 [[package]]
 name = "ethexe-cli"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "anyhow",
  "clap 4.5.23",
@@ -4909,7 +4909,7 @@ dependencies = [
 
 [[package]]
 name = "ethexe-common"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "alloy-primitives",
  "anyhow",
@@ -4932,7 +4932,7 @@ dependencies = [
 
 [[package]]
 name = "ethexe-compute"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "derive_more 2.0.1",
  "ethexe-common",
@@ -4953,7 +4953,7 @@ dependencies = [
 
 [[package]]
 name = "ethexe-consensus"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -4981,7 +4981,7 @@ dependencies = [
 
 [[package]]
 name = "ethexe-db"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "anyhow",
  "auto_impl",
@@ -5001,7 +5001,7 @@ dependencies = [
 
 [[package]]
 name = "ethexe-ethereum"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "alloy",
  "anyhow",
@@ -5023,7 +5023,7 @@ dependencies = [
 
 [[package]]
 name = "ethexe-network"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "anyhow",
  "assert_matches",
@@ -5051,7 +5051,7 @@ dependencies = [
 
 [[package]]
 name = "ethexe-observer"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "alloy",
  "anyhow",
@@ -5071,10 +5071,11 @@ dependencies = [
 
 [[package]]
 name = "ethexe-processor"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "anyhow",
  "demo-async",
+ "demo-panic-payload",
  "demo-ping",
  "ethexe-common",
  "ethexe-db",
@@ -5101,7 +5102,7 @@ dependencies = [
 
 [[package]]
 name = "ethexe-prometheus"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "anyhow",
  "futures",
@@ -5113,7 +5114,7 @@ dependencies = [
 
 [[package]]
 name = "ethexe-rpc"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "anyhow",
  "dashmap 5.5.3",
@@ -5138,7 +5139,7 @@ dependencies = [
 
 [[package]]
 name = "ethexe-runtime"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "ethexe-common",
  "ethexe-runtime-common",
@@ -5153,7 +5154,7 @@ dependencies = [
 
 [[package]]
 name = "ethexe-runtime-common"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "anyhow",
  "auto_impl",
@@ -5172,7 +5173,7 @@ dependencies = [
 
 [[package]]
 name = "ethexe-service"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "alloy",
  "anyhow",
@@ -5218,7 +5219,7 @@ dependencies = [
 
 [[package]]
 name = "ethexe-service-utils"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "futures",
  "log",
@@ -5227,7 +5228,7 @@ dependencies = [
 
 [[package]]
 name = "ethexe-signer"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "alloy",
  "anyhow",
@@ -6176,14 +6177,14 @@ dependencies = [
 
 [[package]]
 name = "galloc"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "gear-dlmalloc",
 ]
 
 [[package]]
 name = "gbuiltin-bls381"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "ark-bls12-381",
  "ark-ec",
@@ -6196,7 +6197,7 @@ dependencies = [
 
 [[package]]
 name = "gbuiltin-eth-bridge"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "gprimitives",
  "parity-scale-codec",
@@ -6205,7 +6206,7 @@ dependencies = [
 
 [[package]]
 name = "gbuiltin-proxy"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "gprimitives",
  "parity-scale-codec",
@@ -6214,7 +6215,7 @@ dependencies = [
 
 [[package]]
 name = "gbuiltin-staking"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "gprimitives",
  "parity-scale-codec",
@@ -6223,7 +6224,7 @@ dependencies = [
 
 [[package]]
 name = "gcli"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -6255,7 +6256,7 @@ dependencies = [
 
 [[package]]
 name = "gclient"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "anyhow",
  "ark-bls12-381",
@@ -6291,7 +6292,7 @@ dependencies = [
 
 [[package]]
 name = "gcore"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "arrayvec 0.7.6",
  "cc",
@@ -6307,7 +6308,7 @@ dependencies = [
 
 [[package]]
 name = "gear-authorship"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "demo-constructor",
  "frame-support",
@@ -6382,7 +6383,7 @@ dependencies = [
 
 [[package]]
 name = "gear-cli"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "clap 4.5.23",
  "derive_more 2.0.1",
@@ -6415,7 +6416,7 @@ dependencies = [
 
 [[package]]
 name = "gear-common"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "enum-iterator 1.5.0",
  "fail",
@@ -6441,7 +6442,7 @@ dependencies = [
 
 [[package]]
 name = "gear-common-codegen"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "quote",
  "syn 2.0.106",
@@ -6449,7 +6450,7 @@ dependencies = [
 
 [[package]]
 name = "gear-core"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "blake2 0.10.6",
  "byteorder",
@@ -6479,7 +6480,7 @@ dependencies = [
 
 [[package]]
 name = "gear-core-backend"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "actor-system-error",
  "blake2 0.10.6",
@@ -6499,7 +6500,7 @@ dependencies = [
 
 [[package]]
 name = "gear-core-errors"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "enum-iterator 1.5.0",
  "parity-scale-codec",
@@ -6512,7 +6513,7 @@ dependencies = [
 
 [[package]]
 name = "gear-core-processor"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "actor-system-error",
  "derive_more 2.0.1",
@@ -6542,7 +6543,7 @@ dependencies = [
 
 [[package]]
 name = "gear-key-finder"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "directories",
  "hex",
@@ -6550,7 +6551,7 @@ dependencies = [
 
 [[package]]
 name = "gear-lazy-pages"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "cfg-if",
  "derive_more 2.0.1",
@@ -6573,7 +6574,7 @@ dependencies = [
 
 [[package]]
 name = "gear-lazy-pages-common"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "gear-core",
  "num_enum 0.6.1",
@@ -6582,7 +6583,7 @@ dependencies = [
 
 [[package]]
 name = "gear-lazy-pages-interface"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "byteorder",
  "gear-core",
@@ -6594,7 +6595,7 @@ dependencies = [
 
 [[package]]
 name = "gear-lazy-pages-native-interface"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "gear-core",
  "gear-lazy-pages",
@@ -6604,7 +6605,7 @@ dependencies = [
 
 [[package]]
 name = "gear-node-loader"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "anyhow",
  "clap 4.5.23",
@@ -6629,7 +6630,7 @@ dependencies = [
 
 [[package]]
 name = "gear-node-testing"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "frame-metadata-hash-extension",
  "frame-system",
@@ -6649,7 +6650,7 @@ dependencies = [
 
 [[package]]
 name = "gear-node-wrapper"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "anyhow",
  "rand 0.8.5",
@@ -6686,7 +6687,7 @@ dependencies = [
 
 [[package]]
 name = "gear-runtime-common"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -6704,7 +6705,7 @@ dependencies = [
 
 [[package]]
 name = "gear-runtime-interface"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "builtins-common",
  "gear-core",
@@ -6720,7 +6721,7 @@ dependencies = [
 
 [[package]]
 name = "gear-runtime-primitives"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "sp-core",
  "sp-runtime",
@@ -6728,7 +6729,7 @@ dependencies = [
 
 [[package]]
 name = "gear-sandbox"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "assert_matches",
  "gear-sandbox-env",
@@ -6749,7 +6750,7 @@ dependencies = [
 
 [[package]]
 name = "gear-sandbox-env"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "parity-scale-codec",
  "sp-debug-derive",
@@ -6759,7 +6760,7 @@ dependencies = [
 
 [[package]]
 name = "gear-sandbox-host"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "atomic_enum",
  "defer",
@@ -6780,7 +6781,7 @@ dependencies = [
 
 [[package]]
 name = "gear-sandbox-interface"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "gear-sandbox-host",
  "log",
@@ -6791,7 +6792,7 @@ dependencies = [
 
 [[package]]
 name = "gear-service"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "frame-benchmarking",
  "frame-benchmarking-cli",
@@ -6868,7 +6869,7 @@ dependencies = [
 
 [[package]]
 name = "gear-ss58"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "blake2 0.10.6",
  "bs58 0.5.1",
@@ -6877,14 +6878,14 @@ dependencies = [
 
 [[package]]
 name = "gear-stack-buffer"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "cc",
 ]
 
 [[package]]
 name = "gear-utils"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "gear-core",
  "hex",
@@ -6915,7 +6916,7 @@ dependencies = [
 
 [[package]]
 name = "gear-wasm-builder"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "anyhow",
  "cargo_metadata",
@@ -6960,7 +6961,7 @@ dependencies = [
 
 [[package]]
 name = "gear-wasm-instrument"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "arbitrary",
  "derive_more 2.0.1",
@@ -6977,7 +6978,7 @@ dependencies = [
 
 [[package]]
 name = "gear-wasm-optimizer"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "anyhow",
  "colored",
@@ -6993,7 +6994,7 @@ dependencies = [
 
 [[package]]
 name = "gear-wasmer-cache"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "bytes",
  "demo-constructor",
@@ -7252,7 +7253,7 @@ dependencies = [
 
 [[package]]
 name = "gprimitives"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "alloy-primitives",
  "alloy-sol-types",
@@ -7270,7 +7271,7 @@ dependencies = [
 
 [[package]]
 name = "gring"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "anyhow",
  "base64 0.21.7",
@@ -7301,7 +7302,7 @@ dependencies = [
 
 [[package]]
 name = "gsdk"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "colored",
  "demo-fungible-token",
@@ -7332,7 +7333,7 @@ dependencies = [
 
 [[package]]
 name = "gsdk-codegen"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -7341,7 +7342,7 @@ dependencies = [
 
 [[package]]
 name = "gstd"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "arrayvec 0.7.6",
  "const_format",
@@ -7362,7 +7363,7 @@ dependencies = [
 
 [[package]]
 name = "gstd-codegen"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "gprimitives",
  "gstd",
@@ -7374,14 +7375,14 @@ dependencies = [
 
 [[package]]
 name = "gsys"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "bytemuck",
 ]
 
 [[package]]
 name = "gtest"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "ark-std 0.4.0",
  "builtins-common",
@@ -7883,7 +7884,7 @@ dependencies = [
  "httpdate",
  "itoa",
  "pin-project-lite",
- "socket2 0.5.7",
+ "socket2 0.4.9",
  "tokio",
  "tower-service",
  "tracing",
@@ -10949,7 +10950,7 @@ version = "0.9.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fcc7c92f190c97f79b4a332f5e81dcf68c8420af2045c936c9be0bc9de6f63b5"
 dependencies = [
- "proc-macro-crate 3.1.0",
+ "proc-macro-crate 1.1.3",
  "proc-macro2",
  "quote",
  "syn 1.0.109",
@@ -11116,7 +11117,7 @@ checksum = "830b246a0e5f20af87141b25c173cd1b609bd7779a4617d6ec582abaf90870f3"
 
 [[package]]
 name = "numerated"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "derive_more 2.0.1",
  "log",
@@ -11479,7 +11480,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "blake2 0.10.6",
  "demo-async",
@@ -11577,7 +11578,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-bank"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -11595,7 +11596,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-builtin"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "ark-std 0.4.0",
  "builtins-common",
@@ -11646,7 +11647,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-builtin-rpc"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "jsonrpsee",
  "pallet-gear-builtin-rpc-runtime-api",
@@ -11658,7 +11659,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-builtin-rpc-runtime-api"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "sp-api",
  "sp-core",
@@ -11666,7 +11667,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-eth-bridge"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "binary-merkle-tree",
  "bp-header-chain",
@@ -11706,7 +11707,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-eth-bridge-primitives"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "binary-merkle-tree",
  "gprimitives",
@@ -11717,7 +11718,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-eth-bridge-rpc"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "jsonrpsee",
  "pallet-gear-eth-bridge-rpc-runtime-api",
@@ -11729,7 +11730,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-eth-bridge-rpc-runtime-api"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "pallet-gear-eth-bridge",
  "sp-api",
@@ -11738,7 +11739,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-gas"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -11758,7 +11759,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-messenger"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -11779,7 +11780,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-payment"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -11808,7 +11809,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-proc-macro"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -11817,7 +11818,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-program"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -11839,7 +11840,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-rpc"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "futures",
  "gear-common",
@@ -11860,7 +11861,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-rpc-runtime-api"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "pallet-gear",
  "sp-api",
@@ -11871,7 +11872,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-scheduler"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -11900,7 +11901,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-staking-rewards"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "frame-benchmarking",
  "frame-election-provider-support",
@@ -11932,7 +11933,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-staking-rewards-rpc"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "jsonrpsee",
  "pallet-gear-staking-rewards-rpc-runtime-api",
@@ -11943,7 +11944,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-staking-rewards-rpc-runtime-api"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "pallet-gear-staking-rewards",
  "sp-api",
@@ -11951,7 +11952,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-voucher"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "derive_more 2.0.1",
  "frame-benchmarking",
@@ -13227,7 +13228,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "22505a5c94da8e3b7c2996394d1c933236c4d743e81a410bcca4e6989fc066a4"
 dependencies = [
  "bytes",
- "heck 0.5.0",
+ "heck 0.4.1",
  "itertools 0.12.1",
  "log",
  "multimap",
@@ -18883,7 +18884,7 @@ checksum = "830b7e5d4d90034032940e4ace0d9a9a057e7a45cd94e6c007832e39edb82f6d"
 
 [[package]]
 name = "vara-runtime"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "const-str",
  "frame-benchmarking",
@@ -19266,7 +19267,7 @@ dependencies = [
 
 [[package]]
 name = "wasm-proc"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "clap 4.5.23",
  "gear-wasm-builder",

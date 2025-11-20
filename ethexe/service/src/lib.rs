@@ -427,7 +427,7 @@ impl Service {
                 },
                 Event::Compute(event) => match event {
                     ComputeEvent::RequestLoadCodes(codes) => {
-                        blob_loader.load_codes(codes, None)?;
+                        blob_loader.load_codes(codes, Some(3))?;
                     }
                     ComputeEvent::AnnounceComputed(announce_hash) => {
                         consensus.receive_computed_announce(announce_hash)?

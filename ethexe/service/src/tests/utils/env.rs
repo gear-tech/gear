@@ -74,6 +74,7 @@ use roast_secp256k1_evm::frost::{
 use std::{
     fmt,
     net::SocketAddr,
+    ops::ControlFlow,
     pin::Pin,
     sync::atomic::{AtomicUsize, Ordering},
     time::Duration,
@@ -152,6 +153,9 @@ impl TestEnv {
             } => {
                 let mut anvil = Anvil::new();
 
+                if continuous_block_generation {
+                    anvil = anvil.block_time_f64(block_time.as_secs_f64());
+                }
                 if let Some(slots_in_epoch) = slots_in_epoch {
                     anvil = anvil.arg(format!("--slots-in-an-epoch={slots_in_epoch}"));
                 }
@@ -411,7 +415,7 @@ impl TestEnv {
     pub async fn upload_code(&self, code: &[u8]) -> anyhow::Result<WaitForUploadCode> {
         log::info!("📗 Upload code, len {}", code.len());
 
-        let listener = self.observer_events_publisher().subscribe().await;
+        let listener = self.observer_events_publisher().subscribe();
 
         let code_and_id = CodeAndId::new(code.to_vec());
         let code_id = code_and_id.code_id();
@@ -444,7 +448,7 @@ impl TestEnv {
     ) -> anyhow::Result<WaitForProgramCreation> {
         log::info!("📗 Create program, code_id {code_id} with salt {salt:?}");
 
-        let listener = self.observer_events_publisher().subscribe().await;
+        let listener = self.observer_events_publisher().subscribe();
 
         let router = self.ethereum.router();
 
@@ -483,7 +487,7 @@ impl TestEnv {
     ) -> anyhow::Result<WaitForProgramCreation> {
         log::info!("📗 Create program, code_id {code_id} with salt {salt:?}");
 
-        let listener = self.observer_events_publisher().subscribe().await;
+        let listener = self.observer_events_publisher().subscribe();
 
         let router = self.ethereum.router();
 
@@ -532,7 +536,7 @@ impl TestEnv {
             payload.len()
         );
 
-        let listener = self.observer_events_publisher().subscribe().await;
+        let listener = self.observer_events_publisher().subscribe();
 
         let program_address = Address::try_from(program_id)?;
         let program = self.ethereum.mirror(program_address);
@@ -585,17 +589,19 @@ impl TestEnv {
         }
     }
 
-    /// Force new `blocks_amount` blocks generation on rpc node,
-    /// and wait for the block event to be generated.
+    /// Force new `blocks_amount` blocks generation on RPC node
     pub async fn skip_blocks(&self, blocks_amount: u32) {
         if self.continuous_block_generation {
             let mut blocks_count = 0;
             self.observer_events_publisher()
                 .subscribe()
-                .await
-                .apply_until_block_event(|_| {
+                .apply_until_block(|_| {
                     blocks_count += 1;
-                    Ok((blocks_count >= blocks_amount).then_some(()))
+                    if blocks_count == blocks_amount {
+                        Ok(ControlFlow::Break(()))
+                    } else {
+                        Ok(ControlFlow::Continue(()))
+                    }
                 })
                 .await
                 .unwrap();
@@ -1057,9 +1063,9 @@ impl Node {
                 .listener()
                 .apply_until(|e| {
                     if let TestingEvent::FastSyncDone(block) = e {
-                        Ok(Some(block))
+                        Ok(ControlFlow::Break(block))
                     } else {
-                        Ok(None)
+                        Ok(ControlFlow::Continue(()))
                     }
                 })
                 .await
@@ -1225,9 +1231,9 @@ impl WaitForUploadCode {
                     if code_id == self.code_id =>
                 {
                     valid_info = Some(valid);
-                    Ok(Some(()))
+                    Ok(ControlFlow::Break(()))
                 }
-                _ => Ok(None),
+                _ => Ok(ControlFlow::Continue(())),
             })
             .await?;
 
@@ -1262,12 +1268,12 @@ impl WaitForProgramCreation {
                         if actor_id == self.program_id =>
                     {
                         code_id_info = Some(code_id);
-                        return Ok(Some(()));
+                        return Ok(ControlFlow::Break(()));
                     }
 
                     _ => {}
                 }
-                Ok(None)
+                Ok(ControlFlow::Continue(()))
             })
             .await?;
 
@@ -1326,9 +1332,9 @@ impl WaitForReplyTo {
                         code: reply_code,
                         value,
                     });
-                    Ok(Some(()))
+                    Ok(ControlFlow::Break(()))
                 }
-                _ => Ok(None),
+                _ => Ok(ControlFlow::Continue(())),
             })
             .await?;
 

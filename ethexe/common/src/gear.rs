@@ -34,6 +34,8 @@ pub const WVARA_PER_SECOND: u128 = 10_000_000_000_000;
 
 /// Gas limit for chunk processing.
 pub const CHUNK_PROCESSING_GAS_LIMIT: u64 = 1_000_000_000_000;
+/// Gas charge threshold for panicked injected messages.
+pub const INJECTED_MESSAGE_PANIC_GAS_CHARGE_THRESHOLD: u64 = 1_000_000_000;
 
 /// Max block gas limit for the node.
 pub const MAX_BLOCK_GAS_LIMIT: u64 = 9_000_000_000_000;
