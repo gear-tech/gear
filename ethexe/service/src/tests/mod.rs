@@ -2362,6 +2362,7 @@ async fn injected_tx_fungible_token() {
 
     let env_config = TestEnvConfig {
         network: EnvNetworkConfig::Enabled,
+        compute_config: ComputeConfig::without_quarantine(),
         ..Default::default()
     };
 
@@ -2404,54 +2405,25 @@ async fn injected_tx_fungible_token() {
 
     let usdt_actor_id = res.program_id;
 
-    tracing::info!("usdt actor id: {usdt_actor_id}");
-
     // 3. Initialize program
-    let init_tx = InjectedTransaction {
-        destination: usdt_actor_id,
-        payload: token_config.encode().into(),
-        value: 0,
-        reference_block: node
-            .db
-            .latest_data()
-            .expect("latest data exists in db")
-            .prepared_block_hash,
-        salt: vec![1u8].into(),
-    };
-    let signed_tx = env.signer.signed_data(pubkey, init_tx).unwrap();
-    let rpc_tx = RpcOrNetworkInjectedTx {
-        recipient: pubkey.to_address(),
-        tx: signed_tx,
-    };
-    let acceptance = rpc_client
-        .send_transaction(rpc_tx)
+    let init_reply = env
+        .send_message(usdt_actor_id, &token_config.encode())
         .await
-        .expect("successfully send transaction to RPC");
-    assert!(matches!(acceptance, InjectedTransactionAcceptance::Accept));
-
-    // Listen for tx inclusion
-    node.listener()
-        .apply_until(|event| {
-            if let TestingEvent::Consensus(ConsensusEvent::Promise(promise)) = event {
-                let promise = promise.into_data();
-                assert!(
-                    promise.reply.payload.is_empty(),
-                    "Expect empty payload, because of initializing Fungible Token returns nothing"
-                );
-
-                assert_eq!(
-                    promise.reply.code,
-                    ReplyCode::Success(SuccessReplyReason::Auto)
-                );
-                assert_eq!(promise.reply.value, 0);
-
-                return Ok(ControlFlow::Break(()));
-            }
-
-            Ok(ControlFlow::Continue(()))
-        })
+        .unwrap()
+        .wait_for()
         .await
         .unwrap();
+
+    assert_eq!(init_reply.program_id, usdt_actor_id);
+    assert_eq!(init_reply.value, 0);
+    assert_eq!(
+        init_reply.code,
+        ReplyCode::Success(SuccessReplyReason::Auto)
+    );
+    assert!(
+        init_reply.payload.is_empty(),
+        "Expect empty payload, because of initializing Fungible Token returns nothing"
+    );
 
     tracing::info!("✅ Fungible token successfully initialized");
 

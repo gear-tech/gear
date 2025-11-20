@@ -48,6 +48,7 @@ pub use validator::{BatchCommitter, ValidatorConfig, ValidatorService};
 
 mod announces;
 mod connect;
+mod tx_validation;
 mod utils;
 mod validator;
 
