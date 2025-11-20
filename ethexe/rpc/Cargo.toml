@@ -31,5 +31,8 @@ tracing.workspace = true
 dashmap.workspace = true
 derive_more.workspace = true
 
+[dev-dependencies]
+ethexe-common = { workspace = true, features = ["std", "mock"] }
+
 [features]
 test-utils = ["jsonrpsee/client"]

@@ -40,7 +40,6 @@ use tokio::sync::{mpsc, oneshot};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum InjectedTransactionAcceptance {
     Accept,
-    Reject { reason: String },
 }
 
 #[cfg_attr(not(feature = "test-utils"), rpc(server))]
@@ -73,7 +72,7 @@ pub struct InjectedApi {
 impl InjectedApi {
     pub(crate) fn new(db: Database, rpc_sender: mpsc::UnboundedSender<RpcEvent>) -> Self {
         Self {
-            gate: TxSafetyGate::new(db),
+            gate: TxSafetyGate::new_with_all_checks(db),
             rpc_sender,
             promise_waiters: Arc::new(DashMap::new()),
         }
@@ -160,15 +159,7 @@ impl InjectedServer for InjectedApi {
             return Err(errors::internal().into());
         }
 
-        if let InjectedTransactionAcceptance::Reject { reason } = response_receiver.await? {
-            tracing::trace!(
-                tx_hash = ?tx_hash,
-                reject_reason = ?reason,
-                "reject injected transaction"
-            );
-            pending.reject(errors::bad_request(reason)).await;
-            return Ok(());
-        }
+        let _accepted = response_receiver.await?;
 
         let subscription_sink = match pending.accept().await {
             Ok(sink) => sink,
@@ -213,6 +204,7 @@ impl InjectedServer for InjectedApi {
 
 const REFERENCE_BLOCK_OUTDATED_TOLERANCE: u8 = 1;
 
+// Implement tower service for InjectedApi and use this as layer.
 #[derive(Clone, derive_more::Debug)]
 pub(crate) struct TxSafetyGate<DB = Database> {
     #[debug(skip)]
@@ -238,6 +230,22 @@ impl<DB: OnChainStorageRO> TxSafetyGate<DB> {
             config: TxSafetyChecksConfig::default(),
             protocol_timelines,
         }
+    }
+
+    fn new_with_all_checks(db: DB) -> Self {
+        Self::new(db)
+            .with_recipient_check()
+            .with_reference_block_check()
+    }
+
+    pub fn with_recipient_check(mut self) -> Self {
+        self.config.recipient = true;
+        self
+    }
+
+    pub fn with_reference_block_check(mut self) -> Self {
+        self.config.reference_block = true;
+        self
     }
 }
 
@@ -309,5 +317,58 @@ impl<DB: Storage + LatestDataStorageRO + OnChainStorageRO + Clone> TxSafetyGate<
         }
 
         Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use ethexe_common::{
+        Address, SimpleBlockData,
+        db::{LatestDataStorageRW, OnChainStorageRW},
+        ecdsa::PrivateKey,
+        injected::SignedInjectedTransaction,
+        mock::Mock,
+    };
+
+    use super::*;
+
+    #[test]
+    fn test_gate_reject_invalid_recipient() {
+        let db = Database::memory();
+
+        // Preparing db
+        let reference_block = SimpleBlockData::mock(());
+        let mut latest_data = LatestData::default();
+        latest_data.synced_block = reference_block.clone();
+        db.set_latest_data(latest_data);
+
+        let timelines = ProtocolTimelines::mock(());
+        db.set_protocol_timelines(timelines);
+
+        let validators = vec![Address::from(1), Address::from(2)];
+        db.set_validators(
+            timelines.era_from_ts(reference_block.header.timestamp),
+            validators.clone().try_into().unwrap(),
+        );
+
+        // Test
+        let gate = TxSafetyGate::new(db.clone()).with_recipient_check();
+
+        let mut tx = InjectedTransaction::mock(());
+        tx.reference_block = reference_block.hash;
+        let signed_tx =
+            SignedInjectedTransaction::create(PrivateKey::random(), tx.clone()).unwrap();
+
+        let invalid_rpc_tx = RpcOrNetworkInjectedTx {
+            recipient: Address::from(3),
+            tx: signed_tx.clone(),
+        };
+        assert!(gate.pass_transaction(&invalid_rpc_tx).is_err());
+
+        let correct_rpc_tx = RpcOrNetworkInjectedTx {
+            recipient: validators[0],
+            tx: signed_tx,
+        };
+        assert!(gate.pass_transaction(&correct_rpc_tx).is_ok());
     }
 }
