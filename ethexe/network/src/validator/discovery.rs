@@ -130,13 +130,32 @@ impl Decode for SignedValidatorIdentity {
     }
 }
 
+#[derive(Debug, derive_more::Display)]
+enum FromVecOfVecError {
+    #[display("no addresses")]
+    NoAddresses,
+    #[display("multiaddr parse error: {_0}")]
+    Multiaddr(multiaddr::Error),
+    #[display("multiaddr is empty")]
+    MultiaddrIsEmpty,
+    #[display("peer ID mismatch: expected={expected}, actual={actual}")]
+    PeerIdMismatch {
+        expected: Box<PeerId>,
+        actual: Box<PeerId>,
+    },
+    #[display("last protocol is not P2P")]
+    LastProtocolIsNotP2p,
+    #[display("duplicated multiaddr")]
+    DuplicatedMultiaddr,
+}
+
 /// Validator addresses
 ///
 /// Contains at least 1 address.
 /// Every address ends with P2P protocol containing the same peer ID.
 ///
 /// Duplicated addresses are denied during decoding.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, derive_more::IntoIterator)]
 pub(crate) struct ValidatorAddresses {
     addresses: HashSet<Multiaddr>,
 }
@@ -174,6 +193,44 @@ impl ValidatorAddresses {
         Some(Self { addresses })
     }
 
+    /// Constructor to be used in `Decode` implementation
+    fn from_vec_of_vec(addresses: Vec<Vec<u8>>) -> Result<Self, FromVecOfVecError> {
+        let (addresses, _peer_id) = addresses.into_iter().try_fold(
+            (HashSet::new(), None),
+            |(mut set, mut peer_id), addr| {
+                let addr = Multiaddr::try_from(addr).map_err(FromVecOfVecError::Multiaddr)?;
+
+                let protocol = addr
+                    .iter()
+                    .last()
+                    .ok_or(FromVecOfVecError::MultiaddrIsEmpty)?;
+                if let multiaddr::Protocol::P2p(address_peer_id) = protocol {
+                    let peer_id = *peer_id.get_or_insert(address_peer_id);
+                    if peer_id != address_peer_id {
+                        return Err(FromVecOfVecError::PeerIdMismatch {
+                            expected: Box::new(peer_id),
+                            actual: Box::new(address_peer_id),
+                        });
+                    }
+                } else {
+                    return Err(FromVecOfVecError::LastProtocolIsNotP2p);
+                }
+
+                if !set.insert(addr) {
+                    return Err(FromVecOfVecError::DuplicatedMultiaddr);
+                }
+
+                Ok((set, peer_id))
+            },
+        )?;
+
+        if addresses.is_empty() {
+            return Err(FromVecOfVecError::NoAddresses);
+        }
+
+        Ok(Self { addresses })
+    }
+
     fn peer_id(&self) -> PeerId {
         if let multiaddr::Protocol::P2p(peer_id) = self
             .addresses
@@ -207,43 +264,10 @@ impl Encode for ValidatorAddresses {
 impl Decode for ValidatorAddresses {
     fn decode<I: Input>(input: &mut I) -> Result<Self, Error> {
         let addresses = <Vec<Vec<u8>>>::decode(input)?;
-
-        let (addresses, _peer_id) = addresses.into_iter().try_fold(
-            (HashSet::new(), None),
-            |(mut set, mut peer_id), addr| {
-                let addr = Multiaddr::try_from(addr).map_err(|err| {
-                    parity_scale_codec::Error::from("failed to parse multiaddr")
-                        .chain(err.to_string())
-                })?;
-
-                let protocol = addr
-                    .iter()
-                    .last()
-                    .ok_or_else(|| parity_scale_codec::Error::from("address is empty"))?;
-                if let multiaddr::Protocol::P2p(address_peer_id) = protocol {
-                    let peer_id = *peer_id.get_or_insert(address_peer_id);
-                    if peer_id != address_peer_id {
-                        return Err(parity_scale_codec::Error::from("peer ID mismatch"));
-                    }
-                } else {
-                    return Err(parity_scale_codec::Error::from(
-                        "last protocol should be P2P",
-                    ));
-                }
-
-                if !set.insert(addr) {
-                    return Err(parity_scale_codec::Error::from("duplicated address"));
-                }
-
-                Ok((set, peer_id))
-            },
-        )?;
-
-        if addresses.is_empty() {
-            return Err(parity_scale_codec::Error::from("no addresses"));
-        }
-
-        Ok(Self { addresses })
+        let addresses = Self::from_vec_of_vec(addresses).map_err(|e| {
+            parity_scale_codec::Error::from("failed to convert addresses").chain(e.to_string())
+        })?;
+        Ok(addresses)
     }
 }
 
@@ -579,34 +603,44 @@ mod tests {
     }
 
     #[test]
-    fn encode_decode_validator_addresses() {
-        // no addresses
-        let addresses = ValidatorAddresses {
-            addresses: [].into(),
-        };
-        ValidatorAddresses::decode(&mut &addresses.encode()[..]).unwrap_err();
+    fn validator_addresses_from_vec_of_vec() {
+        let addr1_peer_id = PeerId::random();
+        let addr1 = TEST_ADDR.clone().with_p2p(addr1_peer_id).unwrap();
+        let addr2 = TEST_ADDR.clone().with_p2p(PeerId::random()).unwrap();
 
-        // no P2P protocol
-        let addresses = ValidatorAddresses {
-            addresses: [TEST_ADDR.clone()].into(),
-        };
-        ValidatorAddresses::decode(&mut &addresses.encode()[..]).unwrap_err();
+        let addresses = ValidatorAddresses::from_vec_of_vec(vec![addr1.to_vec()]).unwrap();
+        assert_eq!(addresses.peer_id(), addr1_peer_id);
+        assert_eq!(addresses.into_iter().next(), Some(addr1.clone()));
 
-        // empty address
-        let addresses = ValidatorAddresses {
-            addresses: [Multiaddr::empty()].into(),
-        };
-        ValidatorAddresses::decode(&mut &addresses.encode()[..]).unwrap_err();
+        assert_matches!(
+            ValidatorAddresses::from_vec_of_vec(Vec::new()).unwrap_err(),
+            FromVecOfVecError::NoAddresses
+        );
 
-        // different peer IDs
-        let addresses = ValidatorAddresses {
-            addresses: [
-                TEST_ADDR.clone().with_p2p(PeerId::random()).unwrap(),
-                TEST_ADDR.clone().with_p2p(PeerId::random()).unwrap(),
-            ]
-            .into(),
-        };
-        ValidatorAddresses::decode(&mut &addresses.encode()[..]).unwrap_err();
+        assert_matches!(
+            ValidatorAddresses::from_vec_of_vec(vec![vec![1]]).unwrap_err(),
+            FromVecOfVecError::Multiaddr(_)
+        );
+
+        assert_matches!(
+            ValidatorAddresses::from_vec_of_vec(vec![TEST_ADDR.to_vec()]).unwrap_err(),
+            FromVecOfVecError::LastProtocolIsNotP2p
+        );
+
+        assert_matches!(
+            ValidatorAddresses::from_vec_of_vec(vec![Multiaddr::empty().to_vec()]).unwrap_err(),
+            FromVecOfVecError::MultiaddrIsEmpty
+        );
+
+        assert_matches!(
+            ValidatorAddresses::from_vec_of_vec(vec![addr1.to_vec(), addr2.to_vec()]).unwrap_err(),
+            FromVecOfVecError::PeerIdMismatch { .. }
+        );
+
+        assert_matches!(
+            ValidatorAddresses::from_vec_of_vec(vec![addr1.to_vec(), addr1.to_vec()]).unwrap_err(),
+            FromVecOfVecError::DuplicatedMultiaddr
+        )
     }
 
     #[tokio::test]
