@@ -24,8 +24,8 @@ use crate::{
     Service,
     config::{self, Config},
     tests::utils::{
-        EnvNetworkConfig, Node, NodeConfig, TestEnv, TestEnvConfig, TestingEvent, TestingRpcEvent,
-        ValidatorsConfig, Wallets, init_logger,
+        AnnounceId, EnvNetworkConfig, Node, NodeConfig, TestEnv, TestEnvConfig, TestingEvent,
+        TestingRpcEvent, ValidatorsConfig, WaitForReplyTo, Wallets, init_logger,
     },
 };
 use alloy::{
@@ -33,18 +33,19 @@ use alloy::{
     providers::{Provider as _, WalletProvider, ext::AnvilApi},
 };
 use ethexe_common::{
-    Announce, HashOf, ScheduledTask,
+    Announce, HashOf, ScheduledTask, ToDigest,
     db::*,
+    ecdsa::ContractSignature,
     events::{BlockEvent, MirrorEvent, RouterEvent},
-    gear::{CANONICAL_QUARANTINE, MessageType},
+    gear::{BatchCommitment, CANONICAL_QUARANTINE, MessageType},
     injected::{InjectedTransaction, RpcOrNetworkInjectedTx},
     mock::*,
     network::ValidatorMessage,
 };
 use ethexe_compute::ComputeConfig;
-use ethexe_consensus::ConsensusEvent;
+use ethexe_consensus::{BatchCommitter, ConsensusEvent};
 use ethexe_db::{Database, verifier::IntegrityVerifier};
-use ethexe_ethereum::deploy::ContractsDeploymentParams;
+use ethexe_ethereum::{TryGetReceipt, deploy::ContractsDeploymentParams, router::Router};
 use ethexe_observer::{EthereumConfig, ObserverEvent};
 use ethexe_processor::{DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, RunnerConfig};
 use ethexe_prometheus::PrometheusConfig;
@@ -62,9 +63,14 @@ use std::{
     collections::{BTreeMap, BTreeSet, HashSet},
     net::{Ipv4Addr, SocketAddr},
     ops::ControlFlow,
+    sync::Arc,
     time::Duration,
 };
 use tempfile::tempdir;
+use tokio::sync::{
+    Mutex,
+    mpsc::{self, UnboundedReceiver, UnboundedSender},
+};
 
 const ETHER: u128 = 1_000_000_000_000_000_000;
 
@@ -1668,7 +1674,7 @@ async fn fast_sync() {
             .unwrap();
     }
 
-    let latest_block: H256 = env.latest_block().await.hash.0.into();
+    let latest_block = env.latest_block().await.hash;
     alice
         .listener()
         .wait_for_announce_computed(latest_block)
@@ -1695,7 +1701,7 @@ async fn fast_sync() {
         );
     }
 
-    let latest_block = env.latest_block().await.hash.0.into();
+    let latest_block = env.latest_block().await.hash;
     alice
         .listener()
         .wait_for_announce_computed(latest_block)
@@ -1731,7 +1737,7 @@ async fn fast_sync() {
 
     env.skip_blocks(100).await;
 
-    let latest_block: H256 = env.latest_block().await.hash.0.into();
+    let latest_block = env.latest_block().await.hash;
     alice
         .listener()
         .wait_for_announce_computed(latest_block)
@@ -1750,7 +1756,7 @@ async fn fast_sync() {
         env.skip_blocks(1).await;
     }
 
-    let latest_block = env.latest_block().await.hash.0.into();
+    let latest_block = env.latest_block().await.hash;
     alice
         .listener()
         .wait_for_announce_computed(latest_block)
@@ -1927,8 +1933,32 @@ async fn execution_with_canonical_events_quarantine() {
         .unwrap();
     assert_eq!(res.code_id, uploaded_code.code_id);
 
+    // Skip blocks to finish quarantine for program creation and balance top-up
+    // 0 - ProgramCreated event
+    // 1 - ExecutableBalanceTopUpRequested event
+    // 2..canonical_quarantine + 2 - quarantine period
+    env.skip_blocks(env.compute_config.canonical_quarantine() as u32 + 2)
+        .await;
+
+    env.observer_events_publisher()
+        .subscribe()
+        .apply_until_block_event(|event| {
+            if let BlockEvent::Mirror {
+                event: MirrorEvent::StateChanged { .. },
+                ..
+            } = event
+            {
+                Ok(ControlFlow::Break(()))
+            } else {
+                Ok(ControlFlow::Continue(()))
+            }
+        })
+        .await
+        .unwrap();
+
     // Wait till validator stops processing for the latest block (where commitment with program creation is present)
     let latest_block: H256 = env.latest_block().await.hash.0.into();
+    log::info!("📗 waiting announce for block {latest_block} computed");
     validator
         .listener()
         .wait_for_announce_computed(latest_block)
@@ -2505,7 +2535,7 @@ async fn injected_tx_fungible_token() {
     let mut subscription = ws_client
         .send_transaction_and_watch(rpc_tx)
         .await
-        .expect("successully subscribe for transaction promise");
+        .expect("successfully subscribe for transaction promise");
 
     let promise = subscription
         .next()
@@ -2528,7 +2558,7 @@ async fn injected_tx_fungible_token() {
     subscription
         .unsubscribe()
         .await
-        .expect("successfully unsubscibe for promise");
+        .expect("successfully unsubscribe for promise");
 
     tracing::info!("✅ Promise successfully received from RPC subscription");
 }
@@ -2900,4 +2930,274 @@ async fn whole_network_restore() {
     assert_eq!(init_res.value, 0);
     assert_eq!(init_res.code, ReplyCode::Success(SuccessReplyReason::Auto));
     assert!(seen_messages.insert(init_res.message_id));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ntest::timeout(60_000)]
+async fn catch_up_3() {
+    catch_up_test_case(3).await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ntest::timeout(60_000)]
+async fn catch_up_5() {
+    catch_up_test_case(5).await;
+}
+
+async fn catch_up_test_case(commitment_delay_limit: u32) {
+    init_logger();
+
+    assert!(
+        commitment_delay_limit == 3 || commitment_delay_limit == 5,
+        "Only 3 or 5 commitment delay limit is supported for catch-up test"
+    );
+
+    #[derive(Clone)]
+    struct LateCommitter {
+        router: Router,
+        commit_signal_receiver: Arc<Mutex<UnboundedReceiver<()>>>,
+        wait_signal_sender: Arc<UnboundedSender<()>>,
+    }
+
+    #[async_trait::async_trait]
+    impl BatchCommitter for LateCommitter {
+        fn clone_boxed(&self) -> Box<dyn BatchCommitter> {
+            Box::new(self.clone())
+        }
+
+        async fn commit(
+            mut self: Box<Self>,
+            batch: BatchCommitment,
+            signatures: Vec<ContractSignature>,
+        ) -> anyhow::Result<H256> {
+            log::info!("📗 LateCommitter wait for signal to commit ...");
+            self.wait_signal_sender.send(()).unwrap();
+            self.commit_signal_receiver
+                .lock()
+                .await
+                .recv()
+                .await
+                .unwrap();
+
+            log::info!(
+                "📗 LateCommitter committing batch {}: {:?}",
+                batch.to_digest(),
+                batch
+            );
+            let pending = self.router.commit_batch_pending(batch, signatures).await;
+
+            // Notify that commitment is sent
+            self.wait_signal_sender.send(()).unwrap();
+
+            log::info!("📗 LateCommitter waiting for commitment to be mined ...");
+            pending?
+                .try_get_receipt()
+                .await
+                .map(|r| r.transaction_hash.0.into())
+        }
+    }
+
+    let config = TestEnvConfig {
+        network: EnvNetworkConfig::Enabled,
+        commitment_delay_limit,
+        ..Default::default()
+    };
+    let mut env = TestEnv::new(config).await.unwrap();
+
+    log::info!("📗 Starting Alice");
+    let mut alice = env.new_node(NodeConfig::named("Alice").validator(env.validators[0]));
+    alice.start_service().await;
+
+    log::info!("📗 Starting Bob");
+    let mut bob = env.new_node(NodeConfig::named("Bob"));
+    bob.start_service().await;
+
+    let ping_code_id = env
+        .upload_code(demo_ping::WASM_BINARY)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap()
+        .code_id;
+
+    let ping_id = env
+        .create_program(ping_code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap()
+        .program_id;
+
+    // Wait until both stops processing
+    let latest_block = env.latest_block().await.hash;
+    let latest_announce_hash = bob
+        .listener()
+        .wait_for_announce_computed(latest_block)
+        .await;
+    assert_eq!(
+        alice
+            .listener()
+            .wait_for_announce_computed(latest_block)
+            .await,
+        latest_announce_hash
+    );
+
+    log::info!("📗 Stopping Bob");
+    bob.stop_service().await;
+
+    log::info!("📗 Sending first PING message, so that Alice will leave Bob behind");
+    env.send_message(ping_id, b"PING")
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    // Wait until Alice stop processing
+    let latest_block = env.latest_block().await.hash;
+    alice
+        .listener()
+        .wait_for_announce_computed(latest_block)
+        .await;
+
+    log::info!("📗 Stopping Alice");
+    alice.stop_service().await;
+
+    log::info!("📗 Setting LateCommitter for Alice and starting Alice again");
+    let (commit_signal_sender, commit_signal_receiver) = mpsc::unbounded_channel();
+    let (wait_signal_sender, mut wait_signal_receiver) = mpsc::unbounded_channel();
+    alice.custom_committer = Some(Box::new(LateCommitter {
+        router: env.ethereum.router().clone(),
+        commit_signal_receiver: Arc::new(Mutex::new(commit_signal_receiver)),
+        wait_signal_sender: Arc::new(wait_signal_sender),
+    }));
+    alice.start_service().await;
+
+    log::info!("📗 Starting Bob");
+    bob.start_service().await;
+
+    log::info!("📗 Disable auto mining");
+    env.provider.anvil_set_auto_mine(false).await.unwrap();
+
+    log::info!("📗 Sending second PING message, Bob tries to catch up Alice");
+    {
+        let listener = env.observer_events_publisher().subscribe();
+        let pending = env
+            .ethereum
+            .mirror(ping_id.try_into().unwrap())
+            .send_message_pending(b"PING", 0, false)
+            .await
+            .unwrap();
+        env.force_new_block().await;
+        let wait_for = WaitForReplyTo::from_raw_parts(
+            listener,
+            pending.try_get_message_send_receipt().await.unwrap().1,
+        );
+
+        // Waiting until Alice is ready for commitment1
+        wait_signal_receiver.recv().await.unwrap();
+
+        // Force new block, so that commitment1 would skip this block
+        env.force_new_block().await;
+
+        // Send signal to make commitment1 and wait until it's sent
+        commit_signal_sender.send(()).unwrap();
+        wait_signal_receiver.recv().await.unwrap();
+
+        // Wait until Alice is ready for next commitment2
+        wait_signal_receiver.recv().await.unwrap();
+
+        // Force new block to commit commitment1
+        env.force_new_block().await;
+
+        // Send signal to make commitment2,
+        // but it would not be applied because it's not above previous one
+        commit_signal_sender.send(()).unwrap();
+        wait_signal_receiver.recv().await.unwrap();
+
+        // Now commitment1 must be applied in the forced block
+        wait_for.wait_for().await.unwrap();
+    }
+
+    log::info!("📗 Waiting for two rejected announces from Bob");
+    for _ in 0..2 {
+        bob.listener()
+            .wait_for_announce_rejected(AnnounceId::Any)
+            .await;
+    }
+
+    log::info!("📗 Sending third PING message, one more attempt for Bob to catch up Alice");
+    {
+        let listener = env.observer_events_publisher().subscribe();
+        let pending = env
+            .ethereum
+            .mirror(ping_id.try_into().unwrap())
+            .send_message_pending(b"PING", 0, false)
+            .await
+            .unwrap();
+        env.force_new_block().await;
+        let wait_for = WaitForReplyTo::from_raw_parts(
+            listener,
+            pending.try_get_message_send_receipt().await.unwrap().1,
+        );
+
+        // Waiting until Alice is ready for commitment1
+        wait_signal_receiver.recv().await.unwrap();
+
+        // Force new block, so that commitment1 would skip this block
+        env.force_new_block().await;
+
+        // Send signal to make commitment1 and wait until it's sent
+        commit_signal_sender.send(()).unwrap();
+        wait_signal_receiver.recv().await.unwrap();
+
+        // Wait until Alice is ready for next commitment2
+        wait_signal_receiver.recv().await.unwrap();
+
+        // Force new block to commit commitment1
+        // if commitment_delay_limit == 3 => commitment1 would fail because contains expired announces
+        // if commitment_delay_limit == 5 => commitment1 would succeed
+        env.force_new_block().await;
+
+        if commitment_delay_limit == 3 {
+            // Waiting until Alice is ready for commitment2
+            wait_signal_receiver.recv().await.unwrap();
+
+            // Send signal to make commitment2 and wait until it's sent
+            commit_signal_sender.send(()).unwrap();
+            wait_signal_receiver.recv().await.unwrap();
+
+            // Force new block to commit commitment2, succeed
+            env.force_new_block().await;
+        } else if commitment_delay_limit == 5 {
+            // commitment1 already committed, so Alice would not commit commitment2, because it's empty
+        } else {
+            unreachable!();
+        }
+
+        // Now commitment1 or commitment2 must be applied in the forced blocks
+        wait_for.wait_for().await.unwrap();
+    }
+
+    let latest_block = env.latest_block().await.hash;
+    let latest_announce_hash = alice
+        .listener()
+        .wait_for_announce_computed(latest_block)
+        .await;
+
+    if commitment_delay_limit == 3 {
+        log::info!("📗 Bob accepts announce from Alice at last");
+        bob.listener()
+            .wait_for_announce_accepted(latest_announce_hash)
+            .await;
+    } else if commitment_delay_limit == 5 {
+        log::info!("📗 Bob still rejects announce from Alice");
+        bob.listener()
+            .wait_for_announce_rejected(latest_announce_hash)
+            .await;
+    } else {
+        unreachable!();
+    }
 }
