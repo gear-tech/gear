@@ -101,7 +101,7 @@ jobs:
         run: |
           cp target/production/wbuild/vara-runtime/vara_runtime.compact.compressed.wasm "artifact/testnet_vara_runtime_v${VARA_DEV_SPEC}.wasm"
           cp target/production/gear artifact/gear
-          cp target/production/ethexe artifact/ethexe
+          cp target/release/ethexe artifact/ethexe
           strip artifact/gear || true
           strip artifact/ethexe || true
 
