@@ -25,3 +25,4 @@ seed.bin
 .ipynb_checkpoints
 .jupyter
 ethexe/contracts/bin/src
+gsdk/vara_runtime_prod.scale
