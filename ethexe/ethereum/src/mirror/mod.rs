@@ -23,12 +23,13 @@ use crate::{
 use alloy::{
     contract::CallBuilder,
     eips::BlockId,
+    network,
     primitives::{Address, Bytes, U256},
-    providers::{Provider, RootProvider},
+    providers::{PendingTransactionBuilder, Provider, RootProvider},
 };
-use anyhow::{Result, anyhow};
+use anyhow::Result;
 use ethexe_common::Address as LocalAddress;
-use events::signatures;
+pub use events::signatures;
 use gprimitives::{H256, MessageId};
 
 pub mod events;
@@ -66,7 +67,7 @@ impl Mirror {
     pub async fn owned_balance_top_up(&self, value: u128) -> Result<H256> {
         let builder = CallBuilder::new_raw(self.0.provider(), Bytes::new())
             .to(*self.0.address())
-            .value(value.try_into().expect("failed to convert u128 to U256"));
+            .value(U256::from(value));
         let receipt = builder.send().await?.try_get_receipt().await?;
 
         Ok((*receipt.transaction_hash).into())
@@ -85,29 +86,24 @@ impl Mirror {
         value: u128,
         call_reply: bool,
     ) -> Result<(H256, MessageId)> {
-        let builder = self
-            .0
+        self.send_message_pending(payload, value, call_reply)
+            .await?
+            .try_get_message_send_receipt()
+            .await
+    }
+
+    pub async fn send_message_pending(
+        &self,
+        payload: impl AsRef<[u8]>,
+        value: u128,
+        call_reply: bool,
+    ) -> Result<PendingTransactionBuilder<network::Ethereum>> {
+        self.0
             .sendMessage(payload.as_ref().to_vec().into(), call_reply)
-            .value(value.try_into().expect("failed to convert u128 to U256"));
-        let receipt = builder.send().await?.try_get_receipt().await?;
-
-        let tx_hash = (*receipt.transaction_hash).into();
-        let mut message_id = None;
-
-        for log in receipt.inner.logs() {
-            if log.topic0() == Some(&signatures::MESSAGE_QUEUEING_REQUESTED) {
-                let event = crate::decode_log::<IMirror::MessageQueueingRequested>(log)?;
-
-                message_id = Some((*event.id).into());
-
-                break;
-            }
-        }
-
-        let message_id =
-            message_id.ok_or_else(|| anyhow!("Couldn't find `MessageQueueingRequested` log"))?;
-
-        Ok((tx_hash, message_id))
+            .value(U256::from(value))
+            .send()
+            .await
+            .map_err(Into::into)
     }
 
     pub async fn send_reply(
@@ -122,7 +118,7 @@ impl Mirror {
                 replied_to.into_bytes().into(),
                 payload.as_ref().to_vec().into(),
             )
-            .value(value.try_into().expect("failed to convert u128 to U256"));
+            .value(U256::from(value));
         let receipt = builder.send().await?.try_get_receipt().await?;
 
         Ok((*receipt.transaction_hash).into())
