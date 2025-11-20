@@ -291,7 +291,7 @@ pub fn create_batch_commitment<DB: BlockMetaStorageRO + OnChainStorageRO + Annou
         .as_ref()
         .map(|c| calculate_batch_expiry(db, block, c.head_announce, commitment_delay_limit))
         .transpose()?
-        .and_then(|r| r)
+        .flatten()
         .unwrap_or(u8::MAX);
 
     tracing::trace!(

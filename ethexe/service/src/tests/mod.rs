@@ -2534,7 +2534,7 @@ async fn injected_tx_fungible_token() {
     let mut subscription = ws_client
         .send_transaction_and_watch(rpc_tx)
         .await
-        .expect("successully subscribe for transaction promise");
+        .expect("successfully subscribe for transaction promise");
 
     let promise = subscription
         .next()
@@ -2557,7 +2557,7 @@ async fn injected_tx_fungible_token() {
     subscription
         .unsubscribe()
         .await
-        .expect("successfully unsubscibe for promise");
+        .expect("successfully unsubscribe for promise");
 
     tracing::info!("✅ Promise successfully received from RPC subscription");
 }
@@ -2838,7 +2838,7 @@ async fn catch_up_test_case(commitment_delay_limit: u32) {
 
     assert!(
         commitment_delay_limit == 3 || commitment_delay_limit == 5,
-        "Only 3 or 5 commitment delay limit is supported"
+        "Only 3 or 5 commitment delay limit is supported for catch-up test"
     );
 
     #[derive(Clone)]

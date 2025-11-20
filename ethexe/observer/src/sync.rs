@@ -203,7 +203,7 @@ impl<DB: SyncDB> ChainSync<DB> {
 
             self.db.set_block_synced(hash);
 
-            log::debug!(
+            log::trace!(
                 "✅ block {hash} synced, events: {:?}",
                 self.db.block_events(hash)
             );

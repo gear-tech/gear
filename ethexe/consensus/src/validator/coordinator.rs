@@ -124,12 +124,12 @@ impl Coordinator {
     }
 
     pub fn submission(
-        mut ctx: ValidatorContext,
+        ctx: ValidatorContext,
         multisigned_batch: MultisignedBatchCommitment,
     ) -> Result<ValidatorState> {
         let (batch, signatures) = multisigned_batch.into_parts();
         let cloned_committer = ctx.core.committer.clone_boxed();
-        ctx.tasks.push_back(
+        ctx.tasks.push(
             async move {
                 let block_hash = batch.block_hash;
                 let batch_digest = batch.to_digest();

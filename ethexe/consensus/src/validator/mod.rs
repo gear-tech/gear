@@ -64,12 +64,16 @@ use ethexe_common::{
 use ethexe_db::Database;
 use ethexe_ethereum::middleware::ElectionProvider;
 use ethexe_signer::Signer;
-use futures::{FutureExt, Stream, future::BoxFuture, stream::FusedStream};
+use futures::{
+    Stream, StreamExt,
+    future::BoxFuture,
+    stream::{FusedStream, FuturesUnordered},
+};
 use gprimitives::H256;
 use initial::Initial;
 use std::{
     collections::VecDeque,
-    fmt, mem,
+    fmt,
     pin::Pin,
     task::{Context, Poll},
     time::Duration,
@@ -161,7 +165,7 @@ impl ValidatorService {
             },
             pending_events: VecDeque::new(),
             output: VecDeque::new(),
-            tasks: VecDeque::new(),
+            tasks: Default::default(),
         };
 
         Ok(Self {
@@ -254,16 +258,13 @@ impl Stream for ValidatorService {
                 }
             }
 
+            // Note: polling tasks after inner state futures is important,
+            // because polling inner state can create consensus tasks.
+
             // Poll consensus tasks if any
-            // Note: polling tasks after is important, because polling inner state can create consensus tasks.
             let ctx = inner.context_mut();
-            for mut task in mem::take(&mut ctx.tasks) {
-                if let Poll::Ready(result) = task.poll_unpin(cx) {
-                    ctx.output(result?);
-                } else {
-                    // Put back unfinished tasks
-                    ctx.tasks.push_back(task);
-                }
+            if let Poll::Ready(Some(res)) = ctx.tasks.poll_next_unpin(cx) {
+                ctx.output(res?);
             }
 
             Ok(inner)
@@ -547,7 +548,7 @@ struct ValidatorContext {
 
     /// Ongoing consensus tasks, if any.
     #[debug("{}", tasks.len())]
-    tasks: VecDeque<BoxFuture<'static, Result<ConsensusEvent>>>,
+    tasks: FuturesUnordered<BoxFuture<'static, Result<ConsensusEvent>>>,
 }
 
 impl ValidatorContext {

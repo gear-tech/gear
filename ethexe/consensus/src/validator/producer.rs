@@ -249,6 +249,7 @@ mod tests {
     };
     use async_trait::async_trait;
     use ethexe_common::{Digest, HashOf, db::*, gear::CodeCommitment, mock::*};
+    use futures::StreamExt;
     use nonempty::nonempty;
 
     #[tokio::test]
@@ -339,13 +340,7 @@ mod tests {
             .await
             .unwrap();
 
-        state
-            .context_mut()
-            .tasks
-            .front_mut()
-            .expect("expect submission task here")
-            .await
-            .unwrap();
+        state.context_mut().tasks.select_next_some().await.unwrap();
 
         // Check that we have a batch with commitments after submitting
         let (committed_batch, signatures) = eth
@@ -429,13 +424,7 @@ mod tests {
             .await
             .unwrap();
 
-        state
-            .context_mut()
-            .tasks
-            .front_mut()
-            .expect("expect submission task here")
-            .await
-            .unwrap();
+        state.context_mut().tasks.select_next_some().await.unwrap();
 
         let (batch, signatures) = eth
             .committed_batch
