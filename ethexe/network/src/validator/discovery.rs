@@ -487,6 +487,8 @@ impl Behaviour {
     pub fn max_put_identity_interval(&mut self) {
         if let Some(put_identity) = &mut self.put_identity {
             put_identity.interval.tick_at_max();
+        } else {
+            unreachable!("we never put record if `put_identity` is None");
         }
     }
 }
