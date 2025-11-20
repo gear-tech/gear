@@ -455,7 +455,7 @@ impl Behaviour {
             .map(|address| ValidatorIdentityKey { validator: address })
     }
 
-    pub fn get_identity(&mut self, address: Address) -> Option<&SignedValidatorIdentity> {
+    pub fn get_identity(&self, address: Address) -> Option<&SignedValidatorIdentity> {
         self.identities.get(&address)
     }
 

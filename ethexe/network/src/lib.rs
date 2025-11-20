@@ -743,16 +743,18 @@ mod tests {
     };
     use async_trait::async_trait;
     use ethexe_common::{BlockHeader, ProtocolTimelines, db::OnChainStorageRW, gear::CodeState};
-    use ethexe_db::{Database, MemDb};
-    use ethexe_signer::{FSKeyStorage, Signer};
+    use ethexe_db::Database;
+    use ethexe_signer::Signer;
     use gprimitives::{ActorId, CodeId, H256};
     use nonempty::nonempty;
     use std::{
         collections::{BTreeSet, HashMap},
+        future,
         sync::Arc,
     };
     use tokio::{
         sync::RwLock,
+        time,
         time::{Duration, timeout},
     };
 
@@ -819,40 +821,66 @@ mod tests {
         }
     }
 
-    fn new_service_with(db: Database, data_provider: DataProvider) -> NetworkService {
-        const GENESIS_BLOCK_HEADER: BlockHeader = BlockHeader {
-            height: 0,
-            timestamp: 0,
-            parent_hash: H256::zero(),
-        };
-        const TIMELINES: ProtocolTimelines = ProtocolTimelines {
-            genesis_ts: 1_000_000,
-            era: 1,
-            election: 1,
-        };
+    struct NetworkServiceBuilder {
+        db: Database,
+        data_provider: DataProvider,
+        latest_validators: ValidatorsVec,
+        signer: Signer,
+        validator_key: Option<PublicKey>,
+    }
 
-        db.set_protocol_timelines(TIMELINES);
+    impl NetworkServiceBuilder {
+        fn new() -> Self {
+            Self {
+                db: Database::memory(),
+                data_provider: DataProvider::default(),
+                latest_validators: nonempty![Address::default()].into(),
+                signer: Signer::memory(),
+                validator_key: None,
+            }
+        }
 
-        let key_storage = FSKeyStorage::tmp();
-        let signer = Signer::new(key_storage);
-        let key = signer.generate_key().unwrap();
-        let config = NetworkConfig::new_test(key, Address::default());
+        fn build(self) -> NetworkService {
+            const GENESIS_BLOCK_HEADER: BlockHeader = BlockHeader {
+                height: 0,
+                timestamp: 0,
+                parent_hash: H256::zero(),
+            };
+            const TIMELINES: ProtocolTimelines = ProtocolTimelines {
+                genesis_ts: 1_000_000,
+                era: 1,
+                election: 1,
+            };
 
-        let runtime_config = NetworkRuntimeConfig {
-            latest_block_header: GENESIS_BLOCK_HEADER,
-            latest_validators: nonempty![Address::default()].into(),
-            validator_key: None,
-            general_signer: signer.clone(),
-            network_signer: signer,
-            external_data_provider: Box::new(data_provider),
-            db: Box::new(db),
-        };
+            let Self {
+                db,
+                data_provider,
+                latest_validators,
+                signer,
+                validator_key,
+            } = self;
 
-        NetworkService::new(config.clone(), runtime_config).unwrap()
+            db.set_protocol_timelines(TIMELINES);
+
+            let key = signer.generate_key().unwrap();
+            let config = NetworkConfig::new_test(key, Address::default());
+
+            let runtime_config = NetworkRuntimeConfig {
+                latest_block_header: GENESIS_BLOCK_HEADER,
+                latest_validators,
+                validator_key,
+                general_signer: signer.clone(),
+                network_signer: signer,
+                external_data_provider: Box::new(data_provider),
+                db: Box::new(db),
+            };
+
+            NetworkService::new(config, runtime_config).unwrap()
+        }
     }
 
     fn new_service() -> NetworkService {
-        new_service_with(Database::memory(), DataProvider::default())
+        NetworkServiceBuilder::new().build()
     }
 
     #[tokio::test]
@@ -873,12 +901,12 @@ mod tests {
         let service1_handle = service1.db_sync_handle();
 
         // second service
-        let db = Database::from_one(&MemDb::default());
+        let service2 = NetworkServiceBuilder::new();
 
-        let hello = db.write_hash(b"hello");
-        let world = db.write_hash(b"world");
+        let hello = service2.db.write_hash(b"hello");
+        let world = service2.db.write_hash(b"world");
 
-        let mut service2 = new_service_with(db, Default::default());
+        let mut service2 = service2.build();
 
         service1.connect(&mut service2).await;
         tokio::spawn(service1.loop_on_next());
@@ -924,11 +952,14 @@ mod tests {
     async fn external_data_provider() {
         init_logger();
 
-        let alice_data_provider = DataProvider::default();
-        let mut alice = new_service_with(Database::memory(), alice_data_provider.clone());
+        let alice = NetworkServiceBuilder::new();
+        let alice_data_provider = alice.data_provider.clone();
+        let mut alice = alice.build();
         let alice_handle = alice.db_sync_handle();
-        let bob_db = Database::memory();
-        let mut bob = new_service_with(bob_db.clone(), DataProvider::default());
+
+        let bob = NetworkServiceBuilder::new();
+        let bob_db = bob.db.clone();
+        let mut bob = bob.build();
 
         alice.connect(&mut bob).await;
         tokio::spawn(alice.loop_on_next());
@@ -942,5 +973,52 @@ mod tests {
             .expect("time has elapsed")
             .unwrap();
         assert_eq!(response, expected_response);
+    }
+
+    #[tokio::test]
+    async fn validator_discovery() {
+        init_logger();
+
+        let signer = Signer::memory();
+
+        let alice_key = signer.generate_key().unwrap();
+        let bob_key = signer.generate_key().unwrap();
+
+        let latest_validators: ValidatorsVec =
+            nonempty![alice_key.to_address(), bob_key.to_address()].into();
+
+        let mut alice = NetworkServiceBuilder::new();
+        alice.latest_validators = latest_validators.clone();
+        alice.signer = signer.clone();
+        alice.validator_key = Some(alice_key);
+        let mut alice = alice.build();
+
+        let mut bob = NetworkServiceBuilder::new();
+        bob.latest_validators = latest_validators;
+        bob.signer = signer.clone();
+        bob.validator_key = Some(bob_key);
+        let mut bob = bob.build();
+
+        alice.connect(&mut bob).await;
+        tokio::spawn(bob.loop_on_next());
+
+        let wait_for_identity = future::poll_fn(|cx| {
+            let _poll = alice.poll_next_unpin(cx);
+
+            if let Some(identity) = alice
+                .swarm
+                .behaviour()
+                .validator_discovery
+                .get_identity(bob_key.to_address())
+            {
+                assert_eq!(identity.address(), bob_key.to_address());
+                Poll::Ready(())
+            } else {
+                Poll::Pending
+            }
+        });
+        time::timeout(Duration::from_secs(10), wait_for_identity)
+            .await
+            .unwrap();
     }
 }
