@@ -64,7 +64,7 @@ pub trait Injected {
 
 #[derive(Debug, Clone)]
 pub struct InjectedApi {
-    gate: TxSafetyGate,
+    gate: TransactionGate,
     rpc_sender: mpsc::UnboundedSender<RpcEvent>,
     promise_waiters: Arc<DashMap<HashOf<InjectedTransaction>, oneshot::Sender<SignedPromise>>>,
 }
@@ -72,7 +72,7 @@ pub struct InjectedApi {
 impl InjectedApi {
     pub(crate) fn new(db: Database, rpc_sender: mpsc::UnboundedSender<RpcEvent>) -> Self {
         Self {
-            gate: TxSafetyGate::new_with_all_checks(db),
+            gate: TransactionGate::new_with_all_checks(db),
             rpc_sender,
             promise_waiters: Arc::new(DashMap::new()),
         }
@@ -209,7 +209,7 @@ const REFERENCE_BLOCK_OUTDATED_TOLERANCE: u8 = 1;
 pub(crate) struct TransactionGate<DB = Database> {
     #[debug(skip)]
     db: DB,
-    config: TxSafetyChecksConfig,
+    config: GateConfig,
     protocol_timelines: ProtocolTimelines,
 }
 
@@ -227,7 +227,7 @@ impl<DB: OnChainStorageRO> TransactionGate<DB> {
 
         Self {
             db,
-            config: TxSafetyChecksConfig::default(),
+            config: GateConfig::default(),
             protocol_timelines,
         }
     }
@@ -339,8 +339,10 @@ mod tests {
 
         // Preparing db
         let reference_block = SimpleBlockData::mock(());
-        let mut latest_data = Default::default();
-        latest_data.synced_block = reference_block.clone();
+        let latest_data = LatestData {
+            synced_block: reference_block.clone(),
+            ..Default::default()
+        };
         db.set_latest_data(latest_data);
 
         let timelines = ProtocolTimelines::mock(());
@@ -353,7 +355,7 @@ mod tests {
         );
 
         // Test
-        let gate = TxSafetyGate::new(db.clone()).with_recipient_check();
+        let gate = TransactionGate::new(db.clone()).with_recipient_check();
 
         let mut tx = InjectedTransaction::mock(());
         tx.reference_block = reference_block.hash;
