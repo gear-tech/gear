@@ -35,7 +35,6 @@ use tokio::sync::{mpsc, oneshot};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum InjectedTransactionAcceptance {
     Accept,
-    Reject { reason: String },
 }
 
 #[cfg_attr(not(feature = "test-utils"), rpc(server))]
