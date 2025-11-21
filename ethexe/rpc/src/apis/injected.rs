@@ -128,7 +128,7 @@ impl InjectedApi {
         }
     }
 
-    /// This function forwards [`RpcOrNetworkInjectedTx`] for main service and waits for its acceptance.
+    /// This function forwards [`RpcOrNetworkInjectedTx`] to main service and waits for its acceptance.
     async fn forward_transaction(
         &self,
         transaction: RpcOrNetworkInjectedTx,
@@ -172,9 +172,8 @@ impl InjectedApi {
                         promise_waiters.remove(&tx_hash);
                         promise
                     }
-                    Err(_recv_err) => {
-                        // Unreachable case, because of promise_sender stores locally and can not be dropped.
-                        return;
+                    Err(_) => {
+                        unreachable!("promise sender can not be dropped, because of it stores locally.")
                     }
                 },
                 _ = sink.closed() => {
