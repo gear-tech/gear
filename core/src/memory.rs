@@ -25,8 +25,8 @@ use crate::{
 use alloc::{boxed::Box, format};
 use byteorder::{ByteOrder, LittleEndian};
 use core::{
-    fmt,
-    fmt::Debug,
+    fmt::{self, Debug},
+    mem,
     ops::{Deref, DerefMut},
 };
 use numerated::{
@@ -108,12 +108,12 @@ pub struct IntoPageBufError;
 // to mitigate `polkadot-js` limitation of array length,
 // which requires it not to be more than 2048.
 const _: () = {
-    assert!(GearPage::SIZE.is_multiple_of(8));
-    assert!(GearPage::SIZE / 8 <= 2048);
+    assert!((GearPage::SIZE as usize).is_multiple_of(mem::size_of::<u64>()));
+    assert!(GearPage::SIZE as usize / mem::size_of::<u64>() <= 2048);
 };
 
 /// Alias for inner type of page buffer.
-pub type PageBufInner = Box<[u64; GearPage::SIZE as usize / 8]>;
+pub type PageBufInner = Box<[u64; GearPage::SIZE as usize / mem::size_of::<u64>()]>;
 
 /// Buffer for gear page data.
 #[derive(
@@ -176,7 +176,7 @@ impl PageBuf {
     /// Returns new page buffer filled with given byte.
     pub fn filled_with(byte: u8) -> PageBuf {
         let chunk = u64::from_ne_bytes([byte; 8]);
-        Self([chunk; GearPage::SIZE as usize / 8].into())
+        Self([chunk; GearPage::SIZE as usize / mem::size_of::<u64>()].into())
     }
 
     /// Creates PageBuf from inner buffer. If the buffer has
