@@ -18,25 +18,21 @@
 
 //! Validator core utils and parameters.
 
-use crate::{
-    announces,
-    utils::{self, MultisignedBatchCommitment},
-    validator::tx_pool::InjectedTxPool,
-};
+use crate::{announces, utils, validator::tx_pool::InjectedTxPool};
 use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use ethexe_common::{
     Address, Announce, Digest, HashOf, ProtocolTimelines, SimpleBlockData, ToDigest, ValidatorsVec,
     consensus::BatchCommitmentValidationRequest,
     db::BlockMetaStorageRO,
-    ecdsa::PublicKey,
+    ecdsa::{ContractSignature, PublicKey},
     gear::{
         BatchCommitment, ChainCommitment, CodeCommitment, RewardsCommitment, ValidatorsCommitment,
     },
     injected::SignedInjectedTransaction,
 };
 use ethexe_db::Database;
-use ethexe_ethereum::middleware::ElectionProvider;
+use ethexe_ethereum::{middleware::ElectionProvider, router::Router};
 use ethexe_signer::Signer;
 use gprimitives::{CodeId, H256};
 use hashbrown::{HashMap, HashSet};
@@ -114,6 +110,7 @@ impl ValidatorCore {
             code_commitments,
             validators_commitment,
             rewards_commitment,
+            self.commitment_delay_limit,
         )
     }
 
@@ -294,6 +291,7 @@ impl ValidatorCore {
             code_commitments,
             validators_commitment,
             rewards_commitment,
+            self.commitment_delay_limit,
         )?
         .ok_or_else(|| anyhow!("Batch commitment is empty for current block"))?;
 
@@ -356,10 +354,21 @@ pub trait BatchCommitter: Send {
     ///
     /// # Arguments
     /// * `batch` - The batch of commitments to commit
+    /// * `signatures` - The signatures for the batch commitments
     ///
     /// # Returns
     /// The hash of the transaction that was sent to the blockchain
-    async fn commit_batch(self: Box<Self>, batch: MultisignedBatchCommitment) -> Result<H256>;
+    async fn commit(
+        self: Box<Self>,
+        batch: BatchCommitment,
+        signatures: Vec<ContractSignature>,
+    ) -> Result<H256>;
+}
+
+impl<T: BatchCommitter + 'static> From<T> for Box<dyn BatchCommitter> {
+    fn from(committer: T) -> Self {
+        Box::new(committer)
+    }
 }
 
 /// [`ElectionRequest`] determines the moment when validators election happen.
@@ -373,24 +382,24 @@ pub struct ElectionRequest {
 
 /// [`MiddlewareWrapper`] is a wrapper around the dyn [`ElectionProvider`] trait.
 /// It caches the elections results to reduce the number of rpc calls.
-#[derive(Clone)]
 pub struct MiddlewareWrapper {
-    inner: Arc<dyn ElectionProvider + 'static>,
+    inner: Box<dyn ElectionProvider>,
     cached_elections: Arc<RwLock<HashMap<ElectionRequest, ValidatorsVec>>>,
 }
 
-impl MiddlewareWrapper {
-    #[allow(unused)]
-    pub fn from_inner<M: ElectionProvider + 'static>(inner: M) -> Self {
+impl Clone for MiddlewareWrapper {
+    fn clone(&self) -> Self {
         Self {
-            inner: Arc::new(inner),
-            cached_elections: Arc::new(RwLock::new(HashMap::new())),
+            inner: self.inner.clone_boxed(),
+            cached_elections: self.cached_elections.clone(),
         }
     }
+}
 
-    pub fn from_inner_arc(inner: Arc<dyn ElectionProvider + 'static>) -> Self {
+impl MiddlewareWrapper {
+    pub fn from_inner(inner: impl Into<Box<dyn ElectionProvider>>) -> Self {
         Self {
-            inner,
+            inner: inner.into(),
             cached_elections: Arc::new(RwLock::new(HashMap::new())),
         }
     }
@@ -411,6 +420,23 @@ impl MiddlewareWrapper {
             .insert(request, elected_validators.clone());
 
         Ok(elected_validators)
+    }
+}
+
+#[async_trait]
+impl BatchCommitter for Router {
+    fn clone_boxed(&self) -> Box<dyn BatchCommitter> {
+        Box::new(self.clone())
+    }
+
+    async fn commit(
+        self: Box<Self>,
+        batch: BatchCommitment,
+        signatures: Vec<ContractSignature>,
+    ) -> Result<H256> {
+        tracing::debug!("Batch commitment to submit: {batch:?}");
+
+        self.commit_batch(batch, signatures).await
     }
 }
 
@@ -435,6 +461,8 @@ mod tests {
     #[tokio::test]
     #[ntest::timeout(3000)]
     async fn rejects_empty_batch_request() {
+        gear_utils::init_default_logger();
+
         let (ctx, _, _) = mock_validator_context();
         let empty_request = BatchCommitmentValidationRequest {
             digest: Digest::zero(),
@@ -459,6 +487,8 @@ mod tests {
     #[tokio::test]
     #[ntest::timeout(3000)]
     async fn rejects_duplicate_code_ids() {
+        gear_utils::init_default_logger();
+
         let (ctx, _, _) = mock_validator_context();
         let mut batch = prepare_chain_for_batch_commitment(&ctx.core.db);
         let duplicate = batch.code_commitments[0].clone();
@@ -482,6 +512,8 @@ mod tests {
     #[tokio::test]
     #[ntest::timeout(3000)]
     async fn rejects_not_waiting_code_ids() {
+        gear_utils::init_default_logger();
+
         let (ctx, _, _) = mock_validator_context();
         let batch = prepare_chain_for_batch_commitment(&ctx.core.db);
         let block = ctx.core.db.simple_block_data(batch.block_hash);
@@ -505,6 +537,8 @@ mod tests {
     #[tokio::test]
     #[ntest::timeout(3000)]
     async fn rejects_non_best_chain_head() {
+        gear_utils::init_default_logger();
+
         let (ctx, _, _) = mock_validator_context();
         let batch = prepare_chain_for_batch_commitment(&ctx.core.db);
         let block = ctx.core.db.simple_block_data(batch.block_hash);
@@ -532,6 +566,8 @@ mod tests {
     #[tokio::test]
     #[ntest::timeout(3000)]
     async fn rejects_digest_mismatch() {
+        gear_utils::init_default_logger();
+
         let (ctx, _, _) = mock_validator_context();
         let batch = prepare_chain_for_batch_commitment(&ctx.core.db);
         let block = ctx.core.db.simple_block_data(batch.block_hash);
@@ -561,6 +597,8 @@ mod tests {
     #[tokio::test]
     #[ntest::timeout(3000)]
     async fn accepts_matching_request() {
+        gear_utils::init_default_logger();
+
         let (ctx, _, _) = mock_validator_context();
         let batch = prepare_chain_for_batch_commitment(&ctx.core.db);
         let block = ctx.core.db.simple_block_data(batch.block_hash);
