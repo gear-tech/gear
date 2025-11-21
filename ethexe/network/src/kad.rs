@@ -206,8 +206,9 @@ impl Behaviour {
             .disjoint_query_paths(true)
             .set_record_ttl(Some(KAD_RECORD_TTL))
             .set_publication_interval(Some(KAD_PUBLISHING_INTERVAL))
-            // TODO: add peers to kbucket manually via identify protocol
-            .set_record_filtering(kad::StoreInserts::FilterBoth);
+            .set_record_filtering(kad::StoreInserts::FilterBoth)
+            // only mDNS, bootstrap and directly connected peers will be inserted into the routing table
+            .set_kbucket_inserts(kad::BucketInserts::Manual);
         let mut inner = kad::Behaviour::with_config(peer, MemoryStore::new(peer), inner);
         inner.set_mode(Some(kad::Mode::Server));
         Self {
