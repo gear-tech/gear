@@ -17,30 +17,12 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::errors;
-use anyhow::Result;
 use ethexe_common::{
     Announce, HashOf, SimpleBlockData,
     db::{AnnounceStorageRO, BlockMetaStorageRO, LatestDataStorageRO, OnChainStorageRO},
 };
-use hyper::header::HeaderValue;
 use jsonrpsee::core::RpcResult;
 use sp_core::H256;
-use tower_http::cors::{AllowOrigin, CorsLayer};
-
-pub(crate) fn try_into_cors(maybe_cors: Option<Vec<String>>) -> Result<CorsLayer> {
-    if let Some(cors) = maybe_cors {
-        let mut list = Vec::new();
-
-        for origin in cors {
-            list.push(HeaderValue::from_str(&origin)?)
-        }
-
-        Ok(CorsLayer::new().allow_origin(AllowOrigin::list(list)))
-    } else {
-        // allow all cors
-        Ok(CorsLayer::permissive())
-    }
-}
 
 pub fn block_at_or_latest_synced<DB: OnChainStorageRO + LatestDataStorageRO>(
     db: &DB,

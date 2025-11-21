@@ -34,4 +34,5 @@ rand.workspace = true
 tracing-subscriber.workspace = true
 demo-ping = { workspace = true, features = ["debug", "ethexe"] }
 demo-async = { workspace = true, features = ["debug", "ethexe"] }
+demo-panic-payload = { workspace = true, features = ["debug", "ethexe"] }
 wat.workspace = true

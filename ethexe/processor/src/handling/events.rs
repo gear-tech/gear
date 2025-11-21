@@ -68,10 +68,6 @@ impl ProcessingHandler {
                     return Err(ProcessorError::MissingCode(code_id));
                 }
 
-                if self.db.program_code_id(actor_id).is_some() {
-                    return Err(ProcessorError::DuplicatedProgram(actor_id));
-                }
-
                 self.db.set_program_code_id(actor_id, code_id);
 
                 self.transitions.register_new(actor_id);

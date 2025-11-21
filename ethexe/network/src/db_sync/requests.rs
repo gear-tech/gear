@@ -321,8 +321,8 @@ pub enum HashesResponseError {
 
 #[derive(Debug, derive_more::Display)]
 pub enum ProgramIdsResponseError {
-    #[display("not enough program-code ids")]
-    NotEnoughIds,
+    #[display("not enough program-code ids expected {expected} but got {received}")]
+    NotEnoughIds { expected: usize, received: usize },
     #[display("router failed: {_0}")]
     RouterQuery(anyhow::Error),
 }
@@ -466,7 +466,10 @@ impl ResponseHandler {
         let InnerProgramIdsResponse(response) = response;
 
         if response.len() as u64 != request.expected_count {
-            return Err(ProgramIdsResponseError::NotEnoughIds);
+            return Err(ProgramIdsResponseError::NotEnoughIds {
+                expected: request.expected_count as usize,
+                received: response.len(),
+            });
         }
 
         let code_ids = external_data_provider

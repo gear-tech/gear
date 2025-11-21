@@ -4,9 +4,11 @@ version = "0.1.0"
 authors.workspace = true
 edition.workspace = true
 license.workspace = true
+homepage.workspace = true
+repository.workspace = true
 
 [dependencies]
-gstd = { workspace = true, features = ["debug"] }
+gstd.workspace = true
 
 [dev-dependencies]
 gear-core.workspace = true
@@ -19,3 +21,4 @@ gear-wasm-builder.workspace = true
 debug = ["gstd/debug"]
 default = ["std"]
 std = []
+ethexe = ["gstd/ethexe"]

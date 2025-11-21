@@ -301,7 +301,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
         // `router.reserved` is always `0` but can be overridden in an RPC request
         // to estimate gas excluding `Gear.blockIsPredecessor()`.
         if (router.reserved == 0) {
-            require(Gear.blockIsPredecessor(_batch.blockHash), "allowed predecessor block wasn't found");
+            require(Gear.blockIsPredecessor(_batch.blockHash, _batch.expiry), "allowed predecessor block wasn't found");
             require(block.timestamp > _batch.blockTimestamp, "batch timestamp must be in the past");
         }
 
@@ -325,6 +325,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
             _batch.blockHash,
             _batch.blockTimestamp,
             _batch.previousCommittedBatchHash,
+            _batch.expiry,
             _chainCommitmentHash,
             _codeCommitmentsHash,
             _rewardsCommitmentHash,

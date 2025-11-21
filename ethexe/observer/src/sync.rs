@@ -203,6 +203,11 @@ impl<DB: SyncDB> ChainSync<DB> {
 
             self.db.set_block_synced(hash);
 
+            log::trace!(
+                "✅ block {hash} synced, events: {:?}",
+                self.db.block_events(hash)
+            );
+
             let _ = self
                 .db
                 .mutate_latest_data(|data| {

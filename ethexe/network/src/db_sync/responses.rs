@@ -87,12 +87,14 @@ impl OngoingResponses {
             InnerRequest::ProgramIds(request) => InnerProgramIdsResponse(
                 db.block_meta(request.at)
                     .announces
-                    .and_then(|a| a.first().copied())
-                    .and_then(|announce_hash| {
-                        db.announce_program_states(announce_hash)
-                            .map(|states| states.into_keys().collect())
-                    })
-                    .unwrap_or_default(), // FIXME: Option might be more suitable
+                    .into_iter()
+                    .flatten()
+                    .find_map(|announce_hash| db.announce_program_states(announce_hash))
+                    .map(|states| states.into_keys().collect())
+                    .unwrap_or_else(|| {
+                        log::warn!("no program states found for block {:?}", request.at);
+                        Default::default()
+                    }), // FIXME: Option might be more suitable
             )
             .into(),
             InnerRequest::ValidCodes => db.valid_codes().into(),
@@ -140,16 +142,19 @@ impl OngoingResponses {
                 });
             };
 
+            if let AnnouncesRequestUntil::Tail(tail) = until
+                && announce_hash == tail
+            {
+                return Ok(AnnouncesResponse {
+                    announces: announces.into(),
+                });
+            }
+
             let parent = announce.parent;
             let network_announce = Self::to_network_announce(db, announce)?;
             announces.push_front(network_announce);
 
             match until {
-                AnnouncesRequestUntil::Tail(tail) if announce_hash == tail => {
-                    return Ok(AnnouncesResponse {
-                        announces: announces.into(),
-                    });
-                }
                 AnnouncesRequestUntil::ChainLen(len) if announces.len() == len.get() as usize => {
                     return Ok(AnnouncesResponse {
                         announces: announces.into(),
@@ -172,7 +177,6 @@ impl OngoingResponses {
                     });
                 }
             }
-
             announce_hash = parent;
         }
 
@@ -489,7 +493,9 @@ mod tests {
 
         let tail = make_announce(10, HashOf::random());
         let tail_hash = db.set_announce(tail.clone());
-        let head = make_announce(11, tail_hash);
+        let middle = make_announce(11, tail_hash);
+        let middle_hash = db.set_announce(middle.clone());
+        let head = make_announce(12, middle_hash);
         let head_hash = db.set_announce(head.clone());
 
         let genesis = HashOf::random();
@@ -503,7 +509,7 @@ mod tests {
 
         let response = OngoingResponses::process_announce_request(&db, request).unwrap();
         let announces: Vec<Announce> = response.announces.iter().map(Announce::from).collect();
-        assert_eq!(announces, vec![tail, head]);
+        assert_eq!(announces, vec![middle, head]);
         response.clone().try_into_checked(request).unwrap();
     }
 

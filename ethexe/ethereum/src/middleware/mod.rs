@@ -35,7 +35,15 @@ type QueryInstance = IMiddleware::IMiddlewareInstance<RootProvider>;
 /// Trait for executing elections in the blockchain
 #[async_trait::async_trait]
 pub trait ElectionProvider: Send + Sync {
+    fn clone_boxed(&self) -> Box<dyn ElectionProvider>;
+
     async fn make_election_at(&self, ts: u64, max_validators: u128) -> Result<ValidatorsVec>;
+}
+
+impl<T: ElectionProvider> From<T> for Box<dyn ElectionProvider> {
+    fn from(provider: T) -> Self {
+        provider.clone_boxed()
+    }
 }
 
 #[derive(Clone)]
@@ -67,6 +75,10 @@ pub struct MiddlewareQuery(QueryInstance);
 
 #[async_trait::async_trait]
 impl ElectionProvider for MiddlewareQuery {
+    fn clone_boxed(&self) -> Box<dyn ElectionProvider> {
+        Box::new(self.clone())
+    }
+
     async fn make_election_at(&self, ts: u64, max_validators: u128) -> Result<ValidatorsVec> {
         let validators = self
             .0
@@ -107,6 +119,10 @@ pub struct MockElectionProvider {
 
 #[async_trait::async_trait]
 impl ElectionProvider for MockElectionProvider {
+    fn clone_boxed(&self) -> Box<dyn ElectionProvider> {
+        Box::new(self.clone())
+    }
+
     async fn make_election_at(&self, ts: u64, _max_validators: u128) -> Result<ValidatorsVec> {
         match self.predefined_election_at.read().await.get(&ts).cloned() {
             Some(election_result) => Ok(election_result),

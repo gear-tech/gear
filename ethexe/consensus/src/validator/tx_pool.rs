@@ -16,13 +16,15 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use anyhow::{Result, anyhow};
+use crate::tx_validation::{TxValidity, TxValidityChecker};
+use anyhow::Result;
 use ethexe_common::{
-    Announce, HashOf, ProgramStates,
+    Announce, HashOf,
     db::{AnnounceStorageRO, CodesStorageRO, InjectedStorageRW, OnChainStorageRO},
-    injected::{InjectedTransaction, SignedInjectedTransaction, VALIDITY_WINDOW},
+    injected::{InjectedTransaction, SignedInjectedTransaction},
 };
 use ethexe_db::Database;
+use ethexe_runtime_common::state::Storage;
 use gprimitives::H256;
 use std::collections::HashSet;
 
@@ -34,24 +36,9 @@ pub(crate) struct InjectedTxPool<DB = Database> {
     db: DB,
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub enum TxValidityStatus {
-    /// Transaction is valid and can be include into announce.
-    Valid,
-    /// Transaction was already include into one of previous [`VALIDITY_WINDOW`] announces.
-    Duplicate,
-    /// Transaction is outdated and should be remove from pool.
-    Outdated,
-    /// Transaction's reference block not on current branch.
-    /// Keep tx in pool in case of reorg.
-    NotOnCurrentBranch,
-    /// Transaction's destination [`gprimitives::ActorId`] not found.
-    UnknownDestination,
-}
-
 impl<DB> InjectedTxPool<DB>
 where
-    DB: OnChainStorageRO + InjectedStorageRW + AnnounceStorageRO + CodesStorageRO + Clone,
+    DB: OnChainStorageRO + InjectedStorageRW + AnnounceStorageRO + CodesStorageRO + Storage + Clone,
 {
     pub fn new(db: DB) -> Self {
         Self {
@@ -90,18 +77,24 @@ where
                 continue;
             };
 
-            match tx_checker.check_tx_validity(&tx)? {
-                TxValidityStatus::Valid => selected_txs.push(tx),
-                TxValidityStatus::Duplicate => {
+            match tx_checker.check_tx_validity(tx_hash)? {
+                TxValidity::Valid => selected_txs.push(tx),
+                TxValidity::Duplicate => {
                     // TODO kuzmindev: send to submitter result, that tx was already included.
                 }
-                TxValidityStatus::UnknownDestination => {
+                TxValidity::UnknownDestination => {
                     // TODO kuzmindev: also send to submitter result, that tx `destination` field is invalid.
                 }
-                TxValidityStatus::NotOnCurrentBranch => {
+                TxValidity::NotOnCurrentBranch => {
                     tracing::trace!(tx_hash = ?tx_hash, "tx on different branch, keeping in pool");
                 }
-                TxValidityStatus::Outdated => outdated_txs.push((*reference_block, *tx_hash)),
+                TxValidity::Outdated => outdated_txs.push((*reference_block, *tx_hash)),
+                TxValidity::UninitializedDestination => {
+                    tracing::trace!(
+                        tx_hash = ?tx_hash,
+                        "tx send to uninitialized actor, keeping in pool, because of in next blocks it can be"
+                    );
+                }
             }
         }
 
@@ -110,252 +103,5 @@ where
         });
 
         Ok(selected_txs)
-    }
-}
-
-pub struct TxValidityChecker<DB> {
-    db: DB,
-    chain_head: H256,
-    recent_included_txs: HashSet<HashOf<InjectedTransaction>>,
-    latest_states: ProgramStates,
-}
-
-impl<DB: AnnounceStorageRO + OnChainStorageRO + CodesStorageRO> TxValidityChecker<DB> {
-    pub fn new_for_announce(db: DB, chain_head: H256, announce: HashOf<Announce>) -> Result<Self> {
-        Ok(Self {
-            recent_included_txs: tx_pool_utils::collect_recent_included_txs(&db, announce)?,
-            latest_states: db.announce_program_states(announce).unwrap_or_default(),
-            db,
-            chain_head,
-        })
-    }
-
-    /// To determine the validity of transaction is enough to check the validity of its reference block.
-    pub fn check_tx_validity(&self, tx: &SignedInjectedTransaction) -> Result<TxValidityStatus> {
-        let reference_block = tx.data().reference_block;
-
-        if !self.reference_block_within_validity_window(reference_block)? {
-            return Ok(TxValidityStatus::Outdated);
-        }
-
-        if !self.reference_block_on_current_branch(reference_block)? {
-            return Ok(TxValidityStatus::NotOnCurrentBranch);
-        }
-
-        if self.recent_included_txs.contains(&tx.data().to_hash()) {
-            return Ok(TxValidityStatus::Duplicate);
-        }
-
-        if !self.latest_states.contains_key(&tx.data().destination) {
-            return Ok(TxValidityStatus::UnknownDestination);
-        }
-
-        Ok(TxValidityStatus::Valid)
-    }
-
-    fn reference_block_within_validity_window(&self, reference_block: H256) -> Result<bool> {
-        let reference_block_height = self
-            .db
-            .block_header(reference_block)
-            .ok_or_else(|| anyhow!("Block header not found for reference block {reference_block}"))?
-            .height;
-
-        let chain_head_height = self
-            .db
-            .block_header(self.chain_head)
-            .ok_or_else(|| anyhow!("Block header not found for hash: {}", self.chain_head))?
-            .height;
-
-        Ok(reference_block_height <= chain_head_height
-            && reference_block_height + VALIDITY_WINDOW as u32 > chain_head_height)
-    }
-
-    // TODO #4808: branch check must be until genesis block
-    fn reference_block_on_current_branch(&self, reference_block: H256) -> Result<bool> {
-        let mut block_hash = self.chain_head;
-        for _ in 0..VALIDITY_WINDOW {
-            if block_hash == reference_block {
-                return Ok(true);
-            }
-
-            block_hash = self
-                .db
-                .block_header(block_hash)
-                .ok_or_else(|| anyhow!("Block header not found for hash: {block_hash}"))?
-                .parent_hash;
-        }
-
-        Ok(false)
-    }
-}
-
-mod tx_pool_utils {
-    use super::*;
-
-    pub fn collect_recent_included_txs<DB: AnnounceStorageRO>(
-        db: &DB,
-        announce: HashOf<Announce>,
-    ) -> Result<HashSet<HashOf<InjectedTransaction>>> {
-        let mut txs = HashSet::new();
-
-        let mut announce_hash = announce;
-        for _ in 0..VALIDITY_WINDOW {
-            let Some(announce) = db.announce(announce_hash) else {
-                // Reach genesis_announce - correct case.
-                if announce_hash == HashOf::zero() {
-                    break;
-                }
-
-                // Reach start announce is not correct case, because of can exists earlier announces with injected txs.
-                return Err(anyhow!(
-                    "Reaching start announce is not supported; decrease VALIDITY_WINDOW"
-                ));
-            };
-
-            announce_hash = announce.parent;
-
-            txs.extend(announce.injected_transactions.into_iter());
-        }
-
-        Ok(txs)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use ethexe_common::{
-        SimpleBlockData, StateHashWithQueueSize,
-        db::{AnnounceStorageRW, OnChainStorageRW},
-        ecdsa::PrivateKey,
-        injected::InjectedTransaction,
-        mock::{BlockChain, Mock},
-    };
-    use gprimitives::ActorId;
-    use std::collections::BTreeMap;
-
-    fn mock_tx(reference_block: H256) -> SignedInjectedTransaction {
-        let mut tx = InjectedTransaction::mock(());
-        tx.reference_block = reference_block;
-        tx.destination = ActorId::zero();
-
-        SignedInjectedTransaction::create(PrivateKey::random(), tx).unwrap()
-    }
-
-    fn setup_announce(db: &Database, txs: Vec<SignedInjectedTransaction>) -> HashOf<Announce> {
-        let mut announce = Announce::mock(());
-        announce.parent = HashOf::zero();
-        announce.injected_transactions = txs.iter().map(|tx| tx.data().to_hash()).collect();
-        let announce_hash = db.set_announce(announce);
-
-        for tx in txs {
-            db.set_injected_transaction(tx);
-        }
-
-        let state = StateHashWithQueueSize {
-            canonical_queue_size: 0,
-            injected_queue_size: 0,
-            hash: H256::zero(),
-        };
-        db.set_announce_program_states(announce_hash, BTreeMap::from([(ActorId::zero(), state)]));
-
-        announce_hash
-    }
-
-    #[test]
-    fn test_check_tx_validity() {
-        let db = Database::memory();
-        let blocks = BlockChain::mock(100).setup(&db).blocks;
-
-        let announce_hash = setup_announce(&db, vec![]);
-
-        let chain_head = blocks[VALIDITY_WINDOW as usize].hash;
-        let tx_checker =
-            TxValidityChecker::new_for_announce(db, chain_head, announce_hash).unwrap();
-
-        for block in blocks.iter().skip(1).take(VALIDITY_WINDOW as usize) {
-            let tx = mock_tx(block.hash);
-            assert_eq!(
-                TxValidityStatus::Valid,
-                tx_checker.check_tx_validity(&tx).unwrap()
-            );
-        }
-    }
-
-    #[test]
-    fn test_check_tx_duplicate() {
-        let db = Database::memory();
-        let blocks = BlockChain::mock(100).setup(&db).blocks;
-
-        let tx = mock_tx(blocks[5].hash);
-        let announce_hash = setup_announce(&db, vec![tx.clone()]);
-
-        let tx_checker =
-            TxValidityChecker::new_for_announce(db, blocks[9].hash, announce_hash).unwrap();
-
-        assert_eq!(
-            TxValidityStatus::Duplicate,
-            tx_checker.check_tx_validity(&tx).unwrap()
-        );
-    }
-
-    #[test]
-    fn test_check_tx_outdated() {
-        let db = Database::memory();
-        let blocks = BlockChain::mock(100).setup(&db).blocks;
-
-        let announce_hash = setup_announce(&db, vec![]);
-
-        let chain_head = blocks[(VALIDITY_WINDOW * 2) as usize].hash;
-        let tx_checker =
-            TxValidityChecker::new_for_announce(db, chain_head, announce_hash).unwrap();
-
-        for block in blocks.iter().take(VALIDITY_WINDOW as usize) {
-            let tx = mock_tx(block.hash);
-            assert_eq!(
-                TxValidityStatus::Outdated,
-                tx_checker.check_tx_validity(&tx).unwrap()
-            );
-        }
-    }
-
-    #[test]
-    fn test_check_tx_not_on_current_branch() {
-        let db = Database::memory();
-        let blocks = BlockChain::mock(35).setup(&db).blocks;
-
-        let mut blocks_branch2 = vec![];
-
-        let mut parent = blocks[10].hash;
-        blocks.iter().skip(9).for_each(|block| {
-            let mut header = block.to_simple().header;
-            header.parent_hash = parent;
-
-            let hash = H256::random();
-            db.set_block_header(hash, header);
-            blocks_branch2.push(SimpleBlockData { hash, header });
-            parent = hash;
-        });
-
-        let announce_hash = setup_announce(&db, vec![]);
-
-        let tx_checker =
-            TxValidityChecker::new_for_announce(db, blocks[35].hash, announce_hash).unwrap();
-
-        for block in blocks_branch2.iter() {
-            let tx = mock_tx(block.hash);
-            assert_eq!(
-                TxValidityStatus::NotOnCurrentBranch,
-                tx_checker.check_tx_validity(&tx).unwrap()
-            );
-        }
-
-        for block in blocks.iter().rev().take(VALIDITY_WINDOW as usize) {
-            let tx = mock_tx(block.hash);
-            assert_eq!(
-                TxValidityStatus::Valid,
-                tx_checker.check_tx_validity(&tx).unwrap()
-            );
-        }
     }
 }

@@ -48,6 +48,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.inputs.tag_name }}
+          submodules: recursive
 
       - name: "Environment: Rust toolchain"
         uses: ./.github/actions/install-rust
@@ -78,7 +79,7 @@ jobs:
 
       - name: "Artifact: Production `vara-runtime` metadata"
         run: |
-          RUNTIME_WASM=target/production/wbuild/vara-runtime/vara_runtime.compact.compressed.wasm PRINT_SCALE=1 cargo run -p gsdk-api-gen --release > "artifact/production_vara_runtime_v${VARA_PROD_SPEC}_metadata.scale"
+          cp ./gsdk/vara_runtime_prod.scale "artifact/production_vara_runtime_v${VARA_PROD_SPEC}_metadata.scale"
 
       - name: "Artifact: Production `vara-runtime`"
         run: cp target/production/wbuild/vara-runtime/vara_runtime.compact.compressed.wasm "artifact/production_vara_runtime_v${VARA_PROD_SPEC}.wasm"
@@ -86,18 +87,23 @@ jobs:
       - name: "Build: Production node client and development `vara-runtime`"
         run: cargo build -p gear-cli --profile production --features metadata-hash
 
+      - name: "Build: Production `ethexe` node client"
+        run: cargo build -p ethexe-cli --release
+
       - name: "Test: Development `vara-runtime`"
         run: ./wasm-proc --check-runtime-imports --check-runtime-is-dev true target/production/wbuild/vara-runtime/vara_runtime.compact.wasm
 
       - name: "Artifact: Development `vara-runtime` metadata"
         run: |
-          RUNTIME_WASM=target/production/wbuild/vara-runtime/vara_runtime.compact.compressed.wasm PRINT_SCALE=1 cargo run -p gsdk-api-gen --release > "artifact/testnet_vara_runtime_v${VARA_DEV_SPEC}_metadata.scale"
+          cp ./gsdk/vara_runtime.scale "artifact/testnet_vara_runtime_v${VARA_DEV_SPEC}_metadata.scale"
 
       - name: "Artifact: Production node client and development `vara-runtime`"
         run: |
           cp target/production/wbuild/vara-runtime/vara_runtime.compact.compressed.wasm "artifact/testnet_vara_runtime_v${VARA_DEV_SPEC}.wasm"
           cp target/production/gear artifact/gear
+          cp target/release/ethexe artifact/ethexe
           strip artifact/gear || true
+          strip artifact/ethexe || true
 
       - name: Check SHA256 checksums
         run: |

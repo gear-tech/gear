@@ -176,6 +176,8 @@ pub enum JournalNote {
         message_id: MessageId,
         /// Amount of gas burned.
         amount: u64,
+        /// Is execution panicked (`gr_panic` syscall called).
+        is_panic: bool,
     },
     /// Exit the program.
     ExitDispatch {

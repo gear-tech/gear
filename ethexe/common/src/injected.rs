@@ -21,7 +21,7 @@ use core::hash::Hash;
 use gear_core::rpc::ReplyInfo;
 use gprimitives::{ActorId, H256, MessageId};
 use parity_scale_codec::{Decode, Encode};
-use sha3::Keccak256;
+use sha3::{Digest, Keccak256};
 use sp_core::Bytes;
 
 /// Recent block hashes window size used to check transaction mortality.
@@ -84,7 +84,15 @@ impl InjectedTransaction {
     /// Returns the hash of [`InjectedTransaction`].
     pub fn to_hash(&self) -> HashOf<InjectedTransaction> {
         // Safe because we hash corresponding type itself
-        unsafe { HashOf::new(gear_core::utils::hash(&self.encode()).into()) }
+        let bytes = [
+            self.destination.as_ref(),
+            self.payload.as_ref(),
+            &self.value.to_be_bytes(),
+            &self.reference_block.0,
+            self.salt.as_ref(),
+        ]
+        .concat();
+        unsafe { HashOf::new(gear_core::utils::hash(&bytes).into()) }
     }
 
     /// Creates [`MessageId`] from [`InjectedTransaction`].
@@ -97,6 +105,7 @@ impl InjectedTransaction {
 ///
 /// Note: Validator must ensure the validity of the promise, because of it can be slashed for
 /// providing an invalid promise.
+#[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
 #[derive(Debug, Clone, Encode, Decode, PartialEq, Eq, Hash)]
 pub struct Promise {
     /// Hash of the injected transaction this reply corresponds to.
@@ -113,7 +122,7 @@ impl ToDigest for Promise {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
         let Self { tx_hash, reply } = self;
 
-        tx_hash.update_hasher(hasher);
+        hasher.update(tx_hash.inner());
         reply.update_hasher(hasher);
     }
 }

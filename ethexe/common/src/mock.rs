@@ -144,6 +144,7 @@ impl Mock<()> for BatchCommitment {
             block_hash: H256::random(),
             timestamp: 42,
             previous_batch: Digest::random(),
+            expiry: 10,
             chain_commitment: Some(ChainCommitment::mock(HashOf::random())),
             code_commitments: vec![CodeCommitment::mock(()), CodeCommitment::mock(())],
             validators_commitment: None,
@@ -216,7 +217,7 @@ pub struct SyncedBlockData {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct PreparedBlockData {
     pub codes_queue: VecDeque<CodeId>,
-    pub announces: BTreeSet<HashOf<Announce>>,
+    pub announces: Option<BTreeSet<HashOf<Announce>>>,
     pub last_committed_batch: Digest,
     pub last_committed_announce: HashOf<Announce>,
 }
@@ -329,7 +330,9 @@ impl BlockChain {
             .expect("block index overflow")
             .as_prepared()
             .announces
-            .first()
+            .iter()
+            .flatten()
+            .next()
             .copied()
             .expect("no announces found for block")
     }
@@ -374,7 +377,7 @@ impl BlockChain {
             .unwrap();
 
             if let Some(prepared) = &genesis.prepared
-                && let Some(first_announce) = prepared.announces.first()
+                && let Some(first_announce) = prepared.announces.iter().flatten().next()
             {
                 db.mutate_latest_data(|latest| {
                     latest.genesis_announce_hash = *first_announce;
@@ -413,7 +416,7 @@ impl BlockChain {
                     latest.prepared_block_hash = hash;
                 });
 
-                if let Some(announce_hash) = announces.last().copied() {
+                if let Some(announce_hash) = announces.iter().flatten().last().copied() {
                     db.mutate_latest_data(|latest| {
                         latest.computed_announce_hash = announce_hash;
                     });
@@ -422,7 +425,7 @@ impl BlockChain {
                 db.mutate_block_meta(hash, |meta| {
                     *meta = BlockMeta {
                         prepared: true,
-                        announces: Some(announces),
+                        announces,
                         codes_queue: Some(codes_queue),
                         last_committed_batch: Some(last_committed_batch),
                         last_committed_announce: Some(last_committed_announce),
@@ -494,7 +497,7 @@ impl Mock<(u32, ValidatorsVec)> for BlockChain {
                         }),
                         prepared: Some(PreparedBlockData {
                             codes_queue: Default::default(),
-                            announces: Default::default(), // empty here, filled below with announces
+                            announces: Some(Default::default()), // empty here, filled below with announces
                             last_committed_batch: Digest::zero(),
                             last_committed_announce: HashOf::zero(),
                         }),
@@ -512,7 +515,11 @@ impl Mock<(u32, ValidatorsVec)> for BlockChain {
                 let announce_hash = announce.to_hash();
                 let genesis_announce_hash = genesis_announce_hash.get_or_insert(announce_hash);
                 let prepared_data = block.prepared.as_mut().unwrap();
-                prepared_data.announces.insert(announce_hash);
+                prepared_data
+                    .announces
+                    .as_mut()
+                    .unwrap()
+                    .insert(announce_hash);
                 prepared_data.last_committed_announce = *genesis_announce_hash;
                 parent_announce_hash = announce_hash;
                 (

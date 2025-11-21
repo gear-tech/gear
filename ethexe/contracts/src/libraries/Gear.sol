@@ -71,6 +71,11 @@ library Gear {
         uint48 blockTimestamp;
         /// @dev Hash of previously committed batch hash.
         bytes32 previousCommittedBatchHash;
+        /// @dev Expiry in blocks since `blockHash`.
+        /// if 1 - then valid only in child block
+        /// if 2 - then valid in child and grandchild blocks
+        /// ... etc.
+        uint8 expiry;
         /// @dev Chain commitment (contains one or zero commitments)
         ChainCommitment[] chainCommitment;
         /// @dev Code commitments
@@ -205,6 +210,7 @@ library Gear {
         bytes32 _block,
         uint48 _timestamp,
         bytes32 _prevCommittedBlock,
+        uint8 _expiry,
         bytes32 _chainCommitmentHash,
         bytes32 _codeCommitmentsHash,
         bytes32 _rewardsCommitmentHash,
@@ -215,6 +221,7 @@ library Gear {
                 _block,
                 _timestamp,
                 _prevCommittedBlock,
+                _expiry,
                 _chainCommitmentHash,
                 _codeCommitmentsHash,
                 _rewardsCommitmentHash,
@@ -238,8 +245,10 @@ library Gear {
         );
     }
 
-    function blockIsPredecessor(bytes32 hash) internal view returns (bool) {
-        for (uint256 i = block.number - 1; i > 0;) {
+    function blockIsPredecessor(bytes32 hash, uint8 expiry) internal view returns (bool) {
+        uint256 start = block.number - 1;
+        uint256 end = expiry >= block.number ? 0 : block.number - expiry;
+        for (uint256 i = start; i >= end;) {
             bytes32 ret = blockhash(i);
             if (ret == hash) {
                 return true;

@@ -113,6 +113,7 @@ impl From<BatchCommitment> for Gear::BatchCommitment {
             blockHash: value.block_hash.0.into(),
             blockTimestamp: u64_to_uint48_lossy(value.timestamp),
             previousCommittedBatchHash: value.previous_batch.0.into(),
+            expiry: value.expiry,
             chainCommitment: value.chain_commitment.into_iter().map(Into::into).collect(),
             codeCommitments: value.code_commitments.into_iter().map(Into::into).collect(),
             rewardsCommitment: value

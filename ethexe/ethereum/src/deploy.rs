@@ -195,9 +195,6 @@ impl EthereumDeployer {
             );
         }
 
-        let builder = wrapped_vara.approve(*router.address(), U256::MAX);
-        builder.send().await?.try_get_receipt().await?;
-
         assert_eq!(router.mirrorImpl().call().await?, *mirror.address());
 
         let builder = router.lookupGenesisHash();

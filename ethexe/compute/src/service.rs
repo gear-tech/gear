@@ -177,12 +177,7 @@ mod tests {
         // Request computation
         let announce = Announce {
             block_hash: block.hash,
-            parent: chain.blocks[1]
-                .as_prepared()
-                .announces
-                .first()
-                .copied()
-                .unwrap(),
+            parent: chain.block_top_announce_hash(1),
             gas_allowance: Some(42),
             injected_transactions: vec![],
         };

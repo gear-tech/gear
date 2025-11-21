@@ -59,7 +59,7 @@ pub enum BlobLoaderError {
     #[error("failed to get block by hash: {0}")]
     BlockNotFound(H256),
     #[error("failed to read blob bundle: {0}")]
-    ReadBlob(#[from] reqwest::Error),
+    ReadBlob(reqwest::Error),
     #[error("failed to decode blobs")]
     DecodeBlobs,
     #[error("expect code id {expected_code_id}, but got {code_id}, code: {code:?}")]
@@ -154,7 +154,8 @@ impl ConsensusLayerBlobReader {
 
             let beacon_genesis_block_time = *BEACON_GENESIS_BLOCK_TIME
                 .get_or_try_init(|| self.read_genesis_time())
-                .await?;
+                .await
+                .map_err(BlobLoaderError::ReadBlob)?;
             (block.header.timestamp - beacon_genesis_block_time)
                 / self.config.beacon_block_time.as_secs()
         };
@@ -165,7 +166,7 @@ impl ConsensusLayerBlobReader {
             log::trace!("trying to get blob, attempt #{}", count + 1);
             let blob_bundle_result = self.read_blob_bundle(slot, &blob_versioned_hashes).await;
             if blob_bundle_result.is_ok() || count >= attempts {
-                break blob_bundle_result;
+                break blob_bundle_result.map_err(BlobLoaderError::ReadBlob);
             } else {
                 time::sleep(self.config.beacon_block_time).await;
                 count += 1;
