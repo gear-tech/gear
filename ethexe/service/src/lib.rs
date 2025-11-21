@@ -231,11 +231,8 @@ impl Service {
         };
 
         let network = if let Some(net_config) = &config.network {
-            let runtime_config = NetworkRuntimeConfig {
-                genesis_block_hash: observer.genesis_block_hash(),
-            };
             // TODO: #4918 create Signer object correctly for test/prod environments
-            let signer = Signer::fs(
+            let network_signer = Signer::fs(
                 config
                     .node
                     .key_path
@@ -244,14 +241,21 @@ impl Service {
                     .join("net"),
             );
 
-            let network = NetworkService::new(
-                net_config.clone(),
-                runtime_config,
-                &signer,
-                Box::new(RouterDataProvider(router_query)),
-                Box::new(db.clone()),
-            )
-            .with_context(|| "failed to create network service")?;
+            let lastest_block_data = observer
+                .latest_block()
+                .await
+                .context("failed to get lastest block")?;
+
+            let runtime_config = NetworkRuntimeConfig {
+                latest_block_header: lastest_block_data.header,
+                latest_validators: validators,
+                network_signer,
+                external_data_provider: Box::new(RouterDataProvider(router_query)),
+                db: Box::new(db.clone()),
+            };
+
+            let network = NetworkService::new(net_config.clone(), runtime_config)
+                .with_context(|| "failed to create network service")?;
             Some(network)
         } else {
             None
