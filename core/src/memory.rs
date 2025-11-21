@@ -104,8 +104,16 @@ impl Debug for MemoryInterval {
 #[display("Trying to make wrong size page buffer, must be {:#x}", GearPage::SIZE)]
 pub struct IntoPageBufError;
 
+// Inner page buffer is stored as `[u64; _]` instead of `[u8; _]`
+// to mitigate `polkadot-js` limitation of array length,
+// which requires it not to be more than 2048.
+const _: () = {
+    assert!(GearPage::SIZE.is_multiple_of(8));
+    assert!(GearPage::SIZE / 8 <= 2048);
+};
+
 /// Alias for inner type of page buffer.
-pub type PageBufInner = Box<[u8; GearPage::SIZE as usize]>;
+pub type PageBufInner = Box<[u64; GearPage::SIZE as usize / 8]>;
 
 /// Buffer for gear page data.
 #[derive(
@@ -137,25 +145,25 @@ impl Debug for PageBuf {
 impl Deref for PageBuf {
     type Target = [u8];
     fn deref(&self) -> &Self::Target {
-        &*self.0
+        bytemuck::must_cast_slice(&*self.0)
     }
 }
 
 impl DerefMut for PageBuf {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut *self.0
+        bytemuck::must_cast_slice_mut(&mut *self.0)
     }
 }
 
 impl AsRef<[u8; GearPage::SIZE as usize]> for PageBuf {
     fn as_ref(&self) -> &[u8; GearPage::SIZE as usize] {
-        &self.0
+        bytemuck::must_cast_ref(&*self.0)
     }
 }
 
 impl AsMut<[u8; GearPage::SIZE as usize]> for PageBuf {
     fn as_mut(&mut self) -> &mut [u8; GearPage::SIZE as usize] {
-        &mut self.0
+        bytemuck::must_cast_mut(&mut *self.0)
     }
 }
 
@@ -167,7 +175,8 @@ impl PageBuf {
 
     /// Returns new page buffer filled with given byte.
     pub fn filled_with(byte: u8) -> PageBuf {
-        Self([byte; GearPage::SIZE as usize].into())
+        let chunk = u64::from_ne_bytes([byte; 8]);
+        Self([chunk; GearPage::SIZE as usize / 8].into())
     }
 
     /// Creates PageBuf from inner buffer. If the buffer has
@@ -550,16 +559,14 @@ mod tests {
     fn page_buf() {
         let _ = tracing_subscriber::fmt::try_init();
 
-        let mut data: PageBufInner = [199; GearPage::SIZE as usize].into();
-        data[1] = 2;
-        let page_buf = PageBuf::from_inner(data);
+        let mut page_buf = PageBuf::filled_with(199);
+        page_buf[1] = 2;
         log::debug!("page buff = {page_buf:?}");
     }
 
     #[test]
     fn page_buf_encode() {
-        let data: PageBufInner = [199; GearPage::SIZE as usize].into();
-        let page_buf = PageBuf::from_inner(data);
+        let page_buf = PageBuf::filled_with(199);
 
         assert_eq!(page_buf.encode(), vec![199u8; GearPage::SIZE as usize])
     }
