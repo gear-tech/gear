@@ -63,14 +63,6 @@ pub struct ValidatorIdentityRecord {
     pub value: SignedValidatorIdentity,
 }
 
-impl ValidatorIdentityRecord {
-    pub fn key(&self) -> ValidatorIdentityKey {
-        ValidatorIdentityKey {
-            validator: self.value.address(),
-        }
-    }
-}
-
 #[derive(Debug, PartialEq, Eq, Encode, Decode, derive_more::From, derive_more::Unwrap)]
 pub enum RecordKey {
     ValidatorIdentity(ValidatorIdentityKey),
@@ -110,12 +102,22 @@ impl Record {
         }
     }
 
+    fn key(&self) -> RecordKey {
+        match self {
+            Record::ValidatorIdentity(ValidatorIdentityRecord { value }) => {
+                RecordKey::ValidatorIdentity(ValidatorIdentityKey {
+                    validator: value.address(),
+                })
+            }
+        }
+    }
+
     fn into_kad_record(self) -> kad::Record {
+        let key = self.key();
         match self {
             Record::ValidatorIdentity(record) => {
-                let key = record.key();
                 let ValidatorIdentityRecord { value } = record;
-                kad::Record::new(RecordKey::ValidatorIdentity(key).encode(), value.encode())
+                kad::Record::new(key.encode(), value.encode())
             }
         }
     }

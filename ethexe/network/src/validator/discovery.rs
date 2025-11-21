@@ -190,8 +190,8 @@ impl ValidatorAddresses {
 
         let addresses: HashSet<Multiaddr> = addresses
             .iter()
-            .cloned()
             .take(MAX_IDENTITY_ADDRESSES)
+            .cloned()
             .map(|address| {
                 address
                     .with_p2p(peer_id)
