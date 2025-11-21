@@ -114,6 +114,8 @@ jobs:
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - name: "Install: Setup linker"
         uses: ./.github/actions/setup-linker
@@ -138,13 +140,17 @@ jobs:
       - name: "Build: Node"
         run: ./scripts/gear.sh build node --release --locked
 
+      - name: "Build: Ethexe Node"
+        run: ./scripts/gear.sh build ethexe --release --locked
+
       - name: "Build: Prepare artifact"
         run: |
           mkdir -p artifact/wbuild/vara-runtime
           cp target/${{ matrix.targets.target }}/release/gear* artifact/
+          cp target/${{ matrix.targets.target }}/release/ethexe* artifact/
           cp target/${{ matrix.targets.target }}/release/wbuild/vara-runtime/*.wasm artifact/wbuild/vara-runtime/
 
-      - name: "ACTIONS: Upload node and VARA runtime"
+      - name: "ACTIONS: Upload nodes and VARA runtime"
         uses: actions/upload-artifact@v4
         with:
           name: node-and-runtime-release-${{ matrix.targets.target }}

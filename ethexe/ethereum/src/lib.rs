@@ -22,7 +22,7 @@ use crate::wvara::WVara;
 use abi::{IMirror, IRouter};
 use alloy::{
     consensus::SignableTransaction,
-    network::{Ethereum as AlloyEthereum, EthereumWallet, Network, TxSigner},
+    network::{self, Ethereum as AlloyEthereum, EthereumWallet, Network, TxSigner},
     primitives::{Address as AlloyAddress, B256, ChainId, Signature},
     providers::{
         Identity, PendingTransactionBuilder, PendingTransactionError, Provider, ProviderBuilder,
@@ -32,7 +32,7 @@ use alloy::{
             SimpleNonceManager, WalletFiller,
         },
     },
-    rpc::types::eth::Log,
+    rpc::types::{TransactionReceipt, eth::Log},
     signers::{
         self as alloy_signer, Error as SignerError, Result as SignerResult, Signer as AlloySigner,
         SignerSync, sign_transaction_with_chain_id,
@@ -42,6 +42,7 @@ use alloy::{
 };
 use anyhow::{Result, anyhow};
 use async_trait::async_trait;
+use gprimitives::{H256, MessageId};
 use gsigner::secp256k1::{Address, Digest, PublicKey, Secp256k1SignerExt, Signer};
 use middleware::Middleware;
 use mirror::Mirror;
@@ -223,14 +224,17 @@ impl SignerSync for Sender {
     }
 }
 
-// TODO: Maybe better to append solution like this to alloy.
-trait TryGetReceipt<N: Network> {
+#[async_trait::async_trait]
+pub trait TryGetReceipt<N: Network> {
     /// Works like `self.get_receipt().await`, but retries a few times if rpc returns a null response.
     async fn try_get_receipt(self) -> Result<N::ReceiptResponse>;
+
+    async fn try_get_message_send_receipt(self) -> Result<(H256, MessageId)>;
 }
 
-impl<N: Network> TryGetReceipt<N> for PendingTransactionBuilder<N> {
-    async fn try_get_receipt(self) -> Result<N::ReceiptResponse> {
+#[async_trait::async_trait]
+impl TryGetReceipt<network::Ethereum> for PendingTransactionBuilder<network::Ethereum> {
+    async fn try_get_receipt(self) -> Result<TransactionReceipt> {
         let tx_hash = *self.tx_hash();
         let provider = self.provider().clone();
 
@@ -259,6 +263,27 @@ impl<N: Network> TryGetReceipt<N> for PendingTransactionBuilder<N> {
         Err(anyhow!(
             "Failed to get transaction receipt for {tx_hash}: {err}"
         ))
+    }
+
+    async fn try_get_message_send_receipt(self) -> Result<(H256, MessageId)> {
+        let receipt = self.try_get_receipt().await?;
+        let tx_hash = (*receipt.transaction_hash).into();
+        let mut message_id = None;
+
+        for log in receipt.inner.logs() {
+            if log.topic0() == Some(&mirror::signatures::MESSAGE_QUEUEING_REQUESTED) {
+                let event = crate::decode_log::<IMirror::MessageQueueingRequested>(log)?;
+
+                message_id = Some((*event.id).into());
+
+                break;
+            }
+        }
+
+        let message_id =
+            message_id.ok_or_else(|| anyhow!("Couldn't find `MessageQueueingRequested` log"))?;
+
+        Ok((tx_hash, message_id))
     }
 }
 

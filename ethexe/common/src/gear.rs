@@ -34,6 +34,8 @@ pub const WVARA_PER_SECOND: u128 = 10_000_000_000_000;
 
 /// Gas limit for chunk processing.
 pub const CHUNK_PROCESSING_GAS_LIMIT: u64 = 1_000_000_000_000;
+/// Gas charge threshold for panicked injected messages.
+pub const INJECTED_MESSAGE_PANIC_GAS_CHARGE_THRESHOLD: u64 = 1_000_000_000;
 
 /// Max block gas limit for the node.
 pub const MAX_BLOCK_GAS_LIMIT: u64 = 9_000_000_000_000;
@@ -182,6 +184,12 @@ pub struct BatchCommitment {
     /// This is used to verify that the batch is committed in the correct order.
     pub previous_batch: Digest,
 
+    /// How long the batch is valid (in blocks since `block_hash`).
+    /// if 1 - then valid only in child block
+    /// if 2 - then valid in child and grandchild blocks
+    /// ... etc.
+    pub expiry: u8,
+
     pub chain_commitment: Option<ChainCommitment>,
     pub code_commitments: Vec<CodeCommitment>,
     pub validators_commitment: Option<ValidatorsCommitment>,
@@ -194,7 +202,8 @@ impl ToDigest for BatchCommitment {
         let Self {
             block_hash,
             timestamp,
-            previous_batch: previous_committed_block_hash,
+            previous_batch,
+            expiry,
             chain_commitment,
             code_commitments,
             validators_commitment,
@@ -203,7 +212,8 @@ impl ToDigest for BatchCommitment {
 
         hasher.update(block_hash);
         hasher.update(crate::u64_into_uint48_be_bytes_lossy(*timestamp));
-        hasher.update(previous_committed_block_hash);
+        hasher.update(previous_batch);
+        hasher.update(expiry.to_be_bytes());
         hasher.update(chain_commitment.to_digest());
         hasher.update(code_commitments.to_digest());
         hasher.update(rewards_commitment.to_digest());

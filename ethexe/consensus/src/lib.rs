@@ -34,7 +34,7 @@
 
 use anyhow::Result;
 use ethexe_common::{
-    Announce, HashOf, SimpleBlockData,
+    Announce, Digest, HashOf, SimpleBlockData,
     consensus::{BatchCommitmentValidationReply, VerifiedAnnounce, VerifiedValidationRequest},
     injected::{SignedInjectedTransaction, SignedPromise},
     network::{AnnouncesRequest, CheckedAnnouncesResponse, SignedValidatorMessage},
@@ -44,10 +44,11 @@ use gprimitives::H256;
 
 pub use connect::ConnectService;
 pub use utils::{block_producer_for, block_producer_index};
-pub use validator::{ValidatorConfig, ValidatorService};
+pub use validator::{BatchCommitter, ValidatorConfig, ValidatorService};
 
 mod announces;
 mod connect;
+mod tx_validation;
 mod utils;
 mod validator;
 
@@ -88,6 +89,14 @@ pub trait ConsensusService:
     fn receive_injected_transaction(&mut self, tx: SignedInjectedTransaction) -> Result<()>;
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, derive_more::Display)]
+#[display("Commitment submitted, block_hash: {block_hash}, batch {batch_digest}, tx: {tx}")]
+pub struct CommitmentSubmitted {
+    block_hash: H256,
+    batch_digest: Digest,
+    tx: H256,
+}
+
 #[derive(
     Debug, Clone, PartialEq, Eq, derive_more::From, derive_more::IsVariant, derive_more::Unwrap,
 )]
@@ -105,8 +114,9 @@ pub enum ConsensusEvent {
     /// Outer service have to request announces
     #[from]
     RequestAnnounces(AnnouncesRequest),
-    /// Informational event: commitment was successfully submitted, tx hash is provided
-    CommitmentSubmitted(H256),
+    /// Informational event: commitment was successfully submitted
+    #[from]
+    CommitmentSubmitted(CommitmentSubmitted),
     /// Informational event: during service processing, a warning situation was detected
     Warning(String),
     /// Promise for [`ethexe_common::injected::InjectedTransaction`] execution.

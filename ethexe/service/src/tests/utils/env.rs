@@ -42,7 +42,7 @@ use ethexe_common::{
     network::{SignedValidatorMessage, ValidatorMessage},
 };
 use ethexe_compute::{ComputeConfig, ComputeService};
-use ethexe_consensus::{ConnectService, ConsensusService, ValidatorService};
+use ethexe_consensus::{BatchCommitter, ConnectService, ConsensusService, ValidatorService};
 use ethexe_db::Database;
 use ethexe_ethereum::{
     Ethereum,
@@ -74,11 +74,9 @@ use roast_secp256k1_evm::frost::{
 use std::{
     fmt,
     net::SocketAddr,
+    ops::ControlFlow,
     pin::Pin,
-    sync::{
-        Arc,
-        atomic::{AtomicUsize, Ordering},
-    },
+    sync::atomic::{AtomicUsize, Ordering},
     time::Duration,
 };
 use tokio::{
@@ -155,6 +153,9 @@ impl TestEnv {
             } => {
                 let mut anvil = Anvil::new();
 
+                if continuous_block_generation {
+                    anvil = anvil.block_time_f64(block_time.as_secs_f64());
+                }
                 if let Some(slots_in_epoch) = slots_in_epoch {
                     anvil = anvil.arg(format!("--slots-in-an-epoch={slots_in_epoch}"));
                 }
@@ -389,6 +390,7 @@ impl TestEnv {
             db,
             multiaddr: None,
             latest_fast_synced_block: None,
+            custom_committer: None,
             router_query: self.router_query.clone(),
             eth_cfg: self.eth_cfg.clone(),
             receiver: None,
@@ -396,20 +398,21 @@ impl TestEnv {
             signer: self.signer.clone(),
             threshold: self.threshold,
             block_time: self.block_time,
-            running_service_handle: None,
             validator_config,
             network_address,
             network_bootstrap_address,
             service_rpc_config,
             fast_sync,
             compute_config: self.compute_config,
+            commitment_delay_limit: self.commitment_delay_limit,
+            running_service_handle: None,
         }
     }
 
     pub async fn upload_code(&self, code: &[u8]) -> anyhow::Result<WaitForUploadCode> {
         log::info!("📗 Upload code, len {}", code.len());
 
-        let listener = self.observer_events_publisher().subscribe().await;
+        let listener = self.observer_events_publisher().subscribe();
 
         let code_and_id = CodeAndId::new(code.to_vec());
         let code_id = code_and_id.code_id();
@@ -442,7 +445,7 @@ impl TestEnv {
     ) -> anyhow::Result<WaitForProgramCreation> {
         log::info!("📗 Create program, code_id {code_id} with salt {salt:?}");
 
-        let listener = self.observer_events_publisher().subscribe().await;
+        let listener = self.observer_events_publisher().subscribe();
 
         let router = self.ethereum.router();
 
@@ -481,7 +484,7 @@ impl TestEnv {
     ) -> anyhow::Result<WaitForProgramCreation> {
         log::info!("📗 Create program, code_id {code_id} with salt {salt:?}");
 
-        let listener = self.observer_events_publisher().subscribe().await;
+        let listener = self.observer_events_publisher().subscribe();
 
         let router = self.ethereum.router();
 
@@ -530,7 +533,7 @@ impl TestEnv {
             payload.len()
         );
 
-        let listener = self.observer_events_publisher().subscribe().await;
+        let listener = self.observer_events_publisher().subscribe();
 
         let program_address = Address::try_from(program_id)?;
         let program = self.ethereum.mirror(program_address);
@@ -583,17 +586,19 @@ impl TestEnv {
         }
     }
 
-    /// Force new `blocks_amount` blocks generation on rpc node,
-    /// and wait for the block event to be generated.
+    /// Force new `blocks_amount` blocks generation on RPC node
     pub async fn skip_blocks(&self, blocks_amount: u32) {
         if self.continuous_block_generation {
             let mut blocks_count = 0;
             self.observer_events_publisher()
                 .subscribe()
-                .await
-                .apply_until_block_event(|_| {
+                .apply_until_block(|_| {
                     blocks_count += 1;
-                    Ok((blocks_count >= blocks_amount).then_some(()))
+                    if blocks_count == blocks_amount {
+                        Ok(ControlFlow::Break(()))
+                    } else {
+                        Ok(ControlFlow::Continue(()))
+                    }
                 })
                 .await
                 .unwrap();
@@ -916,6 +921,7 @@ pub struct Node {
     pub db: Database,
     pub multiaddr: Option<String>,
     pub latest_fast_synced_block: Option<H256>,
+    pub custom_committer: Option<Box<dyn BatchCommitter>>,
 
     router_query: RouterQuery,
     eth_cfg: EthereumConfig,
@@ -924,13 +930,15 @@ pub struct Node {
     signer: Signer,
     threshold: u64,
     block_time: Duration,
-    running_service_handle: Option<JoinHandle<()>>,
     validator_config: Option<ValidatorConfig>,
     network_address: Option<String>,
     network_bootstrap_address: Option<String>,
     service_rpc_config: Option<RpcConfig>,
     fast_sync: bool,
     compute_config: ComputeConfig,
+    commitment_delay_limit: u32,
+
+    running_service_handle: Option<JoinHandle<()>>,
 }
 
 impl Node {
@@ -949,33 +957,45 @@ impl Node {
 
         let consensus: Pin<Box<dyn ConsensusService>> = {
             if let Some(config) = self.validator_config.as_ref() {
-                let ethereum = Ethereum::new(
-                    &self.eth_cfg.rpc,
-                    self.eth_cfg.router_address.into(),
-                    self.signer.clone(),
-                    config.public_key.to_address(),
-                )
-                .await
-                .unwrap();
+                let committer = if let Some(custom_committer) = self.custom_committer.take() {
+                    custom_committer
+                } else {
+                    Ethereum::new(
+                        &self.eth_cfg.rpc,
+                        self.eth_cfg.router_address.into(),
+                        self.signer.clone(),
+                        config.public_key.to_address(),
+                    )
+                    .await
+                    .unwrap()
+                    .router()
+                    .into()
+                };
+
                 Box::pin(
                     ValidatorService::new(
                         self.signer.clone(),
-                        Arc::new(self.election_provider.clone()),
-                        ethereum.router(),
+                        self.election_provider.clone(),
+                        committer,
                         self.db.clone(),
                         ethexe_consensus::ValidatorConfig {
                             pub_key: config.public_key,
                             signatures_threshold: self.threshold,
                             slot_duration: self.block_time,
                             block_gas_limit: DEFAULT_BLOCK_GAS_LIMIT,
-                            commitment_delay_limit: COMMITMENT_DELAY_LIMIT,
+                            commitment_delay_limit: self.commitment_delay_limit,
                             producer_delay: self.block_time / 6,
+                            router_address: self.eth_cfg.router_address,
                         },
                     )
                     .unwrap(),
                 )
             } else {
-                Box::pin(ConnectService::new(self.db.clone(), self.block_time, 3))
+                Box::pin(ConnectService::new(
+                    self.db.clone(),
+                    self.block_time,
+                    self.commitment_delay_limit,
+                ))
             }
         };
 
@@ -1041,9 +1061,9 @@ impl Node {
                 .listener()
                 .apply_until(|e| {
                     if let TestingEvent::FastSyncDone(block) = e {
-                        Ok(Some(block))
+                        Ok(ControlFlow::Break(block))
                     } else {
-                        Ok(None)
+                        Ok(ControlFlow::Continue(()))
                     }
                 })
                 .await
@@ -1209,9 +1229,9 @@ impl WaitForUploadCode {
                     if code_id == self.code_id =>
                 {
                     valid_info = Some(valid);
-                    Ok(Some(()))
+                    Ok(ControlFlow::Break(()))
                 }
-                _ => Ok(None),
+                _ => Ok(ControlFlow::Continue(())),
             })
             .await?;
 
@@ -1246,12 +1266,12 @@ impl WaitForProgramCreation {
                         if actor_id == self.program_id =>
                     {
                         code_id_info = Some(code_id);
-                        return Ok(Some(()));
+                        return Ok(ControlFlow::Break(()));
                     }
 
                     _ => {}
                 }
-                Ok(None)
+                Ok(ControlFlow::Continue(()))
             })
             .await?;
 
@@ -1279,6 +1299,13 @@ pub struct ReplyInfo {
 }
 
 impl WaitForReplyTo {
+    pub fn from_raw_parts(listener: ObserverEventsListener, message_id: MessageId) -> Self {
+        Self {
+            listener,
+            message_id,
+        }
+    }
+
     pub async fn wait_for(mut self) -> anyhow::Result<ReplyInfo> {
         log::info!("📗 Waiting for reply to message {}", self.message_id);
 
@@ -1303,9 +1330,9 @@ impl WaitForReplyTo {
                         code: reply_code,
                         value,
                     });
-                    Ok(Some(()))
+                    Ok(ControlFlow::Break(()))
                 }
-                _ => Ok(None),
+                _ => Ok(ControlFlow::Continue(())),
             })
             .await?;
 

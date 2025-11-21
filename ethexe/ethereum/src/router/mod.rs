@@ -247,6 +247,18 @@ impl Router {
         commitment: BatchCommitment,
         signatures: Vec<ContractSignature>,
     ) -> Result<H256> {
+        self.commit_batch_pending(commitment, signatures)
+            .await?
+            .try_get_receipt()
+            .await
+            .map(|receipt| H256(receipt.transaction_hash.0))
+    }
+
+    pub async fn commit_batch_pending(
+        &self,
+        commitment: BatchCommitment,
+        signatures: Vec<ContractSignature>,
+    ) -> Result<PendingTransactionBuilder<AlloyEthereum>> {
         let builder = self.instance.commitBatch(
             commitment.into(),
             SignatureType::ECDSA as u8,
@@ -277,13 +289,7 @@ impl Router {
         let gas_limit = Self::HUGE_GAS_LIMIT
             .max(estimate_gas_builder.estimate_gas().await? + Self::GEAR_BLOCK_IS_PREDECESSOR_GAS);
 
-        let receipt = builder
-            .gas(gas_limit)
-            .send()
-            .await?
-            .try_get_receipt()
-            .await?;
-        Ok(H256(receipt.transaction_hash.0))
+        builder.gas(gas_limit).send().await.map_err(Into::into)
     }
 }
 

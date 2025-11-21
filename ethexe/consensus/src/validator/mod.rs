@@ -28,16 +28,15 @@
 //!    |
 //!    ├────> Producer
 //!    |         └───> Coordinator
-//!    |                    └───> Submitter
+//!    |
 //!    └───> Subordinate
 //!              └───> Participant
 //! ```
 //! * [`Initial`] switches to a [`Producer`] if it's producer for an incoming block, else becomes a [`Subordinate`].
 //! * [`Producer`] switches to [`Coordinator`] after producing a block and sending it to other validators.
 //! * [`Subordinate`] switches to [`Participant`] after receiving a block from the producer and waiting for its local computation.
-//! * [`Coordinator`] switches to [`Submitter`] after receiving enough validation replies from other validators.
+//! * [`Coordinator`] switches to [`Initial`] after receiving enough validation replies from other validators and creates submission task.
 //! * [`Participant`] switches to [`Initial`] after receiving request from [`Coordinator`] and sending validation reply (or rejecting request).
-//! * [`Submitter`] switches to [`Initial`] after submitting the batch commitment to the blockchain.
 //! * Each state can be interrupted by a new chain head -> switches to [`Initial`] immediately.
 
 use crate::{
@@ -47,15 +46,15 @@ use crate::{
         core::{MiddlewareWrapper, ValidatorCore},
         participant::Participant,
         producer::Producer,
-        submitter::Submitter,
         subordinate::Subordinate,
         tx_pool::InjectedTxPool,
     },
 };
 use anyhow::{Result, anyhow};
+pub use core::BatchCommitter;
 use derive_more::{Debug, From};
 use ethexe_common::{
-    Announce, HashOf, SimpleBlockData,
+    Address, Announce, HashOf, SimpleBlockData,
     consensus::{VerifiedAnnounce, VerifiedValidationRequest},
     db::OnChainStorageRO,
     ecdsa::PublicKey,
@@ -63,8 +62,12 @@ use ethexe_common::{
     network::CheckedAnnouncesResponse,
 };
 use ethexe_db::Database;
-use ethexe_ethereum::{middleware::ElectionProvider, router::Router};
-use futures::{Stream, stream::FusedStream};
+use ethexe_ethereum::middleware::ElectionProvider;
+use futures::{
+    Stream, StreamExt,
+    future::BoxFuture,
+    stream::{FusedStream, FuturesUnordered},
+};
 use gprimitives::H256;
 use gsigner::secp256k1::Signer;
 use initial::Initial;
@@ -72,18 +75,15 @@ use std::{
     collections::VecDeque,
     fmt,
     pin::Pin,
-    sync::Arc,
     task::{Context, Poll},
     time::Duration,
 };
-use submitter::EthereumCommitter;
 
 mod coordinator;
 mod core;
 mod initial;
 mod participant;
 mod producer;
-mod submitter;
 mod subordinate;
 mod tx_pool;
 
@@ -121,6 +121,8 @@ pub struct ValidatorConfig {
     pub commitment_delay_limit: u32,
     /// Producer delay before creating new announce after block prepared
     pub producer_delay: Duration,
+    /// Address of the router contract
+    pub router_address: Address,
 }
 
 impl ValidatorService {
@@ -135,8 +137,8 @@ impl ValidatorService {
     /// A new `ValidatorService` instance
     pub fn new(
         signer: Signer,
-        election_provider: Arc<dyn ElectionProvider + 'static>,
-        router: Router,
+        election_provider: impl Into<Box<dyn ElectionProvider>>,
+        committer: impl Into<Box<dyn BatchCommitter>>,
         db: Database,
         config: ValidatorConfig,
     ) -> Result<Self> {
@@ -147,13 +149,13 @@ impl ValidatorService {
             core: ValidatorCore {
                 slot_duration: config.slot_duration,
                 signatures_threshold: config.signatures_threshold,
-                router_address: router.address(),
+                router_address: config.router_address,
                 pub_key: config.pub_key,
                 timelines,
                 signer,
                 db: db.clone(),
-                committer: Box::new(EthereumCommitter { router }),
-                middleware: MiddlewareWrapper::from_inner_arc(election_provider),
+                committer: committer.into(),
+                middleware: MiddlewareWrapper::from_inner(election_provider),
                 injected_pool: InjectedTxPool::new(db),
                 validate_chain_deepness_limit: MAX_CHAIN_DEEPNESS,
                 chain_deepness_threshold: CHAIN_DEEPNESS_THRESHOLD,
@@ -163,6 +165,7 @@ impl ValidatorService {
             },
             pending_events: VecDeque::new(),
             output: VecDeque::new(),
+            tasks: Default::default(),
         };
 
         Ok(Self {
@@ -175,6 +178,13 @@ impl ValidatorService {
             .as_ref()
             .unwrap_or_else(|| unreachable!("inner must be Some"))
             .context()
+    }
+
+    fn context_mut(&mut self) -> &mut ValidatorContext {
+        self.inner
+            .as_mut()
+            .unwrap_or_else(|| unreachable!("inner must be Some"))
+            .context_mut()
     }
 
     fn update_inner(
@@ -238,23 +248,31 @@ impl Stream for ValidatorService {
     type Item = Result<ConsensusEvent>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let mut event = None;
         self.update_inner(|mut inner| {
-            // Waits until some event is available or inner futures are not ready.
+            // Waits until inner futures become pending.
             loop {
                 let (poll, state) = inner.poll_next_state(cx)?;
                 inner = state;
-                event = inner.context_mut().output.pop_front();
-
-                if poll.is_pending() || event.is_some() {
+                if poll.is_pending() {
                     break;
                 }
+            }
+
+            // Note: polling tasks after inner state futures is important,
+            // because polling inner state can create consensus tasks.
+
+            // Poll consensus tasks if any
+            let ctx = inner.context_mut();
+            if let Poll::Ready(Some(res)) = ctx.tasks.poll_next_unpin(cx) {
+                ctx.output(res?);
             }
 
             Ok(inner)
         })?;
 
-        event
+        self.context_mut()
+            .output
+            .pop_front()
             .map(|event| Poll::Ready(Some(Ok(event))))
             .unwrap_or(Poll::Pending)
     }
@@ -351,7 +369,6 @@ enum ValidatorState {
     Initial(Initial),
     Producer(Producer),
     Coordinator(Coordinator),
-    Submitter(Submitter),
     Subordinate(Subordinate),
     Participant(Participant),
 }
@@ -362,7 +379,6 @@ macro_rules! delegate_call {
             ValidatorState::Initial(initial) => initial.$func($( $arg ),*),
             ValidatorState::Producer(producer) => producer.$func($( $arg ),*),
             ValidatorState::Coordinator(coordinator) => coordinator.$func($( $arg ),*),
-            ValidatorState::Submitter(submitter) => submitter.$func($( $arg ),*),
             ValidatorState::Subordinate(subordinate) => subordinate.$func($( $arg ),*),
             ValidatorState::Participant(participant) => participant.$func($( $arg ),*),
         }
@@ -529,6 +545,10 @@ struct ValidatorContext {
     pending_events: VecDeque<PendingEvent>,
     /// Output events for outer services. Populates during the poll.
     output: VecDeque<ConsensusEvent>,
+
+    /// Ongoing consensus tasks, if any.
+    #[debug("{}", tasks.len())]
+    tasks: FuturesUnordered<BoxFuture<'static, Result<ConsensusEvent>>>,
 }
 
 impl ValidatorContext {

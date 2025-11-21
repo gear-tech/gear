@@ -24,8 +24,8 @@ use crate::{
     Service,
     config::{self, Config},
     tests::utils::{
-        EnvNetworkConfig, Node, NodeConfig, TestEnv, TestEnvConfig, TestingEvent, TestingRpcEvent,
-        ValidatorsConfig, Wallets, init_logger,
+        AnnounceId, EnvNetworkConfig, Node, NodeConfig, TestEnv, TestEnvConfig, TestingEvent,
+        TestingRpcEvent, ValidatorsConfig, WaitForReplyTo, Wallets, init_logger,
     },
 };
 use alloy::{
@@ -33,18 +33,19 @@ use alloy::{
     providers::{Provider as _, WalletProvider, ext::AnvilApi},
 };
 use ethexe_common::{
-    Announce, HashOf, ScheduledTask,
+    Announce, HashOf, ScheduledTask, ToDigest,
     db::*,
+    ecdsa::ContractSignature,
     events::{BlockEvent, MirrorEvent, RouterEvent},
-    gear::{CANONICAL_QUARANTINE, MessageType},
+    gear::{BatchCommitment, CANONICAL_QUARANTINE, MessageType},
     injected::{InjectedTransaction, RpcOrNetworkInjectedTx},
     mock::*,
     network::ValidatorMessage,
 };
 use ethexe_compute::ComputeConfig;
-use ethexe_consensus::ConsensusEvent;
+use ethexe_consensus::{BatchCommitter, ConsensusEvent};
 use ethexe_db::{Database, verifier::IntegrityVerifier};
-use ethexe_ethereum::deploy::ContractsDeploymentParams;
+use ethexe_ethereum::{TryGetReceipt, deploy::ContractsDeploymentParams, router::Router};
 use ethexe_observer::{EthereumConfig, ObserverEvent};
 use ethexe_processor::{DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, RunnerConfig};
 use ethexe_prometheus::PrometheusConfig;
@@ -59,11 +60,17 @@ use gprimitives::{ActorId, H160, H256, MessageId};
 use gsigner::secp256k1::{Secp256k1SignerExt, Signer};
 use parity_scale_codec::Encode;
 use std::{
-    collections::{BTreeMap, BTreeSet},
+    collections::{BTreeMap, BTreeSet, HashSet},
     net::{Ipv4Addr, SocketAddr},
+    ops::ControlFlow,
+    sync::Arc,
     time::Duration,
 };
 use tempfile::tempdir;
+use tokio::sync::{
+    Mutex,
+    mpsc::{self, UnboundedReceiver, UnboundedSender},
+};
 
 const ETHER: u128 = 1_000_000_000_000_000_000;
 
@@ -279,7 +286,7 @@ async fn uninitialized_program() {
         }
         .encode();
 
-        let mut listener = env.observer_events_publisher().subscribe().await;
+        let mut listener = env.observer_events_publisher().subscribe();
 
         let init_res = env
             .create_program_with_params(code_id, H256([0x11; 32]), None, 500_000_000_000_000)
@@ -308,12 +315,12 @@ async fn uninitialized_program() {
                     msgs_for_reply.push(id);
 
                     if msgs_for_reply.len() == 3 {
-                        Ok(Some(()))
+                        Ok(ControlFlow::Break(()))
                     } else {
-                        Ok(None)
+                        Ok(ControlFlow::Continue(()))
                     }
                 }
-                _ => Ok(None),
+                _ => Ok(ControlFlow::Continue(())),
             })
             .await
             .unwrap();
@@ -349,9 +356,9 @@ async fn uninitialized_program() {
                             ..
                         },
                 } if actor_id == init_res.program_id && reply_to == init_reply.message_id => {
-                    Ok(Some(reply_code))
+                    Ok(ControlFlow::Break(reply_code))
                 }
-                _ => Ok(None),
+                _ => Ok(ControlFlow::Continue(())),
             })
             .await
             .unwrap();
@@ -413,7 +420,7 @@ async fn mailbox() {
 
     let async_pid = res.program_id;
 
-    let mut listener = env.observer_events_publisher().subscribe().await;
+    let mut listener = env.observer_events_publisher().subscribe();
 
     let wait_for_mutex_request_command_reply = env
         .send_message(async_pid, &demo_async::Command::Mutex.encode())
@@ -449,13 +456,13 @@ async fn mailbox() {
                     panic!("Unexpected message id {id}");
                 }
 
-                Ok(None)
+                Ok(ControlFlow::Continue(()))
             }
             BlockEvent::Router(RouterEvent::AnnouncesCommitted(ah)) if block.is_some() => {
                 announce_hash = Some(ah);
-                Ok(Some(()))
+                Ok(ControlFlow::Break(()))
             }
-            _ => Ok(None),
+            _ => Ok(ControlFlow::Continue(())),
         })
         .await
         .unwrap();
@@ -587,10 +594,12 @@ async fn mailbox() {
                 event: MirrorEvent::ValueClaimed { claimed_id, .. },
             } if actor_id == async_pid && claimed_id == mid_expected_message_id => {
                 claimed = true;
-                Ok(None)
+                Ok(ControlFlow::Continue(()))
             }
-            BlockEvent::Router(RouterEvent::AnnouncesCommitted(ah)) if claimed => Ok(Some(ah)),
-            _ => Ok(None),
+            BlockEvent::Router(RouterEvent::AnnouncesCommitted(ah)) if claimed => {
+                Ok(ControlFlow::Break(ah))
+            }
+            _ => Ok(ControlFlow::Continue(())),
         })
         .await
         .unwrap();
@@ -661,13 +670,17 @@ async fn value_reply_program_to_user() {
     // 1_000 ETH
     const VALUE_SENT: u128 = 1_000 * ETHER;
 
-    let mut listener = env.observer_events_publisher().subscribe().await;
+    let mut listener = env.observer_events_publisher().subscribe();
 
     piggy_bank.owned_balance_top_up(VALUE_SENT).await.unwrap();
 
     listener
         .apply_until_block_event(|e| {
-            Ok(matches!(e, BlockEvent::Router(RouterEvent::BatchCommitted { .. })).then_some(()))
+            if matches!(e, BlockEvent::Router(RouterEvent::BatchCommitted { .. })) {
+                Ok(ControlFlow::Break(()))
+            } else {
+                Ok(ControlFlow::Continue(()))
+            }
         })
         .await
         .unwrap();
@@ -762,13 +775,17 @@ async fn value_send_program_to_user_and_claimed() {
     // 1_000 ETH
     const VALUE_SENT: u128 = 1_000 * ETHER;
 
-    let mut listener = env.observer_events_publisher().subscribe().await;
+    let mut listener = env.observer_events_publisher().subscribe();
 
     piggy_bank.owned_balance_top_up(VALUE_SENT).await.unwrap();
 
     listener
         .apply_until_block_event(|e| {
-            Ok(matches!(e, BlockEvent::Router(RouterEvent::BatchCommitted { .. })).then_some(()))
+            if matches!(e, BlockEvent::Router(RouterEvent::BatchCommitted { .. })) {
+                Ok(ControlFlow::Break(()))
+            } else {
+                Ok(ControlFlow::Continue(()))
+            }
         })
         .await
         .unwrap();
@@ -826,8 +843,10 @@ async fn value_send_program_to_user_and_claimed() {
             BlockEvent::Mirror {
                 actor_id,
                 event: MirrorEvent::ValueClaimed { claimed_id, .. },
-            } if actor_id == piggy_bank_id && claimed_id == mailboxed_msg_id => Ok(Some(())),
-            _ => Ok(None),
+            } if actor_id == piggy_bank_id && claimed_id == mailboxed_msg_id => {
+                Ok(ControlFlow::Break(()))
+            }
+            _ => Ok(ControlFlow::Continue(())),
         })
         .await
         .unwrap();
@@ -896,13 +915,17 @@ async fn value_send_program_to_user_and_replied() {
     // 1_000 ETH
     const VALUE_SENT: u128 = 1_000 * ETHER;
 
-    let mut listener = env.observer_events_publisher().subscribe().await;
+    let mut listener = env.observer_events_publisher().subscribe();
 
     piggy_bank.owned_balance_top_up(VALUE_SENT).await.unwrap();
 
     listener
         .apply_until_block_event(|e| {
-            Ok(matches!(e, BlockEvent::Router(RouterEvent::BatchCommitted { .. })).then_some(()))
+            if matches!(e, BlockEvent::Router(RouterEvent::BatchCommitted { .. })) {
+                Ok(ControlFlow::Break(()))
+            } else {
+                Ok(ControlFlow::Continue(()))
+            }
         })
         .await
         .unwrap();
@@ -963,8 +986,10 @@ async fn value_send_program_to_user_and_replied() {
             BlockEvent::Mirror {
                 actor_id,
                 event: MirrorEvent::ValueClaimed { claimed_id, .. },
-            } if actor_id == piggy_bank_id && claimed_id == mailboxed_msg_id => Ok(Some(())),
-            _ => Ok(None),
+            } if actor_id == piggy_bank_id && claimed_id == mailboxed_msg_id => {
+                Ok(ControlFlow::Break(()))
+            }
+            _ => Ok(ControlFlow::Continue(())),
         })
         .await
         .unwrap();
@@ -1033,13 +1058,17 @@ async fn incoming_transfers() {
     // 1_000 ETH
     const VALUE_SENT: u128 = 1_000 * ETHER;
 
-    let mut listener = env.observer_events_publisher().subscribe().await;
+    let mut listener = env.observer_events_publisher().subscribe();
 
     ping.owned_balance_top_up(VALUE_SENT).await.unwrap();
 
     listener
         .apply_until_block_event(|e| {
-            Ok(matches!(e, BlockEvent::Router(RouterEvent::BatchCommitted { .. })).then_some(()))
+            if matches!(e, BlockEvent::Router(RouterEvent::BatchCommitted { .. })) {
+                Ok(ControlFlow::Break(()))
+            } else {
+                Ok(ControlFlow::Continue(()))
+            }
         })
         .await
         .unwrap();
@@ -1645,7 +1674,7 @@ async fn fast_sync() {
             .unwrap();
     }
 
-    let latest_block: H256 = env.latest_block().await.hash.0.into();
+    let latest_block = env.latest_block().await.hash;
     alice
         .listener()
         .wait_for_announce_computed(latest_block)
@@ -1672,7 +1701,7 @@ async fn fast_sync() {
         );
     }
 
-    let latest_block = env.latest_block().await.hash.0.into();
+    let latest_block = env.latest_block().await.hash;
     alice
         .listener()
         .wait_for_announce_computed(latest_block)
@@ -1708,7 +1737,7 @@ async fn fast_sync() {
 
     env.skip_blocks(100).await;
 
-    let latest_block: H256 = env.latest_block().await.hash.0.into();
+    let latest_block = env.latest_block().await.hash;
     alice
         .listener()
         .wait_for_announce_computed(latest_block)
@@ -1727,7 +1756,7 @@ async fn fast_sync() {
         env.skip_blocks(1).await;
     }
 
-    let latest_block = env.latest_block().await.hash.0.into();
+    let latest_block = env.latest_block().await.hash;
     alice
         .listener()
         .wait_for_announce_computed(latest_block)
@@ -1823,14 +1852,17 @@ async fn validators_election() {
         .unwrap();
     env.force_new_block().await;
 
-    let mut listener = env.observer_events_publisher().subscribe().await;
+    let mut listener = env.observer_events_publisher().subscribe();
     listener
         .apply_until_block_event(|event| {
-            Ok(matches!(
+            if matches!(
                 event,
                 BlockEvent::Router(RouterEvent::ValidatorsCommittedForEra { era_index: _ })
-            )
-            .then_some(()))
+            ) {
+                Ok(ControlFlow::Break(()))
+            } else {
+                Ok(ControlFlow::Continue(()))
+            }
         })
         .await
         .unwrap();
@@ -1901,8 +1933,32 @@ async fn execution_with_canonical_events_quarantine() {
         .unwrap();
     assert_eq!(res.code_id, uploaded_code.code_id);
 
+    // Skip blocks to finish quarantine for program creation and balance top-up
+    // 0 - ProgramCreated event
+    // 1 - ExecutableBalanceTopUpRequested event
+    // 2..canonical_quarantine + 2 - quarantine period
+    env.skip_blocks(env.compute_config.canonical_quarantine() as u32 + 2)
+        .await;
+
+    env.observer_events_publisher()
+        .subscribe()
+        .apply_until_block_event(|event| {
+            if let BlockEvent::Mirror {
+                event: MirrorEvent::StateChanged { .. },
+                ..
+            } = event
+            {
+                Ok(ControlFlow::Break(()))
+            } else {
+                Ok(ControlFlow::Continue(()))
+            }
+        })
+        .await
+        .unwrap();
+
     // Wait till validator stops processing for the latest block (where commitment with program creation is present)
     let latest_block: H256 = env.latest_block().await.hash.0.into();
+    log::info!("📗 waiting announce for block {latest_block} computed");
     validator
         .listener()
         .wait_for_announce_computed(latest_block)
@@ -2245,7 +2301,7 @@ async fn value_send_delayed() {
 
     assert_eq!(router_balance, VALUE_SENT);
 
-    let mut listener = env.observer_events_publisher().subscribe().await;
+    let mut listener = env.observer_events_publisher().subscribe();
 
     // Skip blocks to pass the delay
     env.provider
@@ -2254,7 +2310,11 @@ async fn value_send_delayed() {
         .unwrap();
     listener
         .apply_until_block_event(|e| {
-            Ok(matches!(e, BlockEvent::Router(RouterEvent::BatchCommitted { .. })).then_some(()))
+            if matches!(e, BlockEvent::Router(RouterEvent::BatchCommitted { .. })) {
+                Ok(ControlFlow::Break(()))
+            } else {
+                Ok(ControlFlow::Continue(()))
+            }
         })
         .await
         .unwrap();
@@ -2302,6 +2362,7 @@ async fn injected_tx_fungible_token() {
 
     let env_config = TestEnvConfig {
         network: EnvNetworkConfig::Enabled,
+        compute_config: ComputeConfig::without_quarantine(),
         ..Default::default()
     };
 
@@ -2344,54 +2405,25 @@ async fn injected_tx_fungible_token() {
 
     let usdt_actor_id = res.program_id;
 
-    tracing::info!("usdt actor id: {usdt_actor_id}");
-
     // 3. Initialize program
-    let init_tx = InjectedTransaction {
-        destination: usdt_actor_id,
-        payload: token_config.encode().into(),
-        value: 0,
-        reference_block: node
-            .db
-            .latest_data()
-            .expect("latest data exists in db")
-            .prepared_block_hash,
-        salt: vec![1u8].into(),
-    };
-    let signed_tx = env.signer.signed_data(pubkey, init_tx).unwrap();
-    let rpc_tx = RpcOrNetworkInjectedTx {
-        recipient: pubkey.to_address(),
-        tx: signed_tx,
-    };
-    let acceptance = rpc_client
-        .send_transaction(rpc_tx)
+    let init_reply = env
+        .send_message(usdt_actor_id, &token_config.encode())
         .await
-        .expect("successfully send transaction to RPC");
-    assert!(matches!(acceptance, InjectedTransactionAcceptance::Accept));
-
-    // Listen for tx inclusion
-    node.listener()
-        .apply_until(|event| {
-            if let TestingEvent::Consensus(ConsensusEvent::Promise(promise)) = event {
-                let promise = promise.into_data();
-                assert!(
-                    promise.reply.payload.is_empty(),
-                    "Expect empty payload, because of initializing Fungible Token returns nothing"
-                );
-
-                assert_eq!(
-                    promise.reply.code,
-                    ReplyCode::Success(SuccessReplyReason::Auto)
-                );
-                assert_eq!(promise.reply.value, 0);
-
-                return Ok(Some(()));
-            }
-
-            Ok(None)
-        })
+        .unwrap()
+        .wait_for()
         .await
         .unwrap();
+
+    assert_eq!(init_reply.program_id, usdt_actor_id);
+    assert_eq!(init_reply.value, 0);
+    assert_eq!(
+        init_reply.code,
+        ReplyCode::Success(SuccessReplyReason::Auto)
+    );
+    assert!(
+        init_reply.payload.is_empty(),
+        "Expect empty payload, because of initializing Fungible Token returns nothing"
+    );
 
     tracing::info!("✅ Fungible token successfully initialized");
 
@@ -2436,10 +2468,10 @@ async fn injected_tx_fungible_token() {
                 );
                 assert_eq!(promise.reply.value, 0);
 
-                return Ok(Some(()));
+                return Ok(ControlFlow::Break(()));
             }
 
-            Ok(None)
+            Ok(ControlFlow::Continue(()))
         })
         .await
         .unwrap();
@@ -2450,7 +2482,7 @@ async fn injected_tx_fungible_token() {
         .apply_until(|event| {
             if let TestingEvent::Observer(ObserverEvent::BlockSynced(synced_block)) = event {
                 let Some(block_events) = db.block_events(synced_block) else {
-                    return Ok(None);
+                    return Ok(ControlFlow::Continue(()));
                 };
 
                 for block_event in block_events {
@@ -2464,12 +2496,12 @@ async fn injected_tx_fungible_token() {
                         assert_eq!(state.balance, 0);
                         assert_eq!(state.injected_queue.cached_queue_size, 0);
                         assert_eq!(state.canonical_queue.cached_queue_size, 0);
-                        return Ok(Some(()));
+                        return Ok(ControlFlow::Break(()));
                     }
                 }
             }
 
-            Ok(None)
+            Ok(ControlFlow::Continue(()))
         })
         .await
         .unwrap();
@@ -2503,7 +2535,7 @@ async fn injected_tx_fungible_token() {
     let mut subscription = ws_client
         .send_transaction_and_watch(rpc_tx)
         .await
-        .expect("successully subscribe for transaction promise");
+        .expect("successfully subscribe for transaction promise");
 
     let promise = subscription
         .next()
@@ -2526,7 +2558,7 @@ async fn injected_tx_fungible_token() {
     subscription
         .unsubscribe()
         .await
-        .expect("successfully unsubscibe for promise");
+        .expect("successfully unsubscribe for promise");
 
     tracing::info!("✅ Promise successfully received from RPC subscription");
 }
@@ -2630,12 +2662,15 @@ async fn announces_conflicts() {
         // Validators 1..=6 must reject this announce
         futures::future::join_all(listeners.iter_mut().map(|l| {
             l.apply_until(|event| {
-                Ok(matches!(
+                if matches!(
                     event,
                     TestingEvent::Consensus(ConsensusEvent::AnnounceRejected(rejected_announce_hash))
                         if rejected_announce_hash == announce_hash
-                )
-                .then_some(()))
+                ) {
+                    Ok(ControlFlow::Break(()))
+                } else {
+                    Ok(ControlFlow::Continue(()))
+                }
             })
         }))
         .await
@@ -2755,15 +2790,18 @@ async fn announces_conflicts() {
             })
             .await;
 
-        // Validators 1..=5 must reject this announce
+        // Validators 1..=5 must accept this announce, as soon as parent is known base announce
         futures::future::join_all(listeners.iter_mut().map(|l| {
             l.apply_until(|event| {
-                Ok(matches!(
+                if matches!(
                     event,
-                    TestingEvent::Consensus(ConsensusEvent::AnnounceRejected(announce_hash))
+                    TestingEvent::Consensus(ConsensusEvent::AnnounceAccepted(announce_hash))
                         if announce_hash == announce7_hash
-                )
-                .then_some(()))
+                ) {
+                    Ok(ControlFlow::Break(()))
+                } else {
+                    Ok(ControlFlow::Continue(()))
+                }
             })
         }))
         .await
@@ -2776,7 +2814,7 @@ async fn announces_conflicts() {
 
     {
         log::info!(
-            "📗 Case 5: announce from validator 0 was rejected but still validator 1 could process all in the next block"
+            "📗 Case 5: validator 0 does not commit changes, because it's stopped, so validator 1 could do this in the next block"
         );
 
         assert_eq!(env.next_block_producer_index().await, 1);
@@ -2787,5 +2825,379 @@ async fn announces_conflicts() {
             assert_eq!(res.value, 0);
             assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Manual));
         });
+    }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ntest::timeout(120_000)]
+async fn whole_network_restore() {
+    init_logger();
+
+    let config = TestEnvConfig {
+        validators: ValidatorsConfig::PreDefined(4),
+        network: EnvNetworkConfig::Enabled,
+        continuous_block_generation: true,
+        ..Default::default()
+    };
+    let mut env = TestEnv::new(config).await.unwrap();
+
+    let mut validators = vec![];
+    for (i, v) in env.validators.clone().into_iter().enumerate() {
+        log::info!("📗 Starting validator-{i}");
+        let mut validator = env.new_node(NodeConfig::named(format!("validator-{i}")).validator(v));
+        validator.start_service().await;
+        validators.push(validator);
+    }
+
+    // make sure we receive unique messages and not repeated ones
+    let mut seen_messages = HashSet::new();
+
+    let res = env
+        .upload_code(demo_ping::WASM_BINARY)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert!(res.valid);
+    let ping_code_id = res.code_id;
+
+    let res = env
+        .create_program(ping_code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    let ping_id = res.program_id;
+
+    let init_res = env
+        .send_message(res.program_id, b"")
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert_eq!(res.code_id, ping_code_id);
+    assert_eq!(init_res.payload, b"");
+    assert_eq!(init_res.value, 0);
+    assert_eq!(init_res.code, ReplyCode::Success(SuccessReplyReason::Auto));
+    assert!(seen_messages.insert(init_res.message_id));
+
+    for (i, v) in validators.iter_mut().enumerate() {
+        log::info!("📗 Stopping validator-{i}");
+        v.stop_service().await;
+    }
+
+    let ping_wait_for = env.send_message(ping_id, b"PING").await.unwrap();
+
+    let async_code_upload = env.upload_code(demo_async::WASM_BINARY).await.unwrap();
+
+    log::info!("📗 Skipping 20 blocks");
+    env.skip_blocks(20).await;
+
+    for (i, v) in validators.iter_mut().enumerate() {
+        log::info!("📗 Starting validator-{i} again");
+        v.start_service().await;
+    }
+
+    let res = ping_wait_for.wait_for().await.unwrap();
+    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Manual));
+    assert_eq!(res.payload, b"PONG");
+    assert_eq!(res.value, 0);
+    assert!(seen_messages.insert(res.message_id));
+
+    let res = async_code_upload.wait_for().await.unwrap();
+    assert!(res.valid);
+    let async_code_id = res.code_id;
+    let res = env
+        .create_program(async_code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    let init_res = env
+        .send_message(res.program_id, ping_id.encode().as_slice())
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert_eq!(res.code_id, async_code_id);
+    assert_eq!(init_res.payload, b"");
+    assert_eq!(init_res.value, 0);
+    assert_eq!(init_res.code, ReplyCode::Success(SuccessReplyReason::Auto));
+    assert!(seen_messages.insert(init_res.message_id));
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ntest::timeout(60_000)]
+async fn catch_up_3() {
+    catch_up_test_case(3).await;
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ntest::timeout(60_000)]
+async fn catch_up_5() {
+    catch_up_test_case(5).await;
+}
+
+async fn catch_up_test_case(commitment_delay_limit: u32) {
+    init_logger();
+
+    assert!(
+        commitment_delay_limit == 3 || commitment_delay_limit == 5,
+        "Only 3 or 5 commitment delay limit is supported for catch-up test"
+    );
+
+    #[derive(Clone)]
+    struct LateCommitter {
+        router: Router,
+        commit_signal_receiver: Arc<Mutex<UnboundedReceiver<()>>>,
+        wait_signal_sender: Arc<UnboundedSender<()>>,
+    }
+
+    #[async_trait::async_trait]
+    impl BatchCommitter for LateCommitter {
+        fn clone_boxed(&self) -> Box<dyn BatchCommitter> {
+            Box::new(self.clone())
+        }
+
+        async fn commit(
+            mut self: Box<Self>,
+            batch: BatchCommitment,
+            signatures: Vec<ContractSignature>,
+        ) -> anyhow::Result<H256> {
+            log::info!("📗 LateCommitter wait for signal to commit ...");
+            self.wait_signal_sender.send(()).unwrap();
+            self.commit_signal_receiver
+                .lock()
+                .await
+                .recv()
+                .await
+                .unwrap();
+
+            log::info!(
+                "📗 LateCommitter committing batch {}: {:?}",
+                batch.to_digest(),
+                batch
+            );
+            let pending = self.router.commit_batch_pending(batch, signatures).await;
+
+            // Notify that commitment is sent
+            self.wait_signal_sender.send(()).unwrap();
+
+            log::info!("📗 LateCommitter waiting for commitment to be mined ...");
+            pending?
+                .try_get_receipt()
+                .await
+                .map(|r| r.transaction_hash.0.into())
+        }
+    }
+
+    let config = TestEnvConfig {
+        network: EnvNetworkConfig::Enabled,
+        commitment_delay_limit,
+        ..Default::default()
+    };
+    let mut env = TestEnv::new(config).await.unwrap();
+
+    log::info!("📗 Starting Alice");
+    let mut alice = env.new_node(NodeConfig::named("Alice").validator(env.validators[0]));
+    alice.start_service().await;
+
+    log::info!("📗 Starting Bob");
+    let mut bob = env.new_node(NodeConfig::named("Bob"));
+    bob.start_service().await;
+
+    let ping_code_id = env
+        .upload_code(demo_ping::WASM_BINARY)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap()
+        .code_id;
+
+    let ping_id = env
+        .create_program(ping_code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap()
+        .program_id;
+
+    // Wait until both stops processing
+    let latest_block = env.latest_block().await.hash;
+    let latest_announce_hash = bob
+        .listener()
+        .wait_for_announce_computed(latest_block)
+        .await;
+    assert_eq!(
+        alice
+            .listener()
+            .wait_for_announce_computed(latest_block)
+            .await,
+        latest_announce_hash
+    );
+
+    log::info!("📗 Stopping Bob");
+    bob.stop_service().await;
+
+    log::info!("📗 Sending first PING message, so that Alice will leave Bob behind");
+    env.send_message(ping_id, b"PING")
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    // Wait until Alice stop processing
+    let latest_block = env.latest_block().await.hash;
+    alice
+        .listener()
+        .wait_for_announce_computed(latest_block)
+        .await;
+
+    log::info!("📗 Stopping Alice");
+    alice.stop_service().await;
+
+    log::info!("📗 Setting LateCommitter for Alice and starting Alice again");
+    let (commit_signal_sender, commit_signal_receiver) = mpsc::unbounded_channel();
+    let (wait_signal_sender, mut wait_signal_receiver) = mpsc::unbounded_channel();
+    alice.custom_committer = Some(Box::new(LateCommitter {
+        router: env.ethereum.router().clone(),
+        commit_signal_receiver: Arc::new(Mutex::new(commit_signal_receiver)),
+        wait_signal_sender: Arc::new(wait_signal_sender),
+    }));
+    alice.start_service().await;
+
+    log::info!("📗 Starting Bob");
+    bob.start_service().await;
+
+    log::info!("📗 Disable auto mining");
+    env.provider.anvil_set_auto_mine(false).await.unwrap();
+
+    log::info!("📗 Sending second PING message, Bob tries to catch up Alice");
+    {
+        let listener = env.observer_events_publisher().subscribe();
+        let pending = env
+            .ethereum
+            .mirror(ping_id.try_into().unwrap())
+            .send_message_pending(b"PING", 0, false)
+            .await
+            .unwrap();
+        env.force_new_block().await;
+        let wait_for = WaitForReplyTo::from_raw_parts(
+            listener,
+            pending.try_get_message_send_receipt().await.unwrap().1,
+        );
+
+        // Waiting until Alice is ready for commitment1
+        wait_signal_receiver.recv().await.unwrap();
+
+        // Force new block, so that commitment1 would skip this block
+        env.force_new_block().await;
+
+        // Send signal to make commitment1 and wait until it's sent
+        commit_signal_sender.send(()).unwrap();
+        wait_signal_receiver.recv().await.unwrap();
+
+        // Wait until Alice is ready for next commitment2
+        wait_signal_receiver.recv().await.unwrap();
+
+        // Force new block to commit commitment1
+        env.force_new_block().await;
+
+        // Send signal to make commitment2,
+        // but it would not be applied because it's not above previous one
+        commit_signal_sender.send(()).unwrap();
+        wait_signal_receiver.recv().await.unwrap();
+
+        // Now commitment1 must be applied in the forced block
+        wait_for.wait_for().await.unwrap();
+    }
+
+    log::info!("📗 Waiting for two rejected announces from Bob");
+    for _ in 0..2 {
+        bob.listener()
+            .wait_for_announce_rejected(AnnounceId::Any)
+            .await;
+    }
+
+    log::info!("📗 Sending third PING message, one more attempt for Bob to catch up Alice");
+    {
+        let listener = env.observer_events_publisher().subscribe();
+        let pending = env
+            .ethereum
+            .mirror(ping_id.try_into().unwrap())
+            .send_message_pending(b"PING", 0, false)
+            .await
+            .unwrap();
+        env.force_new_block().await;
+        let wait_for = WaitForReplyTo::from_raw_parts(
+            listener,
+            pending.try_get_message_send_receipt().await.unwrap().1,
+        );
+
+        // Waiting until Alice is ready for commitment1
+        wait_signal_receiver.recv().await.unwrap();
+
+        // Force new block, so that commitment1 would skip this block
+        env.force_new_block().await;
+
+        // Send signal to make commitment1 and wait until it's sent
+        commit_signal_sender.send(()).unwrap();
+        wait_signal_receiver.recv().await.unwrap();
+
+        // Wait until Alice is ready for next commitment2
+        wait_signal_receiver.recv().await.unwrap();
+
+        // Force new block to commit commitment1
+        // if commitment_delay_limit == 3 => commitment1 would fail because contains expired announces
+        // if commitment_delay_limit == 5 => commitment1 would succeed
+        env.force_new_block().await;
+
+        if commitment_delay_limit == 3 {
+            // Waiting until Alice is ready for commitment2
+            wait_signal_receiver.recv().await.unwrap();
+
+            // Send signal to make commitment2 and wait until it's sent
+            commit_signal_sender.send(()).unwrap();
+            wait_signal_receiver.recv().await.unwrap();
+
+            // Force new block to commit commitment2, succeed
+            env.force_new_block().await;
+        } else if commitment_delay_limit == 5 {
+            // commitment1 already committed, so Alice would not commit commitment2, because it's empty
+        } else {
+            unreachable!();
+        }
+
+        // Now commitment1 or commitment2 must be applied in the forced blocks
+        wait_for.wait_for().await.unwrap();
+    }
+
+    let latest_block = env.latest_block().await.hash;
+    let latest_announce_hash = alice
+        .listener()
+        .wait_for_announce_computed(latest_block)
+        .await;
+
+    if commitment_delay_limit == 3 {
+        log::info!("📗 Bob accepts announce from Alice at last");
+        bob.listener()
+            .wait_for_announce_accepted(latest_announce_hash)
+            .await;
+    } else if commitment_delay_limit == 5 {
+        log::info!("📗 Bob still rejects announce from Alice");
+        bob.listener()
+            .wait_for_announce_rejected(latest_announce_hash)
+            .await;
+    } else {
+        unreachable!();
     }
 }

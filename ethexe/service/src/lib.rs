@@ -42,7 +42,7 @@ use ethexe_service_utils::{OptionFuture as _, OptionStreamNext as _};
 use futures::{StreamExt, stream::FuturesUnordered};
 use gprimitives::{ActorId, CodeId, H256};
 use gsigner::secp256k1::Signer;
-use std::{collections::BTreeSet, pin::Pin, sync::Arc, time::Duration};
+use std::{collections::BTreeSet, pin::Pin, time::Duration};
 
 pub mod config;
 
@@ -200,7 +200,7 @@ impl Service {
                 .await?;
                 Box::pin(ValidatorService::new(
                     signer.clone(),
-                    Arc::new(ethereum.middleware().query()),
+                    ethereum.middleware().query(),
                     ethereum.router(),
                     db.clone(),
                     ValidatorConfig {
@@ -212,6 +212,7 @@ impl Service {
                         // which better to be configurable by router contract
                         commitment_delay_limit: COMMITMENT_DELAY_LIMIT,
                         producer_delay: Duration::ZERO,
+                        router_address: config.ethereum.router_address,
                     },
                 )?)
             } else {
@@ -523,8 +524,8 @@ impl Service {
 
                         network.publish_message(message);
                     }
-                    ConsensusEvent::CommitmentSubmitted(tx) => {
-                        log::info!("Commitment submitted, tx: {tx}");
+                    ConsensusEvent::CommitmentSubmitted(info) => {
+                        log::info!("{info}");
                     }
                     ConsensusEvent::Warning(msg) => {
                         log::warn!("Consensus service warning: {msg}");

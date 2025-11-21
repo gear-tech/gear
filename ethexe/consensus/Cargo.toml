@@ -13,6 +13,7 @@ ethexe-service-utils.workspace = true
 gsigner = { workspace = true, features = ["std", "secp256k1", "codec"] }
 ethexe-ethereum.workspace = true
 ethexe-common.workspace = true
+ethexe-runtime-common.workspace = true
 gprimitives = { workspace = true, features = ["codec", "std"] }
 
 async-trait.workspace = true
@@ -33,5 +34,6 @@ lru.workspace = true
 tokio.workspace = true
 ethexe-common = { workspace = true, features = ["mock"] }
 gear-utils.workspace = true
+gear-core.workspace = true
 ntest.workspace = true
 proptest.workspace = true

@@ -54,10 +54,23 @@ pub fn prepare_chain_for_batch_commitment(db: &Database) -> BatchCommitment {
 
     let chain_commitment1 = ChainCommitment::mock(chain.block_top_announce(1).announce.to_hash());
     let chain_commitment2 = ChainCommitment::mock(chain.block_top_announce(2).announce.to_hash());
-    chain.block_top_announce_mut(1).as_computed_mut().outcome =
-        chain_commitment1.transitions.clone();
-    chain.block_top_announce_mut(2).as_computed_mut().outcome =
-        chain_commitment2.transitions.clone();
+    chain.block_top_announce_mut(1).tap_mut(|a| {
+        a.announce.gas_allowance = Some(19);
+        a.as_computed_mut().outcome = chain_commitment1.transitions.clone()
+    });
+    let announce1_hash = chain.block_top_announce(1).announce.to_hash();
+    chain.block_top_announce_mut(2).tap_mut(|a| {
+        a.announce.gas_allowance = Some(20);
+        a.announce.parent = announce1_hash;
+        a.as_computed_mut().outcome = chain_commitment2.transitions.clone()
+    });
+    let announce2_hash = chain.block_top_announce(2).announce.to_hash();
+    chain.block_top_announce_mut(3).announce.parent = announce2_hash;
+    let announce3_hash = chain.block_top_announce(3).announce.to_hash();
+
+    chain.blocks[1].prepared.as_mut().unwrap().announces = Some([announce1_hash].into());
+    chain.blocks[2].prepared.as_mut().unwrap().announces = Some([announce2_hash].into());
+    chain.blocks[3].prepared.as_mut().unwrap().announces = Some([announce3_hash].into());
 
     let code_commitment1 = CodeCommitment::mock(());
     let code_commitment2 = CodeCommitment::mock(());
@@ -75,6 +88,7 @@ pub fn prepare_chain_for_batch_commitment(db: &Database) -> BatchCommitment {
         block_hash: block3.hash,
         timestamp: block3.header.timestamp,
         previous_batch: Digest::zero(),
+        expiry: 1,
         chain_commitment: Some(ChainCommitment {
             transitions: [chain_commitment1.transitions, chain_commitment2.transitions].concat(),
             head_announce: db.top_announce_hash(block3.hash),
