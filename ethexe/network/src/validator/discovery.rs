@@ -33,6 +33,7 @@ use ethexe_common::{
     sha3::Keccak256,
 };
 use ethexe_signer::Signer;
+use indexmap::IndexSet;
 use libp2p::{
     Multiaddr,
     core::{Endpoint, transport::PortUse},
@@ -45,7 +46,7 @@ use libp2p::{
 };
 use parity_scale_codec::{Decode, Encode, Error, Input, Output};
 use std::{
-    collections::{HashMap, HashSet},
+    collections::HashMap,
     sync::Arc,
     task::{Context, Poll},
     time::SystemTime,
@@ -165,7 +166,8 @@ enum FromVecOfVecError {
 // because it is signed by the network key (and thus the same peer ID)
 #[derive(Debug, Clone, PartialEq, Eq, derive_more::IntoIterator)]
 pub(crate) struct ValidatorAddresses {
-    addresses: HashSet<Multiaddr>,
+    // use indexed set for stable encoding/decoding and digest generation
+    addresses: IndexSet<Multiaddr>,
 }
 
 impl ValidatorAddresses {
@@ -188,7 +190,7 @@ impl ValidatorAddresses {
             return None;
         }
 
-        let addresses: HashSet<Multiaddr> = addresses
+        let addresses: IndexSet<Multiaddr> = addresses
             .iter()
             .take(MAX_IDENTITY_ADDRESSES)
             .cloned()
@@ -216,7 +218,7 @@ impl ValidatorAddresses {
         }
 
         let (addresses, _peer_id) = addresses.into_iter().try_fold(
-            (HashSet::new(), None),
+            (IndexSet::new(), None),
             |(mut set, mut peer_id), addr| {
                 let addr = Multiaddr::try_from(addr).map_err(FromVecOfVecError::ParseMultiaddr)?;
 
