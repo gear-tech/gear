@@ -204,9 +204,9 @@ impl InjectedServer for InjectedApi {
 
 const REFERENCE_BLOCK_OUTDATED_TOLERANCE: u8 = 1;
 
-// Implement tower service for InjectedApi and use this as layer.
+// TODO: Implement tower service for InjectedApi and use this as layer.
 #[derive(Clone, derive_more::Debug)]
-pub(crate) struct TxSafetyGate<DB = Database> {
+pub(crate) struct TransactionGate<DB = Database> {
     #[debug(skip)]
     db: DB,
     config: TxSafetyChecksConfig,
@@ -214,12 +214,12 @@ pub(crate) struct TxSafetyGate<DB = Database> {
 }
 
 #[derive(Debug, Clone, Copy, Default)]
-pub(crate) struct TxSafetyChecksConfig {
+struct GateConfig {
     recipient: bool,
     reference_block: bool,
 }
 
-impl<DB: OnChainStorageRO> TxSafetyGate<DB> {
+impl<DB: OnChainStorageRO> TransactionGate<DB> {
     pub fn new(db: DB) -> Self {
         let protocol_timelines = db
             .protocol_timelines()
@@ -249,7 +249,7 @@ impl<DB: OnChainStorageRO> TxSafetyGate<DB> {
     }
 }
 
-impl<DB: Storage + LatestDataStorageRO + OnChainStorageRO + Clone> TxSafetyGate<DB> {
+impl<DB: Storage + LatestDataStorageRO + OnChainStorageRO + Clone> TransactionGate<DB> {
     /// Validate obviously incorrect transactions. It it is invalid returns error message.
     fn pass_transaction(&self, tx: &RpcOrNetworkInjectedTx) -> Result<(), ErrorObjectOwned> {
         let Some(latest_data) = self.db.latest_data() else {
@@ -267,6 +267,8 @@ impl<DB: Storage + LatestDataStorageRO + OnChainStorageRO + Clone> TxSafetyGate<
         Ok(())
     }
 
+    /// Check, that transaction's recipient exists in current validator set.
+    /// No make sense to pass this transaction futher, because of it won't reach some validator.
     fn recipient_exists(
         &self,
         latest_data: &LatestData,
@@ -276,7 +278,6 @@ impl<DB: Storage + LatestDataStorageRO + OnChainStorageRO + Clone> TxSafetyGate<
             .protocol_timelines
             .era_from_ts(latest_data.synced_block.header.timestamp);
 
-        // TODO kuzmindev: consider to add hashing validators by era.
         let Some(validators) = self.db.validators(current_era) else {
             tracing::warn!(era = %current_era, "not found validators");
             return Err(errors::db("not found validators in RPC database"));
@@ -308,7 +309,7 @@ impl<DB: Storage + LatestDataStorageRO + OnChainStorageRO + Clone> TxSafetyGate<
             .height
             .checked_sub(reference_block.height)
         else {
-            // Probably never happen.
+            // OK case. This may happen if switch to another branch with less head.height.
             return Ok(());
         };
 
@@ -338,7 +339,7 @@ mod tests {
 
         // Preparing db
         let reference_block = SimpleBlockData::mock(());
-        let mut latest_data = LatestData::default();
+        let mut latest_data = Default::default();
         latest_data.synced_block = reference_block.clone();
         db.set_latest_data(latest_data);
 
