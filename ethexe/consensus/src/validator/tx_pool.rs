@@ -77,10 +77,10 @@ where
                 continue;
             };
 
-            match tx_checker.check_tx_validity(&tx)? {
+            match tx_checker.check_tx_validity(tx_hash)? {
                 TxValidity::Valid => selected_txs.push(tx),
                 TxValidity::Duplicate => {
-                    // TODO kuzmindev: send result to submitter, that tx was already included.
+                    // TODO kuzmindev: send to submitter result, that tx was already included.
                 }
                 TxValidity::UnknownDestination => {
                     // TODO kuzmindev: also send to submitter result, that tx `destination` field is invalid.

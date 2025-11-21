@@ -29,7 +29,7 @@ use anyhow::{Result, anyhow};
 use ethexe_common::{
     Address, Announce, HashOf, SimpleBlockData,
     consensus::{VerifiedAnnounce, VerifiedValidationRequest},
-    db::OnChainStorageRO,
+    db::{InjectedStorageRW, OnChainStorageRO},
     injected::SignedInjectedTransaction,
     network::{AnnouncesRequest, CheckedAnnouncesResponse},
 };
@@ -235,13 +235,17 @@ impl ConsensusService for ConnectService {
     }
 
     fn receive_announce(&mut self, announce: VerifiedAnnounce) -> Result<()> {
-        let (announce, sender) = announce.clone().into_parts();
+        let (network_announce, sender) = announce.clone().into_parts();
+        let announce: Announce = Announce::from(&network_announce);
         let sender = sender.to_address();
 
         if let State::WaitingForAnnounce { block, producer } = &self.state
             && sender == *producer
             && announce.block_hash == block.hash
         {
+            for tx in &network_announce.injected_transactions {
+                self.db.set_injected_transaction(tx.clone());
+            }
             match announces::accept_announce(&self.db, announce.clone())? {
                 AnnounceStatus::Rejected { announce, reason } => {
                     tracing::warn!(
@@ -310,7 +314,13 @@ impl ConsensusService for ConnectService {
             &self.db,
             mem::take(chain),
             self.commitment_delay_limit,
-            announces.into_iter().map(|a| (a.to_hash(), a)).collect(),
+            announces
+                .into_iter()
+                .map(|a| {
+                    let announce: Announce = Announce::from(&a);
+                    (announce.to_hash(), announce)
+                })
+                .collect(),
         )?;
 
         self.process_after_propagation(block, producer);
