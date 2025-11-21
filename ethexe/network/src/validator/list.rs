@@ -16,9 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Validator-specific networking logic that verifies signed messages
-//! against on-chain state.
-
 use crate::validator::ValidatorDatabase;
 use anyhow::Context;
 use ethexe_common::{Address, BlockHeader, ProtocolTimelines, ValidatorsVec, db::OnChainStorageRO};
@@ -31,6 +28,7 @@ struct ChainHead {
     next_validators: Option<ValidatorsVec>,
 }
 
+/// Lightweight snapshot of [`ValidatorList`] to be used in other validator-related structures.
 #[derive(Debug)]
 pub(crate) struct ValidatorListSnapshot {
     pub chain_head_ts: u64,
@@ -65,14 +63,12 @@ impl ValidatorListSnapshot {
     }
 }
 
-/// Tracks validator-signed messages and admits each one once the on-chain
-/// context confirms it is timely and originates from a legitimate validator.
+/// Tracks current and next validator set around the latest known block.
 ///
-/// Legitimacy is checked via the `block` attached to
-/// [`ValidatorMessage`](ethexe_common::network::ValidatorMessage) and the
-/// validator-signed payload it carries. The hinted era must match the current
-/// chain head; eras N-1, N+2, N+3, and so on are dropped when the node is at era N.
-/// Messages from era N+1 are rechecked after the next validator set arrives.
+/// A new [`ValidatorListSnapshot`] is produced only when the chain head moves to
+/// a *strictly newer* era. Advancing within the same era (even if height
+/// increases) does not emit a snapshot, which keeps downstream components from
+/// reprocessing work unnecessarily.
 pub(crate) struct ValidatorList {
     timelines: ProtocolTimelines,
     db: Box<dyn ValidatorDatabase>,
@@ -114,7 +110,10 @@ impl ValidatorList {
 
     /// Refresh the current chain head and validator set snapshot.
     ///
-    /// Previously cached messages are rechecked once the new context is available.
+    /// Returns `Some(snapshot)` only when the supplied block belongs to a later
+    /// era than the current chain head. Blocks from the same or earlier era are
+    /// ignored to avoid redundant validator lookups. Downstream components can
+    /// use the returned snapshot to revalidate cached network messages.
     pub(crate) fn set_chain_head(
         &mut self,
         chain_head: H256,

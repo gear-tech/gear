@@ -16,6 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Validator-specific networking logic that verifies signed messages
+//! against on-chain state.
+
 use crate::{
     db_sync::PeerId,
     gossipsub::MessageAcceptance,
@@ -69,6 +72,14 @@ enum VerificationError {
     AddressIsNotValidator { address: Address },
 }
 
+/// Tracks validator-signed messages and admits each one once the on-chain
+/// context confirms it is timely and originates from a legitimate validator.
+///
+/// Legitimacy is checked via the `block` attached to
+/// [`ValidatorMessage`](ethexe_common::network::ValidatorMessage) and the
+/// validator-signed payload it carries. The hinted era must match the current
+/// chain head; eras N-1, N+2, N+3, and so on are dropped when the node is at era N.
+/// Messages from era N+1 are rechecked after the next validator set arrives.
 pub struct ValidatorTopic {
     cached_messages: CachedMessages,
     verified_messages: VecDeque<VerifiedValidatorMessage>,
@@ -144,6 +155,12 @@ impl ValidatorTopic {
         Ok(())
     }
 
+    /// Swap to a fresher validator snapshot and re-run cached messages when the
+    /// era advances.
+    ///
+    /// Cached messages are only revisited if the new snapshot represents a
+    /// strictly newer era than the one previously held; this prevents
+    /// unnecessary revalidation while height moves inside the same era.
     pub(crate) fn on_new_snapshot(&mut self, snapshot: Arc<ValidatorListSnapshot>) {
         let is_older_era = self.snapshot.is_older_era(&snapshot);
 
@@ -177,7 +194,10 @@ impl ValidatorTopic {
     /// Perform signature validation, chain context checks, and peer scoring.
     ///
     /// Returns the appropriate gossipsub acceptance outcome while optionally
-    /// caching messages that will become valid after the node catches up.
+    /// caching messages that can become valid once either the block header
+    /// arrives (`UnknownBlock`) or the node enters the hinted next era
+    /// (`NewEra`). All other mismatches are penalized via peer scoring and
+    /// rejected immediately.
     pub(crate) fn verify_message_initially(
         &mut self,
         source: PeerId,
