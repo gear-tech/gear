@@ -20,7 +20,6 @@ use crate::{
     Address, Announce, HashOf, NetworkAnnounce, ToDigest,
     consensus::{BatchCommitmentValidationReply, BatchCommitmentValidationRequest},
     ecdsa::{SignedData, VerifiedData},
-    injected::Promise,
 };
 use alloc::vec::Vec;
 use core::{hash::Hash, num::NonZeroU32};
@@ -31,7 +30,6 @@ use sha3::{Digest as _, Keccak256};
 pub type ValidatorAnnounce = ValidatorMessage<NetworkAnnounce>;
 pub type ValidatorRequest = ValidatorMessage<BatchCommitmentValidationRequest>;
 pub type ValidatorReply = ValidatorMessage<BatchCommitmentValidationReply>;
-pub type ValidatorPromise = ValidatorMessage<Promise>;
 
 #[derive(Debug, Clone, Encode, Decode, Eq, PartialEq, Hash)]
 pub struct ValidatorMessage<T> {
@@ -52,7 +50,6 @@ pub enum SignedValidatorMessage {
     Announce(SignedData<ValidatorAnnounce>),
     RequestBatchValidation(SignedData<ValidatorRequest>),
     ApproveBatch(SignedData<ValidatorReply>),
-    Promise(SignedData<ValidatorPromise>),
 }
 
 impl SignedValidatorMessage {
@@ -63,7 +60,6 @@ impl SignedValidatorMessage {
                 request.into_verified().into()
             }
             SignedValidatorMessage::ApproveBatch(reply) => reply.into_verified().into(),
-            SignedValidatorMessage::Promise(promise) => promise.into_verified().into(),
         }
     }
 }
@@ -74,7 +70,6 @@ pub enum VerifiedValidatorMessage {
     Announce(VerifiedData<ValidatorAnnounce>),
     RequestBatchValidation(VerifiedData<ValidatorRequest>),
     ApproveBatch(VerifiedData<ValidatorReply>),
-    Promise(VerifiedData<ValidatorPromise>),
 }
 
 impl VerifiedValidatorMessage {
@@ -83,7 +78,6 @@ impl VerifiedValidatorMessage {
             VerifiedValidatorMessage::Announce(announce) => announce.data().block,
             VerifiedValidatorMessage::RequestBatchValidation(request) => request.data().block,
             VerifiedValidatorMessage::ApproveBatch(reply) => reply.data().block,
-            VerifiedValidatorMessage::Promise(promise) => promise.data().block,
         }
     }
 
@@ -92,7 +86,6 @@ impl VerifiedValidatorMessage {
             VerifiedValidatorMessage::Announce(announce) => announce.address(),
             VerifiedValidatorMessage::RequestBatchValidation(request) => request.address(),
             VerifiedValidatorMessage::ApproveBatch(reply) => reply.address(),
-            VerifiedValidatorMessage::Promise(promise) => promise.address(),
         }
     }
 }

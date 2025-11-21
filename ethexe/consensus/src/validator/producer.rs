@@ -30,7 +30,7 @@ use ethexe_common::{
     Announce, HashOf, NetworkAnnounce, SimpleBlockData, ValidatorsVec,
     db::{AnnounceStorageRO, BlockMetaStorageRO, InjectedStorageRO},
     gear::BatchCommitment,
-    network::{SignedValidatorMessage, ValidatorMessage, ValidatorPromise},
+    network::ValidatorMessage,
 };
 use ethexe_service_utils::Timer;
 use futures::{FutureExt, future::BoxFuture};
@@ -92,26 +92,22 @@ impl StateHandler for Producer {
                         tracing::warn!(?tx_hash, "Not found injected transaction body");
                         continue;
                     };
-                    let payload_hash = tx.data().to_hash();
 
-                    let Some(promise) = self.ctx.core.db.promise(payload_hash) else {
-                        tracing::warn!(payload_hash = ?payload_hash, "Not found promise for injected transaction");
+                    let Some(promise) = self.ctx.core.db.promise(tx.data().to_hash()) else {
+                        tracing::warn!(
+                            payload_hash = ?tx.data().to_hash(),
+                            "Not found promise for injected transaction"
+                        );
                         continue;
                     };
 
-                    let validator_promise = ValidatorPromise {
-                        block: announce.block_hash,
-                        payload: promise,
-                    };
                     let signed_promise = self
                         .ctx
                         .core
                         .signer
-                        .signed_data(self.ctx.core.pub_key, validator_promise)?;
+                        .signed_data(self.ctx.core.pub_key, promise)?;
 
-                    self.ctx.output(ConsensusEvent::PublishMessage(
-                        SignedValidatorMessage::Promise(signed_promise),
-                    ));
+                    self.ctx.output(ConsensusEvent::Promise(signed_promise));
                 }
 
                 self.state = State::AggregateBatchCommitment {

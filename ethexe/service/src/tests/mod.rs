@@ -40,7 +40,7 @@ use ethexe_common::{
     gear::{BatchCommitment, CANONICAL_QUARANTINE, MessageType},
     injected::{InjectedTransaction, RpcOrNetworkInjectedTx},
     mock::*,
-    network::{SignedValidatorMessage, ValidatorMessage},
+    network::ValidatorMessage,
 };
 use ethexe_compute::ComputeConfig;
 use ethexe_consensus::{BatchCommitter, ConsensusEvent};
@@ -2455,11 +2455,8 @@ async fn injected_tx_fungible_token() {
     // Listen for inclusion and check the expected payload.
     node.listener()
         .apply_until(|event| {
-            if let TestingEvent::Consensus(ConsensusEvent::PublishMessage(
-                SignedValidatorMessage::Promise(promise),
-            )) = event
-            {
-                let promise = promise.into_data().payload;
+            if let TestingEvent::Consensus(ConsensusEvent::Promise(promise)) = event {
+                let promise = promise.into_data();
                 assert_eq!(promise.reply.payload, expected_event.encode());
                 assert_eq!(
                     promise.reply.code,
