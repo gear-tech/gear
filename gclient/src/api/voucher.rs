@@ -56,7 +56,7 @@ impl GearApi {
 
         let tx = self
             .0
-            .calls
+            .calls()
             .issue_voucher(spender, balance, programs, code_uploading, duration)
             .await?;
 
@@ -110,7 +110,7 @@ impl GearApi {
 
         let tx = self
             .0
-            .calls
+            .calls()
             .update_voucher(
                 spender,
                 voucher_id,
@@ -153,7 +153,7 @@ impl GearApi {
     ) -> Result<(VoucherId, H256)> {
         let spender: [u8; 32] = spender.into();
 
-        let tx = self.0.calls.revoke_voucher(spender, voucher_id).await?;
+        let tx = self.0.calls().revoke_voucher(spender, voucher_id).await?;
 
         for event in tx.wait_for_success().await?.iter() {
             if let Event::GearVoucher(VoucherEvent::VoucherRevoked { voucher_id, .. }) =
@@ -174,7 +174,7 @@ impl GearApi {
     /// Arguments:
     /// * voucher_id:   voucher id to be declined.
     pub async fn decline_voucher(&self, voucher_id: VoucherId) -> Result<(VoucherId, H256)> {
-        let tx = self.0.calls.decline_voucher(voucher_id).await?;
+        let tx = self.0.calls().decline_voucher(voucher_id).await?;
 
         for event in tx.wait_for_success().await?.iter() {
             if let Event::GearVoucher(VoucherEvent::VoucherDeclined { voucher_id, .. }) =
@@ -194,7 +194,7 @@ impl GearApi {
     ) -> Result<(VoucherId, H256)> {
         let tx = self
             .0
-            .calls
+            .calls()
             .decline_voucher_with_voucher(voucher_id)
             .await?;
 
