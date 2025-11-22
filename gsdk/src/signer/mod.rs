@@ -25,7 +25,7 @@ pub use pair_signer::PairSigner;
 use rpc::SignerRpc;
 use sp_core::{Pair as PairT, crypto::Ss58Codec, sr25519::Pair};
 use sp_runtime::AccountId32;
-use std::sync::Arc;
+use std::{borrow::Cow, sync::Arc};
 use storage::SignerStorage;
 
 mod calls;
@@ -40,15 +40,7 @@ mod utils;
 /// Other higher-level calls are provided by [`Signer::storage`],
 /// [`Signer::calls`], [`Signer::rpc`].
 #[derive(Clone)]
-pub struct Signer {
-    signer: Arc<Inner>,
-    /// Calls that get or set storage.
-    pub storage: SignerStorage,
-    /// Calls for interaction with on-chain programs.
-    pub calls: SignerCalls,
-    /// Calls to fetch data from node.
-    pub rpc: SignerRpc,
-}
+pub struct Signer(Arc<Inner>);
 
 /// Implementation of low-level calls for [`Signer`].
 #[derive(Clone)]
@@ -61,9 +53,24 @@ pub struct Inner {
 }
 
 impl Signer {
+    /// Returns signer's storage calls handle.
+    pub fn storage(&self) -> SignerStorage<'_> {
+        SignerStorage(Cow::Borrowed(&self.0))
+    }
+
+    /// Returns signer's RPC calls handle.
+    pub fn rpc(&self) -> SignerRpc<'_> {
+        SignerRpc(Cow::Borrowed(&self.0))
+    }
+
+    /// Returns signer's calls handle.
+    pub fn calls(&self) -> SignerCalls<'_> {
+        SignerCalls(Cow::Borrowed(&self.0))
+    }
+
     /// Get backtrace of the signer.
     pub fn backtrace(&self) -> Backtrace {
-        self.calls.0.backtrace.clone()
+        self.0.backtrace.clone()
     }
 
     /// New signer api.
@@ -79,31 +86,14 @@ impl Signer {
     }
 
     fn from_inner(signer: Inner) -> Self {
-        let signer = Arc::new(signer);
-
-        Self {
-            storage: SignerStorage(signer.clone()),
-            calls: SignerCalls(signer.clone()),
-            rpc: SignerRpc(signer.clone()),
-            signer,
-        }
+        Self(Arc::new(signer))
     }
 
     fn replace_inner(&mut self, mut inner: Inner) {
         let backtrace = self.backtrace();
         inner.backtrace = backtrace;
 
-        let Signer {
-            signer,
-            storage,
-            calls,
-            rpc,
-        } = self;
-
-        *signer = Arc::new(inner);
-        *storage = SignerStorage(signer.clone());
-        *calls = SignerCalls(signer.clone());
-        *rpc = SignerRpc(signer.clone());
+        self.0 = Arc::new(inner);
     }
 
     /// Change inner signer.
@@ -112,7 +102,7 @@ impl Signer {
 
         self.replace_inner(Inner {
             signer,
-            ..self.signer.as_ref().clone()
+            ..self.0.as_ref().clone()
         });
 
         Ok(self)
@@ -122,7 +112,7 @@ impl Signer {
     pub fn set_nonce(&mut self, nonce: u64) {
         self.replace_inner(Inner {
             nonce: Some(nonce),
-            ..self.signer.as_ref().clone()
+            ..self.0.as_ref().clone()
         });
     }
 }
@@ -165,6 +155,6 @@ impl Deref for Signer {
     type Target = Inner;
 
     fn deref(&self) -> &Inner {
-        self.signer.as_ref()
+        &self.0
     }
 }
