@@ -39,7 +39,7 @@ use crate::{
 };
 use gear_core::{
     code::{CodeMetadata, InstrumentedCode},
-    ids::*,
+    ids::{ActorId, CodeId, MessageId},
     message::UserStoredMessage,
     program::MemoryInfix,
 };
@@ -90,14 +90,8 @@ impl Api {
     where
         Addr: Address<IsFetchable = Yes> + 'a,
     {
-        let client = self.storage();
-        let storage = if let Some(h) = block_hash {
-            client.at(h)
-        } else {
-            client.at_latest().await?
-        };
-
-        storage
+        self.storage_at(block_hash)
+            .await?
             .fetch(address)
             .await?
             .ok_or(Error::StorageEntryNotFound)
@@ -225,22 +219,20 @@ impl Api {
 impl Api {
     /// Check whether the message queue processing is stopped or not.
     pub async fn execute_inherent(&self) -> Result<bool> {
-        let addr = gear::storage().gear().execute_inherent();
         Ok(self
             .storage()
             .at_latest()
             .await?
-            .fetch_or_default(&addr)
+            .fetch_or_default(&gear::storage().gear().execute_inherent())
             .await?)
     }
 
     /// Get gear block number.
     pub async fn gear_block_number(&self, block_hash: Option<H256>) -> Result<BlockNumber> {
-        let addr = gear::storage().gear().block_number();
         Ok(self
             .storage_at(block_hash)
             .await?
-            .fetch_or_default(&addr)
+            .fetch_or_default(&gear::storage().gear().block_number())
             .await?)
     }
 }

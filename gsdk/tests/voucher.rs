@@ -18,7 +18,8 @@
 
 use gear_core::ids::{ActorId, CodeId, MessageId, prelude::CodeIdExt};
 use gsdk::{
-    Api, Event, Result, TxInBlock, gear::runtime_types::pallet_gear_voucher::internal::VoucherId,
+    Api, AsGear, Event, Result, TxInBlock,
+    gear::runtime_types::pallet_gear_voucher::internal::VoucherId,
 };
 use sp_core::crypto::Ss58Codec;
 use sp_runtime::AccountId32;
@@ -216,7 +217,7 @@ async fn get_issued_voucher_id(tx: TxInBlock) -> Result<VoucherId> {
                 voucher_id,
                 ..
             },
-        ) = event?.as_root_event::<Event>()?
+        ) = event?.as_gear()?
         {
             dbg!(&voucher_id);
             return Ok(voucher_id);
@@ -230,7 +231,7 @@ async fn get_last_code_id(tx: TxInBlock) -> Result<CodeId> {
         if let Event::Gear(gsdk::gear::runtime_types::pallet_gear::pallet::Event::CodeChanged {
             id,
             change: gsdk::gear::runtime_types::gear_common::event::CodeChangeKind::Active { .. },
-        }) = event?.as_root_event::<Event>()?
+        }) = event?.as_gear()?
         {
             return Ok(id);
         }
@@ -248,7 +249,7 @@ async fn get_last_program_id(tx: TxInBlock) -> Result<ActorId> {
                         ..
                     },
             },
-        ) = event?.as_root_event::<Event>()?
+        ) = event?.as_gear()?
         {
             return Ok(id);
         }
@@ -261,7 +262,7 @@ async fn get_last_message_id(tx: TxInBlock) -> Result<MessageId> {
         if let Event::Gear(gsdk::gear::runtime_types::pallet_gear::pallet::Event::MessageQueued {
             id,
             ..
-        }) = event?.as_root_event::<Event>()?
+        }) = event?.as_gear()?
         {
             return Ok(id);
         }
@@ -276,7 +277,7 @@ async fn get_declined_voucher_id(tx: TxInBlock) -> Result<VoucherId> {
                 voucher_id,
                 ..
             },
-        ) = event?.as_root_event::<Event>()?
+        ) = event?.as_gear()?
         {
             return Ok(voucher_id);
         }
@@ -291,7 +292,7 @@ async fn get_revoked_voucher_id(tx: TxInBlock) -> Result<VoucherId> {
                 voucher_id,
                 ..
             },
-        ) = event?.as_root_event::<Event>()?
+        ) = event?.as_gear()?
         {
             return Ok(voucher_id);
         }
