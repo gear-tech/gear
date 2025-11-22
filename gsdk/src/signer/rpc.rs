@@ -23,14 +23,21 @@ use gear_core::{
     ids::{ActorId, CodeId, MessageId},
     rpc::ReplyInfo,
 };
-use std::sync::Arc;
+use std::{borrow::Cow, sync::Arc};
 use subxt::utils::H256;
 
 /// Implementation of calls to node RPC for [`Signer`].
 #[derive(Clone)]
-pub struct SignerRpc(pub(crate) Arc<Inner>);
+pub struct SignerRpc<'a>(pub(crate) Cow<'a, Arc<Inner>>);
 
-impl SignerRpc {
+impl SignerRpc<'_> {
+    /// Converts a borrowed [`SignerRpc`] into an owned [`SignerRpc`].
+    pub fn into_owned(self) -> SignerRpc<'static> {
+        SignerRpc(Cow::Owned(self.0.into_owned()))
+    }
+}
+
+impl SignerRpc<'_> {
     /// public key of the signer in H256
     pub fn source(&self) -> H256 {
         AsRef::<[u8; 32]>::as_ref(self.0.account_id()).into()
