@@ -32,7 +32,7 @@
 pub use crate::{
     api::{Api, ApiBuilder},
     config::GearConfig,
-    convert::{IntoSubstrate, IntoSubxt},
+    convert::{AsGear, IntoSubstrate, IntoSubxt},
     gear::{Event, runtime_types::vara_runtime::RuntimeError},
     result::{Error, Result},
     signer::PairSigner,
@@ -64,7 +64,6 @@ pub mod backtrace;
 pub mod config;
 mod convert;
 pub mod events;
-pub mod prelude;
 pub mod result;
 mod rpc;
 pub mod signer;

@@ -20,6 +20,7 @@ use super::{GearApi, Result};
 use crate::Error;
 use gear_core::ids::ActorId;
 use gsdk::{
+    AsGear,
     ext::subxt::utils::H256,
     gear::{
         Event,
@@ -61,7 +62,7 @@ impl GearApi {
 
         for event in tx.wait_for_success().await?.iter() {
             if let Event::GearVoucher(VoucherEvent::VoucherIssued { voucher_id, .. }) =
-                event?.as_root_event::<Event>()?
+                event?.as_gear()?
             {
                 return Ok((voucher_id, tx.block_hash()));
             }
@@ -123,7 +124,7 @@ impl GearApi {
 
         for event in tx.wait_for_success().await?.iter() {
             if let Event::GearVoucher(VoucherEvent::VoucherUpdated { voucher_id, .. }) =
-                event?.as_root_event::<Event>()?
+                event?.as_gear()?
             {
                 return Ok((voucher_id, tx.block_hash()));
             }
@@ -156,7 +157,7 @@ impl GearApi {
 
         for event in tx.wait_for_success().await?.iter() {
             if let Event::GearVoucher(VoucherEvent::VoucherRevoked { voucher_id, .. }) =
-                event?.as_root_event::<Event>()?
+                event?.as_gear()?
             {
                 return Ok((voucher_id, tx.block_hash()));
             }
@@ -177,7 +178,7 @@ impl GearApi {
 
         for event in tx.wait_for_success().await?.iter() {
             if let Event::GearVoucher(VoucherEvent::VoucherDeclined { voucher_id, .. }) =
-                event?.as_root_event::<Event>()?
+                event?.as_gear()?
             {
                 return Ok((voucher_id, tx.block_hash()));
             }
@@ -199,7 +200,7 @@ impl GearApi {
 
         for event in tx.wait_for_success().await?.iter() {
             if let Event::GearVoucher(VoucherEvent::VoucherDeclined { voucher_id, .. }) =
-                event?.as_root_event::<Event>()?
+                event?.as_gear()?
             {
                 return Ok((voucher_id, tx.block_hash()));
             }

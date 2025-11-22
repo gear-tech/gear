@@ -20,7 +20,7 @@
 
 use super::Inner;
 use crate::{
-    Error, TxInBlock, TxStatus,
+    AsGear, Error, TxInBlock, TxStatus,
     backtrace::BacktraceStatus,
     config::GearConfig,
     gear::{
@@ -151,7 +151,7 @@ impl Inner {
         let tx = self.process(call).await?;
         let events = tx.wait_for_success().await?;
         for event in events.iter() {
-            let event = event?.as_root_event::<RuntimeEvent>()?;
+            let event = event?.as_gear()?;
             if let RuntimeEvent::Sudo(sudo::Event::Sudid {
                 sudo_result: Err(err),
             }) = event
