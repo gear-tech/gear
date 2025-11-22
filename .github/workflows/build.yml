@@ -61,7 +61,7 @@ jobs:
             {
               name: "linux-x86_64",
               target: "x86_64-unknown-linux-gnu",
-              "runs-on": "ubuntu-24.04-arm"
+              "runs-on": "ubuntu-latest"
             }
           ]')
           unix_targets="[]"
