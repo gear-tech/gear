@@ -28,20 +28,6 @@ use subxt::{
 };
 
 impl Api {
-    /// compare gas limit
-    pub fn cmp_gas_limit(&self, gas: u64) -> Result<u64> {
-        if let Ok(limit) = self.gas_limit() {
-            Ok(if gas > limit {
-                log::warn!("gas limit too high, use {limit} from the chain config");
-                limit
-            } else {
-                gas
-            })
-        } else {
-            Ok(gas)
-        }
-    }
-
     /// Decode `DispatchError` to `subxt::error::Error`.
     pub fn decode_error(&self, dispatch_error: DispatchError) -> Error {
         match SubxtDispatchError::decode_from(dispatch_error.encode(), self.metadata()) {
