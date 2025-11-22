@@ -232,7 +232,9 @@ async fn test_upload_failed() -> anyhow::Result<()> {
     assert!(
         matches!(
             err,
-            Error::Runtime(gear::Error::Gear(gear::gear::Error::GasLimitTooHigh))
+            Error::GearSDK(gsdk::Error::Runtime(gear::Error::Gear(
+                gear::gear::Error::GasLimitTooHigh
+            )))
         ),
         "{err:?}"
     );
