@@ -56,6 +56,13 @@ jobs:
               "runs-on": ["kuberunner", "github-runner-02"]
             }
           ]')
+          ethexe_targets=$(jq -c -n '[
+            {
+              name: "linux-x86_64",
+              target: "x86_64-unknown-linux-gnu",
+              "runs-on": "ubuntu-24.04-arm"
+            }
+          ]')
           unix_targets="[]"
 
           if ${{ inputs.macos }}; then
@@ -72,6 +79,7 @@ jobs:
               }
             ]'
             targets=$(echo "$targets" | jq -c ". += $macos")
+            ethexe_targets=$(echo "$ethexe_targets" | jq -c ". += $macos")
             unix_targets=$(echo "$unix_targets" | jq -c ". += $macos")
           fi
 
@@ -84,6 +92,7 @@ jobs:
               }
             ]'
             targets=$(echo "$targets" | jq -c ". += $linux_aarch64")
+            ethexe_targets=$(echo "$ethexe_targets" | jq -c ". += $linux_aarch64")
             unix_targets=$(echo "$unix_targets" | jq -c ". += $linux_aarch64")
           fi
 
@@ -95,10 +104,20 @@ jobs:
                 "runs-on": ["kuberunner", "github-runner-02"]
               }
             ]')
+            ethexe_targets=$(echo "$ethexe_targets" | jq -c '. += [
+              {
+                name: "windows-x86_64",
+                target: "x86_64-pc-windows-msvc",
+                "runs-on": "ubuntu-24.04-arm"
+              }
+            ]')
           fi
 
           echo "Targets: ${targets}"
           echo "targets=${targets}" >> $GITHUB_OUTPUT
+
+          echo "ethexe targets: ${ethexe_targets}"
+          echo "ethexe-targets=${ethexe_targets}" >> $GITHUB_OUTPUT
 
           echo "*NIX targets: ${unix_targets}"
           echo "unix-targets=${unix_targets}" >> $GITHUB_OUTPUT
@@ -155,8 +174,8 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        targets: ${{ fromJSON(needs.dynamic-matrix.outputs.targets) }}
-    runs-on: ubuntu-latest
+        targets: ${{ fromJSON(needs.dynamic-matrix.outputs.ethexe-targets) }}
+    runs-on: ${{ matrix.targets.runs-on }}
     name: ethexe-cli (${{ matrix.targets.name }})
     steps:
       - name: "ACTIONS: Checkout"
@@ -187,11 +206,11 @@ jobs:
       - name: "Build: ethexe node"
         run: ./scripts/gear.sh build ethexe --release --locked
 
-      - name: "ACTIONS: Upload node and VARA runtime"
+      - name: "ACTIONS: Upload ethexe node"
         uses: actions/upload-artifact@v4
         with:
           name: ethexe-cli-release-${{ matrix.targets.target }}
-          path: target/${{ matrix.targets.target }}/release/gear*
+          path: target/${{ matrix.targets.target }}/release/ethexe*
 
   docs:
     needs: gear-cli
