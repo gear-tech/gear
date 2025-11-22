@@ -38,6 +38,7 @@ jobs:
       profiles: ${{ steps.profiles.outputs.value }}
       targets: ${{ steps.targets.outputs.targets }}
       unix-targets: ${{ steps.targets.outputs.unix-targets }}
+      ethexe-targets: ${{ steps.targets.outputs.ethexe-targets }}
     steps:
       - id: profiles
         run: |
