@@ -32,7 +32,7 @@ use crate::{
     signer::SignerRpc,
 };
 use colored::Colorize;
-use std::sync::Arc;
+use std::{borrow::Cow, sync::Arc};
 use subxt::{
     OnlineClient,
     blocks::ExtrinsicEvents,
@@ -46,8 +46,8 @@ pub type EventsResult = Result<(H256, ExtrinsicEvents<GearConfig>)>;
 
 impl Inner {
     /// Logging balance spent
-    pub async fn log_balance_spent(&self, before: u128) -> Result<()> {
-        let signer_rpc = SignerRpc(Arc::new(self.clone()));
+    pub async fn log_balance_spent(self: &Arc<Self>, before: u128) -> Result<()> {
+        let signer_rpc = SignerRpc(Cow::Borrowed(self));
         match signer_rpc.get_balance().await {
             Ok(balance) => {
                 let after = before.saturating_sub(balance);
@@ -82,8 +82,8 @@ impl Inner {
     }
 
     /// Listen transaction process and print logs.
-    pub async fn process<Call: Payload>(&self, call: Call) -> Result<TxInBlock> {
-        let signer_rpc = SignerRpc(Arc::new(self.clone()));
+    pub async fn process<Call: Payload>(self: &Arc<Self>, call: Call) -> Result<TxInBlock> {
+        let signer_rpc = SignerRpc(Cow::Borrowed(self));
         let before = signer_rpc.get_balance().await?;
 
         let mut process = self.sign_and_submit_then_watch(&call).await?;
@@ -147,7 +147,7 @@ impl Inner {
     }
 
     /// Process sudo transaction.
-    pub async fn process_sudo<Call: Payload>(&self, call: Call) -> EventsResult {
+    pub async fn process_sudo<Call: Payload>(self: &Arc<Self>, call: Call) -> EventsResult {
         let tx = self.process(call).await?;
         let events = tx.wait_for_success().await?;
         for event in events.iter() {
@@ -202,23 +202,23 @@ impl Inner {
     ///
     /// // ...
     /// ```
-    pub async fn run_tx<Call: Payload>(&self, call: Call) -> Result<TxInBlock> {
+    pub async fn run_tx<Call: Payload>(self: &Arc<Self>, call: Call) -> Result<TxInBlock> {
         self.process(call).await
     }
 
     /// Run transaction with sudo.
-    pub async fn sudo_run_tx<Call: Payload>(&self, call: Call) -> EventsResult {
+    pub async fn sudo_run_tx<Call: Payload>(self: &Arc<Self>, call: Call) -> EventsResult {
         self.process_sudo(call).await
     }
 
     /// `pallet_sudo::sudo`
-    pub async fn sudo(&self, call: RuntimeCall) -> EventsResult {
+    pub async fn sudo(self: &Arc<Self>, call: RuntimeCall) -> EventsResult {
         self.sudo_run_tx(gear::tx().sudo().sudo(call)).await
     }
 
     /// Wrapper for submit and watch with nonce.
     async fn sign_and_submit_then_watch<Call: Payload>(
-        &self,
+        self: &Arc<Self>,
         call: &Call,
     ) -> Result<TxProgress, subxt::Error> {
         if let Some(nonce) = self.nonce {

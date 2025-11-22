@@ -99,19 +99,19 @@ async fn test_calculate_create_gas() -> Result<()> {
         .await?
         .signer("//Alice", None)?;
     signer
-        .calls
+        .calls()
         .upload_code(demo_messenger::WASM_BINARY.to_vec())
         .await?;
 
     // 2. calculate create gas and create program.
     let code_id = CodeId::generate(demo_messenger::WASM_BINARY);
     let gas_info = signer
-        .rpc
+        .rpc()
         .calculate_create_gas(None, code_id, vec![], 0, true, None)
         .await?;
 
     signer
-        .calls
+        .calls()
         .create_program(code_id, vec![], vec![], gas_info.min_limit, 0)
         .await?;
 
@@ -131,7 +131,7 @@ async fn test_calculate_handle_gas() -> Result<()> {
         .signer("//Alice", None)?;
 
     signer
-        .calls
+        .calls()
         .upload_program(
             demo_messenger::WASM_BINARY.to_vec(),
             salt,
@@ -148,12 +148,12 @@ async fn test_calculate_handle_gas() -> Result<()> {
 
     // 2. calculate handle gas and send message.
     let gas_info = signer
-        .rpc
+        .rpc()
         .calculate_handle_gas(None, pid, vec![], 0, true, None)
         .await?;
 
     signer
-        .calls
+        .calls()
         .send_message(pid, vec![], gas_info.min_limit, 0)
         .await?;
 
@@ -176,7 +176,7 @@ async fn test_calculate_reply_gas() -> Result<()> {
         .await?
         .signer("//Alice", None)?;
     signer
-        .calls
+        .calls()
         .upload_program(
             demo_waiter::WASM_BINARY.to_vec(),
             salt,
@@ -193,7 +193,7 @@ async fn test_calculate_reply_gas() -> Result<()> {
 
     // 2. send wait message.
     signer
-        .calls
+        .calls()
         .send_message(pid, payload.encode(), 100_000_000_000, 0)
         .await?;
 
@@ -206,12 +206,12 @@ async fn test_calculate_reply_gas() -> Result<()> {
 
     // 3. calculate reply gas and send reply.
     let gas_info = signer
-        .rpc
+        .rpc()
         .calculate_reply_gas(None, message_id, vec![], 0, true, None)
         .await?;
 
     signer
-        .calls
+        .calls()
         .send_reply(message_id, vec![], gas_info.min_limit, 0)
         .await?;
 
@@ -229,7 +229,7 @@ async fn test_subscribe_program_state_changes() -> Result<()> {
     let salt = b"state-change".to_vec();
 
     let tx = signer
-        .calls
+        .calls()
         .upload_program(
             demo_messenger::WASM_BINARY.to_vec(),
             salt,
@@ -369,7 +369,7 @@ async fn test_original_code_storage() -> Result<()> {
         .signer("//Alice", None)?;
 
     signer
-        .calls
+        .calls()
         .upload_program(
             demo_messenger::WASM_BINARY.to_vec(),
             salt,
@@ -433,7 +433,7 @@ async fn test_calculate_reply_for_handle() -> Result<()> {
     let payload = InitConfig::test_sequence().encode();
 
     signer
-        .calls
+        .calls()
         .upload_program(WASM_BINARY.to_vec(), salt, payload, 100_000_000_000, 0)
         .await?;
 
@@ -448,7 +448,7 @@ async fn test_calculate_reply_for_handle() -> Result<()> {
 
     // 2. calculate reply for handle
     let reply_info = signer
-        .rpc
+        .rpc()
         .calculate_reply_for_handle(None, pid, message_in.encode(), 100_000_000_000, 0, None)
         .await?;
 
@@ -478,7 +478,7 @@ async fn test_calculate_reply_for_handle_does_not_change_state() -> Result<()> {
         .signer("//Alice", None)?;
 
     signer
-        .calls
+        .calls()
         .upload_program(
             demo_vec::WASM_BINARY.to_vec(),
             salt,
@@ -499,7 +499,7 @@ async fn test_calculate_reply_for_handle_does_not_change_state() -> Result<()> {
 
     // 3. calculate reply for handle
     let reply_info = signer
-        .rpc
+        .rpc()
         .calculate_reply_for_handle(None, pid, 42i32.encode(), 100_000_000_000, 0, None)
         .await?;
 
@@ -521,7 +521,7 @@ async fn test_calculate_reply_for_handle_does_not_change_state() -> Result<()> {
 
     // 7. make call
     signer
-        .calls
+        .calls()
         .send_message(pid, 42i32.encode(), 100_000_000_000, 0)
         .await?;
 
