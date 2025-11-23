@@ -8,7 +8,6 @@ import {Script, console} from "forge-std/Script.sol";
 import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 import {WrappedVara} from "../src/WrappedVara.sol";
 
-import {Middleware} from "../src/Middleware.sol";
 import {MockMiddleware} from "../src/mocks/MockMiddleware.sol";
 import {IMiddleware} from "../src/IMiddleware.sol";
 import {
