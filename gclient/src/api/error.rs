@@ -38,14 +38,6 @@ pub enum Error {
     /// Occurs when events are stopped. Unreachable.
     #[error("Events stopped (unreachable")]
     EventsStopped,
-    /// A wrapper around [subxt::Error].
-    ///
-    /// [subxt::error]: `gsdk::ext::subxt::Error`
-    #[error(transparent)]
-    Subxt(#[from] Box<SubxtError>),
-    /// Subxt core error
-    #[error(transparent)]
-    SubxtCore(#[from] Box<gsdk::ext::subxt_core::Error>),
     /// Occurs when an event of the expected type cannot be found.
     #[error("Expected event wasn't found")]
     EventNotFound,
@@ -98,14 +90,20 @@ pub enum Error {
     Url(#[from] url::ParseError),
 }
 
-impl From<SubxtError> for Error {
-    fn from(e: SubxtError) -> Self {
-        Error::Subxt(Box::new(e))
+impl From<gsdk::ext::subxt_core::Error> for Error {
+    fn from(err: gsdk::ext::subxt_core::Error) -> Self {
+        Self::GearSDK(SubxtError::from(err).into())
     }
 }
 
-impl From<gsdk::ext::subxt_core::Error> for Error {
-    fn from(value: gsdk::ext::subxt_core::Error) -> Self {
-        Self::SubxtCore(Box::new(value))
+impl From<SubxtError> for Error {
+    fn from(err: SubxtError) -> Self {
+        Self::GearSDK(err.into())
+    }
+}
+
+impl From<Box<SubxtError>> for Error {
+    fn from(err: Box<SubxtError>) -> Self {
+        Self::GearSDK(err.into())
     }
 }
