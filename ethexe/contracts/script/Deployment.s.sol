@@ -9,6 +9,7 @@ import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 import {WrappedVara} from "../src/WrappedVara.sol";
 
 import {Middleware} from "../src/Middleware.sol";
+import {MockMiddleware} from "../src/mocks/MockMiddleware.sol";
 import {IMiddleware} from "../src/IMiddleware.sol";
 import {
     IDefaultOperatorRewardsFactory
@@ -18,7 +19,7 @@ contract DeploymentScript is Script {
     WrappedVara public wrappedVara;
     Router public router;
     Mirror public mirror;
-    Middleware public middleware;
+    MockMiddleware public middleware;
 
     function setUp() public {}
 
@@ -39,7 +40,7 @@ contract DeploymentScript is Script {
         );
 
         address mirrorAddress = vm.computeCreateAddress(deployerAddress, vm.getNonce(deployerAddress) + 2);
-        address middlewareAddress = vm.computeCreateAddress(deployerAddress, vm.getNonce(deployerAddress) + 3);
+        address middlewareAddress = vm.computeCreateAddress(deployerAddress, vm.getNonce(deployerAddress) + 5);
 
         router = Router(
             payable(Upgrades.deployTransparentProxy(
@@ -99,13 +100,14 @@ contract DeploymentScript is Script {
                 symbiotic: symbiotic
             });
 
-            middleware = Middleware(
+            middleware = MockMiddleware(
                 Upgrades.deployTransparentProxy(
-                    "Middleware.sol", deployerAddress, abi.encodeCall(Middleware.initialize, (initParams))
+                    "MockMiddleware.sol", deployerAddress, abi.encodeCall(MockMiddleware.initialize, (initParams))
                 )
             );
-
             vm.assertEq(middlewareAddress, address(middleware));
+
+            middleware.setValidators(validatorsArray);
         }
 
         if (vm.envExists("SENDER_ADDRESS")) {
