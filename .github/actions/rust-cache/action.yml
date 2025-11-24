@@ -16,10 +16,10 @@ inputs:
   key:
     required: false
     description: Cache key
-  cache-all-crates:
+  cache-workspace-crates:
     required: false
     default: "true"
-    description: Whether to cache every crate
+    description: Whether to cache workspace crates
 
 runs:
   using: composite
@@ -67,6 +67,6 @@ runs:
           utils/wasm-builder/test-program -> target
           utils/cargo-gbuild/test-program -> target
         cache-provider: "s3"
-        cache-all-crates: ${{ inputs.cache-all-crates }}
+        cache-workspace-crates: ${{ inputs.cache-workspace-crates }}
       env:
         RUNS_ON_S3_BUCKET_CACHE: gear-ci
