@@ -18,6 +18,7 @@ inputs:
     description: Cache key
   cache-all-crates:
     required: false
+    default: "true"
     description: Whether to cache every crate
 
 runs:
@@ -59,13 +60,13 @@ runs:
 
     - uses: gear-tech/rust-cache@wasm
       with:
-        prefix-key: 'rust-cache/date-${{ steps.date.outputs.value }}'
+        prefix-key: "rust-cache/date-${{ steps.date.outputs.value }}"
         key: ${{ inputs.key }}
         workspaces: |
           . -> target
           utils/wasm-builder/test-program -> target
           utils/cargo-gbuild/test-program -> target
-        cache-provider: 's3'
+        cache-provider: "s3"
         cache-all-crates: ${{ inputs.cache-all-crates }}
       env:
         RUNS_ON_S3_BUCKET_CACHE: gear-ci
