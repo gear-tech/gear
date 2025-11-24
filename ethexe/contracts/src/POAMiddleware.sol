@@ -2,20 +2,19 @@
 pragma solidity ^0.8.28;
 
 import {EnumerableMap} from "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
-import {Gear} from "../libraries/Gear.sol";
+import {Gear} from "./libraries/Gear.sol";
 
-import {IMiddleware} from "../IMiddleware.sol";
+import {IMiddleware} from "./IMiddleware.sol";
 import {Subnetwork} from "symbiotic-core/src/contracts/libraries/Subnetwork.sol";
 
-import {MapWithTimeData} from "../libraries/MapWithTimeData.sol";
-import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
+import {MapWithTimeData} from "./libraries/MapWithTimeData.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {
     ReentrancyGuardTransientUpgradeable
 } from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardTransientUpgradeable.sol";
 import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
 
-contract MockMiddleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransientUpgradeable {
+contract POAMiddleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransientUpgradeable {
     using EnumerableMap for EnumerableMap.AddressToUintMap;
     using MapWithTimeData for EnumerableMap.AddressToUintMap;
 
@@ -60,13 +59,6 @@ contract MockMiddleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTrans
         $.router = _params.router;
 
         $.symbiotic = _params.symbiotic;
-    }
-
-    function setValidators(address[] memory validators) external onlyOwner {
-        Storage storage $ = _storage();
-        for (uint256 i = 0; i < validators.length; i++) {
-            $.operators.append(validators[i], 0);
-        }
     }
 
     /// @custom:oz-upgrades-validate-as-initializer
@@ -161,7 +153,46 @@ contract MockMiddleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTrans
         return _storage().symbiotic;
     }
 
-    // # Calls.
+    // # POA Middleware allowed calls.
+
+    function setValidators(address[] memory validators) external onlyOwner {
+        Storage storage $ = _storage();
+        for (uint256 i = 0; i < validators.length; i++) {
+            $.operators.append(validators[i], 0);
+        }
+    }
+
+    function disableOperator() external {
+        _storage().operators.disable(msg.sender);
+    }
+
+    function enableOperator() external {
+        _storage().operators.enable(msg.sender);
+    }
+
+    function makeElectionAt(uint48, uint256 maxValidators) external view returns (address[] memory) {
+        require(maxValidators > 0, "Max validators must be greater than zero");
+
+        Storage storage $ = _storage();
+        address[] memory operators = new address[]($.operators.length());
+
+        for (uint256 i; i < $.operators.length(); ++i) {
+            (address operator,,) = $.operators.atWithTimes(i);
+            operators[i] = operator;
+        }
+
+        if ($.operators.length() <= maxValidators) {
+            return operators;
+        }
+
+        assembly ("memory-safe") {
+            mstore(operators, maxValidators)
+        }
+
+        return operators;
+    }
+
+    // # Restricted POA Middleware calls.
 
     function changeSlashRequester(address) public pure {
         revert("Change Slash Requester not supported in Mock Middleware");
@@ -171,17 +202,8 @@ contract MockMiddleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTrans
         revert("Change Slash Executor not supported in Mock Middleware");
     }
 
-    // TODO: Check that total stake is big enough
     function registerOperator() public pure {
         revert("Register validator by himself is not supported. See `setValidators` method.");
-    }
-
-    function disableOperator() external {
-        _storage().operators.disable(msg.sender);
-    }
-
-    function enableOperator() external {
-        _storage().operators.enable(msg.sender);
     }
 
     function unregisterOperator(address) public pure {
@@ -212,50 +234,12 @@ contract MockMiddleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTrans
         revert("Unregister Vault not supported, SYMBIOTIC not integrated yet");
     }
 
-    function makeElectionAt(uint48 ts, uint256 maxValidators) external view returns (address[] memory) {
-        require(maxValidators > 0, "Max validators must be greater than zero");
-
-        (address[] memory activeOperators,) = getActiveOperatorsStakeAt(ts);
-
-        if (activeOperators.length <= maxValidators) {
-            return activeOperators;
-        }
-
-        assembly ("memory-safe") {
-            mstore(activeOperators, maxValidators)
-        }
-
-        return activeOperators;
+    function getOperatorStakeAt(address, uint48) public pure returns (uint256) {
+        revert("POA Middleware do not support stakes.");
     }
 
-    function getOperatorStakeAt(address, uint48) public pure returns (uint256 stake) {
-        stake = 0;
-    }
-
-    // TODO: change return signature
-    function getActiveOperatorsStakeAt(uint48)
-        public
-        view
-        returns (address[] memory activeOperators, uint256[] memory stakes)
-    {
-        Storage storage $ = _storage();
-        activeOperators = new address[]($.operators.length());
-        stakes = new uint256[]($.operators.length());
-
-        uint256 operatorIdx = 0;
-
-        for (uint256 i; i < $.operators.length(); ++i) {
-            (address operator,,) = $.operators.atWithTimes(i);
-
-            activeOperators[operatorIdx] = operator;
-            stakes[operatorIdx] = 0;
-            operatorIdx += 1;
-        }
-
-        assembly ("memory-safe") {
-            mstore(activeOperators, operatorIdx)
-            mstore(stakes, operatorIdx)
-        }
+    function getActiveOperatorsStakeAt(uint48) public pure returns (address[] memory, uint256[] memory) {
+        revert("POA Middleware do not support stakes.");
     }
 
     function requestSlash(SlashData[] calldata) public pure {
@@ -281,16 +265,5 @@ contract MockMiddleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTrans
     function _setStorageSlot(string memory namespace) private onlyOwner {
         bytes32 slot = keccak256(abi.encode(uint256(keccak256(bytes(namespace))) - 1)) & ~bytes32(uint256(0xff));
         StorageSlot.getBytes32Slot(SLOT_STORAGE).value = slot;
-    }
-
-    modifier vaultOwner(address vault) {
-        _vaultOwner(vault);
-        _;
-    }
-
-    function _vaultOwner(address vault) internal view {
-        if (!IAccessControl(vault).hasRole(DEFAULT_ADMIN_ROLE, msg.sender)) {
-            revert NotVaultOwner();
-        }
     }
 }

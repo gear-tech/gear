@@ -8,7 +8,7 @@ import {Script, console} from "forge-std/Script.sol";
 import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 import {WrappedVara} from "../src/WrappedVara.sol";
 
-import {MockMiddleware} from "../src/mocks/MockMiddleware.sol";
+import {POAMiddleware} from "../src/POAMiddleware.sol";
 import {IMiddleware} from "../src/IMiddleware.sol";
 import {
     IDefaultOperatorRewardsFactory
@@ -18,7 +18,7 @@ contract DeploymentScript is Script {
     WrappedVara public wrappedVara;
     Router public router;
     Mirror public mirror;
-    MockMiddleware public middleware;
+    POAMiddleware public middleware;
 
     function setUp() public {}
 
@@ -99,9 +99,9 @@ contract DeploymentScript is Script {
                 symbiotic: symbiotic
             });
 
-            middleware = MockMiddleware(
+            middleware = POAMiddleware(
                 Upgrades.deployTransparentProxy(
-                    "MockMiddleware.sol", deployerAddress, abi.encodeCall(MockMiddleware.initialize, (initParams))
+                    "POAMiddleware.sol", deployerAddress, abi.encodeCall(POAMiddleware.initialize, (initParams))
                 )
             );
             vm.assertEq(middlewareAddress, address(middleware));
