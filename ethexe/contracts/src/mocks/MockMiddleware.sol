@@ -2,7 +2,6 @@
 pragma solidity ^0.8.28;
 
 import {EnumerableMap} from "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
-import {Time} from "@openzeppelin/contracts/utils/types/Time.sol";
 import {Gear} from "../libraries/Gear.sol";
 
 import {IMiddleware} from "../IMiddleware.sol";
@@ -234,10 +233,9 @@ contract MockMiddleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTrans
     }
 
     // TODO: change return signature
-    function getActiveOperatorsStakeAt(uint48 ts)
+    function getActiveOperatorsStakeAt(uint48)
         public
         view
-        validTimestamp(ts)
         returns (address[] memory activeOperators, uint256[] memory stakes)
     {
         Storage storage $ = _storage();
@@ -247,11 +245,7 @@ contract MockMiddleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTrans
         uint256 operatorIdx = 0;
 
         for (uint256 i; i < $.operators.length(); ++i) {
-            (address operator, uint48 enabled, uint48 disabled) = $.operators.atWithTimes(i);
-
-            if (!_wasActiveAt(enabled, disabled, ts)) {
-                continue;
-            }
+            (address operator,,) = $.operators.atWithTimes(i);
 
             activeOperators[operatorIdx] = operator;
             stakes[operatorIdx] = 0;
@@ -270,29 +264,6 @@ contract MockMiddleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTrans
 
     function executeSlash(SlashIdentifier[] calldata) public pure {
         revert("Exectute slash not supported, SYMBIOTIC not integrated yet");
-    }
-
-    function _wasActiveAt(uint48 enabledTime, uint48 disabledTime, uint48 ts) private pure returns (bool) {
-        return enabledTime != 0 && enabledTime <= ts && (disabledTime == 0 || disabledTime >= ts);
-    }
-
-    // Timestamp must be always in the past, but not too far,
-    // so that some operators or vaults can be already unregistered.
-    modifier validTimestamp(uint48 ts) {
-        _validTimestamp(ts);
-        _;
-    }
-
-    function _validTimestamp(uint48 ts) internal view {
-        Storage storage $ = _storage();
-        if (ts >= Time.timestamp()) {
-            revert IncorrectTimestamp();
-        }
-
-        uint48 gracePeriod = $.operatorGracePeriod < $.vaultGracePeriod ? $.operatorGracePeriod : $.vaultGracePeriod;
-        if (ts + gracePeriod <= Time.timestamp()) {
-            revert IncorrectTimestamp();
-        }
     }
 
     function _storage() private view returns (Storage storage middleware) {
