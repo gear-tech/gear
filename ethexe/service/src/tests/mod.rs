@@ -2989,7 +2989,7 @@ async fn catch_up_test_case(commitment_delay_limit: u32) {
             // Notify that commitment is sent
             self.wait_signal_sender.send(()).unwrap();
 
-            log::info!("📗 LateCommitter waiting for commitment to be mined ...");
+            log::info!("📗 LateCommitter waiting for transaction to be applied ...");
             pending?
                 .try_get_receipt_check_reverted()
                 .await
@@ -3113,7 +3113,7 @@ async fn catch_up_test_case(commitment_delay_limit: u32) {
         env.force_new_block().await;
 
         // Send signal to make commitment2,
-        // but it would not be applied because it's not above previous one
+        // but commitment would not be applied because it's not above previous one
         commit_signal_sender.send(()).unwrap();
         wait_signal_receiver.recv().await.unwrap();
 

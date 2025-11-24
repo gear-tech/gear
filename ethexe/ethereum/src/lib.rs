@@ -31,7 +31,7 @@ use alloy::{
             SimpleNonceManager, WalletFiller,
         },
     },
-    rpc::types::{TransactionReceipt, eth::Log},
+    rpc::types::{TransactionReceipt, TransactionRequest, eth::Log},
     signers::{
         self as alloy_signer, Error as SignerError, Result as SignerResult, Signer, SignerSync,
         sign_transaction_with_chain_id,
@@ -286,12 +286,31 @@ impl TryGetReceipt<network::Ethereum> for PendingTransactionBuilder<network::Eth
     }
 
     async fn try_get_receipt_check_reverted(self) -> Result<TransactionReceipt> {
+        let provider = self.provider().clone();
         let receipt = self.try_get_receipt().await?;
+
+        let try_request_error_reason = async |provider: RootProvider| {
+            let tx = provider
+                .get_transaction_by_hash(receipt.transaction_hash)
+                .await
+                .ok()??;
+            let request = TransactionRequest::from_recovered_transaction(tx.into_recovered());
+            provider
+                .call(request)
+                .block(receipt.block_hash?.into())
+                .await
+                .err()
+        };
 
         if receipt.status() {
             Ok(receipt)
+        } else if let Some(err) = try_request_error_reason(provider).await {
+            Err(anyhow!(
+                "Transaction {:?} was reverted at block {:?}: {err}",
+                receipt.transaction_hash,
+                receipt.block_hash
+            ))
         } else {
-            // TODO: extract revert reason from RPC by calling transaction
             Err(anyhow!(
                 "Transaction {:?} was reverted by unknown reason at block {:?}",
                 receipt.transaction_hash,

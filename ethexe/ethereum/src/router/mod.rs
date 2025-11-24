@@ -184,11 +184,7 @@ impl Router {
                 })
                 .unwrap_or_default(),
         );
-        let receipt = builder
-            .send()
-            .await?
-            .try_get_receipt_check_reverted()
-            .await?;
+        let receipt = builder.send().await?.try_get_receipt().await?;
 
         let tx_hash = (*receipt.transaction_hash).into();
         let mut actor_id = None;
