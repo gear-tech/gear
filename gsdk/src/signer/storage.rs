@@ -40,19 +40,11 @@ use gear_core::{
     program::MemoryInfix,
 };
 use sp_runtime::AccountId32;
-use std::{borrow::Cow, sync::Arc};
 use subxt::{metadata::EncodeWithMetadata, storage::Address};
 
 /// Implementation of storage calls for [`Signer`].
 #[derive(Clone)]
-pub struct SignerStorage<'a>(pub(crate) Cow<'a, Arc<Inner>>);
-
-impl SignerStorage<'_> {
-    /// Converts a borrowed [`SignerStorage`] into an owned [`SignerStorage`].
-    pub fn into_owned(self) -> SignerStorage<'static> {
-        SignerStorage(Cow::Owned(self.0.into_owned()))
-    }
-}
+pub struct SignerStorage<'a>(pub(crate) &'a Inner);
 
 // pallet-system
 impl SignerStorage<'_> {

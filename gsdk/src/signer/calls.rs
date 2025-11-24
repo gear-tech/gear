@@ -32,18 +32,10 @@ use crate::{
 };
 use gear_core::ids::*;
 use sp_runtime::AccountId32;
-use std::{borrow::Cow, sync::Arc};
 
 /// Implementation of calls to programs/other users for [`Signer`].
 #[derive(Clone)]
-pub struct SignerCalls<'a>(pub(crate) Cow<'a, Arc<Inner>>);
-
-impl SignerCalls<'_> {
-    /// Converts a borrowed [`SignerCalls`] into an owned [`SignerCalls`].
-    pub fn into_owned(self) -> SignerCalls<'static> {
-        SignerCalls(Cow::Owned(self.0.into_owned()))
-    }
-}
+pub struct SignerCalls<'a>(pub(crate) &'a Inner);
 
 // pallet-balances
 impl SignerCalls<'_> {

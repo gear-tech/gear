@@ -19,14 +19,12 @@
 //! Gear api with signer
 
 use crate::{Api, backtrace::Backtrace, config::GearConfig, result::Result};
-use calls::SignerCalls;
 use core::ops::Deref;
 pub use pair_signer::PairSigner;
 use rpc::SignerRpc;
 use sp_core::{Pair as PairT, crypto::Ss58Codec, sr25519::Pair};
 use sp_runtime::AccountId32;
-use std::{borrow::Cow, sync::Arc};
-use storage::SignerStorage;
+use std::sync::Arc;
 
 mod calls;
 mod pair_signer;
@@ -53,21 +51,6 @@ pub struct Inner {
 }
 
 impl Signer {
-    /// Returns signer's storage calls handle.
-    pub fn storage(&self) -> SignerStorage<'_> {
-        SignerStorage(Cow::Borrowed(&self.0))
-    }
-
-    /// Returns signer's RPC calls handle.
-    pub fn rpc(&self) -> SignerRpc<'_> {
-        SignerRpc(Cow::Borrowed(&self.0))
-    }
-
-    /// Returns signer's calls handle.
-    pub fn calls(&self) -> SignerCalls<'_> {
-        SignerCalls(Cow::Borrowed(&self.0))
-    }
-
     /// Get backtrace of the signer.
     pub fn backtrace(&self) -> Backtrace {
         self.0.backtrace.clone()
@@ -75,45 +58,22 @@ impl Signer {
 
     /// New signer api.
     pub fn new(api: Api, suri: &str, passwd: Option<&str>) -> Result<Self> {
-        let signer = Inner {
+        Ok(Self::from((
             api,
-            signer: PairSigner::new(Pair::from_string(suri, passwd)?),
-            nonce: None,
-            backtrace: Default::default(),
-        };
-
-        Ok(Self::from_inner(signer))
-    }
-
-    fn from_inner(signer: Inner) -> Self {
-        Self(Arc::new(signer))
-    }
-
-    fn replace_inner(&mut self, mut inner: Inner) {
-        let backtrace = self.backtrace();
-        inner.backtrace = backtrace;
-
-        self.0 = Arc::new(inner);
+            PairSigner::new(Pair::from_string(suri, passwd)?),
+        )))
     }
 
     /// Change inner signer.
     pub fn change(mut self, suri: &str, passwd: Option<&str>) -> Result<Self> {
-        let signer = PairSigner::new(Pair::from_string(suri, passwd)?);
-
-        self.replace_inner(Inner {
-            signer,
-            ..self.0.as_ref().clone()
-        });
+        Arc::make_mut(&mut self.0).signer = PairSigner::new(Pair::from_string(suri, passwd)?);
 
         Ok(self)
     }
 
     /// Set nonce of the signer
     pub fn set_nonce(&mut self, nonce: u64) {
-        self.replace_inner(Inner {
-            nonce: Some(nonce),
-            ..self.0.as_ref().clone()
-        });
+        Arc::make_mut(&mut self.0).nonce = Some(nonce);
     }
 }
 
@@ -140,14 +100,15 @@ impl Inner {
 
 impl From<(Api, PairSigner<GearConfig, Pair>)> for Signer {
     fn from((api, signer): (Api, PairSigner<GearConfig, Pair>)) -> Self {
-        let signer = Inner {
-            api,
-            signer,
-            nonce: None,
-            backtrace: Backtrace::default(),
-        };
-
-        Self::from_inner(signer)
+        Self(
+            Inner {
+                api,
+                signer,
+                nonce: None,
+                backtrace: Backtrace::default(),
+            }
+            .into(),
+        )
     }
 }
 

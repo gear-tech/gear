@@ -23,19 +23,11 @@ use gear_core::{
     ids::{ActorId, CodeId, MessageId},
     rpc::ReplyInfo,
 };
-use std::{borrow::Cow, sync::Arc};
 use subxt::utils::H256;
 
 /// Implementation of calls to node RPC for [`Signer`].
 #[derive(Clone)]
-pub struct SignerRpc<'a>(pub(crate) Cow<'a, Arc<Inner>>);
-
-impl SignerRpc<'_> {
-    /// Converts a borrowed [`SignerRpc`] into an owned [`SignerRpc`].
-    pub fn into_owned(self) -> SignerRpc<'static> {
-        SignerRpc(Cow::Owned(self.0.into_owned()))
-    }
-}
+pub struct SignerRpc<'a>(pub(crate) &'a Inner);
 
 impl SignerRpc<'_> {
     /// public key of the signer in H256
@@ -45,11 +37,7 @@ impl SignerRpc<'_> {
 
     /// Get self balance.
     pub async fn get_balance(&self) -> Result<u128> {
-        self.0
-            .as_ref()
-            .api()
-            .get_balance(&self.0.as_ref().address())
-            .await
+        self.0.api().get_balance(&self.0.address()).await
     }
 
     /// gear_calculateInitCreateGas
