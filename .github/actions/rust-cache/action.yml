@@ -64,7 +64,7 @@ runs:
 
     - uses: gear-tech/rust-cache@wasm
       with:
-        prefix-key: "rust-cache/date-${{ steps.date.outputs.value }}"
+        prefix-key: "rust-cache/cache-all-${{ steps.date.outputs.value }}"
         key: ${{ inputs.key }}
         workspaces: |
           . -> target
