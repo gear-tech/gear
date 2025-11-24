@@ -21,7 +21,7 @@ use ethexe_common::{
     BlockData,
     db::{
         BlockMetaStorageRO, BlockMetaStorageRW, CodesStorageRO, LatestDataStorageRW,
-        OnChainStorageRO,
+        OnChainStorageRO, OnChainStorageRW,
     },
     events::{BlockEvent, RouterEvent},
 };
@@ -226,7 +226,7 @@ fn missing_data(db: &Database, chain: &VecDeque<BlockData>) -> Result<MissingDat
     })
 }
 
-fn prepare_one_block<DB: BlockMetaStorageRW + LatestDataStorageRW>(
+fn prepare_one_block<DB: BlockMetaStorageRW + LatestDataStorageRW + OnChainStorageRW>(
     db: &DB,
     block: BlockData,
 ) -> Result<()> {
@@ -243,6 +243,9 @@ fn prepare_one_block<DB: BlockMetaStorageRW + LatestDataStorageRW>(
         .ok_or(ComputeError::CodesQueueNotFound(parent))?;
 
     let mut last_committed_announce_hash = None;
+    let mut latest_era_validators_committed = db
+        .latest_era_validators_committed(parent)
+        .unwrap_or_default();
 
     for event in block.events {
         match event {
@@ -257,6 +260,10 @@ fn prepare_one_block<DB: BlockMetaStorageRW + LatestDataStorageRW>(
             }
             BlockEvent::Router(RouterEvent::AnnouncesCommitted(head)) => {
                 last_committed_announce_hash = Some(head);
+            }
+
+            BlockEvent::Router(RouterEvent::ValidatorsCommittedForEra { era_index }) => {
+                latest_era_validators_committed = era_index;
             }
             _ => {}
         }
@@ -284,6 +291,8 @@ fn prepare_one_block<DB: BlockMetaStorageRW + LatestDataStorageRW>(
         data.prepared_block_hash = block.hash;
     })
     .ok_or(ComputeError::LatestDataNotFound)?;
+
+    db.set_latest_era_validators_committed(block.hash, latest_era_validators_committed);
 
     Ok(())
 }

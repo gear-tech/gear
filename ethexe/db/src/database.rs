@@ -74,6 +74,9 @@ enum Key {
 
     LatestData = 14,
     Timelines = 15,
+
+    // TODO kuzmindev: temporal solution - must move into block meta or something else.
+    NextValidatorsCommitted(H256),
 }
 
 impl Key {
@@ -88,9 +91,9 @@ impl Key {
     fn to_bytes(&self) -> Vec<u8> {
         let prefix = self.prefix();
         match self {
-            Self::BlockSmallData(hash) | Self::BlockEvents(hash) => {
-                [prefix.as_ref(), hash.as_ref()].concat()
-            }
+            Self::BlockSmallData(hash)
+            | Self::BlockEvents(hash)
+            | Self::NextValidatorsCommitted(hash) => [prefix.as_ref(), hash.as_ref()].concat(),
 
             Self::ValidatorSet(era_index) => {
                 [prefix.as_ref(), era_index.to_le_bytes().as_ref()].concat()
@@ -505,6 +508,15 @@ impl OnChainStorageRO for Database {
                     .expect("Failed to decode data into `ValidatorsVec`")
             })
     }
+
+    fn latest_era_validators_committed(&self, block_hash: H256) -> Option<u64> {
+        self.kv
+            .get(&Key::NextValidatorsCommitted(block_hash).to_bytes())
+            .map(|data| {
+                Decode::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `u64` (era_index)")
+            })
+    }
 }
 
 impl OnChainStorageRW for Database {
@@ -541,6 +553,13 @@ impl OnChainStorageRW for Database {
         self.kv.put(
             &Key::ValidatorSet(era_index).to_bytes(),
             validator_set.encode(),
+        );
+    }
+
+    fn set_latest_era_validators_committed(&self, block_hash: H256, era_index: u64) {
+        self.kv.put(
+            &Key::NextValidatorsCommitted(block_hash).to_bytes(),
+            era_index.encode(),
         );
     }
 }

@@ -115,6 +115,7 @@ pub fn setup_genesis_in_db<
         timelines.era_from_ts(genesis_block.header.timestamp),
         genesis_validators,
     );
+    db.set_latest_era_validators_committed(genesis_block.hash, 0);
 
     db.set_protocol_timelines(timelines);
 

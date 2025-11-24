@@ -111,6 +111,8 @@ pub trait OnChainStorageRO {
     fn code_blob_info(&self, code_id: CodeId) -> Option<CodeBlobInfo>;
     fn block_synced(&self, block_hash: H256) -> bool;
     fn validators(&self, era_index: u64) -> Option<ValidatorsVec>;
+    // TODO kuzmindev: temporal solution - must move into block meta or something else.
+    fn latest_era_validators_committed(&self, block_hash: H256) -> Option<u64>;
     fn protocol_timelines(&self) -> Option<ProtocolTimelines>;
 }
 
@@ -121,6 +123,7 @@ pub trait OnChainStorageRW: OnChainStorageRO {
     fn set_code_blob_info(&self, code_id: CodeId, code_info: CodeBlobInfo);
     fn set_protocol_timelines(&self, timelines: ProtocolTimelines);
     fn set_validators(&self, era_index: u64, validator_set: ValidatorsVec);
+    fn set_latest_era_validators_committed(&self, block_hash: H256, era_index: u64);
     fn set_block_synced(&self, block_hash: H256);
 }
 
