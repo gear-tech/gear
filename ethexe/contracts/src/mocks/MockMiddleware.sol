@@ -229,12 +229,7 @@ contract MockMiddleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTrans
         return activeOperators;
     }
 
-    function getOperatorStakeAt(address operator, uint48 ts) external view validTimestamp(ts) returns (uint256 stake) {
-        (uint48 enabledTime, uint48 disabledTime) = _storage().operators.getTimes(operator);
-        if (!_wasActiveAt(enabledTime, disabledTime, ts)) {
-            return 0;
-        }
-
+    function getOperatorStakeAt(address, uint48) public pure returns (uint256 stake) {
         stake = 0;
     }
 
