@@ -21,19 +21,19 @@ gear-core-errors.workspace = true
 gsdk-codegen.workspace = true
 hex.workspace = true
 indexmap = { workspace = true, features = ["std"] }
-jsonrpsee = { workspace = true, features = [ "http-client", "ws-client" ] }
+jsonrpsee = { workspace = true, features = ["http-client", "ws-client"] }
 log.workspace = true
 parking_lot.workspace = true
 serde = { workspace = true, features = ["derive"] }
-serde_json = { workspace = true, features = [ "std" ] }
-sp-core = { workspace = true, features = [ "std" , "full_crypto"] }
-sp-runtime = { workspace = true, features = [ "std" ] }
+sp-core = { workspace = true, features = ["std", "full_crypto"] }
+sp-runtime = { workspace = true, features = ["std"] }
 subxt.workspace = true
 thiserror.workspace = true
 url.workspace = true
 parity-scale-codec.workspace = true
 
 [dev-dependencies]
+serde_json = { workspace = true, features = ["std"] }
 gear-node-wrapper.workspace = true
 tokio = { workspace = true, features = ["full"] }
 demo-messenger.workspace = true
