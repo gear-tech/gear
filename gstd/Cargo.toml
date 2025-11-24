@@ -13,10 +13,7 @@ repository.workspace = true
 rust-version.workspace = true
 
 [package.metadata.cargo-shear]
-ignored = [
-  # docs
-  "document-features",
-]
+ignored = []
 
 [dependencies]
 arrayvec = { workspace = true, optional = true }

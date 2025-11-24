@@ -12,15 +12,7 @@ build = "build.rs"
 targets = ["x86_64-unknown-linux-gnu"]
 
 [package.metadata.cargo-shear]
-ignored = [
-    "pallet-authorship",
-    "sp-storage",
-    "sp-block-builder",
-    "sp-transaction-pool",
-    "sp-offchain",
-    "sp-inherents",
-    "pallet-gear-rpc-runtime-api",
-]
+ignored = []
 
 [lints]
 workspace = true
