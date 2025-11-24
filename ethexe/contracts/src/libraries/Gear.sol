@@ -18,8 +18,9 @@ library Gear {
     // 2.5 * 10^9 of gear gas.
     uint64 public constant COMPUTATION_THRESHOLD = 2_500_000_000;
 
-    // 2/3; 66.(6)% of validators signatures to verify.
-    uint16 public constant SIGNING_THRESHOLD_PERCENTAGE = 6666;
+    // 2/3; validators signatures to verify.
+    uint128 public constant VALIDATORS_THRESHOLD_NUMERATOR = 2;
+    uint128 public constant VALIDATORS_THRESHOLD_DENOMINATOR = 3;
 
     // 10 WVara tokens per compute second.
     uint128 public constant WVARA_PER_SECOND = 10_000_000_000_000;
@@ -175,7 +176,8 @@ library Gear {
     }
 
     struct ValidationSettings {
-        uint16 signingThresholdPercentage;
+        uint128 thresholdNumerator;
+        uint128 thresholdDenominator;
         Validators validators0;
         Validators validators1;
     }
@@ -386,8 +388,11 @@ library Gear {
                 _messageHash
             );
         } else if (_signatureType == SignatureType.ECDSA) {
-            uint256 threshold =
-                validatorsThreshold(validators.list.length, router.validationSettings.signingThresholdPercentage);
+            uint256 threshold = validatorsThreshold(
+                validators.list.length,
+                router.validationSettings.thresholdNumerator,
+                router.validationSettings.thresholdDenominator
+            );
 
             uint256 validSignatures = 0;
 
@@ -465,9 +470,20 @@ library Gear {
         return ts1Greater && (tsGe0 == tsGe1);
     }
 
-    function validatorsThreshold(uint256 validatorsAmount, uint16 thresholdPercentage) internal pure returns (uint256) {
-        // Dividing by 10000 to adjust for percentage
-        return (validatorsAmount * uint256(thresholdPercentage) + 9999) / 10000;
+    function validatorsThreshold(uint256 validatorsAmount, uint128 thresholdNumerator, uint128 thresholdDenominator)
+        internal
+        pure
+        returns (uint256)
+    {
+        uint256 a;
+        unchecked {
+            a = validatorsAmount * thresholdNumerator;
+        }
+        uint256 d = a / thresholdDenominator;
+        uint256 r = a % thresholdDenominator;
+        unchecked {
+            return (r > 0) ? d + 1 : d;
+        }
     }
 
     function valueClaimBytes(ValueClaim memory claim) internal pure returns (bytes memory) {
