@@ -5,7 +5,7 @@ inputs:
     description: "Rust build target"
     required: true
   token:
-    description: 'GitHub token'
+    description: "GitHub token"
     required: true
 
 runs:
@@ -40,7 +40,7 @@ runs:
         sudo apt-fast install -y protobuf-compiler binaryen
       shell: bash
 
-    - name: "Install: Linux cross compilers"
+    - name: "Install: Linux cross compilers and packages"
       if: runner.arch == 'ARM64' && runner.os == 'Linux' && inputs.target == 'x86_64-unknown-linux-gnu'
       run: |
         sudo sed -i '/Types: deb/a Architectures: arm64' /etc/apt/sources.list.d/ubuntu.sources
@@ -51,13 +51,19 @@ runs:
         deb [arch=amd64] https://archive.ubuntu.com/ubuntu/ noble-security main restricted universe multiverse
         deb [arch=amd64] https://archive.ubuntu.com/ubuntu/ noble-backports main restricted universe multiverse
         EOF
-        
+
         sudo apt-fast update
-        sudo apt-fast install -y gcc-x86-64-linux-gnu g++-x86-64-linux-gnu pkg-config
-        
+        sudo apt-fast install -y \
+          gcc-x86-64-linux-gnu \
+          g++-x86-64-linux-gnu \
+          binutils-x86-64-linux-gnu \
+          pkg-config \
+          libssl-dev:amd64
+
         echo "CC_x86_64-unknown-linux-gnu=x86_64-linux-gnu-gcc" >> $GITHUB_ENV
         echo "CXX_x86_64-unknown-linux-gnu=x86_64-linux-gnu-g++" >> $GITHUB_ENV
-        
+        echo "CARGO_TARGET_X86_64_UNKNOWN_LINUX_GNU_LINKER=x86_64-linux-gnu-gcc" >> $GITHUB_ENV
+
         echo "PKG_CONFIG=/usr/bin/pkgconf" >> $GITHUB_ENV
         echo "HOST_PKG_CONFIG_PATH=/lib/aarch64-linux-gnu/pkgconfig" >> $GITHUB_ENV
       shell: bash
@@ -69,17 +75,17 @@ runs:
           echo "Linux runner expected for 'x86_64-pc-windows-msvc' target"
           exit 1
         fi
-        
+
         sudo apt-fast update
         sudo apt-fast install -y protobuf-compiler binaryen innoextract
 
         wget -qO - https://raw.githubusercontent.com/ScoopInstaller/Main/refs/heads/master/bucket/openssl.json | jq -r '.architecture."64bit".url' | xargs wget -qO openssl_installer.exe
         innoextract -d ${{ runner.temp }}/openssl_extracted -I app/include -I app/lib/VC/x64/MT openssl_installer.exe
-        
+
         echo "OPENSSL_NO_VENDOR=1" >> $GITHUB_ENV
         echo "OPENSSL_INCLUDE_DIR=${{ runner.temp }}/openssl_extracted/app/include" >> $GITHUB_ENV
         echo "OPENSSL_LIB_DIR=${{ runner.temp }}/openssl_extracted/app/lib/VC/x64/MT" >> $GITHUB_ENV
-        
+
         cargo xwin env | sed -e 's/^export //' -e 's/;$//' -e 's/="\(.*\)"$/=\1/' >> $GITHUB_ENV
       shell: bash
 
