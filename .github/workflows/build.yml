@@ -532,8 +532,8 @@ jobs:
 
   production:
     runs-on: [kuberunner, github-runner-02]
-    needs: workspace
-    if: ${{ inputs.production }}
+    needs: [dynamic-matrix, workspace]
+    if: ${{ inputs.production && contains(fromJSON(needs.dynamic-matrix.outputs.profiles).*.name, 'release') }}
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
