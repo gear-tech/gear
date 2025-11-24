@@ -29,7 +29,6 @@ use crate::{
         sudo,
     },
     result::{Result, TxStatusExt, TxSuccess},
-    signer::{SignerRpc, calls::SignerCalls, storage::SignerStorage},
 };
 use colored::Colorize;
 use subxt::{
@@ -44,21 +43,6 @@ type TxProgress = SubxtTxProgress<GearConfig, OnlineClient<GearConfig>>;
 pub type EventsResult = Result<(H256, ExtrinsicEvents<GearConfig>)>;
 
 impl Inner {
-    /// Returns signer's storage calls handle.
-    pub fn storage(&self) -> SignerStorage<'_> {
-        SignerStorage(self)
-    }
-
-    /// Returns signer's RPC calls handle.
-    pub fn rpc(&self) -> SignerRpc<'_> {
-        SignerRpc(self)
-    }
-
-    /// Returns signer's calls handle.
-    pub fn calls(&self) -> SignerCalls<'_> {
-        SignerCalls(self)
-    }
-
     /// Logging balance spent
     pub async fn log_balance_spent(&self, before: u128) -> Result<()> {
         match self.rpc().get_balance().await {

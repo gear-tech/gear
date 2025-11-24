@@ -18,7 +18,13 @@
 
 //! Gear api with signer
 
-use crate::{Api, backtrace::Backtrace, config::GearConfig, result::Result};
+use crate::{
+    Api,
+    backtrace::Backtrace,
+    config::GearConfig,
+    result::Result,
+    signer::{calls::SignerCalls, storage::SignerStorage},
+};
 use core::ops::Deref;
 pub use pair_signer::PairSigner;
 use rpc::SignerRpc;
@@ -78,6 +84,21 @@ impl Signer {
 }
 
 impl Inner {
+    /// Returns signer's storage calls handle.
+    pub fn storage(&self) -> SignerStorage<'_> {
+        SignerStorage(self)
+    }
+
+    /// Returns signer's RPC calls handle.
+    pub fn rpc(&self) -> SignerRpc<'_> {
+        SignerRpc(self)
+    }
+
+    /// Returns signer's calls handle.
+    pub fn calls(&self) -> SignerCalls<'_> {
+        SignerCalls(self)
+    }
+
     /// Get address of the current signer
     pub fn address(&self) -> String {
         self.account_id().to_ss58check()
