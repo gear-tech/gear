@@ -30,7 +30,10 @@ runs:
 
     - name: "Install: apt-fast on Linux"
       if: ${{ runner.os == 'Linux' }}
-      run: /bin/bash -c "$(curl -sL https://git.io/vokNn)"
+      run: |
+        sudo add-apt-repository ppa:apt-fast/stable
+        sudo apt-get update
+        sudo apt-get -y install apt-fast
       shell: bash
 
     - name: "Install: Linux packages"
