@@ -164,6 +164,20 @@ impl ValidatorCore {
         }
 
         let election_block = utils::election_block_in_era(&self.db, block.clone(), election_ts)?;
+
+        if utils::validator_commitment_delivered(
+            &self.db,
+            block.hash,
+            election_block.hash,
+            block_era,
+        )? {
+            tracing::trace!(
+                era = ?block_era,
+                "validators commitment already delivered; no need to create another one"
+            );
+            return Ok(None);
+        }
+
         let request = ElectionRequest {
             at_block_hash: election_block.hash,
             at_timestamp: election_ts,
@@ -172,7 +186,7 @@ impl ValidatorCore {
         };
 
         let mut elected_validators = self.middleware.make_election_at(request).await?;
-        // Sort elected validators, because of we can not guarantee the determinism of validators order.
+        // Sort elected validators, because of RPC can not guarantee the determinism of returned validators order.
         elected_validators.sort();
 
         let commitment = utils::validators_commitment(block_era + 1, elected_validators)?;

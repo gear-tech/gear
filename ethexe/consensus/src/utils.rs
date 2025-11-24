@@ -27,13 +27,14 @@ use ethexe_common::{
     consensus::BatchCommitmentValidationReply,
     db::{AnnounceStorageRO, BlockMetaStorageRO, CodesStorageRO, OnChainStorageRO},
     ecdsa::{ContractSignature, PublicKey},
+    events::{BlockEvent, RouterEvent},
     gear::{
         AggregatedPublicKey, BatchCommitment, ChainCommitment, CodeCommitment, RewardsCommitment,
         StateTransition, ValidatorsCommitment,
     },
 };
 use ethexe_signer::Signer;
-use gprimitives::{CodeId, U256};
+use gprimitives::{CodeId, H256, U256};
 use parity_scale_codec::{Decode, Encode};
 use rand::SeedableRng;
 use roast_secp256k1_evm::frost::{
@@ -417,6 +418,46 @@ pub fn election_block_in_era<DB: OnChainStorageRO>(
     }
 
     Ok(block)
+}
+
+/// This function searches for [`ethexe_common::events::RouterEvent::ValidatorsCommittedForEra`] event,
+/// in purpose to determine whether we already commit new validators in current branch or not.
+///
+/// NOTE: function caller must guarantee that both `chain_head` and `election_block` from the one Ethereum blocks branch.
+/// To find the election block must use [`election_block_in_era`] function.
+pub fn validator_commitment_delivered<DB: OnChainStorageRO>(
+    db: &DB,
+    chain_head: H256,
+    election_block: H256,
+    election_era: u64,
+) -> Result<bool> {
+    let mut block = chain_head;
+
+    // TODO kuzmindev: iterating through the block events is a temporal solution and should be improved.
+    loop {
+        let Some(block_events) = db.block_events(block) else {
+            anyhow::bail!("Events not found for synced block: {block}");
+        };
+
+        for event in block_events {
+            if let BlockEvent::Router(RouterEvent::ValidatorsCommittedForEra { era_index }) = event
+                && era_index == election_era
+            {
+                return Ok(true);
+            }
+        }
+
+        // We process the latest block in that event can be probably found.
+        if block == election_block {
+            return Ok(false);
+        }
+
+        let block_header = db
+            .block_header(block)
+            .ok_or_else(|| anyhow!("block header not found for block({block})"))?;
+
+        block = block_header.parent_hash;
+    }
 }
 
 // TODO #4553: temporary implementation, should be improved
