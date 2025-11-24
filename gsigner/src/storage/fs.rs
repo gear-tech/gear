@@ -23,7 +23,6 @@ use crate::{
     error::Result,
     traits::{KeyStorage, SeedableKey, SignatureScheme},
 };
-use sha2::{Digest, Sha256};
 use std::{fs, marker::PhantomData, path::PathBuf};
 use tempfile::TempDir;
 
@@ -67,11 +66,37 @@ impl<S: SignatureScheme> FSKeyStorage<S> {
     /// This method should be overridden by scheme-specific implementations
     /// to provide appropriate key naming.
     fn key_filename(&self, public_key: &S::PublicKey) -> String {
-        let bytes = S::public_key_bytes(public_key);
-        let mut hasher = Sha256::new();
-        hasher.update(bytes);
-        let digest = hasher.finalize();
-        hex::encode(digest)
+        hex::encode(S::public_key_bytes(public_key))
+    }
+
+    fn key_path(&self, public_key: &S::PublicKey) -> PathBuf {
+        self.path.join(self.key_filename(public_key))
+    }
+
+    /// Locate a key file, falling back to legacy filenames when needed.
+    fn locate_key_file(&self, public_key: &S::PublicKey) -> Result<Option<PathBuf>>
+    where
+        S::PrivateKey: SeedableKey,
+    {
+        let direct_path = self.key_path(public_key);
+        if direct_path.exists() {
+            return Ok(Some(direct_path));
+        }
+
+        for entry in fs::read_dir(&self.path)? {
+            let entry = entry?;
+            if entry.file_type()?.is_file() {
+                let bytes = fs::read(entry.path())?;
+                if let Ok(seed) = decode_seed::<S::PrivateKey>(&bytes)
+                    && let Ok(private_key) = SeedableKey::from_seed(seed)
+                    && S::public_key(&private_key) == *public_key
+                {
+                    return Ok(Some(entry.path()));
+                }
+            }
+        }
+
+        Ok(None)
     }
 }
 
@@ -86,7 +111,9 @@ where
 
     fn add_key(&mut self, private_key: S::PrivateKey) -> Result<S::PublicKey> {
         let public_key = S::public_key(&private_key);
-        let key_file = self.path.join(self.key_filename(&public_key));
+        let key_file = self
+            .locate_key_file(&public_key)?
+            .unwrap_or_else(|| self.key_path(&public_key));
 
         let seed = SeedableKey::seed(&private_key);
         fs::write(key_file, seed.as_ref())?;
@@ -95,11 +122,9 @@ where
     }
 
     fn get_private_key(&self, public_key: S::PublicKey) -> Result<S::PrivateKey> {
-        let key_path = self.path.join(self.key_filename(&public_key));
-
-        if !key_path.exists() {
-            return Err(SignerError::KeyNotFound(format!("{public_key:?}")));
-        }
+        let key_path = self
+            .locate_key_file(&public_key)?
+            .ok_or_else(|| SignerError::KeyNotFound(format!("{public_key:?}")))?;
 
         let bytes = fs::read(key_path)?;
         let seed = decode_seed::<S::PrivateKey>(&bytes)?;
@@ -109,8 +134,7 @@ where
     }
 
     fn has_key(&self, public_key: S::PublicKey) -> Result<bool> {
-        let key_path = self.path.join(self.key_filename(&public_key));
-        Ok(key_path.exists())
+        Ok(self.locate_key_file(&public_key)?.is_some())
     }
 
     fn list_keys(&self) -> Result<Vec<S::PublicKey>> {

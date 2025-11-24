@@ -20,20 +20,35 @@
 //!
 //! These types can be used directly with clap or integrated into other CLI applications.
 
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, ValueEnum};
 use std::path::PathBuf;
+
+#[derive(Debug, Clone, Copy, ValueEnum)]
+pub enum OutputFormat {
+    Human,
+    Plain,
+    Json,
+}
 
 /// Root CLI structure
 #[derive(Parser, Debug, Clone)]
 #[command(name = "gsigner")]
 #[command(about = "Universal cryptographic signer supporting secp256k1 (Ethereum), ed25519, and sr25519 (Substrate)", long_about = None)]
 pub struct GSignerCli {
+    #[arg(
+        long,
+        value_enum,
+        default_value_t = OutputFormat::Human,
+        help = "Output format (human, plain, json)"
+    )]
+    pub format: OutputFormat,
     #[command(subcommand)]
     pub command: GSignerCommands,
 }
 
 /// Top-level commands
 #[derive(Subcommand, Debug, Clone)]
+#[non_exhaustive]
 pub enum GSignerCommands {
     #[command(about = "Secp256k1 (Ethereum) operations", alias = "secp")]
     Secp256k1 {
@@ -54,6 +69,7 @@ pub enum GSignerCommands {
 
 /// Secp256k1 subcommands
 #[derive(Subcommand, Debug, Clone)]
+#[non_exhaustive]
 pub enum Secp256k1Commands {
     #[command(about = "Clear all keys from storage")]
     Clear {
@@ -73,40 +89,53 @@ pub enum Secp256k1Commands {
     },
     #[command(about = "Sign data with a secp256k1 private key")]
     Sign {
-        #[arg(short, long, help = "Public key (hex)")]
+        #[arg(long, help = "Public key (hex)", value_parser = hex_bytes::<33>)]
         public_key: String,
         #[arg(short, long, help = "Data to sign (hex)")]
         data: String,
+        #[arg(short = 'p', long, help = "Prefix/salt prepended before signing")]
+        prefix: Option<String>,
         #[arg(short, long, help = "Storage directory")]
         storage: Option<PathBuf>,
-        #[arg(short = 'c', long, help = "Contract address for EIP-191 signing (hex)")]
+        #[arg(
+            short = 'c',
+            long,
+            help = "Contract address for EIP-191 signing (hex)",
+            value_parser = hex_bytes::<20>
+        )]
         contract: Option<String>,
     },
     #[command(about = "Verify a secp256k1 signature")]
     Verify {
-        #[arg(short, long, help = "Public key (hex)")]
+        #[arg(long, help = "Public key (hex)", value_parser = hex_bytes::<33>)]
         public_key: String,
         #[arg(short, long, help = "Data that was signed (hex)")]
         data: String,
-        #[arg(short, long, help = "Signature (hex)")]
+        #[arg(
+            short = 'p',
+            long,
+            help = "Prefix/salt that was prepended before signing"
+        )]
+        prefix: Option<String>,
+        #[arg(long, help = "Signature (hex)", value_parser = hex_bytes::<65>)]
         signature: String,
     },
     #[command(about = "Get Ethereum address from public key")]
     Address {
-        #[arg(short, long, help = "Public key (hex)")]
+        #[arg(long, help = "Public key (hex)", value_parser = hex_bytes::<33>)]
         public_key: String,
     },
     #[cfg(feature = "peer-id")]
     #[command(about = "Derive libp2p PeerId from public key")]
     PeerId {
-        #[arg(short, long, help = "Public key (hex)")]
+        #[arg(long, help = "Public key (hex)", value_parser = hex_bytes::<33>)]
         public_key: String,
     },
     #[command(about = "Insert a private key into storage")]
     Insert {
         #[arg(short, long, help = "Storage directory")]
         storage: Option<PathBuf>,
-        #[arg(help = "Private key (hex, 32 bytes)")]
+        #[arg(help = "Private key (hex, 32 bytes)", value_parser = hex_bytes::<32>)]
         private_key: String,
         #[arg(long, help = "Show the inserted private key", default_value_t = false)]
         show_secret: bool,
@@ -124,7 +153,13 @@ pub enum Secp256k1Commands {
     Recover {
         #[arg(short, long, help = "Data that was signed (hex)")]
         data: String,
-        #[arg(short, long, help = "Signature (hex)")]
+        #[arg(
+            short = 'p',
+            long,
+            help = "Prefix/salt that was prepended before signing"
+        )]
+        prefix: Option<String>,
+        #[arg(short, long, help = "Signature (hex)", value_parser = hex_bytes::<65>)]
         signature: String,
     },
     #[command(about = "List all keys in storage")]
@@ -144,7 +179,13 @@ pub enum Secp256k1Commands {
 
 /// Ed25519 subcommands
 #[derive(Subcommand, Debug, Clone)]
+#[non_exhaustive]
 pub enum Ed25519Commands {
+    #[command(about = "Clear all keys from storage")]
+    Clear {
+        #[arg(short, long, help = "Storage directory")]
+        storage: Option<PathBuf>,
+    },
     #[command(about = "Generate a new ed25519 keypair")]
     Generate {
         #[arg(short, long, help = "Storage directory (default: memory only)")]
@@ -177,25 +218,33 @@ pub enum Ed25519Commands {
     },
     #[command(about = "Sign data with an ed25519 private key")]
     Sign {
-        #[arg(short, long, help = "Public key (hex)")]
+        #[arg(long, help = "Public key (hex)", value_parser = hex_bytes::<32>)]
         public_key: String,
         #[arg(short, long, help = "Data to sign (hex)")]
         data: String,
+        #[arg(short = 'p', long, help = "Prefix/salt prepended before signing")]
+        prefix: Option<String>,
         #[arg(short, long, help = "Storage directory")]
         storage: Option<PathBuf>,
     },
     #[command(about = "Verify an ed25519 signature")]
     Verify {
-        #[arg(short, long, help = "Public key (hex)")]
+        #[arg(long, help = "Public key (hex)", value_parser = hex_bytes::<32>)]
         public_key: String,
         #[arg(short, long, help = "Data that was signed (hex)")]
         data: String,
-        #[arg(short, long, help = "Signature (hex)")]
+        #[arg(
+            short = 'p',
+            long,
+            help = "Prefix/salt that was prepended before signing"
+        )]
+        prefix: Option<String>,
+        #[arg(long, help = "Signature (hex)", value_parser = hex_bytes::<64>)]
         signature: String,
     },
     #[command(about = "Get SS58 address from public key")]
     Address {
-        #[arg(short, long, help = "Public key (hex)")]
+        #[arg(short, long, help = "Public key (hex)", value_parser = hex_bytes::<32>)]
         public_key: String,
         #[arg(
             short = 'n',
@@ -207,7 +256,7 @@ pub enum Ed25519Commands {
     #[cfg(feature = "peer-id")]
     #[command(about = "Derive libp2p PeerId from public key")]
     PeerId {
-        #[arg(short, long, help = "Public key (hex)")]
+        #[arg(long, help = "Public key (hex)", value_parser = hex_bytes::<32>)]
         public_key: String,
     },
     #[command(about = "List all keys in storage")]
@@ -227,7 +276,13 @@ pub enum Ed25519Commands {
 
 /// Sr25519 subcommands
 #[derive(Subcommand, Debug, Clone)]
+#[non_exhaustive]
 pub enum Sr25519Commands {
+    #[command(about = "Clear all keys from storage")]
+    Clear {
+        #[arg(short, long, help = "Storage directory")]
+        storage: Option<PathBuf>,
+    },
     #[command(about = "Generate a new sr25519 keypair")]
     Generate {
         #[arg(short, long, help = "Storage directory (default: memory only)")]
@@ -260,10 +315,12 @@ pub enum Sr25519Commands {
     },
     #[command(about = "Sign data with a sr25519 private key")]
     Sign {
-        #[arg(short, long, help = "Public key (hex)")]
+        #[arg(long, help = "Public key (hex)", value_parser = hex_bytes::<32>)]
         public_key: String,
         #[arg(short, long, help = "Data to sign (hex)")]
         data: String,
+        #[arg(short = 'p', long, help = "Prefix/salt prepended before signing")]
+        prefix: Option<String>,
         #[arg(short, long, help = "Storage directory")]
         storage: Option<PathBuf>,
         #[arg(short = 'c', long, help = "Signing context")]
@@ -271,18 +328,24 @@ pub enum Sr25519Commands {
     },
     #[command(about = "Verify a sr25519 signature")]
     Verify {
-        #[arg(short, long, help = "Public key (hex)")]
+        #[arg(long, help = "Public key (hex)", value_parser = hex_bytes::<32>)]
         public_key: String,
         #[arg(short, long, help = "Data that was signed (hex)")]
         data: String,
-        #[arg(short, long, help = "Signature (hex)")]
+        #[arg(
+            short = 'p',
+            long,
+            help = "Prefix/salt that was prepended before signing"
+        )]
+        prefix: Option<String>,
+        #[arg(short, long, help = "Signature (hex)", value_parser = hex_bytes::<64>)]
         signature: String,
         #[arg(short = 'c', long, help = "Signing context")]
         context: Option<String>,
     },
     #[command(about = "Get SS58 address from public key")]
     Address {
-        #[arg(short, long, help = "Public key (hex)")]
+        #[arg(short, long, help = "Public key (hex)", value_parser = hex_bytes::<32>)]
         public_key: String,
         #[arg(
             short = 'n',
@@ -321,6 +384,8 @@ pub enum Secp256k1KeyringCommands {
         path: PathBuf,
         #[arg(short, long, help = "Key name")]
         name: String,
+        #[arg(long, help = "Show the generated private key", default_value_t = false)]
+        show_secret: bool,
     },
     #[command(about = "Import a private key (hex)")]
     Import {
@@ -328,8 +393,15 @@ pub enum Secp256k1KeyringCommands {
         path: PathBuf,
         #[arg(short, long, help = "Key name")]
         name: String,
-        #[arg(short = 'k', long, help = "Private key (0x... hex)")]
+        #[arg(
+            short = 'k',
+            long,
+            help = "Private key (0x... hex)",
+            value_parser = hex_bytes::<32>
+        )]
         private_key: String,
+        #[arg(long, help = "Show the imported private key", default_value_t = false)]
+        show_secret: bool,
     },
     #[command(about = "Import a key from SURI or mnemonic")]
     ImportSuri {
@@ -341,6 +413,8 @@ pub enum Secp256k1KeyringCommands {
         suri: String,
         #[arg(short = 'w', long, help = "Password for SURI derivation")]
         password: Option<String>,
+        #[arg(long, help = "Show the imported private key", default_value_t = false)]
+        show_secret: bool,
     },
     #[command(about = "List keys in keyring")]
     List {
@@ -364,6 +438,8 @@ pub enum Ed25519KeyringCommands {
         path: PathBuf,
         #[arg(short, long, help = "Key name")]
         name: String,
+        #[arg(long, help = "Show the generated private key", default_value_t = false)]
+        show_secret: bool,
     },
     #[command(about = "Import a private key seed (hex)")]
     ImportHex {
@@ -371,8 +447,15 @@ pub enum Ed25519KeyringCommands {
         path: PathBuf,
         #[arg(short, long, help = "Key name")]
         name: String,
-        #[arg(short = 'k', long, help = "Seed (0x... hex)")]
+        #[arg(
+            short = 'k',
+            long,
+            help = "Seed (0x... hex)",
+            value_parser = hex_bytes::<32>
+        )]
         seed: String,
+        #[arg(long, help = "Show the imported private key", default_value_t = false)]
+        show_secret: bool,
     },
     #[command(about = "Import a key from SURI")]
     ImportSuri {
@@ -384,6 +467,8 @@ pub enum Ed25519KeyringCommands {
         suri: String,
         #[arg(short = 'w', long, help = "Password for SURI derivation")]
         password: Option<String>,
+        #[arg(long, help = "Show the imported private key", default_value_t = false)]
+        show_secret: bool,
     },
     #[command(about = "List keys in keyring")]
     List {
@@ -426,4 +511,247 @@ pub enum Sr25519KeyringCommands {
         #[arg(short, long, help = "Keyring directory")]
         path: PathBuf,
     },
+}
+
+/// Helper trait to inject a default storage path into commands that accept one.
+pub trait WithDefaultStorage {
+    fn with_default_storage(self, default: PathBuf) -> Self;
+}
+
+impl WithDefaultStorage for Secp256k1Commands {
+    fn with_default_storage(self, default: PathBuf) -> Self {
+        match self {
+            Secp256k1Commands::Clear { storage } => Secp256k1Commands::Clear {
+                storage: with_opt_storage(storage, &default),
+            },
+            Secp256k1Commands::Generate {
+                storage,
+                show_secret,
+            } => Secp256k1Commands::Generate {
+                storage: with_opt_storage(storage, &default),
+                show_secret,
+            },
+            Secp256k1Commands::Sign {
+                public_key,
+                data,
+                prefix,
+                storage,
+                contract,
+            } => Secp256k1Commands::Sign {
+                public_key,
+                data,
+                prefix,
+                storage: with_opt_storage(storage, &default),
+                contract,
+            },
+            Secp256k1Commands::Verify {
+                public_key,
+                data,
+                prefix,
+                signature,
+            } => Secp256k1Commands::Verify {
+                public_key,
+                data,
+                prefix,
+                signature,
+            },
+            Secp256k1Commands::Address { public_key } => Secp256k1Commands::Address { public_key },
+            #[cfg(feature = "peer-id")]
+            Secp256k1Commands::PeerId { public_key } => Secp256k1Commands::PeerId { public_key },
+            Secp256k1Commands::Insert {
+                storage,
+                private_key,
+                show_secret,
+            } => Secp256k1Commands::Insert {
+                storage: with_opt_storage(storage, &default),
+                private_key,
+                show_secret,
+            },
+            Secp256k1Commands::Show {
+                storage,
+                key,
+                show_secret,
+            } => Secp256k1Commands::Show {
+                storage: with_opt_storage(storage, &default),
+                key,
+                show_secret,
+            },
+            Secp256k1Commands::Recover {
+                data,
+                prefix,
+                signature,
+            } => Secp256k1Commands::Recover {
+                data,
+                prefix,
+                signature,
+            },
+            Secp256k1Commands::List {
+                storage,
+                show_secret,
+            } => Secp256k1Commands::List {
+                storage: with_opt_storage(storage, &default),
+                show_secret,
+            },
+            #[cfg(feature = "keyring")]
+            Secp256k1Commands::Keyring { command } => Secp256k1Commands::Keyring { command },
+        }
+    }
+}
+
+impl WithDefaultStorage for Ed25519Commands {
+    fn with_default_storage(self, default: PathBuf) -> Self {
+        match self {
+            Ed25519Commands::Clear { storage } => Ed25519Commands::Clear {
+                storage: with_opt_storage(storage, &default),
+            },
+            Ed25519Commands::Generate {
+                storage,
+                show_secret,
+            } => Ed25519Commands::Generate {
+                storage: with_opt_storage(storage, &default),
+                show_secret,
+            },
+            Ed25519Commands::Import {
+                suri,
+                password,
+                storage,
+                show_secret,
+            } => Ed25519Commands::Import {
+                suri,
+                password,
+                storage: with_opt_storage(storage, &default),
+                show_secret,
+            },
+            Ed25519Commands::Sign {
+                public_key,
+                data,
+                prefix,
+                storage,
+            } => Ed25519Commands::Sign {
+                public_key,
+                data,
+                prefix,
+                storage: with_opt_storage(storage, &default),
+            },
+            Ed25519Commands::Verify {
+                public_key,
+                data,
+                prefix,
+                signature,
+            } => Ed25519Commands::Verify {
+                public_key,
+                data,
+                prefix,
+                signature,
+            },
+            Ed25519Commands::Address {
+                public_key,
+                network,
+            } => Ed25519Commands::Address {
+                public_key,
+                network,
+            },
+            #[cfg(feature = "peer-id")]
+            Ed25519Commands::PeerId { public_key } => Ed25519Commands::PeerId { public_key },
+            Ed25519Commands::List {
+                storage,
+                show_secret,
+            } => Ed25519Commands::List {
+                storage: with_opt_storage(storage, &default),
+                show_secret,
+            },
+            #[cfg(feature = "keyring")]
+            Ed25519Commands::Keyring { command } => Ed25519Commands::Keyring { command },
+        }
+    }
+}
+
+impl WithDefaultStorage for Sr25519Commands {
+    fn with_default_storage(self, default: PathBuf) -> Self {
+        match self {
+            Sr25519Commands::Clear { storage } => Sr25519Commands::Clear {
+                storage: with_opt_storage(storage, &default),
+            },
+            Sr25519Commands::Generate {
+                storage,
+                show_secret,
+            } => Sr25519Commands::Generate {
+                storage: with_opt_storage(storage, &default),
+                show_secret,
+            },
+            Sr25519Commands::Import {
+                suri,
+                password,
+                storage,
+                show_secret,
+            } => Sr25519Commands::Import {
+                suri,
+                password,
+                storage: with_opt_storage(storage, &default),
+                show_secret,
+            },
+            Sr25519Commands::Sign {
+                public_key,
+                data,
+                prefix,
+                storage,
+                context,
+            } => Sr25519Commands::Sign {
+                public_key,
+                data,
+                prefix,
+                storage: with_opt_storage(storage, &default),
+                context,
+            },
+            Sr25519Commands::Verify {
+                public_key,
+                data,
+                prefix,
+                signature,
+                context,
+            } => Sr25519Commands::Verify {
+                public_key,
+                data,
+                prefix,
+                signature,
+                context,
+            },
+            Sr25519Commands::Address {
+                public_key,
+                network,
+            } => Sr25519Commands::Address {
+                public_key,
+                network,
+            },
+            #[cfg(feature = "keyring")]
+            Sr25519Commands::Keyring { command } => Sr25519Commands::Keyring { command },
+            Sr25519Commands::List {
+                storage,
+                show_secret,
+            } => Sr25519Commands::List {
+                storage: with_opt_storage(storage, &default),
+                show_secret,
+            },
+        }
+    }
+}
+
+fn with_opt_storage(opt: Option<PathBuf>, default: &PathBuf) -> Option<PathBuf> {
+    opt.or_else(|| Some(default.clone()))
+}
+
+fn hex_bytes<const N: usize>(input: &str) -> Result<String, String> {
+    let trimmed = input.strip_prefix("0x").unwrap_or(input);
+    if trimmed.len() != N * 2 {
+        return Err(format!("expected {N}-byte hex ({} chars)", N * 2));
+    }
+
+    if trimmed
+        .bytes()
+        .all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f' | b'A'..=b'F'))
+    {
+        Ok(trimmed.to_string())
+    } else {
+        Err("invalid hex string".to_string())
+    }
 }

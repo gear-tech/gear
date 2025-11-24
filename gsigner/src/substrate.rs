@@ -25,7 +25,7 @@
 
 #[cfg(feature = "keyring")]
 use crate::keyring::KeystoreEntry;
-use crate::{Result, substrate_utils::crypto_type_id_to_string};
+use crate::{Result, SignerError};
 use alloc::{
     format,
     string::{String, ToString},
@@ -35,9 +35,107 @@ use core::marker::PhantomData;
 use hex;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
-use sp_core::crypto::{AccountId32, CryptoTypeId, Pair as PairTrait, Ss58AddressFormat};
+use sp_core::crypto::{
+    AccountId32, CryptoTypeId, Pair as PairTrait, SecretStringError, Ss58AddressFormat,
+};
 
 const DEFAULT_SS58_PREFIX: u16 = 137;
+
+/// Trait allowing access to the underlying seed without allocating.
+pub trait PairSeed: PairTrait {
+    fn pair_seed(pair: &Self) -> Self::Seed {
+        let raw = pair.to_raw_vec();
+        let mut seed = Self::Seed::default();
+        let dst = seed.as_mut();
+        let copy_len = core::cmp::min(dst.len(), raw.len());
+        dst[..copy_len].copy_from_slice(&raw[..copy_len]);
+        seed
+    }
+}
+
+impl PairSeed for sp_core::sr25519::Pair {}
+
+impl PairSeed for sp_core::ed25519::Pair {
+    fn pair_seed(pair: &Self) -> Self::Seed {
+        pair.seed()
+    }
+}
+
+impl PairSeed for sp_core::ecdsa::Pair {
+    fn pair_seed(pair: &Self) -> Self::Seed {
+        pair.seed()
+    }
+}
+
+/// Trait providing access to a Substrate crypto key identifier for a pair type.
+pub trait HasKeyTypeId {
+    const KEY_TYPE_ID: CryptoTypeId;
+}
+
+impl HasKeyTypeId for sp_core::sr25519::Pair {
+    const KEY_TYPE_ID: CryptoTypeId = sp_core::sr25519::CRYPTO_ID;
+}
+
+impl HasKeyTypeId for sp_core::ed25519::Pair {
+    const KEY_TYPE_ID: CryptoTypeId = sp_core::ed25519::CRYPTO_ID;
+}
+
+impl HasKeyTypeId for sp_core::ecdsa::Pair {
+    const KEY_TYPE_ID: CryptoTypeId = sp_core::ecdsa::CRYPTO_ID;
+}
+
+/// Lightweight wrapper around `sp_core::Pair` providing common helpers.
+#[derive(Clone)]
+pub struct SpPairWrapper<P: PairTrait>(P);
+
+impl<P: PairTrait> SpPairWrapper<P> {
+    pub fn new(pair: P) -> Self {
+        Self(pair)
+    }
+
+    pub fn pair(&self) -> &P {
+        &self.0
+    }
+
+    pub fn into_inner(self) -> P {
+        self.0
+    }
+
+    pub fn from_pair_seed(seed: P::Seed) -> Self {
+        Self(P::from_seed(&seed))
+    }
+
+    pub fn from_seed_bytes(seed: &[u8]) -> Result<Self> {
+        pair_from_seed_bytes::<P>(seed).map(Self)
+    }
+
+    pub fn from_suri(suri: &str, password: Option<&str>) -> Result<Self> {
+        pair_from_suri::<P>(suri, password).map(Self)
+    }
+
+    pub fn from_phrase(phrase: &str, password: Option<&str>) -> Result<Self> {
+        pair_from_phrase::<P>(phrase, password).map(Self)
+    }
+
+    pub fn seed(&self) -> P::Seed
+    where
+        P: PairSeed,
+    {
+        P::pair_seed(self.pair())
+    }
+
+    pub fn to_raw_vec(&self) -> Vec<u8> {
+        self.0.to_raw_vec()
+    }
+}
+
+#[cfg(feature = "std")]
+impl<P: PairTrait> SpPairWrapper<P> {
+    pub fn generate() -> Self {
+        let (pair, _) = P::generate();
+        Self(pair)
+    }
+}
 
 /// Trait describing how to bridge between `sp_core::Pair` and the scheme-specific
 /// key, signature, and helper types exposed by `gsigner`.
@@ -258,6 +356,131 @@ where
     }
 }
 
+/// Returns the printable string for the key type of the provided pair type.
+pub fn pair_key_type_string<P: HasKeyTypeId>() -> String {
+    crypto_type_id_to_string(P::KEY_TYPE_ID)
+}
+
+/// Returns the key type identifier for the provided pair type.
+pub fn pair_key_type_id<P: HasKeyTypeId>() -> CryptoTypeId {
+    P::KEY_TYPE_ID
+}
+
+/// Convert a key type identifier to a printable string.
+pub fn crypto_type_id_to_string(id: CryptoTypeId) -> String {
+    let bytes = id.0;
+    let end = bytes.iter().position(|&b| b == 0).unwrap_or(bytes.len());
+    let prefix = &bytes[..end];
+    core::str::from_utf8(prefix)
+        .map(ToString::to_string)
+        .unwrap_or_else(|_| hex::encode(bytes))
+}
+
+fn map_secret_err(err: SecretStringError) -> SignerError {
+    SignerError::InvalidKey(format!("{err:?}"))
+}
+
+/// Construct a pair from a Substrate SURI (secret URI).
+pub fn pair_from_suri<P: PairTrait>(suri: &str, password: Option<&str>) -> Result<P> {
+    P::from_string_with_seed(suri, password)
+        .map(|(pair, _)| pair)
+        .map_err(map_secret_err)
+}
+
+/// Construct a pair from a mnemonic phrase.
+pub fn pair_from_phrase<P: PairTrait>(phrase: &str, password: Option<&str>) -> Result<P> {
+    P::from_phrase(phrase, password)
+        .map(|(pair, _)| pair)
+        .map_err(map_secret_err)
+}
+
+/// Construct a pair from raw seed bytes.
+pub fn pair_from_seed_bytes<P: PairTrait>(seed: &[u8]) -> Result<P> {
+    P::from_seed_slice(seed).map_err(map_secret_err)
+}
+
+macro_rules! impl_substrate_spec {
+    (
+        $spec:ident,
+        pair = $pair_ty:path,
+        private = $priv_ty:path,
+        public = $pub_ty:path,
+        signature = $sig_ty:path,
+        sign = $sign_fn:expr,
+        public_bytes = $public_bytes_fn:expr,
+        account_id = $account_id_fn:expr,
+        ss58 = $ss58_fn:expr,
+        key_type_id = $key_type_id:expr,
+        label = $label:expr,
+        generate = $generate_fn:expr,
+        from_suri = $from_suri_fn:expr
+    ) => {
+        pub struct $spec;
+
+        impl SubstratePairSpec for $spec {
+            type Pair = $pair_ty;
+            type PrivateKey = $priv_ty;
+            type PublicKey = $pub_ty;
+            type Signature = $sig_ty;
+
+            #[cfg(feature = "std")]
+            fn generate_private_key() -> Self::PrivateKey {
+                $generate_fn()
+            }
+
+            fn private_key_from_suri(
+                suri: &str,
+                password: Option<&str>,
+            ) -> Result<Self::PrivateKey> {
+                $from_suri_fn(suri, password)
+            }
+
+            fn private_key_from_pair(pair: &Self::Pair) -> Result<Self::PrivateKey> {
+                Ok(Self::PrivateKey::from_pair(pair.clone()))
+            }
+
+            fn to_sp_pair(private_key: &Self::PrivateKey) -> Result<Self::Pair> {
+                Ok(private_key.as_pair().clone())
+            }
+
+            fn sign(private_key: &Self::PrivateKey, message: &[u8]) -> Result<Self::Signature> {
+                $sign_fn(private_key, message)
+            }
+
+            fn public_key(private_key: &Self::PrivateKey) -> Self::PublicKey {
+                private_key.public_key()
+            }
+
+            fn to_raw_vec(private_key: &Self::PrivateKey) -> Vec<u8> {
+                private_key.to_bytes().to_vec()
+            }
+
+            fn public_bytes(public_key: &Self::PublicKey) -> Vec<u8> {
+                $public_bytes_fn(public_key)
+            }
+
+            fn account_id(public_key: &Self::PublicKey) -> AccountId32 {
+                $account_id_fn(public_key)
+            }
+
+            fn ss58_with_format(
+                public_key: &Self::PublicKey,
+                format: Ss58AddressFormat,
+            ) -> Result<String> {
+                $ss58_fn(public_key, format)
+            }
+
+            fn key_type_id() -> CryptoTypeId {
+                $key_type_id
+            }
+
+            fn scheme_label() -> &'static str {
+                $label
+            }
+        }
+    };
+}
+
 #[cfg(feature = "sr25519")]
 mod sr_impl {
     use super::*;
@@ -267,69 +490,24 @@ mod sr_impl {
     };
     use sp_core::{crypto::Ss58Codec, sr25519};
 
-    pub struct Sr25519Spec;
-
-    impl SubstratePairSpec for Sr25519Spec {
-        type Pair = sr25519::Pair;
-        type PrivateKey = PrivateKey;
-        type PublicKey = PublicKey;
-        type Signature = Signature;
-
-        #[cfg(feature = "std")]
-        fn generate_private_key() -> Self::PrivateKey {
-            PrivateKey::random()
-        }
-
-        fn private_key_from_suri(suri: &str, password: Option<&str>) -> Result<Self::PrivateKey> {
-            PrivateKey::from_suri(suri, password)
-        }
-
-        #[allow(clippy::clone_on_copy)]
-        fn private_key_from_pair(pair: &Self::Pair) -> Result<Self::PrivateKey> {
-            Ok(PrivateKey::from_pair(pair.clone()))
-        }
-
-        #[allow(clippy::clone_on_copy)]
-        fn to_sp_pair(private_key: &Self::PrivateKey) -> Result<Self::Pair> {
-            Ok(private_key.as_pair().clone())
-        }
-
-        fn sign(private_key: &Self::PrivateKey, message: &[u8]) -> Result<Self::Signature> {
-            Sr25519::sign(private_key, message)
-        }
-
-        fn public_key(private_key: &Self::PrivateKey) -> Self::PublicKey {
-            private_key.public_key()
-        }
-
-        fn to_raw_vec(private_key: &Self::PrivateKey) -> Vec<u8> {
-            private_key.to_bytes().to_vec()
-        }
-
-        fn public_bytes(public_key: &Self::PublicKey) -> Vec<u8> {
-            public_key.to_bytes().to_vec()
-        }
-
-        fn account_id(public_key: &Self::PublicKey) -> AccountId32 {
-            AccountId32::from(public_key.to_bytes())
-        }
-
-        fn ss58_with_format(
-            public_key: &Self::PublicKey,
-            format: Ss58AddressFormat,
-        ) -> Result<String> {
-            let account = AccountId32::from(public_key.to_bytes());
+    impl_substrate_spec!(
+        Sr25519Spec,
+        pair = sr25519::Pair,
+        private = PrivateKey,
+        public = PublicKey,
+        signature = Signature,
+        sign = |pk: &PrivateKey, msg: &[u8]| Sr25519::sign(pk, msg),
+        public_bytes = |pk: &PublicKey| pk.to_bytes().to_vec(),
+        account_id = |pk: &PublicKey| AccountId32::from(pk.to_bytes()),
+        ss58 = |pk: &PublicKey, format: Ss58AddressFormat| {
+            let account = AccountId32::from(pk.to_bytes());
             Ok(account.to_ss58check_with_version(format))
-        }
-
-        fn key_type_id() -> CryptoTypeId {
-            sr25519::CRYPTO_ID
-        }
-
-        fn scheme_label() -> &'static str {
-            "sr25519"
-        }
-    }
+        },
+        key_type_id = sr25519::CRYPTO_ID,
+        label = "sr25519",
+        generate = || PrivateKey::random(),
+        from_suri = |suri: &str, password: Option<&str>| PrivateKey::from_suri(suri, password)
+    );
 
     /// Backwards-compatible alias preserving the previous API surface.
     pub type Sr25519Pair = GenericSubstratePair<Sr25519Spec>;
@@ -350,69 +528,24 @@ mod ed_impl {
     };
     use sp_core::{crypto::Ss58Codec, ed25519};
 
-    pub struct Ed25519Spec;
-
-    impl SubstratePairSpec for Ed25519Spec {
-        type Pair = ed25519::Pair;
-        type PrivateKey = PrivateKey;
-        type PublicKey = PublicKey;
-        type Signature = Signature;
-
-        #[cfg(feature = "std")]
-        fn generate_private_key() -> Self::PrivateKey {
-            PrivateKey::random()
-        }
-
-        fn private_key_from_suri(suri: &str, password: Option<&str>) -> Result<Self::PrivateKey> {
-            PrivateKey::from_suri(suri, password)
-        }
-
-        #[allow(clippy::clone_on_copy)]
-        fn private_key_from_pair(pair: &Self::Pair) -> Result<Self::PrivateKey> {
-            Ok(PrivateKey::from_pair(pair.clone()))
-        }
-
-        #[allow(clippy::clone_on_copy)]
-        fn to_sp_pair(private_key: &Self::PrivateKey) -> Result<Self::Pair> {
-            Ok(private_key.as_pair().clone())
-        }
-
-        fn sign(private_key: &Self::PrivateKey, message: &[u8]) -> Result<Self::Signature> {
-            Ed25519::sign(private_key, message)
-        }
-
-        fn public_key(private_key: &Self::PrivateKey) -> Self::PublicKey {
-            private_key.public_key()
-        }
-
-        fn to_raw_vec(private_key: &Self::PrivateKey) -> Vec<u8> {
-            private_key.to_bytes().to_vec()
-        }
-
-        fn public_bytes(public_key: &Self::PublicKey) -> Vec<u8> {
-            public_key.to_bytes().to_vec()
-        }
-
-        fn account_id(public_key: &Self::PublicKey) -> AccountId32 {
-            AccountId32::from(public_key.to_bytes())
-        }
-
-        fn ss58_with_format(
-            public_key: &Self::PublicKey,
-            format: Ss58AddressFormat,
-        ) -> Result<String> {
-            let account = AccountId32::from(public_key.to_bytes());
+    impl_substrate_spec!(
+        Ed25519Spec,
+        pair = ed25519::Pair,
+        private = PrivateKey,
+        public = PublicKey,
+        signature = Signature,
+        sign = |pk: &PrivateKey, msg: &[u8]| Ed25519::sign(pk, msg),
+        public_bytes = |pk: &PublicKey| pk.to_bytes().to_vec(),
+        account_id = |pk: &PublicKey| AccountId32::from(pk.to_bytes()),
+        ss58 = |pk: &PublicKey, format: Ss58AddressFormat| {
+            let account = AccountId32::from(pk.to_bytes());
             Ok(account.to_ss58check_with_version(format))
-        }
-
-        fn key_type_id() -> CryptoTypeId {
-            ed25519::CRYPTO_ID
-        }
-
-        fn scheme_label() -> &'static str {
-            "ed25519"
-        }
-    }
+        },
+        key_type_id = ed25519::CRYPTO_ID,
+        label = "ed25519",
+        generate = || PrivateKey::random(),
+        from_suri = |suri: &str, password: Option<&str>| PrivateKey::from_suri(suri, password)
+    );
 
     pub type Ed25519Pair = GenericSubstratePair<Ed25519Spec>;
 }
@@ -426,68 +559,27 @@ mod ecdsa_impl {
     use crate::schemes::secp256k1::{PrivateKey, PublicKey, Signature};
     use sp_core::{crypto::Ss58Codec, ecdsa, hashing::blake2_256};
 
-    pub struct Secp256k1Spec;
-
-    impl SubstratePairSpec for Secp256k1Spec {
-        type Pair = ecdsa::Pair;
-        type PrivateKey = PrivateKey;
-        type PublicKey = PublicKey;
-        type Signature = Signature;
-
-        #[cfg(feature = "std")]
-        fn generate_private_key() -> Self::PrivateKey {
-            PrivateKey::random()
-        }
-
-        fn private_key_from_suri(suri: &str, password: Option<&str>) -> Result<Self::PrivateKey> {
-            PrivateKey::from_suri(suri, password)
-        }
-
-        fn private_key_from_pair(pair: &Self::Pair) -> Result<Self::PrivateKey> {
-            Ok(PrivateKey::from_pair(pair.clone()))
-        }
-
-        fn to_sp_pair(private_key: &Self::PrivateKey) -> Result<Self::Pair> {
-            Ok(private_key.as_pair().clone())
-        }
-
-        fn sign(private_key: &Self::PrivateKey, message: &[u8]) -> Result<Self::Signature> {
-            Signature::create(private_key, message)
-        }
-
-        fn public_key(private_key: &Self::PrivateKey) -> Self::PublicKey {
-            private_key.public_key()
-        }
-
-        fn to_raw_vec(private_key: &Self::PrivateKey) -> Vec<u8> {
-            private_key.to_bytes().to_vec()
-        }
-
-        fn public_bytes(public_key: &Self::PublicKey) -> Vec<u8> {
-            public_key.to_bytes().to_vec()
-        }
-
-        fn account_id(public_key: &Self::PublicKey) -> AccountId32 {
-            let bytes = public_key.to_bytes();
+    impl_substrate_spec!(
+        Secp256k1Spec,
+        pair = ecdsa::Pair,
+        private = PrivateKey,
+        public = PublicKey,
+        signature = Signature,
+        sign = |pk: &PrivateKey, msg: &[u8]| Signature::create(pk, msg),
+        public_bytes = |pk: &PublicKey| pk.to_bytes().to_vec(),
+        account_id = |pk: &PublicKey| {
+            let bytes = pk.to_bytes();
             let hash = blake2_256(&bytes);
             AccountId32::from(hash)
-        }
-
-        fn ss58_with_format(
-            public_key: &Self::PublicKey,
-            format: Ss58AddressFormat,
-        ) -> Result<String> {
-            Ok(Self::account_id(public_key).to_ss58check_with_version(format))
-        }
-
-        fn key_type_id() -> CryptoTypeId {
-            ecdsa::CRYPTO_ID
-        }
-
-        fn scheme_label() -> &'static str {
-            "ecdsa"
-        }
-    }
+        },
+        ss58 = |pk: &PublicKey, format: Ss58AddressFormat| {
+            Ok(AccountId32::from(blake2_256(&pk.to_bytes())).to_ss58check_with_version(format))
+        },
+        key_type_id = ecdsa::CRYPTO_ID,
+        label = "ecdsa",
+        generate = || PrivateKey::random(),
+        from_suri = |suri: &str, password: Option<&str>| PrivateKey::from_suri(suri, password)
+    );
 
     pub type Secp256k1Pair = GenericSubstratePair<Secp256k1Spec>;
 }

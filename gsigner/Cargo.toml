@@ -18,34 +18,54 @@ required-features = ["cli"]
 
 [dependencies]
 alloy-primitives = { workspace = true, optional = true }
-anyhow = { workspace = true, default-features = false, features = ["std"], optional = true }
+anyhow = { workspace = true, default-features = false, features = [
+    "std",
+], optional = true }
 base64 = { workspace = true, optional = true }
 clap = { workspace = true, features = ["derive"], optional = true }
 colored = { workspace = true, optional = true }
 derive_more = { workspace = true }
 gprimitives = { workspace = true, optional = true }
 hex = { workspace = true, default-features = false, features = ["alloc"] }
-k256 = { version = "0.13.4", default-features = false, features = ["ecdsa"], optional = true }
+k256 = { version = "0.13.4", default-features = false, features = [
+    "ecdsa",
+], optional = true }
 nacl = { workspace = true, optional = true }
 parity-scale-codec = { workspace = true, default-features = false, features = [
     "derive",
 ], optional = true }
-rand = { workspace = true, default-features = false, features = ["std", "std_rng"], optional = true }
+rand = { workspace = true, default-features = false, features = [
+    "std",
+    "std_rng",
+], optional = true }
 schnorrkel = { workspace = true, optional = true }
 serde = { workspace = true, features = ["derive", "alloc"], optional = true }
 serde_json = { workspace = true, features = ["std"], optional = true }
 sha3 = { version = "0.10", default-features = false, optional = true }
-sha2 = { workspace = true }
 ss58-registry = { version = "1.48.0", default-features = true, optional = true }
-sp-core = { workspace = true, default-features = false, features = ["full_crypto", "serde"], optional = true }
-sp-application-crypto = { workspace = true, default-features = false, features = ["full_crypto"] }
+sp-core = { workspace = true, default-features = false, features = [
+    "full_crypto",
+    "serde",
+], optional = true }
+sp-application-crypto = { workspace = true, default-features = false, features = [
+    "full_crypto",
+] }
+sp-io = { workspace = true, default-features = false }
 tempfile = { workspace = true, optional = true }
 thiserror = { workspace = true }
-tracing = { workspace = true, default-features = false, features = ["std"], optional = true }
+tracing = { workspace = true, default-features = false, features = [
+    "std",
+], optional = true }
 tracing-subscriber = { workspace = true, optional = true }
-libp2p-identity = { version = "0.2", default-features = false, features = ["serde"], optional = true }
+libp2p-identity = { version = "0.2", default-features = false, features = [
+    "serde",
+], optional = true }
 
 [dev-dependencies]
+assert_cmd = "2.0"
+predicates = "3.1"
+serde_json = { workspace = true, features = ["std"] }
+tempfile = { workspace = true }
 
 [features]
 default = ["std", "secp256k1", "sr25519", "ed25519", "codec", "ss58-registry"]
@@ -59,8 +79,15 @@ std = [
     "dep:base64",
     "serde/std",
     "sp-core/std",
+    "sp-io/std",
 ]
-secp256k1 = ["dep:sp-core", "dep:k256", "dep:sha3", "dep:gprimitives", "dep:alloy-primitives"]
+secp256k1 = [
+    "dep:sp-core",
+    "dep:k256",
+    "dep:sha3",
+    "dep:gprimitives",
+    "dep:alloy-primitives",
+]
 sr25519 = ["dep:sp-core", "dep:schnorrkel", "dep:nacl", "serde"]
 ed25519 = ["dep:sp-core", "serde"]
 cli = ["std", "clap", "colored", "dep:tracing-subscriber"]

@@ -22,9 +22,15 @@ use super::{Address, PrivateKey, PublicKey};
 use crate::{
     keyring::{
         Keyring as GenericKeyring,
-        simple::{SimpleKeyCodec, SubstrateKeystore},
+        key_codec::{
+            KeyCodec, KeyringCodecExt, SubstrateKeystore,
+            keyring_ops::{
+                add_hex as keyring_add_hex, add_private as keyring_add, create as keyring_create,
+                import_suri as keyring_import_suri,
+            },
+        },
     },
-    substrate_utils::pair_from_suri,
+    substrate::pair_from_suri,
 };
 use anyhow::{Result, anyhow};
 use core::str::FromStr;
@@ -33,7 +39,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Copy, Debug, Default, Serialize, Deserialize)]
 pub struct Secp256k1Codec;
 
-impl SimpleKeyCodec for Secp256k1Codec {
+impl KeyCodec for Secp256k1Codec {
     type Pair = sp_core::ecdsa::Pair;
     type PrivateKey = PrivateKey;
     type PublicKey = PublicKey;
@@ -72,6 +78,17 @@ impl SimpleKeyCodec for Secp256k1Codec {
     }
 }
 
+impl KeyringCodecExt for Secp256k1Codec {
+    fn random_private() -> Result<Self::PrivateKey> {
+        Ok(PrivateKey::random())
+    }
+
+    fn import_suri(suri: &str, password: Option<&str>) -> Result<Self::PrivateKey> {
+        let pair = pair_from_suri::<sp_core::ecdsa::Pair>(suri, password)?;
+        Ok(pair.into())
+    }
+}
+
 /// JSON keystore representation for secp256k1 keys.
 pub type Keystore = SubstrateKeystore<Secp256k1Codec>;
 
@@ -81,22 +98,17 @@ pub type Keyring = GenericKeyring<Keystore>;
 impl Keyring {
     /// Add an existing private key to the keyring.
     pub fn add(&mut self, name: &str, private_key: PrivateKey) -> Result<Keystore> {
-        let keystore = Keystore::from_private_key(name, private_key)?;
-        self.store(name, keystore)
+        keyring_add::<Secp256k1Codec>(self, name, private_key)
     }
 
     /// Add a private key from its hex representation.
     pub fn add_hex(&mut self, name: &str, hex: &str) -> Result<Keystore> {
-        let private_key =
-            PrivateKey::from_str(hex).map_err(|err| anyhow!("Invalid private key: {err}"))?;
-        self.add(name, private_key)
+        keyring_add_hex::<Secp256k1Codec>(self, name, hex)
     }
 
     /// Generate and store a new private key.
     pub fn create(&mut self, name: &str) -> Result<(Keystore, PrivateKey)> {
-        let private_key = PrivateKey::random();
-        let keystore = self.add(name, private_key.clone())?;
-        Ok((keystore, private_key))
+        keyring_create::<Secp256k1Codec>(self, name)
     }
 
     /// Import a key from a Substrate-style SURI (mnemonic, dev URI, derivation path).
@@ -106,18 +118,7 @@ impl Keyring {
         suri: &str,
         password: Option<&str>,
     ) -> Result<(Keystore, PrivateKey)> {
-        let pair = pair_from_suri::<sp_core::ecdsa::Pair>(suri, password)?;
-        self.import_pair(name, pair)
-    }
-
-    fn import_pair(
-        &mut self,
-        name: &str,
-        pair: sp_core::ecdsa::Pair,
-    ) -> Result<(Keystore, PrivateKey)> {
-        let private_key: PrivateKey = pair.into();
-        let keystore = self.add(name, private_key.clone())?;
-        Ok((keystore, private_key))
+        keyring_import_suri::<Secp256k1Codec>(self, name, suri, password)
     }
 }
 

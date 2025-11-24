@@ -20,7 +20,7 @@
 
 use crate::{
     keyring::KeystoreEntry,
-    substrate_utils::{HasKeyTypeId, pair_key_type_string},
+    substrate::{HasKeyTypeId, pair_key_type_string},
 };
 use anyhow::Result;
 use serde::{Deserialize, Serialize};
@@ -31,7 +31,7 @@ use std::{
 };
 
 /// Trait describing how to convert to and from string representations for key material.
-pub trait SimpleKeyCodec {
+pub trait KeyCodec {
     /// Concrete Substrate pair type.
     type Pair: PairTrait + HasKeyTypeId;
     /// Private key wrapper type.
@@ -66,10 +66,19 @@ pub trait SimpleKeyCodec {
     fn decode_address(encoded: &str) -> Result<Self::Address>;
 }
 
+/// Extension trait for keyring flows (generate/import/add) over a [`KeyCodec`].
+pub trait KeyringCodecExt: KeyCodec {
+    /// Generate a new private key.
+    fn random_private() -> Result<Self::PrivateKey>;
+
+    /// Import a private key from a SURI (mnemonic/derivation path).
+    fn import_suri(suri: &str, password: Option<&str>) -> Result<Self::PrivateKey>;
+}
+
 /// Generic keystore structure compatible with the CLI keyring workflow.
 #[derive(Serialize, Deserialize)]
 #[serde(bound(serialize = "", deserialize = ""))]
-pub struct SubstrateKeystore<C: SimpleKeyCodec> {
+pub struct SubstrateKeystore<C: KeyCodec> {
     /// Human readable key name.
     pub name: String,
     /// Encoded public key.
@@ -84,7 +93,7 @@ pub struct SubstrateKeystore<C: SimpleKeyCodec> {
     _marker: PhantomData<C>,
 }
 
-impl<C: SimpleKeyCodec> SubstrateKeystore<C> {
+impl<C: KeyCodec> SubstrateKeystore<C> {
     /// Build a keystore entry from a private key.
     pub fn from_private_key(name: &str, private_key: C::PrivateKey) -> Result<Self> {
         let public_key = C::derive_public(&private_key);
@@ -115,7 +124,7 @@ impl<C: SimpleKeyCodec> SubstrateKeystore<C> {
     }
 }
 
-impl<C: SimpleKeyCodec> Default for SubstrateKeystore<C> {
+impl<C: KeyCodec> Default for SubstrateKeystore<C> {
     fn default() -> Self {
         Self {
             name: String::new(),
@@ -131,7 +140,7 @@ impl<C: SimpleKeyCodec> Default for SubstrateKeystore<C> {
 /// Metadata stored alongside keystore entries.
 #[derive(Serialize, Deserialize)]
 #[serde(bound(serialize = "", deserialize = ""))]
-pub struct SubstrateKeystoreMeta<C: SimpleKeyCodec> {
+pub struct SubstrateKeystoreMeta<C: KeyCodec> {
     #[serde(rename = "whenCreated")]
     pub when_created: u128,
     #[serde(
@@ -143,7 +152,7 @@ pub struct SubstrateKeystoreMeta<C: SimpleKeyCodec> {
     _marker: PhantomData<C>,
 }
 
-impl<C: SimpleKeyCodec> Default for SubstrateKeystoreMeta<C> {
+impl<C: KeyCodec> Default for SubstrateKeystoreMeta<C> {
     fn default() -> Self {
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
@@ -157,13 +166,13 @@ impl<C: SimpleKeyCodec> Default for SubstrateKeystoreMeta<C> {
     }
 }
 
-impl<C: SimpleKeyCodec> SubstrateKeystoreMeta<C> {
+impl<C: KeyCodec> SubstrateKeystoreMeta<C> {
     fn default_key_type() -> String {
         pair_key_type_string::<C::Pair>()
     }
 }
 
-impl<C: SimpleKeyCodec> Clone for SubstrateKeystore<C> {
+impl<C: KeyCodec> Clone for SubstrateKeystore<C> {
     fn clone(&self) -> Self {
         Self {
             name: self.name.clone(),
@@ -176,7 +185,7 @@ impl<C: SimpleKeyCodec> Clone for SubstrateKeystore<C> {
     }
 }
 
-impl<C: SimpleKeyCodec> Clone for SubstrateKeystoreMeta<C> {
+impl<C: KeyCodec> Clone for SubstrateKeystoreMeta<C> {
     fn clone(&self) -> Self {
         Self {
             when_created: self.when_created,
@@ -186,12 +195,57 @@ impl<C: SimpleKeyCodec> Clone for SubstrateKeystoreMeta<C> {
     }
 }
 
-impl<C: SimpleKeyCodec> KeystoreEntry for SubstrateKeystore<C> {
+impl<C: KeyCodec> KeystoreEntry for SubstrateKeystore<C> {
     fn name(&self) -> &str {
         &self.name
     }
 
     fn set_name(&mut self, name: &str) {
         self.name = name.to_string();
+    }
+}
+
+/// Generic helpers to wire keyring commands for any [`KeyringCodecExt`].
+pub mod keyring_ops {
+    use super::{KeyringCodecExt, SubstrateKeystore};
+    use crate::keyring::Keyring;
+    use anyhow::Result;
+
+    pub fn add_private<C: KeyringCodecExt>(
+        keyring: &mut Keyring<SubstrateKeystore<C>>,
+        name: &str,
+        private_key: C::PrivateKey,
+    ) -> Result<SubstrateKeystore<C>> {
+        let keystore = SubstrateKeystore::from_private_key(name, private_key)?;
+        keyring.store(name, keystore)
+    }
+
+    pub fn add_hex<C: KeyringCodecExt>(
+        keyring: &mut Keyring<SubstrateKeystore<C>>,
+        name: &str,
+        encoded: &str,
+    ) -> Result<SubstrateKeystore<C>> {
+        let private_key = C::decode_private(encoded)?;
+        add_private(keyring, name, private_key)
+    }
+
+    pub fn create<C: KeyringCodecExt>(
+        keyring: &mut Keyring<SubstrateKeystore<C>>,
+        name: &str,
+    ) -> Result<(SubstrateKeystore<C>, C::PrivateKey)> {
+        let private_key = C::random_private()?;
+        let keystore = add_private(keyring, name, private_key.clone())?;
+        Ok((keystore, private_key))
+    }
+
+    pub fn import_suri<C: KeyringCodecExt>(
+        keyring: &mut Keyring<SubstrateKeystore<C>>,
+        name: &str,
+        suri: &str,
+        password: Option<&str>,
+    ) -> Result<(SubstrateKeystore<C>, C::PrivateKey)> {
+        let private_key = C::import_suri(suri, password)?;
+        let keystore = add_private(keyring, name, private_key.clone())?;
+        Ok((keystore, private_key))
     }
 }

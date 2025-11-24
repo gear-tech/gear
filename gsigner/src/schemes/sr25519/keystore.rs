@@ -214,7 +214,7 @@ impl Default for Meta {
 
 impl Meta {
     fn default_key_type() -> String {
-        crate::substrate_utils::pair_key_type_string::<sp_core::sr25519::Pair>()
+        crate::substrate::pair_key_type_string::<sp_core::sr25519::Pair>()
     }
 }
 

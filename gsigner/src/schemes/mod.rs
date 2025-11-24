@@ -55,8 +55,6 @@ impl SchemeType {
             SchemeType::Sr25519 => crate::schemes::sr25519::Sr25519::scheme_name(),
             #[cfg(feature = "ed25519")]
             SchemeType::Ed25519 => crate::schemes::ed25519::Ed25519::scheme_name(),
-            #[allow(unreachable_patterns)]
-            _ => unreachable!("No signature schemes enabled"),
         }
     }
 }

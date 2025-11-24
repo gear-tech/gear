@@ -20,7 +20,7 @@
 
 use sha3::{Digest as _, Keccak256};
 
-/// Compute the Keccak-256 hash of a single byte slice.
+/// Compute the Keccak-256 hash of a byte slice.
 #[inline]
 pub fn keccak256(data: &[u8]) -> [u8; 32] {
     let mut hasher = Keccak256::new();

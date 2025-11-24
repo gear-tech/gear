@@ -19,7 +19,9 @@
 use crate::params::Params;
 use anyhow::Result;
 use clap::Parser;
-use gsigner::cli::{Secp256k1Commands, display_secp256k1_result, execute_secp256k1_command};
+use gsigner::cli::{
+    Secp256k1Commands, WithDefaultStorage, display_secp256k1_result, execute_secp256k1_command,
+};
 use std::path::PathBuf;
 
 /// Keystore manipulations.
@@ -58,69 +60,7 @@ impl KeyCommand {
     pub fn exec(self) -> Result<()> {
         let key_store = self.key_store.expect("must never be empty after merging");
 
-        let command = match self.command {
-            Secp256k1Commands::Clear { storage } => Secp256k1Commands::Clear {
-                storage: storage.or_else(|| Some(key_store.clone())),
-            },
-            Secp256k1Commands::Generate {
-                storage,
-                show_secret,
-            } => Secp256k1Commands::Generate {
-                storage: storage.or_else(|| Some(key_store.clone())),
-                show_secret,
-            },
-            Secp256k1Commands::Sign {
-                public_key,
-                data,
-                storage,
-                contract,
-            } => Secp256k1Commands::Sign {
-                public_key,
-                data,
-                storage: storage.or_else(|| Some(key_store.clone())),
-                contract,
-            },
-            Secp256k1Commands::Verify {
-                public_key,
-                data,
-                signature,
-            } => Secp256k1Commands::Verify {
-                public_key,
-                data,
-                signature,
-            },
-            Secp256k1Commands::Address { public_key } => Secp256k1Commands::Address { public_key },
-            Secp256k1Commands::Insert {
-                storage,
-                private_key,
-                show_secret,
-            } => Secp256k1Commands::Insert {
-                storage: storage.or_else(|| Some(key_store.clone())),
-                private_key,
-                show_secret,
-            },
-            Secp256k1Commands::Show {
-                storage,
-                key,
-                show_secret,
-            } => Secp256k1Commands::Show {
-                storage: storage.or_else(|| Some(key_store.clone())),
-                key,
-                show_secret,
-            },
-            Secp256k1Commands::Recover { data, signature } => {
-                Secp256k1Commands::Recover { data, signature }
-            }
-            Secp256k1Commands::List {
-                storage,
-                show_secret,
-            } => Secp256k1Commands::List {
-                storage: storage.or_else(|| Some(key_store.clone())),
-                show_secret,
-            },
-            Secp256k1Commands::PeerId { public_key } => Secp256k1Commands::PeerId { public_key },
-            Secp256k1Commands::Keyring { command } => Secp256k1Commands::Keyring { command },
-        };
+        let command = self.command.with_default_storage(key_store);
         let result = execute_secp256k1_command(command)?;
         display_secp256k1_result(&result);
 

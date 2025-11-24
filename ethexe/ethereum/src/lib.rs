@@ -208,15 +208,7 @@ impl SignerSync for Sender {
             .signer
             .sign_digest(self.sender, &digest)
             .map_err(|err| SignerError::Other(err.into()))?;
-        let (sig, recovery_id) = signature.into_parts();
-        let mut parity = recovery_id.is_y_odd();
-        let sig = if let Some(normalized) = sig.normalize_s() {
-            parity = !parity;
-            normalized
-        } else {
-            sig
-        };
-        Ok(Signature::from_signature_and_parity(sig, parity))
+        Ok(Signature::from_erc2098(&signature.as_raw_bytes()))
     }
 
     fn chain_id_sync(&self) -> Option<ChainId> {

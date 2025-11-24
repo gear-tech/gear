@@ -1,4 +1,3 @@
-#![cfg_attr(not(feature = "std"), no_std)]
 // This file is part of Gear.
 //
 // Copyright (C) 2024-2025 Gear Technologies Inc.
@@ -50,6 +49,8 @@
 //! let signature = signer.sign(public_key, b"hello world")?;
 //! ```
 
+#![cfg_attr(not(feature = "std"), no_std)]
+
 extern crate alloc;
 
 pub mod address;
@@ -63,7 +64,6 @@ pub mod schemes;
 #[cfg(feature = "std")]
 pub mod signer;
 pub mod storage;
-pub mod substrate_utils;
 pub mod traits;
 pub mod utils;
 
@@ -75,6 +75,8 @@ pub mod keyring;
 
 #[cfg(any(feature = "sr25519", feature = "ed25519", feature = "secp256k1"))]
 pub mod substrate;
+#[cfg(any(feature = "sr25519", feature = "ed25519", feature = "secp256k1"))]
+pub use substrate as substrate_utils;
 
 #[cfg(feature = "secp256k1")]
 pub use address::Address;

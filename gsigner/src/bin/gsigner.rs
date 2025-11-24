@@ -18,14 +18,14 @@
 
 use anyhow::Result;
 use clap::Parser;
-use gsigner::cli::{GSignerCli, display_result, execute_command};
+use gsigner::cli::{GSignerCli, display_result_with_format, execute_command};
 
 fn main() -> Result<()> {
     tracing_subscriber::fmt::init();
 
     let cli = GSignerCli::parse();
     let result = execute_command(cli.command)?;
-    display_result(&result);
+    display_result_with_format(&result, cli.format);
 
     Ok(())
 }

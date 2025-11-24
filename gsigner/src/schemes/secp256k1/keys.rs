@@ -21,7 +21,7 @@
 use super::Address;
 use crate::{
     error::SignerError,
-    substrate_utils::{PairSeed, SpPairWrapper},
+    substrate::{PairSeed, SpPairWrapper},
     traits::SeedableKey,
     utils::decode_hex_to_array,
 };

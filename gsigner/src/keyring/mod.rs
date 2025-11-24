@@ -22,7 +22,7 @@
 //! across different signature schemes by relying on scheme-specific keystore
 //! types to implement [`KeystoreEntry`].
 
-pub mod simple;
+pub mod key_codec;
 
 use anyhow::{Result, anyhow};
 use serde::{Deserialize, Serialize};
@@ -32,6 +32,10 @@ use std::{
 };
 
 const CONFIG_FILE: &str = "keyring.json";
+pub const NAMESPACE_NET: &str = "net";
+pub const NAMESPACE_SECP: &str = "secp";
+pub const NAMESPACE_ED: &str = "ed";
+pub const NAMESPACE_SR: &str = "sr";
 
 /// Trait for keystore types that can be used with the keyring.
 pub trait KeystoreEntry: Serialize + for<'de> Deserialize<'de> + Clone {
@@ -114,6 +118,25 @@ impl<K: KeystoreEntry> Keyring<K> {
             keystores,
             primary,
         })
+    }
+
+    /// Resolve a storage path into a namespaced keyring directory.
+    ///
+    /// This allows callers to pass a common root (e.g. `/keys`) while keeping
+    /// scheme-specific keyrings separate (`/keys/secp`, `/keys/ed`, `/keys/net`, ...).
+    /// If the provided path already contains keystores or configuration, it is returned
+    /// unchanged for backward compatibility.
+    pub fn namespaced_path(store: PathBuf, namespace: &str) -> PathBuf {
+        if path_has_keyring(&store) || store.file_name().is_some_and(|name| name == namespace) {
+            return store;
+        }
+
+        let namespaced = store.join(namespace);
+        if path_has_keyring(&namespaced) {
+            namespaced
+        } else {
+            namespaced
+        }
     }
 
     fn is_config_file(path: &Path) -> bool {
@@ -252,11 +275,26 @@ impl<K: KeystoreEntry> Keyring<K> {
     }
 }
 
+fn path_has_keyring(path: &Path) -> bool {
+    if path.join(CONFIG_FILE).exists() {
+        return true;
+    }
+
+    fs::read_dir(path)
+        .map(|entries| {
+            entries.flatten().any(|entry| {
+                let file_path = entry.path();
+                file_path.is_file() && file_path.extension().is_some_and(|ext| ext == "json")
+            })
+        })
+        .unwrap_or(false)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use serde::{Deserialize, Serialize};
-    use std::collections::HashSet;
+    use std::{collections::HashSet, fs};
 
     #[derive(Clone, Serialize, Deserialize)]
     struct TestKeystore {
@@ -316,5 +354,39 @@ mod tests {
         keyring.remove("alice").unwrap();
         assert_eq!(keyring.list().len(), 1);
         assert!(keyring.primary.is_none());
+    }
+
+    #[test]
+    fn namespaced_path_defaults_to_namespace() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let root = temp_dir.path().join("keys");
+        fs::create_dir_all(&root).unwrap();
+
+        let resolved = Keyring::<TestKeystore>::namespaced_path(root.clone(), NAMESPACE_SECP);
+        assert_eq!(resolved, root.join(NAMESPACE_SECP));
+    }
+
+    #[test]
+    fn namespaced_path_preserves_existing_store() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let root = temp_dir.path().join("keys");
+        fs::create_dir_all(&root).unwrap();
+        fs::write(root.join("alice.json"), "{}").unwrap();
+
+        let resolved = Keyring::<TestKeystore>::namespaced_path(root.clone(), NAMESPACE_ED);
+        assert_eq!(resolved, root);
+    }
+
+    #[test]
+    fn namespaced_path_prefers_existing_namespace() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let root = temp_dir.path().join("keys");
+        let namespaced = root.join(NAMESPACE_NET);
+        fs::create_dir_all(&namespaced).unwrap();
+        fs::write(namespaced.join("alice.json"), "{}").unwrap();
+
+        let resolved = Keyring::<TestKeystore>::namespaced_path(root, NAMESPACE_NET);
+        assert!(resolved.ends_with(NAMESPACE_NET));
+        assert!(resolved.join("alice.json").exists());
     }
 }

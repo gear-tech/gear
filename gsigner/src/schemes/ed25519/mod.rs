@@ -21,7 +21,7 @@
 use crate::{
     address::{SubstrateAddress, SubstrateCryptoScheme},
     error::{Result, SignerError},
-    substrate_utils::{PairSeed, SpPairWrapper},
+    substrate::{PairSeed, SpPairWrapper},
     traits::SignatureScheme,
 };
 use alloc::{

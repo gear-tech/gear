@@ -23,7 +23,13 @@ use crate::{
     address::SubstrateAddress,
     keyring::{
         Keyring as GenericKeyring,
-        simple::{SimpleKeyCodec, SubstrateKeystore},
+        key_codec::{
+            KeyCodec, KeyringCodecExt, SubstrateKeystore,
+            keyring_ops::{
+                add_hex as keyring_add_hex, add_private as keyring_add, create as keyring_create,
+                import_suri as keyring_import_suri,
+            },
+        },
     },
 };
 use anyhow::{Result, anyhow};
@@ -33,7 +39,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone, Copy, Debug, Default, Serialize, Deserialize)]
 pub struct Ed25519Codec;
 
-impl SimpleKeyCodec for Ed25519Codec {
+impl KeyCodec for Ed25519Codec {
     type Pair = sp_core::ed25519::Pair;
     type PrivateKey = PrivateKey;
     type PublicKey = PublicKey;
@@ -86,6 +92,16 @@ impl SimpleKeyCodec for Ed25519Codec {
     }
 }
 
+impl KeyringCodecExt for Ed25519Codec {
+    fn random_private() -> Result<Self::PrivateKey> {
+        Ok(PrivateKey::random())
+    }
+
+    fn import_suri(suri: &str, password: Option<&str>) -> Result<Self::PrivateKey> {
+        Ok(PrivateKey::from_suri(suri, password)?)
+    }
+}
+
 /// JSON keystore representation for ed25519 keys.
 pub type Keystore = SubstrateKeystore<Ed25519Codec>;
 
@@ -95,27 +111,17 @@ pub type Keyring = GenericKeyring<Keystore>;
 impl Keyring {
     /// Add an existing private key to the keyring.
     pub fn add(&mut self, name: &str, private_key: PrivateKey) -> Result<Keystore> {
-        let keystore = Keystore::from_private_key(name, private_key)?;
-        self.store(name, keystore)
+        keyring_add::<Ed25519Codec>(self, name, private_key)
     }
 
     /// Add a private key from its hex-encoded seed.
     pub fn add_hex(&mut self, name: &str, hex_seed: &str) -> Result<Keystore> {
-        let bytes = hex::decode(hex_seed)?;
-        if bytes.len() != 32 {
-            return Err(anyhow!("Invalid ed25519 seed length"));
-        }
-        let mut seed = [0u8; 32];
-        seed.copy_from_slice(&bytes);
-        let private_key = PrivateKey::from_seed(seed)?;
-        self.add(name, private_key)
+        keyring_add_hex::<Ed25519Codec>(self, name, hex_seed)
     }
 
     /// Generate and store a new private key.
     pub fn create(&mut self, name: &str) -> Result<(Keystore, PrivateKey)> {
-        let private_key = PrivateKey::random();
-        let keystore = self.add(name, private_key.clone())?;
-        Ok((keystore, private_key))
+        keyring_create::<Ed25519Codec>(self, name)
     }
 
     /// Import a private key from a Substrate SURI.
@@ -125,9 +131,7 @@ impl Keyring {
         suri: &str,
         password: Option<&str>,
     ) -> Result<(Keystore, PrivateKey)> {
-        let private_key = PrivateKey::from_suri(suri, password)?;
-        let keystore = self.add(name, private_key.clone())?;
-        Ok((keystore, private_key))
+        keyring_import_suri::<Ed25519Codec>(self, name, suri, password)
     }
 }
 

@@ -21,7 +21,7 @@
 use crate::{
     address::{SubstrateAddress, SubstrateCryptoScheme},
     error::{Result, SignerError},
-    substrate_utils::{PairSeed, SpPairWrapper},
+    substrate::{PairSeed, SpPairWrapper},
     traits::SignatureScheme,
 };
 use alloc::{
@@ -437,5 +437,36 @@ mod tests {
         let alice_pub2 = Sr25519::public_key(&alice2);
 
         assert_eq!(alice_pub.to_bytes(), alice_pub2.to_bytes());
+    }
+
+    #[test]
+    fn suri_and_phrase_compatibility() {
+        let bob = PrivateKey::from_suri("//Bob", None).unwrap();
+        let bob_pub = Sr25519::public_key(&bob);
+        let alice = PrivateKey::from_suri("//Alice", None).unwrap();
+        let alice_pub = Sr25519::public_key(&alice);
+        assert_ne!(bob_pub.to_bytes(), alice_pub.to_bytes());
+
+        let stash = PrivateKey::from_suri("//Alice//stash", None).unwrap();
+        let stash_pub = Sr25519::public_key(&stash);
+        assert_ne!(stash_pub.to_bytes(), alice_pub.to_bytes());
+
+        let seed = [1u8; 32];
+        let seed_key = PrivateKey::from_seed(seed).unwrap();
+        let seed_pub = Sr25519::public_key(&seed_key);
+        let seed_again = PrivateKey::from_seed(seed).unwrap();
+        assert_eq!(
+            seed_pub.to_bytes(),
+            Sr25519::public_key(&seed_again).to_bytes()
+        );
+
+        let phrase = "bottom drive obey lake curtain smoke basket hold race lonely fit walk";
+        let phrase_key = PrivateKey::from_phrase(phrase, None).unwrap();
+        let phrase_pub = Sr25519::public_key(&phrase_key);
+        let phrase_again = PrivateKey::from_phrase(phrase, None).unwrap();
+        assert_eq!(
+            phrase_pub.to_bytes(),
+            Sr25519::public_key(&phrase_again).to_bytes()
+        );
     }
 }
