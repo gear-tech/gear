@@ -2991,7 +2991,7 @@ async fn catch_up_test_case(commitment_delay_limit: u32) {
 
             log::info!("📗 LateCommitter waiting for commitment to be mined ...");
             pending?
-                .try_get_receipt()
+                .try_get_receipt_check_reverted()
                 .await
                 .map(|r| r.transaction_hash.0.into())
         }

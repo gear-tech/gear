@@ -60,7 +60,10 @@ impl PendingCodeRequestBuilder {
     }
 
     pub async fn send(self) -> Result<(H256, CodeId)> {
-        let receipt = self.pending_builder.try_get_receipt().await?;
+        let receipt = self
+            .pending_builder
+            .try_get_receipt_check_reverted()
+            .await?;
         Ok(((*receipt.transaction_hash).into(), self.code_id))
     }
 }
@@ -181,7 +184,11 @@ impl Router {
                 })
                 .unwrap_or_default(),
         );
-        let receipt = builder.send().await?.try_get_receipt().await?;
+        let receipt = builder
+            .send()
+            .await?
+            .try_get_receipt_check_reverted()
+            .await?;
 
         let tx_hash = (*receipt.transaction_hash).into();
         let mut actor_id = None;
@@ -222,7 +229,11 @@ impl Router {
                 .unwrap_or_default(),
             abi_interface,
         );
-        let receipt = builder.send().await?.try_get_receipt().await?;
+        let receipt = builder
+            .send()
+            .await?
+            .try_get_receipt_check_reverted()
+            .await?;
 
         let tx_hash = (*receipt.transaction_hash).into();
         let mut actor_id = None;
@@ -249,7 +260,7 @@ impl Router {
     ) -> Result<H256> {
         self.commit_batch_pending(commitment, signatures)
             .await?
-            .try_get_receipt()
+            .try_get_receipt_check_reverted()
             .await
             .map(|receipt| H256(receipt.transaction_hash.0))
     }

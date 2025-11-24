@@ -224,7 +224,11 @@ pub trait TryGetReceipt<N: Network> {
     /// Works like `self.get_receipt().await`, but retries a few times if rpc returns a null response.
     async fn try_get_receipt(self) -> Result<N::ReceiptResponse>;
 
+    /// Works like `self.try_get_receipt().await`, but also extracts the message id from the logs.
     async fn try_get_message_send_receipt(self) -> Result<(H256, MessageId)>;
+
+    /// Works like `self.try_get_receipt().await`, but also checks if the transaction was reverted.
+    async fn try_get_receipt_check_reverted(self) -> Result<N::ReceiptResponse>;
 }
 
 #[async_trait::async_trait]
@@ -279,6 +283,21 @@ impl TryGetReceipt<network::Ethereum> for PendingTransactionBuilder<network::Eth
             message_id.ok_or_else(|| anyhow!("Couldn't find `MessageQueueingRequested` log"))?;
 
         Ok((tx_hash, message_id))
+    }
+
+    async fn try_get_receipt_check_reverted(self) -> Result<TransactionReceipt> {
+        let receipt = self.try_get_receipt().await?;
+
+        if receipt.status() {
+            Ok(receipt)
+        } else {
+            // TODO: extract revert reason from RPC by calling transaction
+            Err(anyhow!(
+                "Transaction {:?} was reverted by unknown reason at block {:?}",
+                receipt.transaction_hash,
+                receipt.block_hash
+            ))
+        }
     }
 }
 
