@@ -553,6 +553,9 @@ jobs:
       - name: "Build: Production binaries"
         run: cargo build -p wasm-proc -p gear-cli -F cli --profile production
 
+      - name: "Build: Production ethexe"
+        run: cargo build -p ethexe --profile production
+
       - name: Prepare artifacts
         run: |
           mkdir artifact
@@ -568,6 +571,7 @@ jobs:
           # executables
           cp target/production/gear artifact/
           cp target/production/wasm-proc artifact/
+          cp target/production/ethexe artifact/
 
       - name: Upload artifacts
         if: ${{ github.event_name == 'push' }}
