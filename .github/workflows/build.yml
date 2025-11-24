@@ -554,7 +554,7 @@ jobs:
         run: cargo build -p wasm-proc -p gear-cli -F cli --profile production
 
       - name: "Build: Production ethexe"
-        run: cargo build -p ethexe --profile production
+        run: cargo build -p ethexe-cli --profile production
 
       - name: Prepare artifacts
         run: |
