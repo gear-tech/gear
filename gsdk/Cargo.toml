@@ -33,13 +33,13 @@ url.workspace = true
 parity-scale-codec.workspace = true
 
 [dev-dependencies]
-serde_json = { workspace = true, features = ["std"] }
 gear-node-wrapper.workspace = true
 tokio = { workspace = true, features = ["full"] }
 demo-messenger.workspace = true
 demo-fungible-token.workspace = true
 demo-vec.workspace = true
 demo-waiter = { workspace = true, features = ["std"] }
+serde_json = { workspace = true, features = [ "std" ] }
 
 [features]
 testing = []
