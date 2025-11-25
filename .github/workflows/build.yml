@@ -532,11 +532,13 @@ jobs:
 
   production:
     runs-on: [kuberunner, github-runner-02]
-    needs: workspace
-    if: ${{ inputs.production }}
+    needs: [dynamic-matrix, workspace]
+    if: ${{ inputs.production && contains(fromJSON(needs.dynamic-matrix.outputs.profiles).*.name, 'release') }}
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - name: "Install: Setup linker"
         uses: ./.github/actions/setup-linker
@@ -553,6 +555,9 @@ jobs:
       - name: "Build: Production binaries"
         run: cargo build -p wasm-proc -p gear-cli -F cli --profile production
 
+      - name: "Build: Production ethexe"
+        run: cargo build -p ethexe-cli --profile production
+
       - name: Prepare artifacts
         run: |
           mkdir artifact
@@ -568,6 +573,7 @@ jobs:
           # executables
           cp target/production/gear artifact/
           cp target/production/wasm-proc artifact/
+          cp target/production/ethexe artifact/
 
       - name: Upload artifacts
         if: ${{ github.event_name == 'push' }}

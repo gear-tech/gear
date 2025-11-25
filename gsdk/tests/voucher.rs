@@ -18,7 +18,8 @@
 
 use gear_core::ids::{ActorId, CodeId, MessageId, prelude::CodeIdExt};
 use gsdk::{
-    Api, Event, Result, TxInBlock, gear::runtime_types::pallet_gear_voucher::internal::VoucherId,
+    Api, AsGear, Event, Result, TxInBlock,
+    gear::runtime_types::pallet_gear_voucher::internal::VoucherId,
 };
 use sp_core::crypto::Ss58Codec;
 use sp_runtime::AccountId32;
@@ -39,7 +40,7 @@ async fn test_issue_voucher() -> Result<()> {
 
     // act
     let tx = signer
-        .calls
+        .calls()
         .issue_voucher(
             account_id.clone(),
             voucher_initial_balance,
@@ -72,18 +73,18 @@ async fn test_decline_revoke_voucher() -> Result<()> {
 
     // issue voucher
     let tx = signer
-        .calls
+        .calls()
         .issue_voucher(account_id.clone(), voucher_initial_balance, None, true, 100)
         .await?;
     let voucher_id = get_issued_voucher_id(tx).await?;
     let _voucher_address = AccountId32::new(voucher_id.0).to_ss58check();
 
     // act
-    let tx = signer.calls.decline_voucher(voucher_id.clone()).await?;
+    let tx = signer.calls().decline_voucher(voucher_id.clone()).await?;
     let declined_id = get_declined_voucher_id(tx).await?;
 
     let tx = signer
-        .calls
+        .calls()
         .revoke_voucher(account_id.clone(), voucher_id.clone())
         .await?;
     let revoked_id = get_revoked_voucher_id(tx).await?;
@@ -109,24 +110,24 @@ async fn test_upload_code_with_voucher() -> Result<()> {
 
     // issue voucher
     let tx = signer
-        .calls
+        .calls()
         .issue_voucher(account_id.clone(), voucher_initial_balance, None, true, 100)
         .await?;
     let voucher_id = get_issued_voucher_id(tx).await?;
     let voucher_address = AccountId32::new(voucher_id.0).to_ss58check();
 
     // account balance before upload code
-    let account_initial_balance = signer.rpc.get_balance().await?;
+    let account_initial_balance = signer.rpc().get_balance().await?;
 
     // act
     let tx = signer
-        .calls
+        .calls()
         .upload_code_with_voucher(voucher_id, demo_messenger::WASM_BINARY.to_vec())
         .await?;
 
     let code_id = get_last_code_id(tx).await?;
 
-    let account_balance = signer.rpc.get_balance().await?;
+    let account_balance = signer.rpc().get_balance().await?;
     let voucher_balance = signer.api().get_balance(&voucher_address).await?;
 
     // assert
@@ -152,7 +153,7 @@ async fn test_send_message_with_voucher() -> Result<()> {
 
     // 1. issue voucher
     let tx = signer
-        .calls
+        .calls()
         .issue_voucher(account_id.clone(), voucher_initial_balance, None, true, 100)
         .await?;
     let voucher_id = get_issued_voucher_id(tx).await?;
@@ -160,32 +161,32 @@ async fn test_send_message_with_voucher() -> Result<()> {
 
     // 2. upload code with voucher
     let tx = signer
-        .calls
+        .calls()
         .upload_code_with_voucher(voucher_id.clone(), demo_messenger::WASM_BINARY.to_vec())
         .await?;
     let code_id = get_last_code_id(tx).await?;
 
     // 3. calculate create gas and create program
     let gas_info = signer
-        .rpc
+        .rpc()
         .calculate_create_gas(None, code_id, vec![], 0, true, None)
         .await?;
     let tx = signer
-        .calls
+        .calls()
         .create_program(code_id, vec![], vec![], gas_info.min_limit, 0)
         .await?;
     let program_id = get_last_program_id(tx).await?;
 
     // 4. calculate handle gas and send message with voucher
-    let account_before_balance = signer.rpc.get_balance().await?;
+    let account_before_balance = signer.rpc().get_balance().await?;
     let voucher_before_balance = signer.api().get_balance(&voucher_address).await?;
 
     let gas_info = signer
-        .rpc
+        .rpc()
         .calculate_handle_gas(None, program_id, vec![], 0, true, None)
         .await?;
     let tx = signer
-        .calls
+        .calls()
         .send_message_with_voucher(
             voucher_id.clone(),
             program_id,
@@ -197,7 +198,7 @@ async fn test_send_message_with_voucher() -> Result<()> {
         .await?;
     let _message_id = get_last_message_id(tx).await?;
 
-    let account_after_balance = signer.rpc.get_balance().await?;
+    let account_after_balance = signer.rpc().get_balance().await?;
     let voucher_after_balance = signer.api().get_balance(&voucher_address).await?;
 
     // assert
@@ -216,7 +217,7 @@ async fn get_issued_voucher_id(tx: TxInBlock) -> Result<VoucherId> {
                 voucher_id,
                 ..
             },
-        ) = event?.as_root_event::<Event>()?
+        ) = event?.as_gear()?
         {
             dbg!(&voucher_id);
             return Ok(voucher_id);
@@ -230,7 +231,7 @@ async fn get_last_code_id(tx: TxInBlock) -> Result<CodeId> {
         if let Event::Gear(gsdk::gear::runtime_types::pallet_gear::pallet::Event::CodeChanged {
             id,
             change: gsdk::gear::runtime_types::gear_common::event::CodeChangeKind::Active { .. },
-        }) = event?.as_root_event::<Event>()?
+        }) = event?.as_gear()?
         {
             return Ok(id);
         }
@@ -248,7 +249,7 @@ async fn get_last_program_id(tx: TxInBlock) -> Result<ActorId> {
                         ..
                     },
             },
-        ) = event?.as_root_event::<Event>()?
+        ) = event?.as_gear()?
         {
             return Ok(id);
         }
@@ -261,7 +262,7 @@ async fn get_last_message_id(tx: TxInBlock) -> Result<MessageId> {
         if let Event::Gear(gsdk::gear::runtime_types::pallet_gear::pallet::Event::MessageQueued {
             id,
             ..
-        }) = event?.as_root_event::<Event>()?
+        }) = event?.as_gear()?
         {
             return Ok(id);
         }
@@ -276,7 +277,7 @@ async fn get_declined_voucher_id(tx: TxInBlock) -> Result<VoucherId> {
                 voucher_id,
                 ..
             },
-        ) = event?.as_root_event::<Event>()?
+        ) = event?.as_gear()?
         {
             return Ok(voucher_id);
         }
@@ -291,7 +292,7 @@ async fn get_revoked_voucher_id(tx: TxInBlock) -> Result<VoucherId> {
                 voucher_id,
                 ..
             },
-        ) = event?.as_root_event::<Event>()?
+        ) = event?.as_gear()?
         {
             return Ok(voucher_id);
         }
