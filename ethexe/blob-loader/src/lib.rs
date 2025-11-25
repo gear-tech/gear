@@ -233,9 +233,8 @@ impl<DB: Database> Stream for BlobLoader<DB> {
         match futures::ready!(self.futures.poll_next_unpin(cx)) {
             None => Poll::Pending,
             Some(Err(err)) => {
-                log::error!("Failed to load blob: {err}");
-
-                // TODO: currently in case of error in blob loading we just skip it
+                // TODO: #4995 currently in case of error in blob loading we just skip it
+                log::error!("Failed to load blob: {err}, skipping");
                 Poll::Pending
             }
             Some(Ok(code_and_id)) => {
