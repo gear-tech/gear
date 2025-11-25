@@ -111,11 +111,13 @@ impl ConsensusLayerBlobReader {
     async fn read_blob_from_tx_hash(&self, tx_hash: H256) -> ReaderResult<Vec<u8>> {
         let mut last_err = None;
         for attempt in 0..self.config.attempts.get() {
-            log::trace!("trying to get blob, attempt #{}", attempt);
+            log::trace!("trying to get blob, attempt #{attempt}");
             match self.try_query_blob(tx_hash).await {
                 Err(err) => {
                     log::warn!("failed to get blob on attempt #{attempt}: {err}");
                     last_err = Some(err);
+
+                    tokio::time::sleep(self.config.beacon_block_time).await;
                 }
                 Ok(blob) => return Ok(blob),
             }
@@ -147,10 +149,10 @@ impl ConsensusLayerBlobReader {
             .await?
             .ok_or(BlockNotFound(H256(block_hash.0)))?;
 
+        // detect anvil by chain id
         let slot = if let Some(chain_id) = tx.chain_id()
             && chain_id == 31337
         {
-            // detect anvil by chain id
             block.header.number
         } else {
             static BEACON_GENESIS_BLOCK_TIME: OnceCell<u64> = OnceCell::const_new();
@@ -331,7 +333,7 @@ mod tests {
             ethereum_rpc: "https://hoodi-reth-rpc.gear-tech.io".into(),
             ethereum_beacon_rpc: "https://hoodi-lighthouse-rpc.gear-tech.io".into(),
             beacon_block_time: Duration::from_secs(12),
-            attempts: NonZeroU8::new(3).unwrap(),
+            attempts: const { NonZeroU8::new(3).unwrap() },
         };
 
         let blobs_reader = ConsensusLayerBlobReader {

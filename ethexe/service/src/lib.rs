@@ -123,7 +123,7 @@ impl Service {
             ethereum_rpc: config.ethereum.rpc.clone(),
             ethereum_beacon_rpc: config.ethereum.beacon_rpc.clone(),
             beacon_block_time: alloy::eips::merge::SLOT_DURATION,
-            attempts: NonZeroU8::new(3).unwrap(),
+            attempts: const { NonZeroU8::new(3).unwrap() },
         };
         let blob_loader = BlobLoader::new(db.clone(), consensus_config)
             .await
