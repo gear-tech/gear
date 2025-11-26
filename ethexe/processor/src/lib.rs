@@ -91,7 +91,7 @@ pub enum ProcessorError {
     #[error("`__heap_base` is not global")]
     HeapBaseIsNotGlobal,
     #[error("`__heap_base` is not i32")]
-    HeapBaseIsNoti32,
+    HeapBaseIsNotI32,
     #[error("failed to write call input: {0}")]
     CallInputWrite(String),
     #[error("host state should be set before call and reset after")]

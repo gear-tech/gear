@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    Blocks, Events, ProgramStateChanges, Result, TxInBlock, UserMessageSentFilter,
+    AsGear, Blocks, Events, ProgramStateChanges, Result, TxInBlock, UserMessageSentFilter,
     UserMessageSentSubscription, config::GearConfig, gear::Event, signer::Signer,
 };
 use core::ops::{Deref, DerefMut};
@@ -153,7 +153,7 @@ impl Api {
         tx.fetch_events()
             .await?
             .iter()
-            .map(|e| -> Result<Event> { e?.as_root_event::<Event>().map_err(Into::into) })
+            .map(|e| -> Result<Event> { e?.as_gear() })
             .collect::<Result<Vec<Event>>>()
     }
 
