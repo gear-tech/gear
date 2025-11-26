@@ -1,6 +1,5 @@
 # misc
 .binpath
-node_modules/
 log/
 weight-dumps/
 gsdk/vara_runtime_prod.scale
