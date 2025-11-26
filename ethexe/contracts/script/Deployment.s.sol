@@ -41,7 +41,7 @@ contract DeploymentScript is Script {
 
         address mirrorAddress = vm.computeCreateAddress(deployerAddress, vm.getNonce(deployerAddress) + 2);
         // TODO setup nonce depends on what type of middleware we deploy.
-        address middlewareAddress = vm.computeCreateAddress(deployerAddress, vm.getNonce(deployerAddress) + 5);
+        address middlewareAddress = vm.computeCreateAddress(deployerAddress, vm.getNonce(deployerAddress) + 4);
 
         router = Router(
             payable(Upgrades.deployTransparentProxy(

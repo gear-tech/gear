@@ -174,7 +174,7 @@ impl ValidatorCore {
             })?;
 
         if latest_era_validators_committed == block_era + 1 {
-            tracing::trace!(
+            tracing::debug!(
                 current_era = %block_era,
                 latest_era_validators_committed = ?latest_era_validators_committed,
                 "Validators for next era are already committed. Skipping validators commitment"
