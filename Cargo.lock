@@ -5061,6 +5061,7 @@ dependencies = [
  "alloy",
  "anyhow",
  "async-trait",
+ "derive_more 2.0.1",
  "ethexe-common",
  "ethexe-signer",
  "futures",
