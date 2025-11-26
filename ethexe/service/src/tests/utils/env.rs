@@ -74,7 +74,7 @@ use roast_secp256k1_evm::frost::{
 use std::{
     fmt,
     net::SocketAddr,
-    num::NonZeroU8,
+    num::NonZero,
     ops::ControlFlow,
     pin::Pin,
     sync::atomic::{AtomicUsize, Ordering},
@@ -1010,7 +1010,7 @@ impl Node {
             ethereum_rpc: self.eth_cfg.rpc.clone(),
             ethereum_beacon_rpc: self.eth_cfg.beacon_rpc.clone(),
             beacon_block_time: self.eth_cfg.block_time,
-            attempts: NonZeroU8::new(3).unwrap(),
+            attempts: NonZero::<u8>::new(3).unwrap(),
         };
         let blob_loader = BlobLoader::new(self.db.clone(), consensus_config)
             .await

@@ -42,7 +42,7 @@ use ethexe_service_utils::{OptionFuture as _, OptionStreamNext as _};
 use ethexe_signer::Signer;
 use futures::{StreamExt, stream::FuturesUnordered};
 use gprimitives::{ActorId, CodeId, H256};
-use std::{collections::BTreeSet, num::NonZeroU8, pin::Pin, time::Duration};
+use std::{collections::BTreeSet, num::NonZero, pin::Pin, time::Duration};
 
 pub mod config;
 
@@ -123,7 +123,7 @@ impl Service {
             ethereum_rpc: config.ethereum.rpc.clone(),
             ethereum_beacon_rpc: config.ethereum.beacon_rpc.clone(),
             beacon_block_time: alloy::eips::merge::SLOT_DURATION,
-            attempts: const { NonZeroU8::new(3).unwrap() },
+            attempts: const { NonZero::<u8>::new(3).unwrap() },
         };
         let blob_loader = BlobLoader::new(db.clone(), consensus_config)
             .await

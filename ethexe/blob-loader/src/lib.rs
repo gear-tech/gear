@@ -34,7 +34,7 @@ use futures::{
 };
 use gprimitives::{CodeId, H256};
 use reqwest::Client;
-use std::{collections::HashSet, fmt, num::NonZeroU8, pin::Pin, task::Poll};
+use std::{collections::HashSet, fmt, num::NonZero, pin::Pin, task::Poll};
 use tokio::{sync::OnceCell, time::Duration};
 
 #[derive(Clone, PartialEq, Eq)]
@@ -97,7 +97,7 @@ pub struct ConsensusLayerConfig {
     pub ethereum_rpc: String,
     pub ethereum_beacon_rpc: String,
     pub beacon_block_time: Duration,
-    pub attempts: NonZeroU8,
+    pub attempts: NonZero<u8>,
 }
 
 #[derive(Clone)]
@@ -326,6 +326,7 @@ impl<DB: Database> BlobLoaderService for BlobLoader<DB> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use ethexe_common::gear_core::ids::prelude::CodeIdExt;
 
     #[tokio::test]
     async fn test_read_code_from_tx_hash() {
@@ -333,7 +334,7 @@ mod tests {
             ethereum_rpc: "https://hoodi-reth-rpc.gear-tech.io".into(),
             ethereum_beacon_rpc: "https://hoodi-lighthouse-rpc.gear-tech.io".into(),
             beacon_block_time: Duration::from_secs(12),
-            attempts: const { NonZeroU8::new(3).unwrap() },
+            attempts: const { NonZero::<u8>::new(3).unwrap() },
         };
 
         let blobs_reader = ConsensusLayerBlobReader {
@@ -345,13 +346,18 @@ mod tests {
             config: consensus_cfg,
         };
 
-        blobs_reader
+        let expected_code_id: CodeId =
+            "0xb529796a3d91f5a1f913c455245d7c7b6d02d0ea450852368d6a7c116161e762"
+                .parse()
+                .unwrap();
+        let code = blobs_reader
             .read_blob_from_tx_hash(
-                "0xee7f0082b6ad2fb1d409f39e5b169e102c27e4cf86b69a8a4006224cc91b4ae3"
+                "0x952e5de52613b8e39656e6e7a1c667699c45f333bc6f5a1b48832484f7b15459"
                     .parse()
                     .unwrap(),
             )
             .await
             .unwrap();
+        assert_eq!(expected_code_id, CodeId::generate(&code));
     }
 }
