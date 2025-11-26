@@ -6509,6 +6509,7 @@ name = "gear-core"
 version = "1.9.9"
 dependencies = [
  "blake2 0.10.6",
+ "bytemuck",
  "byteorder",
  "derive_more 2.0.1",
  "enum-iterator 1.5.0",

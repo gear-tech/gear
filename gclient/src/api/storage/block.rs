@@ -24,7 +24,7 @@ use gsdk::{
         config::{Header as _, substrate::BlakeTwo256},
         utils::H256,
     },
-    gear::Event,
+    gear::{self, Event},
 };
 
 type GearBlock = Header;
@@ -32,7 +32,11 @@ type GearBlock = Header;
 impl GearApi {
     /// Return the total gas limit per block (also known as a gas budget).
     pub fn block_gas_limit(&self) -> Result<u64> {
-        self.0.api().gas_limit().map_err(Into::into)
+        Ok(self
+            .0
+            .api()
+            .constants()
+            .at(&gear::constants().gear_gas().block_gas_limit())?)
     }
 
     /// The expected average block time at which BABE should be creating blocks.
@@ -42,7 +46,11 @@ impl GearApi {
     /// security parameter `c` (where `1 - c` represents the probability of a
     /// slot being empty).
     pub fn expected_block_time(&self) -> Result<u64> {
-        self.0.api().expected_block_time().map_err(Into::into)
+        Ok(self
+            .0
+            .api()
+            .constants()
+            .at(&gear::constants().babe().expected_block_time())?)
     }
 
     // Get block data
