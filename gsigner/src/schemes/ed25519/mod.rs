@@ -329,6 +329,42 @@ impl SignatureScheme for Ed25519 {
     }
 }
 
+#[cfg(all(feature = "std", feature = "keyring", feature = "serde"))]
+impl crate::keyring::KeyringScheme for Ed25519 {
+    type Keystore = keyring::Keystore;
+
+    fn namespace() -> &'static str {
+        crate::keyring::NAMESPACE_ED
+    }
+
+    fn keystore_from_private(
+        name: &str,
+        private_key: &Self::PrivateKey,
+        password: Option<&str>,
+    ) -> Result<Self::Keystore> {
+        Ok(Self::Keystore::from_private_key_with_password(
+            name,
+            private_key.clone(),
+            password,
+        )?)
+    }
+
+    fn keystore_private(
+        keystore: &Self::Keystore,
+        password: Option<&str>,
+    ) -> Result<Self::PrivateKey> {
+        Ok(keystore.private_key_with_password(password)?)
+    }
+
+    fn keystore_public(keystore: &Self::Keystore) -> Result<Self::PublicKey> {
+        Ok(keystore.public_key()?)
+    }
+
+    fn keystore_address(keystore: &Self::Keystore) -> Result<Self::Address> {
+        Ok(keystore.address()?)
+    }
+}
+
 #[cfg(all(test, feature = "std"))]
 mod tests {
     use super::*;

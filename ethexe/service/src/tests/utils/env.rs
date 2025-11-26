@@ -200,7 +200,7 @@ impl TestEnv {
                 .iter()
                 .map(|k| {
                     let private_key = k.parse().unwrap();
-                    signer.storage_mut().add_key(private_key).unwrap()
+                    signer.import_key(private_key).unwrap()
                 })
                 .collect(),
         };
@@ -713,7 +713,7 @@ impl TestEnv {
                         PrivateKey::from_seed(seed).expect("signing share must be valid seed");
                     ValidatorConfig {
                         public_key,
-                        session_public_key: signer.storage_mut().add_key(private_key).unwrap(),
+                        session_public_key: signer.import_key(private_key).unwrap(),
                     }
                 })
                 .collect(),
@@ -898,12 +898,7 @@ impl Wallets {
         Self {
             wallets: accounts
                 .into_iter()
-                .map(|s| {
-                    signer
-                        .storage_mut()
-                        .add_key(s.as_ref().parse().unwrap())
-                        .unwrap()
-                })
+                .map(|s| signer.import_key(s.as_ref().parse().unwrap()).unwrap())
                 .collect(),
             next_wallet: 0,
         }

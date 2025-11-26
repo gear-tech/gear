@@ -57,20 +57,15 @@ fn display_json(result: &CommandResult) {
     }
 }
 
-fn address_label(address: &str) -> &'static str {
-    if address.starts_with("0x") {
-        "Address"
-    } else {
-        "SS58"
-    }
-}
-
 fn display_clear(r: &ClearResult) {
     println!("{} Removed {} key(s)", "✓".green().bold(), r.removed);
 }
 
 fn display_generate(r: &KeyGenerationResult, address_caption: &str) {
     println!("{}", "✓ Generated keypair".green().bold());
+    if let Some(name) = &r.name {
+        println!("  {} {}", "Name:".bright_blue(), name);
+    }
     println!("  {} {}", "Public key:".bright_blue(), r.public_key);
     println!("  {} {}", address_caption.bright_blue(), r.address);
     println!("  {} {}", "Scheme:".bright_blue(), r.scheme);
@@ -85,6 +80,9 @@ fn display_import(r: &KeyImportResult, address_caption: &str, scheme_label: &str
         "{}",
         format!("✓ Imported {scheme_label} key").green().bold()
     );
+    if let Some(name) = &r.name {
+        println!("  {} {}", "Name:".bright_blue(), name);
+    }
     println!("  {} {}", "Public key:".bright_blue(), r.public_key);
     println!("  {} {}", address_caption.bright_blue(), r.address);
     println!("  {} {}", "Scheme:".bright_blue(), r.scheme);
@@ -123,7 +121,12 @@ fn display_list(result: &ListKeysResult, address_caption: &str) {
                 .bold()
         );
         for key in &result.keys {
-            println!("  {} {}", "•".bright_blue(), key.public_key);
+            if let Some(name) = &key.name {
+                println!("  {} {}", "•".bright_blue(), name.bright_white().bold());
+                println!("    {} {}", "Public key:".bright_black(), key.public_key);
+            } else {
+                println!("  {} {}", "•".bright_blue(), key.public_key.clone());
+            }
             println!("    {} {}", address_caption.bright_black(), key.address);
             println!("    {} {}", "Scheme:".bright_black(), key.scheme);
             println!("    {} {}", "Key type:".bright_black(), key.key_type);
@@ -134,62 +137,8 @@ fn display_list(result: &ListKeysResult, address_caption: &str) {
     }
 }
 
-#[cfg(feature = "keyring")]
-fn display_keyring_result(result: &KeyringResult) {
+fn display_message(result: &MessageResult) {
     println!("{}", format!("✓ {}", result.message).green().bold());
-    if let Some(details) = &result.details {
-        println!(
-            "  {} {}",
-            "Key name:".bright_blue(),
-            details.name.bright_white()
-        );
-        println!("  {} {}", "Public key:".bright_blue(), details.public_key);
-        println!(
-            "  {} {}",
-            format!("{}:", address_label(&details.address)).bright_blue(),
-            details.address
-        );
-        println!("  {} {}", "Scheme:".bright_blue(), details.scheme.as_str());
-        if let Some(key_type) = &details.key_type {
-            println!("  {} {}", "Key type:".bright_blue(), key_type);
-        }
-        if let Some(private_key) = &details.private_key {
-            println!("  {} {}", "Private key:".bright_red(), private_key);
-        }
-        if let Some(keystore_name) = &details.keystore_name {
-            println!("  {} {}", "Keystore:".bright_blue(), keystore_name);
-        }
-    }
-}
-
-#[cfg(feature = "keyring")]
-fn display_keyring_list(result: &KeyringListResult) {
-    if result.keystores.is_empty() {
-        println!("{}", "No keys in keyring".yellow());
-    } else {
-        println!(
-            "{}",
-            format!("Keyring contains {} key(s):", result.keystores.len())
-                .green()
-                .bold()
-        );
-        for ks in &result.keystores {
-            println!("  {} {}", "•".bright_blue(), ks.name.bright_white().bold());
-            if let Some(public_key) = &ks.public_key {
-                println!("    {} {}", "Public key:".bright_black(), public_key);
-            }
-            println!(
-                "    {} {}",
-                format!("{}:", address_label(&ks.address)).bright_black(),
-                ks.address
-            );
-            println!("    {} {}", "Created:".bright_black(), ks.created);
-            println!("    {} {}", "Scheme:".bright_black(), ks.scheme);
-            if let Some(key_type) = &ks.key_type {
-                println!("    {} {}", "Key type:".bright_black(), key_type);
-            }
-        }
-    }
 }
 
 pub fn display_secp256k1_result(result: &Secp256k1Result) {
@@ -211,10 +160,7 @@ pub fn display_secp256k1_result(result: &Secp256k1Result) {
             display_peer_id(&r.peer_id);
         }
         Secp256k1Result::List(r) => display_list(r, "Address:"),
-        #[cfg(feature = "keyring")]
-        Secp256k1Result::Keyring(r) => display_keyring_result(r),
-        #[cfg(feature = "keyring")]
-        Secp256k1Result::KeyringList(r) => display_keyring_list(r),
+        Secp256k1Result::Message(r) => display_message(r),
     }
 }
 
@@ -232,11 +178,8 @@ pub fn display_ed25519_result(result: &Ed25519Result) {
         Ed25519Result::PeerId(r) => {
             display_peer_id(&r.peer_id);
         }
-        Ed25519Result::List(r) => display_list(r, "SS58:"),
-        #[cfg(feature = "keyring")]
-        Ed25519Result::Keyring(r) => display_keyring_result(r),
-        #[cfg(feature = "keyring")]
-        Ed25519Result::KeyringList(r) => display_keyring_list(r),
+        Ed25519Result::List(r) => display_list(r, "SS58 Address:"),
+        Ed25519Result::Message(r) => display_message(r),
     }
 }
 
@@ -254,10 +197,7 @@ pub fn display_sr25519_result(result: &Sr25519Result) {
         Sr25519Result::PeerId(r) => {
             display_peer_id(&r.peer_id);
         }
-        #[cfg(feature = "keyring")]
-        Sr25519Result::Keyring(r) => display_keyring_result(r),
-        #[cfg(feature = "keyring")]
-        Sr25519Result::KeyringList(r) => display_keyring_list(r),
-        Sr25519Result::List(r) => display_list(r, "SS58:"),
+        Sr25519Result::List(r) => display_list(r, "SS58 Address:"),
+        Sr25519Result::Message(r) => display_message(r),
     }
 }

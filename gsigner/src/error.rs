@@ -19,6 +19,8 @@
 //! Error types for the gsigner library.
 
 use alloc::string::{String, ToString};
+#[cfg(feature = "std")]
+use anyhow::Error as AnyhowError;
 use core::result::Result as CoreResult;
 #[cfg(feature = "std")]
 use std::io;
@@ -88,5 +90,12 @@ impl From<hex::FromHexError> for SignerError {
 impl From<schnorrkel::SignatureError> for SignerError {
     fn from(err: schnorrkel::SignatureError) -> Self {
         SignerError::Crypto(err.to_string())
+    }
+}
+
+#[cfg(feature = "std")]
+impl From<AnyhowError> for SignerError {
+    fn from(err: AnyhowError) -> Self {
+        SignerError::Other(err.to_string())
     }
 }

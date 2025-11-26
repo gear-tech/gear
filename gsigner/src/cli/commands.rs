@@ -20,14 +20,70 @@
 //!
 //! These types can be used directly with clap or integrated into other CLI applications.
 
-use clap::{Parser, Subcommand, ValueEnum};
-use std::path::PathBuf;
+use clap::{Args, Parser, Subcommand, ValueEnum};
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, Clone, Copy, ValueEnum)]
 pub enum OutputFormat {
     Human,
     Plain,
     Json,
+}
+
+/// Shared arguments controlling where keys are stored.
+#[derive(Debug, Clone, Args)]
+pub struct StorageLocationArgs {
+    #[arg(
+        short = 's',
+        long = "path",
+        alias = "storage",
+        value_name = "PATH",
+        help = "Key storage path (defaults to the gsigner data directory)"
+    )]
+    pub path: Option<PathBuf>,
+    #[arg(
+        long,
+        help = "Use in-memory storage (do not persist keys)",
+        default_value_t = false,
+        conflicts_with = "path"
+    )]
+    pub memory: bool,
+    #[arg(
+        long = "storage-password",
+        value_name = "PASSWORD",
+        help = "Password used to encrypt/decrypt the keyring (if set)"
+    )]
+    pub storage_password: Option<String>,
+}
+
+#[cfg(feature = "keyring")]
+#[derive(Debug, Clone, Args)]
+pub struct KeyringImportArgs {
+    #[command(flatten)]
+    pub storage: StorageLocationArgs,
+    #[arg(short, long, help = "Key name")]
+    pub name: String,
+    #[arg(
+        short = 'k',
+        long,
+        help = "Private key (0x... hex, 32 bytes)",
+        value_parser = hex_bytes::<32>,
+        conflicts_with = "suri",
+        required_unless_present = "suri"
+    )]
+    pub private_key: Option<String>,
+    #[arg(
+        short = 'u',
+        long,
+        help = "SURI string or mnemonic",
+        conflicts_with = "private_key",
+        required_unless_present = "private_key"
+    )]
+    pub suri: Option<String>,
+    #[arg(short = 'w', long, help = "Password for SURI derivation")]
+    pub password: Option<String>,
+    #[arg(long, help = "Show the imported private key", default_value_t = false)]
+    pub show_secret: bool,
 }
 
 /// Root CLI structure
@@ -71,39 +127,10 @@ pub enum GSignerCommands {
 #[derive(Subcommand, Debug, Clone)]
 #[non_exhaustive]
 pub enum Secp256k1Commands {
-    #[command(about = "Clear all keys from storage")]
-    Clear {
-        #[arg(short, long, help = "Storage directory")]
-        storage: Option<PathBuf>,
-    },
-    #[command(about = "Generate a new secp256k1 keypair")]
-    Generate {
-        #[arg(short, long, help = "Storage directory (default: memory only)")]
-        storage: Option<PathBuf>,
-        #[arg(
-            long,
-            help = "Show the generated private key (hex)",
-            default_value_t = false
-        )]
-        show_secret: bool,
-    },
-    #[command(about = "Sign data with a secp256k1 private key")]
-    Sign {
-        #[arg(long, help = "Public key (hex)", value_parser = hex_bytes::<33>)]
-        public_key: String,
-        #[arg(short, long, help = "Data to sign (hex)")]
-        data: String,
-        #[arg(short = 'p', long, help = "Prefix/salt prepended before signing")]
-        prefix: Option<String>,
-        #[arg(short, long, help = "Storage directory")]
-        storage: Option<PathBuf>,
-        #[arg(
-            short = 'c',
-            long,
-            help = "Contract address for EIP-191 signing (hex)",
-            value_parser = hex_bytes::<20>
-        )]
-        contract: Option<String>,
+    #[command(about = "Keyring-backed operations (requires stored keys)")]
+    Keyring {
+        #[command(subcommand)]
+        command: Secp256k1KeyringCommands,
     },
     #[command(about = "Verify a secp256k1 signature")]
     Verify {
@@ -131,24 +158,6 @@ pub enum Secp256k1Commands {
         #[arg(long, help = "Public key (hex)", value_parser = hex_bytes::<33>)]
         public_key: String,
     },
-    #[command(about = "Insert a private key into storage")]
-    Insert {
-        #[arg(short, long, help = "Storage directory")]
-        storage: Option<PathBuf>,
-        #[arg(help = "Private key (hex, 32 bytes)", value_parser = hex_bytes::<32>)]
-        private_key: String,
-        #[arg(long, help = "Show the inserted private key", default_value_t = false)]
-        show_secret: bool,
-    },
-    #[command(about = "Show key info by public key or address")]
-    Show {
-        #[arg(short, long, help = "Storage directory")]
-        storage: Option<PathBuf>,
-        #[arg(help = "Public key (hex) or Ethereum address (hex)")]
-        key: String,
-        #[arg(long, help = "Show the private key", default_value_t = false)]
-        show_secret: bool,
-    },
     #[command(about = "Recover public key from message and signature")]
     Recover {
         #[arg(short, long, help = "Data that was signed (hex)")]
@@ -162,34 +171,21 @@ pub enum Secp256k1Commands {
         #[arg(short, long, help = "Signature (hex)", value_parser = hex_bytes::<65>)]
         signature: String,
     },
-    #[command(about = "List all keys in storage")]
-    List {
-        #[arg(short, long, help = "Storage directory")]
-        storage: Option<PathBuf>,
-        #[arg(long, help = "Show private keys (hex)", default_value_t = false)]
-        show_secret: bool,
-    },
-    #[cfg(feature = "keyring")]
-    #[command(about = "Keyring operations")]
-    Keyring {
-        #[command(subcommand)]
-        command: Secp256k1KeyringCommands,
-    },
 }
 
-/// Ed25519 subcommands
+/// Secp256k1 keyring-backed subcommands.
 #[derive(Subcommand, Debug, Clone)]
 #[non_exhaustive]
-pub enum Ed25519Commands {
+pub enum Secp256k1KeyringCommands {
     #[command(about = "Clear all keys from storage")]
     Clear {
-        #[arg(short, long, help = "Storage directory")]
-        storage: Option<PathBuf>,
+        #[command(flatten)]
+        storage: StorageLocationArgs,
     },
-    #[command(about = "Generate a new ed25519 keypair")]
+    #[command(about = "Generate a new secp256k1 keypair")]
     Generate {
-        #[arg(short, long, help = "Storage directory (default: memory only)")]
-        storage: Option<PathBuf>,
+        #[command(flatten)]
+        storage: StorageLocationArgs,
         #[arg(
             long,
             help = "Show the generated private key (hex)",
@@ -197,35 +193,91 @@ pub enum Ed25519Commands {
         )]
         show_secret: bool,
     },
-    #[command(about = "Import ed25519 key from SURI (//Alice, mnemonic, etc.)")]
-    Import {
-        #[arg(
-            short = 'u',
-            long,
-            help = "SURI string (e.g., //Alice, //Alice//stash, mnemonic phrase)"
-        )]
-        suri: String,
-        #[arg(short = 'w', long, help = "Password for SURI derivation")]
-        password: Option<String>,
-        #[arg(short, long, help = "Storage directory (default: memory only)")]
-        storage: Option<PathBuf>,
-        #[arg(
-            long,
-            help = "Show the imported private key (hex)",
-            default_value_t = false
-        )]
-        show_secret: bool,
-    },
-    #[command(about = "Sign data with an ed25519 private key")]
+    #[command(about = "Sign data with a secp256k1 private key")]
     Sign {
-        #[arg(long, help = "Public key (hex)", value_parser = hex_bytes::<32>)]
+        #[arg(long, help = "Public key (hex)", value_parser = hex_bytes::<33>)]
         public_key: String,
         #[arg(short, long, help = "Data to sign (hex)")]
         data: String,
         #[arg(short = 'p', long, help = "Prefix/salt prepended before signing")]
         prefix: Option<String>,
-        #[arg(short, long, help = "Storage directory")]
-        storage: Option<PathBuf>,
+        #[command(flatten)]
+        storage: StorageLocationArgs,
+        #[arg(
+            short = 'c',
+            long,
+            help = "Contract address for EIP-191 signing (hex)",
+            value_parser = hex_bytes::<20>
+        )]
+        contract: Option<String>,
+    },
+    #[command(about = "Show key info by public key or address")]
+    Show {
+        #[command(flatten)]
+        storage: StorageLocationArgs,
+        #[arg(help = "Public key (hex) or Ethereum address (hex)")]
+        key: String,
+        #[arg(long, help = "Show the private key", default_value_t = false)]
+        show_secret: bool,
+    },
+    #[cfg(feature = "keyring")]
+    #[command(name = "init", about = "Initialise a JSON keyring directory")]
+    Init {
+        #[command(flatten)]
+        storage: StorageLocationArgs,
+    },
+    #[cfg(feature = "keyring")]
+    #[command(name = "create", about = "Generate and store a named key")]
+    Create {
+        #[command(flatten)]
+        storage: StorageLocationArgs,
+        #[arg(short, long, help = "Key name")]
+        name: String,
+        #[arg(long, help = "Show the generated private key", default_value_t = false)]
+        show_secret: bool,
+    },
+    #[cfg(feature = "keyring")]
+    #[command(name = "vanity", about = "Generate vanity address")]
+    Vanity {
+        #[command(flatten)]
+        storage: StorageLocationArgs,
+        #[arg(short, long, help = "Key name")]
+        name: String,
+        #[arg(
+            short = 'x',
+            long,
+            help = "Hex prefix to match (with or without 0x)",
+            value_name = "HEX"
+        )]
+        prefix: String,
+        #[arg(long, help = "Show the generated private key", default_value_t = false)]
+        show_secret: bool,
+    },
+    #[cfg(feature = "keyring")]
+    #[command(
+        name = "import",
+        about = "Import a private key (hex) or from SURI/mnemonic into the JSON keyring"
+    )]
+    Import {
+        #[command(flatten)]
+        import: KeyringImportArgs,
+    },
+    #[cfg(feature = "keyring")]
+    #[command(name = "list", about = "List keys in keyring")]
+    List {
+        #[command(flatten)]
+        storage: StorageLocationArgs,
+    },
+}
+
+/// Ed25519 subcommands
+#[derive(Subcommand, Debug, Clone)]
+#[non_exhaustive]
+pub enum Ed25519Commands {
+    #[command(about = "Keyring-backed operations (requires stored keys)")]
+    Keyring {
+        #[command(subcommand)]
+        command: Ed25519KeyringCommands,
     },
     #[command(about = "Verify an ed25519 signature")]
     Verify {
@@ -259,34 +311,21 @@ pub enum Ed25519Commands {
         #[arg(long, help = "Public key (hex)", value_parser = hex_bytes::<32>)]
         public_key: String,
     },
-    #[command(about = "List all keys in storage")]
-    List {
-        #[arg(short, long, help = "Storage directory")]
-        storage: Option<PathBuf>,
-        #[arg(long, help = "Show private keys (hex)", default_value_t = false)]
-        show_secret: bool,
-    },
-    #[cfg(feature = "keyring")]
-    #[command(about = "Keyring operations")]
-    Keyring {
-        #[command(subcommand)]
-        command: Ed25519KeyringCommands,
-    },
 }
 
-/// Sr25519 subcommands
+/// Ed25519 keyring-backed commands.
 #[derive(Subcommand, Debug, Clone)]
 #[non_exhaustive]
-pub enum Sr25519Commands {
+pub enum Ed25519KeyringCommands {
     #[command(about = "Clear all keys from storage")]
     Clear {
-        #[arg(short, long, help = "Storage directory")]
-        storage: Option<PathBuf>,
+        #[command(flatten)]
+        storage: StorageLocationArgs,
     },
-    #[command(about = "Generate a new sr25519 keypair")]
+    #[command(about = "Generate a new ed25519 keypair")]
     Generate {
-        #[arg(short, long, help = "Storage directory (default: memory only)")]
-        storage: Option<PathBuf>,
+        #[command(flatten)]
+        storage: StorageLocationArgs,
         #[arg(
             long,
             help = "Show the generated private key (hex)",
@@ -294,18 +333,32 @@ pub enum Sr25519Commands {
         )]
         show_secret: bool,
     },
-    #[command(about = "Import sr25519 key from SURI (//Alice, mnemonic, etc.)")]
+    #[command(about = "Import ed25519 key from SURI/mnemonic or hex seed")]
     Import {
         #[arg(
             short = 'u',
             long,
-            help = "SURI string (e.g., //Alice, //Alice//stash, mnemonic phrase)"
+            help = "SURI string (e.g., //Alice, //Alice//stash, mnemonic phrase)",
+            conflicts_with = "seed",
+            required_unless_present = "seed"
         )]
-        suri: String,
+        suri: Option<String>,
+        #[arg(
+            short = 'k',
+            long,
+            help = "Seed (0x... hex, 32 bytes)",
+            value_parser = hex_bytes::<32>,
+            conflicts_with = "suri",
+            required_unless_present = "suri"
+        )]
+        seed: Option<String>,
         #[arg(short = 'w', long, help = "Password for SURI derivation")]
         password: Option<String>,
-        #[arg(short, long, help = "Storage directory (default: memory only)")]
-        storage: Option<PathBuf>,
+        #[cfg(feature = "keyring")]
+        #[arg(short, long, help = "Key name for JSON keyring entry")]
+        name: Option<String>,
+        #[command(flatten)]
+        storage: StorageLocationArgs,
         #[arg(
             long,
             help = "Show the imported private key (hex)",
@@ -313,7 +366,7 @@ pub enum Sr25519Commands {
         )]
         show_secret: bool,
     },
-    #[command(about = "Sign data with a sr25519 private key")]
+    #[command(about = "Sign data with an ed25519 private key")]
     Sign {
         #[arg(long, help = "Public key (hex)", value_parser = hex_bytes::<32>)]
         public_key: String,
@@ -321,10 +374,62 @@ pub enum Sr25519Commands {
         data: String,
         #[arg(short = 'p', long, help = "Prefix/salt prepended before signing")]
         prefix: Option<String>,
-        #[arg(short, long, help = "Storage directory")]
-        storage: Option<PathBuf>,
-        #[arg(short = 'c', long, help = "Signing context")]
-        context: Option<String>,
+        #[command(flatten)]
+        storage: StorageLocationArgs,
+    },
+    #[command(about = "Show key info by public key")]
+    Show {
+        #[command(flatten)]
+        storage: StorageLocationArgs,
+        #[arg(help = "Public key (hex)", value_parser = hex_bytes::<32>)]
+        public_key: String,
+        #[arg(long, help = "Show the private key", default_value_t = false)]
+        show_secret: bool,
+    },
+    #[cfg(feature = "keyring")]
+    #[command(name = "init", about = "Initialise a keyring directory")]
+    Init {
+        #[command(flatten)]
+        storage: StorageLocationArgs,
+    },
+    #[cfg(feature = "keyring")]
+    #[command(name = "create", about = "Generate and store a named key")]
+    Create {
+        #[command(flatten)]
+        storage: StorageLocationArgs,
+        #[arg(short, long, help = "Key name")]
+        name: String,
+        #[arg(long, help = "Show the generated private key", default_value_t = false)]
+        show_secret: bool,
+    },
+    #[cfg(feature = "keyring")]
+    #[command(name = "vanity", about = "Generate vanity SS58 address")]
+    Vanity {
+        #[command(flatten)]
+        storage: StorageLocationArgs,
+        #[arg(short, long, help = "Key name")]
+        name: String,
+        #[arg(short = 'x', long, help = "SS58 prefix to match")]
+        prefix: String,
+        #[arg(long, help = "Show the generated private key", default_value_t = false)]
+        show_secret: bool,
+    },
+    #[cfg(feature = "keyring")]
+    #[command(name = "list", about = "List keys in keyring")]
+    List {
+        #[command(flatten)]
+        storage: StorageLocationArgs,
+    },
+}
+
+/// Sr25519 subcommands
+#[derive(Subcommand, Debug, Clone)]
+#[non_exhaustive]
+pub enum Sr25519Commands {
+    #[command(about = "Keyring-backed operations (requires stored keys)")]
+    Keyring {
+        #[command(subcommand)]
+        command: Sr25519KeyringCommands,
     },
     #[command(about = "Verify a sr25519 signature")]
     Verify {
@@ -354,162 +459,103 @@ pub enum Sr25519Commands {
         )]
         network: Option<String>,
     },
-    #[cfg(feature = "keyring")]
-    #[command(about = "Keyring operations")]
-    Keyring {
-        #[command(subcommand)]
-        command: Sr25519KeyringCommands,
-    },
-    #[command(about = "List all keys in storage")]
-    List {
-        #[arg(short, long, help = "Storage directory")]
-        storage: Option<PathBuf>,
-        #[arg(long, help = "Show private keys (hex)", default_value_t = false)]
-        show_secret: bool,
-    },
 }
 
-#[cfg(feature = "keyring")]
-/// Secp256k1 keyring subcommands
+/// Sr25519 keyring-backed commands.
 #[derive(Subcommand, Debug, Clone)]
-pub enum Secp256k1KeyringCommands {
-    #[command(about = "Initialise a keyring directory")]
-    Create {
-        #[arg(short, long, help = "Keyring directory")]
-        path: PathBuf,
-    },
-    #[command(about = "Generate and store a new key")]
-    Generate {
-        #[arg(short, long, help = "Keyring directory")]
-        path: PathBuf,
-        #[arg(short, long, help = "Key name")]
-        name: String,
-        #[arg(long, help = "Show the generated private key", default_value_t = false)]
-        show_secret: bool,
-    },
-    #[command(about = "Import a private key (hex)")]
-    Import {
-        #[arg(short, long, help = "Keyring directory")]
-        path: PathBuf,
-        #[arg(short, long, help = "Key name")]
-        name: String,
-        #[arg(
-            short = 'k',
-            long,
-            help = "Private key (0x... hex)",
-            value_parser = hex_bytes::<32>
-        )]
-        private_key: String,
-        #[arg(long, help = "Show the imported private key", default_value_t = false)]
-        show_secret: bool,
-    },
-    #[command(about = "Import a key from SURI or mnemonic")]
-    ImportSuri {
-        #[arg(short, long, help = "Keyring directory")]
-        path: PathBuf,
-        #[arg(short, long, help = "Key name")]
-        name: String,
-        #[arg(short = 'u', long, help = "SURI string or mnemonic")]
-        suri: String,
-        #[arg(short = 'w', long, help = "Password for SURI derivation")]
-        password: Option<String>,
-        #[arg(long, help = "Show the imported private key", default_value_t = false)]
-        show_secret: bool,
-    },
-    #[command(about = "List keys in keyring")]
-    List {
-        #[arg(short, long, help = "Keyring directory")]
-        path: PathBuf,
-    },
-}
-
-#[cfg(feature = "keyring")]
-/// Ed25519 keyring subcommands
-#[derive(Subcommand, Debug, Clone)]
-pub enum Ed25519KeyringCommands {
-    #[command(about = "Initialise a keyring directory")]
-    Create {
-        #[arg(short, long, help = "Keyring directory")]
-        path: PathBuf,
-    },
-    #[command(about = "Generate and store a new key")]
-    Generate {
-        #[arg(short, long, help = "Keyring directory")]
-        path: PathBuf,
-        #[arg(short, long, help = "Key name")]
-        name: String,
-        #[arg(long, help = "Show the generated private key", default_value_t = false)]
-        show_secret: bool,
-    },
-    #[command(about = "Import a private key seed (hex)")]
-    ImportHex {
-        #[arg(short, long, help = "Keyring directory")]
-        path: PathBuf,
-        #[arg(short, long, help = "Key name")]
-        name: String,
-        #[arg(
-            short = 'k',
-            long,
-            help = "Seed (0x... hex)",
-            value_parser = hex_bytes::<32>
-        )]
-        seed: String,
-        #[arg(long, help = "Show the imported private key", default_value_t = false)]
-        show_secret: bool,
-    },
-    #[command(about = "Import a key from SURI")]
-    ImportSuri {
-        #[arg(short, long, help = "Keyring directory")]
-        path: PathBuf,
-        #[arg(short, long, help = "Key name")]
-        name: String,
-        #[arg(short = 'u', long, help = "SURI string")]
-        suri: String,
-        #[arg(short = 'w', long, help = "Password for SURI derivation")]
-        password: Option<String>,
-        #[arg(long, help = "Show the imported private key", default_value_t = false)]
-        show_secret: bool,
-    },
-    #[command(about = "List keys in keyring")]
-    List {
-        #[arg(short, long, help = "Keyring directory")]
-        path: PathBuf,
-    },
-}
-
-#[cfg(feature = "keyring")]
-/// Sr25519 keyring subcommands
-#[derive(Subcommand, Debug, Clone)]
+#[non_exhaustive]
 pub enum Sr25519KeyringCommands {
-    #[command(about = "Create a new keyring")]
-    Create {
-        #[arg(short, long, help = "Keyring directory")]
-        path: PathBuf,
+    #[command(about = "Clear all keys from storage")]
+    Clear {
+        #[command(flatten)]
+        storage: StorageLocationArgs,
     },
-    #[command(about = "Add a key to keyring")]
-    Add {
-        #[arg(short, long, help = "Keyring directory")]
-        path: PathBuf,
-        #[arg(short, long, help = "Key name")]
-        name: String,
-        #[arg(short = 'w', long, help = "Password for encryption")]
+    #[command(about = "Generate a new sr25519 keypair")]
+    Generate {
+        #[command(flatten)]
+        storage: StorageLocationArgs,
+        #[arg(
+            long,
+            help = "Show the generated private key (hex)",
+            default_value_t = false
+        )]
+        show_secret: bool,
+    },
+    #[command(about = "Import sr25519 key from SURI/mnemonic or hex seed")]
+    Import {
+        #[arg(
+            short = 'u',
+            long,
+            help = "SURI string (e.g., //Alice, //Alice//stash, mnemonic phrase)",
+            conflicts_with = "seed",
+            required_unless_present = "seed"
+        )]
+        suri: Option<String>,
+        #[arg(
+            short = 'k',
+            long,
+            help = "Seed (0x... hex, 32 bytes)",
+            value_parser = hex_bytes::<32>,
+            conflicts_with = "suri",
+            required_unless_present = "suri"
+        )]
+        seed: Option<String>,
+        #[arg(short = 'w', long, help = "Password for SURI derivation")]
         password: Option<String>,
+        #[command(flatten)]
+        storage: StorageLocationArgs,
+        #[arg(
+            long,
+            help = "Show the imported private key (hex)",
+            default_value_t = false
+        )]
+        show_secret: bool,
     },
-    #[command(about = "Generate vanity address")]
+    #[command(about = "Sign data with a sr25519 private key")]
+    Sign {
+        #[arg(long, help = "Public key (hex)", value_parser = hex_bytes::<32>)]
+        public_key: String,
+        #[arg(short, long, help = "Data to sign (hex)")]
+        data: String,
+        #[arg(short = 'p', long, help = "Prefix/salt prepended before signing")]
+        prefix: Option<String>,
+        #[command(flatten)]
+        storage: StorageLocationArgs,
+        #[arg(short = 'c', long, help = "Signing context")]
+        context: Option<String>,
+    },
+    #[command(about = "Show key info by public key")]
+    Show {
+        #[command(flatten)]
+        storage: StorageLocationArgs,
+        #[arg(help = "Public key (hex)", value_parser = hex_bytes::<32>)]
+        public_key: String,
+        #[arg(long, help = "Show the private key", default_value_t = false)]
+        show_secret: bool,
+    },
+    #[cfg(feature = "keyring")]
+    #[command(name = "init", about = "Create a new keyring")]
+    Init {
+        #[command(flatten)]
+        storage: StorageLocationArgs,
+    },
+    #[cfg(feature = "keyring")]
+    #[command(name = "vanity", about = "Generate vanity address")]
     Vanity {
-        #[arg(short, long, help = "Keyring directory")]
-        path: PathBuf,
+        #[command(flatten)]
+        storage: StorageLocationArgs,
         #[arg(short, long, help = "Key name")]
         name: String,
         #[arg(short = 'x', long, help = "SS58 prefix to match")]
         prefix: String,
-        #[arg(short = 'w', long, help = "Password for encryption")]
-        password: Option<String>,
+        #[arg(long, help = "Show the generated private key", default_value_t = false)]
+        show_secret: bool,
     },
-    #[command(about = "List keys in keyring")]
+    #[cfg(feature = "keyring")]
+    #[command(name = "list", about = "List keys in keyring")]
     List {
-        #[arg(short, long, help = "Keyring directory")]
-        path: PathBuf,
+        #[command(flatten)]
+        storage: StorageLocationArgs,
     },
 }
 
@@ -521,79 +567,72 @@ pub trait WithDefaultStorage {
 impl WithDefaultStorage for Secp256k1Commands {
     fn with_default_storage(self, default: PathBuf) -> Self {
         match self {
-            Secp256k1Commands::Clear { storage } => Secp256k1Commands::Clear {
+            Secp256k1Commands::Keyring { command } => Secp256k1Commands::Keyring {
+                command: command.with_default_storage(default),
+            },
+            other => other,
+        }
+    }
+}
+
+impl WithDefaultStorage for Secp256k1KeyringCommands {
+    fn with_default_storage(self, default: PathBuf) -> Self {
+        match self {
+            Secp256k1KeyringCommands::Clear { storage } => Secp256k1KeyringCommands::Clear {
                 storage: with_opt_storage(storage, &default),
             },
-            Secp256k1Commands::Generate {
+            Secp256k1KeyringCommands::Generate {
                 storage,
                 show_secret,
-            } => Secp256k1Commands::Generate {
+            } => Secp256k1KeyringCommands::Generate {
                 storage: with_opt_storage(storage, &default),
                 show_secret,
             },
-            Secp256k1Commands::Sign {
+            Secp256k1KeyringCommands::Sign {
                 public_key,
                 data,
                 prefix,
                 storage,
                 contract,
-            } => Secp256k1Commands::Sign {
+            } => Secp256k1KeyringCommands::Sign {
                 public_key,
                 data,
                 prefix,
                 storage: with_opt_storage(storage, &default),
                 contract,
             },
-            Secp256k1Commands::Verify {
-                public_key,
-                data,
-                prefix,
-                signature,
-            } => Secp256k1Commands::Verify {
-                public_key,
-                data,
-                prefix,
-                signature,
-            },
-            Secp256k1Commands::Address { public_key } => Secp256k1Commands::Address { public_key },
-            #[cfg(feature = "peer-id")]
-            Secp256k1Commands::PeerId { public_key } => Secp256k1Commands::PeerId { public_key },
-            Secp256k1Commands::Insert {
-                storage,
-                private_key,
-                show_secret,
-            } => Secp256k1Commands::Insert {
-                storage: with_opt_storage(storage, &default),
-                private_key,
-                show_secret,
-            },
-            Secp256k1Commands::Show {
+            Secp256k1KeyringCommands::Show {
                 storage,
                 key,
                 show_secret,
-            } => Secp256k1Commands::Show {
+            } => Secp256k1KeyringCommands::Show {
                 storage: with_opt_storage(storage, &default),
                 key,
-                show_secret,
-            },
-            Secp256k1Commands::Recover {
-                data,
-                prefix,
-                signature,
-            } => Secp256k1Commands::Recover {
-                data,
-                prefix,
-                signature,
-            },
-            Secp256k1Commands::List {
-                storage,
-                show_secret,
-            } => Secp256k1Commands::List {
-                storage: with_opt_storage(storage, &default),
                 show_secret,
             },
             #[cfg(feature = "keyring")]
-            Secp256k1Commands::Keyring { command } => Secp256k1Commands::Keyring { command },
+            Secp256k1KeyringCommands::Init { .. } => self,
+            #[cfg(feature = "keyring")]
+            Secp256k1KeyringCommands::Create { .. } => self,
+            #[cfg(feature = "keyring")]
+            Secp256k1KeyringCommands::Vanity {
+                storage,
+                name,
+                prefix,
+                show_secret,
+            } => Secp256k1KeyringCommands::Vanity {
+                storage: with_opt_storage(storage, &default),
+                name,
+                prefix,
+                show_secret,
+            },
+            #[cfg(feature = "keyring")]
+            Secp256k1KeyringCommands::Import { mut import } => {
+                import.storage = with_opt_storage(import.storage, &default);
+                Secp256k1KeyringCommands::Import { import }
+            }
+            #[cfg(feature = "keyring")]
+            Secp256k1KeyringCommands::List { .. } => self,
         }
     }
 }
@@ -601,67 +640,82 @@ impl WithDefaultStorage for Secp256k1Commands {
 impl WithDefaultStorage for Ed25519Commands {
     fn with_default_storage(self, default: PathBuf) -> Self {
         match self {
-            Ed25519Commands::Clear { storage } => Ed25519Commands::Clear {
+            Ed25519Commands::Keyring { command } => Ed25519Commands::Keyring {
+                command: command.with_default_storage(default),
+            },
+            other => other,
+        }
+    }
+}
+
+impl WithDefaultStorage for Ed25519KeyringCommands {
+    fn with_default_storage(self, default: PathBuf) -> Self {
+        match self {
+            Ed25519KeyringCommands::Clear { storage } => Ed25519KeyringCommands::Clear {
                 storage: with_opt_storage(storage, &default),
             },
-            Ed25519Commands::Generate {
+            Ed25519KeyringCommands::Generate {
                 storage,
                 show_secret,
-            } => Ed25519Commands::Generate {
+            } => Ed25519KeyringCommands::Generate {
                 storage: with_opt_storage(storage, &default),
                 show_secret,
             },
-            Ed25519Commands::Import {
+            Ed25519KeyringCommands::Import {
                 suri,
+                seed,
                 password,
+                #[cfg(feature = "keyring")]
+                name,
                 storage,
                 show_secret,
-            } => Ed25519Commands::Import {
+            } => Ed25519KeyringCommands::Import {
                 suri,
+                seed,
                 password,
+                #[cfg(feature = "keyring")]
+                name,
                 storage: with_opt_storage(storage, &default),
                 show_secret,
             },
-            Ed25519Commands::Sign {
+            Ed25519KeyringCommands::Sign {
                 public_key,
                 data,
                 prefix,
                 storage,
-            } => Ed25519Commands::Sign {
+            } => Ed25519KeyringCommands::Sign {
                 public_key,
                 data,
                 prefix,
                 storage: with_opt_storage(storage, &default),
             },
-            Ed25519Commands::Verify {
-                public_key,
-                data,
-                prefix,
-                signature,
-            } => Ed25519Commands::Verify {
-                public_key,
-                data,
-                prefix,
-                signature,
-            },
-            Ed25519Commands::Address {
-                public_key,
-                network,
-            } => Ed25519Commands::Address {
-                public_key,
-                network,
-            },
-            #[cfg(feature = "peer-id")]
-            Ed25519Commands::PeerId { public_key } => Ed25519Commands::PeerId { public_key },
-            Ed25519Commands::List {
+            Ed25519KeyringCommands::Show {
                 storage,
+                public_key,
                 show_secret,
-            } => Ed25519Commands::List {
+            } => Ed25519KeyringCommands::Show {
                 storage: with_opt_storage(storage, &default),
+                public_key,
                 show_secret,
             },
             #[cfg(feature = "keyring")]
-            Ed25519Commands::Keyring { command } => Ed25519Commands::Keyring { command },
+            Ed25519KeyringCommands::Init { .. } => self,
+            #[cfg(feature = "keyring")]
+            Ed25519KeyringCommands::Create { .. } => self,
+            #[cfg(feature = "keyring")]
+            Ed25519KeyringCommands::Vanity {
+                storage,
+                name,
+                prefix,
+                show_secret,
+            } => Ed25519KeyringCommands::Vanity {
+                storage: with_opt_storage(storage, &default),
+                name,
+                prefix,
+                show_secret,
+            },
+            #[cfg(feature = "keyring")]
+            Ed25519KeyringCommands::List { .. } => self,
         }
     }
 }
@@ -669,75 +723,87 @@ impl WithDefaultStorage for Ed25519Commands {
 impl WithDefaultStorage for Sr25519Commands {
     fn with_default_storage(self, default: PathBuf) -> Self {
         match self {
-            Sr25519Commands::Clear { storage } => Sr25519Commands::Clear {
-                storage: with_opt_storage(storage, &default),
+            Sr25519Commands::Keyring { command } => Sr25519Commands::Keyring {
+                command: command.with_default_storage(default),
             },
-            Sr25519Commands::Generate {
-                storage,
-                show_secret,
-            } => Sr25519Commands::Generate {
-                storage: with_opt_storage(storage, &default),
-                show_secret,
-            },
-            Sr25519Commands::Import {
-                suri,
-                password,
-                storage,
-                show_secret,
-            } => Sr25519Commands::Import {
-                suri,
-                password,
-                storage: with_opt_storage(storage, &default),
-                show_secret,
-            },
-            Sr25519Commands::Sign {
-                public_key,
-                data,
-                prefix,
-                storage,
-                context,
-            } => Sr25519Commands::Sign {
-                public_key,
-                data,
-                prefix,
-                storage: with_opt_storage(storage, &default),
-                context,
-            },
-            Sr25519Commands::Verify {
-                public_key,
-                data,
-                prefix,
-                signature,
-                context,
-            } => Sr25519Commands::Verify {
-                public_key,
-                data,
-                prefix,
-                signature,
-                context,
-            },
-            Sr25519Commands::Address {
-                public_key,
-                network,
-            } => Sr25519Commands::Address {
-                public_key,
-                network,
-            },
-            #[cfg(feature = "keyring")]
-            Sr25519Commands::Keyring { command } => Sr25519Commands::Keyring { command },
-            Sr25519Commands::List {
-                storage,
-                show_secret,
-            } => Sr25519Commands::List {
-                storage: with_opt_storage(storage, &default),
-                show_secret,
-            },
+            other => other,
         }
     }
 }
 
-fn with_opt_storage(opt: Option<PathBuf>, default: &PathBuf) -> Option<PathBuf> {
-    opt.or_else(|| Some(default.clone()))
+impl WithDefaultStorage for Sr25519KeyringCommands {
+    fn with_default_storage(self, default: PathBuf) -> Self {
+        match self {
+            Sr25519KeyringCommands::Clear { storage } => Sr25519KeyringCommands::Clear {
+                storage: with_opt_storage(storage, &default),
+            },
+            Sr25519KeyringCommands::Generate {
+                storage,
+                show_secret,
+            } => Sr25519KeyringCommands::Generate {
+                storage: with_opt_storage(storage, &default),
+                show_secret,
+            },
+            Sr25519KeyringCommands::Import {
+                suri,
+                seed,
+                password,
+                storage,
+                show_secret,
+            } => Sr25519KeyringCommands::Import {
+                suri,
+                seed,
+                password,
+                storage: with_opt_storage(storage, &default),
+                show_secret,
+            },
+            Sr25519KeyringCommands::Sign {
+                public_key,
+                data,
+                prefix,
+                storage,
+                context,
+            } => Sr25519KeyringCommands::Sign {
+                public_key,
+                data,
+                prefix,
+                storage: with_opt_storage(storage, &default),
+                context,
+            },
+            Sr25519KeyringCommands::Show {
+                storage,
+                public_key,
+                show_secret,
+            } => Sr25519KeyringCommands::Show {
+                storage: with_opt_storage(storage, &default),
+                public_key,
+                show_secret,
+            },
+            #[cfg(feature = "keyring")]
+            Sr25519KeyringCommands::Init { .. } => self,
+            #[cfg(feature = "keyring")]
+            Sr25519KeyringCommands::Vanity {
+                storage,
+                name,
+                prefix,
+                show_secret,
+            } => Sr25519KeyringCommands::Vanity {
+                storage: with_opt_storage(storage, &default),
+                name,
+                prefix,
+                show_secret,
+            },
+            #[cfg(feature = "keyring")]
+            Sr25519KeyringCommands::List { .. } => self,
+        }
+    }
+}
+
+fn with_opt_storage(mut storage: StorageLocationArgs, default: &Path) -> StorageLocationArgs {
+    if storage.path.is_none() && !storage.memory {
+        storage.path = Some(default.to_path_buf());
+    }
+    storage
 }
 
 fn hex_bytes<const N: usize>(input: &str) -> Result<String, String> {
@@ -746,10 +812,7 @@ fn hex_bytes<const N: usize>(input: &str) -> Result<String, String> {
         return Err(format!("expected {N}-byte hex ({} chars)", N * 2));
     }
 
-    if trimmed
-        .bytes()
-        .all(|b| matches!(b, b'0'..=b'9' | b'a'..=b'f' | b'A'..=b'F'))
-    {
+    if trimmed.bytes().all(|b| b.is_ascii_hexdigit()) {
         Ok(trimmed.to_string())
     } else {
         Err("invalid hex string".to_string())

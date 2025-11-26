@@ -19,10 +19,10 @@
 //! Generic keystore helpers shared by substrate-style schemes.
 
 use crate::{
-    keyring::KeystoreEntry,
+    keyring::{KeystoreEntry, encryption},
     substrate::{HasKeyTypeId, pair_key_type_string},
 };
-use anyhow::Result;
+use anyhow::{Result, anyhow};
 use serde::{Deserialize, Serialize};
 use sp_core::crypto::Pair as PairTrait;
 use std::{
@@ -87,6 +87,10 @@ pub struct SubstrateKeystore<C: KeyCodec> {
     pub address: String,
     /// Encoded private key.
     pub private_key: String,
+    /// Encryption metadata if the private key was stored securely.
+    #[serde(default)]
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub encryption: Option<SecretEncryption>,
     #[serde(default)]
     pub meta: SubstrateKeystoreMeta<C>,
     #[serde(skip)]
@@ -96,13 +100,31 @@ pub struct SubstrateKeystore<C: KeyCodec> {
 impl<C: KeyCodec> SubstrateKeystore<C> {
     /// Build a keystore entry from a private key.
     pub fn from_private_key(name: &str, private_key: C::PrivateKey) -> Result<Self> {
+        Self::from_private_key_with_password(name, private_key, None)
+    }
+
+    /// Build a keystore entry from a private key with optional encryption.
+    pub fn from_private_key_with_password(
+        name: &str,
+        private_key: C::PrivateKey,
+        password: Option<&str>,
+    ) -> Result<Self> {
         let public_key = C::derive_public(&private_key);
         let address = C::derive_address(&public_key)?;
+        let encoded_private = C::encode_private(&private_key)?;
+        let (secret, encryption) = if let Some(password) = password {
+            let encrypted =
+                encryption::encrypt_secret(encoded_private.as_bytes(), password.as_bytes())?;
+            (encrypted, Some(SecretEncryption::scrypt()))
+        } else {
+            (encoded_private, None)
+        };
         Ok(Self {
             name: name.to_string(),
             public_key: C::encode_public(&public_key)?,
             address: C::encode_address(&address)?,
-            private_key: C::encode_private(&private_key)?,
+            private_key: secret,
+            encryption,
             meta: SubstrateKeystoreMeta::default(),
             _marker: PhantomData,
         })
@@ -110,6 +132,21 @@ impl<C: KeyCodec> SubstrateKeystore<C> {
 
     /// Decode the stored private key.
     pub fn private_key(&self) -> Result<C::PrivateKey> {
+        self.private_key_with_password(None)
+    }
+
+    /// Decode the stored private key using the provided password.
+    pub fn private_key_with_password(&self, password: Option<&str>) -> Result<C::PrivateKey> {
+        if self.encryption.is_some() {
+            let password = password.ok_or_else(|| {
+                anyhow!("Password required for encrypted keystore '{}'", self.name())
+            })?;
+            let decrypted = encryption::decrypt_secret(&self.private_key, password.as_bytes())?;
+            let encoded = String::from_utf8(decrypted)
+                .map_err(|_| anyhow!("Invalid encrypted private key data"))?;
+            return C::decode_private(&encoded);
+        }
+
         C::decode_private(&self.private_key)
     }
 
@@ -131,8 +168,24 @@ impl<C: KeyCodec> Default for SubstrateKeystore<C> {
             public_key: String::new(),
             address: String::new(),
             private_key: String::new(),
+            encryption: None,
             meta: SubstrateKeystoreMeta::default(),
             _marker: PhantomData,
+        }
+    }
+}
+
+/// Metadata describing how a private key is encrypted.
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SecretEncryption {
+    #[serde(rename = "type")]
+    pub ty: String,
+}
+
+impl SecretEncryption {
+    pub fn scrypt() -> Self {
+        Self {
+            ty: "scrypt-xsalsa20-poly1305".into(),
         }
     }
 }
@@ -179,6 +232,7 @@ impl<C: KeyCodec> Clone for SubstrateKeystore<C> {
             public_key: self.public_key.clone(),
             address: self.address.clone(),
             private_key: self.private_key.clone(),
+            encryption: self.encryption.clone(),
             meta: self.meta.clone(),
             _marker: PhantomData,
         }
@@ -215,8 +269,10 @@ pub mod keyring_ops {
         keyring: &mut Keyring<SubstrateKeystore<C>>,
         name: &str,
         private_key: C::PrivateKey,
+        password: Option<&str>,
     ) -> Result<SubstrateKeystore<C>> {
-        let keystore = SubstrateKeystore::from_private_key(name, private_key)?;
+        let keystore =
+            SubstrateKeystore::from_private_key_with_password(name, private_key, password)?;
         keyring.store(name, keystore)
     }
 
@@ -224,17 +280,19 @@ pub mod keyring_ops {
         keyring: &mut Keyring<SubstrateKeystore<C>>,
         name: &str,
         encoded: &str,
+        password: Option<&str>,
     ) -> Result<SubstrateKeystore<C>> {
         let private_key = C::decode_private(encoded)?;
-        add_private(keyring, name, private_key)
+        add_private(keyring, name, private_key, password)
     }
 
     pub fn create<C: KeyringCodecExt>(
         keyring: &mut Keyring<SubstrateKeystore<C>>,
         name: &str,
+        password: Option<&str>,
     ) -> Result<(SubstrateKeystore<C>, C::PrivateKey)> {
         let private_key = C::random_private()?;
-        let keystore = add_private(keyring, name, private_key.clone())?;
+        let keystore = add_private(keyring, name, private_key.clone(), password)?;
         Ok((keystore, private_key))
     }
 
@@ -242,10 +300,11 @@ pub mod keyring_ops {
         keyring: &mut Keyring<SubstrateKeystore<C>>,
         name: &str,
         suri: &str,
-        password: Option<&str>,
+        suri_password: Option<&str>,
+        encryption_password: Option<&str>,
     ) -> Result<(SubstrateKeystore<C>, C::PrivateKey)> {
-        let private_key = C::import_suri(suri, password)?;
-        let keystore = add_private(keyring, name, private_key.clone())?;
+        let private_key = C::import_suri(suri, suri_password)?;
+        let keystore = add_private(keyring, name, private_key.clone(), encryption_password)?;
         Ok((keystore, private_key))
     }
 }

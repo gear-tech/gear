@@ -24,12 +24,12 @@
 
 #[cfg(feature = "secp256k1")]
 pub mod secp256k1 {
+    #[cfg(all(feature = "std", feature = "keyring", feature = "serde"))]
+    pub use crate::schemes::secp256k1::Signer;
     pub use crate::schemes::secp256k1::{
-        self as primitives, Address, ContractSignature, Digest, FromActorIdError, MemoryStorage,
-        PrivateKey, PublicKey, Secp256k1, Signature, SignedData, ToDigest,
+        self as primitives, Address, ContractSignature, Digest, FromActorIdError, PrivateKey,
+        PublicKey, Secp256k1, Signature, SignedData, ToDigest,
     };
-    #[cfg(feature = "std")]
-    pub use crate::schemes::secp256k1::{FileStorage, Signer};
     #[cfg(all(feature = "serde", feature = "keyring"))]
     pub use crate::schemes::secp256k1::{Keyring, KeyringKeystore};
 }
@@ -38,9 +38,9 @@ pub mod secp256k1 {
 pub mod sr25519 {
     #[cfg(all(feature = "serde", feature = "keyring"))]
     pub use crate::schemes::sr25519::Keyring;
-    #[cfg(all(feature = "serde", feature = "std"))]
+    #[cfg(all(feature = "serde", feature = "std", feature = "keyring"))]
     pub use crate::schemes::sr25519::Keystore;
-    #[cfg(feature = "std")]
+    #[cfg(all(feature = "std", feature = "keyring", feature = "serde"))]
     pub use crate::schemes::sr25519::Sr25519SignerExt;
     pub use crate::{
         schemes::sr25519::{self as primitives, PrivateKey, PublicKey, Signature, Sr25519},

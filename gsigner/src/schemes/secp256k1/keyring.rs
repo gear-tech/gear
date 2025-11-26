@@ -97,18 +97,23 @@ pub type Keyring = GenericKeyring<Keystore>;
 
 impl Keyring {
     /// Add an existing private key to the keyring.
-    pub fn add(&mut self, name: &str, private_key: PrivateKey) -> Result<Keystore> {
-        keyring_add::<Secp256k1Codec>(self, name, private_key)
+    pub fn add(
+        &mut self,
+        name: &str,
+        private_key: PrivateKey,
+        password: Option<&str>,
+    ) -> Result<Keystore> {
+        keyring_add::<Secp256k1Codec>(self, name, private_key, password)
     }
 
     /// Add a private key from its hex representation.
-    pub fn add_hex(&mut self, name: &str, hex: &str) -> Result<Keystore> {
-        keyring_add_hex::<Secp256k1Codec>(self, name, hex)
+    pub fn add_hex(&mut self, name: &str, hex: &str, password: Option<&str>) -> Result<Keystore> {
+        keyring_add_hex::<Secp256k1Codec>(self, name, hex, password)
     }
 
     /// Generate and store a new private key.
-    pub fn create(&mut self, name: &str) -> Result<(Keystore, PrivateKey)> {
-        keyring_create::<Secp256k1Codec>(self, name)
+    pub fn create(&mut self, name: &str, password: Option<&str>) -> Result<(Keystore, PrivateKey)> {
+        keyring_create::<Secp256k1Codec>(self, name, password)
     }
 
     /// Import a key from a Substrate-style SURI (mnemonic, dev URI, derivation path).
@@ -116,9 +121,10 @@ impl Keyring {
         &mut self,
         name: &str,
         suri: &str,
-        password: Option<&str>,
+        suri_password: Option<&str>,
+        encryption_password: Option<&str>,
     ) -> Result<(Keystore, PrivateKey)> {
-        keyring_import_suri::<Secp256k1Codec>(self, name, suri, password)
+        keyring_import_suri::<Secp256k1Codec>(self, name, suri, suri_password, encryption_password)
     }
 }
 
@@ -132,7 +138,7 @@ mod tests {
         let temp_dir = tempfile::tempdir().unwrap();
         let mut keyring = Keyring::load(temp_dir.path().to_path_buf()).unwrap();
 
-        let (keystore, private_key) = keyring.create("alice").unwrap();
+        let (keystore, private_key) = keyring.create("alice", None).unwrap();
 
         assert_eq!(keystore.name, "alice");
         assert_eq!(keyring.list().len(), 1);

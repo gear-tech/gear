@@ -36,7 +36,7 @@ pub fn init_signer_with_keys(amount: u8) -> (Signer, Vec<PrivateKey>, Vec<Public
         .collect();
     let public_keys = private_keys
         .iter()
-        .map(|key| signer.storage_mut().add_key(key.clone()).unwrap())
+        .map(|key| signer.import_key(key.clone()).unwrap())
         .collect();
     (signer, private_keys, public_keys)
 }

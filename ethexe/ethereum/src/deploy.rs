@@ -483,7 +483,7 @@ mod tests {
         let anvil = Anvil::new().block_time_f64(0.1).try_spawn()?;
         let signer = LocalSigner::memory();
 
-        let sender_public_key = signer.storage_mut().add_key(
+        let sender_public_key = signer.import_key(
             "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80".parse()?,
         )?;
         let sender_address = sender_public_key.to_address();

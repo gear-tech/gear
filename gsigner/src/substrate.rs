@@ -505,7 +505,7 @@ mod sr_impl {
         },
         key_type_id = sr25519::CRYPTO_ID,
         label = "sr25519",
-        generate = || PrivateKey::random(),
+        generate = PrivateKey::random,
         from_suri = |suri: &str, password: Option<&str>| PrivateKey::from_suri(suri, password)
     );
 
@@ -543,7 +543,7 @@ mod ed_impl {
         },
         key_type_id = ed25519::CRYPTO_ID,
         label = "ed25519",
-        generate = || PrivateKey::random(),
+        generate = PrivateKey::random,
         from_suri = |suri: &str, password: Option<&str>| PrivateKey::from_suri(suri, password)
     );
 
@@ -577,7 +577,7 @@ mod ecdsa_impl {
         },
         key_type_id = ecdsa::CRYPTO_ID,
         label = "ecdsa",
-        generate = || PrivateKey::random(),
+        generate = PrivateKey::random,
         from_suri = |suri: &str, password: Option<&str>| PrivateKey::from_suri(suri, password)
     );
 

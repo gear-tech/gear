@@ -31,6 +31,7 @@ k256 = { version = "0.13.4", default-features = false, features = [
     "ecdsa",
 ], optional = true }
 nacl = { workspace = true, optional = true }
+dirs = { workspace = true, optional = true }
 parity-scale-codec = { workspace = true, default-features = false, features = [
     "derive",
 ], optional = true }
@@ -68,7 +69,7 @@ serde_json = { workspace = true, features = ["std"] }
 tempfile = { workspace = true }
 
 [features]
-default = ["std", "secp256k1", "sr25519", "ed25519", "codec", "ss58-registry"]
+default = ["std", "secp256k1", "sr25519", "ed25519", "codec", "ss58-registry", "keyring"]
 std = [
     "dep:anyhow",
     "dep:rand",
@@ -77,6 +78,7 @@ std = [
     "dep:tracing",
     "dep:tracing-subscriber",
     "dep:base64",
+    "dep:dirs",
     "serde/std",
     "sp-core/std",
     "sp-io/std",
@@ -90,9 +92,9 @@ secp256k1 = [
 ]
 sr25519 = ["dep:sp-core", "dep:schnorrkel", "dep:nacl", "serde"]
 ed25519 = ["dep:sp-core", "serde"]
-cli = ["std", "clap", "colored", "dep:tracing-subscriber"]
+cli = ["std", "clap", "colored", "dep:tracing-subscriber", "keyring"]
 codec = ["dep:parity-scale-codec"]
-keyring = ["std", "serde"]
+keyring = ["std", "serde", "dep:nacl"]
 serde = ["dep:serde"]
 ss58-registry = ["dep:ss58-registry"]
 peer-id = ["dep:libp2p-identity"]

@@ -22,11 +22,15 @@
 //! across different signature schemes by relying on scheme-specific keystore
 //! types to implement [`KeystoreEntry`].
 
+pub mod encryption;
 pub mod key_codec;
+mod scheme;
+pub use scheme::KeyringScheme;
 
 use anyhow::{Result, anyhow};
 use serde::{Deserialize, Serialize};
 use std::{
+    collections::HashMap,
     fs,
     path::{Path, PathBuf},
 };
@@ -68,24 +72,34 @@ struct KeyringConfig {
 /// ├── bob.json
 /// └── ...
 /// ```
-pub struct Keyring<K: KeystoreEntry> {
-    /// Path to the keyring directory.
-    store: PathBuf,
-    /// Loaded keystores.
-    keystores: Vec<K>,
-    /// Primary key name.
-    primary: Option<String>,
+trait KeyringBackend: Send + Sync {
+    fn list_entries(&self) -> Result<Vec<(String, Vec<u8>)>>;
+    fn read_config(&self) -> Result<Option<Vec<u8>>>;
+    fn write_config(&mut self, bytes: &[u8]) -> Result<()>;
+    fn write_entry(&mut self, name: &str, bytes: &[u8]) -> Result<()>;
+    fn remove_entry(&mut self, name: &str) -> Result<()>;
 }
 
-impl<K: KeystoreEntry> Keyring<K> {
-    /// Load keyring from directory.
-    ///
-    /// Creates the directory if it doesn't exist and loads all keystores from disk.
-    pub fn load(store: PathBuf) -> Result<Self> {
-        fs::create_dir_all(&store)?;
+struct DiskBackend {
+    root: PathBuf,
+}
 
-        let mut keystores = Vec::new();
-        for entry in fs::read_dir(&store)? {
+impl DiskBackend {
+    fn new(root: PathBuf) -> Result<Self> {
+        fs::create_dir_all(&root)?;
+        Ok(Self { root })
+    }
+
+    fn entry_path(&self, name: &str) -> PathBuf {
+        self.root.join(name).with_extension("json")
+    }
+}
+
+impl KeyringBackend for DiskBackend {
+    fn list_entries(&self) -> Result<Vec<(String, Vec<u8>)>> {
+        let mut entries = Vec::new();
+
+        for entry in fs::read_dir(&self.root)? {
             let entry = match entry {
                 Ok(entry) => entry,
                 Err(err) => {
@@ -95,19 +109,132 @@ impl<K: KeystoreEntry> Keyring<K> {
             };
 
             let path = entry.path();
-            if Self::is_config_file(&path) || !Self::is_keystore_file(&path) {
-                continue;
-            }
-
-            match Self::read_keystore(&path) {
-                Ok(keystore) => keystores.push(keystore),
-                Err(err) => tracing::warn!("Failed to load keystore at {:?}: {err}", path),
+            if path.is_file()
+                && path.extension().is_some_and(|ext| ext == "json")
+                && path.file_name().is_none_or(|name| name != CONFIG_FILE)
+                && let Some(name) = path.file_stem().and_then(|s| s.to_str())
+            {
+                match fs::read(&path) {
+                    Ok(bytes) => entries.push((name.to_string(), bytes)),
+                    Err(err) => tracing::warn!("Failed to read keystore at {:?}: {err}", path),
+                }
             }
         }
 
-        let config_path = store.join(CONFIG_FILE);
-        let primary = if config_path.exists() {
-            let config: KeyringConfig = serde_json::from_slice(&fs::read(&config_path)?)?;
+        Ok(entries)
+    }
+
+    fn read_config(&self) -> Result<Option<Vec<u8>>> {
+        let config_path = self.root.join(CONFIG_FILE);
+        if config_path.exists() {
+            Ok(Some(fs::read(config_path)?))
+        } else {
+            Ok(None)
+        }
+    }
+
+    fn write_config(&mut self, bytes: &[u8]) -> Result<()> {
+        fs::write(self.root.join(CONFIG_FILE), bytes)?;
+        Ok(())
+    }
+
+    fn write_entry(&mut self, name: &str, bytes: &[u8]) -> Result<()> {
+        fs::write(self.entry_path(name), bytes)?;
+        Ok(())
+    }
+
+    fn remove_entry(&mut self, name: &str) -> Result<()> {
+        let file = self.entry_path(name);
+        if file.exists() {
+            fs::remove_file(file)?;
+        }
+        Ok(())
+    }
+}
+
+#[derive(Default)]
+struct MemoryBackend {
+    keystores: HashMap<String, Vec<u8>>,
+    config: Option<Vec<u8>>,
+}
+
+impl KeyringBackend for MemoryBackend {
+    fn list_entries(&self) -> Result<Vec<(String, Vec<u8>)>> {
+        Ok(self
+            .keystores
+            .iter()
+            .map(|(name, bytes)| (name.clone(), bytes.clone()))
+            .collect())
+    }
+
+    fn read_config(&self) -> Result<Option<Vec<u8>>> {
+        Ok(self.config.clone())
+    }
+
+    fn write_config(&mut self, bytes: &[u8]) -> Result<()> {
+        self.config = Some(bytes.to_vec());
+        Ok(())
+    }
+
+    fn write_entry(&mut self, name: &str, bytes: &[u8]) -> Result<()> {
+        self.keystores.insert(name.to_string(), bytes.to_vec());
+        Ok(())
+    }
+
+    fn remove_entry(&mut self, name: &str) -> Result<()> {
+        self.keystores.remove(name);
+        Ok(())
+    }
+}
+
+pub struct Keyring<K: KeystoreEntry> {
+    store: Box<dyn KeyringBackend>,
+    keystores: Vec<K>,
+    primary: Option<String>,
+}
+
+fn resolve_namespaced_path_impl(store: PathBuf, namespace: &str) -> PathBuf {
+    if path_has_keyring(&store) || store.file_name().is_some_and(|name| name == namespace) {
+        store
+    } else {
+        store.join(namespace)
+    }
+}
+
+/// Resolve a storage path into a namespaced keyring directory.
+///
+/// This helper can be used without instantiating a [`Keyring`] to compute the
+/// scheme-specific directory that should back the JSON keystore.
+pub fn resolve_namespaced_path(store: PathBuf, namespace: &str) -> PathBuf {
+    resolve_namespaced_path_impl(store, namespace)
+}
+
+impl<K: KeystoreEntry> Keyring<K> {
+    /// Load keyring from directory.
+    ///
+    /// Creates the directory if it doesn't exist and loads all keystores from disk.
+    pub fn load(store: PathBuf) -> Result<Self> {
+        let backend = Box::new(DiskBackend::new(store)?);
+        Self::from_backend(backend)
+    }
+
+    /// Create an in-memory keyring.
+    pub fn memory() -> Self {
+        Self::from_backend(Box::new(MemoryBackend::default()))
+            .expect("memory keyring should not fail")
+    }
+
+    fn from_backend(store: Box<dyn KeyringBackend>) -> Result<Self> {
+        let mut keystores = Vec::new();
+        for (name, bytes) in store.list_entries()? {
+            match Self::decode_keystore(&bytes, Some(&name)) {
+                Ok(keystore) => keystores.push(keystore),
+                Err(err) => tracing::warn!("Failed to load keystore '{name}': {err}"),
+            }
+        }
+
+        let primary = if let Some(config_bytes) = store.read_config()? {
+            let config: KeyringConfig = serde_json::from_slice(&config_bytes)?;
             config.primary
         } else {
             None
@@ -127,31 +254,13 @@ impl<K: KeystoreEntry> Keyring<K> {
     /// If the provided path already contains keystores or configuration, it is returned
     /// unchanged for backward compatibility.
     pub fn namespaced_path(store: PathBuf, namespace: &str) -> PathBuf {
-        if path_has_keyring(&store) || store.file_name().is_some_and(|name| name == namespace) {
-            return store;
-        }
-
-        let namespaced = store.join(namespace);
-        if path_has_keyring(&namespaced) {
-            namespaced
-        } else {
-            namespaced
-        }
+        resolve_namespaced_path_impl(store, namespace)
     }
 
-    fn is_config_file(path: &Path) -> bool {
-        path.file_name().is_some_and(|name| name == CONFIG_FILE)
-    }
+    fn decode_keystore(bytes: &[u8], inferred_name: Option<&str>) -> Result<K> {
+        let mut keystore: K = serde_json::from_slice(bytes)?;
 
-    fn is_keystore_file(path: &Path) -> bool {
-        path.extension().is_some_and(|ext| ext == "json")
-    }
-
-    fn read_keystore(path: &Path) -> Result<K> {
-        let bytes = fs::read(path)?;
-        let mut keystore: K = serde_json::from_slice(&bytes)?;
-
-        if let Some(stem) = path.file_stem().and_then(|s| s.to_str())
+        if let Some(stem) = inferred_name
             && keystore.name().is_empty()
         {
             keystore.set_name(stem);
@@ -160,17 +269,19 @@ impl<K: KeystoreEntry> Keyring<K> {
         Ok(keystore)
     }
 
-    fn keystore_path(&self, name: &str) -> PathBuf {
-        self.store.join(name).with_extension("json")
+    fn read_keystore_from_path(path: &Path) -> Result<K> {
+        let bytes = fs::read(path)?;
+        let inferred = path.file_stem().and_then(|s| s.to_str());
+        Self::decode_keystore(&bytes, inferred)
     }
 
     /// Save keyring configuration to disk.
-    fn save_config(&self) -> Result<()> {
+    fn save_config(&mut self) -> Result<()> {
         let config = KeyringConfig {
             primary: self.primary.clone(),
         };
-        let path = self.store.join(CONFIG_FILE);
-        fs::write(path, serde_json::to_vec_pretty(&config)?)?;
+        let bytes = serde_json::to_vec_pretty(&config)?;
+        self.store.write_config(&bytes)?;
         Ok(())
     }
 
@@ -180,8 +291,8 @@ impl<K: KeystoreEntry> Keyring<K> {
     pub fn store(&mut self, name: &str, mut keystore: K) -> Result<K> {
         keystore.set_name(name);
 
-        let path = self.keystore_path(name);
-        fs::write(&path, serde_json::to_vec_pretty(&keystore)?)?;
+        let bytes = serde_json::to_vec_pretty(&keystore)?;
+        self.store.write_entry(name, &bytes)?;
 
         if let Some(index) = self.keystores.iter().position(|entry| entry.name() == name) {
             self.keystores[index] = keystore.clone();
@@ -197,7 +308,7 @@ impl<K: KeystoreEntry> Keyring<K> {
     /// The file is deserialized, optionally renamed from its filename, and stored
     /// in the keyring directory.
     pub fn import(&mut self, path: PathBuf) -> Result<K> {
-        let mut keystore = Self::read_keystore(&path)?;
+        let mut keystore = Self::read_keystore_from_path(&path)?;
         let name = path
             .file_stem()
             .and_then(|s| s.to_str())
@@ -259,11 +370,8 @@ impl<K: KeystoreEntry> Keyring<K> {
 
         let keystore = self.keystores.remove(index);
 
-        // Remove from disk
-        let path = self.keystore_path(name);
-        if path.exists() {
-            fs::remove_file(&path)?;
-        }
+        // Remove from storage backend
+        self.store.remove_entry(name)?;
 
         // Clear primary if it was the removed key
         if self.primary.as_deref() == Some(name) {

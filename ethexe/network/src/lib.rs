@@ -242,7 +242,7 @@ impl NetworkService {
     }
 
     fn generate_keypair(signer: &Signer, key: PublicKey) -> anyhow::Result<identity::Keypair> {
-        let key = signer.storage().get_private_key(key)?;
+        let key = signer.get_private_key(key)?;
         let mut seed = key.to_bytes();
         let key = identity::secp256k1::SecretKey::try_from_bytes(&mut seed)
             .expect("Signer provided invalid key; qed");
@@ -689,8 +689,7 @@ mod tests {
         db.set_validators(0, nonempty![Address::default()].into());
         db.set_protocol_timelines(TIMELINES);
 
-        let key_storage = gsigner::secp256k1::FileStorage::tmp();
-        let signer = Signer::new(key_storage);
+        let signer = Signer::fs_temporary();
         let key = signer.generate_key().unwrap();
         let config = NetworkConfig::new_test(key, Address::default());
 

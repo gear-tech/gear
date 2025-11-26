@@ -512,8 +512,7 @@ mod tests {
 
         let signer = Signer::memory();
         let alice = signer
-            .storage_mut()
-            .add_key(
+            .import_key(
                 "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
                     .parse()
                     .unwrap(),

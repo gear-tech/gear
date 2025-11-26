@@ -40,19 +40,19 @@ use sp_core::{
     sr25519::{self, Pair as SpPair, Public as SpPublic, Signature as SpSignature},
 };
 
-#[cfg(feature = "std")]
+#[cfg(all(feature = "std", feature = "keyring", feature = "serde"))]
 mod signer_ext;
 
 #[cfg(all(feature = "serde", feature = "keyring"))]
 pub mod keyring;
-#[cfg(all(feature = "serde", feature = "std"))]
+#[cfg(all(feature = "serde", feature = "std", feature = "keyring"))]
 pub mod keystore;
 
 #[cfg(all(feature = "serde", feature = "keyring"))]
 pub use keyring::Keyring;
-#[cfg(all(feature = "serde", feature = "std"))]
+#[cfg(all(feature = "serde", feature = "std", feature = "keyring"))]
 pub use keystore::Keystore;
-#[cfg(feature = "std")]
+#[cfg(all(feature = "std", feature = "keyring", feature = "serde"))]
 pub use signer_ext::Sr25519SignerExt;
 
 const SIGNING_CONTEXT: &[u8] = b"gsigner";
@@ -390,6 +390,41 @@ impl SignatureScheme for Sr25519 {
         public_key
             .to_address()
             .expect("public key bytes always produce valid address")
+    }
+}
+
+#[cfg(all(feature = "std", feature = "keyring", feature = "serde"))]
+impl crate::keyring::KeyringScheme for Sr25519 {
+    type Keystore = keystore::Keystore;
+
+    fn namespace() -> &'static str {
+        crate::keyring::NAMESPACE_SR
+    }
+
+    fn keystore_from_private(
+        name: &str,
+        private_key: &Self::PrivateKey,
+        password: Option<&str>,
+    ) -> Result<Self::Keystore> {
+        let passphrase = password.map(|p| p.as_bytes());
+        Ok(Self::Keystore::encrypt(private_key.keypair(), passphrase)?.with_name(name))
+    }
+
+    fn keystore_private(
+        keystore: &Self::Keystore,
+        password: Option<&str>,
+    ) -> Result<Self::PrivateKey> {
+        let passphrase = password.map(|p| p.as_bytes());
+        Ok(PrivateKey::from_keypair(keystore.decrypt(passphrase)?))
+    }
+
+    fn keystore_public(keystore: &Self::Keystore) -> Result<Self::PublicKey> {
+        Ok(PublicKey::from_bytes(keystore.public_key()?))
+    }
+
+    fn keystore_address(keystore: &Self::Keystore) -> Result<Self::Address> {
+        SubstrateAddress::from_ss58(&keystore.address)
+            .map_err(|e| SignerError::InvalidAddress(e.to_string()))
     }
 }
 

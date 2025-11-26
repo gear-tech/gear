@@ -46,9 +46,6 @@ pub mod ecdsa {
 }
 
 #[cfg(feature = "std")]
-pub use crate::storage::FSKeyStorage;
-pub use crate::storage::MemoryKeyStorage;
-#[cfg(feature = "std")]
 pub use signer_ext::Secp256k1SignerExt;
 
 #[cfg(all(feature = "serde", feature = "keyring"))]
@@ -106,12 +103,45 @@ impl SignatureScheme for Secp256k1 {
     }
 }
 
-/// Convenient aliases for the secp256k1 signer and storages.
-#[cfg(feature = "std")]
+/// Convenient alias for the secp256k1 signer.
+#[cfg(all(feature = "std", feature = "keyring", feature = "serde"))]
 pub type Signer = crate::Signer<Secp256k1>;
-pub type MemoryStorage = crate::storage::MemoryKeyStorage<Secp256k1>;
-#[cfg(feature = "std")]
-pub type FileStorage = crate::storage::FSKeyStorage<Secp256k1>;
+
+#[cfg(all(feature = "std", feature = "keyring", feature = "serde"))]
+impl crate::keyring::KeyringScheme for Secp256k1 {
+    type Keystore = keyring::Keystore;
+
+    fn namespace() -> &'static str {
+        crate::keyring::NAMESPACE_SECP
+    }
+
+    fn keystore_from_private(
+        name: &str,
+        private_key: &Self::PrivateKey,
+        password: Option<&str>,
+    ) -> crate::error::Result<Self::Keystore> {
+        Ok(Self::Keystore::from_private_key_with_password(
+            name,
+            private_key.clone(),
+            password,
+        )?)
+    }
+
+    fn keystore_private(
+        keystore: &Self::Keystore,
+        password: Option<&str>,
+    ) -> crate::error::Result<Self::PrivateKey> {
+        Ok(keystore.private_key_with_password(password)?)
+    }
+
+    fn keystore_public(keystore: &Self::Keystore) -> crate::error::Result<Self::PublicKey> {
+        Ok(keystore.public_key()?)
+    }
+
+    fn keystore_address(keystore: &Self::Keystore) -> crate::error::Result<Self::Address> {
+        Ok(keystore.address()?)
+    }
+}
 
 #[cfg(all(test, feature = "std"))]
 mod tests {

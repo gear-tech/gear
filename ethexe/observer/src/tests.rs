@@ -43,9 +43,9 @@ async fn test_deployment() -> Result<()> {
     let ethereum_rpc = anvil.ws_endpoint();
 
     let signer = Signer::memory();
-    let sender_public_key = signer
-        .storage_mut()
-        .add_key("0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80".parse()?)?;
+    let sender_public_key = signer.import_key(
+        "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80".parse()?,
+    )?;
     let sender_address = sender_public_key.to_address();
     let validators: Vec<Address> = vec!["0x45D6536E3D4AdC8f4e13c5c4aA54bE968C55Abf1".parse()?];
 
