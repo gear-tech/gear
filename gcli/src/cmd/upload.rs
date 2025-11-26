@@ -71,7 +71,7 @@ impl Upload {
         };
 
         if self.code_only {
-            signer.calls.upload_code(code).await?;
+            signer.calls().upload_code(code).await?;
             return Ok(());
         }
 
@@ -80,14 +80,14 @@ impl Upload {
             gas_limit
         } else {
             signer
-                .rpc
+                .rpc()
                 .calculate_upload_gas(None, code.clone(), payload.clone(), self.value, false, None)
                 .await?
                 .min_limit
         };
 
         let tx = signer
-            .calls
+            .calls()
             .upload_program(code, self.salt.to_vec()?, payload, gas_limit, self.value)
             .await?;
 
