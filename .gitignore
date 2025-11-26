@@ -1,28 +1,40 @@
 node_modules/
+log/
+weight-dumps/
+.binpath
+*.meta.txt
+gsdk/vara_runtime_prod.scale
+
+# cargo
 target/
 target-rust-analyzer/
 target-no-lazy/
 target-xwin/
-log/
-weight-dumps/
-.binpath
-/.vscode
-/.cursor
-.DS_Store
-.idea
-.log
-*.meta.txt
-.terraform*
+
+# ethexe
+.ethexe.toml
+ethexe/contracts/bin/src
+
+# JypyterNotebook
+.ipynb_checkpoints
+.jupyter
+
+# fuzzer
 utils/**/fuzz/corpus/*
 utils/**/fuzz/coverage/*
 utils/**/fuzz/artifacts/*
 utils/**/fuzz/fuzz/*
-.ethexe.toml
 fuzz_run
 lazy_pages_fuzz_run
 seed.bin
+<<<<<<< Updated upstream
 .direnv/
 .ipynb_checkpoints
 .jupyter
+<<<<<<< Updated upstream
 ethexe/contracts/bin/src
 gsdk/vara_runtime_prod.scale
+=======
+=======
+>>>>>>> Stashed changes
+>>>>>>> Stashed changes

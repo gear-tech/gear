@@ -1,0 +1,5 @@
+.git
+*.svg
+ethexe/contracts/lib
+ethexe/ethereum/*.json
+Cargo.lock
