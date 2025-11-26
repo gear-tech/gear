@@ -18,7 +18,7 @@
 
 //! Subscription implementation.
 
-use crate::{Event, Result, config::GearConfig};
+use crate::{AsGear, Event, Result, config::GearConfig};
 use futures::{Stream, StreamExt};
 use gear_core::ids::{ActorId, MessageId};
 use gear_core_errors::ReplyCode;
@@ -115,10 +115,7 @@ impl BlockEvents {
     pub fn events(&self) -> Result<Vec<Event>> {
         self.events
             .iter()
-            .map(|ev| {
-                ev.and_then(|e| e.as_root_event::<Event>())
-                    .map_err(Into::into)
-            })
+            .map(|ev| ev?.as_gear())
             .collect::<Result<Vec<_>>>()
     }
 }
