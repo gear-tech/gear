@@ -436,7 +436,7 @@ impl NetworkService {
     }
 
     fn handle_kad_event(&mut self, event: kad::Event) {
-        let behaviour = self.swarm.behaviour_mut();
+        let _behaviour = self.swarm.behaviour_mut();
 
         match event {
             kad::Event::RoutingUpdated { peer } => {
@@ -444,39 +444,9 @@ impl NetworkService {
                 if let Some(mdns4) = behaviour.mdns4.as_ref()
                     && mdns4.discovered_nodes().any(|&p| p == peer)
                 {
-                    // we don't want local peers to appear in KadDHT.
-                    // event can be emitted few times in a row for
-                    // the same peer, so we just ignore `None`
                     let _res = behaviour.kad.remove_peer(peer);
                 }
             }
-            kad::Event::GetRecord(result) => match result {
-                Ok(ok) => {
-                    let kad::GetRecordOk { peer, record } = *ok;
-                    let kad::Record::ValidatorIdentity(record) = record;
-                    if let Err(err) = behaviour.validator_discovery.put_identity(record) {
-                        log::trace!("failed to verify identity: {err}");
-                        if let Some(peer) = peer {
-                            behaviour.peer_score.handle().invalid_data(peer);
-                        } else {
-                            #[cfg(debug_assertions)]
-                            unreachable!("failed to verify identity we got from local storage");
-                        }
-                    }
-                }
-                Err(err) => {
-                    log::trace!("failed to get identity: {err}");
-                }
-            },
-            kad::Event::PutRecord(result) => match result {
-                Ok(kad::RecordKey::ValidatorIdentity(_key)) => {
-                    log::trace!("validator identity put successfully");
-                    behaviour.validator_discovery.max_put_identity_interval();
-                }
-                Err(err) => {
-                    log::debug!("failed to put record: {err:?}");
-                }
-            },
             kad::Event::InboundPutRecord {
                 source: _,
                 validator,
@@ -484,10 +454,11 @@ impl NetworkService {
                 let behaviour = self.swarm.behaviour_mut();
                 validator.validate(&mut behaviour.kad, |record| {
                     let kad::Record::ValidatorIdentity(_record) = record;
-                    // TODO: consider to validate era index and validator address before insertion in store
                     true
                 });
             }
+            kad::Event::GetRecordStarted { query_id: _ }
+            | kad::Event::PutRecordStarted { query_id: _ } => {}
         }
     }
 
@@ -527,24 +498,9 @@ impl NetworkService {
     }
 
     fn handle_validator_discovery_event(&mut self, event: validator::discovery::Event) {
-        let behaviour = self.swarm.behaviour_mut();
-
         match event {
-            validator::discovery::Event::QueryIdentities { identities } => {
-                for key in identities {
-                    behaviour.kad.get_record(key);
-                }
-            }
-            validator::discovery::Event::PutIdentity { identity } => match identity {
-                Ok(identity) => {
-                    if let Err(err) = behaviour.kad.put_record(*identity) {
-                        log::warn!("failed to put record into local storage: {err}");
-                    }
-                }
-                Err(err) => {
-                    log::warn!("failed to create validator identity: {err}");
-                }
-            },
+            validator::discovery::Event::IdentitiesQueryStarted => {}
+            validator::discovery::Event::PutIdentityStarted => {}
         }
     }
 
@@ -697,6 +653,7 @@ impl Behaviour {
         );
 
         let kad = kad::Behaviour::new(peer_id, peer_score_handle.clone());
+        let kad_handle = kad.handle();
 
         let gossipsub =
             gossipsub::Behaviour::new(keypair.clone(), peer_score_handle.clone(), router_address)
@@ -712,6 +669,7 @@ impl Behaviour {
         let injected = injected::Behaviour::new(peer_score_handle);
 
         let validator_discovery = validator::discovery::Behaviour::new(
+            kad_handle,
             keypair,
             validator_key,
             general_signer,

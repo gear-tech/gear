@@ -22,7 +22,7 @@
 
 use crate::{
     db_sync::PeerId,
-    kad::{ValidatorIdentityKey, ValidatorIdentityRecord},
+    kad::{self, GetRecordResult, RecordKey, ValidatorIdentityKey, ValidatorIdentityRecord},
     utils::ExponentialBackoffInterval,
     validator::list::ValidatorListSnapshot,
 };
@@ -33,6 +33,10 @@ use ethexe_common::{
     sha3::Keccak256,
 };
 use ethexe_signer::Signer;
+use futures::{
+    StreamExt,
+    stream::{self, BoxStream},
+};
 use indexmap::IndexSet;
 use libp2p::{
     Multiaddr,
@@ -351,12 +355,8 @@ impl ToDigest for ValidatorIdentity {
 
 #[derive(Debug)]
 pub enum Event {
-    QueryIdentities {
-        identities: Vec<ValidatorIdentityKey>,
-    },
-    PutIdentity {
-        identity: anyhow::Result<Box<ValidatorIdentityRecord>>,
-    },
+    IdentitiesQueryStarted,
+    PutIdentityStarted,
 }
 
 #[derive(Debug, derive_more::Display, Eq, PartialEq)]
@@ -365,7 +365,6 @@ pub enum PutIdentityError {
     UnknownValidatorIdentity { address: Address },
 }
 
-#[derive(Debug)]
 struct PutIdentity {
     keypair: Keypair,
     validator_key: PublicKey,
@@ -414,24 +413,29 @@ impl PutIdentity {
     }
 }
 
-#[derive(Debug)]
 pub struct Behaviour {
+    #[allow(dead_code)]
+    kad: kad::Handle,
     snapshot: Arc<ValidatorListSnapshot>,
     identities: HashMap<Address, SignedValidatorIdentity>,
+    query_identities: Option<BoxStream<'static, GetRecordResult>>,
     query_identities_interval: ExponentialBackoffInterval,
     put_identity: Option<PutIdentity>,
 }
 
 impl Behaviour {
     pub fn new(
+        kad: kad::Handle,
         keypair: Keypair,
         validator_key: Option<PublicKey>,
         signer: Signer,
         snapshot: Arc<ValidatorListSnapshot>,
     ) -> Self {
         Self {
+            kad,
             snapshot,
             identities: HashMap::new(),
+            query_identities: None,
             query_identities_interval: ExponentialBackoffInterval::new(),
             put_identity: validator_key.map(|validator_key| PutIdentity {
                 keypair,
@@ -461,7 +465,7 @@ impl Behaviour {
         self.identities.get(&address)
     }
 
-    pub fn put_identity(
+    pub(crate) fn put_identity(
         &mut self,
         record: ValidatorIdentityRecord,
     ) -> Result<(), PutIdentityError> {
@@ -486,7 +490,8 @@ impl Behaviour {
         Ok(())
     }
 
-    pub fn max_put_identity_interval(&mut self) {
+    #[allow(dead_code)]
+    pub(crate) fn max_put_identity_interval(&mut self) {
         let put_identity = self
             .put_identity
             .as_mut()
@@ -539,16 +544,48 @@ impl NetworkBehaviour for Behaviour {
         cx: &mut Context<'_>,
     ) -> Poll<ToSwarm<Self::ToSwarm, THandlerInEvent<Self>>> {
         if self.query_identities_interval.poll_tick(cx).is_ready() {
-            let identities = self.identity_keys().collect();
-            return Poll::Ready(ToSwarm::GenerateEvent(Event::QueryIdentities {
-                identities,
-            }));
+            let streams = self
+                .identity_keys()
+                .map(|identity| {
+                    let identity = RecordKey::ValidatorIdentity(identity);
+                    self.kad.get_record(identity)
+                })
+                .collect::<Vec<_>>();
+            let stream = stream::iter(streams).flatten_unordered(None).boxed();
+            self.query_identities.replace(stream);
+            return Poll::Ready(ToSwarm::GenerateEvent(Event::IdentitiesQueryStarted));
+        }
+
+        if let Some(stream) = &mut self.query_identities
+            && let Poll::Ready(Some(res)) = stream.poll_next_unpin(cx)
+        {
+            match res {
+                Ok(kad::GetRecordOk { peer: _, record }) => {
+                    let record = record.unwrap_validator_identity();
+                    if let Err(err) = self.put_identity(record) {
+                        log::trace!("failed to put identity: {err}");
+                    }
+                }
+                Err(err) => {
+                    log::trace!("failed to query identity: {err}");
+                }
+            }
         }
 
         if let Some(put_identity) = &mut self.put_identity
             && let Poll::Ready(identity) = put_identity.poll(cx)
         {
-            return Poll::Ready(ToSwarm::GenerateEvent(Event::PutIdentity { identity }));
+            match identity {
+                Ok(record) => {
+                    let record = kad::Record::ValidatorIdentity(*record);
+                    // best effort; ignore result
+                    let _fut = self.kad.put_record(record);
+                    return Poll::Ready(ToSwarm::GenerateEvent(Event::PutIdentityStarted));
+                }
+                Err(err) => {
+                    log::trace!("failed to create identity to put: {err}");
+                }
+            }
         }
 
         Poll::Pending
@@ -688,10 +725,11 @@ mod tests {
     }
 
     #[tokio::test(start_paused = true)]
-    async fn poll_emits_query_and_put_events() {
+    async fn behaviour_queries_and_puts() {
         let signer = Signer::memory();
         let validator_key = signer.generate_key().unwrap();
         let behaviour = Behaviour::new(
+            kad::Handle::new_test(),
             Keypair::generate_secp256k1(),
             Some(validator_key),
             signer.clone(),
@@ -704,10 +742,10 @@ mod tests {
         time::advance(ExponentialBackoffInterval::START).await;
 
         let event = swarm.next_behaviour_event().await;
-        assert_matches!(event, Event::QueryIdentities { .. });
+        assert_matches!(event, Event::IdentitiesQueryStarted);
 
         let event = swarm.next_behaviour_event().await;
-        assert_matches!(event, Event::PutIdentity { .. });
+        assert_matches!(event, Event::PutIdentityStarted);
     }
 
     #[tokio::test]
@@ -715,6 +753,7 @@ mod tests {
         let signer = Signer::memory();
         let validator_key = signer.generate_key().unwrap();
         let mut behaviour = Behaviour::new(
+            kad::Handle::new_test(),
             Keypair::generate_secp256k1(),
             None,
             signer.clone(),
@@ -739,6 +778,7 @@ mod tests {
         let signer = Signer::memory();
         let validator_key = signer.generate_key().unwrap();
         let mut behaviour = Behaviour::new(
+            kad::Handle::new_test(),
             Keypair::generate_secp256k1(),
             None,
             signer.clone(),
@@ -764,6 +804,7 @@ mod tests {
         let signer = Signer::memory();
         let validator_key = signer.generate_key().unwrap();
         let mut behaviour = Behaviour::new(
+            kad::Handle::new_test(),
             Keypair::generate_secp256k1(),
             None,
             signer.clone(),
@@ -812,6 +853,7 @@ mod tests {
         let validator_a = signer.generate_key().unwrap();
         let validator_b = signer.generate_key().unwrap();
         let mut behaviour = Behaviour::new(
+            kad::Handle::new_test(),
             Keypair::generate_secp256k1(),
             None,
             signer.clone(),
@@ -841,6 +883,7 @@ mod tests {
         let network_keypair = Keypair::generate_secp256k1();
 
         let mut behaviour = Behaviour::new(
+            kad::Handle::new_test(),
             network_keypair.clone(),
             Some(validator_key),
             signer.clone(),
