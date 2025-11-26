@@ -92,8 +92,11 @@ pub trait ConsensusService:
 #[derive(Debug, Clone, PartialEq, Eq, derive_more::Display)]
 #[display("Commitment submitted, block_hash: {block_hash}, batch {batch_digest}, tx: {tx}")]
 pub struct CommitmentSubmitted {
+    /// Block hash for which the commitment was submitted
     block_hash: H256,
+    /// Digest of the committed batch
     batch_digest: Digest,
+    /// Hash of the submission transaction
     tx: H256,
 }
 

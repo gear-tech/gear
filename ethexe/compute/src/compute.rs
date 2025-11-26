@@ -36,7 +36,7 @@ use std::{
 
 #[derive(Debug, Clone, Copy)]
 pub struct ComputeConfig {
-    /// The delay in **blocks** in which events from Ethereum will be appply.
+    /// The delay in **blocks** in which events from Ethereum will be apply.
     canonical_quarantine: u8,
 }
 

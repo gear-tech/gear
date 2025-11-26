@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2024-2025 Gear Technotracingies Inc.
+// Copyright (C) 2024-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -234,7 +234,7 @@ impl BlockMetaStorageRW for Database {
 
 impl CodesStorageRO for Database {
     fn original_code_exists(&self, code_id: CodeId) -> bool {
-        self.kv.contains(code_id.as_ref())
+        self.cas.contains(code_id.into())
     }
 
     fn original_code(&self, code_id: CodeId) -> Option<Vec<u8>> {

@@ -10,13 +10,6 @@ homepage.workspace = true
 repository.workspace = true
 rust-version.workspace = true
 
-[package.metadata.cargo-shear]
-ignored = [
-  # docs
-  "hex-literal",
-  "galloc",
-]
-
 [dependencies]
 gsys.workspace = true
 gprimitives.workspace = true

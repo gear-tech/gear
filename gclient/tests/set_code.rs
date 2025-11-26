@@ -43,9 +43,9 @@ async fn set_code_failed() {
     assert!(
         matches!(
             err,
-            gclient::Error::Runtime(gear::Error::System(
+            gclient::Error::GearSDK(gsdk::Error::Runtime(gear::Error::System(
                 gear::system::Error::SpecVersionNeedsToIncrease
-            ))
+            )))
         ),
         "{err:?}"
     );

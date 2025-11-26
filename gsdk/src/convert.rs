@@ -18,6 +18,10 @@
 
 //! This module provides conversion traits between [`subxt`] types and Substrate types.
 
+use subxt::{error::ModuleError, events::EventDetails};
+
+use crate::{GearConfig, Result};
+
 /// Trait for Substrate types convertible to their
 /// [`subxt`] counterpart.
 pub trait IntoSubxt {
@@ -36,6 +40,14 @@ pub trait IntoSubstrate {
 
     /// Convert to Substrate type.
     fn into_substrate(self) -> Self::Target;
+}
+
+/// Helper traits to decoding [`subxt`] types into Gear-specific types.
+pub trait AsGear {
+    /// Gear-specific counterpart of the type.
+    type Target;
+
+    fn as_gear(&self) -> Result<Self::Target>;
 }
 
 impl IntoSubxt for sp_runtime::AccountId32 {
@@ -79,5 +91,21 @@ impl<A: IntoSubxt, B> IntoSubxt for sp_runtime::MultiAddress<A, B> {
             Self::Address32(address) => Self::Target::Address32(address),
             Self::Address20(address) => Self::Target::Address20(address),
         }
+    }
+}
+
+impl AsGear for EventDetails<GearConfig> {
+    type Target = crate::Event;
+
+    fn as_gear(&self) -> Result<Self::Target> {
+        Ok(self.as_root_event()?)
+    }
+}
+
+impl AsGear for ModuleError {
+    type Target = crate::RuntimeError;
+
+    fn as_gear(&self) -> Result<Self::Target> {
+        Ok(self.as_root_error()?)
     }
 }

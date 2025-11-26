@@ -68,14 +68,22 @@ impl Mirror {
         let builder = CallBuilder::new_raw(self.0.provider(), Bytes::new())
             .to(*self.0.address())
             .value(U256::from(value));
-        let receipt = builder.send().await?.try_get_receipt().await?;
+        let receipt = builder
+            .send()
+            .await?
+            .try_get_receipt_check_reverted()
+            .await?;
 
         Ok((*receipt.transaction_hash).into())
     }
 
     pub async fn executable_balance_top_up(&self, value: u128) -> Result<H256> {
         let builder = self.0.executableBalanceTopUp(value);
-        let receipt = builder.send().await?.try_get_receipt().await?;
+        let receipt = builder
+            .send()
+            .await?
+            .try_get_receipt_check_reverted()
+            .await?;
 
         Ok((*receipt.transaction_hash).into())
     }
@@ -119,14 +127,22 @@ impl Mirror {
                 payload.as_ref().to_vec().into(),
             )
             .value(U256::from(value));
-        let receipt = builder.send().await?.try_get_receipt().await?;
+        let receipt = builder
+            .send()
+            .await?
+            .try_get_receipt_check_reverted()
+            .await?;
 
         Ok((*receipt.transaction_hash).into())
     }
 
     pub async fn claim_value(&self, claimed_id: MessageId) -> Result<H256> {
         let builder = self.0.claimValue(claimed_id.into_bytes().into());
-        let receipt = builder.send().await?.try_get_receipt().await?;
+        let receipt = builder
+            .send()
+            .await?
+            .try_get_receipt_check_reverted()
+            .await?;
 
         Ok((*receipt.transaction_hash).into())
     }

@@ -28,7 +28,7 @@ async fn transfer_backtrace() -> Result<()> {
     let signer = Signer::new(api, "//Alice", None)?;
     let alice: [u8; 32] = *alice_account_id().as_ref();
 
-    let tx = signer.calls.transfer_keep_alive(alice, 42).await?;
+    let tx = signer.calls().transfer_keep_alive(alice, 42).await?;
     let backtrace = signer
         .backtrace()
         .get(tx.extrinsic_hash())

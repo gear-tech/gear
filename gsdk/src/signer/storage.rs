@@ -40,15 +40,14 @@ use gear_core::{
     program::MemoryInfix,
 };
 use sp_runtime::AccountId32;
-use std::sync::Arc;
 use subxt::{metadata::EncodeWithMetadata, storage::Address};
 
 /// Implementation of storage calls for [`Signer`].
 #[derive(Clone)]
-pub struct SignerStorage(pub(crate) Arc<Inner>);
+pub struct SignerStorage<'a>(pub(crate) &'a Inner);
 
 // pallet-system
-impl SignerStorage {
+impl SignerStorage<'_> {
     /// Sets storage values via calling sudo pallet
     pub async fn set_storage(
         &self,
@@ -74,7 +73,7 @@ impl SignerStorage {
 }
 
 // pallet-gas
-impl SignerStorage {
+impl SignerStorage<'_> {
     /// Writes gas total issuance into storage.
     pub async fn set_total_issuance(&self, value: u64) -> EventsResult {
         self.set_storage(&[(gear::storage().gear_gas().total_issuance(), value)])
@@ -99,7 +98,7 @@ impl SignerStorage {
 }
 
 // pallet-gear-bank
-impl SignerStorage {
+impl SignerStorage<'_> {
     /// Writes given BankAccount info into storage at `AccountId32`.
     pub async fn set_bank_account_storage(
         &self,
@@ -115,7 +114,7 @@ impl SignerStorage {
 }
 
 // pallet-gear-program
-impl SignerStorage {
+impl SignerStorage<'_> {
     /// Writes `InstrumentedCode` into storage at `CodeId`
     pub async fn set_instrumented_code_storage(
         &self,

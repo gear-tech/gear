@@ -198,7 +198,11 @@ impl EthereumDeployer {
         assert_eq!(router.mirrorImpl().call().await?, *mirror.address());
 
         let builder = router.lookupGenesisHash();
-        builder.send().await?.try_get_receipt().await?;
+        builder
+            .send()
+            .await?
+            .try_get_receipt_check_reverted()
+            .await?;
 
         Ok(*router.address())
     }
@@ -367,7 +371,7 @@ where
         .send()
         .await
         .unwrap()
-        .try_get_receipt()
+        .try_get_receipt_check_reverted()
         .await
         .unwrap();
 

@@ -23,14 +23,13 @@ use gear_core::{
     ids::{ActorId, CodeId, MessageId},
     rpc::ReplyInfo,
 };
-use std::sync::Arc;
 use subxt::utils::H256;
 
 /// Implementation of calls to node RPC for [`Signer`].
 #[derive(Clone)]
-pub struct SignerRpc(pub(crate) Arc<Inner>);
+pub struct SignerRpc<'a>(pub(crate) &'a Inner);
 
-impl SignerRpc {
+impl SignerRpc<'_> {
     /// public key of the signer in H256
     pub fn source(&self) -> H256 {
         AsRef::<[u8; 32]>::as_ref(self.0.account_id()).into()
@@ -38,11 +37,7 @@ impl SignerRpc {
 
     /// Get self balance.
     pub async fn get_balance(&self) -> Result<u128> {
-        self.0
-            .as_ref()
-            .api()
-            .get_balance(&self.0.as_ref().address())
-            .await
+        self.0.api().get_balance(&self.0.address()).await
     }
 
     /// gear_calculateInitCreateGas

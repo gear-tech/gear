@@ -20,7 +20,7 @@
 
 use super::Inner;
 use crate::{
-    Error, TxInBlock, TxStatus,
+    AsGear, Error, TxInBlock, TxStatus,
     backtrace::BacktraceStatus,
     config::GearConfig,
     gear::{
@@ -29,10 +29,8 @@ use crate::{
         sudo,
     },
     result::{Result, TxStatusExt, TxSuccess},
-    signer::SignerRpc,
 };
 use colored::Colorize;
-use std::sync::Arc;
 use subxt::{
     OnlineClient,
     blocks::ExtrinsicEvents,
@@ -47,8 +45,7 @@ pub type EventsResult = Result<(H256, ExtrinsicEvents<GearConfig>)>;
 impl Inner {
     /// Logging balance spent
     pub async fn log_balance_spent(&self, before: u128) -> Result<()> {
-        let signer_rpc = SignerRpc(Arc::new(self.clone()));
-        match signer_rpc.get_balance().await {
+        match self.rpc().get_balance().await {
             Ok(balance) => {
                 let after = before.saturating_sub(balance);
                 log::info!("\tBalance spent: {after}");
@@ -83,8 +80,7 @@ impl Inner {
 
     /// Listen transaction process and print logs.
     pub async fn process<Call: Payload>(&self, call: Call) -> Result<TxInBlock> {
-        let signer_rpc = SignerRpc(Arc::new(self.clone()));
-        let before = signer_rpc.get_balance().await?;
+        let before = self.rpc().get_balance().await?;
 
         let mut process = self.sign_and_submit_then_watch(&call).await?;
 
@@ -151,7 +147,7 @@ impl Inner {
         let tx = self.process(call).await?;
         let events = tx.wait_for_success().await?;
         for event in events.iter() {
-            let event = event?.as_root_event::<RuntimeEvent>()?;
+            let event = event?.as_gear()?;
             if let RuntimeEvent::Sudo(sudo::Event::Sudid {
                 sudo_result: Err(err),
             }) = event

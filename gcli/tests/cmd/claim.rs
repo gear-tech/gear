@@ -19,7 +19,7 @@
 //! Integration tests for command `send`
 
 use crate::common::{self, Args, Result, TREASURY_SS58_ADDRESS, node::NodeExec};
-use gsdk::Api;
+use gsdk::{Api, gear};
 
 const REWARD_PER_BLOCK: u128 = 300_000; // 3_000 gas * 100 value per gas
 
@@ -62,8 +62,18 @@ async fn test_command_claim_works() -> Result<()> {
         .await
         .unwrap_or(0);
 
-    let treasury_gas_fee_share = signer.api().treasury_gas_fee_share()?;
-    let treasury_tx_fee_share = signer.api().treasury_tx_fee_share()?;
+    let treasury_gas_fee_share = signer
+        .api()
+        .constants()
+        .at(&gear::constants().gear_bank().treasury_gas_fee_share())
+        .map_err(gsdk::Error::from)?
+        .0;
+    let treasury_tx_fee_share = signer
+        .api()
+        .constants()
+        .at(&gear::constants().gear_bank().treasury_tx_fee_share())
+        .map_err(gsdk::Error::from)?
+        .0;
 
     // Current settings. Check for ease of testing, otherwise
     // we need to know exact value of tx and gas payouts.
