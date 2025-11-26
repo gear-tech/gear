@@ -55,7 +55,8 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
 
         router.genesisBlock = Gear.newGenesis();
         router.implAddresses = Gear.AddressBook(_mirror, _wrappedVara, _middleware);
-        router.validationSettings.signingThresholdPercentage = Gear.SIGNING_THRESHOLD_PERCENTAGE;
+        router.validationSettings.thresholdNumerator = Gear.VALIDATORS_THRESHOLD_NUMERATOR;
+        router.validationSettings.thresholdDenominator = Gear.VALIDATORS_THRESHOLD_DENOMINATOR;
         router.computeSettings = Gear.defaultComputationSettings();
         router.timelines = Gear.Timelines(_eraDuration, _electionDuration, _validationDelay);
 
@@ -87,9 +88,9 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
         // Copy impl addresses from the old router.
         newRouter.implAddresses = oldRouter.implAddresses;
 
-        // Copy signing threshold percentage from the old router.
-        newRouter.validationSettings.signingThresholdPercentage =
-        oldRouter.validationSettings.signingThresholdPercentage;
+        // Copy signing threshold fraction from the old router.
+        newRouter.validationSettings.thresholdNumerator = oldRouter.validationSettings.thresholdNumerator;
+        newRouter.validationSettings.thresholdDenominator = oldRouter.validationSettings.thresholdDenominator;
 
         // Copy validators from the old router.
         // TODO #4557: consider what to do. Maybe we should start reelection process.
@@ -165,8 +166,9 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
         return Gear.currentEraValidators(_router()).map[_validator];
     }
 
-    function signingThresholdPercentage() public view returns (uint16) {
-        return _router().validationSettings.signingThresholdPercentage;
+    function signingThresholdFraction() public view returns (uint128, uint128) {
+        IRouter.Storage storage router = _router();
+        return (router.validationSettings.thresholdNumerator, router.validationSettings.thresholdDenominator);
     }
 
     function validators() public view returns (address[] memory) {
@@ -180,7 +182,9 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
     function validatorsThreshold() public view returns (uint256) {
         IRouter.Storage storage router = _router();
         return Gear.validatorsThreshold(
-            Gear.currentEraValidators(router).list.length, router.validationSettings.signingThresholdPercentage
+            Gear.currentEraValidators(router).list.length,
+            router.validationSettings.thresholdNumerator,
+            router.validationSettings.thresholdDenominator
         );
     }
 
