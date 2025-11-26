@@ -163,10 +163,15 @@ impl ValidatorCore {
             return Ok(None);
         }
 
-        let latest_era_validators_committed =
-            self.db
-                .latest_era_validators_committed(block.hash)
-                .ok_or_else(|| anyhow!("not found latest_era_validators_committed in database"))?;
+        let latest_era_validators_committed = self
+            .db
+            .block_validators_committed_for_era(block.hash)
+            .ok_or_else(|| {
+                anyhow!(
+                    "not found latest_era_validators_committed in database for block: {}",
+                    block.hash
+                )
+            })?;
 
         if latest_era_validators_committed == block_era + 1 {
             tracing::trace!(

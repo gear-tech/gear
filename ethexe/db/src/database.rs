@@ -509,7 +509,7 @@ impl OnChainStorageRO for Database {
             })
     }
 
-    fn latest_era_validators_committed(&self, block_hash: H256) -> Option<u64> {
+    fn block_validators_committed_for_era(&self, block_hash: H256) -> Option<u64> {
         self.kv
             .get(&Key::LatestEraValidatorsCommitted(block_hash).to_bytes())
             .map(|data| {
@@ -556,7 +556,7 @@ impl OnChainStorageRW for Database {
         );
     }
 
-    fn set_latest_era_validators_committed(&self, block_hash: H256, era_index: u64) {
+    fn set_block_validators_committed_for_era(&self, block_hash: H256, era_index: u64) {
         self.kv.put(
             &Key::LatestEraValidatorsCommitted(block_hash).to_bytes(),
             era_index.encode(),

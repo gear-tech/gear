@@ -243,9 +243,9 @@ fn prepare_one_block<DB: BlockMetaStorageRW + LatestDataStorageRW + OnChainStora
         .ok_or(ComputeError::CodesQueueNotFound(parent))?;
 
     let mut last_committed_announce_hash = None;
-    let mut latest_era_validators_committed = db
-        .latest_era_validators_committed(parent)
-        .unwrap_or_default();
+    let mut validators_committed_for = db
+        .block_validators_committed_for_era(parent)
+        .ok_or_else(|| ComputeError::BlockValidatorsCommittedForEraNotFound(parent))?;
 
     for event in block.events {
         match event {
@@ -263,7 +263,7 @@ fn prepare_one_block<DB: BlockMetaStorageRW + LatestDataStorageRW + OnChainStora
             }
 
             BlockEvent::Router(RouterEvent::ValidatorsCommittedForEra { era_index }) => {
-                latest_era_validators_committed = era_index;
+                validators_committed_for = era_index;
             }
             _ => {}
         }
@@ -292,7 +292,7 @@ fn prepare_one_block<DB: BlockMetaStorageRW + LatestDataStorageRW + OnChainStora
     })
     .ok_or(ComputeError::LatestDataNotFound)?;
 
-    db.set_latest_era_validators_committed(block.hash, latest_era_validators_committed);
+    db.set_block_validators_committed_for_era(block.hash, validators_committed_for);
 
     Ok(())
 }
