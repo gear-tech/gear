@@ -19,6 +19,7 @@
 mod custom_connection_limits;
 pub mod db_sync;
 mod gossipsub;
+mod injected;
 pub mod peer_score;
 mod utils;
 mod validator;
@@ -29,15 +30,14 @@ pub mod export {
 
 use crate::{
     db_sync::DbSyncDatabase,
-    gossipsub::MessageAcceptance,
     validator::{ValidatorDatabase, Validators},
 };
 use anyhow::{Context, anyhow};
 use ethexe_common::{
     Address,
     ecdsa::PublicKey,
+    injected::{RpcOrNetworkInjectedTx, SignedInjectedTransaction},
     network::{SignedValidatorMessage, VerifiedValidatorMessage},
-    tx_pool::SignedOffchainTransaction,
 };
 use ethexe_signer::Signer;
 use futures::{Stream, future::Either, ready, stream::FusedStream};
@@ -75,7 +75,7 @@ impl<T> NetworkServiceDatabase for T where T: DbSyncDatabase + ValidatorDatabase
 #[derive(derive_more::Debug, Eq, PartialEq, Clone)]
 pub enum NetworkEvent {
     ValidatorMessage(VerifiedValidatorMessage),
-    OffchainTransaction(SignedOffchainTransaction),
+    InjectedTransaction(SignedInjectedTransaction),
     PeerBlocked(PeerId),
     PeerConnected(PeerId),
 }
@@ -130,8 +130,6 @@ impl NetworkConfig {
 
 /// Config from other services
 pub struct NetworkRuntimeConfig {
-    pub genesis_timestamp: u64,
-    pub era_duration: u64,
     pub genesis_block_hash: H256,
 }
 
@@ -188,12 +186,6 @@ impl NetworkService {
             router_address,
         } = config;
 
-        let NetworkRuntimeConfig {
-            genesis_timestamp,
-            era_duration,
-            genesis_block_hash,
-        } = runtime_config;
-
         let keypair = NetworkService::generate_keypair(signer, public_key)?;
 
         let behaviour_config = BehaviourConfig {
@@ -231,13 +223,16 @@ impl NetworkService {
         }
 
         let validators = Validators::new(
-            genesis_timestamp,
-            era_duration,
-            genesis_block_hash,
+            runtime_config.genesis_block_hash,
             ValidatorDatabase::clone_boxed(&db),
             swarm.behaviour().peer_score.handle(),
         )
         .context("failed to create validators")?;
+
+        log::info!(
+            "NetworkService created with peer id: {}",
+            swarm.local_peer_id()
+        );
 
         Ok(Self {
             swarm,
@@ -383,11 +378,7 @@ impl NetworkService {
                     }
                 }
             }
-            BehaviourEvent::Mdns4(mdns::Event::Expired(peers)) => {
-                for (peer_id, _multiaddr) in peers {
-                    let _res = self.swarm.disconnect_peer_id(peer_id);
-                }
-            }
+            BehaviourEvent::Mdns4(mdns::Event::Expired(_peers)) => {}
             //
             BehaviourEvent::Kad(kad::Event::RoutingUpdated { peer, .. }) => {
                 let behaviour = self.swarm.behaviour_mut();
@@ -411,10 +402,6 @@ impl NetworkService {
                             self.validators.verify_message_initially(source, message);
                         (acceptance, message.map(NetworkEvent::ValidatorMessage))
                     }
-                    gossipsub::Message::Offchain(transaction) => (
-                        MessageAcceptance::Accept,
-                        Some(NetworkEvent::OffchainTransaction(transaction)),
-                    ),
                 });
 
                 return event;
@@ -430,6 +417,10 @@ impl NetworkService {
             }
             //
             BehaviourEvent::DbSync(_) => {}
+            //
+            BehaviourEvent::Injected(injected::Event::NewInjectedTransaction(transaction)) => {
+                return Some(NetworkEvent::InjectedTransaction(transaction));
+            }
         }
 
         None
@@ -455,8 +446,8 @@ impl NetworkService {
         self.swarm.behaviour_mut().gossipsub.publish(data.into())
     }
 
-    pub fn publish_offchain_transaction(&mut self, data: SignedOffchainTransaction) {
-        self.swarm.behaviour_mut().gossipsub.publish(data);
+    pub fn send_injected_transaction(&mut self, data: RpcOrNetworkInjectedTx) {
+        self.swarm.behaviour_mut().injected.send_transaction(data);
     }
 }
 
@@ -512,6 +503,8 @@ pub(crate) struct Behaviour {
     pub gossipsub: gossipsub::Behaviour,
     // database synchronization protocol
     pub db_sync: db_sync::Behaviour,
+    // injected transaction shenanigans
+    pub injected: injected::Behaviour,
 }
 
 impl Behaviour {
@@ -569,10 +562,12 @@ impl Behaviour {
 
         let db_sync = db_sync::Behaviour::new(
             db_sync::Config::default(),
-            peer_score_handle,
+            peer_score_handle.clone(),
             external_data_provider,
             db,
         );
+
+        let injected = injected::Behaviour::new(peer_score_handle);
 
         Ok(Self {
             custom_connection_limits,
@@ -584,6 +579,7 @@ impl Behaviour {
             kad,
             gossipsub,
             db_sync,
+            injected,
         })
     }
 }
@@ -596,7 +592,7 @@ mod tests {
         utils::tests::init_logger,
     };
     use async_trait::async_trait;
-    use ethexe_common::{BlockHeader, db::OnChainStorageWrite, gear::CodeState};
+    use ethexe_common::{BlockHeader, ProtocolTimelines, db::OnChainStorageRW, gear::CodeState};
     use ethexe_db::{Database, MemDb};
     use ethexe_signer::{FSKeyStorage, Signer};
     use gprimitives::{ActorId, CodeId, H256};
@@ -675,6 +671,11 @@ mod tests {
 
     fn new_service_with(db: Database, data_provider: DataProvider) -> NetworkService {
         const GENESIS_BLOCK: H256 = H256::zero();
+        const TIMELINES: ProtocolTimelines = ProtocolTimelines {
+            genesis_ts: 1_000_000,
+            era: 1,
+            election: 1,
+        };
 
         db.set_block_header(
             GENESIS_BLOCK,
@@ -684,7 +685,8 @@ mod tests {
                 parent_hash: Default::default(),
             },
         );
-        db.set_block_validators(GENESIS_BLOCK, nonempty![Address::default()]);
+        db.set_validators(0, nonempty![Address::default()].into());
+        db.set_protocol_timelines(TIMELINES);
 
         let key_storage = FSKeyStorage::tmp();
         let signer = Signer::new(key_storage);
@@ -692,8 +694,6 @@ mod tests {
         let config = NetworkConfig::new_test(key, Address::default());
 
         let runtime_config = NetworkRuntimeConfig {
-            genesis_timestamp: 1_000_000,
-            era_duration: 1,
             genesis_block_hash: GENESIS_BLOCK,
         };
 

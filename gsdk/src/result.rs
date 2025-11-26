@@ -17,108 +17,119 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! GSdk Results
-use crate::TxStatus;
 
-/// Transaction Errors
-#[derive(Debug, thiserror::Error)]
-pub enum TxError {
-    #[error("Transaction Error( {0} )")]
-    Error(String),
-    #[error("Transaction Invalid( {0} )")]
-    Invalid(String),
-    #[error("Transaction Dropped( {0} )")]
-    Dropped(String),
-    #[error("Not an error, this will never be reached.")]
-    None,
-}
+use std::borrow::Borrow;
 
-impl From<TxStatus> for Error {
-    fn from(status: TxStatus) -> Self {
-        match status {
-            TxStatus::Error { message } => TxError::Error(message),
-            TxStatus::Invalid { message } => TxError::Invalid(message),
-            TxStatus::Dropped { message } => TxError::Dropped(message),
-            unreachable => {
-                log::info!("Not an error tx status occurred {unreachable:?}");
-                TxError::None
-            }
-        }
-        .into()
-    }
-}
+pub use crate::tx_status::{TxError, TxStatusExt, TxSuccess};
 
-/// Errors
-#[derive(Debug, thiserror::Error, derive_more::Unwrap)]
-pub enum Error {
-    #[error(transparent)]
-    Anyhow(#[from] anyhow::Error),
-    #[error(transparent)]
-    Base64Decode(#[from] base64::DecodeError),
-    #[error(transparent)]
-    Codec(#[from] parity_scale_codec::Error),
-    #[error("Code not found {0}")]
-    CodeNotFound(String),
-    #[error(transparent)]
-    Hex(#[from] hex::FromHexError),
-    #[error("Unable to get the name of the current executable binary")]
-    InvalidExecutable,
-    #[error("Password must be provided for logining with json file.")]
-    InvalidPassword,
-    #[error("Invalid public key")]
-    InvalidPublic,
-    #[error("Invalid secret key")]
-    InvalidSecret,
-    #[error("Invalid RPC params")]
-    InvalidRpcParams,
-    #[error(transparent)]
-    Io(#[from] std::io::Error),
-    #[error(transparent)]
-    SerdeJson(#[from] serde_json::Error),
-    #[error("The queried storage not found.")]
-    StorageNotFound,
-    #[error("The queried event not found.")]
-    EventNotFound,
-    #[error(transparent)]
-    Subxt(#[from] Box<subxt::Error>),
-    #[error(transparent)]
-    SubxtCore(#[from] Box<subxt::ext::subxt_core::Error>),
-    #[error(transparent)]
-    SubxtPublic(#[from] sp_core::crypto::PublicError),
-    #[error(transparent)]
-    SubxtMetadata(#[from] subxt::error::MetadataError),
-    #[error(transparent)]
-    ScaleValueEncode(#[from] Box<scale_value::scale::EncodeError>),
-    #[error(transparent)]
-    Tx(#[from] TxError),
-    #[error(transparent)]
-    SubxtRpc(#[from] jsonrpsee::core::ClientError),
-    #[error("Page {0} of Program {1} was not found in the storage.")]
-    PageNotFound(u32, String),
-    #[error("Program has been terminated.")]
-    ProgramTerminated,
-    #[error("Invalid rpc URL.")]
-    InvalidUrl,
-    #[error("Page {0} of Program {1} is invalid.")]
-    PageInvalid(u32, String),
-}
-
-impl From<subxt::Error> for Error {
-    fn from(value: subxt::Error) -> Self {
-        Self::Subxt(Box::new(value))
-    }
-}
-
-impl From<subxt::ext::subxt_core::Error> for Error {
-    fn from(value: subxt::ext::subxt_core::Error) -> Self {
-        Self::SubxtCore(Box::new(value))
-    }
-}
-
-impl From<scale_value::scale::EncodeError> for Error {
-    fn from(value: scale_value::scale::EncodeError) -> Self {
-        Self::ScaleValueEncode(Box::new(value))
-    }
-}
+use gear_core::ids::ActorId;
+use subxt::{
+    error::DispatchError,
+    ext::{scale_encode, subxt_rpcs},
+};
 
 /// Custom Result
 pub type Result<T, E = Error> = std::result::Result<T, E>;
+
+#[derive(Debug, thiserror::Error, derive_more::Unwrap)]
+pub enum Error {
+    #[error("the queried event not found")]
+    EventNotFound,
+
+    #[error("the queried storage entry not found")]
+    StorageEntryNotFound,
+
+    #[error("subscription has been died")]
+    SubscriptionDied,
+
+    #[error("program has been terminated")]
+    ProgramTerminated,
+
+    #[error("{0} is invalid")]
+    InvalidPage(FailedPage),
+
+    #[error("{0} was not found in the storage")]
+    PageNotFound(FailedPage),
+
+    #[error(transparent)]
+    Tx(#[from] TxError),
+
+    #[error("failed to parse URL: {0}")]
+    InvalidUrl(#[from] url::ParseError),
+
+    #[error(transparent)]
+    ClientError(#[from] jsonrpsee::core::ClientError),
+
+    #[error(transparent)]
+    Subxt(Box<subxt::Error>),
+
+    #[error(transparent)]
+    Codec(#[from] subxt::ext::codec::Error),
+
+    #[error(transparent)]
+    SubxtRpc(#[from] subxt_rpcs::Error),
+
+    #[error(transparent)]
+    SecretString(#[from] sp_core::crypto::SecretStringError),
+
+    #[error(transparent)]
+    ScaleEncode(#[from] scale_encode::Error),
+
+    #[error(transparent)]
+    Crypto(#[from] sp_core::crypto::PublicError),
+
+    #[error(transparent)]
+    Metadata(#[from] subxt::error::MetadataError),
+
+    #[error("runtime error: {0:?}")]
+    Runtime(crate::RuntimeError),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, derive_more::Display)]
+#[display("Page {index} of Program {program}")]
+pub struct FailedPage {
+    pub index: u32,
+    pub program: ActorId,
+}
+
+impl FailedPage {
+    pub fn new(index: u32, program: ActorId) -> Self {
+        Self { index, program }
+    }
+
+    pub fn invalid(self) -> Error {
+        Error::InvalidPage(self)
+    }
+
+    pub fn not_found(self) -> Error {
+        Error::PageNotFound(self)
+    }
+}
+
+impl From<crate::RuntimeError> for Error {
+    fn from(error: crate::RuntimeError) -> Self {
+        Self::Runtime(error)
+    }
+}
+
+fn from_subxt_error<E: Borrow<subxt::Error> + Into<Box<subxt::Error>>>(error: E) -> Error {
+    if let subxt::Error::Runtime(DispatchError::Module(err)) = error.borrow()
+        && let Ok(runtime_error) = err.as_root_error()
+    {
+        Error::Runtime(runtime_error)
+    } else {
+        Error::Subxt(error.into())
+    }
+}
+
+impl From<Box<subxt::Error>> for Error {
+    fn from(error: Box<subxt::Error>) -> Self {
+        from_subxt_error(error)
+    }
+}
+
+impl From<subxt::Error> for Error {
+    fn from(error: subxt::Error) -> Self {
+        from_subxt_error(error)
+    }
+}

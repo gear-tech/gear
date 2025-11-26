@@ -23,18 +23,21 @@ use crate::{
     overlay::{CASOverlay, KVOverlay},
 };
 use ethexe_common::{
-    Address, Announce, AnnounceHash, BlockHeader, CodeBlobInfo, ProgramStates, Schedule,
+    Announce, BlockHeader, CodeBlobInfo, HashOf, ProgramStates, ProtocolTimelines, Schedule,
+    ValidatorsVec,
     db::{
-        AnnounceMeta, AnnounceStorageRead, AnnounceStorageWrite, BlockMeta, BlockMetaStorageRead,
-        BlockMetaStorageWrite, CodesStorageRead, CodesStorageWrite, HashStorageRead, LatestData,
-        LatestDataStorageRead, LatestDataStorageWrite, OnChainStorageRead, OnChainStorageWrite,
+        AnnounceMeta, AnnounceStorageRO, AnnounceStorageRW, BlockMeta, BlockMetaStorageRO,
+        BlockMetaStorageRW, CodesStorageRO, CodesStorageRW, HashStorageRO, InjectedStorageRO,
+        InjectedStorageRW, LatestData, LatestDataStorageRO, LatestDataStorageRW, OnChainStorageRO,
+        OnChainStorageRW,
     },
     events::BlockEvent,
     gear::StateTransition,
-    tx_pool::SignedOffchainTransaction,
+    injected::{InjectedTransaction, Promise, SignedInjectedTransaction},
 };
+
 use ethexe_runtime_common::state::{
-    Allocations, DispatchStash, HashOf, Mailbox, MemoryPages, MemoryPagesRegion, MessageQueue,
+    Allocations, DispatchStash, Mailbox, MemoryPages, MemoryPagesRegion, MessageQueue,
     ProgramState, Storage, UserMailbox, Waitlist,
 };
 use gear_core::{
@@ -44,20 +47,21 @@ use gear_core::{
     memory::PageBuf,
 };
 use gprimitives::H256;
-use nonempty::NonEmpty;
 use parity_scale_codec::{Decode, Encode};
 use std::collections::BTreeSet;
 
 #[repr(u64)]
 enum Key {
+    // TODO (kuzmindev): use `HashOf<T>` here
     BlockSmallData(H256) = 0,
     BlockEvents(H256) = 1,
-    ValidatorSet(H256) = 2,
 
-    AnnounceProgramStates(AnnounceHash) = 3,
-    AnnounceOutcome(AnnounceHash) = 4,
-    AnnounceSchedule(AnnounceHash) = 5,
-    AnnounceMeta(AnnounceHash) = 6,
+    ValidatorSet(u64) = 2,
+
+    AnnounceProgramStates(HashOf<Announce>) = 3,
+    AnnounceOutcome(HashOf<Announce>) = 4,
+    AnnounceSchedule(HashOf<Announce>) = 5,
+    AnnounceMeta(HashOf<Announce>) = 6,
 
     ProgramToCodeId(ActorId) = 7,
     InstrumentedCode(u32, CodeId) = 8,
@@ -65,9 +69,11 @@ enum Key {
     CodeUploadInfo(CodeId) = 10,
     CodeValid(CodeId) = 11,
 
-    SignedTransaction(H256) = 12,
+    InjectedTransaction(HashOf<InjectedTransaction>) = 12,
+    Promise(HashOf<InjectedTransaction>) = 13,
 
-    LatestData = 13,
+    LatestData = 14,
+    Timelines = 15,
 }
 
 impl Key {
@@ -82,14 +88,21 @@ impl Key {
     fn to_bytes(&self) -> Vec<u8> {
         let prefix = self.prefix();
         match self {
-            Self::BlockSmallData(hash) | Self::BlockEvents(hash) | Self::ValidatorSet(hash) => {
+            Self::BlockSmallData(hash) | Self::BlockEvents(hash) => {
                 [prefix.as_ref(), hash.as_ref()].concat()
             }
-            Self::AnnounceProgramStates(AnnounceHash(hash))
-            | Self::AnnounceOutcome(AnnounceHash(hash))
-            | Self::AnnounceSchedule(AnnounceHash(hash))
-            | Self::AnnounceMeta(AnnounceHash(hash))
-            | Self::SignedTransaction(hash) => [prefix.as_ref(), hash.as_ref()].concat(),
+
+            Self::ValidatorSet(era_index) => {
+                [prefix.as_ref(), era_index.to_le_bytes().as_ref()].concat()
+            }
+            Self::AnnounceProgramStates(hash)
+            | Self::AnnounceOutcome(hash)
+            | Self::AnnounceSchedule(hash)
+            | Self::AnnounceMeta(hash) => [prefix.as_ref(), hash.inner().as_ref()].concat(),
+
+            Self::InjectedTransaction(hash) | Self::Promise(hash) => {
+                [prefix.as_ref(), hash.inner().as_ref()].concat()
+            }
 
             Self::ProgramToCodeId(program_id) => [prefix.as_ref(), program_id.as_ref()].concat(),
 
@@ -103,7 +116,7 @@ impl Key {
                 code_id.as_ref(),
             ]
             .concat(),
-            Self::LatestData => prefix.as_ref().to_vec(),
+            Self::LatestData | Self::Timelines => prefix.as_ref().to_vec(),
         }
     }
 }
@@ -158,21 +171,6 @@ impl Database {
         self.cas.write(data)
     }
 
-    pub fn get_offchain_transaction(&self, tx_hash: H256) -> Option<SignedOffchainTransaction> {
-        self.kv
-            .get(&Key::SignedTransaction(tx_hash).to_bytes())
-            .map(|data| {
-                Decode::decode(&mut data.as_slice())
-                    .expect("failed to data into `SignedTransaction`")
-            })
-    }
-
-    pub fn set_offchain_transaction(&self, tx: SignedOffchainTransaction) {
-        let tx_hash = tx.tx_hash();
-        self.kv
-            .put(&Key::SignedTransaction(tx_hash).to_bytes(), tx.encode());
-    }
-
     fn with_small_data<R>(
         &self,
         block_hash: H256,
@@ -181,6 +179,9 @@ impl Database {
         self.block_small_data(block_hash).map(f)
     }
 
+    /// Mutates `BlockSmallData` for the given block hash.
+    ///
+    /// If data wasn't found, it will be created with default values and then mutated.
     fn mutate_small_data(&self, block_hash: H256, f: impl FnOnce(&mut BlockSmallData)) {
         let mut data = self.block_small_data(block_hash).unwrap_or_default();
         f(&mut data);
@@ -202,7 +203,7 @@ impl Database {
     }
 }
 
-impl HashStorageRead for Database {
+impl HashStorageRO for Database {
     fn read_by_hash(&self, hash: H256) -> Option<Vec<u8>> {
         self.cas.read(hash)
     }
@@ -215,25 +216,25 @@ struct BlockSmallData {
     meta: BlockMeta,
 }
 
-impl BlockMetaStorageRead for Database {
+impl BlockMetaStorageRO for Database {
     fn block_meta(&self, block_hash: H256) -> BlockMeta {
         self.with_small_data(block_hash, |data| data.meta)
             .unwrap_or_default()
     }
 }
 
-impl BlockMetaStorageWrite for Database {
+impl BlockMetaStorageRW for Database {
     fn mutate_block_meta(&self, block_hash: H256, f: impl FnOnce(&mut BlockMeta)) {
-        log::trace!("For block {block_hash} mutate meta");
+        tracing::trace!("For block {block_hash} mutate meta");
         self.mutate_small_data(block_hash, |data| {
             f(&mut data.meta);
         });
     }
 }
 
-impl CodesStorageRead for Database {
+impl CodesStorageRO for Database {
     fn original_code_exists(&self, code_id: CodeId) -> bool {
-        self.kv.contains(code_id.as_ref())
+        self.cas.contains(code_id.into())
     }
 
     fn original_code(&self, code_id: CodeId) -> Option<Vec<u8>> {
@@ -299,7 +300,7 @@ impl CodesStorageRead for Database {
     }
 }
 
-impl CodesStorageWrite for Database {
+impl CodesStorageRW for Database {
     fn set_original_code(&self, code: &[u8]) -> CodeId {
         self.cas.write(code).into()
     }
@@ -355,7 +356,7 @@ impl Storage for Database {
     }
 
     fn message_queue(&self, hash: HashOf<MessageQueue>) -> Option<MessageQueue> {
-        self.cas.read(hash.hash()).map(|data| {
+        self.cas.read(hash.inner()).map(|data| {
             MessageQueue::decode(&mut &data[..]).expect("Failed to decode data into `MessageQueue`")
         })
     }
@@ -365,7 +366,7 @@ impl Storage for Database {
     }
 
     fn waitlist(&self, hash: HashOf<Waitlist>) -> Option<Waitlist> {
-        self.cas.read(hash.hash()).map(|data| {
+        self.cas.read(hash.inner()).map(|data| {
             Waitlist::decode(&mut data.as_slice()).expect("Failed to decode data into `Waitlist`")
         })
     }
@@ -375,7 +376,7 @@ impl Storage for Database {
     }
 
     fn dispatch_stash(&self, hash: HashOf<DispatchStash>) -> Option<DispatchStash> {
-        self.cas.read(hash.hash()).map(|data| {
+        self.cas.read(hash.inner()).map(|data| {
             DispatchStash::decode(&mut data.as_slice())
                 .expect("Failed to decode data into `DispatchStash`")
         })
@@ -386,7 +387,7 @@ impl Storage for Database {
     }
 
     fn mailbox(&self, hash: HashOf<Mailbox>) -> Option<Mailbox> {
-        self.cas.read(hash.hash()).map(|data| {
+        self.cas.read(hash.inner()).map(|data| {
             Mailbox::decode(&mut data.as_slice()).expect("Failed to decode data into `Mailbox`")
         })
     }
@@ -396,7 +397,7 @@ impl Storage for Database {
     }
 
     fn user_mailbox(&self, hash: HashOf<UserMailbox>) -> Option<UserMailbox> {
-        self.cas.read(hash.hash()).map(|data| {
+        self.cas.read(hash.inner()).map(|data| {
             UserMailbox::decode(&mut data.as_slice())
                 .expect("Failed to decode data into `UserMailbox`")
         })
@@ -407,13 +408,13 @@ impl Storage for Database {
     }
 
     fn memory_pages(&self, hash: HashOf<MemoryPages>) -> Option<MemoryPages> {
-        self.cas.read(hash.hash()).map(|data| {
+        self.cas.read(hash.inner()).map(|data| {
             MemoryPages::decode(&mut &data[..]).expect("Failed to decode data into `MemoryPages`")
         })
     }
 
     fn memory_pages_region(&self, hash: HashOf<MemoryPagesRegion>) -> Option<MemoryPagesRegion> {
-        self.cas.read(hash.hash()).map(|data| {
+        self.cas.read(hash.inner()).map(|data| {
             MemoryPagesRegion::decode(&mut &data[..])
                 .expect("Failed to decode data into `MemoryPagesRegion`")
         })
@@ -431,7 +432,7 @@ impl Storage for Database {
     }
 
     fn allocations(&self, hash: HashOf<Allocations>) -> Option<Allocations> {
-        self.cas.read(hash.hash()).map(|data| {
+        self.cas.read(hash.inner()).map(|data| {
             Allocations::decode(&mut &data[..]).expect("Failed to decode data into `Allocations`")
         })
     }
@@ -442,7 +443,7 @@ impl Storage for Database {
 
     fn payload(&self, hash: HashOf<Payload>) -> Option<Payload> {
         self.cas
-            .read(hash.hash())
+            .read(hash.inner())
             .map(|data| Payload::try_from(data).expect("Failed to decode data into `Payload`"))
     }
 
@@ -451,7 +452,7 @@ impl Storage for Database {
     }
 
     fn page_data(&self, hash: HashOf<PageBuf>) -> Option<PageBuf> {
-        self.cas.read(hash.hash()).map(|data| {
+        self.cas.read(hash.inner()).map(|data| {
             PageBuf::decode(&mut data.as_slice()).expect("Failed to decode data into `PageBuf`")
         })
     }
@@ -461,7 +462,14 @@ impl Storage for Database {
     }
 }
 
-impl OnChainStorageRead for Database {
+impl OnChainStorageRO for Database {
+    fn protocol_timelines(&self) -> Option<ProtocolTimelines> {
+        self.kv.get(&Key::Timelines.to_bytes()).map(|data| {
+            Decode::decode(&mut data.as_slice())
+                .expect("Failed to decode data into `GearExeTimelines`")
+        })
+    }
+
     fn block_header(&self, block_hash: H256) -> Option<BlockHeader> {
         self.with_small_data(block_hash, |data| data.block_header)?
     }
@@ -489,59 +497,98 @@ impl OnChainStorageRead for Database {
             .unwrap_or_default()
     }
 
-    fn block_validators(&self, block_hash: H256) -> Option<NonEmpty<Address>> {
+    fn validators(&self, era_index: u64) -> Option<ValidatorsVec> {
         self.kv
-            .get(&Key::ValidatorSet(block_hash).to_bytes())
+            .get(&Key::ValidatorSet(era_index).to_bytes())
             .map(|data| {
-                NonEmpty::from_vec(
-                    Vec::<Address>::decode(&mut data.as_slice())
-                        .expect("Failed to decode data into `Vec<Address>`"),
-                )
-            })?
+                Decode::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `ValidatorsVec`")
+            })
     }
 }
 
-impl OnChainStorageWrite for Database {
+impl OnChainStorageRW for Database {
+    fn set_protocol_timelines(&self, timelines: ProtocolTimelines) {
+        tracing::trace!("Set protocol timelines");
+        self.kv.put(&Key::Timelines.to_bytes(), timelines.encode());
+    }
+
     fn set_block_header(&self, block_hash: H256, header: BlockHeader) {
-        log::trace!("Set block header for {block_hash}");
+        tracing::trace!("Set block header for {block_hash}");
         self.mutate_small_data(block_hash, |data| data.block_header = Some(header));
     }
 
     fn set_block_events(&self, block_hash: H256, events: &[BlockEvent]) {
-        log::trace!("Set block events for {block_hash}");
+        tracing::trace!("Set block events for {block_hash}");
         self.kv
             .put(&Key::BlockEvents(block_hash).to_bytes(), events.encode());
     }
 
     fn set_code_blob_info(&self, code_id: CodeId, code_info: CodeBlobInfo) {
-        log::trace!("Set code upload info for {code_id}");
+        tracing::trace!("Set code upload info for {code_id}");
         self.kv
             .put(&Key::CodeUploadInfo(code_id).to_bytes(), code_info.encode());
     }
 
     fn set_block_synced(&self, block_hash: H256) {
-        log::trace!("For block {block_hash} set synced");
+        tracing::trace!("For block {block_hash} set synced");
         self.mutate_small_data(block_hash, |data| {
             data.block_is_synced = true;
         });
     }
 
-    fn set_block_validators(&self, block_hash: H256, validator_set: NonEmpty<Address>) {
+    fn set_validators(&self, era_index: u64, validator_set: ValidatorsVec) {
         self.kv.put(
-            &Key::ValidatorSet(block_hash).to_bytes(),
-            Into::<Vec<Address>>::into(validator_set).encode(),
+            &Key::ValidatorSet(era_index).to_bytes(),
+            validator_set.encode(),
         );
     }
 }
 
-impl AnnounceStorageRead for Database {
-    fn announce(&self, hash: AnnounceHash) -> Option<Announce> {
-        self.cas.read(hash.0).map(|data| {
-            Announce::decode(&mut &data[..]).expect("Failed to decode data into `ProducerBlock`")
+impl InjectedStorageRO for Database {
+    fn injected_transaction(
+        &self,
+        hash: HashOf<InjectedTransaction>,
+    ) -> Option<SignedInjectedTransaction> {
+        self.kv
+            .get(&Key::InjectedTransaction(hash).to_bytes())
+            .map(|data| {
+                SignedInjectedTransaction::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `SignedInjectedTransaction`")
+            })
+    }
+
+    fn promise(&self, hash: HashOf<InjectedTransaction>) -> Option<Promise> {
+        self.kv.get(&Key::Promise(hash).to_bytes()).map(|data| {
+            Promise::decode(&mut data.as_slice()).expect("Failed to decode data into `Promise`")
+        })
+    }
+}
+
+impl InjectedStorageRW for Database {
+    fn set_injected_transaction(&self, tx: SignedInjectedTransaction) {
+        let tx_hash = tx.data().to_hash();
+
+        tracing::trace!(injected_tx_hash = ?tx_hash, "Set injected transaction");
+        self.kv
+            .put(&Key::InjectedTransaction(tx_hash).to_bytes(), tx.encode());
+    }
+
+    fn set_promise(&self, promise: Promise) {
+        tracing::trace!(injected_tx_hash = ?promise.tx_hash, "Set injected tx promise");
+        self.kv
+            .put(&Key::Promise(promise.tx_hash).to_bytes(), promise.encode());
+    }
+}
+
+impl AnnounceStorageRO for Database {
+    fn announce(&self, hash: HashOf<Announce>) -> Option<Announce> {
+        self.cas.read(hash.inner()).map(|data| {
+            Announce::decode(&mut &data[..]).expect("Failed to decode data into `Announce`")
         })
     }
 
-    fn announce_program_states(&self, announce_hash: AnnounceHash) -> Option<ProgramStates> {
+    fn announce_program_states(&self, announce_hash: HashOf<Announce>) -> Option<ProgramStates> {
         self.kv
             .get(&Key::AnnounceProgramStates(announce_hash).to_bytes())
             .map(|data| {
@@ -550,7 +597,7 @@ impl AnnounceStorageRead for Database {
             })
     }
 
-    fn announce_outcome(&self, announce_hash: AnnounceHash) -> Option<Vec<StateTransition>> {
+    fn announce_outcome(&self, announce_hash: HashOf<Announce>) -> Option<Vec<StateTransition>> {
         self.kv
             .get(&Key::AnnounceOutcome(announce_hash).to_bytes())
             .map(|data| {
@@ -559,7 +606,7 @@ impl AnnounceStorageRead for Database {
             })
     }
 
-    fn announce_schedule(&self, announce_hash: AnnounceHash) -> Option<Schedule> {
+    fn announce_schedule(&self, announce_hash: HashOf<Announce>) -> Option<Schedule> {
         self.kv
             .get(&Key::AnnounceSchedule(announce_hash).to_bytes())
             .map(|data| {
@@ -568,7 +615,7 @@ impl AnnounceStorageRead for Database {
             })
     }
 
-    fn announce_meta(&self, announce_hash: AnnounceHash) -> AnnounceMeta {
+    fn announce_meta(&self, announce_hash: HashOf<Announce>) -> AnnounceMeta {
         self.kv
             .get(&Key::AnnounceMeta(announce_hash).to_bytes())
             .map(|data| {
@@ -579,37 +626,47 @@ impl AnnounceStorageRead for Database {
     }
 }
 
-impl AnnounceStorageWrite for Database {
-    fn set_announce(&self, announce: Announce) -> AnnounceHash {
-        AnnounceHash(self.cas.write(&announce.encode()))
+impl AnnounceStorageRW for Database {
+    fn set_announce(&self, announce: Announce) -> HashOf<Announce> {
+        tracing::trace!("Set announce {}: {announce}", announce.to_hash());
+        // Safe, because of inner method implementation.
+        unsafe { HashOf::new(self.cas.write(&announce.encode())) }
     }
 
     fn set_announce_program_states(
         &self,
-        announce_hash: AnnounceHash,
+        announce_hash: HashOf<Announce>,
         program_states: ProgramStates,
     ) {
+        tracing::trace!("Set announce program states for {announce_hash}: {program_states:?}");
         self.kv.put(
             &Key::AnnounceProgramStates(announce_hash).to_bytes(),
             program_states.encode(),
         );
     }
 
-    fn set_announce_outcome(&self, announce_hash: AnnounceHash, outcome: Vec<StateTransition>) {
+    fn set_announce_outcome(&self, announce_hash: HashOf<Announce>, outcome: Vec<StateTransition>) {
+        tracing::trace!("Set announce outcome for {announce_hash}: {outcome:?}");
         self.kv.put(
             &Key::AnnounceOutcome(announce_hash).to_bytes(),
             outcome.encode(),
         );
     }
 
-    fn set_announce_schedule(&self, announce_hash: AnnounceHash, schedule: Schedule) {
+    fn set_announce_schedule(&self, announce_hash: HashOf<Announce>, schedule: Schedule) {
+        tracing::trace!("Set announce schedule for {announce_hash}: {schedule:?}");
         self.kv.put(
             &Key::AnnounceSchedule(announce_hash).to_bytes(),
             schedule.encode(),
         );
     }
 
-    fn mutate_announce_meta(&self, announce_hash: AnnounceHash, f: impl FnOnce(&mut AnnounceMeta)) {
+    fn mutate_announce_meta(
+        &self,
+        announce_hash: HashOf<Announce>,
+        f: impl FnOnce(&mut AnnounceMeta),
+    ) {
+        tracing::trace!("For announce {announce_hash} mutate meta");
         let mut meta = self.announce_meta(announce_hash);
         f(&mut meta);
         self.kv
@@ -617,7 +674,7 @@ impl AnnounceStorageWrite for Database {
     }
 }
 
-impl LatestDataStorageRead for Database {
+impl LatestDataStorageRO for Database {
     fn latest_data(&self) -> Option<LatestData> {
         self.kv.get(&Key::LatestData.to_bytes()).map(|data| {
             LatestData::decode(&mut data.as_slice())
@@ -626,7 +683,7 @@ impl LatestDataStorageRead for Database {
     }
 }
 
-impl LatestDataStorageWrite for Database {
+impl LatestDataStorageRW for Database {
     fn set_latest_data(&self, data: LatestData) {
         self.kv.put(&Key::LatestData.to_bytes(), data.encode());
     }
@@ -635,32 +692,28 @@ impl LatestDataStorageWrite for Database {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ethexe_common::{
-        ecdsa::PrivateKey,
-        events::RouterEvent,
-        tx_pool::{OffchainTransaction, RawOffchainTransaction::SendMessage},
-    };
+    use ethexe_common::{SimpleBlockData, ecdsa::PrivateKey, events::RouterEvent};
     use gear_core::code::{InstantiatedSectionSizes, InstrumentationStatus};
 
     #[test]
-    fn test_offchain_transaction() {
+    fn test_injected_transaction() {
         let db = Database::memory();
 
         let private_key = PrivateKey::from([1; 32]);
-        let tx = SignedOffchainTransaction::create(
+        let tx = SignedInjectedTransaction::create(
             private_key,
-            OffchainTransaction {
-                raw: SendMessage {
-                    program_id: H256::random().into(),
-                    payload: H256::random().0.to_vec(),
-                },
+            InjectedTransaction {
+                destination: ActorId::zero(),
+                payload: vec![].into(),
+                value: 0,
                 reference_block: H256::random(),
+                salt: vec![].into(),
             },
         )
         .unwrap();
-        let tx_hash = tx.tx_hash();
-        db.set_offchain_transaction(tx.clone());
-        assert_eq!(db.get_offchain_transaction(tx_hash), Some(tx));
+        let tx_hash = tx.data().to_hash();
+        db.set_injected_transaction(tx.clone());
+        assert_eq!(db.injected_transaction(tx_hash), Some(tx));
     }
 
     #[test]
@@ -669,9 +722,9 @@ mod tests {
 
         let announce = Announce {
             block_hash: H256::random(),
-            parent: AnnounceHash::random(),
+            parent: HashOf::random(),
             gas_allowance: Some(1000),
-            off_chain_transactions: vec![],
+            injected_transactions: vec![],
         };
         let announce_hash = db.set_announce(announce.clone());
         assert_eq!(announce_hash, announce.to_hash());
@@ -682,7 +735,7 @@ mod tests {
     fn test_announce_program_states() {
         let db = Database::memory();
 
-        let announce_hash = AnnounceHash::random();
+        let announce_hash = HashOf::random();
         let program_states = ProgramStates::default();
         db.set_announce_program_states(announce_hash, program_states.clone());
         assert_eq!(
@@ -695,7 +748,7 @@ mod tests {
     fn test_announce_outcome() {
         let db = Database::memory();
 
-        let announce_hash = AnnounceHash::random();
+        let announce_hash = HashOf::random();
         let block_outcome = vec![StateTransition::default()];
         db.set_announce_outcome(announce_hash, block_outcome.clone());
         assert_eq!(db.announce_outcome(announce_hash), Some(block_outcome));
@@ -705,7 +758,7 @@ mod tests {
     fn test_announce_schedule() {
         let db = Database::memory();
 
-        let announce_hash = AnnounceHash::random();
+        let announce_hash = HashOf::random();
         let schedule = Schedule::default();
         db.set_announce_schedule(announce_hash, schedule.clone());
         assert_eq!(db.announce_schedule(announce_hash), Some(schedule));
@@ -748,13 +801,16 @@ mod tests {
         assert!(db.latest_data().is_none());
 
         let latest_data = LatestData {
-            synced_block_height: 42,
+            synced_block: SimpleBlockData {
+                hash: H256::random(),
+                header: Default::default(),
+            },
             prepared_block_hash: H256::random(),
-            computed_announce_hash: AnnounceHash::random(),
+            computed_announce_hash: HashOf::random(),
             genesis_block_hash: H256::random(),
-            genesis_announce_hash: AnnounceHash::random(),
+            genesis_announce_hash: HashOf::random(),
             start_block_hash: H256::random(),
-            start_announce_hash: AnnounceHash::random(),
+            start_announce_hash: HashOf::random(),
         };
         db.set_latest_data(latest_data.clone());
         assert_eq!(db.latest_data(), Some(latest_data));

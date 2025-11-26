@@ -18,7 +18,9 @@
 
 use crate::tests::DEFAULT_GAS_LIMIT;
 use frame_support::assert_ok;
+use gbuiltin_staking::{ActiveEraInfo, Response};
 use gprimitives::ActorId;
+use parity_scale_codec::Decode;
 use sp_staking::StakingAccount;
 use util::*;
 
@@ -640,6 +642,99 @@ fn gas_allowance_respected() {
 
         // Message queue is now empty
         assert!(message_queue_empty());
+    });
+}
+
+#[test]
+fn active_era_query_via_contract_works() {
+    init_logger();
+
+    new_test_ext().execute_with(|| {
+        let contract_id = ActorId::generate_from_user(CodeId::generate(WASM_BINARY), b"contract");
+
+        deploy_broker_contract();
+        run_to_next_block();
+
+        // Set up some active era data
+        let test_era_index = 5u32;
+        let test_start_block = 123u64;
+        pallet_staking::ActiveEra::<Test>::put(pallet_staking::ActiveEraInfo {
+            index: test_era_index,
+            start: Some(test_start_block),
+        });
+
+        // Send ActiveEra request to the contract
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(SIGNER),
+            contract_id,
+            Request::ActiveEra.encode(),
+            DEFAULT_GAS_LIMIT,
+            0,
+            false,
+        ));
+
+        run_to_next_block();
+
+        // The contract should have sent its reply containing the ActiveEra data
+        assert!(System::events().into_iter().any(|e| {
+            match e.event {
+                RuntimeEvent::Gear(pallet_gear::Event::UserMessageSent { message, .. }) => {
+                    if message.destination() == ActorId::from(SIGNER.into_origin()) {
+                        let payload = message.payload_bytes();
+                        if payload.is_empty() {
+                            return false;
+                        }
+                        let active_era = Response::decode(&mut &payload[..]).unwrap();
+                        // Check that the reply contains information about ActiveEra
+                        assert_eq!(
+                            active_era,
+                            Response::ActiveEra {
+                                info: ActiveEraInfo {
+                                    index: test_era_index,
+                                    start: Some(test_start_block),
+                                },
+                                executed_at: 2,
+                                executed_at_gear_block: 2,
+                            }
+                        );
+                        true
+                    } else {
+                        false
+                    }
+                }
+                _ => false,
+            }
+        }));
+    });
+}
+
+#[test]
+fn active_era_query_without_active_era_errors() {
+    init_logger();
+
+    new_test_ext().execute_with(|| {
+        let contract_id = ActorId::generate_from_user(CodeId::generate(WASM_BINARY), b"contract");
+
+        deploy_broker_contract();
+        run_to_next_block();
+
+        // Ensure the staking pallet reports no active era.
+        pallet_staking::ActiveEra::<Test>::kill();
+
+        // Send ActiveEra request to the contract
+        assert_ok!(Gear::send_message(
+            RuntimeOrigin::signed(SIGNER),
+            contract_id,
+            Request::ActiveEra.encode(),
+            DEFAULT_GAS_LIMIT,
+            0,
+            false,
+        ));
+
+        run_to_next_block();
+
+        util::assert_error_message_sent();
+        util::assert_payload_contains("Active era is not set");
     });
 }
 

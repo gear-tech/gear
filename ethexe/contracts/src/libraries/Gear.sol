@@ -71,6 +71,11 @@ library Gear {
         uint48 blockTimestamp;
         /// @dev Hash of previously committed batch hash.
         bytes32 previousCommittedBatchHash;
+        /// @dev Expiry in blocks since `blockHash`.
+        /// if 1 - then valid only in child block
+        /// if 2 - then valid in child and grandchild blocks
+        /// ... etc.
+        uint8 expiry;
         /// @dev Chain commitment (contains one or zero commitments)
         ChainCommitment[] chainCommitment;
         /// @dev Code commitments
@@ -154,7 +159,11 @@ library Gear {
         bytes32 newStateHash;
         bool exited;
         address inheritor;
+        /// @dev We represent `valueToReceive` as `uint128` and `bool` because each non-zero byte costs 16 gas,
+        ///      and each zero byte costs 4 gas (see https://evm.codes/about#gascosts).
+        ///      Also see `ethexe/common/src/gear.rs`.
         uint128 valueToReceive;
+        bool valueToReceiveNegativeSign;
         ValueClaim[] valueClaims;
         Message[] messages;
     }
@@ -201,6 +210,7 @@ library Gear {
         bytes32 _block,
         uint48 _timestamp,
         bytes32 _prevCommittedBlock,
+        uint8 _expiry,
         bytes32 _chainCommitmentHash,
         bytes32 _codeCommitmentsHash,
         bytes32 _rewardsCommitmentHash,
@@ -211,6 +221,7 @@ library Gear {
                 _block,
                 _timestamp,
                 _prevCommittedBlock,
+                _expiry,
                 _chainCommitmentHash,
                 _codeCommitmentsHash,
                 _rewardsCommitmentHash,
@@ -234,8 +245,10 @@ library Gear {
         );
     }
 
-    function blockIsPredecessor(bytes32 hash) internal view returns (bool) {
-        for (uint256 i = block.number - 1; i > 0;) {
+    function blockIsPredecessor(bytes32 hash, uint8 expiry) internal view returns (bool) {
+        uint256 start = block.number - 1;
+        uint256 end = expiry >= block.number ? 0 : block.number - expiry;
+        for (uint256 i = start; i >= end;) {
             bytes32 ret = blockhash(i);
             if (ret == hash) {
                 return true;
@@ -256,7 +269,7 @@ library Gear {
     }
 
     function defaultComputationSettings() internal pure returns (ComputationSettings memory) {
-        return ComputationSettings(COMPUTATION_THRESHOLD, WVARA_PER_SECOND);
+        return ComputationSettings({threshold: COMPUTATION_THRESHOLD, wvaraPerSecond: WVARA_PER_SECOND});
     }
 
     function messageHash(Message memory message) internal pure returns (bytes32) {
@@ -274,7 +287,7 @@ library Gear {
     }
 
     function newGenesis() internal view returns (GenesisBlockInfo memory) {
-        return GenesisBlockInfo(bytes32(0), uint32(block.number), uint48(block.timestamp));
+        return GenesisBlockInfo({hash: bytes32(0), number: uint32(block.number), timestamp: uint48(block.timestamp)});
     }
 
     function stateTransitionHash(
@@ -283,12 +296,20 @@ library Gear {
         bool exited,
         address inheritor,
         uint128 valueToReceive,
+        bool valueToReceiveNegativeSign,
         bytes32 valueClaimsHash,
         bytes32 messagesHashesHash
     ) internal pure returns (bytes32) {
         return keccak256(
             abi.encodePacked(
-                actor, newStateHash, exited, inheritor, valueToReceive, valueClaimsHash, messagesHashesHash
+                actor,
+                newStateHash,
+                exited,
+                inheritor,
+                valueToReceive,
+                valueToReceiveNegativeSign,
+                valueClaimsHash,
+                messagesHashesHash
             )
         );
     }
@@ -444,11 +465,7 @@ library Gear {
         return ts1Greater && (tsGe0 == tsGe1);
     }
 
-    function validatorsThreshold(uint256 validatorsAmount, uint16 thresholdPercentage)
-        internal
-        pure
-        returns (uint256)
-    {
+    function validatorsThreshold(uint256 validatorsAmount, uint16 thresholdPercentage) internal pure returns (uint256) {
         // Dividing by 10000 to adjust for percentage
         return (validatorsAmount * uint256(thresholdPercentage) + 9999) / 10000;
     }

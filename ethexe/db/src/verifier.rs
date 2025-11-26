@@ -22,15 +22,15 @@ use crate::{
     visitor::{DatabaseVisitor, walk},
 };
 use ethexe_common::{
-    Announce, AnnounceHash, BlockHeader, ScheduledTask,
-    db::{AnnounceMeta, AnnounceStorageRead, BlockMeta, BlockMetaStorageRead, OnChainStorageRead},
+    Announce, BlockHeader, HashOf, ScheduledTask,
+    db::{AnnounceStorageRO, BlockMeta, BlockMetaStorageRO, OnChainStorageRO},
 };
-use ethexe_runtime_common::state::{HashOf, MessageQueue, MessageQueueHashWithSize};
+use ethexe_runtime_common::state::{MessageQueue, MessageQueueHashWithSize};
 use gear_core::code::CodeMetadata;
 use gprimitives::{CodeId, H256};
 use parity_scale_codec::Encode;
 use std::{
-    collections::{BTreeSet, HashSet},
+    collections::{BTreeSet, HashMap},
     hash::Hash,
 };
 
@@ -44,14 +44,15 @@ pub enum IntegrityVerifierError {
     BlockAnnouncesLenNotOne(H256),
     NoBlockLastCommittedBatch(H256),
     NoBlockLastCommittedAnnounce(H256),
+    BlockAnnouncesIsEmpty(H256),
     NoBlockAnnounces(H256),
     NoBlockHeader(H256),
 
     /* announce */
-    AnnounceNotFound(AnnounceHash),
-    AnnounceIsNotComputed(AnnounceHash),
-    AnnounceIsNotIncluded(AnnounceHash),
-    AnnounceOffChainTransactionsNotEmpty(AnnounceHash),
+    AnnounceNotFound(HashOf<Announce>),
+    AnnounceIsNotComputed(HashOf<Announce>),
+    AnnounceIsNotIncluded(HashOf<Announce>),
+    AnnounceOffChainTransactionsNotEmpty(HashOf<Announce>),
 
     /* block header */
     NoParentBlockHeader(H256),
@@ -74,7 +75,7 @@ pub enum IntegrityVerifierError {
 
     /* rest */
     AnnounceScheduleHasExpiredTasks {
-        announce_hash: AnnounceHash,
+        announce_hash: HashOf<Announce>,
         expiry: u32,
         tasks: usize,
     },
@@ -88,7 +89,7 @@ pub enum IntegrityVerifierError {
 pub struct IntegrityVerifier {
     db: Database,
     errors: Vec<IntegrityVerifierError>,
-    message_queue_size: Option<u8>,
+    cached_queue_sizes: HashMap<H256, u8>,
     original_code: Option<Vec<u8>>,
     bottom: Option<H256>,
 }
@@ -98,7 +99,7 @@ impl IntegrityVerifier {
         Self {
             db,
             errors: Vec::new(),
-            message_queue_size: None,
+            cached_queue_sizes: Default::default(),
             original_code: None,
             bottom: None,
         }
@@ -114,6 +115,8 @@ impl IntegrityVerifier {
 
         #[cfg(debug_assertions)]
         {
+            use std::collections::HashSet;
+
             self.errors
                 .clone()
                 .into_iter()
@@ -145,6 +148,7 @@ impl DatabaseVisitor for IntegrityVerifier {
             .push(IntegrityVerifierError::DatabaseIterator(error));
     }
 
+    #[tracing::instrument(level = "trace", skip(self))]
     fn visit_block_meta(&mut self, block: H256, meta: BlockMeta) {
         if !meta.prepared {
             self.errors
@@ -159,9 +163,9 @@ impl DatabaseVisitor for IntegrityVerifier {
                 .push(IntegrityVerifierError::NoBlockLastCommittedAnnounce(block));
         }
         if let Some(announces) = meta.announces {
-            if announces.len() != 1 {
+            if announces.is_empty() {
                 self.errors
-                    .push(IntegrityVerifierError::BlockAnnouncesLenNotOne(block));
+                    .push(IntegrityVerifierError::BlockAnnouncesIsEmpty(block));
             }
         } else {
             self.errors
@@ -169,8 +173,9 @@ impl DatabaseVisitor for IntegrityVerifier {
         }
     }
 
-    fn visit_announce(&mut self, announce_hash: AnnounceHash, announce: Announce) {
-        if !announce.off_chain_transactions.is_empty() {
+    #[tracing::instrument(level = "trace", skip(self))]
+    fn visit_announce(&mut self, announce_hash: HashOf<Announce>, announce: Announce) {
+        if !announce.injected_transactions.is_empty() {
             self.errors
                 .push(IntegrityVerifierError::AnnounceOffChainTransactionsNotEmpty(announce_hash));
         }
@@ -186,13 +191,7 @@ impl DatabaseVisitor for IntegrityVerifier {
         }
     }
 
-    fn visit_announce_meta(&mut self, announce_hash: AnnounceHash, announce_meta: AnnounceMeta) {
-        if !announce_meta.computed {
-            self.errors
-                .push(IntegrityVerifierError::AnnounceIsNotComputed(announce_hash));
-        }
-    }
-
+    #[tracing::instrument(level = "trace", skip(self))]
     fn visit_block_synced(&mut self, block: H256, block_synced: bool) {
         if !block_synced {
             self.errors
@@ -200,6 +199,7 @@ impl DatabaseVisitor for IntegrityVerifier {
         }
     }
 
+    #[tracing::instrument(level = "trace", skip(self))]
     fn visit_block_header(&mut self, block: H256, header: BlockHeader) {
         let Some(parent_header) = self.db().block_header(header.parent_hash) else {
             if self.bottom == Some(block) {
@@ -231,16 +231,19 @@ impl DatabaseVisitor for IntegrityVerifier {
         }
     }
 
-    fn visit_code_valid(&mut self, _code_id: CodeId, code_valid: bool) {
+    #[tracing::instrument(level = "trace", skip(self))]
+    fn visit_code_valid(&mut self, code_id: CodeId, code_valid: bool) {
         if !code_valid {
             self.errors.push(IntegrityVerifierError::CodeIsNotValid);
         }
     }
 
+    #[tracing::instrument(level = "trace", skip(self))]
     fn visit_original_code(&mut self, original_code: Vec<u8>) {
         self.original_code = Some(original_code.to_vec());
     }
 
+    #[tracing::instrument(level = "trace", skip(self))]
     fn visit_code_metadata(&mut self, code_id: CodeId, metadata: CodeMetadata) {
         let original_code = self.original_code.take();
         if let Some(original_code) = original_code
@@ -255,9 +258,10 @@ impl DatabaseVisitor for IntegrityVerifier {
         }
     }
 
+    #[tracing::instrument(level = "trace", skip(self))]
     fn visit_announce_schedule_tasks(
         &mut self,
-        announce_hash: AnnounceHash,
+        announce_hash: HashOf<Announce>,
         height: u32,
         tasks: BTreeSet<ScheduledTask>,
     ) {
@@ -281,21 +285,24 @@ impl DatabaseVisitor for IntegrityVerifier {
         }
     }
 
+    #[tracing::instrument(level = "trace", skip(self))]
     fn visit_message_queue_hash_with_size(
         &mut self,
         queue_hash_with_size: MessageQueueHashWithSize,
     ) {
-        if let Some(_hash) = queue_hash_with_size.hash.to_inner() {
-            self.message_queue_size = Some(queue_hash_with_size.cached_queue_size);
+        if let Some(hash) = queue_hash_with_size.hash.to_inner() {
+            self.cached_queue_sizes
+                .insert(hash.inner(), queue_hash_with_size.cached_queue_size);
         }
     }
 
+    #[tracing::instrument(level = "trace", skip(self))]
     fn visit_message_queue(&mut self, queue: MessageQueue) {
         let encoded_queue = queue.encode();
         let hash = crate::hash(&encoded_queue);
         let hash = unsafe { HashOf::new(hash) };
 
-        let cached_queue_size = self.message_queue_size.take().expect(
+        let cached_queue_size = self.cached_queue_sizes.remove(&hash.inner()).expect(
             "`visit_message_queue_hash_with_size` must be called before `visit_message_queue`",
         );
         if cached_queue_size != queue.len() as u8 {
@@ -317,10 +324,10 @@ mod tests {
         MessageQueueNode, tests::setup_db,
     };
     use ethexe_common::{
-        Digest, ProgramStates, Schedule,
-        db::{AnnounceStorageWrite, BlockMetaStorageWrite, CodesStorageWrite, OnChainStorageWrite},
+        Digest, MaybeHashOf, ProgramStates, Schedule,
+        db::{AnnounceStorageRW, BlockMetaStorageRW, CodesStorageRW, OnChainStorageRW},
     };
-    use ethexe_runtime_common::state::{MaybeHashOf, Storage};
+    use ethexe_runtime_common::state::Storage;
     use gear_core::{
         code::{CodeMetadata, InstantiatedSectionSizes, InstrumentationStatus, InstrumentedCode},
         pages::WasmPagesAmount,
@@ -539,7 +546,7 @@ mod tests {
         let db = setup_db();
         let block_hash = H256::random();
 
-        let announce = Announce::base(block_hash, AnnounceHash::zero());
+        let announce = Announce::base(block_hash, HashOf::zero());
         let announce_hash = db.set_announce(announce);
 
         // Setup block with height 100
@@ -640,7 +647,7 @@ mod tests {
             },
         );
 
-        assert_eq!(verifier.message_queue_size, None);
+        assert!(verifier.cached_queue_sizes.is_empty());
         assert_eq!(verifier.errors, []);
     }
 
@@ -672,7 +679,7 @@ mod tests {
             timestamp: 1000,
         };
 
-        let announce = Announce::base(block_hash, AnnounceHash::zero());
+        let announce = Announce::base(block_hash, HashOf::zero());
         let announce_hash = db.set_announce(announce);
         db.set_announce_program_states(announce_hash, ProgramStates::new());
         db.set_announce_schedule(announce_hash, Schedule::new());

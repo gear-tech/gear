@@ -61,7 +61,7 @@ pub struct NodeConfig {
     pub blocking_threads: Option<usize>,
     pub chunk_processing_threads: usize,
     pub block_gas_limit: u64,
-    pub dev: bool,
+    pub canonical_quarantine: u8,
     pub fast_sync: bool,
 }
 

@@ -20,8 +20,9 @@ use super::{GearApi, Result};
 use crate::Error;
 use gear_core::ids::ActorId;
 use gsdk::{
-    ext::sp_core::H256,
-    metadata::{
+    AsGear,
+    ext::subxt::utils::H256,
+    gear::{
         Event,
         runtime_types::pallet_gear_voucher::{internal::VoucherId, pallet::Event as VoucherEvent},
     },
@@ -55,13 +56,13 @@ impl GearApi {
 
         let tx = self
             .0
-            .calls
+            .calls()
             .issue_voucher(spender, balance, programs, code_uploading, duration)
             .await?;
 
         for event in tx.wait_for_success().await?.iter() {
             if let Event::GearVoucher(VoucherEvent::VoucherIssued { voucher_id, .. }) =
-                event?.as_root_event::<Event>()?
+                event?.as_gear()?
             {
                 return Ok((voucher_id, tx.block_hash()));
             }
@@ -109,7 +110,7 @@ impl GearApi {
 
         let tx = self
             .0
-            .calls
+            .calls()
             .update_voucher(
                 spender,
                 voucher_id,
@@ -123,7 +124,7 @@ impl GearApi {
 
         for event in tx.wait_for_success().await?.iter() {
             if let Event::GearVoucher(VoucherEvent::VoucherUpdated { voucher_id, .. }) =
-                event?.as_root_event::<Event>()?
+                event?.as_gear()?
             {
                 return Ok((voucher_id, tx.block_hash()));
             }
@@ -152,11 +153,11 @@ impl GearApi {
     ) -> Result<(VoucherId, H256)> {
         let spender: [u8; 32] = spender.into();
 
-        let tx = self.0.calls.revoke_voucher(spender, voucher_id).await?;
+        let tx = self.0.calls().revoke_voucher(spender, voucher_id).await?;
 
         for event in tx.wait_for_success().await?.iter() {
             if let Event::GearVoucher(VoucherEvent::VoucherRevoked { voucher_id, .. }) =
-                event?.as_root_event::<Event>()?
+                event?.as_gear()?
             {
                 return Ok((voucher_id, tx.block_hash()));
             }
@@ -173,11 +174,11 @@ impl GearApi {
     /// Arguments:
     /// * voucher_id:   voucher id to be declined.
     pub async fn decline_voucher(&self, voucher_id: VoucherId) -> Result<(VoucherId, H256)> {
-        let tx = self.0.calls.decline_voucher(voucher_id).await?;
+        let tx = self.0.calls().decline_voucher(voucher_id).await?;
 
         for event in tx.wait_for_success().await?.iter() {
             if let Event::GearVoucher(VoucherEvent::VoucherDeclined { voucher_id, .. }) =
-                event?.as_root_event::<Event>()?
+                event?.as_gear()?
             {
                 return Ok((voucher_id, tx.block_hash()));
             }
@@ -193,13 +194,13 @@ impl GearApi {
     ) -> Result<(VoucherId, H256)> {
         let tx = self
             .0
-            .calls
+            .calls()
             .decline_voucher_with_voucher(voucher_id)
             .await?;
 
         for event in tx.wait_for_success().await?.iter() {
             if let Event::GearVoucher(VoucherEvent::VoucherDeclined { voucher_id, .. }) =
-                event?.as_root_event::<Event>()?
+                event?.as_gear()?
             {
                 return Ok((voucher_id, tx.block_hash()));
             }

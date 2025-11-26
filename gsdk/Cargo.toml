@@ -13,30 +13,23 @@ repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-anyhow.workspace = true
-base64.workspace = true
 colored.workspace = true
-futures-util.workspace = true
+derive_more.workspace = true
 futures.workspace = true
 gear-core = { workspace = true, features = ["std"] }
 gear-core-errors.workspace = true
+gsdk-codegen.workspace = true
 hex.workspace = true
 indexmap = { workspace = true, features = ["std"] }
 jsonrpsee = { workspace = true, features = [ "http-client", "ws-client" ] }
 log.workspace = true
-scale-value.workspace = true
-serde_json = { workspace = true, features = [ "std" ] }
+parking_lot.workspace = true
+serde = { workspace = true, features = ["derive"] }
+sp-core = { workspace = true, features = [ "std" , "full_crypto"] }
+sp-runtime = { workspace = true, features = [ "std" ] }
 subxt.workspace = true
 thiserror.workspace = true
-sp-runtime = { workspace = true, features = [ "std" ] }
-sp-core = { workspace = true, features = [ "std" , "full_crypto"] }
-gsdk-codegen.workspace = true
-parking_lot.workspace = true
-derive_more.workspace = true
-
-# Importing these two libraries for trimming
-# the the size of the generated file.
-scale-decode.workspace = true
+url.workspace = true
 parity-scale-codec.workspace = true
 
 [dev-dependencies]
@@ -46,9 +39,7 @@ demo-messenger.workspace = true
 demo-fungible-token.workspace = true
 demo-vec.workspace = true
 demo-waiter = { workspace = true, features = ["std"] }
-
-[build-dependencies]
-gear-utils.workspace = true
+serde_json = { workspace = true, features = [ "std" ] }
 
 [features]
 testing = []

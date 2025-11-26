@@ -13,7 +13,6 @@ path = "src/main.rs"
 gear-call-gen.workspace = true
 gclient.workspace = true
 gear-core.workspace = true
-gear-core-errors.workspace = true
 gear-utils.workspace = true
 gsdk.workspace = true
 gear-wasm-gen.workspace = true
@@ -25,7 +24,6 @@ futures.workspace = true
 futures-timer.workspace = true
 names = "0.14.0"
 parking_lot.workspace = true
-primitive-types = { workspace = true, features = ["scale-info"] }
 rand = { workspace = true, features = ["small_rng"] }
 reqwest.workspace = true
 thiserror.workspace = true

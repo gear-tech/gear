@@ -31,6 +31,8 @@ pub mod update;
 pub mod upload;
 pub mod wallet;
 
+use std::time::Duration;
+
 pub use self::{
     claim::Claim,
     config::{Config, ConfigSettings},
@@ -112,8 +114,8 @@ pub struct Opt {
 
 #[async_trait::async_trait]
 impl App for Opt {
-    fn timeout(&self) -> u64 {
-        self.timeout
+    fn timeout(&self) -> Duration {
+        Duration::from_millis(self.timeout)
     }
 
     fn verbose(&self) -> u8 {

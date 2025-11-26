@@ -16,10 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use gclient::{
-    GearApi,
-    errors::{self, ModuleError},
-};
+use gclient::GearApi;
+use gsdk::gear;
 
 const RUNTIME_WASM: &str =
     "../target/release/wbuild/vara-runtime/vara_runtime.compact.compressed.wasm";
@@ -45,9 +43,9 @@ async fn set_code_failed() {
     assert!(
         matches!(
             err,
-            gclient::Error::Module(ModuleError::System(
-                errors::System::SpecVersionNeedsToIncrease
-            ))
+            gclient::Error::GearSDK(gsdk::Error::Runtime(gear::Error::System(
+                gear::system::Error::SpecVersionNeedsToIncrease
+            )))
         ),
         "{err:?}"
     );

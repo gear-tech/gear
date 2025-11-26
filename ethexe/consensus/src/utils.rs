@@ -23,22 +23,24 @@
 
 use anyhow::{Result, anyhow};
 use ethexe_common::{
-    Address, AnnounceHash, Digest, SimpleBlockData, ToDigest,
+    Address, Announce, Digest, HashOf, SimpleBlockData, ToDigest, ValidatorsVec,
     consensus::BatchCommitmentValidationReply,
-    db::{AnnounceStorageRead, BlockMetaStorageRead, CodesStorageRead, OnChainStorageRead},
+    db::{AnnounceStorageRO, BlockMetaStorageRO, CodesStorageRO, OnChainStorageRO},
     ecdsa::{ContractSignature, PublicKey},
     gear::{
-        BatchCommitment, ChainCommitment, CodeCommitment, RewardsCommitment, ValidatorsCommitment,
+        AggregatedPublicKey, BatchCommitment, ChainCommitment, CodeCommitment, RewardsCommitment,
+        StateTransition, ValidatorsCommitment,
     },
 };
 use ethexe_signer::Signer;
-use gprimitives::CodeId;
-use nonempty::NonEmpty;
+use gprimitives::{CodeId, U256};
 use parity_scale_codec::{Decode, Encode};
-use std::{
-    collections::{BTreeMap, HashSet},
-    hash::Hash,
+use rand::SeedableRng;
+use roast_secp256k1_evm::frost::{
+    Identifier,
+    keys::{self, IdentifierList},
 };
+use std::collections::{BTreeMap, HashSet};
 
 /// A batch commitment, that has been signed by multiple validators.
 /// This structure manages the collection of signatures from different validators
@@ -121,12 +123,12 @@ impl MultisignedBatchCommitment {
     ///
     /// # Returns
     /// A tuple containing the batch commitment and the map of signatures
-    pub fn into_parts(self) -> (BatchCommitment, BTreeMap<Address, ContractSignature>) {
-        (self.batch, self.signatures)
+    pub fn into_parts(self) -> (BatchCommitment, Vec<ContractSignature>) {
+        (self.batch, self.signatures.into_values().collect())
     }
 }
 
-pub fn aggregate_code_commitments<DB: CodesStorageRead>(
+pub fn aggregate_code_commitments<DB: CodesStorageRO>(
     db: &DB,
     codes: impl IntoIterator<Item = CodeId>,
     fail_if_not_found: bool,
@@ -146,11 +148,9 @@ pub fn aggregate_code_commitments<DB: CodesStorageRead>(
     Ok(commitments)
 }
 
-pub fn aggregate_chain_commitment<
-    DB: BlockMetaStorageRead + OnChainStorageRead + AnnounceStorageRead,
->(
+pub fn aggregate_chain_commitment<DB: BlockMetaStorageRO + OnChainStorageRO + AnnounceStorageRO>(
     db: &DB,
-    head_announce: AnnounceHash,
+    head_announce: HashOf<Announce>,
     fail_if_not_computed: bool,
     max_deepness: Option<u32>,
 ) -> Result<Option<(ChainCommitment, u32)>> {
@@ -189,9 +189,13 @@ pub fn aggregate_chain_commitment<
             }
         }
 
-        transitions.push(db.announce_outcome(announce_hash).ok_or_else(|| {
-            anyhow!("Cannot get from db outcome for computed block {block_hash}")
-        })?);
+        let mut announce_transitions = db
+            .announce_outcome(announce_hash)
+            .ok_or_else(|| anyhow!("Cannot get from db outcome for computed block {block_hash}"))?;
+
+        sort_transitions_by_value_to_receive(&mut announce_transitions);
+
+        transitions.push(announce_transitions);
 
         announce_hash = db
             .announce(announce_hash)
@@ -208,15 +212,68 @@ pub fn aggregate_chain_commitment<
     )))
 }
 
-pub fn create_batch_commitment<DB: BlockMetaStorageRead>(
+// TODO(kuzmindev): this is a temporal solution. In future need to implement DKG algorithm.
+pub fn validators_commitment(era: u64, validators: ValidatorsVec) -> Result<ValidatorsCommitment> {
+    let validators_identifiers = validators
+        .iter()
+        .map(|validator| {
+            let mut bytes = [0u8; 32];
+            bytes[12..32].copy_from_slice(&validator.0);
+            Identifier::deserialize(&bytes).unwrap()
+        })
+        .collect::<Vec<_>>();
+
+    let identifiers = IdentifierList::Custom(&validators_identifiers);
+
+    let rng = rand_chacha::ChaCha8Rng::from_seed([1u8; 32]);
+
+    let (mut secret_shares, public_key_package) =
+        keys::generate_with_dealer(validators.len() as u16, 1, identifiers, rng).unwrap();
+
+    let verifiable_secret_sharing_commitment = secret_shares
+        .pop_first()
+        .map(|(_key, value)| value.commitment().clone())
+        .expect("Expect at least one identifier");
+
+    let public_key_compressed: [u8; 33] = public_key_package
+        .verifying_key()
+        .serialize()?
+        .try_into()
+        .unwrap();
+    let public_key_uncompressed = PublicKey(public_key_compressed).to_uncompressed();
+    let (public_key_x_bytes, public_key_y_bytes) = public_key_uncompressed.split_at(32);
+
+    let aggregated_public_key = AggregatedPublicKey {
+        x: U256::from_big_endian(public_key_x_bytes),
+        y: U256::from_big_endian(public_key_y_bytes),
+    };
+
+    Ok(ValidatorsCommitment {
+        aggregated_public_key,
+        verifiable_secret_sharing_commitment,
+        validators,
+        era_index: era,
+    })
+}
+
+pub fn create_batch_commitment<DB: BlockMetaStorageRO + OnChainStorageRO + AnnounceStorageRO>(
     db: &DB,
     block: &SimpleBlockData,
     chain_commitment: Option<ChainCommitment>,
     code_commitments: Vec<CodeCommitment>,
     validators_commitment: Option<ValidatorsCommitment>,
     rewards_commitment: Option<RewardsCommitment>,
+    commitment_delay_limit: u32,
 ) -> Result<Option<BatchCommitment>> {
-    if chain_commitment.is_none() && code_commitments.is_empty() {
+    if chain_commitment.is_none()
+        && code_commitments.is_empty()
+        && validators_commitment.is_none()
+        && rewards_commitment.is_none()
+    {
+        tracing::debug!(
+            "No commitments for block {} - skip batch commitment",
+            block.hash
+        );
         return Ok(None);
     }
 
@@ -230,10 +287,24 @@ pub fn create_batch_commitment<DB: BlockMetaStorageRead>(
             )
         })?;
 
+    let expiry = chain_commitment
+        .as_ref()
+        .map(|c| calculate_batch_expiry(db, block, c.head_announce, commitment_delay_limit))
+        .transpose()?
+        .flatten()
+        .unwrap_or(u8::MAX);
+
+    tracing::trace!(
+        "Batch commitment expiry for block {} is {:?}",
+        block.hash,
+        expiry
+    );
+
     Ok(Some(BatchCommitment {
         block_hash: block.hash,
         timestamp: block.header.timestamp,
         previous_batch: last_committed,
+        expiry,
         chain_commitment,
         code_commitments,
         validators_commitment,
@@ -241,9 +312,111 @@ pub fn create_batch_commitment<DB: BlockMetaStorageRead>(
     }))
 }
 
-pub fn has_duplicates<T: Hash + Eq>(data: &[T]) -> bool {
+pub fn calculate_batch_expiry<DB: BlockMetaStorageRO + OnChainStorageRO + AnnounceStorageRO>(
+    db: &DB,
+    block: &SimpleBlockData,
+    head_announce_hash: HashOf<Announce>,
+    commitment_delay_limit: u32,
+) -> Result<Option<u8>> {
+    let head_announce = db
+        .announce(head_announce_hash)
+        .ok_or_else(|| anyhow!("Cannot get announce by {head_announce_hash}"))?;
+
+    let head_announce_block_header = db
+        .block_header(head_announce.block_hash)
+        .ok_or_else(|| anyhow!("block header not found for({})", head_announce.block_hash))?;
+
+    let head_delay = block
+        .header
+        .height
+        .checked_sub(head_announce_block_header.height)
+        .ok_or_else(|| {
+            anyhow!(
+                "Head announce {} has bigger height {}, than batch height {}",
+                head_announce_hash,
+                head_announce_block_header.height,
+                block.header.height,
+            )
+        })?;
+
+    // Amount of announces which we should check to determine if there are not-base announces in the commitment.
+    let Some(announces_to_check_amount) = commitment_delay_limit.checked_sub(head_delay) else {
+        // No need to set expiry - head announce is old enough, so cannot contain any not-base announces.
+        return Ok(None);
+    };
+
+    if announces_to_check_amount == 0 {
+        // No need to set expiry - head announce is old enough, so cannot contain any not-base announces.
+        return Ok(None);
+    }
+
+    let mut oldest_not_base_announce_depth = (!head_announce.is_base()).then_some(0);
+    let mut current_announce_hash = head_announce.parent;
+
+    if announces_to_check_amount == 1 {
+        // If head announce is not base and older than commitment delay limit - 1, then expiry is only 1.
+        return Ok(oldest_not_base_announce_depth.map(|_| 1));
+    }
+
+    let last_committed_announce = db
+        .block_meta(block.hash)
+        .last_committed_announce
+        .ok_or_else(|| anyhow!("last committed announce not found for block {}", block.hash))?;
+
+    // from 1 because we have already checked head announce (note announces_to_check_amount > 1)
+    for i in 1..announces_to_check_amount {
+        if current_announce_hash == last_committed_announce {
+            break;
+        }
+
+        let current_announce = db
+            .announce(current_announce_hash)
+            .ok_or_else(|| anyhow!("Cannot get announce by {current_announce_hash}",))?;
+
+        if !current_announce.is_base() {
+            oldest_not_base_announce_depth = Some(i);
+        }
+
+        current_announce_hash = current_announce.parent;
+    }
+
+    Ok(oldest_not_base_announce_depth
+        .map(|depth| announces_to_check_amount - depth)
+        .map(TryInto::try_into)
+        .transpose()?)
+}
+
+pub fn has_duplicates<T: std::hash::Hash + Eq>(data: &[T]) -> bool {
     let mut seen = HashSet::new();
     data.iter().any(|item| !seen.insert(item))
+}
+
+/// Finds the block with the earliest timestamp that is still within the specified election period.
+pub fn election_block_in_era<DB: OnChainStorageRO>(
+    db: &DB,
+    mut block: SimpleBlockData,
+    election_ts: u64,
+) -> Result<SimpleBlockData> {
+    if block.header.timestamp < election_ts {
+        anyhow::bail!("election not reached yet");
+    }
+
+    loop {
+        let parent_header = db.block_header(block.header.parent_hash).ok_or(anyhow!(
+            "block header not found for({})",
+            block.header.parent_hash
+        ))?;
+        if parent_header.timestamp < election_ts {
+            break;
+        }
+
+        block = SimpleBlockData {
+            hash: block.header.parent_hash,
+            header: parent_header,
+        };
+    }
+
+    Ok(block)
 }
 
 // TODO #4553: temporary implementation, should be improved
@@ -262,7 +435,7 @@ pub const fn block_producer_index(validators_amount: usize, slot: u64) -> usize 
 /// # Returns
 /// The address of the producer for the given timestamp slot.
 pub fn block_producer_for(
-    validators: &NonEmpty<Address>,
+    validators: &ValidatorsVec,
     timestamp: u64,
     slot_duration: u64,
 ) -> Address {
@@ -272,6 +445,13 @@ pub fn block_producer_for(
         .get(index)
         .cloned()
         .unwrap_or_else(|| unreachable!("index must be valid"))
+}
+
+fn sort_transitions_by_value_to_receive(transitions: &mut [StateTransition]) {
+    transitions.sort_by(|lhs, rhs| {
+        rhs.value_to_receive_negative_sign
+            .cmp(&lhs.value_to_receive_negative_sign)
+    });
 }
 
 #[cfg(test)]
@@ -293,11 +473,12 @@ mod tests {
 
     #[test]
     fn producer_for_calculates_correct_producer() {
-        let validators = NonEmpty::from_vec(vec![
+        let validators = vec![
             Address::from([1; 20]),
             Address::from([2; 20]),
             Address::from([3; 20]),
-        ])
+        ]
+        .try_into()
         .unwrap();
         let timestamp = 10;
 
@@ -491,5 +672,55 @@ mod tests {
 
         let data = vec![1, 2, 3, 4, 5, 3];
         assert!(has_duplicates(&data));
+    }
+
+    #[test]
+    fn test_batch_expiry_calculation() {
+        {
+            let db = Database::memory();
+            let chain = BlockChain::mock(1).setup(&db);
+            let block = chain.blocks[1].to_simple();
+            let expiry =
+                calculate_batch_expiry(&db, &block, db.top_announce_hash(block.hash), 5).unwrap();
+            assert!(expiry.is_none(), "Expiry should be None");
+        }
+
+        {
+            let db = Database::memory();
+            let chain = BlockChain::mock(10)
+                .tap_mut(|c| {
+                    c.block_top_announce_mut(10).announce.gas_allowance = Some(10);
+                    c.blocks[10].as_prepared_mut().announces =
+                        Some([c.block_top_announce(10).announce.to_hash()].into());
+                })
+                .setup(&db);
+
+            let block = chain.blocks[10].to_simple();
+            let expiry =
+                calculate_batch_expiry(&db, &block, db.top_announce_hash(block.hash), 100).unwrap();
+            assert_eq!(
+                expiry,
+                Some(100),
+                "Expiry should be 100 as there is one not-base announce"
+            );
+        }
+
+        {
+            let db = Database::memory();
+            let batch = prepare_chain_for_batch_commitment(&db);
+            let block = db.simple_block_data(batch.block_hash);
+            let expiry = calculate_batch_expiry(
+                &db,
+                &block,
+                batch.chain_commitment.as_ref().unwrap().head_announce,
+                3,
+            )
+            .unwrap()
+            .unwrap();
+            assert_eq!(
+                expiry, batch.expiry,
+                "Expiry should match the one in the batch commitment"
+            );
+        }
     }
 }

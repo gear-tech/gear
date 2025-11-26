@@ -17,19 +17,19 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use ethexe_common::{
-    Announce, AnnounceHash, BlockHeader, ProgramStates, Schedule, ScheduledTask,
+    Announce, BlockHeader, HashOf, MaybeHashOf, ProgramStates, Schedule, ScheduledTask,
     StateHashWithQueueSize,
     db::{
-        AnnounceMeta, AnnounceStorageRead, BlockMeta, BlockMetaStorageRead, CodesStorageRead,
-        LatestDataStorageRead, OnChainStorageRead,
+        AnnounceMeta, AnnounceStorageRO, BlockMeta, BlockMetaStorageRO, CodesStorageRO,
+        LatestDataStorageRO, OnChainStorageRO,
     },
     events::BlockEvent,
     gear::StateTransition,
 };
 use ethexe_runtime_common::state::{
-    ActiveProgram, Allocations, DispatchStash, Expiring, HashOf, Mailbox, MaybeHashOf, MemoryPages,
-    MemoryPagesRegion, MessageQueue, MessageQueueHashWithSize, PayloadLookup, Program,
-    ProgramState, Storage, UserMailbox, Waitlist,
+    ActiveProgram, Allocations, DispatchStash, Expiring, Mailbox, MemoryPages, MemoryPagesRegion,
+    MessageQueue, MessageQueueHashWithSize, PayloadLookup, Program, ProgramState, Storage,
+    UserMailbox, Waitlist,
 };
 use gear_core::{
     buffer::Payload,
@@ -43,21 +43,21 @@ use std::{
 };
 
 pub trait DatabaseIteratorStorage:
-    OnChainStorageRead
-    + BlockMetaStorageRead
-    + AnnounceStorageRead
-    + CodesStorageRead
-    + LatestDataStorageRead
+    OnChainStorageRO
+    + BlockMetaStorageRO
+    + AnnounceStorageRO
+    + CodesStorageRO
+    + LatestDataStorageRO
     + Storage
 {
 }
 
 impl<
-    T: OnChainStorageRead
-        + BlockMetaStorageRead
-        + AnnounceStorageRead
-        + CodesStorageRead
-        + LatestDataStorageRead
+    T: OnChainStorageRO
+        + BlockMetaStorageRO
+        + AnnounceStorageRO
+        + CodesStorageRO
+        + LatestDataStorageRO
         + Storage,
 > DatabaseIteratorStorage for T
 {
@@ -179,14 +179,14 @@ node! {
         Announce(
             #[derive(Debug, Clone, Eq, PartialEq, Hash)]
             pub struct AnnounceNode {
-                pub announce_hash: AnnounceHash,
+                pub announce_hash: HashOf<Announce>,
                 pub announce: Announce,
             }
         ),
         AnnounceMeta(
             #[derive(Debug, Clone, Eq, PartialEq, Hash)]
             pub struct AnnounceMetaNode {
-                pub announce_hash: AnnounceHash,
+                pub announce_hash: HashOf<Announce>,
                 pub announce_meta: AnnounceMeta,
             }
         ),
@@ -232,7 +232,7 @@ node! {
         AnnounceProgramStates(
             #[derive(Debug, Clone, Eq, PartialEq, Hash)]
             pub struct AnnounceProgramStatesNode {
-                pub announce_hash: AnnounceHash,
+                pub announce_hash: HashOf<Announce>,
                 pub announce_program_states: ProgramStates,
             }
         ),
@@ -245,14 +245,14 @@ node! {
         AnnounceSchedule(
             #[derive(Debug, Clone, Eq, PartialEq, Hash)]
             pub struct AnnounceScheduleNode {
-                pub announce_hash: AnnounceHash,
+                pub announce_hash: HashOf<Announce>,
                 pub announce_schedule: Schedule,
             }
         ),
         AnnounceScheduleTasks(
             #[derive(Debug, Clone, Eq, PartialEq, Hash)]
             pub struct AnnounceScheduleTasksNode {
-                pub announce_hash: AnnounceHash,
+                pub announce_hash: HashOf<Announce>,
                 pub height: u32,
                 pub tasks: BTreeSet<ScheduledTask>,
             }
@@ -266,7 +266,7 @@ node! {
         AnnounceOutcome(
             #[derive(Debug, Clone, Eq, PartialEq, Hash)]
             pub struct AnnounceOutcomeNode {
-                pub announce_hash: AnnounceHash,
+                pub announce_hash: HashOf<Announce>,
                 pub announce_outcome: Vec<StateTransition>,
             }
         ),
@@ -374,10 +374,10 @@ pub enum DatabaseIteratorError {
     NoBlockAnnounces(H256),
     NoBlockCodesQueue(H256),
 
-    NoAnnounce(AnnounceHash),
-    NoAnnounceSchedule(AnnounceHash),
-    NoAnnounceOutcome(AnnounceHash),
-    NoAnnounceProgramStates(AnnounceHash),
+    NoAnnounce(HashOf<Announce>),
+    NoAnnounceSchedule(HashOf<Announce>),
+    NoAnnounceOutcome(HashOf<Announce>),
+    NoAnnounceProgramStates(HashOf<Announce>),
 
     /* memory */
     NoMemoryPages(HashOf<MemoryPages>),
@@ -559,14 +559,22 @@ where
         }: &AnnounceNode,
     ) {
         let announce_hash = *announce_hash;
-        try_push_node!(with_hash: self.announce_schedule(announce_hash));
-        try_push_node!(with_hash: self.announce_outcome(announce_hash));
-        try_push_node!(with_hash: self.announce_program_states(announce_hash));
+
+        let announce_meta = self.storage.announce_meta(announce_hash);
+        let computed = announce_meta.computed;
 
         self.push_node(AnnounceMetaNode {
             announce_hash,
-            announce_meta: self.storage.announce_meta(announce_hash),
+            announce_meta,
         });
+
+        // Announce is not obligated to be computed
+        if computed {
+            // If computed, all of the following must be present
+            try_push_node!(with_hash: self.announce_schedule(announce_hash));
+            try_push_node!(with_hash: self.announce_outcome(announce_hash));
+            try_push_node!(with_hash: self.announce_program_states(announce_hash));
+        }
 
         // TODO #4830: offchain transactions
     }
@@ -740,6 +748,7 @@ where
             exited: _,
             inheritor: _,
             value_to_receive: _,
+            value_to_receive_negative_sign: _,
             value_claims: _,
             messages: _,
         } = state_transition;
@@ -931,7 +940,7 @@ pub(crate) mod tests {
 
     #[test]
     fn walk_announce_program_states() {
-        let announce_hash = AnnounceHash::random();
+        let announce_hash = HashOf::random();
         let program_id = ActorId::from([3u8; 32]);
         let state_hash = H256::random();
 
@@ -991,7 +1000,7 @@ pub(crate) mod tests {
 
     #[test]
     fn walk_block_schedule_tasks() {
-        let announce_hash = AnnounceHash::random();
+        let announce_hash = HashOf::random();
         let program_id = ActorId::from([10u8; 32]);
 
         let mut tasks = BTreeSet::new();
@@ -1019,7 +1028,7 @@ pub(crate) mod tests {
 
     #[test]
     fn walk_announce_schedule() {
-        let announce_hash = AnnounceHash::random();
+        let announce_hash = HashOf::random();
         let program_id = ActorId::from([14u8; 32]);
 
         let mut announce_schedule = BTreeMap::new();
@@ -1043,7 +1052,7 @@ pub(crate) mod tests {
 
     #[test]
     fn walk_announce_outcome() {
-        let announce_hash = AnnounceHash::random();
+        let announce_hash = HashOf::random();
         let actor_id = ActorId::from([15u8; 32]);
         let new_state_hash = H256::random();
 
@@ -1057,6 +1066,7 @@ pub(crate) mod tests {
                     exited: false,
                     inheritor: Default::default(),
                     value_to_receive: 0,
+                    value_to_receive_negative_sign: false,
                     value_claims: vec![],
                     messages: vec![],
                 }],
@@ -1080,6 +1090,7 @@ pub(crate) mod tests {
             exited: false,
             inheritor: ActorId::zero(),
             value_to_receive: 0,
+            value_to_receive_negative_sign: false,
             value_claims: Vec::new(),
             messages: Vec::new(),
         };
@@ -1110,6 +1121,7 @@ pub(crate) mod tests {
             exited: false,
             inheritor: ActorId::zero(),
             value_to_receive: 0,
+            value_to_receive_negative_sign: false,
             value_claims: Vec::new(),
             messages: Vec::new(),
         };

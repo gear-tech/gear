@@ -39,6 +39,14 @@ interface IMirror {
     event ValueClaimingRequested(bytes32 claimedId, address indexed source);
 
     /**
+     * @dev Emitted when a user requests program's owned balance top up with his Ether.
+     *
+     * NOTE:    It's event for NODES:
+     *  it requires to top up balance of the program (in Ether).
+     */
+    event OwnedBalanceTopUpRequested(uint128 value);
+
+    /**
      * @dev Emitted when a user requests program's executable balance top up with his tokens.
      *
      * NOTE:    It's event for NODES:
@@ -93,19 +101,21 @@ interface IMirror {
 
     function router() external view returns (address);
 
-    function inheritor() external view returns (address);
-
-    function initializer() external view returns (address);
-
     function stateHash() external view returns (bytes32);
 
     function nonce() external view returns (uint256);
 
+    function exited() external view returns (bool);
+
+    function inheritor() external view returns (address);
+
+    function initializer() external view returns (address);
+
     /* Primary Gear logic */
 
-    function sendMessage(bytes calldata payload, uint128 value, bool callReply) external returns (bytes32);
+    function sendMessage(bytes calldata payload, bool callReply) external payable returns (bytes32);
 
-    function sendReply(bytes32 repliedTo, bytes calldata payload, uint128 value) external;
+    function sendReply(bytes32 repliedTo, bytes calldata payload) external payable;
 
     function claimValue(bytes32 claimedId) external;
 
@@ -117,5 +127,5 @@ interface IMirror {
 
     function initialize(address initializer, address abiInterface, bool isSmall) external;
 
-    function performStateTransition(Gear.StateTransition calldata transition) external returns (bytes32);
+    function performStateTransition(Gear.StateTransition calldata transition) external payable returns (bytes32);
 }

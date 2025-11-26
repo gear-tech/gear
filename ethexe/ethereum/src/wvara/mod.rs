@@ -28,8 +28,6 @@ use anyhow::Result;
 use ethexe_common::Address as LocalAddress;
 use gprimitives::{H256, U256};
 
-pub mod events;
-
 type Instance = IWrappedVara::IWrappedVaraInstance<AlloyProvider>;
 type QueryInstance = IWrappedVara::IWrappedVaraInstance<RootProvider>;
 
@@ -53,7 +51,11 @@ impl WVara {
 
     pub async fn transfer(&self, to: Address, value: u128) -> Result<H256> {
         let builder = self.0.transfer(to, AlloyU256::from(value));
-        let receipt = builder.send().await?.try_get_receipt().await?;
+        let receipt = builder
+            .send()
+            .await?
+            .try_get_receipt_check_reverted()
+            .await?;
 
         let tx_hash = (*receipt.transaction_hash).into();
 
@@ -62,7 +64,11 @@ impl WVara {
 
     pub async fn transfer_from(&self, from: Address, to: Address, value: u128) -> Result<H256> {
         let builder = self.0.transferFrom(from, to, AlloyU256::from(value));
-        let receipt = builder.send().await?.try_get_receipt().await?;
+        let receipt = builder
+            .send()
+            .await?
+            .try_get_receipt_check_reverted()
+            .await?;
 
         let tx_hash = (*receipt.transaction_hash).into();
 
@@ -79,7 +85,11 @@ impl WVara {
 
     async fn _approve(&self, address: Address, value: AlloyU256) -> Result<H256> {
         let builder = self.0.approve(address, value);
-        let receipt = builder.send().await?.try_get_receipt().await?;
+        let receipt = builder
+            .send()
+            .await?
+            .try_get_receipt_check_reverted()
+            .await?;
 
         let tx_hash = (*receipt.transaction_hash).into();
 

@@ -24,15 +24,13 @@ use crate::Error;
 use account_id::IntoAccountId32;
 use gear_core::{ids::*, message::UserStoredMessage};
 use gsdk::{
-    ext::{
-        sp_core::{H256, crypto::Ss58Codec},
-        sp_runtime::AccountId32,
-    },
-    metadata::runtime_types::{
-        gear_common::storage::primitives::Interval, gear_core::message::user,
-        pallet_balances::types::AccountData, pallet_gear_bank::pallet::BankAccount,
+    ext::{sp_runtime::AccountId32, subxt::utils::H256},
+    gear::runtime_types::{
+        gear_common::storage::primitives::Interval, pallet_balances::types::AccountData,
+        pallet_gear_bank::pallet::BankAccount,
     },
 };
+use sp_core::crypto::Ss58Codec;
 
 impl GearApi {
     /// Get a message identified by `message_id` from the mailbox.
@@ -51,12 +49,11 @@ impl GearApi {
         account_id: impl IntoAccountId32,
         message_id: MessageId,
     ) -> Result<Option<(UserStoredMessage, Interval<u32>)>> {
-        let data: Option<(user::UserStoredMessage, Interval<u32>)> = self
+        Ok(self
             .0
             .api()
             .get_mailbox_account_message(account_id.into_account_id(), message_id)
-            .await?;
-        Ok(data.map(|(m, i)| (m.into(), i)))
+            .await?)
     }
 
     /// Get up to `count` messages from the mailbox for
@@ -64,20 +61,19 @@ impl GearApi {
     pub async fn get_mailbox_account_messages(
         &self,
         account_id: impl IntoAccountId32,
-        count: u32,
+        count: usize,
     ) -> Result<Vec<(UserStoredMessage, Interval<u32>)>> {
-        let data = self
+        Ok(self
             .0
             .api()
             .mailbox(Some(account_id.into_account_id()), count)
-            .await?;
-        Ok(data.into_iter().map(|(m, i)| (m.into(), i)).collect())
+            .await?)
     }
 
     /// Get up to `count` messages from the mailbox.
     pub async fn get_mailbox_messages(
         &self,
-        count: u32,
+        count: usize,
     ) -> Result<Vec<(UserStoredMessage, Interval<u32>)>> {
         self.get_mailbox_account_messages(self.0.account_id(), count)
             .await

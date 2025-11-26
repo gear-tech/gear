@@ -2,7 +2,6 @@ node_modules/
 target/
 target-rust-analyzer/
 target-no-lazy/
-target-rust-analyzer/
 target-xwin/
 log/
 weight-dumps/
@@ -25,3 +24,5 @@ seed.bin
 .direnv/
 .ipynb_checkpoints
 .jupyter
+ethexe/contracts/bin/src
+gsdk/vara_runtime_prod.scale

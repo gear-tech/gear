@@ -30,11 +30,12 @@ use gear_core::ids::prelude::CodeIdExt;
 use std::{cell::RefCell, collections::BTreeMap};
 
 thread_local! {
-    pub(crate) static PROCESSOR_RESULT: RefCell<BlockProcessingResult> = const { RefCell::new(
-        BlockProcessingResult {
+    pub(crate) static PROCESSOR_RESULT: RefCell<FinalizedBlockTransitions> = const { RefCell::new(
+        FinalizedBlockTransitions {
             transitions: Vec::new(),
             states: BTreeMap::new(),
             schedule: BTreeMap::new(),
+            promises: Vec::new(),
         }
     ) };
 }
@@ -48,13 +49,14 @@ impl ProcessorExt for MockProcessor {
         &mut self,
         _announce: Announce,
         _events: Vec<BlockRequestEvent>,
-    ) -> Result<BlockProcessingResult> {
+    ) -> Result<FinalizedBlockTransitions> {
         let result = PROCESSOR_RESULT.with_borrow(|r| r.clone());
         PROCESSOR_RESULT.with_borrow_mut(|r| {
-            *r = BlockProcessingResult {
+            *r = FinalizedBlockTransitions {
                 transitions: vec![],
                 states: BTreeMap::new(),
                 schedule: BTreeMap::new(),
+                promises: vec![],
             }
         });
 
@@ -138,7 +140,8 @@ impl TestEnv {
         mark_as_not_prepared(&mut chain);
         chain = chain.setup(&db);
 
-        let compute = ComputeService::new(db.clone(), Processor::new(db.clone()).unwrap());
+        let config = ComputeConfig::without_quarantine();
+        let compute = ComputeService::new(config, db.clone(), Processor::new(db.clone()).unwrap());
 
         TestEnv { db, compute, chain }
     }
@@ -189,7 +192,7 @@ impl TestEnv {
 
     async fn compute_and_assert_announce(&mut self, announce: Announce) {
         let announce_hash = announce.to_hash();
-        self.compute.compute_announce(announce);
+        self.compute.compute_announce(announce.clone());
 
         let event = self
             .compute
@@ -200,9 +203,14 @@ impl TestEnv {
 
         let processed_announce = event.unwrap_announce_computed();
         assert_eq!(processed_announce, announce_hash);
+
+        self.db.mutate_block_meta(announce.block_hash, |meta| {
+            meta.announces.get_or_insert_default().insert(announce_hash);
+        });
     }
 }
 
+#[track_caller]
 fn new_announce(db: &Database, block_hash: H256, gas_allowance: Option<u64>) -> Announce {
     let parent_hash = db.block_header(block_hash).unwrap().parent_hash;
     let parent_announce_hash = db.top_announce_hash(parent_hash);
@@ -210,7 +218,7 @@ fn new_announce(db: &Database, block_hash: H256, gas_allowance: Option<u64>) -> 
         block_hash,
         parent: parent_announce_hash,
         gas_allowance,
-        off_chain_transactions: vec![],
+        injected_transactions: vec![],
     }
 }
 
@@ -238,6 +246,17 @@ async fn multiple_preparation_and_one_processing() -> Result<()> {
 
     for block in env.chain.blocks.clone().iter().skip(1) {
         env.prepare_and_assert_block(block.hash).await;
+    }
+
+    // append announces to prepared blocks, except the last one, so that it can be computed
+    for i in 1..3 {
+        let announce = new_announce(&env.db, env.chain.blocks[i].hash, Some(100));
+        env.db.mutate_block_meta(announce.block_hash, |meta| {
+            meta.announces
+                .get_or_insert_default()
+                .insert(announce.to_hash());
+        });
+        env.db.set_announce(announce);
     }
 
     let announce = new_announce(&env.db, env.chain.blocks[3].hash, Some(100));

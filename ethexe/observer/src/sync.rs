@@ -26,17 +26,18 @@ use alloy::{providers::RootProvider, rpc::types::eth::Header};
 use anyhow::{Result, anyhow};
 use ethexe_common::{
     self, BlockData, BlockHeader, CodeBlobInfo, SimpleBlockData,
-    db::{LatestDataStorageWrite, OnChainStorageWrite},
+    db::{LatestDataStorageRW, OnChainStorageRW},
     events::{BlockEvent, RouterEvent},
-    gear_core::pages::num_traits::Zero,
 };
-use ethexe_ethereum::router::RouterQuery;
+use ethexe_ethereum::{
+    middleware::{ElectionProvider, MiddlewareQuery},
+    router::RouterQuery,
+};
 use gprimitives::H256;
-use nonempty::NonEmpty;
-use std::collections::HashMap;
+use std::{collections::HashMap, ops::Add};
 
-pub(crate) trait SyncDB: OnChainStorageWrite + LatestDataStorageWrite + Clone {}
-impl<T: OnChainStorageWrite + LatestDataStorageWrite + Clone> SyncDB for T {}
+pub(crate) trait SyncDB: OnChainStorageRW + LatestDataStorageRW + Clone {}
+impl<T: OnChainStorageRW + LatestDataStorageRW + Clone> SyncDB for T {}
 
 // TODO #4552: make tests for ChainSync
 #[derive(Clone)]
@@ -74,13 +75,10 @@ impl<DB: SyncDB> ChainSync<DB> {
         let blocks_data = self.pre_load_data(&block.header).await?;
         let chain = self.load_chain(&block, blocks_data).await?;
 
-        self.mark_chain_as_synced(chain.into_iter().rev())?;
+        self.ensure_validators(block, header).await?;
+        self.mark_chain_as_synced(chain.into_iter().rev());
 
-        // NOTE: Set validators for the chain head block only.
-        // It's useless to set validators for all synced blocks currently.
-        self.propagate_validators(&block).await?;
-
-        Ok(block.hash)
+        Ok(block)
     }
 
     async fn load_chain(
@@ -139,33 +137,35 @@ impl<DB: SyncDB> ChainSync<DB> {
         Ok(chain)
     }
 
+    /// Loads blocks if there is a gap between the `header`'s height and the latest synced block height.
     async fn pre_load_data(&self, header: &BlockHeader) -> Result<HashMap<H256, BlockData>> {
         let Some(latest) = self.db.latest_data() else {
-            log::warn!("latest data is not set in the database");
+            tracing::warn!("latest data is not set in the database");
             return Ok(Default::default());
         };
+        let latest_synced_block_height = latest.synced_block.header.height;
 
-        if header.height <= latest.synced_block_height {
-            log::warn!(
-                "Get a block with number {} <= latest synced block number: {}, maybe a reorg",
+        if header.height <= latest_synced_block_height {
+            tracing::warn!(
+                "Got a block with number {} <= latest synced block number: {}, maybe a reorg",
                 header.height,
-                latest.synced_block_height
+                latest_synced_block_height
             );
             // Suppose here that all data is already in db.
             return Ok(Default::default());
         }
 
-        if (header.height - latest.synced_block_height) >= self.config.max_sync_depth {
+        if (header.height - latest_synced_block_height) >= self.config.max_sync_depth {
             // TODO (gsobol): return an event to notify about too deep chain.
             return Err(anyhow!(
                 "Too much to sync: current block number: {}, Latest valid block number: {}, Max depth: {}",
                 header.height,
-                latest.synced_block_height,
+                latest_synced_block_height,
                 self.config.max_sync_depth
             ));
         }
 
-        if header.height - latest.synced_block_height < self.config.batched_sync_depth {
+        if header.height - latest_synced_block_height < self.config.batched_sync_depth {
             // No need to pre load data, because amount of blocks is small enough.
             return Ok(Default::default());
         }
@@ -175,57 +175,81 @@ impl<DB: SyncDB> ChainSync<DB> {
             .await
     }
 
-    // Propagate validators from the parent block. If start new era, fetch new validators from the router.
-    async fn propagate_validators(&self, block: &SimpleBlockData) -> Result<()> {
-        let validators = match self.db.block_validators(block.header.parent_hash) {
-            Some(validators) if !self.should_fetch_validators(block.header)? => validators,
-            _ => {
-                let fetched_validators = self.router_query.validators_at(block.hash).await?;
-                NonEmpty::from_vec(fetched_validators).ok_or(anyhow!(
-                    "validator set is empty on router for block({})",
-                    block.hash
-                ))?
-            }
-        };
-        self.db.set_block_validators(block.hash, validators.clone());
-        Ok(())
-    }
+    /// This function guarantees the next things:
+    /// 1. if there is no validators for current era in database - it fetches them.
+    /// 2. if the election result is `finalized` it requests for next era validators and sets them in database.
+    ///
+    /// See [`Self::election_timestamp_finalized`] for the our timestamp `finalization` rules.
+    async fn ensure_validators(&self, block_hash: H256, header: BlockHeader) -> Result<()> {
+        let timelines = self
+            .db
+            .protocol_timelines()
+            .ok_or_else(|| anyhow!("protocol timelines not found in database"))?;
+        let chain_head_era = timelines.era_from_ts(header.timestamp);
 
-    fn mark_chain_as_synced(&self, chain: impl Iterator<Item = SimpleBlockData>) -> Result<()> {
-        let mut head_height = None;
-        for block in chain {
-            self.db.set_block_synced(block.hash);
-            head_height = Some(block.header.height);
+        // If we don't have validators for current era - set them.
+        if self.db.validators(chain_head_era).is_none() {
+            let router_query = RouterQuery::from_provider(
+                self.config.router_address.into(),
+                self.provider.clone(),
+            );
+            let validators = router_query.validators_at(block_hash).await?;
+            self.db.set_validators(chain_head_era, validators);
         }
 
-        if let Some(head_height) = head_height {
+        // Fetch next era validators if timestamp `finalized` and we don't set them in database already.
+        if let Some(election_ts) = self.election_timestamp_finalized(header)
+            && self.db.validators(chain_head_era.add(1)).is_none()
+        {
+            let middleware_query =
+                MiddlewareQuery::new(self.provider.clone(), self.config.middleware_address);
+            let next_era_validators = middleware_query.make_election_at(election_ts, 10).await?;
             self.db
-                .mutate_latest_data(|data| data.synced_block_height = head_height)
-                .ok_or_else(|| anyhow!("latest data is not set in db"))?;
+                .set_validators(chain_head_era.add(1), next_era_validators);
         }
 
         Ok(())
     }
 
-    /// NOTE: we don't need to fetch validators for block from zero era, because of
-    /// it will be fetched in [`crate::ObserverService::pre_process_genesis_for_db`]
-    fn should_fetch_validators(&self, chain_head: BlockHeader) -> Result<bool> {
-        let chain_head_era = self.block_era_index(chain_head.timestamp);
+    fn mark_chain_as_synced(&self, chain: impl Iterator<Item = H256>) {
+        for hash in chain {
+            let block_header = self
+                .db
+                .block_header(hash)
+                .unwrap_or_else(|| unreachable!("Block header for synced block {hash} is missing"));
 
-        if chain_head_era.is_zero() {
-            return Ok(false);
+            self.db.set_block_synced(hash);
+
+            log::trace!(
+                "✅ block {hash} synced, events: {:?}",
+                self.db.block_events(hash)
+            );
+
+            let _ = self
+                .db
+                .mutate_latest_data(|data| {
+                    data.synced_block = SimpleBlockData {
+                        hash,
+                        header: block_header,
+                    }
+                })
+                .ok_or_else(|| {
+                    log::error!("Failed to update latest data for synced block {hash}");
+                });
         }
-
-        let parent = self.db.block_header(chain_head.parent_hash).ok_or(anyhow!(
-            "header not found for block({:?})",
-            chain_head.parent_hash
-        ))?;
-
-        let parent_era_index = self.block_era_index(parent.timestamp);
-        Ok(chain_head_era > parent_era_index)
     }
 
-    fn block_era_index(&self, block_ts: u64) -> u64 {
-        (block_ts - self.config.genesis_timestamp) / self.config.era_duration
+    /// Function checks the `election_ts` in current era is `finalized` and if it true returns it.
+    ///
+    /// By `finalization` we mean the 64 blocks, because of it is closely to real finalization time and
+    /// reorgs for 64 blocks can not happen.
+    fn election_timestamp_finalized(&self, chain_head: BlockHeader) -> Option<u64> {
+        let timelines = self.db.protocol_timelines()?;
+
+        let election_ts = timelines.era_end_ts(chain_head.timestamp) - timelines.election;
+
+        (chain_head.timestamp.saturating_sub(election_ts)
+            > alloy::eips::merge::SLOT_DURATION_SECS * 64)
+            .then_some(election_ts)
     }
 }

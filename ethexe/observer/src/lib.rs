@@ -23,22 +23,20 @@ use alloy::{
     providers::{Provider, ProviderBuilder, RootProvider},
     pubsub::{Subscription, SubscriptionStream},
     rpc::types::eth::Header,
-    transports::{RpcError, TransportErrorKind},
+    transports::TransportResult,
 };
 use anyhow::{Context as _, Result, anyhow};
 use ethexe_common::{
-    Address, BlockHeader, SimpleBlockData,
-    db::{BlockMetaStorageRead, OnChainStorageRead},
+    Address, BlockHeader, ProtocolTimelines, SimpleBlockData, db::BlockMetaStorageRO,
 };
 use ethexe_db::Database;
 use ethexe_ethereum::router::RouterQuery;
 use futures::{FutureExt, Stream, StreamExt, future::BoxFuture, stream::FusedStream};
 use gprimitives::H256;
-use nonempty::NonEmpty;
 use std::{
     collections::VecDeque,
     pin::Pin,
-    task::{Context, Poll},
+    task::{Context, Poll, ready},
     time::Duration,
 };
 use sync::ChainSync;
@@ -49,8 +47,7 @@ pub mod utils;
 #[cfg(test)]
 mod tests;
 
-type HeadersSubscriptionFuture =
-    BoxFuture<'static, std::result::Result<Subscription<Header>, RpcError<TransportErrorKind>>>;
+type HeadersSubscriptionFuture = BoxFuture<'static, TransportResult<Subscription<Header>>>;
 
 #[derive(Clone, Debug)]
 pub struct EthereumConfig {
@@ -69,12 +66,9 @@ pub enum ObserverEvent {
 #[derive(Clone, Debug)]
 struct RuntimeConfig {
     router_address: Address,
-    wvara_address: Address,
+    middleware_address: Address,
     max_sync_depth: u32,
     batched_sync_depth: u32,
-    block_time: Duration,
-    genesis_timestamp: u64,
-    era_duration: u64,
     genesis_block_hash: H256,
 }
 
@@ -96,15 +90,17 @@ impl Stream for ObserverService {
     type Item = Result<ObserverEvent>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        // If subscription stream finished working, a new subscription is requested to be created.
+        // The subscription creation request is a future itself, and it is polled here. If it's ready,
+        // a new stream from it is created and used further to poll the next header.
         if let Some(future) = self.subscription_future.as_mut() {
-            match future.poll_unpin(cx) {
-                Poll::Ready(Ok(subscription)) => self.headers_stream = subscription.into_stream(),
-                Poll::Ready(Err(e)) => {
-                    return Poll::Ready(Some(Err(anyhow!(
+            match ready!(future.as_mut().poll(cx)) {
+                Ok(subscription) => self.headers_stream = subscription.into_stream(),
+                Err(e) => {
+                    return Poll::Ready(Some(Err(anyhow::anyhow!(
                         "failed to create new headers stream: {e}"
                     ))));
                 }
-                Poll::Pending => return Poll::Pending,
             }
         }
 
@@ -114,8 +110,8 @@ impl Stream for ObserverService {
 
                 // TODO #4568: test creating a new subscription in case when Receiver becomes invalid
                 let provider = self.provider().clone();
-                self.subscription_future =
-                    Some(Box::pin(async move { provider.subscribe_blocks().await }));
+                let _fut = provider.get_block_by_number(alloy::eips::BlockNumberOrTag::Earliest);
+                self.subscription_future = Some(provider.subscribe_blocks().into_future());
 
                 cx.waker().wake_by_ref();
                 return Poll::Pending;
@@ -166,25 +162,19 @@ impl ObserverService {
         let EthereumConfig {
             rpc,
             router_address,
-            block_time,
             ..
         } = eth_cfg;
 
         let router_query = RouterQuery::new(rpc, *router_address).await?;
-
-        let wvara_address = Address(router_query.wvara_address().await?.0.0);
+        let middleware_address = router_query.middleware_address().await?.into();
 
         let provider = ProviderBuilder::default()
             .connect(rpc)
             .await
             .context("failed to create ethereum provider")?;
 
-        let genesis_block_hash = router_query.genesis_block_hash().await?;
-        let genesis_header =
-            Self::pre_process_genesis_for_db(genesis_block_hash, &db, &provider, &router_query)
-                .await?;
-
-        let timelines = router_query.timelines().await?;
+        let genesis_block_hash =
+            Self::pre_process_genesis_for_db(&db, &provider, &router_query).await?;
 
         let headers_stream = provider
             .subscribe_blocks()
@@ -194,13 +184,10 @@ impl ObserverService {
 
         let config = RuntimeConfig {
             router_address: *router_address,
-            wvara_address,
+            middleware_address,
             max_sync_depth,
             // TODO #4562: make this configurable. Important: must be greater than 1.
             batched_sync_depth: 2,
-            block_time: *block_time,
-            genesis_timestamp: genesis_header.timestamp,
-            era_duration: timelines.era,
             genesis_block_hash,
         };
 
@@ -218,19 +205,32 @@ impl ObserverService {
         })
     }
 
-    // TODO #4563: this is a temporary solution.
-    // Choose a better place for this, out of ObserverService.
+    // TODO #4563: this is a temporary solution
     /// If genesis block is not yet fully setup in the database, we need to do it
+    /// Populates database with genesis block data.
+    ///
+    /// Basically, requests data for the block, which is considered to be a genesis block
+    /// inside the `Router` contract on Ethereum. The data is processed the following way:
+    /// - header is stored in the database
+    /// - events are set as empty
+    /// - block is set as synced
+    /// - block is set as computed
+    /// - block is set as latest synced block (it's height)
+    /// - block is set as latest computed block
+    /// - previous non-empty block for the genesis one is set to blake2b256(0)
+    /// - all the runtime storages related to the block (message queue, tasks schedule, codes queue) also programs states,
+    ///   and processing outcome (state transitions) are set to default (empty) values.
+    ///
+    /// If genesis block was computed earlier, this function returns immediately.
     async fn pre_process_genesis_for_db(
-        genesis_block_hash: H256,
         db: &Database,
         provider: &RootProvider,
         router_query: &RouterQuery,
-    ) -> Result<BlockHeader> {
+    ) -> Result<H256> {
+        let genesis_block_hash = router_query.genesis_block_hash().await?;
+
         if db.block_meta(genesis_block_hash).prepared {
-            return db
-                .block_header(genesis_block_hash)
-                .ok_or(anyhow!("block header not found for {genesis_block_hash:?}"));
+            return Ok(genesis_block_hash);
         }
 
         let genesis_block = provider
@@ -246,9 +246,13 @@ impl ObserverService {
             parent_hash: H256(genesis_block.header.parent_hash.0),
         };
 
-        let genesis_validators =
-            NonEmpty::from_vec(router_query.validators_at(genesis_block_hash).await?)
-                .ok_or(anyhow!("genesis validator set is empty"))?;
+        let router_timelines = router_query.timelines().await?;
+        let timelines = ProtocolTimelines {
+            genesis_ts: genesis_header.timestamp,
+            era: router_timelines.era,
+            election: router_timelines.election,
+        };
+        let genesis_validators = router_query.validators_at(genesis_block_hash).await?;
 
         ethexe_common::setup_genesis_in_db(
             db,
@@ -257,9 +261,10 @@ impl ObserverService {
                 header: genesis_header,
             },
             genesis_validators,
+            timelines,
         );
 
-        Ok(genesis_header)
+        Ok(genesis_block_hash)
     }
 
     pub fn provider(&self) -> &RootProvider {
@@ -270,24 +275,12 @@ impl ObserverService {
         self.last_block_number
     }
 
-    pub fn block_time_secs(&self) -> u64 {
-        self.config.block_time.as_secs()
-    }
-
     pub fn block_loader(&self) -> EthereumBlockLoader {
         EthereumBlockLoader::new(
             self.provider.clone(),
             self.config.router_address,
             self.config.wvara_address,
         )
-    }
-
-    pub fn genesis_timestamp_secs(&self) -> u64 {
-        self.config.genesis_timestamp
-    }
-
-    pub fn era_duration_secs(&self) -> u64 {
-        self.config.era_duration
     }
 
     pub fn genesis_block_hash(&self) -> H256 {

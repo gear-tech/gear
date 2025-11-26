@@ -24,6 +24,8 @@ use alloc::{vec, vec::Vec};
 
 use derive_more::{AsMut, AsRef, Debug, Deref, DerefMut, Display, Error, Into, IntoIterator};
 use gprimitives::utils::ByteSliceFormatter;
+use scale_decode::DecodeAsType;
+use scale_encode::EncodeAsType;
 use scale_info::{
     TypeInfo,
     scale::{Decode, Encode},
@@ -38,7 +40,9 @@ use scale_info::{
     PartialOrd,
     Ord,
     Decode,
+    DecodeAsType,
     Encode,
+    EncodeAsType,
     Hash,
     TypeInfo,
     AsRef,
@@ -222,7 +226,7 @@ impl LimitedVecError {
 #[cfg(test)]
 mod test {
     use super::LimitedVec;
-    use alloc::{format, string::String, vec, vec::Vec};
+    use alloc::{string::String, vec, vec::Vec};
     use core::convert::TryFrom;
 
     const N: usize = 1000;

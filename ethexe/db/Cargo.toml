@@ -14,10 +14,9 @@ gear-core = { workspace = true, features = ["std"] }
 gprimitives = { workspace = true, features = ["std"] }
 
 anyhow.workspace = true
-dashmap = "5.5.3"
+dashmap.workspace = true
 parity-scale-codec.workspace = true
-log = { workspace = true, features = ["std"] }
-nonempty.workspace = true
+tracing.workspace = true
 paste.workspace = true
 derive_more.workspace = true
 auto_impl.workspace = true

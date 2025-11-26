@@ -1,8 +1,8 @@
 use crate::{
     TransitionController,
     state::{
-        Dispatch, DispatchStash, Expiring, MAILBOX_VALIDITY, MailboxMessage, PayloadLookup,
-        ProgramState, Storage, UserMailbox, Waitlist,
+        Dispatch, DispatchStash, Expiring, MAILBOX_VALIDITY, MailboxMessage, ModifiableStorage,
+        PayloadLookup, ProgramState, QueriableStorage, Storage, UserMailbox, Waitlist,
     },
 };
 use alloc::collections::{BTreeMap, BTreeSet};
@@ -25,9 +25,14 @@ impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
         self.controller
             .update_state(program_id, |state, storage, transitions| {
                 let Expiring {
-                    value: MailboxMessage { value, origin, .. },
+                    value:
+                        MailboxMessage {
+                            value,
+                            message_type: origin,
+                            ..
+                        },
                     ..
-                } = state.mailbox_hash.modify_mailbox(storage, |mailbox| {
+                } = storage.modify(&mut state.mailbox_hash, |mailbox| {
                     mailbox
                         .remove_and_store_user_mailbox(storage, user_id, message_id)
                         .expect("failed to find message in mailbox")
@@ -51,9 +56,8 @@ impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
                     false,
                 );
 
-                state
-                    .canonical_queue
-                    .modify_queue(storage, |queue| queue.queue(reply));
+                let queue = state.queue_from_msg_type(origin);
+                queue.modify_queue(storage, |queue| queue.queue(reply));
             });
 
         0
@@ -62,11 +66,12 @@ impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
     fn send_dispatch(&mut self, (program_id, message_id): (ActorId, MessageId)) -> u64 {
         self.controller
             .update_state(program_id, |state, storage, _| {
-                state.canonical_queue.modify_queue(storage, |queue| {
-                    let dispatch = state
-                        .stash_hash
-                        .modify_stash(storage, |stash| stash.remove_to_program(&message_id));
+                let dispatch = storage.modify(&mut state.stash_hash, |stash| {
+                    stash.remove_to_program(&message_id)
+                });
 
+                let queue = state.queue_from_msg_type(dispatch.message_type);
+                queue.modify_queue(storage, |queue| {
                     queue.queue(dispatch);
                 });
             });
@@ -77,16 +82,16 @@ impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
     fn send_user_message(&mut self, stashed_message_id: MessageId, program_id: ActorId) -> u64 {
         self.controller
             .update_state(program_id, |state, storage, transitions| {
-                let (dispatch, user_id) = state
-                    .stash_hash
-                    .modify_stash(storage, |stash| stash.remove_to_user(&stashed_message_id));
+                let (dispatch, user_id) = storage.modify(&mut state.stash_hash, |stash| {
+                    stash.remove_to_user(&stashed_message_id)
+                });
 
                 let expiry = transitions.schedule_task(
                     MAILBOX_VALIDITY.try_into().expect("infallible"),
                     ScheduledTask::RemoveFromMailbox((program_id, user_id), stashed_message_id),
                 );
 
-                state.mailbox_hash.modify_mailbox(storage, |mailbox| {
+                storage.modify(&mut state.mailbox_hash, |mailbox| {
                     mailbox.add_and_store_user_mailbox(
                         storage,
                         user_id,
@@ -114,13 +119,14 @@ impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
             .update_state(program_id, |state, storage, _| {
                 let Expiring {
                     value: dispatch, ..
-                } = state.waitlist_hash.modify_waitlist(storage, |waitlist| {
+                } = storage.modify(&mut state.waitlist_hash, |waitlist| {
                     waitlist
                         .wake(&message_id)
                         .expect("failed to find message in waitlist")
                 });
 
-                state.canonical_queue.modify_queue(storage, |queue| {
+                let queue = state.queue_from_msg_type(dispatch.message_type);
+                queue.modify_queue(storage, |queue| {
                     queue.queue(dispatch);
                 })
             });
@@ -185,19 +191,19 @@ impl Restorer {
                 ..
             } = program_state;
 
-            if let Ok(waitlist) = waitlist_hash.query(storage) {
+            if let Ok(waitlist) = storage.query(&waitlist_hash) {
                 for &program_id in &program_ids {
                     restorer.waitlist(program_id, &waitlist);
                 }
             }
 
-            if let Ok(stash) = stash_hash.query(storage) {
+            if let Ok(stash) = storage.query(&stash_hash) {
                 for &program_id in &program_ids {
                     restorer.stash(program_id, &stash);
                 }
             }
 
-            if let Ok(mailbox) = mailbox_hash.query(storage) {
+            if let Ok(mailbox) = storage.query(&mailbox_hash) {
                 for (&user_id, &user_mailbox) in mailbox.as_ref() {
                     let user_mailbox = storage
                         .user_mailbox(user_mailbox)
@@ -293,7 +299,7 @@ impl Restorer {
 mod tests {
     use super::*;
     use crate::state::{Mailbox, MemStorage};
-    use ethexe_common::gear::Origin;
+    use ethexe_common::gear::MessageType;
     use gear_core::buffer::Payload;
     use std::collections::{BTreeMap, BTreeSet};
 
@@ -307,7 +313,7 @@ mod tests {
             PayloadLookup::Direct(Payload::repeat(0xfe)),
             0xffffff,
             SuccessReplyReason::Auto,
-            Origin::Ethereum,
+            MessageType::Canonical,
             false,
         );
 
@@ -339,7 +345,7 @@ mod tests {
         let message = MailboxMessage::new(
             PayloadLookup::Direct(Payload::repeat(0xfe)),
             0xffffff,
-            Origin::Ethereum,
+            MessageType::Canonical,
         );
 
         let mut mailbox = Mailbox::default();
@@ -381,7 +387,7 @@ mod tests {
             PayloadLookup::Direct(Payload::repeat(0xfe)),
             0xffffff,
             SuccessReplyReason::Auto,
-            Origin::Ethereum,
+            MessageType::Canonical,
             false,
         );
 
@@ -392,7 +398,7 @@ mod tests {
             PayloadLookup::Direct(Payload::repeat(0xaa)),
             0xbbbbbb,
             SuccessReplyReason::Auto,
-            Origin::Ethereum,
+            MessageType::Canonical,
             false,
         );
 

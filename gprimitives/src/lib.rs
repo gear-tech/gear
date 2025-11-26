@@ -45,12 +45,18 @@ use core::{
 use derive_more::{AsMut, AsRef, From, Into};
 use gear_ss58::RawSs58Address;
 #[cfg(feature = "codec")]
+use scale_decode::DecodeAsType;
+#[cfg(feature = "codec")]
+use scale_encode::EncodeAsType;
+#[cfg(feature = "codec")]
 use scale_info::{
     TypeInfo,
     scale::{self, Decode, Encode, MaxEncodedLen},
 };
+#[cfg(all(feature = "serde", not(feature = "ethexe")))]
+use serde::de;
 #[cfg(feature = "serde")]
-use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 /// The error type returned when conversion fails.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
@@ -77,7 +83,7 @@ pub enum ConversionError {
 /// message sending.
 #[repr(transparent)]
 #[derive(Clone, Copy, Debug, PartialEq, Eq, From, Into, Zeroable, Pod)]
-#[cfg_attr(feature = "codec", derive(TypeInfo, Encode, Decode, MaxEncodedLen), codec(crate = scale))]
+#[cfg_attr(feature = "codec", derive(TypeInfo, Encode, EncodeAsType, Decode, DecodeAsType, MaxEncodedLen), codec(crate = scale))]
 pub struct MessageHandle(u32);
 
 /// Program (actor) identifier.
@@ -108,7 +114,7 @@ pub struct MessageHandle(u32);
 )]
 #[as_ref(forward)]
 #[as_mut(forward)]
-#[cfg_attr(feature = "codec", derive(TypeInfo, Encode, Decode, MaxEncodedLen), codec(crate = scale))]
+#[cfg_attr(feature = "codec", derive(TypeInfo, Encode, EncodeAsType, Decode, DecodeAsType, MaxEncodedLen), codec(crate = scale))]
 pub struct ActorId([u8; 32]);
 
 macros::impl_primitive!(new zero into_bytes from_h256 into_h256 try_from_slice debug, ActorId);
@@ -166,6 +172,7 @@ impl TryInto<H160> for ActorId {
     }
 }
 
+// TODO kuzmindev: implement Display for ActorId as Ethereum address when `ethexe` feature enabled.
 impl fmt::Display for ActorId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let byte_array = utils::ByteSliceFormatter::Array(&self.0);
@@ -273,7 +280,7 @@ impl Serialize for ActorId {
     }
 }
 
-#[cfg(feature = "serde")]
+#[cfg(all(feature = "serde", not(feature = "ethexe")))]
 impl<'de> Deserialize<'de> for ActorId {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -303,6 +310,31 @@ impl<'de> Deserialize<'de> for ActorId {
     }
 }
 
+#[cfg(all(feature = "serde", feature = "ethexe"))]
+impl<'de> Deserialize<'de> for ActorId {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let str = String::deserialize(deserializer)?;
+        let hex_str = str.strip_prefix("0x").unwrap_or(&str);
+        let bytes = hex::decode(hex_str)
+            .map_err(|e| serde::de::Error::custom(format!("Invalid hex: {}", e)))?;
+
+        if bytes.len() != 20 {
+            return Err(serde::de::Error::custom(format!(
+                "Expected 20 bytes, got {}",
+                bytes.len()
+            )));
+        }
+
+        let mut actor_id = [0u8; 32];
+        actor_id[12..].copy_from_slice(&bytes);
+
+        Ok(ActorId(actor_id))
+    }
+}
+
 /// Message identifier.
 ///
 /// Gear allows users and program interactions via messages. Each message has
@@ -329,7 +361,7 @@ impl<'de> Deserialize<'de> for ActorId {
 )]
 #[as_ref(forward)]
 #[as_mut(forward)]
-#[cfg_attr(feature = "codec", derive(TypeInfo, Encode, Decode, MaxEncodedLen), codec(crate = scale))]
+#[cfg_attr(feature = "codec", derive(TypeInfo, Encode, EncodeAsType, Decode, DecodeAsType, MaxEncodedLen), codec(crate = scale))]
 pub struct MessageId([u8; 32]);
 
 macros::impl_primitive!(new zero into_bytes from_u64 from_h256 into_h256 from_str display debug serde, MessageId);
@@ -361,7 +393,7 @@ macros::impl_primitive!(new zero into_bytes from_u64 from_h256 into_h256 from_st
 )]
 #[as_ref(forward)]
 #[as_mut(forward)]
-#[cfg_attr(feature = "codec", derive(TypeInfo, Encode, Decode, MaxEncodedLen), codec(crate = scale))]
+#[cfg_attr(feature = "codec", derive(TypeInfo, Encode, EncodeAsType, Decode, DecodeAsType, MaxEncodedLen), codec(crate = scale))]
 pub struct CodeId([u8; 32]);
 
 macros::impl_primitive!(new zero into_bytes from_u64 from_h256 into_h256 from_str try_from_slice display debug serde, CodeId);
@@ -389,7 +421,7 @@ macros::impl_primitive!(new zero into_bytes from_u64 from_h256 into_h256 from_st
 )]
 #[as_ref(forward)]
 #[as_mut(forward)]
-#[cfg_attr(feature = "codec", derive(TypeInfo, Encode, Decode, MaxEncodedLen), codec(crate = scale))]
+#[cfg_attr(feature = "codec", derive(TypeInfo, Encode, EncodeAsType, Decode, DecodeAsType, MaxEncodedLen), codec(crate = scale))]
 pub struct ReservationId([u8; 32]);
 
 macros::impl_primitive!(new zero into_bytes from_u64 from_h256 into_h256 from_str display debug serde, ReservationId);

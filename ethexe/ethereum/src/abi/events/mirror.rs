@@ -58,6 +58,12 @@ impl From<IMirror::ValueClaimingRequested> for MirrorEvent {
     }
 }
 
+impl From<IMirror::OwnedBalanceTopUpRequested> for MirrorEvent {
+    fn from(value: IMirror::OwnedBalanceTopUpRequested) -> Self {
+        Self::OwnedBalanceTopUpRequested { value: value.value }
+    }
+}
+
 impl From<IMirror::ExecutableBalanceTopUpRequested> for MirrorEvent {
     fn from(value: IMirror::ExecutableBalanceTopUpRequested) -> Self {
         Self::ExecutableBalanceTopUpRequested { value: value.value }

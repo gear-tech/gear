@@ -19,10 +19,11 @@
 use super::interface::database_ri;
 use alloc::vec::Vec;
 use core_processor::configs::BlockInfo;
+use ethexe_common::HashOf;
 use ethexe_runtime_common::{
     RuntimeInterface,
     state::{
-        Allocations, DispatchStash, HashOf, Mailbox, MemoryPages, MemoryPagesRegion, MessageQueue,
+        Allocations, DispatchStash, Mailbox, MemoryPages, MemoryPagesRegion, MessageQueue,
         ProgramState, Storage, UserMailbox, Waitlist,
     },
 };
@@ -51,7 +52,7 @@ impl Storage for RuntimeInterfaceStorage {
     }
 
     fn message_queue(&self, hash: HashOf<MessageQueue>) -> Option<MessageQueue> {
-        database_ri::read_unwrapping(&hash.hash())
+        database_ri::read_unwrapping(&hash.inner())
     }
 
     fn write_message_queue(&self, queue: MessageQueue) -> HashOf<MessageQueue> {
@@ -59,7 +60,7 @@ impl Storage for RuntimeInterfaceStorage {
     }
 
     fn waitlist(&self, hash: HashOf<Waitlist>) -> Option<Waitlist> {
-        database_ri::read_unwrapping(&hash.hash())
+        database_ri::read_unwrapping(&hash.inner())
     }
 
     fn write_waitlist(&self, waitlist: Waitlist) -> HashOf<Waitlist> {
@@ -67,7 +68,7 @@ impl Storage for RuntimeInterfaceStorage {
     }
 
     fn dispatch_stash(&self, hash: HashOf<DispatchStash>) -> Option<DispatchStash> {
-        database_ri::read_unwrapping(&hash.hash())
+        database_ri::read_unwrapping(&hash.inner())
     }
 
     fn write_dispatch_stash(&self, stash: DispatchStash) -> HashOf<DispatchStash> {
@@ -75,7 +76,7 @@ impl Storage for RuntimeInterfaceStorage {
     }
 
     fn mailbox(&self, hash: HashOf<Mailbox>) -> Option<Mailbox> {
-        database_ri::read_unwrapping(&hash.hash())
+        database_ri::read_unwrapping(&hash.inner())
     }
 
     fn write_mailbox(&self, mailbox: Mailbox) -> HashOf<Mailbox> {
@@ -83,7 +84,7 @@ impl Storage for RuntimeInterfaceStorage {
     }
 
     fn user_mailbox(&self, hash: HashOf<UserMailbox>) -> Option<UserMailbox> {
-        database_ri::read_unwrapping(&hash.hash())
+        database_ri::read_unwrapping(&hash.inner())
     }
 
     fn write_user_mailbox(&self, user_mailbox: UserMailbox) -> HashOf<UserMailbox> {
@@ -91,11 +92,11 @@ impl Storage for RuntimeInterfaceStorage {
     }
 
     fn memory_pages(&self, hash: HashOf<MemoryPages>) -> Option<MemoryPages> {
-        database_ri::read_unwrapping(&hash.hash())
+        database_ri::read_unwrapping(&hash.inner())
     }
 
     fn memory_pages_region(&self, hash: HashOf<MemoryPagesRegion>) -> Option<MemoryPagesRegion> {
-        database_ri::read_unwrapping(&hash.hash())
+        database_ri::read_unwrapping(&hash.inner())
     }
 
     fn write_memory_pages(&self, pages: MemoryPages) -> HashOf<MemoryPages> {
@@ -110,7 +111,7 @@ impl Storage for RuntimeInterfaceStorage {
     }
 
     fn allocations(&self, hash: HashOf<Allocations>) -> Option<Allocations> {
-        database_ri::read_unwrapping(&hash.hash())
+        database_ri::read_unwrapping(&hash.inner())
     }
 
     fn write_allocations(&self, allocations: Allocations) -> HashOf<Allocations> {
@@ -119,7 +120,7 @@ impl Storage for RuntimeInterfaceStorage {
 
     fn payload(&self, hash: HashOf<Payload>) -> Option<Payload> {
         // TODO: review this.
-        database_ri::read_raw(&hash.hash()).map(|slice| slice.to_vec().try_into().unwrap())
+        database_ri::read_raw(&hash.inner()).map(|slice| slice.to_vec().try_into().unwrap())
     }
 
     fn write_payload(&self, payload: Payload) -> HashOf<Payload> {
@@ -127,7 +128,7 @@ impl Storage for RuntimeInterfaceStorage {
     }
 
     fn page_data(&self, hash: HashOf<PageBuf>) -> Option<PageBuf> {
-        database_ri::read_unwrapping(&hash.hash())
+        database_ri::read_unwrapping(&hash.inner())
     }
 
     fn write_page_data(&self, data: PageBuf) -> HashOf<PageBuf> {

@@ -74,6 +74,7 @@ pub const STACKED_DEPENDENCIES: &[&str] = &[
     "gstd-codegen",
     "gcore",
     "gear-core",
+    "builtins-common",
     "gear-utils",
     "gear-common",
     "gear-wasmer-cache",

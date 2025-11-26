@@ -38,6 +38,7 @@ jobs:
       profiles: ${{ steps.profiles.outputs.value }}
       targets: ${{ steps.targets.outputs.targets }}
       unix-targets: ${{ steps.targets.outputs.unix-targets }}
+      ethexe-targets: ${{ steps.targets.outputs.ethexe-targets }}
     steps:
       - id: profiles
         run: |
@@ -56,8 +57,15 @@ jobs:
               "runs-on": ["kuberunner", "github-runner-02"]
             }
           ]')
+          ethexe_targets=$(jq -c -n '[
+            {
+              name: "linux-x86_64",
+              target: "x86_64-unknown-linux-gnu",
+              "runs-on": "ubuntu-latest"
+            }
+          ]')
           unix_targets="[]"
-          
+
           if ${{ inputs.macos }}; then
             macos='[
               {
@@ -72,9 +80,10 @@ jobs:
               }
             ]'
             targets=$(echo "$targets" | jq -c ". += $macos")
+            ethexe_targets=$(echo "$ethexe_targets" | jq -c ". += $macos")
             unix_targets=$(echo "$unix_targets" | jq -c ". += $macos")
           fi
-          
+
           if ${{ inputs.linux-aarch64 }}; then
             linux_aarch64='[
               {
@@ -84,9 +93,10 @@ jobs:
               }
             ]'
             targets=$(echo "$targets" | jq -c ". += $linux_aarch64")
+            ethexe_targets=$(echo "$ethexe_targets" | jq -c ". += $linux_aarch64")
             unix_targets=$(echo "$unix_targets" | jq -c ". += $linux_aarch64")
           fi
-          
+
           if ${{ inputs.windows }}; then
             targets=$(echo "$targets" | jq -c '. += [
               {
@@ -95,22 +105,32 @@ jobs:
                 "runs-on": ["kuberunner", "github-runner-02"]
               }
             ]')
+            ethexe_targets=$(echo "$ethexe_targets" | jq -c '. += [
+              {
+                name: "windows-x86_64",
+                target: "x86_64-pc-windows-msvc",
+                "runs-on": "ubuntu-24.04-arm"
+              }
+            ]')
           fi
-          
+
           echo "Targets: ${targets}"
           echo "targets=${targets}" >> $GITHUB_OUTPUT
-          
+
+          echo "ethexe targets: ${ethexe_targets}"
+          echo "ethexe-targets=${ethexe_targets}" >> $GITHUB_OUTPUT
+
           echo "*NIX targets: ${unix_targets}"
           echo "unix-targets=${unix_targets}" >> $GITHUB_OUTPUT
 
-  node:
+  gear-cli:
     needs: dynamic-matrix
     strategy:
       fail-fast: false
       matrix:
         targets: ${{ fromJSON(needs.dynamic-matrix.outputs.targets) }}
     runs-on: ${{ matrix.targets.runs-on }}
-    name: node (${{ matrix.targets.name }})
+    name: gear-cli (${{ matrix.targets.name }})
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
@@ -135,7 +155,7 @@ jobs:
           eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
           eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
 
-      - name: "Build: Node"
+      - name: "Build: Gear node"
         run: ./scripts/gear.sh build node --release --locked
 
       - name: "Build: Prepare artifact"
@@ -147,15 +167,63 @@ jobs:
       - name: "ACTIONS: Upload node and VARA runtime"
         uses: actions/upload-artifact@v4
         with:
-          name: node-and-runtime-release-${{ matrix.targets.target }}
+          name: gear-cli-and-runtime-release-${{ matrix.targets.target }}
           path: artifact
 
+  ethexe-cli:
+    needs: dynamic-matrix
+    strategy:
+      fail-fast: false
+      matrix:
+        targets: ${{ fromJSON(needs.dynamic-matrix.outputs.ethexe-targets) }}
+    runs-on: ${{ matrix.targets.runs-on }}
+    name: ethexe-cli (${{ matrix.targets.name }})
+    steps:
+      - name: "ACTIONS: Checkout"
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: "Install: Setup linker"
+        uses: ./.github/actions/setup-linker
+
+      - name: "Install: Rust toolchain"
+        uses: ./.github/actions/install-rust
+
+      - name: "Install: Compilation environment"
+        uses: ./.github/actions/setup-compilation-env
+        with:
+          target: ${{ matrix.targets.target }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: "ACTIONS: Setup caching"
+        uses: ./.github/actions/rust-cache
+        with:
+          us-access-key-id: "${{ secrets.GEAR_CI_S3_US_ACCESS_KEY_ID }}"
+          us-secret-access-key: "${{ secrets.GEAR_CI_S3_US_SECRET_ACCESS_KEY }}"
+          eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
+          eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
+
+      - name: "Build: ethexe node"
+        run: ./scripts/gear.sh build ethexe --release --locked
+
+      - name: "ACTIONS: Upload ethexe node"
+        uses: actions/upload-artifact@v4
+        with:
+          name: ethexe-cli-release-${{ matrix.targets.target }}
+          path: target/${{ matrix.targets.target }}/release/ethexe*
+
   docs:
-    needs: node
+    needs: gear-cli
     runs-on: ubuntu-latest
     permissions:
       contents: write
     steps:
+      - name: Free disk space
+        uses: jlumbroso/free-disk-space@main
+        with:
+          large-packages: false
+
       - name: Checkout
         uses: actions/checkout@v4
         with:
@@ -195,8 +263,8 @@ jobs:
       #     SKIP_WASM_BUILD: 1
 
   workspace:
-    needs: [ dynamic-matrix, node ]
-    runs-on: [ kuberunner, github-runner-02 ]
+    needs: [dynamic-matrix, gear-cli]
+    runs-on: [kuberunner, github-runner-02]
     strategy:
       matrix:
         profiles: ${{ fromJSON(needs.dynamic-matrix.outputs.profiles) }}
@@ -226,7 +294,7 @@ jobs:
       - name: "Install: Foundry"
         uses: foundry-rs/foundry-toolchain@v1
         with:
-          version: v1.3.6
+          version: v1.5.0-rc1
 
       - name: "Show: Versioning"
         run: |
@@ -248,8 +316,8 @@ jobs:
       - name: "ACTIONS: Download node and runtime"
         uses: actions/download-artifact@v4
         with:
-          name: node-and-runtime-release-x86_64-unknown-linux-gnu
-          path: node-and-runtime-release
+          name: gear-cli-and-runtime-release-x86_64-unknown-linux-gnu
+          path: gear-cli-and-runtime-release
 
       - name: "Test: Workspace"
         run: cargo nextest run --workspace --all-targets --all-features -E 'not package(/fuzz/)' ${{ matrix.profiles.flags }}
@@ -257,7 +325,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
   crates-io:
-    runs-on: [ kuberunner, github-runner-02 ]
+    runs-on: [kuberunner, github-runner-02]
     needs: workspace
     steps:
       - name: "ACTIONS: Checkout"
@@ -286,7 +354,7 @@ jobs:
   # unoptimized benchmark tests take a few hours to run,
   # so we only run in release
   benchmarks:
-    runs-on: [ kuberunner, github-runner-02 ]
+    runs-on: [kuberunner, github-runner-02]
     needs: workspace
     name: benchmarks
     steps:
@@ -336,7 +404,7 @@ jobs:
           --pallet=pallet_gear --extrinsic="check_all" --extra
 
   try-runtime:
-    needs: [ dynamic-matrix, node ]
+    needs: [dynamic-matrix, gear-cli]
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -344,6 +412,11 @@ jobs:
       fail-fast: false
     name: try-runtime (${{ matrix.profiles.name }})
     steps:
+      - name: "ACTIONS: Free disk space"
+        uses: jlumbroso/free-disk-space@main
+        with:
+          large-packages: false
+
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
 
@@ -391,7 +464,7 @@ jobs:
           snap -p vara_ci.snap
 
   fuzzer:
-    runs-on: [ kuberunner, github-runner-01 ]
+    runs-on: [kuberunner, github-runner-01]
     needs: workspace
     env:
       RUSTFLAGS: "--cfg fuzz"
@@ -458,12 +531,14 @@ jobs:
         run: cat lazy_pages_fuzz_run
 
   production:
-    runs-on: [ kuberunner, github-runner-02 ]
-    needs: workspace
-    if: ${{ inputs.production }}
+    runs-on: [kuberunner, github-runner-02]
+    needs: [dynamic-matrix, workspace]
+    if: ${{ inputs.production && contains(fromJSON(needs.dynamic-matrix.outputs.profiles).*.name, 'release') }}
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - name: "Install: Setup linker"
         uses: ./.github/actions/setup-linker
@@ -480,6 +555,9 @@ jobs:
       - name: "Build: Production binaries"
         run: cargo build -p wasm-proc -p gear-cli -F cli --profile production
 
+      - name: "Build: Production ethexe"
+        run: cargo build -p ethexe-cli --profile production
+
       - name: Prepare artifacts
         run: |
           mkdir artifact
@@ -495,6 +573,7 @@ jobs:
           # executables
           cp target/production/gear artifact/
           cp target/production/wasm-proc artifact/
+          cp target/production/ethexe artifact/
 
       - name: Upload artifacts
         if: ${{ github.event_name == 'push' }}
@@ -503,7 +582,7 @@ jobs:
           path: artifact
 
   unix:
-    needs: [ dynamic-matrix, workspace ]
+    needs: [dynamic-matrix, workspace]
     uses: ./.github/workflows/build-unix.yml
     secrets: inherit
     with:
@@ -511,7 +590,7 @@ jobs:
       targets: ${{ needs.dynamic-matrix.outputs.unix-targets }}
 
   windows:
-    needs: [ dynamic-matrix, workspace ]
+    needs: [dynamic-matrix, workspace]
     if: ${{ inputs.windows }}
     uses: ./.github/workflows/build-windows.yml
     secrets: inherit

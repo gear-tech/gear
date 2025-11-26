@@ -31,7 +31,7 @@ use alloy::{
 };
 use anyhow::{Context, Result};
 use ethexe_common::{Address, BlockData, BlockHeader, events::BlockEvent};
-use ethexe_ethereum::{mirror, router, wvara};
+use ethexe_ethereum::{mirror, router};
 use futures::future;
 use gprimitives::H256;
 use std::{collections::HashMap, future::IntoFuture, ops::RangeInclusive};
@@ -70,7 +70,7 @@ impl EthereumBlockLoader {
         let topic = Topic::from_iter(
             [
                 router::events::signatures::ALL,
-                wvara::events::signatures::ALL,
+
                 mirror::events::signatures::ALL,
             ]
             .into_iter()

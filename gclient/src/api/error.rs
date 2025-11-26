@@ -17,9 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use anyhow::Error as AError;
-use gsdk::Error as GearSDKError;
+use gsdk::{Error as GearSDKError, ext::subxt::error::Error as SubxtError};
 use std::{io::Error as IOError, result::Result as StdResult};
-use subxt::error::{DispatchError, Error as SubxtError};
 
 /// `Result` type with a predefined error type ([`Error`]).
 pub type Result<T = (), E = Error> = StdResult<T, E>;
@@ -32,19 +31,13 @@ pub enum Error {
     Anyhow(#[from] AError),
     /// A wrapper around [`gsdk::Error`].
     #[error(transparent)]
-    GearSDK(GearSDKError),
+    GearSDK(#[from] GearSDKError),
     /// Occurs when attempting to iterate events without a subscription.
     #[error("An attempt to iter events without subscription")]
     EventsSubscriptionNotFound,
     /// Occurs when events are stopped. Unreachable.
     #[error("Events stopped (unreachable")]
     EventsStopped,
-    /// A wrapper around [`subxt::error::Error`].
-    #[error(transparent)]
-    Subxt(Box<SubxtError>),
-    /// Subxt core error
-    #[error(transparent)]
-    SubxtCore(#[from] Box<subxt::ext::subxt_core::Error>),
     /// Occurs when an event of the expected type cannot be found.
     #[error("Expected event wasn't found")]
     EventNotFound,
@@ -95,62 +88,22 @@ pub enum Error {
     /// Occurs when parsing domain url failed.
     #[error(transparent)]
     Url(#[from] url::ParseError),
-    /// A wrapper of module error [`gsdk::metadata::ModuleError`].
-    ///
-    /// # Example
-    ///
-    /// ```ignore
-    /// use gclient::{errors, Error, EventProcessor, GearApi};
-    ///
-    /// #[tokio::test]
-    /// async fn test_upload_failed() -> anyhow::Result<()> {
-    ///     let api = GearApi::dev_from_path("../target/release/gear").await?;
-    ///
-    ///     let err = api
-    ///         .upload_program(vec![], vec![], b"", u64::MAX, 0)
-    ///         .await
-    ///         .expect_err("Should fail");
-    ///
-    ///     assert!(matches!(
-    ///         err,
-    ///         Error::Module(errors::ModuleError::Gear(errors::Gear::GasLimitTooHigh))
-    ///     ));
-    ///
-    ///     Ok(())
-    /// }
-    /// ```
-    #[error(transparent)]
-    Module(gsdk::metadata::ModuleError),
+}
+
+impl From<gsdk::ext::subxt_core::Error> for Error {
+    fn from(err: gsdk::ext::subxt_core::Error) -> Self {
+        Self::GearSDK(SubxtError::from(err).into())
+    }
 }
 
 impl From<SubxtError> for Error {
-    fn from(e: SubxtError) -> Self {
-        if let SubxtError::Runtime(DispatchError::Module(m)) = e {
-            return Error::Module(m.into());
-        }
-
-        Error::Subxt(Box::new(e))
+    fn from(err: SubxtError) -> Self {
+        Self::GearSDK(err.into())
     }
 }
 
-impl From<GearSDKError> for Error {
-    fn from(e: GearSDKError) -> Self {
-        let e = if let GearSDKError::Subxt(e) = e {
-            if let SubxtError::Runtime(DispatchError::Module(m)) = *e {
-                return Error::Module(m.into());
-            }
-
-            GearSDKError::Subxt(e)
-        } else {
-            e
-        };
-
-        Error::GearSDK(e)
-    }
-}
-
-impl From<subxt::ext::subxt_core::Error> for Error {
-    fn from(value: subxt::ext::subxt_core::Error) -> Self {
-        Self::SubxtCore(Box::new(value))
+impl From<Box<SubxtError>> for Error {
+    fn from(err: Box<SubxtError>) -> Self {
+        Self::GearSDK(err.into())
     }
 }

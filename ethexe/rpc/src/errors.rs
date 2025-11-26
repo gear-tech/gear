@@ -32,6 +32,6 @@ pub fn internal() -> ErrorObject<'static> {
     ErrorObject::owned(8000, "Internal error", None::<&str>)
 }
 
-pub fn tx_pool(err: anyhow::Error) -> ErrorObject<'static> {
-    ErrorObject::owned(8000, "Transaction pool error", Some(format!("{err}")))
+pub fn bad_request(message: String) -> ErrorObject<'static> {
+    ErrorObject::owned(8000, message, None::<&str>)
 }

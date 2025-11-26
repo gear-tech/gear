@@ -28,7 +28,7 @@ use core_processor::{
     common::{ExecutableActorData, JournalNote},
     configs::{BlockConfig, SyscallName},
 };
-use ethexe_common::gear::{CHUNK_PROCESSING_GAS_LIMIT, Origin};
+use ethexe_common::gear::{CHUNK_PROCESSING_GAS_LIMIT, MessageType};
 use gear_core::{
     code::{CodeMetadata, InstrumentedCode, MAX_WASM_PAGES_AMOUNT},
     gas::GasAllowanceCounter,
@@ -45,7 +45,7 @@ pub use core_processor::configs::BlockInfo;
 use gear_core::code::InstrumentedCodeAndMetadata;
 pub use journal::NativeJournalHandler as JournalHandler;
 pub use schedule::{Handler as ScheduleHandler, Restorer as ScheduleRestorer};
-pub use transitions::{InBlockTransitions, NonFinalTransition};
+pub use transitions::{FinalizedBlockTransitions, InBlockTransitions, NonFinalTransition};
 
 pub mod state;
 
@@ -58,7 +58,7 @@ mod transitions;
 pub const VERSION: u32 = 1;
 pub const RUNTIME_ID: u32 = 1;
 
-pub type ProgramJournals = Vec<(Vec<JournalNote>, Origin, bool)>;
+pub type ProgramJournals = Vec<(Vec<JournalNote>, MessageType, bool)>;
 
 pub trait RuntimeInterface<S: Storage> {
     type LazyPages: LazyPagesInterface + 'static;
@@ -70,6 +70,12 @@ pub trait RuntimeInterface<S: Storage> {
     fn update_state_hash(&self, state_hash: &H256);
 }
 
+/// A main low-level interface to perform state changes
+/// for programs.
+///
+/// Has a main method `update_state` which allows to update program state
+/// along with writing the updated state to the storage.
+/// By design updates are stored in-memory inside the [`InBlockTransitions`].
 pub struct TransitionController<'a, S: Storage> {
     pub storage: &'a S,
     pub transitions: &'a mut InBlockTransitions,
@@ -112,6 +118,7 @@ impl<S: Storage> TransitionController<'_, S> {
 pub fn process_queue<S, RI>(
     program_id: ActorId,
     mut program_state: ProgramState,
+    queue_type: MessageType,
     instrumented_code: Option<InstrumentedCode>,
     code_metadata: Option<CodeMetadata>,
     ri: &RI,
@@ -124,15 +131,20 @@ where
 {
     let block_info = ri.block_info();
 
-    log::trace!("Processing queue for program {program_id}");
+    log::trace!("Processing {queue_type:?} queue for program {program_id}");
 
-    if program_state.canonical_queue.hash.is_empty() {
+    let is_queue_empty = match queue_type {
+        MessageType::Canonical => program_state.canonical_queue.hash.is_empty(),
+        MessageType::Injected => program_state.injected_queue.hash.is_empty(),
+    };
+
+    if is_queue_empty {
         // Queue is empty, nothing to process.
         return (Vec::new(), 0);
     }
 
     let queue = program_state
-        .canonical_queue
+        .queue_from_msg_type(queue_type)
         .hash
         .map(|hash| {
             ri.storage()
@@ -189,8 +201,9 @@ where
     ri.init_lazy_pages();
 
     for dispatch in queue {
-        let origin = dispatch.origin;
+        let origin = dispatch.message_type;
         let call_reply = dispatch.call;
+        let is_first_execution = dispatch.context.is_none();
 
         let journal = process_dispatch(
             dispatch,
@@ -206,6 +219,9 @@ where
             storage: ri.storage(),
             program_state: &mut program_state,
             gas_allowance_counter: &mut queue_gas_allowance_counter,
+            gas_multiplier: &block_config.gas_multiplier,
+            message_type: queue_type,
+            is_first_execution,
             stop_processing: false,
         };
         let (unhandled_journal_notes, new_state_hash) = handler.handle_journal(journal);

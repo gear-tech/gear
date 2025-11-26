@@ -17,7 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use gear_node_wrapper::{Node, NodeInstance};
-use gsdk::ext::{sp_core::crypto::Ss58Codec, sp_runtime::AccountId32};
+use sp_core::crypto::Ss58Codec;
+use sp_runtime::AccountId32;
 use std::{env, env::consts::EXE_EXTENSION, path::PathBuf};
 
 pub fn dev_node() -> NodeInstance {
@@ -33,5 +34,6 @@ pub fn dev_node() -> NodeInstance {
 }
 
 pub fn alice_account_id() -> AccountId32 {
-    AccountId32::from_ss58check("5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY").unwrap()
+    sp_runtime::AccountId32::from_ss58check("5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY")
+        .unwrap()
 }

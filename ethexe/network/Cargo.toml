@@ -28,13 +28,14 @@ itertools = { workspace = true, features = ["use_std"]}
 nonempty.workspace = true
 auto_impl.workspace = true
 lru.workspace = true
+thiserror.workspace = true
 
 [dependencies.libp2p]
-version = "0.55.0"
+version = "0.56.0"
 features = ["mdns", "gossipsub", "kad", "identify", "ping", "secp256k1", "request-response", "quic", "tcp", "tls", "tokio", "macros", "plaintext", "yamux"]
 
 [dev-dependencies]
-libp2p-swarm-test = { version = "0.5.0", default-features = false, features = ["tokio"] }
+libp2p-swarm-test = { version = "0.6.0", default-features = false, features = ["tokio"] }
 tokio = { workspace = true, features = ["full", "test-util"] }
 tracing-subscriber.workspace = true
 assert_matches.workspace = true
