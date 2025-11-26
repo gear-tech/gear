@@ -234,7 +234,7 @@ impl BlockMetaStorageRW for Database {
 
 impl CodesStorageRO for Database {
     fn original_code_exists(&self, code_id: CodeId) -> bool {
-        self.kv.contains(code_id.as_ref())
+        self.cas.contains(code_id.into())
     }
 
     fn original_code(&self, code_id: CodeId) -> Option<Vec<u8>> {
