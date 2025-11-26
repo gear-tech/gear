@@ -24,7 +24,7 @@ use ethexe_common::{
     StateHashWithQueueSize,
     db::{
         AnnounceStorageRead, BlockMetaStorageRead, CodesStorageRead, CodesStorageWrite,
-        FullAnnounceData, FullBlockData, HashStorageRead,
+        FullAnnounceData, FullBlockData, HashStorageRead, OnChainStorageWrite,
     },
     events::{BlockEvent, RouterEvent},
     tx_pool::OffchainTransaction,
@@ -605,13 +605,24 @@ async fn instrument_codes(
 }
 
 async fn set_tx_pool_data_requirement(
+    db: &Database,
     block_loader: &impl BlockLoader,
     latest_committed_block_height: u32,
 ) -> Result<()> {
     let to = latest_committed_block_height as u64;
     let from = to - OffchainTransaction::BLOCK_HASHES_WINDOW_SIZE as u64;
 
-    let _blocks = block_loader.load_many(from..=to).await?;
+    // TODO: #4926 unsafe solution - we need it for taking events from predecessor blocks in ethexe-compute
+    let blocks = block_loader.load_many(from..=to).await?;
+    for BlockData {
+        hash,
+        header,
+        events,
+    } in blocks.into_values()
+    {
+        db.set_block_header(hash, header);
+        db.set_block_events(hash, &events);
+    }
 
     Ok(())
 }
@@ -644,7 +655,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
         .expect("latest block always exist");
     let finalized_block = H256(finalized_block.header.hash.0);
 
-    let block_loader = observer.block_loader().lazy(db.clone());
+    let block_loader = observer.block_loader();
 
     let Some(EventData {
         latest_committed_batch,
@@ -681,7 +692,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
 
     let schedule = ScheduleRestorer::from_storage(db, &program_states, header.height)?.restore();
 
-    set_tx_pool_data_requirement(&block_loader, header.height).await?;
+    set_tx_pool_data_requirement(db, &block_loader, header.height).await?;
 
     for (program_id, code_id) in program_code_ids {
         db.set_program_code_id(program_id, code_id);
