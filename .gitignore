@@ -1,9 +1,11 @@
+# misc
+.binpath
+.direnv
 node_modules/
 log/
 weight-dumps/
-.binpath
-*.meta.txt
 gsdk/vara_runtime_prod.scale
+*.meta.txt
 
 # cargo
 target/
@@ -27,14 +29,3 @@ utils/**/fuzz/fuzz/*
 fuzz_run
 lazy_pages_fuzz_run
 seed.bin
-<<<<<<< Updated upstream
-.direnv/
-.ipynb_checkpoints
-.jupyter
-<<<<<<< Updated upstream
-ethexe/contracts/bin/src
-gsdk/vara_runtime_prod.scale
-=======
-=======
->>>>>>> Stashed changes
->>>>>>> Stashed changes
