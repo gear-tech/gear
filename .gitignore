@@ -1,6 +1,5 @@
 # misc
 .binpath
-.direnv
 node_modules/
 log/
 weight-dumps/
@@ -16,10 +15,6 @@ target-xwin/
 # ethexe
 .ethexe.toml
 ethexe/contracts/bin/src
-
-# JypyterNotebook
-.ipynb_checkpoints
-.jupyter
 
 # fuzzer
 utils/**/fuzz/corpus/*
