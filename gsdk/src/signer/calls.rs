@@ -32,14 +32,13 @@ use crate::{
 };
 use gear_core::ids::*;
 use sp_runtime::AccountId32;
-use std::sync::Arc;
 
 /// Implementation of calls to programs/other users for [`Signer`].
 #[derive(Clone)]
-pub struct SignerCalls(pub(crate) Arc<Inner>);
+pub struct SignerCalls<'a>(pub(crate) &'a Inner);
 
 // pallet-balances
-impl SignerCalls {
+impl SignerCalls<'_> {
     /// `pallet_balances::transfer_keep_alive`
     pub async fn transfer_keep_alive(
         &self,
@@ -87,7 +86,7 @@ impl SignerCalls {
 }
 
 // pallet-gear
-impl SignerCalls {
+impl SignerCalls<'_> {
     /// `pallet_gear::create_program`
     pub async fn create_program(
         &self,
@@ -172,7 +171,7 @@ impl SignerCalls {
 }
 
 // pallet-gear-eth-bridge
-impl SignerCalls {
+impl SignerCalls<'_> {
     /// `pallet-gear-eth-bridge::reset_overflowed_queue`
     pub async fn reset_overflowed_queue(
         &self,
@@ -189,7 +188,7 @@ impl SignerCalls {
 }
 
 // pallet-utility
-impl SignerCalls {
+impl SignerCalls<'_> {
     /// `pallet_utility::force_batch`
     pub async fn force_batch(&self, calls: Vec<RuntimeCall>) -> Result<TxInBlock> {
         self.0.run_tx(gear::tx().utility().force_batch(calls)).await
@@ -197,7 +196,7 @@ impl SignerCalls {
 }
 
 // pallet-sudo
-impl SignerCalls {
+impl SignerCalls<'_> {
     /// `pallet_sudo::sudo_unchecked_weight`
     pub async fn sudo_unchecked_weight(&self, call: RuntimeCall, weight: Weight) -> EventsResult {
         self.0
@@ -207,7 +206,7 @@ impl SignerCalls {
 }
 
 // pallet-gear-voucher
-impl SignerCalls {
+impl SignerCalls<'_> {
     /// `pallet_gear_voucher::issue`
     pub async fn issue_voucher(
         &self,

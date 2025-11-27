@@ -2,7 +2,7 @@ experimental = ["setup-scripts"]
 
 [scripts.setup.replace-node-and-runtime]
 command = ["bash", "-c", '''
-rsync -av node-and-runtime-release/ target/release/
+rsync -av gear-cli-and-runtime-release/ target/release/
 chmod +x target/release/gear
 ''']
 
