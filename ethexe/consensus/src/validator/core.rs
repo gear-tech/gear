@@ -477,7 +477,8 @@ impl BatchCommitter for Router {
 mod tests {
     use super::*;
     use crate::{mock::*, validator::mock::*};
-    use ethexe_common::mock::{DBMockExt, Mock};
+    use ethexe_common::mock::*;
+    use gear_core::ids::prelude::CodeIdExt;
 
     fn unwrap_rejected_reason(status: ValidationStatus) -> ValidationRejectReason {
         match status {
@@ -624,6 +625,57 @@ mod tests {
                 expected: wrong_digest,
                 found: original_digest,
             }
+        );
+    }
+
+    #[tokio::test]
+    #[ntest::timeout(3000)]
+    async fn rejects_code_not_processed_yet() {
+        gear_utils::init_default_logger();
+
+        let (ctx, _, _) = mock_validator_context();
+        let code = b"1234";
+        let code_id = CodeId::generate(code);
+        let chain = BlockChain::mock(10)
+            .tap_mut(|chain| {
+                chain.blocks[10]
+                    .as_prepared_mut()
+                    .codes_queue
+                    .push_front(code_id);
+                chain.codes.insert(
+                    code_id,
+                    CodeData {
+                        original_bytes: code.to_vec(),
+                        blob_info: Default::default(),
+                        instrumented: None,
+                    },
+                );
+            })
+            .setup(&ctx.core.db);
+        let block = chain.blocks[10].to_simple();
+        let code_commitments =
+            utils::aggregate_code_commitments(&ctx.core.db, [code_id], true).unwrap();
+        let batch = utils::create_batch_commitment(
+            &ctx.core.db,
+            &block,
+            None,
+            code_commitments,
+            None,
+            None,
+            100,
+        )
+        .unwrap()
+        .unwrap();
+
+        let status = ctx
+            .core
+            .validate_batch_commitment_request(block, BatchCommitmentValidationRequest::new(&batch))
+            .await
+            .unwrap();
+
+        assert_eq!(
+            unwrap_rejected_reason(status),
+            ValidationRejectReason::CodeIsNotProcessedYet(code_id)
         );
     }
 
