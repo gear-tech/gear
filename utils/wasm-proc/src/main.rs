@@ -25,7 +25,7 @@ use gear_wasm_instrument::{Module, TypeRef};
 use std::{collections::HashSet, fs, path::PathBuf};
 use tracing_subscriber::EnvFilter;
 
-const RT_ALLOWED_IMPORTS: [&str; 76] = [
+const RT_ALLOWED_IMPORTS: [&str; 78] = [
     // From `Allocator` (substrate/primitives/io/src/lib.rs)
     "ext_allocator_free_version_1",
     "ext_allocator_malloc_version_1",
