@@ -28,9 +28,7 @@ anyhow.workspace = true
 clap = { workspace = true, features = ["derive"] }
 directories.workspace = true
 tracing-subscriber.workspace = true
-hex.workspace = true
 log.workspace = true
-libp2p-identity = { version = "0.2.12", features = ["secp256k1"] }
 serde.workspace = true
 sp-core = { workspace = true, features = ["std"] }
 static_init.workspace = true

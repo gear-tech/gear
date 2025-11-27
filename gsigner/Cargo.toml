@@ -98,3 +98,7 @@ keyring = ["std", "serde", "dep:nacl"]
 serde = ["dep:serde"]
 ss58-registry = ["dep:ss58-registry"]
 peer-id = ["dep:libp2p-identity"]
+
+[package.metadata.cargo-shear]
+# we need it for applying full_crypto feature
+ignored = ["sp-application-crypto"]
