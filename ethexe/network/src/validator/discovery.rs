@@ -22,7 +22,10 @@
 
 use crate::{
     db_sync::PeerId,
-    kad::{self, GetRecordResult, RecordKey, ValidatorIdentityKey, ValidatorIdentityRecord},
+    kad::{
+        self, GetRecordResult, PutRecordFuture, RecordKey, ValidatorIdentityKey,
+        ValidatorIdentityRecord,
+    },
     utils::ExponentialBackoffInterval,
     validator::list::ValidatorListSnapshot,
 };
@@ -34,7 +37,7 @@ use ethexe_common::{
 };
 use ethexe_signer::Signer;
 use futures::{
-    StreamExt,
+    FutureExt, StreamExt,
     stream::{self, BoxStream},
 };
 use indexmap::IndexSet;
@@ -52,7 +55,7 @@ use parity_scale_codec::{Decode, Encode, Error, Input, Output};
 use std::{
     collections::HashMap,
     sync::Arc,
-    task::{Context, Poll},
+    task::{Context, Poll, ready},
     time::SystemTime,
 };
 
@@ -355,8 +358,86 @@ impl ToDigest for ValidatorIdentity {
 
 #[derive(Debug)]
 pub enum Event {
-    IdentitiesQueryStarted,
+    GetIdentitiesStarted,
     PutIdentityStarted,
+}
+
+struct GetIdentities {
+    snapshot: Arc<ValidatorListSnapshot>,
+    identities: HashMap<Address, SignedValidatorIdentity>,
+    query_identities: Option<BoxStream<'static, GetRecordResult>>,
+    query_identities_interval: ExponentialBackoffInterval,
+}
+
+impl GetIdentities {
+    fn on_new_snapshot(&mut self, snapshot: Arc<ValidatorListSnapshot>) {
+        self.snapshot = snapshot;
+
+        // eliminate identities that are neither in the current set nor in the next set
+        self.identities
+            .retain(|&address, _identity| self.snapshot.contains_any_validator(address));
+    }
+
+    fn identity_keys(&self) -> impl Iterator<Item = ValidatorIdentityKey> {
+        self.snapshot
+            .all_validators()
+            .map(|address| ValidatorIdentityKey { validator: address })
+    }
+
+    fn put_identity(&mut self, record: ValidatorIdentityRecord) -> Result<(), PutIdentityError> {
+        log::trace!("filtering received record: {record:?}");
+
+        let ValidatorIdentityRecord { value: identity } = record;
+
+        if !self.snapshot.contains_any_validator(identity.address()) {
+            return Err(PutIdentityError::UnknownValidatorIdentity {
+                address: identity.address(),
+            });
+        }
+
+        if let Some(old_identity) = self.identities.get(&identity.address())
+            && old_identity.data().creation_time >= identity.inner.creation_time
+        {
+            return Ok(());
+        }
+
+        self.identities.insert(identity.address(), identity);
+
+        Ok(())
+    }
+
+    fn poll(&mut self, cx: &mut Context<'_>, kad: &kad::Handle) -> Poll<()> {
+        if self.query_identities_interval.poll_tick(cx).is_ready() {
+            let streams = self
+                .identity_keys()
+                .map(|identity| {
+                    let identity = RecordKey::ValidatorIdentity(identity);
+                    kad.get_record(identity)
+                })
+                .collect::<Vec<_>>();
+            let stream = stream::iter(streams).flatten_unordered(None).boxed();
+            self.query_identities.replace(stream);
+            return Poll::Ready(());
+        }
+
+        if let Some(stream) = &mut self.query_identities
+            && let Poll::Ready(Some(res)) = stream.poll_next_unpin(cx)
+        {
+            match res {
+                Ok(kad::GetRecordOk { peer: _, record }) => {
+                    let record = record.unwrap_validator_identity();
+                    if let Err(err) = self.put_identity(record) {
+                        log::trace!("failed to put identity: {err}");
+                    }
+                }
+                Err(err) => {
+                    log::trace!("failed to query identity: {err}");
+                }
+            }
+        }
+
+        Poll::Pending
+    }
 }
 
 #[derive(Debug, derive_more::Display, Eq, PartialEq)]
@@ -371,10 +452,11 @@ struct PutIdentity {
     signer: Signer,
     interval: ExponentialBackoffInterval,
     external_addresses: ExternalAddresses,
+    fut: Option<PutRecordFuture>,
 }
 
 impl PutIdentity {
-    fn identity(&self) -> Option<anyhow::Result<ValidatorIdentityRecord>> {
+    fn new_identity(&self) -> Option<anyhow::Result<ValidatorIdentityRecord>> {
         let addresses = ValidatorAddresses::from_external_addresses(
             self.keypair.public().to_peer_id(),
             &self.external_addresses,
@@ -401,12 +483,37 @@ impl PutIdentity {
         Some(record)
     }
 
-    fn poll(&mut self, cx: &mut Context<'_>) -> Poll<anyhow::Result<Box<ValidatorIdentityRecord>>> {
-        if self.interval.poll_tick(cx).is_ready()
-            && let Some(identity) = self.identity()
+    fn poll(&mut self, cx: &mut Context<'_>, kad: &kad::Handle) -> Poll<()> {
+        if let Some(fut) = self.fut.as_mut()
+            && let Poll::Ready(res) = fut.poll_unpin(cx)
         {
-            let identity = identity.map(Box::new);
-            return Poll::Ready(identity);
+            self.fut = None;
+            match res {
+                Ok(_key) => {
+                    self.interval.tick_at_max();
+                }
+                Err(err) => {
+                    log::trace!("failed to put validator identity: {err}");
+                }
+            }
+        }
+
+        ready!(self.interval.poll_tick(cx));
+
+        let Some(identity) = self.new_identity() else {
+            return Poll::Pending;
+        };
+
+        match identity {
+            Ok(record) => {
+                let record = kad::Record::ValidatorIdentity(record);
+                // best effort; ignore result
+                let _fut = kad.put_record(record);
+                return Poll::Ready(());
+            }
+            Err(err) => {
+                log::trace!("failed to create identity to put: {err}");
+            }
         }
 
         Poll::Pending
@@ -414,12 +521,8 @@ impl PutIdentity {
 }
 
 pub struct Behaviour {
-    #[allow(dead_code)]
     kad: kad::Handle,
-    snapshot: Arc<ValidatorListSnapshot>,
-    identities: HashMap<Address, SignedValidatorIdentity>,
-    query_identities: Option<BoxStream<'static, GetRecordResult>>,
-    query_identities_interval: ExponentialBackoffInterval,
+    get_identities: GetIdentities,
     put_identity: Option<PutIdentity>,
 }
 
@@ -433,70 +536,29 @@ impl Behaviour {
     ) -> Self {
         Self {
             kad,
-            snapshot,
-            identities: HashMap::new(),
-            query_identities: None,
-            query_identities_interval: ExponentialBackoffInterval::new(),
+            get_identities: GetIdentities {
+                snapshot,
+                identities: HashMap::new(),
+                query_identities: None,
+                query_identities_interval: ExponentialBackoffInterval::new(),
+            },
             put_identity: validator_key.map(|validator_key| PutIdentity {
                 keypair,
                 validator_key,
                 signer,
                 interval: ExponentialBackoffInterval::new(),
                 external_addresses: ExternalAddresses::default(),
+                fut: None,
             }),
         }
     }
 
     pub(crate) fn on_new_snapshot(&mut self, snapshot: Arc<ValidatorListSnapshot>) {
-        self.snapshot = snapshot;
-
-        // eliminate identities that are neither in the current set nor in the next set
-        self.identities
-            .retain(|&address, _identity| self.snapshot.contains_any_validator(address));
-    }
-
-    fn identity_keys(&self) -> impl Iterator<Item = ValidatorIdentityKey> {
-        self.snapshot
-            .all_validators()
-            .map(|address| ValidatorIdentityKey { validator: address })
+        self.get_identities.on_new_snapshot(snapshot);
     }
 
     pub fn get_identity(&self, address: Address) -> Option<&SignedValidatorIdentity> {
-        self.identities.get(&address)
-    }
-
-    pub(crate) fn put_identity(
-        &mut self,
-        record: ValidatorIdentityRecord,
-    ) -> Result<(), PutIdentityError> {
-        log::trace!("filtering received record: {record:?}");
-
-        let ValidatorIdentityRecord { value: identity } = record;
-
-        if !self.snapshot.contains_any_validator(identity.address()) {
-            return Err(PutIdentityError::UnknownValidatorIdentity {
-                address: identity.address(),
-            });
-        }
-
-        if let Some(old_identity) = self.identities.get(&identity.address())
-            && old_identity.data().creation_time >= identity.inner.creation_time
-        {
-            return Ok(());
-        }
-
-        self.identities.insert(identity.address(), identity);
-
-        Ok(())
-    }
-
-    #[allow(dead_code)]
-    pub(crate) fn max_put_identity_interval(&mut self) {
-        let put_identity = self
-            .put_identity
-            .as_mut()
-            .expect("we never put record if `put_identity` is None");
-        put_identity.interval.tick_at_max();
+        self.get_identities.identities.get(&address)
     }
 }
 
@@ -543,49 +605,14 @@ impl NetworkBehaviour for Behaviour {
         &mut self,
         cx: &mut Context<'_>,
     ) -> Poll<ToSwarm<Self::ToSwarm, THandlerInEvent<Self>>> {
-        if self.query_identities_interval.poll_tick(cx).is_ready() {
-            let streams = self
-                .identity_keys()
-                .map(|identity| {
-                    let identity = RecordKey::ValidatorIdentity(identity);
-                    self.kad.get_record(identity)
-                })
-                .collect::<Vec<_>>();
-            let stream = stream::iter(streams).flatten_unordered(None).boxed();
-            self.query_identities.replace(stream);
-            return Poll::Ready(ToSwarm::GenerateEvent(Event::IdentitiesQueryStarted));
-        }
-
-        if let Some(stream) = &mut self.query_identities
-            && let Poll::Ready(Some(res)) = stream.poll_next_unpin(cx)
-        {
-            match res {
-                Ok(kad::GetRecordOk { peer: _, record }) => {
-                    let record = record.unwrap_validator_identity();
-                    if let Err(err) = self.put_identity(record) {
-                        log::trace!("failed to put identity: {err}");
-                    }
-                }
-                Err(err) => {
-                    log::trace!("failed to query identity: {err}");
-                }
-            }
+        if let Poll::Ready(()) = self.get_identities.poll(cx, &self.kad) {
+            return Poll::Ready(ToSwarm::GenerateEvent(Event::GetIdentitiesStarted));
         }
 
         if let Some(put_identity) = &mut self.put_identity
-            && let Poll::Ready(identity) = put_identity.poll(cx)
+            && let Poll::Ready(()) = put_identity.poll(cx, &self.kad)
         {
-            match identity {
-                Ok(record) => {
-                    let record = kad::Record::ValidatorIdentity(*record);
-                    // best effort; ignore result
-                    let _fut = self.kad.put_record(record);
-                    return Poll::Ready(ToSwarm::GenerateEvent(Event::PutIdentityStarted));
-                }
-                Err(err) => {
-                    log::trace!("failed to create identity to put: {err}");
-                }
-            }
+            return Poll::Ready(ToSwarm::GenerateEvent(Event::PutIdentityStarted));
         }
 
         Poll::Pending
@@ -742,7 +769,7 @@ mod tests {
         time::advance(ExponentialBackoffInterval::START).await;
 
         let event = swarm.next_behaviour_event().await;
-        assert_matches!(event, Event::IdentitiesQueryStarted);
+        assert_matches!(event, Event::GetIdentitiesStarted);
 
         let event = swarm.next_behaviour_event().await;
         assert_matches!(event, Event::PutIdentityStarted);
@@ -762,6 +789,7 @@ mod tests {
 
         let identity = signed_identity(&signer, validator_key, 10);
         behaviour
+            .get_identities
             .put_identity(ValidatorIdentityRecord {
                 value: identity.clone(),
             })
@@ -787,6 +815,7 @@ mod tests {
 
         let identity = signed_identity(&signer, validator_key, 10);
         let err = behaviour
+            .get_identities
             .put_identity(ValidatorIdentityRecord { value: identity })
             .unwrap_err();
 
@@ -813,6 +842,7 @@ mod tests {
 
         let baseline = signed_identity(&signer, validator_key, 20);
         behaviour
+            .get_identities
             .put_identity(ValidatorIdentityRecord {
                 value: baseline.clone(),
             })
@@ -820,6 +850,7 @@ mod tests {
 
         let older = signed_identity(&signer, validator_key, 5);
         behaviour
+            .get_identities
             .put_identity(ValidatorIdentityRecord { value: older })
             .unwrap();
         assert_eq!(
@@ -833,6 +864,7 @@ mod tests {
 
         let newer = signed_identity(&signer, validator_key, 30);
         behaviour
+            .get_identities
             .put_identity(ValidatorIdentityRecord {
                 value: newer.clone(),
             })
@@ -864,16 +896,28 @@ mod tests {
         let identity_b = signed_identity(&signer, validator_b, 10);
 
         behaviour
+            .get_identities
             .put_identity(ValidatorIdentityRecord { value: identity_a })
             .unwrap();
         behaviour
+            .get_identities
             .put_identity(ValidatorIdentityRecord { value: identity_b })
             .unwrap();
 
         behaviour.on_new_snapshot(snapshot(vec![validator_b.to_address()]));
 
-        assert!(!behaviour.identities.contains_key(&validator_a.to_address()));
-        assert!(behaviour.identities.contains_key(&validator_b.to_address()));
+        assert!(
+            !behaviour
+                .get_identities
+                .identities
+                .contains_key(&validator_a.to_address())
+        );
+        assert!(
+            behaviour
+                .get_identities
+                .identities
+                .contains_key(&validator_b.to_address())
+        );
     }
 
     #[tokio::test(start_paused = true)]
@@ -905,6 +949,7 @@ mod tests {
 
         // NOTE: consider ignoring our own identity
         behaviour
+            .get_identities
             .put_identity(ValidatorIdentityRecord {
                 value: our_signed_identity.clone(),
             })
@@ -918,6 +963,7 @@ mod tests {
             .unwrap();
 
         behaviour
+            .get_identities
             .put_identity(ValidatorIdentityRecord {
                 value: duplicate_identity,
             })

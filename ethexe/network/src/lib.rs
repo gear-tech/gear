@@ -499,7 +499,7 @@ impl NetworkService {
 
     fn handle_validator_discovery_event(&mut self, event: validator::discovery::Event) {
         match event {
-            validator::discovery::Event::IdentitiesQueryStarted => {}
+            validator::discovery::Event::GetIdentitiesStarted => {}
             validator::discovery::Event::PutIdentityStarted => {}
         }
     }
