@@ -17,12 +17,11 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    AlloyProvider, TryGetReceipt,
+    AlloyProvider, IntoBlockId, TryGetReceipt,
     abi::{self, IMirror},
 };
 use alloy::{
     contract::CallBuilder,
-    eips::BlockId,
     network,
     primitives::{Address, Bytes, U256},
     providers::{PendingTransactionBuilder, Provider, RootProvider},
@@ -173,10 +172,10 @@ impl MirrorQuery {
             .map_err(Into::into)
     }
 
-    pub async fn state_hash_at(&self, block: H256) -> Result<H256> {
+    pub async fn state_hash_at(&self, id: impl IntoBlockId) -> Result<H256> {
         self.0
             .stateHash()
-            .block(BlockId::hash(block.0.into()))
+            .block(id.into_block_id())
             .call()
             .await
             .map(|res| H256(res.0))
