@@ -627,7 +627,7 @@ async fn instrument_codes(
     Ok(())
 }
 
-fn identify_latest_validators_committed_era(
+fn identify_latest_era_with_validators_committed(
     start_block: &BlockHeader,
     timelines: &ProtocolTimelines,
     validation_view: &ValidationSettingsView,
@@ -645,7 +645,7 @@ fn identify_latest_validators_committed_era(
     // So we compare validators timestamps with eras start timestamps.
     if validators0_ts == next_era_start || validators1_ts == next_era_start {
         Ok(start_block_era + 1)
-    } else if validators0_ts >= current_era_start || validators1_ts >= current_era_start {
+    } else if validators0_ts == current_era_start || validators1_ts == current_era_start {
         Ok(start_block_era)
     } else {
         anyhow::bail!(
@@ -721,17 +721,13 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
         db.set_program_code_id(program_id, code_id);
     }
 
-    let router_query = observer.router_query();
-    let storage_view = router_query.storage_view_at(block_hash).await?;
+    let storage_view = observer.router_query().storage_view_at(block_hash).await?;
 
-    let timelines = router_query
-        .timelines()
-        .await
-        .map(|timelines| ProtocolTimelines {
-            genesis_ts: storage_view.genesisBlock.timestamp.to::<u64>(),
-            election: timelines.election,
-            era: timelines.era,
-        })?;
+    let timelines = ProtocolTimelines {
+        genesis_ts: storage_view.genesisBlock.timestamp.to::<u64>(),
+        election: storage_view.timelines.election.to::<u64>(),
+        era: storage_view.timelines.era.to::<u64>(),
+    };
 
     ethexe_common::setup_start_block_in_db(
         db,
@@ -758,7 +754,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
             schedule: schedule.clone(),
         },
         timelines,
-        identify_latest_validators_committed_era(
+        identify_latest_era_with_validators_committed(
             &header,
             &timelines,
             &storage_view.validationSettings,
