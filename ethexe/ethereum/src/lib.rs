@@ -337,8 +337,6 @@ macro_rules! signatures_consts {
 
 pub(crate) use signatures_consts;
 
-use crate::wvara::WVara;
-
 /// A helping trait for converting various types into `alloy::eips::BlockId`.
 pub trait IntoBlockId {
     fn into_block_id(self) -> BlockId;
@@ -359,7 +357,7 @@ impl IntoBlockId for u32 {
 impl IntoBlockId for BlockId {
     fn into_block_id(self) -> BlockId {
         self
-	}
+    }
 }
 
 #[cfg(test)]

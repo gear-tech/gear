@@ -403,21 +403,15 @@ impl ToDigest for StateTransition {
         hasher.update(inheritor.to_address_lossy());
         hasher.update(value_to_receive.to_be_bytes());
         hasher.update([*value_to_receive_negative_sign as u8]);
-        hasher.update(value_claims.to_digest());
-
-        // Messages hash mirrors Gear.sol implementation: keccak256 of concatenated message hashes.
-        let messages_hash: [u8; 32] = if messages.is_empty() {
-            sha3::Keccak256::new().finalize().into()
-        } else {
-            let mut messages_hasher = sha3::Keccak256::new();
-            for message in messages {
-                let mut msg_hasher = sha3::Keccak256::new();
-                message.update_hasher(&mut msg_hasher);
-                messages_hasher.update(msg_hasher.finalize());
-            }
-            messages_hasher.finalize().into()
-        };
-        hasher.update(messages_hash);
+        // Match router's hashing strategy: keccak256 of concatenated value-claim bytes.
+        hasher.update({
+            let mut hasher = sha3::Keccak256::new();
+            value_claims
+                .iter()
+                .for_each(|claim| claim.update_hasher(&mut hasher));
+            hasher.finalize()
+        });
+        hasher.update(messages.to_digest());
     }
 }
 
