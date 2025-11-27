@@ -276,10 +276,7 @@ impl ObserverService {
     }
 
     pub fn block_loader(&self) -> EthereumBlockLoader {
-        EthereumBlockLoader::new(
-            self.provider.clone(),
-            self.config.router_address,
-        )
+        EthereumBlockLoader::new(self.provider.clone(), self.config.router_address)
     }
 
     pub fn genesis_block_hash(&self) -> H256 {
