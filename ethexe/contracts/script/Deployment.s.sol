@@ -39,9 +39,12 @@ contract DeploymentScript is Script {
             )
         );
 
+        bool isDevMode = vm.envExists("DEV_MODE") && vm.envBool("DEV_MODE");
+
         address mirrorAddress = vm.computeCreateAddress(deployerAddress, vm.getNonce(deployerAddress) + 2);
-        // TODO setup nonce depends on what type of middleware we deploy.
-        address middlewareAddress = vm.computeCreateAddress(deployerAddress, vm.getNonce(deployerAddress) + 5);
+
+        uint256 middlewareNonce = isDevMode ? vm.getNonce(deployerAddress) + 4 : vm.getNonce(deployerAddress) + 5;
+        address middlewareAddress = vm.computeCreateAddress(deployerAddress, middlewareNonce);
 
         router = Router(
             payable(Upgrades.deployTransparentProxy(
@@ -68,7 +71,7 @@ contract DeploymentScript is Script {
         mirror = new Mirror(address(router));
 
         // In dev mode will be deployed POA Middleware
-        if (!(vm.envExists("DEV_MODE") && vm.envBool("DEV_MODE"))) {
+        if (!isDevMode) {
             address operatorRewardsFactoryAddress = vm.envAddress("SYMBIOTIC_OPERATOR_REWARDS_FACTORY");
 
             Gear.SymbioticContracts memory symbiotic = Gear.SymbioticContracts({
