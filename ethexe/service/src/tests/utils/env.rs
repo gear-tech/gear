@@ -72,7 +72,7 @@ use roast_secp256k1_evm::frost::{
     keys::{IdentifierList, PublicKeyPackage, VerifiableSecretSharingCommitment},
 };
 use std::{
-    fmt,
+    fmt, mem,
     net::SocketAddr,
     num::NonZero,
     ops::ControlFlow,
@@ -1202,6 +1202,12 @@ impl Drop for Node {
     fn drop(&mut self) {
         if let Some(handle) = &self.running_service_handle {
             handle.abort();
+        }
+
+        if let Some(receiver) = self.receiver.take() {
+            // avoid `failed to broadcast service event` error
+            // because we cannot `handle.await` in `drop` method
+            mem::forget(receiver);
         }
     }
 }

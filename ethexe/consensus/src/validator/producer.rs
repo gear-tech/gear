@@ -109,7 +109,7 @@ impl StateHandler for Producer {
                         .ctx
                         .core
                         .clone()
-                        .aggregate_batch_commitment(self.block.clone(), announce_hash)
+                        .aggregate_batch_commitment(self.block, announce_hash)
                         .boxed(),
                 };
 
@@ -174,7 +174,7 @@ impl Producer {
 
         Ok(Self {
             ctx,
-            block: block.clone(),
+            block,
             validators,
             state: State::Delay { timer: Some(timer) },
         }
@@ -312,7 +312,7 @@ mod tests {
 
         // If threshold is 1, we should not emit any events and goes thru states coordinator -> submitter -> initial
         // until batch is committed
-        let (state, announce_hash) = Producer::create(ctx, block.clone(), validators.clone())
+        let (state, announce_hash) = Producer::create(ctx, block, validators.clone())
             .unwrap()
             .skip_timer()
             .await
@@ -363,7 +363,7 @@ mod tests {
         let batch = prepare_chain_for_batch_commitment(&ctx.core.db);
         let block = ctx.core.db.simple_block_data(batch.block_hash);
 
-        let (state, announce_hash) = Producer::create(ctx, block.clone(), validators)
+        let (state, announce_hash) = Producer::create(ctx, block, validators)
             .unwrap()
             .skip_timer()
             .await

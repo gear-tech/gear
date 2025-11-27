@@ -451,7 +451,7 @@ async fn mailbox() {
                     assert_eq!(payload, original_mid.encode());
                 } else if id == ping_expected_message_id {
                     assert_eq!(payload, b"PING");
-                    block = Some(block_data.clone());
+                    block = Some(*block_data);
                 } else {
                     panic!("Unexpected message id {id}");
                 }
