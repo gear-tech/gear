@@ -43,7 +43,7 @@ contract DeploymentScript is Script {
 
         address mirrorAddress = vm.computeCreateAddress(deployerAddress, vm.getNonce(deployerAddress) + 2);
 
-        uint256 middlewareNonce = isDevMode ? vm.getNonce(deployerAddress) + 4 : vm.getNonce(deployerAddress) + 5;
+        uint256 middlewareNonce = vm.getNonce(deployerAddress) + (isDevMode ? 4 : 5);
         address middlewareAddress = vm.computeCreateAddress(deployerAddress, middlewareNonce);
 
         router = Router(
