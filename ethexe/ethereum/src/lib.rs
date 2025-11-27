@@ -208,7 +208,7 @@ impl SignerSync for Sender {
             .signer
             .sign_digest(self.sender, &digest)
             .map_err(|err| SignerError::Other(err.into()))?;
-        Ok(Signature::from_erc2098(&signature.as_raw_bytes()))
+        Signature::from_raw(&signature.as_raw_bytes()).map_err(|err| SignerError::Other(err.into()))
     }
 
     fn chain_id_sync(&self) -> Option<ChainId> {
