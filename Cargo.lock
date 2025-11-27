@@ -4974,8 +4974,6 @@ dependencies = [
  "ethexe-service",
  "gprimitives",
  "gsigner",
- "hex",
- "libp2p-identity",
  "log",
  "serde",
  "sp-core",
