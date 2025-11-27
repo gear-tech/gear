@@ -12048,6 +12048,24 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-grandpa-signer"
+version = "1.9.2"
+dependencies = [
+ "frame-support",
+ "frame-system",
+ "log",
+ "pallet-grandpa",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-application-crypto",
+ "sp-consensus-grandpa",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
+]
+
+[[package]]
 name = "pallet-identity"
 version = "38.0.0"
 source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
@@ -18996,6 +19014,7 @@ dependencies = [
  "pallet-gear-staking-rewards-rpc-runtime-api",
  "pallet-gear-voucher",
  "pallet-grandpa",
+ "pallet-grandpa-signer",
  "pallet-identity",
  "pallet-im-online",
  "pallet-multisig",
