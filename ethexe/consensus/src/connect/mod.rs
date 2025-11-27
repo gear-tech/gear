@@ -348,6 +348,10 @@ impl ConsensusService for ConnectService {
     fn receive_validation_reply(&mut self, _reply: BatchCommitmentValidationReply) -> Result<()> {
         Ok(())
     }
+
+    fn receive_announces_response(&mut self, _response: CheckedAnnouncesResponse) -> Result<()> {
+        Ok(())
+    }
 }
 
 impl Stream for ConnectService {
@@ -355,24 +359,22 @@ impl Stream for ConnectService {
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         loop {
-            if let Some(handle) = self.db_sync_handle.clone() {
-                if let State::WaitingForMissingAnnounces {
+            if let Some(handle) = self.db_sync_handle.clone()
+                && let State::WaitingForMissingAnnounces {
                     announces_fetch, ..
                 } = &mut self.state
-                {
-                    if let Some(mut fetch) = announces_fetch.take() {
-                        match fetch.poll(&handle, cx) {
-                            Poll::Ready(response) => {
-                                if let Err(err) = self.on_announces_response(response) {
-                                    return Poll::Ready(Some(Err(err)));
-                                }
-
-                                continue;
-                            }
-                            Poll::Pending => {
-                                *announces_fetch = Some(fetch);
-                            }
+                && let Some(mut fetch) = announces_fetch.take()
+            {
+                match fetch.poll(&handle, cx) {
+                    Poll::Ready(response) => {
+                        if let Err(err) = self.on_announces_response(response) {
+                            return Poll::Ready(Some(Err(err)));
                         }
+
+                        continue;
+                    }
+                    Poll::Pending => {
+                        *announces_fetch = Some(fetch);
                     }
                 }
             }

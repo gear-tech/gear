@@ -66,7 +66,11 @@ use ethexe_db::Database;
 use ethexe_ethereum::middleware::ElectionProvider;
 use ethexe_network::db_sync::Handle;
 use ethexe_signer::Signer;
-use futures::{Stream, StreamExt, future::BoxFuture, stream::FusedStream};
+use futures::{
+    Stream, StreamExt,
+    future::BoxFuture,
+    stream::{FusedStream, FuturesUnordered},
+};
 use gprimitives::H256;
 use initial::Initial;
 use std::{
@@ -185,13 +189,6 @@ impl ValidatorService {
             .context()
     }
 
-    fn context_mut(&mut self) -> &mut ValidatorContext {
-        self.inner
-            .as_mut()
-            .unwrap_or_else(|| unreachable!("inner must be Some"))
-            .context_mut()
-    }
-
     fn update_inner(
         &mut self,
         update: impl FnOnce(ValidatorState) -> Result<ValidatorState>,
@@ -263,21 +260,21 @@ impl Stream for ValidatorService {
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         loop {
-            if let Some(handle) = self.db_sync_handle.clone() {
-                if let Some(mut fetch) = self.announces_fetch.take() {
-                    match fetch.poll(&handle, cx) {
-                        Poll::Ready(response) => {
-                            if let Err(err) = self
-                                .update_inner(|inner| inner.process_announces_response(response))
-                            {
-                                return Poll::Ready(Some(Err(err)));
-                            }
+            if let Some(handle) = self.db_sync_handle.clone()
+                && let Some(mut fetch) = self.announces_fetch.take()
+            {
+                match fetch.poll(&handle, cx) {
+                    Poll::Ready(response) => {
+                        if let Err(err) =
+                            self.update_inner(|inner| inner.process_announces_response(response))
+                        {
+                            return Poll::Ready(Some(Err(err)));
+                        }
 
-                            continue;
-                        }
-                        Poll::Pending => {
-                            self.announces_fetch = Some(fetch);
-                        }
+                        continue;
+                    }
+                    Poll::Pending => {
+                        self.announces_fetch = Some(fetch);
                     }
                 }
             }
