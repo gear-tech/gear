@@ -627,11 +627,12 @@ mod tests {
     use ethexe_common::{ProtocolTimelines, ValidatorsVec};
     use libp2p::{Multiaddr, Swarm, identity::Keypair};
     use libp2p_swarm_test::SwarmExt;
-    use std::sync::{Arc, LazyLock};
+    use std::sync::Arc;
     use tokio::time;
 
-    static TEST_ADDR: LazyLock<Multiaddr> =
-        LazyLock::new(|| "/ip4/127.0.0.1/tcp/1234".parse().unwrap());
+    fn test_addr() -> Multiaddr {
+        "/ip4/127.0.0.1/tcp/1234".parse().unwrap()
+    }
 
     fn snapshot(addresses: Vec<Address>) -> Arc<ValidatorListSnapshot> {
         Arc::new(ValidatorListSnapshot {
@@ -654,10 +655,7 @@ mod tests {
     ) -> SignedValidatorIdentity {
         let network_keypair = Keypair::generate_secp256k1();
         let identity = ValidatorIdentity {
-            addresses: ValidatorAddresses::new(
-                network_keypair.public().to_peer_id(),
-                TEST_ADDR.clone(),
-            ),
+            addresses: ValidatorAddresses::new(network_keypair.public().to_peer_id(), test_addr()),
             creation_time,
         };
         identity
@@ -671,10 +669,7 @@ mod tests {
         let validator_key = signer.generate_key().unwrap();
         let keypair = Keypair::generate_secp256k1();
         let identity = ValidatorIdentity {
-            addresses: ValidatorAddresses::new(
-                keypair.public().to_peer_id(),
-                "/ip4/127.0.0.1/tcp/123".parse().unwrap(),
-            ),
+            addresses: ValidatorAddresses::new(keypair.public().to_peer_id(), test_addr()),
             creation_time: 999_999,
         };
         let identity = identity.sign(&signer, validator_key, &keypair).unwrap();
@@ -690,10 +685,7 @@ mod tests {
         let validator_key = signer.generate_key().unwrap();
         let keypair = Keypair::generate_secp256k1();
         let identity = ValidatorIdentity {
-            addresses: ValidatorAddresses::new(
-                PeerId::random(),
-                "/ip4/127.0.0.1/tcp/123".parse().unwrap(),
-            ),
+            addresses: ValidatorAddresses::new(PeerId::random(), test_addr()),
             creation_time: 999_999,
         };
         let identity = identity.sign(&signer, validator_key, &keypair).unwrap();
@@ -704,8 +696,8 @@ mod tests {
     #[test]
     fn validator_addresses_from_vec_of_vec() {
         let addr1_peer_id = PeerId::random();
-        let addr1 = TEST_ADDR.clone().with_p2p(addr1_peer_id).unwrap();
-        let addr2 = TEST_ADDR.clone().with_p2p(PeerId::random()).unwrap();
+        let addr1 = test_addr().with_p2p(addr1_peer_id).unwrap();
+        let addr2 = test_addr().with_p2p(PeerId::random()).unwrap();
 
         let addresses = ValidatorAddresses::from_vec_of_vec(vec![addr1.to_vec()]).unwrap();
         assert_eq!(addresses.peer_id(), addr1_peer_id);
@@ -731,7 +723,7 @@ mod tests {
         );
 
         assert_matches!(
-            ValidatorAddresses::from_vec_of_vec(vec![TEST_ADDR.to_vec()]).unwrap_err(),
+            ValidatorAddresses::from_vec_of_vec(vec![test_addr().to_vec()]).unwrap_err(),
             FromVecOfVecError::LastProtocolIsNotP2p
         );
 
@@ -764,7 +756,7 @@ mod tests {
         );
 
         let mut swarm = Swarm::new_ephemeral_tokio(move |_keypair| behaviour);
-        swarm.add_external_address(TEST_ADDR.clone());
+        swarm.add_external_address(test_addr());
 
         time::advance(ExponentialBackoffInterval::START).await;
 
@@ -936,10 +928,7 @@ mod tests {
 
         // Create our own identity (simulating receiving our own record)
         let our_identity = ValidatorIdentity {
-            addresses: ValidatorAddresses::new(
-                network_keypair.public().to_peer_id(),
-                TEST_ADDR.clone(),
-            ),
+            addresses: ValidatorAddresses::new(network_keypair.public().to_peer_id(), test_addr()),
             creation_time: 10,
         };
         let our_signed_identity = our_identity
