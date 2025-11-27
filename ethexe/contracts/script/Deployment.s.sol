@@ -39,9 +39,12 @@ contract DeploymentScript is Script {
             )
         );
 
+        bool isDevMode = vm.envExists("DEV_MODE") && vm.envBool("DEV_MODE");
+
         address mirrorAddress = vm.computeCreateAddress(deployerAddress, vm.getNonce(deployerAddress) + 2);
-        // TODO setup nonce depends on what type of middleware we deploy.
-        address middlewareAddress = vm.computeCreateAddress(deployerAddress, vm.getNonce(deployerAddress) + 4);
+
+        uint256 middlewareNonce = vm.getNonce(deployerAddress) + (isDevMode ? 4 : 5);
+        address middlewareAddress = vm.computeCreateAddress(deployerAddress, middlewareNonce);
 
         router = Router(
             payable(Upgrades.deployTransparentProxy(
@@ -68,46 +71,7 @@ contract DeploymentScript is Script {
         mirror = new Mirror(address(router));
 
         // In dev mode will be deployed POA Middleware
-        if (!(vm.envExists("DEV_MODE") && vm.envBool("DEV_MODE"))) {
-            address operatorRewardsFactoryAddress = vm.envAddress("SYMBIOTIC_OPERATOR_REWARDS_FACTORY");
-
-            Gear.SymbioticContracts memory symbiotic = Gear.SymbioticContracts({
-                vaultRegistry: vm.envAddress("SYMBIOTIC_VAULT_REGISTRY"),
-                operatorRegistry: vm.envAddress("SYMBIOTIC_OPERATOR_REGISTRY"),
-                networkRegistry: vm.envAddress("SYMBIOTIC_NETWORK_REGISTRY"),
-                middlewareService: vm.envAddress("SYMBIOTIC_MIDDLEWARE_SERVICE"),
-                networkOptIn: vm.envAddress("SYMBIOTIC_NETWORK_OPT_IN"),
-                stakerRewardsFactory: vm.envAddress("SYMBIOTIC_STAKER_REWARDS_FACTORY"),
-                operatorRewards: IDefaultOperatorRewardsFactory(operatorRewardsFactoryAddress).create(),
-                roleSlashRequester: address(router),
-                roleSlashExecutor: address(router),
-                vetoResolver: address(router)
-            });
-
-            IMiddleware.InitParams memory initParams = IMiddleware.InitParams({
-                owner: deployerAddress,
-                eraDuration: 1 days,
-                minVaultEpochDuration: 2 hours,
-                operatorGracePeriod: 5 minutes,
-                vaultGracePeriod: 5 minutes,
-                minVetoDuration: 2 hours,
-                minSlashExecutionDelay: 5 minutes,
-                allowedVaultImplVersion: 1,
-                vetoSlasherImplType: 1,
-                maxResolverSetEpochsDelay: 5 minutes,
-                collateral: address(wrappedVara),
-                maxAdminFee: 10000,
-                router: address(router),
-                symbiotic: symbiotic
-            });
-
-            middleware = Middleware(
-                Upgrades.deployTransparentProxy(
-                    "Middleware.sol", deployerAddress, abi.encodeCall(Middleware.initialize, (initParams))
-                )
-            );
-            vm.assertEq(middlewareAddress, address(middleware));
-        } else {
+        if (isDevMode) {
             Gear.SymbioticContracts memory symbiotic = Gear.SymbioticContracts({
                 vaultRegistry: address(0),
                 operatorRegistry: address(0),
@@ -148,6 +112,45 @@ contract DeploymentScript is Script {
 
             poaMiddleware.setValidators(validatorsArray);
             middleware = poaMiddleware;
+        } else {
+            address operatorRewardsFactoryAddress = vm.envAddress("SYMBIOTIC_OPERATOR_REWARDS_FACTORY");
+
+            Gear.SymbioticContracts memory symbiotic = Gear.SymbioticContracts({
+                vaultRegistry: vm.envAddress("SYMBIOTIC_VAULT_REGISTRY"),
+                operatorRegistry: vm.envAddress("SYMBIOTIC_OPERATOR_REGISTRY"),
+                networkRegistry: vm.envAddress("SYMBIOTIC_NETWORK_REGISTRY"),
+                middlewareService: vm.envAddress("SYMBIOTIC_MIDDLEWARE_SERVICE"),
+                networkOptIn: vm.envAddress("SYMBIOTIC_NETWORK_OPT_IN"),
+                stakerRewardsFactory: vm.envAddress("SYMBIOTIC_STAKER_REWARDS_FACTORY"),
+                operatorRewards: IDefaultOperatorRewardsFactory(operatorRewardsFactoryAddress).create(),
+                roleSlashRequester: address(router),
+                roleSlashExecutor: address(router),
+                vetoResolver: address(router)
+            });
+
+            IMiddleware.InitParams memory initParams = IMiddleware.InitParams({
+                owner: deployerAddress,
+                eraDuration: 1 days,
+                minVaultEpochDuration: 2 hours,
+                operatorGracePeriod: 5 minutes,
+                vaultGracePeriod: 5 minutes,
+                minVetoDuration: 2 hours,
+                minSlashExecutionDelay: 5 minutes,
+                allowedVaultImplVersion: 1,
+                vetoSlasherImplType: 1,
+                maxResolverSetEpochsDelay: 5 minutes,
+                collateral: address(wrappedVara),
+                maxAdminFee: 10000,
+                router: address(router),
+                symbiotic: symbiotic
+            });
+
+            middleware = Middleware(
+                Upgrades.deployTransparentProxy(
+                    "Middleware.sol", deployerAddress, abi.encodeCall(Middleware.initialize, (initParams))
+                )
+            );
+            vm.assertEq(middlewareAddress, address(middleware));
         }
 
         if (vm.envExists("SENDER_ADDRESS")) {
