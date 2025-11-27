@@ -50,19 +50,13 @@ pub trait BlockLoader {
 pub struct EthereumBlockLoader {
     provider: RootProvider,
     router_address: Address,
-    wvara_address: Address,
 }
 
 impl EthereumBlockLoader {
-    pub(crate) fn new(
-        provider: RootProvider,
-        router_address: Address,
-        wvara_address: Address,
-    ) -> Self {
+    pub(crate) fn new(provider: RootProvider, router_address: Address) -> Self {
         Self {
             provider,
             router_address,
-            wvara_address,
         }
     }
 
@@ -70,7 +64,6 @@ impl EthereumBlockLoader {
         let topic = Topic::from_iter(
             [
                 router::events::signatures::ALL,
-
                 mirror::events::signatures::ALL,
             ]
             .into_iter()
@@ -96,10 +89,6 @@ impl EthereumBlockLoader {
 
             if address.0 == self.router_address.0 {
                 if let Some(event) = router::events::try_extract_event(&log)? {
-                    res.entry(block_hash).or_default().push(event.into());
-                }
-            } else if address.0 == self.wvara_address.0 {
-                if let Some(event) = wvara::events::try_extract_event(&log)? {
                     res.entry(block_hash).or_default().push(event.into());
                 }
             } else {

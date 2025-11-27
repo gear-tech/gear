@@ -279,7 +279,6 @@ impl ObserverService {
         EthereumBlockLoader::new(
             self.provider.clone(),
             self.config.router_address,
-            self.config.wvara_address,
         )
     }
 

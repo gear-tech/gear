@@ -163,7 +163,7 @@ impl ValidatorCore {
             return Ok(None);
         }
 
-        let election_block = utils::election_block_in_era(&self.db, block.clone(), election_ts)?;
+        let election_block = utils::election_block_in_era(&self.db, *block, election_ts)?;
         let request = ElectionRequest {
             at_block_hash: election_block.hash,
             at_timestamp: election_ts,

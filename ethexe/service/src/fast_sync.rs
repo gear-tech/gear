@@ -24,9 +24,10 @@ use ethexe_common::{
     StateHashWithQueueSize,
     db::{
         AnnounceStorageRO, BlockMetaStorageRO, CodesStorageRO, CodesStorageRW, FullAnnounceData,
-        FullBlockData, HashStorageRO, OnChainStorageRO, OnChainStorageRW,
+        FullBlockData, HashStorageRO, OnChainStorageRW,
     },
     events::{BlockEvent, RouterEvent},
+    injected,
     network::{AnnouncesRequest, AnnouncesRequestUntil},
 };
 use ethexe_compute::ComputeService;
@@ -614,7 +615,7 @@ async fn set_tx_pool_data_requirement(
     latest_committed_block_height: u32,
 ) -> Result<()> {
     let to = latest_committed_block_height as u64;
-    let from = to - OffchainTransaction::BLOCK_HASHES_WINDOW_SIZE as u64;
+    let from = to - injected::VALIDITY_WINDOW as u64;
 
     // TODO: #4926 unsafe solution - we need it for taking events from predecessor blocks in ethexe-compute
     let blocks = block_loader.load_many(from..=to).await?;
