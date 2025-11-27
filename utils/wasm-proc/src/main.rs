@@ -32,6 +32,8 @@ const RT_ALLOWED_IMPORTS: [&str; 76] = [
     // From `Crypto` (substrate/primitives/io/src/lib.rs)
     "ext_crypto_ed25519_generate_version_1",
     "ext_crypto_ed25519_verify_version_1",
+    "ext_crypto_ed25519_public_keys_version_1",
+    "ext_crypto_ed25519_sign_version_1",
     "ext_crypto_finish_batch_verify_version_1",
     "ext_crypto_secp256k1_ecdsa_recover_compressed_version_2",
     "ext_crypto_sr25519_generate_version_1",
