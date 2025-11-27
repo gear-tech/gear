@@ -20,8 +20,8 @@ use crate::Service;
 use alloy::{eips::BlockId, providers::Provider};
 use anyhow::{Context, Result};
 use ethexe_common::{
-    Address, Announce, BlockData, CodeAndIdUnchecked, Digest, HashOf, ProgramStates,
-    StateHashWithQueueSize,
+    Address, Announce, BlockData, BlockHeader, CodeAndIdUnchecked, Digest, HashOf, ProgramStates,
+    ProtocolTimelines, StateHashWithQueueSize,
     db::{
         AnnounceStorageRO, BlockMetaStorageRO, CodesStorageRO, CodesStorageRW, FullAnnounceData,
         FullBlockData, HashStorageRO, OnChainStorageRO, OnChainStorageRW,
@@ -39,7 +39,7 @@ use ethexe_db::{
     },
     visitor::DatabaseVisitor,
 };
-use ethexe_ethereum::mirror::MirrorQuery;
+use ethexe_ethereum::{abi::Gear::ValidationSettingsView, mirror::MirrorQuery};
 use ethexe_network::{NetworkService, db_sync};
 use ethexe_observer::ObserverService;
 use ethexe_runtime_common::{
@@ -627,6 +627,33 @@ async fn instrument_codes(
     Ok(())
 }
 
+fn identify_latest_validators_committed_era(
+    start_block: &BlockHeader,
+    timelines: &ProtocolTimelines,
+    validation_view: &ValidationSettingsView,
+) -> Result<u64> {
+    let start_block_era = timelines.era_from_ts(start_block.timestamp);
+
+    // Identify timestamps when current and next eras start.
+    let current_era_start = timelines.era_start(start_block_era);
+    let next_era_start = timelines.era_start_ts(start_block_era + 1);
+
+    let validators0_ts = validation_view.validators0.useFromTimestamp.to::<u64>();
+    let validators1_ts = validation_view.validators1.useFromTimestamp.to::<u64>();
+
+    // In Router's `_resetValidators` function we set `useFromTimestamp` to `nextEraStart`.
+    // So we compare validators timestamps with eras start timestamps.
+    if validators0_ts == next_era_start || validators1_ts == next_era_start {
+        Ok(start_block_era + 1)
+    } else if validators0_ts >= current_era_start || validators1_ts >= current_era_start {
+        Ok(start_block_era)
+    } else {
+        anyhow::bail!(
+            "can not identify latest era for which validators was successfully committed "
+        )
+    }
+}
+
 pub(crate) async fn sync(service: &mut Service) -> Result<()> {
     let Service {
         observer,
@@ -694,6 +721,18 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
         db.set_program_code_id(program_id, code_id);
     }
 
+    let router_query = observer.router_query();
+    let storage_view = router_query.storage_view_at(block_hash).await?;
+
+    let timelines = router_query
+        .timelines()
+        .await
+        .map(|timelines| ProtocolTimelines {
+            genesis_ts: storage_view.genesisBlock.timestamp.to::<u64>(),
+            election: timelines.election,
+            era: timelines.era,
+        })?;
+
     ethexe_common::setup_start_block_in_db(
         db,
         block_hash,
@@ -718,6 +757,12 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
             outcome: Default::default(),
             schedule: schedule.clone(),
         },
+        timelines,
+        identify_latest_validators_committed_era(
+            &header,
+            &timelines,
+            &storage_view.validationSettings,
+        )?,
     );
 
     log::info!(
