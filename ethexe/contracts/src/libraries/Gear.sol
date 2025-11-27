@@ -39,6 +39,13 @@ library Gear {
         uint256 useFromTimestamp;
     }
 
+    struct ValidatorsView {
+        AggregatedPublicKey aggregatedPublicKey;
+        address verifiableSecretSharingCommitmentPointer;
+        address[] list;
+        uint256 useFromTimestamp;
+    }
+
     struct AddressBook {
         address mirror;
         address wrappedVara;
@@ -178,6 +185,12 @@ library Gear {
         uint16 signingThresholdPercentage;
         Validators validators0;
         Validators validators1;
+    }
+
+    struct ValidationSettingsView {
+        uint16 signingThresholdPercentage;
+        ValidatorsView validators0;
+        ValidatorsView validators1;
     }
 
     struct ValueClaim {
@@ -480,5 +493,28 @@ library Gear {
 
     function eraStartedAt(IRouter.Storage storage router, uint256 ts) internal view returns (uint256) {
         return router.genesisBlock.timestamp + eraIndexAt(router, ts) * router.timelines.era;
+    }
+
+    function toView(Gear.Validators storage validators) internal view returns (Gear.ValidatorsView memory) {
+        return Gear.ValidatorsView({
+            aggregatedPublicKey: validators.aggregatedPublicKey,
+            verifiableSecretSharingCommitmentPointer: validators.verifiableSecretSharingCommitmentPointer,
+            list: validators.list,
+            useFromTimestamp: validators.useFromTimestamp
+        });
+    }
+
+    function toView(Gear.ValidationSettings storage settings)
+        internal
+        view
+        returns (Gear.ValidationSettingsView memory)
+    {
+        Gear.ValidatorsView memory validators0 = toView(settings.validators0);
+        Gear.ValidatorsView memory validators1 = toView(settings.validators1);
+        return Gear.ValidationSettingsView({
+            signingThresholdPercentage: settings.signingThresholdPercentage,
+            validators0: validators0,
+            validators1: validators1
+        });
     }
 }

@@ -22,6 +22,7 @@ use crate::wvara::WVara;
 use abi::{IMirror, IRouter};
 use alloy::{
     consensus::SignableTransaction,
+    eips::BlockId,
     network::{self, Ethereum as AlloyEthereum, EthereumWallet, Network, TxSigner},
     primitives::{Address as AlloyAddress, B256, ChainId, Signature},
     providers::{
@@ -335,6 +336,31 @@ macro_rules! signatures_consts {
 }
 
 pub(crate) use signatures_consts;
+
+use crate::wvara::WVara;
+
+/// A helping trait for converting various types into `alloy::eips::BlockId`.
+pub trait IntoBlockId {
+    fn into_block_id(self) -> BlockId;
+}
+
+impl IntoBlockId for H256 {
+    fn into_block_id(self) -> BlockId {
+        BlockId::hash(self.0.into())
+    }
+}
+
+impl IntoBlockId for u32 {
+    fn into_block_id(self) -> BlockId {
+        BlockId::number(self.into())
+    }
+}
+
+impl IntoBlockId for BlockId {
+    fn into_block_id(self) -> BlockId {
+        self
+	}
+}
 
 #[cfg(test)]
 mod tests {
