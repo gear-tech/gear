@@ -27,6 +27,9 @@ use sp_core::Bytes;
 /// Recent block hashes window size used to check transaction mortality.
 pub const VALIDITY_WINDOW: u8 = 32;
 
+/// Maximum available [`InjectedTransaction`]'s payload size is 2MB.
+pub const INJECTED_TX_PAYLOAD_LIMIT: usize = 2 * 1024 * 1024;
+
 pub type SignedInjectedTransaction = SignedData<InjectedTransaction>;
 
 #[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]

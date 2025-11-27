@@ -21,7 +21,7 @@ use anyhow::Result;
 use ethexe_common::{
     Announce, HashOf,
     db::{AnnounceStorageRO, CodesStorageRO, InjectedStorageRW, OnChainStorageRO},
-    injected::{InjectedTransaction, SignedInjectedTransaction},
+    injected::{INJECTED_TX_PAYLOAD_LIMIT, InjectedTransaction, SignedInjectedTransaction},
 };
 use ethexe_db::Database;
 use ethexe_runtime_common::state::Storage;
@@ -70,10 +70,11 @@ where
             TxValidityChecker::new_for_announce(self.db.clone(), block_hash, parent_announce)?;
 
         let mut selected_txs = vec![];
-        let mut outdated_txs = vec![];
+        let mut to_remove_txs = vec![];
 
         for (reference_block, tx_hash) in self.inner.iter() {
             let Some(tx) = self.db.injected_transaction(*tx_hash) else {
+                tracing::warn!(tx_hash = ?tx_hash, "not found injected transaction by its hash");
                 continue;
             };
 
@@ -88,17 +89,24 @@ where
                 TxValidity::NotOnCurrentBranch => {
                     tracing::trace!(tx_hash = ?tx_hash, "tx on different branch, keeping in pool");
                 }
-                TxValidity::Outdated => outdated_txs.push((*reference_block, *tx_hash)),
+                TxValidity::Outdated => to_remove_txs.push((*reference_block, *tx_hash)),
                 TxValidity::UninitializedDestination => {
                     tracing::trace!(
                         tx_hash = ?tx_hash,
                         "tx send to uninitialized actor, keeping in pool, because of in next blocks it can be"
                     );
                 }
+                TxValidity::PayloadSizeExceeded(payload_size) => {
+                    tracing::trace!(
+                        tx_hash = ?tx_hash,
+                        "transaction's payload exceed the limit: {payload_size} > {INJECTED_TX_PAYLOAD_LIMIT}"
+                    );
+                    to_remove_txs.push((*reference_block, *tx_hash));
+                }
             }
         }
 
-        outdated_txs.into_iter().for_each(|key| {
+        to_remove_txs.into_iter().for_each(|key| {
             self.inner.remove(&key);
         });
 

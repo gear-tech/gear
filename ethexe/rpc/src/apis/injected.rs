@@ -268,7 +268,7 @@ impl<DB: Storage + LatestDataStorageRO + OnChainStorageRO + Clone> TransactionGa
     }
 
     /// Check, that transaction's recipient exists in current validator set.
-    /// No make sense to pass this transaction futher, because of it won't reach some validator.
+    /// No make sense to pass this transaction further, because of it won't reach some validator.
     fn recipient_exists(
         &self,
         latest_data: &LatestData,
