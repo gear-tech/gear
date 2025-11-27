@@ -12049,7 +12049,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-grandpa-signer"
-version = "1.9.2"
+version = "1.9.9"
 dependencies = [
  "frame-support",
  "frame-system",
