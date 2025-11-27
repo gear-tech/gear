@@ -139,7 +139,8 @@ impl ValidatorCore {
                 anyhow!("Computed block {block_hash} codes queue is not in storage")
             })?;
 
-        utils::aggregate_code_commitments(&self.db, queue, false)
+        Ok(utils::aggregate_code_commitments(&self.db, queue, false)
+            .expect("Error is not possible here, because fail_if_not_found is false"))
     }
 
     pub async fn aggregate_validators_commitment(
@@ -270,16 +271,38 @@ impl ValidatorCore {
         };
 
         let code_commitments =
-            utils::aggregate_code_commitments(&self.db, codes.iter().copied(), true)?;
+            match utils::aggregate_code_commitments(&self.db, codes.iter().copied(), true) {
+                Ok(commitments) => commitments,
+                Err(code_id) => {
+                    return Ok(ValidationStatus::Rejected {
+                        request,
+                        reason: ValidationRejectReason::CodeIsNotProcessedYet(code_id),
+                    });
+                }
+            };
 
         let validators_commitment = if validators {
-            Self::aggregate_validators_commitment(&mut self, &block).await?
+            let Some(commitment) = Self::aggregate_validators_commitment(&mut self, &block).await?
+            else {
+                return Ok(ValidationStatus::Rejected {
+                    request,
+                    reason: ValidationRejectReason::ValidatorsNotReady,
+                });
+            };
+            Some(commitment)
         } else {
             None
         };
 
         let rewards_commitment = if rewards {
-            Self::aggregate_rewards_commitment(&mut self, &block).await?
+            let Some(commitment) = Self::aggregate_rewards_commitment(&mut self, &block).await?
+            else {
+                return Ok(ValidationStatus::Rejected {
+                    request,
+                    reason: ValidationRejectReason::RewardsNotReady,
+                });
+            };
+            Some(commitment)
         } else {
             None
         };
@@ -335,11 +358,21 @@ pub enum ValidationRejectReason {
     CodesHasDuplicates,
     #[display("code id {_0:?} is not waiting for commitment")]
     CodeNotWaitingForCommitment(CodeId),
+    #[display("code id {_0:?} is not processed yet")]
+    CodeIsNotProcessedYet(CodeId),
     #[display("requested head announce {requested:?} is not the best announce {best:?}")]
     HeadAnnounceIsNotBest {
         requested: HashOf<Announce>,
         best: HashOf<Announce>,
     },
+    #[display(
+        "received batch contains validators commitment, but it's not time for validators election yet"
+    )]
+    ValidatorsNotReady,
+    #[display(
+        "received batch contains rewards commitment, but it's not time for rewards distribution yet"
+    )]
+    RewardsNotReady,
     #[display("batch commitment digest mismatch: expected {expected:?}, found {found:?}")]
     BatchDigestMismatch { expected: Digest, found: Digest },
 }

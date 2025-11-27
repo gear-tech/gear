@@ -132,14 +132,14 @@ pub fn aggregate_code_commitments<DB: CodesStorageRO>(
     db: &DB,
     codes: impl IntoIterator<Item = CodeId>,
     fail_if_not_found: bool,
-) -> Result<Vec<CodeCommitment>> {
+) -> Result<Vec<CodeCommitment>, CodeId> {
     let mut commitments = Vec::new();
 
     for id in codes {
         match db.code_valid(id) {
             Some(valid) => commitments.push(CodeCommitment { id, valid }),
             None if fail_if_not_found => {
-                return Err(anyhow::anyhow!("Code status not found in db: {id}"));
+                return Err(id);
             }
             None => {}
         }
