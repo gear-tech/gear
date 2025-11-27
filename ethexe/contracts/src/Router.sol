@@ -89,7 +89,9 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
     }
 
     /// @custom:oz-upgrades-validate-as-initializer
-    function reinitialize() public reinitializer(2) {}
+    function reinitialize() public reinitializer(2) {
+        __Ownable_init(owner());
+    }
 
     // # Views.
 
