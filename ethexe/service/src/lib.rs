@@ -41,7 +41,7 @@ use ethexe_service_utils::{OptionFuture as _, OptionStreamNext as _};
 use ethexe_signer::Signer;
 use futures::StreamExt;
 use gprimitives::{ActorId, CodeId, H256};
-use std::{collections::BTreeSet, num::NonZero, pin::Pin, sync::Arc, time::Duration};
+use std::{collections::BTreeSet, num::NonZero, pin::Pin, time::Duration};
 
 pub mod config;
 
@@ -234,7 +234,7 @@ impl Service {
                 .await?;
                 Box::pin(ValidatorService::new(
                     signer.clone(),
-                    Arc::new(ethereum.middleware().query()),
+                    ethereum.middleware().query(),
                     ethereum.router(),
                     db.clone(),
                     ValidatorConfig {

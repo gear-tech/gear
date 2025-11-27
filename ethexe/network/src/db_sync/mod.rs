@@ -605,6 +605,12 @@ pub mod test_utils {
         rx: mpsc::UnboundedReceiver<(HandleAction, oneshot::Sender<HandleResult>)>,
     }
 
+    impl Default for HandleStub {
+        fn default() -> Self {
+            Self::new()
+        }
+    }
+
     impl HandleStub {
         pub fn new() -> Self {
             let (tx, rx) = mpsc::unbounded_channel();

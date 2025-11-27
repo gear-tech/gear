@@ -493,7 +493,7 @@ mod tests {
             block: local_db.simple_block_data(head_hash),
             producer: Address::default(),
             chain,
-            waiting_request: waiting_request.clone(),
+            waiting_request,
             announces_fetch: None,
         };
 
@@ -577,7 +577,7 @@ mod tests {
             "request forwarded to db-sync"
         );
 
-        let request = stub_request.clone();
+        let request = stub_request;
         let announces = collect_announces(&remote_chain, request.head, &request.until);
         let response = AnnouncesResponse { announces }
             .try_into_checked(request)
