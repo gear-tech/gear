@@ -128,18 +128,22 @@ impl MultisignedBatchCommitment {
     }
 }
 
+#[derive(Debug, derive_more::Display, Clone, Copy, PartialEq, Eq)]
+#[display("Code not found: {_0}")]
+pub struct CodeNotValidatedError(pub CodeId);
+
 pub fn aggregate_code_commitments<DB: CodesStorageRO>(
     db: &DB,
     codes: impl IntoIterator<Item = CodeId>,
     fail_if_not_found: bool,
-) -> Result<Vec<CodeCommitment>, CodeId> {
+) -> Result<Vec<CodeCommitment>, CodeNotValidatedError> {
     let mut commitments = Vec::new();
 
     for id in codes {
         match db.code_valid(id) {
             Some(valid) => commitments.push(CodeCommitment { id, valid }),
             None if fail_if_not_found => {
-                return Err(id);
+                return Err(CodeNotValidatedError(id));
             }
             None => {}
         }

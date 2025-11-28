@@ -18,7 +18,11 @@
 
 //! Validator core utils and parameters.
 
-use crate::{announces, utils, validator::tx_pool::InjectedTxPool};
+use crate::{
+    announces,
+    utils::{self, CodeNotValidatedError},
+    validator::tx_pool::InjectedTxPool,
+};
 use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use ethexe_common::{
@@ -293,7 +297,7 @@ impl ValidatorCore {
         let code_commitments =
             match utils::aggregate_code_commitments(&self.db, codes.iter().copied(), true) {
                 Ok(commitments) => commitments,
-                Err(code_id) => {
+                Err(CodeNotValidatedError(code_id)) => {
                     return Ok(ValidationStatus::Rejected {
                         request,
                         reason: ValidationRejectReason::CodeIsNotProcessedYet(code_id),
@@ -673,8 +677,10 @@ mod tests {
             })
             .setup(&ctx.core.db);
         let block = chain.blocks[10].to_simple();
-        let code_commitments =
-            utils::aggregate_code_commitments(&ctx.core.db, [code_id], true).unwrap();
+        let code_commitments = vec![CodeCommitment {
+            id: code_id,
+            valid: true,
+        }];
         let batch = utils::create_batch_commitment(
             &ctx.core.db,
             &block,
