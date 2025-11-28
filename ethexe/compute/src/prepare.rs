@@ -21,7 +21,7 @@ use ethexe_common::{
     BlockData,
     db::{
         BlockMetaStorageRO, BlockMetaStorageRW, CodesStorageRO, LatestDataStorageRW,
-        OnChainStorageRO,
+        OnChainStorageRO, OnChainStorageRW,
     },
     events::{BlockEvent, RouterEvent},
 };
@@ -226,7 +226,7 @@ fn missing_data(db: &Database, chain: &VecDeque<BlockData>) -> Result<MissingDat
     })
 }
 
-fn prepare_one_block<DB: BlockMetaStorageRW + LatestDataStorageRW>(
+fn prepare_one_block<DB: BlockMetaStorageRW + LatestDataStorageRW + OnChainStorageRW>(
     db: &DB,
     block: BlockData,
 ) -> Result<()> {
@@ -243,6 +243,9 @@ fn prepare_one_block<DB: BlockMetaStorageRW + LatestDataStorageRW>(
         .ok_or(ComputeError::CodesQueueNotFound(parent))?;
 
     let mut last_committed_announce_hash = None;
+    let mut latest_validators_committed_era = db
+        .block_validators_committed_for_era(parent)
+        .ok_or_else(|| ComputeError::BlockValidatorsCommittedForEraNotFound(parent))?;
 
     for event in block.events {
         match event {
@@ -257,6 +260,17 @@ fn prepare_one_block<DB: BlockMetaStorageRW + LatestDataStorageRW>(
             }
             BlockEvent::Router(RouterEvent::AnnouncesCommitted(head)) => {
                 last_committed_announce_hash = Some(head);
+            }
+
+            BlockEvent::Router(RouterEvent::ValidatorsCommittedForEra { era_index }) => {
+                if era_index != latest_validators_committed_era + 1 {
+                    return Err(ComputeError::ValidatorsCommitmentEraMismatch {
+                        expected_era_index: latest_validators_committed_era + 1,
+                        commitment_era_index: era_index,
+                    });
+                }
+
+                latest_validators_committed_era = era_index;
             }
             _ => {}
         }
@@ -284,6 +298,8 @@ fn prepare_one_block<DB: BlockMetaStorageRW + LatestDataStorageRW>(
         data.prepared_block_hash = block.hash;
     })
     .ok_or(ComputeError::LatestDataNotFound)?;
+
+    db.set_block_validators_committed_for_era(block.hash, latest_validators_committed_era);
 
     Ok(())
 }
