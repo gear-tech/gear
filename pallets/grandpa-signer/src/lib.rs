@@ -62,8 +62,6 @@ pub mod pallet {
         pub id: RequestId,
         pub payload: BoundedVec<u8, T::MaxPayloadLength>,
         pub set_id: SetId,
-        pub authorities: BoundedVec<T::AuthorityId, T::MaxAuthorities>,
-        pub threshold: u32,
         pub created_at: BlockNumberFor<T>,
         pub expires_at: Option<BlockNumberFor<T>>,
     }
@@ -99,7 +97,6 @@ pub mod pallet {
         type ScheduleOrigin: EnsureOrigin<Self::RuntimeOrigin>;
 
         /// Upper bounds.
-        type MaxAuthorities: Get<u32>;
         type MaxPayloadLength: Get<u32>;
         type MaxRequests: Get<u32>;
         type MaxSignaturesPerRequest: Get<u32>;
@@ -149,19 +146,14 @@ pub mod pallet {
             authority: T::AuthorityId,
             count: u32,
         },
-        ThresholdReached {
-            request_id: RequestId,
-        },
     }
 
     #[pallet::error]
     pub enum Error<T> {
         TooManyRequests,
-        TooManyAuthorities,
-        BadThreshold,
         UnknownRequest,
         RequestExpired,
-        AuthorityNotInRequest,
+        AuthorityNotInSet,
         AlreadySigned,
         BadSignature,
         UnsupportedSet,
@@ -171,15 +163,13 @@ pub mod pallet {
 
     #[pallet::call]
     impl<T: Config> Pallet<T> {
-        /// Schedule a signing request for the current GRANDPA set or provided subset.
+        /// Schedule a signing request for the current GRANDPA set.
         #[pallet::call_index(0)]
         #[pallet::weight(T::WeightInfo::schedule_request())]
         pub fn schedule_request(
             origin: OriginFor<T>,
             payload: Vec<u8>,
             set_id: Option<SetId>,
-            authorities: Option<Vec<T::AuthorityId>>,
-            threshold: u32,
             expires_at: Option<BlockNumberFor<T>>,
         ) -> DispatchResult {
             T::ScheduleOrigin::ensure_origin(origin)?;
@@ -193,30 +183,8 @@ pub mod pallet {
                 Error::<T>::UnsupportedSet
             );
 
-            let authorities = match authorities {
-                Some(list) => list,
-                None => T::AuthorityProvider::authorities(set_id),
-            };
-
-            ensure!(
-                !authorities.is_empty() && authorities.len() as u32 <= T::MaxAuthorities::get(),
-                Error::<T>::TooManyAuthorities
-            );
-            ensure!(
-                threshold > 0 && threshold as usize <= authorities.len(),
-                Error::<T>::BadThreshold
-            );
-            ensure!(
-                threshold <= T::MaxSignaturesPerRequest::get(),
-                Error::<T>::BadThreshold
-            );
-
             let bounded_payload: BoundedVec<_, T::MaxPayloadLength> =
                 payload.try_into().map_err(|_| Error::<T>::PayloadTooLong)?;
-
-            let bounded_authorities: BoundedVec<_, T::MaxAuthorities> = authorities
-                .try_into()
-                .map_err(|_| Error::<T>::TooManyAuthorities)?;
 
             let now = <frame_system::Pallet<T>>::block_number();
 
@@ -224,8 +192,6 @@ pub mod pallet {
                 id: req_id,
                 payload: bounded_payload,
                 set_id,
-                authorities: bounded_authorities,
-                threshold,
                 created_at: now,
                 expires_at,
             };
@@ -263,10 +229,14 @@ pub mod pallet {
             let request = Requests::<T>::get(request_id).ok_or(Error::<T>::UnknownRequest)?;
             Self::validate_request(&request)?;
 
+            let set_id = T::AuthorityProvider::current_set_id();
+            ensure!(request.set_id == set_id, Error::<T>::UnsupportedSet);
+            let authorities = T::AuthorityProvider::authorities(set_id);
             ensure!(
-                request.authorities.contains(&authority),
-                Error::<T>::AuthorityNotInRequest
+                authorities.contains(&authority),
+                Error::<T>::AuthorityNotInSet
             );
+
             ensure!(
                 !Signatures::<T>::contains_key(request_id, &authority),
                 Error::<T>::AlreadySigned
@@ -293,10 +263,6 @@ pub mod pallet {
                 authority: authority.clone(),
                 count,
             });
-
-            if count >= request.threshold {
-                Self::deposit_event(Event::ThresholdReached { request_id });
-            }
 
             Ok(())
         }
@@ -357,7 +323,9 @@ pub mod pallet {
                             _ => InvalidTransaction::Call.into(),
                         };
                     }
-                    if !request.authorities.contains(authority) {
+                    let set_id = T::AuthorityProvider::current_set_id();
+                    let authorities = T::AuthorityProvider::authorities(set_id);
+                    if !authorities.contains(authority) {
                         return InvalidTransaction::BadProof.into();
                     }
                     if Signatures::<T>::contains_key(request_id, authority) {
@@ -414,16 +382,17 @@ pub mod pallet {
             for (request_id, request) in Requests::<T>::iter()
                 .take(MAX_REQUESTS_PER_WORKER.min(T::MaxRequests::get() as usize))
             {
-                if SignatureCount::<T>::get(request_id) >= request.threshold {
-                    trace!(target: "grandpa-signer", "skip request {}: threshold met", request_id);
-                    continue;
-                }
                 if let Err(err) = Self::validate_request(&request) {
                     trace!(target: "grandpa-signer", "skip request {}: {:?}", request_id, err);
                     continue;
                 }
                 if SignatureCount::<T>::get(request_id) >= T::MaxSignaturesPerRequest::get() {
                     trace!(target: "grandpa-signer", "skip request {}: max signatures reached", request_id);
+                    continue;
+                }
+                let authorities = T::AuthorityProvider::authorities(request.set_id);
+                if authorities.is_empty() {
+                    trace!(target: "grandpa-signer", "skip request {}: no authorities", request_id);
                     continue;
                 }
 
@@ -450,7 +419,7 @@ pub mod pallet {
                     }
                     let authority: T::AuthorityId = (*key).into();
 
-                    if !request.authorities.contains(&authority) {
+                    if !authorities.contains(&authority) {
                         trace!(target: "grandpa-signer", "skip key for request {}: not in authorities", request_id);
                         continue;
                     }

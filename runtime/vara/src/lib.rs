@@ -1265,7 +1265,6 @@ impl pallet_grandpa_signer::Config for Runtime {
     type AuthorityId = ed25519::Public;
     type AuthoritySignature = ed25519::Signature;
     type ScheduleOrigin = EnsureRoot<AccountId>;
-    type MaxAuthorities = MaxAuthorities;
     type MaxPayloadLength = GrandpaSignerMaxPayloadLength;
     type MaxRequests = GrandpaSignerMaxRequests;
     type MaxSignaturesPerRequest = GrandpaSignerMaxSignaturesPerRequest;

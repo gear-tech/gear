@@ -34,7 +34,6 @@ frame_support::construct_runtime!(
 
 parameter_types! {
     pub const BlockHashCount: u64 = 250;
-    pub const MaxAuthorities: u32 = 4;
     pub const MaxPayloadLength: u32 = 64;
     pub const MaxRequests: u32 = 16;
     pub const MaxSignaturesPerRequest: u32 = 4;
@@ -98,7 +97,6 @@ impl Config for Test {
     type AuthorityId = ed25519::Public;
     type AuthoritySignature = ed25519::Signature;
     type ScheduleOrigin = frame_system::EnsureRoot<u64>;
-    type MaxAuthorities = MaxAuthorities;
     type MaxPayloadLength = MaxPayloadLength;
     type MaxRequests = MaxRequests;
     type MaxSignaturesPerRequest = MaxSignaturesPerRequest;
@@ -131,8 +129,6 @@ fn schedule_and_submit_signature_works() {
             RuntimeOrigin::root(),
             payload.clone(),
             None,
-            None,
-            1,
             None
         ));
 
@@ -159,8 +155,6 @@ fn duplicate_signature_rejected() {
             RuntimeOrigin::root(),
             payload.clone(),
             None,
-            None,
-            1,
             None
         ));
         let req = GrandpaSigner::requests(0).unwrap();
@@ -188,8 +182,6 @@ fn expired_request_rejected() {
             RuntimeOrigin::root(),
             payload.clone(),
             None,
-            None,
-            1,
             Some(2)
         ));
         System::set_block_number(3);
@@ -211,8 +203,6 @@ fn bad_signature_rejected() {
             RuntimeOrigin::root(),
             payload.clone(),
             None,
-            None,
-            1,
             None
         ));
         let pair = &auth_keys()[0];
