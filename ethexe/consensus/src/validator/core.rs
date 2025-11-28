@@ -24,7 +24,7 @@ use async_trait::async_trait;
 use ethexe_common::{
     Address, Announce, Digest, HashOf, ProtocolTimelines, SimpleBlockData, ToDigest, ValidatorsVec,
     consensus::BatchCommitmentValidationRequest,
-    db::BlockMetaStorageRO,
+    db::{BlockMetaStorageRO, OnChainStorageRO},
     ecdsa::{ContractSignature, PublicKey},
     gear::{
         BatchCommitment, ChainCommitment, CodeCommitment, RewardsCommitment, ValidatorsCommitment,
@@ -163,7 +163,27 @@ impl ValidatorCore {
             return Ok(None);
         }
 
+        let latest_era_validators_committed = self
+            .db
+            .block_validators_committed_for_era(block.hash)
+            .ok_or_else(|| {
+                anyhow!(
+                    "not found latest_era_validators_committed in database for block: {}",
+                    block.hash
+                )
+            })?;
+
+        if latest_era_validators_committed == block_era + 1 {
+            tracing::debug!(
+                current_era = %block_era,
+                latest_era_validators_committed = ?latest_era_validators_committed,
+                "Validators for next era are already committed. Skipping validators commitment"
+            );
+            return Ok(None);
+        }
+
         let election_block = utils::election_block_in_era(&self.db, block.clone(), election_ts)?;
+
         let request = ElectionRequest {
             at_block_hash: election_block.hash,
             at_timestamp: election_ts,
@@ -172,7 +192,7 @@ impl ValidatorCore {
         };
 
         let mut elected_validators = self.middleware.make_election_at(request).await?;
-        // Sort elected validators, because of we can not guarantee the determinism of validators order.
+        // Sort elected validators, because of RPC can not guarantee the determinism of returned validators order.
         elected_validators.sort();
 
         let commitment = utils::validators_commitment(block_era + 1, elected_validators)?;
