@@ -95,12 +95,22 @@ fn bridge_got_initialized() {
         do_events_assertion(5, 36, []);
 
         run_to_block(ERA_BLOCKS + 1);
+
+        let authority_set = era_validators_authority_set(6);
+        let authority_set_ids_concat = authority_set
+            .clone()
+            .into_iter()
+            .flat_map(|(public, _)| public.into_inner().0)
+            .collect::<Vec<u8>>();
+        let authority_set_hash: H256 = Blake2_256::hash(&authority_set_ids_concat).into();
+
         do_events_assertion(
             6,
             37,
             [
                 SessionEvent::NewSession { session_index: 6 }.into(),
                 Event::BridgeInitialized.into(),
+                Event::AuthoritySetHashChanged(authority_set_hash).into(),
             ],
         );
         assert_eq!(QueueMerkleRoot::get(), Some(H256::zero()));
@@ -316,19 +326,28 @@ fn bridge_updates_authorities_and_clears() {
         do_events_assertion(6, 37, None::<[_; 0]>);
 
         on_finalize_gear_block(ERA_BLOCKS + 1);
+
+        let authority_set = era_validators_authority_set(6);
+        let authority_set_ids_concat = authority_set
+            .clone()
+            .into_iter()
+            .flat_map(|(public, _)| public.into_inner().0)
+            .collect::<Vec<u8>>();
+        let authority_set_hash: H256 = Blake2_256::hash(&authority_set_ids_concat).into();
+
         do_events_assertion(
             6,
             37,
-            [GrandpaEvent::NewAuthorities {
-                authority_set: era_validators_authority_set(6),
-            }
-            .into()],
+            [GrandpaEvent::NewAuthorities { authority_set }.into()],
         );
 
         on_initialize(ERA_BLOCKS + 2);
         do_events_assertion(6, 38, []);
 
-        assert!(!AuthoritySetHash::exists());
+        assert_eq!(
+            AuthoritySetHash::get().expect("infallible"),
+            authority_set_hash
+        );
 
         assert_ok!(GearEthBridge::unpause(RuntimeOrigin::root()));
 
@@ -376,23 +395,23 @@ fn bridge_updates_authorities_and_clears() {
         do_events_assertion(
             11,
             67,
-            [
-                SessionEvent::NewSession { session_index: 11 }.into(),
-                Event::AuthoritySetHashChanged(authority_set_hash).into(),
-            ],
+            [SessionEvent::NewSession { session_index: 11 }.into()],
         );
+        assert!(!QueueMerkleRoot::get().expect("infallible").is_zero());
+
+        run_to_block(ERA_BLOCKS * 2 + 1);
 
         assert_eq!(
             AuthoritySetHash::get().expect("infallible"),
             authority_set_hash
         );
-        assert!(!QueueMerkleRoot::get().expect("infallible").is_zero());
-
-        run_to_block(ERA_BLOCKS * 2 + 1);
         do_events_assertion(
             12,
             73,
-            [SessionEvent::NewSession { session_index: 12 }.into()],
+            [
+                SessionEvent::NewSession { session_index: 12 }.into(),
+                Event::AuthoritySetHashChanged(authority_set_hash).into(),
+            ],
         );
 
         on_finalize_gear_block(ERA_BLOCKS * 2 + 1);
@@ -401,13 +420,9 @@ fn bridge_updates_authorities_and_clears() {
         System::reset_events();
 
         on_initialize(ERA_BLOCKS * 2 + 2);
-        do_events_assertion(
-            12,
-            74,
-            [Event::AuthoritySetReset.into(), Event::QueueReset.into()],
-        );
+        do_events_assertion(12, 74, [Event::QueueReset.into()]);
 
-        assert!(!AuthoritySetHash::exists());
+        assert!(AuthoritySetHash::exists());
         assert!(QueueMerkleRoot::get().expect("infallible").is_zero());
 
         run_to_block(ERA_BLOCKS * 2 + EPOCH_BLOCKS * 5);
@@ -434,10 +449,7 @@ fn bridge_updates_authorities_and_clears() {
         do_events_assertion(
             17,
             103,
-            [
-                SessionEvent::NewSession { session_index: 17 }.into(),
-                Event::AuthoritySetHashChanged(authority_set_hash).into(),
-            ],
+            [SessionEvent::NewSession { session_index: 17 }.into()],
         );
 
         run_to_block(ERA_BLOCKS * 3 + 1);
@@ -447,16 +459,13 @@ fn bridge_updates_authorities_and_clears() {
             109,
             [
                 SessionEvent::NewSession { session_index: 18 }.into(),
+                Event::AuthoritySetHashChanged(authority_set_hash).into(),
                 GrandpaEvent::NewAuthorities { authority_set }.into(),
             ],
         );
 
         on_initialize(ERA_BLOCKS * 3 + 2);
-        do_events_assertion(
-            18,
-            110,
-            [Event::AuthoritySetReset.into(), Event::QueueReset.into()],
-        );
+        do_events_assertion(18, 110, [Event::QueueReset.into()]);
     })
 }
 
