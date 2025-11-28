@@ -50,14 +50,16 @@ sed -i "s/0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE/${ROUTER_PROXY_ADDRESS}/" s
 
 # Now it's necessary to verify contacts so that users can click "Read/Write as Proxy" on etherscan.
 
-curl \
+if [ -n "$ETHERSCAN_API_KEY" ]; then
+  curl \
     --data "address=$ROUTER_PROXY_ADDRESS" \
     --data "expectedimplementation=$ROUTER_ADDRESS" \
     "https://api.etherscan.io/v2/api?chainid=$CHAIN_ID&module=contract&action=verifyproxycontract&apikey=$ETHERSCAN_API_KEY"
-curl \
+  curl \
     --data "address=$WVARA_PROXY_ADDRESS" \
     --data "expectedimplementation=$WVARA_ADDRESS" \
     "https://api.etherscan.io/v2/api?chainid=$CHAIN_ID&module=contract&action=verifyproxycontract&apikey=$ETHERSCAN_API_KEY"
+fi
 
 # We also need to upload the MirrorProxy and MirrorProxySmall contracts
 # at least once to etherscan so that the Mirror creations by Router are shown as verified.
