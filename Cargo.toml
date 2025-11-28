@@ -572,6 +572,7 @@ ignored = [
     "parity-scale-codec",
     "pallet-authorship",
     "pallet-timestamp",
+    "sp-application-crypto",
 ]
 
 [profile.dev.package.corosensei]
