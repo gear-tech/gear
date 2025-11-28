@@ -282,7 +282,11 @@ fn prepare_one_block<DB: BlockMetaStorageRW + LatestDataStorageRW + OnChainStora
     let mut last_committed_announce_hash = None;
     let mut latest_validators_committed_era = db
         .block_validators_committed_for_era(parent)
-        .ok_or_else(|| ComputeError::BlockValidatorsCommittedForEraNotFound(parent))?;
+        .unwrap_or_else(|| {
+            // TODO: !!! temporary fix
+            let tl = db.protocol_timelines().expect("must be");
+            tl.era_from_ts(block.header.timestamp)
+        });
 
     for event in block.events {
         match event {
