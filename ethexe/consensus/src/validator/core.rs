@@ -18,7 +18,11 @@
 
 //! Validator core utils and parameters.
 
-use crate::{announces, utils, validator::tx_pool::InjectedTxPool};
+use crate::{
+    announces,
+    utils::{self, CodeNotValidatedError},
+    validator::tx_pool::InjectedTxPool,
+};
 use anyhow::{Result, anyhow};
 use async_trait::async_trait;
 use ethexe_common::{
@@ -139,7 +143,8 @@ impl ValidatorCore {
                 anyhow!("Computed block {block_hash} codes queue is not in storage")
             })?;
 
-        utils::aggregate_code_commitments(&self.db, queue, false)
+        Ok(utils::aggregate_code_commitments(&self.db, queue, false)
+            .expect("Error is not possible here, because fail_if_not_found is false"))
     }
 
     pub async fn aggregate_validators_commitment(
@@ -290,16 +295,38 @@ impl ValidatorCore {
         };
 
         let code_commitments =
-            utils::aggregate_code_commitments(&self.db, codes.iter().copied(), true)?;
+            match utils::aggregate_code_commitments(&self.db, codes.iter().copied(), true) {
+                Ok(commitments) => commitments,
+                Err(CodeNotValidatedError(code_id)) => {
+                    return Ok(ValidationStatus::Rejected {
+                        request,
+                        reason: ValidationRejectReason::CodeIsNotProcessedYet(code_id),
+                    });
+                }
+            };
 
         let validators_commitment = if validators {
-            Self::aggregate_validators_commitment(&mut self, &block).await?
+            let Some(commitment) = Self::aggregate_validators_commitment(&mut self, &block).await?
+            else {
+                return Ok(ValidationStatus::Rejected {
+                    request,
+                    reason: ValidationRejectReason::ValidatorsNotReady,
+                });
+            };
+            Some(commitment)
         } else {
             None
         };
 
         let rewards_commitment = if rewards {
-            Self::aggregate_rewards_commitment(&mut self, &block).await?
+            let Some(commitment) = Self::aggregate_rewards_commitment(&mut self, &block).await?
+            else {
+                return Ok(ValidationStatus::Rejected {
+                    request,
+                    reason: ValidationRejectReason::RewardsNotReady,
+                });
+            };
+            Some(commitment)
         } else {
             None
         };
@@ -355,11 +382,21 @@ pub enum ValidationRejectReason {
     CodesHasDuplicates,
     #[display("code id {_0:?} is not waiting for commitment")]
     CodeNotWaitingForCommitment(CodeId),
+    #[display("code id {_0:?} is not processed yet")]
+    CodeIsNotProcessedYet(CodeId),
     #[display("requested head announce {requested:?} is not the best announce {best:?}")]
     HeadAnnounceIsNotBest {
         requested: HashOf<Announce>,
         best: HashOf<Announce>,
     },
+    #[display(
+        "received batch contains validators commitment, but it's not time for validators election yet"
+    )]
+    ValidatorsNotReady,
+    #[display(
+        "received batch contains rewards commitment, but it's not time for rewards distribution yet"
+    )]
+    RewardsNotReady,
     #[display("batch commitment digest mismatch: expected {expected:?}, found {found:?}")]
     BatchDigestMismatch { expected: Digest, found: Digest },
 }
@@ -464,7 +501,8 @@ impl BatchCommitter for Router {
 mod tests {
     use super::*;
     use crate::{mock::*, validator::mock::*};
-    use ethexe_common::mock::{DBMockExt, Mock};
+    use ethexe_common::mock::*;
+    use gear_core::ids::prelude::CodeIdExt;
 
     fn unwrap_rejected_reason(status: ValidationStatus) -> ValidationRejectReason {
         match status {
@@ -611,6 +649,59 @@ mod tests {
                 expected: wrong_digest,
                 found: original_digest,
             }
+        );
+    }
+
+    #[tokio::test]
+    #[ntest::timeout(3000)]
+    async fn rejects_code_not_processed_yet() {
+        gear_utils::init_default_logger();
+
+        let (ctx, _, _) = mock_validator_context();
+        let code = b"1234";
+        let code_id = CodeId::generate(code);
+        let chain = BlockChain::mock(10)
+            .tap_mut(|chain| {
+                chain.blocks[10]
+                    .as_prepared_mut()
+                    .codes_queue
+                    .push_front(code_id);
+                chain.codes.insert(
+                    code_id,
+                    CodeData {
+                        original_bytes: code.to_vec(),
+                        blob_info: Default::default(),
+                        instrumented: None,
+                    },
+                );
+            })
+            .setup(&ctx.core.db);
+        let block = chain.blocks[10].to_simple();
+        let code_commitments = vec![CodeCommitment {
+            id: code_id,
+            valid: true,
+        }];
+        let batch = utils::create_batch_commitment(
+            &ctx.core.db,
+            &block,
+            None,
+            code_commitments,
+            None,
+            None,
+            100,
+        )
+        .unwrap()
+        .unwrap();
+
+        let status = ctx
+            .core
+            .validate_batch_commitment_request(block, BatchCommitmentValidationRequest::new(&batch))
+            .await
+            .unwrap();
+
+        assert_eq!(
+            unwrap_rejected_reason(status),
+            ValidationRejectReason::CodeIsNotProcessedYet(code_id)
         );
     }
 
