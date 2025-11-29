@@ -54,7 +54,7 @@ pub enum SectionName {
 }
 
 /// Section error in WASM module.
-#[derive(Debug, derive_more::Display)]
+#[derive(Debug, derive_more::Display, PartialEq, Eq)]
 pub enum SectionError {
     /// Section not found.
     #[display("{_0} not found")]
@@ -65,7 +65,7 @@ pub enum SectionError {
 }
 
 /// Memory error in WASM module.
-#[derive(Debug, derive_more::Display)]
+#[derive(Debug, derive_more::Display, PartialEq, Eq)]
 pub enum MemoryError {
     /// Memory entry not found in import section.
     #[display("Memory entry not found")]
@@ -76,7 +76,7 @@ pub enum MemoryError {
 }
 
 /// Stack end error in WASM module.
-#[derive(Debug, derive_more::Display)]
+#[derive(Debug, derive_more::Display, PartialEq, Eq)]
 pub enum StackEndError {
     /// Unsupported initialization of gear stack end global variable.
     #[display("Unsupported initialization of gear stack end global")]
@@ -90,7 +90,7 @@ pub enum StackEndError {
 }
 
 /// Data section error in WASM module.
-#[derive(Debug, derive_more::Display)]
+#[derive(Debug, derive_more::Display, PartialEq, Eq)]
 pub enum DataSectionError {
     /// Unsupported initialization of data segment.
     #[display("Unsupported initialization of data segment")]
@@ -115,7 +115,7 @@ pub enum DataSectionError {
 }
 
 /// Type section error in WASM module.
-#[derive(Debug, derive_more::Display)]
+#[derive(Debug, derive_more::Display, PartialEq, Eq)]
 pub enum TypeSectionError {
     /// Type section length exceeds the limit.
     #[display("Type section length limit exceeded: limit={limit}, actual={actual}")]
@@ -136,7 +136,7 @@ pub enum TypeSectionError {
 }
 
 /// Export error in WASM module.
-#[derive(Debug, derive_more::Display)]
+#[derive(Debug, derive_more::Display, PartialEq, Eq)]
 pub enum ExportError {
     /// Incorrect global export index. Can occur when export refers to not existing global index.
     #[display("Global index `{_0}` in export index `{_1}` is incorrect")]
@@ -162,7 +162,7 @@ pub enum ExportError {
 }
 
 /// Import error in WASM module.
-#[derive(Debug, derive_more::Display)]
+#[derive(Debug, derive_more::Display, PartialEq, Eq)]
 pub enum ImportError {
     /// The imported function is not supported by the Gear protocol.
     #[display("Unknown imported function with index `{_0}`")]
@@ -217,5 +217,28 @@ pub enum CodeError {
     #[display("Instrumentation error: {_0}")]
     Instrumentation(InstrumentationError),
 }
+
+impl PartialEq for CodeError {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            // Can't compare BinaryReaderError
+            (CodeError::Validation(_), CodeError::Validation(_)) => true,
+            // Can't compare ModuleError
+            (CodeError::Module(_), CodeError::Module(_)) => true,
+            (CodeError::Section(a), CodeError::Section(b)) => a == b,
+            (CodeError::Memory(a), CodeError::Memory(b)) => a == b,
+            (CodeError::StackEnd(a), CodeError::StackEnd(b)) => a == b,
+            (CodeError::DataSection(a), CodeError::DataSection(b)) => a == b,
+            (CodeError::TypeSection(a), CodeError::TypeSection(b)) => a == b,
+            (CodeError::Export(a), CodeError::Export(b)) => a == b,
+            (CodeError::Import(a), CodeError::Import(b)) => a == b,
+            (CodeError::Instrumentation(a), CodeError::Instrumentation(b)) => a == b,
+            // Different variants
+            _ => false,
+        }
+    }
+}
+
+impl Eq for CodeError {}
 
 impl core::error::Error for CodeError {}
