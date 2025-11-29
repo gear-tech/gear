@@ -39,9 +39,9 @@ use ethexe_processor::{Processor, ProcessorConfig};
 use ethexe_prometheus::{PrometheusEvent, PrometheusService};
 use ethexe_rpc::{InjectedTransactionAcceptance, RpcEvent, RpcServer};
 use ethexe_service_utils::{OptionFuture as _, OptionStreamNext as _};
-use ethexe_signer::Signer;
 use futures::{StreamExt, stream::FuturesUnordered};
 use gprimitives::{ActorId, CodeId, H256};
+use gsigner::secp256k1::Signer;
 use std::{collections::BTreeSet, num::NonZero, pin::Pin, time::Duration};
 
 pub mod config;

@@ -24,7 +24,7 @@ use ethexe_network::{
     NetworkConfig,
     export::{Multiaddr, Protocol},
 };
-use ethexe_signer::Signer;
+use gsigner::secp256k1::Signer;
 use serde::Deserialize;
 use std::path::PathBuf;
 
@@ -82,7 +82,7 @@ impl NetworkParams {
             key.parse().context("invalid network key")?
         } else {
             let signer = Signer::fs(config_dir);
-            let keys = signer.storage_mut().list_keys()?;
+            let keys = signer.list_keys()?;
             match keys.as_slice() {
                 [] => {
                     log::trace!("generate a new network key");

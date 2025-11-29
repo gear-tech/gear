@@ -22,15 +22,17 @@ use crate::{
     Api,
     backtrace::Backtrace,
     config::GearConfig,
-    result::Result,
-    signer::{calls::SignerCalls, storage::SignerStorage},
+    result::{Error, Result},
 };
+use calls::SignerCalls;
 use core::ops::Deref;
+use gsigner::substrate::SubstratePair;
 pub use pair_signer::PairSigner;
 use rpc::SignerRpc;
-use sp_core::{Pair as PairT, crypto::Ss58Codec, sr25519::Pair};
+use sp_core::{crypto::Ss58Codec, sr25519::Pair};
 use sp_runtime::AccountId32;
 use std::sync::Arc;
+use storage::SignerStorage;
 
 mod calls;
 mod pair_signer;
@@ -40,9 +42,9 @@ mod utils;
 
 /// Signer representation that provides access to gear API.
 /// Implements low-level methods such as [`run_tx`](`Inner::run_tx`)
-/// and [`force_batch`](`Signer.calls()::force_batch`).
-/// Other higher-level calls are provided by [`Inner::storage`],
-/// [`Inner::calls`], [`Inner::rpc`].
+/// and [`force_batch`](`Signer::calls().force_batch`).
+/// Other higher-level calls are provided by [`Signer::storage`],
+/// [`Signer::calls`], [`Signer::rpc`].
 #[derive(Clone)]
 pub struct Signer(Arc<Inner>);
 
@@ -66,20 +68,34 @@ impl Signer {
     pub fn new(api: Api, suri: &str, passwd: Option<&str>) -> Result<Self> {
         Ok(Self::from((
             api,
-            PairSigner::new(Pair::from_string(suri, passwd)?),
+            PairSigner::new(load_sr25519_pair(suri, passwd)?),
         )))
     }
 
     /// Change inner signer.
     pub fn change(mut self, suri: &str, passwd: Option<&str>) -> Result<Self> {
-        Arc::make_mut(&mut self.0).signer = PairSigner::new(Pair::from_string(suri, passwd)?);
-
+        Arc::make_mut(&mut self.0).signer = PairSigner::new(load_sr25519_pair(suri, passwd)?);
         Ok(self)
     }
 
-    /// Set nonce of the signer
+    /// Set nonce of the signer.
     pub fn set_nonce(&mut self, nonce: u64) {
         Arc::make_mut(&mut self.0).nonce = Some(nonce);
+    }
+
+    /// Returns signer's storage calls handle.
+    pub fn storage(&self) -> SignerStorage<'_> {
+        self.0.storage()
+    }
+
+    /// Returns signer's RPC calls handle.
+    pub fn rpc(&self) -> SignerRpc<'_> {
+        self.0.rpc()
+    }
+
+    /// Returns signer's program call helper.
+    pub fn calls(&self) -> SignerCalls<'_> {
+        self.0.calls()
     }
 }
 
@@ -94,22 +110,22 @@ impl Inner {
         SignerRpc(self)
     }
 
-    /// Returns signer's calls handle.
+    /// Returns signer's program call helper.
     pub fn calls(&self) -> SignerCalls<'_> {
         SignerCalls(self)
     }
 
-    /// Get address of the current signer
+    /// Get address of the current signer.
     pub fn address(&self) -> String {
         self.account_id().to_ss58check()
     }
 
-    /// Get address of the current signer
+    /// Get account id of the current signer.
     pub fn account_id(&self) -> &AccountId32 {
         self.signer.account_id()
     }
 
-    /// Get reference to inner unsigned api
+    /// Get reference to inner unsigned api.
     pub fn api(&self) -> &Api {
         &self.api
     }
@@ -131,6 +147,14 @@ impl From<(Api, PairSigner<GearConfig, Pair>)> for Signer {
             .into(),
         )
     }
+}
+
+const SIGNER_ALIAS: &str = "gsdk";
+
+fn load_sr25519_pair(suri: &str, passwd: Option<&str>) -> Result<Pair> {
+    let pair =
+        SubstratePair::from_suri(SIGNER_ALIAS, suri, passwd).map_err(|_| Error::InvalidSecret)?;
+    pair.to_sp_pair().map_err(|_| Error::InvalidSecret)
 }
 
 impl Deref for Signer {

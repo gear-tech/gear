@@ -31,6 +31,7 @@ subxt.workspace = true
 thiserror.workspace = true
 url.workspace = true
 parity-scale-codec.workspace = true
+gsigner = { workspace = true, features = ["std", "sr25519"] }
 
 [dev-dependencies]
 gear-node-wrapper.workspace = true

@@ -20,6 +20,7 @@ members = [
     "common/numerated",
     "core",
     "core-backend",
+    "gsigner",
     "core-processor",
     "core-errors",
     "lazy-pages",
@@ -241,7 +242,7 @@ gsdk = { path = "gsdk" }
 gsdk-codegen = { path = "gsdk/codegen" }
 gstd = { path = "gstd", features = ["nightly"] }
 gstd-codegen = { path = "gstd/codegen" }
-gring = { path = "utils/gring" }
+gsigner = { path = "gsigner", default-features = false }
 gsys = { path = "gsys" }
 gtest = { path = "gtest" }
 gprimitives = { path = "gprimitives", default-features = false }
@@ -306,7 +307,7 @@ ethexe-db = { path = "ethexe/db", default-features = false }
 ethexe-network = { path = "ethexe/network", default-features = false }
 ethexe-processor = { path = "ethexe/processor", default-features = false }
 ethexe-runtime = { path = "ethexe/runtime", default-features = false }
-ethexe-signer = { path = "ethexe/signer", default-features = false }
+
 ethexe-service = { path = "ethexe/service", default-features = false }
 ethexe-service-utils = { path = "ethexe/service/utils", default-features = false }
 ethexe-consensus = { path = "ethexe/consensus", default-features = false }
@@ -342,6 +343,7 @@ frame-metadata-hash-extension = { default-features = false, git = "https://githu
 generate-bags = { version = "38.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
 pallet-authorship = { version = "38.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
 pallet-authority-discovery = { version = "38.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
+sp-application-crypto = { version = "38.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["full_crypto"] }
 pallet-babe = { version = "38.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
 pallet-bags-list = { version = "37.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
 pallet-bounties = { version = "37.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
@@ -570,6 +572,7 @@ ignored = [
     "parity-scale-codec",
     "pallet-authorship",
     "pallet-timestamp",
+    "sp-application-crypto",
 ]
 
 [profile.dev.package.corosensei]

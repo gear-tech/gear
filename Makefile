@@ -201,8 +201,7 @@ test-gear: # Crates are excluded to significantly decrease time.
 		--exclude gear-authorship \
 		--exclude pallet-gear-staking-rewards \
 		--exclude gear-wasm-gen \
-		--exclude demo-stack-allocations \
-		--exclude gring
+		--exclude demo-stack-allocations
 
 .PHONY: test-gear-release
 test-gear-release:
