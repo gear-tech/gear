@@ -79,6 +79,14 @@ impl<T, const N: usize> LimitedVec<T, N> {
     /// Maximum length of the vector.
     pub const MAX_LEN: usize = N;
 
+    /// Constructs a new `LimitedVec<T>` reserving storage for `capacity` items.
+    ///
+    /// Returns `Err(LimitedVecError)` if the requested capacity exceeds the limit.
+    pub fn try_with_capacity(capacity: usize) -> Result<Self, LimitedVecError> {
+        Self::validate_len(capacity)?;
+        Ok(Self(Vec::with_capacity(capacity)))
+    }
+
     /// Validates given length.
     ///
     /// Returns `Ok(())` if the vector can store such number
@@ -162,6 +170,16 @@ impl<T, const N: usize> LimitedVec<T, N> {
     /// Converts the limited vector into its inner `Vec<T>`.
     pub fn into_vec(self) -> Vec<T> {
         self.0
+    }
+
+    /// Returns a reference to the inner vector.
+    pub fn inner(&self) -> &Vec<T> {
+        &self.0
+    }
+
+    /// Returns a mutable reference to the inner vector.
+    pub fn inner_mut(&mut self) -> &mut Vec<T> {
+        &mut self.0
     }
 }
 
