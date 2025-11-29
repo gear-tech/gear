@@ -33,7 +33,7 @@ use alloy::{
     providers::{Provider as _, WalletProvider, ext::AnvilApi},
 };
 use ethexe_common::{
-    Announce, HashOf, ScheduledTask, ToDigest,
+    Announce, HashOf, NetworkAnnounce, ScheduledTask, ToDigest,
     db::*,
     ecdsa::ContractSignature,
     events::{BlockEvent, MirrorEvent, RouterEvent},
@@ -47,7 +47,7 @@ use ethexe_consensus::{BatchCommitter, ConsensusEvent};
 use ethexe_db::{Database, verifier::IntegrityVerifier};
 use ethexe_ethereum::{TryGetReceipt, deploy::ContractsDeploymentParams, router::Router};
 use ethexe_observer::{EthereumConfig, ObserverEvent};
-use ethexe_processor::{DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, RunnerConfig};
+use ethexe_processor::{DEFAULT_BLOCK_GAS_LIMIT, DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, RunnerConfig};
 use ethexe_prometheus::PrometheusConfig;
 use ethexe_rpc::{InjectedClient, InjectedTransactionAcceptance, RpcConfig};
 use ethexe_runtime_common::state::{Expiring, MailboxMessage, PayloadLookup, Storage};
@@ -1479,6 +1479,7 @@ async fn send_injected_tx() {
     env.force_new_block().await;
 
     // Give some time for nodes to process the blocks
+    tokio::time::sleep(Duration::from_secs(1)).await;
     let reference_block = node0
         .db
         .latest_data()
@@ -1493,14 +1494,12 @@ async fn send_injected_tx() {
         reference_block,
         salt: H256::random().0.to_vec().into(),
     };
+    let signed_tx = env
+        .signer
+        .signed_data(validator0_pubkey, tx.clone())
+        .unwrap();
 
-    let tx_for_node1 = RpcOrNetworkInjectedTx {
-        recipient: validator1_pubkey.to_address(),
-        tx: env
-            .signer
-            .signed_data(validator0_pubkey, tx.clone())
-            .unwrap(),
-    };
+    let tx_for_node1 = RpcOrNetworkInjectedTx::new(validator1_pubkey.to_address(), signed_tx);
 
     // Send request
     log::info!("Sending tx pool request to node-1");
@@ -1529,7 +1528,7 @@ async fn send_injected_tx() {
     // Check that node-1 save received tx.
     let node1_db_tx = node1
         .db
-        .injected_transaction(tx.to_hash())
+        .injected_transaction(tx_for_node1.tx.data().to_hash())
         .expect("tx not found");
     assert_eq!(node1_db_tx, tx_for_node1.tx);
 }
@@ -2460,11 +2459,8 @@ async fn injected_tx_fungible_token() {
         reference_block: node.db.latest_data().unwrap().prepared_block_hash,
         salt: vec![1u8].into(),
     };
-
-    let rpc_tx = RpcOrNetworkInjectedTx {
-        recipient: pubkey.to_address(),
-        tx: env.signer.signed_data(pubkey, mint_tx.clone()).unwrap(),
-    };
+    let signed_tx = env.signer.signed_data(pubkey, mint_tx.clone()).unwrap();
+    let rpc_tx = RpcOrNetworkInjectedTx::new(pubkey.to_address(), signed_tx);
 
     let acceptance = rpc_client
         .send_transaction(rpc_tx)
@@ -2672,8 +2668,13 @@ async fn announces_conflicts() {
         let wait_for_pong = env.send_message(ping_id, b"PING").await.unwrap();
 
         let block = env.latest_block().await;
-        let announce = Announce::with_default_gas(block.hash, HashOf::random());
-        let announce_hash = announce.to_hash();
+        let announce = NetworkAnnounce {
+            block_hash: block.hash,
+            parent: HashOf::random(),
+            gas_allowance: Some(DEFAULT_BLOCK_GAS_LIMIT),
+            injected_transactions: Vec::new(),
+        };
+        let announce_hash = Announce::from(&announce).to_hash();
         validator0
             .publish_validator_message(ValidatorMessage {
                 block: block.hash,
@@ -2774,8 +2775,13 @@ async fn announces_conflicts() {
 
         // Send announce from stopped validator 6
         let block = env.latest_block().await;
-        let announce6 = Announce::with_default_gas(block.hash, latest_computed_announce_hash);
-        let announce6_hash = announce6.to_hash();
+        let announce6 = NetworkAnnounce {
+            block_hash: block.hash,
+            parent: latest_computed_announce_hash,
+            gas_allowance: Some(DEFAULT_BLOCK_GAS_LIMIT),
+            injected_transactions: Vec::new(),
+        };
+        let announce6_hash = Announce::from(&announce6).to_hash();
         validator6
             .publish_validator_message(ValidatorMessage {
                 block: block.hash,
@@ -2803,8 +2809,13 @@ async fn announces_conflicts() {
             .flatten()
             .find(|&announce_hash| validator1_db.announce(announce_hash).unwrap().is_base())
             .expect("base announces not found");
-        let announce7 = Announce::with_default_gas(block.hash, parent);
-        let announce7_hash = announce7.to_hash();
+        let announce7 = NetworkAnnounce {
+            block_hash: block.hash,
+            parent,
+            gas_allowance: Some(DEFAULT_BLOCK_GAS_LIMIT),
+            injected_transactions: Vec::new(),
+        };
+        let announce7_hash = Announce::from(&announce7).to_hash();
         validator0
             .publish_validator_message(ValidatorMessage {
                 block: block.hash,
