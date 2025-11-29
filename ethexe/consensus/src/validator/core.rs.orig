@@ -168,6 +168,9 @@ impl ValidatorCore {
             return Ok(None);
         }
 
+<<<<<<< HEAD
+        let election_block = utils::election_block_in_era(&self.db, *block, election_ts)?;
+=======
         let latest_era_validators_committed = self
             .db
             .block_validators_committed_for_era(block.hash)
@@ -187,7 +190,9 @@ impl ValidatorCore {
             return Ok(None);
         }
 
-        let election_block = utils::election_block_in_era(&self.db, *block, election_ts)?;
+        let election_block = utils::election_block_in_era(&self.db, block.clone(), election_ts)?;
+
+>>>>>>> origin/master
         let request = ElectionRequest {
             at_block_hash: election_block.hash,
             at_timestamp: election_ts,

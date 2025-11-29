@@ -609,6 +609,7 @@ async fn instrument_codes(
     Ok(())
 }
 
+<<<<<<< HEAD
 async fn set_tx_pool_data_requirement(
     db: &Database,
     block_loader: &impl BlockLoader,
@@ -630,8 +631,7 @@ async fn set_tx_pool_data_requirement(
     }
 
     Ok(())
-}
-
+=======
 fn identify_latest_era_with_validators_committed(
     start_block: &BlockHeader,
     timelines: &ProtocolTimelines,
@@ -657,6 +657,7 @@ fn identify_latest_era_with_validators_committed(
             "can not identify latest era for which validators was successfully committed "
         )
     }
+>>>>>>> origin/master
 }
 
 pub(crate) async fn sync(service: &mut Service) -> Result<()> {
