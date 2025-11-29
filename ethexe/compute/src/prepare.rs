@@ -489,7 +489,7 @@ mod tests {
             .setup(&db);
 
         let block2 = chain.blocks[1].to_simple().next_block();
-        let block3 = block2.clone().next_block();
+        let block3 = block2.next_block();
 
         BlockData {
             hash: block2.hash,
