@@ -5091,6 +5091,7 @@ dependencies = [
  "ethexe-signer",
  "futures",
  "gprimitives",
+ "indexmap 2.7.1",
  "itertools 0.13.0",
  "libp2p 0.56.0",
  "libp2p-swarm-test",
