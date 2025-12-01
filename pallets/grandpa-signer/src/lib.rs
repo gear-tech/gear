@@ -18,9 +18,7 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use frame_support::{
-    pallet_prelude::*, unsigned::ValidateUnsigned, weights::constants::RocksDbWeight,
-};
+use frame_support::{pallet_prelude::*, unsigned::ValidateUnsigned, weights::constants::RocksDbWeight};
 use frame_system::{
     ensure_root,
     offchain::{SendTransactionTypes, SubmitTransaction},
@@ -508,18 +506,45 @@ pub mod pallet {
         fn submit_signature() -> Weight;
     }
 
+    /// Fallback weights used when no benchmarking data is supplied.
+    pub struct SubstrateWeight<T>(sp_std::marker::PhantomData<T>);
+
+    impl<T: Config> WeightInfo for SubstrateWeight<T> {
+        fn schedule_request() -> Weight {
+            // Reads: NextRequestId; Requests (prune pass).
+            // Writes: Requests, NextRequestId; cleanup for up to MaxRequests expired entries and their signatures.
+            let db = T::DbWeight::get();
+            let max_requests = T::MaxRequests::get() as u64;
+            let max_sigs = T::MaxSignaturesPerRequest::get() as u64;
+            Weight::from_parts(55_000_000, 2048)
+                .saturating_add(db.reads(1 + max_requests))
+                .saturating_add(db.writes(2 + max_requests * (2 + max_sigs)))
+        }
+
+        fn submit_signature() -> Weight {
+            // Reads: Requests, Signatures, SignatureCount.
+            // Writes: Signatures, SignatureCount; optional cleanup of a completed request.
+            let db = T::DbWeight::get();
+            let max_sigs = T::MaxSignaturesPerRequest::get() as u64;
+            Weight::from_parts(145_000_000, 4096)
+                .saturating_add(db.reads(3))
+                .saturating_add(db.writes(2 + 1 + max_sigs))
+        }
+    }
+
+    // Backward-compatible fallback for tests/benches that still select `()`.
     impl WeightInfo for () {
         fn schedule_request() -> Weight {
-            // Reads: NextRequestId; Writes: Requests, NextRequestId.
+            // Rough upper bound; prefer `SubstrateWeight` in runtimes.
             Weight::from_parts(55_000_000, 2048)
-                .saturating_add(RocksDbWeight::get().reads(1_u64))
-                .saturating_add(RocksDbWeight::get().writes(2_u64))
+                .saturating_add(RocksDbWeight::get().reads(2_u64))
+                .saturating_add(RocksDbWeight::get().writes(3_u64))
         }
+
         fn submit_signature() -> Weight {
-            // Reads: Requests, Signatures, SignatureCount; Writes: Signatures, SignatureCount.
             Weight::from_parts(145_000_000, 4096)
                 .saturating_add(RocksDbWeight::get().reads(3_u64))
-                .saturating_add(RocksDbWeight::get().writes(2_u64))
+                .saturating_add(RocksDbWeight::get().writes(5_u64))
         }
     }
 }

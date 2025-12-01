@@ -1269,7 +1269,7 @@ impl pallet_grandpa_signer::Config for Runtime {
     type MaxSignaturesPerRequest = GrandpaSignerMaxSignaturesPerRequest;
     type UnsignedPriority = GrandpaSignerUnsignedPriority;
     type AuthorityProvider = GrandpaAuthorityProvider;
-    type WeightInfo = ();
+    type WeightInfo = pallet_grandpa_signer::SubstrateWeight<Runtime>;
 }
 
 pub struct ExtraFeeFilter;
