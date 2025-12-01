@@ -37,6 +37,8 @@ pub use weights::WeightInfo;
 pub mod migrations {
     /// Reset migration.
     pub mod reset;
+    /// Force to set hash of the authority set.
+    pub mod set_hash;
 }
 
 pub mod weights;
