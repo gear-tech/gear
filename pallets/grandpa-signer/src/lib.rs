@@ -315,7 +315,9 @@ pub mod pallet {
         fn prune_expired_requests(now: BlockNumberFor<T>) {
             let expired: Vec<_> = Requests::<T>::iter()
                 .filter_map(|(request_id, request)| {
-                    if let Some(exp) = request.expires_at && now > exp {
+                    if let Some(exp) = request.expires_at
+                        && now > exp
+                    {
                         Some(request_id)
                     } else {
                         None
