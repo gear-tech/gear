@@ -947,6 +947,7 @@ fn rotate_keys() {
         assert!(!Initialized::get());
         assert!(!QueueMerkleRoot::exists());
         assert!(Paused::get());
+        assert_eq!(Grandpa::current_set_id(), 0);
 
         run_to_block(EPOCH_BLOCKS);
         do_events_assertion(0, 6, []);
@@ -995,6 +996,8 @@ fn rotate_keys() {
         // session ends. We have changed validators because of the changed session keys.
         // That triggers bridge initialization and grandpa::NewAuthorities logic.
         run_to_block(EPOCH_BLOCKS * 3 + 1);
+
+        assert_eq!(Grandpa::current_set_id(), 1);
 
         // the first validator changed its keys
         let authority_set = era_validators_authority_set(3);
@@ -1054,6 +1057,8 @@ fn rotate_keys() {
         do_events_assertion(5, 36, []);
 
         run_to_block(ERA_BLOCKS + 1);
+
+        assert_eq!(Grandpa::current_set_id(), 2);
 
         // authority set is changed on the era end
         let authority_set = era_validators_authority_set(6);
