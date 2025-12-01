@@ -18,7 +18,9 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use frame_support::{pallet_prelude::*, unsigned::ValidateUnsigned, weights::constants::RocksDbWeight};
+use frame_support::{
+    pallet_prelude::*, unsigned::ValidateUnsigned, weights::constants::RocksDbWeight,
+};
 use frame_system::{
     ensure_root,
     offchain::{SendTransactionTypes, SubmitTransaction},
