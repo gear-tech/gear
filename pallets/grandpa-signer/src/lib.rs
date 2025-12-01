@@ -308,23 +308,23 @@ pub mod pallet {
         fn cleanup_request(request_id: RequestId) {
             Requests::<T>::remove(request_id);
             SignatureCount::<T>::remove(request_id);
-            // Drop signatures only for the matching request id.
-            let _ = Signatures::<T>::translate(|req, _auth, sig| {
-                if req == request_id {
-                    None
-                } else {
-                    Some(sig)
-                }
-            });
+            // Remove all signatures for this request prefix.
+            let _ = Signatures::<T>::clear_prefix(request_id, u32::MAX, None);
         }
 
         fn prune_expired_requests(now: BlockNumberFor<T>) {
-            for (request_id, request) in Requests::<T>::iter() {
-                if let Some(exp) = request.expires_at
-                    && now > exp
-                {
-                    Self::cleanup_request(request_id);
-                }
+            let expired: Vec<_> = Requests::<T>::iter()
+                .filter_map(|(request_id, request)| {
+                    if let Some(exp) = request.expires_at && now > exp {
+                        Some(request_id)
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+
+            for request_id in expired {
+                Self::cleanup_request(request_id);
             }
         }
     }
