@@ -339,13 +339,17 @@ pub mod pallet {
                     }
 
                     let provides = vec![(b"grandpa-signer", request_id, authority).encode()];
-                    let longevity = request
-                        .expires_at
-                        .and_then(|exp| {
+                    let longevity = match request.expires_at {
+                        Some(exp) => {
                             let now = <frame_system::Pallet<T>>::block_number();
-                            exp.saturating_sub(now).try_into().ok()
-                        })
-                        .unwrap_or(TransactionLongevity::MAX);
+                            let remaining = exp.saturating_sub(now);
+                            match remaining.try_into() {
+                                Ok(l) if l > 0 => l,
+                                _ => return InvalidTransaction::Stale.into(),
+                            }
+                        }
+                        None => TransactionLongevity::MAX,
+                    };
 
                     Ok(ValidTransaction {
                         priority: T::UnsignedPriority::get(),
