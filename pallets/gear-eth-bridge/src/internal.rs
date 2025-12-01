@@ -254,8 +254,6 @@ impl<T: Config> Pallet<T> {
         ClearTimer::<T>::kill();
         weight = weight.saturating_add(db_weight.writes(1));
 
-        weight = weight.saturating_add(db_weight.writes(2));
-
         // Resetting queue.
         let reset_weight = Self::reset_queue();
         weight = weight.saturating_add(reset_weight);
