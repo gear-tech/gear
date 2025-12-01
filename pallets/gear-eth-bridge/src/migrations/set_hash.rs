@@ -25,10 +25,11 @@ use frame_support::{
     traits::{Get, OnRuntimeUpgrade},
 };
 use gprimitives::H256;
-use sp_runtime::RuntimeAppPublic;
 #[cfg(feature = "try-runtime")]
-use {sp_runtime::TryRuntimeError, sp_std::vec::Vec};
+use sp_runtime::TryRuntimeError;
+use sp_runtime::{RuntimeAppPublic, sp_std::vec::Vec};
 
+/// Puts hash of the current authority set into the storage.
 pub struct Migration<T>(sp_std::marker::PhantomData<T>);
 
 impl<T: Config + pallet_grandpa::Config> OnRuntimeUpgrade for Migration<T> {
