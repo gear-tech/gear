@@ -27,6 +27,14 @@ fn skip_build_on_intellij_sync() {
     }
 }
 
+#[cfg(feature = "std")]
+const GENERATE_GSDK_METADATA_ENV: &str = "GENERATE_GSDK_METADATA";
+
+#[cfg(feature = "std")]
+fn should_regenerate_gsdk_metadata() -> bool {
+    std::env::var(GENERATE_GSDK_METADATA_ENV).is_ok()
+}
+
 #[cfg(all(feature = "std", not(feature = "metadata-hash")))]
 fn main() {
     substrate_build_script_utils::generate_cargo_keys();
@@ -72,6 +80,10 @@ fn regenerate_gsdk_scale() {
     use sc_executor::{WasmExecutionMethod, WasmtimeInstantiationStrategy};
     use sc_executor_common::runtime_blob::RuntimeBlob;
     use std::{env, fs, path::PathBuf};
+
+    if !should_regenerate_gsdk_metadata() {
+        return;
+    }
 
     let out_path = "../../gsdk/vara_runtime.scale";
 
