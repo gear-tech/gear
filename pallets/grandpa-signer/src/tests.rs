@@ -96,7 +96,6 @@ impl Config for Test {
     type RuntimeEvent = RuntimeEvent;
     type AuthorityId = ed25519::Public;
     type AuthoritySignature = ed25519::Signature;
-    type ScheduleOrigin = frame_system::EnsureRoot<u64>;
     type MaxPayloadLength = MaxPayloadLength;
     type MaxRequests = MaxRequests;
     type MaxSignaturesPerRequest = MaxSignaturesPerRequest;

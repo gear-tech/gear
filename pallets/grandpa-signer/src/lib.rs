@@ -18,8 +18,11 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
-use frame_support::{pallet_prelude::*, traits::EnsureOrigin, unsigned::ValidateUnsigned};
+use frame_support::{
+    pallet_prelude::*, unsigned::ValidateUnsigned, weights::constants::RocksDbWeight,
+};
 use frame_system::{
+    ensure_root,
     offchain::{SendTransactionTypes, SubmitTransaction},
     pallet_prelude::*,
 };
@@ -92,9 +95,6 @@ pub mod pallet {
             + TypeInfo
             + MaxEncodedLen
             + Into<ed25519::Signature>;
-
-        /// Origin allowed to schedule a signing request.
-        type ScheduleOrigin: EnsureOrigin<Self::RuntimeOrigin>;
 
         /// Upper bounds.
         type MaxPayloadLength: Get<u32>;
@@ -172,7 +172,7 @@ pub mod pallet {
             set_id: Option<SetId>,
             expires_at: Option<BlockNumberFor<T>>,
         ) -> DispatchResult {
-            T::ScheduleOrigin::ensure_origin(origin)?;
+            ensure_root(origin)?;
 
             let req_id = NextRequestId::<T>::get();
             ensure!(req_id < T::MaxRequests::get(), Error::<T>::TooManyRequests);
@@ -479,10 +479,16 @@ pub mod pallet {
 
     impl WeightInfo for () {
         fn schedule_request() -> Weight {
-            Weight::from_parts(10_000, 0)
+            // Reads: NextRequestId; Writes: Requests, NextRequestId.
+            Weight::from_parts(55_000_000, 2048)
+                .saturating_add(RocksDbWeight::get().reads(1_u64))
+                .saturating_add(RocksDbWeight::get().writes(2_u64))
         }
         fn submit_signature() -> Weight {
-            Weight::from_parts(10_000, 0)
+            // Reads: Requests, Signatures, SignatureCount; Writes: Signatures, SignatureCount.
+            Weight::from_parts(145_000_000, 4096)
+                .saturating_add(RocksDbWeight::get().reads(3_u64))
+                .saturating_add(RocksDbWeight::get().writes(2_u64))
         }
     }
 }
