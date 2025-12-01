@@ -306,7 +306,7 @@ pub mod pallet {
         fn cleanup_request(request_id: RequestId) {
             Requests::<T>::remove(request_id);
             SignatureCount::<T>::remove(request_id);
-            Signatures::<T>::clear_prefix(request_id, u32::MAX, None);
+            let _ = Signatures::<T>::clear_prefix(request_id, u32::MAX, None);
         }
 
         fn prune_expired_requests(now: BlockNumberFor<T>) {
