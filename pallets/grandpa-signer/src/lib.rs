@@ -274,6 +274,15 @@ pub mod pallet {
             let done_by_set = count >= authorities.len() as u32;
             let done_by_limit = count >= T::MaxSignaturesPerRequest::get();
             if done_by_set || done_by_limit {
+                log::warn!(
+                    target: "gear::grandpa-signer",
+                    "cleanup request {} (done_by_set={}, done_by_limit={}, count={}, authorities={})",
+                    request_id,
+                    done_by_set,
+                    done_by_limit,
+                    count,
+                    authorities.len(),
+                );
                 Self::cleanup_request(request_id);
             }
 
@@ -425,16 +434,16 @@ pub mod pallet {
                 .take(MAX_REQUESTS_PER_WORKER.min(T::MaxRequests::get() as usize))
             {
                 if let Err(err) = Self::validate_request(&request) {
-                    trace!(target: "grandpa-signer", "skip request {}: {:?}", request_id, err);
+                    trace!(target: "gear::grandpa-signer", "skip request {}: {:?}", request_id, err);
                     continue;
                 }
                 if SignatureCount::<T>::get(request_id) >= T::MaxSignaturesPerRequest::get() {
-                    trace!(target: "grandpa-signer", "skip request {}: max signatures reached", request_id);
+                    trace!(target: "gear::grandpa-signer", "skip request {}: max signatures reached", request_id);
                     continue;
                 }
                 let authorities = T::AuthorityProvider::authorities(request.set_id);
                 if authorities.is_empty() {
-                    trace!(target: "grandpa-signer", "skip request {}: no authorities", request_id);
+                    trace!(target: "gear::grandpa-signer", "skip request {}: no authorities", request_id);
                     continue;
                 }
 
@@ -448,7 +457,7 @@ pub mod pallet {
                 {
                     let last = u64::from_le_bytes(bytes.as_slice().try_into().unwrap());
                     if now.saturating_sub(last) < BACKOFF_BLOCKS {
-                        trace!(target: "grandpa-signer", "skip request {}: backoff", request_id);
+                        trace!(target: "gear::grandpa-signer", "skip request {}: backoff", request_id);
                         continue;
                     }
                 }
@@ -462,11 +471,11 @@ pub mod pallet {
                     let authority: T::AuthorityId = (*local_key).into();
 
                     if !authorities.contains(&authority) {
-                        trace!(target: "grandpa-signer", "skip key for request {}: not in authorities", request_id);
+                        trace!(target: "gear::grandpa-signer", "skip key for request {}: not in authorities", request_id);
                         continue;
                     }
                     if Signatures::<T>::contains_key(request_id, &authority) {
-                        trace!(target: "grandpa-signer", "skip key for request {}: already signed", request_id);
+                        trace!(target: "gear::grandpa-signer", "skip key for request {}: already signed", request_id);
                         continue;
                     }
                     if SignatureCount::<T>::get(request_id) >= T::MaxSignaturesPerRequest::get() {
@@ -493,7 +502,7 @@ pub mod pallet {
                                     &last_attempt_key,
                                     &now.to_le_bytes(),
                                 );
-                                debug!(target: "grandpa-signer", "submitted signature for request {}", request_id);
+                                debug!(target: "gear::grandpa-signer", "submitted signature for request {}", request_id);
                             }
                             Err(e) => {
                                 sp_io::offchain::local_storage_set(
@@ -501,7 +510,7 @@ pub mod pallet {
                                     &last_attempt_key,
                                     &now.to_le_bytes(),
                                 );
-                                debug!(target: "grandpa-signer", "failed to submit signature for request {}: {:?}", request_id, e);
+                                debug!(target: "gear::grandpa-signer", "failed to submit signature for request {}: {:?}", request_id, e);
                             }
                         }
                     }
