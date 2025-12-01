@@ -397,11 +397,11 @@ pub mod pallet {
                 }
 
                 let now = <frame_system::Pallet<T>>::block_number().saturated_into::<u64>();
-                let mut key = b"grandpa-signer:last_attempt:".to_vec();
-                key.extend_from_slice(&request_id.to_le_bytes());
+                let mut last_attempt_key = b"grandpa-signer:last_attempt:".to_vec();
+                last_attempt_key.extend_from_slice(&request_id.to_le_bytes());
                 if let Some(bytes) = sp_io::offchain::local_storage_get(
                     sp_core::offchain::StorageKind::PERSISTENT,
-                    &key,
+                    &last_attempt_key,
                 ) && bytes.len() == 8
                 {
                     let last = u64::from_le_bytes(bytes.as_slice().try_into().unwrap());
@@ -413,11 +413,11 @@ pub mod pallet {
 
                 let mut submitted = false;
 
-                for key in local_keys.iter() {
+                for local_key in local_keys.iter() {
                     if submissions >= MAX_SUBMISSIONS_PER_WORKER {
                         return;
                     }
-                    let authority: T::AuthorityId = (*key).into();
+                    let authority: T::AuthorityId = (*local_key).into();
 
                     if !authorities.contains(&authority) {
                         trace!(target: "grandpa-signer", "skip key for request {}: not in authorities", request_id);
@@ -432,7 +432,7 @@ pub mod pallet {
                     }
 
                     if let Some(signature) =
-                        sp_io::crypto::ed25519_sign(KEY_TYPE, key, &request.payload)
+                        sp_io::crypto::ed25519_sign(KEY_TYPE, local_key, &request.payload)
                     {
                         let signature: T::AuthoritySignature = signature.into();
                         let call = Call::submit_signature {
@@ -448,7 +448,7 @@ pub mod pallet {
                                 submitted = true;
                                 sp_io::offchain::local_storage_set(
                                     sp_core::offchain::StorageKind::PERSISTENT,
-                                    key,
+                                    &last_attempt_key,
                                     &now.to_le_bytes(),
                                 );
                                 debug!(target: "grandpa-signer", "submitted signature for request {}", request_id);
@@ -456,7 +456,7 @@ pub mod pallet {
                             Err(e) => {
                                 sp_io::offchain::local_storage_set(
                                     sp_core::offchain::StorageKind::PERSISTENT,
-                                    key,
+                                    &last_attempt_key,
                                     &now.to_le_bytes(),
                                 );
                                 debug!(target: "grandpa-signer", "failed to submit signature for request {}: {:?}", request_id, e);
