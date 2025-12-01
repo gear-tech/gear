@@ -142,7 +142,7 @@ pub enum Event {
 pub(crate) struct Config {
     pub max_rounds_per_request: u32,
     pub request_timeout: Duration,
-    pub per_request_timeout: Duration,
+    pub request_timeout_per_peer: Duration,
     pub max_simultaneous_responses: u32,
 }
 
@@ -151,7 +151,7 @@ impl Default for Config {
         Self {
             max_rounds_per_request: 10,
             request_timeout: Duration::from_secs(100),
-            per_request_timeout: Duration::from_secs(10),
+            request_timeout_per_peer: Duration::from_secs(10),
             max_simultaneous_responses: 10,
         }
     }
@@ -169,8 +169,11 @@ impl Config {
         self
     }
 
-    pub(crate) fn with_per_request_timeout(mut self, per_request_timeout: Duration) -> Self {
-        self.per_request_timeout = per_request_timeout;
+    pub(crate) fn with_request_timeout_per_peer(
+        mut self,
+        request_timeout_per_peer: Duration,
+    ) -> Self {
+        self.request_timeout_per_peer = request_timeout_per_peer;
         self
     }
 
@@ -389,8 +392,8 @@ impl Behaviour {
         let (handle, rx) = mpsc::unbounded_channel();
         let handle = Handle(handle);
 
-        let inner_config =
-            request_response::Config::default().with_request_timeout(config.per_request_timeout);
+        let inner_config = request_response::Config::default()
+            .with_request_timeout(config.request_timeout_per_peer);
 
         Self {
             inner: InnerBehaviour::new([(STREAM_PROTOCOL, ProtocolSupport::Full)], inner_config),
@@ -1164,8 +1167,8 @@ pub(crate) mod tests {
         let alice_config = Config::default().with_max_simultaneous_responses(2);
         let (mut alice, _alice_db, _data_provider) = new_swarm_with_config(alice_config).await;
         let bob_config = Config::default()
-            // make Bob to wait for Alice much more time to respond, otherwise Bob will drop its request
-            .with_per_request_timeout(Duration::from_hours(1));
+            // make Bob to wait for Alice much more time to respond, otherwise Bob may drop its request
+            .with_request_timeout_per_peer(Duration::from_mins(5));
         let (mut bob, _bob_db, _data_provider) = new_swarm_with_config(bob_config).await;
         let bob_handle = bob.behaviour().handle();
         let bob_peer_id = *bob.local_peer_id();
