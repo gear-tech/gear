@@ -270,8 +270,10 @@ pub mod pallet {
                 count,
             });
 
-            let authorities = T::AuthorityProvider::authorities(request.set_id);
-            if count >= authorities.len() as u32 || count >= T::MaxSignaturesPerRequest::get() {
+            // Drop the request once it is fully signed or hits the per-request cap.
+            let done_by_set = count >= authorities.len() as u32;
+            let done_by_limit = count >= T::MaxSignaturesPerRequest::get();
+            if done_by_set || done_by_limit {
                 Self::cleanup_request(request_id);
             }
 
@@ -306,7 +308,14 @@ pub mod pallet {
         fn cleanup_request(request_id: RequestId) {
             Requests::<T>::remove(request_id);
             SignatureCount::<T>::remove(request_id);
-            let _ = Signatures::<T>::clear_prefix(request_id, u32::MAX, None);
+            // Drop signatures only for the matching request id.
+            let _ = Signatures::<T>::translate(|req, _auth, sig| {
+                if req == request_id {
+                    None
+                } else {
+                    Some(sig)
+                }
+            });
         }
 
         fn prune_expired_requests(now: BlockNumberFor<T>) {
