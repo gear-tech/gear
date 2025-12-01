@@ -19,7 +19,7 @@ Lightweight pallet to collect GRANDPA signatures for arbitrary payloads. Governa
 ### Storage
 - `Requests<RequestId -> SigningRequest>`: payload, set_id, created_at, expires_at.
 - `Signatures<(RequestId, AuthorityId) -> Signature>` and `SignatureCount<RequestId>`.
-- `NextRequestId` for incremental IDs.
+- `NextRequestId` for incremental IDs (requests are pruned on expiry or once fully signed to avoid exhausting the counter).
 
 ### Events
 - `RequestScheduled { request_id, set_id }`
@@ -30,8 +30,8 @@ Lightweight pallet to collect GRANDPA signatures for arbitrary payloads. Governa
 - `submit_signature(request_id, authority_id, signature)` — unsigned; validated against the current authority set and payload.
 
 ### Security/DoS considerations
-- ValidateUnsigned rejects bad/duplicate/expired submissions and ties longevity to expiry.
-- Offchain worker has per-block caps and simple backoff to avoid spamming.
+- ValidateUnsigned rejects bad/duplicate/expired submissions and ties longevity to expiry; if `expires_at` cannot be represented as `TransactionLongevity`, the unsigned is rejected instead of given infinite validity.
+- Offchain worker has per-block caps and backoff keyed per request to avoid spamming.
 - No fee is charged; spam resistance relies on signature validation and pool deduplication.
 
 ### Testing
