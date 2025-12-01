@@ -174,8 +174,16 @@ pub mod pallet {
         ) -> DispatchResult {
             ensure_root(origin)?;
 
+            let now = <frame_system::Pallet<T>>::block_number();
+            Self::prune_expired_requests(now);
+
+            let active_requests = Requests::<T>::iter().count();
+            ensure!(
+                active_requests < T::MaxRequests::get() as usize,
+                Error::<T>::TooManyRequests
+            );
+
             let req_id = NextRequestId::<T>::get();
-            ensure!(req_id < T::MaxRequests::get(), Error::<T>::TooManyRequests);
 
             let set_id = set_id.unwrap_or_else(T::AuthorityProvider::current_set_id);
             ensure!(
@@ -185,8 +193,6 @@ pub mod pallet {
 
             let bounded_payload: BoundedVec<_, T::MaxPayloadLength> =
                 payload.try_into().map_err(|_| Error::<T>::PayloadTooLong)?;
-
-            let now = <frame_system::Pallet<T>>::block_number();
 
             let request = SigningRequest {
                 id: req_id,
@@ -264,6 +270,11 @@ pub mod pallet {
                 count,
             });
 
+            let authorities = T::AuthorityProvider::authorities(request.set_id);
+            if count >= authorities.len() as u32 || count >= T::MaxSignaturesPerRequest::get() {
+                Self::cleanup_request(request_id);
+            }
+
             Ok(())
         }
 
@@ -290,6 +301,22 @@ pub mod pallet {
             let pubkey = ed25519::Public::from_raw(raw);
             let sig: ed25519::Signature = signature.clone().into();
             sig.verify(payload, &pubkey)
+        }
+
+        fn cleanup_request(request_id: RequestId) {
+            Requests::<T>::remove(request_id);
+            SignatureCount::<T>::remove(request_id);
+            Signatures::<T>::remove_prefix(request_id, None);
+        }
+
+        fn prune_expired_requests(now: BlockNumberFor<T>) {
+            for (request_id, request) in Requests::<T>::iter() {
+                if let Some(exp) = request.expires_at {
+                    if now > exp {
+                        Self::cleanup_request(request_id);
+                    }
+                }
+            }
         }
     }
 
