@@ -283,10 +283,20 @@ impl SessionManager<AccountId> for TestSessionManager {
     fn end_session(_: u32) {}
 }
 
+pub struct Convert;
+
+impl sp_runtime::traits::Convert<AccountId, Option<<Test as pallet_session::Config>::ValidatorId>>
+    for Convert
+{
+    fn convert(a: AccountId) -> Option<<Test as pallet_session::Config>::ValidatorId> {
+        a.try_into().ok()
+    }
+}
+
 impl pallet_session::Config for Test {
     type RuntimeEvent = RuntimeEvent;
     type ValidatorId = <Self as frame_system::Config>::AccountId;
-    type ValidatorIdOf = ();
+    type ValidatorIdOf = Convert;
     type ShouldEndSession = TestSessionRotator;
     type NextSessionRotation = ();
     type SessionManager = TestSessionManager;
