@@ -1087,5 +1087,85 @@ fn rotate_keys() {
             }
             .into()],
         );
+
+        run_to_block(ERA_BLOCKS + 2);
+        do_events_assertion(
+            6,
+            38,
+            [Event::QueueReset.into()],
+        );
+
+        System::reset_events();
+
+        let validators = era_validators(6, false);
+        let session_keys_new = SessionKeys {
+            grandpa: <<Grandpa as sp_runtime::BoundToRuntimeAppPublic>::Public as sp_runtime::RuntimeAppPublic>::generate_pair(Some(b"//new_validator_keys2".into())),
+        };
+
+        // validator changes its keys
+        assert_ok!(Session::set_keys(
+            RuntimeOrigin::signed(validators[1]),
+            session_keys_new.clone(),
+            vec![],
+        ));
+
+        // session doesn't end
+        run_to_block(ERA_BLOCKS + EPOCH_BLOCKS);
+        do_events_assertion(6, 42, []);
+
+        // sessions ends. "Changed" validator set will be used on the next rotation of the session.
+        run_to_block(ERA_BLOCKS + EPOCH_BLOCKS + 1);
+        do_events_assertion(
+            7,
+            43,
+            [SessionEvent::NewSession { session_index: 7 }.into()],
+        );
+
+        // session doesn't end
+        run_to_block(ERA_BLOCKS + 2 * EPOCH_BLOCKS);
+        do_events_assertion(7, 48, []);
+
+        // session ends. We have changed validators because of the changed session keys.
+        // That triggers bridge initialization and grandpa::NewAuthorities logic.
+        run_to_block(ERA_BLOCKS + 2 * EPOCH_BLOCKS + 1);
+
+        assert_eq!(Grandpa::current_set_id(), 3);
+
+        // the second validator changed its keys
+        let authority_set = era_validators_authority_set(6);
+        let authority_set = vec![authority_set[0].clone(), (session_keys_new.grandpa, 1), authority_set[2].clone()];
+        let authority_set_ids_concat = authority_set
+            .clone()
+            .into_iter()
+            .flat_map(|(public, _)| public.into_inner().0)
+            .collect::<Vec<u8>>();
+        let authority_set_hash: H256 = Blake2_256::hash(&authority_set_ids_concat).into();
+
+        do_events_assertion(
+            8,
+            49,
+            [
+                SessionEvent::NewSession { session_index: 8 }.into(),
+                Event::AuthoritySetHashChanged(authority_set_hash).into(),
+            ],
+        );
+
+        on_finalize_gear_block(ERA_BLOCKS + 2 * EPOCH_BLOCKS + 1);
+        do_events_assertion(
+            8,
+            49,
+            [GrandpaEvent::NewAuthorities {
+                authority_set,
+            }
+            .into()],
+        );
+
+        // the queue should be cleared on the next block
+        run_to_block(ERA_BLOCKS + 2 * EPOCH_BLOCKS + 2);
+        do_events_assertion(
+            8,
+            50,
+            [Event::QueueReset.into()],
+        );
     })
 }
