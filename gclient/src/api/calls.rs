@@ -51,7 +51,7 @@ use gsdk::{
 use hex::ToHex;
 use parity_scale_codec::{Decode, Encode};
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{BTreeMap, HashSet},
     path::Path,
 };
 
@@ -655,8 +655,7 @@ impl GearApi {
             .into_iter()
             .map(|(page, data)| {
                 MemoryPageDump::new(
-                    GearPage::try_from(page)
-                        .unwrap_or_else(|_| panic!("Couldn't decode GearPage from u32: {page}")),
+                    page,
                     PageBuf::decode(&mut &*data).expect("Couldn't decode PageBuf"),
                 )
             })
@@ -701,8 +700,7 @@ impl GearApi {
             .pages
             .into_iter()
             .map(|page| page.into_gear_page())
-            .map(|(page, page_buffer)| (page.into(), page_buffer))
-            .collect::<HashMap<u32, _>>();
+            .collect();
 
         self.force_set_balance(
             MultiAddress::Id(program_id.into_account_id()),
