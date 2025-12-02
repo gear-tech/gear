@@ -66,7 +66,7 @@ enum ReaderError {
     ReadBlob(reqwest::Error),
     #[error("failed to decode blobs")]
     DecodeBlobs,
-    #[error("failed to access genesis time")]
+    #[error("failed to access genesis time: {0}")]
     GenesisTimeAccess(reqwest::Error),
 }
 
@@ -291,32 +291,24 @@ impl<DB: Database> BlobLoaderService for BlobLoader<DB> {
                 .code_blob_info(code_id)
                 .ok_or(BlobLoaderError::CodeBlobInfoNotFound(code_id))?;
 
-            if let Some(code) = self.db.original_code(code_id) {
-                log::warn!("Code {code_id} is already loaded, skipping loading from remote source");
-                self.futures
-                    .push(futures::future::ready(Ok(CodeAndIdUnchecked { code_id, code })).boxed());
-                continue;
-            }
-
-            if let Some(code) = self.db.original_code(code_id) {
-                log::warn!("Code {code_id} is already loaded, skipping loading from remote source");
-                self.futures
-                    .push(futures::future::ready(Ok(CodeAndIdUnchecked { code_id, code })).boxed());
-                continue;
-            }
-
             self.codes_loading.insert(code_id);
 
-            let blobs_reader = self.blobs_reader.clone();
-            self.futures.push(
-                async move {
-                    blobs_reader
-                        .read_blob_from_tx_hash(tx_hash)
-                        .map(|res| res.map(|code| CodeAndIdUnchecked { code_id, code }))
-                        .await
-                }
-                .boxed(),
-            );
+            if let Some(code) = self.db.original_code(code_id) {
+                log::warn!("Code {code_id} is already loaded, skipping loading from remote source");
+                self.futures
+                    .push(futures::future::ready(Ok(CodeAndIdUnchecked { code_id, code })).boxed());
+            } else {
+                let blobs_reader = self.blobs_reader.clone();
+                self.futures.push(
+                    async move {
+                        blobs_reader
+                            .read_blob_from_tx_hash(tx_hash)
+                            .map(|res| res.map(|code| CodeAndIdUnchecked { code_id, code }))
+                            .await
+                    }
+                    .boxed(),
+                );
+            }
         }
 
         Ok(())

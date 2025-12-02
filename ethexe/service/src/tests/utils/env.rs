@@ -27,16 +27,15 @@ use crate::{
     },
 };
 use alloy::{
-    eips::BlockId,
     node_bindings::{Anvil, AnvilInstance},
-    providers::{Provider as _, ProviderBuilder, RootProvider, ext::AnvilApi},
+    providers::{ProviderBuilder, RootProvider, ext::AnvilApi},
     rpc::types::anvil::MineOptions,
 };
+use anyhow::Context;
 use ethexe_blob_loader::{BlobLoader, BlobLoaderService, ConsensusLayerConfig};
 use ethexe_common::{
-    Address, BlockHeader, COMMITMENT_DELAY_LIMIT, CodeAndId, DEFAULT_BLOCK_GAS_LIMIT,
-    SimpleBlockData, ToDigest,
-    db::*,
+    Address, COMMITMENT_DELAY_LIMIT, CodeAndId, DEFAULT_BLOCK_GAS_LIMIT, SimpleBlockData, ToDigest,
+    ValidatorsVec,
     ecdsa::{PrivateKey, PublicKey, SignedData},
     events::{BlockEvent, MirrorEvent, RouterEvent},
     network::{SignedValidatorMessage, ValidatorMessage},
@@ -53,7 +52,10 @@ use ethexe_ethereum::{
 use ethexe_network::{
     NetworkConfig, NetworkEvent, NetworkRuntimeConfig, NetworkService, export::Multiaddr,
 };
-use ethexe_observer::{EthereumConfig, ObserverEvent, ObserverService};
+use ethexe_observer::{
+    EthereumConfig, ObserverEvent, ObserverService,
+    utils::{BlockId, BlockLoader, EthereumBlockLoader},
+};
 use ethexe_processor::{
     DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, DEFAULT_CHUNK_PROCESSING_THREADS, Processor, RunnerConfig,
 };
@@ -72,7 +74,7 @@ use roast_secp256k1_evm::frost::{
     keys::{IdentifierList, PublicKeyPackage, VerifiableSecretSharingCommitment},
 };
 use std::{
-    fmt,
+    fmt, mem,
     net::SocketAddr,
     num::NonZero,
     ops::ControlFlow,
@@ -248,7 +250,15 @@ impl TestEnv {
         let mut observer = ObserverService::new(&eth_cfg, u32::MAX, db.clone())
             .await
             .unwrap();
-        let genesis_block_hash = observer.genesis_block_hash();
+        let latest_block = observer
+            .block_loader()
+            .load_simple(BlockId::Latest)
+            .await
+            .context("failed to get latest block")?;
+        let latest_validators = router_query
+            .validators_at(latest_block.hash)
+            .await
+            .context("failed to get latest validators")?;
 
         let provider = observer.provider().clone();
 
@@ -310,17 +320,15 @@ impl TestEnv {
             config.listen_addresses = [multiaddr.clone()].into();
             config.external_addresses = [multiaddr.clone()].into();
 
-            let runtime_config = NetworkRuntimeConfig { genesis_block_hash };
+            let runtime_config = NetworkRuntimeConfig {
+                latest_block_header: latest_block.header,
+                latest_validators,
+                network_signer: signer.clone(),
+                external_data_provider: Box::new(RouterDataProvider(router_query.clone())),
+                db: Box::new(db.clone()),
+            };
 
-            let mut service = NetworkService::new(
-                config,
-                runtime_config,
-                &signer,
-                Box::new(RouterDataProvider(router_query.clone())),
-                Box::new(db.clone()),
-            )
-            .unwrap();
-            service.set_chain_head(genesis_block_hash).unwrap();
+            let mut service = NetworkService::new(config, runtime_config).unwrap();
 
             let local_peer_id = service.local_peer_id();
 
@@ -647,21 +655,10 @@ impl TestEnv {
     }
 
     pub async fn latest_block(&self) -> SimpleBlockData {
-        let header = self
-            .provider
-            .get_block(BlockId::latest())
+        EthereumBlockLoader::new(self.provider.clone(), self.eth_cfg.router_address)
+            .load_simple(BlockId::Latest)
             .await
             .unwrap()
-            .expect("latest block always exist")
-            .header;
-        SimpleBlockData {
-            hash: header.hash.0.into(),
-            header: BlockHeader {
-                height: header.number as u32,
-                timestamp: header.timestamp,
-                parent_hash: header.parent_hash.0.into(),
-            },
-        }
     }
 
     pub fn define_session_keys(
@@ -954,10 +951,20 @@ impl Node {
         let observer = ObserverService::new(&self.eth_cfg, u32::MAX, self.db.clone())
             .await
             .unwrap();
+        let latest_block = observer
+            .block_loader()
+            .load_simple(BlockId::Latest)
+            .await
+            .unwrap();
+        let latest_validators = observer
+            .router_query()
+            .validators_at(latest_block.hash)
+            .await
+            .unwrap();
 
         let wait_for_network = self.network_bootstrap_address.is_some();
 
-        let network = self.construct_network_service();
+        let network = self.construct_network_service(latest_block, latest_validators);
         if let Some(addr) = self.network_address.as_ref() {
             let peer_id = network.as_ref().unwrap().local_peer_id();
             self.multiaddr = Some(format!("{addr}/p2p/{peer_id}"));
@@ -1126,7 +1133,11 @@ impl Node {
             .expect("infallible; always ok")
     }
 
-    fn construct_network_service(&self) -> Option<NetworkService> {
+    fn construct_network_service(
+        &self,
+        latest_block: SimpleBlockData,
+        latest_validators: ValidatorsVec,
+    ) -> Option<NetworkService> {
         assert!(
             self.running_service_handle.is_none(),
             "Network service is already running"
@@ -1146,17 +1157,14 @@ impl Node {
         }
 
         let runtime_config = NetworkRuntimeConfig {
-            genesis_block_hash: self.db.latest_data().unwrap().genesis_block_hash,
+            latest_block_header: latest_block.header,
+            latest_validators,
+            network_signer: self.signer.clone(),
+            external_data_provider: Box::new(RouterDataProvider(self.router_query.clone())),
+            db: Box::new(self.db.clone()),
         };
 
-        let network = NetworkService::new(
-            config,
-            runtime_config,
-            &self.signer,
-            Box::new(RouterDataProvider(self.router_query.clone())),
-            Box::new(self.db.clone()),
-        )
-        .unwrap();
+        let network = NetworkService::new(config, runtime_config).unwrap();
 
         Some(network)
     }
@@ -1173,6 +1181,20 @@ impl Node {
             self.name
         );
 
+        let observer = ObserverService::new(&self.eth_cfg, u32::MAX, self.db.clone())
+            .await
+            .unwrap();
+        let latest_block = observer
+            .block_loader()
+            .load_simple(BlockId::Latest)
+            .await
+            .unwrap();
+        let latest_validators = self
+            .router_query
+            .validators_at(latest_block.hash)
+            .await
+            .unwrap();
+
         let signed = self
             .signer
             .signed_data(
@@ -1184,7 +1206,7 @@ impl Node {
             .unwrap();
 
         let mut network = self
-            .construct_network_service()
+            .construct_network_service(latest_block, latest_validators)
             .expect("network service is not configured");
 
         network.publish_message(signed);
@@ -1206,6 +1228,12 @@ impl Drop for Node {
     fn drop(&mut self) {
         if let Some(handle) = &self.running_service_handle {
             handle.abort();
+        }
+
+        if let Some(receiver) = self.receiver.take() {
+            // avoid `failed to broadcast service event` error
+            // because we cannot `handle.await` in `drop` method
+            mem::forget(receiver);
         }
     }
 }

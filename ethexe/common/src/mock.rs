@@ -379,7 +379,10 @@ impl BlockChain {
                 db.set_block_header(hash, header);
                 db.set_block_events(hash, &events);
                 db.set_block_synced(hash);
-                db.set_validators(timelines.era_from_ts(header.timestamp), validators.clone());
+
+                let block_era = timelines.era_from_ts(header.timestamp);
+                db.set_validators(block_era, validators.clone());
+                db.set_block_validators_committed_for_era(hash, block_era);
             }
 
             if let Some(PreparedBlockData {

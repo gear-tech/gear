@@ -28,13 +28,10 @@ pub mod export {
     pub use libp2p::{Multiaddr, PeerId, multiaddr::Protocol};
 }
 
-use crate::{
-    db_sync::DbSyncDatabase,
-    validator::{ValidatorDatabase, Validators},
-};
+use crate::{db_sync::DbSyncDatabase, validator::ValidatorDatabase};
 use anyhow::{Context, anyhow};
 use ethexe_common::{
-    Address,
+    Address, BlockHeader, ValidatorsVec,
     ecdsa::PublicKey,
     injected::{RpcOrNetworkInjectedTx, SignedInjectedTransaction},
     network::{SignedValidatorMessage, VerifiedValidatorMessage},
@@ -59,6 +56,7 @@ use libp2p::{
 #[cfg(test)]
 use libp2p_swarm_test::SwarmExt;
 use std::{collections::HashSet, pin::Pin, task::Poll, time::Duration};
+use validator::{list::ValidatorList, topic::ValidatorTopic};
 
 pub const DEFAULT_LISTEN_PORT: u16 = 20333;
 
@@ -130,14 +128,19 @@ impl NetworkConfig {
 
 /// Config from other services
 pub struct NetworkRuntimeConfig {
-    pub genesis_block_hash: H256,
+    pub latest_block_header: BlockHeader,
+    pub latest_validators: ValidatorsVec,
+    pub network_signer: Signer,
+    pub external_data_provider: Box<dyn db_sync::ExternalDataProvider>,
+    pub db: Box<dyn NetworkServiceDatabase>,
 }
 
 pub struct NetworkService {
     swarm: Swarm<Behaviour>,
     // `MemoryTransport` doesn't unregister its ports on drop so we do it
     listeners: Vec<ListenerId>,
-    validators: Validators,
+    validator_list: ValidatorList,
+    validator_topic: ValidatorTopic,
 }
 
 impl Stream for NetworkService {
@@ -147,7 +150,7 @@ impl Stream for NetworkService {
         mut self: Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> Poll<Option<Self::Item>> {
-        if let Some(message) = self.validators.next_message() {
+        if let Some(message) = self.validator_topic.next_message() {
             return Poll::Ready(Some(NetworkEvent::ValidatorMessage(message)));
         }
 
@@ -173,9 +176,6 @@ impl NetworkService {
     pub fn new(
         config: NetworkConfig,
         runtime_config: NetworkRuntimeConfig,
-        signer: &Signer,
-        external_data_provider: Box<dyn db_sync::ExternalDataProvider>,
-        db: Box<dyn NetworkServiceDatabase>,
     ) -> anyhow::Result<NetworkService> {
         let NetworkConfig {
             public_key,
@@ -186,7 +186,22 @@ impl NetworkService {
             router_address,
         } = config;
 
-        let keypair = NetworkService::generate_keypair(signer, public_key)?;
+        let NetworkRuntimeConfig {
+            latest_block_header,
+            latest_validators,
+            network_signer,
+            external_data_provider,
+            db,
+        } = runtime_config;
+
+        let (validator_list, validator_list_snapshot) = ValidatorList::new(
+            ValidatorDatabase::clone_boxed(&db),
+            latest_block_header,
+            latest_validators,
+        )
+        .context("failed to create validator list")?;
+
+        let keypair = NetworkService::generate_keypair(&network_signer, public_key)?;
 
         let behaviour_config = BehaviourConfig {
             router_address,
@@ -195,7 +210,14 @@ impl NetworkService {
             db: DbSyncDatabase::clone_boxed(&db),
             enable_mdns: transport_type.mdns_enabled(),
         };
-        let mut swarm = NetworkService::create_swarm(keypair, transport_type, behaviour_config)?;
+        let mut swarm =
+            NetworkService::create_swarm(keypair.clone(), transport_type, behaviour_config)?;
+
+        let validator_topic = ValidatorTopic::new(
+            ValidatorDatabase::clone_boxed(&db),
+            swarm.behaviour().peer_score.handle(),
+            validator_list_snapshot,
+        );
 
         for multiaddr in external_addresses {
             swarm.add_external_address(multiaddr);
@@ -222,13 +244,6 @@ impl NetworkService {
             swarm.behaviour_mut().kad.add_address(&peer_id, multiaddr);
         }
 
-        let validators = Validators::new(
-            runtime_config.genesis_block_hash,
-            ValidatorDatabase::clone_boxed(&db),
-            swarm.behaviour().peer_score.handle(),
-        )
-        .context("failed to create validators")?;
-
         log::info!(
             "NetworkService created with peer id: {}",
             swarm.local_peer_id()
@@ -237,7 +252,8 @@ impl NetworkService {
         Ok(Self {
             swarm,
             listeners,
-            validators,
+            validator_list,
+            validator_topic,
         })
     }
 
@@ -315,28 +331,47 @@ impl NetworkService {
 
     fn handle_behaviour_event(&mut self, event: BehaviourEvent) -> Option<NetworkEvent> {
         match event {
-            BehaviourEvent::CustomConnectionLimits(infallible) => match infallible {},
-            //
-            BehaviourEvent::ConnectionLimits(infallible) => match infallible {},
-            //
-            BehaviourEvent::PeerScore(peer_score::Event::PeerBlocked {
+            BehaviourEvent::CustomConnectionLimits(event) => match event {},
+            BehaviourEvent::ConnectionLimits(event) => match event {},
+            BehaviourEvent::PeerScore(event) => return self.handle_peer_score_event(event),
+            BehaviourEvent::Ping(event) => self.handle_ping_event(event),
+            BehaviourEvent::Identify(event) => self.handle_identify_event(event),
+            BehaviourEvent::Mdns4(event) => self.handle_mdns_event(event),
+            BehaviourEvent::Kad(event) => self.handle_kad_event(event),
+            BehaviourEvent::Gossipsub(event) => return self.handle_gossipsub_event(event),
+            BehaviourEvent::DbSync(_event) => {}
+            BehaviourEvent::Injected(event) => return self.handle_injected_event(event),
+        }
+
+        None
+    }
+
+    fn handle_peer_score_event(&mut self, event: peer_score::Event) -> Option<NetworkEvent> {
+        match event {
+            peer_score::Event::PeerBlocked {
                 peer_id,
                 last_reason: _,
-            }) => return Some(NetworkEvent::PeerBlocked(peer_id)),
-            BehaviourEvent::PeerScore(_) => {}
-            //
-            BehaviourEvent::Ping(ping::Event {
-                peer,
-                connection: _,
-                result,
-            }) => {
-                if let Err(e) = result {
-                    log::debug!("ping to {peer} failed: {e}. Disconnecting...");
-                    let _res = self.swarm.disconnect_peer_id(peer);
-                }
-            }
-            //
-            BehaviourEvent::Identify(identify::Event::Received { peer_id, info, .. }) => {
+            } => Some(NetworkEvent::PeerBlocked(peer_id)),
+            _ => None,
+        }
+    }
+
+    fn handle_ping_event(&mut self, event: ping::Event) {
+        let ping::Event {
+            peer,
+            connection: _,
+            result,
+        } = event;
+
+        if let Err(e) = result {
+            log::debug!("ping to {peer} failed: {e}. Disconnecting...");
+            let _res = self.swarm.disconnect_peer_id(peer);
+        }
+    }
+
+    fn handle_identify_event(&mut self, event: identify::Event) {
+        match event {
+            identify::Event::Received { peer_id, info, .. } => {
                 let behaviour = self.swarm.behaviour_mut();
 
                 if info.protocol_version != PROTOCOL_VERSION || info.agent_version != AGENT_VERSION
@@ -355,7 +390,7 @@ impl NetworkService {
                     behaviour.kad.add_address(&peer_id, listen_addr);
                 }
             }
-            BehaviourEvent::Identify(identify::Event::Error { peer_id, error, .. }) => {
+            identify::Event::Error { peer_id, error, .. } => {
                 log::debug!("{peer_id} is not identified: {error}");
                 self.swarm
                     .behaviour()
@@ -363,9 +398,13 @@ impl NetworkService {
                     .handle()
                     .unsupported_protocol(peer_id);
             }
-            BehaviourEvent::Identify(_) => {}
-            //
-            BehaviourEvent::Mdns4(mdns::Event::Discovered(peers)) => {
+            _ => {}
+        }
+    }
+
+    fn handle_mdns_event(&mut self, event: mdns::Event) {
+        match event {
+            mdns::Event::Discovered(peers) => {
                 for (peer_id, multiaddr) in peers {
                     if let Err(e) = self.swarm.dial(
                         DialOpts::peer_id(peer_id)
@@ -378,9 +417,14 @@ impl NetworkService {
                     }
                 }
             }
-            BehaviourEvent::Mdns4(mdns::Event::Expired(_peers)) => {}
-            //
-            BehaviourEvent::Kad(kad::Event::RoutingUpdated { peer, .. }) => {
+            mdns::Event::Expired(_peers) => {}
+        }
+    }
+
+    fn handle_kad_event(&mut self, event: kad::Event) {
+        #[allow(clippy::single_match)]
+        match event {
+            kad::Event::RoutingUpdated { peer, .. } => {
                 let behaviour = self.swarm.behaviour_mut();
                 if let Some(mdns4) = behaviour.mdns4.as_ref()
                     && mdns4.discovered_nodes().any(|&p| p == peer)
@@ -391,39 +435,43 @@ impl NetworkService {
                     let _res = behaviour.kad.remove_peer(&peer);
                 }
             }
-            BehaviourEvent::Kad(_) => {}
-            //
-            BehaviourEvent::Gossipsub(gossipsub::Event::Message { source, validator }) => {
+            _ => {}
+        }
+    }
+
+    fn handle_gossipsub_event(&mut self, event: gossipsub::Event) -> Option<NetworkEvent> {
+        match event {
+            gossipsub::Event::Message { source, validator } => {
                 let gossipsub = &mut self.swarm.behaviour_mut().gossipsub;
 
-                let event = validator.validate(gossipsub, |message| match message {
+                validator.validate(gossipsub, |message| match message {
                     gossipsub::Message::Commitments(message) => {
-                        let (acceptance, message) =
-                            self.validators.verify_message_initially(source, message);
+                        let (acceptance, message) = self
+                            .validator_topic
+                            .verify_message_initially(source, message);
                         (acceptance, message.map(NetworkEvent::ValidatorMessage))
                     }
-                });
-
-                return event;
+                })
             }
-            BehaviourEvent::Gossipsub(gossipsub::Event::PublishFailure {
+            gossipsub::Event::PublishFailure {
                 error,
                 message,
                 topic,
-            }) => {
+            } => {
                 log::warn!(
                     "failed to publish gossip `{message:?}` message to {topic} topic: {error}"
                 );
-            }
-            //
-            BehaviourEvent::DbSync(_) => {}
-            //
-            BehaviourEvent::Injected(injected::Event::NewInjectedTransaction(transaction)) => {
-                return Some(NetworkEvent::InjectedTransaction(transaction));
+                None
             }
         }
+    }
 
-        None
+    fn handle_injected_event(&mut self, event: injected::Event) -> Option<NetworkEvent> {
+        match event {
+            injected::Event::NewInjectedTransaction(transaction) => {
+                Some(NetworkEvent::InjectedTransaction(transaction))
+            }
+        }
     }
 
     pub fn local_peer_id(&self) -> PeerId {
@@ -439,7 +487,13 @@ impl NetworkService {
     }
 
     pub fn set_chain_head(&mut self, chain_head: H256) -> anyhow::Result<()> {
-        self.validators.set_chain_head(chain_head)
+        let snapshot = self.validator_list.set_chain_head(chain_head)?;
+
+        if let Some(snapshot) = snapshot {
+            self.validator_topic.on_new_snapshot(snapshot.clone());
+        }
+
+        Ok(())
     }
 
     pub fn publish_message(&mut self, data: impl Into<SignedValidatorMessage>) {
@@ -593,8 +647,8 @@ mod tests {
     };
     use async_trait::async_trait;
     use ethexe_common::{BlockHeader, ProtocolTimelines, db::OnChainStorageRW, gear::CodeState};
-    use ethexe_db::{Database, MemDb};
-    use ethexe_signer::{FSKeyStorage, Signer};
+    use ethexe_db::Database;
+    use ethexe_signer::Signer;
     use gprimitives::{ActorId, CodeId, H256};
     use nonempty::nonempty;
     use std::{
@@ -669,46 +723,61 @@ mod tests {
         }
     }
 
-    fn new_service_with(db: Database, data_provider: DataProvider) -> NetworkService {
-        const GENESIS_BLOCK: H256 = H256::zero();
-        const TIMELINES: ProtocolTimelines = ProtocolTimelines {
-            genesis_ts: 1_000_000,
-            era: 1,
-            election: 1,
-        };
+    struct NetworkServiceBuilder {
+        db: Database,
+        data_provider: DataProvider,
+        latest_validators: ValidatorsVec,
+        signer: Signer,
+    }
 
-        db.set_block_header(
-            GENESIS_BLOCK,
-            BlockHeader {
+    impl NetworkServiceBuilder {
+        fn new() -> Self {
+            Self {
+                db: Database::memory(),
+                data_provider: DataProvider::default(),
+                latest_validators: nonempty![Address::default()].into(),
+                signer: Signer::memory(),
+            }
+        }
+
+        fn build(self) -> NetworkService {
+            const GENESIS_BLOCK_HEADER: BlockHeader = BlockHeader {
                 height: 0,
                 timestamp: 0,
-                parent_hash: Default::default(),
-            },
-        );
-        db.set_validators(0, nonempty![Address::default()].into());
-        db.set_protocol_timelines(TIMELINES);
+                parent_hash: H256::zero(),
+            };
+            const TIMELINES: ProtocolTimelines = ProtocolTimelines {
+                genesis_ts: 1_000_000,
+                era: 1,
+                election: 1,
+            };
 
-        let key_storage = FSKeyStorage::tmp();
-        let signer = Signer::new(key_storage);
-        let key = signer.generate_key().unwrap();
-        let config = NetworkConfig::new_test(key, Address::default());
+            let Self {
+                db,
+                data_provider,
+                latest_validators,
+                signer,
+            } = self;
 
-        let runtime_config = NetworkRuntimeConfig {
-            genesis_block_hash: GENESIS_BLOCK,
-        };
+            db.set_protocol_timelines(TIMELINES);
 
-        NetworkService::new(
-            config.clone(),
-            runtime_config,
-            &signer,
-            Box::new(data_provider),
-            Box::new(db),
-        )
-        .unwrap()
+            let key = signer.generate_key().unwrap();
+            let config = NetworkConfig::new_test(key, Address::default());
+
+            let runtime_config = NetworkRuntimeConfig {
+                latest_block_header: GENESIS_BLOCK_HEADER,
+                latest_validators,
+                network_signer: signer,
+                external_data_provider: Box::new(data_provider),
+                db: Box::new(db),
+            };
+
+            NetworkService::new(config, runtime_config).unwrap()
+        }
     }
 
     fn new_service() -> NetworkService {
-        new_service_with(Database::memory(), DataProvider::default())
+        NetworkServiceBuilder::new().build()
     }
 
     #[tokio::test]
@@ -729,12 +798,12 @@ mod tests {
         let service1_handle = service1.db_sync_handle();
 
         // second service
-        let db = Database::from_one(&MemDb::default());
+        let service2 = NetworkServiceBuilder::new();
 
-        let hello = db.write_hash(b"hello");
-        let world = db.write_hash(b"world");
+        let hello = service2.db.write_hash(b"hello");
+        let world = service2.db.write_hash(b"world");
 
-        let mut service2 = new_service_with(db, Default::default());
+        let mut service2 = service2.build();
 
         service1.connect(&mut service2).await;
         tokio::spawn(service1.loop_on_next());
@@ -780,11 +849,14 @@ mod tests {
     async fn external_data_provider() {
         init_logger();
 
-        let alice_data_provider = DataProvider::default();
-        let mut alice = new_service_with(Database::memory(), alice_data_provider.clone());
+        let alice = NetworkServiceBuilder::new();
+        let alice_data_provider = alice.data_provider.clone();
+        let mut alice = alice.build();
         let alice_handle = alice.db_sync_handle();
-        let bob_db = Database::memory();
-        let mut bob = new_service_with(bob_db.clone(), DataProvider::default());
+
+        let bob = NetworkServiceBuilder::new();
+        let bob_db = bob.db.clone();
+        let mut bob = bob.build();
 
         alice.connect(&mut bob).await;
         tokio::spawn(alice.loop_on_next());

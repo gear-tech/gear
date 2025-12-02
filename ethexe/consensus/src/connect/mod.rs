@@ -178,7 +178,7 @@ impl ConnectService {
             return Ok(());
         };
 
-        let block = block.clone();
+        let block = *block;
         let producer = *producer;
 
         let (request, announces) = response.into_parts();
@@ -229,7 +229,7 @@ impl ConsensusService for ConnectService {
             );
 
             self.state = State::WaitingForPreparedBlock {
-                block: block.clone(),
+                block: *block,
                 producer,
             };
         }
@@ -245,7 +245,7 @@ impl ConsensusService for ConnectService {
             return Ok(());
         }
 
-        let block = block.clone();
+        let block = *block;
         let producer = *producer;
 
         let chain = self.db.collect_blocks_without_announces(block.hash)?;
@@ -265,7 +265,7 @@ impl ConsensusService for ConnectService {
             );
 
             self.state = State::WaitingForMissingAnnounces {
-                block: block.clone(),
+                block,
                 producer,
                 chain,
                 waiting_request: request,
@@ -558,7 +558,7 @@ mod tests {
                 .expect("request expected");
 
         let head_block = local_db.simple_block_data(head_hash);
-        connect.receive_new_chain_head(head_block.clone()).unwrap();
+        connect.receive_new_chain_head(head_block).unwrap();
         connect.receive_synced_block(head_block.hash).unwrap();
         connect.receive_prepared_block(head_block.hash).unwrap();
 
