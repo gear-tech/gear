@@ -34,7 +34,10 @@ use ethexe_network::{
     NetworkEvent, NetworkRuntimeConfig, NetworkService,
     db_sync::{self, ExternalDataProvider},
 };
-use ethexe_observer::{ObserverEvent, ObserverService};
+use ethexe_observer::{
+    ObserverEvent, ObserverService,
+    utils::{BlockId, BlockLoader},
+};
 use ethexe_processor::{Processor, ProcessorConfig};
 use ethexe_prometheus::{PrometheusEvent, PrometheusService};
 use ethexe_rpc::{InjectedTransactionAcceptance, RpcEvent, RpcServer};
@@ -134,6 +137,11 @@ impl Service {
             ObserverService::new(&config.ethereum, config.node.eth_max_sync_depth, db.clone())
                 .await
                 .context("failed to create observer service")?;
+        let latest_block = observer
+            .block_loader()
+            .load_simple(BlockId::Latest)
+            .await
+            .context("failed to get latest block")?;
 
         let router_query = RouterQuery::new(&config.ethereum.rpc, config.ethereum.router_address)
             .await
@@ -155,9 +163,9 @@ impl Service {
         }
 
         let validators = router_query
-            .validators()
+            .validators_at(latest_block.hash)
             .await
-            .with_context(|| "failed to query validators")?;
+            .context("failed to query validators")?;
         log::info!("👥 Current validators set: {validators:?}");
 
         let threshold = router_query
@@ -232,11 +240,8 @@ impl Service {
         };
 
         let network = if let Some(net_config) = &config.network {
-            let runtime_config = NetworkRuntimeConfig {
-                genesis_block_hash: observer.genesis_block_hash(),
-            };
             // TODO: #4918 create Signer object correctly for test/prod environments
-            let signer = Signer::fs(
+            let network_signer = Signer::fs(
                 config
                     .node
                     .key_path
@@ -245,14 +250,22 @@ impl Service {
                     .join("net"),
             );
 
-            let network = NetworkService::new(
-                net_config.clone(),
-                runtime_config,
-                &signer,
-                Box::new(RouterDataProvider(router_query)),
-                Box::new(db.clone()),
-            )
-            .with_context(|| "failed to create network service")?;
+            let latest_block_data = observer
+                .block_loader()
+                .load_simple(BlockId::Latest)
+                .await
+                .context("failed to get lastest block")?;
+
+            let runtime_config = NetworkRuntimeConfig {
+                latest_block_header: latest_block_data.header,
+                latest_validators: validators,
+                network_signer,
+                external_data_provider: Box::new(RouterDataProvider(router_query)),
+                db: Box::new(db.clone()),
+            };
+
+            let network = NetworkService::new(net_config.clone(), runtime_config)
+                .with_context(|| "failed to create network service")?;
             Some(network)
         } else {
             None

@@ -32,8 +32,11 @@ tokio = { workspace = true, features = ["rt-multi-thread", "fs", "sync"] }
 futures.workspace = true
 log.workspace = true
 tracing.workspace = true
-derive_more.workspace = true
+<<<<<<< HEAD
 intentionally-empty.workspace = true
+=======
+derive_more.workspace = true
+>>>>>>> origin/master
 
 [dev-dependencies]
 gear-utils.workspace = true
