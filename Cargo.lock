@@ -11754,6 +11754,7 @@ dependencies = [
  "sp-consensus-grandpa",
  "sp-core",
  "sp-io",
+ "sp-keystore",
  "sp-runtime",
  "sp-session",
  "sp-std",

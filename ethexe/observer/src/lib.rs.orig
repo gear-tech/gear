@@ -274,8 +274,22 @@ impl ObserverService {
         self.last_block_number
     }
 
+<<<<<<< HEAD
+    pub fn load_block_data(&self, block: H256) -> impl Future<Output = Result<BlockData>> {
+        load_block_data(
+            self.provider.clone(),
+            block,
+            self.config.router_address,
+            None,
+        )
+=======
     pub fn block_loader(&self) -> EthereumBlockLoader {
         EthereumBlockLoader::new(self.provider.clone(), self.config.router_address)
+    }
+
+    pub fn genesis_block_hash(&self) -> H256 {
+        self.config.genesis_block_hash
+>>>>>>> origin/master
     }
 
     pub async fn latest_block(&self) -> Result<SimpleBlockData> {
