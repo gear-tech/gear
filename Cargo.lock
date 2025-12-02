@@ -5183,6 +5183,7 @@ dependencies = [
  "hyper 1.4.1",
  "jsonrpsee",
  "log",
+ "ntest",
  "parity-scale-codec",
  "serde",
  "sp-core",

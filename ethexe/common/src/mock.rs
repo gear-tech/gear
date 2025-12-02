@@ -186,13 +186,19 @@ impl Mock<()> for InjectedTransaction {
     }
 }
 
-impl Mock<()> for RpcOrNetworkInjectedTx {
-    fn mock(_args: ()) -> Self {
+impl Mock<PrivateKey> for RpcOrNetworkInjectedTx {
+    fn mock(pk: PrivateKey) -> Self {
         RpcOrNetworkInjectedTx {
             recipient: Default::default(),
-            tx: SignedData::create(PrivateKey::random(), InjectedTransaction::mock(()))
+            tx: SignedData::create(pk, InjectedTransaction::mock(()))
                 .expect("Signing injected transaction will succeed"),
         }
+    }
+}
+
+impl Mock<()> for RpcOrNetworkInjectedTx {
+    fn mock(_args: ()) -> Self {
+        RpcOrNetworkInjectedTx::mock(PrivateKey::random())
     }
 }
 

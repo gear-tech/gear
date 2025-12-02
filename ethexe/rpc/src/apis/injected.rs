@@ -23,7 +23,7 @@ use ethexe_common::{
     injected::{InjectedTransaction, RpcOrNetworkInjectedTx, SignedPromise},
 };
 use jsonrpsee::{
-     PendingSubscriptionSink, SubscriptionMessage,
+    PendingSubscriptionSink, SubscriptionMessage,
     core::{RpcResult, SubscriptionResult, async_trait},
     proc_macros::rpc,
 };
@@ -37,18 +37,20 @@ pub enum InjectedTransactionAcceptance {
     Reject { reason: String },
 }
 
-#[cfg_attr(not(feature = "test-utils"), rpc(server))]
-#[cfg_attr(feature = "test-utils", rpc(server, client))]
+#[cfg_attr(not(feature = "test-utils"), rpc(server, namespace = "injected"))]
+#[cfg_attr(feature = "test-utils", rpc(server, client, namespace = "injected"))]
 pub trait Injected {
-    #[method(name = "injected_sendTransaction")]
+    /// Just sends an injected transaction.
+    #[method(name = "sendTransaction")]
     async fn send_transaction(
         &self,
         transaction: RpcOrNetworkInjectedTx,
     ) -> RpcResult<InjectedTransactionAcceptance>;
 
+    /// Sends an injected transaction and subscribes to its promise.  
     #[subscription(
-        name = "injected_subscribeTransactionPromise",
-        unsubscribe = "injected_unsubscribeTransactionPromise", 
+        name = "subscribeTransactionPromise",
+        unsubscribe = "unsubscribeTransactionPromise", 
         item = SignedPromise
     )]
     async fn send_transaction_and_watch(
@@ -57,9 +59,12 @@ pub trait Injected {
     ) -> SubscriptionResult;
 }
 
+/// Implementation of the injected transactions RPC API.
 #[derive(Debug, Clone)]
 pub struct InjectedApi {
+    /// Sender to forward RPC events to the main service.
     rpc_sender: mpsc::UnboundedSender<RpcEvent>,
+    /// Map of promise waiters.
     promise_waiters: Arc<DashMap<HashOf<InjectedTransaction>, oneshot::Sender<SignedPromise>>>,
 }
 
