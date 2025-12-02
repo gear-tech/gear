@@ -307,3 +307,22 @@ fn identical_payload_can_be_signed_for_multiple_requests() {
         });
     })
 }
+
+#[test]
+fn request_id_overflow_rejected() {
+    with_set_id_lock(|| {
+        new_ext().execute_with(|| {
+            NextRequestId::<Test>::put(RequestId::MAX);
+
+            assert_noop!(
+                GrandpaSigner::schedule_request(
+                    RuntimeOrigin::root(),
+                    b"hello".to_vec(),
+                    None,
+                    None
+                ),
+                Error::<Test>::RequestIdExhausted
+            );
+        });
+    })
+}

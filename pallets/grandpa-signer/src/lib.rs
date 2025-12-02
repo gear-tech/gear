@@ -157,6 +157,7 @@ pub mod pallet {
     #[pallet::error]
     pub enum Error<T> {
         TooManyRequests,
+        RequestIdExhausted,
         UnknownRequest,
         RequestExpired,
         AuthorityNotInSet,
@@ -190,6 +191,7 @@ pub mod pallet {
             );
 
             let req_id = NextRequestId::<T>::get();
+            let next_id = req_id.checked_add(1).ok_or(Error::<T>::RequestIdExhausted)?;
 
             let set_id = set_id.unwrap_or_else(T::AuthorityProvider::current_set_id);
             ensure!(
@@ -209,7 +211,7 @@ pub mod pallet {
             };
 
             Requests::<T>::insert(req_id, request);
-            NextRequestId::<T>::put(req_id + 1);
+            NextRequestId::<T>::put(next_id);
 
             Self::deposit_event(Event::RequestScheduled {
                 request_id: req_id,
@@ -233,6 +235,11 @@ pub mod pallet {
     }
 
     impl<T: Config> Pallet<T> {
+        const MAX_REQUESTS_PER_WORKER: usize = 64;
+        const MAX_SUBMISSIONS_PER_WORKER: usize = 128;
+        const BACKOFF_BLOCKS: u64 = 5;
+        const BACKOFF_PREFIX: &'static [u8] = b"grandpa-signer:last_attempt:";
+
         /// Common validation for a submission. Loads the request, ensures it is active,
         /// checks membership/duplicate/limit, and returns the request context.
         fn ensure_can_accept_signature(
@@ -265,6 +272,33 @@ pub mod pallet {
             })
         }
 
+        fn backoff_key(request_id: RequestId, authority: &T::AuthorityId) -> Vec<u8> {
+            let mut key = Self::BACKOFF_PREFIX.to_vec();
+            key.extend_from_slice(&request_id.to_le_bytes());
+            key.extend_from_slice(authority.as_ref());
+            key
+        }
+
+        fn should_backoff(key: &[u8], now: u64) -> bool {
+            if let Some(bytes) = sp_io::offchain::local_storage_get(
+                sp_core::offchain::StorageKind::PERSISTENT,
+                key,
+            ) && bytes.len() == 8
+            {
+                let last = u64::from_le_bytes(bytes.as_slice().try_into().unwrap());
+                return now.saturating_sub(last) < Self::BACKOFF_BLOCKS;
+            }
+            false
+        }
+
+        fn record_attempt(key: &[u8], now: u64) {
+            sp_io::offchain::local_storage_set(
+                sp_core::offchain::StorageKind::PERSISTENT,
+                key,
+                &now.to_le_bytes(),
+            );
+        }
+
         fn map_invalid(err: Error<T>) -> InvalidTransaction {
             match err {
                 Error::<T>::RequestExpired => InvalidTransaction::Stale,
@@ -274,7 +308,9 @@ pub mod pallet {
                 Error::<T>::AlreadySigned | Error::<T>::MaxSignaturesReached => {
                     InvalidTransaction::Stale
                 }
-                Error::<T>::UnknownRequest => InvalidTransaction::Call,
+                Error::<T>::RequestIdExhausted | Error::<T>::UnknownRequest => {
+                    InvalidTransaction::Call
+                }
                 Error::<T>::BadSignature
                 | Error::<T>::TooManyRequests
                 | Error::<T>::PayloadTooLong => InvalidTransaction::Call,
@@ -441,10 +477,6 @@ pub mod pallet {
         T::AuthoritySignature: From<ed25519::Signature>,
     {
         fn offchain_worker(_n: BlockNumberFor<T>) {
-            const MAX_REQUESTS_PER_WORKER: usize = 64;
-            const MAX_SUBMISSIONS_PER_WORKER: usize = 128;
-            const BACKOFF_BLOCKS: u64 = 5;
-
             let local_keys = sp_io::crypto::ed25519_public_keys(KEY_TYPE);
             if local_keys.is_empty() {
                 return;
@@ -453,7 +485,7 @@ pub mod pallet {
             let mut submissions = 0usize;
 
             for (request_id, request) in Requests::<T>::iter()
-                .take(MAX_REQUESTS_PER_WORKER.min(T::MaxRequests::get() as usize))
+                .take(Self::MAX_REQUESTS_PER_WORKER.min(T::MaxRequests::get() as usize))
             {
                 if let Err(err) = Self::validate_request(&request) {
                     trace!(target: "gear::grandpa-signer", "skip request {}: {:?}", request_id, err);
@@ -470,24 +502,11 @@ pub mod pallet {
                 }
 
                 let now = <frame_system::Pallet<T>>::block_number().saturated_into::<u64>();
-                let mut last_attempt_key = b"grandpa-signer:last_attempt:".to_vec();
-                last_attempt_key.extend_from_slice(&request_id.to_le_bytes());
-                if let Some(bytes) = sp_io::offchain::local_storage_get(
-                    sp_core::offchain::StorageKind::PERSISTENT,
-                    &last_attempt_key,
-                ) && bytes.len() == 8
-                {
-                    let last = u64::from_le_bytes(bytes.as_slice().try_into().unwrap());
-                    if now.saturating_sub(last) < BACKOFF_BLOCKS {
-                        trace!(target: "gear::grandpa-signer", "skip request {}: backoff", request_id);
-                        continue;
-                    }
-                }
 
                 let mut submitted = false;
 
                 for local_key in local_keys.iter() {
-                    if submissions >= MAX_SUBMISSIONS_PER_WORKER {
+                    if submissions >= Self::MAX_SUBMISSIONS_PER_WORKER {
                         return;
                     }
                     let authority: T::AuthorityId = (*local_key).into();
@@ -509,6 +528,12 @@ pub mod pallet {
                         }
                     };
 
+                    let backoff_key = Self::backoff_key(request_id, &authority);
+                    if Self::should_backoff(&backoff_key, now) {
+                        trace!(target: "gear::grandpa-signer", "skip request {} for key: backoff", request_id);
+                        continue;
+                    }
+
                     if let Some(signature) =
                         sp_io::crypto::ed25519_sign(KEY_TYPE, local_key, &ctx.request.payload)
                     {
@@ -524,19 +549,11 @@ pub mod pallet {
                             Ok(()) => {
                                 submissions = submissions.saturating_add(1);
                                 submitted = true;
-                                sp_io::offchain::local_storage_set(
-                                    sp_core::offchain::StorageKind::PERSISTENT,
-                                    &last_attempt_key,
-                                    &now.to_le_bytes(),
-                                );
+                                Self::record_attempt(&backoff_key, now);
                                 debug!(target: "gear::grandpa-signer", "submitted signature for request {}", request_id);
                             }
                             Err(e) => {
-                                sp_io::offchain::local_storage_set(
-                                    sp_core::offchain::StorageKind::PERSISTENT,
-                                    &last_attempt_key,
-                                    &now.to_le_bytes(),
-                                );
+                                Self::record_attempt(&backoff_key, now);
                                 debug!(target: "gear::grandpa-signer", "failed to submit signature for request {}: {:?}", request_id, e);
                             }
                         }
