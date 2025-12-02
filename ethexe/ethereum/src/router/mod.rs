@@ -397,12 +397,6 @@ impl RouterQuery {
             .map_err(Into::into)
     }
 
-    pub async fn validators(&self) -> Result<ValidatorsVec> {
-        let vec = self.instance.validators().call().await?;
-        let vec: Vec<_> = vec.into_iter().map(|v| LocalAddress(v.into())).collect();
-        ValidatorsVec::try_from(vec).map_err(Into::into)
-    }
-
     pub async fn threshold(&self) -> Result<u64> {
         self.instance
             .validatorsThreshold()

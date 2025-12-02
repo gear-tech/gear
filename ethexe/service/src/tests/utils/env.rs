@@ -236,10 +236,6 @@ impl TestEnv {
         let router = ethereum.router();
         let router_query = router.query();
         let router_address = router.address();
-        let latest_validators = router_query
-            .validators()
-            .await
-            .context("failed to get latest validators")?;
 
         let db = Database::memory();
 
@@ -256,6 +252,10 @@ impl TestEnv {
             .latest_block()
             .await
             .context("failed to get latest block")?;
+        let latest_validators = router_query
+            .validators_at(latest_block.hash)
+            .await
+            .context("failed to get latest validators")?;
 
         let provider = observer.provider().clone();
 
@@ -960,7 +960,11 @@ impl Node {
             .await
             .unwrap();
         let latest_block = observer.latest_block().await.unwrap();
-        let latest_validators = observer.router_query().validators().await.unwrap();
+        let latest_validators = observer
+            .router_query()
+            .validators_at(latest_block.hash)
+            .await
+            .unwrap();
 
         let consensus: Pin<Box<dyn ConsensusService>> = {
             if let Some(config) = self.validator_config.as_ref() {
@@ -1181,7 +1185,11 @@ impl Node {
             .await
             .unwrap();
         let latest_block = observer.latest_block().await.unwrap();
-        let latest_validators = observer.router_query().validators().await.unwrap();
+        let latest_validators = self
+            .router_query
+            .validators_at(latest_block.hash)
+            .await
+            .unwrap();
 
         let signed = self
             .signer

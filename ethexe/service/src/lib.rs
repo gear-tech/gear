@@ -134,6 +134,10 @@ impl Service {
             ObserverService::new(&config.ethereum, config.node.eth_max_sync_depth, db.clone())
                 .await
                 .context("failed to create observer service")?;
+        let latest_block = observer
+            .latest_block()
+            .await
+            .context("failed to get latest block")?;
 
         let router_query = RouterQuery::new(&config.ethereum.rpc, config.ethereum.router_address)
             .await
@@ -155,9 +159,9 @@ impl Service {
         }
 
         let validators = router_query
-            .validators()
+            .validators_at(latest_block.hash)
             .await
-            .with_context(|| "failed to query validators")?;
+            .context("failed to query validators")?;
         log::info!("👥 Current validators set: {validators:?}");
 
         let threshold = router_query
@@ -242,13 +246,13 @@ impl Service {
                     .join("net"),
             );
 
-            let lastest_block_data = observer
+            let latest_block_data = observer
                 .latest_block()
                 .await
                 .context("failed to get lastest block")?;
 
             let runtime_config = NetworkRuntimeConfig {
-                latest_block_header: lastest_block_data.header,
+                latest_block_header: latest_block_data.header,
                 latest_validators: validators,
                 network_signer,
                 external_data_provider: Box::new(RouterDataProvider(router_query)),
