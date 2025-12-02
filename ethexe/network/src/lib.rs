@@ -391,12 +391,10 @@ impl NetworkService {
                 }
             }
             identify::Event::Error { peer_id, error, .. } => {
+                // NOTE: identify protocol is best effort metadata, so we should not penalize the peer for the error
+                // TODO: we may want to take the error into account, so other protocols communicate with the peer less likely
+
                 log::debug!("{peer_id} is not identified: {error}");
-                self.swarm
-                    .behaviour()
-                    .peer_score
-                    .handle()
-                    .unsupported_protocol(peer_id);
             }
             _ => {}
         }
