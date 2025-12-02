@@ -143,17 +143,12 @@ impl SignerStorage<'_> {
     }
 
     /// Writes `GearPages` into storage at `program_id`
-    pub async fn set_gpages(
-        &self,
-        program_id: ActorId,
-        memory_infix: MemoryInfix,
-        program_pages: &GearPages,
-    ) -> EventsResult {
+    pub async fn set_gpages(&self, program_id: ActorId, program_pages: &GearPages) -> EventsResult {
         let mut program_pages_to_set = Vec::with_capacity(program_pages.len());
         for (&page_index, value) in program_pages {
             let addr = gear::storage().gear_program().memory_pages(
                 program_id,
-                memory_infix,
+                MemoryInfix::default(),
                 page_index.into(),
             );
             program_pages_to_set.push((addr, value));

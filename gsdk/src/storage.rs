@@ -96,11 +96,6 @@ impl Api {
             .await?
             .ok_or(Error::StorageEntryNotFound)
     }
-
-    /// Get program pages from program id.
-    pub async fn program_pages(&self, program_id: ActorId) -> Result<GearPages> {
-        self.gpages(program_id, None).await
-    }
 }
 
 // frame-system
@@ -302,20 +297,14 @@ impl Api {
 
     /// Get pages of active program at specified block.
     #[storage_fetch]
-    pub async fn gpages_at(
+    pub async fn program_pages_at(
         &self,
         program_id: ActorId,
-        memory_infix: Option<MemoryInfix>,
         block_hash: Option<H256>,
     ) -> Result<GearPages> {
-        let memory_infix = match memory_infix {
-            Some(infix) => infix,
-            None => self.gprog_at(program_id, block_hash).await?.memory_infix,
-        };
-
         let address = gear::storage()
             .gear_program()
-            .memory_pages_iter2(program_id, memory_infix);
+            .memory_pages_iter1(program_id);
 
         let metadata = self.metadata();
         let hashers = subxt::ext::subxt_core::storage::lookup_storage_entry_details(
@@ -372,23 +361,18 @@ impl Api {
 
     /// Get pages of active program at specified block.
     #[storage_fetch]
-    pub async fn specified_gpages_at(
+    pub async fn specified_program_pages_at(
         &self,
         program_id: ActorId,
-        memory_infix: Option<MemoryInfix>,
         page_numbers: impl IntoIterator<Item = u32>,
         block_hash: Option<H256>,
     ) -> Result<GearPages> {
-        let memory_infix = match memory_infix {
-            Some(infix) => infix,
-            None => self.gprog_at(program_id, block_hash).await?.memory_infix,
-        };
-
         futures::stream::iter(page_numbers)
             .then(|page| async move {
                 let addr = gear::storage().gear_program().memory_pages(
                     program_id,
-                    memory_infix,
+                    // memory infix is always zero now
+                    MemoryInfix::default(),
                     Page(page),
                 );
 

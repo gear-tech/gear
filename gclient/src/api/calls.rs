@@ -406,11 +406,7 @@ impl GearApi {
         let src_program_pages = self
             .0
             .api()
-            .gpages_at(
-                src_program_id,
-                Some(src_program.memory_infix),
-                src_block_hash,
-            )
+            .program_pages_at(src_program_id, src_block_hash)
             .await?;
 
         let src_program_reserved_gas_node_ids: Vec<GearGasNodeId> = src_program
@@ -576,11 +572,7 @@ impl GearApi {
         dest_node_api
             .0
             .storage()
-            .set_gpages(
-                dest_program_id,
-                src_program.memory_infix,
-                &src_program_pages,
-            )
+            .set_gpages(dest_program_id, &src_program_pages)
             .await?;
 
         src_program.expiration_block = dest_node_api.last_block_number().await?;
@@ -599,7 +591,11 @@ impl GearApi {
         program_id: ActorId,
         block_hash: Option<H256>,
     ) -> Result<BTreeMap<GearPage, PageBuf>> {
-        let pages_data = self.0.api().gpages_at(program_id, None, block_hash).await?;
+        let pages_data = self
+            .0
+            .api()
+            .program_pages_at(program_id, block_hash)
+            .await?;
 
         let mut res = BTreeMap::new();
         for (page, data) in pages_data.into_iter() {
@@ -622,7 +618,7 @@ impl GearApi {
         let pages_data = self
             .0
             .api()
-            .specified_gpages_at(program_id, None, pages.map(Into::into), block_hash)
+            .specified_program_pages_at(program_id, pages.map(Into::into), block_hash)
             .await?;
 
         let mut res = BTreeMap::new();
@@ -645,12 +641,10 @@ impl GearApi {
         block_hash: Option<H256>,
         file_path: P,
     ) -> Result {
-        let program = self.0.api().gprog_at(program_id, block_hash).await?;
-
         let program_pages = self
             .0
             .api()
-            .gpages_at(program_id, Some(program.memory_infix), block_hash)
+            .program_pages_at(program_id, block_hash)
             .await?
             .into_iter()
             .map(|(page, data)| {
@@ -708,12 +702,7 @@ impl GearApi {
         )
         .await?;
 
-        let program = self.0.api().gprog_at(program_id, None).await?;
-
-        self.0
-            .storage()
-            .set_gpages(program_id, program.memory_infix, &pages)
-            .await?;
+        self.0.storage().set_gpages(program_id, &pages).await?;
 
         Ok(())
     }

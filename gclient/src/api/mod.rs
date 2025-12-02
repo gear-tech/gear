@@ -24,7 +24,7 @@ pub mod storage;
 pub mod voucher;
 
 use crate::{EventListener, ws::WSAddress};
-use error::*;
+use error::Result;
 use gear_node_wrapper::{Node, NodeInstance};
 use gsdk::{
     Api, ProgramStateChanges, UserMessageSentFilter, UserMessageSentSubscription,
