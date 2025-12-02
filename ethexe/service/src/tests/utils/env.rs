@@ -27,7 +27,6 @@ use crate::{
     },
 };
 use alloy::{
-    eips::BlockId,
     node_bindings::{Anvil, AnvilInstance},
     providers::{Provider as _, ProviderBuilder, RootProvider, ext::AnvilApi},
     rpc::types::anvil::MineOptions,
@@ -53,7 +52,10 @@ use ethexe_ethereum::{
 use ethexe_network::{
     NetworkConfig, NetworkEvent, NetworkRuntimeConfig, NetworkService, export::Multiaddr,
 };
-use ethexe_observer::{EthereumConfig, ObserverEvent, ObserverService};
+use ethexe_observer::{
+    EthereumConfig, ObserverEvent, ObserverService,
+    utils::{BlockId, BlockLoader, EthereumBlockLoader},
+};
 use ethexe_processor::{
     DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, DEFAULT_CHUNK_PROCESSING_THREADS, Processor, RunnerConfig,
 };
@@ -249,7 +251,8 @@ impl TestEnv {
             .await
             .unwrap();
         let latest_block = observer
-            .latest_block()
+            .block_loader()
+            .load_simple(BlockId::Latest)
             .await
             .context("failed to get latest block")?;
         let latest_validators = router_query
@@ -652,21 +655,10 @@ impl TestEnv {
     }
 
     pub async fn latest_block(&self) -> SimpleBlockData {
-        let header = self
-            .provider
-            .get_block(BlockId::latest())
+        EthereumBlockLoader::new(self.provider.clone(), self.eth_cfg.router_address)
+            .load_simple(BlockId::Latest)
             .await
             .unwrap()
-            .expect("latest block always exist")
-            .header;
-        SimpleBlockData {
-            hash: header.hash.0.into(),
-            header: BlockHeader {
-                height: header.number as u32,
-                timestamp: header.timestamp,
-                parent_hash: header.parent_hash.0.into(),
-            },
-        }
     }
 
     pub fn define_session_keys(
@@ -959,7 +951,11 @@ impl Node {
         let observer = ObserverService::new(&self.eth_cfg, u32::MAX, self.db.clone())
             .await
             .unwrap();
-        let latest_block = observer.latest_block().await.unwrap();
+        let latest_block = observer
+            .block_loader()
+            .load_simple(BlockId::Latest)
+            .await
+            .unwrap();
         let latest_validators = observer
             .router_query()
             .validators_at(latest_block.hash)
@@ -1184,7 +1180,11 @@ impl Node {
         let observer = ObserverService::new(&self.eth_cfg, u32::MAX, self.db.clone())
             .await
             .unwrap();
-        let latest_block = observer.latest_block().await.unwrap();
+        let latest_block = observer
+            .block_loader()
+            .load_simple(BlockId::Latest)
+            .await
+            .unwrap();
         let latest_validators = self
             .router_query
             .validators_at(latest_block.hash)

@@ -17,7 +17,6 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::Service;
-use alloy::{eips::BlockId, providers::Provider};
 use anyhow::{Context, Result};
 use ethexe_common::{
     Address, Announce, BlockData, BlockHeader, CodeAndIdUnchecked, Digest, HashOf, ProgramStates,
@@ -42,7 +41,10 @@ use ethexe_db::{
 };
 use ethexe_ethereum::{abi::Gear::ValidationSettingsView, mirror::MirrorQuery};
 use ethexe_network::{NetworkService, db_sync};
-use ethexe_observer::{ObserverService, utils::BlockLoader};
+use ethexe_observer::{
+    ObserverService,
+    utils::{BlockId, BlockLoader},
+};
 use ethexe_runtime_common::{
     ScheduleRestorer,
     state::{
@@ -677,15 +679,14 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
     log::info!("Fast synchronization is in progress...");
 
     let finalized_block = observer
-        .provider()
+        .block_loader()
         // we get finalized block to avoid block reorganization
         // because we restore the database only for the latest block of a chain,
         // and thus the reorganization can lead us to an empty block
-        .get_block(BlockId::finalized())
+        .load_simple(BlockId::Finalized)
         .await
         .context("failed to get latest block")?
-        .expect("latest block always exist");
-    let finalized_block = H256(finalized_block.header.hash.0);
+        .hash;
 
     let block_loader = observer.block_loader();
 

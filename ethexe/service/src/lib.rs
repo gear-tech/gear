@@ -34,7 +34,10 @@ use ethexe_network::{
     NetworkEvent, NetworkRuntimeConfig, NetworkService,
     db_sync::{self, ExternalDataProvider},
 };
-use ethexe_observer::{ObserverEvent, ObserverService};
+use ethexe_observer::{
+    ObserverEvent, ObserverService,
+    utils::{BlockId, BlockLoader},
+};
 use ethexe_processor::{Processor, ProcessorConfig};
 use ethexe_prometheus::{PrometheusEvent, PrometheusService};
 use ethexe_rpc::{InjectedTransactionAcceptance, RpcEvent, RpcServer};
@@ -135,7 +138,8 @@ impl Service {
                 .await
                 .context("failed to create observer service")?;
         let latest_block = observer
-            .latest_block()
+            .block_loader()
+            .load_simple(BlockId::Latest)
             .await
             .context("failed to get latest block")?;
 
@@ -247,7 +251,8 @@ impl Service {
             );
 
             let latest_block_data = observer
-                .latest_block()
+                .block_loader()
+                .load_simple(BlockId::Latest)
                 .await
                 .context("failed to get lastest block")?;
 

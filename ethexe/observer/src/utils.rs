@@ -30,17 +30,36 @@ use alloy::{
     },
 };
 use anyhow::{Context, Result};
-use ethexe_common::{Address, BlockData, BlockHeader, events::BlockEvent};
+use ethexe_common::{Address, BlockData, BlockHeader, SimpleBlockData, events::BlockEvent};
 use ethexe_ethereum::{mirror, router};
-use futures::future;
+use futures::{TryFutureExt, future};
 use gprimitives::H256;
 use std::{collections::HashMap, future::IntoFuture, ops::RangeInclusive};
 
 /// Max number of blocks to query in alloy.
 const MAX_QUERY_BLOCK_RANGE: usize = 256;
 
+#[derive(Debug, Copy, Clone, PartialEq, Eq, derive_more::From)]
+pub enum BlockId {
+    Hash(H256),
+    Latest,
+    Finalized,
+}
+
+impl BlockId {
+    fn as_alloy(self) -> alloy::eips::BlockId {
+        match self {
+            BlockId::Hash(hash) => alloy::eips::BlockId::hash(hash.0.into()),
+            BlockId::Latest => alloy::eips::BlockId::latest(),
+            BlockId::Finalized => alloy::eips::BlockId::finalized(),
+        }
+    }
+}
+
 #[allow(async_fn_in_trait)]
 pub trait BlockLoader {
+    async fn load_simple(&self, block: BlockId) -> Result<SimpleBlockData>;
+
     async fn load(&self, block: H256, header: Option<BlockHeader>) -> Result<BlockData>;
 
     async fn load_many(&self, range: RangeInclusive<u64>) -> Result<HashMap<H256, BlockData>>;
@@ -53,7 +72,7 @@ pub struct EthereumBlockLoader {
 }
 
 impl EthereumBlockLoader {
-    pub(crate) fn new(provider: RootProvider, router_address: Address) -> Self {
+    pub fn new(provider: RootProvider, router_address: Address) -> Self {
         Self {
             provider,
             router_address,
@@ -166,23 +185,32 @@ impl EthereumBlockLoader {
 }
 
 impl BlockLoader for EthereumBlockLoader {
-    async fn load(&self, block: H256, header: Option<BlockHeader>) -> Result<BlockData> {
-        log::trace!("Querying data for one block {block:?}");
+    async fn load_simple(&self, block: BlockId) -> Result<SimpleBlockData> {
+        log::trace!("Querying simple data for one block {block:?}");
+        let block = self
+            .provider
+            .get_block(block.as_alloy())
+            .into_future()
+            .await?;
+        let block = block.context("block not found")?;
+        let (hash, header) = Self::block_response_to_data(block);
+        Ok(SimpleBlockData { hash, header })
+    }
 
+    async fn load(&self, block: H256, header: Option<BlockHeader>) -> Result<BlockData> {
         let filter = Self::log_filter().at_block_hash(block.0);
-        let logs_request = self.provider.get_logs(&filter);
+        let logs_request = self
+            .provider
+            .get_logs(&filter)
+            .map_err(|err| anyhow::anyhow!("failed to get logs: {err}"));
 
         let (block_hash, header, logs) = if let Some(header) = header {
             (block, header, logs_request.await?)
         } else {
-            let block_request = self
-                .provider
-                .get_block_by_hash(block.0.into())
-                .into_future();
-            let (response, logs) = future::try_join(block_request, logs_request).await?;
-            let response = response.context("block not found")?;
-            let (block, header) = Self::block_response_to_data(response);
-            (block, header, logs)
+            let data = self.load_simple(block.into());
+            let (SimpleBlockData { hash, header }, logs) =
+                future::try_join(data, logs_request).await?;
+            (hash, header, logs)
         };
         anyhow::ensure!(
             block_hash == block,
