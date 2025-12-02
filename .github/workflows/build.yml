@@ -305,7 +305,7 @@ jobs:
         run: ./scripts/gear.sh init cargo
 
       - name: "Build: Workspace"
-        run: cargo build --workspace --all-targets --all-features ${{ matrix.profiles.flags }}
+        run: cargo build --workspace --all-targets --features dev ${{ matrix.profiles.flags }}
 
       - name: "ACTIONS: Upload example WASMs"
         uses: actions/upload-artifact@v4
