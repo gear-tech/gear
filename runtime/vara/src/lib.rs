@@ -61,7 +61,7 @@ use runtime_primitives::{Balance, BlockNumber, Hash, Moment, Nonce};
 use scale_info::TypeInfo;
 use sp_api::impl_runtime_apis;
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
-use sp_core::{ConstU8, ConstU64, H256, OpaqueMetadata, crypto::KeyTypeId};
+use sp_core::{ConstU8, ConstU64, H256, OpaqueMetadata, crypto::KeyTypeId, ed25519};
 use sp_runtime::{
     ApplyExtrinsicResult, FixedU128, Perbill, Percent, Permill, Perquintill, RuntimeDebug,
     create_runtime_str, generic, impl_opaque_keys,
@@ -1224,6 +1224,51 @@ impl pallet_gear_eth_bridge::Config for Runtime {
     type WeightInfo = pallet_gear_eth_bridge::weights::SubstrateWeight<Runtime>;
 }
 
+parameter_types! {
+    pub const GrandpaSignerMaxPayloadLength: u32 = 16_384;
+    pub const GrandpaSignerMaxRequests: u32 = 256;
+    pub const GrandpaSignerMaxSignaturesPerRequest: u32 = 256;
+    pub const GrandpaSignerUnsignedPriority: TransactionPriority = TransactionPriority::max_value() / 4;
+}
+
+pub struct GrandpaAuthorityProvider;
+impl pallet_grandpa_signer::AuthorityProvider<ed25519::Public> for GrandpaAuthorityProvider {
+    fn current_set_id() -> u64 {
+        Grandpa::current_set_id()
+    }
+
+    fn authorities(set_id: u64) -> Vec<ed25519::Public> {
+        if set_id == Grandpa::current_set_id() {
+            Grandpa::grandpa_authorities()
+                .into_iter()
+                .filter_map(|(id, _weight)| {
+                    let bytes: &[u8] = id.as_ref();
+                    if bytes.len() != 32 {
+                        return None;
+                    }
+                    let mut raw = [0u8; 32];
+                    raw.copy_from_slice(bytes);
+                    Some(ed25519::Public::from_raw(raw))
+                })
+                .collect()
+        } else {
+            Vec::new()
+        }
+    }
+}
+
+impl pallet_grandpa_signer::Config for Runtime {
+    type RuntimeEvent = RuntimeEvent;
+    type AuthorityId = ed25519::Public;
+    type AuthoritySignature = ed25519::Signature;
+    type MaxPayloadLength = GrandpaSignerMaxPayloadLength;
+    type MaxRequests = GrandpaSignerMaxRequests;
+    type MaxSignaturesPerRequest = GrandpaSignerMaxSignaturesPerRequest;
+    type UnsignedPriority = GrandpaSignerUnsignedPriority;
+    type AuthorityProvider = GrandpaAuthorityProvider;
+    type WeightInfo = pallet_grandpa_signer::SubstrateWeight<Runtime>;
+}
+
 pub struct ExtraFeeFilter;
 impl Contains<RuntimeCall> for ExtraFeeFilter {
     fn contains(call: &RuntimeCall) -> bool {
@@ -1451,6 +1496,9 @@ mod runtime {
     #[runtime::pallet_index(110)]
     pub type GearEthBridge = pallet_gear_eth_bridge;
 
+    #[runtime::pallet_index(111)]
+    pub type GrandpaSigner = pallet_grandpa_signer;
+
     #[runtime::pallet_index(99)]
     pub type Sudo = pallet_sudo;
 
@@ -1607,6 +1655,9 @@ mod runtime {
 
     #[runtime::pallet_index(110)]
     pub type GearEthBridge = pallet_gear_eth_bridge;
+
+    #[runtime::pallet_index(111)]
+    pub type GrandpaSigner = pallet_grandpa_signer;
 
     // NOTE (!): `pallet_sudo` used to be idx(99).
     // NOTE (!): `pallet_airdrop` used to be idx(198).
