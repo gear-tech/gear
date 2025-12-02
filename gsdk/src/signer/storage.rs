@@ -23,10 +23,7 @@ use crate::{
         self,
         runtime_types::{
             frame_system::pallet::Call,
-            gear_core::{
-                pages::Page,
-                program::{ActiveProgram, Program},
-            },
+            gear_core::program::{ActiveProgram, Program},
             pallet_gear_bank::pallet::BankAccount,
             vara_runtime::RuntimeCall,
         },
@@ -157,7 +154,7 @@ impl SignerStorage<'_> {
             let addr = gear::storage().gear_program().memory_pages(
                 program_id,
                 memory_infix,
-                Page(page_index),
+                page_index.into(),
             );
             program_pages_to_set.push((addr, value));
         }

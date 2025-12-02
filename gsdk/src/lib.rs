@@ -51,6 +51,7 @@ use crate::gear::runtime_types::{
 use gear_core::{
     ids::{MessageId, ReservationId},
     memory::PageBuf,
+    pages::GearPage,
 };
 use parity_scale_codec::Decode;
 use std::collections::HashMap;
@@ -102,7 +103,7 @@ pub type GearGasNodeId = GasNodeId<MessageId, ReservationId>;
 pub type GearGasNode = GasNode<subxt::utils::AccountId32, GearGasNodeId, u64, u128>;
 
 /// Gear pages.
-pub type GearPages = HashMap<u32, PageBuf>;
+pub type GearPages = HashMap<GearPage, PageBuf>;
 
 /// Transaction in block.
 pub type TxInBlock = SubxtTxInBlock<GearConfig, OnlineClient<GearConfig>>;

@@ -330,6 +330,7 @@ impl Api {
             .await?
             .iter(address)
             .try_flatten_stream()
+            .map_err(Error::from)
             .and_then(|pair| {
                 std::future::ready({
                     // FIXME: Do not decode key manually.
@@ -343,8 +344,11 @@ impl Api {
                         &mut hashers.iter(),
                         metadata.types(),
                     )
-                    .map(|(_, _, page_index)| (page_index.into_key().0, pair.value))
                     .map_err(subxt::Error::from)
+                    .map_err(Error::from)
+                    .and_then(|(_, _, page_index)| {
+                        Ok((page_index.into_key().0.try_into()?, pair.value))
+                    })
                 })
             })
             .try_collect()
@@ -395,7 +399,7 @@ impl Api {
                     .await?
                     .ok_or_else(|| FailedPage::new(page, program_id).not_found())?;
 
-                Ok((page, page_buf))
+                Ok((page.try_into()?, page_buf))
             })
             .try_collect()
             .await

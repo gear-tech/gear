@@ -18,9 +18,10 @@
 
 //! This module provides conversion traits between [`subxt`] types and Substrate types.
 
+use gear_core::pages::GearPage;
 use subxt::{error::ModuleError, events::EventDetails};
 
-use crate::{GearConfig, Result};
+use crate::{GearConfig, Result, gear::runtime_types::gear_core::pages::Page};
 
 /// Trait for Substrate types convertible to their
 /// [`subxt`] counterpart.
@@ -55,6 +56,14 @@ impl IntoSubxt for sp_runtime::AccountId32 {
 
     fn into_subxt(self) -> Self::Target {
         subxt::utils::AccountId32(self.into())
+    }
+}
+
+impl IntoSubxt for gear_core::ids::ActorId {
+    type Target = subxt::utils::AccountId32;
+
+    fn into_subxt(self) -> Self::Target {
+        subxt::utils::AccountId32(self.into_bytes())
     }
 }
 
@@ -107,5 +116,11 @@ impl AsGear for ModuleError {
 
     fn as_gear(&self) -> Result<Self::Target> {
         Ok(self.as_root_error()?)
+    }
+}
+
+impl From<GearPage> for Page {
+    fn from(page: GearPage) -> Page {
+        Page(page.into())
     }
 }

@@ -31,7 +31,7 @@ use subxt::{
 /// Custom Result
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-#[derive(Debug, thiserror::Error, derive_more::Unwrap)]
+#[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("the queried event not found")]
     EventNotFound,
@@ -45,11 +45,14 @@ pub enum Error {
     #[error("program has been terminated")]
     ProgramTerminated,
 
-    #[error("{0} is invalid")]
-    InvalidPage(FailedPage),
+    #[error("incomplete batch result: expected {expected} values, found {found} values")]
+    IncompleteBatchResult { expected: usize, found: usize },
 
     #[error("{0} was not found in the storage")]
     PageNotFound(FailedPage),
+
+    #[error(transparent)]
+    PageError(#[from] gear_core::pages::PageError),
 
     #[error(transparent)]
     Tx(#[from] TxError),
@@ -95,10 +98,6 @@ pub struct FailedPage {
 impl FailedPage {
     pub fn new(index: u32, program: ActorId) -> Self {
         Self { index, program }
-    }
-
-    pub fn invalid(self) -> Error {
-        Error::InvalidPage(self)
     }
 
     pub fn not_found(self) -> Error {
