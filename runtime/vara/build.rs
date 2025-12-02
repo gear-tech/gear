@@ -73,6 +73,10 @@ fn regenerate_gsdk_scale() {
     use sc_executor_common::runtime_blob::RuntimeBlob;
     use std::{env, fs, path::PathBuf};
 
+    if std::env::var("GENERATE_GSDK_METADATA").is_err() {
+        return;
+    }
+
     let out_path = "../../gsdk/vara_runtime.scale";
 
     #[cfg(not(feature = "dev"))]
