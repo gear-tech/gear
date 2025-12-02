@@ -96,7 +96,7 @@ impl ElectionProvider for MiddlewareQuery {
 }
 
 impl MiddlewareQuery {
-    pub fn new(provider: RootProvider, middleware_address: LocalAddress) -> Self {
+    pub fn from_provider(middleware_address: LocalAddress, provider: RootProvider) -> Self {
         Self(QueryInstance::new(
             Address::new(middleware_address.0),
             provider,
