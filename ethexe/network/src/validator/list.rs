@@ -23,7 +23,7 @@ use gprimitives::H256;
 use std::sync::Arc;
 
 struct CurrentEra {
-    header: BlockHeader,
+    chain_head_ts: u64,
     current_validators: ValidatorsVec,
     next_validators: Option<ValidatorsVec>,
 }
@@ -87,7 +87,7 @@ impl ValidatorList {
             .protocol_timelines()
             .context("protocol timelines not found in db")?;
         let current_era = CurrentEra {
-            header: latest_block_header,
+            chain_head_ts: latest_block_header.timestamp,
             current_validators: latest_validators,
             next_validators: None,
         };
@@ -102,7 +102,7 @@ impl ValidatorList {
 
     fn create_snapshot(&self) -> Arc<ValidatorListSnapshot> {
         let snapshot = ValidatorListSnapshot {
-            chain_head_ts: self.current_era.header.timestamp,
+            chain_head_ts: self.current_era.chain_head_ts,
             timelines: self.timelines,
             current_validators: self.current_era.current_validators.clone(),
             next_validators: self.current_era.next_validators.clone(),
@@ -124,22 +124,21 @@ impl ValidatorList {
             .db
             .block_header(chain_head)
             .context("failed to get chain head block header")?;
+        let chain_head_ts = chain_head_header.timestamp;
 
-        let new_era = self.timelines.era_from_ts(chain_head_header.timestamp);
-        let old_era = self
-            .timelines
-            .era_from_ts(self.current_era.header.timestamp);
+        let new_era = self.timelines.era_from_ts(chain_head_ts);
+        let old_era = self.timelines.era_from_ts(self.current_era.chain_head_ts);
         if new_era <= old_era {
             return Ok(None);
         }
 
         let current_validators = self
             .db
-            .validators(self.timelines.era_from_ts(chain_head_header.timestamp))
+            .validators(self.timelines.era_from_ts(chain_head_ts))
             .context("validators not found")?;
 
         self.current_era = CurrentEra {
-            header: chain_head_header,
+            chain_head_ts,
             current_validators,
             next_validators: None,
         };
@@ -209,7 +208,7 @@ mod tests {
         assert_eq!(snapshot.current_validators, current_validators);
 
         assert!(list.set_chain_head(same_era_hash).unwrap().is_none());
-        assert_eq!(list.current_era.header.timestamp, 0);
+        assert_eq!(list.current_era.chain_head_ts, 0);
 
         let next_snapshot = list
             .set_chain_head(next_era_hash)
@@ -217,9 +216,9 @@ mod tests {
             .expect("new era snapshot");
         assert_eq!(next_snapshot.current_era_index(), 1);
         assert_eq!(next_snapshot.current_validators, next_validators);
-        assert_eq!(list.current_era.header.timestamp, 15);
+        assert_eq!(list.current_era.chain_head_ts, 15);
 
         assert!(list.set_chain_head(genesis_hash).unwrap().is_none());
-        assert_eq!(list.current_era.header.timestamp, 15);
+        assert_eq!(list.current_era.chain_head_ts, 15);
     }
 }
