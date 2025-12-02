@@ -24,9 +24,10 @@ use ethexe_common::{
     ProtocolTimelines, StateHashWithQueueSize,
     db::{
         AnnounceStorageRO, BlockMetaStorageRO, CodesStorageRO, CodesStorageRW, FullAnnounceData,
-        FullBlockData, HashStorageRO, OnChainStorageRO, OnChainStorageRW,
+        FullBlockData, HashStorageRO, OnChainStorageRW,
     },
     events::{BlockEvent, RouterEvent},
+    injected,
     network::{AnnouncesRequest, AnnouncesRequestUntil},
 };
 use ethexe_compute::ComputeService;
@@ -41,7 +42,7 @@ use ethexe_db::{
 };
 use ethexe_ethereum::{abi::Gear::ValidationSettingsView, mirror::MirrorQuery};
 use ethexe_network::{NetworkService, db_sync};
-use ethexe_observer::ObserverService;
+use ethexe_observer::{ObserverService, utils::BlockLoader};
 use ethexe_runtime_common::{
     ScheduleRestorer,
     state::{
@@ -65,29 +66,10 @@ struct EventData {
 }
 
 impl EventData {
-    async fn get_block_data(
-        observer: &mut ObserverService,
-        db: &Database,
-        block: H256,
-    ) -> Result<BlockData> {
-        if let (Some(header), Some(events)) = (db.block_header(block), db.block_events(block)) {
-            Ok(BlockData {
-                hash: block,
-                header,
-                events,
-            })
-        } else {
-            let data = observer.load_block_data(block).await?;
-            db.set_block_header(block, data.header);
-            db.set_block_events(block, &data.events);
-            Ok(data)
-        }
-    }
-
     /// Collects metadata regarding the latest committed batch, block, and the previous committed block
     /// for a given blockchain observer and database.
     async fn collect(
-        observer: &mut ObserverService,
+        block_loader: &impl BlockLoader,
         db: &Database,
         highest_block: H256,
     ) -> Result<Option<Self>> {
@@ -95,7 +77,7 @@ impl EventData {
 
         let mut block = highest_block;
         'prepared: while !db.block_meta(block).prepared {
-            let block_data = Self::get_block_data(observer, db, block).await?;
+            let block_data = block_loader.load(block, None).await?;
 
             // NOTE: logic relies on events in order as they are emitted on Ethereum
             for event in block_data.events.into_iter().rev() {
@@ -627,6 +609,29 @@ async fn instrument_codes(
     Ok(())
 }
 
+async fn set_tx_pool_data_requirement(
+    db: &Database,
+    block_loader: &impl BlockLoader,
+    latest_committed_block_height: u32,
+) -> Result<()> {
+    let to = latest_committed_block_height as u64;
+    let from = to - injected::VALIDITY_WINDOW as u64;
+
+    // TODO: #4926 unsafe solution - we need it for taking events from predecessor blocks in ethexe-compute
+    let blocks = block_loader.load_many(from..=to).await?;
+    for BlockData {
+        hash,
+        header,
+        events,
+    } in blocks.into_values()
+    {
+        db.set_block_header(hash, header);
+        db.set_block_events(hash, &events);
+    }
+
+    Ok(())
+}
+
 fn identify_latest_era_with_validators_committed(
     start_block: &BlockHeader,
     timelines: &ProtocolTimelines,
@@ -682,10 +687,12 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
         .expect("latest block always exist");
     let finalized_block = H256(finalized_block.header.hash.0);
 
+    let block_loader = observer.block_loader();
+
     let Some(EventData {
         latest_committed_batch,
         latest_committed_announce: announce_hash,
-    }) = EventData::collect(observer, db, finalized_block).await?
+    }) = EventData::collect(&block_loader, db, finalized_block).await?
     else {
         log::warn!("No any committed block found. Skipping fast synchronization...");
         return Ok(());
@@ -702,7 +709,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
         hash: block_hash,
         header,
         events,
-    } = EventData::get_block_data(observer, db, announce.block_hash).await?;
+    } = block_loader.load(announce.block_hash, None).await?;
 
     let code_ids = collect_code_ids(observer, network, db, announce.block_hash).await?;
     let program_code_ids = collect_program_code_ids(observer, network, announce.block_hash).await?;
@@ -716,6 +723,8 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
     instrument_codes(compute, db, code_ids).await?;
 
     let schedule = ScheduleRestorer::from_storage(db, &program_states, header.height)?.restore();
+
+    set_tx_pool_data_requirement(db, &block_loader, header.height).await?;
 
     for (program_id, code_id) in program_code_ids {
         db.set_program_code_id(program_id, code_id);
