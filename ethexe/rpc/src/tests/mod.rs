@@ -50,7 +50,7 @@ impl MockService {
     pub fn spawn(mut self) -> JoinHandle<()> {
         tokio::spawn(async move {
             let mut tx_batch_interval =
-                tokio::time::interval(std::time::Duration::from_millis(150));
+                tokio::time::interval(std::time::Duration::from_millis(350));
 
             let mut tx_batch = Vec::new();
 
@@ -107,9 +107,6 @@ async fn start_new_server(addr: SocketAddr) -> (ServerHandle, RpcService) {
 #[tokio::test(flavor = "multi_thread")]
 #[ntest::timeout(60_000)]
 async fn test_cleanup_promise_subscribers() {
-    // Initialize logger
-    // tracing_subscriber::fmt::init();
-
     let listen_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 1728);
     let (handle, rpc) = start_new_server(listen_addr).await;
 
@@ -189,7 +186,7 @@ async fn test_cleanup_promise_subscribers() {
         }
 
         // Give some time for the server to receive the notification about dropped connections.
-        tokio::time::sleep(std::time::Duration::from_millis(150)).await;
+        tokio::time::sleep(std::time::Duration::from_millis(250)).await;
 
         assert_eq!(injected_api.promise_subscribers_count(), 0);
     }

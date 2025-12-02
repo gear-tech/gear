@@ -33,7 +33,6 @@ dashmap.workspace = true
 [dev-dependencies]
 jsonrpsee = { workspace = true, features = ["client"] }
 ethexe-common = { workspace = true, features = ["std", "mock"] }
-tracing-subscriber.workspace = true
 ntest.workspace = true
 
 [features]
