@@ -69,6 +69,12 @@ pub mod pallet {
         pub expires_at: Option<BlockNumberFor<T>>,
     }
 
+    #[derive(RuntimeDebug)]
+    struct SubmissionContext<T: Config> {
+        request: SigningRequest<T>,
+        authorities: Vec<T::AuthorityId>,
+    }
+
     #[pallet::pallet]
     #[pallet::without_storage_info]
     pub struct Pallet<T>(_PhantomData<T>);
@@ -227,30 +233,63 @@ pub mod pallet {
     }
 
     impl<T: Config> Pallet<T> {
+        /// Common validation for a submission. Loads the request, ensures it is active,
+        /// checks membership/duplicate/limit, and returns the request context.
+        fn ensure_can_accept_signature(
+            request_id: RequestId,
+            authority: &T::AuthorityId,
+        ) -> Result<SubmissionContext<T>, Error<T>> {
+            let request = Requests::<T>::get(request_id).ok_or(Error::<T>::UnknownRequest)?;
+            Self::validate_request(&request)?;
+
+            let authorities = T::AuthorityProvider::authorities(request.set_id);
+            ensure!(
+                authorities.contains(authority),
+                Error::<T>::AuthorityNotInSet
+            );
+
+            ensure!(
+                !Signatures::<T>::contains_key(request_id, authority),
+                Error::<T>::AlreadySigned
+            );
+
+            let count = SignatureCount::<T>::get(request_id);
+            ensure!(
+                count < T::MaxSignaturesPerRequest::get(),
+                Error::<T>::MaxSignaturesReached
+            );
+
+            Ok(SubmissionContext {
+                request,
+                authorities,
+            })
+        }
+
+        fn map_invalid(err: Error<T>) -> InvalidTransaction {
+            match err {
+                Error::<T>::RequestExpired => InvalidTransaction::Stale,
+                Error::<T>::UnsupportedSet | Error::<T>::AuthorityNotInSet => {
+                    InvalidTransaction::BadProof
+                }
+                Error::<T>::AlreadySigned | Error::<T>::MaxSignaturesReached => {
+                    InvalidTransaction::Stale
+                }
+                Error::<T>::UnknownRequest => InvalidTransaction::Call,
+                Error::<T>::BadSignature
+                | Error::<T>::TooManyRequests
+                | Error::<T>::PayloadTooLong => InvalidTransaction::Call,
+            }
+        }
+
         fn process_signature(
             request_id: RequestId,
             authority: T::AuthorityId,
             signature: T::AuthoritySignature,
         ) -> DispatchResult {
-            let request = Requests::<T>::get(request_id).ok_or(Error::<T>::UnknownRequest)?;
-            Self::validate_request(&request)?;
-
-            let set_id = T::AuthorityProvider::current_set_id();
-            ensure!(request.set_id == set_id, Error::<T>::UnsupportedSet);
-            let authorities = T::AuthorityProvider::authorities(set_id);
-            ensure!(
-                authorities.contains(&authority),
-                Error::<T>::AuthorityNotInSet
-            );
-
-            ensure!(
-                !Signatures::<T>::contains_key(request_id, &authority),
-                Error::<T>::AlreadySigned
-            );
-            ensure!(
-                SignatureCount::<T>::get(request_id) < T::MaxSignaturesPerRequest::get(),
-                Error::<T>::MaxSignaturesReached
-            );
+            let SubmissionContext {
+                request,
+                authorities,
+            } = Self::ensure_can_accept_signature(request_id, &authority)?;
 
             let message = request.payload.clone();
             ensure!(
@@ -359,35 +398,17 @@ pub mod pallet {
                     authority,
                     signature,
                 } => {
-                    let request = if let Some(r) = Requests::<T>::get(request_id) {
-                        r
-                    } else {
-                        return InvalidTransaction::Call.into();
+                    let ctx = match Self::ensure_can_accept_signature(*request_id, authority) {
+                        Ok(ctx) => ctx,
+                        Err(err) => return Self::map_invalid(err).into(),
                     };
-                    if let Err(err) = Self::validate_request(&request) {
-                        return match err {
-                            Error::<T>::RequestExpired => InvalidTransaction::Stale.into(),
-                            Error::<T>::UnsupportedSet => InvalidTransaction::BadProof.into(),
-                            _ => InvalidTransaction::Call.into(),
-                        };
-                    }
-                    let set_id = T::AuthorityProvider::current_set_id();
-                    let authorities = T::AuthorityProvider::authorities(set_id);
-                    if !authorities.contains(authority) {
-                        return InvalidTransaction::BadProof.into();
-                    }
-                    if Signatures::<T>::contains_key(request_id, authority) {
-                        return InvalidTransaction::Stale.into();
-                    }
-                    if SignatureCount::<T>::get(request_id) >= T::MaxSignaturesPerRequest::get() {
-                        return InvalidTransaction::Stale.into();
-                    }
-                    if !Self::verify_sig(authority, signature, &request.payload) {
+
+                    if !Self::verify_sig(authority, signature, &ctx.request.payload) {
                         return InvalidTransaction::BadProof.into();
                     }
 
                     let provides = vec![(b"grandpa-signer", request_id, authority).encode()];
-                    let longevity = match request.expires_at {
+                    let longevity = match ctx.request.expires_at {
                         Some(exp) => {
                             let now = <frame_system::Pallet<T>>::block_number();
                             let remaining = exp.saturating_sub(now);
@@ -471,20 +492,25 @@ pub mod pallet {
                     }
                     let authority: T::AuthorityId = (*local_key).into();
 
-                    if !authorities.contains(&authority) {
-                        trace!(target: "gear::grandpa-signer", "skip key for request {}: not in authorities", request_id);
-                        continue;
-                    }
-                    if Signatures::<T>::contains_key(request_id, &authority) {
-                        trace!(target: "gear::grandpa-signer", "skip key for request {}: already signed", request_id);
-                        continue;
-                    }
-                    if SignatureCount::<T>::get(request_id) >= T::MaxSignaturesPerRequest::get() {
-                        break;
-                    }
+                    let ctx = match Self::ensure_can_accept_signature(request_id, &authority) {
+                        Ok(ctx) => ctx,
+                        Err(Error::<T>::AuthorityNotInSet) => {
+                            trace!(target: "gear::grandpa-signer", "skip key for request {}: not in authorities", request_id);
+                            continue;
+                        }
+                        Err(Error::<T>::AlreadySigned) => {
+                            trace!(target: "gear::grandpa-signer", "skip key for request {}: already signed", request_id);
+                            continue;
+                        }
+                        Err(Error::<T>::MaxSignaturesReached) => break,
+                        Err(err) => {
+                            trace!(target: "gear::grandpa-signer", "skip request {}: {:?}", request_id, err);
+                            break;
+                        }
+                    };
 
                     if let Some(signature) =
-                        sp_io::crypto::ed25519_sign(KEY_TYPE, local_key, &request.payload)
+                        sp_io::crypto::ed25519_sign(KEY_TYPE, local_key, &ctx.request.payload)
                     {
                         let signature: T::AuthoritySignature = signature.into();
                         let call = Call::submit_signature {

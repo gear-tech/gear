@@ -265,3 +265,45 @@ fn stale_set_requests_are_pruned_on_schedule() {
         });
     })
 }
+
+#[test]
+fn identical_payload_can_be_signed_for_multiple_requests() {
+    with_set_id_lock(|| {
+        new_ext().execute_with(|| {
+            System::set_block_number(1);
+            let payload = b"raw-payload".to_vec();
+
+            assert_ok!(GrandpaSigner::schedule_request(
+                RuntimeOrigin::root(),
+                payload.clone(),
+                None,
+                None
+            ));
+            assert_ok!(GrandpaSigner::schedule_request(
+                RuntimeOrigin::root(),
+                payload.clone(),
+                None,
+                None
+            ));
+
+            let pair = &auth_keys()[0];
+            let sig = pair.sign(&payload);
+
+            assert_ok!(GrandpaSigner::submit_signature(
+                RuntimeOrigin::none(),
+                0,
+                pair.public(),
+                sig.clone()
+            ));
+            assert_ok!(GrandpaSigner::submit_signature(
+                RuntimeOrigin::none(),
+                1,
+                pair.public(),
+                sig
+            ));
+
+            assert_eq!(GrandpaSigner::signature_count(0), 1);
+            assert_eq!(GrandpaSigner::signature_count(1), 1);
+        });
+    })
+}
