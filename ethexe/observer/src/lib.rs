@@ -18,7 +18,7 @@
 
 //! Ethereum state observer for ethexe.
 
-use crate::utils::load_block_data;
+use crate::utils::EthereumBlockLoader;
 use alloy::{
     providers::{Provider, ProviderBuilder, RootProvider},
     pubsub::{Subscription, SubscriptionStream},
@@ -27,7 +27,7 @@ use alloy::{
 };
 use anyhow::{Context as _, Result, anyhow};
 use ethexe_common::{
-    Address, BlockData, BlockHeader, ProtocolTimelines, SimpleBlockData, db::BlockMetaStorageRO,
+    Address, BlockHeader, ProtocolTimelines, SimpleBlockData, db::BlockMetaStorageRO,
 };
 use ethexe_db::Database;
 use ethexe_ethereum::router::RouterQuery;
@@ -42,7 +42,7 @@ use std::{
 use sync::ChainSync;
 
 mod sync;
-mod utils;
+pub mod utils;
 
 #[cfg(test)]
 mod tests;
@@ -56,6 +56,7 @@ pub struct EthereumConfig {
     pub router_address: Address,
     pub block_time: Duration,
 }
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum ObserverEvent {
     Block(SimpleBlockData),
@@ -190,20 +191,14 @@ impl ObserverService {
             genesis_block_hash,
         };
 
-        let chain_sync = ChainSync {
-            db,
-            provider: provider.clone(),
-            config: config.clone(),
-        };
+        let chain_sync = ChainSync::new(db, config.clone(), provider.clone());
 
         Ok(Self {
             provider,
             config,
-
             chain_sync,
             sync_future: None,
             block_sync_queue: VecDeque::new(),
-
             last_block_number: 0,
             subscription_future: None,
             headers_stream,
@@ -280,17 +275,12 @@ impl ObserverService {
         self.last_block_number
     }
 
-    pub fn genesis_block_hash(&self) -> H256 {
-        self.config.genesis_block_hash
+    pub fn block_loader(&self) -> EthereumBlockLoader {
+        EthereumBlockLoader::new(self.provider.clone(), self.config.router_address)
     }
 
-    pub fn load_block_data(&self, block: H256) -> impl Future<Output = Result<BlockData>> {
-        load_block_data(
-            self.provider.clone(),
-            block,
-            self.config.router_address,
-            None,
-        )
+    pub fn genesis_block_hash(&self) -> H256 {
+        self.config.genesis_block_hash
     }
 
     pub fn router_query(&self) -> RouterQuery {
