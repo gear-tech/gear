@@ -217,19 +217,19 @@ features = ["test-helpers"]
 [dependencies]
 aes = { version = "0.8", default-features = false, features = ["zeroize"] }
 ahash = { version = "0.8" }
-alloy = { git = "https://github.com/alessandromazza98/alloy", branch = "ale/add-eip7594-to-transaction-request", features = ["k256", "kzg", "node-bindings", "provider-anvil-api", "provider-ws", "rpc-types-beacon", "rpc-types-eth"] }
-alloy-consensus = { git = "https://github.com/alessandromazza98/alloy", branch = "ale/add-eip7594-to-transaction-request", default-features = false, features = ["k256", "kzg", "serde"] }
-alloy-contract = { git = "https://github.com/alessandromazza98/alloy", branch = "ale/add-eip7594-to-transaction-request", default-features = false, features = ["pubsub"] }
+alloy = { git = "https://github.com/gear-tech/alloy", features = ["k256", "kzg", "node-bindings", "provider-anvil-api", "provider-ws", "rpc-types-beacon", "rpc-types-eth"] }
+alloy-consensus = { git = "https://github.com/gear-tech/alloy", default-features = false, features = ["k256", "kzg", "serde"] }
+alloy-contract = { git = "https://github.com/gear-tech/alloy", default-features = false, features = ["pubsub"] }
 alloy-core = { version = "1", features = ["dyn-abi", "json-abi", "k256"] }
 alloy-eip7702 = { version = "0.6", default-features = false, features = ["k256", "serde", "std"] }
-alloy-eips = { git = "https://github.com/alessandromazza98/alloy", branch = "ale/add-eip7594-to-transaction-request", default-features = false, features = ["k256", "kzg", "serde", "std"] }
+alloy-eips = { git = "https://github.com/gear-tech/alloy", default-features = false, features = ["k256", "kzg", "serde", "std"] }
 alloy-json-abi = { version = "1", features = ["serde_json"] }
-alloy-network = { git = "https://github.com/alessandromazza98/alloy", branch = "ale/add-eip7594-to-transaction-request", default-features = false, features = ["k256"] }
+alloy-network = { git = "https://github.com/gear-tech/alloy", default-features = false, features = ["k256"] }
 alloy-primitives = { version = "1", features = ["k256", "rlp", "serde"] }
-alloy-provider = { git = "https://github.com/alessandromazza98/alloy", branch = "ale/add-eip7594-to-transaction-request", default-features = false, features = ["anvil-node", "ws"] }
-alloy-rpc-client = { git = "https://github.com/alessandromazza98/alloy", branch = "ale/add-eip7594-to-transaction-request", default-features = false, features = ["reqwest", "ws"] }
-alloy-rpc-types = { git = "https://github.com/alessandromazza98/alloy", branch = "ale/add-eip7594-to-transaction-request", default-features = false, features = ["anvil", "beacon", "eth", "k256", "kzg"] }
-alloy-rpc-types-eth = { git = "https://github.com/alessandromazza98/alloy", branch = "ale/add-eip7594-to-transaction-request", default-features = false, features = ["k256", "serde", "std"] }
+alloy-provider = { git = "https://github.com/gear-tech/alloy", default-features = false, features = ["anvil-node", "ws"] }
+alloy-rpc-client = { git = "https://github.com/gear-tech/alloy", default-features = false, features = ["reqwest", "ws"] }
+alloy-rpc-types = { git = "https://github.com/gear-tech/alloy", default-features = false, features = ["anvil", "beacon", "eth", "k256", "kzg"] }
+alloy-rpc-types-eth = { git = "https://github.com/gear-tech/alloy", default-features = false, features = ["k256", "serde", "std"] }
 alloy-sol-type-parser = { version = "1", default-features = false, features = ["serde", "std"] }
 alloy-sol-types = { version = "1", features = ["json"] }
 anyhow = { version = "1" }
@@ -255,7 +255,7 @@ bp-header-chain = { git = "https://github.com/gear-tech/polkadot-sdk.git", branc
 bp-runtime = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["std"] }
 bs58 = { version = "0.5" }
 byte-slice-cast = { version = "1", default-features = false, features = ["std"] }
-bytemuck = { version = "1", default-features = false, features = ["const_zeroed", "derive"] }
+bytemuck = { version = "1", default-features = false, features = ["const_zeroed", "derive", "min_const_generics", "must_cast"] }
 byteorder = { version = "1" }
 bytes = { version = "1", features = ["serde"] }
 cipher = { version = "0.4", default-features = false, features = ["zeroize"] }
@@ -283,9 +283,9 @@ either = { version = "1", features = ["serde", "use_std"] }
 elliptic-curve = { version = "0.13", default-features = false, features = ["hash2curve", "hazmat", "serde", "std"] }
 enumflags2 = { version = "0.7", default-features = false, features = ["std"] }
 environmental = { version = "1" }
-ff = { version = "0.13", default-features = false, features = ["alloc"] }
 finality-grandpa = { version = "0.16", features = ["derive-codec"] }
 fixed-hash = { version = "0.8", default-features = false, features = ["std"] }
+form_urlencoded = { version = "1" }
 frame-metadata-8ee676a8f9a6c413 = { package = "frame-metadata", version = "16", default-features = false, features = ["current", "std"] }
 frame-metadata-e761569b921b4a02 = { package = "frame-metadata", version = "23", default-features = false, features = ["current", "std"] }
 frame-metadata-hash-extension = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["std"] }
@@ -293,16 +293,15 @@ frame-system-rpc-runtime-api = { git = "https://github.com/gear-tech/polkadot-sd
 futures = { version = "0.3", features = ["bilock", "thread-pool", "unstable"] }
 futures-channel = { version = "0.3", features = ["sink", "unstable"] }
 futures-core = { version = "0.3", features = ["unstable"] }
-futures-executor = { version = "0.3", default-features = false, features = ["thread-pool"] }
 futures-io = { version = "0.3", features = ["unstable"] }
 futures-sink = { version = "0.3" }
 futures-task = { version = "0.3", default-features = false, features = ["std", "unstable"] }
+futures-timer = { version = "3", default-features = false, features = ["wasm-bindgen"] }
 futures-util = { version = "0.3", features = ["bilock", "channel", "io", "sink", "unstable"] }
 gear-dlmalloc = { version = "0.2", features = ["debug"] }
 generic-array = { version = "0.14", default-features = false, features = ["more_lengths", "zeroize"] }
 getrandom-6f8ce4dd05d13bba = { package = "getrandom", version = "0.2", default-features = false, features = ["js", "std"] }
 getrandom_or_panic = { version = "0.0.3", default-features = false, features = ["std"] }
-group = { version = "0.13", default-features = false, features = ["alloc"] }
 hash-db = { version = "0.16" }
 hash256-std-hasher = { version = "0.15", default-features = false, features = ["std"] }
 hashbrown-3575ec1268b04181 = { package = "hashbrown", version = "0.15" }
@@ -320,8 +319,9 @@ indexmap-dff4ba8e3ae991db = { package = "indexmap", version = "1", default-featu
 indexmap-f595c2ba2a3f28df = { package = "indexmap", version = "2", features = ["serde"] }
 itertools-93f6ce9d446188ac = { package = "itertools", version = "0.10" }
 js-sys = { version = "0.3" }
-jsonrpsee = { version = "0.24", default-features = false, features = ["async-client", "client-core", "client-ws-transport-tls", "http-client", "macros", "server", "ws-client"] }
-jsonrpsee-core = { version = "0.24", features = ["async-client", "http-helpers", "server"] }
+jsonrpsee = { version = "0.24", default-features = false, features = ["client", "macros", "server"] }
+jsonrpsee-client-transport = { version = "0.24", default-features = false, features = ["tls-rustls-platform-verifier", "web", "ws"] }
+jsonrpsee-core = { version = "0.24", features = ["async-client", "async-wasm-client", "http-helpers", "server"] }
 k256 = { version = "0.13", features = ["expose-field", "hash2curve", "serde"] }
 libc = { version = "0.2" }
 libp2p = { version = "0.52", default-features = false, features = ["dns", "ed25519", "identify", "kad", "macros", "mdns", "noise", "ping", "request-response", "tcp", "tokio", "wasm-ext", "websocket", "yamux"] }
@@ -350,6 +350,7 @@ parity-bip39 = { version = "2", features = ["rand"] }
 parity-scale-codec = { version = "3", features = ["bytes", "derive", "full", "max-encoded-len"] }
 parity-wasm = { git = "https://github.com/gear-tech/parity-wasm", branch = "v0.45.0-sign-ext" }
 pbkdf2 = { version = "0.12", default-features = false, features = ["std"] }
+percent-encoding = { version = "2" }
 pkcs8 = { version = "0.10", default-features = false, features = ["std"] }
 polkavm-common = { version = "0.9", features = ["alloc", "logging"] }
 ppv-lite86 = { version = "0.2", default-features = false, features = ["simd", "std"] }
@@ -365,7 +366,7 @@ regex = { version = "1" }
 regex-automata = { version = "0.4", default-features = false, features = ["dfa-onepass", "hybrid", "meta", "nfa-backtrack", "perf-inline", "perf-literal", "unicode"] }
 regex-syntax = { version = "0.8" }
 reqwest = { version = "0.12", default-features = false, features = ["default-tls", "json", "rustls-tls"] }
-ring-9067fe90e8c1f593 = { package = "ring", version = "0.17" }
+ring = { version = "0.17" }
 ruint = { version = "1", default-features = false, features = ["alloy-rlp", "serde", "std"] }
 rustc-hash = { version = "1" }
 rustc-hex = { version = "2", default-features = false, features = ["std"] }
@@ -475,19 +476,19 @@ zeroize = { version = "1", features = ["derive", "std"] }
 [build-dependencies]
 aes = { version = "0.8", default-features = false, features = ["zeroize"] }
 ahash = { version = "0.8" }
-alloy = { git = "https://github.com/alessandromazza98/alloy", branch = "ale/add-eip7594-to-transaction-request", features = ["k256", "kzg", "node-bindings", "provider-anvil-api", "provider-ws", "rpc-types-beacon", "rpc-types-eth"] }
-alloy-consensus = { git = "https://github.com/alessandromazza98/alloy", branch = "ale/add-eip7594-to-transaction-request", default-features = false, features = ["k256", "kzg", "serde"] }
-alloy-contract = { git = "https://github.com/alessandromazza98/alloy", branch = "ale/add-eip7594-to-transaction-request", default-features = false, features = ["pubsub"] }
+alloy = { git = "https://github.com/gear-tech/alloy", features = ["k256", "kzg", "node-bindings", "provider-anvil-api", "provider-ws", "rpc-types-beacon", "rpc-types-eth"] }
+alloy-consensus = { git = "https://github.com/gear-tech/alloy", default-features = false, features = ["k256", "kzg", "serde"] }
+alloy-contract = { git = "https://github.com/gear-tech/alloy", default-features = false, features = ["pubsub"] }
 alloy-core = { version = "1", features = ["dyn-abi", "json-abi", "k256"] }
 alloy-eip7702 = { version = "0.6", default-features = false, features = ["k256", "serde", "std"] }
-alloy-eips = { git = "https://github.com/alessandromazza98/alloy", branch = "ale/add-eip7594-to-transaction-request", default-features = false, features = ["k256", "kzg", "serde", "std"] }
+alloy-eips = { git = "https://github.com/gear-tech/alloy", default-features = false, features = ["k256", "kzg", "serde", "std"] }
 alloy-json-abi = { version = "1", features = ["serde_json"] }
-alloy-network = { git = "https://github.com/alessandromazza98/alloy", branch = "ale/add-eip7594-to-transaction-request", default-features = false, features = ["k256"] }
+alloy-network = { git = "https://github.com/gear-tech/alloy", default-features = false, features = ["k256"] }
 alloy-primitives = { version = "1", features = ["k256", "rlp", "serde"] }
-alloy-provider = { git = "https://github.com/alessandromazza98/alloy", branch = "ale/add-eip7594-to-transaction-request", default-features = false, features = ["anvil-node", "ws"] }
-alloy-rpc-client = { git = "https://github.com/alessandromazza98/alloy", branch = "ale/add-eip7594-to-transaction-request", default-features = false, features = ["reqwest", "ws"] }
-alloy-rpc-types = { git = "https://github.com/alessandromazza98/alloy", branch = "ale/add-eip7594-to-transaction-request", default-features = false, features = ["anvil", "beacon", "eth", "k256", "kzg"] }
-alloy-rpc-types-eth = { git = "https://github.com/alessandromazza98/alloy", branch = "ale/add-eip7594-to-transaction-request", default-features = false, features = ["k256", "serde", "std"] }
+alloy-provider = { git = "https://github.com/gear-tech/alloy", default-features = false, features = ["anvil-node", "ws"] }
+alloy-rpc-client = { git = "https://github.com/gear-tech/alloy", default-features = false, features = ["reqwest", "ws"] }
+alloy-rpc-types = { git = "https://github.com/gear-tech/alloy", default-features = false, features = ["anvil", "beacon", "eth", "k256", "kzg"] }
+alloy-rpc-types-eth = { git = "https://github.com/gear-tech/alloy", default-features = false, features = ["k256", "serde", "std"] }
 alloy-sol-macro = { version = "1", default-features = false, features = ["json"] }
 alloy-sol-macro-expander = { version = "1", default-features = false, features = ["json"] }
 alloy-sol-macro-input = { version = "1", default-features = false, features = ["json"] }
@@ -516,7 +517,7 @@ bp-header-chain = { git = "https://github.com/gear-tech/polkadot-sdk.git", branc
 bp-runtime = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["std"] }
 bs58 = { version = "0.5" }
 byte-slice-cast = { version = "1", default-features = false, features = ["std"] }
-bytemuck = { version = "1", default-features = false, features = ["const_zeroed", "derive"] }
+bytemuck = { version = "1", default-features = false, features = ["const_zeroed", "derive", "min_const_generics", "must_cast"] }
 byteorder = { version = "1" }
 bytes = { version = "1", features = ["serde"] }
 cc = { version = "1", default-features = false, features = ["parallel"] }
@@ -541,6 +542,7 @@ derive_more-f595c2ba2a3f28df = { package = "derive_more", version = "2", feature
 derive_more-impl = { version = "2", features = ["add", "add_assign", "as_ref", "constructor", "debug", "deref", "deref_mut", "display", "error", "from", "from_str", "index", "index_mut", "into", "into_iterator", "is_variant", "mul", "mul_assign", "not", "sum", "try_from", "try_into", "try_unwrap", "unwrap"] }
 digest-274715c4dabd11b0 = { package = "digest", version = "0.9", default-features = false, features = ["std"] }
 digest-93f6ce9d446188ac = { package = "digest", version = "0.10", features = ["mac", "oid", "std"] }
+displaydoc = { version = "0.2" }
 ecdsa = { version = "0.16", default-features = false, features = ["pkcs8", "serde", "signing", "std", "verifying"] }
 ed25519 = { version = "2", default-features = false, features = ["alloc", "std"] }
 ed25519-dalek = { version = "2", features = ["rand_core"] }
@@ -549,9 +551,9 @@ either = { version = "1", features = ["serde", "use_std"] }
 elliptic-curve = { version = "0.13", default-features = false, features = ["hash2curve", "hazmat", "serde", "std"] }
 enumflags2 = { version = "0.7", default-features = false, features = ["std"] }
 environmental = { version = "1" }
-ff = { version = "0.13", default-features = false, features = ["alloc"] }
 finality-grandpa = { version = "0.16", features = ["derive-codec"] }
 fixed-hash = { version = "0.8", default-features = false, features = ["std"] }
+form_urlencoded = { version = "1" }
 frame-metadata-8ee676a8f9a6c413 = { package = "frame-metadata", version = "16", default-features = false, features = ["current", "std"] }
 frame-metadata-e761569b921b4a02 = { package = "frame-metadata", version = "23", default-features = false, features = ["current", "std"] }
 frame-metadata-hash-extension = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["std"] }
@@ -560,16 +562,15 @@ frame-system-rpc-runtime-api = { git = "https://github.com/gear-tech/polkadot-sd
 futures = { version = "0.3", features = ["bilock", "thread-pool", "unstable"] }
 futures-channel = { version = "0.3", features = ["sink", "unstable"] }
 futures-core = { version = "0.3", features = ["unstable"] }
-futures-executor = { version = "0.3", default-features = false, features = ["thread-pool"] }
 futures-io = { version = "0.3", features = ["unstable"] }
 futures-sink = { version = "0.3" }
 futures-task = { version = "0.3", default-features = false, features = ["std", "unstable"] }
+futures-timer = { version = "3", default-features = false, features = ["wasm-bindgen"] }
 futures-util = { version = "0.3", features = ["bilock", "channel", "io", "sink", "unstable"] }
 gear-dlmalloc = { version = "0.2", features = ["debug"] }
 generic-array = { version = "0.14", default-features = false, features = ["more_lengths", "zeroize"] }
 getrandom-6f8ce4dd05d13bba = { package = "getrandom", version = "0.2", default-features = false, features = ["js", "std"] }
 getrandom_or_panic = { version = "0.0.3", default-features = false, features = ["std"] }
-group = { version = "0.13", default-features = false, features = ["alloc"] }
 hash-db = { version = "0.16" }
 hash256-std-hasher = { version = "0.15", default-features = false, features = ["std"] }
 hashbrown-3575ec1268b04181 = { package = "hashbrown", version = "0.15" }
@@ -587,8 +588,9 @@ indexmap-dff4ba8e3ae991db = { package = "indexmap", version = "1", default-featu
 indexmap-f595c2ba2a3f28df = { package = "indexmap", version = "2", features = ["serde"] }
 itertools-93f6ce9d446188ac = { package = "itertools", version = "0.10" }
 js-sys = { version = "0.3" }
-jsonrpsee = { version = "0.24", default-features = false, features = ["async-client", "client-core", "client-ws-transport-tls", "http-client", "macros", "server", "ws-client"] }
-jsonrpsee-core = { version = "0.24", features = ["async-client", "http-helpers", "server"] }
+jsonrpsee = { version = "0.24", default-features = false, features = ["client", "macros", "server"] }
+jsonrpsee-client-transport = { version = "0.24", default-features = false, features = ["tls-rustls-platform-verifier", "web", "ws"] }
+jsonrpsee-core = { version = "0.24", features = ["async-client", "async-wasm-client", "http-helpers", "server"] }
 k256 = { version = "0.13", features = ["expose-field", "hash2curve", "serde"] }
 libc = { version = "0.2" }
 libp2p = { version = "0.52", default-features = false, features = ["dns", "ed25519", "identify", "kad", "macros", "mdns", "noise", "ping", "request-response", "tcp", "tokio", "wasm-ext", "websocket", "yamux"] }
@@ -618,6 +620,7 @@ parity-scale-codec = { version = "3", features = ["bytes", "derive", "full", "ma
 parity-scale-codec-derive = { version = "3", default-features = false, features = ["max-encoded-len"] }
 parity-wasm = { git = "https://github.com/gear-tech/parity-wasm", branch = "v0.45.0-sign-ext" }
 pbkdf2 = { version = "0.12", default-features = false, features = ["std"] }
+percent-encoding = { version = "2" }
 pkcs8 = { version = "0.10", default-features = false, features = ["std"] }
 polkavm-common = { version = "0.9", features = ["alloc", "logging"] }
 ppv-lite86 = { version = "0.2", default-features = false, features = ["simd", "std"] }
@@ -633,7 +636,7 @@ regex = { version = "1" }
 regex-automata = { version = "0.4", default-features = false, features = ["dfa-onepass", "hybrid", "meta", "nfa-backtrack", "perf-inline", "perf-literal", "unicode"] }
 regex-syntax = { version = "0.8" }
 reqwest = { version = "0.12", default-features = false, features = ["default-tls", "json", "rustls-tls"] }
-ring-9067fe90e8c1f593 = { package = "ring", version = "0.17" }
+ring = { version = "0.17" }
 ruint = { version = "1", default-features = false, features = ["alloy-rlp", "serde", "std"] }
 rustc-hash = { version = "1" }
 rustc-hex = { version = "2", default-features = false, features = ["std"] }
@@ -757,11 +760,12 @@ mio = { version = "1", features = ["net", "os-ext"] }
 nix = { version = "0.26" }
 nom = { version = "7" }
 num-complex = { version = "0.4", default-features = false, features = ["std"] }
+once_cell = { version = "1", default-features = false, features = ["critical-section"] }
 openssl = { version = "0.10", features = ["vendored"] }
 openssl-sys = { version = "0.9", default-features = false, features = ["vendored"] }
+portable-atomic = { version = "1", features = ["require-cas"] }
 rand_chacha-274715c4dabd11b0 = { package = "rand_chacha", version = "0.9" }
 rand_core-274715c4dabd11b0 = { package = "rand_core", version = "0.9", default-features = false, features = ["os_rng", "std"] }
-ring-986da7b5efc2b80e = { package = "ring", version = "0.16", features = ["std"] }
 rustix-4e55305914c60c55 = { package = "rustix", version = "0.36", features = ["mm", "param", "process", "time", "use-libc"] }
 rustix-d585fab2519d2d1 = { package = "rustix", version = "0.38", features = ["fs", "termios"] }
 rustix-d736d0ac4424f0f1 = { package = "rustix", version = "0.37", features = ["fs"] }
@@ -772,7 +776,6 @@ sha2-274715c4dabd11b0 = { package = "sha2", version = "0.9" }
 spin = { version = "0.9", features = ["std"] }
 tokio-rustls = { version = "0.26", default-features = false, features = ["logging", "ring", "tls12"] }
 tower = { version = "0.4", features = ["make", "util"] }
-unicode-bidi = { version = "0.3" }
 unicode-normalization = { version = "0.1" }
 
 [target.x86_64-unknown-linux-gnu.build-dependencies]
@@ -789,12 +792,13 @@ mio = { version = "1", features = ["net", "os-ext"] }
 nix = { version = "0.26" }
 nom = { version = "7" }
 num-complex = { version = "0.4", default-features = false, features = ["std"] }
+once_cell = { version = "1", default-features = false, features = ["critical-section"] }
 openssl = { version = "0.10", features = ["vendored"] }
 openssl-sys = { version = "0.9", default-features = false, features = ["vendored"] }
+portable-atomic = { version = "1", features = ["require-cas"] }
 prettyplease = { version = "0.2", default-features = false, features = ["verbatim"] }
 rand_chacha-274715c4dabd11b0 = { package = "rand_chacha", version = "0.9" }
 rand_core-274715c4dabd11b0 = { package = "rand_core", version = "0.9", default-features = false, features = ["os_rng", "std"] }
-ring-986da7b5efc2b80e = { package = "ring", version = "0.16", features = ["std"] }
 rustix-4e55305914c60c55 = { package = "rustix", version = "0.36", features = ["mm", "param", "process", "time", "use-libc"] }
 rustix-d585fab2519d2d1 = { package = "rustix", version = "0.38", features = ["fs", "termios"] }
 rustix-d736d0ac4424f0f1 = { package = "rustix", version = "0.37", features = ["fs"] }
@@ -805,7 +809,6 @@ sha2-274715c4dabd11b0 = { package = "sha2", version = "0.9" }
 spin = { version = "0.9", features = ["std"] }
 tokio-rustls = { version = "0.26", default-features = false, features = ["logging", "ring", "tls12"] }
 tower = { version = "0.4", features = ["make", "util"] }
-unicode-bidi = { version = "0.3" }
 unicode-normalization = { version = "0.1" }
 
 [target.aarch64-unknown-linux-gnu.dependencies]
@@ -821,11 +824,12 @@ mio = { version = "1", features = ["net", "os-ext"] }
 nix = { version = "0.26" }
 nom = { version = "7" }
 num-complex = { version = "0.4", default-features = false, features = ["std"] }
+once_cell = { version = "1", default-features = false, features = ["critical-section"] }
 openssl = { version = "0.10", features = ["vendored"] }
 openssl-sys = { version = "0.9", default-features = false, features = ["vendored"] }
+portable-atomic = { version = "1", features = ["require-cas"] }
 rand_chacha-274715c4dabd11b0 = { package = "rand_chacha", version = "0.9" }
 rand_core-274715c4dabd11b0 = { package = "rand_core", version = "0.9", default-features = false, features = ["os_rng", "std"] }
-ring-986da7b5efc2b80e = { package = "ring", version = "0.16", features = ["std"] }
 rustix-4e55305914c60c55 = { package = "rustix", version = "0.36", features = ["mm", "param", "process", "time", "use-libc"] }
 rustix-d585fab2519d2d1 = { package = "rustix", version = "0.38", features = ["fs", "termios"] }
 rustix-d736d0ac4424f0f1 = { package = "rustix", version = "0.37", features = ["fs"] }
@@ -835,7 +839,6 @@ sha-1 = { version = "0.10", features = ["asm"] }
 sha2-274715c4dabd11b0 = { package = "sha2", version = "0.9" }
 tokio-rustls = { version = "0.26", default-features = false, features = ["logging", "ring", "tls12"] }
 tower = { version = "0.4", features = ["make", "util"] }
-unicode-bidi = { version = "0.3" }
 unicode-normalization = { version = "0.1" }
 
 [target.aarch64-unknown-linux-gnu.build-dependencies]
@@ -852,12 +855,13 @@ mio = { version = "1", features = ["net", "os-ext"] }
 nix = { version = "0.26" }
 nom = { version = "7" }
 num-complex = { version = "0.4", default-features = false, features = ["std"] }
+once_cell = { version = "1", default-features = false, features = ["critical-section"] }
 openssl = { version = "0.10", features = ["vendored"] }
 openssl-sys = { version = "0.9", default-features = false, features = ["vendored"] }
+portable-atomic = { version = "1", features = ["require-cas"] }
 prettyplease = { version = "0.2", default-features = false, features = ["verbatim"] }
 rand_chacha-274715c4dabd11b0 = { package = "rand_chacha", version = "0.9" }
 rand_core-274715c4dabd11b0 = { package = "rand_core", version = "0.9", default-features = false, features = ["os_rng", "std"] }
-ring-986da7b5efc2b80e = { package = "ring", version = "0.16", features = ["std"] }
 rustix-4e55305914c60c55 = { package = "rustix", version = "0.36", features = ["mm", "param", "process", "time", "use-libc"] }
 rustix-d585fab2519d2d1 = { package = "rustix", version = "0.38", features = ["fs", "termios"] }
 rustix-d736d0ac4424f0f1 = { package = "rustix", version = "0.37", features = ["fs"] }
@@ -867,7 +871,6 @@ sha-1 = { version = "0.10", features = ["asm"] }
 sha2-274715c4dabd11b0 = { package = "sha2", version = "0.9" }
 tokio-rustls = { version = "0.26", default-features = false, features = ["logging", "ring", "tls12"] }
 tower = { version = "0.4", features = ["make", "util"] }
-unicode-bidi = { version = "0.3" }
 unicode-normalization = { version = "0.1" }
 
 [target.aarch64-apple-darwin.dependencies]
@@ -879,10 +882,11 @@ itertools-594e8ee84c453af0 = { package = "itertools", version = "0.13", default-
 libc = { version = "0.2", default-features = false, features = ["extra_traits"] }
 miniz_oxide = { version = "0.7", default-features = false, features = ["with-alloc"] }
 nom = { version = "7" }
+once_cell = { version = "1", default-features = false, features = ["critical-section"] }
 openssl-sys = { version = "0.9", default-features = false, features = ["vendored"] }
+portable-atomic = { version = "1", features = ["require-cas"] }
 rand_chacha-274715c4dabd11b0 = { package = "rand_chacha", version = "0.9" }
 rand_core-274715c4dabd11b0 = { package = "rand_core", version = "0.9", default-features = false, features = ["os_rng", "std"] }
-ring-986da7b5efc2b80e = { package = "ring", version = "0.16", features = ["std"] }
 rustix-4e55305914c60c55 = { package = "rustix", version = "0.36", features = ["mm", "param", "process", "use-libc"] }
 rustix-d585fab2519d2d1 = { package = "rustix", version = "0.38", features = ["fs", "termios"] }
 rustls = { version = "0.23", default-features = false, features = ["logging", "ring", "std", "tls12"] }
@@ -892,7 +896,6 @@ security-framework-sys = { version = "2", features = ["OSX_10_14"] }
 sha-1 = { version = "0.10", features = ["asm"] }
 tokio-rustls = { version = "0.26", default-features = false, features = ["logging", "ring", "tls12"] }
 tower = { version = "0.4", features = ["make", "util"] }
-unicode-bidi = { version = "0.3" }
 unicode-normalization = { version = "0.1" }
 
 [target.aarch64-apple-darwin.build-dependencies]
@@ -904,11 +907,12 @@ itertools-594e8ee84c453af0 = { package = "itertools", version = "0.13", default-
 libc = { version = "0.2", default-features = false, features = ["extra_traits"] }
 miniz_oxide = { version = "0.7", default-features = false, features = ["with-alloc"] }
 nom = { version = "7" }
+once_cell = { version = "1", default-features = false, features = ["critical-section"] }
 openssl-sys = { version = "0.9", default-features = false, features = ["vendored"] }
+portable-atomic = { version = "1", features = ["require-cas"] }
 prettyplease = { version = "0.2", default-features = false, features = ["verbatim"] }
 rand_chacha-274715c4dabd11b0 = { package = "rand_chacha", version = "0.9" }
 rand_core-274715c4dabd11b0 = { package = "rand_core", version = "0.9", default-features = false, features = ["os_rng", "std"] }
-ring-986da7b5efc2b80e = { package = "ring", version = "0.16", features = ["std"] }
 rustix-4e55305914c60c55 = { package = "rustix", version = "0.36", features = ["mm", "param", "process", "use-libc"] }
 rustix-d585fab2519d2d1 = { package = "rustix", version = "0.38", features = ["fs", "termios"] }
 rustls = { version = "0.23", default-features = false, features = ["logging", "ring", "std", "tls12"] }
@@ -918,7 +922,6 @@ security-framework-sys = { version = "2", features = ["OSX_10_14"] }
 sha-1 = { version = "0.10", features = ["asm"] }
 tokio-rustls = { version = "0.26", default-features = false, features = ["logging", "ring", "tls12"] }
 tower = { version = "0.4", features = ["make", "util"] }
-unicode-bidi = { version = "0.3" }
 unicode-normalization = { version = "0.1" }
 
 ### END HAKARI SECTION
