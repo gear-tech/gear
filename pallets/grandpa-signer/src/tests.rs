@@ -18,9 +18,11 @@
 
 use super::*;
 use crate as pallet_grandpa_signer;
+use core::sync::atomic::{AtomicU64, Ordering};
 use frame_support::{assert_noop, assert_ok, parameter_types};
 use sp_core::{Pair, ed25519};
 use sp_runtime::{BuildStorage, traits::IdentityLookup};
+use std::sync::Mutex;
 
 type Extrinsic = sp_runtime::testing::TestXt<Call<Test>, ()>;
 type Block = frame_system::mocking::MockBlock<Test>;
@@ -41,9 +43,12 @@ parameter_types! {
 }
 
 pub struct TestAuthorityProvider;
+static SET_ID: AtomicU64 = AtomicU64::new(1);
+static SET_ID_LOCK: Mutex<()> = Mutex::new(());
+
 impl AuthorityProvider<ed25519::Public> for TestAuthorityProvider {
     fn current_set_id() -> SetId {
-        1
+        SET_ID.load(Ordering::SeqCst)
     }
 
     fn authorities(set_id: SetId) -> Vec<ed25519::Public> {
@@ -113,102 +118,150 @@ fn auth_keys() -> Vec<ed25519::Pair> {
 }
 
 fn new_ext() -> sp_io::TestExternalities {
+    SET_ID.store(1, Ordering::SeqCst);
     let t = frame_system::GenesisConfig::<Test>::default()
         .build_storage()
         .unwrap();
     sp_io::TestExternalities::new(t)
 }
 
+fn set_set_id(id: SetId) {
+    SET_ID.store(id, Ordering::SeqCst);
+}
+
+fn with_set_id_lock<R>(f: impl FnOnce() -> R) -> R {
+    let _guard = SET_ID_LOCK.lock().expect("lock poisoned");
+    f()
+}
+
 #[test]
 fn schedule_and_submit_signature_works() {
-    new_ext().execute_with(|| {
-        System::set_block_number(1);
-        let payload = b"hello".to_vec();
-        assert_ok!(GrandpaSigner::schedule_request(
-            RuntimeOrigin::root(),
-            payload.clone(),
-            None,
-            None
-        ));
+    with_set_id_lock(|| {
+        new_ext().execute_with(|| {
+            System::set_block_number(1);
+            let payload = b"hello".to_vec();
+            assert_ok!(GrandpaSigner::schedule_request(
+                RuntimeOrigin::root(),
+                payload.clone(),
+                None,
+                None
+            ));
 
-        let req = GrandpaSigner::requests(0).expect("request created");
-        let pair = &auth_keys()[0];
-        let sig = pair.sign(&payload);
-        assert_ok!(GrandpaSigner::submit_signature(
-            RuntimeOrigin::none(),
-            req.id,
-            pair.public(),
-            sig
-        ));
+            let req = GrandpaSigner::requests(0).expect("request created");
+            let pair = &auth_keys()[0];
+            let sig = pair.sign(&payload);
+            assert_ok!(GrandpaSigner::submit_signature(
+                RuntimeOrigin::none(),
+                req.id,
+                pair.public(),
+                sig
+            ));
 
-        assert_eq!(GrandpaSigner::signature_count(req.id), 1);
-    });
+            assert_eq!(GrandpaSigner::signature_count(req.id), 1);
+        });
+    })
 }
 
 #[test]
 fn duplicate_signature_rejected() {
-    new_ext().execute_with(|| {
-        System::set_block_number(1);
-        let payload = b"hello".to_vec();
-        assert_ok!(GrandpaSigner::schedule_request(
-            RuntimeOrigin::root(),
-            payload.clone(),
-            None,
-            None
-        ));
-        let req = GrandpaSigner::requests(0).unwrap();
-        let pair = &auth_keys()[0];
-        let sig = pair.sign(&payload);
-        assert_ok!(GrandpaSigner::submit_signature(
-            RuntimeOrigin::none(),
-            req.id,
-            pair.public(),
-            sig
-        ));
-        assert_noop!(
-            GrandpaSigner::submit_signature(RuntimeOrigin::none(), req.id, pair.public(), sig),
-            Error::<Test>::AlreadySigned
-        );
-    });
+    with_set_id_lock(|| {
+        new_ext().execute_with(|| {
+            System::set_block_number(1);
+            let payload = b"hello".to_vec();
+            assert_ok!(GrandpaSigner::schedule_request(
+                RuntimeOrigin::root(),
+                payload.clone(),
+                None,
+                None
+            ));
+            let req = GrandpaSigner::requests(0).unwrap();
+            let pair = &auth_keys()[0];
+            let sig = pair.sign(&payload);
+            assert_ok!(GrandpaSigner::submit_signature(
+                RuntimeOrigin::none(),
+                req.id,
+                pair.public(),
+                sig
+            ));
+            assert_noop!(
+                GrandpaSigner::submit_signature(RuntimeOrigin::none(), req.id, pair.public(), sig),
+                Error::<Test>::AlreadySigned
+            );
+        });
+    })
 }
 
 #[test]
 fn expired_request_rejected() {
-    new_ext().execute_with(|| {
-        System::set_block_number(1);
-        let payload = b"hello".to_vec();
-        assert_ok!(GrandpaSigner::schedule_request(
-            RuntimeOrigin::root(),
-            payload.clone(),
-            None,
-            Some(2)
-        ));
-        System::set_block_number(3);
-        let pair = &auth_keys()[0];
-        let sig = pair.sign(&payload);
-        assert_noop!(
-            GrandpaSigner::submit_signature(RuntimeOrigin::none(), 0, pair.public(), sig),
-            Error::<Test>::RequestExpired
-        );
-    });
+    with_set_id_lock(|| {
+        new_ext().execute_with(|| {
+            System::set_block_number(1);
+            let payload = b"hello".to_vec();
+            assert_ok!(GrandpaSigner::schedule_request(
+                RuntimeOrigin::root(),
+                payload.clone(),
+                None,
+                Some(2)
+            ));
+            System::set_block_number(3);
+            let pair = &auth_keys()[0];
+            let sig = pair.sign(&payload);
+            assert_noop!(
+                GrandpaSigner::submit_signature(RuntimeOrigin::none(), 0, pair.public(), sig),
+                Error::<Test>::RequestExpired
+            );
+        });
+    })
 }
 
 #[test]
 fn bad_signature_rejected() {
-    new_ext().execute_with(|| {
-        System::set_block_number(1);
-        let payload = b"hello".to_vec();
-        assert_ok!(GrandpaSigner::schedule_request(
-            RuntimeOrigin::root(),
-            payload.clone(),
-            None,
-            None
-        ));
-        let pair = &auth_keys()[0];
-        let sig = pair.sign(b"other");
-        assert_noop!(
-            GrandpaSigner::submit_signature(RuntimeOrigin::none(), 0, pair.public(), sig),
-            Error::<Test>::BadSignature
-        );
-    });
+    with_set_id_lock(|| {
+        new_ext().execute_with(|| {
+            System::set_block_number(1);
+            let payload = b"hello".to_vec();
+            assert_ok!(GrandpaSigner::schedule_request(
+                RuntimeOrigin::root(),
+                payload.clone(),
+                None,
+                None
+            ));
+            let pair = &auth_keys()[0];
+            let sig = pair.sign(b"other");
+            assert_noop!(
+                GrandpaSigner::submit_signature(RuntimeOrigin::none(), 0, pair.public(), sig),
+                Error::<Test>::BadSignature
+            );
+        });
+    })
+}
+
+#[test]
+fn stale_set_requests_are_pruned_on_schedule() {
+    with_set_id_lock(|| {
+        new_ext().execute_with(|| {
+            System::set_block_number(1);
+            let payload = b"hello".to_vec();
+            assert_ok!(GrandpaSigner::schedule_request(
+                RuntimeOrigin::root(),
+                payload.clone(),
+                None,
+                None
+            ));
+            assert!(GrandpaSigner::requests(0).is_some());
+
+            // Simulate authority set rotation.
+            set_set_id(2);
+
+            // The stale request from set 1 should be pruned before counting against capacity.
+            assert_ok!(GrandpaSigner::schedule_request(
+                RuntimeOrigin::root(),
+                payload,
+                None,
+                None
+            ));
+            assert!(GrandpaSigner::requests(0).is_none());
+            assert_eq!(GrandpaSigner::requests(1).unwrap().set_id, 2);
+        });
+    })
 }

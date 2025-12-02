@@ -175,7 +175,7 @@ pub mod pallet {
             ensure_root(origin)?;
 
             let now = <frame_system::Pallet<T>>::block_number();
-            Self::prune_expired_requests(now);
+            Self::prune_stale_requests(now);
 
             let active_requests = Requests::<T>::iter().count();
             ensure!(
@@ -321,12 +321,13 @@ pub mod pallet {
             let _ = Signatures::<T>::clear_prefix(request_id, u32::MAX, None);
         }
 
-        fn prune_expired_requests(now: BlockNumberFor<T>) {
+        fn prune_stale_requests(now: BlockNumberFor<T>) {
+            let current_set = T::AuthorityProvider::current_set_id();
             let expired: Vec<_> = Requests::<T>::iter()
                 .filter_map(|(request_id, request)| {
-                    if let Some(exp) = request.expires_at
-                        && now > exp
-                    {
+                    let expired = request.expires_at.map(|exp| now > exp).unwrap_or(false);
+                    let unsupported_set = request.set_id != current_set;
+                    if expired || unsupported_set {
                         Some(request_id)
                     } else {
                         None
