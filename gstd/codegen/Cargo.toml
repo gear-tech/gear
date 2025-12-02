@@ -20,7 +20,7 @@ syn = { workspace = true, features = ["default", "full"] }
 quote.workspace = true
 proc-macro2.workspace = true
 gprimitives.workspace = true
-intentionally-empty.workspace = true
+gear-workspace-hack.workspace = true
 
 [dev-dependencies]
 gstd = { path = "..", features = ["ethexe"] }

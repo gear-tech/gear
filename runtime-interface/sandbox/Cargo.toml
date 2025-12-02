@@ -20,7 +20,7 @@ sp-wasm-interface.workspace = true
 parity-scale-codec.workspace = true
 gear-sandbox-host = { workspace = true, optional = true }
 log = { workspace = true, optional = true }
-intentionally-empty.workspace = true
+gear-workspace-hack.workspace = true
 
 [features]
 default = ["std"]

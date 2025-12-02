@@ -12,4 +12,4 @@ hex.workspace = true
 wasmparser.workspace = true
 wat.workspace = true
 wasmprinter.workspace = true
-intentionally-empty.workspace = true
+gear-workspace-hack.workspace = true

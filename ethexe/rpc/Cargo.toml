@@ -29,7 +29,7 @@ gear-core = { workspace = true, features = ["std"] }
 serde = { workspace = true, features = ["std"] }
 tracing.workspace = true
 dashmap.workspace = true
-intentionally-empty.workspace = true
+gear-workspace-hack.workspace = true
 
 [features]
 test-utils = ["jsonrpsee/client"]

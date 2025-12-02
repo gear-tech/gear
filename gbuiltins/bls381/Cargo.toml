@@ -18,7 +18,7 @@ ark-ec.workspace = true
 ark-ff.workspace = true
 ark-scale = { workspace = true, features = ["hazmat"] }
 ark-serialize = { workspace = true, features = ["derive"] }
-intentionally-empty.workspace = true
+gear-workspace-hack.workspace = true
 
 [features]
 default = ["std"]

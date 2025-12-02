@@ -9,7 +9,7 @@ repository.workspace = true
 
 [dependencies]
 gstd = { workspace = true, features = ["debug"] }
-intentionally-empty.workspace = true
+gear-workspace-hack.workspace = true
 
 [build-dependencies]
 gear-wasm-builder.workspace = true

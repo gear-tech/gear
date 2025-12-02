@@ -35,7 +35,7 @@ tokio = { workspace = true, features = ["process"] }
 roast-secp256k1-evm.workspace = true
 nonempty.workspace = true
 rand.workspace = true
-intentionally-empty.workspace = true
+gear-workspace-hack.workspace = true
 
 [dev-dependencies]
 alloy = { workspace = true, features = [

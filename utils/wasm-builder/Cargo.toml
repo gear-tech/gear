@@ -26,4 +26,4 @@ gear-core.workspace = true
 gear-wasm-instrument.workspace = true
 gear-wasm-optimizer.workspace = true
 itertools = { workspace = true, features = ["use_std"] }
-intentionally-empty.workspace = true
+gear-workspace-hack.workspace = true

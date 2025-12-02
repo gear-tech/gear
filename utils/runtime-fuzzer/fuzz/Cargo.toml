@@ -12,7 +12,7 @@ libfuzzer-sys.workspace = true
 runtime-fuzzer = { path = ".." }
 gear-utils.workspace = true
 log.workspace = true
-intentionally-empty.workspace = true
+gear-workspace-hack.workspace = true
 
 [[bin]]
 name = "runtime-fuzzer-fuzz"

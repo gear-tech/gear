@@ -40,7 +40,7 @@ sp-consensus-babe.workspace = true
 sp-consensus-grandpa.workspace = true
 pallet-im-online.workspace = true
 sp-authority-discovery.workspace = true
-intentionally-empty.workspace = true
+gear-workspace-hack.workspace = true
 
 [dev-dependencies]
 proptest.workspace = true

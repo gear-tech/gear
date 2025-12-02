@@ -16,7 +16,7 @@ anyhow = { workspace = true, features = ["std"] }
 parity-scale-codec = { workspace = true, features = ["std", "derive"] }
 derive_more.workspace = true
 tempfile.workspace = true
-intentionally-empty.workspace = true
+gear-workspace-hack.workspace = true
 
 [dev-dependencies]
 alloy = { workspace = true, features = ["k256"] }

@@ -14,4 +14,4 @@ rust-version.workspace = true
 parity-scale-codec = { workspace = true, features = ["derive"] }
 scale-info = { workspace = true, features = ["derive"] }
 gprimitives = { workspace = true, features = ["codec"] }
-intentionally-empty.workspace = true
+gear-workspace-hack.workspace = true

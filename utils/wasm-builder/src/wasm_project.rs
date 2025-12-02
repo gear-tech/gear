@@ -206,7 +206,7 @@ impl WasmProject {
 
         let mut patch = crate_info.patch;
         if let Some(crates_io) = patch.get_mut("crates-io").and_then(|v| v.as_table_mut()) {
-            crates_io.remove("intentionally-empty");
+            crates_io.remove("gear-workspace-hack");
         }
 
         let mut cargo_toml = Table::new();

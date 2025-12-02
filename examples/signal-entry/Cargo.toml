@@ -12,7 +12,7 @@ gcore.workspace = true
 gstd.workspace = true
 parity-scale-codec.workspace = true
 gear-core.workspace = true
-intentionally-empty.workspace = true
+gear-workspace-hack.workspace = true
 
 [build-dependencies]
 gear-wasm-builder.workspace = true

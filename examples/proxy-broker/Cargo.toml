@@ -10,7 +10,7 @@ repository.workspace = true
 [dependencies]
 gbuiltin-proxy.workspace = true
 gstd.workspace = true
-intentionally-empty.workspace = true
+gear-workspace-hack.workspace = true
 
 [build-dependencies]
 gear-wasm-builder.workspace = true

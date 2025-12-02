@@ -18,4 +18,4 @@ proc-macro = true
 [dependencies]
 quote.workspace = true
 syn.workspace = true
-intentionally-empty.workspace = true
+gear-workspace-hack.workspace = true

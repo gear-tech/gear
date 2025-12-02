@@ -22,7 +22,7 @@ frame-benchmarking = { workspace = true, optional = true }
 pallet-authorship.workspace = true
 pallet-balances.workspace = true
 sp-runtime.workspace = true
-intentionally-empty.workspace = true
+gear-workspace-hack.workspace = true
 
 [dev-dependencies]
 common = { workspace = true, features = ["std"] }

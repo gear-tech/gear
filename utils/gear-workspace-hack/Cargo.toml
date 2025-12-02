@@ -3,7 +3,7 @@
 #     cargo hakari generate
 
 [package]
-name = "intentionally-empty"
+name = "gear-workspace-hack"
 version = "1.0.0"
 edition = "2021"
 description = "workspace-hack package, managed by hakari"
@@ -14,7 +14,7 @@ publish = false
 # are managed by hakari.
 
 # we have to manually write dependencies below because
-# they have features like `runtime-benchmarsk` and `try-runtime`
+# they have features like `runtime-benchmarks` and `try-runtime`
 # so we cannot, for example, run `cargo build -p gear-cli` without `--all-features`
 
 [dependencies.frame-executive]

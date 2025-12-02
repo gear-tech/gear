@@ -38,7 +38,7 @@ clap = { workspace = true, features = ["derive"] }
 hex.workspace = true
 log.workspace = true
 tokio = { workspace = true, features = ["macros"] }
-intentionally-empty.workspace = true
+gear-workspace-hack.workspace = true
 
 [features]
 default = ["always-wasm"]

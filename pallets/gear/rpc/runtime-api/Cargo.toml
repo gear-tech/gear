@@ -13,7 +13,7 @@ sp-core.workspace = true
 sp-runtime.workspace = true
 sp-std.workspace = true
 pallet-gear.workspace = true
-intentionally-empty.workspace = true
+gear-workspace-hack.workspace = true
 
 [features]
 default = ["std"]

@@ -12,4 +12,4 @@ generate-bags.workspace = true
 
 # third-party
 clap = { workspace = true, features = ["derive"] }
-intentionally-empty.workspace = true
+gear-workspace-hack.workspace = true

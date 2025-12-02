@@ -11,7 +11,7 @@ repository.workspace = true
 gstd.workspace = true
 parity-scale-codec.workspace = true
 shared = { path = "..", package = "demo-calc-hash" }
-intentionally-empty.workspace = true
+gear-workspace-hack.workspace = true
 
 [build-dependencies]
 gear-wasm-builder.workspace = true

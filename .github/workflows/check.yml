@@ -20,7 +20,7 @@ jobs:
       - uses: actions/checkout@v4
       - uses: cargo-bins/cargo-binstall@main
       - run: cargo binstall --no-confirm cargo-shear
-      - run: cargo shear --exclude=intentionally-empty
+      - run: cargo shear --exclude=gear-workspace-hack
 
   fmt:
     runs-on: ubuntu-latest

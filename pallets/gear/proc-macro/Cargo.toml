@@ -18,7 +18,7 @@ proc-macro = true
 proc-macro2.workspace = true
 quote.workspace = true
 syn = { workspace = true, features = ["full"] }
-intentionally-empty.workspace = true
+gear-workspace-hack.workspace = true
 
 [dev-dependencies]
 

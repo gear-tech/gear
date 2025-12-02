@@ -14,7 +14,7 @@ rust-version.workspace = true
 [dependencies]
 # add "checks" feature to enable hard checks in allocator
 dlmalloc.workspace = true
-intentionally-empty.workspace = true
+gear-workspace-hack.workspace = true
 
 [features]
 debug = ["dlmalloc/debug"]

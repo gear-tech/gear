@@ -8,7 +8,7 @@ license.workspace = true
 [dependencies]
 gstd = { workspace = true, features = ["debug"] }
 parity-scale-codec.workspace = true
-intentionally-empty.workspace = true
+gear-workspace-hack.workspace = true
 
 [dev-dependencies]
 gear-core.workspace = true

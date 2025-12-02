@@ -19,7 +19,7 @@
 #[cfg(all(feature = "std", not(fuzz)))]
 fn build_runtime() {
     let builder = substrate_wasm_builder::WasmBuilder::init_with_defaults()
-        .append_to_cargo_flags(r#"--config=patch.crates-io.intentionally-empty.git="https://github.com/Kijewski/intentionally-empty""#);
+        .append_to_cargo_flags(r#"--config=patch.crates-io.gear-workspace-hack.git="https://github.com/Kijewski/gear-workspace-hack""#);
 
     #[cfg(feature = "metadata-hash")]
     let builder = {

@@ -15,4 +15,4 @@ anyhow = { workspace = true, features = ["std"] }
 rand = { workspace = true, features = [ "getrandom" ] }
 which.workspace = true
 smallvec.workspace = true
-intentionally-empty.workspace = true
+gear-workspace-hack.workspace = true

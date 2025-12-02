@@ -18,7 +18,7 @@ reqwest = { workspace = true, features = ["default-tls", "json"] }
 futures.workspace = true
 log.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread", "fs"] }
-intentionally-empty.workspace = true
+gear-workspace-hack.workspace = true
 
 [lints]
 workspace = true

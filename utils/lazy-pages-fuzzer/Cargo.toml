@@ -18,4 +18,4 @@ wasmer.workspace = true
 wasmi.workspace = true
 wasmprinter.workspace = true
 wat.workspace = true
-intentionally-empty.workspace = true
+gear-workspace-hack.workspace = true

@@ -31,7 +31,7 @@ subxt.workspace = true
 thiserror.workspace = true
 url.workspace = true
 parity-scale-codec.workspace = true
-intentionally-empty.workspace = true
+gear-workspace-hack.workspace = true
 
 [dev-dependencies]
 gear-node-wrapper.workspace = true

@@ -111,11 +111,10 @@ members = [
     "ethexe/*",
     "ethexe/runtime/common",
     "ethexe/service/utils",
-    "intentionally-empty",
 ]
 
 [workspace.dependencies]
-intentionally-empty = "1.0.0"
+gear-workspace-hack = "0.1.0"
 
 alloy = "1.1"
 alloy-primitives = { version = "1.4", default-features = false }
@@ -566,7 +565,7 @@ unexpected_cfgs = { level = "warn", check-cfg = [
 
 [workspace.metadata.cargo-shear]
 ignored = [
-    "intentionally-empty",
+    "gear-workspace-hack",
     "frame-benchmarking",
     "frame-system-benchmarking",
     "frame-system-rpc-runtime-api",
@@ -612,7 +611,7 @@ inherits = "release"
 debug = true
 
 [patch.crates-io]
-intentionally-empty = { path = "intentionally-empty" }
+gear-workspace-hack = { path = "utils/gear-workspace-hack" }
 
 alloy = { version = "1.1", git = "https://github.com/gear-tech/alloy" }
 # these patched dependecies force their `sign_ext` feature to be used by Substrate dependencies
