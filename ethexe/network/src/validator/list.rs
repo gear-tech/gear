@@ -22,7 +22,7 @@ use ethexe_common::{Address, BlockHeader, ProtocolTimelines, ValidatorsVec, db::
 use gprimitives::H256;
 use std::sync::Arc;
 
-struct ChainHead {
+struct CurrentEra {
     header: BlockHeader,
     current_validators: ValidatorsVec,
     next_validators: Option<ValidatorsVec>,
@@ -74,7 +74,7 @@ impl ValidatorListSnapshot {
 pub(crate) struct ValidatorList {
     timelines: ProtocolTimelines,
     db: Box<dyn ValidatorDatabase>,
-    chain_head: ChainHead,
+    current_era: CurrentEra,
 }
 
 impl ValidatorList {
@@ -86,14 +86,14 @@ impl ValidatorList {
         let timelines = db
             .protocol_timelines()
             .context("protocol timelines not found in db")?;
-        let chain_head = ChainHead {
+        let current_era = CurrentEra {
             header: latest_block_header,
             current_validators: latest_validators,
             next_validators: None,
         };
         let this = Self {
             timelines,
-            chain_head,
+            current_era,
             db,
         };
         let snapshot = this.create_snapshot();
@@ -102,10 +102,10 @@ impl ValidatorList {
 
     fn create_snapshot(&self) -> Arc<ValidatorListSnapshot> {
         let snapshot = ValidatorListSnapshot {
-            chain_head_ts: self.chain_head.header.timestamp,
+            chain_head_ts: self.current_era.header.timestamp,
             timelines: self.timelines,
-            current_validators: self.chain_head.current_validators.clone(),
-            next_validators: self.chain_head.next_validators.clone(),
+            current_validators: self.current_era.current_validators.clone(),
+            next_validators: self.current_era.next_validators.clone(),
         };
         Arc::new(snapshot)
     }
@@ -125,15 +125,10 @@ impl ValidatorList {
             .block_header(chain_head)
             .context("failed to get chain head block header")?;
 
-        // we allow same chain head height in case of reorgs
-        #[cfg(test)]
-        assert_ne!(
-            chain_head_header.height, self.chain_head.header.height,
-            "`set_chain_head` called with the same chain head block"
-        );
-
         let new_era = self.timelines.era_from_ts(chain_head_header.timestamp);
-        let old_era = self.timelines.era_from_ts(self.chain_head.header.timestamp);
+        let old_era = self
+            .timelines
+            .era_from_ts(self.current_era.header.timestamp);
         if new_era <= old_era {
             return Ok(None);
         }
@@ -143,7 +138,7 @@ impl ValidatorList {
             .validators(self.timelines.era_from_ts(chain_head_header.timestamp))
             .context("validators not found")?;
 
-        self.chain_head = ChainHead {
+        self.current_era = CurrentEra {
             header: chain_head_header,
             current_validators,
             next_validators: None,
@@ -214,7 +209,7 @@ mod tests {
         assert_eq!(snapshot.current_validators, current_validators);
 
         assert!(list.set_chain_head(same_era_hash).unwrap().is_none());
-        assert_eq!(list.chain_head.header.timestamp, 0);
+        assert_eq!(list.current_era.header.timestamp, 0);
 
         let next_snapshot = list
             .set_chain_head(next_era_hash)
@@ -222,9 +217,9 @@ mod tests {
             .expect("new era snapshot");
         assert_eq!(next_snapshot.current_era_index(), 1);
         assert_eq!(next_snapshot.current_validators, next_validators);
-        assert_eq!(list.chain_head.header.timestamp, 15);
+        assert_eq!(list.current_era.header.timestamp, 15);
 
         assert!(list.set_chain_head(genesis_hash).unwrap().is_none());
-        assert_eq!(list.chain_head.header.timestamp, 15);
+        assert_eq!(list.current_era.header.timestamp, 15);
     }
 }
