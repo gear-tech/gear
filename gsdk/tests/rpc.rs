@@ -24,11 +24,11 @@ use gear_core::{
     rpc::ReplyInfo,
 };
 use gear_core_errors::{ReplyCode, SuccessReplyReason};
-use gsdk::{Api, Error, Event, Result};
+use gsdk::{Api, Error, Event, Result, gear};
 use parity_scale_codec::Encode;
 use std::{borrow::Cow, process::Command, str::FromStr, time::Instant};
 use subxt::{
-    ext::subxt_rpcs::{self, UserError},
+    ext::subxt_rpcs::{Error as SubxtRpcError, UserError},
     utils::H256,
 };
 use tokio::time::{Duration, timeout};
@@ -51,9 +51,10 @@ async fn pallet_errors_formatting() -> Result<()> {
             None,
         )
         .await
-        .expect_err("Must return error");
+        .expect_err("Must return error")
+        .unwrap_subxt_rpc();
 
-    let expected_err = subxt_rpcs::Error::User(UserError {
+    let expected_err = SubxtRpcError::User(UserError {
         code: 8000,
         message: "Runtime error".into(),
         data: Some(
@@ -98,19 +99,19 @@ async fn test_calculate_create_gas() -> Result<()> {
         .await?
         .signer("//Alice", None)?;
     signer
-        .calls
+        .calls()
         .upload_code(demo_messenger::WASM_BINARY.to_vec())
         .await?;
 
     // 2. calculate create gas and create program.
     let code_id = CodeId::generate(demo_messenger::WASM_BINARY);
     let gas_info = signer
-        .rpc
+        .rpc()
         .calculate_create_gas(None, code_id, vec![], 0, true, None)
         .await?;
 
     signer
-        .calls
+        .calls()
         .create_program(code_id, vec![], vec![], gas_info.min_limit, 0)
         .await?;
 
@@ -130,7 +131,7 @@ async fn test_calculate_handle_gas() -> Result<()> {
         .signer("//Alice", None)?;
 
     signer
-        .calls
+        .calls()
         .upload_program(
             demo_messenger::WASM_BINARY.to_vec(),
             salt,
@@ -147,12 +148,12 @@ async fn test_calculate_handle_gas() -> Result<()> {
 
     // 2. calculate handle gas and send message.
     let gas_info = signer
-        .rpc
+        .rpc()
         .calculate_handle_gas(None, pid, vec![], 0, true, None)
         .await?;
 
     signer
-        .calls
+        .calls()
         .send_message(pid, vec![], gas_info.min_limit, 0)
         .await?;
 
@@ -175,7 +176,7 @@ async fn test_calculate_reply_gas() -> Result<()> {
         .await?
         .signer("//Alice", None)?;
     signer
-        .calls
+        .calls()
         .upload_program(
             demo_waiter::WASM_BINARY.to_vec(),
             salt,
@@ -192,7 +193,7 @@ async fn test_calculate_reply_gas() -> Result<()> {
 
     // 2. send wait message.
     signer
-        .calls
+        .calls()
         .send_message(pid, payload.encode(), 100_000_000_000, 0)
         .await?;
 
@@ -201,16 +202,16 @@ async fn test_calculate_reply_gas() -> Result<()> {
         .mailbox(Some(alice_account_id().clone()), 10)
         .await?;
     assert_eq!(mailbox.len(), 1);
-    let message_id = mailbox[0].0.id.into();
+    let message_id = mailbox[0].0.id();
 
     // 3. calculate reply gas and send reply.
     let gas_info = signer
-        .rpc
+        .rpc()
         .calculate_reply_gas(None, message_id, vec![], 0, true, None)
         .await?;
 
     signer
-        .calls
+        .calls()
         .send_reply(message_id, vec![], gas_info.min_limit, 0)
         .await?;
 
@@ -228,7 +229,7 @@ async fn test_subscribe_program_state_changes() -> Result<()> {
     let salt = b"state-change".to_vec();
 
     let tx = signer
-        .calls
+        .calls()
         .upload_program(
             demo_messenger::WASM_BINARY.to_vec(),
             salt,
@@ -243,7 +244,7 @@ async fn test_subscribe_program_state_changes() -> Result<()> {
         .await?
         .into_iter()
         .find_map(|event| {
-            if let Event::Gear(gsdk::metadata::gear::Event::ProgramChanged { id, .. }) = event {
+            if let Event::Gear(gear::gear::Event::ProgramChanged { id, .. }) = event {
                 Some(id)
             } else {
                 None
@@ -251,7 +252,7 @@ async fn test_subscribe_program_state_changes() -> Result<()> {
         })
         .expect("program change event not found");
 
-    let expected_id = H256::from(program_id.0);
+    let expected_id = H256::from(program_id.into_bytes());
 
     let change = timeout(Duration::from_secs(30), async {
         loop {
@@ -345,7 +346,7 @@ async fn test_runtime_wasm_blob_version_history() -> Result<()> {
         .unwrap_err()
         .unwrap_subxt_rpc();
 
-    let err = subxt_rpcs::Error::User(UserError {
+    let err = SubxtRpcError::User(UserError {
         code: 9000,
         message: "Unable to find WASM blob version in WASM blob".into(),
         data: None,
@@ -368,7 +369,7 @@ async fn test_original_code_storage() -> Result<()> {
         .signer("//Alice", None)?;
 
     signer
-        .calls
+        .calls()
         .upload_program(
             demo_messenger::WASM_BINARY.to_vec(),
             salt,
@@ -383,7 +384,7 @@ async fn test_original_code_storage() -> Result<()> {
     let block_hash = rpc.latest_finalized_block_ref().await?.hash();
     let code = signer
         .api()
-        .original_code_storage_at(program.code_id.0.into(), Some(block_hash))
+        .original_code_storage_at(program.code_id.into_bytes().into(), Some(block_hash))
         .await?;
 
     assert_eq!(
@@ -432,7 +433,7 @@ async fn test_calculate_reply_for_handle() -> Result<()> {
     let payload = InitConfig::test_sequence().encode();
 
     signer
-        .calls
+        .calls()
         .upload_program(WASM_BINARY.to_vec(), salt, payload, 100_000_000_000, 0)
         .await?;
 
@@ -447,7 +448,7 @@ async fn test_calculate_reply_for_handle() -> Result<()> {
 
     // 2. calculate reply for handle
     let reply_info = signer
-        .rpc
+        .rpc()
         .calculate_reply_for_handle(None, pid, message_in.encode(), 100_000_000_000, 0, None)
         .await?;
 
@@ -477,7 +478,7 @@ async fn test_calculate_reply_for_handle_does_not_change_state() -> Result<()> {
         .signer("//Alice", None)?;
 
     signer
-        .calls
+        .calls()
         .upload_program(
             demo_vec::WASM_BINARY.to_vec(),
             salt,
@@ -498,7 +499,7 @@ async fn test_calculate_reply_for_handle_does_not_change_state() -> Result<()> {
 
     // 3. calculate reply for handle
     let reply_info = signer
-        .rpc
+        .rpc()
         .calculate_reply_for_handle(None, pid, 42i32.encode(), 100_000_000_000, 0, None)
         .await?;
 
@@ -520,7 +521,7 @@ async fn test_calculate_reply_for_handle_does_not_change_state() -> Result<()> {
 
     // 7. make call
     signer
-        .calls
+        .calls()
         .send_message(pid, 42i32.encode(), 100_000_000_000, 0)
         .await?;
 
@@ -537,12 +538,8 @@ async fn query_program_counters(
     uri: &str,
     block_hash: Option<H256>,
 ) -> Result<(H256, u32, u64, u64, u64)> {
-    use gsdk::{
-        BlockNumber,
-        metadata::{runtime_types::gear_core::program::Program, storage::GearProgramStorage},
-    };
+    use gsdk::gear::runtime_types::gear_core::program::Program;
     use parity_scale_codec::Decode;
-    use subxt::dynamic::Value;
 
     let signer = Api::new(uri).await?.signer("//Alice", None)?;
 
@@ -562,8 +559,8 @@ async fn query_program_counters(
         }
     };
 
-    let storage = signer.api().storage().at(block_hash);
-    let addr = Api::storage(GearProgramStorage::ProgramStorage, Vec::<Value>::new());
+    let storage = signer.api().storage_at(Some(block_hash)).await?;
+    let addr = gear::storage().gear_program().program_storage_iter();
 
     let mut iter = storage.iter(addr).await?;
     let mut count_memory_page = 0u64;
@@ -571,8 +568,8 @@ async fn query_program_counters(
     let mut count_active_program = 0u64;
     while let Some(pair) = iter.next().await {
         let pair = pair?;
-        let (key, value) = (pair.key_bytes, pair.value);
-        let program = Program::<BlockNumber>::decode(&mut value.encoded())?;
+        let (key, program) = (pair.key_bytes, pair.value);
+
         count_program += 1;
 
         let program_id = ActorId::decode(&mut key.as_ref())?;

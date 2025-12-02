@@ -20,29 +20,59 @@
 //!
 //! Simple "connect-node" consensus service implementation.
 
-use crate::{BatchCommitmentValidationReply, ConsensusEvent, ConsensusService, utils};
+use crate::{
+    BatchCommitmentValidationReply, ConsensusEvent, ConsensusService,
+    announces::{self, AnnounceStatus, DBAnnouncesExt},
+    utils,
+};
 use anyhow::{Result, anyhow};
 use ethexe_common::{
     Address, Announce, HashOf, SimpleBlockData,
     consensus::{VerifiedAnnounce, VerifiedValidationRequest},
-    db::{AnnounceStorageRW, BlockMetaStorageRW, OnChainStorageRO},
+    db::OnChainStorageRO,
+    injected::SignedInjectedTransaction,
+    network::{AnnouncesRequest, CheckedAnnouncesResponse},
 };
 use ethexe_db::Database;
 use futures::{Stream, stream::FusedStream};
 use gprimitives::H256;
+use lru::LruCache;
 use std::{
     collections::VecDeque,
+    mem,
+    num::NonZeroUsize,
     pin::Pin,
     task::{Context, Poll},
     time::Duration,
 };
 
-const MAX_PENDING_ANNOUNCES: usize = 10;
-const _: () = assert!(
-    MAX_PENDING_ANNOUNCES != 0,
-    "MAX_PENDING_ANNOUNCES must not be zero"
-);
+/// Maximum number of pending announces to store
+const MAX_PENDING_ANNOUNCES: NonZeroUsize = NonZeroUsize::new(10).unwrap();
 
+/// State transition flow:
+///
+/// ```text
+/// WaitingForBlock (waiting for new chain head)
+///   └─ receive_new_chain_head ─► WaitingForSyncedBlock
+///
+/// WaitingForSyncedBlock (waiting block is synced)
+///   └─ receive_synced_block ─► WaitingForPreparedBlock
+///
+/// WaitingForPreparedBlock (waiting block is prepared)
+///   ├─ if missing announces ─► WaitingForMissingAnnounces
+///   └─ if no missing ─► process_after_propagation
+///
+/// WaitingForMissingAnnounces (waiting for requested missing announces from network)
+///   └─ receive_announces_response ─► process_after_propagation
+///
+/// process_after_propagation (propagation done )
+///   ├─ announce from producer already received ─► emit ComputeAnnounce ─► WaitingForBlock
+///   └─ no already received announce ─► WaitingForAnnounce
+///
+/// WaitingForAnnounce (waiting for announce from producer)
+///   ├─ expected and accepted ─► emit ComputeAnnounce and AcceptAnnounce ─► WaitingForBlock
+///   └─ unexpected ─► cached in pending_announces
+/// ```
 #[allow(clippy::enum_variant_names)]
 #[derive(Debug)]
 enum State {
@@ -58,35 +88,57 @@ enum State {
         block: SimpleBlockData,
         producer: Address,
     },
+    WaitingForMissingAnnounces {
+        block: SimpleBlockData,
+        producer: Address,
+        chain: VecDeque<SimpleBlockData>,
+        waiting_request: AnnouncesRequest,
+    },
 }
 
 /// Consensus service which tracks the on-chain and ethexe events
-/// in order to keep the program states in local database actual.
+/// in order to keep the program states actual in local database.
 #[derive(derive_more::Debug)]
-pub struct SimpleConnectService {
-    #[debug(skip)]
+pub struct ConnectService {
     db: Database,
     slot_duration: Duration,
+    commitment_delay_limit: u32,
 
     state: State,
-    pending_announces: VecDeque<VerifiedAnnounce>,
+    pending_announces: LruCache<(Address, H256), Announce>,
     output: VecDeque<ConsensusEvent>,
 }
 
-impl SimpleConnectService {
-    /// Creates a new instance of `SimpleConnectService`.
-    pub fn new(db: Database, slot_duration: Duration) -> Self {
+impl ConnectService {
+    /// Creates a new instance of `ConnectService`.
+    ///
+    /// # Parameters
+    /// - `db`: Database instance.
+    /// - `slot_duration`: Duration of each slot in the consensus protocol.
+    /// - `commitment_delay_limit`: Maximum allowed delay for announce to be committed.
+    pub fn new(db: Database, slot_duration: Duration, commitment_delay_limit: u32) -> Self {
         Self {
             db,
             slot_duration,
+            commitment_delay_limit,
             state: State::WaitingForBlock,
-            pending_announces: VecDeque::with_capacity(MAX_PENDING_ANNOUNCES),
+            pending_announces: LruCache::new(MAX_PENDING_ANNOUNCES),
             output: VecDeque::new(),
+        }
+    }
+
+    fn process_after_propagation(&mut self, block: SimpleBlockData, producer: Address) {
+        if let Some(announce) = self.pending_announces.pop(&(producer, block.hash)) {
+            self.output
+                .push_back(ConsensusEvent::ComputeAnnounce(announce));
+            self.state = State::WaitingForBlock;
+        } else {
+            self.state = State::WaitingForAnnounce { block, producer };
         }
     }
 }
 
-impl ConsensusService for SimpleConnectService {
+impl ConsensusService for ConnectService {
     fn role(&self) -> String {
         "Connect".to_string()
     }
@@ -115,7 +167,7 @@ impl ConsensusService for SimpleConnectService {
             );
 
             self.state = State::WaitingForPreparedBlock {
-                block: block.clone(),
+                block: *block,
                 producer,
             };
         }
@@ -123,29 +175,58 @@ impl ConsensusService for SimpleConnectService {
     }
 
     fn receive_prepared_block(&mut self, prepared_block_hash: H256) -> Result<()> {
-        if let State::WaitingForPreparedBlock { block, producer } = &self.state
-            && block.hash == prepared_block_hash
-        {
-            utils::propagate_announces_for_skipped_blocks(&self.db, block.header.parent_hash)?;
+        let State::WaitingForPreparedBlock { block, producer } = &self.state else {
+            return Ok(());
+        };
 
-            if let Some(index) = self.pending_announces.iter().position(|announce| {
-                announce.address() == *producer && announce.data().block_hash == block.hash
-            }) {
-                let (announce, _) = self
-                    .pending_announces
-                    .remove(index)
-                    .expect("Index must be valid")
-                    .into_parts();
-                self.output
-                    .push_back(ConsensusEvent::ComputeAnnounce(announce));
-                self.state = State::WaitingForBlock;
-            } else {
-                self.state = State::WaitingForAnnounce {
-                    block: block.clone(),
-                    producer: *producer,
-                };
-            };
+        if block.hash != prepared_block_hash {
+            return Ok(());
         }
+
+        let block = *block;
+        let producer = *producer;
+
+        let chain = self.db.collect_blocks_without_announces(block.hash)?;
+
+        if let Some(last_with_announces_block_hash) = chain.front().map(|b| b.header.parent_hash)
+            && let Some(request) = announces::check_for_missing_announces(
+                &self.db,
+                block.hash,
+                last_with_announces_block_hash,
+                self.commitment_delay_limit,
+            )?
+        {
+            tracing::debug!(
+                block = %block.hash,
+                request = ?request,
+                "Requesting missing announces",
+            );
+
+            self.state = State::WaitingForMissingAnnounces {
+                block,
+                producer,
+                chain,
+                waiting_request: request,
+            };
+
+            self.output
+                .push_back(ConsensusEvent::RequestAnnounces(request));
+        } else {
+            tracing::debug!(
+                block = %block.hash,
+                "No missing announces detected",
+            );
+
+            announces::propagate_announces(
+                &self.db,
+                chain,
+                self.commitment_delay_limit,
+                Default::default(),
+            )?;
+
+            self.process_after_propagation(block, producer);
+        }
+
         Ok(())
     }
 
@@ -154,38 +235,46 @@ impl ConsensusService for SimpleConnectService {
     }
 
     fn receive_announce(&mut self, announce: VerifiedAnnounce) -> Result<()> {
-        debug_assert!(
-            self.pending_announces.len() <= MAX_PENDING_ANNOUNCES,
-            "Logically impossible to have more than {MAX_PENDING_ANNOUNCES} pending announces because oldest ones are dropped"
-        );
+        let (announce, sender) = announce.clone().into_parts();
+        let sender = sender.to_address();
 
         if let State::WaitingForAnnounce { block, producer } = &self.state
-            && announce.address() == *producer
-            && announce.data().block_hash == block.hash
-            && announce.data().parent
-                == utils::parent_main_line_announce(&self.db, block.header.parent_hash)?
+            && sender == *producer
+            && announce.block_hash == block.hash
         {
-            let (announce, _) = announce.into_parts();
+            match announces::accept_announce(&self.db, announce.clone())? {
+                AnnounceStatus::Rejected { announce, reason } => {
+                    tracing::warn!(
+                        announce = %announce.to_hash(),
+                        reason = %reason,
+                        producer = %producer,
+                        "Announce rejected",
+                    );
 
-            let announce_hash = self.db.set_announce(announce.clone());
-            self.db.mutate_block_meta(block.hash, |meta| {
-                meta.announces.get_or_insert_default().insert(announce_hash);
-            });
+                    self.output
+                        .push_back(ConsensusEvent::AnnounceRejected(announce.to_hash()));
+                }
+                AnnounceStatus::Accepted(announce_hash) => {
+                    self.output
+                        .push_back(ConsensusEvent::AnnounceAccepted(announce_hash));
+                    self.output
+                        .push_back(ConsensusEvent::ComputeAnnounce(announce));
 
-            self.output
-                .push_back(ConsensusEvent::ComputeAnnounce(announce));
-            self.state = State::WaitingForBlock;
-            return Ok(());
+                    self.state = State::WaitingForBlock;
+                }
+            }
+        } else {
+            tracing::warn!("Receive unexpected {announce:?}, save to pending announces");
+            self.pending_announces
+                .push((sender, announce.block_hash), announce);
         }
 
-        if self.pending_announces.len() == MAX_PENDING_ANNOUNCES {
-            let _ = self.pending_announces.pop_front().unwrap();
-        }
+        Ok(())
+    }
 
-        tracing::warn!("Receive unexpected {announce:?}, save to pending announces");
-
-        self.pending_announces.push_back(announce);
-
+    fn receive_injected_transaction(&mut self, tx: SignedInjectedTransaction) -> Result<()> {
+        // In "connect-node" we do not process injected transactions.
+        tracing::trace!("Received injected transaction: {tx:?}. Ignoring it.");
         Ok(())
     }
 
@@ -196,9 +285,41 @@ impl ConsensusService for SimpleConnectService {
     fn receive_validation_reply(&mut self, _reply: BatchCommitmentValidationReply) -> Result<()> {
         Ok(())
     }
+
+    fn receive_announces_response(&mut self, response: CheckedAnnouncesResponse) -> Result<()> {
+        let State::WaitingForMissingAnnounces {
+            block,
+            producer,
+            chain,
+            waiting_request,
+        } = &mut self.state
+        else {
+            return Ok(());
+        };
+
+        let block = *block;
+        let producer = *producer;
+
+        let (request, announces) = response.into_parts();
+
+        if waiting_request != &request {
+            return Ok(());
+        }
+
+        announces::propagate_announces(
+            &self.db,
+            mem::take(chain),
+            self.commitment_delay_limit,
+            announces.into_iter().map(|a| (a.to_hash(), a)).collect(),
+        )?;
+
+        self.process_after_propagation(block, producer);
+
+        Ok(())
+    }
 }
 
-impl Stream for SimpleConnectService {
+impl Stream for ConnectService {
     type Item = Result<ConsensusEvent>;
 
     fn poll_next(mut self: Pin<&mut Self>, _cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
@@ -210,7 +331,7 @@ impl Stream for SimpleConnectService {
     }
 }
 
-impl FusedStream for SimpleConnectService {
+impl FusedStream for ConnectService {
     fn is_terminated(&self) -> bool {
         false
     }

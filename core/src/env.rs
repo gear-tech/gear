@@ -31,6 +31,8 @@ use core::fmt::Display;
 use gear_core_errors::{ReplyCode, SignalCode};
 use gear_wasm_instrument::syscalls::SyscallName;
 use parity_scale_codec::{Decode, Encode};
+use scale_decode::DecodeAsType;
+use scale_encode::EncodeAsType;
 use scale_info::TypeInfo;
 
 /// External api and data for managing memory and messages,
@@ -242,7 +244,19 @@ pub trait Externalities {
 }
 
 /// Composite wait type for messages waiting.
-#[derive(Debug, Encode, Decode, Clone, PartialEq, Eq, PartialOrd, Ord, TypeInfo)]
+#[derive(
+    Debug,
+    Encode,
+    EncodeAsType,
+    Decode,
+    DecodeAsType,
+    Clone,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    TypeInfo,
+)]
 pub enum MessageWaitedType {
     /// Program called `gr_wait` while executing message.
     Wait,

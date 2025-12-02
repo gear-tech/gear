@@ -17,19 +17,14 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Events api
+
 use crate::{
-    Api,
+    Api, AsGear,
     config::GearConfig,
-    metadata::{Event, system::Event as SystemEvent},
-    result::{Error, Result},
+    gear::{self},
+    result::Result,
 };
-use subxt::{
-    OnlineClient,
-    blocks::ExtrinsicEvents as TxEvents,
-    error::{DispatchError, Error as SubxtError},
-    events::EventDetails,
-    tx::TxInBlock,
-};
+use subxt::{OnlineClient, blocks::ExtrinsicEvents as TxEvents, tx::TxInBlock};
 
 impl Api {
     /// Capture the dispatch info of any extrinsic and display the weight spent
@@ -40,38 +35,26 @@ impl Api {
         let events = tx.fetch_events().await?;
 
         for ev in events.iter() {
-            let ev = ev?;
-            if ev.pallet_name() == "System" {
-                if ev.variant_name() == "ExtrinsicFailed" {
-                    Self::capture_weight_info(&ev)?;
+            if let gear::Event::System(system_event) = ev?.as_gear()? {
+                let extrinsic_result = match system_event {
+                    gear::system::Event::ExtrinsicFailed {
+                        dispatch_error,
+                        dispatch_info,
+                    } => Some((dispatch_info, Err(self.decode_error(dispatch_error)))),
+                    gear::system::Event::ExtrinsicSuccess { dispatch_info } => {
+                        Some((dispatch_info, Ok(())))
+                    }
+                    _ => None,
+                };
 
-                    return Err(SubxtError::from(DispatchError::decode_from(
-                        ev.field_bytes(),
-                        self.metadata(),
-                    )?)
-                    .into());
-                }
-
-                if ev.variant_name() == "ExtrinsicSuccess" {
-                    Self::capture_weight_info(&ev)?;
+                if let Some((dispatch_info, result)) = extrinsic_result {
+                    log::info!("	Weight cost: {:?}", dispatch_info.weight);
+                    result?;
                     break;
                 }
             }
         }
 
         Ok(events)
-    }
-
-    /// Parse transaction fee from InBlockEvents
-    pub fn capture_weight_info(details: &EventDetails<GearConfig>) -> Result<()> {
-        let event: Event = details.as_root_event::<Event>()?;
-
-        if let Event::System(SystemEvent::ExtrinsicSuccess { dispatch_info })
-        | Event::System(SystemEvent::ExtrinsicFailed { dispatch_info, .. }) = event
-        {
-            log::info!("	Weight cost: {:?}", dispatch_info.weight);
-        }
-
-        Err(Error::EventNotFound)
     }
 }

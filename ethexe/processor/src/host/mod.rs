@@ -331,7 +331,7 @@ impl InstanceWrapper {
         let heap_base = heap_base_global
             .get(&mut self.store)
             .i32()
-            .ok_or(ProcessorError::HeapBaseIsNoti32)?;
+            .ok_or(ProcessorError::HeapBaseIsNotI32)?;
 
         Ok(heap_base as u32)
     }

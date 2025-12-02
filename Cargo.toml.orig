@@ -1,0 +1,738 @@
+[workspace.package]
+version = "1.10.0"
+authors = ["Gear Technologies"]
+edition = "2024"
+license = "GPL-3.0"
+homepage = "https://gear-tech.io"
+repository = "https://github.com/gear-tech/gear"
+rust-version = "1.88"
+
+[workspace]
+resolver = "3"
+
+default-members = ["node/cli"]
+
+exclude = ["ethexe/contracts", "ethexe/docker", "ethexe/scripts"]
+
+members = [
+    "common",
+    "common/codegen",
+    "common/numerated",
+    "core",
+    "core-backend",
+    "core-processor",
+    "core-errors",
+    "lazy-pages",
+    "lazy-pages/common",
+    "lazy-pages/interface",
+    "lazy-pages/native-interface",
+    "examples/async",
+    "examples/async-critical",
+    "examples/async-custom-entry",
+    "examples/async-init",
+    "examples/async-reply-hook",
+    "examples/async-signal-entry",
+    "examples/async-tester",
+    "examples/autoreply",
+    "examples/big-data-section",
+    "examples/bls381",
+    "examples/calc-hash",
+    "examples/custom",
+    "examples/delayed-reservation-sender",
+    "examples/compose",
+    "examples/constructor",
+    "examples/create-program-reentrance",
+    "examples/ctor",
+    "examples/delayed-sender",
+    "examples/distributor",
+    "examples/fungible-token",
+    "examples/stack-allocations",
+    "examples/futures-unordered",
+    "examples/gas-burned",
+    "examples/incomplete-async-payloads",
+    "examples/inheritor-in-error-reply",
+    "examples/init-fail-sender",
+    "examples/init-wait",
+    "examples/init-wait-reply-exit",
+    "examples/messenger",
+    "examples/mul-by-const",
+    "examples/ncompose",
+    "examples/node",
+    "examples/out-of-memory",
+    "examples/panic-payload",
+    "examples/piggy-bank",
+    "examples/ping",
+    "examples/program-factory",
+    "examples/program-generator",
+    "examples/proxy",
+    "examples/proxy-broker",
+    "examples/proxy-relay",
+    "examples/proxy-reservation-with-gas",
+    "examples/read-big-state",
+    "examples/reservation-manager",
+    "examples/reserve-gas",
+    "examples/rwlock",
+    "examples/send-from-reservation",
+    "examples/signal-entry",
+    "examples/state-rollback",
+    "examples/sync-duplicate",
+    "examples/syscalls",
+    "examples/syscall-error",
+    "examples/value-sender",
+    "examples/vec",
+    "examples/wait",
+    "examples/wait-timeout",
+    "examples/wait_wake",
+    "examples/waiter",
+    "examples/waiting-proxy",
+    "examples/wat",
+    "galloc",
+    "gbuiltins/*",
+    "gcli",
+    "gclient",
+    "gcore",
+    "gprimitives",
+    "gsdk",
+    "gsdk/codegen",
+    "gstd",
+    "gstd/codegen",
+    "gsys",
+    "gtest",
+    "node/cli",
+    "node/service",
+    "node/authorship",
+    "node/testing",
+    "pallets/*",
+    "runtime/*",
+    "runtime-interface/sandbox",
+    "utils/*",
+    "utils/runtime-fuzzer/fuzz",
+    "utils/lazy-pages-fuzzer/runner",
+    "ethexe/*",
+    "ethexe/runtime/common",
+    "ethexe/service/utils",
+    "intentionally-empty",
+]
+
+[workspace.dependencies]
+<<<<<<< HEAD
+intentionally-empty = "1.0.0"
+
+alloy = "1.0"
+=======
+alloy = "1.1"
+>>>>>>> origin/master
+alloy-primitives = { version = "1.4", default-features = false }
+alloy-sol-types = { version = "1.4", default-features = false }
+anyhow = { version = "1.0.86", default-features = false }
+arbitrary = "1.3.2"
+async-recursion = "1.1.1"
+async-trait = "0.1.81"
+base64 = "0.21.7"
+bytemuck = "1.23.2"
+byteorder = { version = "1.5.0", default-features = false }
+blake2 = { version = "0.10.6", default-features = false }
+bs58 = { version = "0.5.1", default-features = false }
+cargo_toml = "0.21.0"
+cargo_metadata = "0.20.0"
+clap = "4.5.8"
+color-eyre = "0.6.3"
+colored = "2.1.0"
+const-str = "0.5"
+defer = "0.2.1"
+derive_more = { version = "2.0.1", default-features = false, features = [
+    "full",
+] }
+auto_impl = "1.3.0"
+dirs = "4.0.0"
+dyn-clonable = "0.9.0"
+enum-iterator = "1.5.0"
+environmental = "1.1.3"
+futures = { version = "0.3", default-features = false }
+futures-timer = "3.0.3"
+hashbrown = "0.14.5"
+hex = { version = "0.4.3", default-features = false }
+hex-literal = "0.4.1"
+impl-trait-for-tuples = "0.2.2"
+impl-serde = "0.4.0"
+jsonrpsee = { version = "^0.24" }
+libc = { version = "0.2", default-features = false }
+log = { version = "0.4.22", default-features = false }
+num_enum = { version = "0.6.1", default-features = false }
+parity-scale-codec = { version = "3.7.5", default-features = false }
+parking_lot = "0.12.3"
+path-clean = "1.0.1"
+primitive-types = { version = "0.12.2", default-features = false }
+proc-macro2 = { version = "1", default-features = false }
+prometheus = { version = "0.13.0", default-features = false }
+proptest = "1.5.0"
+quick-xml = "0.28"
+quote = { version = "1.0.36", default-features = false }
+rand = { version = "0.8", default-features = false }
+regex = "^1.9"
+region = "3.0.2"
+reqwest = { version = "0.12.8", default-features = false }
+roast-secp256k1-evm = { version = "0.1.0", git = "https://github.com/gear-tech/roast", branch = "gear-v0.1.0" }
+scale-info = { version = "2.11", default-features = false }
+scale-decode = "0.16.0"
+scale-encode = "0.10.0"
+serde = { version = "^1", default-features = false }
+serde_json = { version = "1.0.135", default-features = false, features = [
+    "alloc",
+] }
+serde-json-wasm = { version = "1.0.1", default-features = false }
+sha-1 = "0.10.1"
+static_init = "1.0.3"
+subxt = "0.44.0"
+syn = "2.0.71"
+thiserror = { version = "2.0.12", default-features = false }
+tokio = { version = "1.38.0" }
+uluru = "3.1.0"
+lru = "0.16.1"
+url = "2.5.2"
+wat = "1.0.71"
+wasmer = { version = "6.1.0", default-features = false, features = [
+    "singlepass",
+] }
+wasmer-cache = "6.1.0"
+wasmer-types = "6.1.0"
+wasmer-vm = "6.1.0"
+wasmer-compiler = "6.1.0"
+gear-wasmer-cache = { path = "utils/gear-wasmer-cache" }
+wasmtime = "8.0.1"
+wasmparser = { version = "0.230", default-features = false, features = ["validate", "features"] }
+which = "4.4.2"
+winapi = "0.3.9"
+paste = "1.0"
+tempfile = "3.19"
+ark-std = { version = "0.4.0", default-features = false }
+ark-bls12-381 = { version = "0.4.0", default-features = false }
+ark-serialize = { version = "0.4", default-features = false }
+ark-ec = { version = "0.4.2", default-features = false }
+ark-ff = { version = "0.4.2", default-features = false }
+ark-scale = { version = "0.0.12", default-features = false }
+sha2 = { version = "0.10.8", default-features = false }
+sha3 = { version = "0.10.8", default-features = false }
+arrayvec = { version = "0.7.4", default-features = false }
+indexmap = { version = "2.2.6", default-features = false }
+tracing = { version = "0.1.40", default-features = false }
+tracing-subscriber = { version = "0.3.18", features = ["env-filter"] }
+assert_matches = "1.5.0"
+nonempty = { version = "0.12.0", default-features = false }
+cc = "1.2.37"
+tap = "1.0.1"
+ntest = "0.9.3"
+dashmap = "5.5.3"
+
+# Published deps
+#
+# https://github.com/gear-tech/gear-dlmalloc/tree/0.2.0
+dlmalloc = { package = "gear-dlmalloc", version = "0.2.0" }
+
+# Internal deps
+numerated = { path = "common/numerated" }
+authorship = { package = "gear-authorship", path = "node/authorship" }
+builtins-common = { path = "utils/builtins-common", default-features = false }
+common = { package = "gear-common", path = "common", default-features = false }
+core-processor = { package = "gear-core-processor", path = "core-processor", default-features = false }
+galloc = { path = "galloc" }
+gbuiltin-bls381 = { path = "gbuiltins/bls381", default-features = false }
+gbuiltin-eth-bridge = { path = "gbuiltins/eth-bridge", default-features = false }
+gbuiltin-staking = { path = "gbuiltins/staking" }
+gbuiltin-proxy = { path = "gbuiltins/proxy" }
+gcore = { path = "gcore" }
+gcli = { path = "gcli" }
+gclient = { path = "gclient" }
+gear-node-wrapper = { path = "utils/node-wrapper" }
+gsdk = { path = "gsdk" }
+gsdk-codegen = { path = "gsdk/codegen" }
+gstd = { path = "gstd", features = ["nightly"] }
+gstd-codegen = { path = "gstd/codegen" }
+gring = { path = "utils/gring" }
+gsys = { path = "gsys" }
+gtest = { path = "gtest" }
+gprimitives = { path = "gprimitives", default-features = false }
+gear-authorship = { path = "node/authorship" }
+gear-core-backend = { path = "core-backend", default-features = false }
+gear-call-gen = { path = "utils/call-gen" }
+gear-common = { path = "common", default-features = false }
+gear-common-codegen = { path = "common/codegen" }
+gear-core = { path = "core", default-features = false }
+gear-core-errors = { path = "core-errors" }
+gear-core-processor = { path = "core-processor", default-features = false }
+gear-lazy-pages = { path = "lazy-pages" }
+gear-lazy-pages-common = { path = "lazy-pages/common", default-features = false }
+gear-lazy-pages-interface = { path = "lazy-pages/interface", default-features = false }
+gear-lazy-pages-native-interface = { path = "lazy-pages/native-interface" }
+gear-node-testing = { path = "node/testing" }
+gear-runtime-common = { path = "runtime/common", default-features = false }
+gear-runtime-interface = { path = "runtime-interface", default-features = false }
+gear-sandbox-interface = { path = "runtime-interface/sandbox", default-features = false }
+gear-runtime-primitives = { path = "runtime/primitives", default-features = false }
+gear-sandbox = { path = "sandbox/sandbox", default-features = false }
+gear-sandbox-env = { path = "sandbox/env", default-features = false }
+gear-sandbox-host = { path = "sandbox/host" }
+gear-service = { path = "node/service", default-features = false }
+gear-stack-buffer = { path = "stack-buffer" }
+gear-ss58 = { path = "utils/ss58", default-features = false }
+gear-utils = { path = "utils/utils" }
+gear-wasm-builder = { path = "utils/wasm-builder", default-features = false }
+gear-wasm-optimizer = { path = "utils/wasm-optimizer", default-features = false }
+gear-wasm-gen = { path = "utils/wasm-gen" }
+gear-wasm-instrument = { path = "utils/wasm-instrument", default-features = false }
+junit-common = { path = "utils/junit-common" }
+actor-system-error = { path = "utils/actor-system-error" }
+pallet-gear = { path = "pallets/gear", default-features = false }
+pallet-gear-eth-bridge = { path = "pallets/gear-eth-bridge", default-features = false }
+pallet-gear-eth-bridge-primitives = { path = "pallets/gear-eth-bridge/primitives", default-features = false }
+pallet-gear-eth-bridge-rpc = { path = "pallets/gear-eth-bridge/rpc", default-features = false }
+pallet-gear-eth-bridge-rpc-runtime-api = { path = "pallets/gear-eth-bridge/rpc/runtime-api", default-features = false }
+pallet-gear-gas = { path = "pallets/gas", default-features = false }
+pallet-gear-messenger = { path = "pallets/gear-messenger", default-features = false }
+pallet-gear-payment = { path = "pallets/payment", default-features = false }
+pallet-gear-program = { path = "pallets/gear-program", default-features = false }
+pallet-gear-rpc = { path = "pallets/gear/rpc" }
+pallet-gear-rpc-runtime-api = { path = "pallets/gear/rpc/runtime-api", default-features = false }
+pallet-gear-scheduler = { path = "pallets/gear-scheduler", default-features = false }
+pallet-gear-staking-rewards = { path = "pallets/staking-rewards", default-features = false }
+pallet-gear-staking-rewards-rpc = { path = "pallets/staking-rewards/rpc" }
+pallet-gear-staking-rewards-rpc-runtime-api = { path = "pallets/staking-rewards/rpc/runtime-api", default-features = false }
+pallet-gear-voucher = { path = "pallets/gear-voucher", default-features = false }
+pallet-gear-bank = { path = "pallets/gear-bank", default-features = false }
+pallet-gear-builtin = { path = "pallets/gear-builtin", default-features = false }
+pallet-gear-builtin-rpc = { path = "pallets/gear-builtin/rpc" }
+pallet-gear-builtin-rpc-runtime-api = { path = "pallets/gear-builtin/rpc/runtime-api", default-features = false }
+pallet-grandpa-signer = { path = "pallets/grandpa-signer", default-features = false }
+runtime-primitives = { package = "gear-runtime-primitives", path = "runtime/primitives", default-features = false }
+service = { package = "gear-service", path = "node/service", default-features = false }
+testing = { package = "gear-node-testing", path = "node/testing" }
+vara-runtime = { path = "runtime/vara", default-features = false }
+
+# ethexe deps
+ethexe-observer = { path = "ethexe/observer", default-features = false }
+ethexe-db = { path = "ethexe/db", default-features = false }
+ethexe-network = { path = "ethexe/network", default-features = false }
+ethexe-processor = { path = "ethexe/processor", default-features = false }
+ethexe-runtime = { path = "ethexe/runtime", default-features = false }
+ethexe-signer = { path = "ethexe/signer", default-features = false }
+ethexe-service = { path = "ethexe/service", default-features = false }
+ethexe-service-utils = { path = "ethexe/service/utils", default-features = false }
+ethexe-consensus = { path = "ethexe/consensus", default-features = false }
+ethexe-ethereum = { path = "ethexe/ethereum", default-features = false }
+ethexe-runtime-common = { path = "ethexe/runtime/common", default-features = false }
+ethexe-prometheus = { path = "ethexe/prometheus", default-features = false }
+ethexe-rpc = { path = "ethexe/rpc", default-features = false }
+ethexe-common = { path = "ethexe/common", default-features = false }
+ethexe-compute = { path = "ethexe/compute", default-features = false }
+ethexe-blob-loader = { path = "ethexe/blob-loader", default-features = false }
+
+# Common executor between `sandbox-host` and `lazy-pages-fuzzer`
+wasmi = { version = "0.38" }
+
+# Substrate deps
+bp-header-chain ={ version = "0.18.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false }
+binary-merkle-tree = { version = "15.0.1", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false }
+frame-benchmarking = { version = "38.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false }
+frame-benchmarking-cli = { version = "43.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+frame-election-provider-support = { version = "38.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false }
+frame-executive = { version = "38.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false }
+frame-support = { version = "38.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false }
+frame-support-test = { version = "3.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false }
+frame-system = { version = "38.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false }
+frame-system-benchmarking = { version = "38.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false }
+frame-remote-externalities = { version = "0.46.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+frame-try-runtime = { version = "0.44.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false }
+frame-system-rpc-runtime-api = { version = "34.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false }
+
+frame-metadata-hash-extension = { default-features = false, git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+
+
+<<<<<<< HEAD
+generate-bags = { version = "38.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+pallet-authorship = { version = "38.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false }
+pallet-authority-discovery = { version = "38.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false }
+pallet-babe = { version = "38.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false }
+pallet-bags-list = { version = "37.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false }
+pallet-bounties = { version = "37.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false }
+pallet-child-bounties = { version = "37.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false }
+pallet-balances = { version = "39.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false }
+pallet-conviction-voting = { version = "38.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false }
+pallet-election-provider-multi-phase = { version = "37.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false }
+pallet-grandpa = { version = "38.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false }
+pallet-identity = { version = "38.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false }
+pallet-im-online = { version = "37.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false }
+pallet-multisig = { version = "38.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false }
+pallet-nomination-pools = { version = "35.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false }
+pallet-nomination-pools-runtime-api = { version = "33.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false }
+pallet-offences = { version = "37.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false }
+pallet-preimage = { version = "38.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false }
+pallet-proxy = { version = "38.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false }
+pallet-ranked-collective = { version = "38.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false }
+pallet-referenda = { version = "38.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false }
+pallet-scheduler = { version = "39.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false }
+pallet-session = { version = "38.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false }
+pallet-staking = { version = "38.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false }
+pallet-staking-runtime-api = { version = "24.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false }
+pallet-staking-reward-fn = { version = "22.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false }
+pallet-sudo = { version = "38.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false }
+pallet-timestamp = { version = "37.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false }
+pallet-transaction-payment = { version = "38.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false }
+pallet-transaction-payment-rpc = { version = "41.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false }
+pallet-transaction-payment-rpc-runtime-api = { version = "38.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false }
+pallet-treasury = { version = "37.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false }
+pallet-utility = { version = "38.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false }
+pallet-vesting = { version = "38.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false }
+pallet-whitelist = { version = "37.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false }
+prometheus-endpoint = { package = "substrate-prometheus-endpoint", version = "0.17.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+sc-authority-discovery = { version = "0.45.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+sc-block-builder = { version = "0.42.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+sc-consensus = { version = "0.44.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+sc-consensus-babe = { version = "0.45.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+sc-consensus-babe-rpc = { version = "0.45.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+sc-consensus-slots = { version = "0.44.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+sp-crypto-ec-utils = { version = "0.14.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false }
+sp-debug-derive = { version = "14.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false }
+sc-chain-spec = { version = "38.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+sc-cli = { version = "0.47.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+sc-client-api = { version = "37.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+sc-executor = { version = "0.40.1", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+sc-executor-common = { version = "0.35.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+sc-consensus-grandpa = { version = "0.30.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+sc-consensus-grandpa-rpc = { version = "0.30.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+sc-network = { version = "0.45.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+sc-network-sync = { version = "0.44.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+sc-offchain = { version = "40.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+sc-proposer-metrics = { version = "0.18.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+sc-service = { version = "0.46.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+sc-telemetry = { version = "25.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+sc-rpc = { version = "40.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+sc-sync-state-rpc = { version = "0.45.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+sc-sysinfo = { version = "38.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+sc-transaction-pool = { version = "37.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+sc-transaction-pool-api = { version = "37.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+sc-tracing = { version = "37.0.1", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+sp-allocator = { version = "29.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false }
+sp-api = { version = "34.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false }
+sp-authority-discovery = { version = "34.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false }
+sp-arithmetic = { version = "26.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false }
+sp-blockchain = { version = "37.0.1", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false }
+sp-block-builder = { version = "34.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false }
+sp-core = { version = "34.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false }
+sp-consensus = { version = "0.40.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false }
+sp-consensus-babe = { version = "0.40.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false }
+sp-consensus-slots = { version = "0.40.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false }
+sp-externalities = { version = "0.29.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false }
+sp-consensus-grandpa = { version = "21.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false }
+sp-genesis-builder = { version = "0.15.1", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false }
+sp-inherents = { version = "34.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false }
+sp-io = { version = "38.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false }
+sp-keyring = { version = "39.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false }
+sp-keystore = { version = "0.40.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false }
+sp-npos-elections = { version = "34.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false }
+sp-offchain = { version = "34.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false }
+sp-rpc = { version = "32.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false }
+sp-runtime = { version = "39.0.1", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false }
+sp-runtime-interface = { version = "28.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false }
+sp-session = { version = "36.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false }
+sp-std = { version = "14.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false }
+sp-state-machine = { version = "0.43.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false }
+sp-staking = { version = "36.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false }
+sp-storage = { version = "21.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false }
+sp-timestamp = { version = "34.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false }
+sp-transaction-pool = { version = "34.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false }
+sp-transaction-storage-proof = { version = "34.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false }
+sp-trie = { version = "37.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false }
+sp-version = { version = "37.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false }
+sp-wasm-interface = { version = "21.0.1", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false }
+sp-wasm-interface-common = { version = "7.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false }
+substrate-build-script-utils = { version = "11.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+substrate-frame-rpc-system = { version = "39.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+substrate-rpc-client = { version = "0.44.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+substrate-state-trie-migration-rpc = { version = "38.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+substrate-test-client = { version = "2.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+substrate-wasm-builder = { version = "24.0.1", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+=======
+generate-bags = { version = "38.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
+pallet-authorship = { version = "38.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
+pallet-authority-discovery = { version = "38.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
+pallet-babe = { version = "38.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
+pallet-bags-list = { version = "37.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
+pallet-bounties = { version = "37.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
+pallet-child-bounties = { version = "37.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
+pallet-balances = { version = "39.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
+pallet-conviction-voting = { version = "38.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
+pallet-election-provider-multi-phase = { version = "37.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
+pallet-grandpa = { version = "38.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
+pallet-identity = { version = "38.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
+pallet-im-online = { version = "37.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
+pallet-multisig = { version = "38.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
+pallet-nomination-pools = { version = "35.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
+pallet-nomination-pools-runtime-api = { version = "33.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
+pallet-offences = { version = "37.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
+pallet-preimage = { version = "38.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
+pallet-proxy = { version = "38.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
+pallet-ranked-collective = { version = "38.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
+pallet-referenda = { version = "38.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
+pallet-scheduler = { version = "39.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
+pallet-session = { version = "38.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
+pallet-staking = { version = "38.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
+pallet-staking-runtime-api = { version = "24.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
+pallet-staking-reward-fn = { version = "22.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
+pallet-sudo = { version = "38.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
+pallet-timestamp = { version = "37.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
+pallet-transaction-payment = { version = "38.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
+pallet-transaction-payment-rpc = { version = "41.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
+pallet-transaction-payment-rpc-runtime-api = { version = "38.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
+pallet-treasury = { version = "37.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
+pallet-utility = { version = "38.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
+pallet-vesting = { version = "38.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
+pallet-whitelist = { version = "37.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
+prometheus-endpoint = { package = "substrate-prometheus-endpoint", version = "0.17.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
+sc-authority-discovery = { version = "0.45.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
+sc-block-builder = { version = "0.42.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
+sc-consensus = { version = "0.44.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
+sc-consensus-babe = { version = "0.45.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
+sc-consensus-babe-rpc = { version = "0.45.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
+sc-consensus-slots = { version = "0.44.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
+sp-crypto-ec-utils = { version = "0.14.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
+sp-debug-derive = { version = "14.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
+sc-chain-spec = { version = "38.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
+sc-cli = { version = "0.47.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
+sc-client-api = { version = "37.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
+sc-executor = { version = "0.40.1", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
+sc-executor-common = { version = "0.35.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
+sc-consensus-grandpa = { version = "0.30.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
+sc-consensus-grandpa-rpc = { version = "0.30.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
+sc-network = { version = "0.45.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
+sc-network-sync = { version = "0.44.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
+sc-offchain = { version = "40.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
+sc-proposer-metrics = { version = "0.18.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
+sc-service = { version = "0.46.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
+sc-telemetry = { version = "25.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
+sc-rpc = { version = "40.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
+sc-sync-state-rpc = { version = "0.45.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
+sc-sysinfo = { version = "38.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
+sc-transaction-pool = { version = "37.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
+sc-transaction-pool-api = { version = "37.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
+sc-tracing = { version = "37.0.1", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
+sp-allocator = { version = "29.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
+sp-api = { version = "34.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
+sp-authority-discovery = { version = "34.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
+sp-arithmetic = { version = "26.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
+sp-blockchain = { version = "37.0.1", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
+sp-block-builder = { version = "34.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
+sp-core = { version = "34.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
+sp-consensus = { version = "0.40.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
+sp-consensus-babe = { version = "0.40.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
+sp-consensus-slots = { version = "0.40.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
+sp-application-crypto = { version = "38.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
+sp-externalities = { version = "0.29.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
+sp-consensus-grandpa = { version = "21.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
+sp-genesis-builder = { version = "0.15.1", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
+sp-inherents = { version = "34.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
+sp-io = { version = "38.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
+sp-keyring = { version = "39.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
+sp-keystore = { version = "0.40.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
+sp-npos-elections = { version = "34.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
+sp-offchain = { version = "34.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
+sp-rpc = { version = "32.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
+sp-runtime = { version = "39.0.1", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
+sp-runtime-interface = { version = "28.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
+sp-session = { version = "36.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
+sp-std = { version = "14.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
+sp-state-machine = { version = "0.43.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
+sp-staking = { version = "36.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
+sp-storage = { version = "21.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
+sp-timestamp = { version = "34.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
+sp-transaction-pool = { version = "34.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
+sp-transaction-storage-proof = { version = "34.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
+sp-trie = { version = "37.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
+sp-version = { version = "37.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
+sp-wasm-interface = { version = "21.0.1", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
+sp-wasm-interface-common = { version = "7.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false }
+substrate-build-script-utils = { version = "11.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
+substrate-frame-rpc-system = { version = "39.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
+substrate-rpc-client = { version = "0.44.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
+substrate-state-trie-migration-rpc = { version = "38.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
+substrate-test-client = { version = "2.0.0", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
+substrate-wasm-builder = { version = "24.0.1", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
+>>>>>>> origin/master
+
+# Examples
+test-syscalls = { path = "examples/syscalls", default-features = false }
+demo-async = { path = "examples/async" }
+demo-async-critical = { path = "examples/async-critical" }
+demo-async-custom-entry = { path = "examples/async-custom-entry" }
+demo-async-init = { path = "examples/async-init" }
+demo-async-reply-hook = { path = "examples/async-reply-hook" }
+demo-async-recursion = { path = "examples/async-recursion" }
+demo-async-signal-entry = { path = "examples/async-signal-entry" }
+demo-async-tester = { path = "examples/async-tester" }
+demo-bls381 = { path = "examples/bls381" }
+demo-calc-hash = { path = "examples/calc-hash" }
+demo-calc-hash-in-one-block = { path = "examples/calc-hash/in-one-block" }
+demo-calc-hash-over-blocks = { path = "examples/calc-hash/over-blocks" }
+demo-custom = { path = "examples/custom" }
+demo-delayed-reservation-sender = { path = "examples/delayed-reservation-sender" }
+demo-compose = { path = "examples/compose" }
+demo-constructor = { path = "examples/constructor", default-features = false }
+demo-create-program-reentrance = { path = "examples/create-program-reentrance" }
+demo-delayed-sender = { path = "examples/delayed-sender" }
+demo-distributor = { path = "examples/distributor" }
+demo-futures-unordered = { path = "examples/futures-unordered", features = [
+    "debug",
+] }
+demo-gas-burned = { path = "examples/gas-burned" }
+demo-fungible-token = { path = "examples/fungible-token" }
+demo-init-fail-sender = { path = "examples/init-fail-sender" }
+demo-init-wait = { path = "examples/init-wait", default-features = false }
+demo-init-wait-reply-exit = { path = "examples/init-wait-reply-exit" }
+demo-messenger = { path = "examples/messenger" }
+demo-mul-by-const = { path = "examples/mul-by-const" }
+demo-out-of-memory = { path = "examples/out-of-memory" }
+demo-panic-payload = { path = "examples/panic-payload" }
+demo-piggy-bank = { path = "examples/piggy-bank", features = ["debug"] }
+demo-ping = { path = "examples/ping" }
+demo-program-factory = { path = "examples/program-factory" }
+demo-program-generator = { path = "examples/program-generator" }
+demo-proxy = { path = "examples/proxy", default-features = false }
+demo-proxy-relay = { path = "examples/proxy-relay" }
+demo-proxy-reservation-with-gas = { path = "examples/proxy-reservation-with-gas" }
+demo-read-big-state = { path = "examples/read-big-state", default-features = false }
+demo-reservation-manager = { path = "examples/reservation-manager" }
+demo-reserve-gas = { path = "examples/reserve-gas", default-features = false }
+demo-rwlock = { path = "examples/rwlock" }
+demo-send-from-reservation = { path = "examples/send-from-reservation" }
+demo-signal-entry = { path = "examples/signal-entry", default-features = false }
+demo-staking-broker = { path = "examples/staking-broker" }
+demo-proxy-broker = { path = "examples/proxy-broker" }
+demo-state-rollback = { path = "examples/state-rollback" }
+demo-sync-duplicate = { path = "examples/sync-duplicate" }
+demo-vec = { path = "examples/vec" }
+demo-value-sender = { path = "examples/value-sender" }
+demo-wait = { path = "examples/wait" }
+demo-waiter = { path = "examples/waiter", default-features = false }
+demo-wait-timeout = { path = "examples/wait-timeout" }
+demo-waiting-proxy = { path = "examples/waiting-proxy" }
+demo-wat = { path = "examples/wat" }
+
+# TODO: fix demos' feature resolving bug with workspace build
+demo-value-sender-ethexe = { path = "examples/value-sender-ethexe" }
+demo-delayed-sender-ethexe = { path = "examples/delayed-sender-ethexe" }
+
+# Dependencies that only used in one package
+#
+# TODO: remove these dependencies (from this file?) or add more docs.
+
+atomic_enum = "0.3.0"
+cfg-if = "1.0.0"                                             # gear-lazy-pages
+cargo-http-registry = "0.1.6"                                # crates-io
+core_affinity = "0.8.3"                                      # lazy-pages-fuzzer
+env_logger = "0.11.8"                                        # lazy-pages-fuzzer
+errno = "0.3"                                                # gear-lazy-pages
+nix = "0.26.4"                                               # gear-lazy-pages
+ipc-channel = "0.19.0"                                       # lazy-pages-fuzzer
+itertools = { version = "0.13", default-features = false }   # utils/wasm-builder
+keyring = "1.2.1"                                            # gcli
+libp2p = "=0.51.4"                                           # gcli (same version as sc-consensus)
+mimalloc = { version = "0.1.46", default-features = false }  # node/cli
+nacl = "0.5.3"                                               # gcli
+libfuzzer-sys = "0.4"                                        # utils/runtime-fuzzer/fuzz
+pathdiff = { version = "0.2.1", default-features = false }   # utils/wasm-builder
+rand_chacha = { version = "0.9.0", default-features = false }# lazy-pages-fuzzer
+rand_pcg = "0.3.1"                                           # pallets/gear
+rustc_version = "0.4.1"                                      # utils/wasm-builder, sandbox, sandbox/host
+schnorrkel = "0.11.4"                                        # gcli
+scopeguard = { version = "1.2.0", default-features = false } # pallets/gear
+hyper = "1.4.1"                                              # ethexe/rpc
+tabled = "0.10.0"                                            # utils/regression-analysis
+thousands = "0.2.0"                                          # utils/regression-analysis
+toml = "0.8.14"                                              # utils/wasm-builder
+tower = "0.4.13"                                             # ethexe/rpc
+tower-http = "0.5.2"                                         # ethexe/rpc
+tracing-appender = "0.2"                                     # utils/node-loader
+trybuild = "1"                                               # gstd/codegen
+wasmprinter = "0.230"                                        # utils/wasm-gen
+fail = "0.5"                                                 # gear-common
+heck = "0.5.0"                                               # gsdk-api-gen
+etc = "0.1.19"                                               # gcli
+toml_edit = "0.22.12"                                        # crates-io
+directories = "5.0.1"                                        # utils/key-finder
+num-traits = { version = "0.2", default-features = false }   # gear-core
+glob = "0.3.1"                                               # cargo-gbuild
+smallvec = "1.13.2"                                          # utils/node-wrapper
+fs4 = "0.11.1"                                               # utils/gear-wasmer-cache
+bytes = "1.8.0"                                              # utils/gear-wasmer-cache
+loom = "0.7.2"                                               # utils/gear-wasmer-cache
+wasm-smith = { version = "0.230", features = ["wasmparser"] } # utils/wasm-gen
+wasm-encoder = { version = "0.230", default-features = false, features = ["wasmparser"] } # utils/wasm-instrument
+
+[workspace.lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = [
+    'cfg(loom)',
+    'cfg(fuzz)',
+    'cfg(substrate_runtime)',
+] }
+
+[workspace.metadata.cargo-shear]
+ignored = [
+    "intentionally-empty",
+    "frame-benchmarking",
+    "frame-system-benchmarking",
+    "frame-system-rpc-runtime-api",
+    "vara-runtime",
+    "scale-decode",
+    "scale-info",
+    "parity-scale-codec",
+    "pallet-authorship",
+    "pallet-timestamp",
+]
+
+[profile.dev.package.corosensei]
+opt-level = 3
+
+[profile.release]
+panic = "unwind"
+
+[profile.release.package.gcore]
+opt-level = "s"
+
+[profile.release.package.gstd]
+opt-level = "s"
+
+[profile.release.package.galloc]
+opt-level = "s"
+
+[profile.release.package.gtest]
+opt-level = "s"
+
+[profile.production]
+inherits = "release"
+strip = true
+
+# Sacrifice compile speed for execution speed by using optimization flags:
+
+# https://doc.rust-lang.org/rustc/linker-plugin-lto.html
+lto = "fat"
+# https://doc.rust-lang.org/rustc/codegen-options/index.html#codegen-units
+codegen-units = 1
+
+[profile.profiling]
+inherits = "release"
+debug = true
+
+[patch.crates-io]
+<<<<<<< HEAD
+intentionally-empty = { path = "intentionally-empty" }
+
+alloy = { version = "1.0", git = "https://github.com/alessandromazza98/alloy", branch = "ale/add-eip7594-to-transaction-request" }
+=======
+alloy = { version = "1.1", git = "https://github.com/gear-tech/alloy" }
+>>>>>>> origin/master
+# these patched dependecies force their `sign_ext` feature to be used by Substrate dependencies
+parity-wasm = { version = "0.45.0", git = "https://github.com/gear-tech/parity-wasm", branch = "v0.45.0-sign-ext" }
+wasmi-validation = { version = "0.5.0", git = "https://github.com/gear-tech/wasmi", branch = "v0.13.2-sign-ext" }
+wasm-instrument = { version = "0.4.0", git = "https://github.com/gear-tech/wasm-instrument", branch = "v0.4.0-sign-ext" }
+
+# there are patches to disable `memory.grow` and to add offset of reserved memory
+wasm-smith = { version = "0.230", git = "https://github.com/gear-tech/wasm-tools", branch = "gear-stable-1.230" }

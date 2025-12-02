@@ -22,9 +22,8 @@ use gear_core::{
     ids::{ActorId, CodeId, MessageId},
     rpc::ReplyInfo,
 };
-use gsdk::GasInfo;
+use gsdk::{GasInfo, ext::subxt::utils::H256};
 use parity_scale_codec::Decode;
-use subxt::utils::H256;
 
 impl GearApi {
     /// Execute an RPC to calculate the gas required to create a program from a
@@ -66,7 +65,7 @@ impl GearApi {
         at: Option<H256>,
     ) -> Result<GasInfo> {
         self.0
-            .rpc
+            .rpc()
             .calculate_create_gas(origin, code_id, payload, value, allow_other_panics, at)
             .await
             .map_err(Into::into)
@@ -111,7 +110,7 @@ impl GearApi {
         at: Option<H256>,
     ) -> Result<GasInfo> {
         self.0
-            .rpc
+            .rpc()
             .calculate_upload_gas(origin, code, payload, value, allow_other_panics, at)
             .await
             .map_err(Into::into)
@@ -161,7 +160,7 @@ impl GearApi {
         at: Option<H256>,
     ) -> Result<GasInfo> {
         self.0
-            .rpc
+            .rpc()
             .calculate_handle_gas(origin, destination, payload, value, allow_other_panics, at)
             .await
             .map_err(Into::into)
@@ -207,7 +206,7 @@ impl GearApi {
         at: Option<H256>,
     ) -> Result<GasInfo> {
         self.0
-            .rpc
+            .rpc()
             .calculate_reply_gas(origin, message_id, payload, value, allow_other_panics, at)
             .await
             .map_err(Into::into)
@@ -274,7 +273,7 @@ impl GearApi {
     async fn rpc_request<T: gsdk::ext::sp_runtime::DeserializeOwned>(
         &self,
         method: &str,
-        params: subxt::ext::subxt_rpcs::client::RpcParams,
+        params: gsdk::ext::subxt_rpcs::client::RpcParams,
     ) -> Result<T> {
         Ok(self
             .0
@@ -323,7 +322,7 @@ impl GearApi {
         at: Option<H256>,
     ) -> Result<ReplyInfo> {
         self.0
-            .rpc
+            .rpc()
             .calculate_reply_for_handle(origin, destination, payload, gas_limit, value, at)
             .await
             .map_err(Into::into)

@@ -20,13 +20,12 @@
 
 use core::num::NonZero;
 use ethexe_common::{
-    Announce, CodeAndIdUnchecked, HashOf, ProgramStates, Schedule,
-    db::{AnnounceStorageRO, AnnounceStorageRW, BlockMetaStorageRO, CodesStorageRW},
+    Announce, CodeAndIdUnchecked, HashOf,
+    db::{AnnounceStorageRO, AnnounceStorageRW, CodesStorageRW},
     events::{BlockRequestEvent, MirrorRequestEvent},
-    gear::StateTransition,
 };
 use ethexe_db::Database;
-use ethexe_runtime_common::state::Storage;
+use ethexe_runtime_common::{FinalizedBlockTransitions, state::Storage};
 use gear_core::{ids::prelude::CodeIdExt, rpc::ReplyInfo};
 use gprimitives::{ActorId, CodeId, H256, MessageId};
 use handling::{
@@ -62,10 +61,10 @@ pub enum ProcessorError {
     ProgramNotInitialized,
     #[error("reply wasn't found")]
     ReplyNotFound,
-    #[error("not found state for program ({program_id}) at block ({block_hash})")]
+    #[error("not found state for program ({program_id}) at announce ({announce_hash})")]
     StateNotFound {
         program_id: ActorId,
-        block_hash: H256,
+        announce_hash: HashOf<Announce>,
     },
     #[error("unreachable: state partially presents in storage")]
     StatePartiallyPresentsInStorage,
@@ -75,8 +74,6 @@ pub enum ProcessorError {
     AnnounceProgramStatesNotFound(HashOf<Announce>),
     #[error("not found block start schedule for processing announce ({0})")]
     AnnounceScheduleNotFound(HashOf<Announce>),
-    #[error("not found announces for processing announce ({0})")]
-    PreparedBlockAnnouncesMissing(H256),
     #[error("not found announce by hash ({0})")]
     AnnounceNotFound(HashOf<Announce>),
 
@@ -94,7 +91,7 @@ pub enum ProcessorError {
     #[error("`__heap_base` is not global")]
     HeapBaseIsNotGlobal,
     #[error("`__heap_base` is not i32")]
-    HeapBaseIsNoti32,
+    HeapBaseIsNotI32,
     #[error("failed to write call input: {0}")]
     CallInputWrite(String),
     #[error("host state should be set before call and reset after")]
@@ -105,10 +102,6 @@ pub enum ProcessorError {
     // `ProcessingHandler` errors
     #[error("db corrupted: missing code [OR] code existence wasn't checked on Eth, code id: {0}")]
     MissingCode(CodeId),
-    #[error(
-        "db corrupted: unrecognized program [OR] program duplicates wasn't checked on Eth, actor id: {0}"
-    )]
-    DuplicatedProgram(ActorId),
 
     #[error(transparent)]
     Wasm(#[from] wasmtime::Error),
@@ -121,13 +114,6 @@ pub enum ProcessorError {
 }
 
 pub(crate) type Result<T> = std::result::Result<T, ProcessorError>;
-
-#[derive(Clone, Debug, Default)]
-pub struct BlockProcessingResult {
-    pub transitions: Vec<StateTransition>,
-    pub states: ProgramStates,
-    pub schedule: Schedule,
-}
 
 #[derive(Clone, Debug)]
 pub struct ProcessorConfig {
@@ -192,17 +178,18 @@ impl Processor {
         &mut self,
         announce: Announce,
         events: Vec<BlockRequestEvent>,
-    ) -> Result<BlockProcessingResult> {
-        if !announce.off_chain_transactions.is_empty() {
-            todo!("#4639 off-chain transactions and gas allowance are not supported yet");
-        }
-
+    ) -> Result<FinalizedBlockTransitions> {
         log::debug!(
             "Processing events for {:?}: {events:#?}",
             announce.block_hash
         );
 
-        let mut handler = self.handler(announce)?;
+        // TODO kuzmindev: remove clone here
+        let mut handler = self.handler(announce.clone())?;
+
+        for tx in announce.injected_transactions {
+            handler.handle_injected_transaction(tx)?;
+        }
 
         for event in events {
             match event {
@@ -219,12 +206,7 @@ impl Processor {
 
         handler.run_schedule();
 
-        let (transitions, states, schedule) = handler.transitions.finalize();
-        Ok(BlockProcessingResult {
-            transitions,
-            states,
-            schedule,
-        })
+        Ok(handler.transitions.finalize())
     }
 
     pub async fn process_queue(&mut self, handler: &mut ProcessingHandler) {
@@ -249,24 +231,20 @@ impl OverlaidProcessor {
     // TODO (breathx): optimize for one single program.
     pub async fn execute_for_reply(
         &mut self,
-        block_hash: H256,
+        announce_hash: HashOf<Announce>,
         source: ActorId,
         program_id: ActorId,
         payload: Vec<u8>,
         value: u128,
         runner_config: RunnerConfig,
     ) -> Result<ReplyInfo> {
-        self.0.creator.set_chain_head(block_hash);
-
-        let announce_hash = self
+        let block_hash = self
             .0
             .db
-            .block_meta(block_hash)
-            .announces
-            .into_iter()
-            .flat_map(IntoIterator::into_iter)
-            .next()
-            .ok_or(ProcessorError::PreparedBlockAnnouncesMissing(block_hash))?;
+            .announce(announce_hash)
+            .ok_or(ProcessorError::AnnounceNotFound(announce_hash))?
+            .block_hash;
+        self.0.creator.set_chain_head(block_hash);
 
         let announce = self
             .0
@@ -281,7 +259,7 @@ impl OverlaidProcessor {
             .state_of(&program_id)
             .ok_or(ProcessorError::StateNotFound {
                 program_id,
-                block_hash,
+                announce_hash,
             })?
             .hash;
 
@@ -320,7 +298,9 @@ impl OverlaidProcessor {
 
         // Setting program states and schedule for the block is not necessary, but important for testing.
         {
-            let (_, states, schedule) = handler.transitions.finalize();
+            let FinalizedBlockTransitions {
+                states, schedule, ..
+            } = handler.transitions.finalize();
             self.0.db.set_announce_program_states(announce_hash, states);
             self.0.db.set_announce_schedule(announce_hash, schedule);
         }

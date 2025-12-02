@@ -25,25 +25,22 @@ use anyhow::{Result, anyhow};
 use ethexe_common::{
     Address, Announce, Digest, HashOf, SimpleBlockData, ToDigest, ValidatorsVec,
     consensus::BatchCommitmentValidationReply,
-    db::{
-        AnnounceStorageRO, AnnounceStorageRW, BlockMetaStorageRO, BlockMetaStorageRW,
-        CodesStorageRO, OnChainStorageRO,
-    },
+    db::{AnnounceStorageRO, BlockMetaStorageRO, CodesStorageRO, OnChainStorageRO},
     ecdsa::{ContractSignature, PublicKey},
     gear::{
         AggregatedPublicKey, BatchCommitment, ChainCommitment, CodeCommitment, RewardsCommitment,
-        ValidatorsCommitment,
+        StateTransition, ValidatorsCommitment,
     },
 };
 use ethexe_signer::Signer;
-use gprimitives::{CodeId, H256, U256};
+use gprimitives::{CodeId, U256};
 use parity_scale_codec::{Decode, Encode};
 use rand::SeedableRng;
 use roast_secp256k1_evm::frost::{
     Identifier,
     keys::{self, IdentifierList},
 };
-use std::collections::{BTreeMap, HashSet, VecDeque};
+use std::collections::{BTreeMap, HashSet};
 
 /// A batch commitment, that has been signed by multiple validators.
 /// This structure manages the collection of signatures from different validators
@@ -126,23 +123,27 @@ impl MultisignedBatchCommitment {
     ///
     /// # Returns
     /// A tuple containing the batch commitment and the map of signatures
-    pub fn into_parts(self) -> (BatchCommitment, BTreeMap<Address, ContractSignature>) {
-        (self.batch, self.signatures)
+    pub fn into_parts(self) -> (BatchCommitment, Vec<ContractSignature>) {
+        (self.batch, self.signatures.into_values().collect())
     }
 }
+
+#[derive(Debug, derive_more::Display, Clone, Copy, PartialEq, Eq)]
+#[display("Code not found: {_0}")]
+pub struct CodeNotValidatedError(pub CodeId);
 
 pub fn aggregate_code_commitments<DB: CodesStorageRO>(
     db: &DB,
     codes: impl IntoIterator<Item = CodeId>,
     fail_if_not_found: bool,
-) -> Result<Vec<CodeCommitment>> {
+) -> Result<Vec<CodeCommitment>, CodeNotValidatedError> {
     let mut commitments = Vec::new();
 
     for id in codes {
         match db.code_valid(id) {
             Some(valid) => commitments.push(CodeCommitment { id, valid }),
             None if fail_if_not_found => {
-                return Err(anyhow::anyhow!("Code status not found in db: {id}"));
+                return Err(CodeNotValidatedError(id));
             }
             None => {}
         }
@@ -192,9 +193,13 @@ pub fn aggregate_chain_commitment<DB: BlockMetaStorageRO + OnChainStorageRO + An
             }
         }
 
-        transitions.push(db.announce_outcome(announce_hash).ok_or_else(|| {
-            anyhow!("Cannot get from db outcome for computed block {block_hash}")
-        })?);
+        let mut announce_transitions = db
+            .announce_outcome(announce_hash)
+            .ok_or_else(|| anyhow!("Cannot get from db outcome for computed block {block_hash}"))?;
+
+        sort_transitions_by_value_to_receive(&mut announce_transitions);
+
+        transitions.push(announce_transitions);
 
         announce_hash = db
             .announce(announce_hash)
@@ -211,7 +216,7 @@ pub fn aggregate_chain_commitment<DB: BlockMetaStorageRO + OnChainStorageRO + An
     )))
 }
 
-// TODO(kuzmindev): this is a temporal solution. In future need to impelement DKG algorithm.
+// TODO(kuzmindev): this is a temporal solution. In future need to implement DKG algorithm.
 pub fn validators_commitment(era: u64, validators: ValidatorsVec) -> Result<ValidatorsCommitment> {
     let validators_identifiers = validators
         .iter()
@@ -255,13 +260,14 @@ pub fn validators_commitment(era: u64, validators: ValidatorsVec) -> Result<Vali
     })
 }
 
-pub fn create_batch_commitment<DB: BlockMetaStorageRO>(
+pub fn create_batch_commitment<DB: BlockMetaStorageRO + OnChainStorageRO + AnnounceStorageRO>(
     db: &DB,
     block: &SimpleBlockData,
     chain_commitment: Option<ChainCommitment>,
     code_commitments: Vec<CodeCommitment>,
     validators_commitment: Option<ValidatorsCommitment>,
     rewards_commitment: Option<RewardsCommitment>,
+    commitment_delay_limit: u32,
 ) -> Result<Option<BatchCommitment>> {
     if chain_commitment.is_none()
         && code_commitments.is_empty()
@@ -285,15 +291,103 @@ pub fn create_batch_commitment<DB: BlockMetaStorageRO>(
             )
         })?;
 
+    let expiry = chain_commitment
+        .as_ref()
+        .map(|c| calculate_batch_expiry(db, block, c.head_announce, commitment_delay_limit))
+        .transpose()?
+        .flatten()
+        .unwrap_or(u8::MAX);
+
+    tracing::trace!(
+        "Batch commitment expiry for block {} is {:?}",
+        block.hash,
+        expiry
+    );
+
     Ok(Some(BatchCommitment {
         block_hash: block.hash,
         timestamp: block.header.timestamp,
         previous_batch: last_committed,
+        expiry,
         chain_commitment,
         code_commitments,
         validators_commitment,
         rewards_commitment,
     }))
+}
+
+pub fn calculate_batch_expiry<DB: BlockMetaStorageRO + OnChainStorageRO + AnnounceStorageRO>(
+    db: &DB,
+    block: &SimpleBlockData,
+    head_announce_hash: HashOf<Announce>,
+    commitment_delay_limit: u32,
+) -> Result<Option<u8>> {
+    let head_announce = db
+        .announce(head_announce_hash)
+        .ok_or_else(|| anyhow!("Cannot get announce by {head_announce_hash}"))?;
+
+    let head_announce_block_header = db
+        .block_header(head_announce.block_hash)
+        .ok_or_else(|| anyhow!("block header not found for({})", head_announce.block_hash))?;
+
+    let head_delay = block
+        .header
+        .height
+        .checked_sub(head_announce_block_header.height)
+        .ok_or_else(|| {
+            anyhow!(
+                "Head announce {} has bigger height {}, than batch height {}",
+                head_announce_hash,
+                head_announce_block_header.height,
+                block.header.height,
+            )
+        })?;
+
+    // Amount of announces which we should check to determine if there are not-base announces in the commitment.
+    let Some(announces_to_check_amount) = commitment_delay_limit.checked_sub(head_delay) else {
+        // No need to set expiry - head announce is old enough, so cannot contain any not-base announces.
+        return Ok(None);
+    };
+
+    if announces_to_check_amount == 0 {
+        // No need to set expiry - head announce is old enough, so cannot contain any not-base announces.
+        return Ok(None);
+    }
+
+    let mut oldest_not_base_announce_depth = (!head_announce.is_base()).then_some(0);
+    let mut current_announce_hash = head_announce.parent;
+
+    if announces_to_check_amount == 1 {
+        // If head announce is not base and older than commitment delay limit - 1, then expiry is only 1.
+        return Ok(oldest_not_base_announce_depth.map(|_| 1));
+    }
+
+    let last_committed_announce = db
+        .block_meta(block.hash)
+        .last_committed_announce
+        .ok_or_else(|| anyhow!("last committed announce not found for block {}", block.hash))?;
+
+    // from 1 because we have already checked head announce (note announces_to_check_amount > 1)
+    for i in 1..announces_to_check_amount {
+        if current_announce_hash == last_committed_announce {
+            break;
+        }
+
+        let current_announce = db
+            .announce(current_announce_hash)
+            .ok_or_else(|| anyhow!("Cannot get announce by {current_announce_hash}",))?;
+
+        if !current_announce.is_base() {
+            oldest_not_base_announce_depth = Some(i);
+        }
+
+        current_announce_hash = current_announce.parent;
+    }
+
+    Ok(oldest_not_base_announce_depth
+        .map(|depth| announces_to_check_amount - depth)
+        .map(TryInto::try_into)
+        .transpose()?)
 }
 
 pub fn has_duplicates<T: std::hash::Hash + Eq>(data: &[T]) -> bool {
@@ -357,66 +451,11 @@ pub fn block_producer_for(
         .unwrap_or_else(|| unreachable!("index must be valid"))
 }
 
-// NOTE: this is temporary main line announce, will be smarter in future
-/// Returns announce hash which is supposed to be the announce
-/// from main announces chain for this node.
-/// Used to identify parent announce when creating announce for new block,
-/// or accepting announce from producer.
-pub fn parent_main_line_announce<DB: BlockMetaStorageRO>(
-    db: &DB,
-    parent_hash: H256,
-) -> Result<HashOf<Announce>> {
-    db.block_meta(parent_hash)
-        .announces
-        .into_iter()
-        .flatten()
-        .next()
-        .ok_or_else(|| anyhow!("No announces found for {parent_hash} in block meta storage"))
-}
-
-// TODO #4813: support announce branching and mortality
-/// Creates announces chain till the specified block, from the nearest ancestor without announces,
-/// by appending base announces.
-pub fn propagate_announces_for_skipped_blocks<
-    DB: BlockMetaStorageRO + BlockMetaStorageRW + AnnounceStorageRW + OnChainStorageRO,
->(
-    db: &DB,
-    block_hash: H256,
-) -> Result<()> {
-    let mut current_block_hash = block_hash;
-    let mut blocks = VecDeque::new();
-    // tries to found a block with at least one announce
-    let mut announce_hash = loop {
-        let announce_hash = db
-            .block_meta(current_block_hash)
-            .announces
-            .into_iter()
-            .flatten()
-            .next();
-
-        if let Some(announce_hash) = announce_hash {
-            break announce_hash;
-        }
-
-        blocks.push_front(current_block_hash);
-        current_block_hash = db
-            .block_header(current_block_hash)
-            .ok_or_else(|| anyhow!("Block header not found for {current_block_hash}"))?
-            .parent_hash;
-    };
-
-    // the newest block with announce is found, create announces chain till the target block
-    for block_hash in blocks {
-        // TODO #4814: hack - use here with default gas announce to avoid unknown announces in tests,
-        // this will be fixed by unknown announces handling later
-        let announce = Announce::with_default_gas(block_hash, announce_hash);
-        announce_hash = db.set_announce(announce);
-        db.mutate_block_meta(block_hash, |meta| {
-            meta.announces.get_or_insert_default().insert(announce_hash);
-        });
-    }
-
-    Ok(())
+fn sort_transitions_by_value_to_receive(transitions: &mut [StateTransition]) {
+    transitions.sort_by(|lhs, rhs| {
+        rhs.value_to_receive_negative_sign
+            .cmp(&lhs.value_to_receive_negative_sign)
+    });
 }
 
 #[cfg(test)]
@@ -637,5 +676,55 @@ mod tests {
 
         let data = vec![1, 2, 3, 4, 5, 3];
         assert!(has_duplicates(&data));
+    }
+
+    #[test]
+    fn test_batch_expiry_calculation() {
+        {
+            let db = Database::memory();
+            let chain = BlockChain::mock(1).setup(&db);
+            let block = chain.blocks[1].to_simple();
+            let expiry =
+                calculate_batch_expiry(&db, &block, db.top_announce_hash(block.hash), 5).unwrap();
+            assert!(expiry.is_none(), "Expiry should be None");
+        }
+
+        {
+            let db = Database::memory();
+            let chain = BlockChain::mock(10)
+                .tap_mut(|c| {
+                    c.block_top_announce_mut(10).announce.gas_allowance = Some(10);
+                    c.blocks[10].as_prepared_mut().announces =
+                        Some([c.block_top_announce(10).announce.to_hash()].into());
+                })
+                .setup(&db);
+
+            let block = chain.blocks[10].to_simple();
+            let expiry =
+                calculate_batch_expiry(&db, &block, db.top_announce_hash(block.hash), 100).unwrap();
+            assert_eq!(
+                expiry,
+                Some(100),
+                "Expiry should be 100 as there is one not-base announce"
+            );
+        }
+
+        {
+            let db = Database::memory();
+            let batch = prepare_chain_for_batch_commitment(&db);
+            let block = db.simple_block_data(batch.block_hash);
+            let expiry = calculate_batch_expiry(
+                &db,
+                &block,
+                batch.chain_commitment.as_ref().unwrap().head_announce,
+                3,
+            )
+            .unwrap()
+            .unwrap();
+            assert_eq!(
+                expiry, batch.expiry,
+                "Expiry should match the one in the batch commitment"
+            );
+        }
     }
 }

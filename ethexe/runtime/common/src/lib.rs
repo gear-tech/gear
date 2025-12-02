@@ -45,7 +45,7 @@ pub use core_processor::configs::BlockInfo;
 use gear_core::code::InstrumentedCodeAndMetadata;
 pub use journal::NativeJournalHandler as JournalHandler;
 pub use schedule::{Handler as ScheduleHandler, Restorer as ScheduleRestorer};
-pub use transitions::{InBlockTransitions, NonFinalTransition};
+pub use transitions::{FinalizedBlockTransitions, InBlockTransitions, NonFinalTransition};
 
 pub mod state;
 
@@ -203,6 +203,7 @@ where
     for dispatch in queue {
         let origin = dispatch.message_type;
         let call_reply = dispatch.call;
+        let is_first_execution = dispatch.context.is_none();
 
         let journal = process_dispatch(
             dispatch,
@@ -218,6 +219,9 @@ where
             storage: ri.storage(),
             program_state: &mut program_state,
             gas_allowance_counter: &mut queue_gas_allowance_counter,
+            gas_multiplier: &block_config.gas_multiplier,
+            message_type: queue_type,
+            is_first_execution,
             stop_processing: false,
         };
         let (unhandled_journal_notes, new_state_hash) = handler.handle_journal(journal);

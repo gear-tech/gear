@@ -20,11 +20,11 @@ use super::EventProcessor;
 use crate::{Error, Result};
 use async_trait::async_trait;
 use gsdk::{
-    Blocks,
-    metadata::{Event, gear::Event as GearEvent},
+    AsGear, Blocks,
+    ext::subxt::utils::H256,
+    gear::{Event, gear::Event as GearEvent},
     subscription::BlockEvents,
 };
-use subxt::utils::H256;
 
 /// Event listener that allows catching and processing events propagated through
 /// the network.
@@ -70,7 +70,7 @@ impl EventProcessor for EventListener {
 
         while let Some(events) = self.0.next_events().await? {
             for event in events.iter() {
-                if let Some(data) = predicate(event?.as_root_event::<Event>()?) {
+                if let Some(data) = predicate(event?.as_gear()?) {
                     res.push(data);
                 }
             }
@@ -138,7 +138,7 @@ impl EventListener {
     ) -> Option<T> {
         events
             .iter()
-            .filter_map(|event| predicate(event.ok()?.as_root_event::<Event>().ok()?))
+            .filter_map(|event| predicate(event.ok()?.as_gear().ok()?))
             .next()
     }
 }

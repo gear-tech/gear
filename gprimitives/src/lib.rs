@@ -53,8 +53,10 @@ use scale_info::{
     TypeInfo,
     scale::{self, Decode, Encode, MaxEncodedLen},
 };
+#[cfg(all(feature = "serde", not(feature = "ethexe")))]
+use serde::de;
 #[cfg(feature = "serde")]
-use serde::{Deserialize, Deserializer, Serialize, Serializer, de};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 /// The error type returned when conversion fails.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, thiserror::Error)]
@@ -170,6 +172,7 @@ impl TryInto<H160> for ActorId {
     }
 }
 
+// TODO kuzmindev: implement Display for ActorId as Ethereum address when `ethexe` feature enabled.
 impl fmt::Display for ActorId {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         let byte_array = utils::ByteSliceFormatter::Array(&self.0);
@@ -277,7 +280,7 @@ impl Serialize for ActorId {
     }
 }
 
-#[cfg(feature = "serde")]
+#[cfg(all(feature = "serde", not(feature = "ethexe")))]
 impl<'de> Deserialize<'de> for ActorId {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
@@ -304,6 +307,31 @@ impl<'de> Deserialize<'de> for ActorId {
         }
 
         deserializer.deserialize_identifier(ActorIdVisitor)
+    }
+}
+
+#[cfg(all(feature = "serde", feature = "ethexe"))]
+impl<'de> Deserialize<'de> for ActorId {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let str = String::deserialize(deserializer)?;
+        let hex_str = str.strip_prefix("0x").unwrap_or(&str);
+        let bytes = hex::decode(hex_str)
+            .map_err(|e| serde::de::Error::custom(format!("Invalid hex: {e}")))?;
+
+        if bytes.len() != 20 {
+            return Err(serde::de::Error::custom(format!(
+                "Expected 20 bytes, got {}",
+                bytes.len()
+            )));
+        }
+
+        let mut actor_id = [0u8; 32];
+        actor_id[12..].copy_from_slice(&bytes);
+
+        Ok(ActorId(actor_id))
     }
 }
 

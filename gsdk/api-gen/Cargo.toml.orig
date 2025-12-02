@@ -1,0 +1,22 @@
+[package]
+name = "gsdk-api-gen"
+version = "0.1.0"
+edition.workspace = true
+authors.workspace = true
+description = "gsdk api generator"
+
+[dependencies]
+sc-executor.workspace = true
+sc-executor-common.workspace = true
+sp-io.workspace = true
+gear-runtime-interface = { workspace = true, features = ["std"] }
+gear-utils.workspace = true
+color-eyre.workspace = true
+proc-macro2.workspace = true
+quote.workspace = true
+parity-scale-codec.workspace = true
+subxt-codegen.workspace = true
+syn = { workspace = true, features = ["full", "parsing"] }
+heck.workspace = true
+hex.workspace = true
+intentionally-empty.workspace = true

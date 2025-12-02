@@ -18,10 +18,13 @@
 
 use super::{GearApi, Result};
 use crate::Error;
-use gsdk::{config::Header, metadata::vara_runtime::RuntimeEvent};
-use subxt::{
-    config::{Header as _, substrate::BlakeTwo256},
-    utils::H256,
+use gsdk::{
+    config::Header,
+    ext::subxt::{
+        config::{Header as _, substrate::BlakeTwo256},
+        utils::H256,
+    },
+    gear::{self, Event},
 };
 
 type GearBlock = Header;
@@ -29,7 +32,11 @@ type GearBlock = Header;
 impl GearApi {
     /// Return the total gas limit per block (also known as a gas budget).
     pub fn block_gas_limit(&self) -> Result<u64> {
-        self.0.api().gas_limit().map_err(Into::into)
+        Ok(self
+            .0
+            .api()
+            .constants()
+            .at(&gear::constants().gear_gas().block_gas_limit())?)
     }
 
     /// The expected average block time at which BABE should be creating blocks.
@@ -39,7 +46,11 @@ impl GearApi {
     /// security parameter `c` (where `1 - c` represents the probability of a
     /// slot being empty).
     pub fn expected_block_time(&self) -> Result<u64> {
-        self.0.api().expected_block_time().map_err(Into::into)
+        Ok(self
+            .0
+            .api()
+            .constants()
+            .at(&gear::constants().babe().expected_block_time())?)
     }
 
     // Get block data
@@ -74,7 +85,7 @@ impl GearApi {
     }
 
     /// Return vector of events contained in the last block.
-    pub async fn last_events(&self) -> Result<Vec<RuntimeEvent>> {
+    pub async fn last_events(&self) -> Result<Vec<Event>> {
         self.0.api().get_events_at(None).await.map_err(Into::into)
     }
 
@@ -108,7 +119,7 @@ impl GearApi {
 
     /// Return vector of events contained in the specified block identified by
     /// the `block_hash`.
-    pub async fn events_at(&self, block_hash: H256) -> Result<Vec<RuntimeEvent>> {
+    pub async fn events_at(&self, block_hash: H256) -> Result<Vec<Event>> {
         self.0
             .api()
             .get_events_at(block_hash)
@@ -118,11 +129,7 @@ impl GearApi {
 
     /// Return vector of events contained in blocks since the block identified
     /// by the `block_hash` but no more than in `max_depth` blocks.
-    pub async fn events_since(
-        &self,
-        block_hash: H256,
-        max_depth: usize,
-    ) -> Result<Vec<RuntimeEvent>> {
+    pub async fn events_since(&self, block_hash: H256, max_depth: usize) -> Result<Vec<Event>> {
         let mut block_hashes = Vec::with_capacity(max_depth);
 
         let mut current = self.get_block_at(None).await?;

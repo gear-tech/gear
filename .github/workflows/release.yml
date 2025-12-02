@@ -4,32 +4,32 @@ on:
   workflow_dispatch:
     inputs:
       tag_name:
-        description: 'Tag for release. Example: v1.0.0'
+        description: "Tag for release. Example: v1.0.0"
         required: true
       make_latest:
-        description: 'Mark this release as the latest'
+        description: "Mark this release as the latest"
         required: true
         type: choice
         options:
           - true
           - false
-        default: 'true'
+        default: "true"
       draft:
-        description: 'Publish as draft'
+        description: "Publish as draft"
         required: true
         type: choice
         options:
           - true
           - false
-        default: 'false'
+        default: "false"
       prerelease:
-        description: 'Is this a pre-release'
+        description: "Is this a pre-release"
         required: true
         type: choice
         options:
           - true
           - false
-        default: 'false'
+        default: "false"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -42,12 +42,13 @@ env:
 
 jobs:
   build:
-    runs-on: [ kuberunner ]
+    runs-on: [kuberunner]
     steps:
       - name: "Actions: Checkout"
         uses: actions/checkout@v4
         with:
           ref: ${{ github.event.inputs.tag_name }}
+          submodules: recursive
 
       - name: "Environment: Rust toolchain"
         uses: ./.github/actions/install-rust
@@ -71,33 +72,38 @@ jobs:
           cp -vf target/release/wasm-proc ./
 
       - name: "Build: Production `vara-runtime`"
-        run: cargo build -p vara-runtime --profile production --no-default-features --features std,metadata-hash
+        run: GENERATE_GSDK_METADATA=1 cargo build -p vara-runtime --profile production --no-default-features --features std,metadata-hash
 
       - name: "Test: Production `vara-runtime`"
         run: ./wasm-proc --check-runtime-imports --check-runtime-is-dev false target/production/wbuild/vara-runtime/vara_runtime.compact.wasm
 
       - name: "Artifact: Production `vara-runtime` metadata"
         run: |
-          RUNTIME_WASM=target/production/wbuild/vara-runtime/vara_runtime.compact.compressed.wasm PRINT_SCALE=1 cargo run -p gsdk-api-gen --release > "artifact/production_vara_runtime_v${VARA_PROD_SPEC}_metadata.scale"
+          cp ./gsdk/vara_runtime_prod.scale "artifact/production_vara_runtime_v${VARA_PROD_SPEC}_metadata.scale"
 
       - name: "Artifact: Production `vara-runtime`"
         run: cp target/production/wbuild/vara-runtime/vara_runtime.compact.compressed.wasm "artifact/production_vara_runtime_v${VARA_PROD_SPEC}.wasm"
 
       - name: "Build: Production node client and development `vara-runtime`"
-        run: cargo build -p gear-cli --profile production --features metadata-hash
+        run: GENERATE_GSDK_METADATA=1 cargo build -p gear-cli --profile production --features metadata-hash
+
+      - name: "Build: Production `ethexe` node client"
+        run: cargo build -p ethexe-cli --profile production
 
       - name: "Test: Development `vara-runtime`"
         run: ./wasm-proc --check-runtime-imports --check-runtime-is-dev true target/production/wbuild/vara-runtime/vara_runtime.compact.wasm
 
       - name: "Artifact: Development `vara-runtime` metadata"
         run: |
-          RUNTIME_WASM=target/production/wbuild/vara-runtime/vara_runtime.compact.compressed.wasm PRINT_SCALE=1 cargo run -p gsdk-api-gen --release > "artifact/testnet_vara_runtime_v${VARA_DEV_SPEC}_metadata.scale"
+          cp ./gsdk/vara_runtime.scale "artifact/testnet_vara_runtime_v${VARA_DEV_SPEC}_metadata.scale"
 
       - name: "Artifact: Production node client and development `vara-runtime`"
         run: |
           cp target/production/wbuild/vara-runtime/vara_runtime.compact.compressed.wasm "artifact/testnet_vara_runtime_v${VARA_DEV_SPEC}.wasm"
           cp target/production/gear artifact/gear
+          cp target/production/ethexe artifact/ethexe
           strip artifact/gear || true
+          strip artifact/ethexe || true
 
       - name: Check SHA256 checksums
         run: |

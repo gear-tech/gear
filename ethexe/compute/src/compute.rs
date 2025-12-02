@@ -20,13 +20,13 @@ use crate::{ComputeError, ProcessorExt, Result, service::SubService};
 use ethexe_common::{
     Announce, HashOf,
     db::{
-        AnnounceStorageRO, AnnounceStorageRW, BlockMetaStorageRO, LatestDataStorageRO,
-        LatestDataStorageRW, OnChainStorageRO,
+        AnnounceStorageRO, AnnounceStorageRW, BlockMetaStorageRO, InjectedStorageRW,
+        LatestDataStorageRO, LatestDataStorageRW, OnChainStorageRO,
     },
     events::BlockEvent,
 };
 use ethexe_db::Database;
-use ethexe_processor::BlockProcessingResult;
+use ethexe_runtime_common::FinalizedBlockTransitions;
 use futures::future::BoxFuture;
 use gprimitives::H256;
 use std::{
@@ -36,7 +36,7 @@ use std::{
 
 #[derive(Debug, Clone, Copy)]
 pub struct ComputeConfig {
-    /// The delay in **blocks** in which events from Ethereum will be appply.
+    /// The delay in **blocks** in which events from Ethereum will be apply.
     canonical_quarantine: u8,
 }
 
@@ -151,10 +151,11 @@ impl<P: ProcessorExt> ComputeSubService<P> {
             .process_announce(announce.clone(), request_events)
             .await?;
 
-        let BlockProcessingResult {
+        let FinalizedBlockTransitions {
             transitions,
             states,
             schedule,
+            promises,
         } = processing_result;
 
         db.set_announce_outcome(announce_hash, transitions);
@@ -162,6 +163,10 @@ impl<P: ProcessorExt> ComputeSubService<P> {
         db.set_announce_schedule(announce_hash, schedule);
         db.mutate_announce_meta(announce_hash, |meta| {
             meta.computed = true;
+        });
+
+        promises.into_iter().for_each(|promise| {
+            db.set_promise(promise);
         });
 
         db.mutate_latest_data(|data| {
@@ -253,12 +258,12 @@ mod tests {
             block_hash,
             parent: db.latest_data().unwrap().genesis_announce_hash,
             gas_allowance: Some(100),
-            off_chain_transactions: vec![],
+            injected_transactions: vec![],
         };
         let announce_hash = announce.to_hash();
 
         // Create non-empty processor result with transitions
-        let non_empty_result = BlockProcessingResult {
+        let non_empty_result = FinalizedBlockTransitions {
             transitions: vec![StateTransition {
                 actor_id: ActorId::from([1; 32]),
                 new_state_hash: H256::from([2; 32]),

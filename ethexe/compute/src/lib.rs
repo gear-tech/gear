@@ -18,7 +18,8 @@
 
 pub use compute::ComputeConfig;
 use ethexe_common::{Announce, CodeAndIdUnchecked, HashOf, events::BlockRequestEvent};
-use ethexe_processor::{BlockProcessingResult, Processor, ProcessorError};
+use ethexe_processor::{Processor, ProcessorError};
+use ethexe_runtime_common::FinalizedBlockTransitions;
 use gprimitives::{CodeId, H256};
 pub use service::ComputeService;
 use std::collections::HashSet;
@@ -54,6 +55,8 @@ pub enum ComputeError {
     BlockEventsNotFound(H256),
     #[error("block header not found for synced block({0})")]
     BlockHeaderNotFound(H256),
+    #[error("block validators committed for era not found for block({0})")]
+    BlockValidatorsCommittedForEraNotFound(H256),
     #[error("process code join error")]
     CodeProcessJoin(#[from] tokio::task::JoinError),
     #[error("codes queue not found for computed block({0})")]
@@ -68,6 +71,13 @@ pub enum ComputeError {
     PreparedBlockAnnouncesSetMissing(H256),
     #[error("Latest data not found")]
     LatestDataNotFound,
+    #[error(
+        "Expect validators commitment will be for {expected_era_index}, but receive for {commitment_era_index}"
+    )]
+    ValidatorsCommitmentEraMismatch {
+        expected_era_index: u64,
+        commitment_era_index: u64,
+    },
 
     #[error(transparent)]
     Processor(#[from] ProcessorError),
@@ -81,7 +91,7 @@ pub trait ProcessorExt: Sized + Unpin + Send + Clone + 'static {
         &mut self,
         announce: Announce,
         events: Vec<BlockRequestEvent>,
-    ) -> impl Future<Output = Result<BlockProcessingResult>> + Send;
+    ) -> impl Future<Output = Result<FinalizedBlockTransitions>> + Send;
     fn process_upload_code(&mut self, code_and_id: CodeAndIdUnchecked) -> Result<bool>;
 }
 
@@ -90,7 +100,7 @@ impl ProcessorExt for Processor {
         &mut self,
         announce: Announce,
         events: Vec<BlockRequestEvent>,
-    ) -> Result<BlockProcessingResult> {
+    ) -> Result<FinalizedBlockTransitions> {
         self.process_announce(announce, events)
             .await
             .map_err(Into::into)

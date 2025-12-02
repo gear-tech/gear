@@ -21,10 +21,25 @@
 use core::cmp::Ord;
 use num_traits::{Num, cast::NumCast};
 use parity_scale_codec::{Decode, Encode};
+use scale_decode::DecodeAsType;
+use scale_encode::EncodeAsType;
 use scale_info::TypeInfo;
 
 /// Basic struct for working with integer percentages.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord, Encode, Decode, TypeInfo)]
+#[derive(
+    Clone,
+    Copy,
+    Debug,
+    PartialEq,
+    Eq,
+    PartialOrd,
+    Ord,
+    Encode,
+    EncodeAsType,
+    Decode,
+    DecodeAsType,
+    TypeInfo,
+)]
 pub struct Percent(u32);
 
 impl Percent {

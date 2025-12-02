@@ -17,14 +17,14 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    AlloyEthereum, AlloyProvider, TryGetReceipt,
-    abi::{IRouter, utils::uint256_to_u256},
+    AlloyEthereum, AlloyProvider, IntoBlockId, TryGetReceipt,
+    abi::{IRouter, Router::StorageView, utils::uint256_to_u256},
     wvara::WVara,
 };
 use alloy::{
     consensus::{SidecarBuilder, SimpleCoder},
-    eips::{BlockId, eip7594::BlobTransactionSidecarVariant},
-    primitives::{Address, B256, Bytes, fixed_bytes},
+    eips::eip7594::BlobTransactionSidecarVariant,
+    primitives::{Address, Bytes, fixed_bytes},
     providers::{PendingTransactionBuilder, Provider, ProviderBuilder, RootProvider},
     rpc::types::{Filter, eth::state::AccountOverride},
 };
@@ -60,7 +60,10 @@ impl PendingCodeRequestBuilder {
     }
 
     pub async fn send(self) -> Result<(H256, CodeId)> {
-        let receipt = self.pending_builder.try_get_receipt().await?;
+        let receipt = self
+            .pending_builder
+            .try_get_receipt_check_reverted()
+            .await?;
         Ok(((*receipt.transaction_hash).into(), self.code_id))
     }
 }
@@ -165,13 +168,68 @@ impl Router {
         Err(anyhow!("Failed to define if code is validated"))
     }
 
-    pub async fn create_program(&self, code_id: CodeId, salt: H256) -> Result<(H256, ActorId)> {
+    pub async fn create_program(
+        &self,
+        code_id: CodeId,
+        salt: H256,
+        override_initializer: Option<ActorId>,
+    ) -> Result<(H256, ActorId)> {
         let builder = self.instance.createProgram(
             code_id.into_bytes().into(),
             salt.to_fixed_bytes().into(),
-            Address::ZERO,
+            override_initializer
+                .map(|initializer| {
+                    let initializer = LocalAddress::try_from(initializer).expect("infallible");
+                    Address::new(initializer.0)
+                })
+                .unwrap_or_default(),
         );
         let receipt = builder.send().await?.try_get_receipt().await?;
+
+        let tx_hash = (*receipt.transaction_hash).into();
+        let mut actor_id = None;
+
+        for log in receipt.inner.logs() {
+            if log.topic0().cloned() == Some(signatures::PROGRAM_CREATED) {
+                let event = crate::decode_log::<IRouter::ProgramCreated>(log)?;
+
+                actor_id = Some((*event.actorId.into_word()).into());
+
+                break;
+            }
+        }
+
+        let actor_id = actor_id.ok_or_else(|| anyhow!("Couldn't find `ProgramCreated` log"))?;
+
+        Ok((tx_hash, actor_id))
+    }
+
+    pub async fn create_program_with_abi_interface(
+        &self,
+        code_id: CodeId,
+        salt: H256,
+        override_initializer: Option<ActorId>,
+        abi_interface: ActorId,
+    ) -> Result<(H256, ActorId)> {
+        let abi_interface = LocalAddress::try_from(abi_interface).expect("infallible");
+        let abi_interface = Address::new(abi_interface.0);
+
+        let builder = self.instance.createProgramWithAbiInterface(
+            code_id.into_bytes().into(),
+            salt.to_fixed_bytes().into(),
+            override_initializer
+                .map(|initializer| {
+                    let initializer = LocalAddress::try_from(initializer).expect("infallible");
+                    Address::new(initializer.0)
+                })
+                .unwrap_or_default(),
+            abi_interface,
+        );
+        let receipt = builder
+            .send()
+            .await?
+            .try_get_receipt_check_reverted()
+            .await?;
 
         let tx_hash = (*receipt.transaction_hash).into();
         let mut actor_id = None;
@@ -196,6 +254,18 @@ impl Router {
         commitment: BatchCommitment,
         signatures: Vec<ContractSignature>,
     ) -> Result<H256> {
+        self.commit_batch_pending(commitment, signatures)
+            .await?
+            .try_get_receipt_check_reverted()
+            .await
+            .map(|receipt| H256(receipt.transaction_hash.0))
+    }
+
+    pub async fn commit_batch_pending(
+        &self,
+        commitment: BatchCommitment,
+        signatures: Vec<ContractSignature>,
+    ) -> Result<PendingTransactionBuilder<AlloyEthereum>> {
         let builder = self.instance.commitBatch(
             commitment.into(),
             SignatureType::ECDSA as u8,
@@ -226,13 +296,7 @@ impl Router {
         let gas_limit = Self::HUGE_GAS_LIMIT
             .max(estimate_gas_builder.estimate_gas().await? + Self::GEAR_BLOCK_IS_PREDECESSOR_GAS);
 
-        let receipt = builder
-            .gas(gas_limit)
-            .send()
-            .await?
-            .try_get_receipt()
-            .await?;
-        Ok(H256(receipt.transaction_hash.0))
+        builder.gas(gas_limit).send().await.map_err(Into::into)
     }
 }
 
@@ -300,12 +364,12 @@ impl RouterQuery {
         self.instance.middleware().call().await.map_err(Into::into)
     }
 
-    pub async fn validators_at(&self, block: H256) -> Result<ValidatorsVec> {
+    pub async fn validators_at(&self, id: impl IntoBlockId) -> Result<ValidatorsVec> {
         let validators: Vec<_> = self
             .instance
             .validators()
             .call()
-            .block(B256::from(block.0).into())
+            .block(id.into_block_id())
             .await
             .map(|res| res.into_iter().map(|v| LocalAddress(v.into())).collect())
             .map_err(Into::<anyhow::Error>::into)?;
@@ -362,7 +426,7 @@ impl RouterQuery {
     pub async fn codes_states_at(
         &self,
         code_ids: impl IntoIterator<Item = CodeId>,
-        block: H256,
+        id: impl IntoBlockId,
     ) -> Result<Vec<CodeState>> {
         self.instance
             .codesStates(
@@ -372,7 +436,7 @@ impl RouterQuery {
                     .collect(),
             )
             .call()
-            .block(BlockId::hash(block.0.into()))
+            .block(id.into_block_id())
             .await
             .map(|res| res.into_iter().map(CodeState::from).collect())
             .map_err(Into::into)
@@ -389,7 +453,7 @@ impl RouterQuery {
     pub async fn programs_code_ids_at(
         &self,
         program_ids: impl IntoIterator<Item = ActorId>,
-        block: H256,
+        id: impl IntoBlockId,
     ) -> Result<Vec<CodeId>> {
         self.instance
             .programsCodeIds(
@@ -402,7 +466,7 @@ impl RouterQuery {
                     .collect(),
             )
             .call()
-            .block(BlockId::hash(block.0.into()))
+            .block(id.into_block_id())
             .await
             .map(|res| res.into_iter().map(|c| CodeId::new(c.0)).collect())
             .map_err(Into::into)
@@ -417,28 +481,37 @@ impl RouterQuery {
             .map_err(Into::into)
     }
 
-    pub async fn programs_count_at(&self, block: H256) -> Result<u64> {
+    pub async fn programs_count_at(&self, id: impl IntoBlockId) -> Result<u64> {
         let count = self
             .instance
             .programsCount()
             .call()
-            .block(BlockId::hash(block.0.into()))
+            .block(id.into_block_id())
             .await?;
         // it's impossible to ever reach 18 quintillion programs (maximum of u64)
         let count: u64 = count.try_into().expect("infallible");
         Ok(count)
     }
 
-    pub async fn validated_codes_count_at(&self, block: H256) -> Result<u64> {
+    pub async fn validated_codes_count_at(&self, id: impl IntoBlockId) -> Result<u64> {
         let count = self
             .instance
             .validatedCodesCount()
             .call()
-            .block(BlockId::hash(block.0.into()))
+            .block(id.into_block_id())
             .await?;
         // it's impossible to ever reach 18 quintillion programs (maximum of u64)
         let count: u64 = count.try_into().expect("infallible");
         Ok(count)
+    }
+
+    pub async fn storage_view_at(&self, id: impl IntoBlockId) -> Result<StorageView> {
+        self.instance
+            .storageView()
+            .call()
+            .block(id.into_block_id())
+            .await
+            .map_err(Into::into)
     }
 }
 
@@ -446,7 +519,7 @@ impl RouterQuery {
 mod tests {
     use super::*;
     use crate::deploy::EthereumDeployer;
-    use alloy::node_bindings::Anvil;
+    use alloy::{eips::BlockId, node_bindings::Anvil};
     use ethexe_signer::Signer;
 
     #[tokio::test]
@@ -463,29 +536,49 @@ mod tests {
             )
             .unwrap();
 
-        let ethereum =
+        let states =
             EthereumDeployer::new(anvil.endpoint_url().as_str(), signer, alice.to_address())
                 .await
                 .unwrap()
                 .deploy()
                 .await
+                .unwrap()
+                .router()
+                .query()
+                .codes_states_at([CodeId::new([0xfe; 32])], BlockId::latest())
+                .await
                 .unwrap();
-
-        let router = ethereum.router().query();
-
-        let latest_block = router
-            .instance
-            .provider()
-            .get_block(BlockId::latest())
-            .await
-            .expect("failed to get latest block")
-            .expect("latest block is None");
-        let latest_block = H256(latest_block.header.hash.0);
-
-        let states = router
-            .codes_states_at([CodeId::new([0xfe; 32])], latest_block)
-            .await
-            .unwrap();
         assert_eq!(states, vec![CodeState::Unknown]);
+    }
+
+    #[tokio::test]
+    async fn storage_view() {
+        let anvil = Anvil::new().spawn();
+
+        let signer = Signer::memory();
+        let alice = signer
+            .storage_mut()
+            .add_key(
+                "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+                    .parse()
+                    .unwrap(),
+            )
+            .unwrap();
+
+        let storage =
+            EthereumDeployer::new(anvil.endpoint_url().as_str(), signer, alice.to_address())
+                .await
+                .unwrap()
+                .deploy()
+                .await
+                .unwrap()
+                .router()
+                .query()
+                .storage_view_at(BlockId::latest())
+                .await
+                .unwrap();
+        assert!(storage.validationSettings.validators0.useFromTimestamp > 0);
+        assert_eq!(storage.validationSettings.validators0.list.len(), 1);
+        assert_eq!(storage.validationSettings.validators1.useFromTimestamp, 0);
     }
 }

@@ -11,8 +11,9 @@ use gear_call_gen::{CallGenRng, ClaimValueArgs, SendReplyArgs};
 use gear_core::ids::{ActorId, MessageId};
 use generators::{Batch, BatchGenerator, BatchWithSeed, RuntimeSettings};
 use gsdk::{
-    ext::utils::H256,
-    metadata::{Event, gear::Event as GearEvent},
+    AsGear,
+    ext::subxt::utils::H256,
+    gear::{Event, gear::Event as GearEvent},
 };
 pub use report::CrashAlert;
 use report::{BatchRunReport, MailboxReport, Report};
@@ -294,7 +295,7 @@ async fn process_events(
                 i += 1;
             }
             for event in events.iter() {
-                let event = event?.as_root_event::<gsdk::metadata::Event>()?;
+                let event = event?.as_gear()?;
                 v.push(event);
             }
             tokio::time::sleep(Duration::new(0, 100)).await;
@@ -358,7 +359,7 @@ async fn inspect_crash_events(mut rx: EventsReceiver) -> Result<()> {
     while let Ok(events) = tokio::time::timeout(Duration::from_secs(90), rx.recv()).await? {
         let bh = events.block_hash();
         for event in events.iter() {
-            let event = event?.as_root_event::<gsdk::metadata::Event>()?;
+            let event = event?.as_gear()?;
             if matches!(event, Event::Gear(GearEvent::QueueNotProcessed)) {
                 let crash_err = CrashAlert::MsgProcessingStopped;
                 tracing::info!("{crash_err} at block hash {bh:?}");

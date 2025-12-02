@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2024-2025 Gear Technotracingies Inc.
+// Copyright (C) 2024-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -27,13 +27,15 @@ use ethexe_common::{
     ValidatorsVec,
     db::{
         AnnounceMeta, AnnounceStorageRO, AnnounceStorageRW, BlockMeta, BlockMetaStorageRO,
-        BlockMetaStorageRW, CodesStorageRO, CodesStorageRW, HashStorageRO, LatestData,
-        LatestDataStorageRO, LatestDataStorageRW, OnChainStorageRO, OnChainStorageRW,
+        BlockMetaStorageRW, CodesStorageRO, CodesStorageRW, HashStorageRO, InjectedStorageRO,
+        InjectedStorageRW, LatestData, LatestDataStorageRO, LatestDataStorageRW, OnChainStorageRO,
+        OnChainStorageRW,
     },
     events::BlockEvent,
     gear::StateTransition,
-    tx_pool::SignedOffchainTransaction,
+    injected::{InjectedTransaction, Promise, SignedInjectedTransaction},
 };
+
 use ethexe_runtime_common::state::{
     Allocations, DispatchStash, Mailbox, MemoryPages, MemoryPagesRegion, MessageQueue,
     ProgramState, Storage, UserMailbox, Waitlist,
@@ -67,11 +69,14 @@ enum Key {
     CodeUploadInfo(CodeId) = 10,
     CodeValid(CodeId) = 11,
 
-    // TODO (kuzmindev): use `HashOf<T>` here
-    SignedTransaction(H256) = 12,
+    InjectedTransaction(HashOf<InjectedTransaction>) = 12,
+    Promise(HashOf<InjectedTransaction>) = 13,
 
-    LatestData = 13,
-    Timelines = 14,
+    LatestData = 14,
+    Timelines = 15,
+
+    // TODO kuzmindev: temporal solution - must move into block meta or something else.
+    LatestEraValidatorsCommitted(H256),
 }
 
 impl Key {
@@ -86,9 +91,9 @@ impl Key {
     fn to_bytes(&self) -> Vec<u8> {
         let prefix = self.prefix();
         match self {
-            Self::BlockSmallData(hash) | Self::BlockEvents(hash) => {
-                [prefix.as_ref(), hash.as_ref()].concat()
-            }
+            Self::BlockSmallData(hash)
+            | Self::BlockEvents(hash)
+            | Self::LatestEraValidatorsCommitted(hash) => [prefix.as_ref(), hash.as_ref()].concat(),
 
             Self::ValidatorSet(era_index) => {
                 [prefix.as_ref(), era_index.to_le_bytes().as_ref()].concat()
@@ -96,9 +101,11 @@ impl Key {
             Self::AnnounceProgramStates(hash)
             | Self::AnnounceOutcome(hash)
             | Self::AnnounceSchedule(hash)
-            | Self::AnnounceMeta(hash) => [prefix.as_ref(), hash.hash().as_ref()].concat(),
+            | Self::AnnounceMeta(hash) => [prefix.as_ref(), hash.inner().as_ref()].concat(),
 
-            Self::SignedTransaction(hash) => [prefix.as_ref(), hash.0.as_ref()].concat(),
+            Self::InjectedTransaction(hash) | Self::Promise(hash) => {
+                [prefix.as_ref(), hash.inner().as_ref()].concat()
+            }
 
             Self::ProgramToCodeId(program_id) => [prefix.as_ref(), program_id.as_ref()].concat(),
 
@@ -167,21 +174,6 @@ impl Database {
         self.cas.write(data)
     }
 
-    pub fn get_offchain_transaction(&self, tx_hash: H256) -> Option<SignedOffchainTransaction> {
-        self.kv
-            .get(&Key::SignedTransaction(tx_hash).to_bytes())
-            .map(|data| {
-                Decode::decode(&mut data.as_slice())
-                    .expect("failed to data into `SignedTransaction`")
-            })
-    }
-
-    pub fn set_offchain_transaction(&self, tx: SignedOffchainTransaction) {
-        let tx_hash = tx.tx_hash();
-        self.kv
-            .put(&Key::SignedTransaction(tx_hash).to_bytes(), tx.encode());
-    }
-
     fn with_small_data<R>(
         &self,
         block_hash: H256,
@@ -245,7 +237,7 @@ impl BlockMetaStorageRW for Database {
 
 impl CodesStorageRO for Database {
     fn original_code_exists(&self, code_id: CodeId) -> bool {
-        self.kv.contains(code_id.as_ref())
+        self.cas.contains(code_id.into())
     }
 
     fn original_code(&self, code_id: CodeId) -> Option<Vec<u8>> {
@@ -367,7 +359,7 @@ impl Storage for Database {
     }
 
     fn message_queue(&self, hash: HashOf<MessageQueue>) -> Option<MessageQueue> {
-        self.cas.read(hash.hash()).map(|data| {
+        self.cas.read(hash.inner()).map(|data| {
             MessageQueue::decode(&mut &data[..]).expect("Failed to decode data into `MessageQueue`")
         })
     }
@@ -377,7 +369,7 @@ impl Storage for Database {
     }
 
     fn waitlist(&self, hash: HashOf<Waitlist>) -> Option<Waitlist> {
-        self.cas.read(hash.hash()).map(|data| {
+        self.cas.read(hash.inner()).map(|data| {
             Waitlist::decode(&mut data.as_slice()).expect("Failed to decode data into `Waitlist`")
         })
     }
@@ -387,7 +379,7 @@ impl Storage for Database {
     }
 
     fn dispatch_stash(&self, hash: HashOf<DispatchStash>) -> Option<DispatchStash> {
-        self.cas.read(hash.hash()).map(|data| {
+        self.cas.read(hash.inner()).map(|data| {
             DispatchStash::decode(&mut data.as_slice())
                 .expect("Failed to decode data into `DispatchStash`")
         })
@@ -398,7 +390,7 @@ impl Storage for Database {
     }
 
     fn mailbox(&self, hash: HashOf<Mailbox>) -> Option<Mailbox> {
-        self.cas.read(hash.hash()).map(|data| {
+        self.cas.read(hash.inner()).map(|data| {
             Mailbox::decode(&mut data.as_slice()).expect("Failed to decode data into `Mailbox`")
         })
     }
@@ -408,7 +400,7 @@ impl Storage for Database {
     }
 
     fn user_mailbox(&self, hash: HashOf<UserMailbox>) -> Option<UserMailbox> {
-        self.cas.read(hash.hash()).map(|data| {
+        self.cas.read(hash.inner()).map(|data| {
             UserMailbox::decode(&mut data.as_slice())
                 .expect("Failed to decode data into `UserMailbox`")
         })
@@ -419,13 +411,13 @@ impl Storage for Database {
     }
 
     fn memory_pages(&self, hash: HashOf<MemoryPages>) -> Option<MemoryPages> {
-        self.cas.read(hash.hash()).map(|data| {
+        self.cas.read(hash.inner()).map(|data| {
             MemoryPages::decode(&mut &data[..]).expect("Failed to decode data into `MemoryPages`")
         })
     }
 
     fn memory_pages_region(&self, hash: HashOf<MemoryPagesRegion>) -> Option<MemoryPagesRegion> {
-        self.cas.read(hash.hash()).map(|data| {
+        self.cas.read(hash.inner()).map(|data| {
             MemoryPagesRegion::decode(&mut &data[..])
                 .expect("Failed to decode data into `MemoryPagesRegion`")
         })
@@ -443,7 +435,7 @@ impl Storage for Database {
     }
 
     fn allocations(&self, hash: HashOf<Allocations>) -> Option<Allocations> {
-        self.cas.read(hash.hash()).map(|data| {
+        self.cas.read(hash.inner()).map(|data| {
             Allocations::decode(&mut &data[..]).expect("Failed to decode data into `Allocations`")
         })
     }
@@ -454,7 +446,7 @@ impl Storage for Database {
 
     fn payload(&self, hash: HashOf<Payload>) -> Option<Payload> {
         self.cas
-            .read(hash.hash())
+            .read(hash.inner())
             .map(|data| Payload::try_from(data).expect("Failed to decode data into `Payload`"))
     }
 
@@ -463,7 +455,7 @@ impl Storage for Database {
     }
 
     fn page_data(&self, hash: HashOf<PageBuf>) -> Option<PageBuf> {
-        self.cas.read(hash.hash()).map(|data| {
+        self.cas.read(hash.inner()).map(|data| {
             PageBuf::decode(&mut data.as_slice()).expect("Failed to decode data into `PageBuf`")
         })
     }
@@ -516,6 +508,15 @@ impl OnChainStorageRO for Database {
                     .expect("Failed to decode data into `ValidatorsVec`")
             })
     }
+
+    fn block_validators_committed_for_era(&self, block_hash: H256) -> Option<u64> {
+        self.kv
+            .get(&Key::LatestEraValidatorsCommitted(block_hash).to_bytes())
+            .map(|data| {
+                Decode::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `u64` (era_index)")
+            })
+    }
 }
 
 impl OnChainStorageRW for Database {
@@ -554,12 +555,55 @@ impl OnChainStorageRW for Database {
             validator_set.encode(),
         );
     }
+
+    fn set_block_validators_committed_for_era(&self, block_hash: H256, era_index: u64) {
+        self.kv.put(
+            &Key::LatestEraValidatorsCommitted(block_hash).to_bytes(),
+            era_index.encode(),
+        );
+    }
+}
+
+impl InjectedStorageRO for Database {
+    fn injected_transaction(
+        &self,
+        hash: HashOf<InjectedTransaction>,
+    ) -> Option<SignedInjectedTransaction> {
+        self.kv
+            .get(&Key::InjectedTransaction(hash).to_bytes())
+            .map(|data| {
+                SignedInjectedTransaction::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `SignedInjectedTransaction`")
+            })
+    }
+
+    fn promise(&self, hash: HashOf<InjectedTransaction>) -> Option<Promise> {
+        self.kv.get(&Key::Promise(hash).to_bytes()).map(|data| {
+            Promise::decode(&mut data.as_slice()).expect("Failed to decode data into `Promise`")
+        })
+    }
+}
+
+impl InjectedStorageRW for Database {
+    fn set_injected_transaction(&self, tx: SignedInjectedTransaction) {
+        let tx_hash = tx.data().to_hash();
+
+        tracing::trace!(injected_tx_hash = ?tx_hash, "Set injected transaction");
+        self.kv
+            .put(&Key::InjectedTransaction(tx_hash).to_bytes(), tx.encode());
+    }
+
+    fn set_promise(&self, promise: Promise) {
+        tracing::trace!(injected_tx_hash = ?promise.tx_hash, "Set injected tx promise");
+        self.kv
+            .put(&Key::Promise(promise.tx_hash).to_bytes(), promise.encode());
+    }
 }
 
 impl AnnounceStorageRO for Database {
     fn announce(&self, hash: HashOf<Announce>) -> Option<Announce> {
-        self.cas.read(hash.hash()).map(|data| {
-            Announce::decode(&mut &data[..]).expect("Failed to decode data into `ProducerBlock`")
+        self.cas.read(hash.inner()).map(|data| {
+            Announce::decode(&mut &data[..]).expect("Failed to decode data into `Announce`")
         })
     }
 
@@ -667,32 +711,28 @@ impl LatestDataStorageRW for Database {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ethexe_common::{
-        ecdsa::PrivateKey,
-        events::RouterEvent,
-        tx_pool::{OffchainTransaction, RawOffchainTransaction::SendMessage},
-    };
+    use ethexe_common::{SimpleBlockData, ecdsa::PrivateKey, events::RouterEvent};
     use gear_core::code::{InstantiatedSectionSizes, InstrumentationStatus};
 
     #[test]
-    fn test_offchain_transaction() {
+    fn test_injected_transaction() {
         let db = Database::memory();
 
         let private_key = PrivateKey::from([1; 32]);
-        let tx = SignedOffchainTransaction::create(
+        let tx = SignedInjectedTransaction::create(
             private_key,
-            OffchainTransaction {
-                raw: SendMessage {
-                    program_id: H256::random().into(),
-                    payload: H256::random().0.to_vec(),
-                },
+            InjectedTransaction {
+                destination: ActorId::zero(),
+                payload: vec![].into(),
+                value: 0,
                 reference_block: H256::random(),
+                salt: vec![].into(),
             },
         )
         .unwrap();
-        let tx_hash = tx.tx_hash();
-        db.set_offchain_transaction(tx.clone());
-        assert_eq!(db.get_offchain_transaction(tx_hash), Some(tx));
+        let tx_hash = tx.data().to_hash();
+        db.set_injected_transaction(tx.clone());
+        assert_eq!(db.injected_transaction(tx_hash), Some(tx));
     }
 
     #[test]
@@ -703,7 +743,7 @@ mod tests {
             block_hash: H256::random(),
             parent: HashOf::random(),
             gas_allowance: Some(1000),
-            off_chain_transactions: vec![],
+            injected_transactions: vec![],
         };
         let announce_hash = db.set_announce(announce.clone());
         assert_eq!(announce_hash, announce.to_hash());
@@ -780,7 +820,10 @@ mod tests {
         assert!(db.latest_data().is_none());
 
         let latest_data = LatestData {
-            synced_block_height: 42,
+            synced_block: SimpleBlockData {
+                hash: H256::random(),
+                header: Default::default(),
+            },
             prepared_block_hash: H256::random(),
             computed_announce_hash: HashOf::random(),
             genesis_block_hash: H256::random(),

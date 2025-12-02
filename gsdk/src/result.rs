@@ -18,31 +18,18 @@
 
 //! GSdk Results
 
+use std::borrow::Borrow;
+
 pub use crate::tx_status::{TxError, TxStatusExt, TxSuccess};
 
 use gear_core::ids::ActorId;
-use subxt::ext::{scale_encode, subxt_rpcs};
+use subxt::{
+    error::DispatchError,
+    ext::{scale_encode, subxt_rpcs},
+};
 
-#[derive(Debug, Clone, PartialEq, Eq, Hash, derive_more::Display)]
-#[display("Page {index} of Program {program}")]
-pub struct FailedPage {
-    pub index: u32,
-    pub program: ActorId,
-}
-
-impl FailedPage {
-    pub fn new(index: u32, program: ActorId) -> Self {
-        Self { index, program }
-    }
-
-    pub fn invalid(self) -> Error {
-        Error::InvalidPage(self)
-    }
-
-    pub fn not_found(self) -> Error {
-        Error::PageNotFound(self)
-    }
-}
+/// Custom Result
+pub type Result<T, E = Error> = std::result::Result<T, E>;
 
 #[derive(Debug, thiserror::Error, derive_more::Unwrap)]
 pub enum Error {
@@ -74,7 +61,7 @@ pub enum Error {
     ClientError(#[from] jsonrpsee::core::ClientError),
 
     #[error(transparent)]
-    Subxt(#[from] Box<subxt::Error>),
+    Subxt(Box<subxt::Error>),
 
     #[error(transparent)]
     Codec(#[from] subxt::ext::codec::Error),
@@ -93,13 +80,56 @@ pub enum Error {
 
     #[error(transparent)]
     Metadata(#[from] subxt::error::MetadataError),
+
+    #[error("runtime error: {0:?}")]
+    Runtime(crate::RuntimeError),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Hash, derive_more::Display)]
+#[display("Page {index} of Program {program}")]
+pub struct FailedPage {
+    pub index: u32,
+    pub program: ActorId,
+}
+
+impl FailedPage {
+    pub fn new(index: u32, program: ActorId) -> Self {
+        Self { index, program }
+    }
+
+    pub fn invalid(self) -> Error {
+        Error::InvalidPage(self)
+    }
+
+    pub fn not_found(self) -> Error {
+        Error::PageNotFound(self)
+    }
+}
+
+impl From<crate::RuntimeError> for Error {
+    fn from(error: crate::RuntimeError) -> Self {
+        Self::Runtime(error)
+    }
+}
+
+fn from_subxt_error<E: Borrow<subxt::Error> + Into<Box<subxt::Error>>>(error: E) -> Error {
+    if let subxt::Error::Runtime(DispatchError::Module(err)) = error.borrow()
+        && let Ok(runtime_error) = err.as_root_error()
+    {
+        Error::Runtime(runtime_error)
+    } else {
+        Error::Subxt(error.into())
+    }
+}
+
+impl From<Box<subxt::Error>> for Error {
+    fn from(error: Box<subxt::Error>) -> Self {
+        from_subxt_error(error)
+    }
 }
 
 impl From<subxt::Error> for Error {
     fn from(error: subxt::Error) -> Self {
-        Self::Subxt(Box::new(error))
+        from_subxt_error(error)
     }
 }
-
-/// Custom Result
-pub type Result<T, E = Error> = std::result::Result<T, E>;

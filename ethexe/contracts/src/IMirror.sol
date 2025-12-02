@@ -101,13 +101,15 @@ interface IMirror {
 
     function router() external view returns (address);
 
-    function inheritor() external view returns (address);
-
-    function initializer() external view returns (address);
-
     function stateHash() external view returns (bytes32);
 
     function nonce() external view returns (uint256);
+
+    function exited() external view returns (bool);
+
+    function inheritor() external view returns (address);
+
+    function initializer() external view returns (address);
 
     /* Primary Gear logic */
 
@@ -125,5 +127,5 @@ interface IMirror {
 
     function initialize(address initializer, address abiInterface, bool isSmall) external;
 
-    function performStateTransition(Gear.StateTransition calldata transition) external returns (bytes32);
+    function performStateTransition(Gear.StateTransition calldata transition) external payable returns (bytes32);
 }

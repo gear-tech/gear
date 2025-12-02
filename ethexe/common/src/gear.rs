@@ -34,6 +34,8 @@ pub const WVARA_PER_SECOND: u128 = 10_000_000_000_000;
 
 /// Gas limit for chunk processing.
 pub const CHUNK_PROCESSING_GAS_LIMIT: u64 = 1_000_000_000_000;
+/// Gas charge threshold for panicked injected messages.
+pub const INJECTED_MESSAGE_PANIC_GAS_CHARGE_THRESHOLD: u64 = 1_000_000_000;
 
 /// Max block gas limit for the node.
 pub const MAX_BLOCK_GAS_LIMIT: u64 = 9_000_000_000_000;
@@ -80,7 +82,7 @@ impl ToDigest for Option<ChainCommitment> {
         };
 
         hasher.update(transitions.to_digest());
-        hasher.update(head_announce.hash().0);
+        hasher.update(head_announce.inner().0);
     }
 }
 
@@ -190,6 +192,12 @@ pub struct BatchCommitment {
     /// This is used to verify that the batch is committed in the correct order.
     pub previous_batch: Digest,
 
+    /// How long the batch is valid (in blocks since `block_hash`).
+    /// if 1 - then valid only in child block
+    /// if 2 - then valid in child and grandchild blocks
+    /// ... etc.
+    pub expiry: u8,
+
     pub chain_commitment: Option<ChainCommitment>,
     pub code_commitments: Vec<CodeCommitment>,
     pub validators_commitment: Option<ValidatorsCommitment>,
@@ -202,7 +210,8 @@ impl ToDigest for BatchCommitment {
         let Self {
             block_hash,
             timestamp,
-            previous_batch: previous_committed_block_hash,
+            previous_batch,
+            expiry,
             chain_commitment,
             code_commitments,
             validators_commitment,
@@ -211,7 +220,8 @@ impl ToDigest for BatchCommitment {
 
         hasher.update(block_hash);
         hasher.update(crate::u64_into_uint48_be_bytes_lossy(*timestamp));
-        hasher.update(previous_committed_block_hash);
+        hasher.update(previous_batch);
+        hasher.update(expiry.to_be_bytes());
         hasher.update(chain_commitment.to_digest());
         hasher.update(code_commitments.to_digest());
         hasher.update(rewards_commitment.to_digest());
@@ -367,7 +377,20 @@ pub struct StateTransition {
     pub new_state_hash: H256,
     pub exited: bool,
     pub inheritor: ActorId,
+    /// We represent `value_to_receive` as `u128` and `bool` because each non-zero byte costs 16 gas,
+    /// and each zero byte costs 4 gas (see <https://evm.codes/about#gascosts>).
+    ///
+    /// Negative numbers will be stored like this:
+    /// ```
+    /// $ cast
+    /// > -1 ether
+    /// Type: int256
+    /// Hex: 0xfffffffffffffffffffffffffffffffffffffffffffffffffffffff21f494c589c0000
+    /// ```
+    ///
+    /// This is optimization on EVM side to reduce gas costs for storing and processing values.
     pub value_to_receive: u128,
+    pub value_to_receive_negative_sign: bool,
     pub value_claims: Vec<ValueClaim>,
     pub messages: Vec<Message>,
 }
@@ -381,6 +404,7 @@ impl ToDigest for StateTransition {
             exited,
             inheritor,
             value_to_receive,
+            value_to_receive_negative_sign,
             value_claims,
             messages,
         } = self;
@@ -390,6 +414,7 @@ impl ToDigest for StateTransition {
         hasher.update([*exited as u8]);
         hasher.update(inheritor.to_address_lossy());
         hasher.update(value_to_receive.to_be_bytes());
+        hasher.update([*value_to_receive_negative_sign as u8]);
         hasher.update(value_claims.to_digest());
         hasher.update(messages.to_digest());
     }

@@ -22,7 +22,7 @@ use anyhow::{Context, anyhow};
 use clap::Parser;
 use gsdk::{
     Event,
-    metadata::{gear::Event as GearEvent, runtime_types::gear_common::event::MessageEntry},
+    gear::{gear::Event as GearEvent, runtime_types::gear_common::event::MessageEntry},
     signer::Signer,
 };
 use std::{fs, path::PathBuf};
@@ -71,7 +71,7 @@ impl Upload {
         };
 
         if self.code_only {
-            signer.calls.upload_code(code).await?;
+            signer.calls().upload_code(code).await?;
             return Ok(());
         }
 
@@ -80,14 +80,14 @@ impl Upload {
             gas_limit
         } else {
             signer
-                .rpc
+                .rpc()
                 .calculate_upload_gas(None, code.clone(), payload.clone(), self.value, false, None)
                 .await?
                 .min_limit
         };
 
         let tx = signer
-            .calls
+            .calls()
             .upload_program(code, self.salt.to_vec()?, payload, gas_limit, self.value)
             .await?;
 
@@ -99,11 +99,11 @@ impl Upload {
                     entry: MessageEntry::Init,
                     ..
                 }) => {
-                    log::info!("Program ID: 0x{}", hex::encode(destination.0));
-                    log::info!("Init Message ID: 0x{}", hex::encode(id.0));
+                    log::info!("Program ID: 0x{}", hex::encode(destination));
+                    log::info!("Init Message ID: 0x{}", hex::encode(id));
                 }
                 Event::Gear(GearEvent::CodeChanged { id, .. }) => {
-                    log::info!("Code ID: 0x{}", hex::encode(id.0));
+                    log::info!("Code ID: 0x{}", hex::encode(id));
                 }
                 _ => {}
             }
