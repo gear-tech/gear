@@ -125,7 +125,7 @@ impl ValidatorList {
             .block_header(chain_head)
             .context("failed to get chain head block header")?;
 
-        // we allow same chain head in
+        // we allow same chain head height in case of reorgs
         #[cfg(test)]
         assert_ne!(
             chain_head_header.height, self.chain_head.header.height,
