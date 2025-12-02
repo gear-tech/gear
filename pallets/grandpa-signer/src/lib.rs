@@ -191,7 +191,9 @@ pub mod pallet {
             );
 
             let req_id = NextRequestId::<T>::get();
-            let next_id = req_id.checked_add(1).ok_or(Error::<T>::RequestIdExhausted)?;
+            let next_id = req_id
+                .checked_add(1)
+                .ok_or(Error::<T>::RequestIdExhausted)?;
 
             let set_id = set_id.unwrap_or_else(T::AuthorityProvider::current_set_id);
             ensure!(
@@ -280,10 +282,9 @@ pub mod pallet {
         }
 
         fn should_backoff(key: &[u8], now: u64) -> bool {
-            if let Some(bytes) = sp_io::offchain::local_storage_get(
-                sp_core::offchain::StorageKind::PERSISTENT,
-                key,
-            ) && bytes.len() == 8
+            if let Some(bytes) =
+                sp_io::offchain::local_storage_get(sp_core::offchain::StorageKind::PERSISTENT, key)
+                && bytes.len() == 8
             {
                 let last = u64::from_le_bytes(bytes.as_slice().try_into().unwrap());
                 return now.saturating_sub(last) < Self::BACKOFF_BLOCKS;
