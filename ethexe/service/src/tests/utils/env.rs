@@ -28,14 +28,14 @@ use crate::{
 };
 use alloy::{
     node_bindings::{Anvil, AnvilInstance},
-    providers::{Provider as _, ProviderBuilder, RootProvider, ext::AnvilApi},
+    providers::{ProviderBuilder, RootProvider, ext::AnvilApi},
     rpc::types::anvil::MineOptions,
 };
 use anyhow::Context;
 use ethexe_blob_loader::{BlobLoader, BlobLoaderService, ConsensusLayerConfig};
 use ethexe_common::{
-    Address, BlockHeader, COMMITMENT_DELAY_LIMIT, CodeAndId, DEFAULT_BLOCK_GAS_LIMIT,
-    SimpleBlockData, ToDigest, ValidatorsVec,
+    Address, COMMITMENT_DELAY_LIMIT, CodeAndId, DEFAULT_BLOCK_GAS_LIMIT, SimpleBlockData, ToDigest,
+    ValidatorsVec,
     ecdsa::{PrivateKey, PublicKey, SignedData},
     events::{BlockEvent, MirrorEvent, RouterEvent},
     network::{SignedValidatorMessage, ValidatorMessage},
