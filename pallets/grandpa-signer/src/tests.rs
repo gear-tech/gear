@@ -293,7 +293,7 @@ fn identical_payload_can_be_signed_for_multiple_requests() {
                 RuntimeOrigin::none(),
                 0,
                 pair.public(),
-                sig.clone()
+                sig
             ));
             assert_ok!(GrandpaSigner::submit_signature(
                 RuntimeOrigin::none(),
