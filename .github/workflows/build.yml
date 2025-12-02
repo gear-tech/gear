@@ -156,14 +156,13 @@ jobs:
           eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
 
       - name: "Build: Gear node"
-        run: GENERATE_GSDK_METADATA=1 ./scripts/gear.sh build node --release --locked
+        run: ./scripts/gear.sh build node --release --locked
 
       - name: "Build: Prepare artifact"
         run: |
           mkdir -p artifact/wbuild/vara-runtime
           cp target/${{ matrix.targets.target }}/release/gear* artifact/
           cp target/${{ matrix.targets.target }}/release/wbuild/vara-runtime/*.wasm artifact/wbuild/vara-runtime/
-          cp gsdk/vara_runtime.scale artifact/
 
       - name: "ACTIONS: Upload node and VARA runtime"
         uses: actions/upload-artifact@v4
@@ -319,10 +318,6 @@ jobs:
         with:
           name: gear-cli-and-runtime-release-x86_64-unknown-linux-gnu
           path: gear-cli-and-runtime-release
-
-      - name: "Prepare: Sync runtime metadata for gsdk"
-        run: |
-          cp gear-cli-and-runtime-release/vara_runtime.scale gsdk/vara_runtime.scale
 
       - name: "Test: Workspace"
         run: cargo nextest run --workspace --all-targets --all-features -E 'not package(/fuzz/)' ${{ matrix.profiles.flags }}
