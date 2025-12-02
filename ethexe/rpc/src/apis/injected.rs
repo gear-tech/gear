@@ -23,7 +23,7 @@ use ethexe_common::{
     injected::{InjectedTransaction, RpcOrNetworkInjectedTx, SignedPromise},
 };
 use jsonrpsee::{
-    PendingSubscriptionSink, SubscriptionMessage,
+     PendingSubscriptionSink, SubscriptionMessage,
     core::{RpcResult, SubscriptionResult, async_trait},
     proc_macros::rpc,
 };
@@ -82,6 +82,11 @@ impl InjectedApi {
         if let Err(promise) = promise_sender.send(promise) {
             tracing::trace!(promise = ?promise, "rpc promise receiver dropped");
         }
+    }
+
+    /// Returns the number of current promise subscribers waiting for promises.
+    pub fn promise_subscribers_count(&self) -> usize {
+        self.promise_waiters.len()
     }
 }
 

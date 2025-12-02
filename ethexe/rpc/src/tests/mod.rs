@@ -1,0 +1,201 @@
+// This file is part of Gear.
+//
+// Copyright (C) 2025 Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+use crate::{
+    InjectedTransactionAcceptance, RpcConfig, RpcEvent, RpcServer, RpcService, apis::InjectedClient,
+};
+
+use ethexe_common::{
+    ecdsa::PrivateKey,
+    gear::MAX_BLOCK_GAS_LIMIT,
+    injected::{Promise, RpcOrNetworkInjectedTx, SignedPromise},
+    mock::Mock,
+};
+use ethexe_db::Database;
+use ethexe_processor::RunnerConfig;
+use futures::StreamExt;
+use gear_core::{
+    message::{ReplyCode, SuccessReplyReason},
+    rpc::ReplyInfo,
+};
+use jsonrpsee::{server::ServerHandle, ws_client::WsClientBuilder};
+use std::net::{IpAddr, Ipv4Addr, SocketAddr};
+use tokio::task::{JoinHandle, JoinSet};
+
+/// [`MockService`] simulates main `ethexe_service::Service` behavior.
+/// It accepts injected transactions and periodically runs batches of them and produces promises.
+struct MockService {
+    pub rpc: RpcService,
+    pub handle: ServerHandle,
+}
+
+impl MockService {
+    /// Spawns the main loop which collects injected transactions within 100ms intervals and
+    /// then processes them in batches.
+    pub fn spawn(mut self) -> JoinHandle<()> {
+        tokio::spawn(async move {
+            let mut tx_batch_interval = tokio::time::interval(std::time::Duration::from_millis(50));
+
+            let mut tx_batch = Vec::new();
+
+            loop {
+                tokio::select! {
+                    _ = tx_batch_interval.tick() => {
+                        for tx in tx_batch.drain(..) {
+                            let promise = Self::create_promise_for(tx);
+                            self.rpc.provide_promise(promise);
+                        }
+                    },
+                    _ = self.handle.clone().stopped() => {
+                        return;
+                    },
+                    event = self.rpc.next() => {
+                        let Some(RpcEvent::InjectedTransaction {transaction, response_sender}) = event else {
+                            unimplemented!("RPC event must be some")
+                        };
+
+                        response_sender.send(InjectedTransactionAcceptance::Accept).expect("Response sender will be valid");
+                        tx_batch.push(transaction);
+                    },
+                }
+            }
+        })
+    }
+
+    fn create_promise_for(tx: RpcOrNetworkInjectedTx) -> SignedPromise {
+        let promise = Promise {
+            tx_hash: tx.tx.data().to_hash(),
+            reply: ReplyInfo {
+                payload: vec![],
+                value: 0,
+                code: ReplyCode::Success(SuccessReplyReason::Manual),
+            },
+        };
+        SignedPromise::create(PrivateKey::random(), promise).expect("Signing promise will succeed")
+    }
+}
+
+/// Starts a new RPC server listening on the given address.
+async fn start_new_server(addr: SocketAddr) -> (ServerHandle, RpcService) {
+    let rpc_config = RpcConfig {
+        listen_addr: addr,
+        cors: None,
+        runner_config: RunnerConfig::common(2, MAX_BLOCK_GAS_LIMIT),
+    };
+    RpcServer::new(rpc_config, Database::memory())
+        .run_server()
+        .await
+        .expect("RPC Server will start successfully")
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn test_cleanup_promise_subscribers() {
+    // Initialize logger
+    tracing_subscriber::fmt::init();
+
+    let listen_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8778);
+    let (handle, rpc) = start_new_server(listen_addr).await;
+
+    let injected_api = rpc.injected_api.clone();
+    let mock_service = MockService { rpc, handle };
+    let handle = mock_service.spawn();
+
+    let ws_client = WsClientBuilder::new()
+        .build(format!("ws://{}", listen_addr))
+        .await
+        .expect("WS client will be created");
+
+    // Correct workflow: send transaction, receive promise, unsubscribe.
+    {
+        let client = WsClientBuilder::new()
+            .build(format!("ws://{}", listen_addr))
+            .await
+            .expect("WS client will be created");
+
+        let mut subscribers = JoinSet::new();
+        for _ in 0..500 {
+            let mut sub = client
+                .send_transaction_and_watch(RpcOrNetworkInjectedTx::mock(()))
+                .await
+                .expect("Subscription will be created");
+
+            subscribers.spawn(async move {
+                let promise = sub
+                    .next()
+                    .await
+                    .expect("Promise will be received")
+                    .expect("No error in subscription result");
+
+                assert_eq!(
+                    promise.data().reply.code,
+                    ReplyCode::Success(SuccessReplyReason::Manual)
+                );
+
+                sub.unsubscribe().await.expect("Unsubscribe will succeed");
+            });
+        }
+        let _ = subscribers.join_all().await;
+        assert_eq!(injected_api.promise_subscribers_count(), 0);
+    }
+
+    // Subscribers that do not unsubscribe after receiving the promise.
+    {
+        let mut subscribers = JoinSet::new();
+        for _ in 0..500 {
+            let mut subscription = ws_client
+                .send_transaction_and_watch(RpcOrNetworkInjectedTx::mock(()))
+                .await
+                .expect("Subscription will be created");
+
+            subscribers.spawn(async move {
+                let promise = subscription
+                    .next()
+                    .await
+                    .expect("Promise will be received")
+                    .expect("No error in subscription result");
+
+                assert_eq!(
+                    promise.data().reply.code,
+                    ReplyCode::Success(SuccessReplyReason::Manual)
+                );
+            });
+        }
+        let _ = subscribers.join_all().await;
+
+        assert_eq!(injected_api.promise_subscribers_count(), 0);
+    }
+
+    // Subscribers that are dropped immediately after creation.
+    {
+        for _ in 0..500 {
+            let subscription = ws_client
+                .send_transaction_and_watch(RpcOrNetworkInjectedTx::mock(()))
+                .await
+                .expect("Subscription will be created");
+
+            drop(subscription)
+        }
+
+        // Give some time for the server to receive the notification about dropped connections.
+        tokio::time::sleep(std::time::Duration::from_millis(100)).await;
+
+        assert_eq!(injected_api.promise_subscribers_count(), 0);
+    }
+
+    drop(handle);
+}
