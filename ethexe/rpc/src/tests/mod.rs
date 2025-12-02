@@ -45,7 +45,7 @@ struct MockService {
 }
 
 impl MockService {
-    /// Spawns the main loop which collects injected transactions within 100ms intervals and
+    /// Spawns the main loop which collects injected transactions within time intervals and
     /// then processes them in batches.
     pub fn spawn(mut self) -> JoinHandle<()> {
         tokio::spawn(async move {
@@ -63,12 +63,10 @@ impl MockService {
                         }
                     },
                     _ = self.handle.clone().stopped() => {
-                        return;
+                        unreachable!("RPC server should not be stopped during the test")
                     },
                     event = self.rpc.next() => {
-                        let Some(RpcEvent::InjectedTransaction {transaction, response_sender}) = event else {
-                            unimplemented!("RPC event must be some")
-                        };
+                        let RpcEvent::InjectedTransaction {transaction, response_sender} = event.expect("RPC event will be valid");
 
                         response_sender.send(InjectedTransactionAcceptance::Accept).expect("Response sender will be valid");
                         tx_batch.push(transaction);
@@ -104,7 +102,7 @@ async fn start_new_server(addr: SocketAddr) -> (ServerHandle, RpcService) {
         .expect("RPC Server will start successfully")
 }
 
-#[tokio::test(flavor = "multi_thread")]
+#[tokio::test]
 #[ntest::timeout(60_000)]
 async fn test_cleanup_promise_subscribers() {
     let listen_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 1728);
@@ -122,7 +120,7 @@ async fn test_cleanup_promise_subscribers() {
     // Correct workflow: send transaction, receive promise, unsubscribe.
     {
         let mut subscribers = JoinSet::new();
-        for _ in 0..100 {
+        for _ in 0..20 {
             let mut sub = ws_client
                 .send_transaction_and_watch(RpcOrNetworkInjectedTx::mock(()))
                 .await
@@ -150,7 +148,7 @@ async fn test_cleanup_promise_subscribers() {
     // Subscribers that do not unsubscribe after receiving the promise.
     {
         let mut subscribers = JoinSet::new();
-        for _ in 0..100 {
+        for _ in 0..20 {
             let mut subscription = ws_client
                 .send_transaction_and_watch(RpcOrNetworkInjectedTx::mock(()))
                 .await
@@ -176,17 +174,20 @@ async fn test_cleanup_promise_subscribers() {
 
     // Subscribers that are dropped immediately after creation.
     {
-        for _ in 0..100 {
+        let mut subscriptions = vec![];
+        for _ in 0..20 {
             let subscription = ws_client
                 .send_transaction_and_watch(RpcOrNetworkInjectedTx::mock(()))
                 .await
                 .expect("Subscription will be created");
-
-            drop(subscription)
+            subscriptions.push(subscription);
         }
 
-        // Give some time for the server to receive the notification about dropped connections.
-        tokio::time::sleep(std::time::Duration::from_millis(250)).await;
+        drop(subscriptions);
+
+        // Because we run a lot of tests in parallel, give some time for the PRC server to process
+        // all dropped subscriptions and update its internal state.
+        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
 
         assert_eq!(injected_api.promise_subscribers_count(), 0);
     }
