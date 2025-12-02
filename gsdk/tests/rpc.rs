@@ -51,8 +51,10 @@ async fn pallet_errors_formatting() -> Result<()> {
             None,
         )
         .await
-        .expect_err("Must return error")
-        .unwrap_subxt_rpc();
+        .expect_err("Must return error");
+    let Error::SubxtRpc(err) = err else {
+        panic!("unexpected error variant: {err:?}")
+    };
 
     let expected_err = SubxtRpcError::User(UserError {
         code: 8000,
@@ -340,11 +342,13 @@ async fn test_runtime_wasm_blob_version_history() -> Result<()> {
         H256::from_str("0xa84349fc30b8f2d02cc31d49fe8d4a45b6de5a3ac1f1ad975b8920b0628dd6b9")
             .unwrap();
 
-    let wasm_blob_version_err = api
+    let err = api
         .runtime_wasm_blob_version(Some(no_method_block_hash))
         .await
-        .unwrap_err()
-        .unwrap_subxt_rpc();
+        .unwrap_err();
+    let Error::SubxtRpc(wasm_blob_version_err) = err else {
+        panic!("unexpected error variant: {err:?}")
+    };
 
     let err = SubxtRpcError::User(UserError {
         code: 9000,
