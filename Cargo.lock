@@ -5110,6 +5110,7 @@ version = "1.10.0"
 dependencies = [
  "alloy",
  "anyhow",
+ "derive_more 2.0.1",
  "ethexe-common",
  "ethexe-db",
  "ethexe-ethereum",

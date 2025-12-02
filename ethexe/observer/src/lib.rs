@@ -69,7 +69,6 @@ struct RuntimeConfig {
     middleware_address: Address,
     max_sync_depth: u32,
     batched_sync_depth: u32,
-    genesis_block_hash: H256,
 }
 
 // TODO #4552: make tests for observer service
@@ -173,7 +172,7 @@ impl ObserverService {
             .await
             .context("failed to create ethereum provider")?;
 
-        let genesis_block_hash =
+        let _genesis_block_hash =
             Self::pre_process_genesis_for_db(&db, &provider, &router_query).await?;
 
         let headers_stream = provider
@@ -188,7 +187,6 @@ impl ObserverService {
             max_sync_depth,
             // TODO #4562: make this configurable. Important: must be greater than 1.
             batched_sync_depth: 2,
-            genesis_block_hash,
         };
 
         let chain_sync = ChainSync::new(db, config.clone(), provider.clone());
@@ -277,10 +275,6 @@ impl ObserverService {
 
     pub fn block_loader(&self) -> EthereumBlockLoader {
         EthereumBlockLoader::new(self.provider.clone(), self.config.router_address)
-    }
-
-    pub fn genesis_block_hash(&self) -> H256 {
-        self.config.genesis_block_hash
     }
 
     pub fn router_query(&self) -> RouterQuery {
