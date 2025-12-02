@@ -38,6 +38,7 @@ pub(crate) struct ValidatorListSnapshot {
 }
 
 impl ValidatorListSnapshot {
+    /// Returns whether `self` era index is less than `snapshot` era index.
     pub(crate) fn is_older_era(&self, snapshot: &Self) -> bool {
         let this_era = self.current_era_index();
         let snapshot_era = snapshot.current_era_index();
@@ -52,6 +53,7 @@ impl ValidatorListSnapshot {
         self.timelines.era_from_ts(block_ts)
     }
 
+    /// Checks if the given address is present in either the current or next era validator set.
     pub(crate) fn contains_any_validator(&self, address: Address) -> bool {
         let is_current_validator = self.current_validators.contains(&address);
         let is_next_validator = self
