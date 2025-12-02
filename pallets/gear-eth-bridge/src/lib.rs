@@ -125,11 +125,6 @@ pub mod pallet {
         #[pallet::constant]
         type QueueCapacity: Get<u32>;
 
-        /// Constant defining amount of sessions in manager for keys rotation.
-        /// Similar to `pallet_staking::SessionsPerEra`.
-        #[pallet::constant]
-        type SessionsPerEra: Get<u32>;
-
         /// Weight cost incurred by pallet calls.
         type WeightInfo: WeightInfo;
     }

@@ -327,7 +327,6 @@ impl pallet_gear_eth_bridge::Config for Test {
     type RuntimeEvent = RuntimeEvent;
     type MaxPayloadSize = ConstU32<1024>;
     type QueueCapacity = ConstU32<32>;
-    type SessionsPerEra = SessionsPerEra;
     type BridgeAdmin = MockBridgeAdminAccount;
     type BridgePauser = MockBridgePauserAccount;
     type WeightInfo = ();
@@ -397,6 +396,10 @@ pub(crate) fn run_to_block(n: BlockNumber) {
 
         Gear::run(RuntimeOrigin::none(), None).unwrap();
         on_finalize(current_blk);
+
+        if crate::Initialized::<Test>::get() {
+            assert!(crate::AuthoritySetHash::<Test>::exists());
+        }
 
         let new_block_number = current_blk + 1;
         on_initialize(new_block_number);
