@@ -254,11 +254,6 @@ impl<T: Config> Pallet<T> {
         ClearTimer::<T>::kill();
         weight = weight.saturating_add(db_weight.writes(1));
 
-        // Removing grandpa set hash from storage.
-        AuthoritySetHash::<T>::kill();
-        Self::deposit_event(Event::<T>::AuthoritySetReset);
-        weight = weight.saturating_add(db_weight.writes(2));
-
         // Resetting queue.
         let reset_weight = Self::reset_queue();
         weight = weight.saturating_add(reset_weight);

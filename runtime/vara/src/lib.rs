@@ -696,7 +696,6 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 
 parameter_types! {
     // Six sessions in an era (12 hours)
-    // **IMPORTANT**: update this value with care, GearEthBridge is sensitive to this.
     pub const SessionsPerEra: sp_staking::SessionIndex = 6;
     // 42 eras for unbonding (7 days)
     pub const BondingDuration: sp_staking::EraIndex = 14;
@@ -736,7 +735,6 @@ impl pallet_staking::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type Slash = Treasury;
     type Reward = StakingRewards;
-    // **IMPORTANT**: update this value with care, GearEthBridge is sensitive to this.
     type SessionsPerEra = SessionsPerEra;
     type BondingDuration = BondingDuration;
     type SlashDeferDuration = SlashDeferDuration;
@@ -1221,7 +1219,6 @@ impl pallet_gear_eth_bridge::Config for Runtime {
     type AdminOrigin = frame_system::EnsureSignedBy<GearEthBridgeAdminAccounts, AccountId>;
     type MaxPayloadSize = ConstU32<16_384>; // 16 KiB
     type QueueCapacity = ConstU32<2048>;
-    type SessionsPerEra = SessionsPerEra;
     type BridgeAdmin = GearEthBridgeAdminAccount;
     type BridgePauser = GearEthBridgePauserAccount;
     type WeightInfo = pallet_gear_eth_bridge::weights::SubstrateWeight<Runtime>;
