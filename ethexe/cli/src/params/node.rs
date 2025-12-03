@@ -88,6 +88,16 @@ pub struct NodeParams {
     #[arg(long, default_value = "false")]
     #[serde(default, rename = "fast-sync")]
     pub fast_sync: bool,
+
+    /// Limit for validating chain deepness of coming commitments.
+    #[arg(long, default_value = "500")]
+    #[serde(default, rename = "validate-chain-deepness-limit")]
+    pub validate_chain_deepness_limit: u32,
+
+    /// Threshold for producer to submit commitment despite of no transitions
+    #[arg(long, default_value = "10000")]
+    #[serde(default, rename = "chain-deepness-threshold")]
+    pub chain_deepness_threshold: u32,
 }
 
 impl NodeParams {
@@ -121,6 +131,8 @@ impl NodeParams {
                 .min(MAX_BLOCK_GAS_LIMIT),
             canonical_quarantine: self.canonical_quarantine.unwrap_or(CANONICAL_QUARANTINE),
             fast_sync: self.fast_sync,
+            validate_chain_deepness_limit: self.validate_chain_deepness_limit,
+            chain_deepness_threshold: self.chain_deepness_threshold,
         })
     }
 
@@ -194,6 +206,8 @@ impl MergeParams for NodeParams {
             canonical_quarantine: self.canonical_quarantine.or(with.canonical_quarantine),
 
             fast_sync: self.fast_sync || with.fast_sync,
+            validate_chain_deepness_limit: self.validate_chain_deepness_limit,
+            chain_deepness_threshold: self.chain_deepness_threshold,
         }
     }
 }

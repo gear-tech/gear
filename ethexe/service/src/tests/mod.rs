@@ -94,6 +94,8 @@ async fn basics() {
         block_gas_limit: 4_000_000_000_000,
         canonical_quarantine: 0,
         fast_sync: false,
+        validate_chain_deepness_limit: 500,
+        chain_deepness_threshold: 10_000,
     };
 
     let eth_cfg = EthereumConfig {
