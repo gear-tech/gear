@@ -617,8 +617,15 @@ mod tests {
         assert_eq!(commitment.transitions.len(), 4);
         assert_eq!(counter, 3);
 
-        aggregate_chain_commitment(&db, announce, false, Some(2)).unwrap_err();
-        aggregate_chain_commitment(&db, announce, true, Some(2)).unwrap_err();
+        assert_eq!(
+            aggregate_chain_commitment(&db, announce, false, Some(2)).unwrap(),
+            None
+        );
+        
+        assert_eq!(
+            aggregate_chain_commitment(&db, announce, true, Some(2)).unwrap(),
+            None
+        );
 
         db.mutate_announce_meta(announce, |meta| meta.computed = false);
         assert!(
