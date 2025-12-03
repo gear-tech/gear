@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use gsdk::{Api, IntoSubxt, Result, backtrace::BacktraceStatus, gear, signer::Signer};
+use gsdk::{Api, IntoSubxt, Result, backtrace::BacktraceStatus, gear};
 use utils::{alice_account_id, dev_node};
 
 mod utils;
@@ -24,18 +24,20 @@ mod utils;
 #[tokio::test]
 async fn transfer_backtrace() -> Result<()> {
     let node = dev_node();
-    let api = Api::new(node.ws().as_str()).await?;
-    let signer = Signer::new(api, "//Alice", None)?;
+    let api = Api::new(node.ws().as_str())
+        .await?
+        .signed("//Alice", None)?;
     let alice = alice_account_id();
 
-    let tx = signer
+    let tx = api
         .run_tx(
             gear::tx()
                 .balances()
                 .transfer_keep_alive(alice.into_subxt().into(), 42),
         )
         .await?;
-    let backtrace = signer
+
+    let backtrace = api
         .backtrace()
         .get(tx.extrinsic_hash())
         .expect("Failed to get backtrace of transfer");

@@ -18,7 +18,7 @@
 
 //! GSdk Results
 
-use std::borrow::Borrow;
+use std::{borrow::Borrow, path::PathBuf};
 
 pub use crate::tx_status::{TxError, TxStatusExt, TxSuccess};
 
@@ -48,6 +48,9 @@ pub enum Error {
     #[error("funds overcame `u128::MAX`")]
     BalanceOverflow,
 
+    #[error("WebAssembly file `{}` must have `.wasm` extension", .0.display())]
+    WrongWasmExtension(PathBuf),
+
     #[error("incomplete batch result: expected {expected} values, found {found} values")]
     IncompleteBatchResult { expected: usize, found: usize },
 
@@ -56,6 +59,9 @@ pub enum Error {
 
     #[error(transparent)]
     PageError(#[from] gear_core::pages::PageError),
+
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
 
     #[error(transparent)]
     Tx(#[from] TxError),

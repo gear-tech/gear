@@ -18,52 +18,46 @@
 
 //! RPC calls with signer
 
-use crate::{GasInfo, result::Result, signer::Inner};
+use crate::{GasInfo, SignedApi, result::Result};
 use gear_core::{
     ids::{ActorId, CodeId, MessageId},
     rpc::ReplyInfo,
 };
 use subxt::utils::H256;
 
-/// Implementation of calls to node RPC for [`Signer`].
-#[derive(Clone)]
-pub struct SignerRpc<'a>(pub(crate) &'a Inner);
-
-impl SignerRpc<'_> {
-    /// public key of the signer in H256
+impl SignedApi {
+    /// Returns the public key of the signer as [`H256`].
     pub fn source(&self) -> H256 {
-        AsRef::<[u8; 32]>::as_ref(self.0.account_id()).into()
+        AsRef::<[u8; 32]>::as_ref(self.account_id()).into()
     }
 
-    /// Get self free balance.
+    /// Returns the signer's free balance.
     pub async fn free_balance(&self) -> Result<u128> {
-        self.0.api().free_balance(self.0.account_id()).await
+        self.unsigned().free_balance(self.account_id()).await
     }
 
     /// Get self reserved balance.
     pub async fn reserved_balance(&self) -> Result<u128> {
-        self.0.api().reserved_balance(self.0.account_id()).await
+        self.unsigned().reserved_balance(self.account_id()).await
     }
 
     /// Get self total balance.
     pub async fn total_balance(&self) -> Result<u128> {
-        self.0.api().total_balance(self.0.account_id()).await
+        self.unsigned().total_balance(self.account_id()).await
     }
 
-    /// gear_calculateInitCreateGas
+    /// Calls `gear_calculateInitCreateGas` RPC method.
     pub async fn calculate_create_gas(
         &self,
-        origin: Option<H256>,
         code_id: CodeId,
         payload: Vec<u8>,
         value: u128,
         allow_other_panics: bool,
         at: Option<H256>,
     ) -> Result<GasInfo> {
-        self.0
-            .api
+        self.unsigned()
             .calculate_create_gas(
-                origin.unwrap_or_else(|| self.source()),
+                self.source(),
                 code_id,
                 payload,
                 value,
@@ -73,43 +67,32 @@ impl SignerRpc<'_> {
             .await
     }
 
-    /// gear_calculateInitUploadGas
+    /// Calls `gear_calculateInitUploadGas` RPC method.
     pub async fn calculate_upload_gas(
         &self,
-        origin: Option<H256>,
         code: Vec<u8>,
         payload: Vec<u8>,
         value: u128,
         allow_other_panics: bool,
         at: Option<H256>,
     ) -> Result<GasInfo> {
-        self.0
-            .api
-            .calculate_upload_gas(
-                origin.unwrap_or_else(|| self.source()),
-                code,
-                payload,
-                value,
-                allow_other_panics,
-                at,
-            )
+        self.unsigned()
+            .calculate_upload_gas(self.source(), code, payload, value, allow_other_panics, at)
             .await
     }
 
-    /// gear_calculateHandleGas
+    /// Calls `gear_calculateHandleGas` RPC method.
     pub async fn calculate_handle_gas(
         &self,
-        origin: Option<H256>,
         destination: ActorId,
         payload: Vec<u8>,
         value: u128,
         allow_other_panics: bool,
         at: Option<H256>,
     ) -> Result<GasInfo> {
-        self.0
-            .api
+        self.unsigned()
             .calculate_handle_gas(
-                origin.unwrap_or_else(|| self.source()),
+                self.source(),
                 destination,
                 payload,
                 value,
@@ -119,20 +102,18 @@ impl SignerRpc<'_> {
             .await
     }
 
-    /// gear_calculateReplyGas
+    /// Calls `gear_calculateReplyGas` RPC method.
     pub async fn calculate_reply_gas(
         &self,
-        origin: Option<H256>,
         message_id: MessageId,
         payload: Vec<u8>,
         value: u128,
         allow_other_panics: bool,
         at: Option<H256>,
     ) -> Result<GasInfo> {
-        self.0
-            .api
+        self.unsigned()
             .calculate_reply_gas(
-                origin.unwrap_or_else(|| self.source()),
+                self.source(),
                 message_id,
                 payload,
                 value,
@@ -142,26 +123,17 @@ impl SignerRpc<'_> {
             .await
     }
 
-    /// gear_calculateReplyForHandle
+    /// Calls `gear_calculateReplyForHandle` RPC method.
     pub async fn calculate_reply_for_handle(
         &self,
-        origin: Option<H256>,
         destination: ActorId,
         payload: Vec<u8>,
         gas_limit: u64,
         value: u128,
         at: Option<H256>,
     ) -> Result<ReplyInfo> {
-        self.0
-            .api
-            .calculate_reply_for_handle(
-                origin.unwrap_or_else(|| self.source()),
-                destination,
-                payload,
-                gas_limit,
-                value,
-                at,
-            )
+        self.unsigned()
+            .calculate_reply_for_handle(self.source(), destination, payload, gas_limit, value, at)
             .await
     }
 }

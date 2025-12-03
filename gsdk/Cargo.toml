@@ -29,6 +29,7 @@ sp-core = { workspace = true, features = ["std", "full_crypto"] }
 sp-runtime = { workspace = true, features = ["std"] }
 subxt.workspace = true
 thiserror.workspace = true
+tokio = { workspace = true, features = ["fs"] }
 url.workspace = true
 parity-scale-codec.workspace = true
 

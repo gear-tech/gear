@@ -17,8 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Storage interfaces
+
+use super::SignedApi;
 use crate::{
-    BlockNumber, GearGasNode, GearGasNodeId, GearPages, IntoAccountId32, Result,
+    BlockNumber, GearGasNode, GearGasNodeId, GearPages, IntoAccountId32, Result, TxEvents,
     gear::{
         self,
         runtime_types::{
@@ -29,7 +31,6 @@ use crate::{
             vara_runtime::RuntimeCall,
         },
     },
-    signer::{Inner, utils::EventsResult},
     utils::storage_address_bytes,
 };
 use gear_core::{
@@ -40,18 +41,14 @@ use gear_core::{
 };
 use subxt::{metadata::EncodeWithMetadata, storage::Address};
 
-/// Implementation of storage calls for [`Signer`].
-#[derive(Clone)]
-pub struct SignerStorage<'a>(pub(crate) &'a Inner);
-
 // pallet-system
-impl SignerStorage<'_> {
+impl SignedApi {
     /// Sets storage values via calling sudo pallet
     pub async fn set_storage(
         &self,
         items: &[(impl Address, impl EncodeWithMetadata)],
-    ) -> EventsResult {
-        let metadata = self.0.api().metadata();
+    ) -> Result<TxEvents> {
+        let metadata = self.unsigned().metadata();
         let mut items_to_set = Vec::with_capacity(items.len());
         for item in items {
             let item_key = storage_address_bytes(&item.0, &metadata)?;
@@ -62,18 +59,17 @@ impl SignerStorage<'_> {
             items_to_set.push((item_key, item_value_bytes));
         }
 
-        self.0
-            .sudo(RuntimeCall::System(Call::set_storage {
-                items: items_to_set,
-            }))
-            .await
+        self.sudo(RuntimeCall::System(Call::set_storage {
+            items: items_to_set,
+        }))
+        .await
     }
 }
 
 // pallet-gas
-impl SignerStorage<'_> {
+impl SignedApi {
     /// Writes gas total issuance into storage.
-    pub async fn set_total_issuance(&self, value: u64) -> EventsResult {
+    pub async fn set_total_issuance(&self, value: u64) -> Result<TxEvents> {
         self.set_storage(&[(gear::storage().gear_gas().total_issuance(), value)])
             .await
     }
@@ -82,7 +78,7 @@ impl SignerStorage<'_> {
     pub async fn set_gas_nodes(
         &self,
         gas_nodes: &impl AsRef<[(GearGasNodeId, GearGasNode)]>,
-    ) -> EventsResult {
+    ) -> Result<TxEvents> {
         let gas_nodes = gas_nodes.as_ref();
         let mut gas_nodes_to_set = Vec::with_capacity(gas_nodes.len());
         for gas_node in gas_nodes {
@@ -96,13 +92,13 @@ impl SignerStorage<'_> {
 }
 
 // pallet-gear-bank
-impl SignerStorage<'_> {
+impl SignedApi {
     /// Writes given BankAccount info into storage at `dest`.
     pub async fn set_bank_account_storage(
         &self,
         dest: impl IntoAccountId32,
         value: BankAccount<u128>,
-    ) -> EventsResult {
+    ) -> Result<TxEvents> {
         self.set_storage(&[(
             gear::storage().gear_bank().bank(dest.into_account_id()),
             value,
@@ -112,13 +108,13 @@ impl SignerStorage<'_> {
 }
 
 // pallet-gear-program
-impl SignerStorage<'_> {
+impl SignedApi {
     /// Writes `InstrumentedCode` into storage at `CodeId`
     pub async fn set_instrumented_code_storage(
         &self,
         code_id: CodeId,
         code: &InstrumentedCode,
-    ) -> EventsResult {
+    ) -> Result<TxEvents> {
         self.set_storage(&[(
             gear::storage()
                 .gear_program()
@@ -133,7 +129,7 @@ impl SignerStorage<'_> {
         &self,
         code_id: CodeId,
         code_metadata: &CodeMetadata,
-    ) -> EventsResult {
+    ) -> Result<TxEvents> {
         self.set_storage(&[(
             gear::storage()
                 .gear_program()
@@ -144,7 +140,11 @@ impl SignerStorage<'_> {
     }
 
     /// Writes `GearPages` into storage at `program_id`
-    pub async fn set_gpages(&self, program_id: ActorId, program_pages: &GearPages) -> EventsResult {
+    pub async fn set_program_pages(
+        &self,
+        program_id: ActorId,
+        program_pages: &GearPages,
+    ) -> Result<TxEvents> {
         let mut program_pages_to_set = Vec::with_capacity(program_pages.len());
         for (&page_index, value) in program_pages {
             let addr = gear::storage().gear_program().memory_pages(
@@ -158,11 +158,11 @@ impl SignerStorage<'_> {
     }
 
     /// Writes `ActiveProgram` into storage at `program_id`
-    pub async fn set_gprog(
+    pub async fn set_program(
         &self,
         program_id: ActorId,
         program: ActiveProgram<BlockNumber>,
-    ) -> EventsResult {
+    ) -> Result<TxEvents> {
         self.set_storage(&[(
             gear::storage().gear_program().program_storage(program_id),
             &Program::Active(program),
@@ -172,26 +172,23 @@ impl SignerStorage<'_> {
 }
 
 // pallet-gear-messenger
-impl SignerStorage<'_> {
-    /// Get a message identified by `message_id` from the mailbox.
+impl SignedApi {
+    /// Retrieves a message identified by `message_id` from the mailbox.
     pub async fn mailbox_message(
         &self,
         message_id: MessageId,
     ) -> Result<Option<(UserStoredMessage, Interval<u32>)>> {
-        self.0
-            .api()
-            .mailbox_account_message(self.0.account_id(), message_id)
+        self.mailbox_account_message(self.account_id(), message_id)
             .await
     }
 
-    /// Get up to `count` messages from the mailbox.
+    /// Retrieves up to `count` messages from the mailbox.
     pub async fn mailbox_messages(
         &self,
         count: usize,
     ) -> Result<Vec<(UserStoredMessage, Interval<u32>)>> {
-        self.0
-            .api()
-            .mailbox_messages(Some(self.0.account_id()), count)
+        self.unsigned()
+            .mailbox_messages(Some(self.account_id()), count)
             .await
     }
 }

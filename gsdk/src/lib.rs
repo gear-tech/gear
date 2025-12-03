@@ -35,7 +35,7 @@ pub use crate::{
     convert::{AsGear, IntoAccountId32, IntoSubstrate, IntoSubxt},
     gear::{Event, runtime_types::vara_runtime::RuntimeError},
     result::{Error, Result},
-    signer::PairSigner,
+    signed::{PairSigner, SignedApi, Signer, TxEvents},
     subscription::{
         Blocks, Events, PayloadFilter, ProgramStateChange, ProgramStateChanges, UserMessageSent,
         UserMessageSentFilter, UserMessageSentSubscription,
@@ -68,7 +68,7 @@ mod convert;
 pub mod events;
 pub mod result;
 mod rpc;
-pub mod signer;
+mod signed;
 mod storage;
 pub mod subscription;
 mod tx_status;

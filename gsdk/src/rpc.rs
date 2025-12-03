@@ -26,7 +26,7 @@ use gear_core::{
 use subxt::{ext::subxt_rpcs::rpc_params, utils::H256};
 
 impl Api {
-    /// gear_calculateInitCreateGas
+    /// Calls `gear_calculateInitCreateGas` RPC method.
     pub async fn calculate_create_gas(
         &self,
         origin: H256,
@@ -52,7 +52,7 @@ impl Api {
             .map_err(Into::into)
     }
 
-    /// gear_calculateInitUploadGas
+    /// Calls `gear_calculateInitUploadGas` RPC method.
     pub async fn calculate_upload_gas(
         &self,
         origin: H256,
@@ -78,7 +78,7 @@ impl Api {
             .map_err(Into::into)
     }
 
-    /// gear_calculateHandleGas
+    /// Calls `gear_calculateHandleGas` RPC method.
     pub async fn calculate_handle_gas(
         &self,
         origin: H256,
@@ -104,7 +104,7 @@ impl Api {
             .map_err(Into::into)
     }
 
-    /// gear_calculateReplyGas
+    /// Calls `gear_calculateReplyGas` RPC method.
     pub async fn calculate_reply_gas(
         &self,
         origin: H256,
@@ -130,7 +130,7 @@ impl Api {
             .map_err(Into::into)
     }
 
-    /// gear_meta_hash
+    /// Calls `gear_readMetahash` RPC method.
     pub async fn read_meta_hash(&self, pid: H256, at: Option<H256>) -> Result<H256> {
         self.rpc()
             .request("gear_readMetahash", rpc_params![H256(pid.into()), at])
@@ -138,7 +138,7 @@ impl Api {
             .map_err(Into::into)
     }
 
-    /// gear_readState
+    /// Calls `gear_readState` RPC method.
     pub async fn read_state(
         &self,
         pid: H256,
@@ -154,7 +154,7 @@ impl Api {
             .map_err(Into::into)
     }
 
-    /// runtime_wasmBlobVersion
+    /// Calls `runtime_wasmBlobVersion` RPC method.
     pub async fn runtime_wasm_blob_version(&self, at: Option<H256>) -> Result<String> {
         self.rpc()
             .request("runtime_wasmBlobVersion", rpc_params![at])
@@ -162,7 +162,7 @@ impl Api {
             .map_err(Into::into)
     }
 
-    /// gear_calculateReplyForHandle
+    /// Calls `gear_calculateReplyForHandle` RPC method.
     pub async fn calculate_reply_for_handle(
         &self,
         origin: H256,

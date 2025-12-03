@@ -37,16 +37,6 @@ pub fn wasm_target(root_path: impl AsRef<str>, demo_name: impl AsRef<str>) -> St
     )
 }
 
-/// Read and return contents of a Wasm file specified by the `path`.
-pub fn code_from_os(path: impl AsRef<Path>) -> Result<Vec<u8>> {
-    path.as_ref()
-        .extension()
-        .filter(|&extension| extension.eq("wasm"))
-        .ok_or(Error::WrongBinaryExtension)?;
-
-    fs::read(fs::canonicalize(path)?).map_err(Into::into)
-}
-
 /// Convert hex string to byte array.
 pub fn hex_to_vec(string: impl AsRef<str>) -> Result<Vec<u8>> {
     hex::decode(string.as_ref().trim_start_matches("0x")).map_err(Into::into)

@@ -17,19 +17,22 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! gear api utils
-use crate::{Api, config::GearConfig, gear::DispatchError, result::Result};
+use std::path::Path;
+
+use crate::{Api, Error, Result, config::GearConfig, gear::DispatchError};
 use parity_scale_codec::Encode;
 use sp_core::hashing;
 use subxt::{
     Metadata, OnlineClient,
-    error::{DispatchError as SubxtDispatchError, Error},
+    error::DispatchError as SubxtDispatchError,
     storage::{Address, Storage},
     utils::H256,
 };
+use tokio::fs;
 
 impl Api {
     /// Decode `DispatchError` to `subxt::error::Error`.
-    pub fn decode_error(&self, dispatch_error: DispatchError) -> Error {
+    pub fn decode_error(&self, dispatch_error: DispatchError) -> subxt::Error {
         match SubxtDispatchError::decode_from(dispatch_error.encode(), self.metadata()) {
             Ok(err) => err.into(),
             Err(err) => err,
@@ -64,10 +67,21 @@ pub(crate) fn write_storage_address_root_bytes(addr: &impl Address, out: &mut Ve
 pub(crate) fn storage_address_bytes(
     addr: &impl Address,
     metadata: &Metadata,
-) -> Result<Vec<u8>, Box<Error>> {
+) -> Result<Vec<u8>, Box<subxt::Error>> {
     let mut bytes = Vec::new();
     write_storage_address_root_bytes(addr, &mut bytes);
     addr.append_entry_bytes(metadata, &mut bytes)
         .map_err(|e| Box::new(e.into()))?;
     Ok(bytes)
+}
+
+/// Read and return contents of a Wasm file specified by the `path`.
+pub(crate) async fn read_wasm_file(path: impl AsRef<Path>) -> Result<Vec<u8>> {
+    let path = path.as_ref();
+
+    if path.extension().is_none_or(|ext| ext != "wasm") {
+        return Err(Error::WrongWasmExtension(path.to_path_buf()));
+    }
+
+    Ok(fs::read(path).await?)
 }

@@ -18,7 +18,7 @@
 
 use crate::{
     AsGear, Blocks, Events, ProgramStateChanges, Result, TxInBlock, UserMessageSentFilter,
-    UserMessageSentSubscription, config::GearConfig, gear::Event, signer::Signer,
+    UserMessageSentSubscription, config::GearConfig, gear::Event,
 };
 use core::ops::{Deref, DerefMut};
 use jsonrpsee::{client_transport::ws::Url, ws_client::WsClientBuilder};
@@ -32,7 +32,7 @@ use subxt::{
 
 const ONE_HUNDRED_MEGABYTES: u32 = 100 * 1024 * 1024;
 
-/// Gear api wrapper.
+/// Gear API wrapper.
 #[derive(Debug, Clone)]
 pub struct Api {
     rpc: RpcClient,
@@ -196,11 +196,6 @@ impl Api {
             .await?;
 
         Ok(UserMessageSentSubscription::new(subscription))
-    }
-
-    /// New signer from api
-    pub fn signer(self, suri: &str, passwd: Option<&str>) -> Result<Signer> {
-        Signer::new(self, suri, passwd)
     }
 
     /// Get the underlying [`RpcClient`] instance.

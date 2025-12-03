@@ -18,9 +18,8 @@
 
 //! Utils
 
-use super::Inner;
 use crate::{
-    AsGear, Error, TxInBlock, TxStatus,
+    AsGear, Error, SignedApi, TxInBlock, TxStatus,
     backtrace::BacktraceStatus,
     config::GearConfig,
     gear::{
@@ -40,12 +39,12 @@ use subxt::{
 };
 
 type TxProgress = SubxtTxProgress<GearConfig, OnlineClient<GearConfig>>;
-pub type EventsResult = Result<(H256, ExtrinsicEvents<GearConfig>)>;
+pub type TxEvents = (ExtrinsicEvents<GearConfig>, H256);
 
-impl Inner {
+impl SignedApi {
     /// Logging balance spent
-    pub async fn log_balance_spent(&self, before: u128) -> Result<()> {
-        match self.rpc().free_balance().await {
+    pub(crate) async fn log_balance_spent(&self, before: u128) -> Result<()> {
+        match self.free_balance().await {
             Ok(balance) => {
                 let after = before.saturating_sub(balance);
                 log::info!("\tBalance spent: {after}");
@@ -80,7 +79,7 @@ impl Inner {
 
     /// Listen transaction process and print logs.
     pub async fn process<Call: Payload>(&self, call: Call) -> Result<TxInBlock> {
-        let before = self.rpc().free_balance().await?;
+        let before = self.free_balance().await?;
 
         let mut process = self.sign_and_submit_then_watch(&call).await?;
 
@@ -143,7 +142,7 @@ impl Inner {
     }
 
     /// Process sudo transaction.
-    pub async fn process_sudo<Call: Payload>(&self, call: Call) -> EventsResult {
+    pub async fn process_sudo<Call: Payload>(&self, call: Call) -> Result<TxEvents> {
         let tx = self.process(call).await?;
         let events = tx.wait_for_success().await?;
         for event in events.iter() {
@@ -152,16 +151,16 @@ impl Inner {
                 sudo_result: Err(err),
             }) = event
             {
-                return Err(self.api().decode_error(err).into());
+                return Err(self.decode_error(err).into());
             }
         }
 
-        Ok((tx.block_hash(), events))
+        Ok((events, tx.block_hash()))
     }
 
     /// Run transaction.
     ///
-    /// This function allows us to execute any transactions in gear.
+    /// This low-level function allows us to execute any transactions in gear.
     ///
     /// # You may not need this.
     ///
@@ -203,12 +202,12 @@ impl Inner {
     }
 
     /// Run transaction with sudo.
-    pub async fn sudo_run_tx<Call: Payload>(&self, call: Call) -> EventsResult {
+    pub async fn sudo_run_tx<Call: Payload>(&self, call: Call) -> Result<TxEvents> {
         self.process_sudo(call).await
     }
 
     /// `pallet_sudo::sudo`
-    pub async fn sudo(&self, call: RuntimeCall) -> EventsResult {
+    pub async fn sudo(&self, call: RuntimeCall) -> Result<TxEvents> {
         self.sudo_run_tx(gear::tx().sudo().sudo(call)).await
     }
 
@@ -218,20 +217,18 @@ impl Inner {
         call: &Call,
     ) -> Result<TxProgress, subxt::Error> {
         if let Some(nonce) = self.nonce {
-            self.api
-                .tx()
+            self.tx()
                 .create_signed(
                     call,
-                    &self.signer,
+                    self.signer(),
                     PolkadotExtrinsicParamsBuilder::new().nonce(nonce).build(),
                 )
                 .await?
                 .submit_and_watch()
                 .await
         } else {
-            self.api
-                .tx()
-                .sign_and_submit_then_watch_default(call, &self.signer)
+            self.tx()
+                .sign_and_submit_then_watch_default(call, self.signer())
                 .await
         }
     }
