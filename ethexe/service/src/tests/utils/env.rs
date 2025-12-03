@@ -993,8 +993,8 @@ impl Node {
                             commitment_delay_limit: self.commitment_delay_limit,
                             producer_delay: self.block_time / 6,
                             router_address: self.eth_cfg.router_address,
-                            validate_chain_deepness_limit: 500,
-                            chain_deepness_threshold: 10000,
+                            validate_chain_deepness_limit: 10_000,
+                            chain_deepness_threshold: 500,
                         },
                     )
                     .unwrap(),

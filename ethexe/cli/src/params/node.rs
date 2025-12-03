@@ -90,12 +90,12 @@ pub struct NodeParams {
     pub fast_sync: bool,
 
     /// Limit for validating chain deepness of coming commitments.
-    #[arg(long, default_value = "500")]
+    #[arg(long, default_value = "20000")]
     #[serde(default, rename = "validate-chain-deepness-limit")]
     pub validate_chain_deepness_limit: u32,
 
     /// Threshold for producer to submit commitment despite of no transitions
-    #[arg(long, default_value = "10000")]
+    #[arg(long, default_value = "500")]
     #[serde(default, rename = "chain-deepness-threshold")]
     pub chain_deepness_threshold: u32,
 }
