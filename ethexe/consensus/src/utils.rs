@@ -621,7 +621,7 @@ mod tests {
             aggregate_chain_commitment(&db, announce, false, Some(2)).unwrap(),
             None
         );
-        
+
         assert_eq!(
             aggregate_chain_commitment(&db, announce, true, Some(2)).unwrap(),
             None
