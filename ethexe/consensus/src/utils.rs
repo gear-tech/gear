@@ -177,9 +177,13 @@ pub fn aggregate_chain_commitment<DB: BlockMetaStorageRO + OnChainStorageRO + An
     let mut transitions = vec![];
     while announce_hash != last_committed_head {
         if max_deepness.map(|d| counter >= d).unwrap_or(false) {
-            return Err(anyhow!(
-                "Chain commitment is too deep: {block_hash} at depth {counter}"
-            ));
+            // TODO: #5013 improve error handling
+            tracing::warn!(
+                max_deepness = %max_deepness.unwrap(),
+                head_announce = %head_announce,
+                "Max deepness reached when aggregating chain commitment",
+            );
+            return Ok(None);
         }
 
         counter += 1;
@@ -613,8 +617,15 @@ mod tests {
         assert_eq!(commitment.transitions.len(), 4);
         assert_eq!(counter, 3);
 
-        aggregate_chain_commitment(&db, announce, false, Some(2)).unwrap_err();
-        aggregate_chain_commitment(&db, announce, true, Some(2)).unwrap_err();
+        assert_eq!(
+            aggregate_chain_commitment(&db, announce, false, Some(2)).unwrap(),
+            None
+        );
+
+        assert_eq!(
+            aggregate_chain_commitment(&db, announce, true, Some(2)).unwrap(),
+            None
+        );
 
         db.mutate_announce_meta(announce, |meta| meta.computed = false);
         assert!(
