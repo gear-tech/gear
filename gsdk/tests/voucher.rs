@@ -19,7 +19,7 @@
 use gear_core::ids::{ActorId, CodeId, MessageId, prelude::CodeIdExt};
 use gsdk::{
     Api, AsGear, Event, Result, TxInBlock,
-    gear::runtime_types::pallet_gear_voucher::internal::VoucherId,
+    gear::{self, runtime_types::pallet_gear_voucher::internal::VoucherId},
 };
 use sp_core::crypto::Ss58Codec;
 use sp_runtime::AccountId32;
@@ -51,8 +51,8 @@ async fn test_issue_voucher() -> Result<()> {
         .await?;
 
     let voucher_id = get_issued_voucher_id(tx).await?;
-    let voucher_address = AccountId32::new(voucher_id.0).to_ss58check();
-    let voucher_balance = signer.api().get_balance(&voucher_address).await?;
+    let voucher_address = AccountId32::new(voucher_id.0);
+    let voucher_balance = signer.api().free_balance(&voucher_address).await?;
 
     // assert
     assert_eq!(voucher_initial_balance, voucher_balance);
@@ -114,10 +114,10 @@ async fn test_upload_code_with_voucher() -> Result<()> {
         .issue_voucher(account_id.clone(), voucher_initial_balance, None, true, 100)
         .await?;
     let voucher_id = get_issued_voucher_id(tx).await?;
-    let voucher_address = AccountId32::new(voucher_id.0).to_ss58check();
+    let voucher_address = AccountId32::new(voucher_id.0);
 
     // account balance before upload code
-    let account_initial_balance = signer.rpc().get_balance().await?;
+    let account_initial_balance = signer.rpc().free_balance().await?;
 
     // act
     let tx = signer
@@ -127,8 +127,8 @@ async fn test_upload_code_with_voucher() -> Result<()> {
 
     let code_id = get_last_code_id(tx).await?;
 
-    let account_balance = signer.rpc().get_balance().await?;
-    let voucher_balance = signer.api().get_balance(&voucher_address).await?;
+    let account_balance = signer.rpc().free_balance().await?;
+    let voucher_balance = signer.api().free_balance(&voucher_address).await?;
 
     // assert
     assert_eq!(expected_code_id, code_id);
@@ -157,7 +157,7 @@ async fn test_send_message_with_voucher() -> Result<()> {
         .issue_voucher(account_id.clone(), voucher_initial_balance, None, true, 100)
         .await?;
     let voucher_id = get_issued_voucher_id(tx).await?;
-    let voucher_address = AccountId32::new(voucher_id.0).to_ss58check();
+    let voucher_address = AccountId32::new(voucher_id.0);
 
     // 2. upload code with voucher
     let tx = signer
@@ -172,14 +172,20 @@ async fn test_send_message_with_voucher() -> Result<()> {
         .calculate_create_gas(None, code_id, vec![], 0, true, None)
         .await?;
     let tx = signer
-        .calls()
-        .create_program(code_id, vec![], vec![], gas_info.min_limit, 0)
+        .run_tx(gear::tx().gear().create_program(
+            code_id,
+            vec![],
+            vec![],
+            gas_info.min_limit,
+            0,
+            false,
+        ))
         .await?;
     let program_id = get_last_program_id(tx).await?;
 
     // 4. calculate handle gas and send message with voucher
-    let account_before_balance = signer.rpc().get_balance().await?;
-    let voucher_before_balance = signer.api().get_balance(&voucher_address).await?;
+    let account_before_balance = signer.rpc().free_balance().await?;
+    let voucher_before_balance = signer.api().free_balance(&voucher_address).await?;
 
     let gas_info = signer
         .rpc()
@@ -198,8 +204,8 @@ async fn test_send_message_with_voucher() -> Result<()> {
         .await?;
     let _message_id = get_last_message_id(tx).await?;
 
-    let account_after_balance = signer.rpc().get_balance().await?;
-    let voucher_after_balance = signer.api().get_balance(&voucher_address).await?;
+    let account_after_balance = signer.rpc().free_balance().await?;
+    let voucher_after_balance = signer.api().free_balance(&voucher_address).await?;
 
     // assert
     // account balance remain unchanged

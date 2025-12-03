@@ -33,7 +33,7 @@ async fn inf_loop() -> anyhow::Result<()> {
     let gas_limit = api.block_gas_limit()?;
 
     // Taking account balance.
-    let _balance = api.total_balance(api.account_id()).await?;
+    let _balance = api.signer().api().total_balance(api.account_id()).await?;
 
     // Subscribing for events.
     let mut listener = api.subscribe().await?;

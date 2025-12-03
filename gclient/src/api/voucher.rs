@@ -52,8 +52,6 @@ impl GearApi {
         code_uploading: bool,
         duration: u32,
     ) -> Result<(VoucherId, H256)> {
-        let spender: [u8; 32] = spender.into();
-
         let tx = self
             .0
             .calls()
@@ -105,9 +103,6 @@ impl GearApi {
         code_uploading: Option<bool>,
         prolong_duration: u32,
     ) -> Result<(VoucherId, H256)> {
-        let spender: [u8; 32] = spender.into();
-        let move_ownership: Option<[u8; 32]> = move_ownership.map(|v| v.into());
-
         let tx = self
             .0
             .calls()
@@ -151,8 +146,6 @@ impl GearApi {
         spender: ActorId,
         voucher_id: VoucherId,
     ) -> Result<(VoucherId, H256)> {
-        let spender: [u8; 32] = spender.into();
-
         let tx = self.0.calls().revoke_voucher(spender, voucher_id).await?;
 
         for event in tx.wait_for_success().await?.iter() {

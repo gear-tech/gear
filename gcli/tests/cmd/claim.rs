@@ -34,7 +34,7 @@ async fn test_command_claim_works() -> Result<()> {
 
     let mailbox = signer
         .api()
-        .mailbox(Some(common::alice_account_id()), 10)
+        .mailbox_messages(Some(common::alice_account_id()), 10)
         .await?;
 
     assert_eq!(mailbox.len(), 1, "Mailbox should have 1 message");
@@ -51,7 +51,7 @@ async fn test_command_claim_works() -> Result<()> {
 
     let mailbox = signer
         .api()
-        .mailbox(Some(common::alice_account_id()), 10)
+        .mailbox_messages(Some(common::alice_account_id()), 10)
         .await?;
 
     assert!(mailbox.is_empty(), "Mailbox should be empty");

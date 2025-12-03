@@ -114,7 +114,7 @@ async fn test_calculate_create_gas() -> Result<()> {
 
     signer
         .calls()
-        .create_program(code_id, vec![], vec![], gas_info.min_limit, 0)
+        .create_program_bytes(code_id, vec![], vec![], gas_info.min_limit, 0)
         .await?;
 
     Ok(())
@@ -144,7 +144,7 @@ async fn test_calculate_handle_gas() -> Result<()> {
         .await?;
 
     assert!(
-        signer.api().gprog(pid).await.is_ok(),
+        signer.api().active_program(pid).await.is_ok(),
         "Program not exists on chain."
     );
 
@@ -189,7 +189,7 @@ async fn test_calculate_reply_gas() -> Result<()> {
         .await?;
 
     assert!(
-        signer.api().gprog(pid).await.is_ok(),
+        signer.api().active_program(pid).await.is_ok(),
         "Program not exists on chain"
     );
 
@@ -201,7 +201,7 @@ async fn test_calculate_reply_gas() -> Result<()> {
 
     let mailbox = signer
         .api()
-        .mailbox(Some(alice_account_id().clone()), 10)
+        .mailbox_messages(Some(alice_account_id().clone()), 10)
         .await?;
     assert_eq!(mailbox.len(), 1);
     let message_id = mailbox[0].0.id();
@@ -383,12 +383,12 @@ async fn test_original_code_storage() -> Result<()> {
         )
         .await?;
 
-    let program = signer.api().gprog(pid).await?;
+    let program = signer.api().active_program(pid).await?;
     let rpc = signer.api().backend();
     let block_hash = rpc.latest_finalized_block_ref().await?.hash();
     let code = signer
         .api()
-        .original_code_storage_at(program.code_id.into_bytes().into(), Some(block_hash))
+        .original_code_at(program.code_id.into_bytes().into(), Some(block_hash))
         .await?;
 
     assert_eq!(
@@ -442,7 +442,7 @@ async fn test_calculate_reply_for_handle() -> Result<()> {
         .await?;
 
     assert!(
-        signer.api().gprog(pid).await.is_ok(),
+        signer.api().active_program(pid).await.is_ok(),
         "Program not exists on chain."
     );
 
@@ -493,7 +493,7 @@ async fn test_calculate_reply_for_handle_does_not_change_state() -> Result<()> {
         .await?;
 
     assert!(
-        signer.api().gprog(pid).await.is_ok(),
+        signer.api().active_program(pid).await.is_ok(),
         "Program not exists on chain."
     );
 

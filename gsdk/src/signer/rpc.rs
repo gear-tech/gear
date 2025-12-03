@@ -35,9 +35,19 @@ impl SignerRpc<'_> {
         AsRef::<[u8; 32]>::as_ref(self.0.account_id()).into()
     }
 
-    /// Get self balance.
-    pub async fn get_balance(&self) -> Result<u128> {
-        self.0.api().get_balance(&self.0.address()).await
+    /// Get self free balance.
+    pub async fn free_balance(&self) -> Result<u128> {
+        self.0.api().free_balance(self.0.account_id()).await
+    }
+
+    /// Get self reserved balance.
+    pub async fn reserved_balance(&self) -> Result<u128> {
+        self.0.api().reserved_balance(self.0.account_id()).await
+    }
+
+    /// Get self total balance.
+    pub async fn total_balance(&self) -> Result<u128> {
+        self.0.api().total_balance(self.0.account_id()).await
     }
 
     /// gear_calculateInitCreateGas

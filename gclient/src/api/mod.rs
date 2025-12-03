@@ -203,6 +203,16 @@ impl GearApi {
     pub fn account_id(&self) -> &AccountId32 {
         self.0.account_id()
     }
+
+    /// Returns underlying transaction signer.
+    pub fn signer(&self) -> &Signer {
+        &self.0
+    }
+
+    /// Returns underlying Gear API handle.
+    pub fn api(&self) -> &gsdk::Api {
+        self.signer().api()
+    }
 }
 
 impl From<Signer> for GearApi {

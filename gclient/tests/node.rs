@@ -36,6 +36,8 @@ async fn program_migrated_to_another_node() {
 
     // Transfer some funds to the source program
     src_node_api
+        .signer()
+        .calls()
         .transfer_keep_alive(src_program_id, PROGRAM_FUNDS)
         .await
         .expect("Unable to transfer funds to source program");
@@ -78,6 +80,7 @@ async fn program_migrated_to_another_node() {
     assert_eq!(src_program_id, dest_program_id);
 
     let dest_program_funds = dest_node_api
+        .api()
         .free_balance(dest_program_id)
         .await
         .expect("Unable to get destination program funds");

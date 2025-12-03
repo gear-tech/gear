@@ -20,7 +20,7 @@
 use futures::prelude::*;
 
 use crate::{
-    Api, BlockNumber, GearGasNode, GearGasNodeId, GearPages, IntoSubstrate, IntoSubxt,
+    Api, BlockNumber, GearGasNode, GearGasNodeId, GearPages, IntoAccountId32, IntoSubstrate,
     gear::{
         self,
         runtime_types::{
@@ -41,10 +41,11 @@ use gear_core::{
     code::{CodeMetadata, InstrumentedCode},
     ids::{ActorId, CodeId, MessageId},
     message::UserStoredMessage,
+    pages::GearPage,
     program::MemoryInfix,
 };
 use gsdk_codegen::storage_fetch;
-use sp_core::crypto::{AccountId32, Ss58Codec};
+use sp_core::crypto::AccountId32;
 use subxt::{
     error::MetadataError,
     ext::subxt_core::storage::address::StorageHashers,
@@ -100,17 +101,30 @@ impl Api {
 
 // frame-system
 impl Api {
-    /// Get account info by address at specified block.
+    /// Get account info by its address at specified block.
     #[storage_fetch]
-    pub async fn info_at(
+    pub async fn account_info_at(
         &self,
-        address: &str,
+        address: impl IntoAccountId32,
         block_hash: Option<H256>,
     ) -> Result<AccountInfo<u32, AccountData<u128>>> {
-        let dest = AccountId32::from_ss58check(address)?;
-        let addr = gear::storage().system().account(dest.into_subxt());
+        self.storage_fetch_at(
+            &gear::storage().system().account(address.into_account_id()),
+            block_hash,
+        )
+        .await
+    }
 
-        self.storage_fetch_at(&addr, block_hash).await
+    /// Get account data by its address at specified block.
+    #[storage_fetch]
+    pub async fn account_data_at(
+        &self,
+        address: impl IntoAccountId32,
+        block_hash: Option<H256>,
+    ) -> Result<AccountData<u128>> {
+        self.account_info_at(address, block_hash)
+            .map_ok(|info| info.data)
+            .await
     }
 
     /// Get block number.
@@ -118,9 +132,40 @@ impl Api {
         self.storage_fetch(&gear::storage().system().number()).await
     }
 
-    /// Get balance by account address.
-    pub async fn get_balance(&self, address: &str) -> Result<u128> {
-        Ok(self.info(address).await?.data.free)
+    /// Get the free funds balance of the account identified by `account_id` at specified block.
+    #[storage_fetch]
+    pub async fn free_balance_at(
+        &self,
+        account_id: impl IntoAccountId32,
+        block_hash: Option<H256>,
+    ) -> Result<u128> {
+        Ok(self.account_data_at(account_id, block_hash).await?.free)
+    }
+
+    /// Get the reserved funds balance of the account identified by `account_id` at specified block.
+    #[storage_fetch]
+    pub async fn reserved_balance_at(
+        &self,
+        account_id: impl IntoAccountId32,
+        block_hash: Option<H256>,
+    ) -> Result<u128> {
+        Ok(self.account_data_at(account_id, block_hash).await?.reserved)
+    }
+
+    /// Get the total balance of the account identified by `account_id` at specified block.
+    ///
+    /// Total balance includes free and reserved funds.
+    #[storage_fetch]
+    pub async fn total_balance_at(
+        &self,
+        account_id: impl IntoAccountId32,
+        block_hash: Option<H256>,
+    ) -> Result<u128> {
+        let data = self.account_data_at(account_id, block_hash).await?;
+
+        data.free
+            .checked_add(data.reserved)
+            .ok_or(Error::BalanceOverflow)
     }
 
     /// Get events at specified block.
@@ -191,11 +236,13 @@ impl Api {
     #[storage_fetch]
     pub async fn bank_info_at(
         &self,
-        account_id: AccountId32,
+        account_id: impl IntoAccountId32,
         block_hash: Option<H256>,
     ) -> Result<BankAccount<u128>> {
         self.storage_fetch_at(
-            &gear::storage().gear_bank().bank(account_id.into_subxt()),
+            &gear::storage()
+                .gear_bank()
+                .bank(account_id.into_account_id()),
             block_hash,
         )
         .await
@@ -234,9 +281,9 @@ impl Api {
 
 // pallet-gear-program
 impl Api {
-    /// Get original code by its `CodeId` at specified block.
+    /// Returns original WASM code for the given `CodeId` at specified block.
     #[storage_fetch]
-    pub async fn original_code_storage_at(
+    pub async fn original_code_at(
         &self,
         code_id: CodeId,
         block_hash: Option<H256>,
@@ -282,9 +329,9 @@ impl Api {
         .await
     }
 
-    /// Get active program from program id at specified block.
+    /// Returns `ActiveProgram` for the given `ActorId` at specified block.
     #[storage_fetch]
-    pub async fn gprog_at(
+    pub async fn active_program_at(
         &self,
         program_id: ActorId,
         block_hash: Option<H256>,
@@ -295,7 +342,7 @@ impl Api {
         }
     }
 
-    /// Get pages of active program at specified block.
+    /// Get pages of an active program at specified block.
     #[storage_fetch]
     pub async fn program_pages_at(
         &self,
@@ -364,7 +411,7 @@ impl Api {
     pub async fn specified_program_pages_at(
         &self,
         program_id: ActorId,
-        page_numbers: impl IntoIterator<Item = u32>,
+        page_numbers: impl IntoIterator<Item = GearPage>,
         block_hash: Option<H256>,
     ) -> Result<GearPages> {
         futures::stream::iter(page_numbers)
@@ -373,7 +420,7 @@ impl Api {
                     program_id,
                     // memory infix is always zero now
                     MemoryInfix::default(),
-                    Page(page),
+                    page.into(),
                 );
 
                 let page_buf = self
@@ -383,7 +430,7 @@ impl Api {
                     .await?
                     .ok_or_else(|| FailedPage::new(page, program_id).not_found())?;
 
-                Ok((page.try_into()?, page_buf))
+                Ok((page, page_buf))
             })
             .try_collect()
             .await
@@ -408,25 +455,25 @@ impl Api {
 impl Api {
     /// Get a message identified by `message_id` from the `account_id`'s
     /// mailbox.
-    pub async fn get_mailbox_account_message(
+    pub async fn mailbox_account_message(
         &self,
-        account_id: AccountId32,
+        account_id: impl IntoAccountId32,
         message_id: MessageId,
     ) -> Result<Option<(UserStoredMessage, Interval<u32>)>> {
         Ok(self
             .storage_fetch(
                 &gear::storage()
                     .gear_messenger()
-                    .mailbox(account_id.into_subxt(), message_id),
+                    .mailbox(account_id.into_account_id(), message_id),
             )
             .await
             .ok())
     }
 
     /// Get all mailbox messages or for the provided `address`.
-    pub async fn mailbox(
+    pub async fn mailbox_messages(
         &self,
-        account_id: Option<AccountId32>,
+        account_id: Option<impl IntoAccountId32>,
         count: usize,
     ) -> Result<Vec<(UserStoredMessage, Interval<u32>)>> {
         let storage = self.storage().at_latest().await?;
@@ -434,7 +481,7 @@ impl Api {
         if let Some(account_id) = account_id {
             let query_key = gear::storage()
                 .gear_messenger()
-                .mailbox_iter1(account_id.into_subxt());
+                .mailbox_iter1(account_id.into_account_id());
             storage
                 .iter(query_key)
                 .await?

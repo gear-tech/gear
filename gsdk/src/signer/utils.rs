@@ -45,7 +45,7 @@ pub type EventsResult = Result<(H256, ExtrinsicEvents<GearConfig>)>;
 impl Inner {
     /// Logging balance spent
     pub async fn log_balance_spent(&self, before: u128) -> Result<()> {
-        match self.rpc().get_balance().await {
+        match self.rpc().free_balance().await {
             Ok(balance) => {
                 let after = before.saturating_sub(balance);
                 log::info!("\tBalance spent: {after}");
@@ -80,7 +80,7 @@ impl Inner {
 
     /// Listen transaction process and print logs.
     pub async fn process<Call: Payload>(&self, call: Call) -> Result<TxInBlock> {
-        let before = self.rpc().get_balance().await?;
+        let before = self.rpc().free_balance().await?;
 
         let mut process = self.sign_and_submit_then_watch(&call).await?;
 

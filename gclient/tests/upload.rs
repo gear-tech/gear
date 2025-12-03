@@ -207,7 +207,7 @@ async fn get_mailbox() -> anyhow::Result<()> {
 
     assert!(listener.message_processed(*message_id).await?.succeed());
 
-    let mailbox = api.get_mailbox_messages(15).await?;
+    let mailbox = api.signer().storage().mailbox_messages(15).await?;
 
     // Check that all messages is in mailbox
     assert_eq!(mailbox.len(), 5);

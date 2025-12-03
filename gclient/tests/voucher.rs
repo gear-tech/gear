@@ -35,7 +35,7 @@ async fn voucher_issue_and_upload_code_and_send_message() -> anyhow::Result<()> 
     let gas_limit = api.block_gas_limit()?;
 
     // Taking account balance.
-    let _balance = api.total_balance(api.account_id()).await?;
+    let _balance = api.api().total_balance(api.account_id()).await?;
 
     // Subscribing for events.
     let mut listener = api.subscribe().await?;
@@ -53,6 +53,8 @@ async fn voucher_issue_and_upload_code_and_send_message() -> anyhow::Result<()> 
     // Create program
     let payload = InitMessage::Capacitor("15".to_string()).encode();
     let (message_id, program_id, ..) = api
+        .signer()
+        .calls()
         .create_program_bytes(code_id, vec![], payload, gas_limit, 0)
         .await?;
 

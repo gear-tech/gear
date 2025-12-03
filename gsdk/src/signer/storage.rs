@@ -18,11 +18,12 @@
 
 //! Storage interfaces
 use crate::{
-    BlockNumber, GearGasNode, GearGasNodeId, GearPages, IntoSubxt,
+    BlockNumber, GearGasNode, GearGasNodeId, GearPages, IntoAccountId32, Result,
     gear::{
         self,
         runtime_types::{
             frame_system::pallet::Call,
+            gear_common::storage::primitives::Interval,
             gear_core::program::{ActiveProgram, Program},
             pallet_gear_bank::pallet::BankAccount,
             vara_runtime::RuntimeCall,
@@ -33,10 +34,10 @@ use crate::{
 };
 use gear_core::{
     code::{CodeMetadata, InstrumentedCode},
-    ids::*,
+    ids::{ActorId, CodeId, MessageId},
+    message::UserStoredMessage,
     program::MemoryInfix,
 };
-use sp_runtime::AccountId32;
 use subxt::{metadata::EncodeWithMetadata, storage::Address};
 
 /// Implementation of storage calls for [`Signer`].
@@ -96,14 +97,14 @@ impl SignerStorage<'_> {
 
 // pallet-gear-bank
 impl SignerStorage<'_> {
-    /// Writes given BankAccount info into storage at `AccountId32`.
+    /// Writes given BankAccount info into storage at `dest`.
     pub async fn set_bank_account_storage(
         &self,
-        dest: impl Into<AccountId32>,
+        dest: impl IntoAccountId32,
         value: BankAccount<u128>,
     ) -> EventsResult {
         self.set_storage(&[(
-            gear::storage().gear_bank().bank(dest.into().into_subxt()),
+            gear::storage().gear_bank().bank(dest.into_account_id()),
             value,
         )])
         .await
@@ -167,5 +168,30 @@ impl SignerStorage<'_> {
             &Program::Active(program),
         )])
         .await
+    }
+}
+
+// pallet-gear-messenger
+impl SignerStorage<'_> {
+    /// Get a message identified by `message_id` from the mailbox.
+    pub async fn mailbox_message(
+        &self,
+        message_id: MessageId,
+    ) -> Result<Option<(UserStoredMessage, Interval<u32>)>> {
+        self.0
+            .api()
+            .mailbox_account_message(self.0.account_id(), message_id)
+            .await
+    }
+
+    /// Get up to `count` messages from the mailbox.
+    pub async fn mailbox_messages(
+        &self,
+        count: usize,
+    ) -> Result<Vec<(UserStoredMessage, Interval<u32>)>> {
+        self.0
+            .api()
+            .mailbox_messages(Some(self.0.account_id()), count)
+            .await
     }
 }

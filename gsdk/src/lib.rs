@@ -32,7 +32,7 @@
 pub use crate::{
     api::{Api, ApiBuilder},
     config::GearConfig,
-    convert::{AsGear, IntoSubstrate, IntoSubxt},
+    convert::{AsGear, IntoAccountId32, IntoSubstrate, IntoSubxt},
     gear::{Event, runtime_types::vara_runtime::RuntimeError},
     result::{Error, Result},
     signer::PairSigner,
@@ -62,6 +62,7 @@ use subxt::{
 
 mod api;
 pub mod backtrace;
+mod codegen_impls;
 pub mod config;
 mod convert;
 pub mod events;
@@ -257,6 +258,10 @@ pub enum Program {
     substitute_type(
         path = "gear_core_errors::simple::SuccessReplyReason",
         with = "::gear_core_errors::SuccessReplyReason"
+    ),
+    derive_for_type(
+        path = "pallet_balances::types::ExtraFlags",
+        derive = "Default, derive_more::BitOr"
     ),
     generate_docs
 )]

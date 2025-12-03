@@ -18,11 +18,14 @@
 
 use super::{GearApi, Result};
 use crate::{Error, api::storage::account_id::IntoAccountId32, utils};
-use anyhow::anyhow;
-use gear_core::{gas::LockId, ids::*, memory::PageBuf, pages::GearPage};
+use gear_core::{
+    gas::LockId,
+    ids::{ActorId, CodeId, MessageId},
+    memory::PageBuf,
+};
 use gear_utils::{MemoryPageDump, ProgramMemoryDump};
 use gsdk::{
-    AsGear, Error as GsdkError, GearGasNode, GearGasNodeId, IntoSubstrate, IntoSubxt,
+    AsGear, GearGasNode, GearGasNodeId, IntoSubstrate, IntoSubxt,
     config::GearConfig,
     ext::{
         sp_runtime::{AccountId32, MultiAddress},
@@ -30,14 +33,14 @@ use gsdk::{
     },
     gear::{
         Event,
-        balances::Event as BalancesEvent,
         gear::Event as GearEvent,
-        gear_eth_bridge::Event as GearEthBridgeEvent,
         runtime_types::{
             frame_system::pallet::Call as SystemCall,
             gear_common::event::{CodeChangeKind, MessageEntry},
-            gear_core::program::ActiveProgram,
-            pallet_balances::{pallet::Call as BalancesCall, types::AccountData},
+            pallet_balances::{
+                pallet::Call as BalancesCall,
+                types::{AccountData, ExtraFlags},
+            },
             pallet_gear::pallet::Call as GearCall,
             pallet_gear_bank::pallet::BankAccount,
             pallet_gear_voucher::internal::VoucherId,
@@ -56,274 +59,6 @@ use std::{
 };
 
 impl GearApi {
-    /// Sends the pallet-gear-eth-bridge::reset_overflowed_queue extrinsic.
-    ///
-    /// This function returns a hash of the block with the transaction.
-    pub async fn reset_overflowed_queue(&self, encoded_finality_proof: Vec<u8>) -> Result<H256> {
-        let tx = self
-            .0
-            .calls()
-            .reset_overflowed_queue(encoded_finality_proof)
-            .await?;
-
-        for event in tx.wait_for_success().await?.iter() {
-            if let Event::GearEthBridge(GearEthBridgeEvent::QueueReset) = event?.as_gear()? {
-                return Ok(tx.block_hash());
-            }
-        }
-
-        Err(Error::EventNotFound)
-    }
-
-    /// Returns original wasm code for the given `code_id` at specified
-    /// `at_block_hash`.
-    pub async fn original_code_at(
-        &self,
-        code_id: CodeId,
-        at_block_hash: Option<H256>,
-    ) -> Result<Vec<u8>> {
-        self.0
-            .api()
-            .original_code_storage_at(code_id, at_block_hash)
-            .await
-            .map_err(Into::into)
-    }
-
-    /// Returns `ActiveProgram` for the given `program_id` at specified
-    /// `at_block_hash`.
-    pub async fn program_at(
-        &self,
-        program_id: ActorId,
-        at_block_hash: Option<H256>,
-    ) -> Result<ActiveProgram<u32>> {
-        self.0
-            .api()
-            .gprog_at(program_id, at_block_hash)
-            .await
-            .map_err(Into::into)
-    }
-
-    /// Transfer `value` to `destination`'s account.
-    ///
-    /// Sends the
-    /// [`pallet_balances::transfer`](https://crates.parity.io/pallet_balances/pallet/struct.Pallet.html#method.transfer)
-    /// extrinsic.
-    ///
-    /// This function returns a hash of the block with the transfer transaction.
-    pub async fn transfer_keep_alive(&self, destination: ActorId, value: u128) -> Result<H256> {
-        let destination: [u8; 32] = destination.into();
-
-        let tx = self
-            .0
-            .calls()
-            .transfer_keep_alive(destination, value)
-            .await?;
-
-        for event in tx.wait_for_success().await?.iter() {
-            if let Event::Balances(BalancesEvent::Transfer { .. }) = event?.as_gear()? {
-                return Ok(tx.block_hash());
-            }
-        }
-
-        // Sending zero value is a no-op, so now event occurs.
-        if value == 0 {
-            return Ok(tx.block_hash());
-        }
-
-        Err(Error::EventNotFound)
-    }
-
-    /// Transfer `value` to `destination`'s account.
-    ///
-    /// Sends the
-    /// [`pallet_balances::transfer`](https://crates.parity.io/pallet_balances/pallet/struct.Pallet.html#method.transfer)
-    /// extrinsic.
-    ///
-    /// This function returns a hash of the block with the transfer transaction.
-    pub async fn transfer_allow_death(&self, destination: ActorId, value: u128) -> Result<H256> {
-        let destination: [u8; 32] = destination.into();
-
-        let tx = self
-            .0
-            .calls()
-            .transfer_allow_death(destination, value)
-            .await?;
-
-        for event in tx.wait_for_success().await?.iter() {
-            if let Event::Balances(BalancesEvent::Transfer { .. }) = event?.as_gear()? {
-                return Ok(tx.block_hash());
-            }
-        }
-
-        // Sending zero value is a no-op, so now event occurs.
-        if value == 0 {
-            return Ok(tx.block_hash());
-        }
-
-        Err(Error::EventNotFound)
-    }
-
-    /// Transfer `value` to `destination`'s account.
-    ///
-    /// Sends the
-    /// [`pallet_balances::transfer`](https://crates.parity.io/pallet_balances/pallet/struct.Pallet.html#method.transfer)
-    /// extrinsic.
-    ///
-    /// This function returns a hash of the block with the transfer transaction.
-    pub async fn transfer_all(&self, destination: ActorId, keep_alive: bool) -> Result<H256> {
-        let destination: [u8; 32] = destination.into();
-
-        let tx = self.0.calls().transfer_all(destination, keep_alive).await?;
-
-        for event in tx.wait_for_success().await?.iter() {
-            if let Event::Balances(BalancesEvent::Transfer { .. }) = event?.as_gear()? {
-                return Ok(tx.block_hash());
-            }
-        }
-
-        Err(Error::EventNotFound)
-    }
-
-    /// Create a new program from a previously uploaded code identified by
-    /// [`CodeId`](https://docs.rs/gear_core/ids/struct.CodeId.html) and
-    /// initialize it with a byte slice `payload`.
-    ///
-    /// Sends the
-    /// [`pallet_gear::create_program`](https://docs.rs/pallet_gear/pallet/struct.Pallet.html#method.create_program)
-    /// extrinsic.
-    ///
-    /// Parameters:
-    ///
-    /// - `code_id` is the code identifier that can be obtained by calling the
-    ///   [`upload_code`](Self::upload_code) function;
-    /// - `salt` is the arbitrary data needed to generate an address for a new
-    ///   program (control of salt uniqueness is entirely on the function
-    ///   caller’s side);
-    /// - `payload` vector contains data to be processed in the `init` function
-    ///   of the newly deployed "child" program;
-    /// - `gas_limit` is the maximum gas amount allowed to spend for the program
-    ///   creation and initialization;
-    /// - `value` to be transferred to the program's account during
-    ///   initialization.
-    ///
-    /// This function returns a tuple with an init message identifier, newly
-    /// created program identifier, and a hash of the block with the message
-    /// enqueuing transaction.
-    ///
-    /// # See also
-    ///
-    /// - [`create_program`](Self::create_program) function initializes a newly
-    ///   created program with an encoded payload.
-    /// - [`create_program_bytes_batch`](Self::create_program_bytes_batch)
-    ///   function creates a batch of programs and initializes them.
-    /// - [`upload_code`](Self::upload_code) function uploads a code and returns
-    ///   its identifier.
-    /// - [`upload_program_bytes`](Self::upload_program_bytes) function uploads
-    ///   a new program and initialize it.
-    pub async fn create_program_bytes(
-        &self,
-        code_id: CodeId,
-        salt: impl AsRef<[u8]>,
-        payload: impl AsRef<[u8]>,
-        gas_limit: u64,
-        value: u128,
-    ) -> Result<(MessageId, ActorId, H256)> {
-        let salt = salt.as_ref().to_vec();
-        let payload = payload.as_ref().to_vec();
-
-        let tx = self
-            .0
-            .calls()
-            .create_program(code_id, salt, payload, gas_limit, value)
-            .await?;
-
-        for event in tx.wait_for_success().await?.iter() {
-            if let Event::Gear(GearEvent::MessageQueued {
-                id,
-                destination,
-                entry: MessageEntry::Init,
-                ..
-            }) = event?.as_gear()?
-            {
-                return Ok((id, destination, tx.block_hash()));
-            }
-        }
-
-        Err(Error::EventNotFound)
-    }
-
-    /// Create a batch of programs.
-    ///
-    /// A batch is a set of programs to be created within one function call.
-    /// Every entry of the `args` iterator is a tuple of parameters used in the
-    /// [`create_program_bytes`](Self::create_program_bytes) function. It is
-    /// useful when deploying a multi-program dApp.
-    pub async fn create_program_bytes_batch(
-        &self,
-        args: impl IntoIterator<Item = (CodeId, impl AsRef<[u8]>, impl AsRef<[u8]>, u64, u128)>,
-    ) -> Result<(Vec<Result<(MessageId, ActorId)>>, H256)> {
-        let calls: Vec<_> = args
-            .into_iter()
-            .map(|(code_id, salt, payload, gas_limit, value)| {
-                RuntimeCall::Gear(GearCall::create_program {
-                    code_id,
-                    salt: salt.as_ref().to_vec(),
-                    init_payload: payload.as_ref().to_vec(),
-                    gas_limit,
-                    value,
-                    keep_alive: false,
-                })
-            })
-            .collect();
-
-        let amount = calls.len();
-
-        let tx = self.0.calls().force_batch(calls).await?;
-        let mut res = Vec::with_capacity(amount);
-
-        for event in tx.wait_for_success().await?.iter() {
-            match event?.as_gear()? {
-                Event::Gear(GearEvent::MessageQueued {
-                    id,
-                    destination,
-                    entry: MessageEntry::Init,
-                    ..
-                }) => res.push(Ok((id, destination))),
-                Event::Utility(UtilityEvent::ItemFailed { error }) => {
-                    res.push(Err(self.0.api().decode_error(error).into()))
-                }
-                _ => (),
-            }
-        }
-
-        if res.len() == amount {
-            Ok((res, tx.block_hash()))
-        } else {
-            Err(Error::IncompleteBatchResult(res.len(), amount))
-        }
-    }
-
-    /// Same as [`create_program_bytes`](Self::create_program_bytes), but
-    /// initializes a newly created program with an encoded `payload`.
-    ///
-    /// # See also
-    ///
-    /// - [`upload_code`](Self::upload_code) function uploads a code and returns
-    ///   its identifier.
-    /// - [`upload_program`](Self::upload_program) function uploads a new
-    ///   program and initialize it.
-    pub async fn create_program(
-        &self,
-        code_id: CodeId,
-        salt: impl AsRef<[u8]>,
-        payload: impl Encode,
-        gas_limit: u64,
-        value: u128,
-    ) -> Result<(MessageId, ActorId, H256)> {
-        self.create_program_bytes(code_id, salt, payload.encode(), gas_limit, value)
-            .await
-    }
-
     /// Migrates an active program identified by `src_program_id` onto another
     /// node identified by `dest_node_api` and returns the migrated program
     /// identifier. All source program data is taken at the time of
@@ -334,7 +69,13 @@ impl GearApi {
         src_block_hash: Option<H256>,
         dest_node_api: &GearApi,
     ) -> Result<ActorId> {
-        if dest_node_api.0.api().gprog(src_program_id).await.is_ok() {
+        if dest_node_api
+            .0
+            .api()
+            .active_program(src_program_id)
+            .await
+            .is_ok()
+        {
             return Err(Error::ProgramAlreadyExists(
                 src_program_id.as_ref().encode_hex(),
             ));
@@ -349,48 +90,50 @@ impl GearApi {
 
         // Collect data from the source program
         let src_program_account_data = self
+            .0
+            .api()
             .account_data_at(src_program_id, src_block_hash)
             .await
             .or_else(|e| {
-            if let Error::GearSDK(GsdkError::StorageEntryNotFound) = e {
-                Ok(AccountData {
-                    free: 0u128,
-                    reserved: 0,
-                    frozen: 0,
-                    flags: gsdk::gear::runtime_types::pallet_balances::types::ExtraFlags(
-                        170141183460469231731687303715884105728,
-                    ),
-                })
-            } else {
-                Err(e)
-            }
-        })?;
+                if let gsdk::Error::StorageEntryNotFound = e {
+                    Ok(AccountData {
+                        free: 0u128,
+                        reserved: 0,
+                        frozen: 0,
+                        flags: ExtraFlags::NEW_LOGIC,
+                    })
+                } else {
+                    Err(e)
+                }
+            })?;
 
         let src_program_account_bank_data = self
-            .bank_data_at(src_program_id, src_block_hash)
+            .0
+            .api()
+            .bank_info_at(src_program_id, src_block_hash)
             .await
             .or_else(|e| {
-                if let Error::GearSDK(GsdkError::StorageEntryNotFound) = e {
+                if let gsdk::Error::StorageEntryNotFound = e {
                     Ok(BankAccount { gas: 0, value: 0 })
                 } else {
                     Err(e)
                 }
             })?;
 
-        let bank_address = self.bank_address().await?;
+        let bank_address = self.0.api().bank_address().await?;
 
         let src_bank_account_data = self
+            .0
+            .api()
             .account_data_at(bank_address.clone(), src_block_hash)
             .await
             .or_else(|e| {
-                if let Error::GearSDK(GsdkError::StorageEntryNotFound) = e {
+                if let gsdk::Error::StorageEntryNotFound = e {
                     Ok(AccountData {
                         free: 0u128,
                         reserved: 0,
                         frozen: 0,
-                        flags: gsdk::gear::runtime_types::pallet_balances::types::ExtraFlags(
-                            170141183460469231731687303715884105728,
-                        ),
+                        flags: ExtraFlags::NEW_LOGIC,
                     })
                 } else {
                     Err(e)
@@ -400,7 +143,7 @@ impl GearApi {
         let mut src_program = self
             .0
             .api()
-            .gprog_at(src_program_id, src_block_hash)
+            .active_program_at(src_program_id, src_block_hash)
             .await?;
 
         let src_program_pages = self
@@ -490,10 +233,12 @@ impl GearApi {
 
         for account_with_reserved_funds in accounts_with_reserved_funds {
             let src_account_bank_data = self
-                .bank_data_at(account_with_reserved_funds.clone(), src_block_hash)
+                .0
+                .api()
+                .bank_info_at(account_with_reserved_funds.clone(), src_block_hash)
                 .await
                 .or_else(|e| {
-                    if let Error::GearSDK(GsdkError::StorageEntryNotFound) = e {
+                    if let gsdk::Error::StorageEntryNotFound = e {
                         Ok(BankAccount { gas: 0, value: 0 })
                     } else {
                         Err(e)
@@ -501,27 +246,29 @@ impl GearApi {
                 })?;
 
             let dest_account_data = dest_node_api
+                .0
+                .api()
                 .account_data(account_with_reserved_funds.clone())
                 .await
                 .or_else(|e| {
-                    if let Error::GearSDK(GsdkError::StorageEntryNotFound) = e {
+                    if let gsdk::Error::StorageEntryNotFound = e {
                         Ok(AccountData {
                             free: 0u128,
                             reserved: 0,
                             frozen: 0,
-                            flags: gsdk::gear::runtime_types::pallet_balances::types::ExtraFlags(
-                                170141183460469231731687303715884105728,
-                            ),
+                            flags: ExtraFlags::NEW_LOGIC,
                         })
                     } else {
                         Err(e)
                     }
                 })?;
             let dest_account_bank_data = self
-                .bank_data_at(account_with_reserved_funds.clone(), None)
+                .0
+                .api()
+                .bank_info_at(account_with_reserved_funds.clone(), None)
                 .await
                 .or_else(|e| {
-                    if let Error::GearSDK(GsdkError::StorageEntryNotFound) = e {
+                    if let gsdk::Error::StorageEntryNotFound = e {
                         Ok(BankAccount { gas: 0, value: 0 })
                     } else {
                         Err(e)
@@ -554,7 +301,7 @@ impl GearApi {
 
         let dest_gas_total_issuance =
             dest_node_api.0.api().total_issuance().await.or_else(|e| {
-                if let GsdkError::StorageEntryNotFound = e {
+                if let gsdk::Error::StorageEntryNotFound = e {
                     Ok(0)
                 } else {
                     Err(e)
@@ -585,53 +332,6 @@ impl GearApi {
         Ok(dest_program_id)
     }
 
-    /// Get all pages with their data for program at specified block.
-    pub async fn get_program_pages_data_at(
-        &self,
-        program_id: ActorId,
-        block_hash: Option<H256>,
-    ) -> Result<BTreeMap<GearPage, PageBuf>> {
-        let pages_data = self
-            .0
-            .api()
-            .program_pages_at(program_id, block_hash)
-            .await?;
-
-        let mut res = BTreeMap::new();
-        for (page, data) in pages_data.into_iter() {
-            res.insert(
-                GearPage::try_from(page).map_err(|err| anyhow!("{err}"))?,
-                data,
-            );
-        }
-
-        Ok(res)
-    }
-
-    /// Get specified pages with their data for program at specified block.
-    pub async fn get_program_specified_pages_data_at(
-        &self,
-        program_id: ActorId,
-        pages: impl Iterator<Item = GearPage>,
-        block_hash: Option<H256>,
-    ) -> Result<BTreeMap<GearPage, PageBuf>> {
-        let pages_data = self
-            .0
-            .api()
-            .specified_program_pages_at(program_id, pages.map(Into::into), block_hash)
-            .await?;
-
-        let mut res = BTreeMap::new();
-        for (page, data) in pages_data.into_iter() {
-            res.insert(
-                GearPage::try_from(page).map_err(|err| anyhow::Error::msg(err.to_string()))?,
-                data,
-            );
-        }
-
-        Ok(res)
-    }
-
     /// Save program (identified by `program_id`) memory dump to the file for
     /// further restoring in gclient/gtest. Program memory dumped at the
     /// time of `block_hash` if presented or the most recent block.
@@ -655,23 +355,23 @@ impl GearApi {
             })
             .collect();
 
-        let program_account_data =
-            self.account_data_at(program_id, block_hash)
-                .await
-                .or_else(|e| {
-                    if let Error::GearSDK(GsdkError::StorageEntryNotFound) = e {
-                        Ok(AccountData {
-                            free: 0u128,
-                            reserved: 0,
-                            frozen: 0,
-                            flags: gsdk::gear::runtime_types::pallet_balances::types::ExtraFlags(
-                                170141183460469231731687303715884105728,
-                            ),
-                        })
-                    } else {
-                        Err(e)
-                    }
-                })?;
+        let program_account_data = self
+            .0
+            .api()
+            .account_data_at(program_id, block_hash)
+            .await
+            .or_else(|e| {
+                if let gsdk::Error::StorageEntryNotFound = e {
+                    Ok(AccountData {
+                        free: 0u128,
+                        reserved: 0,
+                        frozen: 0,
+                        flags: ExtraFlags::NEW_LOGIC,
+                    })
+                } else {
+                    Err(e)
+                }
+            })?;
 
         ProgramMemoryDump {
             pages: program_pages,
@@ -722,7 +422,9 @@ impl GearApi {
     ///   of values from the mailbox.
     pub async fn claim_value(&self, message_id: MessageId) -> Result<(u128, H256)> {
         let value = self
-            .get_mailbox_message(message_id)
+            .0
+            .storage()
+            .mailbox_message(message_id)
             .await?
             .map(|(message, _interval)| message.value());
 
@@ -753,7 +455,9 @@ impl GearApi {
         let message_ids: Vec<_> = args.clone().into_iter().collect();
 
         let messages = futures::future::try_join_all(
-            message_ids.iter().map(|mid| self.get_mailbox_message(*mid)),
+            message_ids
+                .iter()
+                .map(|mid| async move { self.0.storage().mailbox_message(*mid).await }),
         )
         .await?;
 
@@ -931,7 +635,7 @@ impl GearApi {
     ) -> Result<(MessageId, u128, H256)> {
         let payload = payload.as_ref().to_vec();
 
-        let data = self.get_mailbox_message(reply_to_id).await?;
+        let data = self.0.storage().mailbox_message(reply_to_id).await?;
 
         let tx = self
             .0
@@ -974,7 +678,9 @@ impl GearApi {
         let message_ids: Vec<_> = args.clone().into_iter().map(|(mid, _, _, _)| mid).collect();
 
         let messages = futures::future::try_join_all(
-            message_ids.iter().map(|mid| self.get_mailbox_message(*mid)),
+            message_ids
+                .iter()
+                .map(|mid| async move { self.0.storage().mailbox_message(*mid).await }),
         )
         .await?;
 
@@ -1525,7 +1231,7 @@ impl GearApi {
     ) -> Result<(MessageId, u128, H256)> {
         let payload = payload.as_ref().to_vec();
 
-        let data = self.get_mailbox_message(reply_to_id).await?;
+        let data = self.0.storage().mailbox_message(reply_to_id).await?;
 
         let tx = self
             .0

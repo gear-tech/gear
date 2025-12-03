@@ -37,10 +37,18 @@ async fn charge_10(
         .await?;
     assert!(listener.message_processed(message_id).await?.succeed());
 
-    let msg = api.get_mailbox_messages(1).await.unwrap().pop();
+    let msg = api
+        .signer()
+        .storage()
+        .mailbox_messages(1)
+        .await
+        .unwrap()
+        .pop();
     if let Some(msg) = msg {
         let message = api
-            .get_mailbox_message(msg.0.id())
+            .signer()
+            .storage()
+            .mailbox_message(msg.0.id())
             .await
             .unwrap()
             .unwrap()
@@ -170,7 +178,7 @@ async fn memory_download() -> Result<()> {
     assert!(listener.message_processed(message_id).await?.succeed());
 
     let timer_start = gclient::now_micros();
-    let pages = api.get_program_pages_data_at(program_id, None).await?;
+    let pages = api.signer().api().program_pages(program_id).await?;
     let timer_end = gclient::now_micros();
 
     println!(
@@ -196,7 +204,9 @@ async fn memory_download() -> Result<()> {
 
     let timer_start = gclient::now_micros();
     let _pages = api
-        .get_program_specified_pages_data_at(program_id, accessed_pages.into_iter(), None)
+        .signer()
+        .api()
+        .specified_program_pages(program_id, accessed_pages)
         .await?;
     let timer_end = gclient::now_micros();
 
