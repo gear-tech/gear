@@ -72,10 +72,10 @@ pub enum ComputeError {
     #[error("Latest data not found")]
     LatestDataNotFound,
     #[error(
-        "Expect validators commitment will be for {expected_era_index}, but receive for {commitment_era_index}"
+        "Receive validators commitment for earlier era: previous_commitment era - {previous_commitment_era_index}, current commitment era - {commitment_era_index}"
     )]
-    ValidatorsCommitmentEraMismatch {
-        expected_era_index: u64,
+    ValidatorsCommittedForEarlierEra {
+        previous_commitment_era_index: u64,
         commitment_era_index: u64,
     },
 
