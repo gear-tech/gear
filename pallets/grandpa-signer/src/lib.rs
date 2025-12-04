@@ -72,7 +72,6 @@ pub mod pallet {
     #[derive(RuntimeDebug)]
     struct SubmissionContext<T: Config> {
         request: SigningRequest<T>,
-        authorities: Vec<T::AuthorityId>,
     }
 
     #[pallet::pallet]
@@ -268,10 +267,7 @@ pub mod pallet {
                 Error::<T>::MaxSignaturesReached
             );
 
-            Ok(SubmissionContext {
-                request,
-                authorities,
-            })
+            Ok(SubmissionContext { request })
         }
 
         fn backoff_key(request_id: RequestId, authority: &T::AuthorityId) -> Vec<u8> {
@@ -323,10 +319,8 @@ pub mod pallet {
             authority: T::AuthorityId,
             signature: T::AuthoritySignature,
         ) -> DispatchResult {
-            let SubmissionContext {
-                request,
-                authorities,
-            } = Self::ensure_can_accept_signature(request_id, &authority)?;
+            let SubmissionContext { request } =
+                Self::ensure_can_accept_signature(request_id, &authority)?;
 
             let message = request.payload.clone();
             ensure!(
@@ -345,22 +339,6 @@ pub mod pallet {
                 authority: authority.clone(),
                 count,
             });
-
-            // Drop the request once it is fully signed or hits the per-request cap.
-            let done_by_set = count >= authorities.len() as u32;
-            let done_by_limit = count >= T::MaxSignaturesPerRequest::get();
-            if done_by_set || done_by_limit {
-                log::warn!(
-                    target: "gear::grandpa-signer",
-                    "cleanup request {} (done_by_set={}, done_by_limit={}, count={}, authorities={})",
-                    request_id,
-                    done_by_set,
-                    done_by_limit,
-                    count,
-                    authorities.len(),
-                );
-                Self::cleanup_request(request_id);
-            }
 
             Ok(())
         }
@@ -579,23 +557,21 @@ pub mod pallet {
     impl<T: Config> WeightInfo for SubstrateWeight<T> {
         fn schedule_request() -> Weight {
             // Reads: NextRequestId; Requests (prune pass).
-            // Writes: Requests, NextRequestId; cleanup for up to MaxRequests expired entries and their signatures.
+            // Writes: Requests, NextRequestId; optional cleanup of expired/rotated requests.
             let db = T::DbWeight::get();
             let max_requests = T::MaxRequests::get() as u64;
-            let max_sigs = T::MaxSignaturesPerRequest::get() as u64;
-            Weight::from_parts(55_000_000, 2048)
+            Weight::from_parts(35_000_000, 1024)
                 .saturating_add(db.reads(1 + max_requests))
-                .saturating_add(db.writes(2 + max_requests * (2 + max_sigs)))
+                .saturating_add(db.writes(2 + max_requests))
         }
 
         fn submit_signature() -> Weight {
             // Reads: Requests, Signatures, SignatureCount.
-            // Writes: Signatures, SignatureCount; optional cleanup of a completed request.
+            // Writes: Signatures, SignatureCount.
             let db = T::DbWeight::get();
-            let max_sigs = T::MaxSignaturesPerRequest::get() as u64;
-            Weight::from_parts(145_000_000, 4096)
+            Weight::from_parts(95_000_000, 2048)
                 .saturating_add(db.reads(3))
-                .saturating_add(db.writes(2 + 1 + max_sigs))
+                .saturating_add(db.writes(3))
         }
     }
 
@@ -603,15 +579,15 @@ pub mod pallet {
     impl WeightInfo for () {
         fn schedule_request() -> Weight {
             // Rough upper bound; prefer `SubstrateWeight` in runtimes.
-            Weight::from_parts(55_000_000, 2048)
+            Weight::from_parts(35_000_000, 1024)
                 .saturating_add(RocksDbWeight::get().reads(2_u64))
                 .saturating_add(RocksDbWeight::get().writes(3_u64))
         }
 
         fn submit_signature() -> Weight {
-            Weight::from_parts(145_000_000, 4096)
+            Weight::from_parts(95_000_000, 2048)
                 .saturating_add(RocksDbWeight::get().reads(3_u64))
-                .saturating_add(RocksDbWeight::get().writes(5_u64))
+                .saturating_add(RocksDbWeight::get().writes(3_u64))
         }
     }
 }

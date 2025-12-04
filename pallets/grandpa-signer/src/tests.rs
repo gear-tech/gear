@@ -326,3 +326,35 @@ fn request_id_overflow_rejected() {
         });
     })
 }
+
+#[test]
+fn request_and_signatures_remain_after_completion() {
+    with_set_id_lock(|| {
+        new_ext().execute_with(|| {
+            System::set_block_number(1);
+            let payload = b"hello".to_vec();
+            assert_ok!(GrandpaSigner::schedule_request(
+                RuntimeOrigin::root(),
+                payload.clone(),
+                None,
+                None
+            ));
+
+            let req = GrandpaSigner::requests(0).expect("request created");
+            let pair = &auth_keys()[0];
+            let sig = pair.sign(&payload);
+
+            assert_ok!(GrandpaSigner::submit_signature(
+                RuntimeOrigin::none(),
+                req.id,
+                pair.public(),
+                sig
+            ));
+
+            // The request and its signatures stay in storage for retrieval.
+            assert!(GrandpaSigner::requests(req.id).is_some());
+            assert_eq!(GrandpaSigner::signature_count(req.id), 1);
+            assert_eq!(GrandpaSigner::signatures(req.id, pair.public()), Some(sig));
+        });
+    })
+}
