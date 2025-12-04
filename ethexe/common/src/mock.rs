@@ -207,22 +207,27 @@ pub struct BlockFullData {
 }
 
 impl BlockFullData {
+    #[track_caller]
     pub fn as_synced(&self) -> &SyncedBlockData {
         self.synced.as_ref().expect("block not synced")
     }
 
+    #[track_caller]
     pub fn as_prepared(&self) -> &PreparedBlockData {
         self.prepared.as_ref().expect("block not prepared")
     }
 
+    #[track_caller]
     pub fn as_synced_mut(&mut self) -> &mut SyncedBlockData {
         self.synced.as_mut().expect("block not synced")
     }
 
+    #[track_caller]
     pub fn as_prepared_mut(&mut self) -> &mut PreparedBlockData {
         self.prepared.as_mut().expect("block not prepared")
     }
 
+    #[track_caller]
     pub fn to_simple(&self) -> SimpleBlockData {
         SimpleBlockData {
             hash: self.hash,
@@ -301,6 +306,7 @@ pub struct BlockChain {
 }
 
 impl BlockChain {
+    #[track_caller]
     pub fn block_top_announce_hash(&self, block_index: usize) -> HashOf<Announce> {
         self.blocks
             .get(block_index)
@@ -314,18 +320,21 @@ impl BlockChain {
             .expect("no announces found for block")
     }
 
+    #[track_caller]
     pub fn block_top_announce(&self, block_index: usize) -> &AnnounceData {
         self.announces
             .get(&self.block_top_announce_hash(block_index))
             .expect("announce not found")
     }
 
+    #[track_caller]
     pub fn block_top_announce_mut(&mut self, block_index: usize) -> &mut AnnounceData {
         self.announces
             .get_mut(&self.block_top_announce_hash(block_index))
             .expect("announce not found")
     }
 
+    #[track_caller]
     pub fn setup<DB>(self, db: &DB) -> Self
     where
         DB: AnnounceStorageRW
@@ -451,16 +460,15 @@ impl Mock<(u32, ValidatorsVec)> for BlockChain {
         // i = len + 1 - last block
         let mut blocks: VecDeque<_> = (0..len + 2)
             .map(|i| {
-                // Human readable blocks, to avoid zero values append some readable numbers
-                i.checked_sub(1)
-                    .map(|h| {
-                        (
-                            H256::from_low_u64_be(0x1_000_000 + h as u64),
-                            1_000_000 + h,
-                            1_000_000 + h * 10,
-                        )
-                    })
-                    .unwrap_or((H256([u8::MAX; 32]), 0, 0))
+                if let Some(h) = i.checked_sub(1) {
+                    // Human readable blocks, to avoid zero values append some readable numbers
+                    let hash = H256::from_low_u64_be(h as u64).tap_mut(|hash| hash.0[0] = 0x10);
+                    let height = 1_000_000 + h;
+                    let timestamp = 1_000_000 + h * 10;
+                    (hash, height, timestamp)
+                } else {
+                    (H256([u8::MAX; 32]), 0, 0)
+                }
             })
             .tuple_windows()
             .map(

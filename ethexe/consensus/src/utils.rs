@@ -33,7 +33,7 @@ use ethexe_common::{
     },
 };
 use ethexe_signer::Signer;
-use gprimitives::{CodeId, U256};
+use gprimitives::{CodeId, H256, U256};
 use parity_scale_codec::{Decode, Encode};
 use rand::SeedableRng;
 use roast_secp256k1_evm::frost::{
@@ -41,6 +41,8 @@ use roast_secp256k1_evm::frost::{
     keys::{self, IdentifierList},
 };
 use std::collections::{BTreeMap, HashSet};
+
+const LOG_WARNING_FREQUENCY: u32 = 10_000;
 
 /// A batch commitment, that has been signed by multiple validators.
 /// This structure manages the collection of signatures from different validators
@@ -152,54 +154,63 @@ pub fn aggregate_code_commitments<DB: CodesStorageRO>(
     Ok(commitments)
 }
 
-pub fn aggregate_chain_commitment<DB: BlockMetaStorageRO + OnChainStorageRO + AnnounceStorageRO>(
+#[derive(Debug, thiserror::Error, PartialEq, Eq)]
+pub enum ChainCommitmentAggregationError {
+    #[error("Chain contains not computed announce {0}")]
+    NotComputedAnnounceInChain(HashOf<Announce>),
+    #[error("Last committed announce not found in db for prepared block {0}")]
+    LastCommittedAnnounceNotFound(H256),
+    #[error("Computed announce {0} outcome not found in db")]
+    ComputedAnnounceOutcomeNotFound(HashOf<Announce>),
+    #[error("Computed announce {0} body not found in db")]
+    ComputedAnnounceNotFound(HashOf<Announce>),
+}
+
+/// Tries to aggregate chain commitment starting from `head_announce_hash` up to the last committed announce
+///
+/// # NOTE
+/// Must be guaranteed by caller that:
+/// 1) `head_announce_hash` is computed
+/// 2) `head_announce_hash` is successor of `at_block_hash` last committed announce
+pub fn try_aggregate_chain_commitment<DB: BlockMetaStorageRO + AnnounceStorageRO>(
     db: &DB,
-    head_announce: HashOf<Announce>,
-    fail_if_not_computed: bool,
-    max_deepness: Option<u32>,
-) -> Result<Option<(ChainCommitment, u32)>> {
+    at_block_hash: H256,
+    head_announce_hash: HashOf<Announce>,
+) -> Result<(ChainCommitment, u32), ChainCommitmentAggregationError> {
     // TODO #4744: improve squashing - removing redundant state transitions
 
-    let block_hash = db
-        .announce(head_announce)
-        .ok_or_else(|| anyhow!("Cannot get announce from db for head {head_announce}"))?
-        .block_hash;
+    if !db.announce_meta(head_announce_hash).computed {
+        return Err(ChainCommitmentAggregationError::NotComputedAnnounceInChain(
+            head_announce_hash,
+        ));
+    }
 
-    let last_committed_head = db
-        .block_meta(block_hash)
+    let last_committed_announce_hash = db
+        .block_meta(at_block_hash)
         .last_committed_announce
-        .ok_or_else(|| {
-            anyhow!("Cannot get from db last committed head for block {head_announce}")
-        })?;
+        .ok_or(ChainCommitmentAggregationError::LastCommittedAnnounceNotFound(at_block_hash))?;
 
-    let mut announce_hash = head_announce;
+    let mut announce_hash = head_announce_hash;
     let mut counter: u32 = 0;
     let mut transitions = vec![];
-    while announce_hash != last_committed_head {
-        if max_deepness.map(|d| counter >= d).unwrap_or(false) {
-            // TODO: #5013 improve error handling
-            tracing::warn!(
-                max_deepness = %max_deepness.unwrap(),
-                head_announce = %head_announce,
-                "Max deepness reached when aggregating chain commitment",
-            );
-            return Ok(None);
-        }
-
+    while announce_hash != last_committed_announce_hash {
         counter += 1;
+        if counter.is_multiple_of(LOG_WARNING_FREQUENCY) {
+            tracing::warn!("Aggregating chain commitment: processed {counter} announces so far...");
+        }
 
         if !db.announce_meta(announce_hash).computed {
-            // This can happen when validator syncs from p2p network and skips some old blocks.
-            if fail_if_not_computed {
-                return Err(anyhow!("Block {block_hash} is not computed"));
-            } else {
-                return Ok(None);
-            }
+            // Consider as err, because even if node started with fast-sync,
+            // then all announces beginning from last committed announce
+            // in the finalized block must be computed.
+            return Err(ChainCommitmentAggregationError::NotComputedAnnounceInChain(
+                announce_hash,
+            ));
         }
 
-        let mut announce_transitions = db
-            .announce_outcome(announce_hash)
-            .ok_or_else(|| anyhow!("Cannot get from db outcome for computed block {block_hash}"))?;
+        let mut announce_transitions = db.announce_outcome(announce_hash).ok_or(
+            ChainCommitmentAggregationError::ComputedAnnounceOutcomeNotFound(announce_hash),
+        )?;
 
         sort_transitions_by_value_to_receive(&mut announce_transitions);
 
@@ -207,17 +218,19 @@ pub fn aggregate_chain_commitment<DB: BlockMetaStorageRO + OnChainStorageRO + An
 
         announce_hash = db
             .announce(announce_hash)
-            .ok_or_else(|| anyhow!("Cannot get from db header for computed block {block_hash}"))?
+            .ok_or(ChainCommitmentAggregationError::ComputedAnnounceNotFound(
+                announce_hash,
+            ))?
             .parent;
     }
 
-    Ok(Some((
+    Ok((
         ChainCommitment {
             transitions: transitions.into_iter().rev().flatten().collect(),
-            head_announce,
+            head_announce: head_announce_hash,
         },
         counter,
-    )))
+    ))
 }
 
 // TODO(kuzmindev): this is a temporal solution. In future need to implement DKG algorithm.
@@ -285,7 +298,7 @@ pub fn create_batch_commitment<DB: BlockMetaStorageRO + OnChainStorageRO + Annou
         return Ok(None);
     }
 
-    let last_committed = db
+    let previous_batch = db
         .block_meta(block.hash)
         .last_committed_batch
         .ok_or_else(|| {
@@ -311,7 +324,7 @@ pub fn create_batch_commitment<DB: BlockMetaStorageRO + OnChainStorageRO + Annou
     Ok(Some(BatchCommitment {
         block_hash: block.hash,
         timestamp: block.header.timestamp,
-        previous_batch: last_committed,
+        previous_batch,
         expiry,
         chain_commitment,
         code_commitments,
@@ -455,7 +468,7 @@ pub fn block_producer_for(
         .unwrap_or_else(|| unreachable!("index must be valid"))
 }
 
-fn sort_transitions_by_value_to_receive(transitions: &mut [StateTransition]) {
+pub fn sort_transitions_by_value_to_receive(transitions: &mut [StateTransition]) {
     transitions.sort_by(|lhs, rhs| {
         rhs.value_to_receive_negative_sign
             .cmp(&lhs.value_to_receive_negative_sign)
@@ -599,41 +612,95 @@ mod tests {
 
     #[test]
     fn test_aggregate_chain_commitment() {
-        let db = Database::memory();
-        let BatchCommitment { block_hash, .. } = prepare_chain_for_batch_commitment(&db);
-        let announce = db.top_announce_hash(block_hash);
+        {
+            // Valid case, two transitions in the chain, but only one must be included
+            let db = Database::memory();
+            let chain = BlockChain::mock(10)
+                .tap_mut(|chain| {
+                    chain
+                        .block_top_announce_mut(3)
+                        .as_computed_mut()
+                        .outcome
+                        .push(StateTransition::mock(()));
+                    chain
+                        .block_top_announce_mut(5)
+                        .as_computed_mut()
+                        .outcome
+                        .push(StateTransition::mock(()));
+                    chain.blocks[10].as_prepared_mut().last_committed_announce =
+                        chain.block_top_announce_hash(3);
+                })
+                .setup(&db);
+            let block = chain.blocks[10].to_simple();
+            let head_announce_hash = chain.block_top_announce_hash(9);
 
-        let (commitment, counter) = aggregate_chain_commitment(&db, announce, false, None)
-            .unwrap()
-            .unwrap();
-        assert_eq!(commitment.head_announce, announce);
-        assert_eq!(commitment.transitions.len(), 4);
-        assert_eq!(counter, 3);
+            let (commitment, counter) =
+                try_aggregate_chain_commitment(&db, block.hash, head_announce_hash).unwrap();
+            assert_eq!(commitment.head_announce, head_announce_hash);
+            assert_eq!(commitment.transitions.len(), 1);
+            assert_eq!(counter, 6);
+        }
 
-        let (commitment, counter) = aggregate_chain_commitment(&db, announce, true, None)
-            .unwrap()
-            .unwrap();
-        assert_eq!(commitment.head_announce, announce);
-        assert_eq!(commitment.transitions.len(), 4);
-        assert_eq!(counter, 3);
+        {
+            // head announce not computed
+            let db = Database::memory();
+            let chain = BlockChain::mock(3)
+                .tap_mut(|chain| chain.block_top_announce_mut(3).computed = None)
+                .setup(&db);
+            let block = chain.blocks[3].to_simple();
+            let head_announce_hash = chain.block_top_announce_hash(3);
 
-        assert_eq!(
-            aggregate_chain_commitment(&db, announce, false, Some(2)).unwrap(),
-            None
-        );
+            let err =
+                try_aggregate_chain_commitment(&db, block.hash, head_announce_hash).unwrap_err();
+            assert_eq!(
+                err,
+                ChainCommitmentAggregationError::NotComputedAnnounceInChain(head_announce_hash)
+            );
+        }
 
-        assert_eq!(
-            aggregate_chain_commitment(&db, announce, true, Some(2)).unwrap(),
-            None
-        );
+        {
+            // announce in chain not computed
+            let db = Database::memory();
+            let chain = BlockChain::mock(3)
+                .tap_mut(|chain| chain.block_top_announce_mut(2).computed = None)
+                .setup(&db);
+            let block = chain.blocks[3].to_simple();
+            let head_announce_hash = chain.block_top_announce_hash(3);
 
-        db.mutate_announce_meta(announce, |meta| meta.computed = false);
-        assert!(
-            aggregate_chain_commitment(&db, announce, false, None)
-                .unwrap()
-                .is_none()
-        );
-        aggregate_chain_commitment(&db, announce, true, None).unwrap_err();
+            let err =
+                try_aggregate_chain_commitment(&db, block.hash, head_announce_hash).unwrap_err();
+            assert_eq!(
+                err,
+                ChainCommitmentAggregationError::NotComputedAnnounceInChain(
+                    chain.block_top_announce_hash(2)
+                )
+            );
+        }
+
+        {
+            // last committed announce missing in block meta
+            let db = Database::memory();
+            let chain = BlockChain::mock(3)
+                .tap_mut(|chain| chain.blocks[3].prepared = None)
+                .setup(&db);
+            let block = chain.blocks[3].to_simple();
+            let head_announce_hash = chain.block_top_announce_hash(2);
+
+            let err =
+                try_aggregate_chain_commitment(&db, block.hash, head_announce_hash).unwrap_err();
+            assert_eq!(
+                err,
+                ChainCommitmentAggregationError::LastCommittedAnnounceNotFound(block.hash)
+            );
+        }
+
+        {
+            // TODO: case computed announce outcome missing in db, impossible for now (db not support deletion)
+        }
+
+        {
+            // TODO: case computed announce missing in db, impossible for now (db not support deletion)
+        }
     }
 
     #[test]

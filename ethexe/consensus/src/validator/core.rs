@@ -23,12 +23,12 @@ use crate::{
     utils::{self, CodeNotValidatedError},
     validator::tx_pool::InjectedTxPool,
 };
-use anyhow::{Result, anyhow};
+use anyhow::{Context as _, Result, anyhow};
 use async_trait::async_trait;
 use ethexe_common::{
     Address, Announce, Digest, HashOf, ProtocolTimelines, SimpleBlockData, ToDigest, ValidatorsVec,
     consensus::BatchCommitmentValidationRequest,
-    db::{BlockMetaStorageRO, OnChainStorageRO},
+    db::{AnnounceStorageRO, BlockMetaStorageRO, OnChainStorageRO},
     ecdsa::{ContractSignature, PublicKey},
     gear::{
         BatchCommitment, ChainCommitment, CodeCommitment, RewardsCommitment, ValidatorsCommitment,
@@ -102,7 +102,7 @@ impl ValidatorCore {
         block: SimpleBlockData,
         announce_hash: HashOf<Announce>,
     ) -> Result<Option<BatchCommitment>> {
-        let chain_commitment = self.aggregate_chain_commitment(announce_hash)?;
+        let chain_commitment = self.aggregate_chain_commitment(block.hash, announce_hash)?;
         let code_commitments = self.aggregate_code_commitments(block.hash)?;
         let validators_commitment = self.aggregate_validators_commitment(&block).await?;
         let rewards_commitment = self.aggregate_rewards_commitment(&block).await?;
@@ -120,14 +120,13 @@ impl ValidatorCore {
 
     pub fn aggregate_chain_commitment(
         &self,
+        at_block_hash: H256,
         announce_hash: HashOf<Announce>,
     ) -> Result<Option<ChainCommitment>> {
-        let Some((commitment, deepness)) =
-            // Max deepness is ignored here, because we want to create chain commitment (not validate)
-            utils::aggregate_chain_commitment(&self.db, announce_hash, false, None)?
-        else {
-            return Ok(None);
-        };
+        let (commitment, deepness) =
+            utils::try_aggregate_chain_commitment(&self.db, at_block_hash, announce_hash).map_err(
+                |e| anyhow!("Aggregating chain commitment for block {at_block_hash}: {e}"),
+            )?;
 
         if commitment.transitions.is_empty() && deepness <= self.chain_deepness_threshold {
             // No transitions and chain is not deep enough, skip chain commitment
@@ -224,7 +223,7 @@ impl ValidatorCore {
             rewards,
         } = &request;
 
-        if head.is_none() && codes.is_empty() && !validators {
+        if head.is_none() && codes.is_empty() && !validators && !rewards {
             return Ok(ValidationStatus::Rejected {
                 request,
                 reason: ValidationRejectReason::EmptyBatch,
@@ -268,10 +267,8 @@ impl ValidatorCore {
                 .announces
                 .into_iter()
                 .flatten();
-
             let best_announce_hash =
                 announces::best_announce(&self.db, candidates, self.commitment_delay_limit)?;
-
             if head != best_announce_hash {
                 return Ok(ValidationStatus::Rejected {
                     request,
@@ -282,13 +279,20 @@ impl ValidatorCore {
                 });
             }
 
-            utils::aggregate_chain_commitment(
-                &self.db,
-                head,
-                true,
-                Some(self.validate_chain_deepness_limit),
-            )?
-            .map(|(commitment, _)| commitment)
+            // Head announce in validation request is best for `block`.
+            // This guarantees that announce is successor of last committed announce at `block`,
+            // but does not guarantee that announce is computed by this node.
+            if !self.db.announce_meta(head).computed {
+                return Ok(ValidationStatus::Rejected {
+                    request,
+                    reason: ValidationRejectReason::HeadAnnounceNotComputed(head),
+                });
+            }
+
+            let (commitment, _) = utils::try_aggregate_chain_commitment(&self.db, block.hash, head)
+                .context("batch commitment request validation")?;
+
+            Some(commitment)
         } else {
             None
         };
@@ -362,6 +366,11 @@ impl ValidatorCore {
     }
 }
 
+// pub enum ValidatorsCommitmentStatus {
+//     Completed(ValidatorsCommitment),
+
+// }
+
 #[derive(Debug, derive_more::Display, Clone, PartialEq, Eq)]
 pub enum ValidationStatus {
     #[display("accepted batch commitment with digest {_0:?}")]
@@ -379,15 +388,17 @@ pub enum ValidationRejectReason {
     EmptyBatch,
     #[display("batch commitment request contains duplicate code ids")]
     CodesHasDuplicates,
-    #[display("code id {_0:?} is not waiting for commitment")]
+    #[display("code id {_0} is not waiting for commitment")]
     CodeNotWaitingForCommitment(CodeId),
-    #[display("code id {_0:?} is not processed yet")]
+    #[display("code id {_0} is not processed yet")]
     CodeIsNotProcessedYet(CodeId),
-    #[display("requested head announce {requested:?} is not the best announce {best:?}")]
+    #[display("requested head announce {requested} is not the best announce {best}")]
     HeadAnnounceIsNotBest {
         requested: HashOf<Announce>,
         best: HashOf<Announce>,
     },
+    #[display("requested head announce {_0} is not computed by this node")]
+    HeadAnnounceNotComputed(HashOf<Announce>),
     #[display(
         "received batch contains validators commitment, but it's not time for validators election yet"
     )]
@@ -396,7 +407,7 @@ pub enum ValidationRejectReason {
         "received batch contains rewards commitment, but it's not time for rewards distribution yet"
     )]
     RewardsNotReady,
-    #[display("batch commitment digest mismatch: expected {expected:?}, found {found:?}")]
+    #[display("batch commitment digest mismatch: expected {expected}, found {found}")]
     BatchDigestMismatch { expected: Digest, found: Digest },
 }
 
