@@ -20,3 +20,7 @@ hyper = { version = "0.14.16", default-features = false, features = [
 log.workspace = true
 prometheus.workspace = true
 tokio.workspace = true
+
+metrics.workspace = true
+metrics-derive.workspace = true
+metrics-exporter-prometheus = { workspace = true, features = ["http-listener"] }

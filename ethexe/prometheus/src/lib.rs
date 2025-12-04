@@ -24,6 +24,7 @@ use hyper::{
     server::conn::AddrIncoming,
     service::{make_service_fn, service_fn},
 };
+use metrics_exporter_prometheus::{PrometheusBuilder, PrometheusHandle};
 use prometheus::{
     self, Encoder, Opts, Registry, TextEncoder,
     core::{
@@ -128,6 +129,9 @@ impl FusedStream for PrometheusService {
 
 impl PrometheusService {
     pub fn new(config: PrometheusConfig) -> Result<Self> {
+        let recorder = PrometheusBuilder::new().build_recorder();
+        let handle = recorder.handle();
+
         let metrics = PrometheusMetrics::setup(&config.registry, &config.name)
             .context("Failed to setup Prometheus metrics")?;
 

@@ -30,5 +30,8 @@ serde = { workspace = true, features = ["std"] }
 tracing.workspace = true
 dashmap.workspace = true
 
+metrics.workspace = true
+metrics-derive.workspace = true
+
 [features]
 test-utils = ["jsonrpsee/client"]

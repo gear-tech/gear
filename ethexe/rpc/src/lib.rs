@@ -20,6 +20,7 @@ pub use crate::apis::InjectedTransactionAcceptance;
 
 #[cfg(feature = "test-utils")]
 pub use crate::apis::InjectedClient;
+use crate::metrics::RpcApiMetrics;
 
 use anyhow::Result;
 use apis::{
@@ -38,13 +39,15 @@ use jsonrpsee::{
 use std::{
     net::SocketAddr,
     pin::Pin,
+    sync::Arc,
     task::{Context, Poll},
 };
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::{Mutex, RwLock, mpsc, oneshot};
 use tower_http::cors::{AllowOrigin, CorsLayer};
 
 mod apis;
 mod errors;
+mod metrics;
 mod utils;
 
 #[derive(Debug)]
@@ -124,8 +127,12 @@ impl RpcServer {
 }
 
 pub struct RpcService {
+    /// Receiver for incoming RPC events to forward to the main service.
     receiver: mpsc::UnboundedReceiver<RpcEvent>,
+    /// Injected API implementation.
     injected_api: InjectedApi,
+    /// RPC-related metrics.
+    metrics: Arc<RwLock<RpcApiMetrics>>,
 }
 
 impl RpcService {
@@ -133,7 +140,13 @@ impl RpcService {
         Self {
             receiver,
             injected_api,
+            metrics: Arc::new(RwLock::new(RpcApiMetrics::default())),
         }
+    }
+
+    /// Retrieves current RPC metrics.
+    fn get_metrics(&self) -> RpcApiMetrics {
+        self.metrics.blocking_read().clone()
     }
 
     pub fn provide_promise(&self, promise: SignedPromise) {
