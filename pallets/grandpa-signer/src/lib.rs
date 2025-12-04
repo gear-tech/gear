@@ -557,12 +557,13 @@ pub mod pallet {
     impl<T: Config> WeightInfo for SubstrateWeight<T> {
         fn schedule_request() -> Weight {
             // Reads: NextRequestId; Requests (prune pass).
-            // Writes: Requests, NextRequestId; optional cleanup of expired/rotated requests.
+            // Writes: Requests, NextRequestId; optional cleanup of expired/rotated requests
+            // (request + signature count + signatures prefix).
             let db = T::DbWeight::get();
             let max_requests = T::MaxRequests::get() as u64;
-            Weight::from_parts(35_000_000, 1024)
+            Weight::from_parts(45_000_000, 2048)
                 .saturating_add(db.reads(1 + max_requests))
-                .saturating_add(db.writes(2 + max_requests))
+                .saturating_add(db.writes(2 + max_requests * 3))
         }
 
         fn submit_signature() -> Weight {
@@ -579,7 +580,7 @@ pub mod pallet {
     impl WeightInfo for () {
         fn schedule_request() -> Weight {
             // Rough upper bound; prefer `SubstrateWeight` in runtimes.
-            Weight::from_parts(35_000_000, 1024)
+            Weight::from_parts(45_000_000, 2048)
                 .saturating_add(RocksDbWeight::get().reads(2_u64))
                 .saturating_add(RocksDbWeight::get().writes(3_u64))
         }
