@@ -37,13 +37,45 @@ use gear_core::{
     reservation::GasReserver,
 };
 use gear_core_backend::{
-    BackendExternalities,
+    BackendExternalities, MemorySnapshotStrategy, NoopSnapshot,
     env::{BackendReport, Environment, EnvironmentError},
     error::{
         ActorTerminationReason, BackendAllocSyscallError, BackendSyscallError, RunFallibleError,
         TerminationReason,
     },
 };
+
+// Keep the actor/system logging consistent across call sites to aid debugging.
+fn log_actor_environment_error(message: &str) {
+    log::trace!("ActorExecutionErrorReplyReason::Environment({message}) occurred");
+}
+
+// Convert backend-specific errors into execution errors with consistent logging semantics.
+fn execution_error_from_environment(err: EnvironmentError) -> ExecutionError {
+    match err {
+        EnvironmentError::System(system_err) => {
+            ExecutionError::System(SystemExecutionError::Environment(system_err))
+        }
+        EnvironmentError::Actor(gas_amount, err_msg) => {
+            log_actor_environment_error(&err_msg);
+            ExecutionError::Actor(ActorExecutionError {
+                gas_amount,
+                reason: ActorExecutionErrorReplyReason::Environment,
+            })
+        }
+    }
+}
+
+// Provide a human-readable error message when bubbling backend failures to callers.
+fn backend_error_message(err: EnvironmentError) -> String {
+    match err {
+        EnvironmentError::System(system_err) => format!("Backend error: {system_err}"),
+        EnvironmentError::Actor(gas_amount, err_msg) => {
+            log_actor_environment_error(&err_msg);
+            format!("Backend actor error (gas_amount={gas_amount:?}): {err_msg}")
+        }
+    }
+}
 
 /// Execute wasm with dispatch and return dispatch result.
 pub(crate) fn execute_wasm<Ext>(
@@ -127,36 +159,41 @@ where
     // Creating externalities.
     let ext = Ext::new(context);
 
+    let mut memory_snapshot = Ext::memory_snapshot();
+
     // Execute program in backend env.
     let execute = || {
         let env = Environment::new(
             ext,
             program.instrumented_code.bytes(),
-            kind,
             program.code_metadata.exports().clone(),
             memory_size,
+            |ctx, memory, globals_config| {
+                Ext::lazy_pages_init_for_program(
+                    ctx,
+                    memory,
+                    program.id,
+                    program.memory_infix,
+                    program.code_metadata.stack_end(),
+                    globals_config,
+                    settings.lazy_pages_costs,
+                )
+            },
         )?;
-        env.execute(|ctx, memory, globals_config| {
-            Ext::lazy_pages_init_for_program(
-                ctx,
-                memory,
-                program.id,
-                program.memory_infix,
-                program.code_metadata.stack_end(),
-                globals_config,
-                settings.lazy_pages_costs,
-            )
-        })
+        env.execute(kind, MemorySnapshotStrategy::enabled(&mut memory_snapshot))
     };
 
     let (termination, mut store, memory, ext) = match execute() {
-        Ok(report) => {
+        Ok(execution_result) => {
             let BackendReport {
                 termination_reason,
                 mut store,
                 mut memory,
                 ext,
-            } = report;
+            } = execution_result
+                .report()
+                // Propagate backend issues into the processor domain so the caller gets full context.
+                .map_err(execution_error_from_environment)?;
 
             let mut termination = match termination_reason {
                 TerminationReason::Actor(reason) => reason,
@@ -174,16 +211,7 @@ where
 
             (termination, store, memory, ext)
         }
-        Err(EnvironmentError::System(e)) => {
-            return Err(ExecutionError::System(SystemExecutionError::Environment(e)));
-        }
-        Err(EnvironmentError::Actor(gas_amount, err)) => {
-            log::trace!("ActorExecutionErrorReplyReason::Environment({err}) occurred");
-            return Err(ExecutionError::Actor(ActorExecutionError {
-                gas_amount,
-                reason: ActorExecutionErrorReplyReason::Environment,
-            }));
-        }
+        Err(err) => return Err(execution_error_from_environment(err)),
     };
 
     log::debug!("Termination reason: {termination:?}");
@@ -326,16 +354,12 @@ where
     // Creating externalities.
     let ext = Ext::new(context);
 
-    // Execute program in backend env.
-    let execute = || {
-        let env = Environment::new(
-            ext,
-            program.instrumented_code.bytes(),
-            function,
-            program.code_metadata.exports().clone(),
-            memory_size,
-        )?;
-        env.execute(|ctx, memory, globals_config| {
+    let env = Environment::new(
+        ext,
+        program.instrumented_code.bytes(),
+        program.code_metadata.exports().clone(),
+        memory_size,
+        |ctx, memory, globals_config| {
             Ext::lazy_pages_init_for_program(
                 ctx,
                 memory,
@@ -345,28 +369,29 @@ where
                 globals_config,
                 Default::default(),
             )
-        })
-    };
+        },
+    )
+    .map_err(backend_error_message)?;
 
-    let (termination, mut store, memory, ext) = match execute() {
-        Ok(report) => {
-            let BackendReport {
-                termination_reason,
-                store,
-                memory,
-                ext,
-            } = report;
+    let execution_result = env
+        .execute(function, MemorySnapshotStrategy::<NoopSnapshot>::disabled())
+        .map_err(backend_error_message)?;
 
-            let termination_reason = match termination_reason {
-                TerminationReason::Actor(reason) => reason,
-                TerminationReason::System(reason) => {
-                    return Err(format!("Backend error: {reason}"));
-                }
-            };
+    let BackendReport {
+        termination_reason,
+        mut store,
+        memory,
+        ext,
+    } = execution_result
+        .report()
+        // Keep the error surface identical to the other executor path.
+        .map_err(backend_error_message)?;
 
-            (termination_reason, store, memory, ext)
+    let termination = match termination_reason {
+        TerminationReason::Actor(reason) => reason,
+        TerminationReason::System(reason) => {
+            return Err(format!("Backend error: {reason}"));
         }
-        Err(e) => return Err(format!("Backend error: {e}")),
     };
 
     match termination {
