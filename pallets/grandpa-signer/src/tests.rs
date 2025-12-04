@@ -341,20 +341,26 @@ fn request_and_signatures_remain_after_completion() {
             ));
 
             let req = GrandpaSigner::requests(0).expect("request created");
-            let pair = &auth_keys()[0];
-            let sig = pair.sign(&payload);
+            let keys = auth_keys();
 
-            assert_ok!(GrandpaSigner::submit_signature(
-                RuntimeOrigin::none(),
-                req.id,
-                pair.public(),
-                sig
-            ));
+            for pair in &keys {
+                let sig = pair.sign(&payload);
+                assert_ok!(GrandpaSigner::submit_signature(
+                    RuntimeOrigin::none(),
+                    req.id,
+                    pair.public(),
+                    sig,
+                ));
+            }
 
-            // The request and its signatures stay in storage for retrieval.
+            // The request and its signatures stay in storage for retrieval after completion.
             assert!(GrandpaSigner::requests(req.id).is_some());
-            assert_eq!(GrandpaSigner::signature_count(req.id), 1);
-            assert_eq!(GrandpaSigner::signatures(req.id, pair.public()), Some(sig));
+            assert_eq!(GrandpaSigner::signature_count(req.id), keys.len() as u32);
+            let last_pair = keys.last().unwrap();
+            assert_eq!(
+                GrandpaSigner::signatures(req.id, last_pair.public()),
+                Some(last_pair.sign(&payload))
+            );
         });
     })
 }
