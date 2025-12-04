@@ -56,7 +56,7 @@ alloy = { workspace = true, features = [
     "rpc-types-beacon",
     "signer-local",
 ] }
-ntest = "0.9.3"
+ntest.workspace = true
 gear-core-errors.workspace = true
 ethexe-network.workspace = true
 roast-secp256k1-evm.workspace = true
