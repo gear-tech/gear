@@ -217,7 +217,7 @@ impl Service {
                 .block_loader()
                 .load_simple(BlockId::Latest)
                 .await
-                .context("failed to get lastest block")?;
+                .context("failed to get latest block")?;
 
             let runtime_config = NetworkRuntimeConfig {
                 latest_block_header: latest_block_data.header,
@@ -260,6 +260,8 @@ impl Service {
                         commitment_delay_limit: COMMITMENT_DELAY_LIMIT,
                         producer_delay: Duration::ZERO,
                         router_address: config.ethereum.router_address,
+                        validate_chain_deepness_limit: config.node.validate_chain_deepness_limit,
+                        chain_deepness_threshold: config.node.chain_deepness_threshold,
                     },
                     db_sync_handle,
                 )?)
