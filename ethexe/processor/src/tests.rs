@@ -357,7 +357,7 @@ async fn ping_pong() {
         .handle_mirror_event(
             actor_id,
             MirrorRequestEvent::ExecutableBalanceTopUpRequested {
-                value: 10_000_000_000,
+                value: 150_000_000_000,
             },
         )
         .expect("failed to top up balance");
@@ -431,7 +431,7 @@ async fn async_and_ping() {
         .handle_mirror_event(
             ping_id,
             MirrorRequestEvent::ExecutableBalanceTopUpRequested {
-                value: 10_000_000_000,
+                value: 350_000_000_000,
             },
         )
         .expect("failed to top up balance");
@@ -460,7 +460,7 @@ async fn async_and_ping() {
         .handle_mirror_event(
             async_id,
             MirrorRequestEvent::ExecutableBalanceTopUpRequested {
-                value: 40_000_000_000,
+                value: 1_500_000_000_000,
             },
         )
         .expect("failed to top up balance");
@@ -569,7 +569,7 @@ async fn many_waits() {
             .handle_mirror_event(
                 program_id,
                 MirrorRequestEvent::ExecutableBalanceTopUpRequested {
-                    value: 10_000_000_000,
+                    value: 150_000_000_000,
                 },
             )
             .expect("failed to top up balance");
@@ -762,7 +762,7 @@ async fn overlay_execution_noop() {
         BlockRequestEvent::Mirror {
             actor_id: ping_id,
             event: MirrorRequestEvent::ExecutableBalanceTopUpRequested {
-                value: 10_000_000_000,
+                value: 400_000_000_000,
             },
         },
         BlockRequestEvent::Mirror {
@@ -783,7 +783,7 @@ async fn overlay_execution_noop() {
         BlockRequestEvent::Mirror {
             actor_id: async_id,
             event: MirrorRequestEvent::ExecutableBalanceTopUpRequested {
-                value: 40_000_000_000,
+                value: 1_500_000_000_000,
             },
         },
         BlockRequestEvent::Mirror {
@@ -1091,7 +1091,7 @@ async fn injected_ping_pong() {
         .handle_mirror_event(
             actor_id,
             MirrorRequestEvent::ExecutableBalanceTopUpRequested {
-                value: 10_000_000_000,
+                value: 200_000_000_000,
             },
         )
         .expect("failed to top up balance");
@@ -1277,13 +1277,13 @@ async fn executable_balance_charged() {
         .handle_mirror_event(
             actor_id,
             MirrorRequestEvent::ExecutableBalanceTopUpRequested {
-                value: 10_000_000_000,
+                value: 80_000_000_000,
             },
         )
         .expect("failed to top up balance");
 
     let exec_balance_before = executable_balance(&handler, actor_id);
-    assert_eq!(exec_balance_before, 10_000_000_000);
+    assert_eq!(exec_balance_before, 80_000_000_000);
 
     handler
         .handle_mirror_event(
@@ -1342,7 +1342,7 @@ async fn executable_balance_injected_panic_not_charged() {
     // In this case executable balance should not be charged if gas burned during
     // panicked message execution is less than the threshold (see `INJECTED_MESSAGE_PANIC_GAS_CHARGE_THRESHOLD`).
 
-    const INITIAL_EXECUTABLE_BALANCE: u128 = 10_000_000_000;
+    const INITIAL_EXECUTABLE_BALANCE: u128 = 150_000_000_000;
 
     init_logger();
 
@@ -1441,7 +1441,8 @@ async fn executable_balance_injected_panic_not_charged() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn insufficient_executable_balance_still_charged() {
-    const INSUFFICIENT_EXECUTABLE_BALANCE: u128 = 10_000_000;
+    // Just enough balance to charge fo instrumentation and instantiation but not enough to process the message.
+    const INSUFFICIENT_EXECUTABLE_BALANCE: u128 = 30_000_000_000;
 
     init_logger();
 
@@ -1489,6 +1490,6 @@ async fn insufficient_executable_balance_still_charged() {
     assert!(message.reply_details.unwrap().to_reply_code().is_error());
 
     // Check that executable balance decreased
-    let exec_balance_before = executable_balance(&handler, actor_id);
-    assert!(exec_balance_before < INSUFFICIENT_EXECUTABLE_BALANCE);
+    let exec_balance_after = executable_balance(&handler, actor_id);
+    assert!(exec_balance_after < INSUFFICIENT_EXECUTABLE_BALANCE);
 }

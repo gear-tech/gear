@@ -90,16 +90,6 @@ mod tx_pool;
 #[cfg(test)]
 mod mock;
 
-// TODO #4790: should be configurable
-/// If chain commitment does not contain any transitions,
-/// but announces chain depth is bigger than `CHAIN_DEEPNESS_THRESHOLD`,
-/// producer would try to submit this commitment.
-const CHAIN_DEEPNESS_THRESHOLD: u32 = 500;
-
-// TODO #4790: should be configurable
-/// Maximum chain deepness for the chain commitment aggregation.
-const MAX_CHAIN_DEEPNESS: u32 = 10000;
-
 /// The main validator service that implements the `ConsensusService` trait.
 /// This service manages the validation workflow.
 pub struct ValidatorService {
@@ -123,6 +113,10 @@ pub struct ValidatorConfig {
     pub producer_delay: Duration,
     /// Address of the router contract
     pub router_address: Address,
+    /// Limit for chain deepness validation
+    pub validate_chain_deepness_limit: u32,
+    /// Threshold for producer to submit commitment despite of no transitions
+    pub chain_deepness_threshold: u32,
 }
 
 impl ValidatorService {
@@ -157,8 +151,8 @@ impl ValidatorService {
                 committer: committer.into(),
                 middleware: MiddlewareWrapper::from_inner(election_provider),
                 injected_pool: InjectedTxPool::new(db),
-                validate_chain_deepness_limit: MAX_CHAIN_DEEPNESS,
-                chain_deepness_threshold: CHAIN_DEEPNESS_THRESHOLD,
+                validate_chain_deepness_limit: config.validate_chain_deepness_limit,
+                chain_deepness_threshold: config.chain_deepness_threshold,
                 block_gas_limit: config.block_gas_limit,
                 commitment_delay_limit: config.commitment_delay_limit,
                 producer_delay: config.producer_delay,
