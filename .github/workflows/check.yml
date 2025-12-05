@@ -197,6 +197,9 @@ jobs:
       - name: "Check clippy with workspace hack enabled"
         run: ./scripts/gear.sh clippy gear --all-targets --all-features --locked
 
+      - name: "Check `try-runtime` and `benchmarks` features aren't required for node"
+        run: __GEAR_WASM_BUILDER_NO_BUILD=1 SKIP_WASM_BUILD=1 cargo clippy -p gear-cli
+
   wasm:
     runs-on: ubuntu-latest
     steps:
