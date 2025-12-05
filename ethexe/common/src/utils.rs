@@ -52,7 +52,6 @@ pub fn setup_start_block_in_db<
     start_block_data: PreparedBlockData,
     start_announce_data: ComputedAnnounceData,
     timelines: ProtocolTimelines,
-    latest_era_with_validators_committed: u64,
 ) {
     let announce_hash = start_announce_data.announce.to_hash();
     let latest_synced_block = SimpleBlockData {
@@ -70,10 +69,6 @@ pub fn setup_start_block_in_db<
     setup_announce_in_db(db, start_announce_data);
 
     db.set_protocol_timelines(timelines);
-    db.set_block_validators_committed_for_era(
-        start_block_hash,
-        latest_era_with_validators_committed,
-    );
 
     db.mutate_latest_data(|latest| {
         latest.synced_block = latest_synced_block;
@@ -114,6 +109,7 @@ pub fn setup_genesis_in_db<
             announces: [genesis_announce_hash].into(),
             last_committed_batch: Default::default(),
             last_committed_announce: HashOf::zero(),
+            latest_era_with_committed_validators: 0,
         },
     );
 
@@ -123,7 +119,6 @@ pub fn setup_genesis_in_db<
         timelines.era_from_ts(genesis_block.header.timestamp),
         genesis_validators,
     );
-    db.set_block_validators_committed_for_era(genesis_block.hash, 0);
 
     db.set_protocol_timelines(timelines);
 
@@ -170,6 +165,11 @@ pub fn setup_block_in_db<DB: OnChainStorageRW + BlockMetaStorageRW>(
             last_committed_announce: Some(block_data.last_committed_announce),
         }
     });
+
+    db.set_block_validators_committed_for_era(
+        block_hash,
+        block_data.latest_era_with_committed_validators,
+    );
 }
 
 pub fn setup_announce_in_db<DB: AnnounceStorageRW>(

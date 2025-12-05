@@ -204,22 +204,7 @@ impl ObserverService {
     }
 
     // TODO #4563: this is a temporary solution
-    /// If genesis block is not yet fully setup in the database, we need to do it
-    /// Populates database with genesis block data.
-    ///
-    /// Basically, requests data for the block, which is considered to be a genesis block
-    /// inside the `Router` contract on Ethereum. The data is processed the following way:
-    /// - header is stored in the database
-    /// - events are set as empty
-    /// - block is set as synced
-    /// - block is set as computed
-    /// - block is set as latest synced block (it's height)
-    /// - block is set as latest computed block
-    /// - previous non-empty block for the genesis one is set to blake2b256(0)
-    /// - all the runtime storages related to the block (message queue, tasks schedule, codes queue) also programs states,
-    ///   and processing outcome (state transitions) are set to default (empty) values.
-    ///
-    /// If genesis block was computed earlier, this function returns immediately.
+    /// Setup genesis block in the database if it's not prepared yet.
     async fn pre_process_genesis_for_db(
         db: &Database,
         provider: &RootProvider,

@@ -715,7 +715,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
 
     // Since we get storage view at `block_hash`
     // then latest committed era is for the largest `useFromTimestamp`
-    let latest_era_with_validators_committed = timelines.era_from_ts(max(
+    let latest_era_with_committed_validators = timelines.era_from_ts(max(
         storage_view
             .validationSettings
             .validators0
@@ -728,20 +728,23 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
             .to::<u64>(),
     ));
 
+    // TODO: +_+_+ whether we need to setup validators here?
+
     ethexe_common::setup_start_block_in_db(
         db,
         block_hash,
         PreparedBlockData {
             header,
             events,
+            latest_era_with_committed_validators,
             // NOTE: there is no invariant that fast sync should recover codes queue
             codes_queue: Default::default(),
+            // TODO #4812: using `latest_committed_announce` here is not correct,
+            // because `announce_hash` is created for `block_hash`, not committed.
             announces: [announce_hash].into(),
             // TODO #4812: using `latest_committed_batch` here is not correct,
             // because `latest_committed_batch` is latest for finalized block, not for `block_hash`.
             last_committed_batch: latest_committed_batch,
-            // TODO #4812: using `latest_committed_announce` here is not correct,
-            // because `announce_hash` is created for `block_hash`, not committed.
             last_committed_announce: announce_hash,
         },
         ComputedAnnounceData {
@@ -753,7 +756,6 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
             schedule: schedule.clone(),
         },
         timelines,
-        latest_era_with_validators_committed,
     );
 
     log::info!(
