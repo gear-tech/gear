@@ -34,6 +34,7 @@ use alloy::{
 };
 use ethexe_common::{
     Announce, HashOf, ScheduledTask, ToDigest,
+    consensus::{DEFAULT_CHAIN_DEEPNESS_THRESHOLD, DEFAULT_VALIDATE_CHAIN_DEEPNESS_LIMIT},
     db::*,
     ecdsa::ContractSignature,
     events::{BlockEvent, MirrorEvent, RouterEvent},
@@ -94,6 +95,8 @@ async fn basics() {
         block_gas_limit: 4_000_000_000_000,
         canonical_quarantine: 0,
         fast_sync: false,
+        validate_chain_deepness_limit: DEFAULT_VALIDATE_CHAIN_DEEPNESS_LIMIT,
+        chain_deepness_threshold: DEFAULT_CHAIN_DEEPNESS_THRESHOLD,
     };
 
     let eth_cfg = EthereumConfig {
@@ -451,7 +454,7 @@ async fn mailbox() {
                     assert_eq!(payload, original_mid.encode());
                 } else if id == ping_expected_message_id {
                     assert_eq!(payload, b"PING");
-                    block = Some(block_data.clone());
+                    block = Some(*block_data);
                 } else {
                     panic!("Unexpected message id {id}");
                 }
@@ -1869,6 +1872,26 @@ async fn validators_election() {
 
     tracing::info!("📗 Next validators successfully committed");
 
+    // Upload code when next validators committed and next are not active.
+    // Checks, that another validators commitment not happen.
+    let uploaded_code = env
+        .upload_code(demo_ping::WASM_BINARY)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert!(uploaded_code.valid);
+
+    let ping_actor = env
+        .create_program(uploaded_code.code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert_eq!(ping_actor.code_id, uploaded_code.code_id);
+
     // Stop previous validators
     for mut node in validators.into_iter() {
         node.stop_service().await;
@@ -1890,14 +1913,16 @@ async fn validators_election() {
         .unwrap();
     env.force_new_block().await;
 
-    let res = env
-        .upload_code(demo_ping::WASM_BINARY)
+    let reply = env
+        .send_message(ping_actor.program_id, b"PING")
         .await
-        .unwrap()
+        .expect("pong reply")
         .wait_for()
         .await
-        .unwrap();
-    assert!(res.valid);
+        .expect("reply info");
+
+    assert_eq!(reply.payload, b"PONG");
+    assert_eq!(reply.program_id, ping_actor.program_id);
 }
 
 #[tokio::test(flavor = "multi_thread")]

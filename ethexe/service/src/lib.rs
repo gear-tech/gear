@@ -34,7 +34,10 @@ use ethexe_network::{
     NetworkEvent, NetworkRuntimeConfig, NetworkService,
     db_sync::{self, ExternalDataProvider},
 };
-use ethexe_observer::{ObserverEvent, ObserverService};
+use ethexe_observer::{
+    ObserverEvent, ObserverService,
+    utils::{BlockId, BlockLoader},
+};
 use ethexe_processor::{Processor, ProcessorConfig};
 use ethexe_prometheus::{PrometheusEvent, PrometheusService};
 use ethexe_rpc::{InjectedTransactionAcceptance, RpcEvent, RpcServer};
@@ -134,6 +137,11 @@ impl Service {
             ObserverService::new(&config.ethereum, config.node.eth_max_sync_depth, db.clone())
                 .await
                 .context("failed to create observer service")?;
+        let latest_block = observer
+            .block_loader()
+            .load_simple(BlockId::Latest)
+            .await
+            .context("failed to get latest block")?;
 
         let router_query = RouterQuery::new(&config.ethereum.rpc, config.ethereum.router_address)
             .await
@@ -155,9 +163,9 @@ impl Service {
         }
 
         let validators = router_query
-            .validators()
+            .validators_at(latest_block.hash)
             .await
-            .with_context(|| "failed to query validators")?;
+            .context("failed to query validators")?;
         log::info!("👥 Current validators set: {validators:?}");
 
         let threshold = router_query
@@ -214,6 +222,8 @@ impl Service {
                         commitment_delay_limit: COMMITMENT_DELAY_LIMIT,
                         producer_delay: Duration::ZERO,
                         router_address: config.ethereum.router_address,
+                        validate_chain_deepness_limit: config.node.validate_chain_deepness_limit,
+                        chain_deepness_threshold: config.node.chain_deepness_threshold,
                     },
                 )?)
             } else {
@@ -242,10 +252,11 @@ impl Service {
                     .join("net"),
             );
 
-            let lastest_block_data = observer
-                .latest_block()
+            let latest_block_data = observer
+                .block_loader()
+                .load_simple(BlockId::Latest)
                 .await
-                .context("failed to get lastest block")?;
+                .context("failed to get latest block")?;
 
             let runtime_config = NetworkRuntimeConfig {
                 latest_block_header: lastest_block_data.header,

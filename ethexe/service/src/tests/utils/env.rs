@@ -27,9 +27,8 @@ use crate::{
     },
 };
 use alloy::{
-    eips::BlockId,
     node_bindings::{Anvil, AnvilInstance},
-    providers::{Provider as _, ProviderBuilder, RootProvider, ext::AnvilApi},
+    providers::{ProviderBuilder, RootProvider, ext::AnvilApi},
     rpc::types::anvil::MineOptions,
 };
 use anyhow::Context;
@@ -37,6 +36,7 @@ use ethexe_blob_loader::{BlobLoader, BlobLoaderService, ConsensusLayerConfig};
 use ethexe_common::{
     Address, BlockHeader, COMMITMENT_DELAY_LIMIT, CodeAndId, DEFAULT_BLOCK_GAS_LIMIT,
     SimpleBlockData, ToDigest, ValidatorsVec,
+    consensus::{DEFAULT_CHAIN_DEEPNESS_THRESHOLD, DEFAULT_VALIDATE_CHAIN_DEEPNESS_LIMIT},
     ecdsa::{PrivateKey, PublicKey, SignedData},
     events::{BlockEvent, MirrorEvent, RouterEvent},
     network::{SignedValidatorMessage, ValidatorMessage},
@@ -53,7 +53,10 @@ use ethexe_ethereum::{
 use ethexe_network::{
     NetworkConfig, NetworkEvent, NetworkRuntimeConfig, NetworkService, export::Multiaddr,
 };
-use ethexe_observer::{EthereumConfig, ObserverEvent, ObserverService};
+use ethexe_observer::{
+    EthereumConfig, ObserverEvent, ObserverService,
+    utils::{BlockId, BlockLoader, EthereumBlockLoader},
+};
 use ethexe_processor::{
     DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, DEFAULT_CHUNK_PROCESSING_THREADS, Processor, RunnerConfig,
 };
@@ -72,7 +75,7 @@ use roast_secp256k1_evm::frost::{
     keys::{IdentifierList, PublicKeyPackage, VerifiableSecretSharingCommitment},
 };
 use std::{
-    fmt,
+    fmt, mem,
     net::SocketAddr,
     num::NonZero,
     ops::ControlFlow,
@@ -253,9 +256,14 @@ impl TestEnv {
             .await
             .unwrap();
         let latest_block = observer
-            .latest_block()
+            .block_loader()
+            .load_simple(BlockId::Latest)
             .await
             .context("failed to get latest block")?;
+        let latest_validators = router_query
+            .validators_at(latest_block.hash)
+            .await
+            .context("failed to get latest validators")?;
 
         let provider = observer.provider().clone();
 
@@ -654,21 +662,10 @@ impl TestEnv {
     }
 
     pub async fn latest_block(&self) -> SimpleBlockData {
-        let header = self
-            .provider
-            .get_block(BlockId::latest())
+        EthereumBlockLoader::new(self.provider.clone(), self.eth_cfg.router_address)
+            .load_simple(BlockId::Latest)
             .await
             .unwrap()
-            .expect("latest block always exist")
-            .header;
-        SimpleBlockData {
-            hash: header.hash.0.into(),
-            header: BlockHeader {
-                height: header.number as u32,
-                timestamp: header.timestamp,
-                parent_hash: header.parent_hash.0.into(),
-            },
-        }
     }
 
     pub fn define_session_keys(
@@ -961,8 +958,16 @@ impl Node {
         let observer = ObserverService::new(&self.eth_cfg, u32::MAX, self.db.clone())
             .await
             .unwrap();
-        let latest_block = observer.latest_block().await.unwrap();
-        let latest_validators = observer.router_query().validators().await.unwrap();
+        let latest_block = observer
+            .block_loader()
+            .load_simple(BlockId::Latest)
+            .await
+            .unwrap();
+        let latest_validators = observer
+            .router_query()
+            .validators_at(latest_block.hash)
+            .await
+            .unwrap();
 
         let consensus: Pin<Box<dyn ConsensusService>> = {
             if let Some(config) = self.validator_config.as_ref() {
@@ -995,6 +1000,8 @@ impl Node {
                             commitment_delay_limit: self.commitment_delay_limit,
                             producer_delay: self.block_time / 6,
                             router_address: self.eth_cfg.router_address,
+                            validate_chain_deepness_limit: DEFAULT_VALIDATE_CHAIN_DEEPNESS_LIMIT,
+                            chain_deepness_threshold: DEFAULT_CHAIN_DEEPNESS_THRESHOLD,
                         },
                     )
                     .unwrap(),
@@ -1184,8 +1191,16 @@ impl Node {
         let observer = ObserverService::new(&self.eth_cfg, u32::MAX, self.db.clone())
             .await
             .unwrap();
-        let latest_block = observer.latest_block().await.unwrap();
-        let latest_validators = observer.router_query().validators().await.unwrap();
+        let latest_block = observer
+            .block_loader()
+            .load_simple(BlockId::Latest)
+            .await
+            .unwrap();
+        let latest_validators = self
+            .router_query
+            .validators_at(latest_block.hash)
+            .await
+            .unwrap();
 
         let signed = self
             .signer
@@ -1220,6 +1235,12 @@ impl Drop for Node {
     fn drop(&mut self) {
         if let Some(handle) = &self.running_service_handle {
             handle.abort();
+        }
+
+        if let Some(receiver) = self.receiver.take() {
+            // avoid `failed to broadcast service event` error
+            // because we cannot `handle.await` in `drop` method
+            mem::forget(receiver);
         }
     }
 }

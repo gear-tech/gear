@@ -405,12 +405,12 @@ impl NetworkService {
                 }
             }
             identify::Event::Error { peer_id, error, .. } => {
+                // NOTE: identify protocol is best effort metadata,
+                // so we should not penalize the peer for the error
+                // TODO: we may want to take the error into account,
+                // so other protocols are less likely to communicate with the peer
+
                 log::debug!("{peer_id} is not identified: {error}");
-                self.swarm
-                    .behaviour()
-                    .peer_score
-                    .handle()
-                    .unsupported_protocol(peer_id);
             }
             _ => {}
         }
@@ -436,8 +436,6 @@ impl NetworkService {
     }
 
     fn handle_kad_event(&mut self, event: kad::Event) {
-        let _behaviour = self.swarm.behaviour_mut();
-
         match event {
             kad::Event::RoutingUpdated { peer } => {
                 let behaviour = self.swarm.behaviour_mut();
