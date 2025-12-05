@@ -61,9 +61,8 @@ impl TxOutput {
         F: FnMut(Event) -> Option<T>,
     {
         let value = self
-            .events
-            .iter()
-            .map(move |event| event?.as_gear().map(&mut f))
+            .events()
+            .map(move |event| event.map(&mut f))
             .find_map(|res| res.transpose())
             .transpose()?;
 
@@ -78,9 +77,8 @@ impl TxOutput {
         F: FnMut(Event) -> Option<T>,
     {
         let values = self
-            .events
-            .iter()
-            .map(move |event| event?.as_gear().map(&mut f))
+            .events()
+            .map(move |event| event.map(&mut f))
             .filter_map(|res| res.transpose())
             .collect::<Result<Vec<_>>>()?;
 
@@ -103,9 +101,7 @@ impl TxOutput {
         E: From<Error>,
         F: FnMut(Event) -> Result<(), E>,
     {
-        self.events
-            .iter()
-            .try_for_each(move |event| f(event.map_err(Error::from)?.as_gear()?))?;
+        self.events().try_for_each(move |event| f(event?))?;
 
         Ok(self)
     }
@@ -115,13 +111,13 @@ impl TxOutput {
 ///
 /// Logically equivalent to [`TxOutput<bool>`].
 impl TxOutput<Option<()>> {
-    /// Applies logical `||` on the value and `b`.
+    /// Applies logical `||` on the value and `f()`.
     ///
     /// Returns:
-    /// - `Some(())` if `self` is `Some(())` or `b` is `true`
+    /// - `Some(())` if `self` is `Some(())` or `f()` is `true`
     /// - `None` otherwise.
-    pub fn or(self, b: bool) -> Self {
-        self.map(|opt| opt.or(b.then_some(())))
+    pub fn or<F: FnOnce() -> bool>(self, b: F) -> Self {
+        self.map(move |opt| opt.or_else(move || b().then_some(())))
     }
 
     /// Maps unit inside the inner [`Option`].
@@ -134,6 +130,13 @@ impl TxOutput<Option<()>> {
 }
 
 impl<T> TxOutput<T> {
+    /// Returns an iterator over events.
+    ///
+    /// Does event casting inside.
+    pub fn events(&self) -> impl Iterator<Item = Result<Event>> {
+        self.events.iter().map(|event| event?.as_gear())
+    }
+
     /// Replaces the inner value.
     pub fn with_value<O>(self, value: O) -> TxOutput<O> {
         TxOutput {

@@ -37,7 +37,7 @@ pub use crate::{
     result::{Error, Result},
     signed::{PairSigner, SignedApi, Signer, TxOutput},
     subscription::{
-        Blocks, Events, PayloadFilter, ProgramStateChange, ProgramStateChanges, UserMessageSent,
+        PayloadFilter, ProgramStateChange, ProgramStateChanges, UserMessageSent,
         UserMessageSentFilter, UserMessageSentSubscription,
     },
 };

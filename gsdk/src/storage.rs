@@ -24,7 +24,7 @@ use crate::{
     gear::{
         self,
         runtime_types::{
-            frame_system::{AccountInfo, EventRecord},
+            frame_system::AccountInfo,
             gear_common::storage::primitives::Interval,
             gear_core::{
                 pages::Page,
@@ -170,11 +170,10 @@ impl Api {
 
     /// Get events at specified block.
     #[at_block]
-    pub async fn events_at(&self, block_hash: Option<H256>) -> Result<Vec<RuntimeEvent>> {
+    pub async fn block_events_at(&self, block_hash: Option<H256>) -> Result<Vec<RuntimeEvent>> {
         let addr = gear::storage().system().events();
 
-        let evs: Vec<EventRecord<RuntimeEvent, H256>> =
-            self.storage_fetch_at(&addr, block_hash).await?;
+        let evs = self.storage_fetch_at(&addr, block_hash).await?;
 
         Ok(evs.into_iter().map(|ev| ev.event).collect())
     }

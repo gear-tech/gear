@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use gsdk::{Api, Result, backtrace::BacktraceStatus};
+use gsdk::{AccountKeyring, Api, Result, backtrace::BacktraceStatus};
 use utils::dev_node;
 
 mod utils;
@@ -25,9 +25,9 @@ mod utils;
 async fn transfer_backtrace() -> Result<()> {
     let node = dev_node();
     let api = Api::new(node.ws().as_str()).await?.signed_as_alice();
-    let alice = api.account_id();
+    let bob = AccountKeyring::Bob.to_account_id();
 
-    let tx = api.transfer_keep_alive(alice, 42).await?;
+    let tx = api.transfer_keep_alive(bob, 42).await?;
 
     let backtrace = api
         .backtrace()

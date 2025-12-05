@@ -61,13 +61,15 @@ impl SignedApi {
         dest: impl IntoAccountId32,
         value: u128,
     ) -> Result<TxOutput> {
+        let dest = dest.into_account_id();
+
         self.run_tx(
             tx().balances()
-                .transfer_keep_alive(dest.into_account_id().into(), value),
+                .transfer_keep_alive(dest.clone().into(), value),
         )
         .await?
         .any(|event| matches!(event, Event::Balances(balances::Event::Transfer { .. })))?
-        .or(value == 0)
+        .or(|| value == 0 || self.account_id() == &dest.into_account_id().into_substrate())
         .ok_or_err()
     }
 
@@ -81,13 +83,15 @@ impl SignedApi {
         dest: impl IntoAccountId32,
         value: u128,
     ) -> Result<TxOutput> {
+        let dest = dest.into_account_id();
+
         self.run_tx(
             tx().balances()
-                .transfer_allow_death(dest.into_account_id().into(), value),
+                .transfer_allow_death(dest.clone().into(), value),
         )
         .await?
         .any(|event| matches!(event, Event::Balances(balances::Event::Transfer { .. })))?
-        .or(value == 0)
+        .or(|| value == 0 || self.account_id() == &dest.into_substrate())
         .ok_or_err()
     }
 

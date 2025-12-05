@@ -16,17 +16,21 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use futures::prelude::*;
+
 use crate::{
-    AsGear, Events, ProgramStateChanges, Result, TxInBlock, UserMessageSentFilter,
-    UserMessageSentSubscription, config::GearConfig, gear::Event,
+    AsGear, ProgramStateChanges, Result, UserMessageSentFilter, UserMessageSentSubscription,
+    config::GearConfig, gear::Event,
 };
 use core::ops::{Deref, DerefMut};
+use futures::Stream;
 use jsonrpsee::{client_transport::ws::Url, ws_client::WsClientBuilder};
 use sp_core::H256;
 use std::{borrow::Cow, time::Duration};
 use subxt::{
     OnlineClient,
     backend::rpc::RpcClient,
+    blocks::Block,
     ext::subxt_rpcs::{LegacyRpcMethods, rpc_params},
 };
 
@@ -136,7 +140,22 @@ impl Api {
         })
     }
 
-    /// Subscribe all events.
+    fn blocks_to_events(
+        blocks: impl Stream<
+            Item = Result<Block<GearConfig, subxt::OnlineClient<GearConfig>>, subxt::Error>,
+        >,
+    ) -> impl Stream<Item = Result<Event>> {
+        blocks
+            .then(|block| async move {
+                Ok::<_, subxt::Error>(stream::iter(
+                    block?.events().await?.iter().collect::<Vec<_>>(),
+                ))
+            })
+            .try_flatten()
+            .map(|event| event?.as_gear())
+    }
+
+    /// Subscribe finalized events.
     ///
     /// ```ignore
     /// let api = Api::new(None).await?;
@@ -146,24 +165,17 @@ impl Api {
     ///   // ...
     /// }
     /// ```
-    pub async fn subscribe_events(&self) -> Result<Events> {
-        Ok(self.blocks().subscribe_all().await?.into())
-    }
-
-    /// Parse events of an extrinsic
-    pub async fn events_of(&self, tx: &TxInBlock) -> Result<Vec<Event>> {
-        tx.fetch_events()
-            .await?
-            .iter()
-            .map(|e| -> Result<Event> { e?.as_gear() })
-            .collect::<Result<Vec<Event>>>()
+    pub async fn subscribe_all_events(&self) -> Result<impl Stream<Item = Result<Event>>> {
+        Ok(Self::blocks_to_events(self.blocks().subscribe_all().await?))
     }
 
     /// Subscribe finalized events
     ///
     /// Same as `events` but only finalized events.
-    pub async fn finalized_events(&self) -> Result<Events> {
-        Ok(self.client.blocks().subscribe_finalized().await?.into())
+    pub async fn subscribe_finalized_events(&self) -> Result<impl Stream<Item = Result<Event>>> {
+        Ok(Self::blocks_to_events(
+            self.blocks().subscribe_finalized().await?,
+        ))
     }
 
     /// Subscribe to program state changes reported.
