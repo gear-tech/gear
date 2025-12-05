@@ -10,7 +10,7 @@ repository.workspace = true
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-ethexe-signer.workspace = true
+gsigner = { workspace = true, features = ["std", "secp256k1", "codec", "keyring", "serde"] }
 ethexe-db.workspace = true
 ethexe-service-utils.workspace = true
 ethexe-common.workspace = true
@@ -24,7 +24,7 @@ async-trait.workspace = true
 rand = { workspace = true, features = ["std", "std_rng"] }
 futures.workspace = true
 derive_more.workspace = true
-itertools = { workspace = true, features = ["use_std"]}
+itertools = { workspace = true, features = ["use_std"] }
 nonempty.workspace = true
 auto_impl.workspace = true
 lru.workspace = true

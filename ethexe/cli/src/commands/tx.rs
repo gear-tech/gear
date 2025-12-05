@@ -21,8 +21,8 @@ use anyhow::{Context, Result, anyhow, bail, ensure};
 use clap::{Parser, Subcommand};
 use ethexe_common::Address;
 use ethexe_ethereum::Ethereum;
-use ethexe_signer::Signer;
 use gprimitives::{CodeId, H256};
+use gsigner::secp256k1::Signer;
 use sp_core::Bytes;
 use std::{fs, path::PathBuf};
 

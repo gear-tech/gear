@@ -244,7 +244,7 @@ mod tests {
         network::ValidatorMessage,
     };
     use ethexe_db::Database;
-    use ethexe_signer::Signer;
+    use gsigner::secp256k1::{Secp256k1SignerExt, Signer};
     use nonempty::{NonEmpty, nonempty};
     use std::iter;
 
