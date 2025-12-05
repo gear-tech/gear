@@ -404,7 +404,7 @@ sp-consensus-grandpa = { git = "https://github.com/gear-tech/polkadot-sdk.git", 
 sp-consensus-slots = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
 sp-core = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
 sp-crypto-ec-utils = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["bls12-381", "std"] }
-sp-crypto-hashing-3cd95bde04545f0a = { package = "sp-crypto-hashing", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+sp-crypto-hashing-7aeff1d55c7dea4c = { package = "sp-crypto-hashing", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
 sp-crypto-hashing-c65f7effa3be6d31 = { package = "sp-crypto-hashing", version = "0.1", default-features = false, features = ["std"] }
 sp-externalities = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
 sp-genesis-builder = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
@@ -676,7 +676,7 @@ sp-consensus-grandpa = { git = "https://github.com/gear-tech/polkadot-sdk.git", 
 sp-consensus-slots = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
 sp-core = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
 sp-crypto-ec-utils = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["bls12-381", "std"] }
-sp-crypto-hashing-3cd95bde04545f0a = { package = "sp-crypto-hashing", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
+sp-crypto-hashing-7aeff1d55c7dea4c = { package = "sp-crypto-hashing", git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
 sp-crypto-hashing-c65f7effa3be6d31 = { package = "sp-crypto-hashing", version = "0.1", default-features = false, features = ["std"] }
 sp-debug-derive = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags", default-features = false, features = ["force-debug", "std"] }
 sp-externalities = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "al/gear-polkadot-stable2409-builder-cargo-flags" }
