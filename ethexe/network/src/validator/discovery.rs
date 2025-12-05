@@ -51,7 +51,7 @@ use libp2p::{
         THandlerInEvent, THandlerOutEvent, ToSwarm, dummy,
     },
 };
-use parity_scale_codec::{Decode, Encode, Error, Input, Output};
+use parity_scale_codec::{Decode, Encode, Input, Output};
 use std::{
     collections::HashMap,
     sync::Arc,
@@ -287,7 +287,7 @@ impl Encode for ValidatorAddresses {
 }
 
 impl Decode for ValidatorAddresses {
-    fn decode<I: Input>(input: &mut I) -> Result<Self, Error> {
+    fn decode<I: Input>(input: &mut I) -> Result<Self, parity_scale_codec::Error> {
         let addresses = <Vec<Vec<u8>>>::decode(input)?;
         let addresses = Self::from_vec_of_vec(addresses).map_err(|e| {
             parity_scale_codec::Error::from("failed to convert addresses").chain(e.to_string())
@@ -375,12 +375,12 @@ impl GetIdentities {
 
         // eliminate identities that are neither in the current set nor in the next set
         self.identities
-            .retain(|&address, _identity| self.snapshot.contains_any_validator(address));
+            .retain(|&address, _identity| self.snapshot.contains(address));
     }
 
     fn identity_keys(&self) -> impl Iterator<Item = ValidatorIdentityKey> {
         self.snapshot
-            .all_validators()
+            .iter()
             .map(|address| ValidatorIdentityKey { validator: address })
     }
 
@@ -389,7 +389,7 @@ impl GetIdentities {
 
         let ValidatorIdentityRecord { value: identity } = record;
 
-        if !self.snapshot.contains_any_validator(identity.address()) {
+        if !self.snapshot.contains(identity.address()) {
             return Err(PutIdentityError::UnknownValidatorIdentity {
                 address: identity.address(),
             });

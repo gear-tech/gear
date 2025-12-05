@@ -109,7 +109,7 @@ impl ValidatorTopic {
         let block = message.block();
         let address = message.address();
 
-        if !self.snapshot.contains_any_validator(address) {
+        if !self.snapshot.contains(address) {
             return Err(VerificationError::AddressIsNotValidator { address });
         }
 
