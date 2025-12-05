@@ -19,8 +19,8 @@
 use crate::{
     Announce, HashOf, ProtocolTimelines, SimpleBlockData, ValidatorsVec,
     db::{
-        AnnounceStorageRW, BlockMeta, BlockMetaStorageRW, FullAnnounceData, FullBlockData,
-        LatestData, LatestDataStorageRW, OnChainStorageRW,
+        AnnounceStorageRW, BlockMeta, BlockMetaStorageRW, ComputedAnnounceData, LatestData,
+        LatestDataStorageRW, OnChainStorageRW, PreparedBlockData,
     },
 };
 use gprimitives::H256;
@@ -49,10 +49,10 @@ pub fn setup_start_block_in_db<
 >(
     db: &DB,
     start_block_hash: H256,
-    start_block_data: FullBlockData,
-    start_announce_data: FullAnnounceData,
+    start_block_data: PreparedBlockData,
+    start_announce_data: ComputedAnnounceData,
     timelines: ProtocolTimelines,
-    latest_validators_committed_era: u64,
+    latest_era_with_validators_committed: u64,
 ) {
     let announce_hash = start_announce_data.announce.to_hash();
     let latest_synced_block = SimpleBlockData {
@@ -70,7 +70,10 @@ pub fn setup_start_block_in_db<
     setup_announce_in_db(db, start_announce_data);
 
     db.set_protocol_timelines(timelines);
-    db.set_block_validators_committed_for_era(start_block_hash, latest_validators_committed_era);
+    db.set_block_validators_committed_for_era(
+        start_block_hash,
+        latest_era_with_validators_committed,
+    );
 
     db.mutate_latest_data(|latest| {
         latest.synced_block = latest_synced_block;
@@ -93,7 +96,7 @@ pub fn setup_genesis_in_db<
     let genesis_announce = Announce::base(genesis_block.hash, HashOf::zero());
     let genesis_announce_hash = setup_announce_in_db(
         db,
-        FullAnnounceData {
+        ComputedAnnounceData {
             announce: genesis_announce,
             program_states: Default::default(),
             outcome: Default::default(),
@@ -104,7 +107,7 @@ pub fn setup_genesis_in_db<
     setup_block_in_db(
         db,
         genesis_block.hash,
-        FullBlockData {
+        PreparedBlockData {
             header: genesis_block.header,
             events: Default::default(),
             codes_queue: Default::default(),
@@ -152,7 +155,7 @@ pub fn setup_genesis_in_db<
 pub fn setup_block_in_db<DB: OnChainStorageRW + BlockMetaStorageRW>(
     db: &DB,
     block_hash: H256,
-    block_data: FullBlockData,
+    block_data: PreparedBlockData,
 ) {
     db.set_block_header(block_hash, block_data.header);
     db.set_block_events(block_hash, &block_data.events);
@@ -171,7 +174,7 @@ pub fn setup_block_in_db<DB: OnChainStorageRW + BlockMetaStorageRW>(
 
 pub fn setup_announce_in_db<DB: AnnounceStorageRW>(
     db: &DB,
-    announce_data: FullAnnounceData,
+    announce_data: ComputedAnnounceData,
 ) -> HashOf<Announce> {
     let announce_hash = announce_data.announce.to_hash();
     db.set_announce(announce_data.announce);

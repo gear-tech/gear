@@ -19,11 +19,11 @@
 use crate::Service;
 use anyhow::{Context, Result};
 use ethexe_common::{
-    Address, Announce, BlockData, BlockHeader, CodeAndIdUnchecked, Digest, HashOf, ProgramStates,
+    Address, Announce, BlockData, CodeAndIdUnchecked, Digest, HashOf, ProgramStates,
     ProtocolTimelines, StateHashWithQueueSize,
     db::{
-        AnnounceStorageRO, BlockMetaStorageRO, CodesStorageRO, CodesStorageRW, FullAnnounceData,
-        FullBlockData, HashStorageRO, OnChainStorageRW,
+        AnnounceStorageRO, BlockMetaStorageRO, CodesStorageRO, CodesStorageRW,
+        ComputedAnnounceData, HashStorageRO, OnChainStorageRW, PreparedBlockData,
     },
     events::{BlockEvent, RouterEvent},
     injected,
@@ -39,7 +39,7 @@ use ethexe_db::{
     },
     visitor::DatabaseVisitor,
 };
-use ethexe_ethereum::{abi::Gear::ValidationSettingsView, mirror::MirrorQuery};
+use ethexe_ethereum::mirror::MirrorQuery;
 use ethexe_network::{NetworkService, db_sync};
 use ethexe_observer::{
     ObserverService,
@@ -56,6 +56,7 @@ use futures::StreamExt;
 use gprimitives::{ActorId, CodeId, H256};
 use parity_scale_codec::Decode;
 use std::{
+    cmp::max,
     collections::{BTreeMap, BTreeSet, HashMap},
     num::NonZeroU32,
 };
@@ -634,33 +635,6 @@ async fn set_tx_pool_data_requirement(
     Ok(())
 }
 
-fn identify_latest_era_with_validators_committed(
-    start_block: &BlockHeader,
-    timelines: &ProtocolTimelines,
-    validation_view: &ValidationSettingsView,
-) -> Result<u64> {
-    let start_block_era = timelines.era_from_ts(start_block.timestamp);
-
-    // Identify timestamps when current and next eras start.
-    let current_era_start = timelines.era_start(start_block_era);
-    let next_era_start = timelines.era_start_ts(start_block_era + 1);
-
-    let validators0_ts = validation_view.validators0.useFromTimestamp.to::<u64>();
-    let validators1_ts = validation_view.validators1.useFromTimestamp.to::<u64>();
-
-    // In Router's `_resetValidators` function we set `useFromTimestamp` to `nextEraStart`.
-    // So we compare validators timestamps with eras start timestamps.
-    if validators0_ts == next_era_start || validators1_ts == next_era_start {
-        Ok(start_block_era + 1)
-    } else if validators0_ts == current_era_start || validators1_ts == current_era_start {
-        Ok(start_block_era)
-    } else {
-        anyhow::bail!(
-            "can not identify latest era for which validators was successfully committed "
-        )
-    }
-}
-
 pub(crate) async fn sync(service: &mut Service) -> Result<()> {
     let Service {
         observer,
@@ -739,10 +713,25 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
         era: storage_view.timelines.era.to::<u64>(),
     };
 
+    // Since we get storage view at `block_hash`
+    // then latest committed era is for the largest `useFromTimestamp`
+    let latest_era_with_validators_committed = timelines.era_from_ts(max(
+        storage_view
+            .validationSettings
+            .validators0
+            .useFromTimestamp
+            .to::<u64>(),
+        storage_view
+            .validationSettings
+            .validators1
+            .useFromTimestamp
+            .to::<u64>(),
+    ));
+
     ethexe_common::setup_start_block_in_db(
         db,
         block_hash,
-        FullBlockData {
+        PreparedBlockData {
             header,
             events,
             // NOTE: there is no invariant that fast sync should recover codes queue
@@ -755,7 +744,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
             // because `announce_hash` is created for `block_hash`, not committed.
             last_committed_announce: announce_hash,
         },
-        FullAnnounceData {
+        ComputedAnnounceData {
             announce,
             program_states,
             // NOTE: it's ok to set empty outcome here, because it will never be used,
@@ -764,11 +753,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
             schedule: schedule.clone(),
         },
         timelines,
-        identify_latest_era_with_validators_committed(
-            &header,
-            &timelines,
-            &storage_view.validationSettings,
-        )?,
+        latest_era_with_validators_committed,
     );
 
     log::info!(

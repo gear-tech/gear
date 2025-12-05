@@ -237,9 +237,8 @@ impl<DB: SyncDB> ChainSync<DB> {
     /// reorgs for 64 blocks can not happen.
     fn election_timestamp_finalized(&self, chain_head: BlockHeader) -> Option<u64> {
         let timelines = self.db.protocol_timelines()?;
-
-        let election_ts = timelines.era_end_ts(chain_head.timestamp) - timelines.election;
-
+        let election_ts =
+            timelines.era_election_start_ts(timelines.era_from_ts(chain_head.timestamp));
         (chain_head.timestamp.saturating_sub(election_ts)
             > alloy::eips::merge::SLOT_DURATION_SECS * 64)
             .then_some(election_ts)

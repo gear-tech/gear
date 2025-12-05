@@ -291,7 +291,7 @@ mod tests {
         // compute announce
         AnnounceData {
             announce: state.context().core.db.announce(announce_hash).unwrap(),
-            computed: Some(ComputedAnnounceData::default()),
+            computed: Some(Default::default()),
         }
         .setup(&state.context().core.db);
 
@@ -338,7 +338,7 @@ mod tests {
         // compute announce
         AnnounceData {
             announce: state.context().core.db.announce(announce_hash).unwrap(),
-            computed: Some(ComputedAnnounceData::default()),
+            computed: Some(Default::default()),
         }
         .setup(&state.context().core.db);
 
@@ -383,7 +383,7 @@ mod tests {
         // compute announce
         AnnounceData {
             announce: state.context().core.db.announce(announce_hash).unwrap(),
-            computed: Some(ComputedAnnounceData::default()),
+            computed: Some(Default::default()),
         }
         .setup(&state.context().core.db);
 
@@ -427,7 +427,7 @@ mod tests {
         // compute announce
         AnnounceData {
             announce: state.context().core.db.announce(announce_hash).unwrap(),
-            computed: Some(ComputedAnnounceData::default()),
+            computed: Some(Default::default()),
         }
         .setup(&state.context().core.db);
 

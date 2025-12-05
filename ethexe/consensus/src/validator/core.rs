@@ -151,15 +151,13 @@ impl ValidatorCore {
         block: &SimpleBlockData,
     ) -> Result<Option<ValidatorsCommitment>> {
         let block_era = self.timelines.era_from_ts(block.header.timestamp);
-        let end_of_era = self.timelines.era_end(block_era);
-        let election_ts = self.timelines.election_start_in_era(block_era);
+        let election_ts = self.timelines.era_election_start_ts(block_era);
 
         if block.header.timestamp < election_ts {
             tracing::trace!(
                 block = %block.hash,
                 timestamp = %block.header.timestamp,
                 election_ts = %election_ts,
-                end_of_era = %end_of_era,
                 genesis_ts = %self.timelines.genesis_ts,
                 "Election period for next era has not started yet. Skipping validators commitment");
 
@@ -176,33 +174,35 @@ impl ValidatorCore {
                 )
             })?;
 
-        tracing::trace!(
-            current_era = %block_era,
-            latest_era_validators_committed = ?latest_era_validators_committed,
-            "Checking if it's time to commit validators for next era"
-        );
-
         if latest_era_validators_committed == block_era + 1 {
             tracing::trace!(
                 current_era = %block_era,
-                latest_era_validators_committed = ?latest_era_validators_committed,
+                latest_era_validators_committed = %latest_era_validators_committed,
                 "Validators for next era are already committed. Skipping validators commitment"
             );
 
             return Ok(None);
+        } else if latest_era_validators_committed > block_era + 1 {
+            // This case considered as restricted,
+            // because validators cannot be committed for eras later than the next one
+            anyhow::bail!("validators was committed for an era later than the next one");
         } else if latest_era_validators_committed < block_era {
-            tracing::error!(
+            tracing::warn!(
                 current_era = %block_era,
-                latest_era_validators_committed = ?latest_era_validators_committed,
+                latest_era_validators_committed = %latest_era_validators_committed,
                 "Validators commitment for previous eras are missing. Still try to commit validators for next era"
             );
 
             // TODO: !!! consider what to do if we missed commitment for previous eras,
             // currently we just try to commit for next era
-        } else if latest_era_validators_committed > block_era + 1 {
-            // This case considered as restricted,
-            // because validators must not commit for eras later than the next one
-            anyhow::bail!("validators was committed for an era later than the next one");
+        } else if latest_era_validators_committed == block_era {
+            tracing::info!(
+                current_era = %block_era,
+                latest_era_validators_committed = %latest_era_validators_committed,
+                "it is time to commit validators for next era",
+            )
+        } else {
+            unreachable!("no other options are possible here");
         }
 
         let mut iter_block = *block;
@@ -238,7 +238,7 @@ impl ValidatorCore {
         let mut elected_validators = match self.middleware.make_election_at(request).await {
             Ok(validators) => validators,
             Err(e) => {
-                tracing::error!(
+                tracing::warn!(
                     error = %e,
                     block = %block.hash,
                     "Failed to get elected validators from middleware, skipping validators commitment"
@@ -831,11 +831,11 @@ mod tests {
             .collect::<Result<ValidatorsVec, _>>()
             .unwrap();
         eth.predefined_election_at.write().await.insert(
-            chain.protocol_timelines.election_start_in_era(0),
+            chain.protocol_timelines.era_election_start_ts(0),
             validators1.clone(),
         );
         eth.predefined_election_at.write().await.insert(
-            chain.protocol_timelines.election_start_in_era(1),
+            chain.protocol_timelines.era_election_start_ts(1),
             validators2.clone(),
         );
 
