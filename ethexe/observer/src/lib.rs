@@ -65,10 +65,19 @@ pub enum ObserverEvent {
 
 #[derive(Clone, Debug)]
 struct RuntimeConfig {
+    /// Address of the Router contract.
     router_address: Address,
+    /// Address of the Middleware contract.
     middleware_address: Address,
+    /// Maximum depth of blocks to sync.
     max_sync_depth: u32,
+    /// If block sync depth is greater than this value, blocks are synced in batches of this size.
+    /// Must be greater than 1.
     batched_sync_depth: u32,
+    /// Slot duration in seconds.
+    slot_duration_secs: u64,
+    /// Number of blocks after which election timestamp is considered finalized.
+    finalization_period_blocks: u64,
 }
 
 // TODO #4552: make tests for observer service
@@ -185,8 +194,11 @@ impl ObserverService {
             router_address: *router_address,
             middleware_address,
             max_sync_depth,
-            // TODO #4562: make this configurable. Important: must be greater than 1.
+            // TODO #4562: make this configurable.
             batched_sync_depth: 2,
+            slot_duration_secs: eth_cfg.block_time.as_secs(),
+            // TODO #4562: make this configurable, since different networks may have different finalization periods.
+            finalization_period_blocks: 64,
         };
 
         let chain_sync = ChainSync::new(db, config.clone(), provider.clone());
