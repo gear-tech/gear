@@ -62,6 +62,10 @@ use std::{
 /// From Substrate sources:
 /// Maximum number of addresses cached per authority. Additional addresses are discarded.
 const MAX_IDENTITY_ADDRESSES: usize = 10;
+/// Number of concurrent queries to get validator identity.
+///
+/// Limit is to not flood the network
+const MAX_IN_FLIGHT_QUERIES: usize = 10;
 
 /// Signed validator discovery
 ///
@@ -415,7 +419,9 @@ impl GetIdentities {
                     kad.get_record(identity)
                 })
                 .collect::<Vec<_>>();
-            let stream = stream::iter(streams).flatten_unordered(None).boxed();
+            let stream = stream::iter(streams)
+                .flatten_unordered(Some(MAX_IN_FLIGHT_QUERIES))
+                .boxed();
             self.query_identities.replace(stream);
             return Poll::Ready(());
         }
