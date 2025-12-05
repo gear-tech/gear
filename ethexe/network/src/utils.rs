@@ -246,6 +246,11 @@ impl ExponentialBackoffInterval {
             .reset(Instant::now() + self.next_duration);
     }
 
+    #[cfg(test)]
+    pub fn period(&self) -> Duration {
+        self.next_duration
+    }
+
     pub fn tick_at_max(&mut self) {
         self.reset(Self::MAX);
     }

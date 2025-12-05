@@ -499,6 +499,7 @@ impl NetworkService {
         match event {
             validator::discovery::Event::GetIdentitiesStarted => {}
             validator::discovery::Event::PutIdentityStarted => {}
+            validator::discovery::Event::PutIdentityTicksAtMax => {}
         }
     }
 

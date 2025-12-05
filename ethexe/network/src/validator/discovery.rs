@@ -360,10 +360,11 @@ impl ToDigest for ValidatorIdentity {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub enum Event {
     GetIdentitiesStarted,
     PutIdentityStarted,
+    PutIdentityTicksAtMax,
 }
 
 struct GetIdentities {
@@ -410,7 +411,7 @@ impl GetIdentities {
         Ok(())
     }
 
-    fn poll(&mut self, cx: &mut Context<'_>, kad: &kad::Handle) -> Poll<()> {
+    fn poll(&mut self, cx: &mut Context<'_>, kad: &kad::Handle) -> Poll<Event> {
         if self.query_identities_interval.poll_tick(cx).is_ready() {
             let streams = self
                 .identity_keys()
@@ -423,7 +424,7 @@ impl GetIdentities {
                 .flatten_unordered(Some(MAX_IN_FLIGHT_QUERIES))
                 .boxed();
             self.query_identities.replace(stream);
-            return Poll::Ready(());
+            return Poll::Ready(Event::GetIdentitiesStarted);
         }
 
         if let Some(stream) = &mut self.query_identities
@@ -489,7 +490,7 @@ impl PutIdentity {
         Some(record)
     }
 
-    fn poll(&mut self, cx: &mut Context<'_>, kad: &kad::Handle) -> Poll<()> {
+    fn poll(&mut self, cx: &mut Context<'_>, kad: &kad::Handle) -> Poll<Event> {
         if let Some(fut) = self.fut.as_mut()
             && let Poll::Ready(res) = fut.poll_unpin(cx)
         {
@@ -497,6 +498,7 @@ impl PutIdentity {
             match res {
                 Ok(_key) => {
                     self.interval.tick_at_max();
+                    return Poll::Ready(Event::PutIdentityTicksAtMax);
                 }
                 Err(err) => {
                     log::trace!("failed to put validator identity: {err}");
@@ -514,8 +516,8 @@ impl PutIdentity {
             Ok(record) => {
                 let record = kad::Record::ValidatorIdentity(record);
                 // best effort; ignore result
-                let _fut = kad.put_record(record);
-                return Poll::Ready(());
+                self.fut = Some(kad.put_record(record));
+                return Poll::Ready(Event::PutIdentityStarted);
             }
             Err(err) => {
                 log::trace!("failed to create identity to put: {err}");
@@ -611,14 +613,14 @@ impl NetworkBehaviour for Behaviour {
         &mut self,
         cx: &mut Context<'_>,
     ) -> Poll<ToSwarm<Self::ToSwarm, THandlerInEvent<Self>>> {
-        if let Poll::Ready(()) = self.get_identities.poll(cx, &self.kad) {
-            return Poll::Ready(ToSwarm::GenerateEvent(Event::GetIdentitiesStarted));
+        if let Poll::Ready(event) = self.get_identities.poll(cx, &self.kad) {
+            return Poll::Ready(ToSwarm::GenerateEvent(event));
         }
 
         if let Some(put_identity) = &mut self.put_identity
-            && let Poll::Ready(()) = put_identity.poll(cx, &self.kad)
+            && let Poll::Ready(event) = put_identity.poll(cx, &self.kad)
         {
-            return Poll::Ready(ToSwarm::GenerateEvent(Event::PutIdentityStarted));
+            return Poll::Ready(ToSwarm::GenerateEvent(event));
         }
 
         Poll::Pending
@@ -967,5 +969,49 @@ mod tests {
         // Should keep the newer one (or the first one if timestamps are equal)
         // Currently implementation keeps the first one for equal timestamps
         assert!(behaviour.get_identity(validator_key.to_address()).is_some());
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn put_identity_ticks_at_max() {
+        let signer = Signer::memory();
+        let validator_key = signer.generate_key().unwrap();
+        let network_keypair = Keypair::generate_secp256k1();
+
+        let (kad_handle, mut kad_callback) = kad::test_utils::HandleCallback::new_pair();
+        kad_callback.on_put_record(|record| {
+            let key = record.key();
+            let _ = record.unwrap_validator_identity();
+            Ok(key)
+        });
+        tokio::spawn(kad_callback.loop_on_receiver());
+
+        let behaviour = Behaviour::new(
+            kad_handle,
+            network_keypair.clone(),
+            Some(validator_key),
+            signer.clone(),
+            snapshot(vec![validator_key.to_address()]),
+        );
+        let mut swarm = Swarm::new_ephemeral_tokio(move |_keypair| behaviour);
+        swarm.add_external_address(test_addr());
+
+        time::advance(ExponentialBackoffInterval::START).await;
+
+        let event = swarm.next_behaviour_event().await;
+        assert_eq!(event, Event::GetIdentitiesStarted);
+
+        let event = swarm.next_behaviour_event().await;
+        assert_eq!(event, Event::PutIdentityStarted);
+        let put_identity = &swarm.behaviour().put_identity.as_ref().unwrap();
+        assert!(put_identity.fut.is_some());
+
+        let event = swarm.next_behaviour_event().await;
+        assert_eq!(event, Event::PutIdentityTicksAtMax);
+        let put_identity = &swarm.behaviour().put_identity.as_ref().unwrap();
+        assert_eq!(
+            put_identity.interval.period(),
+            ExponentialBackoffInterval::MAX
+        );
+        assert!(put_identity.fut.is_none());
     }
 }

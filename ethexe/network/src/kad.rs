@@ -112,7 +112,7 @@ impl Record {
         }
     }
 
-    fn key(&self) -> RecordKey {
+    pub fn key(&self) -> RecordKey {
         match self {
             Record::ValidatorIdentity(record) => RecordKey::ValidatorIdentity(record.key()),
         }
@@ -575,6 +575,49 @@ impl NetworkBehaviour for Behaviour {
             to_swarm => Poll::Ready(to_swarm.map_out::<Event>(|_event| {
                 unreachable!("`ToSwarm::GenerateEvent` is handled above")
             })),
+        }
+    }
+}
+
+#[cfg(test)]
+pub(crate) mod test_utils {
+    use super::*;
+
+    pub struct HandleCallback {
+        rx: mpsc::UnboundedReceiver<HandlerAction>,
+        on_put_record: Option<Box<dyn FnMut(Record) -> PutRecordResult + Send>>,
+    }
+
+    impl HandleCallback {
+        pub fn new_pair() -> (Handle, Self) {
+            let (tx, rx) = mpsc::unbounded_channel();
+            let handle = Handle(tx);
+            let this = Self {
+                rx,
+                on_put_record: None,
+            };
+            (handle, this)
+        }
+
+        pub fn on_put_record<F>(&mut self, f: F)
+        where
+            F: FnMut(Record) -> PutRecordResult + Send + 'static,
+        {
+            self.on_put_record = Some(Box::new(f));
+        }
+
+        pub async fn loop_on_receiver(mut self) {
+            while let Some(action) = self.rx.recv().await {
+                match action {
+                    HandlerAction::GetRecord(_key, _channel) => {}
+                    HandlerAction::PutRecord(record, channel) => {
+                        if let Some(callback) = &mut self.on_put_record {
+                            let result = (callback)(*record);
+                            let _res = channel.send(result);
+                        }
+                    }
+                }
+            }
         }
     }
 }
