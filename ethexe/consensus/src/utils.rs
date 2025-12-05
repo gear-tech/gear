@@ -217,7 +217,7 @@ pub fn try_aggregate_chain_commitment<DB: BlockMetaStorageRO + AnnounceStorageRO
     ))
 }
 
-// TODO +_+_+: this is a temporal solution. In future need to implement DKG algorithm.
+// TODO: #5019 this is a temporal solution. In future need to implement DKG algorithm.
 pub fn generate_roast_keys(
     validators: &ValidatorsVec,
 ) -> Result<(AggregatedPublicKey, VerifiableSecretSharingCommitment)> {
