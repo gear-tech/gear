@@ -34,8 +34,8 @@ use alloy::{
 use anyhow::Context;
 use ethexe_blob_loader::{BlobLoader, BlobLoaderService, ConsensusLayerConfig};
 use ethexe_common::{
-    Address, BlockHeader, COMMITMENT_DELAY_LIMIT, CodeAndId, DEFAULT_BLOCK_GAS_LIMIT,
-    SimpleBlockData, ToDigest, ValidatorsVec,
+    Address, COMMITMENT_DELAY_LIMIT, CodeAndId, DEFAULT_BLOCK_GAS_LIMIT, SimpleBlockData, ToDigest,
+    ValidatorsVec,
     consensus::{DEFAULT_CHAIN_DEEPNESS_THRESHOLD, DEFAULT_VALIDATE_CHAIN_DEEPNESS_LIMIT},
     ecdsa::{PrivateKey, PublicKey, SignedData},
     events::{BlockEvent, MirrorEvent, RouterEvent},
@@ -239,10 +239,6 @@ impl TestEnv {
         let router = ethereum.router();
         let router_query = router.query();
         let router_address = router.address();
-        let latest_validators = router_query
-            .validators()
-            .await
-            .context("failed to get latest validators")?;
 
         let db = Database::memory();
 

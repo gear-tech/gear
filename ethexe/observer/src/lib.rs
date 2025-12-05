@@ -20,7 +20,6 @@
 
 use crate::utils::EthereumBlockLoader;
 use alloy::{
-    eips::BlockNumberOrTag,
     providers::{Provider, ProviderBuilder, RootProvider},
     pubsub::{Subscription, SubscriptionStream},
     rpc::types::eth::Header,
@@ -276,16 +275,6 @@ impl ObserverService {
 
     pub fn block_loader(&self) -> EthereumBlockLoader {
         EthereumBlockLoader::new(self.provider.clone(), self.config.router_address)
-    }
-
-    pub async fn latest_block(&self) -> Result<SimpleBlockData> {
-        let block = self
-            .provider
-            .get_block_by_number(BlockNumberOrTag::Latest)
-            .await
-            .context("failed to get latest block")?;
-        let (hash, header) = utils::block_response_to_data(block)?;
-        Ok(SimpleBlockData { hash, header })
     }
 
     pub fn router_query(&self) -> RouterQuery {

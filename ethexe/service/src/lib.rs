@@ -259,7 +259,7 @@ impl Service {
                 .context("failed to get latest block")?;
 
             let runtime_config = NetworkRuntimeConfig {
-                latest_block_header: lastest_block_data.header,
+                latest_block_header: latest_block_data.header,
                 latest_validators: validators,
                 validator_key: validator_pub_key,
                 general_signer: signer.clone(),
