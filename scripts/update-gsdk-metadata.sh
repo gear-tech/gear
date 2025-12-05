@@ -5,4 +5,4 @@
 
 set -ex
 
-cargo build --package vara-runtime --features dev
+GENERATE_GSDK_METADATA=1 cargo build --package vara-runtime --features dev

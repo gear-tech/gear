@@ -32,6 +32,7 @@ use ethexe_common::gear::{CHUNK_PROCESSING_GAS_LIMIT, MessageType};
 use gear_core::{
     code::{CodeMetadata, InstrumentedCode, MAX_WASM_PAGES_AMOUNT},
     gas::GasAllowanceCounter,
+    gas_metering::Schedule,
     ids::ActorId,
     message::{DispatchKind, IncomingDispatch, IncomingMessage},
 };
@@ -182,7 +183,7 @@ where
         ]
         .into(),
         gas_multiplier: GasMultiplier::from_value_per_gas(100),
-        costs: Default::default(),
+        costs: Schedule::default().process_costs(),
         max_pages: MAX_WASM_PAGES_AMOUNT.into(),
         outgoing_limit: 1024,
         outgoing_bytes_limit: 64 * 1024 * 1024,

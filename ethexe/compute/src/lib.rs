@@ -55,6 +55,8 @@ pub enum ComputeError {
     BlockEventsNotFound(H256),
     #[error("block header not found for synced block({0})")]
     BlockHeaderNotFound(H256),
+    #[error("block validators committed for era not found for block({0})")]
+    BlockValidatorsCommittedForEraNotFound(H256),
     #[error("process code join error")]
     CodeProcessJoin(#[from] tokio::task::JoinError),
     #[error("codes queue not found for computed block({0})")]
@@ -69,6 +71,13 @@ pub enum ComputeError {
     PreparedBlockAnnouncesSetMissing(H256),
     #[error("Latest data not found")]
     LatestDataNotFound,
+    #[error(
+        "Received validators commitment for an earlier era {commitment_era_index}, previous was {previous_commitment_era_index}"
+    )]
+    ValidatorsCommittedForEarlierEra {
+        previous_commitment_era_index: u64,
+        commitment_era_index: u64,
+    },
 
     #[error(transparent)]
     Processor(#[from] ProcessorError),

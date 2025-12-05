@@ -1,0 +1,620 @@
+// This file is part of Gear.
+//
+// Copyright (C) 2021-2025 Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+#![cfg_attr(not(feature = "std"), no_std)]
+
+use frame_support::{
+    pallet_prelude::*, unsigned::ValidateUnsigned, weights::constants::RocksDbWeight,
+};
+use frame_system::{
+    ensure_root,
+    offchain::{SendTransactionTypes, SubmitTransaction},
+    pallet_prelude::*,
+};
+use log::{debug, trace};
+use sp_core::ed25519;
+use sp_runtime::{
+    RuntimeDebug, Saturating,
+    traits::{SaturatedConversion, Verify},
+    transaction_validity::{
+        InvalidTransaction, TransactionPriority, TransactionSource, TransactionValidity,
+        ValidTransaction,
+    },
+};
+use sp_std::{marker::PhantomData as _PhantomData, prelude::*};
+
+pub use pallet::*;
+
+pub type RequestId = u32;
+pub type SetId = u64;
+
+/// Provides GRANDPA authority data for a given set.
+pub trait AuthorityProvider<AuthorityId> {
+    /// Returns the current GRANDPA set id.
+    fn current_set_id() -> SetId;
+    /// Returns the authorities for a given set id. If the set id is unknown, return an empty list.
+    fn authorities(set_id: SetId) -> Vec<AuthorityId>;
+}
+
+/// Reuse the GRANDPA key type for offchain signing.
+pub const KEY_TYPE: sp_core::crypto::KeyTypeId = sp_consensus_grandpa::KEY_TYPE;
+
+#[allow(clippy::manual_inspect)]
+#[frame_support::pallet]
+pub mod pallet {
+    use super::*;
+
+    #[derive(Clone, PartialEq, Eq, Encode, Decode, TypeInfo, MaxEncodedLen, RuntimeDebug)]
+    #[scale_info(skip_type_params(T))]
+    pub struct SigningRequest<T: Config> {
+        pub id: RequestId,
+        pub payload: BoundedVec<u8, T::MaxPayloadLength>,
+        pub set_id: SetId,
+        pub created_at: BlockNumberFor<T>,
+        pub expires_at: Option<BlockNumberFor<T>>,
+    }
+
+    #[derive(RuntimeDebug)]
+    struct SubmissionContext<T: Config> {
+        request: SigningRequest<T>,
+        authorities: Vec<T::AuthorityId>,
+    }
+
+    #[pallet::pallet]
+    #[pallet::without_storage_info]
+    pub struct Pallet<T>(_PhantomData<T>);
+
+    #[pallet::config]
+    pub trait Config: frame_system::Config {
+        type RuntimeEvent: From<Event<Self>> + IsType<<Self as frame_system::Config>::RuntimeEvent>;
+
+        /// GRANDPA public key type.
+        type AuthorityId: Parameter
+            + Member
+            + MaybeSerializeDeserialize
+            + Ord
+            + Clone
+            + TypeInfo
+            + MaxEncodedLen
+            + AsRef<[u8]>;
+
+        /// GRANDPA signature type.
+        type AuthoritySignature: Parameter
+            + Member
+            + MaybeSerializeDeserialize
+            + Clone
+            + TypeInfo
+            + MaxEncodedLen
+            + Into<ed25519::Signature>;
+
+        /// Upper bounds.
+        type MaxPayloadLength: Get<u32>;
+        type MaxRequests: Get<u32>;
+        type MaxSignaturesPerRequest: Get<u32>;
+
+        /// Priority used for unsigned submissions.
+        type UnsignedPriority: Get<TransactionPriority>;
+
+        /// Provider to read GRANDPA authorities and current set id.
+        type AuthorityProvider: AuthorityProvider<Self::AuthorityId>;
+
+        /// Weight information.
+        type WeightInfo: WeightInfo;
+    }
+
+    #[pallet::storage]
+    #[pallet::getter(fn next_request_id)]
+    pub type NextRequestId<T> = StorageValue<_, RequestId, ValueQuery>;
+
+    #[pallet::storage]
+    #[pallet::getter(fn requests)]
+    pub type Requests<T: Config> = StorageMap<_, Twox64Concat, RequestId, SigningRequest<T>>;
+
+    #[pallet::storage]
+    #[pallet::getter(fn signatures)]
+    pub type Signatures<T: Config> = StorageDoubleMap<
+        _,
+        Twox64Concat,
+        RequestId,
+        Blake2_128Concat,
+        T::AuthorityId,
+        T::AuthoritySignature,
+    >;
+
+    #[pallet::storage]
+    #[pallet::getter(fn signature_count)]
+    pub type SignatureCount<T: Config> = StorageMap<_, Twox64Concat, RequestId, u32, ValueQuery>;
+
+    #[pallet::event]
+    #[pallet::generate_deposit(pub(super) fn deposit_event)]
+    pub enum Event<T: Config> {
+        RequestScheduled {
+            request_id: RequestId,
+            set_id: SetId,
+        },
+        SignatureAdded {
+            request_id: RequestId,
+            authority: T::AuthorityId,
+            count: u32,
+        },
+    }
+
+    #[pallet::error]
+    pub enum Error<T> {
+        TooManyRequests,
+        RequestIdExhausted,
+        UnknownRequest,
+        RequestExpired,
+        AuthorityNotInSet,
+        AlreadySigned,
+        BadSignature,
+        UnsupportedSet,
+        PayloadTooLong,
+        MaxSignaturesReached,
+    }
+
+    #[pallet::call]
+    impl<T: Config> Pallet<T> {
+        /// Schedule a signing request for the current GRANDPA set.
+        #[pallet::call_index(0)]
+        #[pallet::weight(T::WeightInfo::schedule_request())]
+        pub fn schedule_request(
+            origin: OriginFor<T>,
+            payload: Vec<u8>,
+            set_id: Option<SetId>,
+            expires_at: Option<BlockNumberFor<T>>,
+        ) -> DispatchResult {
+            ensure_root(origin)?;
+
+            let now = <frame_system::Pallet<T>>::block_number();
+            Self::prune_stale_requests(now);
+
+            let active_requests = Requests::<T>::iter().count();
+            ensure!(
+                active_requests < T::MaxRequests::get() as usize,
+                Error::<T>::TooManyRequests
+            );
+
+            let req_id = NextRequestId::<T>::get();
+            let next_id = req_id
+                .checked_add(1)
+                .ok_or(Error::<T>::RequestIdExhausted)?;
+
+            let set_id = set_id.unwrap_or_else(T::AuthorityProvider::current_set_id);
+            ensure!(
+                set_id == T::AuthorityProvider::current_set_id(),
+                Error::<T>::UnsupportedSet
+            );
+
+            let bounded_payload: BoundedVec<_, T::MaxPayloadLength> =
+                payload.try_into().map_err(|_| Error::<T>::PayloadTooLong)?;
+
+            let request = SigningRequest {
+                id: req_id,
+                payload: bounded_payload,
+                set_id,
+                created_at: now,
+                expires_at,
+            };
+
+            Requests::<T>::insert(req_id, request);
+            NextRequestId::<T>::put(next_id);
+
+            Self::deposit_event(Event::RequestScheduled {
+                request_id: req_id,
+                set_id,
+            });
+            Ok(())
+        }
+
+        /// Submit a GRANDPA signature for a scheduled request (unsigned).
+        #[pallet::call_index(1)]
+        #[pallet::weight(T::WeightInfo::submit_signature())]
+        pub fn submit_signature(
+            origin: OriginFor<T>,
+            request_id: RequestId,
+            authority: T::AuthorityId,
+            signature: T::AuthoritySignature,
+        ) -> DispatchResult {
+            ensure_none(origin)?;
+            Self::process_signature(request_id, authority, signature)
+        }
+    }
+
+    impl<T: Config> Pallet<T> {
+        const MAX_REQUESTS_PER_WORKER: usize = 64;
+        const MAX_SUBMISSIONS_PER_WORKER: usize = 128;
+        const BACKOFF_BLOCKS: u64 = 5;
+        const BACKOFF_PREFIX: &'static [u8] = b"grandpa-signer:last_attempt:";
+
+        /// Common validation for a submission. Loads the request, ensures it is active,
+        /// checks membership/duplicate/limit, and returns the request context.
+        fn ensure_can_accept_signature(
+            request_id: RequestId,
+            authority: &T::AuthorityId,
+        ) -> Result<SubmissionContext<T>, Error<T>> {
+            let request = Requests::<T>::get(request_id).ok_or(Error::<T>::UnknownRequest)?;
+            Self::validate_request(&request)?;
+
+            let authorities = T::AuthorityProvider::authorities(request.set_id);
+            ensure!(
+                authorities.contains(authority),
+                Error::<T>::AuthorityNotInSet
+            );
+
+            ensure!(
+                !Signatures::<T>::contains_key(request_id, authority),
+                Error::<T>::AlreadySigned
+            );
+
+            let count = SignatureCount::<T>::get(request_id);
+            ensure!(
+                count < T::MaxSignaturesPerRequest::get(),
+                Error::<T>::MaxSignaturesReached
+            );
+
+            Ok(SubmissionContext {
+                request,
+                authorities,
+            })
+        }
+
+        fn backoff_key(request_id: RequestId, authority: &T::AuthorityId) -> Vec<u8> {
+            let mut key = Self::BACKOFF_PREFIX.to_vec();
+            key.extend_from_slice(&request_id.to_le_bytes());
+            key.extend_from_slice(authority.as_ref());
+            key
+        }
+
+        fn should_backoff(key: &[u8], now: u64) -> bool {
+            if let Some(bytes) =
+                sp_io::offchain::local_storage_get(sp_core::offchain::StorageKind::PERSISTENT, key)
+                && bytes.len() == 8
+            {
+                let last = u64::from_le_bytes(bytes.as_slice().try_into().unwrap());
+                return now.saturating_sub(last) < Self::BACKOFF_BLOCKS;
+            }
+            false
+        }
+
+        fn record_attempt(key: &[u8], now: u64) {
+            sp_io::offchain::local_storage_set(
+                sp_core::offchain::StorageKind::PERSISTENT,
+                key,
+                &now.to_le_bytes(),
+            );
+        }
+
+        fn map_invalid(err: Error<T>) -> InvalidTransaction {
+            match err {
+                Error::<T>::RequestExpired => InvalidTransaction::Stale,
+                Error::<T>::UnsupportedSet | Error::<T>::AuthorityNotInSet => {
+                    InvalidTransaction::BadProof
+                }
+                Error::<T>::AlreadySigned | Error::<T>::MaxSignaturesReached => {
+                    InvalidTransaction::Stale
+                }
+                Error::<T>::RequestIdExhausted | Error::<T>::UnknownRequest => {
+                    InvalidTransaction::Call
+                }
+                Error::<T>::BadSignature
+                | Error::<T>::TooManyRequests
+                | Error::<T>::PayloadTooLong => InvalidTransaction::Call,
+            }
+        }
+
+        fn process_signature(
+            request_id: RequestId,
+            authority: T::AuthorityId,
+            signature: T::AuthoritySignature,
+        ) -> DispatchResult {
+            let SubmissionContext {
+                request,
+                authorities,
+            } = Self::ensure_can_accept_signature(request_id, &authority)?;
+
+            let message = request.payload.clone();
+            ensure!(
+                Self::verify_sig(&authority, &signature, &message),
+                Error::<T>::BadSignature
+            );
+
+            Signatures::<T>::insert(request_id, &authority, signature);
+            let count = SignatureCount::<T>::mutate(request_id, |c| {
+                *c = c.saturating_add(1);
+                *c
+            });
+
+            Self::deposit_event(Event::SignatureAdded {
+                request_id,
+                authority: authority.clone(),
+                count,
+            });
+
+            // Drop the request once it is fully signed or hits the per-request cap.
+            let done_by_set = count >= authorities.len() as u32;
+            let done_by_limit = count >= T::MaxSignaturesPerRequest::get();
+            if done_by_set || done_by_limit {
+                log::warn!(
+                    target: "gear::grandpa-signer",
+                    "cleanup request {} (done_by_set={}, done_by_limit={}, count={}, authorities={})",
+                    request_id,
+                    done_by_set,
+                    done_by_limit,
+                    count,
+                    authorities.len(),
+                );
+                Self::cleanup_request(request_id);
+            }
+
+            Ok(())
+        }
+
+        fn validate_request(request: &SigningRequest<T>) -> Result<(), Error<T>> {
+            ensure!(
+                request.set_id == T::AuthorityProvider::current_set_id(),
+                Error::<T>::UnsupportedSet
+            );
+            if let Some(exp) = request.expires_at {
+                let now = <frame_system::Pallet<T>>::block_number();
+                ensure!(now <= exp, Error::<T>::RequestExpired);
+            }
+            Ok(())
+        }
+
+        fn verify_sig(
+            authority: &T::AuthorityId,
+            signature: &T::AuthoritySignature,
+            payload: &[u8],
+        ) -> bool {
+            let Ok(raw): Result<[u8; 32], _> = authority.as_ref().try_into() else {
+                return false;
+            };
+            let pubkey = ed25519::Public::from_raw(raw);
+            let sig: ed25519::Signature = signature.clone().into();
+            sig.verify(payload, &pubkey)
+        }
+
+        fn cleanup_request(request_id: RequestId) {
+            Requests::<T>::remove(request_id);
+            SignatureCount::<T>::remove(request_id);
+            // Remove all signatures for this request prefix.
+            let _ = Signatures::<T>::clear_prefix(request_id, u32::MAX, None);
+        }
+
+        fn prune_stale_requests(now: BlockNumberFor<T>) {
+            let current_set = T::AuthorityProvider::current_set_id();
+            let expired: Vec<_> = Requests::<T>::iter()
+                .filter_map(|(request_id, request)| {
+                    let expired = request.expires_at.map(|exp| now > exp).unwrap_or(false);
+                    let unsupported_set = request.set_id != current_set;
+                    if expired || unsupported_set {
+                        Some(request_id)
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+
+            for request_id in expired {
+                Self::cleanup_request(request_id);
+            }
+        }
+    }
+
+    #[pallet::validate_unsigned]
+    impl<T: Config> ValidateUnsigned for Pallet<T> {
+        type Call = Call<T>;
+
+        fn validate_unsigned(source: TransactionSource, call: &Self::Call) -> TransactionValidity {
+            if !matches!(
+                source,
+                TransactionSource::External | TransactionSource::Local | TransactionSource::InBlock
+            ) {
+                return InvalidTransaction::Call.into();
+            }
+
+            match call {
+                Call::submit_signature {
+                    request_id,
+                    authority,
+                    signature,
+                } => {
+                    let ctx = match Self::ensure_can_accept_signature(*request_id, authority) {
+                        Ok(ctx) => ctx,
+                        Err(err) => return Self::map_invalid(err).into(),
+                    };
+
+                    if !Self::verify_sig(authority, signature, &ctx.request.payload) {
+                        return InvalidTransaction::BadProof.into();
+                    }
+
+                    let provides = vec![(b"grandpa-signer", request_id, authority).encode()];
+                    let longevity = match ctx.request.expires_at {
+                        Some(exp) => {
+                            let now = <frame_system::Pallet<T>>::block_number();
+                            let remaining = exp.saturating_sub(now);
+                            match remaining.try_into() {
+                                Ok(l) if l > 0 => l,
+                                _ => return InvalidTransaction::Stale.into(),
+                            }
+                        }
+                        None => TransactionLongevity::MAX,
+                    };
+
+                    Ok(ValidTransaction {
+                        priority: T::UnsignedPriority::get(),
+                        requires: vec![],
+                        provides,
+                        longevity,
+                        propagate: true,
+                    })
+                }
+                _ => InvalidTransaction::Call.into(),
+            }
+        }
+    }
+
+    #[pallet::hooks]
+    impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T>
+    where
+        T: SendTransactionTypes<Call<T>>,
+        T::AuthorityId: From<ed25519::Public>,
+        T::AuthoritySignature: From<ed25519::Signature>,
+    {
+        fn offchain_worker(_n: BlockNumberFor<T>) {
+            let local_keys = sp_io::crypto::ed25519_public_keys(KEY_TYPE);
+            if local_keys.is_empty() {
+                return;
+            }
+
+            let mut submissions = 0usize;
+
+            for (request_id, request) in Requests::<T>::iter()
+                .take(Self::MAX_REQUESTS_PER_WORKER.min(T::MaxRequests::get() as usize))
+            {
+                if let Err(err) = Self::validate_request(&request) {
+                    trace!(target: "gear::grandpa-signer", "skip request {}: {:?}", request_id, err);
+                    continue;
+                }
+                if SignatureCount::<T>::get(request_id) >= T::MaxSignaturesPerRequest::get() {
+                    trace!(target: "gear::grandpa-signer", "skip request {}: max signatures reached", request_id);
+                    continue;
+                }
+                let authorities = T::AuthorityProvider::authorities(request.set_id);
+                if authorities.is_empty() {
+                    trace!(target: "gear::grandpa-signer", "skip request {}: no authorities", request_id);
+                    continue;
+                }
+
+                let now = <frame_system::Pallet<T>>::block_number().saturated_into::<u64>();
+
+                let mut submitted = false;
+
+                for local_key in local_keys.iter() {
+                    if submissions >= Self::MAX_SUBMISSIONS_PER_WORKER {
+                        return;
+                    }
+                    let authority: T::AuthorityId = (*local_key).into();
+
+                    let ctx = match Self::ensure_can_accept_signature(request_id, &authority) {
+                        Ok(ctx) => ctx,
+                        Err(Error::<T>::AuthorityNotInSet) => {
+                            trace!(target: "gear::grandpa-signer", "skip key for request {}: not in authorities", request_id);
+                            continue;
+                        }
+                        Err(Error::<T>::AlreadySigned) => {
+                            trace!(target: "gear::grandpa-signer", "skip key for request {}: already signed", request_id);
+                            continue;
+                        }
+                        Err(Error::<T>::MaxSignaturesReached) => break,
+                        Err(err) => {
+                            trace!(target: "gear::grandpa-signer", "skip request {}: {:?}", request_id, err);
+                            break;
+                        }
+                    };
+
+                    let backoff_key = Self::backoff_key(request_id, &authority);
+                    if Self::should_backoff(&backoff_key, now) {
+                        trace!(target: "gear::grandpa-signer", "skip request {} for key: backoff", request_id);
+                        continue;
+                    }
+
+                    if let Some(signature) =
+                        sp_io::crypto::ed25519_sign(KEY_TYPE, local_key, &ctx.request.payload)
+                    {
+                        let signature: T::AuthoritySignature = signature.into();
+                        let call = Call::submit_signature {
+                            request_id,
+                            authority,
+                            signature,
+                        };
+                        match SubmitTransaction::<T, Call<T>>::submit_unsigned_transaction(
+                            call.into(),
+                        ) {
+                            Ok(()) => {
+                                submissions = submissions.saturating_add(1);
+                                submitted = true;
+                                Self::record_attempt(&backoff_key, now);
+                                debug!(target: "gear::grandpa-signer", "submitted signature for request {}", request_id);
+                            }
+                            Err(e) => {
+                                Self::record_attempt(&backoff_key, now);
+                                debug!(target: "gear::grandpa-signer", "failed to submit signature for request {}: {:?}", request_id, e);
+                            }
+                        }
+                    }
+                    if submitted {
+                        break;
+                    }
+                }
+            }
+        }
+    }
+
+    /// Weight functions for this pallet.
+    pub trait WeightInfo {
+        fn schedule_request() -> Weight;
+        fn submit_signature() -> Weight;
+    }
+
+    /// Fallback weights used when no benchmarking data is supplied.
+    pub struct SubstrateWeight<T>(sp_std::marker::PhantomData<T>);
+
+    impl<T: Config> WeightInfo for SubstrateWeight<T> {
+        fn schedule_request() -> Weight {
+            // Reads: NextRequestId; Requests (prune pass).
+            // Writes: Requests, NextRequestId; cleanup for up to MaxRequests expired entries and their signatures.
+            let db = T::DbWeight::get();
+            let max_requests = T::MaxRequests::get() as u64;
+            let max_sigs = T::MaxSignaturesPerRequest::get() as u64;
+            Weight::from_parts(55_000_000, 2048)
+                .saturating_add(db.reads(1 + max_requests))
+                .saturating_add(db.writes(2 + max_requests * (2 + max_sigs)))
+        }
+
+        fn submit_signature() -> Weight {
+            // Reads: Requests, Signatures, SignatureCount.
+            // Writes: Signatures, SignatureCount; optional cleanup of a completed request.
+            let db = T::DbWeight::get();
+            let max_sigs = T::MaxSignaturesPerRequest::get() as u64;
+            Weight::from_parts(145_000_000, 4096)
+                .saturating_add(db.reads(3))
+                .saturating_add(db.writes(2 + 1 + max_sigs))
+        }
+    }
+
+    // Backward-compatible fallback for tests/benches that still select `()`.
+    impl WeightInfo for () {
+        fn schedule_request() -> Weight {
+            // Rough upper bound; prefer `SubstrateWeight` in runtimes.
+            Weight::from_parts(55_000_000, 2048)
+                .saturating_add(RocksDbWeight::get().reads(2_u64))
+                .saturating_add(RocksDbWeight::get().writes(3_u64))
+        }
+
+        fn submit_signature() -> Weight {
+            Weight::from_parts(145_000_000, 4096)
+                .saturating_add(RocksDbWeight::get().reads(3_u64))
+                .saturating_add(RocksDbWeight::get().writes(5_u64))
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests;

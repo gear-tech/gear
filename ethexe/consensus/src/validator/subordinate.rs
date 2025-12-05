@@ -245,7 +245,7 @@ mod tests {
         ctx.pending(PendingEvent::Announce(announce1.clone()));
         ctx.pending(PendingEvent::Announce(announce2.clone()));
 
-        let s = Subordinate::create(ctx, block.clone(), producer.to_address(), true).unwrap();
+        let s = Subordinate::create(ctx, block, producer.to_address(), true).unwrap();
         assert!(s.is_subordinate(), "got {s:?}");
         assert_eq!(
             s.context().output,
@@ -274,7 +274,7 @@ mod tests {
         ctx.pending(PendingEvent::ValidationRequest(request2.clone()));
 
         // Subordinate waits for announce after creation, and does not process validation requests.
-        let s = Subordinate::create(ctx, block.clone(), producer.to_address(), true).unwrap();
+        let s = Subordinate::create(ctx, block, producer.to_address(), true).unwrap();
         assert!(s.is_subordinate(), "got {s:?}");
         assert_eq!(s.context().output, vec![]);
         assert_eq!(
@@ -305,7 +305,7 @@ mod tests {
 
         // Subordinate sends announce to computation and waits for it.
         // All pending events except first MAX_PENDING_EVENTS will be removed.
-        let s = Subordinate::create(ctx, block.clone(), producer.to_address(), true).unwrap();
+        let s = Subordinate::create(ctx, block, producer.to_address(), true).unwrap();
         assert!(s.is_subordinate(), "got {s:?}");
         assert_eq!(
             s.context().output,
@@ -329,7 +329,7 @@ mod tests {
             .mock_verified_data(producer, (block.hash, chain.block_top_announce_hash(0)));
 
         // Subordinate waits for block prepared and announce after creation.
-        let s = Subordinate::create(ctx, block.clone(), producer.to_address(), true).unwrap();
+        let s = Subordinate::create(ctx, block, producer.to_address(), true).unwrap();
         assert!(s.is_subordinate(), "got {s:?}");
         assert_eq!(s.context().output, vec![]);
 
@@ -371,7 +371,7 @@ mod tests {
             .mock_verified_data(producer, (block.hash, parent_announce_hash));
 
         // Subordinate waits for block prepared and announce after creation.
-        let s = Subordinate::create(ctx, block.clone(), producer.to_address(), false).unwrap();
+        let s = Subordinate::create(ctx, block, producer.to_address(), false).unwrap();
         assert!(s.is_subordinate(), "got {s:?}");
         assert_eq!(s.context().output, vec![]);
 
@@ -438,7 +438,7 @@ mod tests {
             .unwrap()
             .into_verified();
 
-        let state = Subordinate::create(ctx, block.clone(), producer.to_address(), true).unwrap();
+        let state = Subordinate::create(ctx, block, producer.to_address(), true).unwrap();
         let state = state.process_prepared_block(block.hash).unwrap();
         let state = state.process_announce(verified_announce).unwrap();
 
@@ -470,7 +470,7 @@ mod tests {
         ctx.pending(PendingEvent::Announce(producer_announce.clone()));
         ctx.pending(PendingEvent::Announce(alice_announce.clone()));
 
-        let s = Subordinate::create(ctx, block.clone(), producer.to_address(), true).unwrap();
+        let s = Subordinate::create(ctx, block, producer.to_address(), true).unwrap();
         assert_eq!(
             s.context().output,
             vec![
@@ -520,7 +520,7 @@ mod tests {
         let announce = ctx.core.signer.mock_verified_data(producer, block.hash);
 
         // Subordinate waits for block prepared and announce after creation.
-        let s = Subordinate::create(ctx, block.clone(), producer.to_address(), true).unwrap();
+        let s = Subordinate::create(ctx, block, producer.to_address(), true).unwrap();
         assert!(s.is_subordinate(), "got {s:?}");
         assert_eq!(s.context().output, vec![]);
 

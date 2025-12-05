@@ -111,7 +111,7 @@ impl StateHandler for Initial {
         if let WaitingFor::SyncedBlock(block) = &self.state
             && block.hash == block_hash
         {
-            self.state = WaitingFor::PreparedBlock(block.clone());
+            self.state = WaitingFor::PreparedBlock(*block);
 
             Ok(self.into())
         } else {
@@ -148,7 +148,7 @@ impl StateHandler for Initial {
                 Ok(Self {
                     ctx: self.ctx,
                     state: WaitingFor::MissingAnnounces {
-                        block: block.clone(),
+                        block: *block,
                         chain,
                         announces: request,
                     },
@@ -164,7 +164,7 @@ impl StateHandler for Initial {
                     Default::default(),
                 )?;
 
-                self.ctx.switch_to_producer_or_subordinate(block.clone())
+                self.ctx.switch_to_producer_or_subordinate(*block)
             }
         } else {
             DefaultProcessing::prepared_block(self, block_hash)
@@ -312,7 +312,7 @@ mod tests {
 
         let block = BlockChain::mock((2, validators)).setup(&ctx.core.db).blocks[2].to_simple();
 
-        let state = Initial::create_with_chain_head(ctx, block.clone()).unwrap();
+        let state = Initial::create_with_chain_head(ctx, block).unwrap();
         assert!(state.is_initial(), "got {:?}", state);
 
         let state = state.process_synced_block(block.hash).unwrap();
@@ -336,7 +336,7 @@ mod tests {
 
         let block = BlockChain::mock((1, validators)).setup(&ctx.core.db).blocks[1].to_simple();
 
-        let state = Initial::create_with_chain_head(ctx, block.clone()).unwrap();
+        let state = Initial::create_with_chain_head(ctx, block).unwrap();
         assert!(state.is_initial(), "got {:?}", state);
 
         let state = state.process_synced_block(block.hash).unwrap();
@@ -372,7 +372,7 @@ mod tests {
         let chain = chain.setup(&ctx.core.db);
         let block = chain.blocks[last].to_simple();
 
-        let state = Initial::create_with_chain_head(ctx, block.clone())
+        let state = Initial::create_with_chain_head(ctx, block)
             .unwrap()
             .process_synced_block(block.hash)
             .unwrap()
@@ -443,7 +443,7 @@ mod tests {
             .setup(&ctx.core.db);
         let block = chain.blocks[last].to_simple();
 
-        let state = Initial::create_with_chain_head(ctx, block.clone())
+        let state = Initial::create_with_chain_head(ctx, block)
             .unwrap()
             .process_synced_block(block.hash)
             .unwrap()
@@ -478,7 +478,7 @@ mod tests {
             .setup(&ctx.core.db);
         let head = chain.blocks[last].to_simple();
 
-        let state = Initial::create_with_chain_head(ctx, head.clone())
+        let state = Initial::create_with_chain_head(ctx, head)
             .unwrap()
             .process_synced_block(head.hash)
             .unwrap()
@@ -538,7 +538,7 @@ mod tests {
 
         let (ctx, _, _) = mock_validator_context();
         let block = BlockChain::mock(1).setup(&ctx.core.db).blocks[1].to_simple();
-        let state = Initial::create_with_chain_head(ctx, block.clone())
+        let state = Initial::create_with_chain_head(ctx, block)
             .unwrap()
             .process_synced_block(block.hash)
             .unwrap()
@@ -570,7 +570,7 @@ mod tests {
         let invalid_announce = Announce::base(H256::random(), HashOf::random());
         let invalid_announce_hash = invalid_announce.to_hash();
 
-        let state = Initial::create_with_chain_head(ctx, block.clone())
+        let state = Initial::create_with_chain_head(ctx, block)
             .unwrap()
             .process_synced_block(block.hash)
             .unwrap()
@@ -629,7 +629,7 @@ mod tests {
         let chain = chain.setup(&ctx.core.db);
         let block = chain.blocks[last].to_simple();
 
-        let state = Initial::create_with_chain_head(ctx, block.clone())
+        let state = Initial::create_with_chain_head(ctx, block)
             .unwrap()
             .process_synced_block(block.hash)
             .unwrap()

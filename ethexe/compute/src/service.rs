@@ -114,6 +114,7 @@ impl<P: ProcessorExt> FusedStream for ComputeService<P> {
 
 pub(crate) trait SubService: Unpin + Send + 'static {
     type Output;
+
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Self::Output>>;
 
     #[cfg(test)]
