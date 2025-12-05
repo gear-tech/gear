@@ -17,16 +17,21 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use gear_node_wrapper::{Node, NodeInstance};
+use gsdk::{Api, SignedApi};
 use std::{env, env::consts::EXE_EXTENSION, path::PathBuf};
 
-pub fn dev_node() -> NodeInstance {
+pub async fn dev_node() -> (NodeInstance, SignedApi) {
     // Use release build because of performance reasons.
     let bin_path = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
     let mut bin_path = bin_path.join("../target/release/gear");
     bin_path.set_extension(EXE_EXTENSION);
 
-    Node::from_path(bin_path)
+    let node = Node::from_path(bin_path)
         .expect("Failed to start node: Maybe it isn't built with --release flag?")
         .spawn()
-        .expect("Failed to spawn node process")
+        .expect("Failed to spawn node process");
+
+    let api = Api::new(&node.ws()).await.unwrap().signed_as_alice();
+
+    (node, api)
 }

@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use gear_core::ids::{CodeId, prelude::CodeIdExt};
-use gsdk::{Api, Result};
+use gsdk::Result;
 use sp_core::crypto::Ss58Codec;
 use sp_runtime::AccountId32;
 use utils::dev_node;
@@ -27,9 +27,8 @@ mod utils;
 #[tokio::test]
 async fn test_issue_voucher() -> Result<()> {
     // arrange
-    let node = dev_node();
+    let (_node, api) = dev_node().await;
 
-    let api = Api::new(node.ws().as_str()).await?.signed_as_alice();
     let account_id = api.account_id();
     let voucher_initial_balance = 100_000_000_000_000;
 
@@ -51,9 +50,8 @@ async fn test_issue_voucher() -> Result<()> {
 #[tokio::test]
 async fn test_decline_revoke_voucher() -> Result<()> {
     // arrange
-    let node = dev_node();
+    let (_node, api) = dev_node().await;
 
-    let api = Api::new(node.ws().as_str()).await?.signed_as_alice();
     let account_id = api.account_id();
     let voucher_initial_balance = 100_000_000_000_000;
 
@@ -82,9 +80,8 @@ async fn test_decline_revoke_voucher() -> Result<()> {
 #[tokio::test]
 async fn test_upload_code_with_voucher() -> Result<()> {
     // arrange
-    let node = dev_node();
+    let (_node, api) = dev_node().await;
 
-    let api = Api::new(node.ws().as_str()).await?.signed_as_alice();
     let account_id = api.account_id();
     let voucher_initial_balance = 100_000_000_000_000;
     let expected_code_id = CodeId::generate(demo_messenger::WASM_BINARY);
@@ -121,9 +118,8 @@ async fn test_upload_code_with_voucher() -> Result<()> {
 #[tokio::test]
 async fn test_send_message_with_voucher() -> Result<()> {
     // arrange
-    let node = dev_node();
+    let (_node, api) = dev_node().await;
 
-    let api = Api::new(node.ws().as_str()).await?.signed_as_alice();
     let account_id = api.account_id();
     let voucher_initial_balance = 100_000_000_000_000;
 

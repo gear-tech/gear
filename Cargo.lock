@@ -6323,7 +6323,6 @@ dependencies = [
  "async-trait",
  "demo-bls381",
  "demo-constructor",
- "demo-custom",
  "demo-ping",
  "demo-wat",
  "futures",
@@ -6341,7 +6340,6 @@ dependencies = [
  "tokio",
  "tracing-subscriber",
  "url",
- "wat",
 ]
 
 [[package]]
@@ -7360,6 +7358,7 @@ name = "gsdk"
 version = "1.10.0"
 dependencies = [
  "colored",
+ "demo-custom",
  "demo-fungible-token",
  "demo-messenger",
  "demo-mul-by-const",
@@ -7388,6 +7387,7 @@ dependencies = [
  "thiserror 2.0.12",
  "tokio",
  "url",
+ "wat",
 ]
 
 [[package]]

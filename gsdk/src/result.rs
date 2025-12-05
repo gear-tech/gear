@@ -58,6 +58,9 @@ pub enum Error {
     ProgramAlreadyExists(ActorId),
 
     #[error(transparent)]
+    FromUtf8(#[from] std::string::FromUtf8Error),
+
+    #[error(transparent)]
     FromHex(#[from] hex::FromHexError),
 
     #[error(transparent)]

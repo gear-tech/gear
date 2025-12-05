@@ -27,10 +27,8 @@ sp-core = { workspace = true, features = ["std", "full_crypto"] }
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["full"] }
-wat.workspace = true
 tracing-subscriber.workspace = true
 log.workspace = true
-demo-custom.workspace = true
 demo-constructor = { workspace = true, features = ["std"] }
 gstd = { workspace = true, features = ["debug"] }
 demo-wat.workspace = true

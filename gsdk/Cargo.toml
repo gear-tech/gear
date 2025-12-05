@@ -39,6 +39,7 @@ parity-scale-codec.workspace = true
 [dev-dependencies]
 gear-node-wrapper.workspace = true
 tokio = { workspace = true, features = ["full"] }
+demo-custom.workspace = true
 demo-messenger.workspace = true
 demo-fungible-token.workspace = true
 demo-mul-by-const.workspace = true
@@ -46,6 +47,7 @@ demo-vec.workspace = true
 demo-reserve-gas = { workspace = true, features = ["std"] }
 demo-waiter = { workspace = true, features = ["std"] }
 serde_json = { workspace = true, features = [ "std" ] }
+wat.workspace = true
 
 [features]
 testing = []

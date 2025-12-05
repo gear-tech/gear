@@ -63,6 +63,7 @@ use subxt::{
 
 mod api;
 pub mod backtrace;
+pub mod blocks;
 mod codegen_impls;
 pub mod config;
 mod convert;

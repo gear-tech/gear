@@ -38,10 +38,10 @@ mod utils;
 
 #[tokio::test]
 async fn pallet_errors_formatting() -> Result<()> {
-    let node = dev_node();
-    let api = Api::new(node.ws().as_str()).await?;
+    let (_node, api) = dev_node().await;
 
     let err = api
+        .unsigned()
         .calculate_upload_gas(
             AccountId32([0u8; 32]),
             /* invalid code */ vec![],
@@ -73,27 +73,19 @@ async fn pallet_errors_formatting() -> Result<()> {
 
 #[tokio::test]
 async fn test_calculate_upload_gas() -> Result<()> {
-    let node = dev_node();
-    let api = Api::new(node.ws().as_str()).await?;
+    let (_node, api) = dev_node().await;
 
-    api.calculate_upload_gas(
-        AccountKeyring::Alice.to_account_id(),
-        demo_messenger::WASM_BINARY.to_vec(),
-        vec![],
-        0,
-        true,
-    )
-    .await?;
+    api.calculate_upload_gas(demo_messenger::WASM_BINARY.to_vec(), vec![], 0, true)
+        .await?;
 
     Ok(())
 }
 
 #[tokio::test]
 async fn test_calculate_create_gas() -> Result<()> {
-    let node = dev_node();
+    let (_node, api) = dev_node().await;
 
     // 1. upload code.
-    let api = Api::new(node.ws().as_str()).await?.signed_as_alice();
     api.upload_code(demo_messenger::WASM_BINARY.to_vec())
         .await?;
 
@@ -109,14 +101,12 @@ async fn test_calculate_create_gas() -> Result<()> {
 
 #[tokio::test]
 async fn test_calculate_handle_gas() -> Result<()> {
-    let node = dev_node();
+    let (_node, api) = dev_node().await;
 
     let salt = vec![];
     let pid = ActorId::generate_from_user(CodeId::generate(demo_messenger::WASM_BINARY), &salt);
 
     // 1. upload program.
-    let api = Api::new(node.ws().as_str()).await?.signed_as_alice();
-
     api.upload_program_bytes(
         demo_messenger::WASM_BINARY.to_vec(),
         salt,
@@ -142,7 +132,7 @@ async fn test_calculate_handle_gas() -> Result<()> {
 
 #[tokio::test]
 async fn test_calculate_reply_gas() -> Result<()> {
-    let node = dev_node();
+    let (_node, api) = dev_node().await;
 
     let salt = vec![];
 
@@ -150,7 +140,6 @@ async fn test_calculate_reply_gas() -> Result<()> {
     let payload = demo_waiter::Command::SendUpTo(AccountKeyring::Alice.to_account_id().into(), 10);
 
     // 1. upload program.
-    let api = Api::new(node.ws().as_str()).await?.signed_as_alice();
     api.upload_program_bytes(
         demo_waiter::WASM_BINARY.to_vec(),
         salt,
@@ -183,8 +172,7 @@ async fn test_calculate_reply_gas() -> Result<()> {
 
 #[tokio::test]
 async fn test_subscribe_program_state_changes() -> Result<()> {
-    let node = dev_node();
-    let api = Api::new(node.ws().as_str()).await?.signed_as_alice();
+    let (_node, api) = dev_node().await;
 
     let mut subscription = api.subscribe_program_state_changes(None).await?;
 
@@ -260,8 +248,7 @@ async fn test_runtime_wasm_blob_version() -> Result<()> {
     let git_commit_hash = git_commit_hash();
     assert_ne!(git_commit_hash, "unknown");
 
-    let node = dev_node();
-    let api = Api::new(node.ws().as_str()).await?;
+    let (_node, api) = dev_node().await;
     let mut finalized_blocks = api.blocks().subscribe_finalized().await?;
 
     let wasm_blob_version_1 = api.runtime_wasm_blob_version().await?;
@@ -311,12 +298,10 @@ async fn test_runtime_wasm_blob_version_history() -> Result<()> {
 
 #[tokio::test]
 async fn test_original_code_storage() -> Result<()> {
-    let node = dev_node();
+    let (_node, api) = dev_node().await;
 
     let salt = vec![];
     let pid = ActorId::generate_from_user(CodeId::generate(demo_messenger::WASM_BINARY), &salt);
-
-    let api = Api::new(node.ws().as_str()).await?.signed_as_alice();
 
     api.upload_program_bytes(
         demo_messenger::WASM_BINARY.to_vec(),
@@ -365,14 +350,12 @@ async fn test_program_counters() -> Result<()> {
 async fn test_calculate_reply_for_handle() -> Result<()> {
     use demo_fungible_token::{FTAction, FTEvent, InitConfig, WASM_BINARY};
 
-    let node = dev_node();
+    let (_node, api) = dev_node().await;
 
     let salt = vec![];
     let pid = ActorId::generate_from_user(CodeId::generate(WASM_BINARY), &salt);
 
     // 1. upload program.
-    let api = Api::new(node.ws().as_str()).await?.signed_as_alice();
-
     let payload = InitConfig::test_sequence();
 
     api.upload_program(WASM_BINARY.to_vec(), salt, payload, 100_000_000_000, 0)
@@ -407,14 +390,12 @@ async fn test_calculate_reply_for_handle() -> Result<()> {
 
 #[tokio::test]
 async fn test_calculate_reply_for_handle_does_not_change_state() -> Result<()> {
-    let node = dev_node();
+    let (_node, api) = dev_node().await;
 
     let salt = vec![];
     let pid = ActorId::generate_from_user(CodeId::generate(demo_vec::WASM_BINARY), &salt);
 
     // 1. upload program.
-    let api = Api::new(node.ws().as_str()).await?.signed_as_alice();
-
     api.upload_program_bytes(
         demo_vec::WASM_BINARY.to_vec(),
         salt,

@@ -16,45 +16,90 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Events api
+//! This module provides useful functions for working with event stream.
+
+use std::pin::pin;
+
+use futures::prelude::*;
+use gear_core::ids::MessageId;
+use parity_scale_codec::Decode;
 
 use crate::{
-    Api, AsGear,
-    config::GearConfig,
-    gear::{self},
-    result::Result,
+    Error, Event, Result,
+    gear::{gear, runtime_types::gear_common::event::DispatchStatus},
 };
-use subxt::{OnlineClient, blocks::ExtrinsicEvents as TxEvents, tx::TxInBlock};
 
-impl Api {
-    /// Capture the dispatch info of any extrinsic and display the weight spent
-    pub async fn capture_dispatch_info(
-        &self,
-        tx: &TxInBlock<GearConfig, OnlineClient<GearConfig>>,
-    ) -> Result<TxEvents<GearConfig>> {
-        let events = tx.fetch_events().await?;
+/// Extracts a reply on given message from a stream of events.
+///
+/// The reply is returned as bytes. If decoding the reply payload
+/// is needed, see [`reply_on`].
+pub async fn reply_bytes_on(
+    message_id: MessageId,
+    events: impl Stream<Item = Result<Event>>,
+) -> Result<Result<Vec<u8>, Vec<u8>>> {
+    let payloads = events
+        .map(|event| {
+            Ok::<_, Error>(
+                if let Event::Gear(gear::Event::UserMessageSent { message, .. }) = event?
+                    && let Some(details) = message.details()
+                    && details.to_message_id() == message_id
+                {
+                    let payload = message.payload_bytes().to_vec();
 
-        for ev in events.iter() {
-            if let gear::Event::System(system_event) = ev?.as_gear()? {
-                let extrinsic_result = match system_event {
-                    gear::system::Event::ExtrinsicFailed {
-                        dispatch_error,
-                        dispatch_info,
-                    } => Some((dispatch_info, Err(self.decode_error(dispatch_error)))),
-                    gear::system::Event::ExtrinsicSuccess { dispatch_info } => {
-                        Some((dispatch_info, Ok(())))
+                    if details.to_reply_code().is_success() {
+                        Some(Ok(payload))
+                    } else {
+                        Some(Err(payload))
                     }
-                    _ => None,
-                };
+                } else {
+                    None
+                },
+            )
+        })
+        .filter_map(|res| future::ready(res.transpose()));
 
-                if let Some((dispatch_info, result)) = extrinsic_result {
-                    log::info!("	Weight cost: {:?}", dispatch_info.weight);
-                    result?;
-                    break;
-                }
-            }
-        }
+    pin!(payloads)
+        .next()
+        .await
+        .unwrap_or(Err(Error::EventNotFound))
+}
 
-        Ok(events)
-    }
+/// Extracts a reply on given message from a stream of events.
+///
+/// The reply payload is decoded as `T` for success payload
+/// and as [`String`] for error messages.
+///
+/// For more low-level variant of the function that doesn't do
+/// decoding see [`reply_bytes_on`].
+pub async fn reply_on<T: Decode>(
+    message_id: MessageId,
+    events: impl Stream<Item = Result<Event>>,
+) -> Result<Result<T, String>> {
+    Ok(match reply_bytes_on(message_id, events).await? {
+        Ok(payload) => Ok(T::decode(&mut payload.as_slice())?),
+        Err(payload) => Err(String::from_utf8(payload)?),
+    })
+}
+
+/// Waits until the message with given ID is processed
+/// and returns is [`DispatchStatus`].
+pub async fn message_dispatch_status(
+    message_id: MessageId,
+    events: impl Stream<Item = Result<Event>>,
+) -> Result<DispatchStatus> {
+    let dispatch_statuses = events
+        .map(|event| {
+            Ok::<_, Error>(match event? {
+                Event::Gear(gear::Event::MessagesDispatched { statuses, .. }) => statuses
+                    .into_iter()
+                    .find_map(|(mid, status)| (mid == message_id).then_some(status)),
+                _ => None,
+            })
+        })
+        .filter_map(|res| future::ready(res.transpose()));
+
+    pin!(dispatch_statuses)
+        .next()
+        .await
+        .unwrap_or(Err(Error::EventNotFound))
 }

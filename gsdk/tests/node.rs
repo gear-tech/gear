@@ -1,24 +1,17 @@
-use futures::prelude::*;
+use gear_core::ids::ActorId;
+use gsdk::{Error, SignedApi, events, gear::constants};
+use parity_scale_codec::Encode;
+use utils::dev_node;
 
-use std::pin::pin;
-
-use gear_core::ids::{ActorId, MessageId};
-use gear_node_wrapper::{Node, NodeInstance};
-use gsdk::{
-    Api, Error, Event, Result, SignedApi,
-    gear::{constants, gear, runtime_types::gear_common::event::DispatchStatus},
-};
-use parity_scale_codec::{Decode, Encode};
-
-const GEAR_PATH: &str = "../target/release/gear";
+mod utils;
 
 /// Running this test requires gear node to be built in advance.
 #[tokio::test]
 async fn two_nodes_run_independently() -> gsdk::Result<()> {
     let salt = gear_utils::now_micros().to_le_bytes();
 
-    let (_node_a, api_a) = run_node().await;
-    let (_node_b, api_b) = run_node().await;
+    let (_node_a, api_a) = dev_node().await;
+    let (_node_b, api_b) = dev_node().await;
 
     upload_program_to_node(&api_a, demo_mul_by_const::WASM_BINARY, &salt, 42u64).await;
     upload_program_to_node(&api_b, demo_mul_by_const::WASM_BINARY, &salt, 43u64).await;
@@ -37,7 +30,7 @@ async fn program_migrated_to_another_node() {
     // Arrange
 
     // Upload source program to the source node
-    let (_src_node, src_node_api) = run_node().await;
+    let (_src_node, src_node_api) = dev_node().await;
 
     let src_program_id = upload_program_to_node(
         &src_node_api,
@@ -54,7 +47,7 @@ async fn program_migrated_to_another_node() {
         .expect("Unable to transfer funds to source program");
 
     // Initialize destination node
-    let (_dest_node, dest_node_api) = run_node().await;
+    let (_dest_node, dest_node_api) = dev_node().await;
 
     let dest_node_gas_limit = dest_node_api
         .constants()
@@ -97,12 +90,10 @@ async fn program_migrated_to_another_node() {
         .expect("Unable to get destination program funds");
     assert_eq!(dest_program_funds, PROGRAM_FUNDS + ED);
 
-    let dest_program_reply = u64::decode(
-        &mut reply_bytes_on(message_id, dest_node_events)
-            .await
-            .as_slice(),
-    )
-    .unwrap();
+    let dest_program_reply: u64 = events::reply_on(message_id, dest_node_events)
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(
         INIT_VALUE_PAYLOAD * MULTIPLICATOR_VALUE_PAYLOAD,
         dest_program_reply
@@ -116,7 +107,7 @@ async fn program_migration_fails_if_program_exists() {
 
     // Arrange
 
-    let (_src_node, src_node_api) = run_node().await;
+    let (_src_node, src_node_api) = dev_node().await;
 
     // Upload source program to the source node
     let src_program_id = upload_program_to_node(
@@ -128,7 +119,7 @@ async fn program_migration_fails_if_program_exists() {
     .await;
 
     // Initialize destination node
-    let (_dest_node, dest_node_api) = run_node().await;
+    let (_dest_node, dest_node_api) = dev_node().await;
 
     // Migrate the source program onto the destination node
     src_node_api
@@ -172,7 +163,7 @@ async fn program_migration_fails_if_program_exists() {
 async fn program_with_gas_reservation_migrated_to_another_node() {
     // Arrange
 
-    let (_src_node, src_node_api) = run_node().await;
+    let (_src_node, src_node_api) = dev_node().await;
 
     // Upload source program to the source node
     let src_program_id = upload_program_to_node(
@@ -190,7 +181,7 @@ async fn program_with_gas_reservation_migrated_to_another_node() {
 
     let src_node_block_hash = src_node_api.blocks().at_latest().await.unwrap().hash();
 
-    let (_dest_node, dest_node_api) = run_node().await;
+    let (_dest_node, dest_node_api) = dev_node().await;
 
     let dest_node_gas_limit = dest_node_api
         .constants()
@@ -223,50 +214,14 @@ async fn program_with_gas_reservation_migrated_to_another_node() {
 
     // Assert
 
-    let dest_program_reply = reply_bytes_on(message_id, dest_node_events).await;
+    let dest_program_reply = events::reply_bytes_on(message_id, dest_node_events)
+        .await
+        .unwrap()
+        .unwrap();
     assert_eq!(
         demo_reserve_gas::REPLY_FROM_RESERVATION_PAYLOAD.as_ref(),
         &dest_program_reply
     );
-}
-
-async fn run_node() -> (NodeInstance, SignedApi) {
-    let node = Node::from_path(GEAR_PATH).unwrap().spawn().unwrap();
-
-    let api = Api::new(&node.ws()).await.unwrap().signed_as_alice();
-
-    (node, api)
-}
-
-async fn reply_bytes_on(
-    message_id: MessageId,
-    events: impl Stream<Item = Result<Event>>,
-) -> Vec<u8> {
-    let payloads = events
-        .map(|event| {
-            Ok::<_, gsdk::Error>(
-                if let Event::Gear(gear::Event::UserMessageSent { message, .. }) = event?
-                    && let Some(details) = message.details()
-                    && details.to_message_id() == message_id
-                {
-                    let payload = message.payload_bytes();
-
-                    if details.to_reply_code().is_success() {
-                        Some(payload.to_vec())
-                    } else {
-                        panic!(
-                            "reply contains an error: {:?}",
-                            std::str::from_utf8(payload).unwrap()
-                        )
-                    }
-                } else {
-                    None
-                },
-            )
-        })
-        .filter_map(|res| future::ready(res.transpose()));
-
-    pin!(payloads).next().await.unwrap().unwrap()
 }
 
 async fn upload_program_to_node<E>(api: &SignedApi, code: &[u8], salt: &[u8], payload: E) -> ActorId
@@ -280,26 +235,19 @@ where
 
     let events = api.subscribe_all_events().await.unwrap();
 
-    let (mid, pid) = api
+    let (message_id, pid) = api
         .upload_program(code, salt, payload, gas_limit, 0)
         .await
         .expect("Unable to load a program")
         .value;
 
-    let dispatch_statuses = events
-        .map(|event| {
-            Ok::<_, gsdk::Error>(match event? {
-                Event::Gear(gear::Event::MessagesDispatched { statuses, .. }) => statuses
-                    .into_iter()
-                    .find_map(|(message_id, status)| (message_id == mid).then_some(status)),
-                _ => None,
-            })
-        })
-        .filter_map(|res| async move { res.transpose() });
-    let dispatch_status = pin!(dispatch_statuses).next().await.unwrap().unwrap();
-
     // Asserting successful initialization.
-    assert_eq!(dispatch_status, DispatchStatus::Success);
+    assert!(
+        events::message_dispatch_status(message_id, events)
+            .await
+            .unwrap()
+            .is_success(),
+    );
 
     pid
 }

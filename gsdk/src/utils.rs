@@ -17,11 +17,16 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! gear api utils
-use crate::{Api, Error, Result, config::GearConfig, gear::DispatchError};
+use crate::{
+    Api, AsGear, Event, Result, TxInBlock,
+    config::GearConfig,
+    gear::{DispatchError, system},
+};
 use parity_scale_codec::Encode;
 use sp_core::hashing;
 use subxt::{
     Metadata, OnlineClient,
+    blocks::ExtrinsicEvents,
     error::DispatchError as SubxtDispatchError,
     storage::{Address, Storage},
     utils::H256,
@@ -51,15 +56,35 @@ impl Api {
         Ok(storage)
     }
 
-    /// Looks at two blocks from the stream and checks if the Gear block number
-    /// has grown from block to block or not.
-    pub async fn queue_processing_stalled(&self) -> Result<bool> {
-        let mut blocks = self.blocks().subscribe_finalized().await?;
+    /// Capture the dispatch info of any extrinsic and display the weight spent
+    pub async fn capture_dispatch_info(
+        &self,
+        tx: &TxInBlock,
+    ) -> Result<ExtrinsicEvents<GearConfig>> {
+        let events = tx.fetch_events().await?;
 
-        let current = blocks.next().await.ok_or(Error::SubscriptionDied)??;
-        let next = blocks.next().await.ok_or(Error::SubscriptionDied)??;
+        for ev in events.iter() {
+            if let Event::System(system_event) = ev?.as_gear()? {
+                let extrinsic_result = match system_event {
+                    system::Event::ExtrinsicFailed {
+                        dispatch_error,
+                        dispatch_info,
+                    } => Some((dispatch_info, Err(self.decode_error(dispatch_error)))),
+                    system::Event::ExtrinsicSuccess { dispatch_info } => {
+                        Some((dispatch_info, Ok(())))
+                    }
+                    _ => None,
+                };
 
-        Ok(current.number() == next.number())
+                if let Some((dispatch_info, result)) = extrinsic_result {
+                    log::info!("	Weight cost: {:?}", dispatch_info.weight);
+                    result?;
+                    break;
+                }
+            }
+        }
+
+        Ok(events)
     }
 }
 
