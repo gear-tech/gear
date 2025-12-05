@@ -20,7 +20,7 @@ use gear_core::ids::{CodeId, prelude::CodeIdExt};
 use gsdk::{Api, Result};
 use sp_core::crypto::Ss58Codec;
 use sp_runtime::AccountId32;
-use utils::{alice_account_id, dev_node};
+use utils::dev_node;
 
 mod utils;
 
@@ -29,17 +29,15 @@ async fn test_issue_voucher() -> Result<()> {
     // arrange
     let node = dev_node();
 
-    let api = Api::new(node.ws().as_str())
-        .await?
-        .signed("//Alice", None)?;
-    let account_id = alice_account_id();
+    let api = Api::new(node.ws().as_str()).await?.signed_as_alice();
+    let account_id = api.account_id();
     let voucher_initial_balance = 100_000_000_000_000;
 
     // act
     let voucher_id = api
         .issue_voucher(&account_id, voucher_initial_balance, None, false, 100)
         .await?
-        .0;
+        .value;
 
     let voucher_address = AccountId32::new(voucher_id.0);
     let voucher_balance = api.unsigned().free_balance(&voucher_address).await?;
@@ -55,9 +53,7 @@ async fn test_decline_revoke_voucher() -> Result<()> {
     // arrange
     let node = dev_node();
 
-    let api = Api::new(node.ws().as_str())
-        .await?
-        .signed("//Alice", None)?;
+    let api = Api::new(node.ws().as_str()).await?.signed_as_alice();
     let account_id = api.account_id();
     let voucher_initial_balance = 100_000_000_000_000;
 
@@ -65,16 +61,16 @@ async fn test_decline_revoke_voucher() -> Result<()> {
     let voucher_id = api
         .issue_voucher(account_id.clone(), voucher_initial_balance, None, true, 100)
         .await?
-        .0;
+        .value;
     let _voucher_address = AccountId32::new(voucher_id.0).to_ss58check();
 
     // act
-    let declined_id = api.decline_voucher(voucher_id.clone()).await?.0;
+    let declined_id = api.decline_voucher(voucher_id.clone()).await?.value;
 
     let revoked_id = api
         .revoke_voucher(account_id.clone(), voucher_id.clone())
         .await?
-        .0;
+        .value;
 
     // assert
     assert_eq!(voucher_id, declined_id);
@@ -88,9 +84,7 @@ async fn test_upload_code_with_voucher() -> Result<()> {
     // arrange
     let node = dev_node();
 
-    let api = Api::new(node.ws().as_str())
-        .await?
-        .signed("//Alice", None)?;
+    let api = Api::new(node.ws().as_str()).await?.signed_as_alice();
     let account_id = api.account_id();
     let voucher_initial_balance = 100_000_000_000_000;
     let expected_code_id = CodeId::generate(demo_messenger::WASM_BINARY);
@@ -99,7 +93,7 @@ async fn test_upload_code_with_voucher() -> Result<()> {
     let voucher_id = api
         .issue_voucher(account_id.clone(), voucher_initial_balance, None, true, 100)
         .await?
-        .0;
+        .value;
     let voucher_address = AccountId32::new(voucher_id.0);
 
     // account balance before upload code
@@ -109,7 +103,7 @@ async fn test_upload_code_with_voucher() -> Result<()> {
     let code_id = api
         .upload_code_with_voucher(voucher_id, demo_messenger::WASM_BINARY.to_vec())
         .await?
-        .0;
+        .value;
 
     let account_balance = api.free_balance().await?;
     let voucher_balance = api.unsigned().free_balance(&voucher_address).await?;
@@ -129,9 +123,7 @@ async fn test_send_message_with_voucher() -> Result<()> {
     // arrange
     let node = dev_node();
 
-    let api = Api::new(node.ws().as_str())
-        .await?
-        .signed("//Alice", None)?;
+    let api = Api::new(node.ws().as_str()).await?.signed_as_alice();
     let account_id = api.account_id();
     let voucher_initial_balance = 100_000_000_000_000;
 
@@ -139,22 +131,21 @@ async fn test_send_message_with_voucher() -> Result<()> {
     let voucher_id = api
         .issue_voucher(account_id.clone(), voucher_initial_balance, None, true, 100)
         .await?
-        .0;
+        .value;
     let voucher_address = AccountId32::new(voucher_id.0);
 
     // 2. upload code with voucher
     let code_id = api
         .upload_code_with_voucher(voucher_id.clone(), demo_messenger::WASM_BINARY.to_vec())
         .await?
-        .0;
+        .value;
 
     // 3. calculate create gas and create program
-    let gas_info = api
-        .calculate_create_gas(code_id, vec![], 0, true, None)
-        .await?;
+    let gas_info = api.calculate_create_gas(code_id, vec![], 0, true).await?;
     let program_id = api
         .create_program_bytes(code_id, vec![], vec![], gas_info.min_limit, 0)
         .await?
+        .value
         .1;
 
     // 4. calculate handle gas and send message with voucher
@@ -162,9 +153,9 @@ async fn test_send_message_with_voucher() -> Result<()> {
     let voucher_before_balance = api.unsigned().free_balance(&voucher_address).await?;
 
     let gas_info = api
-        .calculate_handle_gas(program_id, vec![], 0, true, None)
+        .calculate_handle_gas(program_id, vec![], 0, true)
         .await?;
-    api.send_message_with_voucher(
+    api.send_message_bytes_with_voucher(
         voucher_id.clone(),
         program_id,
         vec![],

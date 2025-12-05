@@ -17,8 +17,6 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use gear_node_wrapper::{Node, NodeInstance};
-use sp_core::crypto::Ss58Codec;
-use sp_runtime::AccountId32;
 use std::{env, env::consts::EXE_EXTENSION, path::PathBuf};
 
 pub fn dev_node() -> NodeInstance {
@@ -31,9 +29,4 @@ pub fn dev_node() -> NodeInstance {
         .expect("Failed to start node: Maybe it isn't built with --release flag?")
         .spawn()
         .expect("Failed to spawn node process")
-}
-
-pub fn alice_account_id() -> AccountId32 {
-    sp_runtime::AccountId32::from_ss58check("5GrwvaEF5zXb26Fz9rcQpDWS57CtERHpNehXCPcNoHGKutQY")
-        .unwrap()
 }

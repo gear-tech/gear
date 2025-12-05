@@ -18,7 +18,7 @@
 
 //! GSdk Results
 
-use std::{borrow::Borrow, path::PathBuf};
+use std::borrow::Borrow;
 
 pub use crate::tx_status::{TxError, TxStatusExt, TxSuccess};
 
@@ -48,20 +48,26 @@ pub enum Error {
     #[error("funds overcame `u128::MAX`")]
     BalanceOverflow,
 
-    #[error("WebAssembly file `{}` must have `.wasm` extension", .0.display())]
-    WrongWasmExtension(PathBuf),
-
     #[error("incomplete batch result: expected {expected} values, found {found} values")]
     IncompleteBatchResult { expected: usize, found: usize },
 
     #[error("{0} was not found in the storage")]
     PageNotFound(FailedPage),
 
+    #[error("failed to migrate program `{}`: it already exists at the destination", .0)]
+    ProgramAlreadyExists(ActorId),
+
+    #[error(transparent)]
+    FromHex(#[from] hex::FromHexError),
+
     #[error(transparent)]
     PageError(#[from] gear_core::pages::PageError),
 
     #[error(transparent)]
     Io(#[from] std::io::Error),
+
+    #[error(transparent)]
+    SerdeJson(#[from] serde_json::Error),
 
     #[error(transparent)]
     Tx(#[from] TxError),

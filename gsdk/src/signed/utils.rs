@@ -19,7 +19,7 @@
 //! Utils
 
 use crate::{
-    AsGear, Error, SignedApi, TxInBlock, TxStatus,
+    Error, SignedApi, TxInBlock, TxOutput, TxStatus,
     backtrace::BacktraceStatus,
     config::GearConfig,
     gear::{
@@ -32,14 +32,12 @@ use crate::{
 use colored::Colorize;
 use subxt::{
     OnlineClient,
-    blocks::ExtrinsicEvents,
     config::polkadot::PolkadotExtrinsicParamsBuilder,
     tx::{Payload, TxProgress as SubxtTxProgress},
     utils::H256,
 };
 
 type TxProgress = SubxtTxProgress<GearConfig, OnlineClient<GearConfig>>;
-pub type TxEvents = (ExtrinsicEvents<GearConfig>, H256);
 
 impl SignedApi {
     /// Logging balance spent
@@ -142,20 +140,17 @@ impl SignedApi {
     }
 
     /// Process sudo transaction.
-    pub async fn process_sudo<Call: Payload>(&self, call: Call) -> Result<TxEvents> {
+    pub async fn process_sudo<Call: Payload>(&self, call: Call) -> Result<TxOutput> {
         let tx = self.process(call).await?;
-        let events = tx.wait_for_success().await?;
-        for event in events.iter() {
-            let event = event?.as_gear()?;
-            if let RuntimeEvent::Sudo(sudo::Event::Sudid {
-                sudo_result: Err(err),
-            }) = event
-            {
-                return Err(self.decode_error(err).into());
-            }
-        }
 
-        Ok((events, tx.block_hash()))
+        TxOutput::new(tx)
+            .await?
+            .validate_events(|event| match event {
+                RuntimeEvent::Sudo(sudo::Event::Sudid {
+                    sudo_result: Err(err),
+                }) => Err(self.decode_error(err).into()),
+                _ => Ok(()),
+            })
     }
 
     /// Run transaction.
@@ -197,17 +192,17 @@ impl SignedApi {
     ///
     /// // ...
     /// ```
-    pub async fn run_tx<Call: Payload>(&self, call: Call) -> Result<TxInBlock> {
-        self.process(call).await
+    pub async fn run_tx<Call: Payload>(&self, call: Call) -> Result<TxOutput> {
+        TxOutput::new(self.process(call).await?).await
     }
 
     /// Run transaction with sudo.
-    pub async fn sudo_run_tx<Call: Payload>(&self, call: Call) -> Result<TxEvents> {
+    pub async fn sudo_run_tx<Call: Payload>(&self, call: Call) -> Result<TxOutput> {
         self.process_sudo(call).await
     }
 
     /// `pallet_sudo::sudo`
-    pub async fn sudo(&self, call: RuntimeCall) -> Result<TxEvents> {
+    pub async fn sudo(&self, call: RuntimeCall) -> Result<TxOutput> {
         self.sudo_run_tx(gear::tx().sudo().sudo(call)).await
     }
 
@@ -231,5 +226,12 @@ impl SignedApi {
                 .sign_and_submit_then_watch_default(call, self.signer())
                 .await
         }
+    }
+
+    /// Get the next number used once (`nonce`) from the node.
+    ///
+    /// Actually sends the `system_accountNextIndex` RPC to the node.
+    pub async fn account_nonce(&self) -> Result<u64> {
+        Ok(self.tx().account_nonce(self.account_id()).await?)
     }
 }

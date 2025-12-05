@@ -18,6 +18,7 @@ derive_more.workspace = true
 futures.workspace = true
 gear-core = { workspace = true, features = ["std"] }
 gear-core-errors.workspace = true
+gear-utils.workspace = true
 gsdk-codegen.workspace = true
 hex.workspace = true
 indexmap = { workspace = true, features = ["std"] }
@@ -25,8 +26,10 @@ jsonrpsee = { workspace = true, features = ["http-client", "ws-client"] }
 log.workspace = true
 parking_lot.workspace = true
 serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
 sp-core = { workspace = true, features = ["std", "full_crypto"] }
 sp-runtime = { workspace = true, features = ["std"] }
+sp-keyring.workspace = true
 subxt.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, features = ["fs"] }

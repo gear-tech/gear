@@ -44,7 +44,7 @@ use gear_core::{
     pages::GearPage,
     program::MemoryInfix,
 };
-use gsdk_codegen::storage_fetch;
+use gsdk_codegen::at_block;
 use sp_core::crypto::AccountId32;
 use subxt::{
     error::MetadataError,
@@ -82,7 +82,7 @@ impl Api {
     ///     let bn = api.number().await?;
     /// }
     /// ```
-    #[storage_fetch]
+    #[at_block]
     pub async fn storage_fetch_at<'a, Addr>(
         &self,
         address: &'a Addr,
@@ -102,7 +102,7 @@ impl Api {
 // frame-system
 impl Api {
     /// Get account info by its address at specified block.
-    #[storage_fetch]
+    #[at_block]
     pub async fn account_info_at(
         &self,
         address: impl IntoAccountId32,
@@ -116,7 +116,7 @@ impl Api {
     }
 
     /// Get account data by its address at specified block.
-    #[storage_fetch]
+    #[at_block]
     pub async fn account_data_at(
         &self,
         address: impl IntoAccountId32,
@@ -133,7 +133,7 @@ impl Api {
     }
 
     /// Get the free funds balance of the account identified by `account_id` at specified block.
-    #[storage_fetch]
+    #[at_block]
     pub async fn free_balance_at(
         &self,
         account_id: impl IntoAccountId32,
@@ -143,7 +143,7 @@ impl Api {
     }
 
     /// Get the reserved funds balance of the account identified by `account_id` at specified block.
-    #[storage_fetch]
+    #[at_block]
     pub async fn reserved_balance_at(
         &self,
         account_id: impl IntoAccountId32,
@@ -155,7 +155,7 @@ impl Api {
     /// Get the total balance of the account identified by `account_id` at specified block.
     ///
     /// Total balance includes free and reserved funds.
-    #[storage_fetch]
+    #[at_block]
     pub async fn total_balance_at(
         &self,
         account_id: impl IntoAccountId32,
@@ -169,8 +169,8 @@ impl Api {
     }
 
     /// Get events at specified block.
-    #[storage_fetch]
-    pub async fn get_events_at(&self, block_hash: Option<H256>) -> Result<Vec<RuntimeEvent>> {
+    #[at_block]
+    pub async fn events_at(&self, block_hash: Option<H256>) -> Result<Vec<RuntimeEvent>> {
         let addr = gear::storage().system().events();
 
         let evs: Vec<EventRecord<RuntimeEvent, H256>> =
@@ -205,14 +205,14 @@ impl Api {
 // pallet-gas
 impl Api {
     /// Get value of gas total issuance at specified block.
-    #[storage_fetch]
+    #[at_block]
     pub async fn total_issuance_at(&self, block_hash: Option<H256>) -> Result<u64> {
         self.storage_fetch_at(&gear::storage().gear_gas().total_issuance(), block_hash)
             .await
     }
 
     /// Get Gear gas nodes by their ids at specified block.
-    #[storage_fetch]
+    #[at_block]
     pub async fn gas_nodes_at(
         &self,
         gas_node_ids: impl IntoIterator<Item = GearGasNodeId>,
@@ -233,7 +233,7 @@ impl Api {
 // pallet-gear-bank
 impl Api {
     /// Get Gear bank account data at specified block.
-    #[storage_fetch]
+    #[at_block]
     pub async fn bank_info_at(
         &self,
         account_id: impl IntoAccountId32,
@@ -282,7 +282,7 @@ impl Api {
 // pallet-gear-program
 impl Api {
     /// Returns original WASM code for the given `CodeId` at specified block.
-    #[storage_fetch]
+    #[at_block]
     pub async fn original_code_at(
         &self,
         code_id: CodeId,
@@ -298,7 +298,7 @@ impl Api {
     }
 
     /// Get `InstrumentedCode` by its `CodeId` at specified block.
-    #[storage_fetch]
+    #[at_block]
     pub async fn instrumented_code_storage_at(
         &self,
         code_id: CodeId,
@@ -314,7 +314,7 @@ impl Api {
     }
 
     /// Get `CodeMetadata` by its `CodeId` at specified block.
-    #[storage_fetch]
+    #[at_block]
     pub async fn code_metadata_storage_at(
         &self,
         code_id: CodeId,
@@ -330,7 +330,7 @@ impl Api {
     }
 
     /// Returns `ActiveProgram` for the given `ActorId` at specified block.
-    #[storage_fetch]
+    #[at_block]
     pub async fn active_program_at(
         &self,
         program_id: ActorId,
@@ -343,7 +343,7 @@ impl Api {
     }
 
     /// Get pages of an active program at specified block.
-    #[storage_fetch]
+    #[at_block]
     pub async fn program_pages_at(
         &self,
         program_id: ActorId,
@@ -394,7 +394,7 @@ impl Api {
     }
 
     /// Get inheritor address by program id at specified block.
-    #[storage_fetch]
+    #[at_block]
     pub async fn inheritor_of_at(
         &self,
         program_id: ActorId,
@@ -407,7 +407,7 @@ impl Api {
     }
 
     /// Get pages of active program at specified block.
-    #[storage_fetch]
+    #[at_block]
     pub async fn specified_program_pages_at(
         &self,
         program_id: ActorId,
@@ -437,7 +437,7 @@ impl Api {
     }
 
     /// Get program by its id at specified block.
-    #[storage_fetch]
+    #[at_block]
     pub async fn program_at(
         &self,
         program_id: ActorId,

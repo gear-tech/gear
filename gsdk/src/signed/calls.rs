@@ -17,24 +17,35 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! gear api calls
-use std::{collections::HashMap, path::Path};
+use std::{
+    collections::{HashMap, HashSet},
+    path::Path,
+};
 
 use crate::{
-    AsGear, Error, Event, IntoAccountId32, Result, SignedApi, TxEvents, TxInBlock,
+    Error, Event, GearGasNode, GearGasNodeId, IntoAccountId32, IntoSubstrate, Result, SignedApi,
+    TxOutput,
     gear::{
-        self,
+        balances, gear, gear_eth_bridge, gear_voucher,
         runtime_types::{
             gear_common::event::{CodeChangeKind, MessageEntry},
+            pallet_balances::types::{AccountData, ExtraFlags},
+            pallet_gear_bank::pallet::BankAccount,
             pallet_gear_voucher::internal::{PrepaidCall, VoucherId},
             sp_weights::weight_v2::Weight,
             vara_runtime::RuntimeCall,
         },
+        system, tx, utility,
     },
-    utils,
 };
-use gear_core::ids::{ActorId, CodeId, MessageId};
+use gear_core::{
+    gas::LockId,
+    ids::{ActorId, CodeId, MessageId},
+};
+use gear_utils::{MemoryPageDump, ProgramMemoryDump};
 use parity_scale_codec::Encode;
 use subxt::utils::H256;
+use tokio::fs;
 
 // pallet-balances
 impl SignedApi {
@@ -45,33 +56,19 @@ impl SignedApi {
     /// Sends the
     /// [`pallet_balances::transfer_keep_alive`](https://crates.parity.io/pallet_balances/pallet/struct.Pallet.html#method.transfer_keep_alive)
     /// extrinsic.
-    ///
-    /// This function returns a hash of the block with the transfer transaction.
     pub async fn transfer_keep_alive(
         &self,
         dest: impl IntoAccountId32,
         value: u128,
-    ) -> Result<H256> {
-        let tx = self
-            .run_tx(
-                gear::tx()
-                    .balances()
-                    .transfer_keep_alive(dest.into_account_id().into(), value),
-            )
-            .await?;
-
-        for event in tx.wait_for_success().await?.iter() {
-            if let Event::Balances(gear::balances::Event::Transfer { .. }) = event?.as_gear()? {
-                return Ok(tx.block_hash());
-            }
-        }
-
-        // Sending zero value is a no-op, so now event occurs.
-        if value == 0 {
-            return Ok(tx.block_hash());
-        }
-
-        Err(Error::EventNotFound)
+    ) -> Result<TxOutput> {
+        self.run_tx(
+            tx().balances()
+                .transfer_keep_alive(dest.into_account_id().into(), value),
+        )
+        .await?
+        .any(|event| matches!(event, Event::Balances(balances::Event::Transfer { .. })))?
+        .or(value == 0)
+        .ok_or_err()
     }
 
     /// Transfer `value` to `destination`'s account.
@@ -79,33 +76,19 @@ impl SignedApi {
     /// Sends the
     /// [`pallet_balances::transfer`](https://crates.parity.io/pallet_balances/pallet/struct.Pallet.html#method.transfer)
     /// extrinsic.
-    ///
-    /// This function returns a hash of the block with the transfer transaction.
     pub async fn transfer_allow_death(
         &self,
         dest: impl IntoAccountId32,
         value: u128,
-    ) -> Result<H256> {
-        let tx = self
-            .run_tx(
-                gear::tx()
-                    .balances()
-                    .transfer_allow_death(dest.into_account_id().into(), value),
-            )
-            .await?;
-
-        for event in tx.wait_for_success().await?.iter() {
-            if let Event::Balances(gear::balances::Event::Transfer { .. }) = event?.as_gear()? {
-                return Ok(tx.block_hash());
-            }
-        }
-
-        // Sending zero value is a no-op, so now event occurs.
-        if value == 0 {
-            return Ok(tx.block_hash());
-        }
-
-        Err(Error::EventNotFound)
+    ) -> Result<TxOutput> {
+        self.run_tx(
+            tx().balances()
+                .transfer_allow_death(dest.into_account_id().into(), value),
+        )
+        .await?
+        .any(|event| matches!(event, Event::Balances(balances::Event::Transfer { .. })))?
+        .or(value == 0)
+        .ok_or_err()
     }
 
     /// Transfer the entire transferable balance from the caller to `destination`'s account.
@@ -113,24 +96,18 @@ impl SignedApi {
     /// Sends the
     /// [`pallet_balances::transfer_all`](https://crates.parity.io/pallet_balances/pallet/struct.Pallet.html#method.transfer_all)
     /// extrinsic.
-    ///
-    /// This function returns a hash of the block with the transfer transaction.
-    pub async fn transfer_all(&self, dest: impl IntoAccountId32, keep_alive: bool) -> Result<H256> {
-        let tx = self
-            .run_tx(
-                gear::tx()
-                    .balances()
-                    .transfer_all(dest.into_account_id().into(), keep_alive),
-            )
-            .await?;
-
-        for event in tx.wait_for_success().await?.iter() {
-            if let Event::Balances(gear::balances::Event::Transfer { .. }) = event?.as_gear()? {
-                return Ok(tx.block_hash());
-            }
-        }
-
-        Err(Error::EventNotFound)
+    pub async fn transfer_all(
+        &self,
+        dest: impl IntoAccountId32,
+        keep_alive: bool,
+    ) -> Result<TxOutput> {
+        self.run_tx(
+            tx().balances()
+                .transfer_all(dest.into_account_id().into(), keep_alive),
+        )
+        .await?
+        .any(|event| matches!(event, Event::Balances(balances::Event::Transfer { .. })))?
+        .ok_or_err()
     }
 }
 
@@ -179,31 +156,26 @@ impl SignedApi {
         payload: impl Into<Vec<u8>>,
         gas_limit: u64,
         value: u128,
-    ) -> Result<(MessageId, ActorId, H256)> {
-        let salt = salt.into();
-        let payload = payload.into();
-
-        let tx = self
-            .run_tx(
-                gear::tx()
-                    .gear()
-                    .create_program(code_id, salt, payload, gas_limit, value, false),
-            )
-            .await?;
-
-        for event in tx.wait_for_success().await?.iter() {
-            if let Event::Gear(gear::gear::Event::MessageQueued {
+    ) -> Result<TxOutput<(MessageId, ActorId)>> {
+        self.run_tx(tx().gear().create_program(
+            code_id,
+            salt.into(),
+            payload.into(),
+            gas_limit,
+            value,
+            false,
+        ))
+        .await?
+        .find_map(|event| match event {
+            Event::Gear(gear::Event::MessageQueued {
                 id,
                 destination,
                 entry: MessageEntry::Init,
                 ..
-            }) = event?.as_gear()?
-            {
-                return Ok((id, destination, tx.block_hash()));
-            }
-        }
-
-        Err(Error::EventNotFound)
+            }) => Some((id, destination)),
+            _ => None,
+        })?
+        .ok_or_err()
     }
 
     /// Create a batch of programs.
@@ -215,11 +187,11 @@ impl SignedApi {
     pub async fn create_program_bytes_batch(
         &self,
         args: impl IntoIterator<Item = (CodeId, impl Into<Vec<u8>>, impl Into<Vec<u8>>, u64, u128)>,
-    ) -> Result<(Vec<Result<(MessageId, ActorId)>>, H256)> {
+    ) -> Result<TxOutput<Vec<Result<(MessageId, ActorId)>>>> {
         self.run_batch(
             args.into_iter()
                 .map(|(code_id, salt, payload, gas_limit, value)| {
-                    RuntimeCall::Gear(gear::gear::Call::create_program {
+                    RuntimeCall::Gear(gear::Call::create_program {
                         code_id,
                         salt: salt.into(),
                         init_payload: payload.into(),
@@ -229,13 +201,13 @@ impl SignedApi {
                     })
                 }),
             |event| match event {
-                Event::Gear(gear::gear::Event::MessageQueued {
+                Event::Gear(gear::Event::MessageQueued {
                     id,
                     destination,
                     entry: MessageEntry::Init,
                     ..
                 }) => Some(Ok((id, destination))),
-                Event::Utility(gear::utility::Event::ItemFailed { error }) => {
+                Event::Utility(utility::Event::ItemFailed { error }) => {
                     Some(Err(self.decode_error(error).into()))
                 }
                 _ => None,
@@ -260,7 +232,7 @@ impl SignedApi {
         payload: impl Encode,
         gas_limit: u64,
         value: u128,
-    ) -> Result<(MessageId, ActorId, H256)> {
+    ) -> Result<TxOutput<(MessageId, ActorId)>> {
         self.create_program_bytes(code_id, salt, payload.encode(), gas_limit, value)
             .await
     }
@@ -271,33 +243,21 @@ impl SignedApi {
     /// [`pallet_gear::claim_value`](https://docs.rs/pallet_gear/pallet/struct.Pallet.html#method.claim_value)
     /// extrinsic.
     ///
-    /// This function returns a tuple with value and block hash containing the
-    /// corresponding transaction.
-    ///
     /// # See also
     ///
     /// - [`claim_value_batch`](Self::claim_value_batch) function claims a batch
     ///   of values from the mailbox.
-    pub async fn claim_value(&self, message_id: MessageId) -> Result<(u128, H256)> {
+    pub async fn claim_value(&self, message_id: MessageId) -> Result<TxOutput<u128>> {
         let value = self
             .mailbox_message(message_id)
             .await?
-            .map(|(message, _interval)| message.value());
+            .map(|(message, _)| message.value());
 
-        let tx = self
-            .run_tx(gear::tx().gear().claim_value(message_id))
-            .await?;
-
-        for event in tx.wait_for_success().await?.iter() {
-            if let Event::Gear(gear::gear::Event::UserMessageRead { .. }) = event?.as_gear()? {
-                return Ok((
-                    value.expect("Data appearance guaranteed above"),
-                    tx.block_hash(),
-                ));
-            }
-        }
-
-        Err(Error::EventNotFound)
+        self.run_tx(tx().gear().claim_value(message_id))
+            .await?
+            .any(|event| matches!(event, Event::Gear(gear::Event::UserMessageRead { .. })))?
+            .then(|| value.expect("data appearance guaraenteed above"))
+            .ok_or_err()
     }
 
     /// Claim a batch of values from the mailbox.
@@ -309,7 +269,7 @@ impl SignedApi {
     pub async fn claim_value_batch(
         &self,
         args: impl IntoIterator<Item = MessageId> + Clone,
-    ) -> Result<(Vec<Result<u128>>, H256)> {
+    ) -> Result<TxOutput<Vec<Result<u128>>>> {
         let message_ids: Vec<_> = args.clone().into_iter().collect();
 
         let messages =
@@ -324,12 +284,12 @@ impl SignedApi {
 
         self.run_batch(
             args.into_iter()
-                .map(|message_id| RuntimeCall::Gear(gear::gear::Call::claim_value { message_id })),
+                .map(|message_id| RuntimeCall::Gear(gear::Call::claim_value { message_id })),
             |event| match event {
-                Event::Gear(gear::gear::Event::UserMessageRead { id, .. }) => Some(Ok(values
+                Event::Gear(gear::Event::UserMessageRead { id, .. }) => Some(Ok(values
                     .remove(&id)
                     .expect("Data appearance guaranteed above"))),
-                Event::Utility(gear::utility::Event::ItemFailed { error }) => {
+                Event::Utility(utility::Event::ItemFailed { error }) => {
                     Some(Err(self.decode_error(error).into()))
                 }
                 _ => None,
@@ -347,8 +307,7 @@ impl SignedApi {
     /// [`pallet_gear::send_message`](https://docs.rs/pallet_gear/pallet/struct.Pallet.html#method.send_message)
     /// extrinsic.
     ///
-    /// This function returns a tuple with a new message identifier and a hash
-    /// of the block with the message enqueuing transaction.
+    /// This function returns a new message identifier.
     ///
     /// # See also
     ///
@@ -362,29 +321,21 @@ impl SignedApi {
         payload: impl Into<Vec<u8>>,
         gas_limit: u64,
         value: u128,
-    ) -> Result<(MessageId, H256)> {
-        let tx = self
-            .run_tx(gear::tx().gear().send_message(
-                destination,
-                payload.into(),
-                gas_limit,
-                value,
-                false,
-            ))
-            .await?;
-
-        for event in tx.wait_for_success().await?.iter() {
-            if let Event::Gear(gear::gear::Event::MessageQueued {
+    ) -> Result<TxOutput<MessageId>> {
+        self.run_tx(
+            tx().gear()
+                .send_message(destination, payload.into(), gas_limit, value, false),
+        )
+        .await?
+        .find_map(|event| match event {
+            Event::Gear(gear::Event::MessageQueued {
                 id,
                 entry: MessageEntry::Handle,
                 ..
-            }) = event?.as_gear()?
-            {
-                return Ok((id, tx.block_hash()));
-            }
-        }
-
-        Err(Error::EventNotFound)
+            }) => Some(id),
+            _ => None,
+        })?
+        .ok_or_err()
     }
 
     /// Send a batch of messages.
@@ -397,11 +348,11 @@ impl SignedApi {
     pub async fn send_message_bytes_batch(
         &self,
         args: impl IntoIterator<Item = (ActorId, impl Into<Vec<u8>>, u64, u128)>,
-    ) -> Result<(Vec<Result<(MessageId, ActorId)>>, H256)> {
+    ) -> Result<TxOutput<Vec<Result<(MessageId, ActorId)>>>> {
         self.run_batch(
             args.into_iter()
                 .map(|(destination, payload, gas_limit, value)| {
-                    RuntimeCall::Gear(gear::gear::Call::send_message {
+                    RuntimeCall::Gear(gear::Call::send_message {
                         destination,
                         payload: payload.into(),
                         gas_limit,
@@ -410,13 +361,13 @@ impl SignedApi {
                     })
                 }),
             |event| match event {
-                Event::Gear(gear::gear::Event::MessageQueued {
+                Event::Gear(gear::Event::MessageQueued {
                     id,
                     destination,
                     entry: MessageEntry::Handle,
                     ..
                 }) => Some(Ok((id, destination))),
-                Event::Utility(gear::utility::Event::ItemFailed { error }) => {
+                Event::Utility(utility::Event::ItemFailed { error }) => {
                     Some(Err(self.decode_error(error).into()))
                 }
                 _ => None,
@@ -433,7 +384,7 @@ impl SignedApi {
         payload: impl Encode,
         gas_limit: u64,
         value: u128,
-    ) -> Result<(MessageId, H256)> {
+    ) -> Result<TxOutput<MessageId>> {
         self.send_message_bytes(destination, payload.encode(), gas_limit, value)
             .await
     }
@@ -463,35 +414,31 @@ impl SignedApi {
         payload: impl Into<Vec<u8>>,
         gas_limit: u64,
         value: u128,
-    ) -> Result<(MessageId, u128, H256)> {
+    ) -> Result<TxOutput<(MessageId, u128)>> {
         let data = self.mailbox_message(reply_to_id).await?;
 
-        let tx = self
-            .run_tx(gear::tx().gear().send_reply(
-                reply_to_id,
-                payload.into(),
-                gas_limit,
-                value,
-                false,
-            ))
-            .await?;
-
-        let events = tx.wait_for_success().await?;
-
-        let (message, _interval) = data.expect("Data appearance guaranteed above");
-
-        for event in events.iter() {
-            if let Event::Gear(gear::gear::Event::MessageQueued {
+        self.run_tx(
+            tx().gear()
+                .send_reply(reply_to_id, payload.into(), gas_limit, value, false),
+        )
+        .await?
+        .find_map(move |event| match event {
+            Event::Gear(gear::Event::MessageQueued {
                 id,
                 entry: MessageEntry::Reply(_),
                 ..
-            }) = event?.as_gear()?
-            {
-                return Ok((id, message.value(), tx.block_hash()));
-            }
-        }
-
-        Err(Error::EventNotFound)
+            }) => Some(id),
+            _ => None,
+        })?
+        .map(move |opt| {
+            opt.map(|id| {
+                (
+                    id,
+                    data.expect("data appearance guaraenteed above").0.value(),
+                )
+            })
+        })
+        .ok_or_err()
     }
 
     /// Send a batch of replies.
@@ -507,7 +454,7 @@ impl SignedApi {
     pub async fn send_reply_bytes_batch(
         &self,
         args: impl IntoIterator<Item = (MessageId, impl Into<Vec<u8>>, u64, u128)> + Clone,
-    ) -> Result<(Vec<Result<(MessageId, ActorId, u128)>>, H256)> {
+    ) -> Result<TxOutput<Vec<Result<(MessageId, ActorId, u128)>>>> {
         let message_ids: Vec<_> = args.clone().into_iter().map(|(mid, _, _, _)| mid).collect();
 
         let messages =
@@ -523,7 +470,7 @@ impl SignedApi {
         self.run_batch(
             args.into_iter()
                 .map(|(reply_to_id, payload, gas_limit, value)| {
-                    RuntimeCall::Gear(gear::gear::Call::send_reply {
+                    RuntimeCall::Gear(gear::Call::send_reply {
                         reply_to_id,
                         payload: payload.into(),
                         gas_limit,
@@ -532,7 +479,7 @@ impl SignedApi {
                     })
                 }),
             |event| match event {
-                Event::Gear(gear::gear::Event::MessageQueued {
+                Event::Gear(gear::Event::MessageQueued {
                     id,
                     entry: MessageEntry::Reply(reply_to_id),
                     destination,
@@ -544,7 +491,7 @@ impl SignedApi {
                         .remove(&reply_to_id)
                         .expect("Data appearance guaranteed above"),
                 ))),
-                Event::Utility(gear::utility::Event::ItemFailed { error }) => {
+                Event::Utility(utility::Event::ItemFailed { error }) => {
                     Some(Err(self.decode_error(error).into()))
                 }
                 _ => None,
@@ -561,7 +508,7 @@ impl SignedApi {
         payload: impl Encode,
         gas_limit: u64,
         value: u128,
-    ) -> Result<(MessageId, u128, H256)> {
+    ) -> Result<TxOutput<(MessageId, u128)>> {
         self.send_reply_bytes(reply_to_id, payload.encode(), gas_limit, value)
             .await
     }
@@ -583,22 +530,17 @@ impl SignedApi {
     ///   from a previously uploaded code and initializes it.
     /// - [`upload_program`](Self::upload_program) function uploads a new
     ///   program and initialize it.
-    pub async fn upload_code(&self, code: impl Into<Vec<u8>>) -> Result<(CodeId, H256)> {
-        let tx = self
-            .run_tx(gear::tx().gear().upload_code(code.into()))
-            .await?;
-
-        for event in tx.wait_for_success().await?.iter() {
-            if let Event::Gear(gear::gear::Event::CodeChanged {
-                id,
-                change: CodeChangeKind::Active { .. },
-            }) = event?.as_gear()?
-            {
-                return Ok((id, tx.block_hash()));
-            }
-        }
-
-        Err(Error::EventNotFound)
+    pub async fn upload_code(&self, code: impl Into<Vec<u8>>) -> Result<TxOutput<CodeId>> {
+        self.run_tx(tx().gear().upload_code(code.into()))
+            .await?
+            .find_map(|event| match event {
+                Event::Gear(gear::Event::CodeChanged {
+                    id,
+                    change: CodeChangeKind::Active { .. },
+                }) => Some(id),
+                _ => None,
+            })?
+            .ok_or_err()
     }
 
     /// Upload a batch of codes.
@@ -610,16 +552,16 @@ impl SignedApi {
     pub async fn upload_code_batch(
         &self,
         args: impl IntoIterator<Item = impl Into<Vec<u8>>>,
-    ) -> Result<(Vec<Result<CodeId>>, H256)> {
+    ) -> Result<TxOutput<Vec<Result<CodeId>>>> {
         self.run_batch(
             args.into_iter()
-                .map(|code| RuntimeCall::Gear(gear::gear::Call::upload_code { code: code.into() })),
+                .map(|code| RuntimeCall::Gear(gear::Call::upload_code { code: code.into() })),
             |event| match event {
-                Event::Gear(gear::gear::Event::CodeChanged {
+                Event::Gear(gear::Event::CodeChanged {
                     id,
                     change: CodeChangeKind::Active { .. },
                 }) => Some(Ok(id)),
-                Event::Utility(gear::utility::Event::ItemFailed { error }) => {
+                Event::Utility(utility::Event::ItemFailed { error }) => {
                     Some(Err(self.decode_error(error).into()))
                 }
                 _ => None,
@@ -636,8 +578,8 @@ impl SignedApi {
     ///
     /// Works with absolute and relative paths (relative to the root dir of the
     /// repo).
-    pub async fn upload_code_by_path(&self, path: impl AsRef<Path>) -> Result<(CodeId, H256)> {
-        let code = utils::read_wasm_file(path).await?;
+    pub async fn upload_code_by_path(&self, path: impl AsRef<Path>) -> Result<TxOutput<CodeId>> {
+        let code = fs::read(path).await?;
         self.upload_code(code).await
     }
 
@@ -675,31 +617,26 @@ impl SignedApi {
         payload: impl Into<Vec<u8>>,
         gas_limit: u64,
         value: u128,
-    ) -> Result<(MessageId, ActorId, H256)> {
-        let tx = self
-            .run_tx(gear::tx().gear().upload_program(
-                code.into(),
-                salt.into(),
-                payload.into(),
-                gas_limit,
-                value,
-                false,
-            ))
-            .await?;
-
-        for event in tx.wait_for_success().await?.iter() {
-            if let Event::Gear(gear::gear::Event::MessageQueued {
+    ) -> Result<TxOutput<(MessageId, ActorId)>> {
+        self.run_tx(tx().gear().upload_program(
+            code.into(),
+            salt.into(),
+            payload.into(),
+            gas_limit,
+            value,
+            false,
+        ))
+        .await?
+        .find_map(|event| match event {
+            Event::Gear(gear::Event::MessageQueued {
                 id,
                 destination,
                 entry: MessageEntry::Init,
                 ..
-            }) = event?.as_gear()?
-            {
-                return Ok((id, destination, tx.block_hash()));
-            }
-        }
-
-        Err(Error::EventNotFound)
+            }) => Some((id, destination)),
+            _ => None,
+        })?
+        .ok_or_err()
     }
 
     /// Upload a batch of programs.
@@ -719,11 +656,11 @@ impl SignedApi {
                 u128,
             ),
         >,
-    ) -> Result<(Vec<Result<(MessageId, ActorId)>>, H256)> {
+    ) -> Result<TxOutput<Vec<Result<(MessageId, ActorId)>>>> {
         self.run_batch(
             args.into_iter()
                 .map(|(code, salt, payload, gas_limit, value)| {
-                    RuntimeCall::Gear(gear::gear::Call::upload_program {
+                    RuntimeCall::Gear(gear::Call::upload_program {
                         code: code.into(),
                         salt: salt.into(),
                         init_payload: payload.into(),
@@ -733,13 +670,13 @@ impl SignedApi {
                     })
                 }),
             |event| match event {
-                Event::Gear(gear::gear::Event::MessageQueued {
+                Event::Gear(gear::Event::MessageQueued {
                     id,
                     destination,
                     entry: MessageEntry::Init,
                     ..
                 }) => Some(Ok((id, destination))),
-                Event::Utility(gear::utility::Event::ItemFailed { error }) => {
+                Event::Utility(utility::Event::ItemFailed { error }) => {
                     Some(Err(self.decode_error(error).into()))
                 }
                 _ => None,
@@ -763,8 +700,8 @@ impl SignedApi {
         payload: impl Into<Vec<u8>>,
         gas_limit: u64,
         value: u128,
-    ) -> Result<(MessageId, ActorId, H256)> {
-        let code = utils::read_wasm_file(path).await?;
+    ) -> Result<TxOutput<(MessageId, ActorId)>> {
+        let code = fs::read(path).await?;
         self.upload_program_bytes(code, salt, payload, gas_limit, value)
             .await
     }
@@ -785,7 +722,7 @@ impl SignedApi {
         payload: impl Encode,
         gas_limit: u64,
         value: u128,
-    ) -> Result<(MessageId, ActorId, H256)> {
+    ) -> Result<TxOutput<(MessageId, ActorId)>> {
         self.upload_program_bytes(code, salt, payload.encode(), gas_limit, value)
             .await
     }
@@ -805,10 +742,366 @@ impl SignedApi {
         payload: impl Encode,
         gas_limit: u64,
         value: u128,
-    ) -> Result<(MessageId, ActorId, H256)> {
-        let code = utils::read_wasm_file(path).await?;
+    ) -> Result<TxOutput<(MessageId, ActorId)>> {
+        let code = fs::read(path).await?;
         self.upload_program(code, salt, payload, gas_limit, value)
             .await
+    }
+
+    /// Migrates an active program identified by `src_program_id` onto another
+    /// node identified by `dest_node_api` and returns the migrated program
+    /// identifier. All source program data is taken at the time of
+    /// `src_block_hash` if it is specified or the most recent one.
+    pub async fn migrate_program(
+        &self,
+        src_program_id: ActorId,
+        src_block_hash: Option<H256>,
+        dest_node_api: &SignedApi,
+    ) -> Result<ActorId> {
+        if dest_node_api.active_program(src_program_id).await.is_ok() {
+            return Err(Error::ProgramAlreadyExists(src_program_id));
+        }
+
+        let src_block_hash = if let Some(hash) = src_block_hash {
+            hash
+        } else {
+            self.blocks().at_latest().await?.hash()
+        };
+
+        let dest_program_id = src_program_id;
+
+        // Collect data from the source program
+        let src_program_account_data = self
+            .account_data_at(src_program_id, src_block_hash)
+            .await
+            .or_else(|e| {
+            if let Error::StorageEntryNotFound = e {
+                Ok(AccountData {
+                    free: 0u128,
+                    reserved: 0,
+                    frozen: 0,
+                    flags: ExtraFlags::NEW_LOGIC,
+                })
+            } else {
+                Err(e)
+            }
+        })?;
+
+        let src_program_account_bank_data = self
+            .bank_info_at(src_program_id, src_block_hash)
+            .await
+            .or_else(|e| {
+                if let Error::StorageEntryNotFound = e {
+                    Ok(BankAccount { gas: 0, value: 0 })
+                } else {
+                    Err(e)
+                }
+            })?;
+
+        let bank_address = self.bank_address().await?;
+
+        let src_bank_account_data = self
+            .account_data_at(bank_address.clone(), src_block_hash)
+            .await
+            .or_else(|e| {
+                if let Error::StorageEntryNotFound = e {
+                    Ok(AccountData {
+                        free: 0u128,
+                        reserved: 0,
+                        frozen: 0,
+                        flags: ExtraFlags::NEW_LOGIC,
+                    })
+                } else {
+                    Err(e)
+                }
+            })?;
+
+        let mut src_program = self
+            .active_program_at(src_program_id, src_block_hash)
+            .await?;
+
+        let src_program_pages = self
+            .program_pages_at(src_program_id, src_block_hash)
+            .await?;
+
+        let src_program_reserved_gas_node_ids: Vec<GearGasNodeId> = src_program
+            .gas_reservation_map
+            .iter()
+            .map(|gr| GearGasNodeId::Reservation(gr.0))
+            .collect();
+
+        let src_program_reserved_gas_nodes = self
+            .gas_nodes_at(src_program_reserved_gas_node_ids, src_block_hash)
+            .await?;
+
+        let mut src_program_reserved_gas_total = 0u64;
+        let mut accounts_with_reserved_funds = HashSet::new();
+        for gas_node in &src_program_reserved_gas_nodes {
+            if let GearGasNode::Reserved {
+                id, value, lock, ..
+            } = &gas_node.1
+            {
+                accounts_with_reserved_funds.insert(id.clone().into_substrate());
+                src_program_reserved_gas_total += value + lock.0[LockId::Reservation as usize];
+            } else {
+                unreachable!("Unexpected gas node type");
+            }
+        }
+
+        let src_code_id = src_program.code_id;
+
+        let src_instrumented_code = self
+            .instrumented_code_storage_at(src_code_id, src_block_hash)
+            .await?;
+
+        let src_code_metadata = self
+            .code_metadata_storage_at(src_code_id, src_block_hash)
+            .await?;
+
+        // Apply data to the target program
+        dest_node_api
+            .force_set_balance(
+                dest_program_id.into_account_id(),
+                src_program_account_data.free,
+            )
+            .await?;
+
+        dest_node_api
+            .force_set_balance(bank_address, src_bank_account_data.free)
+            .await?;
+
+        dest_node_api
+            .set_bank_account_storage(
+                src_program_id.into_account_id(),
+                src_program_account_bank_data,
+            )
+            .await?;
+
+        dest_node_api
+            .set_instrumented_code_storage(src_code_id, &src_instrumented_code)
+            .await?;
+
+        dest_node_api
+            .set_code_metadata_storage(src_code_id, &src_code_metadata)
+            .await?;
+
+        dest_node_api
+            .set_gas_nodes(&src_program_reserved_gas_nodes)
+            .await?;
+
+        for account_with_reserved_funds in accounts_with_reserved_funds {
+            let src_account_bank_data = self
+                .bank_info_at(account_with_reserved_funds.clone(), src_block_hash)
+                .await
+                .or_else(|e| {
+                    if let Error::StorageEntryNotFound = e {
+                        Ok(BankAccount { gas: 0, value: 0 })
+                    } else {
+                        Err(e)
+                    }
+                })?;
+
+            let dest_account_data = dest_node_api
+                .account_data(account_with_reserved_funds.clone())
+                .await
+                .or_else(|e| {
+                    if let Error::StorageEntryNotFound = e {
+                        Ok(AccountData {
+                            free: 0u128,
+                            reserved: 0,
+                            frozen: 0,
+                            flags: ExtraFlags::NEW_LOGIC,
+                        })
+                    } else {
+                        Err(e)
+                    }
+                })?;
+            let dest_account_bank_data = self
+                .bank_info_at(account_with_reserved_funds.clone(), None)
+                .await
+                .or_else(|e| {
+                    if let Error::StorageEntryNotFound = e {
+                        Ok(BankAccount { gas: 0, value: 0 })
+                    } else {
+                        Err(e)
+                    }
+                })?;
+
+            dest_node_api
+                .force_set_balance(
+                    account_with_reserved_funds.clone().into_account_id(),
+                    dest_account_data.free,
+                )
+                .await?;
+
+            dest_node_api
+                .set_bank_account_storage(
+                    account_with_reserved_funds.into_account_id(),
+                    BankAccount {
+                        gas: src_account_bank_data
+                            .gas
+                            .saturating_add(dest_account_bank_data.gas),
+                        value: src_account_bank_data
+                            .value
+                            .saturating_add(dest_account_bank_data.value),
+                    },
+                )
+                .await?;
+        }
+
+        let dest_gas_total_issuance = dest_node_api.total_issuance().await.or_else(|e| {
+            if let Error::StorageEntryNotFound = e {
+                Ok(0)
+            } else {
+                Err(e)
+            }
+        })?;
+
+        dest_node_api
+            .set_total_issuance(
+                dest_gas_total_issuance.saturating_add(src_program_reserved_gas_total),
+            )
+            .await?;
+
+        dest_node_api
+            .set_program_pages(dest_program_id, &src_program_pages)
+            .await?;
+
+        src_program.expiration_block = dest_node_api.blocks().at_latest().await?.number();
+        dest_node_api
+            .set_program(dest_program_id, src_program)
+            .await?;
+
+        Ok(dest_program_id)
+    }
+
+    /// Save program (identified by `program_id`) memory dump to the file for
+    /// further restoring in gclient/gtest. Program memory dumped at the
+    /// time of `block_hash` if presented or the most recent block.
+    pub async fn save_program_memory_dump_at<P: AsRef<Path>>(
+        &self,
+        program_id: ActorId,
+        block_hash: Option<H256>,
+        file_path: P,
+    ) -> Result<()> {
+        let program_pages = self
+            .program_pages_at(program_id, block_hash)
+            .await?
+            .into_iter()
+            .map(|(page, page_buf)| MemoryPageDump::new(page, page_buf))
+            .collect();
+
+        let program_account_data =
+            self.account_data_at(program_id, block_hash)
+                .await
+                .or_else(|e| {
+                    if let Error::StorageEntryNotFound = e {
+                        Ok(AccountData {
+                            free: 0u128,
+                            reserved: 0,
+                            frozen: 0,
+                            flags: ExtraFlags::NEW_LOGIC,
+                        })
+                    } else {
+                        Err(e)
+                    }
+                })?;
+
+        let dump = ProgramMemoryDump {
+            pages: program_pages,
+            balance: program_account_data.free,
+            reserved_balance: program_account_data.reserved,
+        };
+        fs::write(file_path, serde_json::to_vec(&dump)?).await?;
+
+        Ok(())
+    }
+
+    /// Replace entire program memory with one saved earlier in gclient/gtest
+    pub async fn replace_program_memory<P: AsRef<Path>>(
+        &self,
+        program_id: ActorId,
+        file_path: P,
+    ) -> Result<()> {
+        let contents = fs::read(file_path).await?;
+        let memory_dump: ProgramMemoryDump = serde_json::from_slice(&contents)?;
+
+        let pages = memory_dump
+            .pages
+            .into_iter()
+            .map(|page| page.into_gear_page())
+            .collect();
+
+        self.force_set_balance(program_id, memory_dump.balance)
+            .await?;
+
+        self.set_program_pages(program_id, &pages).await?;
+
+        Ok(())
+    }
+
+    /// Upgrade the runtime with the `code` containing the Wasm code of the new
+    /// runtime.
+    ///
+    /// Sends the
+    /// [`pallet_system::set_code`](https://crates.parity.io/frame_system/pallet/struct.Pallet.html#method.set_code)
+    /// extrinsic.
+    pub async fn set_code(&self, code: impl Into<Vec<u8>>) -> Result<TxOutput> {
+        self.sudo_unchecked_weight(
+            RuntimeCall::System(system::Call::set_code { code: code.into() }),
+            Weight {
+                ref_time: 0,
+                proof_size: 0,
+            },
+        )
+        .await?
+        .find_map(|event| match event {
+            Event::System(system::Event::CodeUpdated) => Some(()),
+            _ => None,
+        })?
+        .ok_or_err()
+    }
+
+    /// Upgrade the runtime by reading the code from the file located at the
+    /// `path`.
+    ///
+    /// Same as [`set_code`](Self::set_code), but reads the runtime code from a
+    /// file instead of using a byte vector.
+    pub async fn set_code_by_path(&self, path: impl AsRef<Path>) -> Result<TxOutput> {
+        let code = fs::read(path).await?;
+        self.set_code(code).await
+    }
+
+    /// Upgrade the runtime with the `code` containing the Wasm code of the new
+    /// runtime but **without** checks.
+    ///
+    /// Sends the
+    /// [`pallet_system::set_code_without_checks`](https://crates.parity.io/frame_system/pallet/struct.Pallet.html#method.set_code_without_checks)
+    /// extrinsic.
+    pub async fn set_code_without_checks(&self, code: impl Into<Vec<u8>>) -> Result<TxOutput> {
+        self.sudo_unchecked_weight(
+            RuntimeCall::System(system::Call::set_code_without_checks { code: code.into() }),
+            Weight {
+                ref_time: 0,
+                proof_size: 0,
+            },
+        )
+        .await?
+        .any(|event| matches!(event, Event::System(system::Event::CodeUpdated)))?
+        .ok_or_err()
+    }
+
+    /// Upgrade the runtime by reading the code from the file located at the
+    /// `path`.
+    ///
+    /// Same as [`set_code_without_checks`](Self::set_code_without_checks), but
+    /// reads the runtime code from a file instead of using a byte vector.
+    pub async fn set_code_without_checks_by_path(
+        &self,
+        path: impl AsRef<Path>,
+    ) -> Result<TxOutput> {
+        let code = fs::read(path).await?;
+        self.set_code_without_checks(code).await
     }
 }
 
@@ -816,32 +1109,30 @@ impl SignedApi {
     /// Sends the `pallet-gear-eth-bridge::reset_overflowed_queue` extrinsic.
     ///
     /// This function returns a hash of the block with the transaction.
-    pub async fn reset_overflowed_queue(&self, encoded_finality_proof: Vec<u8>) -> Result<H256> {
-        let tx = self
-            .run_tx(
-                gear::tx()
-                    .gear_eth_bridge()
-                    .reset_overflowed_queue(encoded_finality_proof),
+    pub async fn reset_overflowed_queue(
+        &self,
+        encoded_finality_proof: Vec<u8>,
+    ) -> Result<TxOutput> {
+        self.run_tx(
+            tx().gear_eth_bridge()
+                .reset_overflowed_queue(encoded_finality_proof),
+        )
+        .await?
+        .any(|event| {
+            matches!(
+                event,
+                Event::GearEthBridge(gear_eth_bridge::Event::QueueReset)
             )
-            .await?;
-
-        for event in tx.wait_for_success().await?.iter() {
-            if let Event::GearEthBridge(gear::gear_eth_bridge::Event::QueueReset) =
-                event?.as_gear()?
-            {
-                return Ok(tx.block_hash());
-            }
-        }
-
-        Err(Error::EventNotFound)
+        })?
+        .ok_or_err()
     }
 }
 
 // pallet-utility
 impl SignedApi {
     /// Sends `pallet_utility::force_batch` extrinsic.
-    pub async fn force_batch(&self, calls: Vec<RuntimeCall>) -> Result<TxInBlock> {
-        self.run_tx(gear::tx().utility().force_batch(calls)).await
+    pub async fn force_batch(&self, calls: Vec<RuntimeCall>) -> Result<TxOutput> {
+        self.run_tx(tx().utility().force_batch(calls)).await
     }
 
     /// Submits a batch of extrinsics and extracts their outputs from events.
@@ -850,32 +1141,25 @@ impl SignedApi {
     ///
     /// Returns a vector of extrinsic results and the hash of
     /// its block.
-    pub async fn run_batch<O, F: FnMut(Event) -> Option<O>>(
+    pub async fn run_batch<O, F>(
         &self,
         calls: impl IntoIterator<Item = RuntimeCall>,
-        mut f: F,
-    ) -> Result<(Vec<O>, H256)> {
+        f: F,
+    ) -> Result<TxOutput<Vec<O>>>
+    where
+        F: FnMut(Event) -> Option<O>,
+    {
         let calls = calls.into_iter().collect::<Vec<_>>();
         let expected = calls.len();
 
-        let tx = self.force_batch(calls).await?;
+        let output = self.force_batch(calls).await?.filter_map(f)?;
 
-        tx.wait_for_success()
-            .await?
-            .iter()
-            .map(|event| Ok(f(event?.as_gear()?)))
-            .filter_map(|res| res.transpose())
-            .collect::<Result<Vec<_>>>()
-            .and_then(|results| {
-                if results.len() == expected {
-                    Ok((results, tx.block_hash()))
-                } else {
-                    Err(Error::IncompleteBatchResult {
-                        expected,
-                        found: results.len(),
-                    })
-                }
-            })
+        let found = output.as_ref().len();
+        if found == expected {
+            Ok(output)
+        } else {
+            Err(Error::IncompleteBatchResult { expected, found })
+        }
     }
 }
 
@@ -886,9 +1170,33 @@ impl SignedApi {
         &self,
         call: RuntimeCall,
         weight: Weight,
-    ) -> Result<TxEvents> {
-        self.sudo_run_tx(gear::tx().sudo().sudo_unchecked_weight(call, weight))
+    ) -> Result<TxOutput> {
+        self.sudo_run_tx(tx().sudo().sudo_unchecked_weight(call, weight))
             .await
+    }
+
+    /// Set the free balance of the `to` account to `new_free`.
+    ///
+    /// Sends the [`pallet_balances::set_balance`](https://crates.parity.io/pallet_balances/pallet/struct.Pallet.html#method.set_balance) extrinsic.
+    pub async fn force_set_balance(
+        &self,
+        to: impl IntoAccountId32,
+        new_free: u128,
+    ) -> Result<TxOutput> {
+        self.sudo_unchecked_weight(
+            RuntimeCall::Balances(balances::Call::force_set_balance {
+                who: to.into_account_id().into(),
+                new_free,
+            }),
+            Weight {
+                ref_time: 0,
+                // # TODO
+                //
+                // Check this field
+                proof_size: Default::default(),
+            },
+        )
+        .await
     }
 }
 
@@ -916,27 +1224,22 @@ impl SignedApi {
         programs: Option<Vec<ActorId>>,
         code_uploading: bool,
         duration: u32,
-    ) -> Result<(VoucherId, H256)> {
-        let tx = self
-            .run_tx(gear::tx().gear_voucher().issue(
-                spender.into_account_id(),
-                balance,
-                programs,
-                code_uploading,
-                duration,
-            ))
-            .await?;
-
-        for event in tx.wait_for_success().await?.iter() {
-            if let Event::GearVoucher(gear::gear_voucher::Event::VoucherIssued {
-                voucher_id, ..
-            }) = event?.as_gear()?
-            {
-                return Ok((voucher_id, tx.block_hash()));
+    ) -> Result<TxOutput<VoucherId>> {
+        self.run_tx(tx().gear_voucher().issue(
+            spender.into_account_id(),
+            balance,
+            programs,
+            code_uploading,
+            duration,
+        ))
+        .await?
+        .find_map(|event| match event {
+            Event::GearVoucher(gear_voucher::Event::VoucherIssued { voucher_id, .. }) => {
+                Some(voucher_id)
             }
-        }
-
-        Err(Error::EventNotFound)
+            _ => None,
+        })?
+        .ok_or_err()
     }
 
     /// Update existing voucher.
@@ -972,30 +1275,24 @@ impl SignedApi {
         append_programs: Option<Option<Vec<ActorId>>>,
         code_uploading: Option<bool>,
         prolong_duration: Option<u32>,
-    ) -> Result<(VoucherId, H256)> {
-        let tx = self
-            .run_tx(gear::tx().gear_voucher().update(
-                spender.into_account_id(),
-                voucher_id,
-                move_ownership.map(|id| id.into_account_id()),
-                balance_top_up,
-                append_programs,
-                code_uploading,
-                prolong_duration,
-            ))
-            .await?;
-
-        for event in tx.wait_for_success().await?.iter() {
-            if let Event::GearVoucher(gear::gear_voucher::Event::VoucherUpdated {
-                voucher_id,
-                ..
-            }) = event?.as_gear()?
-            {
-                return Ok((voucher_id, tx.block_hash()));
+    ) -> Result<TxOutput<VoucherId>> {
+        self.run_tx(tx().gear_voucher().update(
+            spender.into_account_id(),
+            voucher_id,
+            move_ownership.map(|id| id.into_account_id()),
+            balance_top_up,
+            append_programs,
+            code_uploading,
+            prolong_duration,
+        ))
+        .await?
+        .find_map(|event| match event {
+            Event::GearVoucher(gear_voucher::Event::VoucherUpdated { voucher_id, .. }) => {
+                Some(voucher_id)
             }
-        }
-
-        Err(Error::EventNotFound)
+            _ => None,
+        })?
+        .ok_or_err()
     }
 
     /// Revoke existing voucher.
@@ -1015,26 +1312,19 @@ impl SignedApi {
         &self,
         spender: impl IntoAccountId32,
         voucher_id: VoucherId,
-    ) -> Result<(VoucherId, H256)> {
-        let tx = self
-            .run_tx(
-                gear::tx()
-                    .gear_voucher()
-                    .revoke(spender.into_account_id(), voucher_id),
-            )
-            .await?;
-
-        for event in tx.wait_for_success().await?.iter() {
-            if let Event::GearVoucher(gear::gear_voucher::Event::VoucherRevoked {
-                voucher_id,
-                ..
-            }) = event?.as_gear()?
-            {
-                return Ok((voucher_id, tx.block_hash()));
+    ) -> Result<TxOutput<VoucherId>> {
+        self.run_tx(
+            tx().gear_voucher()
+                .revoke(spender.into_account_id(), voucher_id),
+        )
+        .await?
+        .find_map(|event| match event {
+            Event::GearVoucher(gear_voucher::Event::VoucherRevoked { voucher_id, .. }) => {
+                Some(voucher_id)
             }
-        }
-
-        Err(Error::EventNotFound)
+            _ => None,
+        })?
+        .ok_or_err()
     }
 
     /// Decline existing and not expired voucher.
@@ -1044,57 +1334,41 @@ impl SignedApi {
     ///
     /// Arguments:
     /// * voucher_id:   voucher id to be declined.
-    pub async fn decline_voucher(&self, voucher_id: VoucherId) -> Result<(VoucherId, H256)> {
-        let tx = self
-            .run_tx(gear::tx().gear_voucher().decline(voucher_id))
-            .await?;
-
-        for event in tx.wait_for_success().await?.iter() {
-            if let Event::GearVoucher(gear::gear_voucher::Event::VoucherDeclined {
-                voucher_id,
-                ..
-            }) = event?.as_gear()?
-            {
-                return Ok((voucher_id, tx.block_hash()));
-            }
-        }
-
-        Err(Error::EventNotFound)
+    pub async fn decline_voucher(&self, voucher_id: VoucherId) -> Result<TxOutput<VoucherId>> {
+        self.run_tx(tx().gear_voucher().decline(voucher_id))
+            .await?
+            .find_map(|event| match event {
+                Event::GearVoucher(gear_voucher::Event::VoucherDeclined { voucher_id, .. }) => {
+                    Some(voucher_id)
+                }
+                _ => None,
+            })?
+            .ok_or_err()
     }
 
-    /// Uploads Wasm code via call pre-paid with a voucher.
-    ///
-    /// See [`Self::upload_code`] for details.
+    /// Same as [`Self::upload_code`], but using a voucher.
     pub async fn upload_code_with_voucher(
         &self,
         voucher_id: VoucherId,
         code: impl Into<Vec<u8>>,
-    ) -> Result<(CodeId, H256)> {
-        let tx = self
-            .run_tx(
-                gear::tx()
-                    .gear_voucher()
-                    .call(voucher_id, PrepaidCall::UploadCode { code: code.into() }),
-            )
-            .await?;
-
-        for event in tx.wait_for_success().await?.iter() {
-            if let Event::Gear(gear::gear::Event::CodeChanged {
+    ) -> Result<TxOutput<CodeId>> {
+        self.run_tx(
+            tx().gear_voucher()
+                .call(voucher_id, PrepaidCall::UploadCode { code: code.into() }),
+        )
+        .await?
+        .find_map(|event| match event {
+            Event::Gear(gear::Event::CodeChanged {
                 id,
                 change: CodeChangeKind::Active { .. },
-            }) = event?.as_gear()?
-            {
-                return Ok((id, tx.block_hash()));
-            }
-        }
-
-        Err(Error::EventNotFound)
+            }) => Some(id),
+            _ => None,
+        })?
+        .ok_or_err()
     }
 
-    /// Sends a message via call pre-paid with a voucher.
-    ///
-    /// See [`Self::send_message`] for details.
-    pub async fn send_message_with_voucher(
+    /// Same as [`Self::send_message_bytes`], but using a voucher.
+    pub async fn send_message_bytes_with_voucher(
         &self,
         voucher_id: VoucherId,
         destination: ActorId,
@@ -1102,38 +1376,52 @@ impl SignedApi {
         gas_limit: u64,
         value: u128,
         keep_alive: bool,
-    ) -> Result<(MessageId, H256)> {
-        let tx = self
-            .run_tx(gear::tx().gear_voucher().call(
-                voucher_id,
-                PrepaidCall::SendMessage {
-                    destination,
-                    payload: payload.into(),
-                    gas_limit,
-                    value,
-                    keep_alive,
-                },
-            ))
-            .await?;
-
-        for event in tx.wait_for_success().await?.iter() {
-            if let Event::Gear(gear::gear::Event::MessageQueued {
+    ) -> Result<TxOutput<MessageId>> {
+        self.run_tx(tx().gear_voucher().call(
+            voucher_id,
+            PrepaidCall::SendMessage {
+                destination,
+                payload: payload.into(),
+                gas_limit,
+                value,
+                keep_alive,
+            },
+        ))
+        .await?
+        .find_map(|event| match event {
+            Event::Gear(gear::Event::MessageQueued {
                 id,
                 entry: MessageEntry::Handle,
                 ..
-            }) = event?.as_gear()?
-            {
-                return Ok((id, tx.block_hash()));
-            }
-        }
-
-        Err(Error::EventNotFound)
+            }) => Some(id),
+            _ => None,
+        })?
+        .ok_or_err()
     }
 
-    /// Sends a reply via call pre-paid with a voucher.
-    ///
-    /// See [`Self::send_reply`] for details.
-    pub async fn send_reply_with_voucher(
+    /// Same as [`Self::send_message`], but using a voucher.
+    pub async fn send_message_with_voucher(
+        &self,
+        voucher_id: VoucherId,
+        destination: ActorId,
+        payload: impl Encode,
+        gas_limit: u64,
+        value: u128,
+        keep_alive: bool,
+    ) -> Result<TxOutput<MessageId>> {
+        self.send_message_bytes_with_voucher(
+            voucher_id,
+            destination,
+            payload.encode(),
+            gas_limit,
+            value,
+            keep_alive,
+        )
+        .await
+    }
+
+    /// Same as [`Self::send_reply_bytes`], but using a voucher.
+    pub async fn send_reply_bytes_with_voucher(
         &self,
         voucher_id: VoucherId,
         reply_to_id: MessageId,
@@ -1141,38 +1429,58 @@ impl SignedApi {
         gas_limit: u64,
         value: u128,
         keep_alive: bool,
-    ) -> Result<(MessageId, u128, H256)> {
+    ) -> Result<TxOutput<(MessageId, u128)>> {
         let data = self.mailbox_message(reply_to_id).await?;
 
-        let tx = self
-            .run_tx(gear::tx().gear_voucher().call(
-                voucher_id,
-                PrepaidCall::SendReply {
-                    reply_to_id,
-                    payload: payload.into(),
-                    gas_limit,
-                    value,
-                    keep_alive,
-                },
-            ))
-            .await?;
-
-        let events = tx.wait_for_success().await?;
-
-        let (message, _interval) = data.expect("Data appearance guaranteed above");
-
-        for event in events.iter() {
-            if let Event::Gear(gear::gear::Event::MessageQueued {
+        self.run_tx(tx().gear_voucher().call(
+            voucher_id,
+            PrepaidCall::SendReply {
+                reply_to_id,
+                payload: payload.into(),
+                gas_limit,
+                value,
+                keep_alive,
+            },
+        ))
+        .await?
+        .find_map(|event| match event {
+            Event::Gear(gear::Event::MessageQueued {
                 id,
                 entry: MessageEntry::Reply(_),
                 ..
-            }) = event?.as_gear()?
-            {
-                return Ok((id, message.value(), tx.block_hash()));
-            }
-        }
+            }) => Some(id),
+            _ => None,
+        })?
+        .map(move |opt| {
+            opt.map(move |id| {
+                (
+                    id,
+                    data.expect("Data appearance guaranteed above").0.value(),
+                )
+            })
+        })
+        .ok_or_err()
+    }
 
-        Err(Error::EventNotFound)
+    /// Same as [`Self::send_reply`], but using a voucher.
+    pub async fn send_reply_with_voucher(
+        &self,
+        voucher_id: VoucherId,
+        reply_to_id: MessageId,
+        payload: impl Encode,
+        gas_limit: u64,
+        value: u128,
+        keep_alive: bool,
+    ) -> Result<TxOutput<(MessageId, u128)>> {
+        self.send_reply_bytes_with_voucher(
+            voucher_id,
+            reply_to_id,
+            payload.encode(),
+            gas_limit,
+            value,
+            keep_alive,
+        )
+        .await
     }
 
     /// Decline existing and not expired voucher via call pre-paid with a voucher.
@@ -1181,25 +1489,18 @@ impl SignedApi {
     pub async fn decline_voucher_with_voucher(
         &self,
         voucher_id: VoucherId,
-    ) -> Result<(VoucherId, H256)> {
-        let tx = self
-            .run_tx(
-                gear::tx()
-                    .gear_voucher()
-                    .call(voucher_id, PrepaidCall::DeclineVoucher),
-            )
-            .await?;
-
-        for event in tx.wait_for_success().await?.iter() {
-            if let Event::GearVoucher(gear::gear_voucher::Event::VoucherDeclined {
-                voucher_id,
-                ..
-            }) = event?.as_gear()?
-            {
-                return Ok((voucher_id, tx.block_hash()));
+    ) -> Result<TxOutput<VoucherId>> {
+        self.run_tx(
+            tx().gear_voucher()
+                .call(voucher_id, PrepaidCall::DeclineVoucher),
+        )
+        .await?
+        .find_map(|event| match event {
+            Event::GearVoucher(gear_voucher::Event::VoucherDeclined { voucher_id, .. }) => {
+                Some(voucher_id)
             }
-        }
-
-        Err(Error::EventNotFound)
+            _ => None,
+        })?
+        .ok_or_err()
     }
 }

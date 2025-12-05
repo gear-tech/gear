@@ -35,13 +35,14 @@ pub use crate::{
     convert::{AsGear, IntoAccountId32, IntoSubstrate, IntoSubxt},
     gear::{Event, runtime_types::vara_runtime::RuntimeError},
     result::{Error, Result},
-    signed::{PairSigner, SignedApi, Signer, TxEvents},
+    signed::{PairSigner, SignedApi, Signer, TxOutput},
     subscription::{
         Blocks, Events, PayloadFilter, ProgramStateChange, ProgramStateChanges, UserMessageSent,
         UserMessageSentFilter, UserMessageSentSubscription,
     },
 };
 pub use gear_core::rpc::GasInfo;
+pub use sp_keyring::AccountKeyring;
 pub use subxt::dynamic::Value;
 
 use crate::gear::runtime_types::{

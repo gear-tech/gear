@@ -17,8 +17,6 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! gear api utils
-use std::path::Path;
-
 use crate::{Api, Error, Result, config::GearConfig, gear::DispatchError};
 use parity_scale_codec::Encode;
 use sp_core::hashing;
@@ -28,7 +26,6 @@ use subxt::{
     storage::{Address, Storage},
     utils::H256,
 };
-use tokio::fs;
 
 impl Api {
     /// Decode `DispatchError` to `subxt::error::Error`.
@@ -53,6 +50,17 @@ impl Api {
 
         Ok(storage)
     }
+
+    /// Looks at two blocks from the stream and checks if the Gear block number
+    /// has grown from block to block or not.
+    pub async fn queue_processing_stalled(&self) -> Result<bool> {
+        let mut blocks = self.blocks().subscribe_finalized().await?;
+
+        let current = blocks.next().await.ok_or(Error::SubscriptionDied)??;
+        let next = blocks.next().await.ok_or(Error::SubscriptionDied)??;
+
+        Ok(current.number() == next.number())
+    }
 }
 
 /// Return the root of a given [`StorageAddress`]: hash the pallet name and entry name
@@ -75,13 +83,7 @@ pub(crate) fn storage_address_bytes(
     Ok(bytes)
 }
 
-/// Read and return contents of a Wasm file specified by the `path`.
-pub(crate) async fn read_wasm_file(path: impl AsRef<Path>) -> Result<Vec<u8>> {
-    let path = path.as_ref();
-
-    if path.extension().is_none_or(|ext| ext != "wasm") {
-        return Err(Error::WrongWasmExtension(path.to_path_buf()));
-    }
-
-    Ok(fs::read(path).await?)
+/// Convert hex string to byte array.
+pub(crate) fn hex_to_vec(string: impl AsRef<str>) -> Result<Vec<u8>> {
+    hex::decode(string.as_ref().trim_start_matches("0x")).map_err(Into::into)
 }

@@ -23,14 +23,10 @@ use gear_core::{
     ids::{ActorId, CodeId, MessageId},
     rpc::ReplyInfo,
 };
+use gsdk_codegen::at_block;
 use subxt::utils::H256;
 
 impl SignedApi {
-    /// Returns the public key of the signer as [`H256`].
-    pub fn source(&self) -> H256 {
-        AsRef::<[u8; 32]>::as_ref(self.account_id()).into()
-    }
-
     /// Returns the signer's free balance.
     pub async fn free_balance(&self) -> Result<u128> {
         self.unsigned().free_balance(self.account_id()).await
@@ -46,94 +42,113 @@ impl SignedApi {
         self.unsigned().total_balance(self.account_id()).await
     }
 
-    /// Calls `gear_calculateInitCreateGas` RPC method.
-    pub async fn calculate_create_gas(
+    /// Calls `gear_calculateInitCreateGas` RPC method at specified block.
+    #[at_block]
+    pub async fn calculate_create_gas_at(
         &self,
         code_id: CodeId,
         payload: Vec<u8>,
         value: u128,
         allow_other_panics: bool,
-        at: Option<H256>,
+        block_hash: Option<H256>,
     ) -> Result<GasInfo> {
         self.unsigned()
-            .calculate_create_gas(
-                self.source(),
+            .calculate_create_gas_at(
+                self.account_id(),
                 code_id,
                 payload,
                 value,
                 allow_other_panics,
-                at,
+                block_hash,
             )
             .await
     }
 
-    /// Calls `gear_calculateInitUploadGas` RPC method.
-    pub async fn calculate_upload_gas(
+    /// Calls `gear_calculateInitUploadGas` RPC method at specified block.
+    #[at_block]
+    pub async fn calculate_upload_gas_at(
         &self,
         code: Vec<u8>,
         payload: Vec<u8>,
         value: u128,
         allow_other_panics: bool,
-        at: Option<H256>,
+        block_hash: Option<H256>,
     ) -> Result<GasInfo> {
         self.unsigned()
-            .calculate_upload_gas(self.source(), code, payload, value, allow_other_panics, at)
+            .calculate_upload_gas_at(
+                self.account_id(),
+                code,
+                payload,
+                value,
+                allow_other_panics,
+                block_hash,
+            )
             .await
     }
 
-    /// Calls `gear_calculateHandleGas` RPC method.
-    pub async fn calculate_handle_gas(
+    /// Calls `gear_calculateHandleGas` RPC method at specified block at specified block.
+    #[at_block]
+    pub async fn calculate_handle_gas_at(
         &self,
         destination: ActorId,
         payload: Vec<u8>,
         value: u128,
         allow_other_panics: bool,
-        at: Option<H256>,
+        block_hash: Option<H256>,
     ) -> Result<GasInfo> {
         self.unsigned()
-            .calculate_handle_gas(
-                self.source(),
+            .calculate_handle_gas_at(
+                self.account_id(),
                 destination,
                 payload,
                 value,
                 allow_other_panics,
-                at,
+                block_hash,
             )
             .await
     }
 
-    /// Calls `gear_calculateReplyGas` RPC method.
-    pub async fn calculate_reply_gas(
+    /// Calls `gear_calculateReplyGas` RPC method at specified block.
+    #[at_block]
+    pub async fn calculate_reply_gas_at(
         &self,
         message_id: MessageId,
         payload: Vec<u8>,
         value: u128,
         allow_other_panics: bool,
-        at: Option<H256>,
+        block_hash: Option<H256>,
     ) -> Result<GasInfo> {
         self.unsigned()
-            .calculate_reply_gas(
-                self.source(),
+            .calculate_reply_gas_at(
+                self.account_id(),
                 message_id,
                 payload,
                 value,
                 allow_other_panics,
-                at,
+                block_hash,
             )
             .await
     }
 
-    /// Calls `gear_calculateReplyForHandle` RPC method.
-    pub async fn calculate_reply_for_handle(
+    /// Calls `gear_calculateReplyForHandle` RPC method at specified block.
+    #[at_block]
+    pub async fn calculate_reply_for_handle_at(
         &self,
         destination: ActorId,
         payload: Vec<u8>,
         gas_limit: u64,
         value: u128,
-        at: Option<H256>,
+        block_hash: Option<H256>,
     ) -> Result<ReplyInfo> {
         self.unsigned()
-            .calculate_reply_for_handle(self.source(), destination, payload, gas_limit, value, at)
+            .calculate_reply_for_handle_at(
+                self.account_id(),
+                destination,
+                payload,
+                gas_limit,
+                value,
+                block_hash,
+            )
             .await
     }
 }

@@ -18,10 +18,11 @@
 
 //! Gear api with signer
 
-pub use self::{pair_signer::PairSigner, utils::TxEvents};
+pub use self::{pair_signer::PairSigner, tx_output::TxOutput};
 
 use crate::{Api, backtrace::Backtrace, config::GearConfig, result::Result};
 use sp_core::{Pair as PairT, sr25519::Pair};
+use sp_keyring::AccountKeyring;
 use sp_runtime::AccountId32;
 use std::sync::Arc;
 
@@ -29,6 +30,7 @@ mod calls;
 mod pair_signer;
 mod rpc;
 mod storage;
+mod tx_output;
 mod utils;
 
 pub type Signer = PairSigner<GearConfig, Pair>;
@@ -54,17 +56,31 @@ impl Api {
     pub fn signed(self, suri: &str, passwd: Option<&str>) -> Result<SignedApi> {
         SignedApi::new(self, suri, passwd)
     }
+
+    /// Constructs an API wrapper signed as a debug account.
+    pub fn signed_dev(self, account: AccountKeyring) -> SignedApi {
+        SignedApi::with_pair(self, account.pair())
+    }
+
+    /// Construct an API wrapper signed as `//Alice` dev account.
+    pub fn signed_as_alice(self) -> SignedApi {
+        self.signed_dev(AccountKeyring::Alice)
+    }
 }
 
 impl SignedApi {
-    /// Constructs new signed API.
-    pub fn new(api: Api, suri: &str, passwd: Option<&str>) -> Result<Self> {
-        Ok(Self {
+    pub fn with_pair(api: Api, pair: Pair) -> Self {
+        Self {
             api,
-            signer: PairSigner::new(Pair::from_string(suri, passwd)?).into(),
+            signer: PairSigner::new(pair).into(),
             nonce: None,
             backtrace: Backtrace::default(),
-        })
+        }
+    }
+
+    /// Constructs new signed API.
+    pub fn new(api: Api, suri: &str, passwd: Option<&str>) -> Result<Self> {
+        Ok(Self::with_pair(api, Pair::from_string(suri, passwd)?))
     }
 
     /// Returns a reference to the inner unsigned API wrapper.

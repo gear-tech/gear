@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    AsGear, Blocks, Events, ProgramStateChanges, Result, TxInBlock, UserMessageSentFilter,
+    AsGear, Events, ProgramStateChanges, Result, TxInBlock, UserMessageSentFilter,
     UserMessageSentSubscription, config::GearConfig, gear::Event,
 };
 use core::ops::{Deref, DerefMut};
@@ -47,8 +47,14 @@ pub struct ApiBuilder<'a> {
 }
 
 impl Api {
-    /// Default API endpoint.
-    pub const DEFAULT_ENDPOINT: &str = "wss://rpc.vara.network:443";
+    /// Default Vara endpoint.
+    pub const VARA_ENDPOINT: &str = "wss://rpc.vara.network:443";
+
+    /// Default Vara testnet endpoint.
+    pub const VARA_TESTNET_ENDPOINT: &str = "wss://testnet.vara.network:443";
+
+    /// Default address of a local node running in development mode.
+    pub const DEV_ENDPOINT: &str = "ws://127.0.0.1:9944";
 
     /// Default timeout duration.
     pub const DEFAULT_TIMEOUT: Duration = Duration::from_secs(60);
@@ -63,22 +69,40 @@ impl Api {
 }
 
 impl<'a> ApiBuilder<'a> {
+    /// Sets node URI.
+    ///
+    /// The default is [`Api::VARA_ENDPOINT`].
     pub fn uri(mut self, uri: impl Into<Cow<'a, str>>) -> Self {
         self.uri = Some(uri.into());
         self
     }
 
+    /// Sets the default node URI of a local node running
+    /// in development node.
+    pub fn dev(self) -> Self {
+        self.uri(Api::DEV_ENDPOINT)
+    }
+
+    /// Sets the dfault node URI of Vara testnet.
+    pub fn testnet(self) -> Self {
+        self.uri(Api::VARA_TESTNET_ENDPOINT)
+    }
+
+    /// Sets requests timeout.
+    ///
+    /// The default is [`Api::DEFAULT_TIMEOUT`].
     pub const fn timeout(mut self, timeout: Duration) -> Self {
         self.timeout = Some(timeout);
         self
     }
 
+    /// Constructs an [`Api`] instance from the builder.
     pub async fn build(self) -> Result<Api> {
         Api::from_rpc_client(self.rpc_client().await?).await
     }
 
     async fn rpc_client(self) -> Result<RpcClient> {
-        let uri = self.uri.as_ref().map_or(Api::DEFAULT_ENDPOINT, Cow::as_ref);
+        let uri = self.uri.as_ref().map_or(Api::VARA_ENDPOINT, Cow::as_ref);
         let uri = Url::parse(uri)?;
 
         let timeout = self.timeout.unwrap_or(Api::DEFAULT_TIMEOUT);
@@ -112,28 +136,6 @@ impl Api {
         })
     }
 
-    /// Subscribe all blocks
-    ///
-    ///
-    /// ```ignore
-    /// let api = Api::new(None).await?;
-    /// let blocks = api.subscribe_blocks().await?;
-    ///
-    /// while let Ok(block) = blocks.next().await {
-    ///   // ...
-    /// }
-    /// ```
-    pub async fn subscribe_blocks(&self) -> Result<Blocks> {
-        Ok(self.blocks().subscribe_all().await?.into())
-    }
-
-    /// Subscribe finalized blocks
-    ///
-    /// Same as `subscribe_blocks` but only finalized blocks.
-    pub async fn subscribe_finalized_blocks(&self) -> Result<Blocks> {
-        Ok(self.client.blocks().subscribe_finalized().await?.into())
-    }
-
     /// Subscribe all events.
     ///
     /// ```ignore
@@ -144,8 +146,8 @@ impl Api {
     ///   // ...
     /// }
     /// ```
-    pub async fn events(&self) -> Result<Events> {
-        Ok(self.client.blocks().subscribe_all().await?.into())
+    pub async fn subscribe_events(&self) -> Result<Events> {
+        Ok(self.blocks().subscribe_all().await?.into())
     }
 
     /// Parse events of an extrinsic

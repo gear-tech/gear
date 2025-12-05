@@ -20,7 +20,7 @@
 
 use super::SignedApi;
 use crate::{
-    BlockNumber, GearGasNode, GearGasNodeId, GearPages, IntoAccountId32, Result, TxEvents,
+    BlockNumber, GearGasNode, GearGasNodeId, GearPages, IntoAccountId32, Result, TxOutput,
     gear::{
         self,
         runtime_types::{
@@ -47,7 +47,7 @@ impl SignedApi {
     pub async fn set_storage(
         &self,
         items: &[(impl Address, impl EncodeWithMetadata)],
-    ) -> Result<TxEvents> {
+    ) -> Result<TxOutput> {
         let metadata = self.unsigned().metadata();
         let mut items_to_set = Vec::with_capacity(items.len());
         for item in items {
@@ -69,7 +69,7 @@ impl SignedApi {
 // pallet-gas
 impl SignedApi {
     /// Writes gas total issuance into storage.
-    pub async fn set_total_issuance(&self, value: u64) -> Result<TxEvents> {
+    pub async fn set_total_issuance(&self, value: u64) -> Result<TxOutput> {
         self.set_storage(&[(gear::storage().gear_gas().total_issuance(), value)])
             .await
     }
@@ -78,7 +78,7 @@ impl SignedApi {
     pub async fn set_gas_nodes(
         &self,
         gas_nodes: &impl AsRef<[(GearGasNodeId, GearGasNode)]>,
-    ) -> Result<TxEvents> {
+    ) -> Result<TxOutput> {
         let gas_nodes = gas_nodes.as_ref();
         let mut gas_nodes_to_set = Vec::with_capacity(gas_nodes.len());
         for gas_node in gas_nodes {
@@ -98,7 +98,7 @@ impl SignedApi {
         &self,
         dest: impl IntoAccountId32,
         value: BankAccount<u128>,
-    ) -> Result<TxEvents> {
+    ) -> Result<TxOutput> {
         self.set_storage(&[(
             gear::storage().gear_bank().bank(dest.into_account_id()),
             value,
@@ -114,7 +114,7 @@ impl SignedApi {
         &self,
         code_id: CodeId,
         code: &InstrumentedCode,
-    ) -> Result<TxEvents> {
+    ) -> Result<TxOutput> {
         self.set_storage(&[(
             gear::storage()
                 .gear_program()
@@ -129,7 +129,7 @@ impl SignedApi {
         &self,
         code_id: CodeId,
         code_metadata: &CodeMetadata,
-    ) -> Result<TxEvents> {
+    ) -> Result<TxOutput> {
         self.set_storage(&[(
             gear::storage()
                 .gear_program()
@@ -144,7 +144,7 @@ impl SignedApi {
         &self,
         program_id: ActorId,
         program_pages: &GearPages,
-    ) -> Result<TxEvents> {
+    ) -> Result<TxOutput> {
         let mut program_pages_to_set = Vec::with_capacity(program_pages.len());
         for (&page_index, value) in program_pages {
             let addr = gear::storage().gear_program().memory_pages(
@@ -162,7 +162,7 @@ impl SignedApi {
         &self,
         program_id: ActorId,
         program: ActiveProgram<BlockNumber>,
-    ) -> Result<TxEvents> {
+    ) -> Result<TxOutput> {
         self.set_storage(&[(
             gear::storage().gear_program().program_storage(program_id),
             &Program::Active(program),

@@ -113,7 +113,7 @@ pub trait App: Parser + Sync {
         let endpoint = self.endpoint();
         Api::builder()
             .timeout(self.timeout())
-            .uri(endpoint.as_deref().unwrap_or(Api::DEFAULT_ENDPOINT))
+            .uri(endpoint.as_deref().unwrap_or(Api::VARA_MAINNET_ENDPOINT))
             .build()
             .await
             .map(Into::into)
@@ -126,7 +126,11 @@ pub trait App: Parser + Sync {
 
         let api = Api::builder()
             .timeout(self.timeout())
-            .uri(self.endpoint().as_deref().unwrap_or(Api::DEFAULT_ENDPOINT))
+            .uri(
+                self.endpoint()
+                    .as_deref()
+                    .unwrap_or(Api::VARA_MAINNET_ENDPOINT),
+            )
             .build()
             .await?;
         let pair = Keyring::load(gring::cmd::Command::store()?)?
