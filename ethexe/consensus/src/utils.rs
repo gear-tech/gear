@@ -38,7 +38,7 @@ use parity_scale_codec::{Decode, Encode};
 use rand::SeedableRng;
 use roast_secp256k1_evm::frost::{
     Identifier,
-    keys::{self, IdentifierList},
+    keys::{self, IdentifierList, VerifiableSecretSharingCommitment},
 };
 use std::collections::{BTreeMap, HashSet};
 
@@ -233,8 +233,10 @@ pub fn try_aggregate_chain_commitment<DB: BlockMetaStorageRO + AnnounceStorageRO
     ))
 }
 
-// TODO(kuzmindev): this is a temporal solution. In future need to implement DKG algorithm.
-pub fn validators_commitment(era: u64, validators: ValidatorsVec) -> Result<ValidatorsCommitment> {
+// TODO +_+_+: this is a temporal solution. In future need to implement DKG algorithm.
+pub fn generate_roast_keys(
+    validators: &ValidatorsVec,
+) -> Result<(AggregatedPublicKey, VerifiableSecretSharingCommitment)> {
     let validators_identifiers = validators
         .iter()
         .map(|validator| {
@@ -249,18 +251,18 @@ pub fn validators_commitment(era: u64, validators: ValidatorsVec) -> Result<Vali
     let rng = rand_chacha::ChaCha8Rng::from_seed([1u8; 32]);
 
     let (mut secret_shares, public_key_package) =
-        keys::generate_with_dealer(validators.len() as u16, 1, identifiers, rng).unwrap();
+        keys::generate_with_dealer(validators.len() as u16, 1, identifiers, rng)?;
 
     let verifiable_secret_sharing_commitment = secret_shares
         .pop_first()
         .map(|(_key, value)| value.commitment().clone())
-        .expect("Expect at least one identifier");
+        .ok_or_else(|| anyhow!("Expect at least one identifier"))?;
 
     let public_key_compressed: [u8; 33] = public_key_package
         .verifying_key()
         .serialize()?
         .try_into()
-        .unwrap();
+        .map_err(|_| anyhow!("Failed to convert public key to compressed format"))?;
     let public_key_uncompressed = PublicKey(public_key_compressed).to_uncompressed();
     let (public_key_x_bytes, public_key_y_bytes) = public_key_uncompressed.split_at(32);
 
@@ -269,12 +271,7 @@ pub fn validators_commitment(era: u64, validators: ValidatorsVec) -> Result<Vali
         y: U256::from_big_endian(public_key_y_bytes),
     };
 
-    Ok(ValidatorsCommitment {
-        aggregated_public_key,
-        verifiable_secret_sharing_commitment,
-        validators,
-        era_index: era,
-    })
+    Ok((aggregated_public_key, verifiable_secret_sharing_commitment))
 }
 
 pub fn create_batch_commitment<DB: BlockMetaStorageRO + OnChainStorageRO + AnnounceStorageRO>(
@@ -410,34 +407,6 @@ pub fn calculate_batch_expiry<DB: BlockMetaStorageRO + OnChainStorageRO + Announ
 pub fn has_duplicates<T: std::hash::Hash + Eq>(data: &[T]) -> bool {
     let mut seen = HashSet::new();
     data.iter().any(|item| !seen.insert(item))
-}
-
-/// Finds the block with the earliest timestamp that is still within the specified election period.
-pub fn election_block_in_era<DB: OnChainStorageRO>(
-    db: &DB,
-    mut block: SimpleBlockData,
-    election_ts: u64,
-) -> Result<SimpleBlockData> {
-    if block.header.timestamp < election_ts {
-        anyhow::bail!("election not reached yet");
-    }
-
-    loop {
-        let parent_header = db.block_header(block.header.parent_hash).ok_or(anyhow!(
-            "block header not found for({})",
-            block.header.parent_hash
-        ))?;
-        if parent_header.timestamp < election_ts {
-            break;
-        }
-
-        block = SimpleBlockData {
-            hash: block.header.parent_hash,
-            header: parent_header,
-        };
-    }
-
-    Ok(block)
 }
 
 // TODO #4553: temporary implementation, should be improved

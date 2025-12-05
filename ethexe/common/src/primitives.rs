@@ -248,6 +248,11 @@ impl ProtocolTimelines {
     pub fn era_end_ts(&self, ts: u64) -> u64 {
         self.era_end(self.era_from_ts(ts))
     }
+
+    #[inline(always)]
+    pub fn election_start_in_era(&self, era_index: u64) -> u64 {
+        self.era_end(era_index) - self.election
+    }
 }
 
 /// RemoveFromMailbox key; (msgs sources program (mailbox and queue provider), destination user id)

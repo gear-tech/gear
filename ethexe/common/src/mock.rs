@@ -303,6 +303,9 @@ pub struct BlockChain {
     pub announces: BTreeMap<HashOf<Announce>, AnnounceData>,
     pub codes: BTreeMap<CodeId, CodeData>,
     pub validators: ValidatorsVec,
+    pub protocol_timelines: ProtocolTimelines,
+    pub latest_data: LatestData,
+    pub slot_duration: u32,
 }
 
 impl BlockChain {
@@ -348,11 +351,12 @@ impl BlockChain {
             announces,
             codes,
             validators,
+            protocol_timelines: timelines,
+            latest_data,
+            slot_duration: _,
         } = self.clone();
 
-        db.set_latest_data(LatestData::default());
-
-        let timelines = ProtocolTimelines::mock(());
+        db.set_latest_data(latest_data);
         db.set_protocol_timelines(timelines);
 
         if let Some(genesis) = blocks.front() {
@@ -453,18 +457,22 @@ impl BlockChain {
 impl Mock<(u32, ValidatorsVec)> for BlockChain {
     /// `len` - length of chain not counting genesis block
     fn mock((len, validators): (u32, ValidatorsVec)) -> Self {
-        // i = 0 - genesis parent
-        // i = 1 - genesis
-        // i = 2 - first block
+        let slot_duration = 10;
+        let genesis_height = 1_000_000;
+        let genesis_ts = 1_000_000;
+
+        // i = 0, h = None - genesis parent
+        // i = 1, h = 0 - genesis
+        // i = 2, h = 1 - first block
         // ...
-        // i = len + 1 - last block
+        // i = len + 1, h = len - last block
         let mut blocks: VecDeque<_> = (0..len + 2)
             .map(|i| {
                 if let Some(h) = i.checked_sub(1) {
                     // Human readable blocks, to avoid zero values append some readable numbers
                     let hash = H256::from_low_u64_be(h as u64).tap_mut(|hash| hash.0[0] = 0x10);
-                    let height = 1_000_000 + h;
-                    let timestamp = 1_000_000 + h * 10;
+                    let height = genesis_height + h;
+                    let timestamp = genesis_ts + h * slot_duration;
                     (hash, height, timestamp)
                 } else {
                     (H256([u8::MAX; 32]), 0, 0)
@@ -524,11 +532,28 @@ impl Mock<(u32, ValidatorsVec)> for BlockChain {
             })
             .collect();
 
+        let latest_data = LatestData {
+            genesis_block_hash: blocks[1].hash,
+            start_block_hash: blocks[1].hash,
+            genesis_announce_hash: genesis_announce_hash.unwrap(),
+            start_announce_hash: genesis_announce_hash.unwrap(),
+            synced_block: blocks.back().unwrap().to_simple(),
+            prepared_block_hash: blocks.back().unwrap().hash,
+            computed_announce_hash: parent_announce_hash,
+        };
+
         BlockChain {
             blocks,
             announces,
             codes: Default::default(),
             validators,
+            protocol_timelines: ProtocolTimelines {
+                genesis_ts: genesis_ts as u64,
+                era: slot_duration as u64 * 100,
+                election: slot_duration as u64 * 20,
+            },
+            latest_data,
+            slot_duration,
         }
     }
 }

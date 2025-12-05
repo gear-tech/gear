@@ -150,20 +150,19 @@ impl ValidatorCore {
         &mut self,
         block: &SimpleBlockData,
     ) -> Result<Option<ValidatorsCommitment>> {
-        let SimpleBlockData { hash, header } = block;
-
-        let block_era = self.timelines.era_from_ts(header.timestamp);
+        let block_era = self.timelines.era_from_ts(block.header.timestamp);
         let end_of_era = self.timelines.era_end(block_era);
-        let election_ts = end_of_era - self.timelines.election;
+        let election_ts = self.timelines.election_start_in_era(block_era);
 
-        if header.timestamp < election_ts {
+        if block.header.timestamp < election_ts {
             tracing::trace!(
-                block = %hash,
-                block.timestamp = %header.timestamp,
+                block = %block.hash,
+                timestamp = %block.header.timestamp,
                 election_ts = %election_ts,
                 end_of_era = %end_of_era,
                 genesis_ts = %self.timelines.genesis_ts,
-                "No election in this block, election not reached yet");
+                "Election period for next era has not started yet. Skipping validators commitment");
+
             return Ok(None);
         }
 
@@ -177,28 +176,102 @@ impl ValidatorCore {
                 )
             })?;
 
+        tracing::trace!(
+            current_era = %block_era,
+            latest_era_validators_committed = ?latest_era_validators_committed,
+            "Checking if it's time to commit validators for next era"
+        );
+
         if latest_era_validators_committed == block_era + 1 {
-            tracing::debug!(
+            tracing::trace!(
                 current_era = %block_era,
                 latest_era_validators_committed = ?latest_era_validators_committed,
                 "Validators for next era are already committed. Skipping validators commitment"
             );
+
             return Ok(None);
+        } else if latest_era_validators_committed < block_era {
+            tracing::error!(
+                current_era = %block_era,
+                latest_era_validators_committed = ?latest_era_validators_committed,
+                "Validators commitment for previous eras are missing. Still try to commit validators for next era"
+            );
+
+            // TODO: !!! consider what to do if we missed commitment for previous eras,
+            // currently we just try to commit for next era
+        } else if latest_era_validators_committed > block_era + 1 {
+            // This case considered as restricted,
+            // because validators must not commit for eras later than the next one
+            anyhow::bail!("validators was committed for an era later than the next one");
         }
 
-        let election_block = utils::election_block_in_era(&self.db, *block, election_ts)?;
+        let mut iter_block = *block;
+        let election_block = loop {
+            let parent_hash = iter_block.header.parent_hash;
+            let Some(parent_header) = self.db.block_header(parent_hash) else {
+                // This case can happen if node is started with fast sync and does not have full blocks history
+                tracing::warn!(
+                    iter_block = %iter_block.hash,
+                    parent = %parent_hash,
+                    "Parent block header not found when searching for election block, skipping validators commitment"
+                );
+
+                return Ok(None);
+            };
+
+            if parent_header.timestamp < election_ts {
+                break iter_block;
+            }
+
+            iter_block = SimpleBlockData {
+                hash: iter_block.header.parent_hash,
+                header: parent_header,
+            }
+        };
+
         let request = ElectionRequest {
             at_block_hash: election_block.hash,
             at_timestamp: election_ts,
-            // TODO(kuzmindev) #4908: max validators must be configurable
+            // TODO #4908: max validators must be configurable
             max_validators: 10,
         };
+        let mut elected_validators = match self.middleware.make_election_at(request).await {
+            Ok(validators) => validators,
+            Err(e) => {
+                tracing::error!(
+                    error = %e,
+                    block = %block.hash,
+                    "Failed to get elected validators from middleware, skipping validators commitment"
+                );
 
-        let mut elected_validators = self.middleware.make_election_at(request).await?;
+                return Ok(None);
+            }
+        };
+
         // Sort elected validators, because of RPC can not guarantee the determinism of returned validators order.
         elected_validators.sort();
 
-        let commitment = utils::validators_commitment(block_era + 1, elected_validators)?;
+        let (aggregated_public_key, verifiable_secret_sharing_commitment) =
+            match utils::generate_roast_keys(&elected_validators) {
+                Ok(keys) => keys,
+                Err(e) => {
+                    tracing::error!(
+                        error = %e,
+                        block = %block.hash,
+                        "Failed to generate ROAST keys for elected validators, skipping validators commitment"
+                    );
+
+                    return Ok(None);
+                }
+            };
+
+        let commitment = ValidatorsCommitment {
+            aggregated_public_key,
+            verifiable_secret_sharing_commitment,
+            validators: elected_validators,
+            era_index: block_era + 1,
+        };
+
         Ok(Some(commitment))
     }
 
@@ -366,11 +439,6 @@ impl ValidatorCore {
     }
 }
 
-// pub enum ValidatorsCommitmentStatus {
-//     Completed(ValidatorsCommitment),
-
-// }
-
 #[derive(Debug, derive_more::Display, Clone, PartialEq, Eq)]
 pub enum ValidationStatus {
     #[display("accepted batch commitment with digest {_0:?}")]
@@ -511,7 +579,7 @@ impl BatchCommitter for Router {
 mod tests {
     use super::*;
     use crate::{mock::*, validator::mock::*};
-    use ethexe_common::mock::*;
+    use ethexe_common::{db::*, mock::*};
     use gear_core::ids::prelude::CodeIdExt;
 
     fn unwrap_rejected_reason(status: ValidationStatus) -> ValidationRejectReason {
@@ -738,5 +806,98 @@ mod tests {
                 panic!("Expected acceptance, got rejection: {reason:?}")
             }
         }
+    }
+
+    #[tokio::test]
+    #[ntest::timeout(3000)]
+    async fn test_aggregate_validators_commitment() {
+        gear_utils::init_default_logger();
+
+        let (mut ctx, _, eth) = mock_validator_context();
+        let chain = BlockChain::mock(20)
+            .tap_mut(|chain| {
+                chain.protocol_timelines.era = 10 * chain.slot_duration as u64;
+                chain.protocol_timelines.election = 5 * chain.slot_duration as u64;
+            })
+            .setup(&ctx.core.db);
+        ctx.core.timelines = chain.protocol_timelines;
+
+        let validators1 = [Address([1; 20]), Address([2; 20]), Address([3; 20])]
+            .into_iter()
+            .collect::<Result<ValidatorsVec, _>>()
+            .unwrap();
+        let validators2 = [Address([4; 20]), Address([5; 20]), Address([6; 20])]
+            .into_iter()
+            .collect::<Result<ValidatorsVec, _>>()
+            .unwrap();
+        eth.predefined_election_at.write().await.insert(
+            chain.protocol_timelines.election_start_in_era(0),
+            validators1.clone(),
+        );
+        eth.predefined_election_at.write().await.insert(
+            chain.protocol_timelines.election_start_in_era(1),
+            validators2.clone(),
+        );
+
+        // Before election
+        let commitment = ctx
+            .core
+            .aggregate_validators_commitment(&chain.blocks[4].to_simple())
+            .await
+            .unwrap();
+        assert!(commitment.is_none());
+
+        // Right at election start
+        let commitment = ctx
+            .core
+            .aggregate_validators_commitment(&chain.blocks[5].to_simple())
+            .await
+            .unwrap()
+            .expect("Validators commitment expected");
+        assert_eq!(commitment.validators, validators1);
+        assert_eq!(commitment.era_index, 1);
+
+        // Inside election period
+        let commitment = ctx
+            .core
+            .aggregate_validators_commitment(&chain.blocks[7].to_simple())
+            .await
+            .unwrap()
+            .expect("Validators commitment expected");
+        assert_eq!(commitment.validators, validators1);
+        assert_eq!(commitment.era_index, 1);
+
+        // Inside election period validators already committed
+        ctx.core
+            .db
+            .set_block_validators_committed_for_era(chain.blocks[7].hash, 1);
+        let commitment = ctx
+            .core
+            .aggregate_validators_commitment(&chain.blocks[7].to_simple())
+            .await
+            .unwrap();
+        assert!(commitment.is_none());
+
+        // Election for era 2 but validators are not committed for era 1
+        ctx.core
+            .db
+            .set_block_validators_committed_for_era(chain.blocks[15].hash, 0);
+        let commitment = ctx
+            .core
+            .aggregate_validators_commitment(&chain.blocks[15].to_simple())
+            .await
+            .unwrap()
+            .expect("Validators commitment expected");
+        assert_eq!(commitment.validators, validators2);
+        assert_eq!(commitment.era_index, 2);
+
+        // Election for era 2 but validators for era 3 are already committed
+        ctx.core
+            .db
+            .set_block_validators_committed_for_era(chain.blocks[15].hash, 3);
+        ctx.core
+            .aggregate_validators_commitment(&chain.blocks[15].to_simple())
+            .await
+            .unwrap_err();
     }
 }
