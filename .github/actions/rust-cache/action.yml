@@ -19,10 +19,26 @@ inputs:
   cache-all-crates:
     required: false
     description: Whether to cache every crate
+  keep-workspace-hack:
+    required: false
+    description: Whether to keep workspace hack enabled
+    default: 'false'
 
 runs:
   using: composite
   steps:
+    # disable workspace hack because we cache only specific build commands and don't want the cache to blow up
+    - uses: ./.github/actions/cargo-hakari
+      if: ${{ inputs.keep-workspace-hack == 'false' }}
+      with:
+        args: disable
+
+    # we have manually written deps in our hack so we also should remove the hack as dependency
+    - uses: ./.github/actions/cargo-hakari
+      if: ${{ inputs.keep-workspace-hack == 'false' }}
+      with:
+        args: remove-deps --yes
+
     - run: |
         if [[ "${{ runner.environment }}" == "github-hosted" ]]; then
           echo "AWS_ACCESS_KEY_ID=${{ inputs.us-access-key-id }}" >> $GITHUB_ENV
@@ -59,7 +75,7 @@ runs:
 
     - uses: gear-tech/rust-cache@wasm
       with:
-        prefix-key: 'rust-cache/date-${{ steps.date.outputs.value }}'
+        prefix-key: 'rust-cache/date-${{ steps.date.outputs.value }}-workspace-hack'
         key: ${{ inputs.key }}
         workspaces: |
           . -> target

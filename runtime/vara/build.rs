@@ -16,7 +16,31 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-#[cfg(feature = "std")]
+#[cfg(all(feature = "std", not(fuzz)))]
+fn build_runtime() {
+    let builder = substrate_wasm_builder::WasmBuilder::init_with_defaults()
+        .append_to_cargo_flags(
+            r#"--config=patch.crates-io.gear-workspace-hack.registry="crates-io-patch-hack""#,
+        )
+        .append_to_cargo_flags(r#"--config=patch.crates-io.gear-workspace-hack.version="0.1.0""#);
+
+    #[cfg(feature = "metadata-hash")]
+    let builder = {
+        const TOKEN_SYMBOL: &str = if cfg!(not(feature = "dev")) {
+            "VARA"
+        } else {
+            "TVARA"
+        };
+
+        const DECIMALS: u8 = 12;
+
+        builder.enable_metadata_hash(TOKEN_SYMBOL, DECIMALS)
+    };
+
+    builder.build()
+}
+
+#[cfg(all(feature = "std", not(fuzz)))]
 fn skip_build_on_intellij_sync() {
     // Intellij Rust uses rustc wrapper during project sync
     let is_intellij = std::env::var("RUSTC_WRAPPER")
@@ -27,55 +51,13 @@ fn skip_build_on_intellij_sync() {
     }
 }
 
-#[cfg(all(feature = "std", not(feature = "metadata-hash")))]
-fn main() {
-    substrate_build_script_utils::generate_cargo_keys();
-    #[cfg(all(feature = "std", not(fuzz)))]
-    {
-        skip_build_on_intellij_sync();
-        substrate_wasm_builder::WasmBuilder::build_using_defaults();
-        regenerate_gsdk_scale();
-    }
-}
-
-#[cfg(all(feature = "std", feature = "metadata-hash"))]
-fn main() {
-    substrate_build_script_utils::generate_cargo_keys();
-    #[cfg(all(feature = "std", not(fuzz)))]
-    {
-        const TOKEN_SYMBOL: &str = if cfg!(not(feature = "dev")) {
-            "VARA"
-        } else {
-            "TVARA"
-        };
-
-        const DECIMALS: u8 = 12;
-
-        skip_build_on_intellij_sync();
-
-        substrate_wasm_builder::WasmBuilder::init_with_defaults()
-            .enable_metadata_hash(TOKEN_SYMBOL, DECIMALS)
-            .build();
-        regenerate_gsdk_scale();
-    }
-}
-
-#[cfg(not(feature = "std"))]
-fn main() {
-    substrate_build_script_utils::generate_cargo_keys();
-}
-
-#[cfg(feature = "std")]
+#[cfg(all(feature = "std", not(fuzz)))]
 fn regenerate_gsdk_scale() {
     use gear_runtime_interface::gear_ri;
     use parity_scale_codec::{Decode, Encode};
     use sc_executor::{WasmExecutionMethod, WasmtimeInstantiationStrategy};
     use sc_executor_common::runtime_blob::RuntimeBlob;
     use std::{env, fs, path::PathBuf};
-
-    if std::env::var("GENERATE_GSDK_METADATA").is_err() {
-        return;
-    }
 
     let out_path = "../../gsdk/vara_runtime.scale";
 
@@ -94,6 +76,10 @@ fn regenerate_gsdk_scale() {
         .join("wbuild/vara-runtime/vara_runtime.wasm");
 
     if env::var("SKIP_WASM_BUILD").is_ok() || env::var("SKIP_VARA_RUNTIME_WASM_BUILD").is_ok() {
+        return;
+    }
+
+    if env::var("GENERATE_GSDK_METADATA").is_err() {
         return;
     }
 
@@ -154,4 +140,15 @@ fn regenerate_gsdk_scale() {
     let metadata = bytes_option.expect("Supported metadata format is not supported (how?)");
 
     fs::write(out_path, metadata).unwrap();
+}
+
+fn main() {
+    substrate_build_script_utils::generate_cargo_keys();
+
+    #[cfg(all(feature = "std", not(fuzz)))]
+    {
+        skip_build_on_intellij_sync();
+        build_runtime();
+        regenerate_gsdk_scale();
+    }
 }

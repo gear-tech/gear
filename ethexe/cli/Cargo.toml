@@ -37,6 +37,7 @@ static_init.workspace = true
 tempfile.workspace = true
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 toml.workspace = true
+gear-workspace-hack.workspace = true
 
 [lints]
 workspace = true

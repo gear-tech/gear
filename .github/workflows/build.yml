@@ -552,6 +552,18 @@ jobs:
           name: examples-release-wasm32-gear
           path: examples-artifact
 
+      - name: "ACTIONS: Disable workspace hack"
+        uses: ./.github/actions/cargo-hakari
+        with:
+          # production binaries should not have additional features enabled for deps, too
+          args: disable
+
+      - name: "ACTIONS: Disable workspace hack"
+        uses: ./.github/actions/cargo-hakari
+        with:
+          # also don't compile manually written deps in the hack
+          args: remove-deps --yes
+
       - name: "Build: Production binaries"
         run: cargo build -p wasm-proc -p gear-cli -F cli --profile production
 

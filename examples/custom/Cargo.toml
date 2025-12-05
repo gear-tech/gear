@@ -11,6 +11,7 @@ repository.workspace = true
 gstd.workspace = true
 gsys.workspace = true
 parity-scale-codec.workspace = true
+gear-workspace-hack.workspace = true
 
 [dev-dependencies]
 gtest.workspace = true

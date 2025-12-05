@@ -16,3 +16,4 @@ hex.workspace = true
 log.workspace = true
 rand.workspace = true
 thiserror.workspace = true
+gear-workspace-hack.workspace = true
