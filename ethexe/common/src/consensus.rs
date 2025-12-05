@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    Announce, Digest, HashOf, ToDigest,
+    Announce, Digest, HashOf, NetworkAnnounce, ToDigest,
     ecdsa::{ContractSignature, VerifiedData},
     gear::BatchCommitment,
 };
@@ -27,7 +27,7 @@ use k256::sha2::Digest as _;
 use parity_scale_codec::{Decode, Encode};
 use sha3::Keccak256;
 
-pub type VerifiedAnnounce = VerifiedData<Announce>;
+pub type VerifiedAnnounce = VerifiedData<NetworkAnnounce>;
 pub type VerifiedValidationRequest = VerifiedData<BatchCommitmentValidationRequest>;
 pub type VerifiedValidationReply = VerifiedData<BatchCommitmentValidationReply>;
 
