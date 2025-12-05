@@ -62,8 +62,6 @@ pub struct ValidatorCore {
     #[debug(skip)]
     pub injected_pool: InjectedTxPool,
 
-    /// Maximum deepness for chain commitment validation.
-    pub validate_chain_deepness_limit: u32,
     /// Minimum deepness threshold to create chain commitment even if there are no transitions.
     pub chain_deepness_threshold: u32,
     /// Gas limit to be used when creating new announce.
@@ -87,7 +85,6 @@ impl Clone for ValidatorCore {
             committer: self.committer.clone_boxed(),
             middleware: self.middleware.clone(),
             injected_pool: self.injected_pool.clone(),
-            validate_chain_deepness_limit: self.validate_chain_deepness_limit,
             chain_deepness_threshold: self.chain_deepness_threshold,
             block_gas_limit: self.block_gas_limit,
             commitment_delay_limit: self.commitment_delay_limit,

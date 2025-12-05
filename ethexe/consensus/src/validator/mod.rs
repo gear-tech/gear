@@ -113,8 +113,6 @@ pub struct ValidatorConfig {
     pub producer_delay: Duration,
     /// Address of the router contract
     pub router_address: Address,
-    /// Limit for chain deepness validation
-    pub validate_chain_deepness_limit: u32,
     /// Threshold for producer to submit commitment despite of no transitions
     pub chain_deepness_threshold: u32,
 }
@@ -151,7 +149,6 @@ impl ValidatorService {
                 committer: committer.into(),
                 middleware: MiddlewareWrapper::from_inner(election_provider),
                 injected_pool: InjectedTxPool::new(db),
-                validate_chain_deepness_limit: config.validate_chain_deepness_limit,
                 chain_deepness_threshold: config.chain_deepness_threshold,
                 block_gas_limit: config.block_gas_limit,
                 commitment_delay_limit: config.commitment_delay_limit,
