@@ -108,7 +108,7 @@ pub async fn message_dispatch_status(
 }
 
 /// Waits until messages with given IDs are processed
-/// and returns their [`DispatchStatuses`].
+/// and returns their [`DispatchStatus`]es.
 pub async fn message_batch_dispatch_statuses(
     message_ids: impl IntoIterator<Item = MessageId>,
     events: impl Stream<Item = Result<Event>>,

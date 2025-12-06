@@ -36,11 +36,13 @@ impl Api {
     ///
     /// - `origin` (optional) is the caller's public address;
     /// - `code_id` is the uploaded code identifier that can be obtained by
-    ///   calling the [`upload_code`](Self::upload_code) function;
+    ///   calling the [`SignedApi::upload_code`] function;
     /// - `payload` vector contains data to be processed by the program;
     /// - `value` to be transferred to the program's account;
     /// - `allow_other_panics` flag indicates ignoring a trap during the
     ///   program's execution;
+    ///
+    /// [`SignedApi::upload_code`]: crate::SignedApi::upload_code
     #[at_block]
     pub async fn calculate_create_gas_at(
         &self,

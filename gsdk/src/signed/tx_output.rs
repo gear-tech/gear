@@ -87,7 +87,7 @@ impl TxOutput {
 
     /// Ensures that there's an event matching given predicate.
     ///
-    /// Essentially just an [`Interator::any`] on events.
+    /// Essentially just an [`Iterator::any`] on events.
     pub fn any<F>(self, mut f: F) -> Result<TxOutput<Option<()>>>
     where
         F: FnMut(Event) -> bool,
