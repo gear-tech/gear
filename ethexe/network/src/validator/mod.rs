@@ -19,6 +19,7 @@
 use ethexe_common::db::OnChainStorageRO;
 use ethexe_db::Database;
 
+pub(crate) mod discovery;
 pub(crate) mod list;
 pub(crate) mod topic;
 

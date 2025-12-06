@@ -10,14 +10,16 @@ chmod +x target/release/gear
 leak-timeout = { period = "5s", result = "fail" }
 slow-timeout = { period = "1m", terminate-after = 5 }
 
+[profile.default.junit]
+path = "junit.xml"
+store-success-output = false
+store-failure-output = true
+
 [profile.ci]
 fail-fast = false
 archive.include = [
   { path = "wasm32-gear", relative-to = "target", on-missing = "warn" },
 ]
-
-[profile.ci.junit]
-path = "junit.xml"
 
 # sdk
 [[profile.ci.overrides]]
