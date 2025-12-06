@@ -35,7 +35,7 @@ use libp2p::{
 };
 use parity_scale_codec::{Decode, Encode};
 use std::{
-    collections::HashMap,
+    collections::{HashMap, VecDeque},
     pin::Pin,
     task::{Context, Poll, ready},
     time::Duration,
@@ -151,7 +151,7 @@ impl PutRecordValidator {
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, PartialEq, Eq)]
 pub enum Event {
     RoutingUpdated {
         peer: PeerId,
@@ -160,8 +160,20 @@ pub enum Event {
         #[allow(unused)] // used in tests
         query_id: QueryId,
     },
+    GetRecordProgressed {
+        query_id: QueryId,
+    },
+    GetRecordEarlyFinished {
+        query_id: QueryId,
+    },
+    GetRecordFinished {
+        query_id: QueryId,
+    },
     PutRecordStarted {
         #[allow(unused)] // used in tests
+        query_id: QueryId,
+    },
+    PutRecordEarlyFinished {
         query_id: QueryId,
     },
     InboundPutRecord {
@@ -186,11 +198,11 @@ pub enum GetRecordError {
     NotFound { key: RecordKey },
 }
 
-pub struct GetRecordFuture {
+pub struct GetRecordStream {
     inner: mpsc::UnboundedReceiver<GetRecordResult>,
 }
 
-impl Stream for GetRecordFuture {
+impl Stream for GetRecordStream {
     type Item = GetRecordResult;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
@@ -198,7 +210,7 @@ impl Stream for GetRecordFuture {
     }
 }
 
-impl FusedStream for GetRecordFuture {
+impl FusedStream for GetRecordStream {
     fn is_terminated(&self) -> bool {
         self.inner.is_closed()
     }
@@ -238,12 +250,12 @@ enum HandlerAction {
 pub struct Handle(mpsc::UnboundedSender<HandlerAction>);
 
 impl Handle {
-    pub fn get_record(&self, key: RecordKey) -> GetRecordFuture {
+    pub fn get_record(&self, key: RecordKey) -> GetRecordStream {
         let (tx, rx) = mpsc::unbounded_channel();
         self.0
             .send(HandlerAction::GetRecord(key, tx))
             .expect("channel should never be closed");
-        GetRecordFuture { inner: rx }
+        GetRecordStream { inner: rx }
     }
 
     pub fn put_record(&self, record: Record) -> PutRecordFuture {
@@ -266,13 +278,12 @@ pub struct Behaviour {
     inner: kad::Behaviour<MemoryStore>,
     handle: Handle,
     rx: mpsc::UnboundedReceiver<HandlerAction>,
+    pending_events: VecDeque<Event>,
     get_record_queries: HashMap<QueryId, mpsc::UnboundedSender<GetRecordResult>>,
     put_record_queries: HashMap<QueryId, oneshot::Sender<PutRecordResult>>,
     peer_score: peer_score::Handle,
     cache_candidates_records: HashMap<QueryId, kad::Record>,
     min_quorum_peers: u32,
-    #[cfg(test)]
-    early_finished_queries: std::collections::HashSet<QueryId>,
 }
 
 impl Behaviour {
@@ -303,13 +314,12 @@ impl Behaviour {
             inner,
             handle,
             rx,
+            pending_events: VecDeque::new(),
             get_record_queries: HashMap::new(),
             put_record_queries: HashMap::new(),
             peer_score,
             cache_candidates_records: HashMap::new(),
             min_quorum_peers,
-            #[cfg(test)]
-            early_finished_queries: std::collections::HashSet::new(),
         }
     }
 
@@ -374,10 +384,9 @@ impl Behaviour {
                             if stats.num_successes() >= self.min_quorum_peers
                                 && let Some(mut query) = self.inner.query_mut(&id)
                             {
-                                #[cfg(test)]
-                                self.early_finished_queries.insert(query.id());
-
                                 query.finish();
+                                self.pending_events
+                                    .push_back(Event::GetRecordEarlyFinished { query_id: id });
                             }
 
                             let record = match Record::new(&original_record) {
@@ -401,6 +410,8 @@ impl Behaviour {
 
                             // TODO: we might overwrite existing record so possibly we need to check if it newer
                             self.cache_candidates_records.insert(id, original_record);
+
+                            return Poll::Ready(Event::GetRecordProgressed { query_id: id });
                         }
                         Ok(kad::GetRecordOk::FinishedWithNoAdditionalRecord {
                             cache_candidates,
@@ -419,6 +430,8 @@ impl Behaviour {
                             // drop the channel so other side will receive `None`
                             let _channel =
                                 self.get_record_queries.remove(&id).expect("unknown query");
+
+                            return Poll::Ready(Event::GetRecordFinished { query_id: id });
                         }
                         Err(kad::GetRecordError::NotFound {
                             key,
@@ -542,6 +555,36 @@ impl NetworkBehaviour for Behaviour {
         &mut self,
         cx: &mut Context<'_>,
     ) -> Poll<ToSwarm<Self::ToSwarm, THandlerInEvent<Self>>> {
+        if let Some(event) = self.pending_events.pop_front() {
+            return Poll::Ready(ToSwarm::GenerateEvent(event));
+        }
+
+        for (id, channel) in &self.get_record_queries {
+            if channel.is_closed()
+                && let Some(mut query) = self.inner.query_mut(id)
+            {
+                // libp2p-kad will produce `FinishedWithNoAdditionalRecord`,
+                // so query from `get_record_queries` will be cleared in `handle_inner_event()`
+                query.finish();
+
+                self.pending_events
+                    .push_back(Event::GetRecordEarlyFinished { query_id: *id });
+            }
+        }
+
+        for (id, channel) in &self.put_record_queries {
+            if channel.is_closed()
+                && let Some(mut query) = self.inner.query_mut(&id)
+            {
+                // libp2p-kad will produce `FinishedWithNoAdditionalRecord`,
+                // so query from `get_record_queries` will be cleared in `handle_inner_event()`
+                query.finish();
+
+                self.pending_events
+                    .push_back(Event::PutRecordEarlyFinished { query_id: *id });
+            }
+        }
+
         if let Poll::Ready(Some(action)) = self.rx.poll_recv(cx) {
             match action {
                 HandlerAction::GetRecord(record_key, channel) => {
@@ -698,18 +741,18 @@ mod tests {
         }
     }
 
-    async fn start_query(
+    async fn start_get_record(
         swarm: &mut Swarm<Behaviour>,
         key: RecordKey,
-    ) -> (QueryId, GetRecordFuture) {
-        let fut = swarm.behaviour().handle().get_record(key.clone());
+    ) -> (QueryId, GetRecordStream) {
+        let stream = swarm.behaviour().handle().get_record(key.clone());
 
         let event = swarm.next_behaviour_event().await;
         let Event::GetRecordStarted { query_id } = event else {
             unreachable!("Unexpected event: {event:?}")
         };
 
-        (query_id, fut)
+        (query_id, stream)
     }
 
     fn store_identity(behaviour: &mut Behaviour, signed: SignedValidatorIdentity) {
@@ -817,7 +860,7 @@ mod tests {
     async fn get_record_success_is_reported_and_cached() {
         let signed = new_identity();
         let mut swarm = new_swarm().await;
-        let (query_id, mut fut) = start_query(
+        let (query_id, mut stream) = start_get_record(
             &mut swarm,
             RecordKey::ValidatorIdentity(ValidatorIdentityKey {
                 validator: signed.address(),
@@ -844,7 +887,7 @@ mod tests {
         };
 
         let _ = swarm.behaviour_mut().handle_inner_event(event);
-        let result = fut.next().await.unwrap().unwrap();
+        let result = stream.next().await.unwrap().unwrap();
         assert_eq!(result.peer, Some(peer));
         assert_eq!(result.record.unwrap_validator_identity().value, signed);
 
@@ -863,7 +906,7 @@ mod tests {
         let signed = new_identity();
         let mut swarm = new_swarm().await;
         let validator = signed.address();
-        let (query_id, _fut) = start_query(
+        let (query_id, _stream) = start_get_record(
             &mut swarm,
             RecordKey::ValidatorIdentity(ValidatorIdentityKey { validator }),
         )
@@ -891,10 +934,8 @@ mod tests {
             step,
         };
 
-        assert_matches!(
-            swarm.behaviour_mut().handle_inner_event(event),
-            Poll::Pending
-        );
+        let event = swarm.behaviour_mut().handle_inner_event(event);
+        assert_eq!(event, Poll::Ready(Event::GetRecordFinished { query_id }));
         assert!(swarm.behaviour_mut().cache_candidates_records.is_empty());
     }
 
@@ -903,7 +944,7 @@ mod tests {
         let signed = new_identity();
         let mut swarm = new_swarm().await;
         let validator = signed.address();
-        let (query_id, mut fut) = start_query(
+        let (query_id, mut stream) = start_get_record(
             &mut swarm,
             RecordKey::ValidatorIdentity(ValidatorIdentityKey { validator }),
         )
@@ -925,7 +966,7 @@ mod tests {
         };
 
         let _ = swarm.behaviour_mut().handle_inner_event(event);
-        let Err(GetRecordError::NotFound { key }) = fut.next().await.unwrap() else {
+        let Err(GetRecordError::NotFound { key }) = stream.next().await.unwrap() else {
             panic!("expected not found")
         };
         let ValidatorIdentityKey { validator: got } = key.unwrap_validator_identity();
@@ -954,7 +995,7 @@ mod tests {
         let key = RecordKey::ValidatorIdentity(ValidatorIdentityKey {
             validator: signed.address(),
         });
-        let (query_id, mut fut) = start_query(&mut alice, key).await;
+        let (query_id, mut stream) = start_get_record(&mut alice, key).await;
 
         // skip events for Bob and Charlie
         for _ in 0..2 {
@@ -962,24 +1003,31 @@ mod tests {
             assert_matches!(event, Event::RoutingUpdated { .. });
         }
 
-        let record = loop {
-            tokio::select! {
-                res = fut.next() => break res.unwrap().unwrap().record.unwrap_validator_identity(),
-                _ = alice.next_behaviour_event() => {},
-            }
-        };
+        let event = alice.next_behaviour_event().await;
+        assert_eq!(event, Event::GetRecordProgressed { query_id });
+        let record = stream
+            .next()
+            .await
+            .unwrap()
+            .unwrap()
+            .record
+            .unwrap_validator_identity();
         assert_eq!(record.value, signed);
 
         // at this moment `inner` has not yet incremented succeeded requests counter
-        let record = loop {
-            tokio::select! {
-                res = fut.next() => break res.unwrap().unwrap().record.unwrap_validator_identity(),
-                _ = alice.next_behaviour_event() => {},
-            }
-        };
+        let event = alice.next_behaviour_event().await;
+        assert_eq!(event, Event::GetRecordProgressed { query_id });
+        let record = stream
+            .next()
+            .await
+            .unwrap()
+            .unwrap()
+            .record
+            .unwrap_validator_identity();
         assert_eq!(record.value, signed);
 
-        assert!(alice.behaviour().early_finished_queries.contains(&query_id));
+        let event = alice.next_behaviour_event().await;
+        assert_eq!(event, Event::GetRecordEarlyFinished { query_id });
     }
 
     #[tokio::test]
@@ -1000,19 +1048,75 @@ mod tests {
         let key = RecordKey::ValidatorIdentity(ValidatorIdentityKey {
             validator: signed.address(),
         });
-        let (query_id, mut fut) = start_query(&mut alice, key).await;
+        let (query_id, mut stream) = start_get_record(&mut alice, key).await;
 
         let event = alice.next_behaviour_event().await;
         assert_matches!(event, Event::RoutingUpdated { .. });
 
-        let record = loop {
-            tokio::select! {
-                res = fut.next() => break res.unwrap().unwrap().record.unwrap_validator_identity(),
-                _ = alice.next_behaviour_event() => {},
-            }
-        };
+        let event = alice.next_behaviour_event().await;
+        assert_eq!(event, Event::GetRecordProgressed { query_id });
+        let record = stream
+            .next()
+            .await
+            .unwrap()
+            .unwrap()
+            .record
+            .unwrap_validator_identity();
         assert_eq!(record.value, signed);
 
-        assert!(!alice.behaviour().early_finished_queries.contains(&query_id));
+        let event = alice.next_behaviour_event().await;
+        assert_eq!(event, Event::GetRecordFinished { query_id });
+        let res = stream.next().await;
+        // steam successfully closed because `FinishedWithNoAdditionalRecord` occurred
+        assert_eq!(res, None);
+    }
+
+    #[tokio::test]
+    async fn get_record_cancelled() {
+        let mut alice = new_swarm().await;
+        let mut bob = new_swarm().await;
+        alice.connect(&mut bob).await;
+        add_bootstrap_addresses([&mut alice, &mut bob]);
+
+        let event = alice.next_behaviour_event().await;
+        assert_matches!(event, Event::RoutingUpdated { .. });
+
+        let (query_id, stream) = start_get_record(
+            &mut alice,
+            RecordKey::ValidatorIdentity(ValidatorIdentityKey {
+                validator: Default::default(),
+            }),
+        )
+        .await;
+        drop(stream);
+
+        let event = alice.next_behaviour_event().await;
+        assert_eq!(event, Event::GetRecordEarlyFinished { query_id });
+    }
+
+    #[tokio::test]
+    async fn put_record_cancelled() {
+        let mut alice = new_swarm().await;
+        let mut bob = new_swarm().await;
+        alice.connect(&mut bob).await;
+        add_bootstrap_addresses([&mut alice, &mut bob]);
+
+        let event = alice.next_behaviour_event().await;
+        assert_matches!(event, Event::RoutingUpdated { .. });
+
+        let fut = alice
+            .behaviour()
+            .handle
+            .put_record(Record::ValidatorIdentity(ValidatorIdentityRecord {
+                value: new_identity(),
+            }));
+        drop(fut);
+
+        let event = alice.next_behaviour_event().await;
+        assert_matches!(event, Event::PutRecordStarted { .. });
+
+        let event = alice.next_behaviour_event().await;
+        assert_matches!(event, Event::PutRecordEarlyFinished { .. });
+        assert!(alice.behaviour().put_record_queries.is_empty());
     }
 }

@@ -456,7 +456,11 @@ impl NetworkService {
                 });
             }
             kad::Event::GetRecordStarted { query_id: _ }
-            | kad::Event::PutRecordStarted { query_id: _ } => {}
+            | kad::Event::GetRecordProgressed { query_id: _ }
+            | kad::Event::GetRecordEarlyFinished { query_id: _ }
+            | kad::Event::GetRecordFinished { query_id: _ }
+            | kad::Event::PutRecordStarted { query_id: _ }
+            | kad::Event::PutRecordEarlyFinished { query_id: _ } => {}
         }
     }
 
