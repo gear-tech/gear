@@ -22,7 +22,6 @@ tracing-subscriber.workspace = true
 gear-core.workspace = true
 gring = { workspace = true, features = ["cli"] }
 hex.workspace = true
-keyring.workspace = true
 log.workspace = true
 scale-info.workspace = true
 serde.workspace = true
