@@ -19,38 +19,46 @@
 //! Test for infinity loop, that it can't exceed block production time.
 
 use demo_custom::{InitMessage, WASM_BINARY};
-use gclient::{EventProcessor, GearApi};
+use gsdk::{Result, events};
 use parity_scale_codec::Encode;
+use utils::dev_node;
+
+mod utils;
 
 #[tokio::test]
-async fn backend_errors_handled_by_sandbox() -> anyhow::Result<()> {
+async fn backend_errors_handled_by_sandbox() -> Result<()> {
     // Creating gear api.
     //
     // By default, login as Alice.
-    let api = GearApi::dev_from_path("../target/release/gear").await?;
+    let (_node, api) = dev_node().await;
 
     // Taking block gas limit constant.
     let gas_limit = api.block_gas_limit()?;
 
     // Subscribing for events.
-    let mut listener = api.subscribe().await?;
+    let events = api.subscribe_all_events().await?;
 
     // Program initialization.
-    let (mid, _pid, _) = api
+    let (message_id, _pid) = api
         .upload_program_bytes(
             WASM_BINARY,
-            gclient::now_micros().to_le_bytes(),
+            gear_utils::now_micros().to_le_bytes(),
             InitMessage::BackendError.encode(),
             gas_limit,
             0,
         )
-        .await?;
+        .await?
+        .value;
 
     // Asserting successful initialization.
-    assert!(listener.message_processed(mid).await?.succeed());
+    assert!(
+        events::message_dispatch_status(message_id, events)
+            .await?
+            .is_success()
+    );
 
     // Check no runtime panic occurred
-    assert!(!api.queue_processing_stalled().await?);
+    assert!(api.is_progressing().await?);
 
     Ok(())
 }

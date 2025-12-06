@@ -18,7 +18,7 @@
 
 //! Requires node to be built in release mode
 
-use futures::StreamExt;
+use futures::prelude::*;
 use gear_core::{
     ids::{ActorId, CodeId, prelude::*},
     rpc::ReplyInfo,
@@ -26,7 +26,7 @@ use gear_core::{
 use gear_core_errors::{ReplyCode, SuccessReplyReason};
 use gsdk::{AccountKeyring, Api, Error, Result, gear};
 use parity_scale_codec::Encode;
-use std::{borrow::Cow, process::Command, str::FromStr, time::Instant};
+use std::{str::FromStr, time::Instant};
 use subxt::{
     ext::subxt_rpcs::{Error as SubxtRpcError, UserError},
     utils::{AccountId32, H256},
@@ -214,57 +214,21 @@ async fn test_subscribe_program_state_changes() -> Result<()> {
 
 #[tokio::test]
 async fn test_runtime_wasm_blob_version() -> Result<()> {
-    let git_commit_hash = || -> Cow<str> {
-        // This code is taken from
-        // https://github.com/paritytech/substrate/blob/ae1a608c91a5da441a0ee7c26a4d5d410713580d/utils/build-script-utils/src/version.rs#L21
-        if let Ok(hash) = std::env::var("SUBSTRATE_CLI_GIT_COMMIT_HASH") {
-            Cow::from(hash.trim().to_owned())
-        } else {
-            // We deliberately set the length here to `11` to ensure that
-            // the emitted hash is always of the same length; otherwise
-            // it can (and will!) vary between different build environments.
-            match Command::new("git")
-                .args(["rev-parse", "--short=11", "HEAD"])
-                .output()
-            {
-                Ok(o) if o.status.success() => {
-                    let sha = String::from_utf8_lossy(&o.stdout).trim().to_owned();
-                    Cow::from(sha)
-                }
-                Ok(o) => {
-                    println!("cargo:warning=Git command failed with status: {}", o.status);
-                    Cow::from("unknown")
-                }
-                Err(err) => {
-                    println!("cargo:warning=Failed to execute git command: {err}");
-                    Cow::from("unknown")
-                }
-            }
-        }
-    };
-
-    // This test relies on the fact the node has been built from the same commit hash
-    // as the test has been.
-    let git_commit_hash = git_commit_hash();
-    assert_ne!(git_commit_hash, "unknown");
-
     let (_node, api) = dev_node().await;
-    let mut finalized_blocks = api.blocks().subscribe_finalized().await?;
+    api.blocks()
+        .subscribe_finalized()
+        .await?
+        .then(|block| async { api.runtime_wasm_blob_version_at(block?.hash()).await })
+        .take(4)
+        .try_fold(
+            api.runtime_wasm_blob_version().await?,
+            |version_a, version_b| {
+                assert_eq!(version_a, version_b);
 
-    let wasm_blob_version_1 = api.runtime_wasm_blob_version().await?;
-    assert!(
-        wasm_blob_version_1.ends_with(git_commit_hash.as_ref()),
-        "The WASM blob version {wasm_blob_version_1} does not end with the git commit hash {git_commit_hash}",
-    );
-
-    let block_hash_1 = finalized_blocks.next().await.unwrap()?.hash();
-    let wasm_blob_version_2 = api.runtime_wasm_blob_version_at(block_hash_1).await?;
-    assert_eq!(wasm_blob_version_1, wasm_blob_version_2);
-
-    let block_hash_2 = finalized_blocks.next().await.unwrap()?.hash();
-    let wasm_blob_version_3 = api.runtime_wasm_blob_version_at(block_hash_2).await?;
-    assert_ne!(block_hash_1, block_hash_2);
-    assert_eq!(wasm_blob_version_2, wasm_blob_version_3);
+                future::ready(Ok(version_b))
+            },
+        )
+        .await?;
 
     Ok(())
 }

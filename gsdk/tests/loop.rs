@@ -18,34 +18,50 @@
 
 //! Test for infinity loop, that it can't exceed block production time.
 
-use demo_wat::WatExample;
-use gclient::{EventProcessor, GearApi};
+use demo_constructor::{Calls, Scheme, WASM_BINARY};
+use gsdk::events;
+use parity_scale_codec::Encode;
+use utils::dev_node;
+
+mod utils;
 
 #[tokio::test]
-async fn keyhasher_size_exceed() -> anyhow::Result<()> {
+async fn inf_loop() -> gsdk::Result<()> {
     // Creating gear api.
     //
     // By default, login as Alice.
-    let api = GearApi::dev_from_path("../target/release/gear").await?;
+    let (_node, api) = dev_node().await;
 
     // Taking block gas limit constant.
     let gas_limit = api.block_gas_limit()?;
 
+    // Taking account balance.
+    let _balance = api.total_balance().await?;
+
     // Subscribing for events.
-    let mut listener = api.subscribe().await?;
+    let events = api.subscribe_all_events().await?;
 
-    let code = WatExample::LargeScheduled.code();
+    // Program initialization with infinite loop inside.
+    let (message_id, _pid) = api
+        .upload_program_bytes(
+            WASM_BINARY,
+            gear_utils::now_micros().to_le_bytes(),
+            Scheme::direct(Calls::builder().infinite_loop()).encode(),
+            gas_limit,
+            0,
+        )
+        .await?
+        .value;
 
-    // Program initialization.
-    let (mid, _pid, _) = api
-        .upload_program_bytes(code, gclient::now_micros().to_le_bytes(), "", gas_limit, 0)
-        .await?;
+    // Asserting message failure.
+    assert!(
+        events::message_dispatch_status(message_id, events)
+            .await?
+            .is_failed()
+    );
 
-    // Asserting successful initialization.
-    assert!(listener.message_processed(mid).await?.succeed());
-
-    // Check no runtime panic occurred
-    assert!(!api.queue_processing_stalled().await?);
+    // Checking that blocks still running.
+    assert!(api.is_progressing().await?);
 
     Ok(())
 }

@@ -28,6 +28,8 @@
 //       up-to-date `subxt` and our out-of-date Substrate.
 //
 //       Can be done after updating Substrate.
+//
+// TODO: update docs after merging with `gclient`.
 
 pub use crate::{
     api::{Api, ApiBuilder},
@@ -66,6 +68,7 @@ pub mod backtrace;
 pub mod blocks;
 mod codegen_impls;
 pub mod config;
+mod constants;
 mod convert;
 pub mod events;
 pub mod result;

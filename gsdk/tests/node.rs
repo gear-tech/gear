@@ -1,5 +1,5 @@
 use gear_core::ids::ActorId;
-use gsdk::{Error, SignedApi, events, gear::constants};
+use gsdk::{Error, SignedApi, events};
 use parity_scale_codec::Encode;
 use utils::dev_node;
 
@@ -50,8 +50,7 @@ async fn program_migrated_to_another_node() {
     let (_dest_node, dest_node_api) = dev_node().await;
 
     let dest_node_gas_limit = dest_node_api
-        .constants()
-        .at(&constants().gear_gas().block_gas_limit())
+        .block_gas_limit()
         .expect("Unable to get destination node gas limit");
 
     let dest_node_events = dest_node_api
@@ -184,8 +183,7 @@ async fn program_with_gas_reservation_migrated_to_another_node() {
     let (_dest_node, dest_node_api) = dev_node().await;
 
     let dest_node_gas_limit = dest_node_api
-        .constants()
-        .at(&constants().gear_gas().block_gas_limit())
+        .block_gas_limit()
         .expect("Unable to get destination node gas limit");
 
     let dest_node_events = dest_node_api
@@ -229,8 +227,7 @@ where
     E: Encode,
 {
     let gas_limit = api
-        .constants()
-        .at(&constants().gear_gas().block_gas_limit())
+        .block_gas_limit()
         .expect("Unable to obtain block gas limit");
 
     let events = api.subscribe_all_events().await.unwrap();

@@ -21,7 +21,7 @@ use std::{collections::BTreeSet, ops::Deref, path::PathBuf};
 use demo_custom::{InitMessage, WASM_BINARY};
 use gear_core::{ids::ActorId, pages::GearPage};
 use gear_node_wrapper::Node;
-use gsdk::{Api, Result, SignedApi, blocks, events};
+use gsdk::{Api, Result, SignedApi, events};
 use parity_scale_codec::Encode;
 use tokio::fs;
 use utils::dev_node;
@@ -81,7 +81,7 @@ async fn memory_dump() -> Result<()> {
     // Subscribe to events
     let events = api.subscribe_all_events().await?;
     // Check that blocks are still running
-    assert!(blocks::are_progressing(api.blocks().subscribe_all().await?).await?);
+    assert!(api.is_progressing().await?);
     // Calculate gas amount needed for initialization
     let payload = InitMessage::Capacitor("15".to_string());
     let gas_info = api
@@ -135,7 +135,7 @@ async fn memory_download() -> Result<()> {
     let (_node, api) = dev_node().await;
 
     // Check that blocks are still running
-    assert!(blocks::are_progressing(api.blocks().subscribe_all().await?).await?);
+    assert!(api.is_progressing().await?);
 
     let wat = r#"
         (module

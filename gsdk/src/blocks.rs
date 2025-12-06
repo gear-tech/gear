@@ -24,7 +24,7 @@ use futures::prelude::*;
 
 use subxt::blocks::Block;
 
-use crate::{Error, GearConfig, Result};
+use crate::{Api, Error, GearConfig, Result};
 
 /// Checks whether the blocks are progressing.
 pub async fn are_progressing<E>(
@@ -47,4 +47,13 @@ where
         .ok_or(Error::SubscriptionDied)?;
 
     Ok(current_block.number() != next_block.number())
+}
+
+impl Api {
+    /// Checks whether the blocks on the node is progressing.
+    pub async fn is_progressing(&self) -> Result<bool> {
+        let blocks = self.blocks().subscribe_all().await?;
+
+        are_progressing(blocks).await
+    }
 }

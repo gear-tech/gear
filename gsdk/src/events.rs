@@ -18,7 +18,10 @@
 
 //! This module provides useful functions for working with event stream.
 
-use std::pin::pin;
+use std::{
+    collections::{HashMap, HashSet},
+    pin::pin,
+};
 
 use futures::prelude::*;
 use gear_core::ids::MessageId;
@@ -102,4 +105,42 @@ pub async fn message_dispatch_status(
         .next()
         .await
         .unwrap_or(Err(Error::EventNotFound))
+}
+
+/// Waits until messages with given IDs are processed
+/// and returns their [`DispatchStatuses`].
+pub async fn message_batch_dispatch_statuses(
+    message_ids: impl IntoIterator<Item = MessageId>,
+    events: impl Stream<Item = Result<Event>>,
+) -> Result<HashMap<MessageId, DispatchStatus>> {
+    let statuses = events
+        .map(|event| {
+            Ok::<_, Error>(
+                stream::iter(match event? {
+                    Event::Gear(gear::Event::MessagesDispatched { statuses, .. }) => {
+                        Some(stream::iter(statuses).map(Ok::<_, Error>))
+                    }
+                    _ => None,
+                })
+                .map(Ok::<_, Error>),
+            )
+        })
+        .try_flatten()
+        .try_flatten();
+    let mut statuses = pin!(statuses);
+
+    let mut message_ids = HashSet::<MessageId>::from_iter(message_ids);
+    let mut message_statuses = HashMap::new();
+
+    while let Some((message_id, status)) = statuses.next().await.transpose()? {
+        if message_ids.remove(&message_id) {
+            message_statuses.insert(message_id, status);
+        }
+
+        if message_ids.is_empty() {
+            return Ok(message_statuses);
+        }
+    }
+
+    Err(Error::EventNotFound)
 }
