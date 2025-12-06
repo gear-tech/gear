@@ -128,7 +128,6 @@ bs58 = { version = "0.5.1", default-features = false }
 cargo_toml = "0.21.0"
 cargo_metadata = "0.20.0"
 clap = "4.5.8"
-color-eyre = "0.6.3"
 colored = "2.1.0"
 const-str = "0.5"
 defer = "0.2.1"

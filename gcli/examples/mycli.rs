@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use color_eyre::Result;
+use anyhow::Result;
 use gcli::{App, Command, async_trait, clap::Parser};
 
 /// My customized sub commands.

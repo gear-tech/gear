@@ -23,7 +23,7 @@ use crate::common::{
     node::{Convert, NodeExec},
 };
 
-use color_eyre::Result;
+use anyhow::Result;
 use demo_fungible_token::InitConfig;
 use gear_core::ids::{CodeId, prelude::*};
 use gsdk::Api;

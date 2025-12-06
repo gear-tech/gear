@@ -20,7 +20,7 @@
 
 use crate::common::{self, Args, NodeExec};
 
-use color_eyre::Result;
+use anyhow::Result;
 use gsdk::{
     Api,
     ext::{sp_core::crypto::Ss58Codec, sp_runtime::AccountId32},

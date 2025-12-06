@@ -23,7 +23,7 @@ use crate::common::{
     node::{Convert, NodeExec},
 };
 
-use color_eyre::Result;
+use anyhow::Result;
 
 // ExtraFlags is hardcoded
 // const IS_NEW_LOGIC: u128 = 0x80000000_00000000_00000000_00000000u128;

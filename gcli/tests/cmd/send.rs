@@ -19,7 +19,7 @@
 //! Integration tests for command `send`
 use crate::common::{self, Args, node::NodeExec};
 
-use color_eyre::Result;
+use anyhow::Result;
 use gsdk::Api;
 use scale_info::scale::Encode;
 

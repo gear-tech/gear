@@ -19,7 +19,7 @@
 //! Common utils for integration tests
 pub use self::{args::Args, node::NodeExec};
 
-use color_eyre::eyre::{Context, Result, eyre};
+use anyhow::{Context, Result};
 use gear_node_wrapper::{Node, NodeInstance};
 use std::{
     io::Write,
@@ -72,7 +72,7 @@ pub fn dev() -> Result<NodeInstance> {
     login_as_alice()?;
     Node::from_path(env::node_bin())
         .and_then(|mut node| node.spawn())
-        .map_err(|e| eyre!("failed to spawn node: {e}"))
+        .context("failed to spawn node")
 }
 
 /// Init env logger
