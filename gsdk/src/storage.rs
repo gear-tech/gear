@@ -453,51 +453,47 @@ impl Api {
 // pallet-gear-messenger
 impl Api {
     /// Get a message identified by `message_id` from the `account_id`'s
-    /// mailbox.
-    pub async fn mailbox_account_message(
+    /// mailbox at specified block.
+    #[at_block]
+    pub async fn mailbox_account_message_at(
         &self,
         account_id: impl IntoAccountId32,
         message_id: MessageId,
+        block_hash: Option<H256>,
     ) -> Result<Option<(UserStoredMessage, Interval<u32>)>> {
         Ok(self
-            .storage_fetch(
+            .storage_fetch_at(
                 &gear::storage()
                     .gear_messenger()
                     .mailbox(account_id.into_account_id(), message_id),
+                block_hash,
             )
             .await
             .ok())
     }
 
-    /// Get all mailbox messages or for the provided `address`.
-    pub async fn mailbox_messages(
+    /// Retrieves up to `count` mailbox messages or for
+    /// the provided `address` at specified block.
+    #[at_block]
+    pub async fn mailbox_messages_at(
         &self,
-        account_id: Option<impl IntoAccountId32>,
+        account_id: impl IntoAccountId32,
         count: usize,
+        block_hash: Option<H256>,
     ) -> Result<Vec<(UserStoredMessage, Interval<u32>)>> {
-        let storage = self.storage().at_latest().await?;
-
-        if let Some(account_id) = account_id {
-            let query_key = gear::storage()
-                .gear_messenger()
-                .mailbox_iter1(account_id.into_account_id());
-            storage
-                .iter(query_key)
-                .await?
-                .map_ok(|pair| pair.value)
-                .boxed()
-        } else {
-            let query_key = gear::storage().gear_messenger().mailbox_iter();
-            storage
-                .iter(query_key)
-                .await?
-                .map_ok(|pair| pair.value)
-                .boxed()
-        }
-        .take(count)
-        .try_collect()
-        .await
-        .map_err(Error::from)
+        self.storage_at(block_hash)
+            .await?
+            .iter(
+                gear::storage()
+                    .gear_messenger()
+                    .mailbox_iter1(account_id.into_account_id()),
+            )
+            .await?
+            .map_ok(|pair| pair.value)
+            .take(count)
+            .try_collect()
+            .await
+            .map_err(Error::from)
     }
 }
 

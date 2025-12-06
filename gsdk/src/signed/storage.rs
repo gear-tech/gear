@@ -188,7 +188,7 @@ impl SignedApi {
         count: usize,
     ) -> Result<Vec<(UserStoredMessage, Interval<u32>)>> {
         self.unsigned()
-            .mailbox_messages(Some(self.account_id()), count)
+            .mailbox_messages(self.account_id(), count)
             .await
     }
 }

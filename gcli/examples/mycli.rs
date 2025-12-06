@@ -16,6 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use color_eyre::Result;
 use gcli::{App, Command, async_trait, clap::Parser};
 
 /// My customized sub commands.
@@ -37,7 +38,7 @@ pub struct MyGCli {
 
 #[async_trait]
 impl App for MyGCli {
-    async fn exec(&self) -> anyhow::Result<()> {
+    async fn exec(&self) -> Result<()> {
         match &self.command {
             SubCommand::GCliCommands(command) => command.exec(self).await,
             SubCommand::Ping => {
@@ -49,6 +50,6 @@ impl App for MyGCli {
 }
 
 #[tokio::main]
-async fn main() -> color_eyre::Result<()> {
+async fn main() -> Result<()> {
     MyGCli::parse().run().await
 }

@@ -18,7 +18,9 @@
 
 //! Integration tests for command `send`
 
-use crate::common::{self, Args, Result, node::NodeExec};
+use crate::common::{self, Args, node::NodeExec};
+
+use color_eyre::Result;
 use gsdk::{
     AccountKeyring, Api,
     gear::{self, constants},
@@ -37,7 +39,7 @@ async fn test_command_claim_works() -> Result<()> {
 
     let mailbox = api
         .unsigned()
-        .mailbox_messages(Some(AccountKeyring::Alice.to_account_id()), 10)
+        .mailbox_messages(AccountKeyring::Alice.to_account_id(), 10)
         .await?;
 
     assert_eq!(mailbox.len(), 1, "Mailbox should have 1 message");
@@ -58,7 +60,7 @@ async fn test_command_claim_works() -> Result<()> {
 
     let mailbox = api
         .unsigned()
-        .mailbox_messages(Some(AccountKeyring::Alice.to_account_id()), 10)
+        .mailbox_messages(AccountKeyring::Alice.to_account_id(), 10)
         .await?;
 
     assert!(mailbox.is_empty(), "Mailbox should be empty");

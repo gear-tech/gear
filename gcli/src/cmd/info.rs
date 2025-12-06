@@ -17,8 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! command `info`
-use crate::{App, result::Result};
+use crate::App;
+
 use clap::Parser;
+use color_eyre::Result;
 use gear_core::message::UserStoredMessage;
 use gsdk::{
     Api,
@@ -82,7 +84,7 @@ impl Info {
 
     /// Get mailbox of address
     pub async fn mailbox(api: &Api, acc: AccountId32, count: usize) -> Result<()> {
-        let mails = api.mailbox_messages(Some(acc), count).await?;
+        let mails = api.mailbox_messages(acc, count).await?;
         for t in mails.into_iter() {
             println!("{:#?}", Mail::from(t));
         }

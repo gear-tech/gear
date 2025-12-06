@@ -17,8 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Command `send`
-use crate::{App, result::Result, utils::Hex};
+use crate::{App, utils::Hex};
+
 use clap::Parser;
+use color_eyre::Result;
 
 /// Sends a message to a program or to another account.
 ///

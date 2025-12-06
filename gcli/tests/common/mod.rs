@@ -17,8 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Common utils for integration tests
-pub use self::{args::Args, node::NodeExec, result::Result};
-use anyhow::Context;
+pub use self::{args::Args, node::NodeExec};
+
+use color_eyre::eyre::{Context, Result, eyre};
 use gear_node_wrapper::{Node, NodeInstance};
 use std::{
     io::Write,
@@ -29,7 +30,6 @@ use tracing_subscriber::EnvFilter;
 mod args;
 pub mod env;
 pub mod node;
-mod result;
 
 impl NodeExec for NodeInstance {
     /// Run binary `gcli`
@@ -64,18 +64,15 @@ pub fn gcli(args: impl Into<Args>) -> Result<Output> {
             .write_all(&args.stdin)
             .context("failed to write stdin")?;
     }
-    cmd.wait_with_output()
-        .context("failed to run gcli")
-        .map_err(Into::into)
+    cmd.wait_with_output().context("failed to run gcli")
 }
 
 /// Run the dev node
 pub fn dev() -> Result<NodeInstance> {
     login_as_alice()?;
-    Node::from_path(env::node_bin())?
-        .spawn()
-        .context("failed to spawn node")
-        .map_err(Into::into)
+    Node::from_path(env::node_bin())
+        .and_then(|mut node| node.spawn())
+        .map_err(|e| eyre!("failed to spawn node: {e}"))
 }
 
 /// Init env logger
@@ -99,7 +96,13 @@ pub async fn create_messenger() -> Result<NodeInstance> {
     let node = dev()?;
 
     let args = Args::new("upload").program_stdin(demo_messenger::WASM_BINARY);
-    let _ = node.run(args)?;
+    let output = node.run(args)?;
+
+    assert!(
+        output.status.success(),
+        "failed with stderr:\n\n{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 
     Ok(node)
 }

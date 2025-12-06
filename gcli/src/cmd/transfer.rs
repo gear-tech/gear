@@ -17,8 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! command `transfer`
-use crate::{App, result::Result};
+use crate::App;
+
 use clap::Parser;
+use color_eyre::Result;
 use gsdk::ext::{sp_core::crypto::Ss58Codec, sp_runtime::AccountId32};
 
 /// Transfer value.

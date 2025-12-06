@@ -234,6 +234,32 @@ async fn get_mailbox() -> Result<()> {
 }
 
 #[tokio::test]
+async fn test_init_message() -> Result<()> {
+    let (_node, api) = dev_node().await;
+
+    let events = api.subscribe_all_events().await?;
+
+    let (message_id, _) = api
+        .upload_program_bytes(
+            demo_messenger::WASM_BINARY,
+            gear_utils::now_micros().to_le_bytes(),
+            vec![],
+            api.block_gas_limit()?,
+            0,
+        )
+        .await?
+        .value;
+
+    events::message_dispatch_status(message_id, events).await?;
+
+    let messages = api.mailbox_messages(10).await?;
+
+    assert_eq!(messages.len(), 1);
+
+    Ok(())
+}
+
+#[tokio::test]
 async fn test_upload_failed() -> Result<()> {
     let (_node, api) = dev_node().await;
 

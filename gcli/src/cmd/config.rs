@@ -16,8 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use anyhow::{Result, anyhow};
 use clap::{Parser, ValueEnum, builder::PossibleValue};
+use color_eyre::{Result, eyre::eyre};
 use colored::Colorize;
 use serde::{Deserialize, Serialize};
 use std::{borrow::Cow, fmt, fs, path::PathBuf};
@@ -65,7 +65,7 @@ impl ConfigSettings {
     fn config() -> Result<PathBuf> {
         dirs::home_dir()
             .map(|h| h.join(CONFIG_PATH))
-            .ok_or_else(|| anyhow!("Could not find config.toml from ${{HOME}}/{CONFIG_PATH}"))
+            .ok_or_else(|| eyre!("Could not find config.toml from ${{HOME}}/{CONFIG_PATH}"))
     }
 
     /// Read the config from disk

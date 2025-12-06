@@ -18,7 +18,9 @@
 
 //! Integration tests for command `deploy`
 
-use crate::common::{self, Args, NodeExec, Result};
+use crate::common::{self, Args, NodeExec};
+
+use color_eyre::Result;
 use gsdk::{
     Api,
     ext::{sp_core::crypto::Ss58Codec, sp_runtime::AccountId32},

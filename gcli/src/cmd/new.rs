@@ -17,8 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! command `new`
-use crate::{result::Result, template};
+use crate::template;
+
 use clap::Parser;
+use color_eyre::Result;
 
 /// Create a new gear program
 #[derive(Clone, Debug, Parser)]

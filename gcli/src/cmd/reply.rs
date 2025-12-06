@@ -17,8 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Command `reply`
-use crate::{App, result::Result, utils::Hex};
+use crate::{App, utils::Hex};
+
 use clap::Parser;
+use color_eyre::Result;
 
 /// Sends a reply message.
 ///

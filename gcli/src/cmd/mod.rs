@@ -49,6 +49,7 @@ pub use self::{
 };
 use crate::App;
 use clap::Parser;
+use color_eyre::Result;
 
 /// All SubCommands of gear command line interface.
 #[derive(Clone, Debug, Parser)]
@@ -70,7 +71,7 @@ pub enum Command {
 
 impl Command {
     /// Execute the command.
-    pub async fn exec(&self, app: &impl App) -> anyhow::Result<()> {
+    pub async fn exec(&self, app: &impl App) -> Result<()> {
         match self {
             Command::Config(config) => config.exec()?,
             Command::New(new) => new.exec().await?,
@@ -134,7 +135,7 @@ impl App for Opt {
         self.passwd.clone()
     }
 
-    async fn exec(&self) -> anyhow::Result<()> {
+    async fn exec(&self) -> Result<()> {
         self.command.exec(self).await
     }
 }

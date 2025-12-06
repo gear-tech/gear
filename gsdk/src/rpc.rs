@@ -48,7 +48,7 @@ impl Api {
         &self,
         origin: impl IntoAccountId32,
         code_id: CodeId,
-        payload: Vec<u8>,
+        payload: impl AsRef<[u8]>,
         value: u128,
         allow_other_panics: bool,
         block_hash: Option<H256>,
@@ -86,8 +86,8 @@ impl Api {
     pub async fn calculate_upload_gas_at(
         &self,
         origin: impl IntoAccountId32,
-        code: Vec<u8>,
-        payload: Vec<u8>,
+        code: impl AsRef<[u8]>,
+        payload: impl AsRef<[u8]>,
         value: u128,
         allow_other_panics: bool,
         block_hash: Option<H256>,
@@ -124,7 +124,7 @@ impl Api {
         &self,
         origin: impl IntoAccountId32,
         destination: impl IntoAccountId32,
-        payload: Vec<u8>,
+        payload: impl AsRef<[u8]>,
         value: u128,
         allow_other_panics: bool,
         block_hash: Option<H256>,
@@ -164,7 +164,7 @@ impl Api {
         &self,
         origin: impl IntoAccountId32,
         message_id: MessageId,
-        payload: Vec<u8>,
+        payload: impl AsRef<[u8]>,
         value: u128,
         allow_other_panics: bool,
         block_hash: Option<H256>,
@@ -210,7 +210,7 @@ impl Api {
     pub async fn read_state_bytes_at(
         &self,
         program_id: impl IntoAccountId32,
-        payload: Vec<u8>,
+        payload: impl AsRef<[u8]>,
         block_hash: Option<H256>,
     ) -> Result<Vec<u8>> {
         let response: String = self
@@ -235,7 +235,7 @@ impl Api {
     pub async fn read_state_at<T: Decode>(
         &self,
         program_id: impl IntoAccountId32,
-        payload: Vec<u8>,
+        payload: impl AsRef<[u8]>,
         block_hash: Option<H256>,
     ) -> Result<T> {
         let bytes = self
@@ -270,7 +270,7 @@ impl Api {
         &self,
         origin: impl IntoAccountId32,
         destination: impl IntoAccountId32,
-        payload: Vec<u8>,
+        payload: impl AsRef<[u8]>,
         gas_limit: u64,
         value: u128,
         block_hash: Option<H256>,

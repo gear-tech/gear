@@ -19,7 +19,10 @@
 //! Command line application abstraction
 
 use clap::Parser;
-use color_eyre::{Result, eyre::eyre};
+use color_eyre::{
+    Result,
+    eyre::{Context, eyre},
+};
 use gring::Keyring;
 use gsdk::{
     Api, SignedApi,
@@ -31,7 +34,7 @@ use tracing_subscriber::EnvFilter;
 /// Command line gear program application abstraction.
 ///
 /// ```ignore
-/// use gcli::{async_trait, App, Command, clap::Parser, color_eyre, anyhow};
+/// use gcli::{async_trait, App, Command, clap::Parser, color_eyre};
 ///
 /// /// My customized sub commands.
 /// #[derive(Debug, Parser)]
@@ -52,7 +55,7 @@ use tracing_subscriber::EnvFilter;
 ///
 /// #[async_trait]
 /// impl App for MyGCli {
-///     async fn exec(&self) -> anyhow::Result<()> {
+///     async fn exec(&self) -> Result<()> {
 ///         match &self.command {
 ///             SubCommand::GCliCommands(command) => command.exec(self).await,
 ///             SubCommand::Ping => {
@@ -105,10 +108,10 @@ pub trait App: Parser + Sync {
     }
 
     /// Exec program from the parsed arguments.
-    async fn exec(&self) -> anyhow::Result<()>;
+    async fn exec(&self) -> Result<()>;
 
     /// Get gear api without signing in with password.
-    async fn api(&self) -> anyhow::Result<Api> {
+    async fn api(&self) -> Result<Api> {
         let endpoint = self.endpoint();
         Api::builder()
             .timeout(self.timeout())
@@ -119,7 +122,7 @@ pub trait App: Parser + Sync {
     }
 
     /// Get signer.
-    async fn signed(&self) -> anyhow::Result<SignedApi> {
+    async fn signed(&self) -> Result<SignedApi> {
         let passwd = self.passwd();
 
         let api = Api::builder()
@@ -127,9 +130,13 @@ pub trait App: Parser + Sync {
             .uri(self.endpoint().as_deref().unwrap_or(Api::VARA_ENDPOINT))
             .build()
             .await?;
-        let pair = Keyring::load(gring::cmd::Command::store()?)?
-            .primary()?
-            .decrypt(passwd.clone().and_then(|p| hex::decode(p).ok()).as_deref())?;
+        let pair = gring::cmd::Command::store()
+            .and_then(Keyring::load)
+            .and_then(|mut keyring| keyring.primary())
+            .and_then(|keyring| {
+                keyring.decrypt(passwd.clone().and_then(|p| hex::decode(p).ok()).as_deref())
+            })
+            .map_err(|err| eyre!("{err}"))?;
 
         Ok(SignedApi::with_pair(api, pair.into()))
     }
@@ -160,8 +167,6 @@ pub trait App: Parser + Sync {
             .try_init()
             .map_err(|e| eyre!("{e}"))?;
 
-        self.exec()
-            .await
-            .map_err(|e| eyre!("Failed to run app, {e}"))
+        self.exec().await.context("failed to run app")
     }
 }

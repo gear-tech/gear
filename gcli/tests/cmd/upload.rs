@@ -19,9 +19,11 @@
 //! Integration tests for command `upload`
 
 use crate::common::{
-    self, Args, Result,
+    self, Args,
     node::{Convert, NodeExec},
 };
+
+use color_eyre::Result;
 use demo_fungible_token::InitConfig;
 use gear_core::ids::{CodeId, prelude::*};
 use gsdk::Api;

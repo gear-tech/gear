@@ -17,8 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Command `program`.
-use crate::{App, result::Result};
+use crate::App;
+
 use clap::Parser;
+use color_eyre::Result;
 use gear_core::ids::ActorId;
 use gsdk::ext::subxt::utils::H256;
 
@@ -37,7 +39,7 @@ impl Program {
     pub async fn exec(&self, app: &impl App) -> Result<()> {
         let api = app.signed().await?;
         let state = api
-            .read_state_bytes_at(ActorId::new(self.pid.0), Default::default(), self.at)
+            .read_state_bytes_at(ActorId::new(self.pid.0), vec![], self.at)
             .await?;
         println!("0x{}", hex::encode(state));
         Ok(())

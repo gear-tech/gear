@@ -17,15 +17,15 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! command `upload_program`
-use crate::{App, result::Result, utils::Hex};
-use anyhow::{Context, anyhow};
+use crate::{App, utils::Hex};
 use clap::Parser;
+use color_eyre::eyre::{Context, Result, eyre};
 use gsdk::{
     Event,
     gear::{gear, runtime_types::gear_common::event::MessageEntry},
 };
-use std::{fs, path::PathBuf};
-use tokio::{io, io::AsyncReadExt};
+use std::path::PathBuf;
+use tokio::{fs, io, io::AsyncReadExt};
 
 /// Deploy program to gear node or save program `code` in storage.
 #[derive(Clone, Debug, Parser)]
@@ -66,7 +66,9 @@ impl Upload {
                 .context("failed to read from stdin")?;
             code
         } else {
-            fs::read(&self.code).map_err(|e| anyhow!("program {:?} not found, {e}", &self.code))?
+            fs::read(&self.code)
+                .await
+                .map_err(|e| eyre!("program {:?} not found, {e}", &self.code))?
         };
 
         if self.code_only {
@@ -84,7 +86,7 @@ impl Upload {
         };
 
         let tx = api
-            .upload_program(code, self.salt.to_vec()?, payload, gas_limit, self.value)
+            .upload_program_bytes(code, self.salt.to_vec()?, payload, gas_limit, self.value)
             .await?;
 
         for event in tx.events() {

@@ -47,7 +47,7 @@ impl SignedApi {
     pub async fn calculate_create_gas_at(
         &self,
         code_id: CodeId,
-        payload: Vec<u8>,
+        payload: impl AsRef<[u8]>,
         value: u128,
         allow_other_panics: bool,
         block_hash: Option<H256>,
@@ -68,8 +68,8 @@ impl SignedApi {
     #[at_block]
     pub async fn calculate_upload_gas_at(
         &self,
-        code: Vec<u8>,
-        payload: Vec<u8>,
+        code: impl AsRef<[u8]>,
+        payload: impl AsRef<[u8]>,
         value: u128,
         allow_other_panics: bool,
         block_hash: Option<H256>,
@@ -91,7 +91,7 @@ impl SignedApi {
     pub async fn calculate_handle_gas_at(
         &self,
         destination: ActorId,
-        payload: Vec<u8>,
+        payload: impl AsRef<[u8]>,
         value: u128,
         allow_other_panics: bool,
         block_hash: Option<H256>,
@@ -113,7 +113,7 @@ impl SignedApi {
     pub async fn calculate_reply_gas_at(
         &self,
         message_id: MessageId,
-        payload: Vec<u8>,
+        payload: impl AsRef<[u8]>,
         value: u128,
         allow_other_panics: bool,
         block_hash: Option<H256>,
@@ -135,7 +135,7 @@ impl SignedApi {
     pub async fn calculate_reply_for_handle_at(
         &self,
         destination: ActorId,
-        payload: Vec<u8>,
+        payload: impl AsRef<[u8]>,
         gas_limit: u64,
         value: u128,
         block_hash: Option<H256>,
