@@ -20,12 +20,11 @@
 
 use clap::Parser;
 use color_eyre::{Result, eyre::eyre};
-use gclient::{
-    GearApi,
+use gring::Keyring;
+use gsdk::{
+    Api, SignedApi,
     ext::sp_core::{self, Pair as _, crypto::Ss58Codec, sr25519::Pair},
 };
-use gring::Keyring;
-use gsdk::Api;
 use std::{env, time::Duration};
 use tracing_subscriber::EnvFilter;
 
@@ -109,35 +108,30 @@ pub trait App: Parser + Sync {
     async fn exec(&self) -> anyhow::Result<()>;
 
     /// Get gear api without signing in with password.
-    async fn api(&self) -> anyhow::Result<GearApi> {
+    async fn api(&self) -> anyhow::Result<Api> {
         let endpoint = self.endpoint();
         Api::builder()
             .timeout(self.timeout())
-            .uri(endpoint.as_deref().unwrap_or(Api::VARA_MAINNET_ENDPOINT))
+            .uri(endpoint.as_deref().unwrap_or(Api::VARA_ENDPOINT))
             .build()
             .await
-            .map(Into::into)
             .map_err(Into::into)
     }
 
     /// Get signer.
-    async fn signer(&self) -> anyhow::Result<GearApi> {
+    async fn signed(&self) -> anyhow::Result<SignedApi> {
         let passwd = self.passwd();
 
         let api = Api::builder()
             .timeout(self.timeout())
-            .uri(
-                self.endpoint()
-                    .as_deref()
-                    .unwrap_or(Api::VARA_MAINNET_ENDPOINT),
-            )
+            .uri(self.endpoint().as_deref().unwrap_or(Api::VARA_ENDPOINT))
             .build()
             .await?;
         let pair = Keyring::load(gring::cmd::Command::store()?)?
             .primary()?
             .decrypt(passwd.clone().and_then(|p| hex::decode(p).ok()).as_deref())?;
 
-        Ok(GearApi::from((api, pair.into())))
+        Ok(SignedApi::with_pair(api, pair.into()))
     }
 
     /// Run application.

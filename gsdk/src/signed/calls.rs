@@ -980,7 +980,7 @@ impl SignedApi {
     }
 
     /// Save program (identified by `program_id`) memory dump to the file for
-    /// further restoring in gclient/gtest. Program memory dumped at the
+    /// further restoring in gsdk/gtest. Program memory dumped at the
     /// time of `block_hash` if presented or the most recent block.
     pub async fn save_program_memory_dump_at<P: AsRef<Path>>(
         &self,
@@ -1021,7 +1021,7 @@ impl SignedApi {
         Ok(())
     }
 
-    /// Replace entire program memory with one saved earlier in gclient/gtest
+    /// Replace entire program memory with one saved earlier in gsdk/gtest
     pub async fn replace_program_memory<P: AsRef<Path>>(
         &self,
         program_id: ActorId,

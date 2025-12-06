@@ -1,12 +1,15 @@
 //! Block listener
+
+use futures::prelude::*;
+
 use crate::{
     blocks_production::BlocksProduction,
     cmd::Opt,
     result::{Error, Result},
 };
-use futures::StreamExt;
 use gsdk::{
-    Api, Blocks,
+    Api,
+    blocks::Block,
     ext::{
         sp_core::crypto::{PublicError, Ss58Codec},
         sp_runtime::AccountId32,
@@ -26,20 +29,18 @@ impl Listener {
     /// Create new block listener.
     pub async fn new(opt: Opt) -> Result<Self> {
         Ok(Self {
-            api: Api::new(
-                opt.endpoint
-                    .as_deref()
-                    .unwrap_or(Api::VARA_MAINNET_ENDPOINT),
-            )
-            .await?,
+            api: Api::new(opt.endpoint.as_deref().unwrap_or(Api::VARA_ENDPOINT)).await?,
             opt,
         })
     }
 
     /// Listen to finalized blocks.
-    pub async fn listen_finalized(&self) -> Result<Blocks> {
+    pub async fn listen_finalized(
+        &self,
+    ) -> Result<impl Stream<Item = Result<Block, subxt::Error>>> {
         self.api
-            .subscribe_finalized_blocks()
+            .blocks()
+            .subscribe_finalized()
             .await
             .map_err(Into::into)
     }

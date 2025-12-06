@@ -6291,7 +6291,6 @@ dependencies = [
  "demo-messenger",
  "dirs",
  "etc",
- "gclient",
  "gear-core",
  "gear-node-wrapper",
  "gear-runtime-primitives",
@@ -6306,29 +6305,6 @@ dependencies = [
  "thiserror 2.0.12",
  "tokio",
  "toml 0.8.14",
- "tracing-subscriber",
- "url",
-]
-
-[[package]]
-name = "gclient"
-version = "1.10.0"
-dependencies = [
- "anyhow",
- "async-trait",
- "futures",
- "gear-core",
- "gear-node-wrapper",
- "gear-utils",
- "gsdk",
- "gstd",
- "hex",
- "hex-literal",
- "log",
- "parity-scale-codec",
- "sp-core",
- "thiserror 2.0.12",
- "tokio",
  "tracing-subscriber",
  "url",
 ]
@@ -6655,7 +6631,6 @@ dependencies = [
  "clap 4.5.23",
  "futures",
  "futures-timer",
- "gclient",
  "gear-call-gen",
  "gear-core",
  "gear-utils",

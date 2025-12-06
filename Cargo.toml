@@ -89,7 +89,6 @@ members = [
     "galloc",
     "gbuiltins/*",
     "gcli",
-    "gclient",
     "gcore",
     "gprimitives",
     "gsdk",
@@ -235,7 +234,6 @@ gbuiltin-staking = { path = "gbuiltins/staking" }
 gbuiltin-proxy = { path = "gbuiltins/proxy" }
 gcore = { path = "gcore" }
 gcli = { path = "gcli" }
-gclient = { path = "gclient" }
 gear-node-wrapper = { path = "utils/node-wrapper" }
 gsdk = { path = "gsdk" }
 gsdk-codegen = { path = "gsdk/codegen" }

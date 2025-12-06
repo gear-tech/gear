@@ -18,8 +18,11 @@
 
 //! Integration tests for command `send`
 
-use crate::common::{self, Args, Result, TREASURY_SS58_ADDRESS, node::NodeExec};
-use gsdk::{Api, gear};
+use crate::common::{self, Args, Result, node::NodeExec};
+use gsdk::{
+    AccountKeyring, Api,
+    gear::{self, constants},
+};
 
 const REWARD_PER_BLOCK: u128 = 300_000; // 3_000 gas * 100 value per gas
 
@@ -28,48 +31,50 @@ async fn test_command_claim_works() -> Result<()> {
     let node = common::create_messenger().await?;
 
     // Check the mailbox of the testing account
-    let signer = Api::new(node.ws().as_str())
+    let api = Api::new(node.ws().as_str())
         .await?
-        .signer("//Alice//stash", None)?;
+        .signed_dev(AccountKeyring::AliceStash);
 
-    let mailbox = signer
-        .api()
-        .mailbox_messages(Some(common::alice_account_id()), 10)
+    let mailbox = api
+        .unsigned()
+        .mailbox_messages(Some(AccountKeyring::Alice.to_account_id()), 10)
         .await?;
 
     assert_eq!(mailbox.len(), 1, "Mailbox should have 1 message");
     let id = hex::encode(mailbox[0].0.id());
 
-    let treasury_before = signer
-        .api()
-        .get_balance(TREASURY_SS58_ADDRESS)
+    let treasury_address = api
+        .constants()
+        .at(&constants().gear_bank().treasury_address())
+        .map_err(gsdk::Error::from)?;
+    let treasury_before = api
+        .unsigned()
+        .free_balance(&treasury_address)
         .await
         .unwrap_or(0);
 
     // Claim value from message id
     let _ = node.run(Args::new("claim").message_id(id))?;
 
-    let mailbox = signer
-        .api()
-        .mailbox_messages(Some(common::alice_account_id()), 10)
+    let mailbox = api
+        .unsigned()
+        .mailbox_messages(Some(AccountKeyring::Alice.to_account_id()), 10)
         .await?;
 
     assert!(mailbox.is_empty(), "Mailbox should be empty");
 
-    let treasury_after = signer
-        .api()
-        .get_balance(TREASURY_SS58_ADDRESS)
+    let treasury_after = api
+        .unsigned()
+        .free_balance(&treasury_address)
         .await
         .unwrap_or(0);
 
-    let treasury_gas_fee_share = signer
-        .api()
+    let treasury_gas_fee_share = api
         .constants()
         .at(&gear::constants().gear_bank().treasury_gas_fee_share())
         .map_err(gsdk::Error::from)?
         .0;
-    let treasury_tx_fee_share = signer
-        .api()
+    let treasury_tx_fee_share = api
         .constants()
         .at(&gear::constants().gear_bank().treasury_tx_fee_share())
         .map_err(gsdk::Error::from)?

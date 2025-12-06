@@ -30,7 +30,7 @@ pub struct Claim {
 impl Claim {
     pub async fn exec(&self, app: &impl App) -> Result<()> {
         let message_id = self.message_id.to_hash()?.into();
-        app.signer().await?.claim_value(message_id).await?;
+        app.signed().await?.claim_value(message_id).await?;
         Ok(())
     }
 }

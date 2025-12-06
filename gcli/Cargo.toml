@@ -14,7 +14,6 @@ rust-version.workspace = true
 
 [dependencies]
 gsdk.workspace = true
-gclient.workspace = true
 anyhow.workspace = true
 async-trait.workspace = true
 colored.workspace = true

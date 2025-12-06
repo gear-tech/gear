@@ -30,16 +30,10 @@ use scale_info::scale::Encode;
 #[tokio::test]
 async fn test_command_upload_works() -> Result<()> {
     let node = common::dev()?;
-    let signer = Api::new(node.ws().as_str())
-        .await?
-        .signer("//Alice", None)?;
+    let api = Api::new(node.ws().as_str()).await?.signed_as_alice();
     let code_id = CodeId::generate(demo_fungible_token::WASM_BINARY);
     assert!(
-        signer
-            .api()
-            .instrumented_code_storage(code_id)
-            .await
-            .is_err(),
+        api.instrumented_code_storage(code_id).await.is_err(),
         "code should not exist"
     );
 
@@ -59,11 +53,7 @@ async fn test_command_upload_works() -> Result<()> {
         output.stderr.convert()
     );
     assert!(
-        signer
-            .api()
-            .instrumented_code_storage(code_id)
-            .await
-            .is_ok(),
+        api.instrumented_code_storage(code_id).await.is_ok(),
         "code should exist"
     );
 

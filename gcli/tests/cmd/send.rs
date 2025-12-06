@@ -26,23 +26,15 @@ async fn test_command_send_works() -> Result<()> {
     let node = common::create_messenger().await?;
 
     // Get balance of the testing address
-    let signer = Api::new(node.ws().as_str())
-        .await?
-        .signer("//Alice", None)?;
-    let mailbox = signer
-        .api()
-        .mailbox_messages(Some(common::alice_account_id()), 10)
-        .await?;
+    let api = Api::new(node.ws().as_str()).await?.signed_as_alice();
+    let mailbox = api.mailbox_messages(10).await?;
     assert_eq!(mailbox.len(), 1, "Alice should have 1 message in mailbox");
 
     // Send message to messenger
     let dest = hex::encode(mailbox[0].0.source());
     let _ = node.run(Args::new("send").destination(dest).gas_limit("2000000000"))?;
 
-    let mailbox = signer
-        .api()
-        .mailbox_messages(Some(common::alice_account_id()), 10)
-        .await?;
+    let mailbox = api.mailbox_messages(10).await?;
     assert_eq!(
         mailbox.len(),
         2,

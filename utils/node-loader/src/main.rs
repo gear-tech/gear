@@ -5,10 +5,12 @@
 //! gets properly structured data acceptable by the gear node and randomizes it's "fields".
 //! That's why generated data is called semi-random.
 
-use anyhow::{Result, anyhow};
+use futures::prelude::*;
+
+use anyhow::{Error, Result, anyhow};
 use args::{LoadParams, Params, parse_cli_params};
 use batch_pool::{BatchPool, api::GearApiFacade};
-use gsdk::subscription::BlockEvents;
+use gsdk::blocks::Block;
 use names::Generator;
 use rand::rngs::SmallRng;
 use tokio::sync::broadcast::Sender;
@@ -36,15 +38,27 @@ async fn run(params: Params) -> Result<()> {
 /// Connect to API of provided node address and subscribe for events.
 ///
 /// Broadcast new events to receivers.
-async fn listen_events(tx: Sender<BlockEvents>, node: String) -> Result<()> {
+async fn listen_blocks(tx: Sender<Block>, node: String) -> Result<()> {
     let api = gsdk::Api::new(node.as_str()).await?;
-    let mut event_listener = api.subscribe_finalized_blocks().await?;
-
-    while let Some(events) = event_listener.next_events().await? {
-        tx.send(events)?;
-    }
+    api.blocks()
+        .subscribe_finalized()
+        .await?
+        .map_err(Error::from)
+        .try_for_each(|block| {
+            future::ready(
+                tx.send(block)
+                    .map_err(|_| anyhow!("failed to send block"))
+                    .map(|_| ()),
+            )
+        })
+        .await?;
 
     Err(anyhow!("Listen events: Can't get new events"))
+}
+
+fn parse_name(name: &str) -> (&str, Option<&str>) {
+    name.split_once(':')
+        .map_or((name, None), |(suri, passwd)| (suri, Some(passwd)))
 }
 
 async fn load_node(params: LoadParams) -> Result<()> {
@@ -63,14 +77,15 @@ async fn load_node(params: LoadParams) -> Result<()> {
         env!("CARGO_PKG_VERSION"),
     );
 
-    let api = GearApiFacade::try_new(params.node.clone(), params.user.clone()).await?;
+    let (suri, passwd) = parse_name(&params.user);
+    let api = GearApiFacade::try_new(&params.node, suri, passwd).await?;
 
     let batch_pool =
         BatchPool::<SmallRng>::new(api, params.batch_size, params.workers, rx.resubscribe());
 
     let run_result = tokio::select! {
-        r = tokio::spawn(listen_events(tx, params.node.clone())) => r?,
-        r = tokio::spawn(batch_pool.run(params, rx)) => r?,
+        r = listen_blocks(tx, params.node.clone()) => r,
+        r = batch_pool.run(params, rx) => r,
     };
 
     run_result

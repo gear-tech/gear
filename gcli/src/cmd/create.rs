@@ -46,14 +46,14 @@ impl Create {
     pub async fn exec(&self, app: &impl App) -> Result<()> {
         let code_id = self.code_id.to_hash()?.into();
         let payload = self.init_payload.to_vec()?;
-        let signer = app.signer().await?;
+        let signer = app.signed().await?;
 
         // estimate gas
         let gas_limit = if let Some(gas_limit) = self.gas_limit {
             gas_limit
         } else {
             signer
-                .calculate_create_gas(None, code_id, payload.clone(), self.value, false)
+                .calculate_create_gas(code_id, payload.clone(), self.value, false)
                 .await?
                 .min_limit
         };

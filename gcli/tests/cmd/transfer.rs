@@ -19,7 +19,10 @@
 //! Integration tests for command `deploy`
 
 use crate::common::{self, Args, NodeExec, Result};
-use gsdk::Api;
+use gsdk::{
+    Api,
+    ext::{sp_core::crypto::Ss58Codec, sp_runtime::AccountId32},
+};
 
 // Testing account
 const SURI: &str = "tumble tenant update heavy sad draw present tray atom chunk animal exhaust";
@@ -30,8 +33,10 @@ async fn test_command_transfer_works() -> Result<()> {
     let node = common::dev()?;
 
     // Get balance of the testing address
-    let signer = Api::new(node.ws().as_str()).await?.signer(SURI, None)?;
-    let before = signer.api().get_balance(ADDRESS).await.unwrap_or(0);
+    let signer = Api::new(node.ws().as_str()).await?.signed(SURI, None)?;
+    let address = AccountId32::from_ss58check(ADDRESS).map_err(gsdk::Error::from)?;
+
+    let before = signer.unsigned().free_balance(&address).await.unwrap_or(0);
 
     // Run command transfer
     let value = 1_000_000_000_000_000u128;
@@ -41,7 +46,7 @@ async fn test_command_transfer_works() -> Result<()> {
             .amount(value.to_string()),
     )?;
 
-    let after = signer.api().get_balance(ADDRESS).await.unwrap_or(0);
+    let after = signer.unsigned().free_balance(&address).await.unwrap_or(0);
     assert_eq!(
         after.saturating_sub(before),
         value,

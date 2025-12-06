@@ -56,13 +56,12 @@ pub struct Send {
 
 impl Send {
     pub async fn exec(&self, app: &impl App) -> Result<()> {
-        let signer = app.signer().await?;
+        let signer = app.signed().await?;
         let gas_limit = if let Some(gas_limit) = self.gas_limit {
             gas_limit
         } else {
             signer
                 .calculate_handle_gas(
-                    None,
                     self.destination.to_hash()?.into(),
                     self.payload.to_vec()?,
                     self.value,
@@ -72,14 +71,15 @@ impl Send {
                 .min_limit
         };
 
-        let (message_id, _) = signer
+        let message_id = signer
             .send_message_bytes(
                 self.destination.to_hash()?.into(),
                 self.payload.clone(),
                 gas_limit,
                 self.value,
             )
-            .await?;
+            .await?
+            .value;
 
         log::info!("Message ID: 0x{}", hex::encode(message_id.into_bytes()));
         Ok(())

@@ -19,7 +19,8 @@
 //! Command `program`.
 use crate::{App, result::Result};
 use clap::Parser;
-use gclient::ext::subxt::utils::H256;
+use gear_core::ids::ActorId;
+use gsdk::ext::subxt::utils::H256;
 
 /// Read program state, etc.
 #[derive(Clone, Debug, Parser)]
@@ -34,9 +35,9 @@ pub struct Program {
 impl Program {
     /// Run command program.
     pub async fn exec(&self, app: &impl App) -> Result<()> {
-        let api = app.signer().await?;
+        let api = app.signed().await?;
         let state = api
-            .read_state_bytes_at(self.pid.0.into(), Default::default(), self.at)
+            .read_state_bytes_at(ActorId::new(self.pid.0), Default::default(), self.at)
             .await?;
         println!("0x{}", hex::encode(state));
         Ok(())

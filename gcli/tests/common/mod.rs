@@ -20,7 +20,6 @@
 pub use self::{args::Args, node::NodeExec, result::Result};
 use anyhow::Context;
 use gear_node_wrapper::{Node, NodeInstance};
-use gsdk::ext::{sp_core::crypto::Ss58Codec, sp_runtime::AccountId32};
 use std::{
     io::Write,
     process::{Command, Output, Stdio},
@@ -31,9 +30,6 @@ mod args;
 pub mod env;
 pub mod node;
 mod result;
-
-pub const ALICE_SS58_ADDRESS: &str = "kGkLEU3e3XXkJp2WK4eNpVmSab5xUNL9QtmLPh8QfCL2EgotW";
-pub const TREASURY_SS58_ADDRESS: &str = "kGi1Ui7VXBFmPmaoMD5xgWd2VHNixZ5BbLNhHFYD39T85rUi3";
 
 impl NodeExec for NodeInstance {
     /// Run binary `gcli`
@@ -96,11 +92,6 @@ pub fn login_as_alice() -> Result<()> {
     let _ = gcli(["wallet", "dev"])?;
 
     Ok(())
-}
-
-/// AccountId32 of `addr`
-pub fn alice_account_id() -> AccountId32 {
-    AccountId32::from_ss58check(ALICE_SS58_ADDRESS).expect("Invalid address")
 }
 
 /// Create program messenger

@@ -18,18 +18,20 @@
 
 //! This module provides useful functions for working with block stream.
 
-use std::pin::pin;
-
 use futures::prelude::*;
 
-use subxt::blocks::Block;
+use std::pin::pin;
 
 use crate::{Api, Error, GearConfig, Result};
 
+/// Block retreived from a node.
+pub type Block = subxt::blocks::Block<GearConfig, subxt::OnlineClient<GearConfig>>;
+
+/// Events from some block.
+pub type Events = subxt::events::Events<GearConfig>;
+
 /// Checks whether the blocks are progressing.
-pub async fn are_progressing<E>(
-    blocks: impl Stream<Item = Result<Block<GearConfig, subxt::OnlineClient<GearConfig>>, E>>,
-) -> Result<bool>
+pub async fn are_progressing<E>(blocks: impl Stream<Item = Result<Block, E>>) -> Result<bool>
 where
     Error: From<E>,
 {

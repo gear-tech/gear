@@ -27,4 +27,11 @@ impl Api {
             .constants()
             .at(&constants().gear_gas().block_gas_limit())?)
     }
+
+    /// Retrieves expected block time value.
+    pub fn expected_block_time(&self) -> Result<u64> {
+        Ok(self
+            .constants()
+            .at(&constants().babe().expected_block_time())?)
+    }
 }
