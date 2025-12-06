@@ -208,13 +208,19 @@ impl ValidatorTopic {
         match self.inner_verify(&message) {
             Ok(()) => (MessageAcceptance::Accept, Some(message)),
             Err(VerificationError::OldEra { .. }) => (MessageAcceptance::Ignore, None),
-            Err(VerificationError::UnknownBlock { .. }) | Err(VerificationError::NewEra { .. }) => {
+            Err(err @ VerificationError::UnknownBlock { .. })
+            | Err(err @ VerificationError::NewEra { .. }) => {
+                log::trace!(
+                    "cache message pending verification from {source} peer: {err}, message: {message:?}"
+                );
+
                 let existed = self
                     .cached_messages
                     .get_or_insert_mut(source, || LruCache::new(MAX_CACHED_MESSAGES_PER_PEER))
                     .put(message, ());
                 // gossipsub should ignore a duplicated message
                 debug_assert!(existed.is_none());
+
                 (MessageAcceptance::Ignore, None)
             }
             Err(err @ VerificationError::TooOldEra { .. })
@@ -251,7 +257,8 @@ mod tests {
     const GENESIS_TIMESTAMP: u64 = 1_000_000;
     const ERA_DURATION: u64 = 1_000;
     const GENESIS_CHAIN_HEAD: H256 = H256::zero();
-    const CHAIN_HEAD_TIMESTAMP: u64 = GENESIS_TIMESTAMP + (ERA_DURATION * 10);
+    const CHAIN_HEAD_ERA: u64 = 10;
+    const CHAIN_HEAD_TIMESTAMP: u64 = GENESIS_TIMESTAMP + (ERA_DURATION * CHAIN_HEAD_ERA);
     const PROTOCOL_TIMELINES: ProtocolTimelines = ProtocolTimelines {
         genesis_ts: GENESIS_TIMESTAMP,
         era: ERA_DURATION,
@@ -259,11 +266,11 @@ mod tests {
     };
 
     fn new_snapshot(
-        chain_head_ts: u64,
+        current_era_index: u64,
         current_validators: NonEmpty<Address>,
     ) -> Arc<ValidatorListSnapshot> {
         Arc::new(ValidatorListSnapshot {
-            chain_head_ts,
+            current_era_index,
             timelines: PROTOCOL_TIMELINES,
             current_validators: current_validators.into(),
             next_validators: None,
@@ -282,7 +289,7 @@ mod tests {
         );
 
         let snapshot = Arc::new(ValidatorListSnapshot {
-            chain_head_ts: CHAIN_HEAD_TIMESTAMP,
+            current_era_index: CHAIN_HEAD_ERA,
             timelines: PROTOCOL_TIMELINES,
             current_validators: validators.into(),
             next_validators: None,
@@ -323,7 +330,8 @@ mod tests {
 
     #[test]
     fn unknown_block() {
-        const BOB_BLOCK_TIMESTAMP: u64 = CHAIN_HEAD_TIMESTAMP + (ERA_DURATION * 100);
+        const BOB_BLOCK_ERA: u64 = CHAIN_HEAD_ERA + 1;
+        const BOB_BLOCK_TIMESTAMP: u64 = CHAIN_HEAD_TIMESTAMP + (ERA_DURATION * 1);
 
         let (bob_address, bob_message, bob_block) = new_validator_message();
         let bob_verified = bob_message.clone().into_verified();
@@ -347,7 +355,7 @@ mod tests {
                 parent_hash: Default::default(),
             },
         );
-        let snapshot = new_snapshot(BOB_BLOCK_TIMESTAMP, nonempty![bob_address]);
+        let snapshot = new_snapshot(BOB_BLOCK_ERA, nonempty![bob_address]);
         alice.on_new_snapshot(snapshot);
 
         assert_eq!(alice.next_message(), Some(bob_verified));
@@ -461,6 +469,7 @@ mod tests {
 
     #[test]
     fn new_era() {
+        const BOB_BLOCK_ERA: u64 = CHAIN_HEAD_ERA + 1;
         const BOB_BLOCK_TIMESTAMP: u64 = CHAIN_HEAD_TIMESTAMP + ERA_DURATION;
 
         let (bob_address, bob_message, bob_block) = new_validator_message();
@@ -494,7 +503,7 @@ mod tests {
         assert_eq!(verified_msg, None);
         assert_eq!(alice.cached_messages.len(), 1);
 
-        let snapshot = new_snapshot(BOB_BLOCK_TIMESTAMP, nonempty![bob_address]);
+        let snapshot = new_snapshot(BOB_BLOCK_ERA, nonempty![bob_address]);
         alice.on_new_snapshot(snapshot);
 
         assert_eq!(alice.next_message(), Some(bob_verified));
@@ -548,6 +557,7 @@ mod tests {
 
     #[test]
     fn reverify_cached_messages_with_bad_peer() {
+        const NEXT_ERA: u64 = CHAIN_HEAD_ERA + 1;
         const NEXT_ERA_TIMESTAMP: u64 = CHAIN_HEAD_TIMESTAMP + ERA_DURATION;
 
         // Bob creates a valid message for next era (will be cached)
@@ -615,7 +625,7 @@ mod tests {
         assert_eq!(alice.cached_messages.len(), 3);
 
         // Update chain head to next era, but Dave is no longer a validator
-        let snapshot = new_snapshot(NEXT_ERA_TIMESTAMP, nonempty![bob_address, charlie_address]);
+        let snapshot = new_snapshot(NEXT_ERA, nonempty![bob_address, charlie_address]);
         alice.on_new_snapshot(snapshot);
 
         // Bob and Charlie should be verified, Dave should fail but not block others
