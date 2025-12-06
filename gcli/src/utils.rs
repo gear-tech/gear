@@ -18,7 +18,7 @@
 
 //! Gear program utils
 
-use color_eyre::{Result, eyre::eyre};
+use anyhow::{Result, bail};
 use std::{fs, path::PathBuf};
 
 /// home directory of cli `gear`
@@ -49,7 +49,7 @@ where
         let hex = self.to_vec()?;
 
         if hex.len() != 32 {
-            return Err(eyre!("Incorrect id length"));
+            bail!("Incorrect id length");
         }
 
         let mut arr = [0; 32];

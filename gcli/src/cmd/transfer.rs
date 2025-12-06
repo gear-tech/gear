@@ -19,8 +19,8 @@
 //! command `transfer`
 use crate::App;
 
+use anyhow::Result;
 use clap::Parser;
-use color_eyre::Result;
 use gsdk::ext::{sp_core::crypto::Ss58Codec, sp_runtime::AccountId32};
 
 /// Transfer value.

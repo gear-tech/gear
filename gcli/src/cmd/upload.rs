@@ -18,8 +18,8 @@
 
 //! command `upload_program`
 use crate::{App, utils::Hex};
+use anyhow::{Context, Result};
 use clap::Parser;
-use color_eyre::eyre::{Context, Result, eyre};
 use gsdk::{
     Event,
     gear::{gear, runtime_types::gear_common::event::MessageEntry},
@@ -68,7 +68,7 @@ impl Upload {
         } else {
             fs::read(&self.code)
                 .await
-                .map_err(|e| eyre!("program {:?} not found, {e}", &self.code))?
+                .with_context(|| format!("program {:?} not found", self.code))?
         };
 
         if self.code_only {

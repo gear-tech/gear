@@ -19,8 +19,8 @@
 //! command `create`
 use crate::{App, utils::Hex};
 
+use anyhow::Result;
 use clap::Parser;
-use color_eyre::Result;
 
 /// Deploy program to gear node
 #[derive(Clone, Debug, Parser)]

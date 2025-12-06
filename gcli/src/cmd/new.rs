@@ -19,8 +19,8 @@
 //! command `new`
 use crate::template;
 
+use anyhow::Result;
 use clap::Parser;
-use color_eyre::Result;
 
 /// Create a new gear program
 #[derive(Clone, Debug, Parser)]

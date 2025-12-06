@@ -48,8 +48,8 @@ pub use self::{
     wallet::Wallet,
 };
 use crate::App;
+use anyhow::Result;
 use clap::Parser;
-use color_eyre::Result;
 
 /// All SubCommands of gear command line interface.
 #[derive(Clone, Debug, Parser)]
@@ -142,7 +142,7 @@ impl App for Opt {
 
 impl Opt {
     /// Run command sync.
-    pub fn exec_sync(&self) -> color_eyre::Result<()> {
+    pub fn exec_sync(&self) -> Result<()> {
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(self.run())
     }

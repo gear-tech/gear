@@ -19,8 +19,8 @@
 //! command `info`
 use crate::App;
 
+use anyhow::Result;
 use clap::Parser;
-use color_eyre::Result;
 use gear_core::message::UserStoredMessage;
 use gsdk::{
     Api,

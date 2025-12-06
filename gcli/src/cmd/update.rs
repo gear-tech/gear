@@ -17,8 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! command `update`
+use anyhow::Result;
 use clap::Parser;
-use color_eyre::Result;
 use std::process::{self, Command};
 
 const REPO: &str = "https://github.com/gear-tech/gear-program";

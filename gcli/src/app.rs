@@ -18,11 +18,8 @@
 //
 //! Command line application abstraction
 
+use anyhow::{Context, Result, anyhow};
 use clap::Parser;
-use color_eyre::{
-    Result,
-    eyre::{Context, eyre},
-};
 use gring::Keyring;
 use gsdk::{
     Api, SignedApi,
@@ -130,13 +127,9 @@ pub trait App: Parser + Sync {
             .uri(self.endpoint().as_deref().unwrap_or(Api::VARA_ENDPOINT))
             .build()
             .await?;
-        let pair = gring::cmd::Command::store()
-            .and_then(Keyring::load)
-            .and_then(|mut keyring| keyring.primary())
-            .and_then(|keyring| {
-                keyring.decrypt(passwd.clone().and_then(|p| hex::decode(p).ok()).as_deref())
-            })
-            .map_err(|err| eyre!("{err}"))?;
+        let pair = Keyring::load(gring::cmd::Command::store()?)?
+            .primary()?
+            .decrypt(passwd.clone().and_then(|p| hex::decode(p).ok()).as_deref())?;
 
         Ok(SignedApi::with_pair(api, pair.into()))
     }
@@ -146,7 +139,6 @@ pub trait App: Parser + Sync {
     /// This is a wrapper of [`Self::exec`] with preset retry
     /// and verbose level.
     async fn run(&self) -> Result<()> {
-        color_eyre::install()?;
         sp_core::crypto::set_default_ss58_version(runtime_primitives::VARA_SS58_PREFIX.into());
 
         let name = Self::command().get_name().to_string();
@@ -165,7 +157,7 @@ pub trait App: Parser + Sync {
             .with_env_filter(filter)
             .without_time()
             .try_init()
-            .map_err(|e| eyre!("{e}"))?;
+            .map_err(|err| anyhow!("{err}"))?;
 
         self.exec().await.context("failed to run app")
     }

@@ -16,8 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use anyhow::{Result, anyhow};
 use clap::Parser;
-use color_eyre::{Result, eyre::eyre};
 use colored::Colorize;
 use gring::{Keyring, SecretKey, cmd::Command};
 use gsdk::ext::sp_core::{Pair, sr25519};
@@ -46,14 +46,13 @@ impl Wallet {
     pub fn run(&self) -> Result<()> {
         match self {
             Wallet::Dev { name, uri } => Self::dev(name, uri.clone()),
-            Wallet::Gring(command) => command.clone().run().map_err(|err| eyre!("{err}")),
+            Wallet::Gring(command) => command.clone().run(),
         }
     }
 
     /// Switch to development account.
     pub fn dev(name: &str, uri: Option<String>) -> Result<()> {
-        let mut keyring = Keyring::load(Command::store().map_err(|err| eyre!("{err}"))?)
-            .map_err(|err| eyre!("{err}"))?;
+        let mut keyring = Keyring::load(Command::store()?)?;
         if keyring.set_primary(name.into()).is_ok() {
             println!("Successfully switched to dev account {} !", name.cyan());
             return Ok(());
@@ -62,14 +61,10 @@ impl Wallet {
         let sk = SecretKey::from_bytes(
             &sr25519::Pair::from_string(&uri.unwrap_or(DEFAULT_DEV.into()), None)?.to_raw_vec(),
         )
-        .map_err(|_| eyre!("Failed to create keypair from the input uri."))?;
+        .map_err(|_| anyhow!("Failed to create keypair from the input uri."))?;
 
-        keyring
-            .add(name, sk.into(), None)
-            .map_err(|err| eyre!("{err}"))?;
-        keyring
-            .set_primary(name.into())
-            .map_err(|err| eyre!("{err}"))?;
+        keyring.add(name, sk.into(), None)?;
+        keyring.set_primary(name.into())?;
         println!("Successfully switched to dev account {} !", name.cyan());
         Ok(())
     }

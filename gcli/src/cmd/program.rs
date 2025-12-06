@@ -19,8 +19,8 @@
 //! Command `program`.
 use crate::App;
 
+use anyhow::Result;
 use clap::Parser;
-use color_eyre::Result;
 use gear_core::ids::ActorId;
 use gsdk::ext::subxt::utils::H256;
 

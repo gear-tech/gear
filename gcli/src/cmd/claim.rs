@@ -19,8 +19,8 @@
 //! Command `claim`
 use crate::{App, utils::Hex};
 
+use anyhow::Result;
 use clap::Parser;
-use color_eyre::Result;
 
 /// Claim value from mailbox.
 #[derive(Clone, Debug, Parser)]

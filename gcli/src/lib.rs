@@ -129,9 +129,9 @@ pub mod template;
 pub mod utils;
 
 pub use self::{app::App, cmd::Command};
+pub use anyhow;
 pub use async_trait::async_trait;
 pub use clap;
-pub use color_eyre;
 pub use log;
 pub use tokio;
 
