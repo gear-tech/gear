@@ -18,8 +18,7 @@
 
 //! Gear program template
 
-use crate::result::Result;
-use anyhow::anyhow;
+use anyhow::{Context, Result};
 use etc::{Etc, FileSystem, Read, Write};
 use reqwest::Client;
 use std::{env, process::Command};
@@ -41,22 +40,19 @@ pub async fn list() -> Result<Vec<String>> {
     let mut rb = Client::builder()
         .user_agent("gcli")
         .build()
-        .map_err(|e| anyhow!("Failed to build http client: {}", e))?
+        .context("failed to build http client")?
         .get(GEAR_DAPPS_GH_API);
 
     if let Ok(tk) = env::var(GITHUB_TOKEN) {
         rb = rb.bearer_auth(tk);
     }
 
-    let resp = rb
-        .send()
-        .await
-        .map_err(|e| anyhow!("Failed to get examples: {}", e))?;
+    let resp = rb.send().await.context("failed to get examples")?;
 
     let repos = resp
         .json::<Vec<Repo>>()
         .await
-        .map_err(|e| anyhow!("Failed to deserialize example list: {}", e))?
+        .context("failed to deserialize example list")?
         .into_iter()
         .map(|repo| repo.name)
         .collect();
@@ -70,7 +66,7 @@ pub async fn download(example: &str, path: &str) -> Result<()> {
     Command::new("git")
         .args(["clone", &url, path, "--depth=1"])
         .status()
-        .map_err(|e| anyhow!("Failed to download example: {e}"))?;
+        .context("failed to download example")?;
 
     let repo = Etc::new(path)?;
     repo.rm(".git")?;
@@ -79,7 +75,7 @@ pub async fn download(example: &str, path: &str) -> Result<()> {
     Command::new("git")
         .args(["init", path])
         .status()
-        .map_err(|e| anyhow!("Failed to init git: {e}"))?;
+        .context("failed to init git")?;
 
     // Find all manifests
     let mut manifests = Vec::new();
@@ -88,12 +84,9 @@ pub async fn download(example: &str, path: &str) -> Result<()> {
     // Update each manifest
     for manifest in manifests {
         let manifest = Etc::new(manifest)?;
-        let mut toml = String::from_utf8_lossy(
-            &manifest
-                .read()
-                .map_err(|_| anyhow!("Failed to read Cargo.toml"))?,
-        )
-        .to_string();
+        let mut toml =
+            String::from_utf8_lossy(&manifest.read().context("failed to read Cargo.toml")?)
+                .to_string();
 
         process_manifest(&mut toml)?;
         manifest.write(toml.as_bytes())?;

@@ -18,34 +18,47 @@
 
 //! Test for infinity loop, that it can't exceed block production time.
 
-use demo_wat::WatExample;
-use gclient::{EventProcessor, GearApi};
+use demo_custom::{InitMessage, WASM_BINARY};
+use gsdk::{Result, events};
+use parity_scale_codec::Encode;
+use utils::dev_node;
+
+mod utils;
 
 #[tokio::test]
-async fn keyhasher_size_exceed() -> anyhow::Result<()> {
+async fn backend_errors_handled_by_sandbox() -> Result<()> {
     // Creating gear api.
     //
     // By default, login as Alice.
-    let api = GearApi::dev_from_path("../target/release/gear").await?;
+    let (_node, api) = dev_node().await;
 
     // Taking block gas limit constant.
     let gas_limit = api.block_gas_limit()?;
 
     // Subscribing for events.
-    let mut listener = api.subscribe().await?;
-
-    let code = WatExample::LargeScheduled.code();
+    let events = api.subscribe_all_events().await?;
 
     // Program initialization.
-    let (mid, _pid, _) = api
-        .upload_program_bytes(code, gclient::now_micros().to_le_bytes(), "", gas_limit, 0)
-        .await?;
+    let (message_id, _pid) = api
+        .upload_program_bytes(
+            WASM_BINARY,
+            gear_utils::now_micros().to_le_bytes(),
+            InitMessage::BackendError.encode(),
+            gas_limit,
+            0,
+        )
+        .await?
+        .value;
 
     // Asserting successful initialization.
-    assert!(listener.message_processed(mid).await?.succeed());
+    assert!(
+        events::message_dispatch_status(message_id, events)
+            .await?
+            .is_success()
+    );
 
     // Check no runtime panic occurred
-    assert!(!api.queue_processing_stalled().await?);
+    assert!(api.is_progressing().await?);
 
     Ok(())
 }

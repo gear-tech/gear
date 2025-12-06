@@ -294,10 +294,6 @@ case "$COMMAND" in
         header "Running pallet-gear tests"
         pallet_test "$@"; ;;
 
-      client)
-        header "Running gclient tests"
-        client_tests "$@"; ;;
-
       fuzz)
         header "Running fuzzer for runtime panic checks"
         run_fuzzer "$ROOT_DIR" "$1" "$2"; ;;

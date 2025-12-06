@@ -170,7 +170,7 @@ impl Publisher {
 
     /// Check the to-be-published packages
     pub fn check(self) -> Result<Self> {
-        // Post tests for gtest and gclient
+        // Post tests for gtest
         for (pkg, test) in [
             ("demo-syscall-error", "program_can_be_initialized"),
             ("gsdk", "timeout"),

@@ -16,54 +16,59 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use std::pin::pin;
+
 use ark_bls12_381::{G1Affine, G1Projective as G1, G2Affine, G2Projective as G2};
 use ark_ec::Group;
 use ark_serialize::CanonicalSerialize;
 use ark_std::{UniformRand, ops::Mul};
 use demo_bls381::*;
-use gclient::{EventListener, EventProcessor, GearApi, Result};
-use gstd::prelude::*;
+use gear_core::ids::{ActorId, MessageId};
+use gsdk::{Result, SignedApi, events};
+use parity_scale_codec::Encode;
+use utils::dev_node;
+
+mod utils;
 
 type ArkScale<T> = ark_scale::ArkScale<T, { ark_scale::HOST_CALL }>;
 type ScalarField = <G2 as Group>::ScalarField;
 
 async fn common_upload_program(
-    client: &GearApi,
+    api: &SignedApi,
     code: Vec<u8>,
     payload: impl Encode,
-) -> Result<([u8; 32], [u8; 32])> {
+) -> Result<(MessageId, ActorId)> {
     let encoded_payload = payload.encode();
-    let gas_limit = client
-        .calculate_upload_gas(None, code.clone(), encoded_payload, 0, true)
+    let gas_limit = api
+        .calculate_upload_gas(code.clone(), encoded_payload, 0, true)
         .await?
         .min_limit;
+
     println!("init gas {gas_limit:?}");
-    let (message_id, program_id, _) = client
+    let (message_id, program_id) = api
         .upload_program(
             code,
-            gclient::now_micros().to_le_bytes(),
+            gear_utils::now_micros().to_le_bytes(),
             payload,
             gas_limit,
             0,
         )
-        .await?;
+        .await?
+        .value;
 
-    Ok((message_id.into(), program_id.into()))
+    Ok((message_id, program_id))
 }
 
-async fn upload_program(
-    client: &GearApi,
-    listener: &mut EventListener,
-    payload: impl Encode,
-) -> Result<[u8; 32]> {
+async fn upload_program(api: &SignedApi, payload: impl Encode) -> Result<ActorId> {
+    let events = api.subscribe_all_events().await?;
+
     let (message_id, program_id) =
-        common_upload_program(client, WASM_BINARY.to_vec(), payload).await?;
+        common_upload_program(api, WASM_BINARY.to_vec(), payload).await?;
 
     assert!(
-        listener
-            .message_processed(message_id.into())
+        events::message_dispatch_status(message_id, events)
             .await?
-            .succeed()
+            .is_success()
     );
 
     Ok(program_id)
@@ -71,8 +76,9 @@ async fn upload_program(
 
 #[tokio::test]
 async fn builtin_bls381() -> Result<()> {
-    let client = GearApi::dev_from_path("../target/release/gear").await?;
-    let mut listener = client.subscribe().await?;
+    let (_node, api) = dev_node().await;
+
+    let mut events = pin!(api.subscribe_all_events().await?);
 
     let mut rng = ark_std::test_rng();
 
@@ -98,8 +104,7 @@ async fn builtin_bls381() -> Result<()> {
     generator.serialize_uncompressed(&mut gen_bytes).unwrap();
 
     let program_id = upload_program(
-        &client,
-        &mut listener,
+        &api,
         InitMessage {
             g2_gen: gen_bytes,
             pub_keys,
@@ -114,35 +119,39 @@ async fn builtin_bls381() -> Result<()> {
         message: message_bytes,
         signatures,
     };
-    let gas_limit = client
-        .calculate_handle_gas(None, program_id.into(), payload.encode(), 0, true)
+    let gas_limit = api
+        .calculate_handle_gas(program_id, payload.encode(), 0, true)
         .await?
         .min_limit;
     println!("gas_limit {gas_limit:?}");
 
-    let (message_id, _) = client
-        .send_message(program_id.into(), payload, gas_limit, 0)
-        .await?;
+    let message_id = api
+        .send_message(program_id, payload, gas_limit, 0)
+        .await?
+        .value;
 
-    assert!(listener.message_processed(message_id).await?.succeed());
+    assert!(
+        events::message_dispatch_status(message_id, &mut events)
+            .await?
+            .is_success()
+    );
 
-    let gas_limit = client
-        .calculate_handle_gas(
-            None,
-            program_id.into(),
-            HandleMessage::Exp.encode(),
-            0,
-            true,
-        )
+    let gas_limit = api
+        .calculate_handle_gas(program_id, HandleMessage::Exp.encode(), 0, true)
         .await?
         .min_limit;
     println!("gas_limit {gas_limit:?}");
 
-    let (message_id, _) = client
-        .send_message(program_id.into(), HandleMessage::Exp, gas_limit, 0)
-        .await?;
+    let message_id = api
+        .send_message(program_id, HandleMessage::Exp, gas_limit, 0)
+        .await?
+        .value;
 
-    assert!(listener.message_processed(message_id).await?.succeed());
+    assert!(
+        events::message_dispatch_status(message_id, &mut events)
+            .await?
+            .is_success()
+    );
 
     Ok(())
 }

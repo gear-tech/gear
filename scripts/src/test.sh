@@ -19,7 +19,6 @@ test_usage() {
     gsdk           run gsdk package tests
     gcli           run gcli package tests
     pallet         run pallet-gear tests
-    client         run client tests via gclient
     fuzz           run fuzzer
                    The scripts accepts a path to corpus dir as a first param,
                    and a "wlogs" flag to enable logs while fuzzing.
@@ -34,7 +33,7 @@ EOF
 
 workspace_test() {
   cargo nextest run --workspace \
-    --exclude gclient --exclude gcli --exclude gsdk \
+    --exclude gcli --exclude gsdk \
     --exclude runtime-fuzzer --exclude runtime-fuzzer-fuzz \
     --no-fail-fast "$@"
 }
@@ -49,10 +48,6 @@ gcli_test() {
 
 pallet_test() {
   cargo nextest run -p "pallet-*" --no-fail-fast "$@"
-}
-
-client_tests() {
-  cargo nextest run -p gclient --no-fail-fast "$@"
 }
 
 validators() {

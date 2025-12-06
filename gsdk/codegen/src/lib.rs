@@ -19,10 +19,10 @@
 use proc_macro::TokenStream;
 use syn::ItemFn;
 
-mod storage;
+mod at_block;
 
-/// Generate storage query for the latest state for functions that
-/// query storage at specified block.
+/// Generate query for the latest state for functions that
+/// query something at specified block.
 ///
 /// # Note
 ///
@@ -34,8 +34,8 @@ mod storage;
 ///
 /// ```ignore
 /// /// Imdocs at specified block.
-/// #[storage_fetch]
-/// pub fn query_storage_at(addr: Address, block_hash: Option<H256>) -> R {
+/// #[at_block]
+/// pub fn query_at(addr: Address, block_hash: Option<H256>) -> R {
 ///     // ...
 /// }
 /// ```
@@ -44,17 +44,17 @@ mod storage;
 ///
 /// ```ignore
 /// /// Imdocs at specified block.
-/// pub fn query_storage_at(addr: Address, block_hash: impl Into<Option<H256>>) -> R {
+/// pub fn query_at(addr: Address, block_hash: impl Into<Option<H256>>) -> R {
 ///     // ...
 /// }
 ///
 /// /// Imdocs.
-/// pub fn query_storage(addr: Address) -> R {
-///     query_storage_at(addr, None)
+/// pub fn query(addr: Address) -> R {
+///     query_at(addr, None)
 /// }
 /// ```
 #[proc_macro_attribute]
-pub fn storage_fetch(_: TokenStream, item: TokenStream) -> TokenStream {
+pub fn at_block(_: TokenStream, item: TokenStream) -> TokenStream {
     let raw: ItemFn = syn::parse_macro_input!(item);
-    storage::StorageQueryBuilder::from(raw).build()
+    at_block::AtBlockBuilder::from(raw).build()
 }

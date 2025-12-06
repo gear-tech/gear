@@ -18,21 +18,20 @@
 //
 //! Command line application abstraction
 
+use anyhow::{Context, Result, anyhow};
 use clap::Parser;
-use color_eyre::{Result, eyre::eyre};
-use gclient::{
-    GearApi,
+use gring::Keyring;
+use gsdk::{
+    Api, SignedApi,
     ext::sp_core::{self, Pair as _, crypto::Ss58Codec, sr25519::Pair},
 };
-use gring::Keyring;
-use gsdk::Api;
 use std::{env, time::Duration};
 use tracing_subscriber::EnvFilter;
 
 /// Command line gear program application abstraction.
 ///
 /// ```ignore
-/// use gcli::{async_trait, App, Command, clap::Parser, color_eyre, anyhow};
+/// use gcli::{async_trait, App, Command, clap::Parser, color_eyre};
 ///
 /// /// My customized sub commands.
 /// #[derive(Debug, Parser)]
@@ -53,7 +52,7 @@ use tracing_subscriber::EnvFilter;
 ///
 /// #[async_trait]
 /// impl App for MyGCli {
-///     async fn exec(&self) -> anyhow::Result<()> {
+///     async fn exec(&self) -> Result<()> {
 ///         match &self.command {
 ///             SubCommand::GCliCommands(command) => command.exec(self).await,
 ///             SubCommand::Ping => {
@@ -106,34 +105,33 @@ pub trait App: Parser + Sync {
     }
 
     /// Exec program from the parsed arguments.
-    async fn exec(&self) -> anyhow::Result<()>;
+    async fn exec(&self) -> Result<()>;
 
     /// Get gear api without signing in with password.
-    async fn api(&self) -> anyhow::Result<GearApi> {
+    async fn api(&self) -> Result<Api> {
         let endpoint = self.endpoint();
         Api::builder()
             .timeout(self.timeout())
-            .uri(endpoint.as_deref().unwrap_or(Api::DEFAULT_ENDPOINT))
+            .uri(endpoint.as_deref().unwrap_or(Api::VARA_ENDPOINT))
             .build()
             .await
-            .map(Into::into)
             .map_err(Into::into)
     }
 
     /// Get signer.
-    async fn signer(&self) -> anyhow::Result<GearApi> {
+    async fn signed(&self) -> Result<SignedApi> {
         let passwd = self.passwd();
 
         let api = Api::builder()
             .timeout(self.timeout())
-            .uri(self.endpoint().as_deref().unwrap_or(Api::DEFAULT_ENDPOINT))
+            .uri(self.endpoint().as_deref().unwrap_or(Api::VARA_ENDPOINT))
             .build()
             .await?;
         let pair = Keyring::load(gring::cmd::Command::store()?)?
             .primary()?
             .decrypt(passwd.clone().and_then(|p| hex::decode(p).ok()).as_deref())?;
 
-        Ok(GearApi::from((api, pair.into())))
+        Ok(SignedApi::with_pair(api, pair.into()))
     }
 
     /// Run application.
@@ -141,7 +139,6 @@ pub trait App: Parser + Sync {
     /// This is a wrapper of [`Self::exec`] with preset retry
     /// and verbose level.
     async fn run(&self) -> Result<()> {
-        color_eyre::install()?;
         sp_core::crypto::set_default_ss58_version(runtime_primitives::VARA_SS58_PREFIX.into());
 
         let name = Self::command().get_name().to_string();
@@ -160,10 +157,8 @@ pub trait App: Parser + Sync {
             .with_env_filter(filter)
             .without_time()
             .try_init()
-            .map_err(|e| eyre!("{e}"))?;
+            .map_err(|err| anyhow!("{err}"))?;
 
-        self.exec()
-            .await
-            .map_err(|e| eyre!("Failed to run app, {e}"))
+        self.exec().await.context("failed to run app")
     }
 }

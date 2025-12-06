@@ -18,8 +18,7 @@
 
 //! Gear program utils
 
-use crate::result::Result;
-use anyhow::anyhow;
+use anyhow::{Result, bail};
 use std::{fs, path::PathBuf};
 
 /// home directory of cli `gear`
@@ -50,7 +49,7 @@ where
         let hex = self.to_vec()?;
 
         if hex.len() != 32 {
-            return Err(anyhow!("Incorrect id length").into());
+            bail!("Incorrect id length");
         }
 
         let mut arr = [0; 32];
