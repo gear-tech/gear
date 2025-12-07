@@ -133,7 +133,7 @@ jobs:
     name: gear-cli (${{ matrix.targets.name }})
     steps:
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: "Install: Setup linker"
         uses: ./.github/actions/setup-linker
@@ -165,7 +165,7 @@ jobs:
           cp target/${{ matrix.targets.target }}/release/wbuild/vara-runtime/*.wasm artifact/wbuild/vara-runtime/
 
       - name: "ACTIONS: Upload node and VARA runtime"
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: gear-cli-and-runtime-release-${{ matrix.targets.target }}
           path: artifact
@@ -180,7 +180,7 @@ jobs:
     name: ethexe-cli (${{ matrix.targets.name }})
     steps:
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           submodules: recursive
 
@@ -208,7 +208,7 @@ jobs:
         run: ./scripts/gear.sh build ethexe --release --locked
 
       - name: "ACTIONS: Upload ethexe node"
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: ethexe-cli-release-${{ matrix.targets.target }}
           path: target/${{ matrix.targets.target }}/release/ethexe*
@@ -225,7 +225,7 @@ jobs:
           large-packages: false
 
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           submodules: recursive
 
@@ -272,7 +272,7 @@ jobs:
     name: workspace (${{ matrix.profiles.name }})
     steps:
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           submodules: recursive
 
@@ -308,13 +308,13 @@ jobs:
         run: cargo build --workspace --all-targets --all-features ${{ matrix.profiles.flags }}
 
       - name: "ACTIONS: Upload example WASMs"
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: examples-${{ matrix.profiles.name }}-wasm32-gear
           path: target/wasm32-gear/${{ matrix.profiles.name }}
 
       - name: "ACTIONS: Download node and runtime"
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           name: gear-cli-and-runtime-release-x86_64-unknown-linux-gnu
           path: gear-cli-and-runtime-release
@@ -329,7 +329,7 @@ jobs:
     needs: workspace
     steps:
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: "Install: Setup linker"
         uses: ./.github/actions/setup-linker
@@ -359,7 +359,7 @@ jobs:
     name: benchmarks
     steps:
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: "Install: Setup linker"
         uses: ./.github/actions/setup-linker
@@ -418,7 +418,7 @@ jobs:
           large-packages: false
 
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: "Install: Setup linker"
         uses: ./.github/actions/setup-linker
@@ -476,7 +476,7 @@ jobs:
           access_token: ${{ github.token }}
 
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: "Install: Setup linker"
         uses: ./.github/actions/setup-linker
@@ -536,7 +536,7 @@ jobs:
     if: ${{ inputs.production && contains(fromJSON(needs.dynamic-matrix.outputs.profiles).*.name, 'release') }}
     steps:
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           submodules: recursive
 
@@ -547,7 +547,7 @@ jobs:
         uses: ./.github/actions/install-rust
 
       - name: "ACTIONS: Download example WASMs"
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v6
         with:
           name: examples-release-wasm32-gear
           path: examples-artifact
@@ -577,7 +577,7 @@ jobs:
 
       - name: Upload artifacts
         if: ${{ github.event_name == 'push' }}
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           path: artifact
 

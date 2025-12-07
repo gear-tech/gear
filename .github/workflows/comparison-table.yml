@@ -19,7 +19,7 @@ jobs:
     runs-on: [kuberunner]
     steps:
       - name: "ACTIONS: Checkout & fetch all history"
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
@@ -34,7 +34,7 @@ jobs:
           ./scripts/weight-diff.sh master $(git branch --show-current) ${{ inputs.runtime }} --display-units > ${{ inputs.runtime }}-tables.txt
 
       - name: "ACTIONS: Upload artifact with comparison tables (${{ inputs.runtime }})"
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v5
         with:
           name: ${{ inputs.runtime }}-tables
           path: ${{ inputs.runtime }}-tables.txt
