@@ -39,14 +39,27 @@ const _: () =
 type CachedMessages = LruCache<PeerId, LruCache<VerifiedValidatorMessage, ()>>;
 
 #[derive(Debug, Eq, PartialEq, derive_more::Display)]
-enum VerificationError {
-    #[display("too old era: expected {expected_era}, got {received_era}")]
-    TooOldEra {
+enum VerificationIgnoreReason {
+    #[display("old era: expected {expected_era}, got {received_era}")]
+    OldEra {
         expected_era: u64,
         received_era: u64,
     },
-    #[display("old era: expected {expected_era}, got {received_era}")]
-    OldEra {
+}
+
+#[derive(Debug, Eq, PartialEq, derive_more::Display)]
+enum VerificationCacheReason {
+    #[display("new era: expected {expected_era}, got {received_era}")]
+    NewEra {
+        expected_era: u64,
+        received_era: u64,
+    },
+}
+
+#[derive(Debug, Eq, PartialEq, derive_more::Display)]
+enum VerificationRejectReason {
+    #[display("too old era: expected {expected_era}, got {received_era}")]
+    TooOldEra {
         expected_era: u64,
         received_era: u64,
     },
@@ -55,13 +68,15 @@ enum VerificationError {
         expected_era: u64,
         received_era: u64,
     },
-    #[display("new era: expected {expected_era}, got {received_era}")]
-    NewEra {
-        expected_era: u64,
-        received_era: u64,
-    },
     #[display("address {address} is not validator")]
     AddressIsNotValidator { address: Address },
+}
+
+#[derive(Debug, Eq, PartialEq, derive_more::Display, derive_more::From, derive_more::Unwrap)]
+enum VerificationError {
+    Ignore(VerificationIgnoreReason),
+    Cache(VerificationCacheReason),
+    Reject(VerificationRejectReason),
 }
 
 /// Tracks validator-signed messages and admits each one once the on-chain
@@ -95,19 +110,21 @@ impl ValidatorTopic {
         let message_era = message.era_index();
         let address = message.address();
 
-        let res = match message_era.cmp(&chain_head_era) {
+        let res: Result<(), VerificationError> = match message_era.cmp(&chain_head_era) {
             Ordering::Less => {
                 if message_era + 1 != chain_head_era {
-                    Err(VerificationError::TooOldEra {
+                    Err(VerificationRejectReason::TooOldEra {
                         expected_era: chain_head_era,
                         received_era: message_era,
-                    })
+                    }
+                    .into())
                 } else {
                     // node may be not synced yet
-                    Err(VerificationError::OldEra {
+                    Err(VerificationIgnoreReason::OldEra {
                         expected_era: chain_head_era,
                         received_era: message_era,
-                    })
+                    }
+                    .into())
                 }
             }
             Ordering::Equal => {
@@ -117,24 +134,39 @@ impl ValidatorTopic {
             }
             Ordering::Greater => {
                 if message_era != chain_head_era + 1 {
-                    Err(VerificationError::TooNewEra {
+                    Err(VerificationRejectReason::TooNewEra {
                         expected_era: chain_head_era,
                         received_era: message_era,
-                    })
+                    }
+                    .into())
                 } else {
                     // node may be synced ahead
-                    Err(VerificationError::NewEra {
+                    Err(VerificationCacheReason::NewEra {
                         expected_era: chain_head_era,
                         received_era: message_era,
-                    })
+                    }
+                    .into())
                 }
             }
         };
 
-        if let Ok(()) | Err(VerificationError::NewEra { .. }) = res
-            && !self.snapshot.is_current_or_next(address)
-        {
-            return Err(VerificationError::AddressIsNotValidator { address });
+        // check if the address is a validator
+        match res {
+            Ok(()) | Err(VerificationError::Cache(_)) => {
+                // if there are no errors, or it is a cache reason, then we definitely need to check
+                if !self.snapshot.is_current_or_next(address) {
+                    return Err(VerificationRejectReason::AddressIsNotValidator { address }.into());
+                }
+            }
+            Err(VerificationError::Ignore(_)) => {
+                // ignore reason would require keeping previous era validators to
+                // honestly penalize the peer, so we only ignore the message.
+                // `ValidatorList` (and `NetworkService` in general) would have
+                // more complex initialization to fetch previous validators
+            }
+            Err(VerificationError::Reject(_)) => {
+                // peer would be penalized anyway, so no need to check
+            }
         }
 
         res
@@ -191,10 +223,13 @@ impl ValidatorTopic {
     ) -> (MessageAcceptance, Option<VerifiedValidatorMessage>) {
         match self.inner_verify(&message) {
             Ok(()) => (MessageAcceptance::Accept, Some(message)),
-            Err(VerificationError::OldEra { .. }) => (MessageAcceptance::Ignore, None),
-            Err(err @ VerificationError::NewEra { .. }) => {
+            Err(VerificationError::Ignore(reason)) => {
+                log::trace!("ignore message from {source} peer: {reason:?}, message: {message:?}");
+                (MessageAcceptance::Ignore, None)
+            }
+            Err(VerificationError::Cache(reason)) => {
                 log::trace!(
-                    "cache message pending verification from {source} peer: {err}, message: {message:?}"
+                    "cache message pending verification from {source} peer: {reason}, message: {message:?}"
                 );
 
                 let existed = self
@@ -206,11 +241,9 @@ impl ValidatorTopic {
 
                 (MessageAcceptance::Ignore, None)
             }
-            Err(err @ VerificationError::TooOldEra { .. })
-            | Err(err @ VerificationError::TooNewEra { .. })
-            | Err(err @ VerificationError::AddressIsNotValidator { .. }) => {
+            Err(VerificationError::Reject(reason)) => {
                 log::trace!(
-                    "failed to verify message initially from {source} peer: {err}, message: {message:?}"
+                    "failed to verify message initially from {source} peer: {reason}, message: {message:?}"
                 );
                 self.peer_score.invalid_data(source);
                 (MessageAcceptance::Reject, None)
@@ -282,10 +315,13 @@ mod tests {
         let bob_message = new_validator_message(CHAIN_HEAD_ERA - 2);
         let mut alice = new_topic(nonempty![bob_message.address()]);
 
-        let err = alice.inner_verify(&bob_message).unwrap_err();
+        let err = alice
+            .inner_verify(&bob_message)
+            .unwrap_err()
+            .unwrap_reject();
         assert_eq!(
             err,
-            VerificationError::TooOldEra {
+            VerificationRejectReason::TooOldEra {
                 expected_era: CHAIN_HEAD_ERA,
                 received_era: CHAIN_HEAD_ERA - 2
             }
@@ -304,10 +340,13 @@ mod tests {
         let bob_message = new_validator_message(CHAIN_HEAD_ERA - 1);
         let mut alice = new_topic(nonempty![bob_message.address()]);
 
-        let err = alice.inner_verify(&bob_message).unwrap_err();
+        let err = alice
+            .inner_verify(&bob_message)
+            .unwrap_err()
+            .unwrap_ignore();
         assert_eq!(
             err,
-            VerificationError::OldEra {
+            VerificationIgnoreReason::OldEra {
                 expected_era: CHAIN_HEAD_ERA,
                 received_era: CHAIN_HEAD_ERA - 1
             }
@@ -326,10 +365,13 @@ mod tests {
         let bob_message = new_validator_message(CHAIN_HEAD_ERA + 2);
         let mut alice = new_topic(nonempty![bob_message.address()]);
 
-        let err = alice.inner_verify(&bob_message).unwrap_err();
+        let err = alice
+            .inner_verify(&bob_message)
+            .unwrap_err()
+            .unwrap_reject();
         assert_eq!(
             err,
-            VerificationError::TooNewEra {
+            VerificationRejectReason::TooNewEra {
                 expected_era: CHAIN_HEAD_ERA,
                 received_era: CHAIN_HEAD_ERA + 2
             }
@@ -349,10 +391,10 @@ mod tests {
         let bob_message = new_validator_message(BOB_BLOCK_ERA);
         let mut alice = new_topic(nonempty![bob_message.address()]);
 
-        let err = alice.inner_verify(&bob_message).unwrap_err();
+        let err = alice.inner_verify(&bob_message).unwrap_err().unwrap_cache();
         assert_eq!(
             err,
-            VerificationError::NewEra {
+            VerificationCacheReason::NewEra {
                 expected_era: CHAIN_HEAD_ERA,
                 received_era: CHAIN_HEAD_ERA + 1
             }
@@ -376,10 +418,13 @@ mod tests {
         let mut alice = new_topic(nonempty![Address::default()]);
         let bob_message = new_validator_message(CHAIN_HEAD_ERA + 1);
 
-        let err = alice.inner_verify(&bob_message).unwrap_err();
+        let err = alice
+            .inner_verify(&bob_message)
+            .unwrap_err()
+            .unwrap_reject();
         assert_eq!(
             err,
-            VerificationError::AddressIsNotValidator {
+            VerificationRejectReason::AddressIsNotValidator {
                 address: bob_message.address()
             }
         );
