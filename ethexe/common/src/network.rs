@@ -24,9 +24,8 @@ use crate::{
 };
 use alloc::vec::Vec;
 use core::{hash::Hash, num::NonZeroU32};
-use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
-use sha3::{Digest as _, Keccak256};
+use sha3::Keccak256;
 
 pub type ValidatorAnnounce = ValidatorMessage<Announce>;
 pub type ValidatorRequest = ValidatorMessage<BatchCommitmentValidationRequest>;
@@ -35,14 +34,14 @@ pub type ValidatorPromise = ValidatorMessage<Promise>;
 
 #[derive(Debug, Clone, Encode, Decode, Eq, PartialEq, Hash)]
 pub struct ValidatorMessage<T> {
-    pub block: H256,
+    pub era_index: u64,
     pub payload: T,
 }
 
 impl<T: ToDigest> ToDigest for ValidatorMessage<T> {
     fn update_hasher(&self, hasher: &mut Keccak256) {
-        let Self { block, payload } = self;
-        hasher.update(block.0);
+        let Self { era_index, payload } = self;
+        era_index.to_be_bytes().encode_to(hasher);
         payload.update_hasher(hasher);
     }
 }
@@ -75,11 +74,11 @@ pub enum VerifiedValidatorMessage {
 }
 
 impl VerifiedValidatorMessage {
-    pub fn block(&self) -> H256 {
+    pub fn era_index(&self) -> u64 {
         match self {
-            VerifiedValidatorMessage::Announce(announce) => announce.data().block,
-            VerifiedValidatorMessage::RequestBatchValidation(request) => request.data().block,
-            VerifiedValidatorMessage::ApproveBatch(reply) => reply.data().block,
+            VerifiedValidatorMessage::Announce(announce) => announce.data().era_index,
+            VerifiedValidatorMessage::RequestBatchValidation(request) => request.data().era_index,
+            VerifiedValidatorMessage::ApproveBatch(reply) => reply.data().era_index,
         }
     }
 
