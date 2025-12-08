@@ -82,7 +82,7 @@ enum VerificationError {
 /// Tracks validator-signed messages and admits each one once the on-chain
 /// context confirms it is timely and originates from a legitimate validator.
 ///
-/// Legitimacy is checked via the `block` attached to
+/// Legitimacy is checked via the `era_index` attached to
 /// [`ValidatorMessage`](ethexe_common::network::ValidatorMessage) and the
 /// validator-signed payload it carries. The hinted era must match the current
 /// chain head; eras N-1, N+2, N+3, and so on are dropped when the node is at era N.

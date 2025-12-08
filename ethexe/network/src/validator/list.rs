@@ -50,11 +50,6 @@ impl ValidatorListSnapshot {
 }
 
 /// Tracks current and next validator set around the latest known block.
-///
-/// A new [`ValidatorListSnapshot`] is produced only when the chain head moves to
-/// a *strictly newer* era. Advancing within the same era (even if height
-/// increases) does not emit a snapshot, which keeps downstream components from
-/// reprocessing work unnecessarily.
 #[derive(Debug)]
 pub(crate) struct ValidatorList {
     timelines: ProtocolTimelines,
@@ -103,11 +98,6 @@ impl ValidatorList {
     }
 
     /// Refresh the current chain head and validator set snapshot.
-    ///
-    /// Returns `Some(snapshot)` only when the supplied block belongs to a later
-    /// era than the current chain head. Blocks from the same or earlier era are
-    /// ignored to avoid redundant validator lookups. Downstream components can
-    /// use the returned snapshot to revalidate cached network messages.
     pub(crate) fn set_chain_head(
         &mut self,
         chain_head: H256,
