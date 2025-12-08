@@ -284,13 +284,10 @@ mod tests {
     }
 
     fn new_topic(validators: NonEmpty<Address>) -> ValidatorTopic {
-        let snapshot = Arc::new(ValidatorListSnapshot {
-            current_era_index: CHAIN_HEAD_ERA,
-            current_validators: validators.into(),
-            next_validators: None,
-        });
-
-        ValidatorTopic::new(peer_score::Handle::new_test(), snapshot)
+        ValidatorTopic::new(
+            peer_score::Handle::new_test(),
+            new_snapshot(CHAIN_HEAD_ERA, validators),
+        )
     }
 
     fn new_validator_message(era_index: u64) -> VerifiedValidatorMessage {
@@ -438,6 +435,31 @@ mod tests {
     }
 
     #[test]
+    fn new_era_address_is_not_validator() {
+        let bob_message = new_validator_message(CHAIN_HEAD_ERA);
+        let charlie_message = new_validator_message(CHAIN_HEAD_ERA + 1);
+
+        let mut alice = new_topic(nonempty![Default::default()]);
+
+        for message in [bob_message, charlie_message] {
+            let err = alice.inner_verify(&message).unwrap_err().unwrap_reject();
+            assert_eq!(
+                err,
+                VerificationRejectReason::AddressIsNotValidator {
+                    address: message.address()
+                }
+            );
+
+            let bob_source = PeerId::random();
+            let (acceptance, verified_msg) = alice.verify_message_initially(bob_source, message);
+            assert_matches!(acceptance, MessageAcceptance::Reject);
+            assert_eq!(verified_msg, None);
+            assert_eq!(alice.cached_messages.len(), 0);
+            assert_eq!(alice.next_message(), None);
+        }
+    }
+
+    #[test]
     fn success() {
         let bob_message = new_validator_message(CHAIN_HEAD_ERA);
         let mut alice = new_topic(nonempty![bob_message.address()]);
@@ -503,6 +525,7 @@ mod tests {
         let verified: Vec<_> = iter::from_fn(|| alice.next_message()).collect();
 
         // Both Bob's and Charlie's messages should be verified despite Dave's failure
+        assert_eq!(alice.cached_messages.len(), 0);
         assert_eq!(verified.len(), 2);
         assert!(verified.contains(&bob_message));
         assert!(verified.contains(&charlie_message));
