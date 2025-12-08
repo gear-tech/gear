@@ -489,9 +489,7 @@ impl NetworkService {
     pub fn set_chain_head(&mut self, chain_head: H256) -> anyhow::Result<()> {
         let snapshot = self.validator_list.set_chain_head(chain_head)?;
 
-        if let Some(snapshot) = snapshot {
-            self.validator_topic.on_new_snapshot(snapshot.clone());
-        }
+        self.validator_topic.on_new_snapshot(snapshot);
 
         Ok(())
     }

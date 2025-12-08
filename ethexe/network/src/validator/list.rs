@@ -30,7 +30,7 @@ struct CurrentEra {
 }
 
 /// Lightweight snapshot of [`ValidatorList`] to be used in other validator-related structures.
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub(crate) struct ValidatorListSnapshot {
     pub current_era_index: u64,
     pub current_validators: ValidatorsVec,
@@ -111,41 +111,27 @@ impl ValidatorList {
     pub(crate) fn set_chain_head(
         &mut self,
         chain_head: H256,
-    ) -> anyhow::Result<Option<Arc<ValidatorListSnapshot>>> {
-        let current_era = self.current_era.index;
-
+    ) -> anyhow::Result<Arc<ValidatorListSnapshot>> {
         let chain_head_header = self
             .db
             .block_header(chain_head)
             .context("failed to get chain head block header")?;
         let chain_head_era = self.timelines.era_from_ts(chain_head_header.timestamp);
 
-        debug_assert!(current_era <= chain_head_era, "era went backwards");
+        let current_validators = self
+            .db
+            .validators(chain_head_era)
+            .context("validators not found")?;
 
-        if current_era + 1 == chain_head_era {
-            // era changed
+        let next_validators = self.db.validators(chain_head_era + 1);
 
-            let current_validators = self
-                .db
-                .validators(chain_head_era)
-                .context("validators not found")?;
+        self.current_era = CurrentEra {
+            index: chain_head_era,
+            current_validators,
+            next_validators,
+        };
 
-            self.current_era = CurrentEra {
-                index: chain_head_era,
-                current_validators,
-                next_validators: None,
-            };
-        } else if let Some(next_validators) = self.db.validators(chain_head_era + 1) {
-            // next era validators are known
-
-            self.current_era.next_validators = Some(next_validators);
-        } else {
-            // nothing changed
-
-            return Ok(None);
-        }
-
-        Ok(Some(self.create_snapshot()))
+        Ok(self.create_snapshot())
     }
 }
 
@@ -198,7 +184,7 @@ mod tests {
         let next_validators = validators_vec(&[3, 4]);
         db.set_validators(0, current_validators.clone());
 
-        let (mut list, snapshot) = ValidatorList::new(
+        let (mut list, init_snapshot) = ValidatorList::new(
             Box::new(db.clone()),
             genesis_block_header,
             current_validators.clone(),
@@ -207,65 +193,36 @@ mod tests {
         assert_eq!(list.current_era.index, 0);
         assert_eq!(list.current_era.current_validators, current_validators);
         assert_eq!(list.current_era.next_validators, None);
-        assert_eq!(list, snapshot);
+        assert_eq!(list, init_snapshot);
 
         // no changes
-        assert!(list.set_chain_head(same_era_hash).unwrap().is_none());
-        assert_eq!(list.current_era.index, 0);
+        let snapshot = list.set_chain_head(same_era_hash).unwrap();
+        assert_eq!(init_snapshot, snapshot);
+        assert_eq!(list, init_snapshot);
+        assert_eq!(list, snapshot);
 
         // next validators are known
         db.set_validators(1, next_validators.clone());
 
-        let snapshot = list
-            .set_chain_head(next_committed_validators_hash)
-            .unwrap()
-            .unwrap();
+        let next_validators_snapshot = list.set_chain_head(next_committed_validators_hash).unwrap();
         assert_eq!(list.current_era.index, 0);
         assert_eq!(list.current_era.current_validators, current_validators);
         assert_eq!(
             list.current_era.next_validators,
             Some(next_validators.clone())
         );
-        assert_eq!(list, snapshot);
+        assert_eq!(list, next_validators_snapshot);
 
         // era changed
-        let snapshot = list.set_chain_head(next_era_hash).unwrap().unwrap();
+        let snapshot = list.set_chain_head(next_era_hash).unwrap();
         assert_eq!(list.current_era.index, 1);
         assert_eq!(list.current_era.current_validators, next_validators);
         assert_eq!(list.current_era.next_validators, None);
         assert_eq!(list, snapshot);
-    }
 
-    #[test]
-    #[should_panic = "era went backwards"]
-    fn era_went_backwards_asserted() {
-        let genesis_hash = H256::from_low_u64_be(0);
-        let genesis_block_header = header(0, 0);
-        let next_era_hash = H256::from_low_u64_be(3);
-
-        let db = Database::memory();
-        db.set_protocol_timelines(TIMELINES);
-        db.set_block_header(genesis_hash, genesis_block_header);
-        db.set_block_header(next_era_hash, header(3, 15));
-
-        let current_validators = validators_vec(&[1, 2]);
-        db.set_validators(0, current_validators.clone());
-
-        let (mut list, snapshot) = ValidatorList::new(
-            Box::new(db.clone()),
-            genesis_block_header,
-            current_validators.clone(),
-        )
-        .expect("init succeeds");
+        // everything goes backwards - reorg case
+        let snapshot = list.set_chain_head(genesis_hash).unwrap();
+        assert_eq!(list, next_validators_snapshot);
         assert_eq!(list, snapshot);
-
-        db.set_validators(1, current_validators.clone());
-
-        // era changed
-        let snapshot = list.set_chain_head(next_era_hash).unwrap().unwrap();
-        assert_eq!(list, snapshot);
-
-        // panic
-        let _res = list.set_chain_head(genesis_hash);
     }
 }
