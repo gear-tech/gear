@@ -212,10 +212,9 @@ impl ValidatorTopic {
     /// Perform signature validation, chain context checks, and peer scoring.
     ///
     /// Returns the appropriate gossipsub acceptance outcome while optionally
-    /// caching messages that can become valid once either the block header
-    /// arrives (`UnknownBlock`) or the node enters the hinted next era
+    /// caching messages that can become valid once the node enters the hinted next era
     /// (`NewEra`). All other mismatches are penalized via peer scoring and
-    /// rejected immediately.
+    /// rejected immediately or ignored.
     pub(crate) fn verify_message_initially(
         &mut self,
         source: PeerId,
