@@ -23,9 +23,10 @@ use crate::{
     ProtocolTimelines, Schedule, SimpleBlockData, ValidatorsVec,
     consensus::BatchCommitmentValidationRequest,
     db::*,
+    ecdsa::{PrivateKey, SignedData},
     events::BlockEvent,
     gear::{BatchCommitment, ChainCommitment, CodeCommitment, Message, StateTransition},
-    injected::InjectedTransaction,
+    injected::{InjectedTransaction, RpcOrNetworkInjectedTx},
     network::ValidatorMessage,
 };
 use alloc::{collections::BTreeMap, vec};
@@ -180,8 +181,24 @@ impl Mock<()> for InjectedTransaction {
             payload: vec![].into(),
             value: 0,
             reference_block: Default::default(),
-            salt: vec![].into(),
+            salt: H256::random().0.to_vec().into(),
         }
+    }
+}
+
+impl Mock<PrivateKey> for RpcOrNetworkInjectedTx {
+    fn mock(pk: PrivateKey) -> Self {
+        RpcOrNetworkInjectedTx {
+            recipient: Default::default(),
+            tx: SignedData::create(pk, InjectedTransaction::mock(()))
+                .expect("Signing injected transaction will succeed"),
+        }
+    }
+}
+
+impl Mock<()> for RpcOrNetworkInjectedTx {
+    fn mock(_args: ()) -> Self {
+        RpcOrNetworkInjectedTx::mock(PrivateKey::random())
     }
 }
 
