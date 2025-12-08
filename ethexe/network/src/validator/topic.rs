@@ -491,6 +491,7 @@ mod tests {
             charlie_message.address(),
             dave_message.address()
         ]);
+        let init_snapshot = alice.snapshot.clone();
 
         // All three messages are cached (NewEra)
         let bob_source = PeerId::random();
@@ -529,5 +530,9 @@ mod tests {
         assert_eq!(verified.len(), 2);
         assert!(verified.contains(&bob_message));
         assert!(verified.contains(&charlie_message));
+
+        // reorg case
+        alice.on_new_snapshot(init_snapshot.clone());
+        assert_eq!(alice.snapshot, init_snapshot);
     }
 }
