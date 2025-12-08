@@ -240,7 +240,7 @@ mod tests {
     use super::*;
     use assert_matches::assert_matches;
     use ethexe_common::{
-        Announce, BlockHeader, ProtocolTimelines, db::OnChainStorageRW, mock::Mock,
+        BlockHeader, NetworkAnnounce, ProtocolTimelines, db::OnChainStorageRW, mock::Mock,
         network::ValidatorMessage,
     };
     use ethexe_db::Database;
@@ -312,7 +312,7 @@ mod tests {
                 pub_key,
                 ValidatorMessage {
                     block,
-                    payload: Announce::mock(()),
+                    payload: NetworkAnnounce::mock(()),
                 },
             )
             .map(SignedValidatorMessage::from)
