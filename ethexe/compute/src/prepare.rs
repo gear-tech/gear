@@ -19,10 +19,7 @@
 use crate::{ComputeError, ComputeEvent, Result, service::SubService};
 use ethexe_common::{
     BlockData,
-    db::{
-        BlockMetaStorageRO, BlockMetaStorageRW, CodesStorageRO, LatestDataStorageRW,
-        OnChainStorageRO, OnChainStorageRW,
-    },
+    db::{BlockMetaStorageRO, BlockMetaStorageRW, CodesStorageRO, OnChainStorageRO},
     events::{BlockEvent, RouterEvent},
 };
 use ethexe_db::Database;
@@ -172,26 +169,13 @@ fn collect_not_prepared_blocks_chain(
     mut block_hash: H256,
 ) -> Result<VecDeque<BlockData>> {
     let mut chain = VecDeque::new();
-
-    loop {
-        if db.block_meta(block_hash).prepared {
-            break;
-        }
-
-        let header = db
-            .block_header(block_hash)
-            .ok_or(ComputeError::BlockHeaderNotFound(block_hash))?;
-        let events = db
-            .block_events(block_hash)
-            .ok_or(ComputeError::BlockEventsNotFound(block_hash))?;
-
-        chain.push_front(BlockData {
-            hash: block_hash,
-            header,
-            events,
-        });
-
-        block_hash = header.parent_hash;
+    while !db.block_meta(block_hash).prepared {
+        let data = db
+            .synced_block_read(block_hash)
+            .ok_or(ComputeError::BlockNotSynced(block_hash))?
+            .into_data()?;
+        block_hash = data.header.parent_hash;
+        chain.push_front(data);
     }
 
     Ok(chain)
@@ -263,10 +247,7 @@ fn missing_data(db: &Database, chain: &VecDeque<BlockData>, is_start: bool) -> R
     })
 }
 
-fn prepare_one_block<DB: BlockMetaStorageRW + LatestDataStorageRW + OnChainStorageRW>(
-    db: &DB,
-    block: BlockData,
-) -> Result<()> {
+fn prepare_one_block(db: &Database, block: BlockData) -> Result<()> {
     let parent = block.header.parent_hash;
     let mut requested_codes = HashSet::new();
     let mut validated_codes = HashSet::new();
@@ -278,15 +259,11 @@ fn prepare_one_block<DB: BlockMetaStorageRW + LatestDataStorageRW + OnChainStora
     let mut codes_queue = parent_meta
         .codes_queue
         .ok_or(ComputeError::CodesQueueNotFound(parent))?;
+    let mut last_committed_era_index = parent_meta
+        .last_committed_era_index
+        .ok_or(ComputeError::LastCommittedEraIndexNotFound(parent))?;
 
     let mut last_committed_announce_hash = None;
-    let mut latest_validators_committed_era = db
-        .block_validators_committed_for_era(parent)
-        .unwrap_or_else(|| {
-            // TODO: !!! temporary fix
-            let tl = db.protocol_timelines().expect("must be");
-            tl.era_from_ts(block.header.timestamp)
-        });
 
     for event in block.events {
         match event {
@@ -305,14 +282,14 @@ fn prepare_one_block<DB: BlockMetaStorageRW + LatestDataStorageRW + OnChainStora
 
             BlockEvent::Router(RouterEvent::ValidatorsCommittedForEra { era_index }) => {
                 // TODO !!! kuzmindev: here must be `if era_index != latest_validators_committed_era + 1`
-                if era_index < latest_validators_committed_era {
+                if era_index < last_committed_era_index {
                     return Err(ComputeError::ValidatorsCommittedForEarlierEra {
-                        previous_commitment_era_index: latest_validators_committed_era,
+                        previous_commitment_era_index: last_committed_era_index,
                         commitment_era_index: era_index,
                     });
                 }
 
-                latest_validators_committed_era = era_index;
+                last_committed_era_index = era_index;
             }
             _ => {}
         }
@@ -330,18 +307,16 @@ fn prepare_one_block<DB: BlockMetaStorageRW + LatestDataStorageRW + OnChainStora
     };
 
     db.mutate_block_meta(block.hash, |meta| {
+        meta.last_committed_era_index = Some(last_committed_era_index);
         meta.last_committed_batch = Some(last_committed_batch);
         meta.codes_queue = Some(codes_queue);
         meta.last_committed_announce = Some(last_committed_announce_hash);
         meta.prepared = true;
     });
 
-    db.mutate_latest_data(|data| {
+    db.latest_data_mutate(|data| {
         data.prepared_block_hash = block.hash;
-    })
-    .ok_or(ComputeError::LatestDataNotFound)?;
-
-    db.set_block_validators_committed_for_era(block.hash, latest_validators_committed_era);
+    });
 
     Ok(())
 }

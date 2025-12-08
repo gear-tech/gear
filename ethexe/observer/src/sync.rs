@@ -26,9 +26,10 @@ use alloy::{providers::RootProvider, rpc::types::eth::Header};
 use anyhow::{Result, anyhow};
 use ethexe_common::{
     self, BlockData, BlockHeader, CodeBlobInfo, SimpleBlockData,
-    db::{LatestDataStorageRW, OnChainStorageRW},
+    db::{OnChainStorageRO, OnChainStorageRW},
     events::{BlockEvent, RouterEvent},
 };
+use ethexe_db::Database;
 use ethexe_ethereum::{
     middleware::{ElectionProvider, MiddlewareQuery},
     router::RouterQuery,
@@ -36,21 +37,18 @@ use ethexe_ethereum::{
 use gprimitives::H256;
 use std::{collections::HashMap, ops::Add};
 
-pub(crate) trait SyncDB: OnChainStorageRW + LatestDataStorageRW + Clone {}
-impl<T: OnChainStorageRW + LatestDataStorageRW + Clone> SyncDB for T {}
-
 // TODO #4552: make tests for ChainSync
 #[derive(Clone)]
-pub(crate) struct ChainSync<DB: SyncDB> {
-    pub db: DB,
+pub(crate) struct ChainSync {
+    pub db: Database,
     pub config: RuntimeConfig,
     pub router_query: RouterQuery,
     pub middleware_query: MiddlewareQuery,
     pub block_loader: EthereumBlockLoader,
 }
 
-impl<DB: SyncDB> ChainSync<DB> {
-    pub fn new(db: DB, config: RuntimeConfig, provider: RootProvider) -> Self {
+impl ChainSync {
+    pub fn new(db: Database, config: RuntimeConfig, provider: RootProvider) -> Self {
         let router_query =
             RouterQuery::from_provider(config.router_address.0.into(), provider.clone());
         let middleware_query =
@@ -75,11 +73,15 @@ impl<DB: SyncDB> ChainSync<DB> {
             },
         };
 
+        self.ensure_validators(block).await?;
+
         let blocks_data = self.pre_load_data(&block.header).await?;
         let chain = self.load_chain(&block, blocks_data).await?;
+        self.set_chain_in_db(chain.into_iter().rev())?;
 
-        self.ensure_validators(block).await?;
-        self.mark_chain_as_synced(chain.into_iter().rev());
+        self.db.latest_data_mutate(|data| {
+            data.synced_block = block;
+        });
 
         Ok(block.hash)
     }
@@ -88,11 +90,11 @@ impl<DB: SyncDB> ChainSync<DB> {
         &self,
         block: &SimpleBlockData,
         mut blocks_data: HashMap<H256, BlockData>,
-    ) -> Result<Vec<SimpleBlockData>> {
+    ) -> Result<Vec<BlockData>> {
         let mut chain = Vec::new();
 
         let mut current_block_hash = block.hash;
-        while !self.db.block_synced(current_block_hash) {
+        while self.db.synced_block_read(current_block_hash).is_none() {
             let block_data = match blocks_data.remove(&current_block_hash) {
                 Some(data) => data,
                 None => {
@@ -124,17 +126,8 @@ impl<DB: SyncDB> ChainSync<DB> {
                 }
             }
 
-            self.db
-                .set_block_header(current_block_hash, block_data.header);
-            self.db
-                .set_block_events(current_block_hash, &block_data.events);
-
-            chain.push(SimpleBlockData {
-                hash: current_block_hash,
-                header: block_data.header,
-            });
-
             current_block_hash = block_data.header.parent_hash;
+            chain.push(block_data);
         }
 
         Ok(chain)
@@ -142,11 +135,7 @@ impl<DB: SyncDB> ChainSync<DB> {
 
     /// Loads blocks if there is a gap between the `header`'s height and the latest synced block height.
     async fn pre_load_data(&self, header: &BlockHeader) -> Result<HashMap<H256, BlockData>> {
-        let Some(latest) = self.db.latest_data() else {
-            tracing::warn!("latest data is not set in the database");
-            return Ok(Default::default());
-        };
-        let latest_synced_block_height = latest.synced_block.header.height;
+        let latest_synced_block_height = self.db.latest_data_read().synced_block.header.height;
 
         if header.height <= latest_synced_block_height {
             tracing::warn!(
@@ -154,12 +143,12 @@ impl<DB: SyncDB> ChainSync<DB> {
                 header.height,
                 latest_synced_block_height
             );
-            // Suppose here that all data is already in db.
+
+            // Suppose (but not rely on) here that all data is already in db.
             return Ok(Default::default());
         }
 
         if (header.height - latest_synced_block_height) >= self.config.max_sync_depth {
-            // TODO (gsobol): return an event to notify about too deep chain.
             return Err(anyhow!(
                 "Too much to sync: current block number: {}, Latest valid block number: {}, Max depth: {}",
                 header.height,
@@ -211,24 +200,18 @@ impl<DB: SyncDB> ChainSync<DB> {
         Ok(())
     }
 
-    fn mark_chain_as_synced(&self, chain: impl Iterator<Item = SimpleBlockData>) {
+    fn set_chain_in_db(&self, chain: impl IntoIterator<Item = BlockData>) -> Result<()> {
         for data in chain {
-            let SimpleBlockData { hash, header } = data;
-
-            self.db.set_block_synced(hash);
+            let block_hash = data.hash;
+            self.db.synced_block_set(data)?;
 
             log::trace!(
-                "✅ block {hash} synced, events: {:?}",
-                self.db.block_events(hash)
+                "✅ block {block_hash} synced, events: {:?}",
+                self.db.block_events(block_hash)
             );
-
-            let _ = self
-                .db
-                .mutate_latest_data(|data| data.synced_block = SimpleBlockData { hash, header })
-                .ok_or_else(|| {
-                    log::error!("Failed to update latest data for synced block {hash}");
-                });
         }
+
+        Ok(())
     }
 
     /// Function checks the `election_ts` in current era is `finalized` and if it true returns it.

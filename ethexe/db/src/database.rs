@@ -23,8 +23,8 @@ use crate::{
     overlay::{CASOverlay, KVOverlay},
 };
 use ethexe_common::{
-    Announce, BlockHeader, CodeBlobInfo, HashOf, ProgramStates, ProtocolTimelines, Schedule,
-    ValidatorsVec,
+    Announce, BlockData, BlockHeader, CodeBlobInfo, HashOf, ProgramStates, ProtocolTimelines,
+    Schedule, SimpleBlockData, ValidatorsVec,
     db::{
         AnnounceMeta, AnnounceStorageRO, AnnounceStorageRW, BlockMeta, BlockMetaStorageRO,
         BlockMetaStorageRW, CodesStorageRO, CodesStorageRW, HashStorageRO, InjectedStorageRO,
@@ -35,7 +35,6 @@ use ethexe_common::{
     gear::StateTransition,
     injected::{InjectedTransaction, Promise, SignedInjectedTransaction},
 };
-
 use ethexe_runtime_common::state::{
     Allocations, DispatchStash, Mailbox, MemoryPages, MemoryPagesRegion, MessageQueue,
     ProgramState, Storage, UserMailbox, Waitlist,
@@ -48,7 +47,10 @@ use gear_core::{
 };
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
-use std::collections::BTreeSet;
+use std::{
+    collections::{BTreeSet, HashMap},
+    sync::{Arc, Mutex, RwLock, RwLockReadGuard},
+};
 
 #[repr(u64)]
 enum Key {
@@ -74,9 +76,6 @@ enum Key {
 
     LatestData = 14,
     Timelines = 15,
-
-    // TODO kuzmindev: temporal solution - must move into block meta or something else.
-    LatestEraValidatorsCommitted(H256),
 }
 
 impl Key {
@@ -91,9 +90,9 @@ impl Key {
     fn to_bytes(&self) -> Vec<u8> {
         let prefix = self.prefix();
         match self {
-            Self::BlockSmallData(hash)
-            | Self::BlockEvents(hash)
-            | Self::LatestEraValidatorsCommitted(hash) => [prefix.as_ref(), hash.as_ref()].concat(),
+            Self::BlockSmallData(hash) | Self::BlockEvents(hash) => {
+                [prefix.as_ref(), hash.as_ref()].concat()
+            }
 
             Self::ValidatorSet(era_index) => {
                 [prefix.as_ref(), era_index.to_le_bytes().as_ref()].concat()
@@ -124,11 +123,18 @@ impl Key {
     }
 }
 
+pub enum RWStatus {
+    Read(usize),
+    Write,
+}
+
 #[derive(derive_more::Debug)]
 #[debug("Database(CAS + KV)")]
 pub struct Database {
     cas: Box<dyn CASDatabase>,
     kv: Box<dyn KVDatabase>,
+    synced_access_map: Arc<Mutex<HashMap<H256, RWStatus>>>,
+    latest_data_cache: Arc<RwLock<LatestData>>,
 }
 
 impl Clone for Database {
@@ -136,20 +142,25 @@ impl Clone for Database {
         Self {
             cas: self.cas.clone_boxed(),
             kv: self.kv.clone_boxed(),
+            synced_access_map: self.synced_access_map.clone(),
+            latest_data_cache: self.latest_data_cache.clone(),
         }
     }
 }
 
 impl Database {
     pub fn new(cas: Box<dyn CASDatabase>, kv: Box<dyn KVDatabase>) -> Self {
-        Self { cas, kv }
+        Self {
+            cas,
+            kv,
+            synced_access_map: Arc::new(Mutex::new(HashMap::new())),
+            // +_+_+
+            latest_data_cache: Arc::new(RwLock::new(LatestData::default())),
+        }
     }
 
     pub fn from_one<DB: CASDatabase + KVDatabase>(db: &DB) -> Self {
-        Self {
-            cas: CASDatabase::clone_boxed(db),
-            kv: KVDatabase::clone_boxed(db),
-        }
+        Self::new(CASDatabase::clone_boxed(db), KVDatabase::clone_boxed(db))
     }
 
     pub fn memory() -> Self {
@@ -163,6 +174,8 @@ impl Database {
         Self {
             cas: Box::new(CASOverlay::new(self.cas)),
             kv: Box::new(KVOverlay::new(self.kv)),
+            synced_access_map: self.synced_access_map,
+            latest_data_cache: self.latest_data_cache,
         }
     }
 
@@ -200,9 +213,9 @@ impl Database {
             })
     }
 
-    fn set_block_small_data(&self, block_hash: H256, meta: BlockSmallData) {
+    fn set_block_small_data(&self, block_hash: H256, data: BlockSmallData) {
         self.kv
-            .put(&Key::BlockSmallData(block_hash).to_bytes(), meta.encode());
+            .put(&Key::BlockSmallData(block_hash).to_bytes(), data.encode());
     }
 }
 
@@ -508,15 +521,6 @@ impl OnChainStorageRO for Database {
                     .expect("Failed to decode data into `ValidatorsVec`")
             })
     }
-
-    fn block_validators_committed_for_era(&self, block_hash: H256) -> Option<u64> {
-        self.kv
-            .get(&Key::LatestEraValidatorsCommitted(block_hash).to_bytes())
-            .map(|data| {
-                Decode::decode(&mut data.as_slice())
-                    .expect("Failed to decode data into `u64` (era_index)")
-            })
-    }
 }
 
 impl OnChainStorageRW for Database {
@@ -553,13 +557,6 @@ impl OnChainStorageRW for Database {
         self.kv.put(
             &Key::ValidatorSet(era_index).to_bytes(),
             validator_set.encode(),
-        );
-    }
-
-    fn set_block_validators_committed_for_era(&self, block_hash: H256, era_index: u64) {
-        self.kv.put(
-            &Key::LatestEraValidatorsCommitted(block_hash).to_bytes(),
-            era_index.encode(),
         );
     }
 }
@@ -705,6 +702,194 @@ impl LatestDataStorageRO for Database {
 impl LatestDataStorageRW for Database {
     fn set_latest_data(&self, data: LatestData) {
         self.kv.put(&Key::LatestData.to_bytes(), data.encode());
+    }
+}
+
+pub struct SyncedBlockReadGuard {
+    db: Database,
+
+    hash: H256,
+    header: Option<BlockHeader>,
+    events: Option<Vec<BlockEvent>>,
+    validators: Option<ValidatorsVec>,
+}
+
+#[derive(thiserror::Error, Debug)]
+pub enum SyncedBlockError {
+    #[error("Header not found for synced block {0:?}")]
+    HeaderNotFound(H256),
+    #[error("Events not found for synced block {0:?}")]
+    EventsNotFound(H256),
+    #[error("Validators not found for synced block {0:?}")]
+    ValidatorsNotFound(H256),
+}
+
+impl SyncedBlockReadGuard {
+    pub fn header(&mut self) -> Result<BlockHeader, SyncedBlockError> {
+        if self.header.is_none() {
+            let header = self
+                .db
+                .block_header(self.hash)
+                .ok_or(SyncedBlockError::HeaderNotFound(self.hash))?;
+            self.header = Some(header);
+        }
+
+        Ok(self.header.unwrap())
+    }
+
+    pub fn events(&mut self) -> Result<&[BlockEvent], SyncedBlockError> {
+        if self.events.is_none() {
+            let events = self
+                .db
+                .block_events(self.hash)
+                .ok_or(SyncedBlockError::EventsNotFound(self.hash))?;
+            self.events = Some(events);
+        }
+
+        Ok(self.events.as_ref().unwrap())
+    }
+
+    pub fn validators(&mut self) -> Result<&ValidatorsVec, SyncedBlockError> {
+        if self.validators.is_none() {
+            let header = self.header()?;
+            let era_index = self
+                .db
+                .protocol_timelines()
+                .unwrap()
+                .era_from_ts(header.timestamp);
+            let validators = self
+                .db
+                .validators(era_index)
+                .ok_or(SyncedBlockError::ValidatorsNotFound(self.hash))?;
+            self.validators = Some(validators);
+        }
+
+        Ok(self.validators.as_ref().unwrap())
+    }
+
+    pub fn into_simple(mut self) -> Result<SimpleBlockData, SyncedBlockError> {
+        let header = self.header()?;
+
+        let res = Ok(SimpleBlockData {
+            hash: self.hash,
+            header: header,
+        });
+
+        drop(self);
+
+        res
+    }
+
+    pub fn into_data(mut self) -> Result<BlockData, SyncedBlockError> {
+        let header = self.header()?;
+        let _ = self.events()?;
+
+        let res = Ok(BlockData {
+            hash: self.hash,
+            header,
+            events: self.events.take().unwrap(),
+        });
+
+        drop(self);
+
+        res
+    }
+}
+
+impl Drop for SyncedBlockReadGuard {
+    fn drop(&mut self) {
+        // Take the lock to update.
+        let mut guard = self.db.synced_access_map.lock().unwrap();
+
+        match guard.get_mut(&self.hash) {
+            Some(RWStatus::Write) => panic!("Drop while write is in progress"),
+            Some(RWStatus::Read(amount)) => {
+                // Another read is in progress, but it's ok.
+                *amount -= 1;
+                if *amount == 0 {
+                    guard.remove(&self.hash);
+                }
+            }
+            None => panic!("Drop without any read or write in progress"),
+        }
+    }
+}
+
+impl Database {
+    pub fn synced_block_read(&self, block_hash: H256) -> Option<SyncedBlockReadGuard> {
+        // Take the lock to check.
+        let mut guard = self.synced_access_map.lock().unwrap();
+
+        if !self.block_synced(block_hash) {
+            return None;
+        }
+
+        match guard.get_mut(&block_hash) {
+            Some(RWStatus::Write) => panic!("Try to read while another write is in progress"),
+            Some(RWStatus::Read(amount)) => {
+                // Another read is in progress, but it's ok.
+                *amount += 1;
+            }
+            None => {
+                // mark as read in progress.
+                guard.insert(block_hash, RWStatus::Read(1));
+            }
+        }
+
+        Some(SyncedBlockReadGuard {
+            db: self.clone(),
+
+            hash: block_hash,
+            header: None,
+            events: None,
+            validators: None,
+        })
+    }
+
+    pub fn synced_block_set(&self, data: BlockData) -> Result<(), SyncedBlockError> {
+        let mut guard = self.synced_access_map.lock().unwrap();
+        match guard.get(&data.hash) {
+            Some(RWStatus::Read(_)) => {
+                panic!("Try to write while another read is in progress")
+            }
+            Some(RWStatus::Write) => {
+                panic!("Try to write while another write is in progress")
+            }
+            None => {
+                guard.insert(data.hash, RWStatus::Write);
+            }
+        }
+        drop(guard);
+
+        let era_index = self
+            .protocol_timelines()
+            .unwrap()
+            .era_from_ts(data.header.timestamp);
+        if !self.kv.contains(&Key::ValidatorSet(era_index).to_bytes()) {
+            // Validators for the era must be set before the block is marked as synced.
+            return Err(SyncedBlockError::ValidatorsNotFound(data.hash));
+        }
+
+        self.set_block_header(data.hash, data.header);
+        self.set_block_events(data.hash, &data.events);
+        self.set_block_synced(data.hash);
+
+        match self.synced_access_map.lock().unwrap().remove(&data.hash) {
+            Some(RWStatus::Write) => {}
+            _ => panic!("Inconsistent state in synced access map"),
+        }
+
+        Ok(())
+    }
+
+    pub fn latest_data_read(&self) -> RwLockReadGuard<'_, LatestData> {
+        self.latest_data_cache.read().unwrap()
+    }
+
+    pub fn latest_data_mutate(&self, f: impl FnOnce(&mut LatestData)) {
+        let mut guard = self.latest_data_cache.write().unwrap();
+        f(&mut guard);
+        self.set_latest_data(guard.clone());
     }
 }
 

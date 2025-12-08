@@ -754,6 +754,8 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
             // TODO #4812: using `latest_committed_announce` here is not correct,
             // because `announce_hash` is created for `block_hash`, not committed.
             last_committed_announce: announce_hash,
+            // +_+_+ TODO: fix after merge
+            last_committed_era_index: 0,
         },
         FullAnnounceData {
             announce,
@@ -764,11 +766,6 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
             schedule: schedule.clone(),
         },
         timelines,
-        identify_latest_era_with_validators_committed(
-            &header,
-            &timelines,
-            &storage_view.validationSettings,
-        )?,
     );
 
     log::info!(

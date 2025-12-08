@@ -530,6 +530,8 @@ where
             codes_queue,
             last_committed_batch: _,
             last_committed_announce: _,
+            // +_+_+ consider to iterate
+            last_committed_era_index: _,
         } = meta;
 
         if let Some(announces) = announces {

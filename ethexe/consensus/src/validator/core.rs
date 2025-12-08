@@ -28,7 +28,7 @@ use async_trait::async_trait;
 use ethexe_common::{
     Address, Announce, Digest, HashOf, ProtocolTimelines, SimpleBlockData, ToDigest, ValidatorsVec,
     consensus::BatchCommitmentValidationRequest,
-    db::{BlockMetaStorageRO, OnChainStorageRO},
+    db::BlockMetaStorageRO,
     ecdsa::{ContractSignature, PublicKey},
     gear::{
         BatchCommitment, ChainCommitment, CodeCommitment, RewardsCommitment, ValidatorsCommitment,
@@ -168,20 +168,21 @@ impl ValidatorCore {
             return Ok(None);
         }
 
-        let latest_era_validators_committed = self
+        let last_committed_era_index = self
             .db
-            .block_validators_committed_for_era(block.hash)
+            .block_meta(block.hash)
+            .last_committed_era_index
             .ok_or_else(|| {
                 anyhow!(
-                    "not found latest_era_validators_committed in database for block: {}",
+                    "not found last_committed_era_index in database for block: {}",
                     block.hash
                 )
             })?;
 
-        if latest_era_validators_committed == block_era + 1 {
+        if last_committed_era_index == block_era + 1 {
             tracing::debug!(
                 current_era = %block_era,
-                latest_era_validators_committed = ?latest_era_validators_committed,
+                last_committed_era_index = ?last_committed_era_index,
                 "Validators for next era are already committed. Skipping validators commitment"
             );
             return Ok(None);

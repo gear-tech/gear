@@ -370,6 +370,8 @@ impl BlockChain {
             prepared,
         } in blocks
         {
+            let mut block_era = None;
+
             if let Some(SyncedBlockData { header, events }) = synced {
                 db.mutate_latest_data(|latest| {
                     latest.synced_block = SimpleBlockData { hash, header }
@@ -380,9 +382,8 @@ impl BlockChain {
                 db.set_block_events(hash, &events);
                 db.set_block_synced(hash);
 
-                let block_era = timelines.era_from_ts(header.timestamp);
-                db.set_validators(block_era, validators.clone());
-                db.set_block_validators_committed_for_era(hash, block_era);
+                block_era = Some(timelines.era_from_ts(header.timestamp));
+                db.set_validators(block_era.unwrap(), validators.clone());
             }
 
             if let Some(PreparedBlockData {
@@ -409,6 +410,9 @@ impl BlockChain {
                         codes_queue: Some(codes_queue),
                         last_committed_batch: Some(last_committed_batch),
                         last_committed_announce: Some(last_committed_announce),
+                        last_committed_era_index: Some(
+                            block_era.expect("Must be synced if prepared"),
+                        ),
                     }
                 });
             }

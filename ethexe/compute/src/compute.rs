@@ -21,7 +21,7 @@ use ethexe_common::{
     Announce, HashOf,
     db::{
         AnnounceStorageRO, AnnounceStorageRW, BlockMetaStorageRO, InjectedStorageRW,
-        LatestDataStorageRO, LatestDataStorageRW, OnChainStorageRO,
+        LatestDataStorageRO, OnChainStorageRO,
     },
     events::BlockEvent,
 };
@@ -169,10 +169,9 @@ impl<P: ProcessorExt> ComputeSubService<P> {
             db.set_promise(promise);
         });
 
-        db.mutate_latest_data(|data| {
+        db.latest_data_mutate(|data| {
             data.computed_announce_hash = announce_hash;
-        })
-        .ok_or(ComputeError::LatestDataNotFound)?;
+        });
 
         Ok(announce_hash)
     }

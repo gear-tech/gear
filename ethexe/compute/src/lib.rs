@@ -23,6 +23,7 @@ use ethexe_runtime_common::FinalizedBlockTransitions;
 use gprimitives::{CodeId, H256};
 pub use service::ComputeService;
 use std::collections::HashSet;
+use ethexe_db::SyncedBlockError;
 
 mod codes;
 mod compute;
@@ -56,7 +57,7 @@ pub enum ComputeError {
     #[error("block header not found for synced block({0})")]
     BlockHeaderNotFound(H256),
     #[error("block validators committed for era not found for block({0})")]
-    BlockValidatorsCommittedForEraNotFound(H256),
+    LastCommittedEraIndexNotFound(H256),
     #[error("process code join error")]
     CodeProcessJoin(#[from] tokio::task::JoinError),
     #[error("codes queue not found for computed block({0})")]
@@ -78,6 +79,8 @@ pub enum ComputeError {
         previous_commitment_era_index: u64,
         commitment_era_index: u64,
     },
+    #[error("Database error: {0}")]
+    DBError(#[from] SyncedBlockError),
 
     #[error(transparent)]
     Processor(#[from] ProcessorError),

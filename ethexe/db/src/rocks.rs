@@ -29,7 +29,7 @@ pub struct RocksDatabase {
 }
 
 impl RocksDatabase {
-    /// Open database at specified
+    /// Open database at specified path.
     pub fn open(path: PathBuf) -> Result<Self> {
         let db = DB::open(&configure_rocksdb(), path)?;
         Ok(Self {

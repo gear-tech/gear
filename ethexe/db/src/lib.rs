@@ -32,6 +32,7 @@ pub mod visitor;
 pub use database::Database;
 pub use mem::MemDb;
 pub use rocks::RocksDatabase;
+pub use database::SyncedBlockError;
 
 pub fn hash(data: &[u8]) -> H256 {
     utils::hash(data).into()

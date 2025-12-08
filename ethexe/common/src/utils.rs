@@ -52,7 +52,6 @@ pub fn setup_start_block_in_db<
     start_block_data: FullBlockData,
     start_announce_data: FullAnnounceData,
     timelines: ProtocolTimelines,
-    latest_validators_committed_era: u64,
 ) {
     let announce_hash = start_announce_data.announce.to_hash();
     let latest_synced_block = SimpleBlockData {
@@ -70,7 +69,6 @@ pub fn setup_start_block_in_db<
     setup_announce_in_db(db, start_announce_data);
 
     db.set_protocol_timelines(timelines);
-    db.set_block_validators_committed_for_era(start_block_hash, latest_validators_committed_era);
 
     db.mutate_latest_data(|latest| {
         latest.synced_block = latest_synced_block;
@@ -111,6 +109,7 @@ pub fn setup_genesis_in_db<
             announces: [genesis_announce_hash].into(),
             last_committed_batch: Default::default(),
             last_committed_announce: HashOf::zero(),
+            last_committed_era_index: 0,
         },
     );
 
@@ -120,7 +119,6 @@ pub fn setup_genesis_in_db<
         timelines.era_from_ts(genesis_block.header.timestamp),
         genesis_validators,
     );
-    db.set_block_validators_committed_for_era(genesis_block.hash, 0);
 
     db.set_protocol_timelines(timelines);
 
@@ -165,6 +163,7 @@ pub fn setup_block_in_db<DB: OnChainStorageRW + BlockMetaStorageRW>(
             codes_queue: Some(block_data.codes_queue),
             last_committed_batch: Some(block_data.last_committed_batch),
             last_committed_announce: Some(block_data.last_committed_announce),
+            last_committed_era_index: Some(block_data.last_committed_era_index)
         }
     });
 }

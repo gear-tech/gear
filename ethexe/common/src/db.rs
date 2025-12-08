@@ -51,6 +51,8 @@ pub struct BlockMeta {
     pub last_committed_batch: Option<Digest>,
     /// Last committed on-chain announce hash.
     pub last_committed_announce: Option<HashOf<Announce>>,
+    /// Era index for which validators were last committed.
+    pub last_committed_era_index: Option<u64>,
 }
 
 impl BlockMeta {
@@ -61,6 +63,7 @@ impl BlockMeta {
             codes_queue: Some(Default::default()),
             last_committed_batch: Some(Default::default()),
             last_committed_announce: Some(Default::default()),
+            last_committed_era_index: Some(Default::default()),
         }
     }
 }
@@ -111,8 +114,6 @@ pub trait OnChainStorageRO {
     fn code_blob_info(&self, code_id: CodeId) -> Option<CodeBlobInfo>;
     fn block_synced(&self, block_hash: H256) -> bool;
     fn validators(&self, era_index: u64) -> Option<ValidatorsVec>;
-    // TODO kuzmindev: temporal solution - must move into block meta or something else.
-    fn block_validators_committed_for_era(&self, block_hash: H256) -> Option<u64>;
     fn protocol_timelines(&self) -> Option<ProtocolTimelines>;
 }
 
@@ -123,7 +124,6 @@ pub trait OnChainStorageRW: OnChainStorageRO {
     fn set_code_blob_info(&self, code_id: CodeId, code_info: CodeBlobInfo);
     fn set_protocol_timelines(&self, timelines: ProtocolTimelines);
     fn set_validators(&self, era_index: u64, validator_set: ValidatorsVec);
-    fn set_block_validators_committed_for_era(&self, block_hash: H256, era_index: u64);
     fn set_block_synced(&self, block_hash: H256);
 }
 
@@ -221,6 +221,7 @@ pub struct FullBlockData {
     pub announces: BTreeSet<HashOf<Announce>>,
     pub last_committed_batch: Digest,
     pub last_committed_announce: HashOf<Announce>,
+    pub last_committed_era_index: u64,
 }
 
 pub struct FullAnnounceData {
