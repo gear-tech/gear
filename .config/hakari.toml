@@ -12,7 +12,7 @@ dep-format-version = "4"
 #
 # For more about the new feature resolver, see:
 # https://blog.rust-lang.org/2021/03/25/Rust-1.51.0.html#cargos-new-feature-resolver
-resolver = "2"
+resolver = "3"
 
 # Add triples corresponding to platforms commonly used by developers here.
 # https://doc.rust-lang.org/rustc/platform-support.html
