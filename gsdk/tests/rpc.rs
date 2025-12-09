@@ -26,7 +26,7 @@ use gear_core::{
 use gear_core_errors::{ReplyCode, SuccessReplyReason};
 use gsdk::{AccountKeyring, Api, Error, Result, gear};
 use parity_scale_codec::Encode;
-use std::{str::FromStr, time::Instant};
+use std::{process::Command, str::FromStr, time::Instant};
 use subxt::{
     ext::subxt_rpcs::{Error as SubxtRpcError, UserError},
     utils::{AccountId32, H256},
@@ -214,12 +214,36 @@ async fn test_subscribe_program_state_changes() -> Result<()> {
 
 #[tokio::test]
 async fn test_runtime_wasm_blob_version() -> Result<()> {
+    // FIXME: this test relies on the fact the node has been built from the same commit hash
+    //        as the test has been.
+    let git_commit_hash = {
+        // We deliberately set the length here to `11` to ensure that
+        // the emitted hash is always of the same length; otherwise
+        // it can (and will!) vary between different build environments.
+        match Command::new("git")
+            .args(["rev-parse", "--short=11", "HEAD"])
+            .output()
+        {
+            Ok(o) if o.status.success() => String::from_utf8_lossy(&o.stdout).trim().to_owned(),
+            Ok(o) => panic!("Git command failed with status: {}", o.status),
+            Err(err) => panic!("cargo:warning=Failed to execute git command: {err}"),
+        }
+    };
+
     let (_node, api) = dev_node().await;
     api.blocks()
         .subscribe_finalized()
         .await?
         .then(|block| async { api.runtime_wasm_blob_version_at(block?.hash()).await })
         .take(4)
+        .inspect_ok(|version| {
+            assert!(
+                version.ends_with(&git_commit_hash),
+                "Version `{}` must end with commit hash `{}`",
+                version,
+                git_commit_hash
+            )
+        })
         .try_fold(
             api.runtime_wasm_blob_version().await?,
             |version_a, version_b| {
