@@ -20,16 +20,10 @@
 //! against on-chain state.
 
 use crate::{
-    db_sync::PeerId,
-    gossipsub::MessageAcceptance,
-    peer_score,
-    validator::{ValidatorDatabase, list::ValidatorListSnapshot},
+    db_sync::PeerId, gossipsub::MessageAcceptance, peer_score,
+    validator::list::ValidatorListSnapshot,
 };
-use ethexe_common::{
-    Address,
-    network::{SignedValidatorMessage, VerifiedValidatorMessage},
-};
-use gprimitives::H256;
+use ethexe_common::{Address, network::VerifiedValidatorMessage};
 use lru::LruCache;
 use std::{cmp::Ordering, collections::VecDeque, mem, num::NonZeroUsize, sync::Arc};
 
@@ -45,16 +39,27 @@ const _: () =
 type CachedMessages = LruCache<PeerId, LruCache<VerifiedValidatorMessage, ()>>;
 
 #[derive(Debug, Eq, PartialEq, derive_more::Display)]
-enum VerificationError {
-    #[display("unknown block {block}")]
-    UnknownBlock { block: H256 },
-    #[display("too old era: expected {expected_era}, got {received_era}")]
-    TooOldEra {
+enum VerificationIgnoreReason {
+    #[display("old era: expected {expected_era}, got {received_era}")]
+    OldEra {
         expected_era: u64,
         received_era: u64,
     },
-    #[display("old era: expected {expected_era}, got {received_era}")]
-    OldEra {
+}
+
+#[derive(Debug, Eq, PartialEq, derive_more::Display)]
+enum VerificationCacheReason {
+    #[display("new era: expected {expected_era}, got {received_era}")]
+    NewEra {
+        expected_era: u64,
+        received_era: u64,
+    },
+}
+
+#[derive(Debug, Eq, PartialEq, derive_more::Display)]
+enum VerificationRejectReason {
+    #[display("too old era: expected {expected_era}, got {received_era}")]
+    TooOldEra {
         expected_era: u64,
         received_era: u64,
     },
@@ -63,19 +68,21 @@ enum VerificationError {
         expected_era: u64,
         received_era: u64,
     },
-    #[display("new era: expected {expected_era}, got {received_era}")]
-    NewEra {
-        expected_era: u64,
-        received_era: u64,
-    },
     #[display("address {address} is not validator")]
     AddressIsNotValidator { address: Address },
+}
+
+#[derive(Debug, Eq, PartialEq, derive_more::Display, derive_more::From, derive_more::Unwrap)]
+enum VerificationError {
+    Ignore(VerificationIgnoreReason),
+    Cache(VerificationCacheReason),
+    Reject(VerificationRejectReason),
 }
 
 /// Tracks validator-signed messages and admits each one once the on-chain
 /// context confirms it is timely and originates from a legitimate validator.
 ///
-/// Legitimacy is checked via the `block` attached to
+/// Legitimacy is checked via the `era_index` attached to
 /// [`ValidatorMessage`](ethexe_common::network::ValidatorMessage) and the
 /// validator-signed payload it carries. The hinted era must match the current
 /// chain head; eras N-1, N+2, N+3, and so on are dropped when the node is at era N.
@@ -83,76 +90,92 @@ enum VerificationError {
 pub struct ValidatorTopic {
     cached_messages: CachedMessages,
     verified_messages: VecDeque<VerifiedValidatorMessage>,
-    db: Box<dyn ValidatorDatabase>,
     peer_score: peer_score::Handle,
     snapshot: Arc<ValidatorListSnapshot>,
 }
 
 impl ValidatorTopic {
-    pub fn new(
-        db: Box<dyn ValidatorDatabase>,
-        peer_score: peer_score::Handle,
-        snapshot: Arc<ValidatorListSnapshot>,
-    ) -> Self {
+    pub fn new(peer_score: peer_score::Handle, snapshot: Arc<ValidatorListSnapshot>) -> Self {
         Self {
             cached_messages: LruCache::new(MAX_CACHED_PEERS),
             verified_messages: VecDeque::new(),
-            db,
             peer_score,
             snapshot,
         }
     }
 
     fn inner_verify(&self, message: &VerifiedValidatorMessage) -> Result<(), VerificationError> {
-        let chain_head_era = self.snapshot.current_era_index();
+        let chain_head_era = self.snapshot.current_era_index;
 
-        let block = message.block();
+        let message_era = message.era_index();
         let address = message.address();
 
-        if !self.snapshot.contains_any_validator(address) {
-            return Err(VerificationError::AddressIsNotValidator { address });
-        }
-
-        let Some(block_header) = self.db.block_header(block) else {
-            return Err(VerificationError::UnknownBlock { block });
-        };
-        let block_era = self.snapshot.block_era_index(block_header.timestamp);
-
-        match block_era.cmp(&chain_head_era) {
+        let res: Result<(), VerificationError> = match message_era.cmp(&chain_head_era) {
             Ordering::Less => {
-                return if block_era + 1 != chain_head_era {
-                    Err(VerificationError::TooOldEra {
+                if message_era + 1 != chain_head_era {
+                    Err(VerificationRejectReason::TooOldEra {
                         expected_era: chain_head_era,
-                        received_era: block_era,
-                    })
+                        received_era: message_era,
+                    }
+                    .into())
                 } else {
                     // node may be not synced yet
-                    Err(VerificationError::OldEra {
+                    Err(VerificationIgnoreReason::OldEra {
                         expected_era: chain_head_era,
-                        received_era: block_era,
-                    })
-                };
+                        received_era: message_era,
+                    }
+                    .into())
+                }
             }
             Ordering::Equal => {
                 // both nodes are in sync
+
+                Ok(())
             }
             Ordering::Greater => {
-                return if block_era != chain_head_era + 1 {
-                    Err(VerificationError::TooNewEra {
+                if message_era != chain_head_era + 1 {
+                    Err(VerificationRejectReason::TooNewEra {
                         expected_era: chain_head_era,
-                        received_era: block_era,
-                    })
+                        received_era: message_era,
+                    }
+                    .into())
                 } else {
                     // node may be synced ahead
-                    Err(VerificationError::NewEra {
+                    Err(VerificationCacheReason::NewEra {
                         expected_era: chain_head_era,
-                        received_era: block_era,
-                    })
-                };
+                        received_era: message_era,
+                    }
+                    .into())
+                }
+            }
+        };
+
+        // check if the address is a validator
+        match res {
+            Ok(()) => {
+                // last check the "ok" message is in the current validator set
+                if !self.snapshot.is_current(address) {
+                    return Err(VerificationRejectReason::AddressIsNotValidator { address }.into());
+                }
+            }
+            Err(VerificationError::Cache(_)) => {
+                // if we are going to cache the message, then it should be in the next validator set
+                if !self.snapshot.is_next(address) {
+                    return Err(VerificationRejectReason::AddressIsNotValidator { address }.into());
+                }
+            }
+            Err(VerificationError::Ignore(_)) => {
+                // ignore reason would require keeping previous era validators to
+                // honestly penalize the peer, so we only ignore the message.
+                // `ValidatorList` (and `NetworkService` in general) would have
+                // more complex initialization to fetch previous validators
+            }
+            Err(VerificationError::Reject(_)) => {
+                // peer would be penalized anyway, so no need to check
             }
         }
 
-        Ok(())
+        res
     }
 
     /// Swap to a fresher validator snapshot and re-run cached messages when the
@@ -162,31 +185,22 @@ impl ValidatorTopic {
     /// strictly newer era than the one previously held; this prevents
     /// unnecessary revalidation while height moves inside the same era.
     pub(crate) fn on_new_snapshot(&mut self, snapshot: Arc<ValidatorListSnapshot>) {
-        let is_older_era = self.snapshot.is_older_era(&snapshot);
+        let current_era = self.snapshot.current_era_index;
+        let maybe_new_era = snapshot.current_era_index;
 
         self.snapshot = snapshot;
 
-        // don't reverify messages if era hasn't changed yet
-        if !is_older_era {
+        // don't release messages if era hasn't changed yet
+        if current_era >= maybe_new_era {
             return;
         }
 
         let cached_messages =
             mem::replace(&mut self.cached_messages, LruCache::new(MAX_CACHED_PEERS));
-        'cached: for (source, messages) in cached_messages {
+        for (_source, messages) in cached_messages {
             for (message, ()) in messages {
-                match self.inner_verify(&message) {
-                    Ok(()) => {
-                        self.verified_messages.push_back(message);
-                    }
-                    Err(err) => {
-                        log::trace!(
-                            "failed to verify message again from {source} peer: {err}, message: {message:?}"
-                        );
-                        self.peer_score.invalid_data(source);
-                        continue 'cached;
-                    }
-                }
+                debug_assert!(self.snapshot.is_current(message.address()));
+                self.verified_messages.push_back(message);
             }
         }
     }
@@ -194,34 +208,37 @@ impl ValidatorTopic {
     /// Perform signature validation, chain context checks, and peer scoring.
     ///
     /// Returns the appropriate gossipsub acceptance outcome while optionally
-    /// caching messages that can become valid once either the block header
-    /// arrives (`UnknownBlock`) or the node enters the hinted next era
+    /// caching messages that can become valid once the node enters the hinted next era
     /// (`NewEra`). All other mismatches are penalized via peer scoring and
-    /// rejected immediately.
-    pub(crate) fn verify_message_initially(
+    /// rejected immediately or ignored.
+    pub(crate) fn verify_message(
         &mut self,
         source: PeerId,
-        message: SignedValidatorMessage,
+        message: VerifiedValidatorMessage,
     ) -> (MessageAcceptance, Option<VerifiedValidatorMessage>) {
-        let message = message.into_verified();
-
         match self.inner_verify(&message) {
             Ok(()) => (MessageAcceptance::Accept, Some(message)),
-            Err(VerificationError::OldEra { .. }) => (MessageAcceptance::Ignore, None),
-            Err(VerificationError::UnknownBlock { .. }) | Err(VerificationError::NewEra { .. }) => {
+            Err(VerificationError::Ignore(reason)) => {
+                log::trace!("ignore message from {source} peer: {reason:?}, message: {message:?}");
+                (MessageAcceptance::Ignore, None)
+            }
+            Err(VerificationError::Cache(reason)) => {
+                log::trace!(
+                    "cache message pending verification from {source} peer: {reason}, message: {message:?}"
+                );
+
                 let existed = self
                     .cached_messages
                     .get_or_insert_mut(source, || LruCache::new(MAX_CACHED_MESSAGES_PER_PEER))
                     .put(message, ());
                 // gossipsub should ignore a duplicated message
                 debug_assert!(existed.is_none());
+
                 (MessageAcceptance::Ignore, None)
             }
-            Err(err @ VerificationError::TooOldEra { .. })
-            | Err(err @ VerificationError::TooNewEra { .. })
-            | Err(err @ VerificationError::AddressIsNotValidator { .. }) => {
+            Err(VerificationError::Reject(reason)) => {
                 log::trace!(
-                    "failed to verify message initially from {source} peer: {err}, message: {message:?}"
+                    "failed to verify message initially from {source} peer: {reason}, message: {message:?}"
                 );
                 self.peer_score.invalid_data(source);
                 (MessageAcceptance::Reject, None)
@@ -240,148 +257,69 @@ mod tests {
     use super::*;
     use assert_matches::assert_matches;
     use ethexe_common::{
-        Announce, BlockHeader, ProtocolTimelines, db::OnChainStorageRW, mock::Mock,
-        network::ValidatorMessage,
+        Announce,
+        mock::Mock,
+        network::{SignedValidatorMessage, ValidatorMessage},
     };
-    use ethexe_db::Database;
     use ethexe_signer::Signer;
     use nonempty::{NonEmpty, nonempty};
-    use std::iter;
 
-    const GENESIS_TIMESTAMP: u64 = 1_000_000;
-    const ERA_DURATION: u64 = 1_000;
-    const GENESIS_CHAIN_HEAD: H256 = H256::zero();
-    const CHAIN_HEAD_TIMESTAMP: u64 = GENESIS_TIMESTAMP + (ERA_DURATION * 10);
-    const PROTOCOL_TIMELINES: ProtocolTimelines = ProtocolTimelines {
-        genesis_ts: GENESIS_TIMESTAMP,
-        era: ERA_DURATION,
-        election: ERA_DURATION / 2,
-    };
+    const CHAIN_HEAD_ERA: u64 = 10;
 
     fn new_snapshot(
-        chain_head_ts: u64,
+        current_era_index: u64,
         current_validators: NonEmpty<Address>,
     ) -> Arc<ValidatorListSnapshot> {
         Arc::new(ValidatorListSnapshot {
-            chain_head_ts,
-            timelines: PROTOCOL_TIMELINES,
+            current_era_index,
             current_validators: current_validators.into(),
             next_validators: None,
         })
     }
 
-    fn new_validators_with(validators: NonEmpty<Address>) -> (ValidatorTopic, Database) {
-        let db = Database::memory();
-        db.set_block_header(
-            GENESIS_CHAIN_HEAD,
-            BlockHeader {
-                height: 0,
-                timestamp: CHAIN_HEAD_TIMESTAMP,
-                parent_hash: H256::random(),
-            },
-        );
-
-        let snapshot = Arc::new(ValidatorListSnapshot {
-            chain_head_ts: CHAIN_HEAD_TIMESTAMP,
-            timelines: PROTOCOL_TIMELINES,
-            current_validators: validators.into(),
-            next_validators: None,
-        });
-
-        let topic = ValidatorTopic::new(
-            ValidatorDatabase::clone_boxed(&db),
+    fn new_topic(validators: NonEmpty<Address>) -> ValidatorTopic {
+        ValidatorTopic::new(
             peer_score::Handle::new_test(),
-            snapshot,
-        );
-
-        (topic, db)
+            new_snapshot(CHAIN_HEAD_ERA, validators),
+        )
     }
 
-    fn new_validators() -> (ValidatorTopic, Database) {
-        new_validators_with(nonempty![Address::default()])
-    }
-
-    fn new_validator_message() -> (Address, SignedValidatorMessage, H256) {
+    fn new_validator_message(era_index: u64) -> VerifiedValidatorMessage {
         let signer = Signer::memory();
         let pub_key = signer.generate_key().unwrap();
 
-        let block = H256::random();
-
-        let message = signer
+        signer
             .signed_data(
                 pub_key,
                 ValidatorMessage {
-                    block,
+                    era_index,
                     payload: Announce::mock(()),
                 },
             )
             .map(SignedValidatorMessage::from)
-            .unwrap();
-
-        (pub_key.to_address(), message, block)
-    }
-
-    #[test]
-    fn unknown_block() {
-        const BOB_BLOCK_TIMESTAMP: u64 = CHAIN_HEAD_TIMESTAMP + (ERA_DURATION * 100);
-
-        let (bob_address, bob_message, bob_block) = new_validator_message();
-        let bob_verified = bob_message.clone().into_verified();
-
-        let (mut alice, alice_db) = new_validators_with(nonempty![bob_address]);
-
-        let err = alice.inner_verify(&bob_verified).unwrap_err();
-        assert_eq!(err, VerificationError::UnknownBlock { block: bob_block });
-
-        let bob_source = PeerId::random();
-        let (acceptance, verified_msg) = alice.verify_message_initially(bob_source, bob_message);
-        assert_matches!(acceptance, MessageAcceptance::Ignore);
-        assert_eq!(verified_msg, None);
-        assert_eq!(alice.cached_messages.len(), 1);
-
-        alice_db.set_block_header(
-            bob_block,
-            BlockHeader {
-                height: 0,
-                timestamp: BOB_BLOCK_TIMESTAMP,
-                parent_hash: Default::default(),
-            },
-        );
-        let snapshot = new_snapshot(BOB_BLOCK_TIMESTAMP, nonempty![bob_address]);
-        alice.on_new_snapshot(snapshot);
-
-        assert_eq!(alice.next_message(), Some(bob_verified));
+            .unwrap()
+            .into_verified()
     }
 
     #[test]
     fn too_old_era() {
-        let (bob_address, bob_message, bob_block) = new_validator_message();
-        let bob_verified = bob_message.clone().into_verified();
+        let bob_message = new_validator_message(CHAIN_HEAD_ERA - 2);
+        let mut alice = new_topic(nonempty![bob_message.address()]);
 
-        let (mut alice, alice_db) = new_validators_with(nonempty![bob_address]);
-
-        alice_db.set_block_header(
-            bob_block,
-            BlockHeader {
-                height: 1,
-                timestamp: CHAIN_HEAD_TIMESTAMP - (ERA_DURATION * 2),
-                parent_hash: Default::default(),
-            },
-        );
-
-        let chain_head_era = alice.snapshot.block_era_index(CHAIN_HEAD_TIMESTAMP);
-
-        let err = alice.inner_verify(&bob_verified).unwrap_err();
+        let err = alice
+            .inner_verify(&bob_message)
+            .unwrap_err()
+            .unwrap_reject();
         assert_eq!(
             err,
-            VerificationError::TooOldEra {
-                expected_era: chain_head_era,
-                received_era: chain_head_era - 2
+            VerificationRejectReason::TooOldEra {
+                expected_era: CHAIN_HEAD_ERA,
+                received_era: CHAIN_HEAD_ERA - 2
             }
         );
 
         let bob_source = PeerId::random();
-        let (acceptance, verified_msg) = alice.verify_message_initially(bob_source, bob_message);
+        let (acceptance, verified_msg) = alice.verify_message(bob_source, bob_message);
         assert_matches!(acceptance, MessageAcceptance::Reject);
         assert_eq!(verified_msg, None);
         assert_eq!(alice.cached_messages.len(), 0);
@@ -390,33 +328,23 @@ mod tests {
 
     #[test]
     fn old_era() {
-        let (bob_address, bob_message, bob_block) = new_validator_message();
-        let bob_verified = bob_message.clone().into_verified();
+        let bob_message = new_validator_message(CHAIN_HEAD_ERA - 1);
+        let mut alice = new_topic(nonempty![bob_message.address()]);
 
-        let (mut alice, alice_db) = new_validators_with(nonempty![bob_address]);
-
-        alice_db.set_block_header(
-            bob_block,
-            BlockHeader {
-                height: 1,
-                timestamp: CHAIN_HEAD_TIMESTAMP - ERA_DURATION,
-                parent_hash: Default::default(),
-            },
-        );
-
-        let chain_head_era = alice.snapshot.block_era_index(CHAIN_HEAD_TIMESTAMP);
-
-        let err = alice.inner_verify(&bob_verified).unwrap_err();
+        let err = alice
+            .inner_verify(&bob_message)
+            .unwrap_err()
+            .unwrap_ignore();
         assert_eq!(
             err,
-            VerificationError::OldEra {
-                expected_era: chain_head_era,
-                received_era: chain_head_era - 1
+            VerificationIgnoreReason::OldEra {
+                expected_era: CHAIN_HEAD_ERA,
+                received_era: CHAIN_HEAD_ERA - 1
             }
         );
 
         let bob_source = PeerId::random();
-        let (acceptance, verified_msg) = alice.verify_message_initially(bob_source, bob_message);
+        let (acceptance, verified_msg) = alice.verify_message(bob_source, bob_message);
         assert_matches!(acceptance, MessageAcceptance::Ignore);
         assert_eq!(verified_msg, None);
         assert_eq!(alice.cached_messages.len(), 0);
@@ -425,35 +353,23 @@ mod tests {
 
     #[test]
     fn too_new_era() {
-        const BOB_BLOCK_TIMESTAMP: u64 = CHAIN_HEAD_TIMESTAMP + (ERA_DURATION * 2);
+        let bob_message = new_validator_message(CHAIN_HEAD_ERA + 2);
+        let mut alice = new_topic(nonempty![bob_message.address()]);
 
-        let (bob_address, bob_message, bob_block) = new_validator_message();
-        let bob_verified = bob_message.clone().into_verified();
-
-        let (mut alice, alice_db) = new_validators_with(nonempty![bob_address]);
-
-        alice_db.set_block_header(
-            bob_block,
-            BlockHeader {
-                height: 1,
-                timestamp: BOB_BLOCK_TIMESTAMP,
-                parent_hash: Default::default(),
-            },
-        );
-
-        let chain_head_era = alice.snapshot.block_era_index(CHAIN_HEAD_TIMESTAMP);
-
-        let err = alice.inner_verify(&bob_verified).unwrap_err();
+        let err = alice
+            .inner_verify(&bob_message)
+            .unwrap_err()
+            .unwrap_reject();
         assert_eq!(
             err,
-            VerificationError::TooNewEra {
-                expected_era: chain_head_era,
-                received_era: chain_head_era + 2
+            VerificationRejectReason::TooNewEra {
+                expected_era: CHAIN_HEAD_ERA,
+                received_era: CHAIN_HEAD_ERA + 2
             }
         );
 
         let bob_source = PeerId::random();
-        let (acceptance, verified_msg) = alice.verify_message_initially(bob_source, bob_message);
+        let (acceptance, verified_msg) = alice.verify_message(bob_source, bob_message);
         assert_matches!(acceptance, MessageAcceptance::Reject);
         assert_eq!(verified_msg, None);
         assert_eq!(alice.cached_messages.len(), 0);
@@ -461,61 +377,55 @@ mod tests {
 
     #[test]
     fn new_era() {
-        const BOB_BLOCK_TIMESTAMP: u64 = CHAIN_HEAD_TIMESTAMP + ERA_DURATION;
+        const BOB_BLOCK_ERA: u64 = CHAIN_HEAD_ERA + 1;
 
-        let (bob_address, bob_message, bob_block) = new_validator_message();
-        let bob_verified = bob_message.clone().into_verified();
+        let bob_message = new_validator_message(BOB_BLOCK_ERA);
+        let snapshot = ValidatorListSnapshot {
+            current_era_index: CHAIN_HEAD_ERA,
+            current_validators: Default::default(),
+            next_validators: Some(nonempty![bob_message.address()].into()),
+        };
+        let mut alice = ValidatorTopic::new(peer_score::Handle::new_test(), Arc::new(snapshot));
 
-        let (mut alice, alice_db) = new_validators_with(nonempty![bob_address]);
-
-        alice_db.set_block_header(
-            bob_block,
-            BlockHeader {
-                height: 1,
-                timestamp: BOB_BLOCK_TIMESTAMP,
-                parent_hash: Default::default(),
-            },
-        );
-
-        let chain_head_era = alice.snapshot.block_era_index(CHAIN_HEAD_TIMESTAMP);
-
-        let err = alice.inner_verify(&bob_verified).unwrap_err();
+        let err = alice.inner_verify(&bob_message).unwrap_err().unwrap_cache();
         assert_eq!(
             err,
-            VerificationError::NewEra {
-                expected_era: chain_head_era,
-                received_era: chain_head_era + 1
+            VerificationCacheReason::NewEra {
+                expected_era: CHAIN_HEAD_ERA,
+                received_era: CHAIN_HEAD_ERA + 1
             }
         );
 
         let bob_source = PeerId::random();
-        let (acceptance, verified_msg) = alice.verify_message_initially(bob_source, bob_message);
+        let (acceptance, verified_msg) = alice.verify_message(bob_source, bob_message.clone());
         assert_matches!(acceptance, MessageAcceptance::Ignore);
         assert_eq!(verified_msg, None);
         assert_eq!(alice.cached_messages.len(), 1);
 
-        let snapshot = new_snapshot(BOB_BLOCK_TIMESTAMP, nonempty![bob_address]);
+        let snapshot = new_snapshot(BOB_BLOCK_ERA, nonempty![bob_message.address()]);
         alice.on_new_snapshot(snapshot);
 
-        assert_eq!(alice.next_message(), Some(bob_verified));
+        assert_eq!(alice.next_message(), Some(bob_message));
     }
 
     #[test]
-    fn address_is_not_validator() {
-        let (mut alice, _alice_db) = new_validators();
-        let (bob_address, bob_message, _bob_block) = new_validator_message();
-        let bob_verified = bob_message.clone().into_verified();
+    fn current_era_address_is_not_validator() {
+        let mut alice = new_topic(nonempty![Address::default()]);
+        let bob_message = new_validator_message(CHAIN_HEAD_ERA);
 
-        let err = alice.inner_verify(&bob_verified).unwrap_err();
+        let err = alice
+            .inner_verify(&bob_message)
+            .unwrap_err()
+            .unwrap_reject();
         assert_eq!(
             err,
-            VerificationError::AddressIsNotValidator {
-                address: bob_address
+            VerificationRejectReason::AddressIsNotValidator {
+                address: bob_message.address()
             }
         );
 
         let bob_source = PeerId::random();
-        let (acceptance, verified_msg) = alice.verify_message_initially(bob_source, bob_message);
+        let (acceptance, verified_msg) = alice.verify_message(bob_source, bob_message);
         assert_matches!(acceptance, MessageAcceptance::Reject);
         assert_eq!(verified_msg, None);
         assert_eq!(alice.cached_messages.len(), 0);
@@ -523,107 +433,124 @@ mod tests {
     }
 
     #[test]
-    fn success() {
-        let (bob_address, bob_message, bob_block) = new_validator_message();
-        let bob_verified = bob_message.clone().into_verified();
+    fn next_era_address_is_not_validator() {
+        let mut alice = new_topic(nonempty![Address::default()]);
+        let bob_message = new_validator_message(CHAIN_HEAD_ERA + 1);
 
-        let (mut alice, alice_db) = new_validators_with(nonempty![bob_address]);
-
-        alice_db.set_block_header(
-            bob_block,
-            BlockHeader {
-                height: 1,
-                timestamp: CHAIN_HEAD_TIMESTAMP,
-                parent_hash: Default::default(),
-            },
+        let err = alice
+            .inner_verify(&bob_message)
+            .unwrap_err()
+            .unwrap_reject();
+        assert_eq!(
+            err,
+            VerificationRejectReason::AddressIsNotValidator {
+                address: bob_message.address()
+            }
         );
 
-        alice.inner_verify(&bob_verified).unwrap();
-
         let bob_source = PeerId::random();
-        let (acceptance, verified_msg) = alice.verify_message_initially(bob_source, bob_message);
-        assert_matches!(acceptance, MessageAcceptance::Accept);
-        assert_eq!(verified_msg, Some(bob_verified));
+        let (acceptance, verified_msg) = alice.verify_message(bob_source, bob_message);
+        assert_matches!(acceptance, MessageAcceptance::Reject);
+        assert_eq!(verified_msg, None);
+        assert_eq!(alice.cached_messages.len(), 0);
+        assert_eq!(alice.next_message(), None);
     }
 
     #[test]
-    fn reverify_cached_messages_with_bad_peer() {
-        const NEXT_ERA_TIMESTAMP: u64 = CHAIN_HEAD_TIMESTAMP + ERA_DURATION;
+    fn new_era_address_is_not_validator() {
+        let bob_message = new_validator_message(CHAIN_HEAD_ERA);
+        let charlie_message = new_validator_message(CHAIN_HEAD_ERA + 1);
 
-        // Bob creates a valid message for next era (will be cached)
-        let (bob_address, bob_message, bob_block) = new_validator_message();
-        let bob_verified = bob_message.clone().into_verified();
+        let mut alice = new_topic(nonempty![Default::default()]);
 
-        // Charlie creates a valid message for next era (will be cached)
-        let (charlie_address, charlie_message, charlie_block) = new_validator_message();
-        let charlie_verified = charlie_message.clone().into_verified();
+        for message in [bob_message, charlie_message] {
+            let err = alice.inner_verify(&message).unwrap_err().unwrap_reject();
+            assert_eq!(
+                err,
+                VerificationRejectReason::AddressIsNotValidator {
+                    address: message.address()
+                }
+            );
 
-        // Dave creates a message for next era (will be cached, then become invalid when not a validator)
-        let (dave_address, dave_message, dave_block) = new_validator_message();
+            let bob_source = PeerId::random();
+            let (acceptance, verified_msg) = alice.verify_message(bob_source, message);
+            assert_matches!(acceptance, MessageAcceptance::Reject);
+            assert_eq!(verified_msg, None);
+            assert_eq!(alice.cached_messages.len(), 0);
+            assert_eq!(alice.next_message(), None);
+        }
+    }
 
-        let (mut alice, alice_db) =
-            new_validators_with(nonempty![bob_address, charlie_address, dave_address]);
+    #[test]
+    fn success() {
+        let bob_message = new_validator_message(CHAIN_HEAD_ERA);
+        let mut alice = new_topic(nonempty![bob_message.address()]);
 
-        // Setup all blocks for next era
-        alice_db.set_block_header(
-            bob_block,
-            BlockHeader {
-                height: 1,
-                timestamp: NEXT_ERA_TIMESTAMP,
-                parent_hash: Default::default(),
-            },
-        );
+        alice.inner_verify(&bob_message).unwrap();
 
-        alice_db.set_block_header(
-            charlie_block,
-            BlockHeader {
-                height: 2,
-                timestamp: NEXT_ERA_TIMESTAMP,
-                parent_hash: Default::default(),
-            },
-        );
+        let bob_source = PeerId::random();
+        let (acceptance, verified_msg) = alice.verify_message(bob_source, bob_message.clone());
+        assert_matches!(acceptance, MessageAcceptance::Accept);
+        assert_eq!(verified_msg, Some(bob_message));
+    }
 
-        alice_db.set_block_header(
-            dave_block,
-            BlockHeader {
-                height: 3,
-                timestamp: NEXT_ERA_TIMESTAMP,
-                parent_hash: Default::default(),
-            },
-        );
+    #[test]
+    fn next_validators_arrive_later() {
+        const NEXT_ERA: u64 = CHAIN_HEAD_ERA + 1;
 
-        // All three messages are cached (NewEra)
+        // current set validators
+        let bob_message = new_validator_message(CHAIN_HEAD_ERA);
+        let charlie_message = new_validator_message(CHAIN_HEAD_ERA);
+        // new validator in next set
+        let dave_message = new_validator_message(NEXT_ERA);
+
         let bob_source = PeerId::random();
         let charlie_source = PeerId::random();
         let dave_source = PeerId::random();
 
+        let mut alice = new_topic(nonempty![bob_message.address(), charlie_message.address()]);
+
         let (bob_acceptance, bob_verified_msg) =
-            alice.verify_message_initially(bob_source, bob_message);
-        assert_matches!(bob_acceptance, MessageAcceptance::Ignore);
-        assert!(bob_verified_msg.is_none());
+            alice.verify_message(bob_source, bob_message.clone());
+        assert_matches!(bob_acceptance, MessageAcceptance::Accept);
+        assert_eq!(bob_verified_msg, Some(bob_message.clone()));
 
         let (charlie_acceptance, charlie_verified_msg) =
-            alice.verify_message_initially(charlie_source, charlie_message);
-        assert_matches!(charlie_acceptance, MessageAcceptance::Ignore);
-        assert!(charlie_verified_msg.is_none());
+            alice.verify_message(charlie_source, charlie_message.clone());
+        assert_matches!(charlie_acceptance, MessageAcceptance::Accept);
+        assert_eq!(charlie_verified_msg, Some(charlie_message.clone()));
 
+        // we have no next validators yet, so the message should be rejected
         let (dave_acceptance, dave_verified_msg) =
-            alice.verify_message_initially(dave_source, dave_message);
+            alice.verify_message(dave_source, dave_message.clone());
+        assert_matches!(dave_acceptance, MessageAcceptance::Reject);
+        assert!(dave_verified_msg.is_none());
+        assert_eq!(alice.cached_messages.len(), 0);
+
+        // Dave now is in the next validator set
+        let snapshot = ValidatorListSnapshot {
+            current_era_index: CHAIN_HEAD_ERA,
+            current_validators: Default::default(),
+            next_validators: Some(nonempty![dave_message.address()].into()),
+        };
+        alice.on_new_snapshot(Arc::new(snapshot));
+
+        // Dave's message is cached
+        let (dave_acceptance, dave_verified_msg) =
+            alice.verify_message(dave_source, dave_message.clone());
         assert_matches!(dave_acceptance, MessageAcceptance::Ignore);
         assert!(dave_verified_msg.is_none());
+        assert_eq!(alice.cached_messages.len(), 1);
 
-        assert_eq!(alice.cached_messages.len(), 3);
+        // Dave's message now is in the current validator set
+        let snapshot = ValidatorListSnapshot {
+            current_era_index: NEXT_ERA,
+            current_validators: nonempty![dave_message.address()].into(),
+            next_validators: None,
+        };
+        alice.on_new_snapshot(Arc::new(snapshot));
 
-        // Update chain head to next era, but Dave is no longer a validator
-        let snapshot = new_snapshot(NEXT_ERA_TIMESTAMP, nonempty![bob_address, charlie_address]);
-        alice.on_new_snapshot(snapshot);
-
-        // Bob and Charlie should be verified, Dave should fail but not block others
-        let verified: Vec<_> = iter::from_fn(|| alice.next_message()).collect();
-
-        // Both Bob's and Charlie's messages should be verified despite Dave's failure
-        assert_eq!(verified.len(), 2);
-        assert!(verified.contains(&bob_verified));
-        assert!(verified.contains(&charlie_verified));
+        let dave_verified_msg = alice.next_message().unwrap();
+        assert_eq!(dave_verified_msg, dave_message);
     }
 }
