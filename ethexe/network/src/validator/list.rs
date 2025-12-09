@@ -22,59 +22,33 @@ use ethexe_common::{Address, BlockHeader, ProtocolTimelines, ValidatorsVec, db::
 use gprimitives::H256;
 use std::sync::Arc;
 
-struct CurrentEra {
-    chain_head_ts: u64,
-    current_validators: ValidatorsVec,
-    next_validators: Option<ValidatorsVec>,
-}
-
 /// Lightweight snapshot of [`ValidatorList`] to be used in other validator-related structures.
-#[derive(Debug)]
+#[derive(Debug, Eq, PartialEq)]
 pub(crate) struct ValidatorListSnapshot {
-    pub chain_head_ts: u64,
-    pub timelines: ProtocolTimelines,
+    pub current_era_index: u64,
     pub current_validators: ValidatorsVec,
     pub next_validators: Option<ValidatorsVec>,
 }
 
 impl ValidatorListSnapshot {
-    /// Returns whether `self` era index is less than `snapshot` era index.
-    pub(crate) fn is_older_era(&self, snapshot: &Self) -> bool {
-        let this_era = self.current_era_index();
-        let snapshot_era = snapshot.current_era_index();
-        this_era < snapshot_era
+    /// Checks if the given address is present in the current era validator set.
+    pub(crate) fn is_current(&self, address: Address) -> bool {
+        self.current_validators.contains(&address)
     }
 
-    pub(crate) fn current_era_index(&self) -> u64 {
-        self.timelines.era_from_ts(self.chain_head_ts)
-    }
-
-    pub(crate) fn block_era_index(&self, block_ts: u64) -> u64 {
-        self.timelines.era_from_ts(block_ts)
-    }
-
-    /// Checks if the given address is present in either the current or next era validator set.
-    pub(crate) fn contains_any_validator(&self, address: Address) -> bool {
-        let is_current_validator = self.current_validators.contains(&address);
-        let is_next_validator = self
-            .next_validators
+    /// Checks if the given address is present in the next era validator set.
+    pub(crate) fn is_next(&self, address: Address) -> bool {
+        self.next_validators
             .as_ref()
-            .map(|v| v.contains(&address))
-            .unwrap_or(false);
-        is_current_validator || is_next_validator
+            .is_some_and(|v| v.contains(&address))
     }
 }
 
 /// Tracks current and next validator set around the latest known block.
-///
-/// A new [`ValidatorListSnapshot`] is produced only when the chain head moves to
-/// a *strictly newer* era. Advancing within the same era (even if height
-/// increases) does not emit a snapshot, which keeps downstream components from
-/// reprocessing work unnecessarily.
+#[derive(Debug)]
 pub(crate) struct ValidatorList {
     timelines: ProtocolTimelines,
     db: Box<dyn ValidatorDatabase>,
-    current_era: CurrentEra,
 }
 
 impl ValidatorList {
@@ -86,69 +60,40 @@ impl ValidatorList {
         let timelines = db
             .protocol_timelines()
             .context("protocol timelines not found in db")?;
-        let current_era = CurrentEra {
-            chain_head_ts: latest_block_header.timestamp,
+        let snapshot = ValidatorListSnapshot {
+            current_era_index: timelines.era_from_ts(latest_block_header.timestamp),
             current_validators: latest_validators,
             next_validators: None,
         };
-        let this = Self {
-            timelines,
-            current_era,
-            db,
-        };
-        let snapshot = this.create_snapshot();
-        Ok((this, snapshot))
-    }
-
-    fn create_snapshot(&self) -> Arc<ValidatorListSnapshot> {
-        let snapshot = ValidatorListSnapshot {
-            chain_head_ts: self.current_era.chain_head_ts,
-            timelines: self.timelines,
-            current_validators: self.current_era.current_validators.clone(),
-            next_validators: self.current_era.next_validators.clone(),
-        };
-        Arc::new(snapshot)
+        Ok((Self { timelines, db }, Arc::new(snapshot)))
     }
 
     /// Refresh the current chain head and validator set snapshot.
-    ///
-    /// Returns `Some(snapshot)` only when the supplied block belongs to a later
-    /// era than the current chain head. Blocks from the same or earlier era are
-    /// ignored to avoid redundant validator lookups. Downstream components can
-    /// use the returned snapshot to revalidate cached network messages.
     pub(crate) fn set_chain_head(
         &mut self,
         chain_head: H256,
-    ) -> anyhow::Result<Option<Arc<ValidatorListSnapshot>>> {
+    ) -> anyhow::Result<Arc<ValidatorListSnapshot>> {
         let chain_head_header = self
             .db
             .block_header(chain_head)
             .context("failed to get chain head block header")?;
-        let chain_head_ts = chain_head_header.timestamp;
-
-        let new_era = self.timelines.era_from_ts(chain_head_ts);
-        let old_era = self.timelines.era_from_ts(self.current_era.chain_head_ts);
-        if new_era <= old_era {
-            return Ok(None);
-        }
+        let chain_head_era = self.timelines.era_from_ts(chain_head_header.timestamp);
 
         let current_validators = self
             .db
-            .validators(self.timelines.era_from_ts(chain_head_ts))
+            .validators(chain_head_era)
             .context("validators not found")?;
 
-        self.current_era = CurrentEra {
-            chain_head_ts,
+        let next_validators = self.db.validators(chain_head_era + 1);
+
+        let snapshot = ValidatorListSnapshot {
+            current_era_index: chain_head_era,
             current_validators,
-            next_validators: None,
+            next_validators,
         };
 
-        Ok(Some(self.create_snapshot()))
+        Ok(Arc::new(snapshot))
     }
-
-    // TODO: make actual implementation when `NextEraValidatorsCommitted` event is emitted before era transition
-    #[allow(dead_code)]
-    pub(crate) fn set_next_era_validators(&mut self) {}
 }
 
 #[cfg(test)]
@@ -157,6 +102,12 @@ mod tests {
     use core::convert::TryFrom;
     use ethexe_common::db::OnChainStorageRW;
     use ethexe_db::Database;
+
+    const TIMELINES: ProtocolTimelines = ProtocolTimelines {
+        genesis_ts: 0,
+        era: 10,
+        election: 5,
+    };
 
     fn validators_vec(addresses: &[u64]) -> ValidatorsVec {
         let addrs = addresses
@@ -176,49 +127,60 @@ mod tests {
     }
 
     #[test]
-    fn validator_list_advances_only_on_new_eras() {
-        let timelines = ProtocolTimelines {
-            genesis_ts: 0,
-            era: 10,
-            election: 5,
-        };
+    fn validator_list_advances() {
         let genesis_hash = H256::from_low_u64_be(0);
         let genesis_block_header = header(0, 0);
         let same_era_hash = H256::from_low_u64_be(1);
-        let next_era_hash = H256::from_low_u64_be(2);
+        let next_committed_validators_hash = H256::from_low_u64_be(2);
+        let next_era_hash = H256::from_low_u64_be(3);
 
         let db = Database::memory();
-        db.set_protocol_timelines(timelines);
+        db.set_protocol_timelines(TIMELINES);
         db.set_block_header(genesis_hash, genesis_block_header);
         db.set_block_header(same_era_hash, header(1, 5));
-        db.set_block_header(next_era_hash, header(2, 15));
+        db.set_block_header(next_committed_validators_hash, header(2, 9));
+        db.set_block_header(next_era_hash, header(3, 15));
 
         let current_validators = validators_vec(&[1, 2]);
         let next_validators = validators_vec(&[3, 4]);
         db.set_validators(0, current_validators.clone());
-        db.set_validators(1, next_validators.clone());
 
-        let (mut list, snapshot) = ValidatorList::new(
+        let (mut list, init_snapshot) = ValidatorList::new(
             Box::new(db.clone()),
             genesis_block_header,
             current_validators.clone(),
         )
         .expect("init succeeds");
-        assert_eq!(snapshot.current_era_index(), 0);
-        assert_eq!(snapshot.current_validators, current_validators);
+        assert_eq!(init_snapshot.current_era_index, 0);
+        assert_eq!(init_snapshot.current_validators, current_validators);
+        assert_eq!(init_snapshot.next_validators, None);
 
-        assert!(list.set_chain_head(same_era_hash).unwrap().is_none());
-        assert_eq!(list.current_era.chain_head_ts, 0);
+        // no changes
+        let snapshot = list.set_chain_head(same_era_hash).unwrap();
+        assert_eq!(init_snapshot, snapshot);
 
-        let next_snapshot = list
-            .set_chain_head(next_era_hash)
-            .unwrap()
-            .expect("new era snapshot");
-        assert_eq!(next_snapshot.current_era_index(), 1);
-        assert_eq!(next_snapshot.current_validators, next_validators);
-        assert_eq!(list.current_era.chain_head_ts, 15);
+        // next validators are known
+        db.set_validators(1, next_validators.clone());
 
-        assert!(list.set_chain_head(genesis_hash).unwrap().is_none());
-        assert_eq!(list.current_era.chain_head_ts, 15);
+        let next_validators_snapshot = list.set_chain_head(next_committed_validators_hash).unwrap();
+        assert_eq!(next_validators_snapshot.current_era_index, 0);
+        assert_eq!(
+            next_validators_snapshot.current_validators,
+            current_validators
+        );
+        assert_eq!(
+            next_validators_snapshot.next_validators,
+            Some(next_validators.clone())
+        );
+
+        // era changed
+        let snapshot = list.set_chain_head(next_era_hash).unwrap();
+        assert_eq!(snapshot.current_era_index, 1);
+        assert_eq!(snapshot.current_validators, next_validators);
+        assert_eq!(snapshot.next_validators, None);
+
+        // everything goes backwards - reorg case
+        let snapshot = list.set_chain_head(genesis_hash).unwrap();
+        assert_eq!(snapshot, next_validators_snapshot);
     }
 }
