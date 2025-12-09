@@ -34,7 +34,7 @@ use alloy::{
 };
 use ethexe_common::{
     Announce, HashOf, ScheduledTask, ToDigest,
-    consensus::{DEFAULT_CHAIN_DEEPNESS_THRESHOLD, DEFAULT_VALIDATE_CHAIN_DEEPNESS_LIMIT},
+    consensus::DEFAULT_CHAIN_DEEPNESS_THRESHOLD,
     db::*,
     ecdsa::ContractSignature,
     events::{BlockEvent, MirrorEvent, RouterEvent},
@@ -95,7 +95,6 @@ async fn basics() {
         block_gas_limit: 4_000_000_000_000,
         canonical_quarantine: 0,
         fast_sync: false,
-        validate_chain_deepness_limit: DEFAULT_VALIDATE_CHAIN_DEEPNESS_LIMIT,
         chain_deepness_threshold: DEFAULT_CHAIN_DEEPNESS_THRESHOLD,
     };
 
