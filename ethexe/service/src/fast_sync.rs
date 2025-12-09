@@ -715,7 +715,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
 
     // Since we get storage view at `block_hash`
     // then latest committed era is for the largest `useFromTimestamp`
-    let latest_era_with_committed_validators = timelines.era_from_ts(max(
+    let last_committed_era_index = timelines.era_from_ts(max(
         storage_view
             .validationSettings
             .validators0
@@ -736,7 +736,6 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
         PreparedBlockData {
             header,
             events,
-            latest_era_with_committed_validators,
             // NOTE: there is no invariant that fast sync should recover codes queue
             codes_queue: Default::default(),
             // TODO #4812: using `latest_committed_announce` here is not correct,
@@ -746,8 +745,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
             // because `latest_committed_batch` is latest for finalized block, not for `block_hash`.
             last_committed_batch: latest_committed_batch,
             last_committed_announce: announce_hash,
-            // +_+_+ TODO: fix after merge
-            last_committed_era_index: 0,
+            last_committed_era_index,
         },
         ComputedAnnounceData {
             announce,
