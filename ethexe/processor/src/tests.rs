@@ -94,7 +94,7 @@ fn setup_test_env_and_load_codes<const N: usize>(
         code_ids.push(code_id);
     }
 
-    let handler = processor.handler(block_announce).unwrap();
+    let handler = processor.handler(block_announce, vec![]).unwrap();
 
     (processor, handler, code_ids.try_into().unwrap())
 }
@@ -552,7 +552,7 @@ async fn many_waits() {
         .expect("failed to call runtime api")
         .expect("code failed verification or instrumentation");
 
-    let mut handler = processor.handler(block1_announce).unwrap();
+    let mut handler = processor.handler(block1_announce, vec![]).unwrap();
 
     let amount = 10000;
     for i in 0..amount {
@@ -669,7 +669,7 @@ async fn many_waits() {
     // This could fail in case of handling more scheduled ops: please, update test than.
     assert_eq!(schedule, restored_schedule);
 
-    let mut handler = processor.handler(block12_announce).unwrap();
+    let mut handler = processor.handler(block12_announce, vec![]).unwrap();
     handler.run_schedule();
     processor.process_queue(&mut handler).await;
 
@@ -840,7 +840,7 @@ async fn overlay_execution_noop() {
     let block2_announce = Announce::with_default_gas(block2, block1_announce_hash);
     let block2_announce_hash = block2_announce.to_hash();
 
-    let mut handler_block2 = processor.handler(block2_announce).unwrap();
+    let mut handler_block2 = processor.handler(block2_announce, vec![]).unwrap();
 
     // Manually add messages to programs queues
     let new_block_ping_mid1 = get_next_message_id();
@@ -956,7 +956,7 @@ async fn overlay_execution_noop() {
     let block3_announce = Announce::with_default_gas(block3, block2_announce_hash);
     let block3_announce_hash = block3_announce.to_hash();
 
-    let handler_block3 = processor.handler(block3_announce).unwrap();
+    let handler_block3 = processor.handler(block3_announce, vec![]).unwrap();
     let block3_announce = handler_block3.announce;
     let FinalizedBlockTransitions {
         states, schedule, ..
@@ -1177,7 +1177,7 @@ async fn injected_prioritized_over_canonical() {
         .expect("failed to call runtime api")
         .expect("code failed verification or instrumentation");
 
-    let mut handler = processor.handler(block_announce).unwrap();
+    let mut handler = processor.handler(block_announce, vec![]).unwrap();
 
     handler
         .handle_router_event(RouterRequestEvent::ProgramCreated { actor_id, code_id })

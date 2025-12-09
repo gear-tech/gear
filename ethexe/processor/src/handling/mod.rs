@@ -66,7 +66,11 @@ impl Processor {
     /// The [`InBlockTransitions`] is created using states of the parent of the block with block_hash.
     /// That's done because the parent actually has the latest view on program states. Also program states
     /// for the `block_hash` block are written to database only after the block is processed.
-    pub fn handler(&self, announce: Announce) -> Result<ProcessingHandler> {
+    pub fn handler(
+        &self,
+        announce: Announce,
+        injected_messages: Vec<gprimitives::MessageId>,
+    ) -> Result<ProcessingHandler> {
         let corresponding_block_header = self
             .db
             .block_header(announce.block_hash)
@@ -80,13 +84,6 @@ impl Processor {
             .db
             .announce_schedule(announce.parent)
             .ok_or(ProcessorError::AnnounceScheduleNotFound(announce.parent))?;
-
-        // TODO kuzmindev: Remove this when NetworkAnnounce will be implemented.
-        let injected_messages = announce
-            .injected_transactions
-            .iter()
-            .map(|tx| tx.data().to_message_id())
-            .collect();
 
         let transitions = InBlockTransitions::new(
             corresponding_block_header,
