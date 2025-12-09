@@ -176,7 +176,7 @@ impl Processor {
 
     pub async fn process_announce(
         &mut self,
-        announce: Announce,
+        mut announce: Announce,
         events: Vec<BlockRequestEvent>,
     ) -> Result<FinalizedBlockTransitions> {
         log::debug!(
@@ -184,10 +184,14 @@ impl Processor {
             announce.block_hash
         );
 
-        // TODO kuzmindev: remove clone here
-        let mut handler = self.handler(announce.clone())?;
+        let injected_transactions = std::mem::take(&mut announce.injected_transactions);
+        let injected_messages = injected_transactions
+            .iter()
+            .map(|tx| tx.data().to_message_id())
+            .collect();
+        let mut handler = self.handler(announce, injected_messages)?;
 
-        for tx in announce.injected_transactions {
+        for tx in injected_transactions {
             handler.handle_injected_transaction(tx)?;
         }
 
@@ -252,7 +256,12 @@ impl OverlaidProcessor {
             .announce(announce_hash)
             .ok_or(ProcessorError::AnnounceNotFound(announce_hash))?;
 
-        let mut handler = self.0.handler(announce)?;
+        let injected_messages = announce
+            .injected_transactions
+            .iter()
+            .map(|tx| tx.data().to_message_id())
+            .collect();
+        let mut handler = self.0.handler(announce, injected_messages)?;
 
         let state_hash = handler
             .transitions
