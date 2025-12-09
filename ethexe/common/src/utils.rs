@@ -19,8 +19,8 @@
 use crate::{
     Announce, HashOf, ProtocolTimelines, SimpleBlockData, ValidatorsVec,
     db::{
-        AnnounceStorageRW, BlockMeta, BlockMetaStorageRW, FullAnnounceData, FullBlockData,
-        LatestData, LatestDataStorageRW, OnChainStorageRW,
+        AnnounceStorageRW, BlockMeta, BlockMetaStorageRW, ComputedAnnounceData, LatestData,
+        LatestDataStorageRW, OnChainStorageRW, PreparedBlockData,
     },
 };
 use gprimitives::H256;
@@ -49,8 +49,8 @@ pub fn setup_start_block_in_db<
 >(
     db: &DB,
     start_block_hash: H256,
-    start_block_data: FullBlockData,
-    start_announce_data: FullAnnounceData,
+    start_block_data: PreparedBlockData,
+    start_announce_data: ComputedAnnounceData,
     timelines: ProtocolTimelines,
 ) {
     let announce_hash = start_announce_data.announce.to_hash();
@@ -91,7 +91,7 @@ pub fn setup_genesis_in_db<
     let genesis_announce = Announce::base(genesis_block.hash, HashOf::zero());
     let genesis_announce_hash = setup_announce_in_db(
         db,
-        FullAnnounceData {
+        ComputedAnnounceData {
             announce: genesis_announce,
             program_states: Default::default(),
             outcome: Default::default(),
@@ -102,7 +102,7 @@ pub fn setup_genesis_in_db<
     setup_block_in_db(
         db,
         genesis_block.hash,
-        FullBlockData {
+        PreparedBlockData {
             header: genesis_block.header,
             events: Default::default(),
             codes_queue: Default::default(),
@@ -150,7 +150,7 @@ pub fn setup_genesis_in_db<
 pub fn setup_block_in_db<DB: OnChainStorageRW + BlockMetaStorageRW>(
     db: &DB,
     block_hash: H256,
-    block_data: FullBlockData,
+    block_data: PreparedBlockData,
 ) {
     db.set_block_header(block_hash, block_data.header);
     db.set_block_events(block_hash, &block_data.events);
@@ -163,14 +163,14 @@ pub fn setup_block_in_db<DB: OnChainStorageRW + BlockMetaStorageRW>(
             codes_queue: Some(block_data.codes_queue),
             last_committed_batch: Some(block_data.last_committed_batch),
             last_committed_announce: Some(block_data.last_committed_announce),
-            last_committed_era_index: Some(block_data.last_committed_era_index)
+            last_committed_era_index: Some(block_data.last_committed_era_index),
         }
     });
 }
 
 pub fn setup_announce_in_db<DB: AnnounceStorageRW>(
     db: &DB,
-    announce_data: FullAnnounceData,
+    announce_data: ComputedAnnounceData,
 ) -> HashOf<Announce> {
     let announce_hash = announce_data.announce.to_hash();
     db.set_announce(announce_data.announce);

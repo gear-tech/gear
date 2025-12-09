@@ -150,7 +150,7 @@ impl ChainSync {
 
         if (header.height - latest_synced_block_height) >= self.config.max_sync_depth {
             return Err(anyhow!(
-                "Too much to sync: current block number: {}, Latest valid block number: {}, Max depth: {}",
+                "Too much to sync: current block number: {}, Latest synced block number: {}, Max depth: {}",
                 header.height,
                 latest_synced_block_height,
                 self.config.max_sync_depth
@@ -214,17 +214,16 @@ impl ChainSync {
         Ok(())
     }
 
-    /// Function checks the `election_ts` in current era is `finalized` and if it true returns it.
+    /// Function checks the `election_ts` in current era is `finalized` and if it's true then returns it.
     ///
     /// By `finalization` we mean the 64 blocks, because of it is closely to real finalization time and
     /// reorgs for 64 blocks can not happen.
     fn election_timestamp_finalized(&self, chain_head: BlockHeader) -> Option<u64> {
         let timelines = self.db.protocol_timelines()?;
-
-        let election_ts = timelines.era_end_ts(chain_head.timestamp) - timelines.election;
-
+        let election_ts =
+            timelines.era_election_start_ts(timelines.era_from_ts(chain_head.timestamp));
         (chain_head.timestamp.saturating_sub(election_ts)
-            > alloy::eips::merge::SLOT_DURATION_SECS * 64)
+            > self.config.slot_duration_secs * self.config.finalization_period_blocks)
             .then_some(election_ts)
     }
 }
