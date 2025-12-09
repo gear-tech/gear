@@ -41,7 +41,7 @@ pub struct ValidatorMessage<T> {
 impl<T: ToDigest> ToDigest for ValidatorMessage<T> {
     fn update_hasher(&self, hasher: &mut Keccak256) {
         let Self { era_index, payload } = self;
-        era_index.to_be_bytes().encode_to(hasher);
+        era_index.to_be_bytes().update_hasher(hasher);
         payload.update_hasher(hasher);
     }
 }
