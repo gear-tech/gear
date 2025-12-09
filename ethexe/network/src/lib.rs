@@ -446,9 +446,8 @@ impl NetworkService {
                 validator.validate(gossipsub, |message| match message {
                     gossipsub::Message::Commitments(message) => {
                         let message = message.into_verified();
-                        let (acceptance, message) = self
-                            .validator_topic
-                            .verify_message_initially(source, message);
+                        let (acceptance, message) =
+                            self.validator_topic.verify_message(source, message);
                         (acceptance, message.map(NetworkEvent::ValidatorMessage))
                     }
                 })

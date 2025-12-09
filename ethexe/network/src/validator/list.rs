@@ -31,14 +31,16 @@ pub(crate) struct ValidatorListSnapshot {
 }
 
 impl ValidatorListSnapshot {
-    /// Checks if the given address is present in either the current or next era validator set.
-    pub(crate) fn is_current_or_next(&self, address: Address) -> bool {
-        let is_current_validator = self.current_validators.contains(&address);
-        let is_next_validator = self
-            .next_validators
+    /// Checks if the given address is present in the current era validator set.
+    pub(crate) fn is_current(&self, address: Address) -> bool {
+        self.current_validators.contains(&address)
+    }
+
+    /// Checks if the given address is present in the next era validator set.
+    pub(crate) fn is_next(&self, address: Address) -> bool {
+        self.next_validators
             .as_ref()
-            .is_some_and(|v| v.contains(&address));
-        is_current_validator || is_next_validator
+            .is_some_and(|v| v.contains(&address))
     }
 }
 
