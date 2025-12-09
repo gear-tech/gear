@@ -20,7 +20,9 @@ use anyhow::{Result, anyhow};
 use ethexe_common::{
     Announce, HashOf, ProgramStates,
     db::{AnnounceStorageRO, OnChainStorageRO},
-    injected::{InjectedTransaction, SignedInjectedTransaction, VALIDITY_WINDOW},
+    injected::{
+        INJECTED_TX_PAYLOAD_LIMIT, InjectedTransaction, SignedInjectedTransaction, VALIDITY_WINDOW,
+    },
 };
 use ethexe_runtime_common::state::Storage;
 use gprimitives::H256;
@@ -41,6 +43,8 @@ pub enum TxValidity {
     UnknownDestination,
     /// Transaction's destination [`gprimitives::ActorId`] not initialized.
     UninitializedDestination,
+    /// Payload size is exceed the limit([`INJECTED_TX_PAYLOAD_LIMIT`]).
+    PayloadSizeExceeded(usize),
 }
 
 pub struct TxValidityChecker<DB> {
@@ -65,6 +69,11 @@ impl<DB: OnChainStorageRO + AnnounceStorageRO + Storage> TxValidityChecker<DB> {
     /// - `latest_included_transactions` - see [`Self::collect_recent_included_txs`].
     pub fn check_tx_validity(&self, tx: &SignedInjectedTransaction) -> Result<TxValidity> {
         let reference_block = tx.data().reference_block;
+
+        let payload_size = tx.data().payload.len();
+        if payload_size > INJECTED_TX_PAYLOAD_LIMIT {
+            return Ok(TxValidity::PayloadSizeExceeded(payload_size));
+        }
 
         if !self.is_reference_block_within_validity_window(reference_block)? {
             return Ok(TxValidity::Outdated);

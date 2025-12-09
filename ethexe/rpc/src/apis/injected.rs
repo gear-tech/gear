@@ -17,24 +17,29 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{RpcEvent, errors};
+use anyhow::Result;
 use dashmap::DashMap;
 use ethexe_common::{
-    HashOf,
-    injected::{InjectedTransaction, RpcOrNetworkInjectedTx, SignedPromise},
+    Address, HashOf, ProtocolTimelines,
+    db::{LatestData, LatestDataStorageRO, OnChainStorageRO},
+    injected::{InjectedTransaction, RpcOrNetworkInjectedTx, SignedPromise, VALIDITY_WINDOW},
 };
+use ethexe_db::Database;
+use ethexe_runtime_common::state::Storage;
 use jsonrpsee::{
     PendingSubscriptionSink, SubscriptionMessage,
     core::{RpcResult, SubscriptionResult, async_trait},
     proc_macros::rpc,
+    types::ErrorObjectOwned,
 };
 use serde::{Deserialize, Serialize};
+use sp_core::H256;
 use std::sync::Arc;
 use tokio::sync::{mpsc, oneshot};
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum InjectedTransactionAcceptance {
     Accept,
-    Reject { reason: String },
 }
 
 #[cfg_attr(not(feature = "test-utils"), rpc(server))]
@@ -59,13 +64,15 @@ pub trait Injected {
 
 #[derive(Debug, Clone)]
 pub struct InjectedApi {
+    gate: TransactionGate,
     rpc_sender: mpsc::UnboundedSender<RpcEvent>,
     promise_waiters: Arc<DashMap<HashOf<InjectedTransaction>, oneshot::Sender<SignedPromise>>>,
 }
 
 impl InjectedApi {
-    pub(crate) fn new(rpc_sender: mpsc::UnboundedSender<RpcEvent>) -> Self {
+    pub(crate) fn new(db: Database, rpc_sender: mpsc::UnboundedSender<RpcEvent>) -> Self {
         Self {
+            gate: TransactionGate::new_with_all_checks(db),
             rpc_sender,
             promise_waiters: Arc::new(DashMap::new()),
         }
@@ -92,6 +99,8 @@ impl InjectedServer for InjectedApi {
         transaction: RpcOrNetworkInjectedTx,
     ) -> RpcResult<InjectedTransactionAcceptance> {
         tracing::trace!("Called injected_sendTransaction with vars: {transaction:?}");
+
+        self.gate.pass_transaction(&transaction)?;
 
         let (response_sender, response_receiver) = oneshot::channel();
         let event = RpcEvent::InjectedTransaction {
@@ -121,6 +130,9 @@ impl InjectedServer for InjectedApi {
         pending: PendingSubscriptionSink,
         transaction: RpcOrNetworkInjectedTx,
     ) -> SubscriptionResult {
+        tracing::trace!("Called injected_subscribeTransactionPromise with vars: {transaction:?}");
+        self.gate.pass_transaction(&transaction)?;
+
         let tx_hash = transaction.tx.data().to_hash();
 
         // Checks, that transaction wasn't already send.
@@ -147,15 +159,7 @@ impl InjectedServer for InjectedApi {
             return Err(errors::internal().into());
         }
 
-        if let InjectedTransactionAcceptance::Reject { reason } = response_receiver.await? {
-            tracing::trace!(
-                tx_hash = ?tx_hash,
-                reject_reason = ?reason,
-                "reject injected transaction"
-            );
-            pending.reject(errors::bad_request(reason)).await;
-            return Ok(());
-        }
+        let _accepted = response_receiver.await?;
 
         let subscription_sink = match pending.accept().await {
             Ok(sink) => sink,
@@ -195,5 +199,179 @@ impl InjectedServer for InjectedApi {
         });
 
         Ok(())
+    }
+}
+
+const REFERENCE_BLOCK_OUTDATED_TOLERANCE: u8 = 1;
+
+// TODO: Implement tower service for InjectedApi and use this as layer.
+#[derive(Clone, derive_more::Debug)]
+pub(crate) struct TransactionGate<DB = Database> {
+    #[debug(skip)]
+    db: DB,
+    config: GateConfig,
+    protocol_timelines: ProtocolTimelines,
+}
+
+#[derive(Debug, Clone, Copy, Default)]
+struct GateConfig {
+    recipient: bool,
+    reference_block: bool,
+}
+
+impl<DB: OnChainStorageRO> TransactionGate<DB> {
+    pub fn new(db: DB) -> Self {
+        let protocol_timelines = db
+            .protocol_timelines()
+            .expect("Not found protocol timelines in database. Unable to run RPC server.");
+
+        Self {
+            db,
+            config: GateConfig::default(),
+            protocol_timelines,
+        }
+    }
+
+    fn new_with_all_checks(db: DB) -> Self {
+        Self::new(db)
+            .with_recipient_check()
+            .with_reference_block_check()
+    }
+
+    pub fn with_recipient_check(mut self) -> Self {
+        self.config.recipient = true;
+        self
+    }
+
+    pub fn with_reference_block_check(mut self) -> Self {
+        self.config.reference_block = true;
+        self
+    }
+}
+
+impl<DB: Storage + LatestDataStorageRO + OnChainStorageRO + Clone> TransactionGate<DB> {
+    /// Validate obviously incorrect transactions. It it is invalid returns error message.
+    fn pass_transaction(&self, tx: &RpcOrNetworkInjectedTx) -> Result<(), ErrorObjectOwned> {
+        let Some(latest_data) = self.db.latest_data() else {
+            return Err(errors::db("not found latest data in RPC database"));
+        };
+
+        if self.config.recipient {
+            self.recipient_exists(&latest_data, &tx.recipient)?;
+        }
+
+        if self.config.reference_block {
+            self.ref_block_outdated(&latest_data, tx.tx.data().reference_block)?;
+        }
+
+        Ok(())
+    }
+
+    /// Check, that transaction's recipient exists in current validator set.
+    /// No make sense to pass this transaction further, because of it won't reach some validator.
+    fn recipient_exists(
+        &self,
+        latest_data: &LatestData,
+        recipient: &Address,
+    ) -> Result<(), ErrorObjectOwned> {
+        let current_era = self
+            .protocol_timelines
+            .era_from_ts(latest_data.synced_block.header.timestamp);
+
+        let Some(validators) = self.db.validators(current_era) else {
+            tracing::warn!(era = %current_era, "not found validators");
+            return Err(errors::db("not found validators in RPC database"));
+        };
+
+        if !validators.contains(recipient) {
+            return Err(errors::bad_request(format!(
+                "there is no validator with address {recipient}"
+            )));
+        }
+
+        Ok(())
+    }
+
+    fn ref_block_outdated(
+        &self,
+        latest_data: &LatestData,
+        reference_block: H256,
+    ) -> Result<(), ErrorObjectOwned> {
+        let Some(reference_block) = self.db.block_header(reference_block) else {
+            return Err(errors::bad_request(format!(
+                "not found reference block in RPC database, block hash {reference_block}"
+            )));
+        };
+
+        let Some(ref_block_lagging) = latest_data
+            .synced_block
+            .header
+            .height
+            .checked_sub(reference_block.height)
+        else {
+            // OK case. This may happen if switch to another branch with less head.height.
+            return Ok(());
+        };
+
+        if ref_block_lagging > (REFERENCE_BLOCK_OUTDATED_TOLERANCE + VALIDITY_WINDOW).into() {
+            return Err(errors::bad_request("reference block is outdated".into()));
+        }
+
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use ethexe_common::{
+        Address, SimpleBlockData,
+        db::{LatestDataStorageRW, OnChainStorageRW},
+        ecdsa::PrivateKey,
+        injected::SignedInjectedTransaction,
+        mock::Mock,
+    };
+
+    use super::*;
+
+    #[test]
+    fn test_gate_reject_invalid_recipient() {
+        let db = Database::memory();
+
+        // Preparing db
+        let reference_block = SimpleBlockData::mock(());
+        let latest_data = LatestData {
+            synced_block: reference_block.clone(),
+            ..Default::default()
+        };
+        db.set_latest_data(latest_data);
+
+        let timelines = ProtocolTimelines::mock(());
+        db.set_protocol_timelines(timelines);
+
+        let validators = vec![Address::from(1), Address::from(2)];
+        db.set_validators(
+            timelines.era_from_ts(reference_block.header.timestamp),
+            validators.clone().try_into().unwrap(),
+        );
+
+        // Test
+        let gate = TransactionGate::new(db.clone()).with_recipient_check();
+
+        let mut tx = InjectedTransaction::mock(());
+        tx.reference_block = reference_block.hash;
+        let signed_tx =
+            SignedInjectedTransaction::create(PrivateKey::random(), tx.clone()).unwrap();
+
+        let invalid_rpc_tx = RpcOrNetworkInjectedTx {
+            recipient: Address::from(3),
+            tx: signed_tx.clone(),
+        };
+        assert!(gate.pass_transaction(&invalid_rpc_tx).is_err());
+
+        let correct_rpc_tx = RpcOrNetworkInjectedTx {
+            recipient: validators[0],
+            tx: signed_tx,
+        };
+        assert!(gate.pass_transaction(&correct_rpc_tx).is_ok());
     }
 }
