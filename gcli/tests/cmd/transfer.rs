@@ -19,7 +19,6 @@
 //! Integration tests for command `deploy`
 
 use crate::common::{self, Args, NodeExec};
-
 use anyhow::Result;
 use gsdk::{
     Api,

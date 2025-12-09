@@ -31,8 +31,6 @@ pub mod update;
 pub mod upload;
 pub mod wallet;
 
-use std::time::Duration;
-
 pub use self::{
     claim::Claim,
     config::{Config, ConfigSettings},
@@ -50,6 +48,7 @@ pub use self::{
 use crate::App;
 use anyhow::Result;
 use clap::Parser;
+use std::time::Duration;
 
 /// All SubCommands of gear command line interface.
 #[derive(Clone, Debug, Parser)]

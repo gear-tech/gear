@@ -18,9 +18,8 @@
 
 //! This module provides [`TxOutput`] helper type.
 
-use subxt::{blocks::ExtrinsicEvents, utils::H256};
-
 use crate::{AsGear, Error, Event, GearConfig, Result, TxInBlock};
+use subxt::{blocks::ExtrinsicEvents, utils::H256};
 
 /// Transaction with its output value.
 #[derive(Debug, derive_more::AsRef, derive_more::AsMut)]

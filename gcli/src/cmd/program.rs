@@ -18,7 +18,6 @@
 
 //! Command `program`.
 use crate::App;
-
 use anyhow::Result;
 use clap::Parser;
 use gear_core::ids::ActorId;

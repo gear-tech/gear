@@ -16,9 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use futures::prelude::*;
-
 use demo_ping::WASM_BINARY;
+use futures::prelude::*;
 use gear_core::ids::ActorId;
 use gsdk::{Result, UserMessageSentFilter};
 use std::convert::TryFrom;

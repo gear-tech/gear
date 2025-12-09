@@ -19,7 +19,6 @@
 //! Integration tests for command `send`
 
 use crate::common::{self, Args, node::NodeExec};
-
 use anyhow::Result;
 use gsdk::{
     AccountKeyring, Api,

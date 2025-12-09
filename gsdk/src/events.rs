@@ -18,18 +18,16 @@
 
 //! This module provides useful functions for working with event stream.
 
-use std::{
-    collections::{HashMap, HashSet},
-    pin::pin,
-};
-
-use futures::prelude::*;
-use gear_core::ids::MessageId;
-use parity_scale_codec::Decode;
-
 use crate::{
     Error, Event, Result,
     gear::{gear, runtime_types::gear_common::event::DispatchStatus},
+};
+use futures::prelude::*;
+use gear_core::ids::MessageId;
+use parity_scale_codec::Decode;
+use std::{
+    collections::{HashMap, HashSet},
+    pin::pin,
 };
 
 /// Extracts a reply on given message from a stream of events.

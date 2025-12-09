@@ -17,7 +17,6 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Gear storage apis
-use futures::prelude::*;
 
 use crate::{
     Api, BlockNumber, GearGasNode, GearGasNodeId, GearPages, IntoAccountId32, IntoSubstrate,
@@ -37,6 +36,7 @@ use crate::{
     },
     result::{Error, FailedPage, Result},
 };
+use futures::prelude::*;
 use gear_core::{
     code::{CodeMetadata, InstrumentedCode},
     ids::{ActorId, CodeId, MessageId},

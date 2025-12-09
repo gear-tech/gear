@@ -18,7 +18,6 @@
 
 //! Command `claim`
 use crate::{App, utils::Hex};
-
 use anyhow::Result;
 use clap::Parser;
 

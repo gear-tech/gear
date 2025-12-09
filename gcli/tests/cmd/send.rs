@@ -18,7 +18,6 @@
 
 //! Integration tests for command `send`
 use crate::common::{self, Args, node::NodeExec};
-
 use anyhow::Result;
 use gsdk::Api;
 use scale_info::scale::Encode;

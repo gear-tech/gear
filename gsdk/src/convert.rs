@@ -18,9 +18,8 @@
 
 //! This module provides conversion traits between [`subxt`] types and Substrate types.
 
-use subxt::{error::ModuleError, events::EventDetails};
-
 use crate::{GearConfig, Result};
+use subxt::{error::ModuleError, events::EventDetails};
 
 /// Trait for Substrate types convertible to their
 /// [`subxt`] counterpart.

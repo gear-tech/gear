@@ -18,11 +18,9 @@
 
 //! This module provides useful functions for working with block stream.
 
-use futures::prelude::*;
-
-use std::pin::pin;
-
 use crate::{Api, Error, GearConfig, Result};
+use futures::prelude::*;
+use std::pin::pin;
 
 /// Block retreived from a node.
 pub type Block = subxt::blocks::Block<GearConfig, subxt::OnlineClient<GearConfig>>;

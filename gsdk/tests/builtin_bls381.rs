@@ -16,8 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use std::pin::pin;
-
 use ark_bls12_381::{G1Affine, G1Projective as G1, G2Affine, G2Projective as G2};
 use ark_ec::Group;
 use ark_serialize::CanonicalSerialize;
@@ -26,6 +24,7 @@ use demo_bls381::*;
 use gear_core::ids::{ActorId, MessageId};
 use gsdk::{Result, SignedApi, events};
 use parity_scale_codec::Encode;
+use std::pin::pin;
 use utils::dev_node;
 
 mod utils;

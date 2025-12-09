@@ -18,7 +18,6 @@
 
 //! command `new`
 use crate::template;
-
 use anyhow::Result;
 use clap::Parser;
 

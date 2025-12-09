@@ -17,11 +17,6 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! gear api calls
-use std::{
-    collections::{HashMap, HashSet},
-    path::Path,
-};
-
 use crate::{
     Error, Event, GearGasNode, GearGasNodeId, IntoAccountId32, IntoSubstrate, Result, SignedApi,
     TxOutput,
@@ -44,6 +39,10 @@ use gear_core::{
 };
 use gear_utils::{MemoryPageDump, ProgramMemoryDump};
 use parity_scale_codec::Encode;
+use std::{
+    collections::{HashMap, HashSet},
+    path::Path,
+};
 use subxt::utils::H256;
 use tokio::fs;
 

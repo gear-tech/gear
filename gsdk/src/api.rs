@@ -16,14 +16,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use futures::prelude::*;
-
 use crate::{
     AsGear, ProgramStateChanges, Result, UserMessageSentFilter, UserMessageSentSubscription,
     config::GearConfig, gear::Event,
 };
 use core::ops::{Deref, DerefMut};
-use futures::Stream;
+use futures::{Stream, prelude::*};
 use jsonrpsee::{client_transport::ws::Url, ws_client::WsClientBuilder};
 use sp_core::H256;
 use std::{borrow::Cow, time::Duration};

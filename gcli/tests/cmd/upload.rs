@@ -22,7 +22,6 @@ use crate::common::{
     self, Args,
     node::{Convert, NodeExec},
 };
-
 use anyhow::Result;
 use demo_fungible_token::InitConfig;
 use gear_core::ids::{CodeId, prelude::*};

@@ -18,7 +18,6 @@
 
 //! command `info`
 use crate::App;
-
 use anyhow::Result;
 use clap::Parser;
 use gear_core::message::UserStoredMessage;

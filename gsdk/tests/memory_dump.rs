@@ -16,13 +16,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use std::{collections::BTreeSet, ops::Deref, path::PathBuf};
-
 use demo_custom::{InitMessage, WASM_BINARY};
 use gear_core::{ids::ActorId, pages::GearPage};
 use gear_node_wrapper::Node;
 use gsdk::{Api, Result, SignedApi, events};
 use parity_scale_codec::Encode;
+use std::{collections::BTreeSet, ops::Deref, path::PathBuf};
 use tokio::fs;
 use utils::dev_node;
 

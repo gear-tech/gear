@@ -16,9 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use gear_core::pages::GearPage;
-
 use crate::gear::runtime_types;
+use gear_core::pages::GearPage;
 
 impl From<GearPage> for runtime_types::gear_core::pages::Page {
     fn from(page: GearPage) -> Self {

@@ -18,11 +18,10 @@
 
 //! Test for harmful demos, checking their init can't brake the chain.
 
-use std::{pin::pin, time::Duration};
-
 use demo_wat::WatExample;
 use gear_core::{code::MAX_WASM_PAGES_AMOUNT, pages::WasmPage};
 use gsdk::{AccountKeyring, Result, RuntimeError, SignedApi, events, gear::gear};
+use std::{pin::pin, time::Duration};
 use utils::dev_node;
 
 mod utils;

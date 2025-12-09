@@ -16,9 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use std::{env, path::PathBuf};
-
 use gsdk::gear;
+use std::{env, path::PathBuf};
 use utils::dev_node;
 
 mod utils;

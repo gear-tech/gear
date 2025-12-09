@@ -5,11 +5,10 @@
 //! gets properly structured data acceptable by the gear node and randomizes it's "fields".
 //! That's why generated data is called semi-random.
 
-use futures::prelude::*;
-
 use anyhow::{Error, Result, anyhow};
 use args::{LoadParams, Params, parse_cli_params};
 use batch_pool::{BatchPool, api::GearApiFacade};
+use futures::prelude::*;
 use gsdk::blocks::Block;
 use names::Generator;
 use rand::rngs::SmallRng;
