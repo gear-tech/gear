@@ -268,6 +268,10 @@ pub enum Program {
         path = "pallet_balances::types::ExtraFlags",
         derive = "Default, derive_more::BitOr"
     ),
+    derive_for_type(
+        path = "gear_common::event::DispatchStatus",
+        derive = "derive_more::IsVariant"
+    ),
     generate_docs
 )]
 pub mod gear {}

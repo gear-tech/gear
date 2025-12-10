@@ -29,20 +29,3 @@ impl runtime_types::pallet_balances::types::ExtraFlags {
     pub const DEFAULT: Self = Self(0);
     pub const NEW_LOGIC: Self = Self(0x80000000_00000000_00000000_00000000u128);
 }
-
-impl runtime_types::gear_common::event::DispatchStatus {
-    /// Whether the status is `Self::Success`.
-    pub fn is_success(&self) -> bool {
-        matches!(self, Self::Success)
-    }
-
-    /// Whether the status is `Self::Failed`.
-    pub fn is_failed(&self) -> bool {
-        matches!(self, Self::Failed)
-    }
-
-    /// Whether the status is not `Self::NotExecuted`.
-    pub fn is_executed(&self) -> bool {
-        !matches!(self, Self::NotExecuted)
-    }
-}
