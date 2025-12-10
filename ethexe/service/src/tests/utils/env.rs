@@ -1061,7 +1061,7 @@ impl Node {
         let handle = task::spawn(async move {
             service
                 .run()
-                .instrument(tracing::info_span!("node", name))
+                .instrument(tracing::trace_span!("node", name))
                 .await
                 .unwrap_or_else(|err| panic!("Service {name:?} failed: {err}"));
         });

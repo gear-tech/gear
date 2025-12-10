@@ -323,6 +323,14 @@ jobs:
         run: cargo nextest run --workspace --all-targets --all-features -E 'not package(/fuzz/)' ${{ matrix.profiles.flags }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RUST_LOG: gear=trace,pallet=trace,ethexe=trace,gwasm=trace,runtime=trace
+
+      - name: "ACTIONS: Upload junit.xml"
+        if: "!cancelled()"
+        uses: actions/upload-artifact@v4
+        with:
+          name: "workspace-${{ matrix.profiles.name }}-junit"
+          path: target/nextest/ci/junit.xml
 
   crates-io:
     runs-on: [kuberunner, github-runner-02]
