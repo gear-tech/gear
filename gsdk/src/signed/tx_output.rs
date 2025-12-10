@@ -107,7 +107,7 @@ impl TxOutput {
     }
 }
 
-/// [`TxOutput`] withut value, but after some kind of validation.
+/// [`TxOutput`] without value, but after some kind of validation.
 ///
 /// Logically equivalent to [`TxOutput<bool>`].
 impl TxOutput<Option<()>> {
