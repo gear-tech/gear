@@ -27,7 +27,7 @@ use gsdk::ext::subxt::utils::H256;
 #[derive(Clone, Debug, Parser)]
 pub struct Program {
     /// Program id.
-    pid: H256,
+    pid: ActorId,
     /// The block hash for reading state.
     #[arg(long)]
     at: Option<H256>,
@@ -37,9 +37,7 @@ impl Program {
     /// Run command program.
     pub async fn exec(&self, app: &impl App) -> Result<()> {
         let api = app.signed().await?;
-        let state = api
-            .read_state_bytes_at(ActorId::new(self.pid.0), vec![], self.at)
-            .await?;
+        let state = api.read_state_bytes_at(self.pid, vec![], self.at).await?;
         println!("0x{}", hex::encode(state));
         Ok(())
     }
