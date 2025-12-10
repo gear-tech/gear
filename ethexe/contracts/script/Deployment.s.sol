@@ -159,14 +159,11 @@ contract DeploymentScript is Script {
             vm.assertTrue(success);
         }
 
-        vm.roll(vm.getBlockNumber() + 1);
-        router.lookupGenesisHash();
-
         vm.assertEq(router.mirrorImpl(), address(mirror));
-        vm.assertNotEq(router.genesisBlockHash(), bytes32(0));
 
         vm.stopBroadcast();
 
+        printContractInfo("Middleware", address(middleware), Upgrades.getImplementationAddress(address(middleware)));
         printContractInfo("Router", address(router), Upgrades.getImplementationAddress(address(router)));
         printContractInfo("WVara", address(wrappedVara), Upgrades.getImplementationAddress(address(wrappedVara)));
         printContractInfo("Mirror", mirrorAddress, address(0));
