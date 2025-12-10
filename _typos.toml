@@ -1,7 +1,7 @@
 [default]
 extend-ignore-re = [
   # transaction hash
-  "\\w{48}",
+  "\\w{52}",
   # address
   "\\w{48}",
   # `dyn-clonable` crate
