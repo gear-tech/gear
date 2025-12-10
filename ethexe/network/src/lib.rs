@@ -544,9 +544,7 @@ impl NetworkService {
 
     pub fn send_injected_transaction(&mut self, data: RpcOrNetworkInjectedTx) {
         let behaviour = self.swarm.behaviour_mut();
-        behaviour
-            .injected
-            .send_transaction(&mut behaviour.validator_discovery, data);
+        behaviour.injected.send_transaction(data);
     }
 }
 

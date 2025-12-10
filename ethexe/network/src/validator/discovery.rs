@@ -580,6 +580,7 @@ impl Behaviour {
         self.get_identities.on_new_snapshot(snapshot);
     }
 
+    #[allow(unused)] // will be used in next PRs
     pub fn get_identity(&self, address: Address) -> Option<&SignedValidatorIdentity> {
         self.get_identities.identities.get(&address)
     }
