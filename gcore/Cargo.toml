@@ -18,6 +18,7 @@ gear-stack-buffer.workspace = true
 thiserror.workspace = true
 arrayvec.workspace = true
 paste.workspace = true
+gear-workspace-hack.workspace = true
 
 [dev-dependencies]
 hex-literal.workspace = true

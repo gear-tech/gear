@@ -20,6 +20,7 @@ futures.workspace = true
 tokio.workspace = true
 derive_more.workspace = true
 log.workspace = true
+gear-workspace-hack.workspace = true
 
 [dev-dependencies]
 gear-core.workspace = true
