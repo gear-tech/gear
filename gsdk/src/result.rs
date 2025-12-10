@@ -107,7 +107,7 @@ pub enum Error {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, derive_more::Display)]
-#[display("Page {} of Program {}", u32::from(*page), program)]
+#[display("Page {} of Program {}", page, program)]
 pub struct FailedPage {
     pub page: GearPage,
     pub program: ActorId,
