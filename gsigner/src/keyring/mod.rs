@@ -36,6 +36,7 @@ use std::{
 };
 
 const CONFIG_FILE: &str = "keyring.json";
+
 pub const NAMESPACE_NET: &str = "net";
 pub const NAMESPACE_SECP: &str = "secp";
 pub const NAMESPACE_ED: &str = "ed";
@@ -220,8 +221,16 @@ impl<K: KeystoreEntry> Keyring<K> {
 
     /// Create an in-memory keyring.
     pub fn memory() -> Self {
+        Self::try_memory().unwrap_or_else(|_| Self {
+            store: Box::new(MemoryBackend::default()),
+            keystores: Vec::new(),
+            primary: None,
+        })
+    }
+
+    /// Fallible constructor for an in-memory keyring.
+    pub fn try_memory() -> Result<Self> {
         Self::from_backend(Box::new(MemoryBackend::default()))
-            .expect("memory keyring should not fail")
     }
 
     fn from_backend(store: Box<dyn KeyringBackend>) -> Result<Self> {
@@ -332,7 +341,10 @@ impl<K: KeystoreEntry> Keyring<K> {
             self.save_config()?;
         }
 
-        let primary_name = self.primary.as_ref().unwrap();
+        let primary_name = self
+            .primary
+            .as_ref()
+            .ok_or_else(|| anyhow!("Primary key is not set"))?;
         self.keystores
             .iter()
             .find(|k| k.name() == primary_name)

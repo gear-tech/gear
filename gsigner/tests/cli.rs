@@ -41,7 +41,7 @@ fn secp256k1_generate_sign_verify_list() {
         .assert()
         .success();
     let gen_json: Value = serde_json::from_slice(&r#gen.get_output().stdout).unwrap();
-    let public = gen_json["Secp256k1"]["Generate"]["public_key"]
+    let public = gen_json["result"]["Generate"]["public_key"]
         .as_str()
         .unwrap();
 
@@ -61,9 +61,7 @@ fn secp256k1_generate_sign_verify_list() {
         .assert()
         .success();
     let sign_json: Value = serde_json::from_slice(&sign.get_output().stdout).unwrap();
-    let signature = sign_json["Secp256k1"]["Sign"]["signature"]
-        .as_str()
-        .unwrap();
+    let signature = sign_json["result"]["Sign"]["signature"].as_str().unwrap();
 
     // verify
     gsigner_bin()
@@ -87,7 +85,7 @@ fn secp256k1_generate_sign_verify_list() {
         .assert()
         .success();
     let list_json: Value = serde_json::from_slice(&list.get_output().stdout).unwrap();
-    let keys = list_json["Secp256k1"]["List"]["keys"].as_array().unwrap();
+    let keys = list_json["result"]["List"]["keys"].as_array().unwrap();
     assert_eq!(keys.len(), 1);
 }
 
@@ -113,60 +111,74 @@ fn secp256k1_rejects_short_hex() {
 #[test]
 fn secp256k1_execute_and_display_with_prefix_and_contract() {
     use gsigner::cli::{
-        Secp256k1Commands, Secp256k1KeyringCommands, display_secp256k1_result,
-        execute_secp256k1_command,
+        CommandResult, GSignerCommands, Scheme, SchemeKeyringCommands, SchemeResult,
+        SchemeSubcommand, display_result, execute_command,
     };
 
     let tmp = TempDir::new().unwrap();
     let storage = temp_storage(&tmp, "secp");
 
-    // generate via execute_*
-    let r#gen = execute_secp256k1_command(Secp256k1Commands::Keyring {
-        command: Secp256k1KeyringCommands::Generate {
-            storage: storage_args(&storage),
-            show_secret: true,
+    // generate via generic dispatcher
+    let gen_res = execute_command(GSignerCommands::Secp256k1 {
+        command: SchemeSubcommand::Keyring {
+            command: SchemeKeyringCommands::Generate {
+                storage: storage_args(&storage),
+                show_secret: true,
+            },
         },
     })
     .expect("generate");
-    display_secp256k1_result(&r#gen);
+    display_result(&gen_res);
 
     // sign with prefix and contract (ensure it works and outputs a signature)
-    let public = match r#gen {
-        gsigner::cli::Secp256k1Result::Generate(r) => r.public_key,
+    let public = match gen_res.result.clone() {
+        SchemeResult::Generate(r) => r.public_key,
         _ => panic!("unexpected variant"),
     };
-    let contract_sig = execute_secp256k1_command(Secp256k1Commands::Keyring {
-        command: Secp256k1KeyringCommands::Sign {
-            public_key: public.clone(),
-            data: "c0ffee".into(),
-            prefix: Some("pre".into()),
-            storage: storage_args(&storage),
-            contract: Some("000102030405060708090a0b0c0d0e0f10111213".into()),
+    let contract_sig = execute_command(GSignerCommands::Secp256k1 {
+        command: SchemeSubcommand::Keyring {
+            command: SchemeKeyringCommands::Sign {
+                public_key: public.clone(),
+                data: "c0ffee".into(),
+                prefix: Some("pre".into()),
+                storage: storage_args(&storage),
+                context: None,
+                contract: Some("000102030405060708090a0b0c0d0e0f10111213".into()),
+            },
         },
     })
     .expect("sign contract");
-    display_secp256k1_result(&contract_sig);
+    display_result(&contract_sig);
 
     // sign and verify with prefix (no contract) to ensure prefix path works end-to-end
-    let plain_sig = execute_secp256k1_command(Secp256k1Commands::Keyring {
-        command: Secp256k1KeyringCommands::Sign {
-            public_key: public.clone(),
-            data: "c0ffee".into(),
-            prefix: Some("pre".into()),
-            storage: storage_args(&storage),
-            contract: None,
+    let plain_sig = execute_command(GSignerCommands::Secp256k1 {
+        command: SchemeSubcommand::Keyring {
+            command: SchemeKeyringCommands::Sign {
+                public_key: public.clone(),
+                data: "c0ffee".into(),
+                prefix: Some("pre".into()),
+                storage: storage_args(&storage),
+                context: None,
+                contract: None,
+            },
         },
     })
     .expect("sign plain");
-    if let gsigner::cli::Secp256k1Result::Sign(sig_res) = plain_sig {
-        let verify = execute_secp256k1_command(Secp256k1Commands::Verify {
-            public_key: public,
-            data: "c0ffee".into(),
-            prefix: Some("pre".into()),
-            signature: sig_res.signature,
+    if let SchemeResult::Sign(sig_res) = plain_sig.result.clone() {
+        let verify = execute_command(GSignerCommands::Secp256k1 {
+            command: SchemeSubcommand::Verify {
+                public_key: public,
+                data: "c0ffee".into(),
+                prefix: Some("pre".into()),
+                signature: sig_res.signature,
+                context: None,
+            },
         })
         .expect("verify");
-        display_secp256k1_result(&verify);
+        display_result(&CommandResult {
+            scheme: Scheme::Secp256k1,
+            result: verify.result,
+        });
     } else {
         panic!("expected sign result");
     }
@@ -204,7 +216,7 @@ fn secp256k1_keyring_generate_and_list() {
         .success();
     let gen_json: Value = serde_json::from_slice(&r#gen.get_output().stdout).unwrap();
     assert_eq!(
-        gen_json["Secp256k1"]["Generate"]["name"].as_str().unwrap(),
+        gen_json["result"]["Generate"]["name"].as_str().unwrap(),
         "alice"
     );
 
@@ -221,7 +233,7 @@ fn secp256k1_keyring_generate_and_list() {
         .assert()
         .success();
     let list_json: Value = serde_json::from_slice(&list.get_output().stdout).unwrap();
-    let ks = list_json["Secp256k1"]["List"]["keys"].as_array().unwrap();
+    let ks = list_json["result"]["List"]["keys"].as_array().unwrap();
     assert_eq!(ks.len(), 1);
     assert_eq!(ks[0]["name"].as_str().unwrap(), "alice");
 
@@ -244,13 +256,11 @@ fn secp256k1_keyring_generate_and_list() {
         .success();
     let vanity_json: Value = serde_json::from_slice(&vanity.get_output().stdout).unwrap();
     assert_eq!(
-        vanity_json["Secp256k1"]["Generate"]["name"]
-            .as_str()
-            .unwrap(),
+        vanity_json["result"]["Generate"]["name"].as_str().unwrap(),
         "van"
     );
     assert!(
-        !vanity_json["Secp256k1"]["Generate"]["secret"]
+        !vanity_json["result"]["Generate"]["secret"]
             .as_str()
             .unwrap()
             .is_empty()
@@ -286,7 +296,7 @@ fn secp256k1_keyring_clear_removes_keys() {
         .success();
     let list_json: Value = serde_json::from_slice(&list.get_output().stdout).unwrap();
     assert_eq!(
-        list_json["Secp256k1"]["List"]["keys"]
+        list_json["result"]["List"]["keys"]
             .as_array()
             .unwrap()
             .len(),
@@ -316,7 +326,7 @@ fn secp256k1_keyring_clear_removes_keys() {
         .success();
     let cleared_json: Value = serde_json::from_slice(&cleared.get_output().stdout).unwrap();
     assert!(
-        cleared_json["Secp256k1"]["List"]["keys"]
+        cleared_json["result"]["List"]["keys"]
             .as_array()
             .unwrap()
             .is_empty()
@@ -341,7 +351,7 @@ fn secp256k1_recover_and_address() {
         .assert()
         .success();
     let gen_json: Value = serde_json::from_slice(&r#gen.get_output().stdout).unwrap();
-    let public = gen_json["Secp256k1"]["Generate"]["public_key"]
+    let public = gen_json["result"]["Generate"]["public_key"]
         .as_str()
         .unwrap();
 
@@ -361,7 +371,7 @@ fn secp256k1_recover_and_address() {
         .assert()
         .success();
     let sig_json: Value = serde_json::from_slice(&sig.get_output().stdout).unwrap();
-    let signature = sig_json["Secp256k1"]["Sign"]["signature"].as_str().unwrap();
+    let signature = sig_json["result"]["Sign"]["signature"].as_str().unwrap();
 
     // recover
     let rec = gsigner_bin()
@@ -377,7 +387,7 @@ fn secp256k1_recover_and_address() {
         .success();
     let rec_json: Value = serde_json::from_slice(&rec.get_output().stdout).unwrap();
     assert_eq!(
-        rec_json["Secp256k1"]["Recover"]["public_key"]
+        rec_json["result"]["Recover"]["public_key"]
             .as_str()
             .unwrap()
             .len(),
@@ -415,7 +425,7 @@ fn secp256k1_insert_and_show() {
         .assert()
         .success();
     let ins_json: Value = serde_json::from_slice(&ins.get_output().stdout).unwrap();
-    let public = ins_json["Secp256k1"]["Generate"]["public_key"]
+    let public = ins_json["result"]["Generate"]["public_key"]
         .as_str()
         .unwrap();
 
@@ -433,7 +443,7 @@ fn secp256k1_insert_and_show() {
         .assert()
         .success();
     let show_json: Value = serde_json::from_slice(&show.get_output().stdout).unwrap();
-    let shown = &show_json["Secp256k1"]["List"]["keys"][0];
+    let shown = &show_json["result"]["List"]["keys"][0];
     let shown_public = shown["public_key"].as_str().unwrap();
     assert_eq!(
         shown_public.trim_start_matches("0x"),
@@ -453,14 +463,12 @@ fn secp256k1_insert_and_show() {
         .assert()
         .success();
     let list_json: Value = serde_json::from_slice(&list.get_output().stdout).unwrap();
-    let keys = list_json["Secp256k1"]["List"]["keys"].as_array().unwrap();
+    let keys = list_json["result"]["List"]["keys"].as_array().unwrap();
     assert_eq!(keys.len(), 1);
     assert_eq!(keys[0]["public_key"].as_str().unwrap(), public);
 
     // show by address must resolve the same entry
-    let address = ins_json["Secp256k1"]["Generate"]["address"]
-        .as_str()
-        .unwrap();
+    let address = ins_json["result"]["Generate"]["address"].as_str().unwrap();
     let show_address = gsigner_bin()
         .args([
             "secp256k1",
@@ -473,7 +481,7 @@ fn secp256k1_insert_and_show() {
         .assert()
         .success();
     let show_addr_json: Value = serde_json::from_slice(&show_address.get_output().stdout).unwrap();
-    let addr_entry = &show_addr_json["Secp256k1"]["List"]["keys"][0];
+    let addr_entry = &show_addr_json["result"]["List"]["keys"][0];
     assert_eq!(addr_entry["address"].as_str().unwrap(), address);
 }
 
@@ -495,7 +503,7 @@ fn ed25519_generate_sign_verify_list_and_address() {
         .assert()
         .success();
     let gen_json: Value = serde_json::from_slice(&r#gen.get_output().stdout).unwrap();
-    let public = gen_json["Ed25519"]["Generate"]["public_key"]
+    let public = gen_json["result"]["Generate"]["public_key"]
         .as_str()
         .unwrap();
 
@@ -514,7 +522,7 @@ fn ed25519_generate_sign_verify_list_and_address() {
         .assert()
         .success();
     let sig_json: Value = serde_json::from_slice(&sig.get_output().stdout).unwrap();
-    let signature = sig_json["Ed25519"]["Sign"]["signature"].as_str().unwrap();
+    let signature = sig_json["result"]["Sign"]["signature"].as_str().unwrap();
 
     gsigner_bin()
         .args([
@@ -542,7 +550,7 @@ fn ed25519_generate_sign_verify_list_and_address() {
         .assert()
         .success();
     let show_json: Value = serde_json::from_slice(&show.get_output().stdout).unwrap();
-    let show_keys = show_json["Ed25519"]["List"]["keys"].as_array().unwrap();
+    let show_keys = show_json["result"]["List"]["keys"].as_array().unwrap();
     assert_eq!(show_keys.len(), 1);
     assert_eq!(show_keys[0]["public_key"].as_str().unwrap(), public);
 
@@ -558,7 +566,7 @@ fn ed25519_generate_sign_verify_list_and_address() {
         .success();
     let list_json: Value = serde_json::from_slice(&list.get_output().stdout).unwrap();
     assert_eq!(
-        list_json["Ed25519"]["List"]["keys"]
+        list_json["result"]["List"]["keys"]
             .as_array()
             .unwrap()
             .len(),
@@ -607,7 +615,7 @@ fn ed25519_keyring_generate_and_list() {
         .success();
     let gen_json: Value = serde_json::from_slice(&r#gen.get_output().stdout).unwrap();
     assert_eq!(
-        gen_json["Ed25519"]["Generate"]["name"].as_str().unwrap(),
+        gen_json["result"]["Generate"]["name"].as_str().unwrap(),
         "bob"
     );
 
@@ -624,7 +632,7 @@ fn ed25519_keyring_generate_and_list() {
         .assert()
         .success();
     let list_json: Value = serde_json::from_slice(&list.get_output().stdout).unwrap();
-    let ks = list_json["Ed25519"]["List"]["keys"].as_array().unwrap();
+    let ks = list_json["result"]["List"]["keys"].as_array().unwrap();
     assert_eq!(ks.len(), 1);
     assert_eq!(ks[0]["name"].as_str().unwrap(), "bob");
 
@@ -647,11 +655,11 @@ fn ed25519_keyring_generate_and_list() {
         .success();
     let vanity_json: Value = serde_json::from_slice(&vanity.get_output().stdout).unwrap();
     assert_eq!(
-        vanity_json["Ed25519"]["Generate"]["name"].as_str().unwrap(),
+        vanity_json["result"]["Generate"]["name"].as_str().unwrap(),
         "bob-van"
     );
     assert!(
-        !vanity_json["Ed25519"]["Generate"]["secret"]
+        !vanity_json["result"]["Generate"]["secret"]
             .as_str()
             .unwrap()
             .is_empty()
@@ -693,7 +701,7 @@ fn ed25519_keyring_import_and_clear() {
         .assert()
         .success();
     let list_json: Value = serde_json::from_slice(&list.get_output().stdout).unwrap();
-    let keys = list_json["Ed25519"]["List"]["keys"].as_array().unwrap();
+    let keys = list_json["result"]["List"]["keys"].as_array().unwrap();
     assert_eq!(keys.len(), 1);
     assert_eq!(keys[0]["name"].as_str().unwrap(), "imported");
 
@@ -721,7 +729,7 @@ fn ed25519_keyring_import_and_clear() {
         .success();
     let cleared_json: Value = serde_json::from_slice(&after_clear.get_output().stdout).unwrap();
     assert!(
-        cleared_json["Ed25519"]["List"]["keys"]
+        cleared_json["result"]["List"]["keys"]
             .as_array()
             .unwrap()
             .is_empty()
@@ -746,7 +754,7 @@ fn sr25519_generate_sign_verify_list() {
         .assert()
         .success();
     let gen_json: Value = serde_json::from_slice(&r#gen.get_output().stdout).unwrap();
-    let public = gen_json["Sr25519"]["Generate"]["public_key"]
+    let public = gen_json["result"]["Generate"]["public_key"]
         .as_str()
         .unwrap();
 
@@ -767,7 +775,7 @@ fn sr25519_generate_sign_verify_list() {
         .assert()
         .success();
     let sig_json: Value = serde_json::from_slice(&sig.get_output().stdout).unwrap();
-    let signature = sig_json["Sr25519"]["Sign"]["signature"].as_str().unwrap();
+    let signature = sig_json["result"]["Sign"]["signature"].as_str().unwrap();
     assert_eq!(signature.len(), 128);
 
     let show = gsigner_bin()
@@ -782,7 +790,7 @@ fn sr25519_generate_sign_verify_list() {
         .assert()
         .success();
     let show_json: Value = serde_json::from_slice(&show.get_output().stdout).unwrap();
-    let show_keys = show_json["Sr25519"]["List"]["keys"].as_array().unwrap();
+    let show_keys = show_json["result"]["List"]["keys"].as_array().unwrap();
     assert_eq!(show_keys.len(), 1);
     assert_eq!(show_keys[0]["public_key"].as_str().unwrap(), public);
 
@@ -798,7 +806,7 @@ fn sr25519_generate_sign_verify_list() {
         .success();
     let list_json: Value = serde_json::from_slice(&list.get_output().stdout).unwrap();
     assert_eq!(
-        list_json["Sr25519"]["List"]["keys"]
+        list_json["result"]["List"]["keys"]
             .as_array()
             .unwrap()
             .len(),
@@ -856,7 +864,7 @@ fn sr25519_keyring_create_and_list() {
         .assert()
         .success();
     let list_json: Value = serde_json::from_slice(&list.get_output().stdout).unwrap();
-    let ks = list_json["Sr25519"]["List"]["keys"].as_array().unwrap();
+    let ks = list_json["result"]["List"]["keys"].as_array().unwrap();
     assert_eq!(ks.len(), 1);
     assert_eq!(ks[0]["name"].as_str().unwrap(), "charlie");
 
@@ -877,11 +885,11 @@ fn sr25519_keyring_create_and_list() {
         .success();
     let vanity_json: Value = serde_json::from_slice(&vanity.get_output().stdout).unwrap();
     assert_eq!(
-        vanity_json["Sr25519"]["Generate"]["name"].as_str().unwrap(),
+        vanity_json["result"]["Generate"]["name"].as_str().unwrap(),
         "charlie-van"
     );
     assert!(
-        !vanity_json["Sr25519"]["Generate"]["secret"]
+        !vanity_json["result"]["Generate"]["secret"]
             .as_str()
             .unwrap()
             .is_empty()
@@ -923,7 +931,7 @@ fn sr25519_keyring_import_and_clear() {
         .success();
     let list_json: Value = serde_json::from_slice(&list.get_output().stdout).unwrap();
     assert_eq!(
-        list_json["Sr25519"]["List"]["keys"]
+        list_json["result"]["List"]["keys"]
             .as_array()
             .unwrap()
             .len(),
@@ -954,7 +962,7 @@ fn sr25519_keyring_import_and_clear() {
         .success();
     let cleared_json: Value = serde_json::from_slice(&cleared.get_output().stdout).unwrap();
     assert!(
-        cleared_json["Sr25519"]["List"]["keys"]
+        cleared_json["result"]["List"]["keys"]
             .as_array()
             .unwrap()
             .is_empty()
@@ -978,7 +986,7 @@ fn sr25519_verify_and_address() {
         .assert()
         .success();
     let gen_json: Value = serde_json::from_slice(&r#gen.get_output().stdout).unwrap();
-    let public = gen_json["Sr25519"]["Generate"]["public_key"]
+    let public = gen_json["result"]["Generate"]["public_key"]
         .as_str()
         .unwrap();
 
@@ -999,7 +1007,7 @@ fn sr25519_verify_and_address() {
         .assert()
         .success();
     let sign_json: Value = serde_json::from_slice(&sign.get_output().stdout).unwrap();
-    let signature = sign_json["Sr25519"]["Sign"]["signature"].as_str().unwrap();
+    let signature = sign_json["result"]["Sign"]["signature"].as_str().unwrap();
 
     // verify command should accept the generated signature
     gsigner_bin()

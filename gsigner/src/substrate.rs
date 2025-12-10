@@ -259,13 +259,8 @@ where
     }
 
     /// Sign a message using the stored private key.
-    ///
-    /// # Panics
-    ///
-    /// Panics if signing fails which should not occur for valid stored keys.
-    pub fn sign(&self, message: &[u8]) -> S::Signature {
+    pub fn sign(&self, message: &[u8]) -> Result<S::Signature> {
         S::sign(&self.private_key, message)
-            .expect("stored private key should always produce signatures; qed")
     }
 
     /// Return the underlying Substrate pair.

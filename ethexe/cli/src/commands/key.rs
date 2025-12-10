@@ -20,7 +20,8 @@ use crate::params::Params;
 use anyhow::Result;
 use clap::Parser;
 use gsigner::cli::{
-    Secp256k1Commands, WithDefaultStorage, display_secp256k1_result, execute_secp256k1_command,
+    SchemeCommands, SchemeKeyringCommands, SchemeSubcommand, commands::StorageLocationArgs,
+    display_result, execute_command,
 };
 use std::path::PathBuf;
 
@@ -37,7 +38,7 @@ pub struct KeyCommand {
 
     /// Subcommand to run.
     #[command(subcommand)]
-    pub command: Secp256k1Commands,
+    pub command: SchemeSubcommand,
 }
 
 impl KeyCommand {
@@ -60,10 +61,41 @@ impl KeyCommand {
     pub fn exec(self) -> Result<()> {
         let key_store = self.key_store.expect("must never be empty after merging");
 
-        let command = self.command.with_default_storage(key_store);
-        let result = execute_secp256k1_command(command)?;
-        display_secp256k1_result(&result);
+        let command = apply_default_storage(self.command, key_store);
+        let result = execute_command(SchemeCommands::Secp256k1 { command })?;
+        display_result(&result);
 
         Ok(())
+    }
+}
+
+fn apply_default_storage(command: SchemeSubcommand, default: PathBuf) -> SchemeSubcommand {
+    match command {
+        SchemeSubcommand::Keyring { mut command } => {
+            apply_default_storage_keyring(&mut command, &default);
+            SchemeSubcommand::Keyring { command }
+        }
+        other => other,
+    }
+}
+
+fn apply_default_storage_keyring(command: &mut SchemeKeyringCommands, default: &std::path::Path) {
+    let update = |storage: &mut StorageLocationArgs| {
+        if storage.path.is_none() && !storage.memory {
+            storage.path = Some(default.to_path_buf());
+        }
+    };
+
+    match command {
+        SchemeKeyringCommands::Clear { storage }
+        | SchemeKeyringCommands::Generate { storage, .. }
+        | SchemeKeyringCommands::Import { storage, .. }
+        | SchemeKeyringCommands::Sign { storage, .. }
+        | SchemeKeyringCommands::Show { storage, .. }
+        | SchemeKeyringCommands::Init { storage }
+        | SchemeKeyringCommands::Create { storage, .. }
+        | SchemeKeyringCommands::Vanity { storage, .. }
+        | SchemeKeyringCommands::List { storage } => update(storage),
+        _ => {}
     }
 }

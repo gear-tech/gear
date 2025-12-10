@@ -135,7 +135,7 @@ impl fmt::Debug for PrivateKey {
 
 impl fmt::Display for PrivateKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "0x{}", hex::encode(self.seed().as_ref()))
+        f.write_str("<redacted>")
     }
 }
 

@@ -34,6 +34,7 @@ use crate::{
 };
 use anyhow::{Result, anyhow};
 use core::str::FromStr;
+use hex;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Copy, Debug, Default, Serialize, Deserialize)]
@@ -54,7 +55,8 @@ impl KeyCodec for Secp256k1Codec {
     }
 
     fn encode_private(private_key: &Self::PrivateKey) -> Result<String> {
-        Ok(private_key.to_string())
+        // Use raw seed bytes to avoid leaking redacted Display output.
+        Ok(hex::encode(private_key.seed().as_ref()))
     }
 
     fn decode_private(encoded: &str) -> Result<Self::PrivateKey> {

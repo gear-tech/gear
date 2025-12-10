@@ -187,7 +187,7 @@ impl Service {
             processor.config().chunk_processing_threads
         );
 
-        let signer = Signer::fs(config.node.key_path.clone());
+        let signer = Signer::fs(config.node.key_path.clone())?;
 
         let validator_pub_key = Self::get_config_public_key(config.node.validator, &signer)
             .with_context(|| "failed to get validator private key")?;
@@ -250,7 +250,7 @@ impl Service {
                     .parent()
                     .context("key_path has no parent directory")?
                     .join("net"),
-            );
+            )?;
 
             let latest_block_data = observer
                 .block_loader()

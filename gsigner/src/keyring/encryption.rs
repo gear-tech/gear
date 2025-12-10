@@ -24,6 +24,10 @@ use rand::RngCore;
 
 const NONCE_LENGTH: usize = 24;
 const KEY_SIZE: usize = 32;
+const SCRYPT_LOG_N_MIN: u32 = 10; // 1 << 10 = 1024
+const SCRYPT_LOG_N_MAX: u32 = 20; // 1 << 20 = 1,048,576
+const SCRYPT_R_MAX: u32 = 8; // keep memory use bounded
+const SCRYPT_P_MAX: u32 = 8; // keep CPU/memory bounded
 
 /// Encrypt arbitrary bytes with scrypt + xsalsa20-poly1305.
 pub fn encrypt_secret(plaintext: &[u8], passphrase: &[u8]) -> Result<String> {
@@ -53,7 +57,7 @@ pub fn decrypt_secret(encoded: &str, passphrase: &[u8]) -> Result<Vec<u8>> {
 
     let mut scrypt_bytes = [0u8; Scrypt::ENCODED_LENGTH];
     scrypt_bytes.copy_from_slice(&decoded[..Scrypt::ENCODED_LENGTH]);
-    let scrypt = Scrypt::decode(scrypt_bytes);
+    let scrypt = Scrypt::decode(scrypt_bytes)?;
     let passwd = scrypt.passwd(passphrase)?;
 
     let encrypted = &decoded[Scrypt::ENCODED_LENGTH..];
@@ -86,7 +90,7 @@ impl Scrypt {
         buf
     }
 
-    fn decode(encoded: [u8; Self::ENCODED_LENGTH]) -> Self {
+    fn decode(encoded: [u8; Self::ENCODED_LENGTH]) -> Result<Self> {
         let mut salt = [0u8; 32];
         salt.copy_from_slice(&encoded[..32]);
 
@@ -99,12 +103,34 @@ impl Scrypt {
             })
             .collect::<Vec<_>>();
 
-        Self {
-            salt,
-            n: params[0].ilog2(),
-            r: params[2],
-            p: params[1],
+        let (n_raw, p, r) = match (params.first(), params.get(1), params.get(2)) {
+            (Some(&n_raw), Some(&p), Some(&r)) => (n_raw, p, r),
+            _ => anyhow::bail!("Invalid scrypt parameter block"),
+        };
+
+        if !n_raw.is_power_of_two() {
+            anyhow::bail!("Invalid scrypt N value (must be power of two)");
         }
+
+        let n_log2 = n_raw.trailing_zeros();
+        if !(SCRYPT_LOG_N_MIN..=SCRYPT_LOG_N_MAX).contains(&n_log2) {
+            anyhow::bail!("Unsupported scrypt N: 2^{n_log2}");
+        }
+
+        if r == 0 || r > SCRYPT_R_MAX {
+            anyhow::bail!("Unsupported scrypt r parameter");
+        }
+
+        if p == 0 || p > SCRYPT_P_MAX {
+            anyhow::bail!("Unsupported scrypt p parameter");
+        }
+
+        Ok(Self {
+            salt,
+            n: n_log2,
+            r,
+            p,
+        })
     }
 
     fn passwd(&self, passphrase: &[u8]) -> Result<[u8; KEY_SIZE]> {

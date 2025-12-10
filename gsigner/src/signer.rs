@@ -88,7 +88,8 @@ impl<S: KeyringScheme> Signer<S> {
 
     /// Create a signer with an in-memory keyring and optional password.
     pub fn memory_with_password(password: Option<String>) -> Self {
-        Self::with_password(keyring::Keyring::memory(), password)
+        let keyring = keyring::Keyring::try_memory().expect("memory keyring should not fail");
+        Self::with_password(keyring, password)
     }
 
     fn namespaced_path(path: PathBuf) -> PathBuf {
@@ -96,31 +97,37 @@ impl<S: KeyringScheme> Signer<S> {
     }
 
     /// Create a signer backed by a filesystem keyring at the specified path.
-    pub fn fs(path: PathBuf) -> Self {
+    /// Returns an error if the keyring cannot be loaded.
+    pub fn fs(path: PathBuf) -> Result<Self> {
         Self::fs_with_password(path, None)
     }
 
     /// Create a signer backed by a filesystem keyring with optional password.
-    pub fn fs_with_password(path: PathBuf, password: Option<String>) -> Self {
+    /// Returns an error if the keyring cannot be loaded.
+    pub fn fs_with_password(path: PathBuf, password: Option<String>) -> Result<Self> {
         let namespaced = Self::namespaced_path(path);
-        let keyring = keyring::Keyring::load(namespaced).expect("Failed to load keyring storage");
-        Self::with_password(keyring, password)
+        let keyring = keyring::Keyring::load(namespaced)?;
+        Ok(Self::with_password(keyring, password))
     }
 
     /// Create a signer backed by a temporary filesystem keyring.
-    pub fn fs_temporary() -> Self {
-        let temp_dir = tempfile::tempdir().expect("Failed to create temporary directory");
+    pub fn fs_temporary() -> Result<Self> {
+        let temp_dir = tempfile::tempdir()?;
         let namespaced = Self::namespaced_path(temp_dir.path().to_path_buf());
-        let keyring = keyring::Keyring::load(namespaced).expect("Failed to load keyring storage");
-        Self::with_tempdir(keyring, Some(temp_dir), None)
+        let keyring = keyring::Keyring::load(namespaced)?;
+        Ok(Self::with_tempdir(keyring, Some(temp_dir), None))
     }
 
-    fn keyring(&self) -> RwLockReadGuard<'_, keyring::Keyring<S::Keystore>> {
-        self.keyring.read().expect("Failed to acquire read lock")
+    fn keyring(&self) -> Result<RwLockReadGuard<'_, keyring::Keyring<S::Keystore>>> {
+        self.keyring
+            .read()
+            .map_err(|err| SignerError::Other(format!("Failed to acquire read lock: {err}")))
     }
 
-    fn keyring_mut(&self) -> RwLockWriteGuard<'_, keyring::Keyring<S::Keystore>> {
-        self.keyring.write().expect("Failed to acquire write lock")
+    fn keyring_mut(&self) -> Result<RwLockWriteGuard<'_, keyring::Keyring<S::Keystore>>> {
+        self.keyring
+            .write()
+            .map_err(|err| SignerError::Other(format!("Failed to acquire write lock: {err}")))
     }
 
     fn key_name(public_key: &S::PublicKey) -> String {
@@ -134,7 +141,7 @@ impl<S: KeyringScheme> Signer<S> {
         let public_key = S::public_key(&private_key);
         let name = Self::key_name(&public_key);
         let keystore = S::keystore_from_private(&name, &private_key, self.password.as_deref())?;
-        self.keyring_mut().store(&name, keystore)?;
+        self.keyring_mut()?.store(&name, keystore)?;
         Ok(public_key)
     }
 
@@ -142,7 +149,7 @@ impl<S: KeyringScheme> Signer<S> {
     where
         F: FnMut(&S::Keystore) -> Result<R>,
     {
-        let storage = self.keyring();
+        let storage = self.keyring()?;
         for keystore in storage.list() {
             if S::keystore_public(keystore)? == *public_key {
                 return f(keystore);
@@ -185,7 +192,7 @@ impl<S: KeyringScheme> Signer<S> {
 
     /// Check if a key exists in storage.
     pub fn has_key(&self, public_key: S::PublicKey) -> Result<bool> {
-        let storage = self.keyring();
+        let storage = self.keyring()?;
         for keystore in storage.list() {
             if S::keystore_public(keystore)? == public_key {
                 return Ok(true);
@@ -196,13 +203,13 @@ impl<S: KeyringScheme> Signer<S> {
 
     /// List all public keys in storage.
     pub fn list_keys(&self) -> Result<Vec<S::PublicKey>> {
-        let storage = self.keyring();
+        let storage = self.keyring()?;
         storage.list().iter().map(S::keystore_public).collect()
     }
 
     /// Remove all keys from storage.
     pub fn clear_keys(&self) -> Result<()> {
-        let mut storage = self.keyring_mut();
+        let mut storage = self.keyring_mut()?;
         let names: Vec<String> = storage
             .list()
             .iter()
@@ -238,7 +245,7 @@ impl<S: KeyringScheme> Signer<S> {
 
     /// Try to find a public key associated with the provided address.
     pub fn get_key_by_address(&self, address: S::Address) -> Result<Option<S::PublicKey>> {
-        let storage = self.keyring();
+        let storage = self.keyring()?;
         for keystore in storage.list() {
             if S::keystore_address(keystore)? == address {
                 return S::keystore_public(keystore).map(Some);

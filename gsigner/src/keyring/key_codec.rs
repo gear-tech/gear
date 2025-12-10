@@ -209,7 +209,7 @@ impl<C: KeyCodec> Default for SubstrateKeystoreMeta<C> {
     fn default() -> Self {
         let now = SystemTime::now()
             .duration_since(UNIX_EPOCH)
-            .expect("time went backwards")
+            .unwrap_or_default()
             .as_millis();
         Self {
             when_created: now,

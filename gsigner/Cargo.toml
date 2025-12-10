@@ -61,6 +61,7 @@ tracing-subscriber = { workspace = true, optional = true }
 libp2p-identity = { version = "0.2", default-features = false, features = [
     "serde",
 ], optional = true }
+secrecy = "0.8"
 
 [dev-dependencies]
 assert_cmd = "2.0"
@@ -69,7 +70,15 @@ serde_json = { workspace = true, features = ["std"] }
 tempfile = { workspace = true }
 
 [features]
-default = ["std", "secp256k1", "sr25519", "ed25519", "codec", "ss58-registry", "keyring"]
+default = [
+    "std",
+    "secp256k1",
+    "sr25519",
+    "ed25519",
+    "codec",
+    "ss58-registry",
+    "keyring",
+]
 std = [
     "dep:anyhow",
     "dep:rand",

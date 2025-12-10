@@ -20,8 +20,7 @@
 //!
 //! This module provides functions to format CLI results with colored output.
 
-use super::handlers::*;
-use crate::cli::commands::OutputFormat;
+use crate::cli::{commands::OutputFormat, scheme::*};
 use colored::Colorize;
 use serde_json;
 
@@ -36,11 +35,7 @@ pub fn display_result_with_format(result: &CommandResult, format: OutputFormat) 
 
 /// Backward-compatible default human-friendly output.
 pub fn display_result(result: &CommandResult) {
-    match result {
-        CommandResult::Secp256k1(r) => display_secp256k1_result(r),
-        CommandResult::Ed25519(r) => display_ed25519_result(r),
-        CommandResult::Sr25519(r) => display_sr25519_result(r),
-    }
+    display_scheme(result.scheme, &result.result);
 }
 
 fn display_plain(result: &CommandResult) {
@@ -141,63 +136,38 @@ fn display_message(result: &MessageResult) {
     println!("{}", format!("✓ {}", result.message).green().bold());
 }
 
-pub fn display_secp256k1_result(result: &Secp256k1Result) {
+fn display_scheme(scheme: Scheme, result: &SchemeResult) {
+    match scheme {
+        Scheme::Secp256k1 => display_scheme_result(result, "Address:", "secp256k1"),
+        Scheme::Ed25519 => display_scheme_result(result, "SS58 Address:", "ed25519"),
+        Scheme::Sr25519 => display_scheme_result(result, "SS58 Address:", "sr25519"),
+    }
+}
+
+fn display_scheme_result(result: &SchemeResult, address_caption: &str, scheme_label: &str) {
     match result {
-        Secp256k1Result::Clear(r) => display_clear(r),
-        Secp256k1Result::Generate(r) => display_generate(r, "Address:"),
-        Secp256k1Result::Sign(r) => display_sign(r),
-        Secp256k1Result::Verify(_) => display_verify(),
-        Secp256k1Result::Recover(r) => {
+        SchemeResult::Clear(r) => display_clear(r),
+        SchemeResult::Generate(r) => display_generate(r, address_caption),
+        SchemeResult::Import(r) => display_import(r, address_caption, scheme_label),
+        SchemeResult::Sign(r) => display_sign(r),
+        SchemeResult::Verify(_) => display_verify(),
+        SchemeResult::Recover(r) => {
             println!("{}", "✓ Recovered public key".green().bold());
             println!("  {} {}", "Public key:".bright_blue(), r.public_key);
-            println!("  {} {}", "Address:".bright_blue(), r.address);
+            println!("  {} {}", address_caption.bright_blue(), r.address);
         }
-        Secp256k1Result::Address(r) => {
-            display_address("Address:", &r.address);
+        SchemeResult::Address(r) => display_address(address_caption, &r.address),
+        SchemeResult::PeerId(r) => {
+            #[cfg(feature = "peer-id")]
+            {
+                display_peer_id(&r.peer_id);
+            }
+            #[cfg(not(feature = "peer-id"))]
+            {
+                let _ = r;
+            }
         }
-        #[cfg(feature = "peer-id")]
-        Secp256k1Result::PeerId(r) => {
-            display_peer_id(&r.peer_id);
-        }
-        Secp256k1Result::List(r) => display_list(r, "Address:"),
-        Secp256k1Result::Message(r) => display_message(r),
-    }
-}
-
-pub fn display_ed25519_result(result: &Ed25519Result) {
-    match result {
-        Ed25519Result::Clear(r) => display_clear(r),
-        Ed25519Result::Generate(r) => display_generate(r, "SS58 Address:"),
-        Ed25519Result::Import(r) => display_import(r, "SS58 Address:", "ed25519"),
-        Ed25519Result::Sign(r) => display_sign(r),
-        Ed25519Result::Verify(_) => display_verify(),
-        Ed25519Result::Address(r) => {
-            display_address("SS58 Address:", &r.address);
-        }
-        #[cfg(feature = "peer-id")]
-        Ed25519Result::PeerId(r) => {
-            display_peer_id(&r.peer_id);
-        }
-        Ed25519Result::List(r) => display_list(r, "SS58 Address:"),
-        Ed25519Result::Message(r) => display_message(r),
-    }
-}
-
-pub fn display_sr25519_result(result: &Sr25519Result) {
-    match result {
-        Sr25519Result::Clear(r) => display_clear(r),
-        Sr25519Result::Generate(r) => display_generate(r, "SS58 Address:"),
-        Sr25519Result::Import(r) => display_import(r, "SS58 Address:", "sr25519"),
-        Sr25519Result::Sign(r) => display_sign(r),
-        Sr25519Result::Verify(_) => display_verify(),
-        Sr25519Result::Address(r) => {
-            display_address("SS58 Address:", &r.address);
-        }
-        #[cfg(feature = "peer-id")]
-        Sr25519Result::PeerId(r) => {
-            display_peer_id(&r.peer_id);
-        }
-        Sr25519Result::List(r) => display_list(r, "SS58 Address:"),
-        Sr25519Result::Message(r) => display_message(r),
+        SchemeResult::List(r) => display_list(r, address_caption),
+        SchemeResult::Message(r) => display_message(r),
     }
 }

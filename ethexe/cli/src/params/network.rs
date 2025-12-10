@@ -81,7 +81,7 @@ impl NetworkParams {
             log::trace!("use network key from command-line arguments");
             key.parse().context("invalid network key")?
         } else {
-            let signer = Signer::fs(config_dir);
+            let signer = Signer::fs(config_dir)?;
             let keys = signer.list_keys()?;
             match keys.as_slice() {
                 [] => {

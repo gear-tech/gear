@@ -198,7 +198,7 @@ impl<'de> Deserialize<'de> for PrivateKey {
 
 impl core::fmt::Debug for PrivateKey {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        f.write_str("PrivateKey(<redacted>)")
+        write!(f, "0x{}", hex::encode(self.seed().as_ref()))
     }
 }
 
