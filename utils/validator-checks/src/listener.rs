@@ -1,12 +1,11 @@
 //! Block listener
 
-use futures::prelude::*;
-
 use crate::{
     blocks_production::BlocksProduction,
     cmd::Opt,
     result::{Error, Result},
 };
+use futures::prelude::*;
 use gsdk::{
     Api,
     blocks::Block,
