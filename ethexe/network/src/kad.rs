@@ -144,9 +144,14 @@ impl PutRecordValidator {
             original_record,
             record,
         } = self;
-        let success = f(record);
-        if success {
-            let _res = behaviour.inner.store_mut().put(original_record);
+
+        if !f(record) {
+            // don't store record
+            return;
+        }
+
+        if let Err(err) = behaviour.inner.store_mut().put(original_record) {
+            log::trace!("failed to store record: {err:?}");
         }
     }
 }
