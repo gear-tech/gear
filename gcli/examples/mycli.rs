@@ -21,11 +21,11 @@ use gcli::{App, Command, async_trait, clap::Parser};
 /// My customized sub commands.
 #[derive(Debug, Parser)]
 pub enum SubCommand {
-    /// GCli preset commands.
-    #[clap(flatten)]
-    GCliCommands(Command),
     /// My customized ping command.
     Ping,
+    /// GCli preset commands.
+    #[clap(flatten)]
+    GCliCommands(Box<Command>),
 }
 
 /// My customized gcli.
@@ -39,11 +39,11 @@ pub struct MyGCli {
 impl App for MyGCli {
     async fn exec(&self) -> anyhow::Result<()> {
         match &self.command {
-            SubCommand::GCliCommands(command) => command.exec(self).await,
             SubCommand::Ping => {
                 println!("pong");
                 Ok(())
             }
+            SubCommand::GCliCommands(command) => command.exec(self).await,
         }
     }
 }
