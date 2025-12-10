@@ -52,7 +52,7 @@ pub struct SignedApi {
 }
 
 impl Api {
-    /// Attachs a signer to the API.
+    /// Attaches a signer to the API.
     pub fn signed(self, suri: &str, passwd: Option<&str>) -> Result<SignedApi> {
         SignedApi::new(self, suri, passwd)
     }

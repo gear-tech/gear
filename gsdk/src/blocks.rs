@@ -22,7 +22,7 @@ use crate::{Api, Error, GearConfig, Result};
 use futures::prelude::*;
 use std::pin::pin;
 
-/// Block retreived from a node.
+/// Block retrieved from a node.
 pub type Block = subxt::blocks::Block<GearConfig, subxt::OnlineClient<GearConfig>>;
 
 /// Events from some block.
