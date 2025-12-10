@@ -632,7 +632,7 @@ mod tests {
     use super::*;
     use assert_matches::assert_matches;
     use core::convert::TryFrom;
-    use ethexe_common::{ProtocolTimelines, ValidatorsVec};
+    use ethexe_common::ValidatorsVec;
     use libp2p::{Multiaddr, Swarm, identity::Keypair};
     use libp2p_swarm_test::SwarmExt;
     use std::sync::Arc;
@@ -644,12 +644,7 @@ mod tests {
 
     fn snapshot(addresses: Vec<Address>) -> Arc<ValidatorListSnapshot> {
         Arc::new(ValidatorListSnapshot {
-            chain_head_ts: 0,
-            timelines: ProtocolTimelines {
-                genesis_ts: 0,
-                era: 10,
-                election: 5,
-            },
+            current_era_index: 0,
             current_validators: ValidatorsVec::try_from(addresses)
                 .expect("validator set should not be empty"),
             next_validators: None,

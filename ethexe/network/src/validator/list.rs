@@ -45,6 +45,19 @@ impl ValidatorListSnapshot {
             .as_ref()
             .is_some_and(|v| v.contains(&address))
     }
+
+    pub(crate) fn contains(&self, address: Address) -> bool {
+        self.is_current(address) || self.is_next(address)
+    }
+
+    pub(crate) fn iter(&self) -> impl Iterator<Item = Address> {
+        self.current_validators.iter().copied().chain(
+            self.next_validators
+                .iter()
+                .flat_map(|vec| vec.iter())
+                .copied(),
+        )
+    }
 }
 
 /// Tracks current and next validator set around the latest known block.

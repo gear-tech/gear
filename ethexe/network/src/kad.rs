@@ -574,7 +574,7 @@ impl NetworkBehaviour for Behaviour {
 
         for (id, channel) in &self.put_record_queries {
             if channel.is_closed()
-                && let Some(mut query) = self.inner.query_mut(&id)
+                && let Some(mut query) = self.inner.query_mut(id)
             {
                 // libp2p-kad will produce `FinishedWithNoAdditionalRecord`,
                 // so query from `get_record_queries` will be cleared in `handle_inner_event()`
