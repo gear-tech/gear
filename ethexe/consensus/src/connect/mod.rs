@@ -167,7 +167,7 @@ impl ConsensusService for ConnectService {
             );
 
             self.state = State::WaitingForPreparedBlock {
-                block: block.clone(),
+                block: *block,
                 producer,
             };
         }
@@ -183,7 +183,7 @@ impl ConsensusService for ConnectService {
             return Ok(());
         }
 
-        let block = block.clone();
+        let block = *block;
         let producer = *producer;
 
         let chain = self.db.collect_blocks_without_announces(block.hash)?;
@@ -203,7 +203,7 @@ impl ConsensusService for ConnectService {
             );
 
             self.state = State::WaitingForMissingAnnounces {
-                block: block.clone(),
+                block,
                 producer,
                 chain,
                 waiting_request: request,
@@ -242,11 +242,7 @@ impl ConsensusService for ConnectService {
             && sender == *producer
             && announce.block_hash == block.hash
         {
-            match announces::accept_announce(
-                &self.db,
-                announce.clone(),
-                self.commitment_delay_limit,
-            )? {
+            match announces::accept_announce(&self.db, announce.clone())? {
                 AnnounceStatus::Rejected { announce, reason } => {
                     tracing::warn!(
                         announce = %announce.to_hash(),
@@ -301,7 +297,7 @@ impl ConsensusService for ConnectService {
             return Ok(());
         };
 
-        let block = block.clone();
+        let block = *block;
         let producer = *producer;
 
         let (request, announces) = response.into_parts();

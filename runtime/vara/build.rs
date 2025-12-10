@@ -65,10 +65,7 @@ fn main() {
     substrate_build_script_utils::generate_cargo_keys();
 }
 
-#[cfg(all(feature = "std", not(feature = "dev")))]
-fn regenerate_gsdk_scale() {}
-
-#[cfg(all(feature = "std", feature = "dev"))]
+#[cfg(feature = "std")]
 fn regenerate_gsdk_scale() {
     use gear_runtime_interface::gear_ri;
     use parity_scale_codec::{Decode, Encode};
@@ -76,7 +73,15 @@ fn regenerate_gsdk_scale() {
     use sc_executor_common::runtime_blob::RuntimeBlob;
     use std::{env, fs, path::PathBuf};
 
+    if std::env::var("GENERATE_GSDK_METADATA").is_err() {
+        return;
+    }
+
     let out_path = "../../gsdk/vara_runtime.scale";
+
+    #[cfg(not(feature = "dev"))]
+    let out_path = "../../gsdk/vara_runtime_prod.scale";
+
     let runtime_wasm_path = PathBuf::from(env::var("OUT_DIR").unwrap())
         .ancestors()
         .find(|dir| {

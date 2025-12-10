@@ -34,15 +34,18 @@ use ethexe_network::{
     NetworkEvent, NetworkRuntimeConfig, NetworkService,
     db_sync::{self, ExternalDataProvider},
 };
-use ethexe_observer::{ObserverEvent, ObserverService};
+use ethexe_observer::{
+    ObserverEvent, ObserverService,
+    utils::{BlockId, BlockLoader},
+};
 use ethexe_processor::{Processor, ProcessorConfig};
 use ethexe_prometheus::{PrometheusEvent, PrometheusService};
-use ethexe_rpc::{InjectedTransactionAcceptance, RpcEvent, RpcService};
+use ethexe_rpc::{InjectedTransactionAcceptance, RpcEvent, RpcServer};
 use ethexe_service_utils::{OptionFuture as _, OptionStreamNext as _};
 use ethexe_signer::Signer;
 use futures::{StreamExt, stream::FuturesUnordered};
 use gprimitives::{ActorId, CodeId, H256};
-use std::{collections::BTreeSet, pin::Pin, sync::Arc, time::Duration};
+use std::{collections::BTreeSet, num::NonZero, pin::Pin, time::Duration};
 
 pub mod config;
 
@@ -100,7 +103,7 @@ pub struct Service {
     // Optional services
     network: Option<NetworkService>,
     prometheus: Option<PrometheusService>,
-    rpc: Option<RpcService>,
+    rpc: Option<RpcServer>,
 
     fast_sync: bool,
     validator_address: Option<Address>,
@@ -123,6 +126,7 @@ impl Service {
             ethereum_rpc: config.ethereum.rpc.clone(),
             ethereum_beacon_rpc: config.ethereum.beacon_rpc.clone(),
             beacon_block_time: alloy::eips::merge::SLOT_DURATION,
+            attempts: const { NonZero::<u8>::new(3).unwrap() },
         };
         let blob_loader = BlobLoader::new(db.clone(), consensus_config)
             .await
@@ -133,6 +137,11 @@ impl Service {
             ObserverService::new(&config.ethereum, config.node.eth_max_sync_depth, db.clone())
                 .await
                 .context("failed to create observer service")?;
+        let latest_block = observer
+            .block_loader()
+            .load_simple(BlockId::Latest)
+            .await
+            .context("failed to get latest block")?;
 
         let router_query = RouterQuery::new(&config.ethereum.rpc, config.ethereum.router_address)
             .await
@@ -154,9 +163,9 @@ impl Service {
         }
 
         let validators = router_query
-            .validators()
+            .validators_at(latest_block.hash)
             .await
-            .with_context(|| "failed to query validators")?;
+            .context("failed to query validators")?;
         log::info!("👥 Current validators set: {validators:?}");
 
         let threshold = router_query
@@ -200,7 +209,7 @@ impl Service {
                 .await?;
                 Box::pin(ValidatorService::new(
                     signer.clone(),
-                    Arc::new(ethereum.middleware().query()),
+                    ethereum.middleware().query(),
                     ethereum.router(),
                     db.clone(),
                     ValidatorConfig {
@@ -212,6 +221,9 @@ impl Service {
                         // which better to be configurable by router contract
                         commitment_delay_limit: COMMITMENT_DELAY_LIMIT,
                         producer_delay: Duration::ZERO,
+                        router_address: config.ethereum.router_address,
+                        validate_chain_deepness_limit: config.node.validate_chain_deepness_limit,
+                        chain_deepness_threshold: config.node.chain_deepness_threshold,
                     },
                 )?)
             } else {
@@ -230,11 +242,8 @@ impl Service {
         };
 
         let network = if let Some(net_config) = &config.network {
-            let runtime_config = NetworkRuntimeConfig {
-                genesis_block_hash: observer.genesis_block_hash(),
-            };
             // TODO: #4918 create Signer object correctly for test/prod environments
-            let signer = Signer::fs(
+            let network_signer = Signer::fs(
                 config
                     .node
                     .key_path
@@ -243,14 +252,22 @@ impl Service {
                     .join("net"),
             );
 
-            let network = NetworkService::new(
-                net_config.clone(),
-                runtime_config,
-                &signer,
-                Box::new(RouterDataProvider(router_query)),
-                Box::new(db.clone()),
-            )
-            .with_context(|| "failed to create network service")?;
+            let latest_block_data = observer
+                .block_loader()
+                .load_simple(BlockId::Latest)
+                .await
+                .context("failed to get latest block")?;
+
+            let runtime_config = NetworkRuntimeConfig {
+                latest_block_header: latest_block_data.header,
+                latest_validators: validators,
+                network_signer,
+                external_data_provider: Box::new(RouterDataProvider(router_query)),
+                db: Box::new(db.clone()),
+            };
+
+            let network = NetworkService::new(net_config.clone(), runtime_config)
+                .with_context(|| "failed to create network service")?;
             Some(network)
         } else {
             None
@@ -259,7 +276,7 @@ impl Service {
         let rpc = config
             .rpc
             .as_ref()
-            .map(|config| RpcService::new(config.clone(), db.clone()));
+            .map(|config| RpcServer::new(config.clone(), db.clone()));
 
         let compute_config = ComputeConfig::new(config.node.canonical_quarantine);
         let compute = ComputeService::new(compute_config, db.clone(), processor);
@@ -303,7 +320,7 @@ impl Service {
         consensus: Pin<Box<dyn ConsensusService>>,
         network: Option<NetworkService>,
         prometheus: Option<PrometheusService>,
-        rpc: Option<RpcService>,
+        rpc: Option<RpcServer>,
         sender: tests::utils::TestingEventSender,
         fast_sync: bool,
         validator_address: Option<Address>,
@@ -426,7 +443,7 @@ impl Service {
                 },
                 Event::Compute(event) => match event {
                     ComputeEvent::RequestLoadCodes(codes) => {
-                        blob_loader.load_codes(codes, None)?;
+                        blob_loader.load_codes(codes)?;
                     }
                     ComputeEvent::AnnounceComputed(announce_hash) => {
                         consensus.receive_computed_announce(announce_hash)?
@@ -523,8 +540,8 @@ impl Service {
 
                         network.publish_message(message);
                     }
-                    ConsensusEvent::CommitmentSubmitted(tx) => {
-                        log::info!("Commitment submitted, tx: {tx}");
+                    ConsensusEvent::CommitmentSubmitted(info) => {
+                        log::info!("{info}");
                     }
                     ConsensusEvent::Warning(msg) => {
                         log::warn!("Consensus service warning: {msg}");
@@ -539,8 +556,13 @@ impl Service {
                     ConsensusEvent::AnnounceAccepted(_) | ConsensusEvent::AnnounceRejected(_) => {
                         // TODO #4940: consider to publish network message
                     }
-                    ConsensusEvent::Promise(_promise) => {
-                        // TODO kuzmindev: handle promise in rpc and network
+                    ConsensusEvent::Promise(promise) => {
+                        let rpc = rpc
+                            .as_mut()
+                            .expect("cannot produce promise without event from RPC");
+                        rpc.provide_promise(promise);
+
+                        // TODO kuzmindev: also should be sent to network peer, that waits for transaction promise
                     }
                 },
                 Event::Fetching(result) => {

@@ -68,7 +68,7 @@ impl BlockData {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Encode, Decode, Default)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Encode, Decode, Default)]
 pub struct SimpleBlockData {
     pub hash: H256,
     pub header: BlockHeader,
@@ -218,7 +218,7 @@ pub struct ProtocolTimelines {
 
 impl ProtocolTimelines {
     /// Returns the era index for the given timestamp. Eras starts from 0.
-    /// If geven `ts` less than `genesis_ts` function returns `0`;
+    /// If given `ts` less than `genesis_ts` function returns `0`;
     #[inline(always)]
     pub fn era_from_ts(&self, ts: u64) -> u64 {
         if ts < self.genesis_ts {

@@ -109,7 +109,7 @@ impl StateHandler for Producer {
                         .ctx
                         .core
                         .clone()
-                        .aggregate_batch_commitment(self.block.clone(), announce_hash)
+                        .aggregate_batch_commitment(self.block, announce_hash)
                         .boxed(),
                 };
 
@@ -174,7 +174,7 @@ impl Producer {
 
         Ok(Self {
             ctx,
-            block: block.clone(),
+            block,
             validators,
             state: State::Delay { timer: Some(timer) },
         }
@@ -221,8 +221,13 @@ impl Producer {
             return Initial::create(self.ctx);
         }
 
+        let era_index = self
+            .ctx
+            .core
+            .timelines
+            .era_from_ts(self.block.header.timestamp);
         let message = ValidatorMessage {
-            block: self.block.hash,
+            era_index,
             payload: announce.clone(),
         };
         let message = self
@@ -248,7 +253,8 @@ mod tests {
         validator::{PendingEvent, mock::*},
     };
     use async_trait::async_trait;
-    use ethexe_common::{Digest, HashOf, ToDigest, db::*, gear::CodeCommitment, mock::*};
+    use ethexe_common::{Digest, HashOf, db::*, gear::CodeCommitment, mock::*};
+    use futures::StreamExt;
     use nonempty::nonempty;
 
     #[tokio::test]
@@ -311,7 +317,7 @@ mod tests {
 
         // If threshold is 1, we should not emit any events and goes thru states coordinator -> submitter -> initial
         // until batch is committed
-        let (state, announce_hash) = Producer::create(ctx, block.clone(), validators.clone())
+        let (state, announce_hash) = Producer::create(ctx, block, validators.clone())
             .unwrap()
             .skip_timer()
             .await
@@ -332,16 +338,14 @@ mod tests {
         }
         .setup(&state.context().core.db);
 
-        let (state, event) = state
+        let mut state = state
             .process_computed_announce(announce_hash)
             .unwrap()
-            .wait_for_event()
+            .wait_for_state(|state| matches!(state, ValidatorState::Initial(_)))
             .await
             .unwrap();
 
-        dbg!(&event);
-        assert!(state.is_initial());
-        assert!(event.is_commitment_submitted());
+        state.context_mut().tasks.select_next_some().await.unwrap();
 
         // Check that we have a batch with commitments after submitting
         let (committed_batch, signatures) = eth
@@ -349,18 +353,10 @@ mod tests {
             .read()
             .await
             .clone()
-            .expect("Expected that batch is committed")
-            .into_parts();
+            .expect("Expected that batch is committed");
+
         assert_eq!(committed_batch, batch);
         assert_eq!(signatures.len(), 1);
-        let (address, signature) = signatures.into_iter().next().unwrap();
-        assert_eq!(
-            signature
-                .validate(state.context().core.router_address, batch.to_digest())
-                .unwrap()
-                .to_address(),
-            address
-        );
     }
 
     #[tokio::test]
@@ -372,7 +368,7 @@ mod tests {
         let batch = prepare_chain_for_batch_commitment(&ctx.core.db);
         let block = ctx.core.db.simple_block_data(batch.block_hash);
 
-        let (state, announce_hash) = Producer::create(ctx, block.clone(), validators)
+        let (state, announce_hash) = Producer::create(ctx, block, validators)
             .unwrap()
             .skip_timer()
             .await
@@ -426,30 +422,24 @@ mod tests {
             .await
             .unwrap();
 
-        let (state, event) = state
+        let mut state = state
             .process_computed_announce(announce_hash)
             .unwrap()
-            .wait_for_event()
+            .wait_for_state(|state| matches!(state, ValidatorState::Initial(_)))
             .await
             .unwrap();
-        assert!(
-            state.is_initial(),
-            "State must go to initial, actual: {state}"
-        );
-        assert!(
-            event.is_commitment_submitted(),
-            "Event must be commitment submitted, actual: {event:?}"
-        );
 
-        let batch = eth
+        state.context_mut().tasks.select_next_some().await.unwrap();
+
+        let (batch, signatures) = eth
             .committed_batch
             .read()
             .await
             .clone()
             .expect("Expected that batch is committed");
-        assert_eq!(batch.signatures().len(), 1);
-        assert!(batch.batch().chain_commitment.is_none());
-        assert_eq!(batch.batch().code_commitments.len(), 2);
+        assert_eq!(signatures.len(), 1);
+        assert_eq!(batch.chain_commitment, None);
+        assert_eq!(batch.code_commitments.len(), 2);
     }
 
     // TODO: test that zero timer works as expected

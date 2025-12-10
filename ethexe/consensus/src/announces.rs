@@ -88,6 +88,7 @@
 //!    then `announce1` is strict predecessor of `announce` and is predecessor of each
 //!    announce from `lpb.announces`.
 
+use crate::tx_validation::{TxValidity, TxValidityChecker};
 use anyhow::{Result, anyhow, ensure};
 use ethexe_common::{
     Announce, HashOf, SimpleBlockData,
@@ -95,15 +96,20 @@ use ethexe_common::{
         AnnounceStorageRW, BlockMetaStorageRW, InjectedStorageRW, LatestDataStorageRO,
         OnChainStorageRO,
     },
-    injected::{TxValidity, TxValidityChecker},
     network::{AnnouncesRequest, AnnouncesRequestUntil},
 };
 use ethexe_ethereum::primitives::map::HashMap;
+use ethexe_runtime_common::state::Storage;
 use gprimitives::H256;
 use std::collections::{BTreeSet, VecDeque};
 
 pub trait DBAnnouncesExt:
-    AnnounceStorageRW + BlockMetaStorageRW + OnChainStorageRO + LatestDataStorageRO + InjectedStorageRW
+    AnnounceStorageRW
+    + BlockMetaStorageRW
+    + OnChainStorageRO
+    + LatestDataStorageRO
+    + InjectedStorageRW
+    + Storage
 {
     /// Collects blocks from the chain head backwards till the first propagated block found.
     fn collect_blocks_without_announces(&self, head: H256) -> Result<VecDeque<SimpleBlockData>>;
@@ -129,7 +135,8 @@ impl<
         + BlockMetaStorageRW
         + OnChainStorageRO
         + LatestDataStorageRO
-        + InjectedStorageRW,
+        + InjectedStorageRW
+        + Storage,
 > DBAnnouncesExt for DB
 {
     fn collect_blocks_without_announces(&self, head: H256) -> Result<VecDeque<SimpleBlockData>> {
@@ -413,24 +420,24 @@ fn propagate_one_base_announce(
     // 2. If it includes not committed and not-base announce, which is older than commitment delay limit.
     //
     // We check here till commitment delay limit, because T1 guaranties that enough.
-    let mut predecessor = parent_announce_hash;
+    let mut current_announce_hash = parent_announce_hash;
     for i in 0..commitment_delay_limit {
-        if predecessor == last_committed_announce_hash {
+        if current_announce_hash == last_committed_announce_hash {
             // We found last committed announce in the branch, until commitment delay limit
             // that means this branch is still not expired.
             break;
         }
 
-        let predecessor_announce = db
-            .announce(predecessor)
-            .ok_or_else(|| anyhow!("announce({predecessor}) not found"))?;
+        let current_announce = db
+            .announce(current_announce_hash)
+            .ok_or_else(|| anyhow!("announce({current_announce_hash}) not found"))?;
 
-        if i == commitment_delay_limit - 1 && !predecessor_announce.is_base() {
-            // We reached the oldest announce in commitment delay limit which is not not committed yet.
+        if i == commitment_delay_limit - 1 && !current_announce.is_base() {
+            // We reached the oldest announce in commitment delay limit which is not committed yet.
             // This announce cannot be committed any more if it is not-base announce,
             // so this branch is expired and we have to skip propagation from `parent`.
             tracing::trace!(
-                predecessor = %predecessor,
+                predecessor = %current_announce_hash,
                 parent_announce = %parent_announce_hash,
                 "predecessor is too old and not-base, so parent announce branch is expired",
             );
@@ -439,12 +446,12 @@ fn propagate_one_base_announce(
 
         // Check neighbor announces to be last committed announce
         if db
-            .block_meta(predecessor_announce.block_hash)
+            .block_meta(current_announce.block_hash)
             .announces
             .ok_or_else(|| {
                 anyhow!(
                     "announces are missing for block({})",
-                    predecessor_announce.block_hash
+                    current_announce.block_hash
                 )
             })?
             .contains(&last_committed_announce_hash)
@@ -452,15 +459,15 @@ fn propagate_one_base_announce(
             // We found last committed announce in the neighbor branch, until commitment delay limit
             // that means this branch is already expired.
             tracing::trace!(
-                predecessor = %predecessor,
+                predecessor = %current_announce_hash,
                 parent_announce = %parent_announce_hash,
-                latest_committed_announce = %last_committed_announce_hash,
+                last_committed_announce = %last_committed_announce_hash,
                 "neighbor announce branch contains last committed announce, so parent announce branch is expired",
             );
             return Ok(None);
         };
 
-        predecessor = predecessor_announce.parent;
+        current_announce_hash = current_announce.parent;
     }
 
     let new_base_announce = Announce::base(block_hash, parent_announce_hash);
@@ -663,10 +670,10 @@ pub fn best_announce(
 
 #[derive(Debug, Clone, PartialEq, Eq, derive_more::Display)]
 pub enum AnnounceRejectionReason {
-    #[display("Unsuitable parent: expected {expected:?}, found {found:?}")]
-    UnsuitableParent {
-        expected: HashOf<Announce>,
-        found: HashOf<Announce>,
+    #[display("Announce {announce_hash} parent {parent_announce_hash} is unknown")]
+    UnknownParent {
+        announce_hash: HashOf<Announce>,
+        parent_announce_hash: HashOf<Announce>,
     },
     #[display("Announce {_0} is already included")]
     AlreadyIncluded(HashOf<Announce>),
@@ -687,21 +694,17 @@ pub enum AnnounceStatus {
 
 /// Tries to accept provided announce: check it and include into database.
 /// To be accepted, announce must
-/// 1) have suitable parent announce - currently it must be best (see [`best_parent_announce`]).
+/// 1) announce parent must be included by this node.
 /// 2) be not included yet.
-pub fn accept_announce(
-    db: &impl DBAnnouncesExt,
-    announce: Announce,
-    commitment_delay_limit: u32,
-) -> Result<AnnounceStatus> {
-    let best_parent = best_parent_announce(db, announce.block_hash, commitment_delay_limit)?;
-    let announce_parent = announce.parent;
-    if best_parent != announce_parent {
+pub fn accept_announce(db: &impl DBAnnouncesExt, announce: Announce) -> Result<AnnounceStatus> {
+    let announce_hash = announce.to_hash();
+    let parent_announce_hash = announce.parent;
+    if !db.is_announce_included(parent_announce_hash) {
         return Ok(AnnounceStatus::Rejected {
             announce,
-            reason: AnnounceRejectionReason::UnsuitableParent {
-                expected: best_parent,
-                found: announce_parent,
+            reason: AnnounceRejectionReason::UnknownParent {
+                announce_hash,
+                parent_announce_hash,
             },
         });
     }

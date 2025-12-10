@@ -74,6 +74,31 @@ fn init_new_block_from_parent(processor: &mut Processor, parent_hash: H256) -> H
     )
 }
 
+fn setup_test_env_and_load_codes<const N: usize>(
+    codes: &[&[u8]; N],
+) -> (Processor, ProcessingHandler, [CodeId; N]) {
+    let mut code_ids = Vec::new();
+
+    let mut processor = Processor::new(Database::memory()).unwrap();
+
+    let genesis = init_genesis_block(&mut processor);
+    let block = init_new_block_from_parent(&mut processor, genesis);
+    let block_announce = Announce::with_default_gas(block, HashOf::zero());
+
+    for code in codes {
+        let code_id = processor
+            .handle_new_code(code)
+            .expect("failed to call runtime api")
+            .expect("code failed verification or instrumentation");
+
+        code_ids.push(code_id);
+    }
+
+    let handler = processor.handler(block_announce).unwrap();
+
+    (processor, handler, code_ids.try_into().unwrap())
+}
+
 fn handle_injected_message(
     handler: &mut ProcessingHandler,
     actor_id: ActorId,
@@ -105,6 +130,21 @@ fn handle_injected_message(
     })?;
 
     Ok(())
+}
+
+fn executable_balance(handler: &ProcessingHandler, actor_id: ActorId) -> u128 {
+    let state_hash = handler
+        .transitions
+        .state_of(&actor_id)
+        .expect("failed to get actor state")
+        .hash;
+
+    let state = handler
+        .db
+        .program_state(state_hash)
+        .expect("failed to get program state");
+
+    state.executable_balance
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -303,21 +343,11 @@ fn handle_new_code_invalid() {
 async fn ping_pong() {
     init_logger();
 
-    let mut processor = Processor::new(Database::memory()).unwrap();
-
-    let genesis = init_genesis_block(&mut processor);
-    let block = init_new_block_from_parent(&mut processor, genesis);
-    let block_announce = Announce::with_default_gas(block, HashOf::zero());
+    let (mut processor, mut handler, [code_id, ..]) =
+        setup_test_env_and_load_codes(&[demo_ping::WASM_BINARY, demo_async::WASM_BINARY]);
 
     let user_id = ActorId::from(10);
     let actor_id = ActorId::from(0x10000);
-
-    let code_id = processor
-        .handle_new_code(demo_ping::WASM_BINARY)
-        .expect("failed to call runtime api")
-        .expect("code failed verification or instrumentation");
-
-    let mut handler = processor.handler(block_announce).unwrap();
 
     handler
         .handle_router_event(RouterRequestEvent::ProgramCreated { actor_id, code_id })
@@ -327,7 +357,7 @@ async fn ping_pong() {
         .handle_mirror_event(
             actor_id,
             MirrorRequestEvent::ExecutableBalanceTopUpRequested {
-                value: 10_000_000_000,
+                value: 150_000_000_000,
             },
         )
         .expect("failed to top up balance");
@@ -382,28 +412,13 @@ async fn async_and_ping() {
         message_nonce += 1;
         MessageId::from(message_nonce)
     };
+
+    let (mut processor, mut handler, [ping_code_id, upload_code_id, ..]) =
+        setup_test_env_and_load_codes(&[demo_ping::WASM_BINARY, demo_async::WASM_BINARY]);
+
     let user_id = ActorId::from(10);
-
-    let mut processor = Processor::new(Database::memory()).unwrap();
-
-    let genesis = init_genesis_block(&mut processor);
-    let block = init_new_block_from_parent(&mut processor, genesis);
-    let block_announce = Announce::with_default_gas(block, HashOf::zero());
-
     let ping_id = ActorId::from(0x10000000);
     let async_id = ActorId::from(0x20000000);
-
-    let ping_code_id = processor
-        .handle_new_code(demo_ping::WASM_BINARY)
-        .expect("failed to call runtime api")
-        .expect("code failed verification or instrumentation");
-
-    let upload_code_id = processor
-        .handle_new_code(demo_async::WASM_BINARY)
-        .expect("failed to call runtime api")
-        .expect("code failed verification or instrumentation");
-
-    let mut handler = processor.handler(block_announce).unwrap();
 
     handler
         .handle_router_event(RouterRequestEvent::ProgramCreated {
@@ -416,7 +431,7 @@ async fn async_and_ping() {
         .handle_mirror_event(
             ping_id,
             MirrorRequestEvent::ExecutableBalanceTopUpRequested {
-                value: 10_000_000_000,
+                value: 350_000_000_000,
             },
         )
         .expect("failed to top up balance");
@@ -445,7 +460,7 @@ async fn async_and_ping() {
         .handle_mirror_event(
             async_id,
             MirrorRequestEvent::ExecutableBalanceTopUpRequested {
-                value: 10_000_000_000,
+                value: 1_500_000_000_000,
             },
         )
         .expect("failed to top up balance");
@@ -554,7 +569,7 @@ async fn many_waits() {
             .handle_mirror_event(
                 program_id,
                 MirrorRequestEvent::ExecutableBalanceTopUpRequested {
-                    value: 10_000_000_000,
+                    value: 150_000_000_000,
                 },
             )
             .expect("failed to top up balance");
@@ -747,7 +762,7 @@ async fn overlay_execution_noop() {
         BlockRequestEvent::Mirror {
             actor_id: ping_id,
             event: MirrorRequestEvent::ExecutableBalanceTopUpRequested {
-                value: 10_000_000_000,
+                value: 400_000_000_000,
             },
         },
         BlockRequestEvent::Mirror {
@@ -768,7 +783,7 @@ async fn overlay_execution_noop() {
         BlockRequestEvent::Mirror {
             actor_id: async_id,
             event: MirrorRequestEvent::ExecutableBalanceTopUpRequested {
-                value: 10_000_000_000,
+                value: 1_500_000_000_000,
             },
         },
         BlockRequestEvent::Mirror {
@@ -1061,22 +1076,12 @@ mod utils {
 async fn injected_ping_pong() {
     init_logger();
 
-    let mut processor = Processor::new(Database::memory()).unwrap();
-
-    let genesis = init_genesis_block(&mut processor);
-    let block = init_new_block_from_parent(&mut processor, genesis);
-    let block_announce = Announce::with_default_gas(block, Default::default());
+    let (mut processor, mut handler, [code_id, ..]) =
+        setup_test_env_and_load_codes(&[demo_ping::WASM_BINARY]);
 
     let user_1 = ActorId::from(10);
     let user_2 = ActorId::from(20);
     let actor_id = ActorId::from(0x10000);
-
-    let code_id = processor
-        .handle_new_code(demo_ping::WASM_BINARY)
-        .expect("failed to call runtime api")
-        .expect("code failed verification or instrumentation");
-
-    let mut handler = processor.handler(block_announce).unwrap();
 
     handler
         .handle_router_event(RouterRequestEvent::ProgramCreated { actor_id, code_id })
@@ -1086,7 +1091,7 @@ async fn injected_ping_pong() {
         .handle_mirror_event(
             actor_id,
             MirrorRequestEvent::ExecutableBalanceTopUpRequested {
-                value: 10_000_000_000,
+                value: 200_000_000_000,
             },
         )
         .expect("failed to top up balance");
@@ -1151,7 +1156,7 @@ async fn injected_ping_pong() {
 #[tokio::test(flavor = "multi_thread")]
 async fn injected_prioritized_over_canonical() {
     const MSG_NUM: usize = 100;
-    const GAS_ALLOWANCE: u64 = 400_000_000;
+    const GAS_ALLOWANCE: u64 = 600_000_000;
 
     init_logger();
 
@@ -1182,7 +1187,7 @@ async fn injected_prioritized_over_canonical() {
         .handle_mirror_event(
             actor_id,
             MirrorRequestEvent::ExecutableBalanceTopUpRequested {
-                value: 10_000_000_000,
+                value: 500_000_000_000_000,
             },
         )
         .expect("failed to top up balance");
@@ -1199,6 +1204,7 @@ async fn injected_prioritized_over_canonical() {
     .expect("failed to send message");
     msg_id_counter += 1;
 
+    // Send canonical messages
     for _ in 0..MSG_NUM {
         handler
             .handle_mirror_event(
@@ -1215,6 +1221,7 @@ async fn injected_prioritized_over_canonical() {
         msg_id_counter += 1;
     }
 
+    // Send injected messages
     for _ in 0..MSG_NUM {
         handle_injected_message(
             &mut handler,
@@ -1231,15 +1238,257 @@ async fn injected_prioritized_over_canonical() {
 
     processor.process_queue(&mut handler).await;
 
-    let to_users = handler.transitions.current_messages();
-    assert!(to_users.len() <= MSG_NUM);
+    let mut to_users = handler.transitions.current_messages().into_iter();
 
-    // Verify that canonical messages were not processed
-    for (idx, (_, message)) in to_users.into_iter().enumerate() {
-        assert_eq!(message.destination, injected_user);
-        // Skip first message which is INIT reply
-        if idx != 0 {
-            assert_eq!(message.payload, b"PONG");
+    // Skip INIT reply
+    let (_, init_reply) = to_users.next().unwrap();
+    assert_eq!(
+        init_reply.reply_details.unwrap().to_message_id(),
+        MessageId::from(1)
+    );
+
+    // Verify that injected messages were processed first
+    let mut is_canonical_found = false;
+    for (_, message) in to_users {
+        if message.destination == canonical_user {
+            is_canonical_found = true;
+        } else if is_canonical_found && message.destination == injected_user {
+            panic!("Canonical message processed before injected one");
         }
     }
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn executable_balance_charged() {
+    init_logger();
+
+    let (mut processor, mut handler, [code_id, ..]) =
+        setup_test_env_and_load_codes(&[demo_ping::WASM_BINARY]);
+
+    let user_id = ActorId::from(10);
+    let actor_id = ActorId::from(0x10000);
+
+    handler
+        .handle_router_event(RouterRequestEvent::ProgramCreated { actor_id, code_id })
+        .expect("failed to create new program");
+
+    handler
+        .handle_mirror_event(
+            actor_id,
+            MirrorRequestEvent::ExecutableBalanceTopUpRequested {
+                value: 80_000_000_000,
+            },
+        )
+        .expect("failed to top up balance");
+
+    let exec_balance_before = executable_balance(&handler, actor_id);
+    assert_eq!(exec_balance_before, 80_000_000_000);
+
+    handler
+        .handle_mirror_event(
+            actor_id,
+            MirrorRequestEvent::MessageQueueingRequested {
+                id: MessageId::from(1),
+                source: user_id,
+                payload: b"PING".to_vec(),
+                value: 0,
+                call_reply: false,
+            },
+        )
+        .expect("failed to send message");
+
+    processor.process_queue(&mut handler).await;
+
+    let to_users = handler.transitions.current_messages();
+
+    assert_eq!(to_users.len(), 1);
+
+    let message = &to_users[0].1;
+    assert_eq!(message.destination, user_id);
+    assert_eq!(message.payload, b"PONG");
+
+    // Check that executable balance decreased
+    let exec_balance_after = executable_balance(&handler, actor_id);
+    assert!(exec_balance_after < exec_balance_before);
+
+    handle_injected_message(
+        &mut handler,
+        actor_id,
+        MessageId::from(2),
+        user_id,
+        vec![],
+        0,
+        false,
+    )
+    .unwrap();
+
+    let to_users = handler.transitions.current_messages();
+
+    assert_eq!(to_users.len(), 1);
+
+    let message = &to_users[0].1;
+    assert_eq!(message.destination, user_id);
+    assert_eq!(message.payload, b"PONG");
+
+    // Check that executable balance decreased on injected message as well
+    let exec_balance_after = executable_balance(&handler, actor_id);
+    assert!(exec_balance_after < exec_balance_before);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn executable_balance_injected_panic_not_charged() {
+    // Testing special case when injected message causes panic in the program.
+    // In this case executable balance should not be charged if gas burned during
+    // panicked message execution is less than the threshold (see `INJECTED_MESSAGE_PANIC_GAS_CHARGE_THRESHOLD`).
+
+    const INITIAL_EXECUTABLE_BALANCE: u128 = 150_000_000_000;
+
+    init_logger();
+
+    let (mut processor, mut handler, [code_id, ..]) =
+        setup_test_env_and_load_codes(&[demo_panic_payload::WASM_BINARY]);
+
+    let user_id = ActorId::from(10);
+    let actor_id = ActorId::from(0x10000);
+
+    handler
+        .handle_router_event(RouterRequestEvent::ProgramCreated { actor_id, code_id })
+        .expect("failed to create new program");
+
+    handler
+        .handle_mirror_event(
+            actor_id,
+            MirrorRequestEvent::ExecutableBalanceTopUpRequested {
+                value: INITIAL_EXECUTABLE_BALANCE,
+            },
+        )
+        .expect("failed to top up balance");
+
+    let exec_balance_before = executable_balance(&handler, actor_id);
+    assert_eq!(exec_balance_before, INITIAL_EXECUTABLE_BALANCE);
+
+    // Init message should not panic
+    handle_injected_message(
+        &mut handler,
+        actor_id,
+        MessageId::from(1),
+        user_id,
+        ActorId::zero().encode(),
+        0,
+        false,
+    )
+    .unwrap();
+
+    processor.process_queue(&mut handler).await;
+    let init_balance = executable_balance(&handler, actor_id);
+
+    // We know for sure handling this message is cost less than the threshold.
+    // This message will cause panic in the program.
+    handle_injected_message(
+        &mut handler,
+        actor_id,
+        MessageId::from(2),
+        user_id,
+        vec![],
+        0,
+        false,
+    )
+    .unwrap();
+
+    processor.process_queue(&mut handler).await;
+
+    let to_users = handler.transitions.current_messages();
+    assert_eq!(to_users.len(), 2);
+
+    let message = &to_users[1].1;
+    assert_eq!(message.destination, user_id);
+    // Check that panic indeed happened
+    assert_eq!(&message.payload[..3], b"\xE0\x80\x80");
+
+    // Check that executable balance is unchanged
+    let exec_balance_after = executable_balance(&handler, actor_id);
+    assert_eq!(exec_balance_after, init_balance);
+
+    // Send canonical message to make sure executable balance is charged in panic case.
+    handler
+        .handle_mirror_event(
+            actor_id,
+            MirrorRequestEvent::MessageQueueingRequested {
+                id: MessageId::from(3),
+                source: user_id,
+                payload: vec![],
+                value: 0,
+                call_reply: false,
+            },
+        )
+        .expect("failed to send message");
+
+    processor.process_queue(&mut handler).await;
+
+    let to_users = handler.transitions.current_messages();
+    assert_eq!(to_users.len(), 3);
+
+    let message = &to_users[2].1;
+    assert_eq!(message.destination, user_id);
+    // Check that panic indeed happened
+    assert_eq!(&message.payload[..3], b"\xE0\x80\x80");
+
+    // Check that executable balance decreased on canonical message
+    let exec_balance_after = executable_balance(&handler, actor_id);
+    assert!(exec_balance_after < init_balance);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn insufficient_executable_balance_still_charged() {
+    // Just enough balance to charge fo instrumentation and instantiation but not enough to process the message.
+    const INSUFFICIENT_EXECUTABLE_BALANCE: u128 = 30_000_000_000;
+
+    init_logger();
+
+    let (mut processor, mut handler, [code_id, ..]) =
+        setup_test_env_and_load_codes(&[demo_ping::WASM_BINARY]);
+
+    let user_id = ActorId::from(10);
+    let actor_id = ActorId::from(0x10000);
+
+    handler
+        .handle_router_event(RouterRequestEvent::ProgramCreated { actor_id, code_id })
+        .expect("failed to create new program");
+
+    handler
+        .handle_mirror_event(
+            actor_id,
+            MirrorRequestEvent::ExecutableBalanceTopUpRequested {
+                value: INSUFFICIENT_EXECUTABLE_BALANCE,
+            },
+        )
+        .expect("failed to top up balance");
+
+    // Should fail due to insufficient balance (ran out of gas)
+    handler
+        .handle_mirror_event(
+            actor_id,
+            MirrorRequestEvent::MessageQueueingRequested {
+                id: MessageId::from(1),
+                source: user_id,
+                payload: b"PING".to_vec(),
+                value: 0,
+                call_reply: false,
+            },
+        )
+        .expect("failed to send message");
+
+    processor.process_queue(&mut handler).await;
+
+    let to_users = handler.transitions.current_messages();
+    assert_eq!(to_users.len(), 1);
+
+    // Check that message processing failed due to insufficient balance (ran out of gas)
+    let message = &to_users[0].1;
+    assert_eq!(message.destination, user_id);
+    assert!(message.reply_details.unwrap().to_reply_code().is_error());
+
+    // Check that executable balance decreased
+    let exec_balance_after = executable_balance(&handler, actor_id);
+    assert!(exec_balance_after < INSUFFICIENT_EXECUTABLE_BALANCE);
 }

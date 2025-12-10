@@ -17,20 +17,25 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::{core::*, *};
-use crate::utils::MultisignedBatchCommitment;
 use anyhow::anyhow;
 use async_trait::async_trait;
 use ethexe_common::{
     COMMITMENT_DELAY_LIMIT, DEFAULT_BLOCK_GAS_LIMIT, ProtocolTimelines, ValidatorsVec,
-    db::OnChainStorageRW, mock::Mock,
+    consensus::{DEFAULT_CHAIN_DEEPNESS_THRESHOLD, DEFAULT_VALIDATE_CHAIN_DEEPNESS_LIMIT},
+    db::OnChainStorageRW,
+    ecdsa::ContractSignature,
+    gear::BatchCommitment,
+    mock::*,
 };
 use hashbrown::HashMap;
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
+type BatchWithSignatures = (BatchCommitment, Vec<ContractSignature>);
+
 #[derive(Default, Clone)]
 pub struct MockEthereum {
-    pub committed_batch: Arc<RwLock<Option<MultisignedBatchCommitment>>>,
+    pub committed_batch: Arc<RwLock<Option<BatchWithSignatures>>>,
     pub predefined_election_at: Arc<RwLock<HashMap<u64, ValidatorsVec>>>,
 }
 
@@ -40,14 +45,25 @@ impl BatchCommitter for MockEthereum {
         Box::new(self.clone())
     }
 
-    async fn commit_batch(self: Box<Self>, batch: MultisignedBatchCommitment) -> Result<H256> {
-        self.committed_batch.write().await.replace(batch);
+    async fn commit(
+        self: Box<Self>,
+        batch: BatchCommitment,
+        signatures: Vec<ContractSignature>,
+    ) -> Result<H256> {
+        self.committed_batch
+            .write()
+            .await
+            .replace((batch, signatures));
         Ok(H256::random())
     }
 }
 
 #[async_trait]
 impl ElectionProvider for MockEthereum {
+    fn clone_boxed(&self) -> Box<dyn ElectionProvider> {
+        Box::new(self.clone())
+    }
+
     async fn make_election_at(&self, ts: u64, _max_validators: u128) -> Result<ValidatorsVec> {
         match self.predefined_election_at.read().await.get(&ts) {
             Some(election_result) => Ok(election_result.clone()),
@@ -149,13 +165,14 @@ pub fn mock_validator_context() -> (ValidatorContext, Vec<PublicKey>, MockEthere
             committer: Box::new(ethereum.clone()),
             middleware: MiddlewareWrapper::from_inner(ethereum.clone()),
             injected_pool: InjectedTxPool::new(db.clone()),
-            validate_chain_deepness_limit: MAX_CHAIN_DEEPNESS,
-            chain_deepness_threshold: CHAIN_DEEPNESS_THRESHOLD,
+            validate_chain_deepness_limit: DEFAULT_VALIDATE_CHAIN_DEEPNESS_LIMIT,
+            chain_deepness_threshold: DEFAULT_CHAIN_DEEPNESS_THRESHOLD,
             commitment_delay_limit: COMMITMENT_DELAY_LIMIT,
             producer_delay: Duration::from_millis(1),
         },
         pending_events: VecDeque::new(),
         output: VecDeque::new(),
+        tasks: Default::default(),
     };
 
     ctx.core.db.set_protocol_timelines(timelines);

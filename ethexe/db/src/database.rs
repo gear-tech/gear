@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2024-2025 Gear Technotracingies Inc.
+// Copyright (C) 2024-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -74,6 +74,9 @@ enum Key {
 
     LatestData = 14,
     Timelines = 15,
+
+    // TODO kuzmindev: temporal solution - must move into block meta or something else.
+    LatestEraValidatorsCommitted(H256),
 }
 
 impl Key {
@@ -88,9 +91,9 @@ impl Key {
     fn to_bytes(&self) -> Vec<u8> {
         let prefix = self.prefix();
         match self {
-            Self::BlockSmallData(hash) | Self::BlockEvents(hash) => {
-                [prefix.as_ref(), hash.as_ref()].concat()
-            }
+            Self::BlockSmallData(hash)
+            | Self::BlockEvents(hash)
+            | Self::LatestEraValidatorsCommitted(hash) => [prefix.as_ref(), hash.as_ref()].concat(),
 
             Self::ValidatorSet(era_index) => {
                 [prefix.as_ref(), era_index.to_le_bytes().as_ref()].concat()
@@ -234,7 +237,7 @@ impl BlockMetaStorageRW for Database {
 
 impl CodesStorageRO for Database {
     fn original_code_exists(&self, code_id: CodeId) -> bool {
-        self.kv.contains(code_id.as_ref())
+        self.cas.contains(code_id.into())
     }
 
     fn original_code(&self, code_id: CodeId) -> Option<Vec<u8>> {
@@ -505,6 +508,15 @@ impl OnChainStorageRO for Database {
                     .expect("Failed to decode data into `ValidatorsVec`")
             })
     }
+
+    fn block_validators_committed_for_era(&self, block_hash: H256) -> Option<u64> {
+        self.kv
+            .get(&Key::LatestEraValidatorsCommitted(block_hash).to_bytes())
+            .map(|data| {
+                Decode::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `u64` (era_index)")
+            })
+    }
 }
 
 impl OnChainStorageRW for Database {
@@ -541,6 +553,13 @@ impl OnChainStorageRW for Database {
         self.kv.put(
             &Key::ValidatorSet(era_index).to_bytes(),
             validator_set.encode(),
+        );
+    }
+
+    fn set_block_validators_committed_for_era(&self, block_hash: H256, era_index: u64) {
+        self.kv.put(
+            &Key::LatestEraValidatorsCommitted(block_hash).to_bytes(),
+            era_index.encode(),
         );
     }
 }

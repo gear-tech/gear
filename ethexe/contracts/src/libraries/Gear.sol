@@ -39,6 +39,13 @@ library Gear {
         uint256 useFromTimestamp;
     }
 
+    struct ValidatorsView {
+        AggregatedPublicKey aggregatedPublicKey;
+        address verifiableSecretSharingCommitmentPointer;
+        address[] list;
+        uint256 useFromTimestamp;
+    }
+
     struct AddressBook {
         address mirror;
         address wrappedVara;
@@ -71,6 +78,11 @@ library Gear {
         uint48 blockTimestamp;
         /// @dev Hash of previously committed batch hash.
         bytes32 previousCommittedBatchHash;
+        /// @dev Expiry in blocks since `blockHash`.
+        /// if 1 - then valid only in child block
+        /// if 2 - then valid in child and grandchild blocks
+        /// ... etc.
+        uint8 expiry;
         /// @dev Chain commitment (contains one or zero commitments)
         ChainCommitment[] chainCommitment;
         /// @dev Code commitments
@@ -175,6 +187,12 @@ library Gear {
         Validators validators1;
     }
 
+    struct ValidationSettingsView {
+        uint16 signingThresholdPercentage;
+        ValidatorsView validators0;
+        ValidatorsView validators1;
+    }
+
     struct ValueClaim {
         bytes32 messageId;
         address destination;
@@ -205,6 +223,7 @@ library Gear {
         bytes32 _block,
         uint48 _timestamp,
         bytes32 _prevCommittedBlock,
+        uint8 _expiry,
         bytes32 _chainCommitmentHash,
         bytes32 _codeCommitmentsHash,
         bytes32 _rewardsCommitmentHash,
@@ -215,6 +234,7 @@ library Gear {
                 _block,
                 _timestamp,
                 _prevCommittedBlock,
+                _expiry,
                 _chainCommitmentHash,
                 _codeCommitmentsHash,
                 _rewardsCommitmentHash,
@@ -238,8 +258,10 @@ library Gear {
         );
     }
 
-    function blockIsPredecessor(bytes32 hash) internal view returns (bool) {
-        for (uint256 i = block.number - 1; i > 0;) {
+    function blockIsPredecessor(bytes32 hash, uint8 expiry) internal view returns (bool) {
+        uint256 start = block.number - 1;
+        uint256 end = expiry >= block.number ? 0 : block.number - expiry;
+        for (uint256 i = start; i >= end;) {
             bytes32 ret = blockhash(i);
             if (ret == hash) {
                 return true;
@@ -471,5 +493,28 @@ library Gear {
 
     function eraStartedAt(IRouter.Storage storage router, uint256 ts) internal view returns (uint256) {
         return router.genesisBlock.timestamp + eraIndexAt(router, ts) * router.timelines.era;
+    }
+
+    function toView(Gear.Validators storage validators) internal view returns (Gear.ValidatorsView memory) {
+        return Gear.ValidatorsView({
+            aggregatedPublicKey: validators.aggregatedPublicKey,
+            verifiableSecretSharingCommitmentPointer: validators.verifiableSecretSharingCommitmentPointer,
+            list: validators.list,
+            useFromTimestamp: validators.useFromTimestamp
+        });
+    }
+
+    function toView(Gear.ValidationSettings storage settings)
+        internal
+        view
+        returns (Gear.ValidationSettingsView memory)
+    {
+        Gear.ValidatorsView memory validators0 = toView(settings.validators0);
+        Gear.ValidatorsView memory validators1 = toView(settings.validators1);
+        return Gear.ValidationSettingsView({
+            signingThresholdPercentage: settings.signingThresholdPercentage,
+            validators0: validators0,
+            validators1: validators1
+        });
     }
 }

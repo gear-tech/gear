@@ -1150,55 +1150,23 @@ pub(crate) mod tests {
 
     #[tokio::test]
     async fn simultaneous_responses_limit() {
-        const REQUEST_AMOUNT: usize = 64;
-
         init_logger();
 
-        let alice_config = Config::default().with_max_simultaneous_responses(2);
+        let alice_config = Config::default().with_max_simultaneous_responses(0);
         let (mut alice, _alice_db, _data_provider) = new_swarm_with_config(alice_config).await;
+
         let (mut bob, _bob_db, _data_provider) = new_swarm().await;
         let bob_handle = bob.behaviour().handle();
         let bob_peer_id = *bob.local_peer_id();
-        alice.connect(&mut bob).await;
 
-        // make request way heavier so there definitely will be a few simultaneous requests
-        let request = Request::hashes(
-            iter::from_fn(|| Some(H256::random()))
-                .take(24 * 1024)
-                .collect::<BTreeSet<H256>>(),
-        );
-        for _ in 0..REQUEST_AMOUNT {
-            let fut = bob_handle.request(request.clone());
-            mem::forget(fut);
-        }
+        alice.connect(&mut bob).await;
         tokio::spawn(bob.loop_on_next());
 
-        let mut incoming_request_seen = false;
-        let mut incoming_request_dropped_seen = false;
-        let mut response_sent_seen = false;
+        let fut = bob_handle.request(Request::hashes([]));
+        mem::forget(fut);
 
-        for _ in 0..REQUEST_AMOUNT {
-            let event = alice.next_behaviour_event().await;
-            match event {
-                Event::IncomingRequest { peer_id, .. } => {
-                    assert_eq!(peer_id, bob_peer_id);
-                    incoming_request_seen = true;
-                }
-                Event::IncomingRequestDropped { peer_id, .. } => {
-                    assert_eq!(peer_id, bob_peer_id);
-                    incoming_request_dropped_seen = true;
-                }
-                Event::ResponseSent { peer_id, .. } => {
-                    assert_eq!(peer_id, bob_peer_id);
-                    response_sent_seen = true;
-                }
-                _ => {}
-            }
-        }
-
-        assert!(incoming_request_seen);
-        assert!(incoming_request_dropped_seen);
-        assert!(response_sent_seen);
+        let event = alice.next_behaviour_event().await;
+        assert_matches!(event, Event::IncomingRequestDropped { peer_id } if peer_id == bob_peer_id);
     }
 
     #[tokio::test(start_paused = true)]

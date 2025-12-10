@@ -305,7 +305,7 @@ impl NetworkBehaviour for Behaviour {
                 Ok(_msg_id) => {
                     let _ = self.message_queue.pop_front().expect("checked above");
                 }
-                Err(PublishError::InsufficientPeers) => break,
+                Err(PublishError::NoPeersSubscribedToTopic) => break,
                 Err(error) => {
                     let message = self.message_queue.pop_front().expect("checked above");
                     return Poll::Ready(ToSwarm::GenerateEvent(Event::PublishFailure {

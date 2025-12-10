@@ -348,7 +348,11 @@ where
                     }
 
                     // Burning gas from main messages chain.
-                    JournalNote::GasBurned { amount, message_id } => {
+                    JournalNote::GasBurned {
+                        amount,
+                        message_id,
+                        is_panic: _,
+                    } => {
                         if from_main_chain(message_id)? {
                             gas_info.burned = gas_info.burned.saturating_add(amount);
                         }
