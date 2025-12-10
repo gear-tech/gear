@@ -25,7 +25,7 @@ use serde::Deserialize;
 use std::time::Duration;
 
 /// CLI/TOML-config parameters related to Ethereum.
-#[derive(Clone, Debug, Deserialize, Parser)]
+#[derive(Clone, Debug, Default, Deserialize, Parser)]
 #[serde(deny_unknown_fields)]
 pub struct EthereumParams {
     /// Ethereum RPC endpoint.

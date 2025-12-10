@@ -82,18 +82,11 @@ impl RunCommand {
             node.validator = Some(validator_public_key.to_string());
             node.validator_session = Some(validator_public_key.to_string());
 
-            if let Some(ethereum) = self.params.ethereum.as_mut() {
-                ethereum.ethereum_rpc = Some(anvil.ws_endpoint());
-                ethereum.ethereum_beacon_rpc = Some(anvil.endpoint());
-                ethereum.ethereum_router = Some(router_address);
-            } else {
-                self.params.ethereum = Some(EthereumParams {
-                    ethereum_rpc: Some(anvil.ws_endpoint()),
-                    ethereum_beacon_rpc: Some(anvil.endpoint()),
-                    ethereum_router: Some(router_address),
-                    block_time: Some(block_time.as_secs()),
-                });
-            }
+            let ethereum = self.params.ethereum.get_or_insert_with(Default::default);
+            ethereum.ethereum_rpc = Some(anvil.ws_endpoint());
+            ethereum.ethereum_beacon_rpc = Some(anvil.endpoint());
+            ethereum.ethereum_router = Some(router_address);
+            ethereum.block_time = Some(block_time.as_secs());
 
             anvil_instance = Some(anvil);
         }

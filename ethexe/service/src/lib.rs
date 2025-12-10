@@ -141,6 +141,12 @@ impl Service {
         let validator_public_key = signer.storage_mut().add_key(validator_private_key)?;
         let sender_public_key = signer.storage_mut().add_key(sender_private_key)?;
 
+        log::info!("🔐 Available Accounts:");
+
+        log::info!("     Deployer:  {deployer_address} {deployer_private_key}");
+        log::info!("     Validator: {validator_address} {validator_private_key}");
+        log::info!("     Sender:    {sender_address} {sender_private_key}");
+
         let ethereum =
             EthereumDeployer::new(&anvil.ws_endpoint(), signer.clone(), deployer_address)
                 .await
