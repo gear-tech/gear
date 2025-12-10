@@ -225,7 +225,6 @@ impl NetworkService {
             NetworkService::create_swarm(keypair.clone(), transport_type, behaviour_config)?;
 
         let validator_topic = ValidatorTopic::new(
-            ValidatorDatabase::clone_boxed(&db),
             swarm.behaviour().peer_score.handle(),
             validator_list_snapshot,
         );
@@ -471,9 +470,9 @@ impl NetworkService {
 
                 validator.validate(gossipsub, |message| match message {
                     gossipsub::Message::Commitments(message) => {
-                        let (acceptance, message) = self
-                            .validator_topic
-                            .verify_message_initially(source, message);
+                        let message = message.into_verified();
+                        let (acceptance, message) =
+                            self.validator_topic.verify_message(source, message);
                         (acceptance, message.map(NetworkEvent::ValidatorMessage))
                     }
                 })
@@ -522,13 +521,11 @@ impl NetworkService {
     pub fn set_chain_head(&mut self, chain_head: H256) -> anyhow::Result<()> {
         let snapshot = self.validator_list.set_chain_head(chain_head)?;
 
-        if let Some(snapshot) = snapshot {
-            self.validator_topic.on_new_snapshot(snapshot.clone());
-            self.swarm
-                .behaviour_mut()
-                .validator_discovery
-                .on_new_snapshot(snapshot);
-        }
+        self.validator_topic.on_new_snapshot(snapshot);
+        self.swarm
+            .behaviour_mut()
+            .validator_discovery
+            .on_new_snapshot(snapshot);
 
         Ok(())
     }

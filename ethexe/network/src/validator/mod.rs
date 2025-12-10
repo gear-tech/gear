@@ -18,13 +18,14 @@
 
 use ethexe_common::db::OnChainStorageRO;
 use ethexe_db::Database;
+use std::fmt;
 
 pub(crate) mod discovery;
 pub(crate) mod list;
 pub(crate) mod topic;
 
 #[auto_impl::auto_impl(&, Box)]
-pub trait ValidatorDatabase: Send + OnChainStorageRO {
+pub trait ValidatorDatabase: Send + fmt::Debug + OnChainStorageRO {
     fn clone_boxed(&self) -> Box<dyn ValidatorDatabase>;
 }
 
