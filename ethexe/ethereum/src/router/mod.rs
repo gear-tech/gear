@@ -110,32 +110,21 @@ impl Router {
     ) -> Result<PendingCodeRequestBuilder> {
         let code_id = CodeId::generate(code);
 
-        let builder = self
-            .instance
-            .requestCodeValidation(code_id.into_bytes().into())
-            .sidecar(BlobTransactionSidecarVariant::Eip7594(
-                SidecarBuilder::<SimpleCoder>::from_slice(code).build_7594()?,
-            ));
-        let pending_builder = builder.send().await?;
-
-        Ok(PendingCodeRequestBuilder {
-            code_id,
-            pending_builder,
-        })
-    }
-
-    pub async fn request_code_validation_with_sidecar_old(
-        &self,
-        code: &[u8],
-    ) -> Result<PendingCodeRequestBuilder> {
-        let code_id = CodeId::generate(code);
-
-        let builder = self
-            .instance
-            .requestCodeValidation(code_id.into_bytes().into())
-            .sidecar(BlobTransactionSidecarVariant::Eip4844(
+        let chain_id = self.instance.provider().get_chain_id().await?;
+        let blob_tx_sidecar_variant = if chain_id == 31337 {
+            BlobTransactionSidecarVariant::Eip4844(
                 SidecarBuilder::<SimpleCoder>::from_slice(code).build()?,
-            ));
+            )
+        } else {
+            BlobTransactionSidecarVariant::Eip7594(
+                SidecarBuilder::<SimpleCoder>::from_slice(code).build_7594()?,
+            )
+        };
+
+        let builder = self
+            .instance
+            .requestCodeValidation(code_id.into_bytes().into())
+            .sidecar(blob_tx_sidecar_variant);
         let pending_builder = builder.send().await?;
 
         Ok(PendingCodeRequestBuilder {
