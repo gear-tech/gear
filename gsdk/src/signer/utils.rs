@@ -190,7 +190,7 @@ impl Inner {
     ///     let in_block = signer.run_tx(BalancesCall::TransferKeepAlive, args).await?;
     /// }
     ///
-    /// // The code above euqals to:
+    /// // The code above equals to:
     ///
     /// {
     ///    let in_block = signer.calls.transfer_keep_alive(dest, value).await?;

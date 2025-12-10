@@ -114,7 +114,7 @@ pub fn run(token: String, ttl_sec: u64, cpu_affinity: usize) {
 
 pub struct Workers {
     workers: HashMap<u32, Worker>,
-    woker_ttl_sec: u64,
+    worker_ttl_sec: u64,
     executable_path: PathBuf,
 }
 
@@ -130,7 +130,7 @@ impl Workers {
 
         Self {
             workers,
-            woker_ttl_sec: ttl_sec,
+            worker_ttl_sec: ttl_sec,
             executable_path,
         }
     }
@@ -204,7 +204,7 @@ impl Workers {
                         // Recreate exited worker
                         let (new_pid, new_worker) = Self::spawn_worker(
                             &self.executable_path,
-                            self.woker_ttl_sec,
+                            self.worker_ttl_sec,
                             worker.cpu_affinity,
                         );
                         self.workers.insert(new_pid, new_worker);

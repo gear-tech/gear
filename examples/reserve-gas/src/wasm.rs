@@ -155,13 +155,13 @@ extern "C" fn handle() {
                 msg::send_from_reservation(
                     reservation_id,
                     exec::program_id(),
-                    HandleAction::RunInifitely,
+                    HandleAction::RunInfinitely,
                     0,
                 )
                 .expect("Unable to send using reservation");
             }
         }
-        HandleAction::RunInifitely => {
+        HandleAction::RunInfinitely => {
             if msg::source() != exec::program_id() {
                 panic!("Invalid caller, this is a private method reserved for the program itself.");
             }

@@ -100,7 +100,7 @@ impl Api {
         Self::builder().uri(uri).build().await
     }
 
-    /// Construcs an instance of [`Api`] from [`RpcClient`].
+    /// Constructs an instance of [`Api`] from [`RpcClient`].
     pub async fn from_rpc_client(rpc: RpcClient) -> Result<Self> {
         let legacy_methods = LegacyRpcMethods::new(rpc.clone());
         let client = OnlineClient::from_rpc_client(rpc.clone()).await?;
