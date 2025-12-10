@@ -292,7 +292,7 @@ impl TestEnv {
 
                     panic!("📗 Observer stream ended");
                 }
-                .instrument(tracing::trace_span!("observer-stream")),
+                .instrument(tracing::error_span!("observer-stream")),
             );
             receive_subscription_created.await.unwrap();
 
@@ -339,7 +339,7 @@ impl TestEnv {
                         let _event = service.select_next_some().await;
                     }
                 }
-                .instrument(tracing::trace_span!("network-stream")),
+                .instrument(tracing::error_span!("network-stream")),
             );
 
             let bootstrap_address = format!("{address}/p2p/{local_peer_id}");
@@ -1061,7 +1061,7 @@ impl Node {
         let handle = task::spawn(async move {
             service
                 .run()
-                .instrument(tracing::trace_span!("node", name))
+                .instrument(tracing::error_span!("node", name))
                 .await
                 .unwrap_or_else(|err| panic!("Service {name:?} failed: {err}"));
         });
