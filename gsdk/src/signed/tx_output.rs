@@ -94,8 +94,9 @@ impl TxOutput {
         self.find_map(move |event| f(event).then_some(()))
     }
 
-    /// Validates events associated with the transaction.
-    pub fn validate_events<E, F>(self, mut f: F) -> Result<Self, E>
+    /// Calls given fallible function on each event, returning
+    /// `Err` if any of then fails.
+    pub fn try_for_each<E, F>(self, mut f: F) -> Result<Self, E>
     where
         E: From<Error>,
         F: FnMut(Event) -> Result<(), E>,

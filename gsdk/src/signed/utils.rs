@@ -143,14 +143,12 @@ impl SignedApi {
     pub async fn process_sudo<Call: Payload>(&self, call: Call) -> Result<TxOutput> {
         let tx = self.process(call).await?;
 
-        TxOutput::new(tx)
-            .await?
-            .validate_events(|event| match event {
-                RuntimeEvent::Sudo(sudo::Event::Sudid {
-                    sudo_result: Err(err),
-                }) => Err(self.decode_error(err).into()),
-                _ => Ok(()),
-            })
+        TxOutput::new(tx).await?.try_for_each(|event| match event {
+            RuntimeEvent::Sudo(sudo::Event::Sudid {
+                sudo_result: Err(err),
+            }) => Err(self.decode_error(err).into()),
+            _ => Ok(()),
+        })
     }
 
     /// Run transaction.
