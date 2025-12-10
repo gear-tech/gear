@@ -27,9 +27,6 @@ pub struct TxOutput<T = ()> {
     /// The hash of the block that the transaction has made it into.
     pub block_hash: H256,
 
-    /// The hash of the extrinsic that was submitted.
-    pub extrinsic_hash: H256,
-
     /// Events associated with the transaction.
     pub events: ExtrinsicEvents<GearConfig>,
 
@@ -45,7 +42,6 @@ impl TxOutput {
     pub async fn new(tx: TxInBlock) -> Result<Self> {
         Ok(Self {
             block_hash: tx.block_hash(),
-            extrinsic_hash: tx.extrinsic_hash(),
             events: tx.wait_for_success().await?,
             value: (),
         })
@@ -149,11 +145,15 @@ impl<T> TxOutput<T> {
         self.events.iter().map(|event| event?.as_gear())
     }
 
+    /// Returns hash of the extrinsic.
+    pub fn extrinsic_hash(&self) -> H256 {
+        self.events.extrinsic_hash()
+    }
+
     /// Replaces the inner value.
     pub fn with_value<O>(self, value: O) -> TxOutput<O> {
         TxOutput {
             block_hash: self.block_hash,
-            extrinsic_hash: self.extrinsic_hash,
             events: self.events,
             value,
         }
@@ -166,7 +166,6 @@ impl<T> TxOutput<T> {
         (
             TxOutput {
                 block_hash: self.block_hash,
-                extrinsic_hash: self.extrinsic_hash,
                 events: self.events,
                 value: (),
             },

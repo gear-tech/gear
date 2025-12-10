@@ -30,7 +30,7 @@ async fn transfer_backtrace() -> Result<()> {
 
     let backtrace = api
         .backtrace()
-        .get(tx.extrinsic_hash)
+        .get(tx.extrinsic_hash())
         .expect("Failed to get backtrace of transfer");
 
     assert!(
