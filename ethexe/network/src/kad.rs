@@ -355,8 +355,9 @@ impl Behaviour {
                     record.expect("`StoreInserts::FilterBoth` implies `record` is always present");
                 let record = match Record::new(&original_record) {
                     Ok(record) => record,
-                    Err(_err) => {
-                        // TODO: peer score
+                    Err(err) => {
+                        log::trace!("failed to parse record during inbound request: {err:?}");
+                        self.peer_score.invalid_data(source);
                         return Poll::Pending;
                     }
                 };
