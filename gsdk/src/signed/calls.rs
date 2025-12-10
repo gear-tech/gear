@@ -259,7 +259,7 @@ impl SignedApi {
         self.run_tx(tx().gear().claim_value(message_id))
             .await?
             .any(|event| matches!(event, Event::Gear(gear::Event::UserMessageRead { .. })))?
-            .then(|| value.expect("data appearance guaraenteed above"))
+            .then(|| value.expect("data appearance guaranteed above"))
             .ok_or_err()
     }
 
