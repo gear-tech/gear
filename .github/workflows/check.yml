@@ -34,6 +34,15 @@ jobs:
       - name: "Check formatting: Gear"
         run: ./scripts/gear.sh format gear --check
 
+  typos:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: typos-action
+        uses: crate-ci/typos@master
+
   ethexe-contracts:
     runs-on: ubuntu-latest
     steps:
