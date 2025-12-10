@@ -21,6 +21,11 @@ archive.include = [
   { path = "wasm32-gear", relative-to = "target", on-missing = "warn" },
 ]
 
+[profile.ci.junit]
+path = "junit.xml"
+store-success-output = false
+store-failure-output = true
+
 # sdk
 [[profile.ci.overrides]]
 filter = 'package(gclient) or package(gsdk) or package(gcli)'
