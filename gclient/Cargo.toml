@@ -1,0 +1,47 @@
+[package]
+name = "gclient"
+description = "API client for Gear node in Rust"
+documentation = "https://docs.rs/gclient"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+gear-utils.workspace = true
+gsdk = { workspace = true, features = ["testing"] }
+gear-node-wrapper.workspace = true
+gear-core.workspace = true
+
+futures.workspace = true
+anyhow.workspace = true
+hex.workspace = true
+parity-scale-codec.workspace = true
+thiserror.workspace = true
+async-trait.workspace = true
+url.workspace = true
+sp-core = { workspace = true, features = ["std", "full_crypto"] }
+gear-workspace-hack.workspace = true
+
+[dev-dependencies]
+tokio = { workspace = true, features = ["full"] }
+wat.workspace = true
+tracing-subscriber.workspace = true
+log.workspace = true
+demo-custom.workspace = true
+demo-constructor = { workspace = true, features = ["std"] }
+demo-mul-by-const.workspace = true
+demo-reserve-gas = { workspace = true, features = ["std"] }
+gstd = { workspace = true, features = ["debug"] }
+demo-wat.workspace = true
+demo-bls381 = { workspace = true, features = ["std"] }
+demo-ping.workspace = true
+ark-serialize = { workspace = true, features = ["derive"] }
+ark-scale = { workspace = true, features = ["hazmat"] }
+ark-bls12-381 = { workspace = true, features = ["curve"] }
+ark-ec = { workspace = true }
+ark-std = { workspace = true }
+hex-literal.workspace = true

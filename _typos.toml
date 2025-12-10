@@ -1,20 +1,29 @@
 [default]
 extend-ignore-re = [
-    "\\w{48,52}",
-    "\"hel\""
+  # transaction hash
+  "\\w{52}",
+  # address
+  "\\w{48}",
+  # `dyn-clonable` crate
+  "dyn_clonable::clonable",
+  "#\\[clonable\\]"
+]
+extend-ignore-identifiers-re = [
+  # instruction names
+  "instr_\\w+",
+  "i(32|64)\\w+",
+  # `sp-state-machine` crate
+  "OverlayedChanges"
 ]
 
 [files]
 extend-exclude = [
   "galloc/optimization/fungible_token.ipynb",
-  "gsdk/src/metadata/generated.rs",
   "ethexe/ethereum/*.json",
   "ethexe/contracts/lib/*",
 ]
 
 [default.extend-words]
-overlayed = "overlayed" # typo in sp-state-machine, won't fix.
-ws = "ws"
-dur = "dur"
-clonable = "clonable"
-inherents = "inherents"
+inherents = "inherents" # plural of `inherent`
+hel = "hel" # `LimiteStr` test
+excpt = "excpt" # winapi
