@@ -94,6 +94,7 @@ async fn basics() {
         chunk_processing_threads: 16,
         block_gas_limit: 4_000_000_000_000,
         canonical_quarantine: 0,
+        dev: false,
         fast_sync: false,
         validate_chain_deepness_limit: DEFAULT_VALIDATE_CHAIN_DEEPNESS_LIMIT,
         chain_deepness_threshold: DEFAULT_CHAIN_DEEPNESS_THRESHOLD,

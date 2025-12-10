@@ -39,11 +39,11 @@ pub struct TxCommand {
 
     /// Ethereum router address to use.
     #[arg(long, alias = "eth-router")]
-    pub ethereum_router: Option<String>,
+    pub ethereum_router: Option<Address>,
 
     /// Sender address or public key to use. Must have a corresponding private key in the key store.
     #[arg(long)]
-    pub sender: Option<String>,
+    pub sender: Option<Address>,
 
     /// Subcommand to run.
     #[command(subcommand)]
@@ -65,12 +65,10 @@ impl TxCommand {
                 .and_then(|p| p.ethereum_rpc.clone())
         });
 
-        self.ethereum_router = self.ethereum_router.take().or_else(|| {
-            params
-                .ethereum
-                .as_ref()
-                .and_then(|p| p.ethereum_router.clone())
-        });
+        self.ethereum_router = self
+            .ethereum_router
+            .take()
+            .or_else(|| params.ethereum.as_ref().and_then(|p| p.ethereum_router));
 
         self
     }
@@ -94,17 +92,11 @@ impl TxCommand {
 
         let router_addr = self
             .ethereum_router
-            .ok_or_else(|| anyhow!("missing `ethereum-router`"))?
-            .parse()
-            .with_context(|| "invalid `ethereum-router`")?;
+            .ok_or_else(|| anyhow!("missing `ethereum-router`"))?;
 
-        let sender = self
-            .sender
-            .ok_or_else(|| anyhow!("missing `sender`"))?
-            .parse()
-            .with_context(|| "invalid `sender`")?;
+        let sender = self.sender.ok_or_else(|| anyhow!("missing `sender`"))?;
 
-        let ethereum = Ethereum::new(&rpc, router_addr, signer, sender)
+        let ethereum = Ethereum::new(&rpc, router_addr.into(), signer, sender)
             .await
             .with_context(|| "failed to create Ethereum client")?;
 
@@ -114,7 +106,6 @@ impl TxCommand {
         match self.command {
             TxSubcommand::Upload {
                 path_to_wasm,
-                legacy,
                 watch,
             } => {
                 let code =
@@ -122,12 +113,10 @@ impl TxCommand {
 
                 println!("Uploading {} to Ethereum", path_to_wasm.display());
 
-                let pending_builder = if legacy {
-                    router.request_code_validation_with_sidecar_old(&code).await
-                } else {
-                    router.request_code_validation_with_sidecar(&code).await
-                }
-                .with_context(|| "failed to create code validation request")?;
+                let pending_builder = router
+                    .request_code_validation_with_sidecar(&code)
+                    .await
+                    .with_context(|| "failed to create code validation request")?;
 
                 let (tx, code_id) = pending_builder
                     .send()
@@ -231,6 +220,7 @@ impl TxCommand {
                 println!("  Inheritor:       {inheritor}",);
                 println!("  Initializer:     {initializer}",);
                 println!("  ETH Balance:     {balance} wei");
+                // TODO: format balance as wei and ETH
             }
             TxSubcommand::OwnedBalanceTopUp { mirror, value } => {
                 let maybe_code_id = router_query
@@ -243,6 +233,7 @@ impl TxCommand {
                     "Given mirror address is not recognized by router"
                 );
 
+                // TODO: format balance as wei and ETH
                 println!(
                     "Topping up owned balance of mirror on Ethereum at {mirror} by {value} wei"
                 );
@@ -272,6 +263,7 @@ impl TxCommand {
                     "Given mirror address is not recognized by router"
                 );
 
+                // TODO: format balance as value and WVARA
                 println!(
                     "Topping up executable balance of mirror on Ethereum at {mirror} by {value} WVARA"
                 );
@@ -343,9 +335,6 @@ pub enum TxSubcommand {
         /// Path to the Wasm file.
         #[arg()]
         path_to_wasm: PathBuf,
-        /// Flag to use old blob transaction format
-        #[arg(short, long, default_value = "false")]
-        legacy: bool,
         /// Flag to watch for code validation result. If false, command will do not wait for validation.
         #[arg(short, long, default_value = "false")]
         watch: bool,
