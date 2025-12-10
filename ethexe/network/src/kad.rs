@@ -44,7 +44,7 @@ use tokio::sync::{mpsc, oneshot};
 
 const KAD_PROTOCOL_NAME: StreamProtocol =
     StreamProtocol::new(concat!("/ethexe/kad/", env!("CARGO_PKG_VERSION")));
-const KAD_RECORD_TTL_SECS: u64 = 3600 * 3; // 3 hours
+const KAD_RECORD_TTL_SECS: u64 = 3600; // 1 hour
 const KAD_RECORD_TTL: Duration = Duration::from_secs(KAD_RECORD_TTL_SECS);
 const KAD_PUBLISHING_INTERVAL: Duration = Duration::from_secs(KAD_RECORD_TTL_SECS / 4);
 // From Substrate sources:
