@@ -16,11 +16,15 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{Params, params::MergeParams};
+use crate::{
+    Params,
+    params::{EthereumParams, MergeParams},
+};
 use anyhow::{Context as _, Result, anyhow};
 use clap::Args;
 use ethexe_service::Service;
 use std::time::Duration;
+use tokio::runtime::Builder;
 use tracing_subscriber::EnvFilter;
 
 /// Run the node.
@@ -44,7 +48,7 @@ impl RunCommand {
     }
 
     /// Run the ethexe service (node).
-    pub fn run(self) -> Result<()> {
+    pub fn run(mut self) -> Result<()> {
         let default = if self.verbose { "debug" } else { "info" };
 
         tracing_subscriber::fmt()
@@ -58,6 +62,42 @@ impl RunCommand {
             .try_init()
             .map_err(|e| anyhow!("failed to initialize logger: {e}"))?;
 
+        let mut anvil_instance = None;
+
+        if let Some(node) = self.params.node.as_mut()
+            && node.dev
+        {
+            let block_time = Duration::from_secs(
+                self.params
+                    .ethereum
+                    .as_ref()
+                    .and_then(|ethereum| ethereum.block_time)
+                    .unwrap_or(EthereumParams::BLOCK_TIME),
+            );
+            let (anvil, validator_public_key, _sender_public_key, router_address) =
+                Builder::new_multi_thread().enable_all().build()?.block_on(
+                    Service::configure_dev_environment(node.keys_dir(), block_time),
+                )?;
+
+            node.validator = Some(validator_public_key.to_string());
+            node.validator_session = Some(validator_public_key.to_string());
+
+            if let Some(ethereum) = self.params.ethereum.as_mut() {
+                ethereum.ethereum_rpc = Some(anvil.ws_endpoint());
+                ethereum.ethereum_beacon_rpc = Some(anvil.endpoint());
+                ethereum.ethereum_router = Some(router_address);
+            } else {
+                self.params.ethereum = Some(EthereumParams {
+                    ethereum_rpc: Some(anvil.ws_endpoint()),
+                    ethereum_beacon_rpc: Some(anvil.endpoint()),
+                    ethereum_router: Some(router_address),
+                    block_time: Some(block_time.as_secs()),
+                });
+            }
+
+            anvil_instance = Some(anvil);
+        }
+
         let config = self
             .params
             .into_config()
@@ -65,7 +105,7 @@ impl RunCommand {
 
         config.log_info();
 
-        let mut builder = tokio::runtime::Builder::new_multi_thread();
+        let mut builder = Builder::new_multi_thread();
 
         if let Some(worker_threads) = config.node.worker_threads {
             builder.worker_threads(worker_threads);

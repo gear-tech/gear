@@ -17,8 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::MergeParams;
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Result, anyhow};
 use clap::Parser;
+use ethexe_common::Address;
 use ethexe_observer::EthereumConfig;
 use serde::Deserialize;
 use std::time::Duration;
@@ -40,7 +41,7 @@ pub struct EthereumParams {
     /// Ethereum router contract address.
     #[arg(long, alias = "eth-router")]
     #[serde(rename = "router")]
-    pub ethereum_router: Option<String>,
+    pub ethereum_router: Option<Address>,
 
     /// Ethereum block time in seconds.
     #[arg(long, alias = "eth-block-time")]
@@ -56,7 +57,7 @@ impl EthereumParams {
     pub const DEFAULT_ETHEREUM_RPC: &str = "ws://localhost:8545";
 
     /// Default Ethereum Beacon RPC.
-    pub const DEFAULT_ETHEREUM_BEACON_RPC: &str = "http://localhost:5052";
+    pub const DEFAULT_ETHEREUM_BEACON_RPC: &str = "http://localhost:8545";
 
     /// Convert self into a proper `EthereumConfig` object.
     pub fn into_config(self) -> Result<EthereumConfig> {
@@ -69,9 +70,7 @@ impl EthereumParams {
                 .unwrap_or_else(|| Self::DEFAULT_ETHEREUM_BEACON_RPC.into()),
             router_address: self
                 .ethereum_router
-                .ok_or_else(|| anyhow!("missing `ethereum-router`"))?
-                .parse()
-                .with_context(|| "invalid `ethereum-router`")?,
+                .ok_or_else(|| anyhow!("missing `ethereum-router`"))?,
             block_time: Duration::from_secs(self.block_time.unwrap_or(Self::BLOCK_TIME)),
         })
     }
