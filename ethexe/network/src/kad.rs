@@ -634,6 +634,7 @@ pub(crate) mod test_utils {
 
     pub struct HandleCallback {
         rx: mpsc::UnboundedReceiver<HandlerAction>,
+        on_get_record: Option<Box<dyn FnMut(RecordKey) -> GetRecordResult + Send>>,
         on_put_record: Option<Box<dyn FnMut(Record) -> PutRecordResult + Send>>,
     }
 
@@ -643,9 +644,17 @@ pub(crate) mod test_utils {
             let handle = Handle(tx);
             let this = Self {
                 rx,
+                on_get_record: None,
                 on_put_record: None,
             };
             (handle, this)
+        }
+
+        pub fn on_get_record<F>(&mut self, f: F)
+        where
+            F: FnMut(RecordKey) -> GetRecordResult + Send + 'static,
+        {
+            self.on_get_record = Some(Box::new(f));
         }
 
         pub fn on_put_record<F>(&mut self, f: F)
@@ -658,7 +667,12 @@ pub(crate) mod test_utils {
         pub async fn loop_on_receiver(mut self) {
             while let Some(action) = self.rx.recv().await {
                 match action {
-                    HandlerAction::GetRecord(_key, _channel) => {}
+                    HandlerAction::GetRecord(key, channel) => {
+                        if let Some(callback) = &mut self.on_get_record {
+                            let result = (callback)(key);
+                            let _res = channel.send(result);
+                        }
+                    }
                     HandlerAction::PutRecord(record, channel) => {
                         if let Some(callback) = &mut self.on_put_record {
                             let result = (callback)(*record);

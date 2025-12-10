@@ -450,8 +450,15 @@ impl NetworkService {
             } => {
                 let behaviour = self.swarm.behaviour_mut();
                 validator.validate(&mut behaviour.kad, |record| {
-                    let kad::Record::ValidatorIdentity(_record) = record;
-                    true
+                    let kad::Record::ValidatorIdentity(record) = record;
+                    match behaviour.validator_discovery.verify_record(record) {
+                        Ok(Some(_identity)) => true,
+                        Ok(None) => false,
+                        Err(err) => {
+                            log::trace!("failed to verify inbound identity: {err:?}");
+                            false
+                        }
+                    }
                 });
             }
             kad::Event::GetRecordStarted { query_id: _ }
@@ -501,6 +508,7 @@ impl NetworkService {
     fn handle_validator_discovery_event(&mut self, event: validator::discovery::Event) {
         match event {
             validator::discovery::Event::GetIdentitiesStarted => {}
+            validator::discovery::Event::IdentityUpdated { .. } => {}
             validator::discovery::Event::PutIdentityStarted => {}
             validator::discovery::Event::PutIdentityTicksAtMax => {}
         }

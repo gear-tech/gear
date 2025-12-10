@@ -363,6 +363,7 @@ impl ToDigest for ValidatorIdentity {
 #[derive(Debug, Eq, PartialEq)]
 pub enum Event {
     GetIdentitiesStarted,
+    IdentityUpdated { address: Address },
     PutIdentityStarted,
     PutIdentityTicksAtMax,
 }
@@ -389,13 +390,14 @@ impl GetIdentities {
             .map(|address| ValidatorIdentityKey { validator: address })
     }
 
-    fn put_identity(&mut self, record: ValidatorIdentityRecord) -> Result<(), PutIdentityError> {
-        log::trace!("filtering received record: {record:?}");
-
+    fn verify_record(
+        &self,
+        record: ValidatorIdentityRecord,
+    ) -> Result<Option<SignedValidatorIdentity>, VerifyRecordError> {
         let ValidatorIdentityRecord { value: identity } = record;
 
         if !self.snapshot.contains(identity.address()) {
-            return Err(PutIdentityError::UnknownValidatorIdentity {
+            return Err(VerifyRecordError::UnknownValidatorIdentity {
                 address: identity.address(),
             });
         }
@@ -403,10 +405,17 @@ impl GetIdentities {
         if let Some(old_identity) = self.identities.get(&identity.address())
             && old_identity.data().creation_time >= identity.inner.creation_time
         {
-            return Ok(());
+            return Ok(None);
         }
 
-        self.identities.insert(identity.address(), identity);
+        Ok(Some(identity))
+    }
+
+    fn put_identity(&mut self, record: ValidatorIdentityRecord) -> Result<(), VerifyRecordError> {
+        let identity = self.verify_record(record)?;
+        if let Some(identity) = identity {
+            self.identities.insert(identity.address(), identity);
+        }
 
         Ok(())
     }
@@ -433,8 +442,14 @@ impl GetIdentities {
             match res {
                 Ok(kad::GetRecordOk { peer: _, record }) => {
                     let record = record.unwrap_validator_identity();
-                    if let Err(err) = self.put_identity(record) {
-                        log::trace!("failed to put identity: {err}");
+                    let address = record.value.address();
+                    match self.put_identity(record) {
+                        Ok(()) => {
+                            return Poll::Ready(Event::IdentityUpdated { address });
+                        }
+                        Err(err) => {
+                            log::trace!("failed to save identity from get record query: {err}");
+                        }
                     }
                 }
                 Err(err) => {
@@ -448,7 +463,7 @@ impl GetIdentities {
 }
 
 #[derive(Debug, derive_more::Display, Eq, PartialEq)]
-pub enum PutIdentityError {
+pub enum VerifyRecordError {
     #[display("unknown validator identity: {address}")]
     UnknownValidatorIdentity { address: Address },
 }
@@ -568,6 +583,13 @@ impl Behaviour {
     pub fn get_identity(&self, address: Address) -> Option<&SignedValidatorIdentity> {
         self.get_identities.identities.get(&address)
     }
+
+    pub fn verify_record(
+        &self,
+        record: ValidatorIdentityRecord,
+    ) -> Result<Option<SignedValidatorIdentity>, VerifyRecordError> {
+        self.get_identities.verify_record(record)
+    }
 }
 
 impl NetworkBehaviour for Behaviour {
@@ -642,7 +664,7 @@ mod tests {
         "/ip4/127.0.0.1/tcp/1234".parse().unwrap()
     }
 
-    fn snapshot(addresses: Vec<Address>) -> Arc<ValidatorListSnapshot> {
+    fn new_snapshot(addresses: Vec<Address>) -> Arc<ValidatorListSnapshot> {
         Arc::new(ValidatorListSnapshot {
             current_era_index: 0,
             current_validators: ValidatorsVec::try_from(addresses)
@@ -651,7 +673,7 @@ mod tests {
         })
     }
 
-    fn signed_identity(
+    fn new_signed_identity(
         signer: &Signer,
         validator_key: PublicKey,
         creation_time: u128,
@@ -755,7 +777,7 @@ mod tests {
             Keypair::generate_secp256k1(),
             Some(validator_key),
             signer.clone(),
-            snapshot(vec![validator_key.to_address()]),
+            new_snapshot(vec![validator_key.to_address()]),
         );
 
         let mut swarm = Swarm::new_ephemeral_tokio(move |_keypair| behaviour);
@@ -770,53 +792,71 @@ mod tests {
         assert_matches!(event, Event::PutIdentityStarted);
     }
 
-    #[tokio::test]
-    async fn put_identity_stores_record_for_known_validator() {
+    #[tokio::test(start_paused = true)]
+    async fn behaviour_stores_identity_for_known_validator() {
         let signer = Signer::memory();
         let validator_key = signer.generate_key().unwrap();
-        let mut behaviour = Behaviour::new(
-            kad::Handle::new_test(),
+        let identity = new_signed_identity(&signer, validator_key, 10);
+
+        let (kad_handle, mut kad_callback) = kad::test_utils::HandleCallback::new_pair();
+        let identity_clone = identity.clone();
+        kad_callback.on_get_record(move |_key| {
+            Ok(kad::GetRecordOk {
+                peer: None,
+                record: ValidatorIdentityRecord {
+                    value: identity_clone.clone(),
+                }
+                .into(),
+            })
+        });
+        tokio::spawn(kad_callback.loop_on_receiver());
+
+        let behaviour = Behaviour::new(
+            kad_handle,
             Keypair::generate_secp256k1(),
             None,
             signer.clone(),
-            snapshot(vec![validator_key.to_address()]),
+            new_snapshot(vec![validator_key.to_address()]),
         );
+        let mut swarm = Swarm::new_ephemeral_tokio(|_keypair| behaviour);
 
-        let identity = signed_identity(&signer, validator_key, 10);
-        behaviour
-            .get_identities
-            .put_identity(ValidatorIdentityRecord {
-                value: identity.clone(),
-            })
-            .unwrap();
+        let event = swarm.next_behaviour_event().await;
+        assert_eq!(event, Event::GetIdentitiesStarted);
 
+        let event = swarm.next_behaviour_event().await;
         assert_eq!(
-            behaviour.get_identity(validator_key.to_address()),
+            event,
+            Event::IdentityUpdated {
+                address: validator_key.to_address()
+            }
+        );
+        assert_eq!(
+            swarm.behaviour().get_identity(validator_key.to_address()),
             Some(&identity)
         );
     }
 
-    #[tokio::test(start_paused = true)]
-    async fn put_identity_rejects_unknown_validator() {
+    #[tokio::test]
+    async fn verify_record_rejects_unknown_validator() {
         let signer = Signer::memory();
         let validator_key = signer.generate_key().unwrap();
-        let mut behaviour = Behaviour::new(
+        let identity = new_signed_identity(&signer, validator_key, 10);
+
+        let behaviour = Behaviour::new(
             kad::Handle::new_test(),
             Keypair::generate_secp256k1(),
             None,
             signer.clone(),
-            snapshot(vec![Address::from(1u64)]),
+            new_snapshot(vec![Address::from(1u64)]),
         );
 
-        let identity = signed_identity(&signer, validator_key, 10);
         let err = behaviour
             .get_identities
-            .put_identity(ValidatorIdentityRecord { value: identity })
+            .verify_record(ValidatorIdentityRecord { value: identity })
             .unwrap_err();
-
         assert_eq!(
             err,
-            PutIdentityError::UnknownValidatorIdentity {
+            VerifyRecordError::UnknownValidatorIdentity {
                 address: validator_key.to_address()
             }
         );
@@ -832,10 +872,10 @@ mod tests {
             Keypair::generate_secp256k1(),
             None,
             signer.clone(),
-            snapshot(vec![validator_key.to_address()]),
+            new_snapshot(vec![validator_key.to_address()]),
         );
 
-        let baseline = signed_identity(&signer, validator_key, 20);
+        let baseline = new_signed_identity(&signer, validator_key, 20);
         behaviour
             .get_identities
             .put_identity(ValidatorIdentityRecord {
@@ -843,7 +883,7 @@ mod tests {
             })
             .unwrap();
 
-        let older = signed_identity(&signer, validator_key, 5);
+        let older = new_signed_identity(&signer, validator_key, 5);
         behaviour
             .get_identities
             .put_identity(ValidatorIdentityRecord { value: older })
@@ -857,7 +897,7 @@ mod tests {
             20
         );
 
-        let newer = signed_identity(&signer, validator_key, 30);
+        let newer = new_signed_identity(&signer, validator_key, 30);
         behaviour
             .get_identities
             .put_identity(ValidatorIdentityRecord {
@@ -884,11 +924,11 @@ mod tests {
             Keypair::generate_secp256k1(),
             None,
             signer.clone(),
-            snapshot(vec![validator_a.to_address(), validator_b.to_address()]),
+            new_snapshot(vec![validator_a.to_address(), validator_b.to_address()]),
         );
 
-        let identity_a = signed_identity(&signer, validator_a, 10);
-        let identity_b = signed_identity(&signer, validator_b, 10);
+        let identity_a = new_signed_identity(&signer, validator_a, 10);
+        let identity_b = new_signed_identity(&signer, validator_b, 10);
 
         behaviour
             .get_identities
@@ -899,7 +939,7 @@ mod tests {
             .put_identity(ValidatorIdentityRecord { value: identity_b })
             .unwrap();
 
-        behaviour.on_new_snapshot(snapshot(vec![validator_b.to_address()]));
+        behaviour.on_new_snapshot(new_snapshot(vec![validator_b.to_address()]));
 
         assert!(
             !behaviour
@@ -926,7 +966,7 @@ mod tests {
             network_keypair.clone(),
             Some(validator_key),
             signer.clone(),
-            snapshot(vec![validator_key.to_address()]),
+            new_snapshot(vec![validator_key.to_address()]),
         );
 
         // Create our own identity (simulating receiving our own record)
@@ -985,7 +1025,7 @@ mod tests {
             network_keypair.clone(),
             Some(validator_key),
             signer.clone(),
-            snapshot(vec![validator_key.to_address()]),
+            new_snapshot(vec![validator_key.to_address()]),
         );
         let mut swarm = Swarm::new_ephemeral_tokio(move |_keypair| behaviour);
         swarm.add_external_address(test_addr());
