@@ -87,11 +87,16 @@ impl TxOutput {
     /// Ensures that there's an event matching given predicate.
     ///
     /// Essentially just an [`Iterator::any`] on events.
-    pub fn any<F>(self, mut f: F) -> Result<TxOutput<Option<()>>>
+    pub fn any<F>(self, mut f: F) -> Result<TxOutput<bool>>
     where
         F: FnMut(Event) -> bool,
     {
-        self.find_map(move |event| f(event).then_some(()))
+        Ok(self
+            .find_map(move |event| f(event).then_some(()))?
+            .map(|opt| match opt {
+                Some(()) => true,
+                None => false,
+            }))
     }
 
     /// Calls given fallible function on each event, returning
@@ -107,25 +112,32 @@ impl TxOutput {
     }
 }
 
-/// [`TxOutput`] without value, but after some kind of validation.
-///
-/// Logically equivalent to [`TxOutput<bool>`].
-impl TxOutput<Option<()>> {
+/// [`TxOutput`] without value, but after some kind of check.
+impl TxOutput<bool> {
     /// Applies logical `||` on the value and `f()`.
-    ///
-    /// Returns:
-    /// - `Some(())` if `self` is `Some(())` or `f()` is `true`
-    /// - `None` otherwise.
     pub fn or<F: FnOnce() -> bool>(self, b: F) -> Self {
-        self.map(move |opt| opt.or_else(move || b().then_some(())))
+        self.map(move |opt| opt || b())
     }
 
-    /// Maps unit inside the inner [`Option`].
+    /// Applies [`bool::then`] to the inner value.
     pub fn then<T, F>(self, f: F) -> TxOutput<Option<T>>
     where
         F: FnOnce() -> T,
     {
-        self.map(move |opt| opt.map(|()| f()))
+        self.map(move |opt| opt.then(f))
+    }
+
+    /// Returns `Ok(tx_output)` if `value` is `true`
+    /// and `Err(Error::EventNotFound)` if `value` is `false`.
+    ///
+    /// Useful for final part of [`TxOutput::any`]-based event
+    /// validation.
+    pub fn then_ok(self) -> Result<TxOutput> {
+        if self.value {
+            Ok(self.with_value(()))
+        } else {
+            Err(Error::EventNotFound)
+        }
     }
 }
 

@@ -69,7 +69,7 @@ impl SignedApi {
         .await?
         .any(|event| matches!(event, Event::Balances(balances::Event::Transfer { .. })))?
         .or(|| value == 0 || self.account_id() == &dest.into_account_id().into_substrate())
-        .ok_or_err()
+        .then_ok()
     }
 
     /// Transfer `value` to `destination`'s account.
@@ -91,7 +91,7 @@ impl SignedApi {
         .await?
         .any(|event| matches!(event, Event::Balances(balances::Event::Transfer { .. })))?
         .or(|| value == 0 || self.account_id() == &dest.into_substrate())
-        .ok_or_err()
+        .then_ok()
     }
 
     /// Transfer the entire transferable balance from the caller to `destination`'s account.
@@ -110,7 +110,7 @@ impl SignedApi {
         )
         .await?
         .any(|event| matches!(event, Event::Balances(balances::Event::Transfer { .. })))?
-        .ok_or_err()
+        .then_ok()
     }
 }
 
@@ -1091,7 +1091,7 @@ impl SignedApi {
         )
         .await?
         .any(|event| matches!(event, Event::System(system::Event::CodeUpdated)))?
-        .ok_or_err()
+        .then_ok()
     }
 
     /// Upgrade the runtime by reading the code from the file located at the
@@ -1127,7 +1127,7 @@ impl SignedApi {
                 Event::GearEthBridge(gear_eth_bridge::Event::QueueReset)
             )
         })?
-        .ok_or_err()
+        .then_ok()
     }
 }
 
