@@ -1440,7 +1440,7 @@ async fn executable_balance_injected_panic_not_charged() {
 
 #[tokio::test(flavor = "multi_thread")]
 async fn insufficient_executable_balance_still_charged() {
-    // Just enough balance to charge fo instrumentation and instantiation but not enough to process the message.
+    // Just enough balance to charge for instrumentation and instantiation but not enough to process the message.
     const INSUFFICIENT_EXECUTABLE_BALANCE: u128 = 30_000_000_000;
 
     init_logger();

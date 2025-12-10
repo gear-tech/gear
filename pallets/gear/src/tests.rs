@@ -8109,7 +8109,7 @@ fn test_two_programs_composition_works() {
 
 // Passing value less than the ED to newly-created programs is now legal since the account for a
 // program-in-creation is guaranteed to exists before the program gets stored in `ProgramStorage`.
-// Both `uploade_program` (`create_program`) extrinsic and the `create_program` syscall should
+// Both `upload_program` (`create_program`) extrinsic and the `create_program` syscall should
 // successfully handle such cases.
 #[test]
 fn test_create_program_with_value_lt_ed() {
