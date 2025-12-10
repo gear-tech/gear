@@ -106,11 +106,12 @@ impl Coordinator {
             return Self::submission(ctx, multisigned_batch);
         }
 
+        let era_index = ctx
+            .core
+            .timelines
+            .era_from_ts(multisigned_batch.batch().timestamp);
         let payload = BatchCommitmentValidationRequest::new(multisigned_batch.batch());
-        let message = ValidatorMessage {
-            block: multisigned_batch.batch().block_hash,
-            payload,
-        };
+        let message = ValidatorMessage { era_index, payload };
 
         let validation_request = ctx.core.signer.signed_data(ctx.core.pub_key, message)?;
 

@@ -95,8 +95,13 @@ impl StateHandler for Participant {
                     )?;
                     let reply = BatchCommitmentValidationReply { digest, signature };
 
+                    let era_index = self
+                        .ctx
+                        .core
+                        .timelines
+                        .era_from_ts(self.block.header.timestamp);
                     let reply = ValidatorMessage {
-                        block: self.block.hash,
+                        era_index,
                         payload: reply,
                     };
 
