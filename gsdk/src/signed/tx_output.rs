@@ -89,10 +89,7 @@ impl TxOutput {
     {
         Ok(self
             .find_map(move |event| f(event).then_some(()))?
-            .map(|opt| match opt {
-                Some(()) => true,
-                None => false,
-            }))
+            .map(Option::<()>::is_some)
     }
 
     /// Calls given fallible function on each event, returning
