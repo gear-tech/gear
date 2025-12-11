@@ -10,3 +10,4 @@ license.workspace = true
 syn = { workspace = true, features = ["parsing", "full", "visit"] }
 clap = { workspace = true, features = ["derive"] }
 proc-macro2 = { workspace = true, features = ["span-locations"]}
+gear-workspace-hack.workspace = true

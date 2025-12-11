@@ -18,6 +18,7 @@
 
 //! Cryptographic signature scheme implementations.
 
+#[cfg(any(feature = "secp256k1", feature = "sr25519", feature = "ed25519"))]
 use crate::traits::SignatureScheme;
 
 #[cfg(feature = "secp256k1")]
@@ -55,6 +56,9 @@ impl SchemeType {
             SchemeType::Sr25519 => crate::schemes::sr25519::Sr25519::scheme_name(),
             #[cfg(feature = "ed25519")]
             SchemeType::Ed25519 => crate::schemes::ed25519::Ed25519::scheme_name(),
+            // If no schemes are compiled in, treat this as unreachable.
+            #[allow(unreachable_patterns)]
+            _ => unreachable!("unsupported signature scheme"),
         }
     }
 }

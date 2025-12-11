@@ -25,12 +25,9 @@ use crate::{
     traits::SeedableKey,
     utils::decode_hex_to_array,
 };
+use alloc::string::{String, ToString};
 #[cfg(feature = "serde")]
-use alloc::vec::Vec;
-use alloc::{
-    format,
-    string::{String, ToString},
-};
+use alloc::{format, vec::Vec};
 use core::{convert::TryInto, fmt, str::FromStr};
 use k256::ecdsa::VerifyingKey;
 #[cfg(feature = "serde")]

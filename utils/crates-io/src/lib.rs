@@ -102,7 +102,6 @@ pub const PACKAGES: &[&str] = &[
     "cargo-gbuild",
     "gstd",
     "gsdk",
-    "gclient",
     "gcli",
     "wasm-proc",
 ];

@@ -126,7 +126,6 @@ mod app;
 pub mod cmd;
 pub mod embed;
 pub mod keyring;
-pub mod result;
 pub mod template;
 pub mod utils;
 
@@ -134,8 +133,6 @@ pub use self::{app::App, cmd::Command};
 pub use anyhow;
 pub use async_trait::async_trait;
 pub use clap;
-pub use color_eyre;
-pub use gsdk::signer::Signer;
 pub use log;
 pub use tokio;
 

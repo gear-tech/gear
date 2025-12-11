@@ -28,6 +28,7 @@ nonempty.workspace = true
 # mock deps
 itertools = { workspace = true, optional = true }
 tap = { workspace = true, optional = true }
+gear-workspace-hack.workspace = true
 
 [features]
 default = ["std"]

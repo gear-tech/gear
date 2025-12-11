@@ -63,8 +63,11 @@ libp2p-identity = { version = "0.2", default-features = false, features = [
 ], optional = true }
 secrecy = "0.8"
 
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+gear-workspace-hack = { workspace = true }
+
 [dev-dependencies]
-assert_cmd = "2.0"
+assert_cmd = "2.1"
 predicates = "3.1"
 serde_json = { workspace = true, features = ["std"] }
 tempfile = { workspace = true }
