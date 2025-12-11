@@ -31,4 +31,3 @@ overlayed = "overlayed" # typo in sp-state-machine, won't fix.
 ws = "ws"
 dur = "dur"
 clonable = "clonable"
-inherents = "inherents"

@@ -60,7 +60,7 @@ pub struct StorageLocationArgs {
 }
 
 fn secret_string_parser(s: &str) -> Result<SecretString, String> {
-    Ok(SecretString::new(s.to_owned().into()))
+    Ok(SecretString::new(s.to_owned()))
 }
 
 #[cfg(feature = "keyring")]

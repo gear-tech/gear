@@ -217,19 +217,15 @@ features = ["test-helpers"]
 [dependencies]
 aes = { version = "0.8", default-features = false, features = ["zeroize"] }
 ahash = { version = "0.8" }
-alloy = { git = "https://github.com/gear-tech/alloy", features = ["k256", "kzg", "node-bindings", "provider-anvil-api", "provider-ws", "rpc-types-beacon", "rpc-types-eth"] }
-alloy-consensus = { git = "https://github.com/gear-tech/alloy", default-features = false, features = ["k256", "kzg", "serde"] }
+alloy = { git = "https://github.com/gear-tech/alloy", features = ["kzg", "node-bindings", "provider-anvil-api", "provider-ws", "rpc-types-beacon", "rpc-types-eth"] }
+alloy-consensus = { git = "https://github.com/gear-tech/alloy", default-features = false, features = ["kzg", "serde"] }
 alloy-contract = { git = "https://github.com/gear-tech/alloy", default-features = false, features = ["pubsub"] }
-alloy-core = { version = "1", features = ["dyn-abi", "json-abi", "k256"] }
-alloy-eip7702 = { version = "0.6", default-features = false, features = ["k256", "serde", "std"] }
-alloy-eips = { git = "https://github.com/gear-tech/alloy", default-features = false, features = ["k256", "kzg", "serde", "std"] }
+alloy-eips = { git = "https://github.com/gear-tech/alloy", default-features = false, features = ["kzg", "serde", "std"] }
 alloy-json-abi = { version = "1", features = ["serde_json"] }
-alloy-network = { git = "https://github.com/gear-tech/alloy", default-features = false, features = ["k256"] }
 alloy-primitives = { version = "1", features = ["k256", "rlp", "serde"] }
 alloy-provider = { git = "https://github.com/gear-tech/alloy", default-features = false, features = ["anvil-node", "ws"] }
 alloy-rpc-client = { git = "https://github.com/gear-tech/alloy", default-features = false, features = ["reqwest", "ws"] }
-alloy-rpc-types = { git = "https://github.com/gear-tech/alloy", default-features = false, features = ["anvil", "beacon", "eth", "k256", "kzg"] }
-alloy-rpc-types-eth = { git = "https://github.com/gear-tech/alloy", default-features = false, features = ["k256", "serde", "std"] }
+alloy-rpc-types = { git = "https://github.com/gear-tech/alloy", default-features = false, features = ["anvil", "beacon", "eth", "kzg"] }
 alloy-sol-type-parser = { version = "1", default-features = false, features = ["serde", "std"] }
 alloy-sol-types = { version = "1", features = ["json"] }
 anyhow = { version = "1" }
@@ -324,7 +320,7 @@ jsonrpsee-core = { version = "0.24", features = ["async-client", "async-wasm-cli
 k256 = { version = "0.13", features = ["expose-field", "hash2curve", "serde"] }
 libc = { version = "0.2" }
 libp2p = { version = "0.52", default-features = false, features = ["dns", "ed25519", "identify", "kad", "macros", "mdns", "noise", "ping", "request-response", "tcp", "tokio", "wasm-ext", "websocket", "yamux"] }
-libp2p-identity = { version = "0.2", default-features = false, features = ["ed25519", "peerid", "rand", "secp256k1"] }
+libp2p-identity = { version = "0.2", default-features = false, features = ["ed25519", "peerid", "rand", "secp256k1", "serde"] }
 libsecp256k1 = { version = "0.7" }
 libsecp256k1-core = { version = "0.3" }
 log = { version = "0.4", default-features = false, features = ["std"] }
@@ -333,7 +329,6 @@ memchr = { version = "2" }
 memory-db = { version = "0.32", default-features = false, features = ["std"] }
 merlin = { version = "3", default-features = false, features = ["std"] }
 names = { version = "0.14" }
-nonempty = { version = "0.12", default-features = false, features = ["std"] }
 num-bigint = { version = "0.4" }
 num-integer = { version = "0.1", default-features = false, features = ["i128", "std"] }
 num-rational = { version = "0.4" }
@@ -353,6 +348,7 @@ percent-encoding = { version = "2" }
 pkcs8 = { version = "0.10", default-features = false, features = ["std"] }
 polkavm-common = { version = "0.9", features = ["alloc", "logging"] }
 ppv-lite86 = { version = "0.2", default-features = false, features = ["simd", "std"] }
+predicates = { version = "3" }
 primitive-types-594e8ee84c453af0 = { package = "primitive-types", version = "0.13", default-features = false, features = ["scale-info", "serde", "serde_no_std"] }
 primitive-types-5ef9efb8ec2df382 = { package = "primitive-types", version = "0.12", default-features = false, features = ["byteorder", "rustc-hex", "scale-info", "serde", "serde_no_std"] }
 proc-macro2 = { version = "1", features = ["span-locations"] }
@@ -362,7 +358,7 @@ rand = { version = "0.8", features = ["small_rng"] }
 rand_chacha-468e82937335b1c9 = { package = "rand_chacha", version = "0.3" }
 rand_core-3b31131e45eafb45 = { package = "rand_core", version = "0.6", default-features = false, features = ["std"] }
 regex = { version = "1" }
-regex-automata = { version = "0.4", default-features = false, features = ["dfa-onepass", "hybrid", "meta", "nfa-backtrack", "perf-inline", "perf-literal", "unicode"] }
+regex-automata = { version = "0.4", default-features = false, features = ["dfa-onepass", "dfa-search", "hybrid", "meta", "nfa-backtrack", "perf-inline", "perf-literal", "unicode"] }
 regex-syntax = { version = "0.8" }
 reqwest = { version = "0.12", default-features = false, features = ["default-tls", "json", "rustls-tls"] }
 ring = { version = "0.17" }
@@ -379,6 +375,7 @@ schnorrkel = { version = "0.11", features = ["preaudit_deprecated"] }
 scopeguard = { version = "1" }
 sec1 = { version = "0.7", features = ["serde", "std", "subtle"] }
 secp256k1 = { version = "0.28", features = ["global-context", "recovery"] }
+secrecy = { version = "0.8" }
 semver = { version = "1", features = ["serde"] }
 serde = { version = "1", features = ["alloc", "derive", "rc"] }
 serde-json-wasm = { version = "1", default-features = false, features = ["std"] }
@@ -428,7 +425,7 @@ sp-wasm-interface = { git = "https://github.com/gear-tech/polkadot-sdk.git", bra
 sp-wasm-interface-common = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std"] }
 sp-weights = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
 spki = { version = "0.7", default-features = false, features = ["std"] }
-ss58-registry = { version = "1", default-features = false, features = ["std"] }
+ss58-registry = { version = "1" }
 stable_deref_trait = { version = "1", default-features = false, features = ["std"] }
 strum-2f80eeee3b1b6c7e = { package = "strum", version = "0.26", features = ["derive"] }
 strum-adf3d7031871b0af = { package = "strum", version = "0.24", features = ["derive"] }
@@ -475,19 +472,15 @@ zeroize = { version = "1", features = ["derive", "std"] }
 [build-dependencies]
 aes = { version = "0.8", default-features = false, features = ["zeroize"] }
 ahash = { version = "0.8" }
-alloy = { git = "https://github.com/gear-tech/alloy", features = ["k256", "kzg", "node-bindings", "provider-anvil-api", "provider-ws", "rpc-types-beacon", "rpc-types-eth"] }
-alloy-consensus = { git = "https://github.com/gear-tech/alloy", default-features = false, features = ["k256", "kzg", "serde"] }
+alloy = { git = "https://github.com/gear-tech/alloy", features = ["kzg", "node-bindings", "provider-anvil-api", "provider-ws", "rpc-types-beacon", "rpc-types-eth"] }
+alloy-consensus = { git = "https://github.com/gear-tech/alloy", default-features = false, features = ["kzg", "serde"] }
 alloy-contract = { git = "https://github.com/gear-tech/alloy", default-features = false, features = ["pubsub"] }
-alloy-core = { version = "1", features = ["dyn-abi", "json-abi", "k256"] }
-alloy-eip7702 = { version = "0.6", default-features = false, features = ["k256", "serde", "std"] }
-alloy-eips = { git = "https://github.com/gear-tech/alloy", default-features = false, features = ["k256", "kzg", "serde", "std"] }
+alloy-eips = { git = "https://github.com/gear-tech/alloy", default-features = false, features = ["kzg", "serde", "std"] }
 alloy-json-abi = { version = "1", features = ["serde_json"] }
-alloy-network = { git = "https://github.com/gear-tech/alloy", default-features = false, features = ["k256"] }
 alloy-primitives = { version = "1", features = ["k256", "rlp", "serde"] }
 alloy-provider = { git = "https://github.com/gear-tech/alloy", default-features = false, features = ["anvil-node", "ws"] }
 alloy-rpc-client = { git = "https://github.com/gear-tech/alloy", default-features = false, features = ["reqwest", "ws"] }
-alloy-rpc-types = { git = "https://github.com/gear-tech/alloy", default-features = false, features = ["anvil", "beacon", "eth", "k256", "kzg"] }
-alloy-rpc-types-eth = { git = "https://github.com/gear-tech/alloy", default-features = false, features = ["k256", "serde", "std"] }
+alloy-rpc-types = { git = "https://github.com/gear-tech/alloy", default-features = false, features = ["anvil", "beacon", "eth", "kzg"] }
 alloy-sol-macro = { version = "1", default-features = false, features = ["json"] }
 alloy-sol-macro-expander = { version = "1", default-features = false, features = ["json"] }
 alloy-sol-macro-input = { version = "1", default-features = false, features = ["json"] }
@@ -592,7 +585,7 @@ jsonrpsee-core = { version = "0.24", features = ["async-client", "async-wasm-cli
 k256 = { version = "0.13", features = ["expose-field", "hash2curve", "serde"] }
 libc = { version = "0.2" }
 libp2p = { version = "0.52", default-features = false, features = ["dns", "ed25519", "identify", "kad", "macros", "mdns", "noise", "ping", "request-response", "tcp", "tokio", "wasm-ext", "websocket", "yamux"] }
-libp2p-identity = { version = "0.2", default-features = false, features = ["ed25519", "peerid", "rand", "secp256k1"] }
+libp2p-identity = { version = "0.2", default-features = false, features = ["ed25519", "peerid", "rand", "secp256k1", "serde"] }
 libsecp256k1 = { version = "0.7" }
 libsecp256k1-core = { version = "0.3" }
 log = { version = "0.4", default-features = false, features = ["std"] }
@@ -601,7 +594,6 @@ memchr = { version = "2" }
 memory-db = { version = "0.32", default-features = false, features = ["std"] }
 merlin = { version = "3", default-features = false, features = ["std"] }
 names = { version = "0.14" }
-nonempty = { version = "0.12", default-features = false, features = ["std"] }
 num-bigint = { version = "0.4" }
 num-integer = { version = "0.1", default-features = false, features = ["i128", "std"] }
 num-rational = { version = "0.4" }
@@ -622,6 +614,7 @@ percent-encoding = { version = "2" }
 pkcs8 = { version = "0.10", default-features = false, features = ["std"] }
 polkavm-common = { version = "0.9", features = ["alloc", "logging"] }
 ppv-lite86 = { version = "0.2", default-features = false, features = ["simd", "std"] }
+predicates = { version = "3" }
 primitive-types-594e8ee84c453af0 = { package = "primitive-types", version = "0.13", default-features = false, features = ["scale-info", "serde", "serde_no_std"] }
 primitive-types-5ef9efb8ec2df382 = { package = "primitive-types", version = "0.12", default-features = false, features = ["byteorder", "rustc-hex", "scale-info", "serde", "serde_no_std"] }
 proc-macro2 = { version = "1", features = ["span-locations"] }
@@ -631,7 +624,7 @@ rand = { version = "0.8", features = ["small_rng"] }
 rand_chacha-468e82937335b1c9 = { package = "rand_chacha", version = "0.3" }
 rand_core-3b31131e45eafb45 = { package = "rand_core", version = "0.6", default-features = false, features = ["std"] }
 regex = { version = "1" }
-regex-automata = { version = "0.4", default-features = false, features = ["dfa-onepass", "hybrid", "meta", "nfa-backtrack", "perf-inline", "perf-literal", "unicode"] }
+regex-automata = { version = "0.4", default-features = false, features = ["dfa-onepass", "dfa-search", "hybrid", "meta", "nfa-backtrack", "perf-inline", "perf-literal", "unicode"] }
 regex-syntax = { version = "0.8" }
 reqwest = { version = "0.12", default-features = false, features = ["default-tls", "json", "rustls-tls"] }
 ring = { version = "0.17" }
@@ -649,6 +642,7 @@ schnorrkel = { version = "0.11", features = ["preaudit_deprecated"] }
 scopeguard = { version = "1" }
 sec1 = { version = "0.7", features = ["serde", "std", "subtle"] }
 secp256k1 = { version = "0.28", features = ["global-context", "recovery"] }
+secrecy = { version = "0.8" }
 semver = { version = "1", features = ["serde"] }
 serde = { version = "1", features = ["alloc", "derive", "rc"] }
 serde-json-wasm = { version = "1", default-features = false, features = ["std"] }
@@ -700,7 +694,7 @@ sp-wasm-interface = { git = "https://github.com/gear-tech/polkadot-sdk.git", bra
 sp-wasm-interface-common = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std"] }
 sp-weights = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
 spki = { version = "0.7", default-features = false, features = ["std"] }
-ss58-registry = { version = "1", default-features = false, features = ["std"] }
+ss58-registry = { version = "1" }
 stable_deref_trait = { version = "1", default-features = false, features = ["std"] }
 strum-2f80eeee3b1b6c7e = { package = "strum", version = "0.26", features = ["derive"] }
 strum-adf3d7031871b0af = { package = "strum", version = "0.24", features = ["derive"] }

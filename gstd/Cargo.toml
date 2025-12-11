@@ -87,3 +87,6 @@ debug = ["galloc/debug", "gcore/debug"]
 
 [package.metadata.docs.rs]
 features = ["document-features"]
+
+[package.metadata.cargo-shear]
+ignored = ["document-features"]

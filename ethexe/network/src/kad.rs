@@ -693,8 +693,8 @@ mod tests {
         validator::discovery::{ValidatorAddresses, ValidatorIdentity},
     };
     use assert_matches::assert_matches;
-    use ethexe_signer::Signer;
     use futures::StreamExt;
+    use gsigner::secp256k1::Signer;
     use libp2p::{
         Swarm, identity::Keypair, kad, kad::GetRecordOk as KadGetRecordOk, swarm::ConnectionId,
     };

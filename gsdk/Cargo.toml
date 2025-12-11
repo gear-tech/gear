@@ -35,7 +35,6 @@ thiserror.workspace = true
 tokio = { workspace = true, features = ["fs"] }
 url.workspace = true
 parity-scale-codec.workspace = true
-gsigner = { workspace = true, features = ["std", "sr25519"] }
 gear-workspace-hack.workspace = true
 
 [dev-dependencies]
