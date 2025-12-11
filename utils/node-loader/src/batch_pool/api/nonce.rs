@@ -1,6 +1,5 @@
 use crate::utils;
 use anyhow::{Result, anyhow};
-use gclient::{Error as GClientError, Result as GClientResult};
 use parking_lot::{Mutex, MutexGuard};
 use std::{
     cmp::Reverse,
@@ -53,7 +52,7 @@ fn hold_missed_nonces<'a>() -> Result<MissedNoncesGuard<'a>> {
         .ok_or_else(|| anyhow!("Not initialized missed nonces storage"))
 }
 
-pub fn catch_missed_nonce<T>(batch_res: &GClientResult<T>, nonce: u64) -> Result<()> {
+pub fn catch_missed_nonce<T>(batch_res: &gsdk::Result<T>, nonce: u64) -> Result<()> {
     if let Err(err) = batch_res
         && is_missed_nonce_err(err)
     {
@@ -63,7 +62,7 @@ pub fn catch_missed_nonce<T>(batch_res: &GClientResult<T>, nonce: u64) -> Result
     Ok(())
 }
 
-fn is_missed_nonce_err(err: &GClientError) -> bool {
+fn is_missed_nonce_err(err: &gsdk::Error) -> bool {
     let err_str = err.to_string().to_lowercase();
     err_str.contains(&utils::SUBXT_RPC_CALL_ERR_STR.to_lowercase())
         || err_str.contains(&utils::TRANSACTION_INVALID.to_lowercase())

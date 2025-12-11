@@ -1,20 +1,16 @@
 use crate::{
     args::{LoadParams, SeedVariant},
+    parse_name,
     utils::{self, SwapResult},
 };
 use anyhow::{Result, anyhow};
 use api::GearApiFacade;
 use context::Context;
 use futures::{Future, StreamExt, stream::FuturesUnordered};
-use gclient::{GearApi, Result as GClientResult};
 use gear_call_gen::{CallGenRng, ClaimValueArgs, SendReplyArgs};
 use gear_core::ids::{ActorId, MessageId};
 use generators::{Batch, BatchGenerator, BatchWithSeed, RuntimeSettings};
-use gsdk::{
-    AsGear,
-    ext::subxt::utils::H256,
-    gear::{Event, gear::Event as GearEvent},
-};
+use gsdk::{AsGear, Event, SignedApi, blocks::Block, ext::subxt::utils::H256, gear::gear};
 pub use report::CrashAlert;
 use report::{BatchRunReport, MailboxReport, Report};
 use std::{
@@ -31,14 +27,13 @@ mod report;
 
 type Seed = u64;
 type CallId = usize;
-type EventsReceiver = Receiver<gsdk::subscription::BlockEvents>;
 
 pub struct BatchPool<Rng: CallGenRng> {
     api: GearApiFacade,
     pool_size: usize,
     batch_size: usize,
     tasks_context: Context,
-    rx: EventsReceiver,
+    rx: Receiver<Block>,
     _phantom: PhantomData<Rng>,
 }
 
@@ -47,7 +42,7 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
         api: GearApiFacade,
         batch_size: usize,
         pool_size: usize,
-        rx: EventsReceiver,
+        rx: Receiver<Block>,
     ) -> Self {
         Self {
             api,
@@ -66,12 +61,15 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
     /// - `renew_balance_task` - periodically setting a new balance for the user account.
     ///
     /// Wait for any task to return result with `tokio::select!`.
-    pub async fn run(mut self, params: LoadParams, rx: EventsReceiver) -> Result<()> {
+    pub async fn run(mut self, params: LoadParams, rx: Receiver<Block>) -> Result<()> {
         let gear_api = self.api.clone().into_gear_api();
         let run_pool_task = self.run_pool_loop(params.loader_seed, params.code_seed_type);
         let inspect_crash_task = tokio::spawn(inspect_crash_events(rx));
+
+        let (root_suri, root_passwd) = parse_name(&params.root);
+
         let renew_balance_task =
-            tokio::spawn(create_renew_balance_task(gear_api, params.root).await?);
+            tokio::spawn(create_renew_balance_task(gear_api, root_suri, root_passwd).await?);
 
         let run_result = tokio::select! {
             r = run_pool_task => r,
@@ -139,7 +137,7 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
 async fn run_batch(
     api: GearApiFacade,
     batch: BatchWithSeed,
-    rx: EventsReceiver,
+    rx: Receiver<Block>,
 ) -> Result<BatchRunReport> {
     let (seed, batch) = batch.into();
     match run_batch_impl(api, batch, rx).await {
@@ -162,20 +160,27 @@ async fn run_batch(
 async fn run_batch_impl(
     mut api: GearApiFacade,
     batch: Batch,
-    rx: EventsReceiver,
+    rx: Receiver<Block>,
 ) -> Result<Report> {
     // Order of the results of each extrinsic execution in the batch
     // is the same as in the input set of calls in the batch.
     // See: https://paritytech.github.io/substrate/master/src/pallet_utility/lib.rs.html#452-468
     match batch {
         Batch::UploadProgram(args) => {
-            let (extrinsic_results, block_hash) = api.upload_program_batch(args).await?;
-            let messages = process_ex_results(extrinsic_results);
-            process_events(api.into_gear_api(), messages, block_hash, rx).await
+            let extrinsic_results = api.upload_program_batch(args).await?;
+            let messages = process_ex_results(extrinsic_results.value);
+            process_events(
+                api.into_gear_api(),
+                messages,
+                extrinsic_results.block_hash,
+                rx,
+            )
+            .await
         }
         Batch::UploadCode(args) => {
-            let (extrinsic_results, _) = api.upload_code_batch(args).await?;
+            let extrinsic_results = api.upload_code_batch(args).await?;
             let extrinsic_results = extrinsic_results
+                .value
                 .into_iter()
                 .map(|r| r.map(|code| (code, ())));
             let codes = process_ex_results(extrinsic_results);
@@ -191,32 +196,50 @@ async fn run_batch_impl(
             })
         }
         Batch::SendMessage(args) => {
-            let (extrinsic_results, block_hash) = api.send_message_batch(args).await?;
-            let messages = process_ex_results(extrinsic_results);
-            process_events(api.into_gear_api(), messages, block_hash, rx).await
+            let extrinsic_results = api.send_message_batch(args).await?;
+            let messages = process_ex_results(extrinsic_results.value);
+            process_events(
+                api.into_gear_api(),
+                messages,
+                extrinsic_results.block_hash,
+                rx,
+            )
+            .await
         }
         Batch::CreateProgram(args) => {
-            let (extrinsic_results, block_hash) = api.create_program_batch(args).await?;
-            let messages = process_ex_results(extrinsic_results);
-            process_events(api.into_gear_api(), messages, block_hash, rx).await
+            let extrinsic_results = api.create_program_batch(args).await?;
+            let messages = process_ex_results(extrinsic_results.value);
+            process_events(
+                api.into_gear_api(),
+                messages,
+                extrinsic_results.block_hash,
+                rx,
+            )
+            .await
         }
         Batch::SendReply(args) => {
             let removed_from_mailbox = args.clone().into_iter().map(|SendReplyArgs((mid, ..))| mid);
 
-            let (extrinsic_results, block_hash) = api.send_reply_batch(args).await?;
-            let messages = process_ex_results(extrinsic_results);
-            process_events(api.into_gear_api(), messages, block_hash, rx)
-                .await
-                .map(|mut report| {
-                    report.mailbox_data.append_removed(removed_from_mailbox);
-                    report
-                })
+            let extrinsic_results = api.send_reply_batch(args).await?;
+            let messages = process_ex_results(extrinsic_results.value);
+            process_events(
+                api.into_gear_api(),
+                messages,
+                extrinsic_results.block_hash,
+                rx,
+            )
+            .await
+            .map(|mut report| {
+                report.mailbox_data.append_removed(removed_from_mailbox);
+                report
+            })
         }
         Batch::ClaimValue(args) => {
             let removed_from_mailbox = args.clone().into_iter().map(|ClaimValueArgs(mid)| mid);
 
-            let (extrinsic_results, _) = api.claim_value_batch(args).await?;
+            let extrinsic_results = api.claim_value_batch(args).await?;
             let extrinsic_results = extrinsic_results
+                .value
                 .into_iter()
                 .zip(removed_from_mailbox.clone())
                 .map(|(r, mid)| r.map(|value| (mid, value)));
@@ -238,7 +261,7 @@ async fn run_batch_impl(
 }
 
 fn process_ex_results<Key: Ord, Value>(
-    ex_results: impl IntoIterator<Item = GClientResult<(Key, Value)>>,
+    ex_results: impl IntoIterator<Item = gsdk::Result<(Key, Value)>>,
 ) -> BTreeMap<Key, (Value, CallId)> {
     let mut res = BTreeMap::<Key, (Value, CallId)>::new();
 
@@ -258,10 +281,10 @@ fn process_ex_results<Key: Ord, Value>(
 
 /// Waiting for the new events since provided `block_hash`.
 async fn process_events(
-    api: GearApi,
+    api: SignedApi,
     mut messages: BTreeMap<MessageId, (ActorId, usize)>,
     block_hash: H256,
-    mut rx: EventsReceiver,
+    mut rx: Receiver<Block>,
 ) -> Result<Report> {
     // States what amount of blocks we should wait for taking all the events about successful `messages` execution
     let wait_for_events_blocks = 30;
@@ -271,12 +294,12 @@ async fn process_events(
     let mut mailbox_added = BTreeSet::new();
 
     let results = {
-        let mut events = rx.recv().await?;
+        let mut block: Block = rx.recv().await?;
 
         // Wait with a timeout until the `EventsReceiver` receives the expected block hash.
-        while events.block_hash() != block_hash {
+        while block.hash() != block_hash {
             tokio::time::sleep(Duration::new(0, 500)).await;
-            events =
+            block =
                 tokio::time::timeout(Duration::from_millis(wait_for_events_millisec), rx.recv())
                     .await
                     .map_err(|_| {
@@ -287,19 +310,19 @@ async fn process_events(
 
         // Wait for next n blocks and push new events.
         let mut v = Vec::new();
-        let mut current_bh = events.block_hash();
+        let mut current_bh = block.hash();
         let mut i = 0;
         while i < wait_for_events_blocks {
-            if events.block_hash() != current_bh {
-                current_bh = events.block_hash();
+            if block.hash() != current_bh {
+                current_bh = block.hash();
                 i += 1;
             }
-            for event in events.iter() {
+            for event in block.events().await?.iter() {
                 let event = event?.as_gear()?;
                 v.push(event);
             }
             tokio::time::sleep(Duration::new(0, 100)).await;
-            events =
+            block =
                 tokio::time::timeout(Duration::from_millis(wait_for_events_millisec), rx.recv())
                     .await
                     .map_err(|_| {
@@ -352,15 +375,17 @@ async fn process_events(
     })
 }
 
-async fn inspect_crash_events(mut rx: EventsReceiver) -> Result<()> {
+async fn inspect_crash_events(mut rx: Receiver<Block>) -> Result<()> {
     // Error means either event is not found and can't be found
     // in the listener, or some other error during event
     // parsing occurred.
-    while let Ok(events) = tokio::time::timeout(Duration::from_secs(90), rx.recv()).await? {
-        let bh = events.block_hash();
-        for event in events.iter() {
+    while let Ok(block) = tokio::time::timeout(Duration::from_secs(90), rx.recv()).await? {
+        let bh = block.hash();
+
+        for event in block.events().await?.iter() {
             let event = event?.as_gear()?;
-            if matches!(event, Event::Gear(GearEvent::QueueNotProcessed)) {
+
+            if matches!(event, Event::Gear(gear::Event::QueueNotProcessed)) {
                 let crash_err = CrashAlert::MsgProcessingStopped;
                 tracing::info!("{crash_err} at block hash {bh:?}");
                 return Err(crash_err.into());
@@ -372,15 +397,16 @@ async fn inspect_crash_events(mut rx: EventsReceiver) -> Result<()> {
 }
 
 async fn create_renew_balance_task(
-    user_api: GearApi,
-    root: String,
-) -> Result<impl Future<Output = Result<()>>> {
+    user_api: SignedApi,
+    root_suri: &str,
+    root_passwd: Option<&str>,
+) -> Result<impl Future<Output = Result<()>> + use<>> {
     let user_address = user_api.account_id().clone();
-    let user_target_balance = user_api.free_balance(&user_address).await?;
+    let user_target_balance = user_api.free_balance().await?;
 
-    let root_api = user_api.with(root)?;
+    let root_api = user_api.unsigned().clone().signed(root_suri, root_passwd)?;
     let root_address = root_api.account_id().clone();
-    let root_target_balance = root_api.free_balance(&root_address).await?;
+    let root_target_balance = root_api.free_balance().await?;
 
     // every 100 blocks renew balance
     let duration_millis = root_api.expected_block_time()? * 100;
@@ -399,7 +425,7 @@ async fn create_renew_balance_task(
             tokio::time::sleep(Duration::from_millis(duration_millis)).await;
 
             let user_balance_demand = {
-                let current = root_api.free_balance(&user_address).await?;
+                let current = root_api.unsigned().free_balance(&user_address).await?;
                 user_target_balance.saturating_sub(current)
             };
             tracing::debug!("User balance demand {user_balance_demand}");

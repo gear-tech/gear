@@ -202,6 +202,7 @@ impl<const SIZE: u32> PartialOrd<PagesAmount<SIZE>> for Page<SIZE> {
     TypeInfo,
     Default,
     derive_more::Into,
+    derive_more::Display,
 )]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct Page<const SIZE: u32>(u32);
@@ -262,7 +263,7 @@ impl<const SIZE: u32> Page<SIZE> {
 }
 
 /// Try from u32 error for [Page].
-#[derive(Debug, Clone, derive_more::Display)]
+#[derive(Debug, Clone, derive_more::Display, derive_more::Error)]
 #[display("Tries to make page from {_0}, which must be less or equal to {_1}")]
 pub struct PageError(u32, u32);
 

@@ -242,7 +242,6 @@ ark-scale = { version = "0.0.12", default-features = false, features = ["hazmat"
 ark-serialize = { version = "0.4", default-features = false, features = ["derive", "std"] }
 ark-std = { version = "0.4", default-features = false, features = ["parallel"] }
 arrayvec = { version = "0.7", features = ["serde"] }
-backtrace = { version = "0.3", features = ["gimli-symbolize"] }
 base64-3c51e837cfc5589a = { package = "base64", version = "0.22" }
 base64-594e8ee84c453af0 = { package = "base64", version = "0.13" }
 binary-merkle-tree = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std"] }
@@ -387,7 +386,7 @@ serde_core = { version = "1", default-features = false, features = ["alloc", "rc
 serde_json = { version = "1", features = ["alloc", "arbitrary_precision", "raw_value", "unbounded_depth"] }
 serdect = { version = "0.2" }
 sha1 = { version = "0.10" }
-sha2-93f6ce9d446188ac = { package = "sha2", version = "0.10" }
+sha2 = { version = "0.10" }
 sha3 = { version = "0.10", default-features = false, features = ["std"] }
 signature = { version = "2", default-features = false, features = ["digest", "rand_core", "std"] }
 slice-group-by = { version = "0.3" }
@@ -504,7 +503,6 @@ ark-scale = { version = "0.0.12", default-features = false, features = ["hazmat"
 ark-serialize = { version = "0.4", default-features = false, features = ["derive", "std"] }
 ark-std = { version = "0.4", default-features = false, features = ["parallel"] }
 arrayvec = { version = "0.7", features = ["serde"] }
-backtrace = { version = "0.3", features = ["gimli-symbolize"] }
 base64-3c51e837cfc5589a = { package = "base64", version = "0.22" }
 base64-594e8ee84c453af0 = { package = "base64", version = "0.13" }
 binary-merkle-tree = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std"] }
@@ -658,7 +656,7 @@ serde_core = { version = "1", default-features = false, features = ["alloc", "rc
 serde_json = { version = "1", features = ["alloc", "arbitrary_precision", "raw_value", "unbounded_depth"] }
 serdect = { version = "0.2" }
 sha1 = { version = "0.10" }
-sha2-93f6ce9d446188ac = { package = "sha2", version = "0.10" }
+sha2 = { version = "0.10" }
 sha3 = { version = "0.10", default-features = false, features = ["std"] }
 signature = { version = "2", default-features = false, features = ["digest", "rand_core", "std"] }
 slice-group-by = { version = "0.3" }
@@ -759,7 +757,6 @@ miniz_oxide = { version = "0.7", default-features = false, features = ["with-all
 mio = { version = "1", features = ["net", "os-ext"] }
 nix = { version = "0.26" }
 nom = { version = "7" }
-num-complex = { version = "0.4", default-features = false, features = ["std"] }
 once_cell = { version = "1", default-features = false, features = ["critical-section"] }
 openssl = { version = "0.10", features = ["vendored"] }
 openssl-sys = { version = "0.9", default-features = false, features = ["vendored"] }
@@ -768,18 +765,15 @@ rand_chacha-274715c4dabd11b0 = { package = "rand_chacha", version = "0.9" }
 rand_core-274715c4dabd11b0 = { package = "rand_core", version = "0.9", default-features = false, features = ["os_rng", "std"] }
 rustix-4e55305914c60c55 = { package = "rustix", version = "0.36", features = ["mm", "param", "process", "time", "use-libc"] }
 rustix-d585fab2519d2d1 = { package = "rustix", version = "0.38", features = ["fs", "termios"] }
-rustix-d736d0ac4424f0f1 = { package = "rustix", version = "0.37", features = ["fs"] }
 rustls = { version = "0.23", default-features = false, features = ["logging", "ring", "std", "tls12"] }
 rustls-pki-types = { version = "1", features = ["std"] }
 sha-1 = { version = "0.10", features = ["asm"] }
-sha2-274715c4dabd11b0 = { package = "sha2", version = "0.9" }
 spin = { version = "0.9", features = ["std"] }
 tokio-rustls = { version = "0.26", default-features = false, features = ["logging", "ring", "tls12"] }
 tower = { version = "0.4", features = ["make", "util"] }
 unicode-normalization = { version = "0.1" }
 
 [target.x86_64-unknown-linux-gnu.build-dependencies]
-derivative = { version = "2", default-features = false, features = ["use_core"] }
 errno = { version = "0.3" }
 getrandom-468e82937335b1c9 = { package = "getrandom", version = "0.3", default-features = false, features = ["std"] }
 gimli = { version = "0.28" }
@@ -791,7 +785,6 @@ miniz_oxide = { version = "0.7", default-features = false, features = ["with-all
 mio = { version = "1", features = ["net", "os-ext"] }
 nix = { version = "0.26" }
 nom = { version = "7" }
-num-complex = { version = "0.4", default-features = false, features = ["std"] }
 once_cell = { version = "1", default-features = false, features = ["critical-section"] }
 openssl = { version = "0.10", features = ["vendored"] }
 openssl-sys = { version = "0.9", default-features = false, features = ["vendored"] }
@@ -801,11 +794,9 @@ rand_chacha-274715c4dabd11b0 = { package = "rand_chacha", version = "0.9" }
 rand_core-274715c4dabd11b0 = { package = "rand_core", version = "0.9", default-features = false, features = ["os_rng", "std"] }
 rustix-4e55305914c60c55 = { package = "rustix", version = "0.36", features = ["mm", "param", "process", "time", "use-libc"] }
 rustix-d585fab2519d2d1 = { package = "rustix", version = "0.38", features = ["fs", "termios"] }
-rustix-d736d0ac4424f0f1 = { package = "rustix", version = "0.37", features = ["fs"] }
 rustls = { version = "0.23", default-features = false, features = ["logging", "ring", "std", "tls12"] }
 rustls-pki-types = { version = "1", features = ["std"] }
 sha-1 = { version = "0.10", features = ["asm"] }
-sha2-274715c4dabd11b0 = { package = "sha2", version = "0.9" }
 spin = { version = "0.9", features = ["std"] }
 tokio-rustls = { version = "0.26", default-features = false, features = ["logging", "ring", "tls12"] }
 tower = { version = "0.4", features = ["make", "util"] }
@@ -823,7 +814,6 @@ miniz_oxide = { version = "0.7", default-features = false, features = ["with-all
 mio = { version = "1", features = ["net", "os-ext"] }
 nix = { version = "0.26" }
 nom = { version = "7" }
-num-complex = { version = "0.4", default-features = false, features = ["std"] }
 once_cell = { version = "1", default-features = false, features = ["critical-section"] }
 openssl = { version = "0.10", features = ["vendored"] }
 openssl-sys = { version = "0.9", default-features = false, features = ["vendored"] }
@@ -832,17 +822,14 @@ rand_chacha-274715c4dabd11b0 = { package = "rand_chacha", version = "0.9" }
 rand_core-274715c4dabd11b0 = { package = "rand_core", version = "0.9", default-features = false, features = ["os_rng", "std"] }
 rustix-4e55305914c60c55 = { package = "rustix", version = "0.36", features = ["mm", "param", "process", "time", "use-libc"] }
 rustix-d585fab2519d2d1 = { package = "rustix", version = "0.38", features = ["fs", "termios"] }
-rustix-d736d0ac4424f0f1 = { package = "rustix", version = "0.37", features = ["fs"] }
 rustls = { version = "0.23", default-features = false, features = ["logging", "ring", "std", "tls12"] }
 rustls-pki-types = { version = "1", features = ["std"] }
 sha-1 = { version = "0.10", features = ["asm"] }
-sha2-274715c4dabd11b0 = { package = "sha2", version = "0.9" }
 tokio-rustls = { version = "0.26", default-features = false, features = ["logging", "ring", "tls12"] }
 tower = { version = "0.4", features = ["make", "util"] }
 unicode-normalization = { version = "0.1" }
 
 [target.aarch64-unknown-linux-gnu.build-dependencies]
-derivative = { version = "2", default-features = false, features = ["use_core"] }
 errno = { version = "0.3" }
 getrandom-468e82937335b1c9 = { package = "getrandom", version = "0.3", default-features = false, features = ["std"] }
 gimli = { version = "0.28" }
@@ -854,7 +841,6 @@ miniz_oxide = { version = "0.7", default-features = false, features = ["with-all
 mio = { version = "1", features = ["net", "os-ext"] }
 nix = { version = "0.26" }
 nom = { version = "7" }
-num-complex = { version = "0.4", default-features = false, features = ["std"] }
 once_cell = { version = "1", default-features = false, features = ["critical-section"] }
 openssl = { version = "0.10", features = ["vendored"] }
 openssl-sys = { version = "0.9", default-features = false, features = ["vendored"] }
@@ -864,11 +850,9 @@ rand_chacha-274715c4dabd11b0 = { package = "rand_chacha", version = "0.9" }
 rand_core-274715c4dabd11b0 = { package = "rand_core", version = "0.9", default-features = false, features = ["os_rng", "std"] }
 rustix-4e55305914c60c55 = { package = "rustix", version = "0.36", features = ["mm", "param", "process", "time", "use-libc"] }
 rustix-d585fab2519d2d1 = { package = "rustix", version = "0.38", features = ["fs", "termios"] }
-rustix-d736d0ac4424f0f1 = { package = "rustix", version = "0.37", features = ["fs"] }
 rustls = { version = "0.23", default-features = false, features = ["logging", "ring", "std", "tls12"] }
 rustls-pki-types = { version = "1", features = ["std"] }
 sha-1 = { version = "0.10", features = ["asm"] }
-sha2-274715c4dabd11b0 = { package = "sha2", version = "0.9" }
 tokio-rustls = { version = "0.26", default-features = false, features = ["logging", "ring", "tls12"] }
 tower = { version = "0.4", features = ["make", "util"] }
 unicode-normalization = { version = "0.1" }

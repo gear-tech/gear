@@ -16,21 +16,22 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use anyhow::Context;
 use demo_ping::WASM_BINARY;
-use futures::StreamExt;
-use gclient::{GearApi, UserMessageSentFilter};
+use futures::prelude::*;
 use gear_core::ids::ActorId;
+use gsdk::{Result, UserMessageSentFilter};
 use std::convert::TryFrom;
 use tokio::time::{Duration, timeout};
+use utils::dev_node;
 
-const GEAR_PATH: &str = "../target/release/gear";
+mod utils;
+
 const SUBSCRIPTION_TIMEOUT: Duration = Duration::from_secs(5);
 
 /// Running this test requires gear node to be built in advance.
 #[tokio::test]
-async fn subscribe_user_messages_receives_reply() -> anyhow::Result<()> {
-    let api = GearApi::dev_from_path(GEAR_PATH).await?;
+async fn subscribe_user_messages_receives_reply() -> Result<()> {
+    let (_node, api) = dev_node().await;
 
     let destination =
         ActorId::try_from(api.account_id().as_ref()).expect("account id must be a valid ActorId");
@@ -44,7 +45,7 @@ async fn subscribe_user_messages_receives_reply() -> anyhow::Result<()> {
         .await?;
 
     let gas_limit = api.block_gas_limit()?;
-    let salt = gclient::now_micros().to_le_bytes();
+    let salt = gear_utils::now_micros().to_le_bytes();
 
     // Upload `demo_ping` with payload that triggers the reply to the user.
     api.upload_program_bytes(WASM_BINARY, salt, b"PING".to_vec(), gas_limit, 0)
@@ -54,7 +55,7 @@ async fn subscribe_user_messages_receives_reply() -> anyhow::Result<()> {
     for _ in 0..10 {
         let next_event = timeout(SUBSCRIPTION_TIMEOUT, subscription.next())
             .await
-            .context("timed out waiting for user message event")?;
+            .expect("timed out waiting for user message event");
 
         match next_event {
             Some(Ok(event)) if event.destination == destination => {
@@ -64,7 +65,7 @@ async fn subscribe_user_messages_receives_reply() -> anyhow::Result<()> {
                 }
             }
             Some(Ok(_)) => continue,
-            Some(Err(err)) => return Err(err.into()),
+            Some(Err(err)) => panic!("{err}"),
             None => break,
         }
     }

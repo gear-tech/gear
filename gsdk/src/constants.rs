@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2021-2025 Gear Technologies Inc.
+// Copyright (C) 2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -16,18 +16,22 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-#[derive(Debug, thiserror::Error)]
-pub enum Error {
-    #[error(transparent)]
-    Anyhow(#[from] anyhow::Error),
-    #[error(transparent)]
-    GCli(#[from] gcli::result::Error),
-    #[error(transparent)]
-    GSdk(#[from] gsdk::result::Error),
-    #[error(transparent)]
-    Hex(#[from] hex::FromHexError),
-    #[error(transparent)]
-    Io(#[from] std::io::Error),
-}
+//! This module provides shorthands for retrieving some frequently used constants.
 
-pub type Result<T, E = Error> = std::result::Result<T, E>;
+use crate::{Api, Result, gear::constants};
+
+impl Api {
+    /// Retrieves block gas limit value.
+    pub fn block_gas_limit(&self) -> Result<u64> {
+        Ok(self
+            .constants()
+            .at(&constants().gear_gas().block_gas_limit())?)
+    }
+
+    /// Retrieves expected block time value.
+    pub fn expected_block_time(&self) -> Result<u64> {
+        Ok(self
+            .constants()
+            .at(&constants().babe().expected_block_time())?)
+    }
+}

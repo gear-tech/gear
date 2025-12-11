@@ -14,22 +14,18 @@ rust-version.workspace = true
 
 [dependencies]
 gsdk.workspace = true
-gclient.workspace = true
-anyhow.workspace = true
 async-trait.workspace = true
 colored.workspace = true
-color-eyre.workspace = true
+anyhow.workspace = true
 dirs.workspace = true
 tracing-subscriber.workspace = true
 gear-core.workspace = true
 gring = { workspace = true, features = ["cli"] }
 hex.workspace = true
-keyring.workspace = true
 log.workspace = true
 scale-info.workspace = true
 serde.workspace = true
 clap = { workspace = true, features = ["std", "derive"] }
-thiserror.workspace = true
 tokio = { workspace = true, features = ["full"] }
 reqwest = { workspace = true, default-features = false, features = ["json", "rustls-tls"] }
 etc.workspace = true

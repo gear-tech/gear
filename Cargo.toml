@@ -89,7 +89,6 @@ members = [
     "galloc",
     "gbuiltins/*",
     "gcli",
-    "gclient",
     "gcore",
     "gprimitives",
     "gsdk",
@@ -131,7 +130,6 @@ bs58 = { version = "0.5.1", default-features = false }
 cargo_toml = "0.21.0"
 cargo_metadata = "0.20.0"
 clap = "4.5.8"
-color-eyre = "0.6.3"
 colored = "2.1.0"
 const-str = "0.5"
 defer = "0.2.1"
@@ -237,7 +235,6 @@ gbuiltin-staking = { path = "gbuiltins/staking" }
 gbuiltin-proxy = { path = "gbuiltins/proxy" }
 gcore = { path = "gcore" }
 gcli = { path = "gcli" }
-gclient = { path = "gclient" }
 gear-node-wrapper = { path = "utils/node-wrapper" }
 gsdk = { path = "gsdk" }
 gsdk-codegen = { path = "gsdk/codegen" }
@@ -522,7 +519,6 @@ errno = "0.3"                                                # gear-lazy-pages
 nix = "0.26.4"                                               # gear-lazy-pages
 ipc-channel = "0.19.0"                                       # lazy-pages-fuzzer
 itertools = { version = "0.13", default-features = false }   # utils/wasm-builder
-keyring = "1.2.1"                                            # gcli
 libp2p = "=0.51.4"                                           # gcli (same version as sc-consensus)
 mimalloc = { version = "0.1.46", default-features = false }  # node/cli
 nacl = "0.5.3"                                               # gcli

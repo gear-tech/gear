@@ -1,19 +1,22 @@
-use gclient::{Error, EventProcessor, GearApi};
 use gear_core::ids::ActorId;
-use hex::ToHex;
-use parity_scale_codec::{Decode, Encode};
+use gsdk::{Error, SignedApi, events};
+use parity_scale_codec::Encode;
+use utils::dev_node;
 
-const GEAR_PATH: &str = "../target/release/gear";
+mod utils;
 
 /// Running this test requires gear node to be built in advance.
 #[tokio::test]
-async fn two_nodes_run_independently() {
-    let salt = gclient::now_micros().to_le_bytes();
+async fn two_nodes_run_independently() -> gsdk::Result<()> {
+    let salt = gear_utils::now_micros().to_le_bytes();
 
-    // The assumption is that it is not allowed to load the same code with the same
-    // salt to the same node twice
-    upload_program_to_node(demo_mul_by_const::WASM_BINARY, &salt, Some(42u64)).await;
-    upload_program_to_node(demo_mul_by_const::WASM_BINARY, &salt, Some(43u64)).await;
+    let (_node_a, api_a) = dev_node().await;
+    let (_node_b, api_b) = dev_node().await;
+
+    upload_program_to_node(&api_a, demo_mul_by_const::WASM_BINARY, &salt, 42u64).await;
+    upload_program_to_node(&api_b, demo_mul_by_const::WASM_BINARY, &salt, 43u64).await;
+
+    Ok(())
 }
 
 /// Running this test requires gear node to be built in advance.
@@ -27,10 +30,13 @@ async fn program_migrated_to_another_node() {
     // Arrange
 
     // Upload source program to the source node
-    let (src_node_api, src_program_id) = upload_program_to_node(
+    let (_src_node, src_node_api) = dev_node().await;
+
+    let src_program_id = upload_program_to_node(
+        &src_node_api,
         demo_mul_by_const::WASM_BINARY,
-        &gclient::now_micros().to_le_bytes(),
-        Some(INIT_VALUE_PAYLOAD),
+        &gear_utils::now_micros().to_le_bytes(),
+        INIT_VALUE_PAYLOAD,
     )
     .await;
 
@@ -41,16 +47,14 @@ async fn program_migrated_to_another_node() {
         .expect("Unable to transfer funds to source program");
 
     // Initialize destination node
-    let dest_node_api = GearApi::dev_from_path(GEAR_PATH)
-        .await
-        .expect("Unable to connect to destination node api");
+    let (_dest_node, dest_node_api) = dev_node().await;
 
     let dest_node_gas_limit = dest_node_api
         .block_gas_limit()
         .expect("Unable to get destination node gas limit");
 
-    let mut dest_node_listener = dest_node_api
-        .subscribe()
+    let dest_node_events = dest_node_api
+        .subscribe_all_events()
         .await
         .expect("Unable to subscribe to destination node events");
 
@@ -64,7 +68,7 @@ async fn program_migrated_to_another_node() {
 
     // Send some message to the destination program for checking that it
     // functions properly
-    let (message_id, _) = dest_node_api
+    let message_id = dest_node_api
         .send_message(
             dest_program_id,
             MULTIPLICATOR_VALUE_PAYLOAD,
@@ -72,26 +76,26 @@ async fn program_migrated_to_another_node() {
             0,
         )
         .await
-        .expect("Unable to send message to destination program");
+        .expect("Unable to send message to destination program")
+        .value;
 
     // Assert
     assert_eq!(src_program_id, dest_program_id);
 
     let dest_program_funds = dest_node_api
+        .unsigned()
         .free_balance(dest_program_id)
         .await
         .expect("Unable to get destination program funds");
     assert_eq!(dest_program_funds, PROGRAM_FUNDS + ED);
 
-    let dest_program_reply = dest_node_listener
-        .reply_bytes_on(message_id)
+    let dest_program_reply: u64 = events::reply_on(message_id, dest_node_events)
         .await
-        .expect("Unable to get reply from destination program")
-        .1
-        .expect("Unable to read reply payload");
+        .unwrap()
+        .unwrap();
     assert_eq!(
         INIT_VALUE_PAYLOAD * MULTIPLICATOR_VALUE_PAYLOAD,
-        u64::decode(&mut dest_program_reply.as_ref()).expect("Unable to decode reply payload")
+        dest_program_reply
     );
 }
 
@@ -102,18 +106,19 @@ async fn program_migration_fails_if_program_exists() {
 
     // Arrange
 
+    let (_src_node, src_node_api) = dev_node().await;
+
     // Upload source program to the source node
-    let (src_node_api, src_program_id) = upload_program_to_node(
+    let src_program_id = upload_program_to_node(
+        &src_node_api,
         demo_mul_by_const::WASM_BINARY,
-        &gclient::now_micros().to_le_bytes(),
-        Some(INIT_VALUE_PAYLOAD),
+        &gear_utils::now_micros().to_le_bytes(),
+        INIT_VALUE_PAYLOAD,
     )
     .await;
 
     // Initialize destination node
-    let dest_node_api = GearApi::dev_from_path(GEAR_PATH)
-        .await
-        .expect("Unable to connect to destination node api");
+    let (_dest_node, dest_node_api) = dev_node().await;
 
     // Migrate the source program onto the destination node
     src_node_api
@@ -131,10 +136,7 @@ async fn program_migration_fails_if_program_exists() {
     // Assert
 
     if let Error::ProgramAlreadyExists(existing_program_id) = migration_error {
-        assert_eq!(
-            src_program_id.as_ref().encode_hex::<String>(),
-            existing_program_id
-        );
+        assert_eq!(src_program_id, existing_program_id);
     } else {
         unreachable!("Unexpected migration error: {:?}", migration_error)
     }
@@ -149,10 +151,7 @@ async fn program_migration_fails_if_program_exists() {
     // Assert
 
     if let Error::ProgramAlreadyExists(existing_program_id) = migration_error {
-        assert_eq!(
-            src_program_id.as_ref().encode_hex::<String>(),
-            existing_program_id
-        );
+        assert_eq!(src_program_id, existing_program_id);
     } else {
         unreachable!("Unexpected migration error: {:?}", migration_error)
     }
@@ -163,35 +162,32 @@ async fn program_migration_fails_if_program_exists() {
 async fn program_with_gas_reservation_migrated_to_another_node() {
     // Arrange
 
+    let (_src_node, src_node_api) = dev_node().await;
+
     // Upload source program to the source node
-    let (src_node_api, src_program_id) = upload_program_to_node(
+    let src_program_id = upload_program_to_node(
+        &src_node_api,
         demo_reserve_gas::WASM_BINARY,
-        &gclient::now_micros().to_le_bytes(),
-        Some(demo_reserve_gas::InitAction::Normal(vec![
+        &gear_utils::now_micros().to_le_bytes(),
+        demo_reserve_gas::InitAction::Normal(vec![
             // orphan reservation; will be removed automatically
             (50_000, 3),
             // must be cleared during `gr_exit`
             (25_000, 5),
-        ])),
+        ]),
     )
     .await;
 
-    let src_node_block_hash = src_node_api
-        .last_block_hash()
-        .await
-        .expect("Unable to get source node last block hash");
+    let src_node_block_hash = src_node_api.blocks().at_latest().await.unwrap().hash();
 
-    // Initialize the destination node api
-    let dest_node_api = GearApi::dev_from_path(GEAR_PATH)
-        .await
-        .expect("Unable to connect to destination node api");
+    let (_dest_node, dest_node_api) = dev_node().await;
 
     let dest_node_gas_limit = dest_node_api
         .block_gas_limit()
         .expect("Unable to get destination node gas limit");
 
-    let mut dest_node_listener = dest_node_api
-        .subscribe()
+    let dest_node_events = dest_node_api
+        .subscribe_all_events()
         .await
         .expect("Unable to subscribe to destination node events");
 
@@ -203,7 +199,7 @@ async fn program_with_gas_reservation_migrated_to_another_node() {
         .await
         .expect("Unable to migrate source program");
 
-    let (message_id, _) = dest_node_api
+    let message_id = dest_node_api
         .send_message(
             dest_program_id,
             demo_reserve_gas::HandleAction::ReplyFromReservation,
@@ -211,62 +207,44 @@ async fn program_with_gas_reservation_migrated_to_another_node() {
             0,
         )
         .await
-        .expect("Unable to send message to destination program");
+        .expect("Unable to send message to destination program")
+        .value;
 
     // Assert
 
-    let dest_program_reply = dest_node_listener
-        .reply_bytes_on(message_id)
+    let dest_program_reply = events::reply_bytes_on(message_id, dest_node_events)
         .await
-        .expect("Unable to get reply from destination program")
-        .1
-        .expect("Unable to read reply payload");
+        .unwrap()
+        .unwrap();
     assert_eq!(
         demo_reserve_gas::REPLY_FROM_RESERVATION_PAYLOAD.as_ref(),
-        dest_program_reply
+        &dest_program_reply
     );
 }
 
-async fn upload_program_to_node<E>(
-    code: &[u8],
-    salt: &[u8],
-    init_payload: Option<E>,
-) -> (GearApi, ActorId)
+async fn upload_program_to_node<E>(api: &SignedApi, code: &[u8], salt: &[u8], payload: E) -> ActorId
 where
     E: Encode,
 {
-    let api = GearApi::dev_from_path(GEAR_PATH)
-        .await
-        .expect("Unable to connect to node api");
-
     let gas_limit = api
         .block_gas_limit()
         .expect("Unable to obtain block gas limit");
 
-    let mut listener = api
-        .subscribe()
-        .await
-        .expect("Unable to subscribe to node events");
+    let events = api.subscribe_all_events().await.unwrap();
 
-    let (mid, pid, _) = api
-        .upload_program_bytes(
-            code,
-            salt,
-            init_payload.map_or(vec![], |p| p.encode()),
-            gas_limit,
-            0,
-        )
+    let (message_id, pid) = api
+        .upload_program(code, salt, payload, gas_limit, 0)
         .await
-        .expect("Unable to load a program");
+        .expect("Unable to load a program")
+        .value;
 
     // Asserting successful initialization.
     assert!(
-        listener
-            .message_processed(mid)
+        events::message_dispatch_status(message_id, events)
             .await
-            .expect("Unable to obtain confirmation on processed message")
-            .succeed()
+            .unwrap()
+            .is_success(),
     );
 
-    (api, pid)
+    pid
 }
