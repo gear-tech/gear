@@ -112,6 +112,7 @@ pub struct Service {
     rpc: Option<RpcServer>,
 
     fast_sync: bool,
+    #[allow(unused)]
     validator_address: Option<Address>,
 
     #[cfg(test)]
@@ -430,7 +431,7 @@ impl Service {
             mut prometheus,
             rpc,
             fast_sync: _,
-            validator_address,
+            validator_address: _,
             #[cfg(test)]
             sender,
         } = self;
@@ -584,17 +585,22 @@ impl Service {
                             transaction,
                             response_sender,
                         } => {
-                            if validator_address == Some(transaction.recipient) {
-                                consensus.receive_injected_transaction(transaction.tx)?;
-                            } else {
-                                let Some(network) = network.as_mut() else {
-                                    continue;
-                                };
-
-                                network.send_injected_transaction(transaction);
-                            }
-
+                            // TODO !!! kuzmindev: temporary solution.
+                            // Needs to be fixed after validators discovery will be ready
+                            consensus.receive_injected_transaction(transaction.tx)?;
                             let _res = response_sender.send(InjectedTransactionAcceptance::Accept);
+
+                            // if validator_address == Some(transaction.recipient) {
+                            //     consensus.receive_injected_transaction(transaction.tx)?;
+                            // } else {
+                            //     let Some(network) = network.as_mut() else {
+                            //         continue;
+                            //     };
+
+                            //     network.send_injected_transaction(transaction);
+                            // }
+
+                            // let _res = response_sender.send(InjectedTransactionAcceptance::Accept);
                         }
                     }
                 }
