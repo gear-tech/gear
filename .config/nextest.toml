@@ -10,6 +10,11 @@ chmod +x target/release/gear
 leak-timeout = { period = "5s", result = "fail" }
 slow-timeout = { period = "1m", terminate-after = 5 }
 
+[profile.default.junit]
+path = "junit.xml"
+store-success-output = false
+store-failure-output = true
+
 [profile.ci]
 fail-fast = false
 archive.include = [
@@ -18,6 +23,8 @@ archive.include = [
 
 [profile.ci.junit]
 path = "junit.xml"
+store-success-output = false
+store-failure-output = true
 
 # sdk
 [[profile.ci.overrides]]
