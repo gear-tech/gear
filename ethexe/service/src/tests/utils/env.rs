@@ -324,6 +324,8 @@ impl TestEnv {
             let runtime_config = NetworkRuntimeConfig {
                 latest_block_header: latest_block.header,
                 latest_validators,
+                validator_key: None,
+                general_signer: signer.clone(),
                 network_signer: signer.clone(),
                 external_data_provider: Box::new(RouterDataProvider(router_query.clone())),
                 db: Box::new(db.clone()),
@@ -1061,7 +1063,7 @@ impl Node {
         let handle = task::spawn(async move {
             service
                 .run()
-                .instrument(tracing::info_span!("node", name))
+                .instrument(tracing::error_span!("node", name))
                 .await
                 .unwrap_or_else(|err| panic!("Service {name:?} failed: {err}"));
         });
@@ -1158,6 +1160,8 @@ impl Node {
         let runtime_config = NetworkRuntimeConfig {
             latest_block_header: latest_block.header,
             latest_validators,
+            validator_key: self.validator_config.as_ref().map(|c| c.public_key),
+            general_signer: self.signer.clone(),
             network_signer: self.signer.clone(),
             external_data_provider: Box::new(RouterDataProvider(self.router_query.clone())),
             db: Box::new(self.db.clone()),
