@@ -30,6 +30,7 @@ pkgs.mkShell.override { stdenv = pkgs.llvmPackages.stdenv; } {
     pkgs.jq
     pkgs.typos
     pkgs.cargo-shear
+    pkgs.cargo-hakari
 
     # Build tools
     pkgs.protobuf
