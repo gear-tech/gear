@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use anyhow::{Context as _, Result};
-use futures::{FutureExt, Stream, ready, stream::FusedStream};
+use futures::{FutureExt, Stream, stream::FusedStream};
 use hyper::{
     Body, Request, Response, Server,
     http::StatusCode,
@@ -26,18 +26,15 @@ use hyper::{
 };
 use metrics_exporter_prometheus::{PrometheusBuilder, PrometheusHandle};
 use prometheus::{
-    self, Encoder, Opts, Registry, TextEncoder,
-    core::{
-        AtomicU64 as U64, AtomicU64, Collector, GenericCounterVec, GenericGauge as Gauge,
-        GenericGaugeVec,
-    },
+    self, Opts, Registry,
+    core::{AtomicU64, GenericCounterVec, GenericGauge as Gauge, GenericGaugeVec},
 };
 use std::{
     net::SocketAddr,
     pin::Pin,
     sync::LazyLock,
     task::{Context, Poll},
-    time::{Duration, Instant, SystemTime},
+    time::Instant,
 };
 use tokio::{
     net::TcpListener,
@@ -95,29 +92,18 @@ impl PrometheusConfig {
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
-pub enum PrometheusEvent {
-    CollectMetrics,
-}
-
 pub struct PrometheusService {
-    metrics: PrometheusMetrics,
-    updated: Instant,
+    _updated: Instant,
+    handle: PrometheusHandle,
 
     // to be used in stream impl.
     server: JoinHandle<()>,
-    interval: Pin<Box<Interval>>,
 }
 
 impl Stream for PrometheusService {
-    type Item = PrometheusEvent;
-
+    type Item = Result<()>;
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        let instant = ready!(self.interval.poll_tick(cx));
-
-        self.updated = instant.into();
-
-        Poll::Ready(Some(PrometheusEvent::CollectMetrics))
+        self.server.poll_unpin(cx).map_err(Into::into).map(Some)
     }
 }
 
@@ -129,146 +115,35 @@ impl FusedStream for PrometheusService {
 
 impl PrometheusService {
     pub fn new(config: PrometheusConfig) -> Result<Self> {
-        let recorder = PrometheusBuilder::new().build_recorder();
-        let handle = recorder.handle();
+        let handle = PrometheusBuilder::new()
+            .install_recorder()
+            .context("Failed to install prometheus recorder")?;
 
-        let metrics = PrometheusMetrics::setup(&config.registry, &config.name)
-            .context("Failed to setup Prometheus metrics")?;
-
-        let server = tokio::spawn(init_prometheus(config.addr, config.registry).map(drop));
-
-        let interval = Box::pin(time::interval(Duration::from_secs(6)));
+        let server = tokio::spawn(start_prometheus_server(config.addr, handle.clone()).map(drop));
 
         Ok(Self {
-            metrics,
-            updated: Instant::now(),
+            _updated: Instant::now(),
+            handle,
             server,
-            interval,
-        })
-    }
-
-    pub fn update_observer_metrics(&mut self, eth_best_height: u32, pending_codes: usize) {
-        self.metrics.eth_best_height.set(eth_best_height as u64);
-        self.metrics.pending_codes.set(pending_codes as u64);
-    }
-
-    pub fn update_compute_metrics(
-        &mut self,
-        blocks_queue_len: usize,
-        waiting_codes_count: usize,
-        process_codes_count: usize,
-    ) {
-        self.metrics
-            .compute_blocks_queue
-            .set(blocks_queue_len as u64);
-        self.metrics
-            .compute_waiting_codes
-            .set(waiting_codes_count as u64);
-        self.metrics
-            .compute_processing_codes
-            .set(process_codes_count as u64);
-    }
-}
-
-struct PrometheusMetrics {
-    eth_best_height: Gauge<U64>,
-    pending_codes: Gauge<U64>,
-    compute_blocks_queue: Gauge<U64>,
-    compute_waiting_codes: Gauge<U64>,
-    compute_processing_codes: Gauge<U64>,
-}
-
-impl PrometheusMetrics {
-    fn setup(registry: &Registry, name: &str) -> Result<Self> {
-        register(
-            Gauge::<U64>::with_opts(
-                Opts::new(
-                    "ethexe_build_info",
-                    "A metric with a constant '1' value labeled by name, version",
-                )
-                .const_label("name", name),
-            )?,
-            registry,
-        )?
-        .set(1);
-
-        registry.register(Box::new(UNBOUNDED_CHANNELS_COUNTER.clone()))?;
-        registry.register(Box::new(UNBOUNDED_CHANNELS_SIZE.clone()))?;
-
-        let start_time_since_epoch = SystemTime::now()
-            .duration_since(SystemTime::UNIX_EPOCH)
-            .unwrap_or_default();
-
-        register(
-            Gauge::<U64>::new(
-                "ethexe_start_time_since_epoch",
-                "Number of seconds between the UNIX epoch and the moment the process started",
-            )?,
-            registry,
-        )?
-        .set(start_time_since_epoch.as_secs());
-
-        Ok(Self {
-            eth_best_height: register(
-                Gauge::<U64>::new(
-                    "ethexe_eth_best_height",
-                    "Latest block height received by observer",
-                )?,
-                registry,
-            )?,
-
-            pending_codes: register(
-                Gauge::<U64>::new(
-                    "ethexe_pending_codes",
-                    "Pending codes for lookup by observer",
-                )?,
-                registry,
-            )?,
-
-            compute_blocks_queue: register(
-                Gauge::<U64>::new(
-                    "ethexe_compute_blocks_queue",
-                    "Number of blocks in the queue for processing",
-                )?,
-                registry,
-            )?,
-
-            compute_waiting_codes: register(
-                Gauge::<U64>::new(
-                    "ethexe_compute_waiting_codes",
-                    "Number of codes waiting for loading to advance block processing",
-                )?,
-                registry,
-            )?,
-
-            compute_processing_codes: register(
-                Gauge::<U64>::new(
-                    "ethexe_compute_processing_codes",
-                    "Number of processing codes",
-                )?,
-                registry,
-            )?,
         })
     }
 }
 
-pub fn register<T: Clone + Collector + 'static>(metric: T, registry: &Registry) -> Result<T> {
-    registry.register(Box::new(metric.clone()))?;
-    Ok(metric)
-}
-
-async fn init_prometheus(prometheus_addr: SocketAddr, registry: Registry) -> Result<()> {
+async fn start_prometheus_server(
+    prometheus_addr: SocketAddr,
+    handle: PrometheusHandle,
+) -> Result<()> {
     let listener = TcpListener::bind(&prometheus_addr).await?;
     let listener = AddrIncoming::from_listener(listener)?;
 
     let (signal, on_exit) = oneshot::channel::<()>();
 
     let service = make_service_fn(move |_| {
-        let registry = registry.clone();
+        let handle = handle.clone();
 
         async move {
             Ok::<_, hyper::Error>(service_fn(move |req: Request<Body>| {
-                request_metrics(req, registry.clone())
+                request_metrics(req, handle.clone())
             }))
         }
     });
@@ -289,17 +164,17 @@ async fn init_prometheus(prometheus_addr: SocketAddr, registry: Registry) -> Res
     result
 }
 
-async fn request_metrics(req: Request<Body>, registry: Registry) -> Result<Response<Body>> {
+async fn request_metrics(req: Request<Body>, handle: PrometheusHandle) -> Result<Response<Body>> {
     if req.uri().path() == "/metrics" {
-        let metric_families = registry.gather();
-        let mut buffer = vec![];
-        let encoder = TextEncoder::new();
-        encoder.encode(&metric_families, &mut buffer).unwrap();
+        let metrics = handle.render();
 
         Response::builder()
             .status(StatusCode::OK)
-            .header("Content-Type", encoder.format_type())
-            .body(Body::from(buffer))
+            .header(
+                hyper::header::CONTENT_TYPE,
+                hyper::header::HeaderValue::from_static("text/plain"),
+            )
+            .body(Body::from(metrics))
     } else {
         Response::builder()
             .status(StatusCode::NOT_FOUND)

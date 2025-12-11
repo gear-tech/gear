@@ -39,10 +39,9 @@ use jsonrpsee::{
 use std::{
     net::SocketAddr,
     pin::Pin,
-    sync::Arc,
     task::{Context, Poll},
 };
-use tokio::sync::{Mutex, RwLock, mpsc, oneshot};
+use tokio::sync::{mpsc, oneshot};
 use tower_http::cors::{AllowOrigin, CorsLayer};
 
 mod apis;
@@ -95,7 +94,8 @@ impl RpcServer {
             .build(self.config.listen_addr)
             .await?;
 
-        let server_apis = self.server_apis(rpc_sender);
+        let metrics = RpcApiMetrics::default();
+        let server_apis = self.server_apis(rpc_sender, &metrics);
         let injected_api = server_apis.injected.clone();
 
         let handle = server.start(server_apis.into_methods());
@@ -116,12 +116,16 @@ impl RpcServer {
         Ok(CorsLayer::new().allow_origin(AllowOrigin::list(list)))
     }
 
-    fn server_apis(&self, sender: mpsc::UnboundedSender<RpcEvent>) -> RpcServerApis {
+    fn server_apis(
+        &self,
+        sender: mpsc::UnboundedSender<RpcEvent>,
+        metrics: &RpcApiMetrics,
+    ) -> RpcServerApis {
         RpcServerApis {
             code: CodeApi::new(self.db.clone()),
             block: BlockApi::new(self.db.clone()),
             program: ProgramApi::new(self.db.clone(), self.config.runner_config.clone()),
-            injected: InjectedApi::new(sender),
+            injected: InjectedApi::new(sender, metrics.injected.clone()),
         }
     }
 }
@@ -132,7 +136,7 @@ pub struct RpcService {
     /// Injected API implementation.
     injected_api: InjectedApi,
     /// RPC-related metrics.
-    metrics: Arc<RwLock<RpcApiMetrics>>,
+    metrics: RpcApiMetrics,
 }
 
 impl RpcService {
@@ -140,13 +144,8 @@ impl RpcService {
         Self {
             receiver,
             injected_api,
-            metrics: Arc::new(RwLock::new(RpcApiMetrics::default())),
+            metrics: RpcApiMetrics::default(),
         }
-    }
-
-    /// Retrieves current RPC metrics.
-    fn get_metrics(&self) -> RpcApiMetrics {
-        self.metrics.blocking_read().clone()
     }
 
     pub fn provide_promise(&self, promise: SignedPromise) {

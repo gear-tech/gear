@@ -16,7 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{RpcEvent, errors};
+use crate::{
+    RpcEvent, errors,
+    metrics::{InjectedApiMetrics, RpcApiMetrics},
+};
 use dashmap::DashMap;
 use ethexe_common::{
     HashOf,
@@ -61,13 +64,18 @@ pub trait Injected {
 pub struct InjectedApi {
     rpc_sender: mpsc::UnboundedSender<RpcEvent>,
     promise_waiters: Arc<DashMap<HashOf<InjectedTransaction>, oneshot::Sender<SignedPromise>>>,
+    metrics: InjectedApiMetrics,
 }
 
 impl InjectedApi {
-    pub(crate) fn new(rpc_sender: mpsc::UnboundedSender<RpcEvent>) -> Self {
+    pub(crate) fn new(
+        rpc_sender: mpsc::UnboundedSender<RpcEvent>,
+        metrics: InjectedApiMetrics,
+    ) -> Self {
         Self {
             rpc_sender,
             promise_waiters: Arc::new(DashMap::new()),
+            metrics,
         }
     }
 }
@@ -91,29 +99,32 @@ impl InjectedServer for InjectedApi {
         &self,
         transaction: RpcOrNetworkInjectedTx,
     ) -> RpcResult<InjectedTransactionAcceptance> {
-        tracing::trace!("Called injected_sendTransaction with vars: {transaction:?}");
+        tracing::info!("Called injected_sendTransaction with vars: {transaction:?}");
 
-        let (response_sender, response_receiver) = oneshot::channel();
-        let event = RpcEvent::InjectedTransaction {
-            transaction,
-            response_sender,
-        };
+        self.metrics.transactions_sent.increment(1);
+        Ok(InjectedTransactionAcceptance::Accept)
 
-        if let Err(err) = self.rpc_sender.send(event) {
-            log::error!(
-                "Failed to send `RpcEvent::InjectedTransaction` event task: {err}. \
-                The receiving end in the main service might have been dropped."
-            );
-            return Err(errors::internal());
-        }
+        // let (response_sender, response_receiver) = oneshot::channel();
+        // let event = RpcEvent::InjectedTransaction {
+        //     transaction,
+        //     response_sender,
+        // };
 
-        response_receiver.await.map_err(|e| {
-            // No panic case, as a responsibility of the RPC API is fulfilled.
-            // The dropped sender signalizes that the main service has crashed
-            // or is malformed, so problems should be handled there.
-            log::error!("Response sender for the `RpcEvent::InjectedTransaction` was dropped: {e}");
-            errors::internal()
-        })
+        // if let Err(err) = self.rpc_sender.send(event) {
+        //     log::error!(
+        //         "Failed to send `RpcEvent::InjectedTransaction` event task: {err}. \
+        //         The receiving end in the main service might have been dropped."
+        //     );
+        //     return Err(errors::internal());
+        // }
+
+        // response_receiver.await.map_err(|e| {
+        //     // No panic case, as a responsibility of the RPC API is fulfilled.
+        //     // The dropped sender signalizes that the main service has crashed
+        //     // or is malformed, so problems should be handled there.
+        //     log::error!("Response sender for the `RpcEvent::InjectedTransaction` was dropped: {e}");
+        //     errors::internal()
+        // })
     }
 
     async fn send_transaction_and_watch(

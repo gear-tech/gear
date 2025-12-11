@@ -4997,6 +4997,8 @@ dependencies = [
  "gear-utils",
  "gprimitives",
  "log",
+ "metrics",
+ "metrics-derive",
  "ntest",
  "thiserror 2.0.12",
  "tokio",

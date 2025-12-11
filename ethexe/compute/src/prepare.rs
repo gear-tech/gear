@@ -56,10 +56,21 @@ enum State {
     },
 }
 
+#[derive(Clone, metrics_derive::Metrics)]
+#[metrics(scope = "ethexe_compute:prepare")]
+struct Metrics {
+    /// The number of codes currently waiting to be processed.
+    waiting_codes: metrics::Gauge,
+
+    /// The length of the blocks queue.
+    blocks_queue_len: metrics::Gauge,
+}
+
 pub struct PrepareSubService {
     db: Database,
     state: State,
     input: VecDeque<H256>,
+    metrics: Metrics,
 }
 
 impl PrepareSubService {
@@ -68,28 +79,21 @@ impl PrepareSubService {
             db,
             state: State::Start,
             input: VecDeque::new(),
+            metrics: Metrics::default(),
         }
     }
 
     pub fn receive_block_to_prepare(&mut self, block: H256) {
+        self.metrics.blocks_queue_len.increment(1);
+
         self.input.push_back(block);
     }
 
     pub fn receive_processed_code(&mut self, code_id: CodeId) {
         if let State::WaitingForCodes { codes, .. } = &mut self.state {
-            codes.remove(&code_id);
-        }
-    }
-
-    pub fn blocks_queue_len(&self) -> usize {
-        self.input.len()
-    }
-
-    pub fn waiting_codes_count(&self) -> usize {
-        if let State::WaitingForCodes { codes, .. } = &self.state {
-            codes.len()
-        } else {
-            0
+            if codes.remove(&code_id) {
+                self.metrics.waiting_codes.decrement(1);
+            }
         }
     }
 }
@@ -104,6 +108,7 @@ impl SubService for PrepareSubService {
             let Some(block_hash) = self.input.pop_back() else {
                 return Poll::Pending;
             };
+            self.metrics.blocks_queue_len.decrement(1);
 
             if !self.db.block_synced(block_hash) {
                 return Poll::Ready(Err(ComputeError::BlockNotSynced(block_hash)));
@@ -127,6 +132,9 @@ impl SubService for PrepareSubService {
                 &not_prepared_blocks_chain,
                 matches!(&self.state, State::Start),
             )?;
+
+            // TODO (fixme): expect `validated_codes.len()` will not exceed the u32::max
+            self.metrics.waiting_codes.set(validated_codes.len() as u32);
 
             self.state = State::WaitingForCodes {
                 codes: validated_codes,

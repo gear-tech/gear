@@ -29,13 +29,13 @@ use crate::{
     },
 };
 use alloy::{
-    primitives::U256,
+    primitives::{U256, address},
     providers::{Provider as _, WalletProvider, ext::AnvilApi},
 };
 use ethexe_common::{
     Announce, HashOf, ScheduledTask, ToDigest,
     db::*,
-    ecdsa::ContractSignature,
+    ecdsa::{ContractSignature, PrivateKey, SignedData},
     events::{BlockEvent, MirrorEvent, RouterEvent},
     gear::{BatchCommitment, CANONICAL_QUARANTINE, MessageType},
     injected::{InjectedTransaction, RpcOrNetworkInjectedTx},
@@ -58,6 +58,7 @@ use gear_core::{
 };
 use gear_core_errors::{ErrorReplyReason, SimpleExecutionError, SimpleUnavailableActorError};
 use gprimitives::{ActorId, H160, H256, MessageId};
+use jsonrpsee::ws_client::WsClientBuilder;
 use parity_scale_codec::Encode;
 use std::{
     collections::{BTreeMap, BTreeSet, HashSet},
@@ -3222,4 +3223,22 @@ async fn catch_up_test_case(commitment_delay_limit: u32) {
     } else {
         unreachable!();
     }
+}
+
+#[tokio::test]
+async fn send_tx() {
+    let client = WsClientBuilder::new()
+        .build("ws://localhost:9944")
+        .await
+        .unwrap();
+
+    let mock_tx = InjectedTransaction::mock(());
+    let tx = RpcOrNetworkInjectedTx {
+        tx: SignedData::create(PrivateKey::random(), mock_tx).unwrap(),
+        recipient: address!("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").into(),
+    };
+
+    let result = client.send_transaction(tx).await.unwrap();
+
+    assert!(matches!(result, InjectedTransactionAcceptance::Accept));
 }
