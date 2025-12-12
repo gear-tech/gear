@@ -17,11 +17,17 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::config::{Config, ConfigPublicKey};
+use alloy::{
+    node_bindings::{Anvil, AnvilInstance},
+    providers::{ProviderBuilder, RootProvider, ext::AnvilApi},
+};
 use anyhow::{Context, Result, bail};
 use async_trait::async_trait;
 use ethexe_blob_loader::{BlobLoader, BlobLoaderEvent, BlobLoaderService, ConsensusLayerConfig};
 use ethexe_common::{
-    Address, COMMITMENT_DELAY_LIMIT, ecdsa::PublicKey, gear::CodeState,
+    Address, COMMITMENT_DELAY_LIMIT,
+    ecdsa::{PrivateKey, PublicKey},
+    gear::CodeState,
     network::VerifiedValidatorMessage,
 };
 use ethexe_compute::{ComputeConfig, ComputeEvent, ComputeService};
@@ -29,12 +35,15 @@ use ethexe_consensus::{
     ConnectService, ConsensusEvent, ConsensusService, ValidatorConfig, ValidatorService,
 };
 use ethexe_db::{Database, RocksDatabase};
-use ethexe_ethereum::{Ethereum, router::RouterQuery};
+use ethexe_ethereum::{Ethereum, deploy::EthereumDeployer, router::RouterQuery};
 use ethexe_network::{
     NetworkEvent, NetworkRuntimeConfig, NetworkService,
     db_sync::{self, ExternalDataProvider},
 };
-use ethexe_observer::{ObserverEvent, ObserverService};
+use ethexe_observer::{
+    ObserverEvent, ObserverService,
+    utils::{BlockId, BlockLoader},
+};
 use ethexe_processor::{Processor, ProcessorConfig};
 use ethexe_prometheus::PrometheusService;
 use ethexe_rpc::{InjectedTransactionAcceptance, RpcEvent, RpcServer};
@@ -42,7 +51,7 @@ use ethexe_service_utils::{OptionFuture as _, OptionStreamNext as _};
 use ethexe_signer::Signer;
 use futures::{StreamExt, stream::FuturesUnordered};
 use gprimitives::{ActorId, CodeId, H256};
-use std::{collections::BTreeSet, num::NonZero, pin::Pin, time::Duration};
+use std::{collections::BTreeSet, num::NonZero, path::PathBuf, pin::Pin, time::Duration};
 
 pub mod config;
 
@@ -109,6 +118,67 @@ pub struct Service {
 }
 
 impl Service {
+    pub async fn configure_dev_environment(
+        key_path: PathBuf,
+        block_time: Duration,
+    ) -> Result<(AnvilInstance, PublicKey, PublicKey, Address)> {
+        let signer = Signer::fs(key_path);
+
+        let anvil = Anvil::new().port(8545_u16).spawn();
+
+        let mut it = anvil
+            .keys()
+            .iter()
+            .map(|key| PrivateKey::from(key.clone()))
+            .zip(anvil.addresses().iter().map(|addr| Address::from(*addr)));
+
+        let (deployer_private_key, deployer_address) = it.next().expect("infallible");
+        let (validator_private_key, validator_address) = it.next().expect("infallible");
+        let (sender_private_key, sender_address) = it.next().expect("infallible");
+
+        signer.storage_mut().add_key(deployer_private_key)?;
+        let validator_public_key = signer.storage_mut().add_key(validator_private_key)?;
+        let sender_public_key = signer.storage_mut().add_key(sender_private_key)?;
+
+        log::info!("🔐 Available Accounts:");
+
+        log::info!("     Deployer:  {deployer_address} {deployer_private_key}");
+        log::info!("     Validator: {validator_address} {validator_private_key}");
+        log::info!("     Sender:    {sender_address} {sender_private_key}");
+
+        let ethereum =
+            EthereumDeployer::new(&anvil.ws_endpoint(), signer.clone(), deployer_address)
+                .await
+                .unwrap()
+                .with_validators(vec![validator_address].try_into().unwrap())
+                .deploy()
+                .await?;
+
+        let wvara = ethereum.wrapped_vara();
+        let decimals = wvara.query().decimals().await?;
+        wvara
+            .transfer(
+                sender_address.into(),
+                500_000 * (10_u128.pow(decimals as _)),
+            )
+            .await?;
+
+        let provider: RootProvider = ProviderBuilder::default()
+            .connect(anvil.ws_endpoint().as_str())
+            .await?;
+
+        provider
+            .anvil_set_interval_mining(block_time.as_secs())
+            .await?;
+
+        Ok((
+            anvil,
+            validator_public_key,
+            sender_public_key,
+            ethereum.router().address(),
+        ))
+    }
+
     pub async fn new(config: &Config) -> Result<Self> {
         let rocks_db = RocksDatabase::open(
             config
@@ -139,6 +209,11 @@ impl Service {
             ObserverService::new(&config.ethereum, config.node.eth_max_sync_depth, db.clone())
                 .await
                 .context("failed to create observer service")?;
+        let latest_block = observer
+            .block_loader()
+            .load_simple(BlockId::Latest)
+            .await
+            .context("failed to get latest block")?;
 
         let router_query = RouterQuery::new(&config.ethereum.rpc, config.ethereum.router_address)
             .await
@@ -160,9 +235,9 @@ impl Service {
         }
 
         let validators = router_query
-            .validators()
+            .validators_at(latest_block.hash)
             .await
-            .with_context(|| "failed to query validators")?;
+            .context("failed to query validators")?;
         log::info!("👥 Current validators set: {validators:?}");
 
         let threshold = router_query
@@ -219,6 +294,8 @@ impl Service {
                         commitment_delay_limit: COMMITMENT_DELAY_LIMIT,
                         producer_delay: Duration::ZERO,
                         router_address: config.ethereum.router_address,
+                        validate_chain_deepness_limit: config.node.validate_chain_deepness_limit,
+                        chain_deepness_threshold: config.node.chain_deepness_threshold,
                     },
                 )?)
             } else {
@@ -231,11 +308,8 @@ impl Service {
         };
 
         let network = if let Some(net_config) = &config.network {
-            let runtime_config = NetworkRuntimeConfig {
-                genesis_block_hash: observer.genesis_block_hash(),
-            };
             // TODO: #4918 create Signer object correctly for test/prod environments
-            let signer = Signer::fs(
+            let network_signer = Signer::fs(
                 config
                     .node
                     .key_path
@@ -244,14 +318,24 @@ impl Service {
                     .join("net"),
             );
 
-            let network = NetworkService::new(
-                net_config.clone(),
-                runtime_config,
-                &signer,
-                Box::new(RouterDataProvider(router_query)),
-                Box::new(db.clone()),
-            )
-            .with_context(|| "failed to create network service")?;
+            let latest_block_data = observer
+                .block_loader()
+                .load_simple(BlockId::Latest)
+                .await
+                .context("failed to get latest block")?;
+
+            let runtime_config = NetworkRuntimeConfig {
+                latest_block_header: latest_block_data.header,
+                latest_validators: validators,
+                validator_key: validator_pub_key,
+                general_signer: signer.clone(),
+                network_signer,
+                external_data_provider: Box::new(RouterDataProvider(router_query)),
+                db: Box::new(db.clone()),
+            };
+
+            let network = NetworkService::new(net_config.clone(), runtime_config)
+                .with_context(|| "failed to create network service")?;
             Some(network)
         } else {
             None

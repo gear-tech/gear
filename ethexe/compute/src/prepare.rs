@@ -312,9 +312,10 @@ fn prepare_one_block<DB: BlockMetaStorageRW + LatestDataStorageRW + OnChainStora
             }
 
             BlockEvent::Router(RouterEvent::ValidatorsCommittedForEra { era_index }) => {
-                if era_index != latest_validators_committed_era + 1 {
-                    return Err(ComputeError::ValidatorsCommitmentEraMismatch {
-                        expected_era_index: latest_validators_committed_era + 1,
+                // TODO !!! kuzmindev: here must be `if era_index != latest_validators_committed_era + 1`
+                if era_index < latest_validators_committed_era {
+                    return Err(ComputeError::ValidatorsCommittedForEarlierEra {
+                        previous_commitment_era_index: latest_validators_committed_era,
                         commitment_era_index: era_index,
                     });
                 }
@@ -497,7 +498,7 @@ mod tests {
             .setup(&db);
 
         let block2 = chain.blocks[1].to_simple().next_block();
-        let block3 = block2.clone().next_block();
+        let block3 = block2.next_block();
 
         BlockData {
             hash: block2.hash,

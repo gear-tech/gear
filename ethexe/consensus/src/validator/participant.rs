@@ -97,8 +97,13 @@ impl StateHandler for Participant {
                         )
                         .map(|signature| BatchCommitmentValidationReply { digest, signature })?;
 
+                    let era_index = self
+                        .ctx
+                        .core
+                        .timelines
+                        .era_from_ts(self.block.header.timestamp);
                     let reply = ValidatorMessage {
-                        block: self.block.hash,
+                        era_index,
                         payload: reply,
                     };
 
@@ -176,7 +181,7 @@ impl Participant {
                 .ctx
                 .core
                 .clone()
-                .validate_batch_commitment_request(self.block.clone(), request)
+                .validate_batch_commitment_request(self.block, request)
                 .boxed(),
         };
 

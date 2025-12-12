@@ -58,7 +58,6 @@ jobs:
         run: >-
           cargo nextest archive --archive-file=workspace.tar.zst 
           -p gsdk
-          -p gclient
           -p "pallet-*" -p gear-lazy-pages -p gear-runtime-interface
           --zstd-level=6
           --target=x86_64-pc-windows-msvc
@@ -117,10 +116,4 @@ jobs:
         run: >-
           cargo nextest run --archive-file=workspace.tar.zst
           -E 'platform(target) and package(gsdk)'
-          --workspace-remap=${{ github.workspace }}
-
-      - name: "Test: Client tests"
-        run: >-
-          cargo nextest run --archive-file=workspace.tar.zst
-          -E 'platform(target) and package(gclient)'
           --workspace-remap=${{ github.workspace }}

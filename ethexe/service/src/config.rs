@@ -62,7 +62,10 @@ pub struct NodeConfig {
     pub chunk_processing_threads: usize,
     pub block_gas_limit: u64,
     pub canonical_quarantine: u8,
+    pub dev: bool,
     pub fast_sync: bool,
+    pub validate_chain_deepness_limit: u32,
+    pub chain_deepness_threshold: u32,
 }
 
 impl NodeConfig {

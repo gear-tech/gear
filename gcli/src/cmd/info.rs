@@ -17,17 +17,18 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! command `info`
-use crate::{App, result::Result};
+use crate::App;
+use anyhow::Result;
 use clap::Parser;
-use gclient::{
-    GearApi,
+use gear_core::message::UserStoredMessage;
+use gsdk::{
+    Api,
     ext::{
         sp_core::{Pair as PairT, crypto::Ss58Codec, sr25519::Pair},
         sp_runtime::AccountId32,
     },
     gear::runtime_types::gear_common::storage::primitives::Interval,
 };
-use gear_core::message::UserStoredMessage;
 use std::fmt;
 
 #[derive(Clone, Debug, Parser)]
@@ -68,21 +69,21 @@ impl Info {
 
         let acc = AccountId32::from_ss58check(&address)?;
         match self.action {
-            Action::Balance => Self::balance(api, acc).await,
-            Action::Mailbox { count } => Self::mailbox(api, acc, count).await,
+            Action::Balance => Self::balance(&api, acc).await,
+            Action::Mailbox { count } => Self::mailbox(&api, acc, count).await,
         }
     }
 
     /// Get balance of address
-    pub async fn balance(signer: GearApi, acc: AccountId32) -> Result<()> {
-        let info = signer.free_balance(acc).await?;
+    pub async fn balance(api: &Api, acc: AccountId32) -> Result<()> {
+        let info = api.free_balance(acc).await?;
         println!("Free balance: {info:#?}");
         Ok(())
     }
 
     /// Get mailbox of address
-    pub async fn mailbox(signer: GearApi, acc: AccountId32, count: usize) -> Result<()> {
-        let mails = signer.get_mailbox_account_messages(acc, count).await?;
+    pub async fn mailbox(api: &Api, acc: AccountId32, count: usize) -> Result<()> {
+        let mails = api.mailbox_messages(acc, count).await?;
         for t in mails.into_iter() {
             println!("{:#?}", Mail::from(t));
         }

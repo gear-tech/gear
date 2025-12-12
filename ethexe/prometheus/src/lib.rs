@@ -27,7 +27,7 @@ use hyper::{
 use metrics_exporter_prometheus::{PrometheusBuilder, PrometheusHandle};
 use prometheus::{
     self, Opts, Registry,
-    core::{AtomicU64, GenericCounterVec, GenericGauge as Gauge, GenericGaugeVec},
+    core::{AtomicU64, GenericCounterVec, GenericGaugeVec},
 };
 use std::{
     net::SocketAddr,
@@ -36,12 +36,7 @@ use std::{
     task::{Context, Poll},
     time::Instant,
 };
-use tokio::{
-    net::TcpListener,
-    sync::oneshot,
-    task::JoinHandle,
-    time::{self, Interval},
-};
+use tokio::{net::TcpListener, sync::oneshot, task::JoinHandle};
 
 /// Global metric for the number of unbounded channels.
 pub static UNBOUNDED_CHANNELS_COUNTER: LazyLock<GenericCounterVec<AtomicU64>> =
@@ -94,7 +89,7 @@ impl PrometheusConfig {
 
 pub struct PrometheusService {
     _updated: Instant,
-    handle: PrometheusHandle,
+    _handle: PrometheusHandle,
 
     // to be used in stream impl.
     server: JoinHandle<()>,
@@ -123,7 +118,7 @@ impl PrometheusService {
 
         Ok(Self {
             _updated: Instant::now(),
-            handle,
+            _handle: handle,
             server,
         })
     }

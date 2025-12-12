@@ -2,7 +2,7 @@ use crate::{
     TransitionController,
     state::{
         Dispatch, DispatchStash, Expiring, MAILBOX_VALIDITY, MailboxMessage, ModifiableStorage,
-        PayloadLookup, ProgramState, QueriableStorage, Storage, UserMailbox, Waitlist,
+        PayloadLookup, ProgramState, QueryableStorage, Storage, UserMailbox, Waitlist,
     },
 };
 use alloc::collections::{BTreeMap, BTreeSet};

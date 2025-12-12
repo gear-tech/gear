@@ -17,10 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Common utils for integration tests
-pub use self::{args::Args, node::NodeExec, result::Result};
-use anyhow::Context;
+pub use self::{args::Args, node::NodeExec};
+
+use anyhow::{Context, Result};
 use gear_node_wrapper::{Node, NodeInstance};
-use gsdk::ext::{sp_core::crypto::Ss58Codec, sp_runtime::AccountId32};
 use std::{
     io::Write,
     process::{Command, Output, Stdio},
@@ -30,10 +30,6 @@ use tracing_subscriber::EnvFilter;
 mod args;
 pub mod env;
 pub mod node;
-mod result;
-
-pub const ALICE_SS58_ADDRESS: &str = "kGkLEU3e3XXkJp2WK4eNpVmSab5xUNL9QtmLPh8QfCL2EgotW";
-pub const TREASURY_SS58_ADDRESS: &str = "kGi1Ui7VXBFmPmaoMD5xgWd2VHNixZ5BbLNhHFYD39T85rUi3";
 
 impl NodeExec for NodeInstance {
     /// Run binary `gcli`
@@ -68,18 +64,15 @@ pub fn gcli(args: impl Into<Args>) -> Result<Output> {
             .write_all(&args.stdin)
             .context("failed to write stdin")?;
     }
-    cmd.wait_with_output()
-        .context("failed to run gcli")
-        .map_err(Into::into)
+    cmd.wait_with_output().context("failed to run gcli")
 }
 
 /// Run the dev node
 pub fn dev() -> Result<NodeInstance> {
     login_as_alice()?;
-    Node::from_path(env::node_bin())?
-        .spawn()
+    Node::from_path(env::node_bin())
+        .and_then(|mut node| node.spawn())
         .context("failed to spawn node")
-        .map_err(Into::into)
 }
 
 /// Init env logger
@@ -98,17 +91,18 @@ pub fn login_as_alice() -> Result<()> {
     Ok(())
 }
 
-/// AccountId32 of `addr`
-pub fn alice_account_id() -> AccountId32 {
-    AccountId32::from_ss58check(ALICE_SS58_ADDRESS).expect("Invalid address")
-}
-
 /// Create program messenger
 pub async fn create_messenger() -> Result<NodeInstance> {
     let node = dev()?;
 
     let args = Args::new("upload").program_stdin(demo_messenger::WASM_BINARY);
-    let _ = node.run(args)?;
+    let output = node.run(args)?;
+
+    assert!(
+        output.status.success(),
+        "failed with stderr:\n\n{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 
     Ok(node)
 }

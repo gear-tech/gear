@@ -6,7 +6,7 @@ In an unlikely event of an error occurring in the `gear node` while processing a
 
 Substrate's built-in `try-runtime` machinery largely covers this. The downside of it is that requires one to provide a custom-built Runtime with the `try-runtime` feature enabled so that it had a custom `TryRuntime` runtime api. Also, it lacks Gear-specific runtime features. However, overall the `try-runtime` is a good tool whose functionality goes way beyond the scope of the task in question, especially now that it has been recently moved in a standalone repository [Parity Tech Try Runtime CLI](https://github.com/paritytech/try-runtime-cli) (as opposed to a node subcommand it used to be before).
 
-This crate implements a simimlar CLI tool allowing to replay blocks on top of both live state and a pre-downloaded snapshot. This tool takes into account the nuances of Gear block production (specifically, the `gear::run` pseudo-inherent that is placed in the end of each block).
+This crate implements a similar CLI tool allowing to replay blocks on top of both live state and a pre-downloaded snapshot. This tool takes into account the nuances of Gear block production (specifically, the `gear::run` pseudo-inherent that is placed in the end of each block).
 
 Advantages with respect to the Substrate' `try-runtime` are:
 
@@ -47,7 +47,7 @@ $ gear-replay-cli -h
 
 Currently supported cases include:
 
-- Preapring a snapshot file (which is extremely useful and allows to download large state once and replaying blocks multiple times)
+- Preparing a snapshot file (which is extremely useful and allows to download large state once and replaying blocks multiple times)
 - Replaying a block on a live chain
 - Replaying a block on a snapshot
 

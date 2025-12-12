@@ -24,7 +24,7 @@ use ethexe_common::{
 use ethexe_db::Database;
 use ethexe_processor::{Processor, ProcessorConfig, RunnerConfig};
 use ethexe_runtime_common::state::{
-    DispatchStash, Mailbox, MemoryPages, MessageQueue, Program, ProgramState, QueriableStorage,
+    DispatchStash, Mailbox, MemoryPages, MessageQueue, Program, ProgramState, QueryableStorage,
     Storage, Waitlist,
 };
 use gear_core::rpc::ReplyInfo;
