@@ -75,10 +75,11 @@ use frame_benchmarking::{benchmarks, whitelisted_caller};
 use frame_support::traits::{Currency, Get, Hooks};
 use frame_system::{Pallet as SystemPallet, RawOrigin};
 use gear_core::{
+    buffer::Payload,
     code::{Code, CodeAndId},
     ids::{ActorId, CodeId, MessageId, prelude::*},
     memory::Memory,
-    message::DispatchKind,
+    message::{DispatchKind, Salt},
     pages::{WasmPage, WasmPagesAmount},
     program::ActiveProgram,
     tasks::{ScheduledTask, TaskHandler},
@@ -107,9 +108,9 @@ use sp_runtime::{
 };
 use sp_std::{num::NonZero, prelude::*};
 
-const MAX_PAYLOAD_LEN: u32 = 32 * 64 * 1024;
+const MAX_PAYLOAD_LEN: u32 = Payload::MAX_LEN as u32;
 const MAX_PAYLOAD_LEN_KB: u32 = MAX_PAYLOAD_LEN / 1024;
-const MAX_SALT_SIZE_BYTES: u32 = 4 * 1024 * 1024;
+const MAX_SALT_SIZE_BYTES: u32 = Salt::MAX_LEN as u32;
 const MAX_NUMBER_OF_DATA_SEGMENTS: u32 = 1024;
 const MAX_TABLE_ENTRIES: u32 = 10_000_000;
 
