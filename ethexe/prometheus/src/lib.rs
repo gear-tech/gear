@@ -34,7 +34,6 @@ use std::{
     pin::Pin,
     sync::LazyLock,
     task::{Context, Poll},
-    time::Instant,
 };
 use tokio::{net::TcpListener, sync::oneshot, task::JoinHandle};
 
@@ -88,10 +87,6 @@ impl PrometheusConfig {
 }
 
 pub struct PrometheusService {
-    _updated: Instant,
-    _handle: PrometheusHandle,
-
-    // to be used in stream impl.
     server: JoinHandle<()>,
 }
 
@@ -116,11 +111,7 @@ impl PrometheusService {
 
         let server = tokio::spawn(start_prometheus_server(config.addr, handle.clone()).map(drop));
 
-        Ok(Self {
-            _updated: Instant::now(),
-            _handle: handle,
-            server,
-        })
+        Ok(Self { server })
     }
 }
 

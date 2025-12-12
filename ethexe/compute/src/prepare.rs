@@ -56,6 +56,7 @@ enum State {
     },
 }
 
+/// Metrics for the [`PrepareSubService`].
 #[derive(Clone, metrics_derive::Metrics)]
 #[metrics(scope = "ethexe_compute:prepare")]
 struct Metrics {

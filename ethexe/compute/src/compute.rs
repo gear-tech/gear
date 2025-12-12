@@ -24,6 +24,7 @@ use ethexe_common::{
         LatestDataStorageRO, LatestDataStorageRW, OnChainStorageRO,
     },
     events::BlockEvent,
+    futures::{FutureExt, TimedFutureExt},
 };
 use ethexe_db::Database;
 use ethexe_runtime_common::FinalizedBlockTransitions;
@@ -38,6 +39,14 @@ use std::{
 pub struct ComputeConfig {
     /// The delay in **blocks** in which events from Ethereum will be apply.
     canonical_quarantine: u8,
+}
+
+/// Metrics for the [`ComputeSubService`].
+#[derive(Clone, metrics_derive::Metrics)]
+#[metrics(scope = "ethexe_compute:compute")]
+struct Metrics {
+    /// The latency of announce processing in seconds represented as f64.
+    announce_processing_latency: metrics::Histogram,
 }
 
 impl ComputeConfig {
@@ -121,7 +130,9 @@ impl<P: ProcessorExt> ComputeSubService<P> {
         }
 
         for (announce_hash, announce) in announces_chain {
-            Self::compute_one(&db, &mut processor, announce_hash, announce, config).await?;
+            let f = Self::compute_one(&db, &mut processor, announce_hash, announce, config);
+            let timed = f.boxed().timed();
+            let res = timed.await;
         }
 
         Ok(announce_hash)
