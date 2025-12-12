@@ -112,7 +112,6 @@ pub struct Service {
     rpc: Option<RpcServer>,
 
     fast_sync: bool,
-    #[allow(unused)]
     validator_address: Option<Address>,
 
     #[cfg(test)]
