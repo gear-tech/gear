@@ -497,6 +497,7 @@ benchmarks! {
     // `s`: Size of the salt in bytes.
     create_program {
         let s in 0 .. MAX_SALT_SIZE_BYTES;
+        let p in 0 .. MAX_PAYLOAD_LEN;
 
         let caller = whitelisted_caller();
         let origin = RawOrigin::Signed(caller);
@@ -505,13 +506,14 @@ benchmarks! {
         Gear::<T>::upload_code(origin.into(), code).expect("submit code failed");
 
         let salt = vec![42u8; s as usize];
+        let init_payload = vec![42u8; p as usize];
         let value = CurrencyOf::<T>::minimum_balance();
         let caller = whitelisted_caller();
         CurrencyOf::<T>::make_free_balance_be(&caller, caller_funding::<T>());
         let origin = RawOrigin::Signed(caller);
 
         init_block::<T>(None);
-    }: _(origin, code_id, salt, vec![], 100_000_000_u64, value, false)
+    }: _(origin, code_id, salt, init_payload, 100_000_000_u64, value, false)
     verify {
         assert!(<T as pallet::Config>::CodeStorage::original_code_exists(code_id));
         assert!(<T as pallet::Config>::CodeStorage::instrumented_code_exists(code_id));
@@ -532,7 +534,9 @@ benchmarks! {
     upload_program {
         let c in 0 .. Perbill::from_percent(49).mul_ceil(T::Schedule::get().limits.code_len) / 1024;
         let s in 0 .. MAX_SALT_SIZE_BYTES;
+        let p in 0 .. MAX_PAYLOAD_LEN;
         let salt = vec![42u8; s as usize];
+        let init_payload = vec![42u8; p as usize];
         let value = CurrencyOf::<T>::minimum_balance();
         let caller = whitelisted_caller();
         CurrencyOf::<T>::make_free_balance_be(&caller, caller_funding::<T>());
@@ -540,7 +544,7 @@ benchmarks! {
         let origin = RawOrigin::Signed(caller);
 
         init_block::<T>(None);
-    }: _(origin, code, salt, vec![], 100_000_000_u64, value, false)
+    }: _(origin, code, salt, init_payload, 100_000_000_u64, value, false)
     verify {
         assert!(matches!(QueueOf::<T>::dequeue(), Ok(Some(_))));
     }
