@@ -1354,7 +1354,7 @@ pub mod pallet {
         /// has been removed.
         #[pallet::call_index(1)]
         #[pallet::weight(
-            <T as Config>::WeightInfo::upload_program((code.len() as u32) / 1024, salt.len() as u32)
+            <T as Config>::WeightInfo::upload_program((code.len() as u32) / 1024, salt.len() as u32, init_payload.len() as u32)
         )]
         pub fn upload_program(
             origin: OriginFor<T>,
@@ -1418,7 +1418,7 @@ pub mod pallet {
         ///
         /// For the details of this extrinsic, see `upload_code`.
         #[pallet::call_index(2)]
-        #[pallet::weight(<T as Config>::WeightInfo::create_program(salt.len() as u32))]
+        #[pallet::weight(<T as Config>::WeightInfo::create_program(salt.len() as u32, init_payload.len() as u32))]
         pub fn create_program(
             origin: OriginFor<T>,
             code_id: CodeId,
