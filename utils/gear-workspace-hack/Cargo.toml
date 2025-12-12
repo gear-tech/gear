@@ -425,7 +425,7 @@ sp-wasm-interface = { git = "https://github.com/gear-tech/polkadot-sdk.git", bra
 sp-wasm-interface-common = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std"] }
 sp-weights = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
 spki = { version = "0.7", default-features = false, features = ["std"] }
-ss58-registry = { version = "1" }
+ss58-registry = { version = "1", default-features = false, features = ["std"] }
 stable_deref_trait = { version = "1", default-features = false, features = ["std"] }
 strum-2f80eeee3b1b6c7e = { package = "strum", version = "0.26", features = ["derive"] }
 strum-adf3d7031871b0af = { package = "strum", version = "0.24", features = ["derive"] }
@@ -694,7 +694,7 @@ sp-wasm-interface = { git = "https://github.com/gear-tech/polkadot-sdk.git", bra
 sp-wasm-interface-common = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std"] }
 sp-weights = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
 spki = { version = "0.7", default-features = false, features = ["std"] }
-ss58-registry = { version = "1" }
+ss58-registry = { version = "1", default-features = false, features = ["std"] }
 stable_deref_trait = { version = "1", default-features = false, features = ["std"] }
 strum-2f80eeee3b1b6c7e = { package = "strum", version = "0.26", features = ["derive"] }
 strum-adf3d7031871b0af = { package = "strum", version = "0.24", features = ["derive"] }
