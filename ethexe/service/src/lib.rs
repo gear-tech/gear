@@ -431,7 +431,7 @@ impl Service {
             mut prometheus,
             rpc,
             fast_sync: _,
-            validator_address: _,
+            validator_address,
             #[cfg(test)]
             sender,
         } = self;
@@ -585,22 +585,20 @@ impl Service {
                             transaction,
                             response_sender,
                         } => {
-                            // TODO !!! kuzmindev: temporary solution.
-                            // Needs to be fixed after validators discovery will be ready
-                            consensus.receive_injected_transaction(transaction.tx)?;
+                            // Note: zero address means that no matter what validator will insert this tx.
+                            if transaction.recipient == Address::default()
+                                || validator_address == Some(transaction.recipient)
+                            {
+                                consensus.receive_injected_transaction(transaction.tx)?;
+                            } else {
+                                let Some(network) = network.as_mut() else {
+                                    continue;
+                                };
+
+                                network.send_injected_transaction(transaction);
+                            }
+
                             let _res = response_sender.send(InjectedTransactionAcceptance::Accept);
-
-                            // if validator_address == Some(transaction.recipient) {
-                            //     consensus.receive_injected_transaction(transaction.tx)?;
-                            // } else {
-                            //     let Some(network) = network.as_mut() else {
-                            //         continue;
-                            //     };
-
-                            //     network.send_injected_transaction(transaction);
-                            // }
-
-                            // let _res = response_sender.send(InjectedTransactionAcceptance::Accept);
                         }
                     }
                 }
