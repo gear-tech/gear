@@ -138,7 +138,7 @@ impl Stream for ObserverService {
             self.metrics
                 .blocks_latency
                 .record(current_timestamp().saturating_sub(header.timestamp) as f64);
-            self.metrics.last_block_number.set(header.number as u32);
+            self.metrics.last_block_number.set(header.number as f64);
 
             let data = SimpleBlockData {
                 hash: H256(header.hash.0),

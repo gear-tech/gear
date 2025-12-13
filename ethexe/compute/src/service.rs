@@ -27,7 +27,6 @@ use ethexe_db::Database;
 use ethexe_processor::Processor;
 use futures::{Stream, stream::FusedStream};
 use gprimitives::H256;
-use metrics::Gauge;
 use std::{
     pin::Pin,
     task::{Context, Poll},

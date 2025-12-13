@@ -99,32 +99,29 @@ impl InjectedServer for InjectedApi {
         &self,
         transaction: RpcOrNetworkInjectedTx,
     ) -> RpcResult<InjectedTransactionAcceptance> {
-        tracing::info!("Called injected_sendTransaction with vars: {transaction:?}");
+        tracing::trace!("Called injected_sendTransaction with vars: {transaction:?}");
 
-        self.metrics.transactions_sent.increment(1);
-        Ok(InjectedTransactionAcceptance::Accept)
+        let (response_sender, response_receiver) = oneshot::channel();
+        let event = RpcEvent::InjectedTransaction {
+            transaction,
+            response_sender,
+        };
 
-        // let (response_sender, response_receiver) = oneshot::channel();
-        // let event = RpcEvent::InjectedTransaction {
-        //     transaction,
-        //     response_sender,
-        // };
+        if let Err(err) = self.rpc_sender.send(event) {
+            log::error!(
+                "Failed to send `RpcEvent::InjectedTransaction` event task: {err}. \
+                The receiving end in the main service might have been dropped."
+            );
+            return Err(errors::internal());
+        }
 
-        // if let Err(err) = self.rpc_sender.send(event) {
-        //     log::error!(
-        //         "Failed to send `RpcEvent::InjectedTransaction` event task: {err}. \
-        //         The receiving end in the main service might have been dropped."
-        //     );
-        //     return Err(errors::internal());
-        // }
-
-        // response_receiver.await.map_err(|e| {
-        //     // No panic case, as a responsibility of the RPC API is fulfilled.
-        //     // The dropped sender signalizes that the main service has crashed
-        //     // or is malformed, so problems should be handled there.
-        //     log::error!("Response sender for the `RpcEvent::InjectedTransaction` was dropped: {e}");
-        //     errors::internal()
-        // })
+        response_receiver.await.map_err(|e| {
+            // No panic case, as a responsibility of the RPC API is fulfilled.
+            // The dropped sender signalizes that the main service has crashed
+            // or is malformed, so problems should be handled there.
+            log::error!("Response sender for the `RpcEvent::InjectedTransaction` was dropped: {e}");
+            errors::internal()
+        })
     }
 
     async fn send_transaction_and_watch(

@@ -225,6 +225,9 @@ metrics = "0.24.0"
 metrics-derive = "0.1"
 metrics-exporter-prometheus = { version = "0.16.0", default-features = false }
 
+# pinning
+pin-project = "1.1"
+
 # Published deps
 #
 # https://github.com/gear-tech/gear-dlmalloc/tree/0.2.0

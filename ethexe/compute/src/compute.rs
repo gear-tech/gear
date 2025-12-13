@@ -24,7 +24,7 @@ use ethexe_common::{
         LatestDataStorageRO, LatestDataStorageRW, OnChainStorageRO,
     },
     events::BlockEvent,
-    futures::{FutureExt, TimedFutureExt},
+    futures::{FutureExt, TimedFuture, TimedFutureExt},
 };
 use ethexe_db::Database;
 use ethexe_runtime_common::FinalizedBlockTransitions;
@@ -70,13 +70,17 @@ impl ComputeConfig {
     }
 }
 
+/// Type alias for computation future with timing.
+type ComputationFuture = TimedFuture<BoxFuture<'static, Result<HashOf<Announce>>>>;
+
 pub struct ComputeSubService<P: ProcessorExt> {
     db: Database,
     processor: P,
     config: ComputeConfig,
+    metrics: Metrics,
 
     input: VecDeque<Announce>,
-    computation: Option<BoxFuture<'static, Result<HashOf<Announce>>>>,
+    computation: Option<ComputationFuture>,
 }
 
 impl<P: ProcessorExt> ComputeSubService<P> {
@@ -85,6 +89,7 @@ impl<P: ProcessorExt> ComputeSubService<P> {
             db,
             processor,
             config,
+            metrics: Metrics::default(),
             input: VecDeque::new(),
             computation: None,
         }
@@ -130,9 +135,7 @@ impl<P: ProcessorExt> ComputeSubService<P> {
         }
 
         for (announce_hash, announce) in announces_chain {
-            let f = Self::compute_one(&db, &mut processor, announce_hash, announce, config);
-            let timed = f.boxed().timed();
-            let res = timed.await;
+            Self::compute_one(&db, &mut processor, announce_hash, announce, config).await?;
         }
 
         Ok(announce_hash)
@@ -229,17 +232,22 @@ impl<P: ProcessorExt> SubService for ComputeSubService<P> {
         if self.computation.is_none()
             && let Some(announce) = self.input.pop_front()
         {
-            self.computation = Some(Box::pin(Self::compute(
-                self.db.clone(),
-                self.config,
-                self.processor.clone(),
-                announce,
-            )));
+            self.computation = Some(
+                Self::compute(
+                    self.db.clone(),
+                    self.config,
+                    self.processor.clone(),
+                    announce,
+                )
+                .boxed()
+                .timed(),
+            );
         }
 
         if let Some(computation) = &mut self.computation
-            && let Poll::Ready(res) = computation.as_mut().poll(cx)
+            && let Poll::Ready((delay, res)) = computation.poll_unpin(cx)
         {
+            self.metrics.announce_processing_latency.record(delay);
             self.computation = None;
             return Poll::Ready(res);
         }

@@ -62,7 +62,6 @@ enum State {
 struct Metrics {
     /// The number of codes currently waiting to be processed.
     waiting_codes: metrics::Gauge,
-
     /// The length of the blocks queue.
     blocks_queue_len: metrics::Gauge,
 }

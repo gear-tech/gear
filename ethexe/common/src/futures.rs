@@ -18,9 +18,8 @@
 
 //! Future utilities for ethexe.
 
-use std::task::{Context, Poll};
-
 pub use futures::*;
+use std::task::{Context, Poll};
 
 /// A future that measures the time taken to complete.
 /// Designed to use like this:
@@ -31,8 +30,10 @@ pub use futures::*;
 /// let timed_future = future.boxed().timed();
 /// let (delay, result) = timed_future.await;
 /// ```
+#[pin_project::pin_project]
 pub struct TimedFuture<F> {
     /// The inner future being measured.
+    #[pin]
     inner: F,
     /// The start time of the future.
     start: std::time::Instant,
@@ -55,15 +56,26 @@ impl<F: Future> TimedFutureExt for F {}
 /// Implementation [`Future`] trait for [`TimedFuture`].
 impl<F> Future for TimedFuture<F>
 where
-    F: Future + Unpin + Sized,
+    F: Future,
 {
     type Output = (f64, F::Output);
 
     fn poll(mut self: std::pin::Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let result = futures::ready!(self.inner.poll_unpin(cx));
+        let result = futures::ready!(self.as_mut().project().inner.poll_unpin(cx));
         let delay = std::time::Instant::now()
             .duration_since(self.start)
             .as_secs_f64();
         Poll::Ready((delay, result))
+    }
+}
+
+/// Helper trait.
+pub trait TimedFlattenResult<T, E> {
+    fn flatten(self) -> Result<(f64, T), E>;
+}
+
+impl<T, E> TimedFlattenResult<T, E> for (f64, Result<T, E>) {
+    fn flatten(self) -> Result<(f64, T), E> {
+        self.1.map(|res| (self.0, res))
     }
 }
