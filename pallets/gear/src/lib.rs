@@ -1199,6 +1199,7 @@ pub mod pallet {
             who: T::AccountId,
             packet: InitPacket,
             code_id: CodeId,
+            keep_alive: bool,
         ) -> Result<(), DispatchError> {
             let origin = who.clone().into_origin();
 
@@ -1220,7 +1221,11 @@ pub mod pallet {
                 &who,
                 &program_account,
                 ed,
-                ExistenceRequirement::AllowDeath,
+                if keep_alive {
+                    ExistenceRequirement::KeepAlive
+                } else {
+                    ExistenceRequirement::AllowDeath
+                },
             )?;
 
             // Set lock to avoid accidental account removal by the runtime.
@@ -1396,7 +1401,7 @@ pub mod pallet {
                 });
             }
 
-            Self::do_create_program(who, packet, code_id)?;
+            Self::do_create_program(who, packet, code_id, keep_alive)?;
 
             Ok(().into())
         }
@@ -1450,7 +1455,7 @@ pub mod pallet {
                 keep_alive,
             )?;
 
-            Self::do_create_program(who, packet, code_id)?;
+            Self::do_create_program(who, packet, code_id, keep_alive)?;
             Ok(().into())
         }
 
