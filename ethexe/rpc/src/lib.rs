@@ -20,6 +20,7 @@ pub use crate::apis::InjectedTransactionAcceptance;
 
 #[cfg(feature = "test-utils")]
 pub use crate::apis::InjectedClient;
+use crate::metrics::RpcApiMetrics;
 
 use anyhow::Result;
 use apis::{
@@ -45,6 +46,7 @@ use tower_http::cors::{AllowOrigin, CorsLayer};
 
 mod apis;
 mod errors;
+mod metrics;
 mod utils;
 
 #[derive(Debug)]
@@ -92,7 +94,8 @@ impl RpcServer {
             .build(self.config.listen_addr)
             .await?;
 
-        let server_apis = self.server_apis(rpc_sender);
+        let metrics = RpcApiMetrics::default();
+        let server_apis = self.server_apis(rpc_sender, &metrics);
         let injected_api = server_apis.injected.clone();
 
         let handle = server.start(server_apis.into_methods());
@@ -113,19 +116,27 @@ impl RpcServer {
         Ok(CorsLayer::new().allow_origin(AllowOrigin::list(list)))
     }
 
-    fn server_apis(&self, sender: mpsc::UnboundedSender<RpcEvent>) -> RpcServerApis {
+    fn server_apis(
+        &self,
+        sender: mpsc::UnboundedSender<RpcEvent>,
+        metrics: &RpcApiMetrics,
+    ) -> RpcServerApis {
         RpcServerApis {
             code: CodeApi::new(self.db.clone()),
             block: BlockApi::new(self.db.clone()),
             program: ProgramApi::new(self.db.clone(), self.config.runner_config.clone()),
-            injected: InjectedApi::new(sender),
+            injected: InjectedApi::new(sender, metrics.injected.clone()),
         }
     }
 }
 
 pub struct RpcService {
+    /// Receiver for incoming RPC events to forward to the main service.
     receiver: mpsc::UnboundedReceiver<RpcEvent>,
+    /// Injected API implementation.
     injected_api: InjectedApi,
+    /// RPC-related metrics.
+    metrics: RpcApiMetrics,
 }
 
 impl RpcService {
@@ -133,6 +144,7 @@ impl RpcService {
         Self {
             receiver,
             injected_api,
+            metrics: RpcApiMetrics::default(),
         }
     }
 

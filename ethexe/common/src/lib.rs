@@ -33,6 +33,9 @@ pub mod network;
 mod primitives;
 mod utils;
 
+#[cfg(feature = "std")]
+pub mod futures;
+
 #[cfg(feature = "mock")]
 pub mod mock;
 

@@ -32,13 +32,6 @@ use std::{
     task::{Context, Poll},
 };
 
-#[derive(Debug, Clone)]
-pub struct ComputeMetrics {
-    pub blocks_queue_len: usize,
-    pub process_codes_count: usize,
-    pub waiting_codes_count: usize,
-}
-
 pub struct ComputeService<P: ProcessorExt = Processor> {
     codes_sub_service: CodesSubService<P>,
     prepare_sub_service: PrepareSubService,
@@ -66,15 +59,6 @@ impl<P: ProcessorExt> ComputeService<P> {
     pub fn compute_announce(&mut self, announce: Announce) {
         self.compute_sub_service
             .receive_announce_to_compute(announce);
-    }
-
-    /// Get all metrics from the compute service
-    pub fn get_metrics(&self) -> ComputeMetrics {
-        ComputeMetrics {
-            blocks_queue_len: self.prepare_sub_service.blocks_queue_len(),
-            process_codes_count: self.codes_sub_service.process_codes_count(),
-            waiting_codes_count: self.prepare_sub_service.waiting_codes_count(),
-        }
     }
 }
 

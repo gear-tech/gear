@@ -20,12 +20,22 @@ use crate::{ComputeError, ProcessorExt, Result, service::SubService};
 use ethexe_common::{CodeAndIdUnchecked, db::CodesStorageRO};
 use ethexe_db::Database;
 use gprimitives::CodeId;
+use metrics::Gauge;
 use std::task::{Context, Poll};
 use tokio::task::JoinSet;
+
+/// Metrics for the [`CodesSubService`].
+#[derive(Clone, metrics_derive::Metrics)]
+#[metrics(scope = "ethexe_compute:codes")]
+struct Metrics {
+    /// The number of currently processing codes.
+    processing_codes: Gauge,
+}
 
 pub struct CodesSubService<P: ProcessorExt> {
     db: Database,
     processor: P,
+    metrics: Metrics,
 
     processions: JoinSet<Result<CodeId>>,
 }
@@ -35,11 +45,14 @@ impl<P: ProcessorExt> CodesSubService<P> {
         Self {
             db,
             processor,
+            metrics: Metrics::default(),
             processions: JoinSet::new(),
         }
     }
 
     pub fn receive_code_to_process(&mut self, code_and_id: CodeAndIdUnchecked) {
+        self.metrics.processing_codes.increment(1);
+
         let code_id = code_and_id.code_id;
         if let Some(valid) = self.db.code_valid(code_id) {
             // TODO: #4712 test this case
@@ -56,7 +69,6 @@ impl<P: ProcessorExt> CodesSubService<P> {
                     "Instrumented code {code_id:?} must exist in database"
                 );
             }
-
             self.processions.spawn(async move { Ok(code_id) });
         } else {
             let mut processor = self.processor.clone();
@@ -68,10 +80,6 @@ impl<P: ProcessorExt> CodesSubService<P> {
             });
         }
     }
-
-    pub fn process_codes_count(&self) -> usize {
-        self.processions.len()
-    }
 }
 
 impl<P: ProcessorExt> SubService for CodesSubService<P> {
@@ -79,7 +87,11 @@ impl<P: ProcessorExt> SubService for CodesSubService<P> {
 
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Self::Output>> {
         futures::ready!(self.processions.poll_join_next(cx))
-            .map(|res| res.map_err(ComputeError::CodeProcessJoin)?)
+            .map(|res| {
+                // Decrement the processing codes metric.
+                self.metrics.processing_codes.decrement(1);
+                res.map_err(ComputeError::CodeProcessJoin)?
+            })
             .map_or(Poll::Pending, Poll::Ready)
     }
 }

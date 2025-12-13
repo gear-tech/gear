@@ -16,7 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{RpcEvent, errors};
+use crate::{
+    RpcEvent, errors,
+    metrics::{InjectedApiMetrics, RpcApiMetrics},
+};
 use dashmap::DashMap;
 use ethexe_common::{
     HashOf,
@@ -61,13 +64,18 @@ pub trait Injected {
 pub struct InjectedApi {
     rpc_sender: mpsc::UnboundedSender<RpcEvent>,
     promise_waiters: Arc<DashMap<HashOf<InjectedTransaction>, oneshot::Sender<SignedPromise>>>,
+    metrics: InjectedApiMetrics,
 }
 
 impl InjectedApi {
-    pub(crate) fn new(rpc_sender: mpsc::UnboundedSender<RpcEvent>) -> Self {
+    pub(crate) fn new(
+        rpc_sender: mpsc::UnboundedSender<RpcEvent>,
+        metrics: InjectedApiMetrics,
+    ) -> Self {
         Self {
             rpc_sender,
             promise_waiters: Arc::new(DashMap::new()),
+            metrics,
         }
     }
 }
