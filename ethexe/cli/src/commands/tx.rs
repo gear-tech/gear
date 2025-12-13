@@ -21,8 +21,8 @@ use anyhow::{Context, Result, anyhow, bail, ensure};
 use clap::{Parser, Subcommand};
 use ethexe_common::Address;
 use ethexe_ethereum::Ethereum;
-use ethexe_signer::Signer;
 use gprimitives::{CodeId, H256};
+use gsigner::secp256k1::Signer;
 use sp_core::Bytes;
 use std::{fs, path::PathBuf};
 
@@ -84,7 +84,7 @@ impl TxCommand {
     async fn exec_inner(self) -> Result<()> {
         let key_store = self.key_store.expect("must never be empty after merging");
 
-        let signer = Signer::fs(key_store);
+        let signer = Signer::fs(key_store)?;
 
         let rpc = self
             .ethereum_rpc

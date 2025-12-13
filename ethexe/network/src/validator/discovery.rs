@@ -35,11 +35,11 @@ use ethexe_common::{
     ecdsa::{PublicKey, Signature},
     sha3::Keccak256,
 };
-use ethexe_signer::Signer;
 use futures::{
     FutureExt, StreamExt,
     stream::{self, BoxStream},
 };
+use gsigner::secp256k1::{PrivateKey, Signer};
 use indexmap::IndexSet;
 use libp2p::{
     Multiaddr,
@@ -125,8 +125,9 @@ impl Decode for SignedValidatorIdentity {
             parity_scale_codec::Error::from("failed to validate network signature")
                 .chain(err.to_string())
         })?;
-        let network_key = libp2p::identity::secp256k1::PublicKey::try_from_bytes(&network_key.0)
-            .expect("we use secp256k1 for networking key");
+        let network_key =
+            libp2p::identity::secp256k1::PublicKey::try_from_bytes(&network_key.to_bytes())
+                .expect("we use secp256k1 for networking key");
 
         let this = Self {
             inner,
@@ -321,8 +322,9 @@ impl ValidatorIdentity {
         validator_key: PublicKey,
         keypair: &Keypair,
     ) -> anyhow::Result<SignedValidatorIdentity> {
+        let digest = self.to_digest();
         let validator_signature = signer
-            .sign(validator_key, &self)
+            .sign(validator_key, &digest.0)
             .context("failed to sign validator identity with validator key")?;
 
         let network_private_key = keypair
@@ -331,7 +333,9 @@ impl ValidatorIdentity {
             .expect("we use secp256k1 for networking key")
             .secret()
             .to_bytes();
-        let network_signature = Signature::create(network_private_key.into(), &self)
+        let network_private_key = PrivateKey::from_seed(network_private_key)
+            .context("failed to construct network private key")?;
+        let network_signature = Signature::create(&network_private_key, &self)
             .context("failed to sign validator identity with networking key")?;
         let network_key = keypair
             .public()
