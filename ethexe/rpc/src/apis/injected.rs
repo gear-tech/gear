@@ -16,10 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{
-    RpcEvent, errors,
-    metrics::{InjectedApiMetrics, RpcApiMetrics},
-};
+use crate::{RpcEvent, errors, metrics::InjectedApiMetrics};
 use dashmap::DashMap;
 use ethexe_common::{
     HashOf,
@@ -60,6 +57,7 @@ pub trait Injected {
     ) -> SubscriptionResult;
 }
 
+/// Implementation of the [`InjectedServer`] RPC API.
 #[derive(Debug, Clone)]
 pub struct InjectedApi {
     rpc_sender: mpsc::UnboundedSender<RpcEvent>,
@@ -68,14 +66,11 @@ pub struct InjectedApi {
 }
 
 impl InjectedApi {
-    pub(crate) fn new(
-        rpc_sender: mpsc::UnboundedSender<RpcEvent>,
-        metrics: InjectedApiMetrics,
-    ) -> Self {
+    pub(crate) fn new(rpc_sender: mpsc::UnboundedSender<RpcEvent>) -> Self {
         Self {
             rpc_sender,
             promise_waiters: Arc::new(DashMap::new()),
-            metrics,
+            metrics: InjectedApiMetrics::default(),
         }
     }
 }
@@ -87,8 +82,14 @@ impl InjectedApi {
             return;
         };
 
-        if let Err(promise) = promise_sender.send(promise) {
-            tracing::trace!(promise = ?promise, "rpc promise receiver dropped");
+        self.metrics.injected_tx_active_subscriptions.decrement(1);
+
+        match promise_sender.send(promise.clone()) {
+            Ok(()) => {
+                self.metrics.injected_tx_promises_given.increment(1);
+                tracing::trace!(promise = ?promise, "sent promise to subscriber");
+            }
+            Err(promise) => tracing::trace!(promise = ?promise, "rpc promise receiver dropped"),
         }
     }
 }
@@ -100,6 +101,7 @@ impl InjectedServer for InjectedApi {
         transaction: RpcOrNetworkInjectedTx,
     ) -> RpcResult<InjectedTransactionAcceptance> {
         tracing::trace!("Called injected_sendTransaction with vars: {transaction:?}");
+        self.metrics.send_injected_tx_calls.increment(1);
 
         let (response_sender, response_receiver) = oneshot::channel();
         let event = RpcEvent::InjectedTransaction {
@@ -129,6 +131,9 @@ impl InjectedServer for InjectedApi {
         pending: PendingSubscriptionSink,
         transaction: RpcOrNetworkInjectedTx,
     ) -> SubscriptionResult {
+        tracing::trace!("Called injected_subscribeTransactionPromise with vars: {transaction:?}");
+        self.metrics.send_and_watch_injected_tx_calls.increment(1);
+
         let tx_hash = transaction.tx.data().to_hash();
 
         // Checks, that transaction wasn't already send.
@@ -176,6 +181,7 @@ impl InjectedServer for InjectedApi {
         };
 
         self.promise_waiters.insert(tx_hash, promise_sender);
+        self.metrics.injected_tx_active_subscriptions.increment(1);
 
         tokio::spawn(async move {
             let Ok(promise) = promise_receiver.await else {

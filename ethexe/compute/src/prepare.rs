@@ -90,10 +90,10 @@ impl PrepareSubService {
     }
 
     pub fn receive_processed_code(&mut self, code_id: CodeId) {
-        if let State::WaitingForCodes { codes, .. } = &mut self.state {
-            if codes.remove(&code_id) {
-                self.metrics.waiting_codes.decrement(1);
-            }
+        if let State::WaitingForCodes { codes, .. } = &mut self.state
+            && codes.remove(&code_id)
+        {
+            self.metrics.waiting_codes.decrement(1);
         }
     }
 }

@@ -1,37 +1,37 @@
+// This file is part of Gear.
+//
+// Copyright (C) 2025 Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+//! Metrics for the RPC server.
+
 use metrics::{Counter, Gauge};
 
-/// RPC-related metrics.
-#[derive(Debug, Clone, Default)]
-pub struct RpcApiMetrics {
-    /// Metrics for injected API.
-    pub(crate) injected: InjectedApiMetrics,
-}
+// TODO kuzmindev: add metrics for all RPC apis, e.g number of calls, latency, errors, etc.
 
-#[derive(Clone, metrics_derive::Metrics)]
-#[metrics(scope = "ethexe_rpc_block_api")]
-pub struct BlockApiMetrics {
-    /// Number of requests block headers.
-    pub(crate) requested_blocks: Counter,
-    /// Number of requested block events.
-    pub(crate) requested_block_events: Counter,
-    /// Number of requested block outcomes.
-    pub(crate) requested_block_outcomes: Counter,
-}
-
-/// [`InjectedApiMetrics`] stores metrics for the injected RPC API.
+/// Metrics for the Injected RPC API.
 #[derive(Clone, metrics_derive::Metrics)]
 #[metrics(scope = "ethexe_rpc_injected_api")]
 pub struct InjectedApiMetrics {
-    /// Number of sent injected transactions by`injected_sendTransaction` calls.
-    pub(crate) transactions_sent: Counter,
-    /// Number of promises given by `injected_subscribeTransactionPromise` calls.
-    pub(crate) transaction_promises_sent: Counter,
-    /// Number of currently active promise subscriptions.
-    pub(crate) current_active_promise_subscriptions: Gauge,
-}
-
-#[derive(Clone, metrics_derive::Metrics)]
-#[metrics(scope = "ethexe_rpc_latency")]
-pub struct RpcApiLatency {
-    // TODO: add latency metrics for all requests.
+    /// The number of calls to `injected_sendTransaction`.
+    pub send_injected_tx_calls: Counter,
+    /// The number of calls to `injected_subscribeTransactionPromise`.
+    pub send_and_watch_injected_tx_calls: Counter,
+    /// The number of active injected transaction promises subscriptions.
+    pub injected_tx_active_subscriptions: Gauge,
+    /// The total number of injected transaction promises given to subscribers.
+    pub injected_tx_promises_given: Counter,
 }
