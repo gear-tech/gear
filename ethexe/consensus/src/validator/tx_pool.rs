@@ -78,20 +78,31 @@ where
             };
 
             match tx_checker.check_tx_validity(&tx)? {
-                TxValidity::Valid => selected_txs.push(tx),
+                TxValidity::Valid => {
+                    tracing::trace!(tx_hash = ?tx_hash, tx = ?tx.data(), "tx is valid, including to announce");
+                    selected_txs.push(tx)
+                }
                 TxValidity::Duplicate => {
-                    // TODO kuzmindev: send result to submitter, that tx was already included.
+                    tracing::trace!(tx_hash = ?tx_hash, tx = ?tx.data(), "tx already included in chain, skipping");
                 }
                 TxValidity::UnknownDestination => {
-                    // TODO kuzmindev: also send to submitter result, that tx `destination` field is invalid.
+                    tracing::trace!(
+                        tx_hash = ?tx_hash,
+                        tx = ?tx.data(),
+                        "tx destination actor is unknown, removing from pool, skipping"
+                    );
                 }
                 TxValidity::NotOnCurrentBranch => {
-                    tracing::trace!(tx_hash = ?tx_hash, "tx on different branch, keeping in pool");
+                    tracing::trace!(tx_hash = ?tx_hash, tx = ?tx.data(), "tx on different branch, keeping in pool");
                 }
-                TxValidity::Outdated => outdated_txs.push((*reference_block, *tx_hash)),
+                TxValidity::Outdated => {
+                    tracing::trace!(tx_hash = ?tx_hash, tx = ?tx.data(), "tx is outdated, removing from pool, remove from pool");
+                    outdated_txs.push((*reference_block, *tx_hash))
+                }
                 TxValidity::UninitializedDestination => {
                     tracing::trace!(
                         tx_hash = ?tx_hash,
+                        tx = ?tx.data(),
                         "tx send to uninitialized actor, keeping in pool, because of in next blocks it can be"
                     );
                 }

@@ -69,7 +69,7 @@ pub fn announce_at_or_latest_computed<
             db.announce(announce_hash)
                 .map(|a| !a.is_base())
                 .unwrap_or_else(|| {
-                    log::error!(
+                    tracing::error!(
                         "Failed to get body for included announce {announce_hash}, at {at}"
                     );
                     false
@@ -78,7 +78,7 @@ pub fn announce_at_or_latest_computed<
             Ok(*non_base_announce)
         } else {
             computed_announces.into_iter().next().ok_or_else(|| {
-                log::error!("No computed announces found at given block {at:?}");
+                tracing::error!("No computed announces found at given block {at:?}");
                 errors::db("No computed announces found at given block hash")
             })
         }
