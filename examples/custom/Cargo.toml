@@ -11,7 +11,7 @@ repository.workspace = true
 gstd.workspace = true
 gsys.workspace = true
 parity-scale-codec.workspace = true
-gear-workspace-hack.workspace = true
+
 
 [dev-dependencies]
 gtest.workspace = true
@@ -23,3 +23,6 @@ gear-wasm-builder.workspace = true
 debug = ["gstd/debug"]
 default = ["std"]
 std = []
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+gear-workspace-hack.workspace = true

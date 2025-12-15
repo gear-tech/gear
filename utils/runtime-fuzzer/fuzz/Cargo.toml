@@ -12,10 +12,13 @@ libfuzzer-sys.workspace = true
 runtime-fuzzer = { path = ".." }
 gear-utils.workspace = true
 log.workspace = true
-gear-workspace-hack.workspace = true
+
 
 [[bin]]
 name = "runtime-fuzzer-fuzz"
 path = "fuzz_targets/main.rs"
 test = false
 doc = false
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+gear-workspace-hack.workspace = true

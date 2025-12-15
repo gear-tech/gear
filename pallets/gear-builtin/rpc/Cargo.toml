@@ -18,4 +18,6 @@ sp-runtime.workspace = true
 
 # Local packages
 pallet-gear-builtin-rpc-runtime-api = { workspace = true, features = ["std"] }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 gear-workspace-hack.workspace = true

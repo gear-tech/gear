@@ -15,4 +15,6 @@ gear-core.workspace = true
 gear-lazy-pages-common.workspace = true
 gear-lazy-pages.workspace = true
 log.workspace = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 gear-workspace-hack.workspace = true

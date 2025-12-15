@@ -40,7 +40,10 @@ sp-consensus-babe.workspace = true
 sp-consensus-grandpa.workspace = true
 pallet-im-online.workspace = true
 sp-authority-discovery.workspace = true
-gear-workspace-hack.workspace = true
+
 
 [dev-dependencies]
 proptest.workspace = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+gear-workspace-hack.workspace = true

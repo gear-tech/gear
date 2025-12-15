@@ -18,7 +18,7 @@ parity-scale-codec.workspace = true
 sp-debug-derive.workspace = true
 sp-std.workspace = true
 sp-wasm-interface-common = { workspace = true, default-features = false }
-gear-workspace-hack.workspace = true
+
 
 [features]
 default = ["std"]
@@ -28,3 +28,6 @@ std = [
 	"sp-std/std",
 	"sp-wasm-interface-common/std",
 ]
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+gear-workspace-hack.workspace = true

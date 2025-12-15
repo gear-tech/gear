@@ -20,7 +20,7 @@ tracing.workspace = true
 paste.workspace = true
 derive_more.workspace = true
 auto_impl.workspace = true
-gear-workspace-hack.workspace = true
+
 
 # TODO: remove when https://github.com/tikv/jemallocator/pull/99 merged
 [target.'cfg(target_env = "msvc")'.dependencies.rocksdb]
@@ -36,3 +36,6 @@ version = "0.21"
 [dev-dependencies]
 scopeguard.workspace = true
 tempfile.workspace = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+gear-workspace-hack.workspace = true

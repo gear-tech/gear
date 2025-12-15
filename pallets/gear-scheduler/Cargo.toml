@@ -29,7 +29,7 @@ frame-benchmarking = { workspace = true, optional = true }
 sp-std.workspace = true
 sp-io.workspace = true
 sp-runtime.workspace = true
-gear-workspace-hack.workspace = true
+
 
 [dev-dependencies]
 pallet-gear-bank = { workspace = true, features = ["std"] }
@@ -66,3 +66,6 @@ runtime-benchmarks = [
 	"common/runtime-benchmarks"
 ]
 try-runtime = ["frame-support/try-runtime"]
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+gear-workspace-hack.workspace = true

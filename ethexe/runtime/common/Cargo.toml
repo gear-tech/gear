@@ -24,7 +24,7 @@ log.workspace = true
 derive_more.workspace = true
 auto_impl.workspace = true
 serde = { workspace = true, features = ["derive"], optional = true }
-gear-workspace-hack.workspace = true
+
 
 [features]
 default = ["std"]
@@ -37,3 +37,6 @@ std = [
     "serde/std",
     "ethexe-common/std",
 ]
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+gear-workspace-hack.workspace = true

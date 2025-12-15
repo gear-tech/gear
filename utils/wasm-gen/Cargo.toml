@@ -18,7 +18,7 @@ wasmparser.workspace = true
 thiserror.workspace = true
 indexmap = { workspace = true, features = ["std"] }
 nonempty.workspace = true
-gear-workspace-hack.workspace = true
+
 
 [dev-dependencies]
 rand = { workspace = true, features = ["small_rng"] }
@@ -31,3 +31,6 @@ gear-core-processor = { workspace = true, features = ["std", "mock"] }
 gear-lazy-pages.workspace = true
 gear-lazy-pages-common.workspace = true
 gear-lazy-pages-native-interface.workspace = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+gear-workspace-hack.workspace = true

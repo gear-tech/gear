@@ -36,7 +36,7 @@ pallet-grandpa.workspace = true
 sp-consensus-grandpa.workspace = true
 sp-runtime.workspace = true
 sp-std.workspace = true
-gear-workspace-hack.workspace = true
+
 
 [dev-dependencies]
 gprimitives.workspace = true
@@ -109,3 +109,6 @@ try-runtime = [
     "pallet-grandpa/try-runtime",
     "sp-runtime/try-runtime",
 ]
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+gear-workspace-hack.workspace = true

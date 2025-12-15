@@ -17,4 +17,6 @@ sp-runtime.workspace = true
 
 # Local packages
 pallet-gear-staking-rewards-rpc-runtime-api.workspace = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 gear-workspace-hack.workspace = true

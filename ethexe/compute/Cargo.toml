@@ -20,7 +20,7 @@ futures.workspace = true
 tokio.workspace = true
 derive_more.workspace = true
 log.workspace = true
-gear-workspace-hack.workspace = true
+
 
 [dev-dependencies]
 gear-core.workspace = true
@@ -29,3 +29,6 @@ wat.workspace = true
 wasmparser.workspace = true
 ethexe-common = { workspace = true, features = ["mock"] }
 ntest.workspace = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+gear-workspace-hack.workspace = true

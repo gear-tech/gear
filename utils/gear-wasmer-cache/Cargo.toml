@@ -21,7 +21,7 @@ uluru.workspace = true
 fs4.workspace = true
 derive_more.workspace = true
 bytes.workspace = true
-gear-workspace-hack.workspace = true
+
 
 [dev-dependencies]
 tempfile.workspace = true
@@ -29,3 +29,6 @@ demo-constructor = { workspace = true, features = ["std"] }
 
 [target.'cfg(loom)'.dev-dependencies]
 loom.workspace = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+gear-workspace-hack.workspace = true

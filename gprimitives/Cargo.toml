@@ -23,7 +23,7 @@ serde = { workspace = true, features = ["derive"], optional = true }
 hex.workspace = true
 gear-ss58.workspace = true
 thiserror.workspace = true
-gear-workspace-hack.workspace = true
+
 
 [features]
 default = ["std"]
@@ -31,3 +31,6 @@ std = []
 codec = ["dep:scale-info", "dep:scale-encode", "dep:scale-decode"]
 serde = ["dep:serde", "primitive-types/serde", "std"]
 ethexe = ["dep:alloy-primitives", "dep:alloy-sol-types"]
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+gear-workspace-hack.workspace = true

@@ -22,7 +22,7 @@ wasmer-vm.workspace = true
 gear-sandbox-host.workspace = true
 gear-core.workspace = true
 gear-lazy-pages-common.workspace = true
-gear-workspace-hack.workspace = true
+
 
 [target."cfg(target_vendor = \"apple\")".dependencies.mach]
 version = "0.3.2"
@@ -39,3 +39,6 @@ winapi = { workspace = true, features = ["excpt", "memoryapi"] }
 tracing-subscriber.workspace = true
 proptest.workspace = true
 numerated = { workspace = true, features = ["mock"] }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+gear-workspace-hack.workspace = true

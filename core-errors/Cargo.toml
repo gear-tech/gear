@@ -18,8 +18,11 @@ scale-encode = { workspace = true, optional = true }
 scale-decode = { workspace = true, optional = true }
 serde = { workspace = true, features = ["derive"], optional = true }
 thiserror.workspace = true
-gear-workspace-hack.workspace = true
+
 
 [features]
 codec = ["parity-scale-codec", "scale-info", "scale-encode", "scale-decode"]
 serde = ["dep:serde"]
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+gear-workspace-hack.workspace = true

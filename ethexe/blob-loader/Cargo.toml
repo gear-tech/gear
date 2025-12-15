@@ -18,7 +18,10 @@ reqwest = { workspace = true, features = ["default-tls", "json"] }
 futures.workspace = true
 log.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread", "fs"] }
-gear-workspace-hack.workspace = true
+
 
 [lints]
 workspace = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+gear-workspace-hack.workspace = true

@@ -28,7 +28,7 @@ frame-system-benchmarking = { workspace = true, optional = true }
 runtime-primitives.workspace = true
 pallet-gear.workspace = true
 pallet-gear-bank.workspace = true
-gear-workspace-hack.workspace = true
+
 
 [features]
 default = ["std"]
@@ -60,3 +60,6 @@ try-runtime = [
 	"pallet-gear/try-runtime",
 	"pallet-gear-bank/try-runtime",
 ]
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+gear-workspace-hack.workspace = true

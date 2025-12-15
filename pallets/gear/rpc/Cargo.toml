@@ -25,4 +25,6 @@ gear-core.workspace = true
 gear-core-errors = { workspace = true, features = ["codec"] }
 gear-common.workspace = true
 pallet-gear-rpc-runtime-api.workspace = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 gear-workspace-hack.workspace = true

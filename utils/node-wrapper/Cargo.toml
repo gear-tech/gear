@@ -15,4 +15,6 @@ anyhow = { workspace = true, features = ["std"] }
 rand = { workspace = true, features = [ "getrandom" ] }
 which.workspace = true
 smallvec.workspace = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 gear-workspace-hack.workspace = true

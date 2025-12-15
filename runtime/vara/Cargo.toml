@@ -112,7 +112,7 @@ pallet-gear-eth-bridge-rpc-runtime-api.workspace = true
 pallet-grandpa-signer.workspace = true
 runtime-primitives.workspace = true
 gbuiltin-proxy.workspace = true
-gear-workspace-hack.workspace = true
+
 
 [dev-dependencies]
 sp-io.workspace = true
@@ -291,3 +291,6 @@ try-runtime = [
 ]
 dev = ["pallet-sudo", "pallet-gear/dev"]
 metadata-hash = ["substrate-wasm-builder?/metadata-hash"]
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+gear-workspace-hack.workspace = true

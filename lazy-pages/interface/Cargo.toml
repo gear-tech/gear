@@ -18,7 +18,7 @@ gear-lazy-pages-common.workspace = true
 gear-runtime-interface.workspace = true
 
 sp-std.workspace = true
-gear-workspace-hack.workspace = true
+
 
 [features]
 default = ["std"]
@@ -28,3 +28,6 @@ std = [
     "log/std",
     "byteorder/std"
 ]
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+gear-workspace-hack.workspace = true

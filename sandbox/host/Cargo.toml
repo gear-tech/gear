@@ -30,10 +30,13 @@ gear-sandbox-env = { workspace = true, features = ["std"] }
 gear-wasmer-cache = { workspace = true, optional = true }
 tempfile = { workspace = true, optional = true }
 region.workspace = true
-gear-workspace-hack.workspace = true
+
 
 [features]
 default = ["wasmer-cache"]
 wasmer-cache = ["gear-wasmer-cache", "tempfile"]
 # See wasmi/extra-checks for more information.
 wasmi-extra-checks = ["wasmi/extra-checks"]
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+gear-workspace-hack.workspace = true

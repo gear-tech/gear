@@ -24,7 +24,7 @@ gprimitives.workspace = true
 
 # Substrate deps.
 binary-merkle-tree.workspace = true
-gear-workspace-hack.workspace = true
+
 
 [features]
 default = ["std"]
@@ -40,3 +40,6 @@ std = [
     # Substrate deps.
     "binary-merkle-tree/std",
 ]
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+gear-workspace-hack.workspace = true

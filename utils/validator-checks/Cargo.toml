@@ -19,4 +19,6 @@ tracing-subscriber.workspace = true
 tokio = { workspace = true, features = [ "full" ] }
 parity-scale-codec.workspace = true
 sp-consensus-babe = { workspace = true, features = ["std"] }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 gear-workspace-hack.workspace = true

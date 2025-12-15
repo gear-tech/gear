@@ -26,4 +26,6 @@ gear-core.workspace = true
 gear-wasm-instrument.workspace = true
 gear-wasm-optimizer.workspace = true
 itertools = { workspace = true, features = ["use_std"] }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 gear-workspace-hack.workspace = true

@@ -31,4 +31,6 @@ sp-io.workspace = true
 # Substrate Other
 frame-system.workspace = true
 frame-metadata-hash-extension.workspace = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 gear-workspace-hack.workspace = true

@@ -10,4 +10,6 @@ license.workspace = true
 syn = { workspace = true, features = ["parsing", "full", "visit"] }
 clap = { workspace = true, features = ["derive"] }
 proc-macro2 = { workspace = true, features = ["span-locations"]}
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 gear-workspace-hack.workspace = true

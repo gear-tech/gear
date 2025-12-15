@@ -35,7 +35,7 @@ thiserror.workspace = true
 tokio = { workspace = true, features = ["fs"] }
 url.workspace = true
 parity-scale-codec.workspace = true
-gear-workspace-hack.workspace = true
+
 
 [dev-dependencies]
 ark-bls12-381 = { workspace = true, features = ["curve"] }
@@ -61,3 +61,6 @@ wat.workspace = true
 
 [features]
 testing = []
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+gear-workspace-hack.workspace = true

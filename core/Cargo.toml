@@ -39,7 +39,7 @@ numerated.workspace = true
 # Optional dependencies
 serde = { workspace = true, features = ["derive"], optional = true }
 impl-serde = { workspace = true, optional = true }
-gear-workspace-hack.workspace = true
+
 
 [dev-dependencies]
 tracing-subscriber.workspace = true
@@ -60,3 +60,6 @@ std = [
     "gprimitives/serde",
 ]
 mock = []
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+gear-workspace-hack.workspace = true

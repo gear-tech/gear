@@ -27,7 +27,7 @@ sp-allocator = { workspace = true, features = ["std"] }
 sp-wasm-interface = { workspace = true, features = ["std", "wasmtime"] }
 tokio = { workspace = true, features = ["full"] }
 itertools = { workspace = true, features = ["use_std"] }
-gear-workspace-hack.workspace = true
+
 
 [dev-dependencies]
 anyhow.workspace = true
@@ -37,3 +37,6 @@ demo-ping = { workspace = true, features = ["debug", "ethexe"] }
 demo-async = { workspace = true, features = ["debug", "ethexe"] }
 demo-panic-payload = { workspace = true, features = ["debug", "ethexe"] }
 wat.workspace = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+gear-workspace-hack.workspace = true

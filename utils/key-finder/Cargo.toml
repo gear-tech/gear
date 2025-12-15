@@ -10,4 +10,6 @@ name = "gear-key-finder"
 [dependencies]
 hex = { workspace = true, features = ["alloc"] }
 directories.workspace = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 gear-workspace-hack.workspace = true

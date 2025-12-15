@@ -14,7 +14,7 @@ rust-version.workspace = true
 parity-scale-codec = { workspace = true, features = ["derive"] }
 scale-info = { workspace = true, features = ["derive"] }
 gprimitives.workspace = true
-gear-workspace-hack.workspace = true
+
 
 [features]
 default = ["std"]
@@ -23,3 +23,6 @@ std = [
     "scale-info/std",
     "gprimitives/std",
 ]
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+gear-workspace-hack.workspace = true

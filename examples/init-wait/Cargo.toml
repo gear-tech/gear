@@ -9,7 +9,7 @@ repository.workspace = true
 
 [dependencies]
 gstd.workspace = true
-gear-workspace-hack.workspace = true
+
 
 [build-dependencies]
 gear-wasm-builder.workspace = true
@@ -19,3 +19,6 @@ debug = ["gstd/debug"]
 wasm-wrapper = []
 std = ["wasm-wrapper"]
 default = ["std"]
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+gear-workspace-hack.workspace = true

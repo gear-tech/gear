@@ -30,7 +30,7 @@ wasmer-vm = { workspace = true, optional = true }
 wasmer-compiler = { workspace = true, optional = true }
 gear-wasmer-cache = { workspace = true, optional = true }
 pathdiff = { workspace = true, optional = true }
-gear-workspace-hack.workspace = true
+
 
 [dev-dependencies]
 assert_matches.workspace = true
@@ -54,3 +54,6 @@ std = [
 	"pathdiff"
 ]
 strict = []
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+gear-workspace-hack.workspace = true

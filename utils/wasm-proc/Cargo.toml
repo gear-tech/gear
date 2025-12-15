@@ -18,4 +18,6 @@ log.workspace = true
 tracing-subscriber.workspace = true
 gear-wasm-builder.workspace = true
 gear-wasm-instrument = { workspace = true, features = ["std"] }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 gear-workspace-hack.workspace = true

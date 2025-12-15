@@ -14,7 +14,10 @@ rust-version.workspace = true
 bs58.workspace = true
 blake2.workspace = true
 hex.workspace = true
-gear-workspace-hack.workspace = true
+
 
 [features]
 alloc = []
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+gear-workspace-hack.workspace = true

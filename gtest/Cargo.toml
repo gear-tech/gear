@@ -35,7 +35,7 @@ log.workspace = true
 cargo_toml.workspace = true
 etc.workspace = true
 thiserror.workspace = true
-gear-workspace-hack.workspace = true
+
 
 [dev-dependencies]
 ark-std.workspace = true
@@ -48,3 +48,6 @@ demo-futures-unordered.workspace = true
 demo-constructor = { workspace = true, features = ["std"] }
 demo-delayed-sender.workspace = true
 gear-core = { workspace = true, features = ["mock"] }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+gear-workspace-hack.workspace = true

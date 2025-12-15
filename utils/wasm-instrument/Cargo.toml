@@ -18,7 +18,7 @@ enum-iterator.workspace = true
 wasmparser.workspace = true
 wasm-encoder.workspace = true
 log.workspace = true
-gear-workspace-hack.workspace = true
+
 
 [dev-dependencies]
 wat.workspace = true
@@ -31,3 +31,6 @@ diff = "0.1.13"
 [features]
 default = ["std"]
 std = ["wasmparser/std", "wasm-encoder/std"]
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+gear-workspace-hack.workspace = true

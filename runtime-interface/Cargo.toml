@@ -21,7 +21,7 @@ sp-runtime-interface = { workspace = true, default-features = false }
 sp-std.workspace = true
 parity-scale-codec.workspace = true
 log = { workspace = true, optional = true }
-gear-workspace-hack.workspace = true
+
 
 [features]
 default = ["std"]
@@ -38,3 +38,6 @@ std = [
 
 	"builtins-common/bls12-381-std",
 ]
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+gear-workspace-hack.workspace = true

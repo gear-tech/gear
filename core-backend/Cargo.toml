@@ -28,7 +28,7 @@ bytemuck = { workspace = true, features = ["const_zeroed"] }
 log.workspace = true
 derive_more.workspace = true
 parity-scale-codec.workspace = true
-gear-workspace-hack.workspace = true
+
 
 [dev-dependencies]
 parity-scale-codec.workspace = true
@@ -39,3 +39,6 @@ bytemuck = { workspace = true, features = ["derive"] }
 default = ["std"]
 std = ["gear-sandbox/std", "gear-wasm-instrument/std", "log/std"]
 mock = []
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+gear-workspace-hack.workspace = true

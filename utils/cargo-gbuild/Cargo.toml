@@ -23,7 +23,10 @@ tracing.workspace = true
 tracing-subscriber.workspace = true
 gear-wasm-optimizer.workspace = true
 glob.workspace = true
-gear-workspace-hack.workspace = true
+
 
 [dev-dependencies]
 gtest.workspace = true
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+gear-workspace-hack.workspace = true

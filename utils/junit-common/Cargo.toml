@@ -7,4 +7,6 @@ license.workspace = true
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 gear-workspace-hack.workspace = true

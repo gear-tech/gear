@@ -31,7 +31,7 @@ sp-runtime.workspace = true
 # Temporary dependencies required for migration to v8. To be removed upon migration.
 pallet-balances.workspace = true
 pallet-treasury.workspace = true
-gear-workspace-hack.workspace = true
+
 
 [dev-dependencies]
 common = { workspace = true, features = ["std"] }
@@ -54,3 +54,6 @@ std = [
     "sp-runtime/std",
 ]
 try-runtime = ["frame-support/try-runtime"]
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+gear-workspace-hack.workspace = true

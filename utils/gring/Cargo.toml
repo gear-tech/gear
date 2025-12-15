@@ -33,8 +33,11 @@ colored = { workspace = true, optional = true }
 dirs = { workspace = true, optional = true }
 hex = { workspace = true, features = ["std"], optional = true }
 tracing-subscriber = { workspace = true, optional = true }
-gear-workspace-hack.workspace = true
+
 
 [features]
 default = ["cli"]
 cli = ["clap", "colored", "dirs", "hex", "tracing-subscriber"]
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
+gear-workspace-hack.workspace = true

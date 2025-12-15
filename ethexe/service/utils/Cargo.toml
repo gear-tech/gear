@@ -11,4 +11,6 @@ repository.workspace = true
 log.workspace = true
 futures.workspace = true
 tokio = { workspace = true, features = ["time"] }
+
+[target.'cfg(not(target_arch = "wasm32"))'.dependencies]
 gear-workspace-hack.workspace = true
