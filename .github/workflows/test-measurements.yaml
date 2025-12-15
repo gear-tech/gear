@@ -52,7 +52,7 @@ jobs:
       - name: "Collect: pallet-gear benches"
         run: |
           touch ./target/weights.json
-          ./target/release/gear benchmark pallet --pallet=pallet_gear --steps=50 --repeat=20 --chain=dev --extrinsic=* --heap-pages=4096 --output ./target/weights.json --template ./.maintain/regression-analysis-weight-template.hbs
+          ./target/release/gear benchmark pallet --pallet=pallet_gear --steps=50 --repeat=20 --chain=dev --extrinsic=* --heap-pages=16384 --output ./target/weights.json --template ./.maintain/regression-analysis-weight-template.hbs
 
       - name: "Generate report: pallet-gear benches"
         run: |
