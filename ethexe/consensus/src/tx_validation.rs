@@ -52,9 +52,26 @@ pub struct TxValidityChecker<DB> {
 
 impl<DB: OnChainStorageRO + AnnounceStorageRO + Storage> TxValidityChecker<DB> {
     pub fn new_for_announce(db: DB, chain_head: H256, announce: HashOf<Announce>) -> Result<Self> {
+        // find last computed predecessor announce
+        let mut last_computed_predecessor = announce;
+        while !db.announce_meta(last_computed_predecessor).computed {
+            last_computed_predecessor = db
+                .announce(last_computed_predecessor)
+                .ok_or_else(|| {
+                    anyhow!("Cannot found announce {last_computed_predecessor} body in DB")
+                })?
+                .parent;
+        }
+
         Ok(Self {
             recent_included_txs: Self::collect_recent_included_txs(&db, announce)?,
-            latest_states: db.announce_program_states(announce).unwrap_or_default(),
+            latest_states: db
+                .announce_program_states(last_computed_predecessor)
+                .ok_or_else(|| {
+                    anyhow!(
+                        "Cannot find computed announce {last_computed_predecessor} programs states in db"
+                    )
+                })?,
             db,
             chain_head,
         })
@@ -148,7 +165,7 @@ impl<DB: OnChainStorageRO + AnnounceStorageRO + Storage> TxValidityChecker<DB> {
                 }
 
                 // TODO: #4969 temporary hack ignoring this error for fast_sync test.
-                // Reach start announce is not correct case, because of can exists earlier announces with injected txs.
+                // Reach start announce is not correct case, because can be earlier announces with injected txs.
                 // anyhow::bail!("Reaching start announce is not supported; decrease VALIDITY_WINDOW")
                 break;
             };
@@ -195,10 +212,13 @@ mod tests {
         db: &Database,
         txs: Vec<SignedInjectedTransaction>,
         destination_initialized: bool,
+        parent: HashOf<Announce>,
     ) -> HashOf<Announce> {
-        let mut announce = Announce::mock(());
-        announce.parent = HashOf::zero();
-        announce.injected_transactions = txs;
+        let announce = Announce {
+            parent,
+            injected_transactions: txs,
+            ..Announce::mock(())
+        };
         let announce_hash = db.set_announce(announce);
 
         let mut state = ProgramState::zero();
@@ -214,6 +234,9 @@ mod tests {
             hash: state_hash,
             ..Default::default()
         };
+        db.mutate_announce_meta(announce_hash, |meta| {
+            meta.computed = true;
+        });
         db.set_announce_program_states(announce_hash, BTreeMap::from([(ActorId::zero(), state)]));
 
         announce_hash
@@ -222,15 +245,19 @@ mod tests {
     #[test]
     fn test_check_tx_validity() {
         let db = Database::memory();
-        let blocks = BlockChain::mock(100).setup(&db).blocks;
+        let chain = BlockChain::mock(100).setup(&db);
 
-        let announce_hash = setup_announce(&db, vec![], true);
-
-        let chain_head = blocks[VALIDITY_WINDOW as usize].hash;
+        let chain_head = chain.blocks[VALIDITY_WINDOW as usize].hash;
+        let announce_hash = setup_announce(
+            &db,
+            vec![],
+            true,
+            chain.block_top_announce_hash(VALIDITY_WINDOW as usize - 1),
+        );
         let tx_checker =
             TxValidityChecker::new_for_announce(db, chain_head, announce_hash).unwrap();
 
-        for block in blocks.iter().skip(1).take(VALIDITY_WINDOW as usize) {
+        for block in chain.blocks.iter().skip(1).take(VALIDITY_WINDOW as usize) {
             let tx = mock_tx(block.hash);
             assert_eq!(
                 TxValidity::Valid,
@@ -242,13 +269,18 @@ mod tests {
     #[test]
     fn test_check_tx_duplicate() {
         let db = Database::memory();
-        let blocks = BlockChain::mock(100).setup(&db).blocks;
+        let chain = BlockChain::mock(100).setup(&db);
 
-        let tx = mock_tx(blocks[5].hash);
-        let announce_hash = setup_announce(&db, vec![tx.clone()], true);
-
+        let chain_head = chain.blocks[9].hash;
+        let tx = mock_tx(chain.blocks[5].hash);
+        let announce_hash = setup_announce(
+            &db,
+            vec![tx.clone()],
+            true,
+            chain.block_top_announce_hash(8),
+        );
         let tx_checker =
-            TxValidityChecker::new_for_announce(db, blocks[9].hash, announce_hash).unwrap();
+            TxValidityChecker::new_for_announce(db, chain_head, announce_hash).unwrap();
 
         assert_eq!(
             TxValidity::Duplicate,
@@ -259,15 +291,19 @@ mod tests {
     #[test]
     fn test_check_tx_outdated() {
         let db = Database::memory();
-        let blocks = BlockChain::mock(100).setup(&db).blocks;
+        let chain = BlockChain::mock(100).setup(&db);
 
-        let announce_hash = setup_announce(&db, vec![], true);
-
-        let chain_head = blocks[(VALIDITY_WINDOW * 2) as usize].hash;
+        let chain_head = chain.blocks[(VALIDITY_WINDOW * 2) as usize].hash;
+        let announce_hash = setup_announce(
+            &db,
+            vec![],
+            true,
+            chain.block_top_announce_hash((VALIDITY_WINDOW * 2) as usize - 1),
+        );
         let tx_checker =
             TxValidityChecker::new_for_announce(db, chain_head, announce_hash).unwrap();
 
-        for block in blocks.iter().take(VALIDITY_WINDOW as usize) {
+        for block in chain.blocks.iter().take(VALIDITY_WINDOW as usize) {
             let tx = mock_tx(block.hash);
             assert_eq!(
                 TxValidity::Outdated,
@@ -279,12 +315,12 @@ mod tests {
     #[test]
     fn test_check_tx_not_on_current_branch() {
         let db = Database::memory();
-        let blocks = BlockChain::mock(35).setup(&db).blocks;
+        let chain = BlockChain::mock(35).setup(&db);
 
         let mut blocks_branch2 = vec![];
 
-        let mut parent = blocks[10].hash;
-        blocks.iter().skip(9).for_each(|block| {
+        let mut parent = chain.blocks[10].hash;
+        chain.blocks.iter().skip(9).for_each(|block| {
             let mut header = block.to_simple().header;
             header.parent_hash = parent;
 
@@ -294,10 +330,10 @@ mod tests {
             parent = hash;
         });
 
-        let announce_hash = setup_announce(&db, vec![], true);
-
+        let chain_head = chain.blocks[35].hash;
+        let announce_hash = setup_announce(&db, vec![], true, chain.block_top_announce_hash(34));
         let tx_checker =
-            TxValidityChecker::new_for_announce(db, blocks[35].hash, announce_hash).unwrap();
+            TxValidityChecker::new_for_announce(db, chain_head, announce_hash).unwrap();
 
         for block in blocks_branch2.iter() {
             let tx = mock_tx(block.hash);
@@ -307,7 +343,7 @@ mod tests {
             );
         }
 
-        for block in blocks.iter().rev().take(VALIDITY_WINDOW as usize) {
+        for block in chain.blocks.iter().rev().take(VALIDITY_WINDOW as usize) {
             let tx = mock_tx(block.hash);
             assert_eq!(
                 TxValidity::Valid,
@@ -319,13 +355,13 @@ mod tests {
     #[test]
     fn test_check_injected_tx_can_not_initialize_actor() {
         let db = Database::memory();
-        let blocks = BlockChain::mock(10).setup(&db).blocks;
+        let chain = BlockChain::mock(10).setup(&db);
 
-        let tx = mock_tx(blocks[5].hash);
-        let announce_hash = setup_announce(&db, vec![], false);
-
+        let chain_head = chain.blocks[9].hash;
+        let tx = mock_tx(chain.blocks[5].hash);
+        let announce_hash = setup_announce(&db, vec![], false, chain.block_top_announce_hash(8));
         let tx_checker =
-            TxValidityChecker::new_for_announce(db, blocks[9].hash, announce_hash).unwrap();
+            TxValidityChecker::new_for_announce(db, chain_head, announce_hash).unwrap();
 
         assert_eq!(
             TxValidity::UninitializedDestination,
