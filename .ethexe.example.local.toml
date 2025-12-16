@@ -99,11 +99,11 @@ canonical-quarantine = 0
 [ethereum]
 # Ethereum RPC endpoint.
 # (optional, default: ws://localhost:8545).
-# rpc = "ws://localhost:8545"
+rpc = "ws://localhost:8545"
 
 # Ethereum Beacon RPC endpoint.
 # (optional, default: http://localhost:8545).
-# beacon-rpc = "http://localhost:8545"
+beacon-rpc = "http://localhost:8545"
 
 # Ethereum router contract address.
 # (optional).
@@ -111,7 +111,7 @@ router = "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9"
 
 # Ethereum block time in seconds.
 # (optional, default: 12).
-# block-time = 12
+block-time = 1
 
 ##########################################################################################
 

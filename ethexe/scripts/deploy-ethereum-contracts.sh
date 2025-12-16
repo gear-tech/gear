@@ -50,7 +50,7 @@ echo "WrappedVara: $WVARA_PROXY_ADDRESS"
 
 # Separate script calls `IRouter(routerAddress).lookupGenesisHash()` to simplify deployment without using `--slow` for `Deployment.s.sol`.
 
-forge script script/LookupGenesisHash.s.sol:LookupGenesisHashScript --slow --rpc-url "$RPC_URL" --broadcast $VERIFY -vvvv
+ROUTER_ADDRESS="$ROUTER_PROXY_ADDRESS" forge script script/LookupGenesisHash.s.sol:LookupGenesisHashScript --slow --rpc-url "$RPC_URL" --broadcast $VERIFY -vvvv
 
 # Now it's necessary to verify contacts so that users can click "Read/Write as Proxy" on etherscan.
 
