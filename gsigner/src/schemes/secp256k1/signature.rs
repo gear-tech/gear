@@ -473,6 +473,17 @@ mod tests {
     }
 
     #[test]
+    fn signature_recovery_matches_signing_key() {
+        let private_key = mock_private_key();
+        let expected_public = private_key.public_key();
+
+        let signature = Signature::create(&private_key, MOCK_DIGEST).unwrap();
+        let recovered = signature.validate(MOCK_DIGEST).unwrap();
+
+        assert_eq!(expected_public, recovered);
+    }
+
+    #[test]
     fn contract_signature_roundtrip() {
         let private_key = mock_private_key();
 

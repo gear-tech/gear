@@ -39,7 +39,7 @@ use futures::{
     FutureExt, StreamExt,
     stream::{self, BoxStream},
 };
-use gsigner::secp256k1::{PrivateKey, Signer};
+use gsigner::secp256k1::{PrivateKey, Secp256k1SignerExt, Signer};
 use indexmap::IndexSet;
 use libp2p::{
     Multiaddr,
@@ -324,7 +324,7 @@ impl ValidatorIdentity {
     ) -> anyhow::Result<SignedValidatorIdentity> {
         let digest = self.to_digest();
         let validator_signature = signer
-            .sign(validator_key, &digest.0)
+            .sign_digest(validator_key, &digest)
             .context("failed to sign validator identity with validator key")?;
 
         let network_private_key = keypair
