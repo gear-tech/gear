@@ -19,7 +19,9 @@
 //! Ethereum address.
 
 use super::keys::PublicKey;
-use alloc::{string::String, vec::Vec};
+#[cfg(feature = "std")]
+use alloc::string::String;
+use alloc::vec::Vec;
 use core::str::FromStr;
 use derive_more::{Debug, Display, Error};
 use gprimitives::{ActorId, H160};

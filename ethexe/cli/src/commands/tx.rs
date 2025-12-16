@@ -563,7 +563,7 @@ impl TxCommand {
                         eprintln!("Reply info:");
                         eprintln!("  Message Id: {message_id}");
                         eprintln!("  Actor Id:   {actor_id:?}");
-                        eprintln!("  Payload:    0x{}", hex::encode(&payload));
+                        eprintln!("  Payload:    0x{}", hex::encode(payload));
                         eprintln!("  Code:       {code:?}");
                         eprintln!("  Value:      {formatted_value} ({raw_value} wei)");
 
