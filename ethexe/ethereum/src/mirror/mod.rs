@@ -159,8 +159,8 @@ impl Mirror {
             .into_stream();
 
         while let Some(log) = mirror_events.next().await {
-            if let Some(signatures::REPLY) = log.topic0().cloned() {
-                if let MirrorEvent::Reply {
+            if let Some(signatures::REPLY) = log.topic0().cloned()
+                && let MirrorEvent::Reply {
                     payload,
                     value,
                     reply_to,
@@ -177,10 +177,9 @@ impl Mirror {
                         value,
                     });
                 }
-            }
         }
 
-        Err(anyhow!("Failed to define if state changed"))
+        Err(anyhow!("Failed to wait for reply"))
     }
 
     pub async fn send_reply(
