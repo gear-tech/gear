@@ -74,7 +74,8 @@ where
 
         for (reference_block, tx_hash) in self.inner.iter() {
             let Some(tx) = self.db.injected_transaction(*tx_hash) else {
-                continue;
+                // This must not happen, as we store txs in db when adding to pool.
+                anyhow::bail!("injected tx not found in db: {tx_hash}");
             };
 
             match tx_checker.check_tx_validity(&tx)? {
