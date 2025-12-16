@@ -31,4 +31,4 @@ dashmap.workspace = true
 gear-workspace-hack.workspace = true
 
 [features]
-test-utils = ["jsonrpsee/client"]
+client = ["jsonrpsee/client"]
