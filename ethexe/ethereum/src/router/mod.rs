@@ -26,7 +26,7 @@ use alloy::{
     eips::eip7594::BlobTransactionSidecarVariant,
     primitives::{Address, Bytes, fixed_bytes},
     providers::{PendingTransactionBuilder, Provider, ProviderBuilder, RootProvider},
-    rpc::types::{Filter, eth::state::AccountOverride},
+    rpc::types::{Filter, Topic, eth::state::AccountOverride},
 };
 use anyhow::{Result, anyhow};
 use ethexe_common::{
@@ -134,7 +134,9 @@ impl Router {
     }
 
     pub async fn wait_code_validation(&self, code_id: CodeId) -> Result<bool> {
-        let filter = Filter::new().address(*self.instance.address());
+        let filter = Filter::new()
+            .address(*self.instance.address())
+            .event_signature(Topic::from_iter([signatures::CODE_GOT_VALIDATED]));
         let mut router_events = self
             .instance
             .provider()
