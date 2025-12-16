@@ -17,14 +17,14 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    AlloyEthereum, AlloyProvider, TryGetReceipt,
-    abi::{IRouter, utils::uint256_to_u256},
+    AlloyEthereum, AlloyProvider, IntoBlockId, TryGetReceipt,
+    abi::{IRouter, Router::StorageView, utils::uint256_to_u256},
     wvara::WVara,
 };
 use alloy::{
     consensus::{SidecarBuilder, SimpleCoder},
-    eips::{BlockId, eip7594::BlobTransactionSidecarVariant},
-    primitives::{Address, B256, Bytes, fixed_bytes},
+    eips::eip7594::BlobTransactionSidecarVariant,
+    primitives::{Address, Bytes, fixed_bytes},
     providers::{PendingTransactionBuilder, Provider, ProviderBuilder, RootProvider},
     rpc::types::{Filter, eth::state::AccountOverride},
 };
@@ -60,7 +60,10 @@ impl PendingCodeRequestBuilder {
     }
 
     pub async fn send(self) -> Result<(H256, CodeId)> {
-        let receipt = self.pending_builder.try_get_receipt().await?;
+        let receipt = self
+            .pending_builder
+            .try_get_receipt_check_reverted()
+            .await?;
         Ok(((*receipt.transaction_hash).into(), self.code_id))
     }
 }
@@ -107,32 +110,21 @@ impl Router {
     ) -> Result<PendingCodeRequestBuilder> {
         let code_id = CodeId::generate(code);
 
-        let builder = self
-            .instance
-            .requestCodeValidation(code_id.into_bytes().into())
-            .sidecar(BlobTransactionSidecarVariant::Eip7594(
-                SidecarBuilder::<SimpleCoder>::from_slice(code).build_7594()?,
-            ));
-        let pending_builder = builder.send().await?;
-
-        Ok(PendingCodeRequestBuilder {
-            code_id,
-            pending_builder,
-        })
-    }
-
-    pub async fn request_code_validation_with_sidecar_old(
-        &self,
-        code: &[u8],
-    ) -> Result<PendingCodeRequestBuilder> {
-        let code_id = CodeId::generate(code);
-
-        let builder = self
-            .instance
-            .requestCodeValidation(code_id.into_bytes().into())
-            .sidecar(BlobTransactionSidecarVariant::Eip4844(
+        let chain_id = self.instance.provider().get_chain_id().await?;
+        let blob_tx_sidecar_variant = if chain_id == 31337 {
+            BlobTransactionSidecarVariant::Eip4844(
                 SidecarBuilder::<SimpleCoder>::from_slice(code).build()?,
-            ));
+            )
+        } else {
+            BlobTransactionSidecarVariant::Eip7594(
+                SidecarBuilder::<SimpleCoder>::from_slice(code).build_7594()?,
+            )
+        };
+
+        let builder = self
+            .instance
+            .requestCodeValidation(code_id.into_bytes().into())
+            .sidecar(blob_tx_sidecar_variant);
         let pending_builder = builder.send().await?;
 
         Ok(PendingCodeRequestBuilder {
@@ -222,7 +214,11 @@ impl Router {
                 .unwrap_or_default(),
             abi_interface,
         );
-        let receipt = builder.send().await?.try_get_receipt().await?;
+        let receipt = builder
+            .send()
+            .await?
+            .try_get_receipt_check_reverted()
+            .await?;
 
         let tx_hash = (*receipt.transaction_hash).into();
         let mut actor_id = None;
@@ -249,7 +245,7 @@ impl Router {
     ) -> Result<H256> {
         self.commit_batch_pending(commitment, signatures)
             .await?
-            .try_get_receipt()
+            .try_get_receipt_check_reverted()
             .await
             .map(|receipt| H256(receipt.transaction_hash.0))
     }
@@ -357,12 +353,12 @@ impl RouterQuery {
         self.instance.middleware().call().await.map_err(Into::into)
     }
 
-    pub async fn validators_at(&self, block: H256) -> Result<ValidatorsVec> {
+    pub async fn validators_at(&self, id: impl IntoBlockId) -> Result<ValidatorsVec> {
         let validators: Vec<_> = self
             .instance
             .validators()
             .call()
-            .block(B256::from(block.0).into())
+            .block(id.into_block_id())
             .await
             .map(|res| res.into_iter().map(|v| LocalAddress(v.into())).collect())
             .map_err(Into::<anyhow::Error>::into)?;
@@ -390,15 +386,6 @@ impl RouterQuery {
             .map_err(Into::into)
     }
 
-    pub async fn validators(&self) -> Result<Vec<LocalAddress>> {
-        self.instance
-            .validators()
-            .call()
-            .await
-            .map(|res| res.into_iter().map(|v| LocalAddress(v.into())).collect())
-            .map_err(Into::into)
-    }
-
     pub async fn threshold(&self) -> Result<u64> {
         self.instance
             .validatorsThreshold()
@@ -420,7 +407,7 @@ impl RouterQuery {
     pub async fn codes_states_at(
         &self,
         code_ids: impl IntoIterator<Item = CodeId>,
-        block: H256,
+        id: impl IntoBlockId,
     ) -> Result<Vec<CodeState>> {
         self.instance
             .codesStates(
@@ -430,7 +417,7 @@ impl RouterQuery {
                     .collect(),
             )
             .call()
-            .block(BlockId::hash(block.0.into()))
+            .block(id.into_block_id())
             .await
             .map(|res| res.into_iter().map(CodeState::from).collect())
             .map_err(Into::into)
@@ -447,7 +434,7 @@ impl RouterQuery {
     pub async fn programs_code_ids_at(
         &self,
         program_ids: impl IntoIterator<Item = ActorId>,
-        block: H256,
+        id: impl IntoBlockId,
     ) -> Result<Vec<CodeId>> {
         self.instance
             .programsCodeIds(
@@ -460,7 +447,7 @@ impl RouterQuery {
                     .collect(),
             )
             .call()
-            .block(BlockId::hash(block.0.into()))
+            .block(id.into_block_id())
             .await
             .map(|res| res.into_iter().map(|c| CodeId::new(c.0)).collect())
             .map_err(Into::into)
@@ -475,28 +462,37 @@ impl RouterQuery {
             .map_err(Into::into)
     }
 
-    pub async fn programs_count_at(&self, block: H256) -> Result<u64> {
+    pub async fn programs_count_at(&self, id: impl IntoBlockId) -> Result<u64> {
         let count = self
             .instance
             .programsCount()
             .call()
-            .block(BlockId::hash(block.0.into()))
+            .block(id.into_block_id())
             .await?;
         // it's impossible to ever reach 18 quintillion programs (maximum of u64)
         let count: u64 = count.try_into().expect("infallible");
         Ok(count)
     }
 
-    pub async fn validated_codes_count_at(&self, block: H256) -> Result<u64> {
+    pub async fn validated_codes_count_at(&self, id: impl IntoBlockId) -> Result<u64> {
         let count = self
             .instance
             .validatedCodesCount()
             .call()
-            .block(BlockId::hash(block.0.into()))
+            .block(id.into_block_id())
             .await?;
         // it's impossible to ever reach 18 quintillion programs (maximum of u64)
         let count: u64 = count.try_into().expect("infallible");
         Ok(count)
+    }
+
+    pub async fn storage_view_at(&self, id: impl IntoBlockId) -> Result<StorageView> {
+        self.instance
+            .storageView()
+            .call()
+            .block(id.into_block_id())
+            .await
+            .map_err(Into::into)
     }
 }
 
@@ -504,7 +500,7 @@ impl RouterQuery {
 mod tests {
     use super::*;
     use crate::deploy::EthereumDeployer;
-    use alloy::node_bindings::Anvil;
+    use alloy::{eips::BlockId, node_bindings::Anvil};
     use ethexe_signer::Signer;
 
     #[tokio::test]
@@ -521,29 +517,49 @@ mod tests {
             )
             .unwrap();
 
-        let ethereum =
+        let states =
             EthereumDeployer::new(anvil.endpoint_url().as_str(), signer, alice.to_address())
                 .await
                 .unwrap()
                 .deploy()
                 .await
+                .unwrap()
+                .router()
+                .query()
+                .codes_states_at([CodeId::new([0xfe; 32])], BlockId::latest())
+                .await
                 .unwrap();
-
-        let router = ethereum.router().query();
-
-        let latest_block = router
-            .instance
-            .provider()
-            .get_block(BlockId::latest())
-            .await
-            .expect("failed to get latest block")
-            .expect("latest block is None");
-        let latest_block = H256(latest_block.header.hash.0);
-
-        let states = router
-            .codes_states_at([CodeId::new([0xfe; 32])], latest_block)
-            .await
-            .unwrap();
         assert_eq!(states, vec![CodeState::Unknown]);
+    }
+
+    #[tokio::test]
+    async fn storage_view() {
+        let anvil = Anvil::new().spawn();
+
+        let signer = Signer::memory();
+        let alice = signer
+            .storage_mut()
+            .add_key(
+                "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+                    .parse()
+                    .unwrap(),
+            )
+            .unwrap();
+
+        let storage =
+            EthereumDeployer::new(anvil.endpoint_url().as_str(), signer, alice.to_address())
+                .await
+                .unwrap()
+                .deploy()
+                .await
+                .unwrap()
+                .router()
+                .query()
+                .storage_view_at(BlockId::latest())
+                .await
+                .unwrap();
+        assert!(storage.validationSettings.validators0.useFromTimestamp > 0);
+        assert_eq!(storage.validationSettings.validators0.list.len(), 1);
+        assert_eq!(storage.validationSettings.validators1.useFromTimestamp, 0);
     }
 }

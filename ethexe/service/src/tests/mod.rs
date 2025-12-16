@@ -34,6 +34,7 @@ use alloy::{
 };
 use ethexe_common::{
     Announce, HashOf, ScheduledTask, ToDigest,
+    consensus::{DEFAULT_CHAIN_DEEPNESS_THRESHOLD, DEFAULT_VALIDATE_CHAIN_DEEPNESS_LIMIT},
     db::*,
     ecdsa::ContractSignature,
     events::{BlockEvent, MirrorEvent, RouterEvent},
@@ -93,7 +94,10 @@ async fn basics() {
         chunk_processing_threads: 16,
         block_gas_limit: 4_000_000_000_000,
         canonical_quarantine: 0,
+        dev: false,
         fast_sync: false,
+        validate_chain_deepness_limit: DEFAULT_VALIDATE_CHAIN_DEEPNESS_LIMIT,
+        chain_deepness_threshold: DEFAULT_CHAIN_DEEPNESS_THRESHOLD,
     };
 
     let eth_cfg = EthereumConfig {
@@ -451,7 +455,7 @@ async fn mailbox() {
                     assert_eq!(payload, original_mid.encode());
                 } else if id == ping_expected_message_id {
                     assert_eq!(payload, b"PING");
-                    block = Some(block_data.clone());
+                    block = Some(*block_data);
                 } else {
                     panic!("Unexpected message id {id}");
                 }
@@ -1869,6 +1873,26 @@ async fn validators_election() {
 
     tracing::info!("📗 Next validators successfully committed");
 
+    // Upload code when next validators committed and next are not active.
+    // Checks, that another validators commitment not happen.
+    let uploaded_code = env
+        .upload_code(demo_ping::WASM_BINARY)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert!(uploaded_code.valid);
+
+    let ping_actor = env
+        .create_program(uploaded_code.code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert_eq!(ping_actor.code_id, uploaded_code.code_id);
+
     // Stop previous validators
     for mut node in validators.into_iter() {
         node.stop_service().await;
@@ -1890,14 +1914,16 @@ async fn validators_election() {
         .unwrap();
     env.force_new_block().await;
 
-    let res = env
-        .upload_code(demo_ping::WASM_BINARY)
+    let reply = env
+        .send_message(ping_actor.program_id, b"PING")
         .await
-        .unwrap()
+        .expect("pong reply")
         .wait_for()
         .await
-        .unwrap();
-    assert!(res.valid);
+        .expect("reply info");
+
+    assert_eq!(reply.payload, b"PONG");
+    assert_eq!(reply.program_id, ping_actor.program_id);
 }
 
 #[tokio::test(flavor = "multi_thread")]
@@ -2650,11 +2676,13 @@ async fn announces_conflicts() {
         let wait_for_pong = env.send_message(ping_id, b"PING").await.unwrap();
 
         let block = env.latest_block().await;
+        let timelines = env.db.protocol_timelines().unwrap();
+        let era_index = timelines.era_from_ts(block.header.timestamp);
         let announce = Announce::with_default_gas(block.hash, HashOf::random());
         let announce_hash = announce.to_hash();
         validator0
             .publish_validator_message(ValidatorMessage {
-                block: block.hash,
+                era_index,
                 payload: announce,
             })
             .await;
@@ -2752,11 +2780,13 @@ async fn announces_conflicts() {
 
         // Send announce from stopped validator 6
         let block = env.latest_block().await;
+        let timelines = env.db.protocol_timelines().unwrap();
+        let era_index = timelines.era_from_ts(block.header.timestamp);
         let announce6 = Announce::with_default_gas(block.hash, latest_computed_announce_hash);
         let announce6_hash = announce6.to_hash();
         validator6
             .publish_validator_message(ValidatorMessage {
-                block: block.hash,
+                era_index,
                 payload: announce6,
             })
             .await;
@@ -2774,6 +2804,8 @@ async fn announces_conflicts() {
         // Announce is not on top of announce6 (already accepted),
         // so must be rejected by validators 1..=5
         let block = env.latest_block().await;
+        let timelines = env.db.protocol_timelines().unwrap();
+        let era_index = timelines.era_from_ts(block.header.timestamp);
         let parent = validator1_db
             .block_meta(block.header.parent_hash)
             .announces
@@ -2785,7 +2817,7 @@ async fn announces_conflicts() {
         let announce7_hash = announce7.to_hash();
         validator0
             .publish_validator_message(ValidatorMessage {
-                block: block.hash,
+                era_index,
                 payload: announce7,
             })
             .await;
@@ -2989,9 +3021,9 @@ async fn catch_up_test_case(commitment_delay_limit: u32) {
             // Notify that commitment is sent
             self.wait_signal_sender.send(()).unwrap();
 
-            log::info!("📗 LateCommitter waiting for commitment to be mined ...");
+            log::info!("📗 LateCommitter waiting for transaction to be applied ...");
             pending?
-                .try_get_receipt()
+                .try_get_receipt_check_reverted()
                 .await
                 .map(|r| r.transaction_hash.0.into())
         }
@@ -3113,7 +3145,7 @@ async fn catch_up_test_case(commitment_delay_limit: u32) {
         env.force_new_block().await;
 
         // Send signal to make commitment2,
-        // but it would not be applied because it's not above previous one
+        // but commitment would not be applied because it's not above previous one
         commit_signal_sender.send(()).unwrap();
         wait_signal_receiver.recv().await.unwrap();
 

@@ -17,12 +17,11 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    AlloyProvider, TryGetReceipt,
+    AlloyProvider, IntoBlockId, TryGetReceipt,
     abi::{self, IMirror},
 };
 use alloy::{
     contract::CallBuilder,
-    eips::BlockId,
     network,
     primitives::{Address, Bytes, U256},
     providers::{PendingTransactionBuilder, Provider, RootProvider},
@@ -68,14 +67,22 @@ impl Mirror {
         let builder = CallBuilder::new_raw(self.0.provider(), Bytes::new())
             .to(*self.0.address())
             .value(U256::from(value));
-        let receipt = builder.send().await?.try_get_receipt().await?;
+        let receipt = builder
+            .send()
+            .await?
+            .try_get_receipt_check_reverted()
+            .await?;
 
         Ok((*receipt.transaction_hash).into())
     }
 
     pub async fn executable_balance_top_up(&self, value: u128) -> Result<H256> {
         let builder = self.0.executableBalanceTopUp(value);
-        let receipt = builder.send().await?.try_get_receipt().await?;
+        let receipt = builder
+            .send()
+            .await?
+            .try_get_receipt_check_reverted()
+            .await?;
 
         Ok((*receipt.transaction_hash).into())
     }
@@ -119,14 +126,22 @@ impl Mirror {
                 payload.as_ref().to_vec().into(),
             )
             .value(U256::from(value));
-        let receipt = builder.send().await?.try_get_receipt().await?;
+        let receipt = builder
+            .send()
+            .await?
+            .try_get_receipt_check_reverted()
+            .await?;
 
         Ok((*receipt.transaction_hash).into())
     }
 
     pub async fn claim_value(&self, claimed_id: MessageId) -> Result<H256> {
         let builder = self.0.claimValue(claimed_id.into_bytes().into());
-        let receipt = builder.send().await?.try_get_receipt().await?;
+        let receipt = builder
+            .send()
+            .await?
+            .try_get_receipt_check_reverted()
+            .await?;
 
         Ok((*receipt.transaction_hash).into())
     }
@@ -157,10 +172,10 @@ impl MirrorQuery {
             .map_err(Into::into)
     }
 
-    pub async fn state_hash_at(&self, block: H256) -> Result<H256> {
+    pub async fn state_hash_at(&self, id: impl IntoBlockId) -> Result<H256> {
         self.0
             .stateHash()
-            .block(BlockId::hash(block.0.into()))
+            .block(id.into_block_id())
             .call()
             .await
             .map(|res| H256(res.0))

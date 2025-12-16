@@ -28,6 +28,7 @@ bytemuck = { workspace = true, features = ["const_zeroed"] }
 log.workspace = true
 derive_more.workspace = true
 parity-scale-codec.workspace = true
+gear-workspace-hack.workspace = true
 
 [dev-dependencies]
 parity-scale-codec.workspace = true

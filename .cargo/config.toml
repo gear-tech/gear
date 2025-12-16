@@ -3,3 +3,8 @@ GEAR_WORKSPACE_DIR = { value = "", relative = true }
 
 [alias]
 gbuild = "run -p cargo-gbuild --"
+
+[registries]
+# crates.io registry to hack `substrate-wasm-builder` patch section
+# so runtimes do not use `gear-workspace-hack`
+crates-io-patch-hack = { index = "sparse+https://index.crates.io/" }

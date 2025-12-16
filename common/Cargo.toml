@@ -37,6 +37,7 @@ sp-runtime.workspace = true
 frame-support.workspace = true
 frame-system = { workspace = true, optional = true }
 frame-benchmarking = { workspace = true, optional = true }
+gear-workspace-hack.workspace = true
 
 [target.'cfg(fuzz)'.dependencies]
 fail = { workspace = true, features = [ "failpoints" ] }

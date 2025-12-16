@@ -62,7 +62,7 @@ interface IMiddleware {
     error NotRouter();
     /// @dev Emitted when the `msg.sender` has not the role of slash requester.
     error NotSlashRequester();
-    /// @dev Emitted when the `msg.sender` has not the role of slash excutor.
+    /// @dev Emitted when the `msg.sender` has not the role of slash executor.
     error NotSlashExecutor();
     /// @dev Emitted when rewards contract was not created by the StakerRewardsFactory.
     error NonFactoryStakerRewards();

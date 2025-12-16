@@ -11,6 +11,10 @@
 # (optional, default: false).
 # tmp = false
 
+# Flag to run node in development mode.
+# (optional, default: false).
+# dev = false
+
 # Public key of the validator, if node should act as one.
 # Provided in the format of 33-byte hex string:
 # - `yParityCompressed`, compressed `publicKeyY`,
@@ -81,17 +85,25 @@ canonical-quarantine = 0
 # (optional, default: false).
 # fast-sync = false
 
+# Maximum allowed deepness of the chain for validating commitments.
+# (optional, must be non-zero u32, default: 10_000).
+# validate-chain-deepness-limit = 10_000
+
+# Threshold for producer to submit commitment despite of no transitions.
+# (optional, must be non-zero u32, default: 500).
+# chain-deepness-threshold = 500
+
 ##########################################################################################
 
 ### Ethereum-specific parameters.
 [ethereum]
 # Ethereum RPC endpoint.
 # (optional, default: ws://localhost:8545).
-rpc = "ws://localhost:8545"
+# rpc = "ws://localhost:8545"
 
 # Ethereum Beacon RPC endpoint.
-# (optional, default: http://localhost:5052).
-beacon-rpc = "http://localhost:8545"
+# (optional, default: http://localhost:8545).
+# beacon-rpc = "http://localhost:8545"
 
 # Ethereum router contract address.
 # (optional).
