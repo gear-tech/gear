@@ -238,6 +238,7 @@ jobs:
           us-secret-access-key: "${{ secrets.GEAR_CI_S3_US_SECRET_ACCESS_KEY }}"
           eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
           eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
+          keep-workspace-hack: false
 
       - name: "Check: Wasm-builder recommended toolchain matches rust-toolchain.toml"
         run: |
