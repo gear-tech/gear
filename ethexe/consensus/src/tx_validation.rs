@@ -20,29 +20,17 @@ use anyhow::{Result, anyhow};
 use ethexe_common::{
     Announce, HashOf, ProgramStates,
     db::{AnnounceStorageRO, OnChainStorageRO},
-    injected::{InjectedTransaction, SignedInjectedTransaction, VALIDITY_WINDOW},
+    injected::{
+        InjectedTransaction, SignedInjectedTransaction, TxInvalidityStatus, TxValidity,
+        TxValidityIntermediateStatus, VALIDITY_WINDOW,
+    },
 };
 use ethexe_runtime_common::state::Storage;
 use gprimitives::H256;
 use hashbrown::HashSet;
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub enum TxValidity {
-    /// Transaction is valid and can be include into announce.
-    Valid,
-    /// Transaction was already include into one of previous [`VALIDITY_WINDOW`] announces.
-    Duplicate,
-    /// Transaction is outdated and should be remove from pool.
-    Outdated,
-    /// Transaction's reference block not on current branch.
-    /// Keep tx in pool in case of reorg.
-    NotOnCurrentBranch,
-    /// Transaction's destination [`gprimitives::ActorId`] not found.
-    UnknownDestination,
-    /// Transaction's destination [`gprimitives::ActorId`] not initialized.
-    UninitializedDestination,
-}
-
+/// [`TxValidityChecker`] checks validity of injected transaction.
+/// This struct must be created for specific announce and chain head to determine validity of transactions.
 pub struct TxValidityChecker<DB> {
     db: DB,
     chain_head: H256,
@@ -67,19 +55,25 @@ impl<DB: OnChainStorageRO + AnnounceStorageRO + Storage> TxValidityChecker<DB> {
         let reference_block = tx.data().reference_block;
 
         if !self.is_reference_block_within_validity_window(reference_block)? {
-            return Ok(TxValidity::Outdated);
+            return Ok(TxValidity::Invalid(TxInvalidityStatus::Outdated));
         }
 
         if !self.is_reference_block_on_current_branch(reference_block)? {
-            return Ok(TxValidity::NotOnCurrentBranch);
+            return Ok(TxValidity::Intermediate(
+                TxValidityIntermediateStatus::NotOnCurrentBranch,
+            ));
         }
 
         if self.recent_included_txs.contains(&tx.data().to_hash()) {
-            return Ok(TxValidity::Duplicate);
+            return Ok(TxValidity::Invalid(TxInvalidityStatus::Duplicate));
         }
 
         let Some(destination_state_hash) = self.latest_states.get(&tx.data().destination) else {
-            return Ok(TxValidity::UnknownDestination);
+            return Ok(TxValidity::Invalid(
+                TxInvalidityStatus::UnknownDestination {
+                    destination: tx.data().destination,
+                },
+            ));
         };
 
         let Some(state) = self.db.program_state(destination_state_hash.hash) else {
@@ -91,7 +85,11 @@ impl<DB: OnChainStorageRO + AnnounceStorageRO + Storage> TxValidityChecker<DB> {
         };
 
         if state.requires_init_message() {
-            return Ok(TxValidity::UninitializedDestination);
+            return Ok(TxValidity::Invalid(
+                TxInvalidityStatus::UninitializedDestination {
+                    destination: tx.data().destination,
+                },
+            ));
         }
 
         Ok(TxValidity::Valid)
@@ -174,7 +172,7 @@ mod tests {
         MaybeHashOf, SimpleBlockData, StateHashWithQueueSize,
         db::{AnnounceStorageRW, OnChainStorageRW},
         ecdsa::PrivateKey,
-        injected::VALIDITY_WINDOW,
+        injected::{TxInvalidityStatus, VALIDITY_WINDOW},
         mock::{BlockChain, Mock},
     };
     use ethexe_db::Database;
@@ -251,7 +249,7 @@ mod tests {
             TxValidityChecker::new_for_announce(db, blocks[9].hash, announce_hash).unwrap();
 
         assert_eq!(
-            TxValidity::Duplicate,
+            TxValidity::Invalid(TxInvalidityStatus::Duplicate),
             tx_checker.check_tx_validity(&tx).unwrap()
         );
     }
@@ -270,7 +268,7 @@ mod tests {
         for block in blocks.iter().take(VALIDITY_WINDOW as usize) {
             let tx = mock_tx(block.hash);
             assert_eq!(
-                TxValidity::Outdated,
+                TxValidity::Invalid(TxInvalidityStatus::Outdated),
                 tx_checker.check_tx_validity(&tx).unwrap()
             );
         }
@@ -302,7 +300,7 @@ mod tests {
         for block in blocks_branch2.iter() {
             let tx = mock_tx(block.hash);
             assert_eq!(
-                TxValidity::NotOnCurrentBranch,
+                TxValidity::Intermediate(TxValidityIntermediateStatus::NotOnCurrentBranch),
                 tx_checker.check_tx_validity(&tx).unwrap()
             );
         }
@@ -327,9 +325,9 @@ mod tests {
         let tx_checker =
             TxValidityChecker::new_for_announce(db, blocks[9].hash, announce_hash).unwrap();
 
-        assert_eq!(
-            TxValidity::UninitializedDestination,
-            tx_checker.check_tx_validity(&tx).unwrap()
-        );
+        assert!(matches!(
+            tx_checker.check_tx_validity(&tx).unwrap(),
+            TxValidity::Invalid(TxInvalidityStatus::UninitializedDestination { .. }),
+        ));
     }
 }

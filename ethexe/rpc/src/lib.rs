@@ -26,7 +26,7 @@ use apis::{
     BlockApi, BlockServer, CodeApi, CodeServer, InjectedApi, InjectedServer, ProgramApi,
     ProgramServer,
 };
-use ethexe_common::injected::{RpcOrNetworkInjectedTx, SignedPromise};
+use ethexe_common::injected::{RpcOrNetworkInjectedTx, SignedPromise, TxRejection};
 use ethexe_db::Database;
 use ethexe_processor::RunnerConfig;
 use futures::{Stream, stream::FusedStream};
@@ -137,9 +137,11 @@ impl RpcService {
     }
 
     pub fn provide_promise(&self, promise: SignedPromise) {
-        let injected_api = self.injected_api.clone();
+        self.injected_api.send_promise(promise);
+    }
 
-        injected_api.send_promise(promise);
+    pub fn provide_tx_rejections(&self, rejections: Vec<TxRejection>) {
+        self.injected_api.send_tx_rejections(rejections);
     }
 }
 

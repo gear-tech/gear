@@ -194,7 +194,7 @@ impl Producer {
             self.ctx.core.commitment_delay_limit,
         )?;
 
-        let injected_transactions = self
+        let output = self
             .ctx
             .core
             .injected_pool
@@ -204,8 +204,14 @@ impl Producer {
             block_hash: self.block.hash,
             parent,
             gas_allowance: Some(self.ctx.core.block_gas_limit),
-            injected_transactions,
+            injected_transactions: output.selected_txs,
         };
+
+        if !output.rejected_txs.is_empty() {
+            self.ctx
+                .output
+                .push_back(ConsensusEvent::RejectedTransactions(output.rejected_txs));
+        }
 
         let (announce_hash, newly_included) =
             self.ctx.core.db.include_announce(announce.clone())?;

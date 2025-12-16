@@ -36,7 +36,7 @@ use anyhow::Result;
 use ethexe_common::{
     Announce, Digest, HashOf, SimpleBlockData,
     consensus::{BatchCommitmentValidationReply, VerifiedAnnounce, VerifiedValidationRequest},
-    injected::{SignedInjectedTransaction, SignedPromise},
+    injected::{SignedInjectedTransaction, SignedPromise, TxRejection},
     network::{AnnouncesRequest, CheckedAnnouncesResponse, SignedValidatorMessage},
 };
 use futures::{Stream, stream::FusedStream};
@@ -108,6 +108,8 @@ pub enum ConsensusEvent {
     AnnounceAccepted(HashOf<Announce>),
     /// Announce from producer was rejected
     AnnounceRejected(HashOf<Announce>),
+    /// Injected transactions reject reasons
+    RejectedTransactions(Vec<TxRejection>),
     /// Outer service have to compute announce
     #[from]
     ComputeAnnounce(Announce),

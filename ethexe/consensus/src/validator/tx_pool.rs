@@ -16,12 +16,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::tx_validation::{TxValidity, TxValidityChecker};
+use crate::tx_validation::TxValidityChecker;
 use anyhow::Result;
 use ethexe_common::{
     Announce, HashOf,
     db::{AnnounceStorageRO, CodesStorageRO, InjectedStorageRW, OnChainStorageRO},
-    injected::{InjectedTransaction, SignedInjectedTransaction},
+    injected::{InjectedTransaction, SignedInjectedTransaction, TxRejection, TxValidity},
 };
 use ethexe_db::Database;
 use ethexe_runtime_common::state::Storage;
@@ -31,9 +31,17 @@ use std::collections::HashSet;
 /// [`InjectedTxPool`] is a local pool of injected transactions, which validator can include in announces.
 #[derive(Clone)]
 pub(crate) struct InjectedTxPool<DB = Database> {
-    /// HashSet of (reference_block, injected_tx_hash).
-    inner: HashSet<(H256, HashOf<InjectedTransaction>)>,
+    /// HashSet of injected_tx_hash.
+    inner: HashSet<HashOf<InjectedTransaction>>,
     db: DB,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct TxPoolOutput {
+    /// Selected transactions to be included in announce.
+    pub selected_txs: Vec<SignedInjectedTransaction>,
+    /// Invalid transactions reasons.
+    pub rejected_txs: Vec<TxRejection>,
 }
 
 impl<DB> InjectedTxPool<DB>
@@ -49,10 +57,9 @@ where
 
     pub fn handle_tx(&mut self, tx: SignedInjectedTransaction) {
         let tx_hash = tx.data().to_hash();
-        let reference_block = tx.data().reference_block;
-        tracing::trace!(tx_hash = ?tx_hash, reference_block = ?reference_block,  "handle new injected tx");
+        tracing::trace!(tx_hash = ?tx_hash, reference_block = ?tx.data().reference_block,  "handle new injected tx");
 
-        if self.inner.insert((reference_block, tx_hash)) {
+        if self.inner.insert(tx_hash) {
             // Write tx in database only if its not already contains in pool.
             self.db.set_injected_transaction(tx);
         }
@@ -63,45 +70,44 @@ where
         &mut self,
         block_hash: H256,
         parent_announce: HashOf<Announce>,
-    ) -> Result<Vec<SignedInjectedTransaction>> {
+    ) -> Result<TxPoolOutput> {
         tracing::trace!(block = ?block_hash, "start collecting injected transactions");
 
         let tx_checker =
             TxValidityChecker::new_for_announce(self.db.clone(), block_hash, parent_announce)?;
 
-        let mut selected_txs = vec![];
-        let mut outdated_txs = vec![];
+        let mut output = TxPoolOutput::default();
+        let mut to_remove = Vec::new();
 
-        for (reference_block, tx_hash) in self.inner.iter() {
+        for tx_hash in self.inner.iter() {
             let Some(tx) = self.db.injected_transaction(*tx_hash) else {
                 continue;
             };
 
             match tx_checker.check_tx_validity(&tx)? {
-                TxValidity::Valid => selected_txs.push(tx),
-                TxValidity::Duplicate => {
-                    // TODO kuzmindev: send result to submitter, that tx was already included.
+                TxValidity::Valid => {
+                    tracing::trace!(tx_hash = ?tx_hash, "tx is valid, selecting for announce");
+                    output.selected_txs.push(tx)
                 }
-                TxValidity::UnknownDestination => {
-                    // TODO kuzmindev: also send to submitter result, that tx `destination` field is invalid.
+                TxValidity::Intermediate(status) => {
+                    tracing::trace!(tx_hash = ?tx_hash, "tx is in intermediate state, keeping in pool: {status:?}")
                 }
-                TxValidity::NotOnCurrentBranch => {
-                    tracing::trace!(tx_hash = ?tx_hash, "tx on different branch, keeping in pool");
-                }
-                TxValidity::Outdated => outdated_txs.push((*reference_block, *tx_hash)),
-                TxValidity::UninitializedDestination => {
-                    tracing::trace!(
-                        tx_hash = ?tx_hash,
-                        "tx send to uninitialized actor, keeping in pool, because of in next blocks it can be"
-                    );
+                TxValidity::Invalid(reason) => {
+                    tracing::trace!(tx_hash = ?tx_hash, "tx is invalid, removing from pool: {reason:?}");
+                    output.rejected_txs.push(TxRejection {
+                        tx_hash: *tx_hash,
+                        reason,
+                    });
+                    to_remove.push(*tx_hash)
                 }
             }
         }
 
-        outdated_txs.into_iter().for_each(|key| {
-            self.inner.remove(&key);
+        // Remove invalid transactions.
+        to_remove.into_iter().for_each(|tx_hash| {
+            self.inner.remove(&tx_hash);
         });
 
-        Ok(selected_txs)
+        Ok(output)
     }
 }

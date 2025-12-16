@@ -20,7 +20,7 @@ use crate::{RpcEvent, errors};
 use dashmap::DashMap;
 use ethexe_common::{
     HashOf,
-    injected::{InjectedTransaction, RpcOrNetworkInjectedTx, SignedPromise},
+    injected::{InjectedTransaction, RpcOrNetworkInjectedTx, SignedPromise, TxRejection},
 };
 use jsonrpsee::{
     PendingSubscriptionSink, SubscriptionMessage,
@@ -57,31 +57,49 @@ pub trait Injected {
     ) -> SubscriptionResult;
 }
 
+/// Message which will be sent to subscriber.
+#[derive(Debug, Clone, derive_more::From, Serialize, Deserialize)]
+pub enum MessageForSubscriber {
+    Promise(SignedPromise),
+    Rejection(TxRejection),
+}
+
+type SubscribersMap = DashMap<HashOf<InjectedTransaction>, oneshot::Sender<MessageForSubscriber>>;
+
 #[derive(Debug, Clone)]
 pub struct InjectedApi {
     rpc_sender: mpsc::UnboundedSender<RpcEvent>,
-    promise_waiters: Arc<DashMap<HashOf<InjectedTransaction>, oneshot::Sender<SignedPromise>>>,
+    promise_subscribers: Arc<SubscribersMap>,
 }
 
 impl InjectedApi {
     pub(crate) fn new(rpc_sender: mpsc::UnboundedSender<RpcEvent>) -> Self {
         Self {
             rpc_sender,
-            promise_waiters: Arc::new(DashMap::new()),
+            promise_subscribers: Arc::new(DashMap::new()),
         }
     }
 }
 
 impl InjectedApi {
     pub fn send_promise(&self, promise: SignedPromise) {
-        let Some((_, promise_sender)) = self.promise_waiters.remove(&promise.data().tx_hash) else {
+        let Some((_, subscriber)) = self.promise_subscribers.remove(&promise.data().tx_hash) else {
             tracing::warn!(promise = ?promise, "receive unregistered promise");
             return;
         };
 
-        if let Err(promise) = promise_sender.send(promise) {
+        if let Err(promise) = subscriber.send(promise.into()) {
             tracing::trace!(promise = ?promise, "rpc promise receiver dropped");
         }
+    }
+
+    pub fn send_tx_rejections(&self, rejections: Vec<TxRejection>) {
+        rejections.into_iter().for_each(|rejection| {
+            if let Some((_, subscriber)) = self.promise_subscribers.remove(&rejection.tx_hash) 
+             && let Err(rejection) = subscriber.send(rejection.into()) {
+                    tracing::trace!(rejection = ?rejection, "failed to send tx rejection because of rpc receiver dropped");
+            }
+        });
     }
 }
 
@@ -124,7 +142,7 @@ impl InjectedServer for InjectedApi {
         let tx_hash = transaction.tx.data().to_hash();
 
         // Checks, that transaction wasn't already send.
-        if self.promise_waiters.get(&tx_hash).is_some() {
+        if self.promise_subscribers.get(&tx_hash).is_some() {
             tracing::warn!(tx_hash = ?tx_hash, "transaction was already sent");
             return Err(
                 format!("transaction with the same hash was already sent: {tx_hash}").into(),
@@ -167,7 +185,7 @@ impl InjectedServer for InjectedApi {
             }
         };
 
-        self.promise_waiters.insert(tx_hash, promise_sender);
+        self.promise_subscribers.insert(tx_hash, promise_sender);
 
         tokio::spawn(async move {
             let Ok(promise) = promise_receiver.await else {

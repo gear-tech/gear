@@ -121,3 +121,51 @@ impl ToDigest for Promise {
         reply.update_hasher(hasher);
     }
 }
+
+// Injected transaction validity status.
+
+/// The status of [`InjectedTransaction`] for specific announce and chain head.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TxValidity {
+    /// Transaction is valid and can be include into announce.
+    Valid,
+    /// Transaction is in intermediate status ([`TxValidityIntermediateStatus`]).
+    Intermediate(TxValidityIntermediateStatus),
+    /// Transaction is not valid.
+    /// The [`TxRejection`] will be returned to the transaction's sender.
+    Invalid(TxInvalidityStatus),
+}
+
+/// The intermediate status means that the transaction is not valid now, but
+/// it may become valid in the future (e.g., after a reorg).
+///
+/// In this status, the transaction should be kept in the pool.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum TxValidityIntermediateStatus {
+    /// Transaction's reference block not on current branch.
+    NotOnCurrentBranch,
+}
+
+/// Represents the rejection of injected transaction.
+/// This sruct will be provided to the transaction's sender.
+#[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
+#[derive(Debug, Clone, PartialEq, Eq, derive_more::Display)]
+#[display("Transaction({tx_hash}) was rejected because of: {reason}")]
+pub struct TxRejection {
+    pub tx_hash: HashOf<InjectedTransaction>,
+    pub reason: TxInvalidityStatus,
+}
+
+/// The reason why the transaction is not valid and cannot be included into announce.
+#[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
+#[derive(Debug, Clone, PartialEq, Eq, derive_more::Display)]
+pub enum TxInvalidityStatus {
+    #[display("Transaction with the same hash was already included")]
+    Duplicate,
+    #[display("Transaction was not included within validity window and becomes outdated; hash")]
+    Outdated,
+    #[display("Transaction's destination actor({destination}) not found")]
+    UnknownDestination { destination: gprimitives::ActorId },
+    #[display("Transaction's destination actor({destination}) is uninitialized")]
+    UninitializedDestination { destination: gprimitives::ActorId },
+}
