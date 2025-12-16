@@ -13,7 +13,6 @@ ethexe-common.workspace = true
 gear-core.workspace = true
 gear-core-errors.workspace = true
 gprimitives = { workspace = true, features = ["std"] }
-
 anyhow.workspace = true
 async-trait.workspace = true
 alloy = { workspace = true, features = [
@@ -33,6 +32,7 @@ log.workspace = true
 tracing.workspace = true
 tokio = { workspace = true, features = ["process"] }
 roast-secp256k1-evm.workspace = true
+serde.workspace = true
 nonempty.workspace = true
 rand.workspace = true
 gear-workspace-hack.workspace = true

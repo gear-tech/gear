@@ -48,16 +48,9 @@ use sha3::Digest as _;
     derive_more::Display,
 )]
 #[from([u8; 20], H160)]
-#[display("0x{}", self.to_hex())]
-#[debug("0x{}", self.to_hex())]
+#[display("0x{}", hex::encode(_0))]
+#[debug("0x{}", hex::encode(_0))]
 pub struct Address(pub [u8; 20]);
-
-impl Address {
-    /// Address hex string.
-    pub fn to_hex(&self) -> String {
-        hex::encode(self.0)
-    }
-}
 
 impl AsRef<[u8]> for Address {
     fn as_ref(&self) -> &[u8] {
@@ -91,7 +84,7 @@ impl serde::Serialize for Address {
     where
         S: serde::Serializer,
     {
-        self.to_hex().serialize(serializer)
+        self.to_string().serialize(serializer)
     }
 }
 
