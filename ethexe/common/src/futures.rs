@@ -69,13 +69,15 @@ where
     }
 }
 
-/// Helper trait.
-pub trait TimedFlattenResult<T, E> {
-    fn flatten(self) -> Result<(f64, T), E>;
+/// Extension trait to transpose a timed result.
+/// For a value of type `(f64, Result<T, E>)`, it produces a value of type `Result<(f64, T), E>`.
+/// This is useful for handling results from timed futures.
+pub trait TransposeTimedResult<T, E> {
+    fn transpose(self) -> Result<(f64, T), E>;
 }
 
-impl<T, E> TimedFlattenResult<T, E> for (f64, Result<T, E>) {
-    fn flatten(self) -> Result<(f64, T), E> {
+impl<T, E> TransposeTimedResult<T, E> for (f64, Result<T, E>) {
+    fn transpose(self) -> Result<(f64, T), E> {
         self.1.map(|res| (self.0, res))
     }
 }

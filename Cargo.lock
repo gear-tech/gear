@@ -5158,8 +5158,6 @@ dependencies = [
  "gear-workspace-hack",
  "hyper 0.14.31",
  "log",
- "metrics",
- "metrics-derive",
  "metrics-exporter-prometheus",
  "prometheus 0.14.0",
  "tokio",
