@@ -586,7 +586,10 @@ impl Service {
                             transaction,
                             response_sender,
                         } => {
-                            if validator_address == Some(transaction.recipient) {
+                            // Note: zero address means that no matter what validator will insert this tx.
+                            if transaction.recipient == Address::default()
+                                || validator_address == Some(transaction.recipient)
+                            {
                                 consensus.receive_injected_transaction(transaction.tx)?;
                             } else {
                                 let Some(network) = network.as_mut() else {
