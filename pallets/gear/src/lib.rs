@@ -1415,6 +1415,8 @@ pub mod pallet {
         /// - `init_payload`: encoded parameters of the wasm module `init` function.
         /// - `gas_limit`: maximum amount of gas the program can spend before it is halted.
         /// - `value`: balance to be transferred to the program once it's been created.
+        /// - `keep_alive`: whether to ensure that the original account balance will stay above
+        ///   the existential deposit.
         ///
         /// Emits the following events:
         /// - `InitMessageEnqueued(MessageInfo)` when init message is placed in the queue.
