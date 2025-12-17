@@ -16,7 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{Address, HashOf, ToDigest, ecdsa::SignedData};
+use crate::{
+    Address, HashOf, ToDigest,
+    ecdsa::{SignedData, SignedMessage},
+};
 use core::hash::Hash;
 use gear_core::rpc::ReplyInfo;
 use gprimitives::{ActorId, H256, MessageId};
@@ -27,7 +30,7 @@ use sp_core::Bytes;
 /// Recent block hashes window size used to check transaction mortality.
 pub const VALIDITY_WINDOW: u8 = 32;
 
-pub type SignedInjectedTransaction = SignedData<InjectedTransaction>;
+pub type SignedInjectedTransaction = SignedMessage<InjectedTransaction>;
 
 #[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
 #[cfg_attr(feature = "serde", derive(Hash))]

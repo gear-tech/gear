@@ -62,6 +62,23 @@ impl Signature {
         Ok(signature)
     }
 
+    /// Create a recoverable signature for the provided digest using the private key according to EIP-191.
+    pub fn create_message<T>(private_key: PrivateKey, data: T) -> SignResult<Self>
+    where
+        Digest: From<T>,
+    {
+        let digest = Digest::from(data);
+        let eip191_hash = Self::eip191_hash(digest.0);
+
+        let signature = SigningKey::from(private_key)
+            .sign_prehash_recoverable(&eip191_hash)
+            .map(|(inner, recovery_id)| Self { inner, recovery_id })?;
+
+        debug_assert!(signature.validate_message::<Digest>(digest).is_ok());
+
+        Ok(signature)
+    }
+
     /// Recovers public key which was used to create the signature for the signed data.
     pub fn recover<T>(&self, data: T) -> SignResult<PublicKey>
     where
@@ -440,7 +457,7 @@ where
     for<'a> Digest: From<&'a T>,
 {
     pub fn create(private_key: PrivateKey, data: T) -> SignResult<Self> {
-        let signature = Signature::create(private_key, &data)?;
+        let signature = Signature::create_message(private_key, &data)?;
         let public_key = PublicKey::from(private_key);
 
         Ok(Self {
