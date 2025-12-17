@@ -72,25 +72,22 @@ impl<DB: OnChainStorageRO + AnnounceStorageRO + Storage> TxValidityChecker<DB> {
         let reference_block = tx.data().reference_block;
 
         if !self.is_reference_block_within_validity_window(reference_block)? {
-            return Ok(TxValidity::Invalid(TxInvalidityStatus::Outdated));
+            return Ok(TxInvalidityStatus::Outdated.into());
         }
 
         if !self.is_reference_block_on_current_branch(reference_block)? {
-            return Ok(TxValidity::Intermediate(
-                TxValidityIntermediateStatus::NotOnCurrentBranch,
-            ));
+            return Ok(TxValidityIntermediateStatus::NotOnCurrentBranch.into());
         }
 
         if self.recent_included_txs.contains(&tx.data().to_hash()) {
-            return Ok(TxValidity::Invalid(TxInvalidityStatus::Duplicate));
+            return Ok(TxInvalidityStatus::Duplicate.into());
         }
 
         let Some(destination_state_hash) = self.latest_states.get(&tx.data().destination) else {
-            return Ok(TxValidity::Invalid(
-                TxInvalidityStatus::UnknownDestination {
-                    destination: tx.data().destination,
-                },
-            ));
+            return Ok(TxInvalidityStatus::UnknownDestination {
+                destination: tx.data().destination,
+            }
+            .into());
         };
 
         let Some(state) = self.db.program_state(destination_state_hash.hash) else {
@@ -102,11 +99,10 @@ impl<DB: OnChainStorageRO + AnnounceStorageRO + Storage> TxValidityChecker<DB> {
         };
 
         if state.requires_init_message() {
-            return Ok(TxValidity::Invalid(
-                TxInvalidityStatus::UninitializedDestination {
-                    destination: tx.data().destination,
-                },
-            ));
+            return Ok(TxValidityIntermediateStatus::UninitializedDestination {
+                destination: tx.data().destination,
+            }
+            .into());
         }
 
         Ok(TxValidity::Valid)
@@ -363,7 +359,7 @@ mod tests {
 
         assert!(matches!(
             tx_checker.check_tx_validity(&tx).unwrap(),
-            TxValidity::Invalid(TxInvalidityStatus::UninitializedDestination { .. }),
+            TxValidity::Intermediate(TxValidityIntermediateStatus::UninitializedDestination { .. }),
         ));
     }
 }
