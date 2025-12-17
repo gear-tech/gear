@@ -397,11 +397,12 @@ impl RouterQuery {
             .map_err(Into::into)
     }
 
-    pub async fn signing_threshold_percentage(&self) -> Result<u16> {
+    pub async fn signing_threshold_fraction(&self) -> Result<(u128, u128)> {
         self.instance
-            .signingThresholdPercentage()
+            .signingThresholdFraction()
             .call()
             .await
+            .map(|res| (res._0, res._1))
             .map_err(Into::into)
     }
 

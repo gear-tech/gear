@@ -5176,7 +5176,6 @@ dependencies = [
  "gprimitives",
  "hyper 1.4.1",
  "jsonrpsee",
- "log",
  "parity-scale-codec",
  "serde",
  "sp-core",
