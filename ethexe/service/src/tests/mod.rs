@@ -29,14 +29,14 @@ use crate::{
     },
 };
 use alloy::{
-    primitives::{U256, address},
+    primitives::{U256},
     providers::{Provider as _, WalletProvider, ext::AnvilApi},
 };
 use ethexe_common::{
     Announce, HashOf, ScheduledTask, ToDigest,
     consensus::{DEFAULT_CHAIN_DEEPNESS_THRESHOLD, DEFAULT_VALIDATE_CHAIN_DEEPNESS_LIMIT},
     db::*,
-    ecdsa::{ContractSignature, PrivateKey, SignedData},
+    ecdsa::{ContractSignature, },
     events::{BlockEvent, MirrorEvent, RouterEvent},
     gear::{BatchCommitment, CANONICAL_QUARANTINE, MessageType},
     injected::{InjectedTransaction, RpcOrNetworkInjectedTx},
@@ -59,7 +59,6 @@ use gear_core::{
 };
 use gear_core_errors::{ErrorReplyReason, SimpleExecutionError, SimpleUnavailableActorError};
 use gprimitives::{ActorId, H160, H256, MessageId};
-use jsonrpsee::ws_client::WsClientBuilder;
 use parity_scale_codec::Encode;
 use std::{
     collections::{BTreeMap, BTreeSet, HashSet},
