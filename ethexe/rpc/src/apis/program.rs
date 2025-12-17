@@ -49,7 +49,8 @@ pub struct FullProgramState {
     pub executable_balance: u128,
 }
 
-#[rpc(server)]
+#[cfg_attr(not(feature = "client"), rpc(server))]
+#[cfg_attr(feature = "client", rpc(server, client))]
 pub trait Program {
     #[method(name = "program_calculateReplyForHandle")]
     async fn calculate_reply_for_handle(

@@ -81,19 +81,20 @@ where
 
         for tx_hash in self.inner.iter() {
             let Some(tx) = self.db.injected_transaction(*tx_hash) else {
-                continue;
+                // This must not happen, as we store txs in db when adding to pool.
+                anyhow::bail!("injected tx not found in db: {tx_hash}");
             };
 
             match tx_checker.check_tx_validity(&tx)? {
                 TxValidity::Valid => {
-                    tracing::trace!(tx_hash = ?tx_hash, "tx is valid, selecting for announce");
+                    tracing::trace!(tx_hash = ?tx_hash, tx = ?tx.data(), "tx is valid, including to announce");
                     output.selected_txs.push(tx)
                 }
                 TxValidity::Intermediate(status) => {
-                    tracing::trace!(tx_hash = ?tx_hash, "tx is in intermediate state, keeping in pool: {status:?}")
+                    tracing::trace!(tx_hash = ?tx_hash, state = %status, "tx is in intermediate state, keeping in pool")
                 }
                 TxValidity::Invalid(reason) => {
-                    tracing::trace!(tx_hash = ?tx_hash, "tx is invalid, removing from pool: {reason:?}");
+                    tracing::trace!(tx_hash = ?tx_hash, invalidity_reason = %reason, "tx is invalid, removing from pool");
                     output.rejected_txs.push(TxRejection {
                         tx_hash: *tx_hash,
                         reason,
@@ -103,11 +104,80 @@ where
             }
         }
 
-        // Remove invalid transactions.
+        // Remove invalid transactions from pool.
         to_remove.into_iter().for_each(|tx_hash| {
             self.inner.remove(&tx_hash);
         });
 
         Ok(output)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ethexe_common::{StateHashWithQueueSize, db::*, mock::*};
+    use ethexe_runtime_common::state::{Program, ProgramState, Storage};
+    use ethexe_signer::Signer;
+    use gprimitives::ActorId;
+
+    #[test]
+    fn test_select_for_announce() {
+        let db = Database::memory();
+
+        let state_hash = db.write_program_state(
+            // Make not required init message by setting terminated state.
+            ProgramState::zero()
+                .tap_mut(|s| s.program = Program::Terminated(ActorId::from([2; 32]))),
+        );
+        let program_id = ActorId::from([1; 32]);
+
+        let chain = BlockChain::mock(10)
+            .tap_mut(|c| {
+                // set 2 last announces as not computed
+                c.block_top_announce_mut(10).computed = None;
+                c.block_top_announce_mut(9).computed = None;
+
+                // append program to the announce at height 8
+                c.block_top_announce_mut(8)
+                    .as_computed_mut()
+                    .program_states
+                    .insert(
+                        program_id,
+                        StateHashWithQueueSize {
+                            hash: state_hash,
+                            canonical_queue_size: 0,
+                            injected_queue_size: 0,
+                        },
+                    );
+            })
+            .setup(&db);
+
+        let mut tx_pool = InjectedTxPool::new(db.clone());
+
+        let signer = Signer::memory();
+        let key = signer.generate_key().unwrap();
+        let tx = InjectedTransaction {
+            reference_block: chain.blocks[9].hash,
+            destination: program_id,
+            ..InjectedTransaction::mock(())
+        };
+        let tx_hash = tx.to_hash();
+        let signed_tx = signer.signed_data(key, tx).unwrap();
+
+        tx_pool.handle_tx(signed_tx.clone());
+        assert!(
+            db.injected_transaction(tx_hash).is_some(),
+            "tx should be stored in db"
+        );
+
+        let selected_txs = tx_pool
+            .select_for_announce(chain.blocks[10].hash, chain.block_top_announce_hash(9))
+            .unwrap();
+        assert_eq!(
+            selected_txs,
+            vec![signed_tx],
+            "tx should be selected for announce"
+        );
     }
 }

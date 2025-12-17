@@ -22,16 +22,30 @@ use crate::{
 };
 use alloy::{
     contract::CallBuilder,
-    network,
-    primitives::{Address, Bytes, U256},
+    hex, network,
+    primitives::{Address, Bytes, U256 as AlloyU256},
     providers::{PendingTransactionBuilder, Provider, RootProvider},
+    rpc::types::{Filter, Topic},
 };
-use anyhow::Result;
-use ethexe_common::Address as LocalAddress;
+use anyhow::{Result, anyhow};
+use ethexe_common::{Address as LocalAddress, events::MirrorEvent};
 pub use events::signatures;
-use gprimitives::{H256, MessageId};
+use futures::StreamExt;
+use gear_core::message::ReplyCode;
+use gprimitives::{ActorId, H256, MessageId, U256};
+use serde::Serialize;
 
 pub mod events;
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ReplyInfo {
+    pub message_id: MessageId,
+    pub actor_id: ActorId,
+    #[serde(with = "hex::serde")]
+    pub payload: Vec<u8>,
+    pub code: ReplyCode,
+    pub value: u128,
+}
 
 type Instance = IMirror::IMirrorInstance<AlloyProvider>;
 type QueryInstance = IMirror::IMirrorInstance<RootProvider>;
@@ -54,6 +68,26 @@ impl Mirror {
         ))
     }
 
+    pub async fn wait_for_state_changed(&self) -> Result<()> {
+        let filter = Filter::new()
+            .address(*self.0.address())
+            .event_signature(Topic::from_iter([signatures::STATE_CHANGED]));
+        let mut mirror_events = self
+            .0
+            .provider()
+            .subscribe_logs(&filter)
+            .await?
+            .into_stream();
+
+        while let Some(log) = mirror_events.next().await {
+            if let Some(signatures::STATE_CHANGED) = log.topic0().cloned() {
+                return Ok(());
+            }
+        }
+
+        Err(anyhow!("Failed to define if state changed"))
+    }
+
     pub async fn get_balance(&self) -> Result<u128> {
         self.0
             .provider()
@@ -66,7 +100,7 @@ impl Mirror {
     pub async fn owned_balance_top_up(&self, value: u128) -> Result<H256> {
         let builder = CallBuilder::new_raw(self.0.provider(), Bytes::new())
             .to(*self.0.address())
-            .value(U256::from(value));
+            .value(AlloyU256::from(value));
         let receipt = builder
             .send()
             .await?
@@ -107,10 +141,45 @@ impl Mirror {
     ) -> Result<PendingTransactionBuilder<network::Ethereum>> {
         self.0
             .sendMessage(payload.as_ref().to_vec().into(), call_reply)
-            .value(U256::from(value))
+            .value(AlloyU256::from(value))
             .send()
             .await
             .map_err(Into::into)
+    }
+
+    pub async fn wait_for_reply(&self, message_id: MessageId) -> Result<ReplyInfo> {
+        let filter = Filter::new()
+            .address(*self.0.address())
+            .event_signature(Topic::from_iter([signatures::REPLY]));
+        let mut mirror_events = self
+            .0
+            .provider()
+            .subscribe_logs(&filter)
+            .await?
+            .into_stream();
+
+        while let Some(log) = mirror_events.next().await {
+            if let Some(signatures::REPLY) = log.topic0().cloned()
+                && let MirrorEvent::Reply {
+                    payload,
+                    value,
+                    reply_to,
+                    reply_code,
+                } = MirrorEvent::from(crate::decode_log::<IMirror::Reply>(&log)?)
+                && reply_to == message_id
+            {
+                let actor_id = ActorId::from(*self.0.address());
+                return Ok(ReplyInfo {
+                    message_id: reply_to,
+                    actor_id,
+                    payload,
+                    code: reply_code,
+                    value,
+                });
+            }
+        }
+
+        Err(anyhow!("Failed to wait for reply"))
     }
 
     pub async fn send_reply(
@@ -125,7 +194,7 @@ impl Mirror {
                 replied_to.into_bytes().into(),
                 payload.as_ref().to_vec().into(),
             )
-            .value(U256::from(value));
+            .value(AlloyU256::from(value));
         let receipt = builder
             .send()
             .await?
@@ -187,7 +256,7 @@ impl MirrorQuery {
             .nonce()
             .call()
             .await
-            .map(|res| U256::from(res))
+            .map(abi::utils::uint256_to_u256)
             .map_err(Into::into)
     }
 

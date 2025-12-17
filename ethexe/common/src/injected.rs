@@ -140,14 +140,18 @@ pub enum TxValidity {
 /// it may become valid in the future (e.g., after a reorg).
 ///
 /// In this status, the transaction should be kept in the pool.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, derive_more::Display)]
 pub enum TxValidityIntermediateStatus {
-    /// Transaction's reference block not on current branch.
+    #[display("Transaction's reference block is not on current branch")]
     NotOnCurrentBranch,
+    /// In case when transaction is sent to uninitialized actor, we keep it in pool,
+    /// because in next blocks actor can be initialized.
+    #[display("Transaction's destination actor is uninitialized")]
+    UninitializedDestination,
 }
 
 /// Represents the rejection of injected transaction.
-/// This sruct will be provided to the transaction's sender.
+/// This object will be sent back to the transaction's sender.
 #[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
 #[derive(Debug, Clone, PartialEq, Eq, derive_more::Display)]
 #[display("Transaction({tx_hash}) was rejected because of: {reason}")]
@@ -162,7 +166,7 @@ pub struct TxRejection {
 pub enum TxInvalidityStatus {
     #[display("Transaction with the same hash was already included")]
     Duplicate,
-    #[display("Transaction was not included within validity window and becomes outdated; hash")]
+    #[display("Transaction was not included within validity window and becomes outdated")]
     Outdated,
     #[display("Transaction's destination actor({destination}) not found")]
     UnknownDestination { destination: gprimitives::ActorId },

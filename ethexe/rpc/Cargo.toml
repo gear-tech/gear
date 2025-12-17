@@ -20,7 +20,6 @@ tower = { workspace = true, features = ["util"] }
 tower-http = { workspace = true, features = ["cors"] }
 jsonrpsee = { workspace = true, features = ["server", "macros"] }
 hyper = { workspace = true, features = ["server"] }
-log.workspace = true
 parity-scale-codec.workspace = true
 ethexe-common = { workspace = true, features = ["std"] }
 ethexe-runtime-common = { workspace = true, features = ["std"] }
@@ -33,4 +32,4 @@ gear-workspace-hack.workspace = true
 derive_more.workspace = true
 
 [features]
-test-utils = ["jsonrpsee/client"]
+client = ["jsonrpsee/client"]
