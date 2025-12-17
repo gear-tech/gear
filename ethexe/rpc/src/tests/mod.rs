@@ -218,7 +218,7 @@ async fn test_concurrent_multiple_clients() {
                 .await
                 .expect("WS client will be created");
 
-            // Each client sequentially creates 100 subscriptions.
+            // Each client sequentially creates 50 subscriptions.
             let mut subscriptions = vec![];
             for _ in 0..50 {
                 let mut subscription = client
