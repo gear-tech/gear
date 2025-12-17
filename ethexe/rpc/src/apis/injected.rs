@@ -37,17 +37,12 @@ pub enum InjectedTransactionAcceptance {
     Reject { reason: String },
 }
 
-<<<<<<< HEAD
 /// Type alias for RPC result returning on promise subscription.
 /// If the transaction is invalid, the subscription will be closed and [`TxRejection`] will be sent.
 type PromiseResult = Result<SignedPromise, TxRejection>;
 
-#[cfg_attr(not(feature = "test-utils"), rpc(server))]
-#[cfg_attr(feature = "test-utils", rpc(server, client))]
-=======
 #[cfg_attr(not(feature = "client"), rpc(server))]
 #[cfg_attr(feature = "client", rpc(server, client))]
->>>>>>> master
 pub trait Injected {
     #[method(name = "injected_sendTransaction")]
     async fn send_transaction(
@@ -193,13 +188,8 @@ impl InjectedServer for InjectedApi {
             }
         };
 
-<<<<<<< HEAD
+        tracing::trace!(?tx_hash, "subscription accepted, registering promise subscriber");
         self.promise_subscribers.insert(tx_hash, promise_sender);
-=======
-        tracing::trace!(?tx_hash, "Accept transition, start promise waiter");
-
-        self.promise_waiters.insert(tx_hash, promise_sender);
->>>>>>> master
 
         tokio::spawn(async move {
             let Ok(promise) = promise_receiver.await else {

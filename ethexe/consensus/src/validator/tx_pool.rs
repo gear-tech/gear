@@ -171,11 +171,12 @@ mod tests {
             "tx should be stored in db"
         );
 
-        let selected_txs = tx_pool
+        let output = tx_pool
             .select_for_announce(chain.blocks[10].hash, chain.block_top_announce_hash(9))
             .unwrap();
+        assert!(output.rejected_txs.is_empty(), "no tx should be rejected");
         assert_eq!(
-            selected_txs,
+            output.selected_txs,
             vec![signed_tx],
             "tx should be selected for announce"
         );
