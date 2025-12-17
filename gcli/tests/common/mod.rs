@@ -55,6 +55,8 @@ pub fn gcli(args: impl Into<Args>) -> Result<Output> {
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
+        // NOTE: tests rely on filter `gsdk=info`
+        .env_remove("RUST_LOG")
         .spawn()
         .context("failed to spawn gcli")?;
     if !args.stdin.is_empty() {
