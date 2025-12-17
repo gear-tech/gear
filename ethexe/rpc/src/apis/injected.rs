@@ -37,6 +37,10 @@ pub enum InjectedTransactionAcceptance {
     Reject { reason: String },
 }
 
+/// Type alias for RPC result returning on promise subscription.
+/// If the transaction is invalid, the subscription will be closed and [`TxRejection`] will be sent.
+type PromiseResult = Result<SignedPromise, TxRejection>;
+
 #[cfg_attr(not(feature = "test-utils"), rpc(server))]
 #[cfg_attr(feature = "test-utils", rpc(server, client))]
 pub trait Injected {
@@ -49,7 +53,7 @@ pub trait Injected {
     #[subscription(
         name = "injected_subscribeTransactionPromise",
         unsubscribe = "injected_unsubscribeTransactionPromise", 
-        item = SignedPromise
+        item = PromiseResult 
     )]
     async fn send_transaction_and_watch(
         &self,
@@ -57,14 +61,7 @@ pub trait Injected {
     ) -> SubscriptionResult;
 }
 
-/// Message which will be sent to subscriber.
-#[derive(Debug, Clone, derive_more::From, Serialize, Deserialize)]
-pub enum MessageForSubscriber {
-    Promise(SignedPromise),
-    Rejection(TxRejection),
-}
-
-type SubscribersMap = DashMap<HashOf<InjectedTransaction>, oneshot::Sender<MessageForSubscriber>>;
+type SubscribersMap = DashMap<HashOf<InjectedTransaction>, oneshot::Sender<PromiseResult>>;
 
 #[derive(Debug, Clone)]
 pub struct InjectedApi {
@@ -88,15 +85,15 @@ impl InjectedApi {
             return;
         };
 
-        if let Err(promise) = subscriber.send(promise.into()) {
+        if let Err(promise) = subscriber.send(Ok(promise)) {
             tracing::trace!(promise = ?promise, "rpc promise receiver dropped");
         }
     }
 
     pub fn send_tx_rejections(&self, rejections: Vec<TxRejection>) {
         rejections.into_iter().for_each(|rejection| {
-            if let Some((_, subscriber)) = self.promise_subscribers.remove(&rejection.tx_hash) 
-             && let Err(rejection) = subscriber.send(rejection.into()) {
+            if let Some((_, subscriber)) = self.promise_subscribers.remove(&rejection.tx_hash)
+                && let Err(rejection) = subscriber.send(Err( rejection)) {
                     tracing::trace!(rejection = ?rejection, "failed to send tx rejection because of rpc receiver dropped");
             }
         });
