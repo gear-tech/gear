@@ -53,7 +53,7 @@ pub trait Injected {
     #[subscription(
         name = "injected_subscribeTransactionPromise",
         unsubscribe = "injected_unsubscribeTransactionPromise", 
-        item = PromiseResult 
+        item = PromiseResult
     )]
     async fn send_transaction_and_watch(
         &self,
@@ -188,7 +188,10 @@ impl InjectedServer for InjectedApi {
             }
         };
 
-        tracing::trace!(?tx_hash, "subscription accepted, registering promise subscriber");
+        tracing::trace!(
+            ?tx_hash,
+            "subscription accepted, registering promise subscriber"
+        );
         self.promise_subscribers.insert(tx_hash, promise_sender);
 
         tokio::spawn(async move {
