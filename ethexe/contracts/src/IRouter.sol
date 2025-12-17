@@ -90,7 +90,7 @@ interface IRouter {
 
     function areValidators(address[] calldata validators) external view returns (bool);
     function isValidator(address validator) external view returns (bool);
-    function signingThresholdPercentage() external view returns (uint16);
+    function signingThresholdFraction() external view returns (uint128, uint128);
     function validators() external view returns (address[] memory);
     function validatorsCount() external view returns (uint256);
     function validatorsThreshold() external view returns (uint256);
