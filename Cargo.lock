@@ -5135,7 +5135,6 @@ dependencies = [
  "gear-wasm-instrument",
  "gear-workspace-hack",
  "gprimitives",
- "hex",
  "itertools 0.13.0",
  "log",
  "parity-scale-codec",

@@ -18,7 +18,6 @@ gear-runtime-interface = { workspace = true, features = ["std"] }
 gear-lazy-pages.workspace = true
 gear-wasm-instrument = { workspace = true, features = ["std"] }
 core-processor.workspace = true
-hex.workspace = true
 
 thiserror.workspace = true
 wasmtime.workspace = true

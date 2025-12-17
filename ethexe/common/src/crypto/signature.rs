@@ -113,7 +113,7 @@ impl Signature {
         VerifyingKey::from(public_key).verify_prehash(Digest::from(data).as_ref(), &self.inner)
     }
 
-    /// Verifies message using [`verify`] method according to EIP-191 standard.
+    /// Verifies message using [`Self::verify`] method according to EIP-191 standard.
     pub fn verify_message<T>(&self, public_key: PublicKey, data: T) -> SignResult<()>
     where
         Digest: From<T>,
