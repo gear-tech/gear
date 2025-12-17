@@ -463,7 +463,7 @@ where
         Ok(Self {
             data,
             signature,
-            address: public_key.to_address().0.into(),
+            address: public_key.to_address(),
         })
     }
 
