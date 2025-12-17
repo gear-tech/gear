@@ -30,7 +30,10 @@ use alloy::{
     },
 };
 use anyhow::{Context, Result};
-use ethexe_common::{Address, BlockData, BlockHeader, SimpleBlockData, events::BlockEvent};
+use ethexe_common::{
+    Address, BlockData, BlockHeader, SimpleBlockData, db::CodesStorageRO, events::BlockEvent,
+};
+use ethexe_db::Database;
 use ethexe_ethereum::{mirror, router};
 use futures::{TryFutureExt, future};
 use gprimitives::H256;
@@ -65,15 +68,18 @@ pub trait BlockLoader {
     async fn load_many(&self, range: RangeInclusive<u64>) -> Result<HashMap<H256, BlockData>>;
 }
 
-#[derive(Debug, Clone)]
-pub struct EthereumBlockLoader {
+#[derive(derive_more::Debug, Clone)]
+pub struct EthereumBlockLoader<DB = Database> {
+    #[debug(skip)]
+    db: DB,
     provider: RootProvider,
     router_address: Address,
 }
 
-impl EthereumBlockLoader {
-    pub fn new(provider: RootProvider, router_address: Address) -> Self {
+impl<DB: CodesStorageRO> EthereumBlockLoader<DB> {
+    pub fn new(db: DB, provider: RootProvider, router_address: Address) -> Self {
         Self {
+            db,
             provider,
             router_address,
         }
@@ -112,6 +118,15 @@ impl EthereumBlockLoader {
                 }
             } else {
                 let address = (*address.into_word()).into();
+
+                // Verify that the log is from a known mirror contract in purpose to
+                // prevent the attack when malicious contract mimics mirror contract address.
+                if self.db.program_code_id(address).is_none() {
+                    tracing::trace!(
+                        "Skipping log from address {address:?}, because it is not a known mirror contract"
+                    );
+                    continue;
+                }
 
                 if let Some(event) = mirror::events::try_extract_event(&log)? {
                     res.entry(block_hash)
@@ -184,7 +199,7 @@ impl EthereumBlockLoader {
     }
 }
 
-impl BlockLoader for EthereumBlockLoader {
+impl<DB: CodesStorageRO> BlockLoader for EthereumBlockLoader<DB> {
     async fn load_simple(&self, block: BlockId) -> Result<SimpleBlockData> {
         log::trace!("Querying simple data for one block {block:?}");
         let block = self

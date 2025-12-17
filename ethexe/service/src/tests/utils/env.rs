@@ -658,10 +658,14 @@ impl TestEnv {
     }
 
     pub async fn latest_block(&self) -> SimpleBlockData {
-        EthereumBlockLoader::new(self.provider.clone(), self.eth_cfg.router_address)
-            .load_simple(BlockId::Latest)
-            .await
-            .unwrap()
+        EthereumBlockLoader::new(
+            self.db.clone(),
+            self.provider.clone(),
+            self.eth_cfg.router_address,
+        )
+        .load_simple(BlockId::Latest)
+        .await
+        .unwrap()
     }
 
     pub fn define_session_keys(

@@ -73,6 +73,7 @@ struct RuntimeConfig {
 
 // TODO #4552: make tests for observer service
 pub struct ObserverService {
+    db: Database,
     provider: RootProvider,
     config: RuntimeConfig,
     chain_sync: ChainSync<Database>,
@@ -189,9 +190,10 @@ impl ObserverService {
             batched_sync_depth: 2,
         };
 
-        let chain_sync = ChainSync::new(db, config.clone(), provider.clone());
+        let chain_sync = ChainSync::new(db.clone(), config.clone(), provider.clone());
 
         Ok(Self {
+            db,
             provider,
             config,
             chain_sync,
@@ -274,7 +276,11 @@ impl ObserverService {
     }
 
     pub fn block_loader(&self) -> EthereumBlockLoader {
-        EthereumBlockLoader::new(self.provider.clone(), self.config.router_address)
+        EthereumBlockLoader::new(
+            self.db.clone(),
+            self.provider.clone(),
+            self.config.router_address,
+        )
     }
 
     pub fn router_query(&self) -> RouterQuery {

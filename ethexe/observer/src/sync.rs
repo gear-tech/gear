@@ -26,7 +26,7 @@ use alloy::{providers::RootProvider, rpc::types::eth::Header};
 use anyhow::{Result, anyhow};
 use ethexe_common::{
     self, BlockData, BlockHeader, CodeBlobInfo, SimpleBlockData,
-    db::{LatestDataStorageRW, OnChainStorageRW},
+    db::{CodesStorageRO, LatestDataStorageRW, OnChainStorageRW},
     events::{BlockEvent, RouterEvent},
 };
 use ethexe_ethereum::{
@@ -36,8 +36,11 @@ use ethexe_ethereum::{
 use gprimitives::H256;
 use std::{collections::HashMap, ops::Add};
 
-pub(crate) trait SyncDB: OnChainStorageRW + LatestDataStorageRW + Clone {}
-impl<T: OnChainStorageRW + LatestDataStorageRW + Clone> SyncDB for T {}
+pub(crate) trait SyncDB:
+    OnChainStorageRW + LatestDataStorageRW + CodesStorageRO + Clone
+{
+}
+impl<T: OnChainStorageRW + LatestDataStorageRW + CodesStorageRO + Clone> SyncDB for T {}
 
 // TODO #4552: make tests for ChainSync
 #[derive(Clone)]
@@ -46,7 +49,7 @@ pub(crate) struct ChainSync<DB: SyncDB> {
     pub config: RuntimeConfig,
     pub router_query: RouterQuery,
     pub middleware_query: MiddlewareQuery,
-    pub block_loader: EthereumBlockLoader,
+    pub block_loader: EthereumBlockLoader<DB>,
 }
 
 impl<DB: SyncDB> ChainSync<DB> {
@@ -55,7 +58,7 @@ impl<DB: SyncDB> ChainSync<DB> {
             RouterQuery::from_provider(config.router_address.0.into(), provider.clone());
         let middleware_query =
             MiddlewareQuery::from_provider(config.middleware_address.0.into(), provider.clone());
-        let block_loader = EthereumBlockLoader::new(provider, config.router_address);
+        let block_loader = EthereumBlockLoader::new(db.clone(), provider, config.router_address);
         Self {
             db,
             config,
