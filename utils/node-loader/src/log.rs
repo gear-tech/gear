@@ -17,7 +17,7 @@ pub fn init_log(run_name: String) -> Result<WorkerGuard> {
 
     tracing_subscriber::fmt()
         .pretty()
-        .with_env_filter("gear_node_loader=debug,gclient=debug,gsdk=debug,gear_program=debug,gear_call_gen=debug")
+        .with_env_filter("gear_node_loader=debug,gsdk=debug,gear_program=debug,gear_call_gen=debug")
         .with_line_number(false)
         .with_file(false)
         .with_target(false)

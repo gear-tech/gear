@@ -36,6 +36,7 @@ use ethexe_blob_loader::{BlobLoader, BlobLoaderService, ConsensusLayerConfig};
 use ethexe_common::{
     Address, COMMITMENT_DELAY_LIMIT, CodeAndId, DEFAULT_BLOCK_GAS_LIMIT, SimpleBlockData, ToDigest,
     ValidatorsVec,
+    consensus::{DEFAULT_CHAIN_DEEPNESS_THRESHOLD, DEFAULT_VALIDATE_CHAIN_DEEPNESS_LIMIT},
     ecdsa::{PrivateKey, PublicKey, SignedData},
     events::{BlockEvent, MirrorEvent, RouterEvent},
     network::{SignedValidatorMessage, ValidatorMessage},
@@ -323,6 +324,8 @@ impl TestEnv {
             let runtime_config = NetworkRuntimeConfig {
                 latest_block_header: latest_block.header,
                 latest_validators,
+                validator_key: None,
+                general_signer: signer.clone(),
                 network_signer: signer.clone(),
                 external_data_provider: Box::new(RouterDataProvider(router_query.clone())),
                 db: Box::new(db.clone()),
@@ -429,7 +432,7 @@ impl TestEnv {
         let pending_builder = self
             .ethereum
             .router()
-            .request_code_validation_with_sidecar_old(code)
+            .request_code_validation_with_sidecar(code)
             .await?;
         assert_eq!(pending_builder.code_id(), code_id);
 
@@ -993,6 +996,8 @@ impl Node {
                             commitment_delay_limit: self.commitment_delay_limit,
                             producer_delay: self.block_time / 6,
                             router_address: self.eth_cfg.router_address,
+                            validate_chain_deepness_limit: DEFAULT_VALIDATE_CHAIN_DEEPNESS_LIMIT,
+                            chain_deepness_threshold: DEFAULT_CHAIN_DEEPNESS_THRESHOLD,
                         },
                     )
                     .unwrap(),
@@ -1058,7 +1063,7 @@ impl Node {
         let handle = task::spawn(async move {
             service
                 .run()
-                .instrument(tracing::info_span!("node", name))
+                .instrument(tracing::error_span!("node", name))
                 .await
                 .unwrap_or_else(|err| panic!("Service {name:?} failed: {err}"));
         });
@@ -1155,6 +1160,8 @@ impl Node {
         let runtime_config = NetworkRuntimeConfig {
             latest_block_header: latest_block.header,
             latest_validators,
+            validator_key: self.validator_config.as_ref().map(|c| c.public_key),
+            general_signer: self.signer.clone(),
             network_signer: self.signer.clone(),
             external_data_provider: Box::new(RouterDataProvider(self.router_query.clone())),
             db: Box::new(self.db.clone()),

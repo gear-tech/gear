@@ -1199,6 +1199,7 @@ pub mod pallet {
             who: T::AccountId,
             packet: InitPacket,
             code_id: CodeId,
+            keep_alive: bool,
         ) -> Result<(), DispatchError> {
             let origin = who.clone().into_origin();
 
@@ -1220,7 +1221,11 @@ pub mod pallet {
                 &who,
                 &program_account,
                 ed,
-                ExistenceRequirement::AllowDeath,
+                if keep_alive {
+                    ExistenceRequirement::KeepAlive
+                } else {
+                    ExistenceRequirement::AllowDeath
+                },
             )?;
 
             // Set lock to avoid accidental account removal by the runtime.
@@ -1354,7 +1359,7 @@ pub mod pallet {
         /// has been removed.
         #[pallet::call_index(1)]
         #[pallet::weight(
-            <T as Config>::WeightInfo::upload_program((code.len() as u32) / 1024, salt.len() as u32)
+            <T as Config>::WeightInfo::upload_program((code.len() as u32) / 1024, salt.len() as u32, init_payload.len() as u32)
         )]
         pub fn upload_program(
             origin: OriginFor<T>,
@@ -1396,7 +1401,7 @@ pub mod pallet {
                 });
             }
 
-            Self::do_create_program(who, packet, code_id)?;
+            Self::do_create_program(who, packet, code_id, keep_alive)?;
 
             Ok(().into())
         }
@@ -1410,6 +1415,8 @@ pub mod pallet {
         /// - `init_payload`: encoded parameters of the wasm module `init` function.
         /// - `gas_limit`: maximum amount of gas the program can spend before it is halted.
         /// - `value`: balance to be transferred to the program once it's been created.
+        /// - `keep_alive`: whether to ensure that the original account balance will stay above
+        ///   the existential deposit.
         ///
         /// Emits the following events:
         /// - `InitMessageEnqueued(MessageInfo)` when init message is placed in the queue.
@@ -1418,7 +1425,7 @@ pub mod pallet {
         ///
         /// For the details of this extrinsic, see `upload_code`.
         #[pallet::call_index(2)]
-        #[pallet::weight(<T as Config>::WeightInfo::create_program(salt.len() as u32))]
+        #[pallet::weight(<T as Config>::WeightInfo::create_program(salt.len() as u32, init_payload.len() as u32))]
         pub fn create_program(
             origin: OriginFor<T>,
             code_id: CodeId,
@@ -1450,7 +1457,7 @@ pub mod pallet {
                 keep_alive,
             )?;
 
-            Self::do_create_program(who, packet, code_id)?;
+            Self::do_create_program(who, packet, code_id, keep_alive)?;
             Ok(().into())
         }
 

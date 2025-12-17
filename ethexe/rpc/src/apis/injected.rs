@@ -37,8 +37,8 @@ pub enum InjectedTransactionAcceptance {
     Reject { reason: String },
 }
 
-#[cfg_attr(not(feature = "test-utils"), rpc(server, namespace = "injected"))]
-#[cfg_attr(feature = "test-utils", rpc(server, client, namespace = "injected"))]
+#[cfg_attr(not(feature = "client"), rpc(server, namespace = "injected"))]
+#[cfg_attr(feature = "client", rpc(server, client, namespace = "injected"))]
 pub trait Injected {
     /// Just sends an injected transaction.
     #[method(name = "sendTransaction")]
@@ -49,8 +49,8 @@ pub trait Injected {
 
     /// Sends an injected transaction and subscribes to its promise.  
     #[subscription(
-        name = "subscribeTransactionPromise",
-        unsubscribe = "unsubscribeTransactionPromise", 
+        name = "sendTransactionAndWatch",
+        unsubscribe = "sendTransactionAndWatchUnsubscribe", 
         item = SignedPromise
     )]
     async fn send_transaction_and_watch(
@@ -101,7 +101,8 @@ impl InjectedServer for InjectedApi {
         &self,
         transaction: RpcOrNetworkInjectedTx,
     ) -> RpcResult<InjectedTransactionAcceptance> {
-        tracing::trace!("Called injected_sendTransaction with vars: {transaction:?}");
+        let tx_hash = transaction.tx.data().to_hash();
+        tracing::trace!(%tx_hash, ?transaction, "Called injected_sendTransaction with vars");
 
         let (response_sender, response_receiver) = oneshot::channel();
         let event = RpcEvent::InjectedTransaction {
@@ -110,18 +111,22 @@ impl InjectedServer for InjectedApi {
         };
 
         if let Err(err) = self.rpc_sender.send(event) {
-            log::error!(
+            tracing::error!(
                 "Failed to send `RpcEvent::InjectedTransaction` event task: {err}. \
                 The receiving end in the main service might have been dropped."
             );
             return Err(errors::internal());
         }
 
+        tracing::trace!(%tx_hash, "Accept transition, waiting for promise");
+
         response_receiver.await.map_err(|e| {
             // No panic case, as a responsibility of the RPC API is fulfilled.
             // The dropped sender signalizes that the main service has crashed
             // or is malformed, so problems should be handled there.
-            log::error!("Response sender for the `RpcEvent::InjectedTransaction` was dropped: {e}");
+            tracing::error!(
+                "Response sender for the `RpcEvent::InjectedTransaction` was dropped: {e}"
+            );
             errors::internal()
         })
     }
@@ -132,6 +137,7 @@ impl InjectedServer for InjectedApi {
         transaction: RpcOrNetworkInjectedTx,
     ) -> SubscriptionResult {
         let tx_hash = transaction.tx.data().to_hash();
+        tracing::trace!(%tx_hash, ?transaction, "Called injected_sendTransactionAndWatch");
 
         // Checks, that transaction wasn't already send.
         if self.promise_waiters.get(&tx_hash).is_some() {
@@ -150,7 +156,7 @@ impl InjectedServer for InjectedApi {
         };
 
         if let Err(err) = self.rpc_sender.send(event) {
-            log::error!(
+            tracing::error!(
                 "Failed to send `RpcEvent::InjectedTransaction` event task: {err}. \
                 The receiving end in the main service might have been dropped."
             );
@@ -176,6 +182,8 @@ impl InjectedServer for InjectedApi {
                 return Ok(());
             }
         };
+
+        tracing::trace!(?tx_hash, "Accept transition, start promise waiter");
 
         self.promise_waiters.insert(tx_hash, promise_sender);
 

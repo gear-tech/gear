@@ -24,7 +24,7 @@ use ethexe_common::{
 use ethexe_db::Database;
 use ethexe_processor::{Processor, ProcessorConfig, RunnerConfig};
 use ethexe_runtime_common::state::{
-    DispatchStash, Mailbox, MemoryPages, MessageQueue, Program, ProgramState, QueriableStorage,
+    DispatchStash, Mailbox, MemoryPages, MessageQueue, Program, ProgramState, QueryableStorage,
     Storage, Waitlist,
 };
 use gear_core::rpc::ReplyInfo;
@@ -49,7 +49,8 @@ pub struct FullProgramState {
     pub executable_balance: u128,
 }
 
-#[rpc(server)]
+#[cfg_attr(not(feature = "client"), rpc(server))]
+#[cfg_attr(feature = "client", rpc(server, client))]
 pub trait Program {
     #[method(name = "program_calculateReplyForHandle")]
     async fn calculate_reply_for_handle(
