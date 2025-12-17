@@ -3234,21 +3234,3 @@ async fn catch_up_test_case(commitment_delay_limit: u32) {
         unreachable!();
     }
 }
-
-#[tokio::test]
-async fn send_tx() {
-    let client = WsClientBuilder::new()
-        .build("ws://localhost:9944")
-        .await
-        .unwrap();
-
-    let mock_tx = InjectedTransaction::mock(());
-    let tx = RpcOrNetworkInjectedTx {
-        tx: SignedData::create(PrivateKey::random(), mock_tx).unwrap(),
-        recipient: address!("0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266").into(),
-    };
-
-    let result = client.send_transaction(tx).await.unwrap();
-
-    assert!(matches!(result, InjectedTransactionAcceptance::Accept));
-}
