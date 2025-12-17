@@ -29,14 +29,14 @@ use crate::{
     },
 };
 use alloy::{
-    primitives::{U256},
+    primitives::U256,
     providers::{Provider as _, WalletProvider, ext::AnvilApi},
 };
 use ethexe_common::{
     Announce, HashOf, ScheduledTask, ToDigest,
     consensus::{DEFAULT_CHAIN_DEEPNESS_THRESHOLD, DEFAULT_VALIDATE_CHAIN_DEEPNESS_LIMIT},
     db::*,
-    ecdsa::{ContractSignature, },
+    ecdsa::ContractSignature,
     events::{BlockEvent, MirrorEvent, RouterEvent},
     gear::{BatchCommitment, CANONICAL_QUARANTINE, MessageType},
     injected::{InjectedTransaction, RpcOrNetworkInjectedTx},

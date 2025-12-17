@@ -133,8 +133,7 @@ impl SubService for PrepareSubService {
                 matches!(&self.state, State::Start),
             )?;
 
-            // TODO (fixme): expect `validated_codes.len()` will not exceed the u32::max
-            self.metrics.waiting_codes.set(validated_codes.len() as u32);
+            self.metrics.waiting_codes.set(validated_codes.len() as f64);
 
             self.state = State::WaitingForCodes {
                 codes: validated_codes,
