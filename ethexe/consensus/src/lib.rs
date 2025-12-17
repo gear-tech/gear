@@ -108,8 +108,9 @@ pub enum ConsensusEvent {
     AnnounceAccepted(HashOf<Announce>),
     /// Announce from producer was rejected
     AnnounceRejected(HashOf<Announce>),
-    /// Injected transactions reject reasons
-    RejectedTransactions(Vec<TxRejection>),
+    /// The list of injected transactions was rejected by the consensus
+    #[from]
+    TransactionsRejected(Vec<TxRejection>),
     /// Outer service have to compute announce
     #[from]
     ComputeAnnounce(Announce),

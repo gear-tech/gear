@@ -210,7 +210,7 @@ impl Producer {
         if !output.rejected_txs.is_empty() {
             self.ctx
                 .output
-                .push_back(ConsensusEvent::RejectedTransactions(output.rejected_txs));
+                .push_back(ConsensusEvent::TransactionsRejected(output.rejected_txs));
         }
 
         let (announce_hash, newly_included) =

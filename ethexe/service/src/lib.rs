@@ -615,7 +615,7 @@ impl Service {
                     ConsensusEvent::CommitmentSubmitted(info) => {
                         log::info!("{info}");
                     }
-                    ConsensusEvent::RejectedTransactions(rejected_txs) => {
+                    ConsensusEvent::TransactionsRejected(rejected_txs) => {
                         if let Some(rpc) = rpc.as_mut() {
                             rpc.provide_tx_rejections(rejected_txs);
                         }
