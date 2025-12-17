@@ -34,6 +34,15 @@ jobs:
       - name: "Check formatting: Gear"
         run: ./scripts/gear.sh format gear --check
 
+  typos:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+      - name: typos-action
+        uses: crate-ci/typos@master
+
   ethexe-contracts:
     runs-on: ubuntu-latest
     steps:
@@ -56,7 +65,7 @@ jobs:
       - name: "Install: Foundry"
         uses: foundry-rs/foundry-toolchain@v1
         with:
-          version: v1.5.0-rc1
+          version: v1.5.0
 
       - name: "Install: Node.js"
         uses: actions/setup-node@v4
@@ -152,6 +161,11 @@ jobs:
   workspace-hack:
     runs-on: ubuntu-latest
     steps:
+      - name: Free disk space
+        uses: jlumbroso/free-disk-space@main
+        with:
+          large-packages: false
+
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
         with:

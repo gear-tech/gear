@@ -26,5 +26,7 @@ pub use code::{CodeApi, CodeServer};
 pub use injected::{InjectedApi, InjectedServer, InjectedTransactionAcceptance};
 pub use program::{ProgramApi, ProgramServer};
 
-#[cfg(feature = "test-utils")]
-pub use injected::InjectedClient;
+#[cfg(feature = "client")]
+pub use crate::apis::{
+    block::BlockClient, code::CodeClient, injected::InjectedClient, program::ProgramClient,
+};

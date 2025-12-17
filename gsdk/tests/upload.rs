@@ -18,62 +18,69 @@
 
 //! Test for harmful demos, checking their init can't brake the chain.
 
-use std::time::Duration;
-
 use demo_wat::WatExample;
-use gclient::{Error, EventProcessor, GearApi};
 use gear_core::{code::MAX_WASM_PAGES_AMOUNT, pages::WasmPage};
-use gsdk::gear;
+use gsdk::{AccountKeyring, Result, RuntimeError, SignedApi, events, gear::gear};
+use std::{pin::pin, time::Duration};
+use utils::dev_node;
+
+mod utils;
 
 async fn upload_programs_and_check(
-    api: &GearApi,
+    api: &SignedApi,
     codes: Vec<Vec<u8>>,
     timeout: Option<Duration>,
-) -> anyhow::Result<()> {
+) -> Result<()> {
     // Taking block gas limit constant.
     let gas_limit = api.block_gas_limit()?;
 
     // Subscribing for events.
-    let mut listener = api.subscribe().await?;
+    let events = api.subscribe_all_events().await?;
 
     let codes_len = codes.len();
 
     // Sending batch.
     let args: Vec<_> = codes
         .into_iter()
-        .map(|code| (code, gclient::now_micros().to_le_bytes(), "", gas_limit, 0))
+        .map(|code| {
+            (
+                code,
+                gear_utils::now_micros().to_le_bytes(),
+                "",
+                gas_limit,
+                0,
+            )
+        })
         .collect();
-    let (ex_res, _) = if let Some(timeout) = timeout {
+    let ex_res = if let Some(timeout) = timeout {
         tokio::time::timeout(timeout, api.upload_program_bytes_batch(args))
             .await
             .expect("Too long test upload time - something goes wrong")?
     } else {
         api.upload_program_bytes_batch(args).await?
-    };
+    }
+    .value;
 
     // Ids of initial messages.
-    let mids: Vec<_> = ex_res
+    let message_ids = ex_res
         .into_iter()
-        .filter_map(|v| v.ok().map(|(mid, _pid)| mid))
-        .collect();
+        .map(|res| res.map(|(message_id, _)| message_id))
+        .collect::<Result<Vec<_>>>()?;
 
     // Checking that all upload program calls succeed in batch.
-    assert_eq!(codes_len, mids.len());
+    assert_eq!(codes_len, message_ids.len());
 
     // Checking that all batch got processed.
-    assert_eq!(
-        codes_len,
-        listener.message_processed_batch(mids).await?.len(),
-    );
+    events::message_batch_dispatch_statuses(message_ids, events).await?;
 
     // Check no runtime panic occurred
-    assert!(!api.queue_processing_stalled().await?);
+    assert!(api.is_progressing().await?);
 
     Ok(())
 }
 
 #[tokio::test]
-async fn harmless_upload() -> anyhow::Result<()> {
+async fn harmless_upload() -> Result<()> {
     let examples = vec![
         WatExample::WrongLoad,
         WatExample::InfRecursion,
@@ -86,11 +93,8 @@ async fn harmless_upload() -> anyhow::Result<()> {
     let codes = examples.into_iter().map(|e| e.code()).collect();
 
     // Creating gear api.
-    //
-    // By default, login as Alice, than re-login as Bob.
-    let api = GearApi::dev_from_path("../target/release/gear")
-        .await?
-        .with("//Bob")?;
+    let (_node, api) = dev_node().await;
+    let api = api.unsigned().clone().signed_dev(AccountKeyring::Bob);
 
     upload_programs_and_check(&api, codes, None).await?;
 
@@ -98,8 +102,7 @@ async fn harmless_upload() -> anyhow::Result<()> {
 }
 
 #[tokio::test]
-async fn alloc_zero_pages() -> anyhow::Result<()> {
-    let _ = tracing_subscriber::fmt::try_init();
+async fn alloc_zero_pages() -> Result<()> {
     log::info!("Begin");
     let wat_code = r#"
         (module
@@ -112,27 +115,27 @@ async fn alloc_zero_pages() -> anyhow::Result<()> {
                 drop
             )
         )"#;
-    let api = GearApi::dev_from_path("../target/release/gear")
-        .await?
-        .with("//Bob")?;
+
+    let (_node, api) = dev_node().await;
+    let api = api.unsigned().clone().signed_dev(AccountKeyring::Bob);
+
     let codes = vec![wat::parse_str(wat_code).unwrap()];
     upload_programs_and_check(&api, codes, Some(Duration::from_secs(15))).await
 }
 
 #[tokio::test]
-async fn get_mailbox() -> anyhow::Result<()> {
+async fn get_mailbox() -> Result<()> {
     // Creating gear api.
     //
     // By default, login as Alice, than re-login as Bob.
-    let api = GearApi::dev_from_path("../target/release/gear")
-        .await?
-        .with("//Bob")?;
+    let (_node, api) = dev_node().await;
+    let api = api.unsigned().clone().signed_dev(AccountKeyring::Bob);
 
     // Subscribe to events
-    let mut listener = api.subscribe().await?;
+    let mut events = pin!(api.subscribe_all_events().await?);
 
     // Check that blocks are still running
-    assert!(listener.blocks_running().await?);
+    assert!(api.is_progressing().await?);
 
     let wat_code = r#"
     (module
@@ -178,36 +181,45 @@ async fn get_mailbox() -> anyhow::Result<()> {
 
     // Calculate gas amount needed for initialization
     let gas_info = api
-        .calculate_upload_gas(None, code.clone(), vec![], 0, true)
+        .calculate_upload_gas(code.clone(), vec![], 0, true)
         .await?;
 
     // Upload and init the program
-    let (message_id, program_id, _hash) = api
+    let (message_id, program_id) = api
         .upload_program_bytes(
             code,
-            gclient::now_micros().to_le_bytes(),
+            gear_utils::now_micros().to_le_bytes(),
             vec![],
             gas_info.min_limit,
             0,
         )
-        .await?;
+        .await?
+        .value;
 
-    assert!(listener.message_processed(message_id).await?.succeed());
+    assert!(
+        events::message_dispatch_status(message_id, &mut events)
+            .await?
+            .is_success()
+    );
 
     // Calculate gas amount needed for handling the message
     let gas_info = api
-        .calculate_handle_gas(None, program_id, vec![], 0, true)
+        .calculate_handle_gas(program_id, vec![], 0, true)
         .await?;
 
     let messages = vec![(program_id, vec![], gas_info.min_limit * 10, 0); 5];
 
-    let (messages, _hash) = api.send_message_bytes_batch(messages).await?;
+    let messages = api.send_message_bytes_batch(messages).await?.value;
 
-    let (message_id, _hash) = messages.last().unwrap().as_ref().unwrap();
+    let (message_id, _) = *messages.last().unwrap().as_ref().unwrap();
 
-    assert!(listener.message_processed(*message_id).await?.succeed());
+    assert!(
+        events::message_dispatch_status(message_id, &mut events)
+            .await?
+            .is_success()
+    );
 
-    let mailbox = api.get_mailbox_messages(15).await?;
+    let mailbox = api.mailbox_messages(15).await?;
 
     // Check that all messages is in mailbox
     assert_eq!(mailbox.len(), 5);
@@ -221,23 +233,84 @@ async fn get_mailbox() -> anyhow::Result<()> {
 }
 
 #[tokio::test]
-async fn test_upload_failed() -> anyhow::Result<()> {
-    let api = GearApi::dev_from_path("../target/release/gear").await?;
+async fn test_init_message() -> Result<()> {
+    let (_node, api) = dev_node().await;
+
+    let events = api.subscribe_all_events().await?;
+
+    let (message_id, _) = api
+        .upload_program_bytes(
+            demo_messenger::WASM_BINARY,
+            gear_utils::now_micros().to_le_bytes(),
+            vec![],
+            api.block_gas_limit()?,
+            0,
+        )
+        .await?
+        .value;
+
+    events::message_dispatch_status(message_id, events).await?;
+
+    let messages = api.mailbox_messages(10).await?;
+
+    assert_eq!(messages.len(), 1);
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_upload_failed() -> Result<()> {
+    let (_node, api) = dev_node().await;
 
     let err = api
-        .upload_program(vec![], vec![], b"", u64::MAX, 0)
+        .upload_program_bytes(vec![], vec![], b"", u64::MAX, 0)
         .await
         .expect_err("Should fail");
 
     assert!(
         matches!(
             err,
-            Error::GearSDK(gsdk::Error::Runtime(gear::Error::Gear(
-                gear::gear::Error::GasLimitTooHigh
-            )))
+            gsdk::Error::Runtime(RuntimeError::Gear(gear::Error::GasLimitTooHigh))
         ),
         "{err:?}"
     );
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn upload_large_scheduled() -> Result<()> {
+    let (_node, api) = dev_node().await;
+
+    // Taking block gas limit constant.
+    let gas_limit = api.block_gas_limit()?;
+
+    // Subscribing for events.
+    let events = api.subscribe_all_events().await?;
+
+    let code = WatExample::LargeScheduled.code();
+
+    // Program initialization.
+    let (message_id, _pid) = api
+        .upload_program_bytes(
+            code,
+            gear_utils::now_micros().to_le_bytes(),
+            "",
+            gas_limit,
+            0,
+        )
+        .await?
+        .value;
+
+    // Asserting successful initialization.
+    assert!(
+        events::message_dispatch_status(message_id, events)
+            .await?
+            .is_success()
+    );
+
+    // Check no runtime panic occurred
+    assert!(api.is_progressing().await?);
 
     Ok(())
 }

@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! command `update`
-use crate::result::Result;
+use anyhow::Result;
 use clap::Parser;
 use std::process::{self, Command};
 

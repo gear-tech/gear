@@ -18,9 +18,8 @@
 
 //! Utils
 
-use super::Inner;
 use crate::{
-    AsGear, Error, TxInBlock, TxStatus,
+    Error, SignedApi, TxInBlock, TxOutput, TxStatus,
     backtrace::BacktraceStatus,
     config::GearConfig,
     gear::{
@@ -33,19 +32,17 @@ use crate::{
 use colored::Colorize;
 use subxt::{
     OnlineClient,
-    blocks::ExtrinsicEvents,
     config::polkadot::PolkadotExtrinsicParamsBuilder,
     tx::{Payload, TxProgress as SubxtTxProgress},
     utils::H256,
 };
 
 type TxProgress = SubxtTxProgress<GearConfig, OnlineClient<GearConfig>>;
-pub type EventsResult = Result<(H256, ExtrinsicEvents<GearConfig>)>;
 
-impl Inner {
+impl SignedApi {
     /// Logging balance spent
-    pub async fn log_balance_spent(&self, before: u128) -> Result<()> {
-        match self.rpc().get_balance().await {
+    pub(crate) async fn log_balance_spent(&self, before: u128) -> Result<()> {
+        match self.free_balance().await {
             Ok(balance) => {
                 let after = before.saturating_sub(balance);
                 log::info!("\tBalance spent: {after}");
@@ -80,7 +77,7 @@ impl Inner {
 
     /// Listen transaction process and print logs.
     pub async fn process<Call: Payload>(&self, call: Call) -> Result<TxInBlock> {
-        let before = self.rpc().get_balance().await?;
+        let before = self.free_balance().await?;
 
         let mut process = self.sign_and_submit_then_watch(&call).await?;
 
@@ -143,25 +140,20 @@ impl Inner {
     }
 
     /// Process sudo transaction.
-    pub async fn process_sudo<Call: Payload>(&self, call: Call) -> EventsResult {
+    pub async fn process_sudo<Call: Payload>(&self, call: Call) -> Result<TxOutput> {
         let tx = self.process(call).await?;
-        let events = tx.wait_for_success().await?;
-        for event in events.iter() {
-            let event = event?.as_gear()?;
-            if let RuntimeEvent::Sudo(sudo::Event::Sudid {
-                sudo_result: Err(err),
-            }) = event
-            {
-                return Err(self.api().decode_error(err).into());
-            }
-        }
 
-        Ok((tx.block_hash(), events))
+        TxOutput::new(tx).await?.try_for_each(|event| match event {
+            RuntimeEvent::Sudo(sudo::Event::Sudid {
+                sudo_result: Err(err),
+            }) => Err(self.decode_error(err).into()),
+            _ => Ok(()),
+        })
     }
 
     /// Run transaction.
     ///
-    /// This function allows us to execute any transactions in gear.
+    /// This low-level function allows us to execute any transactions in gear.
     ///
     /// # You may not need this.
     ///
@@ -190,7 +182,7 @@ impl Inner {
     ///     let in_block = signer.run_tx(BalancesCall::TransferKeepAlive, args).await?;
     /// }
     ///
-    /// // The code above euqals to:
+    /// // The code above equals to:
     ///
     /// {
     ///    let in_block = signer.calls.transfer_keep_alive(dest, value).await?;
@@ -198,17 +190,17 @@ impl Inner {
     ///
     /// // ...
     /// ```
-    pub async fn run_tx<Call: Payload>(&self, call: Call) -> Result<TxInBlock> {
-        self.process(call).await
+    pub async fn run_tx<Call: Payload>(&self, call: Call) -> Result<TxOutput> {
+        TxOutput::new(self.process(call).await?).await
     }
 
     /// Run transaction with sudo.
-    pub async fn sudo_run_tx<Call: Payload>(&self, call: Call) -> EventsResult {
+    pub async fn sudo_run_tx<Call: Payload>(&self, call: Call) -> Result<TxOutput> {
         self.process_sudo(call).await
     }
 
     /// `pallet_sudo::sudo`
-    pub async fn sudo(&self, call: RuntimeCall) -> EventsResult {
+    pub async fn sudo(&self, call: RuntimeCall) -> Result<TxOutput> {
         self.sudo_run_tx(gear::tx().sudo().sudo(call)).await
     }
 
@@ -218,21 +210,26 @@ impl Inner {
         call: &Call,
     ) -> Result<TxProgress, subxt::Error> {
         if let Some(nonce) = self.nonce {
-            self.api
-                .tx()
+            self.tx()
                 .create_signed(
                     call,
-                    &self.signer,
+                    self.signer(),
                     PolkadotExtrinsicParamsBuilder::new().nonce(nonce).build(),
                 )
                 .await?
                 .submit_and_watch()
                 .await
         } else {
-            self.api
-                .tx()
-                .sign_and_submit_then_watch_default(call, &self.signer)
+            self.tx()
+                .sign_and_submit_then_watch_default(call, self.signer())
                 .await
         }
+    }
+
+    /// Get the next number used once (`nonce`) from the node.
+    ///
+    /// Actually sends the `system_accountNextIndex` RPC to the node.
+    pub async fn account_nonce(&self) -> Result<u64> {
+        Ok(self.tx().account_nonce(self.account_id()).await?)
     }
 }

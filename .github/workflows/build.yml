@@ -294,7 +294,7 @@ jobs:
       - name: "Install: Foundry"
         uses: foundry-rs/foundry-toolchain@v1
         with:
-          version: v1.5.0-rc1
+          version: v1.5.0
 
       - name: "Show: Versioning"
         run: |
@@ -391,25 +391,25 @@ jobs:
         # check that perf benchmarks works. `--steps=5` need to test, that benchmarks works for different input number.
         run: >-
           ./target/release/gear benchmark pallet
-          --chain=dev --steps=5 --repeat=0 --heap-pages=4096
+          --chain=dev --steps=5 --repeat=0 --heap-pages=16384
           --pallet="*" --extrinsic="*"
 
       - name: "Test: Extra `read_big_state` benchmark"
         run: >-
           ./target/release/gear benchmark pallet
-          --chain=dev --repeat=0 --heap-pages=4096
+          --chain=dev --repeat=0 --heap-pages=16384
           --pallet=pallet_gear --extrinsic="read_big_state" --extra
 
       - name: "Test: Extra `signal_stack_limit_exceeded_works` benchmark"
         run: >-
           ./target/release/gear benchmark pallet
-          --chain=dev --repeat=0 --heap-pages=4096
+          --chain=dev --repeat=0 --heap-pages=16384
           --pallet=pallet_gear --extrinsic="signal_stack_limit_exceeded_works" --extra
 
       - name: "Test: Extra `check_all` benchmark"
         run: >-
           ./target/release/gear benchmark pallet
-          --chain=dev --repeat=0 --heap-pages=4096
+          --chain=dev --repeat=0 --heap-pages=16384
           --pallet=pallet_gear --extrinsic="check_all" --extra
 
   try-runtime:

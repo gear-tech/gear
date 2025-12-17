@@ -27,14 +27,14 @@ const AT_DOC_SUFFIX: &str = " at specified block";
 const AT_SUFFIX: &str = "_at";
 const AT_BLOCK_HASH: &str = "Option<H256>";
 
-/// Storage query builder for generating
+/// At-block query builder for generating
 ///
-/// - storage query from the latest state.
-/// - storage query at block hash.
-pub struct StorageQueryBuilder(ItemFn);
+/// - query from the latest state.
+/// - query at block hash.
+pub struct AtBlockBuilder(ItemFn);
 
-impl StorageQueryBuilder {
-    /// Build storage query at specified block with and without Option.
+impl AtBlockBuilder {
+    /// Build query at specified block with and without Option.
     fn at(&self) -> ItemFn {
         let mut at = self.0.clone();
 
@@ -65,7 +65,7 @@ impl StorageQueryBuilder {
         at
     }
 
-    /// Build storage query for the latest state.
+    /// Build query for the latest state.
     fn latest(&self) -> ItemFn {
         let mut latest = self.0.clone();
 
@@ -88,7 +88,7 @@ impl StorageQueryBuilder {
 
         // reset function name.
         //
-        // - `storage_query_at` -> `storage_query`
+        // - `query_at` -> `query`
         latest.sig.ident = Ident::new(
             latest.sig.ident.to_string().trim_end_matches(AT_SUFFIX),
             latest.sig.ident.span(),
@@ -113,7 +113,7 @@ impl StorageQueryBuilder {
         //
         // ```ignore
         // {
-        //   self.storage_query(..args, None);
+        //   self.query(..args, None);
         // }
         // ```
         {
@@ -142,7 +142,7 @@ impl StorageQueryBuilder {
         latest
     }
 
-    /// Build all storage queries.
+    /// Build all queries.
     pub fn build(&self) -> TokenStream {
         let (at, latest) = (self.at(), self.latest());
         quote! {
@@ -153,7 +153,7 @@ impl StorageQueryBuilder {
         .into()
     }
 
-    /// This function validates the input of the storage query
+    /// This function validates the input of the query
     /// function, follows the rules below:
     ///
     /// - the docs must be end with `at specified block.`
@@ -195,7 +195,7 @@ impl StorageQueryBuilder {
     }
 }
 
-impl From<ItemFn> for StorageQueryBuilder {
+impl From<ItemFn> for AtBlockBuilder {
     fn from(at: ItemFn) -> Self {
         Self::validate(&at);
         Self(at)

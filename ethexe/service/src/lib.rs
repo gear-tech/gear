@@ -328,6 +328,8 @@ impl Service {
             let runtime_config = NetworkRuntimeConfig {
                 latest_block_header: latest_block_data.header,
                 latest_validators: validators,
+                validator_key: validator_pub_key,
+                general_signer: signer.clone(),
                 network_signer,
                 external_data_provider: Box::new(RouterDataProvider(router_query)),
                 db: Box::new(db.clone()),
@@ -584,7 +586,10 @@ impl Service {
                             transaction,
                             response_sender,
                         } => {
-                            if validator_address == Some(transaction.recipient) {
+                            // Note: zero address means that no matter what validator will insert this tx.
+                            if transaction.recipient == Address::default()
+                                || validator_address == Some(transaction.recipient)
+                            {
                                 consensus.receive_injected_transaction(transaction.tx)?;
                             } else {
                                 let Some(network) = network.as_mut() else {

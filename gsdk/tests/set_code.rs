@@ -16,36 +16,38 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use gclient::GearApi;
 use gsdk::gear;
+use std::{env, path::PathBuf};
+use utils::dev_node;
 
-const RUNTIME_WASM: &str =
-    "../target/release/wbuild/vara-runtime/vara_runtime.compact.compressed.wasm";
+mod utils;
+
+fn runtime_wasm() -> PathBuf {
+    PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap())
+        .join("../target/release/wbuild/vara-runtime/vara_runtime.compact.compressed.wasm")
+}
 
 #[tokio::test]
 async fn set_code_succeed() {
-    let api = GearApi::dev_from_path("../target/release/gear")
-        .await
-        .unwrap();
-    let _block_hash = api
-        .set_code_without_checks_by_path(RUNTIME_WASM)
+    let (_node, api) = dev_node().await;
+
+    api.set_code_without_checks_by_path(runtime_wasm())
         .await
         .unwrap();
 }
 
 #[tokio::test]
 async fn set_code_failed() {
-    let api = GearApi::dev_from_path("../target/release/gear")
-        .await
-        .unwrap();
-    let err = api.set_code_by_path(RUNTIME_WASM).await.unwrap_err();
+    let (_node, api) = dev_node().await;
+
+    let err = api.set_code_by_path(runtime_wasm()).await.unwrap_err();
 
     assert!(
         matches!(
             err,
-            gclient::Error::GearSDK(gsdk::Error::Runtime(gear::Error::System(
+            gsdk::Error::Runtime(gear::Error::System(
                 gear::system::Error::SpecVersionNeedsToIncrease
-            )))
+            ))
         ),
         "{err:?}"
     );

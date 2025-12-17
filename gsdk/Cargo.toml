@@ -18,6 +18,7 @@ derive_more.workspace = true
 futures.workspace = true
 gear-core = { workspace = true, features = ["std"] }
 gear-core-errors.workspace = true
+gear-utils.workspace = true
 gsdk-codegen.workspace = true
 hex.workspace = true
 indexmap = { workspace = true, features = ["std"] }
@@ -25,22 +26,38 @@ jsonrpsee = { workspace = true, features = ["http-client", "ws-client"] }
 log.workspace = true
 parking_lot.workspace = true
 serde = { workspace = true, features = ["derive"] }
+serde_json.workspace = true
 sp-core = { workspace = true, features = ["std", "full_crypto"] }
 sp-runtime = { workspace = true, features = ["std"] }
+sp-keyring.workspace = true
 subxt.workspace = true
 thiserror.workspace = true
+tokio = { workspace = true, features = ["fs"] }
 url.workspace = true
 parity-scale-codec.workspace = true
 gear-workspace-hack.workspace = true
 
 [dev-dependencies]
+ark-bls12-381 = { workspace = true, features = ["curve"] }
+ark-ec = { workspace = true }
+ark-scale = { workspace = true, features = ["hazmat"] }
+ark-serialize = { workspace = true, features = ["derive"] }
+ark-std = { workspace = true }
 gear-node-wrapper.workspace = true
 tokio = { workspace = true, features = ["full"] }
+demo-constructor = { workspace = true, features = ["std"] }
+demo-custom.workspace = true
+demo-bls381 = { workspace = true, features = ["std"] }
+demo-ping.workspace = true
 demo-messenger.workspace = true
 demo-fungible-token.workspace = true
+demo-mul-by-const.workspace = true
 demo-vec.workspace = true
+demo-reserve-gas = { workspace = true, features = ["std"] }
 demo-waiter = { workspace = true, features = ["std"] }
+demo-wat.workspace = true
 serde_json = { workspace = true, features = [ "std" ] }
+wat.workspace = true
 
 [features]
 testing = []

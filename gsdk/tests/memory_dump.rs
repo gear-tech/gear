@@ -16,35 +16,39 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use std::{collections::BTreeSet, ops::Deref};
-
 use demo_custom::{InitMessage, WASM_BINARY};
-use gclient::{EventListener, EventProcessor, GearApi, Result};
 use gear_core::{ids::ActorId, pages::GearPage};
+use gear_node_wrapper::Node;
+use gsdk::{Api, Result, SignedApi, events};
 use parity_scale_codec::Encode;
+use std::{collections::BTreeSet, ops::Deref, path::PathBuf};
+use tokio::fs;
+use utils::dev_node;
 
-async fn charge_10(
-    api: &GearApi,
-    program_id: ActorId,
-    listener: &mut EventListener,
-) -> Result<String> {
+mod utils;
+
+async fn charge_10(api: &SignedApi, program_id: ActorId) -> Result<String> {
     let payload = b"10".to_vec();
     let gas_info = api
-        .calculate_handle_gas(None, program_id, payload.clone(), 0, true)
+        .calculate_handle_gas(program_id, payload.clone(), 0, true)
         .await?;
-    let (message_id, _hash) = api
-        .send_message_bytes(program_id, payload, gas_info.min_limit, 0)
-        .await?;
-    assert!(listener.message_processed(message_id).await?.succeed());
 
-    let msg = api.get_mailbox_messages(1).await.unwrap().pop();
+    let events = api.subscribe_all_events().await.unwrap();
+
+    let message_id = api
+        .send_message_bytes(program_id, payload, gas_info.min_limit, 0)
+        .await?
+        .value;
+
+    assert!(
+        events::message_dispatch_status(message_id, events)
+            .await?
+            .is_success()
+    );
+
+    let msg = api.mailbox_messages(1).await.unwrap().pop();
     if let Some(msg) = msg {
-        let message = api
-            .get_mailbox_message(msg.0.id())
-            .await
-            .unwrap()
-            .unwrap()
-            .0;
+        let message = api.mailbox_message(msg.0.id()).await.unwrap().unwrap().0;
 
         api.claim_value(msg.0.id()).await.unwrap();
 
@@ -55,7 +59,7 @@ async fn charge_10(
 }
 
 struct CleanupFolderOnDrop {
-    path: String,
+    path: PathBuf,
 }
 
 impl Drop for CleanupFolderOnDrop {
@@ -66,57 +70,60 @@ impl Drop for CleanupFolderOnDrop {
 
 #[tokio::test]
 async fn memory_dump() -> Result<()> {
+    let node = Node::from_path("../target/release/gear")
+        .unwrap()
+        .spawn()
+        .unwrap();
+
     // Create API instance
-    let api = GearApi::dev_from_path("../target/release/gear").await?;
+    let api = Api::new(&node.ws()).await?.signed_as_alice();
     // Subscribe to events
-    let mut listener = api.subscribe().await?;
+    let events = api.subscribe_all_events().await?;
     // Check that blocks are still running
-    assert!(listener.blocks_running().await?);
+    assert!(api.is_progressing().await?);
     // Calculate gas amount needed for initialization
-    let payload = InitMessage::Capacitor("15".to_string()).encode();
+    let payload = InitMessage::Capacitor("15".to_string());
     let gas_info = api
-        .calculate_upload_gas(None, WASM_BINARY.to_vec(), payload.clone(), 0, true)
+        .calculate_upload_gas(WASM_BINARY.to_vec(), payload.encode(), 0, true)
         .await?;
     // Upload and init the program
-    let (message_id, program_id, _hash) = api
-        .upload_program_bytes(
+    let (message_id, program_id) = api
+        .upload_program(
             WASM_BINARY,
-            gclient::now_micros().to_le_bytes(),
+            gear_utils::now_micros().to_le_bytes(),
             payload,
             gas_info.min_limit,
             0,
         )
-        .await?;
-    assert!(listener.message_processed(message_id).await?.succeed());
-
-    assert_eq!(
-        charge_10(&api, program_id, &mut listener).await.unwrap(),
-        ""
+        .await?
+        .value;
+    assert!(
+        events::message_dispatch_status(message_id, events)
+            .await?
+            .is_success()
     );
 
-    let cleanup = CleanupFolderOnDrop {
-        path: "./296c6962726".to_string(),
-    };
+    assert_eq!(charge_10(&api, program_id).await.unwrap(), "");
 
-    api.save_program_memory_dump_at(program_id, None, "./296c6962726/demo_custom.dump")
+    let dir = PathBuf::from("./296c6962726");
+
+    fs::create_dir_all(&dir).await.unwrap();
+
+    let cleanup = CleanupFolderOnDrop { path: dir.clone() };
+
+    api.save_program_memory_dump_at(program_id, None, dir.join("demo_custom.dump"))
         .await
         .unwrap();
 
-    assert_eq!(
-        charge_10(&api, program_id, &mut listener).await.unwrap(),
-        "Discharged: 20"
-    );
+    assert_eq!(charge_10(&api, program_id).await.unwrap(), "Discharged: 20");
 
-    api.replace_program_memory(program_id, "./296c6962726/demo_custom.dump")
+    api.replace_program_memory(program_id, dir.join("demo_custom.dump"))
         .await
         .unwrap();
 
     drop(cleanup);
 
-    assert_eq!(
-        charge_10(&api, program_id, &mut listener).await.unwrap(),
-        "Discharged: 20"
-    );
+    assert_eq!(charge_10(&api, program_id).await.unwrap(), "Discharged: 20");
 
     Ok(())
 }
@@ -124,11 +131,10 @@ async fn memory_dump() -> Result<()> {
 #[tokio::test]
 async fn memory_download() -> Result<()> {
     // Create API instance
-    let api = GearApi::dev_from_path("../target/release/gear").await?;
-    // Subscribe to events
-    let mut listener = api.subscribe().await?;
+    let (_node, api) = dev_node().await;
+
     // Check that blocks are still running
-    assert!(listener.blocks_running().await?);
+    assert!(api.is_progressing().await?);
 
     let wat = r#"
         (module
@@ -156,22 +162,29 @@ async fn memory_download() -> Result<()> {
 
     let wasm = wat::parse_str(wat).unwrap();
 
+    let events = api.subscribe_all_events().await?;
+
     // Upload and init the program
-    let (message_id, program_id, _hash) = api
+    let (message_id, program_id) = api
         .upload_program_bytes(
             wasm,
-            gclient::now_micros().to_le_bytes(),
+            gear_utils::now_micros().to_le_bytes(),
             Vec::new(),
             200_000_000_000,
             0,
         )
-        .await?;
+        .await?
+        .value;
 
-    assert!(listener.message_processed(message_id).await?.succeed());
+    assert!(
+        events::message_dispatch_status(message_id, events)
+            .await?
+            .is_success()
+    );
 
-    let timer_start = gclient::now_micros();
-    let pages = api.get_program_pages_data_at(program_id, None).await?;
-    let timer_end = gclient::now_micros();
+    let timer_start = gear_utils::now_micros();
+    let pages = api.program_pages(program_id).await?;
+    let timer_end = gear_utils::now_micros();
 
     println!(
         "Storage prefix iteration memory download took: {} ms",
@@ -194,11 +207,11 @@ async fn memory_download() -> Result<()> {
             .collect::<BTreeSet<GearPage>>()
     );
 
-    let timer_start = gclient::now_micros();
+    let timer_start = gear_utils::now_micros();
     let _pages = api
-        .get_program_specified_pages_data_at(program_id, accessed_pages.into_iter(), None)
+        .specified_program_pages(program_id, accessed_pages)
         .await?;
-    let timer_end = gclient::now_micros();
+    let timer_end = gear_utils::now_micros();
 
     println!(
         "Memory page by page download took: {} ms",
