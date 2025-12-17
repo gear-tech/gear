@@ -17,7 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    InjectedTransactionAcceptance, RpcConfig, RpcEvent, RpcServer, RpcService, apis::InjectedClient,
+    InjectedApi, InjectedTransactionAcceptance, RpcConfig, RpcEvent, RpcServer, RpcService,
+    apis::InjectedClient,
 };
 
 use ethexe_common::{
@@ -40,11 +41,15 @@ use tokio::task::{JoinHandle, JoinSet};
 /// [`MockService`] simulates main `ethexe_service::Service` behavior.
 /// It accepts injected transactions and periodically runs batches of them and produces promises.
 struct MockService {
-    pub rpc: RpcService,
-    pub handle: ServerHandle,
+    rpc: RpcService,
+    handle: ServerHandle,
 }
 
 impl MockService {
+    pub fn new(rpc: RpcService, handle: ServerHandle) -> Self {
+        Self { rpc, handle }
+    }
+
     /// Spawns the main loop which collects injected transactions within time intervals and
     /// then processes them in batches.
     pub fn spawn(mut self) -> JoinHandle<()> {
@@ -90,9 +95,9 @@ impl MockService {
 }
 
 /// Starts a new RPC server listening on the given address.
-async fn start_new_server(addr: SocketAddr) -> (ServerHandle, RpcService) {
+async fn start_new_server(listen_addr: SocketAddr) -> (ServerHandle, RpcService) {
     let rpc_config = RpcConfig {
-        listen_addr: addr,
+        listen_addr,
         cors: None,
         runner_config: RunnerConfig::common(2, MAX_BLOCK_GAS_LIMIT),
     };
@@ -102,15 +107,21 @@ async fn start_new_server(addr: SocketAddr) -> (ServerHandle, RpcService) {
         .expect("RPC Server will start successfully")
 }
 
+/// This helper function waits until all promise subscriptions being closed and cleaned up.
+async fn wait_for_closed_subscriptions(injected_api: InjectedApi) {
+    while injected_api.promise_subscribers_count() > 0 {
+        tokio::time::sleep(std::time::Duration::from_millis(10)).await;
+    }
+}
+
 #[tokio::test]
-#[ntest::timeout(60_000)]
+#[ntest::timeout(20_000)]
 async fn test_cleanup_promise_subscribers() {
     let listen_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 1728);
     let (handle, rpc) = start_new_server(listen_addr).await;
 
     let injected_api = rpc.injected_api.clone();
-    let mock_service = MockService { rpc, handle };
-    let handle = mock_service.spawn();
+    MockService::new(rpc, handle).spawn();
 
     let ws_client = WsClientBuilder::new()
         .build(format!("ws://{}", listen_addr))
@@ -142,7 +153,7 @@ async fn test_cleanup_promise_subscribers() {
             });
         }
         let _ = subscribers.join_all().await;
-        assert_eq!(injected_api.promise_subscribers_count(), 0);
+        wait_for_closed_subscriptions(injected_api.clone()).await;
     }
 
     // Subscribers that do not unsubscribe after receiving the promise.
@@ -169,7 +180,7 @@ async fn test_cleanup_promise_subscribers() {
         }
         let _ = subscribers.join_all().await;
 
-        assert_eq!(injected_api.promise_subscribers_count(), 0);
+        wait_for_closed_subscriptions(injected_api.clone()).await;
     }
 
     // Subscribers that are dropped immediately after creation.
@@ -185,12 +196,52 @@ async fn test_cleanup_promise_subscribers() {
 
         drop(subscriptions);
 
-        // Because we run a lot of tests in parallel, give some time for the PRC server to process
-        // all dropped subscriptions and update its internal state.
-        tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+        wait_for_closed_subscriptions(injected_api.clone()).await;
+    }
+}
 
-        assert_eq!(injected_api.promise_subscribers_count(), 0);
+// Setup worker-threads=4 to simulate concurrent clients.
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+#[ntest::timeout(60_000)]
+async fn test_concurrent_multiple_clients() {
+    let listen_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 1729);
+    let (handle, rpc) = start_new_server(listen_addr).await;
+
+    let injected_api = rpc.injected_api.clone();
+    MockService::new(rpc, handle).spawn();
+
+    let mut tasks = JoinSet::new();
+    for _ in 0..10 {
+        tasks.spawn(async move {
+            let client = WsClientBuilder::new()
+                .build(format!("ws://{listen_addr}"))
+                .await
+                .expect("WS client will be created");
+
+            // Each client sequentially creates 100 subscriptions.
+            let mut subscriptions = vec![];
+            for _ in 0..50 {
+                let mut subscription = client
+                    .send_transaction_and_watch(RpcOrNetworkInjectedTx::mock(()))
+                    .await
+                    .expect("Subscription will be created");
+
+                let promise = subscription
+                    .next()
+                    .await
+                    .expect("Promise will be received")
+                    .expect("No error in subscription result");
+
+                assert_eq!(
+                    promise.data().reply.code,
+                    ReplyCode::Success(SuccessReplyReason::Manual)
+                );
+
+                subscriptions.push(subscription);
+            }
+        });
     }
 
-    drop(handle);
+    let _ = tasks.join_all().await;
+    wait_for_closed_subscriptions(injected_api).await;
 }

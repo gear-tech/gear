@@ -47,7 +47,7 @@ mod apis;
 mod errors;
 mod utils;
 
-#[cfg(all(test, feature = "test-utils"))]
+#[cfg(all(test, feature = "client"))]
 mod tests;
 
 #[derive(Debug)]
