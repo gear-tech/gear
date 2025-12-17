@@ -6950,12 +6950,14 @@ fn test_upload_program_respects_keep_alive() {
         )
         .expect("failed to calculate gas info");
 
-        let upload_cost = gas_price(gas_info.burned) + ed;
+        let init_message_cost = gas_price(gas_info.burned);
 
         assert_ok!(Balances::force_set_balance(
             RuntimeOrigin::root(),
             USER_1,
-            upload_cost + ed / 2
+            // message cost + ED will pass keep alive check in `Gear::init_packet()`
+            // but will trigger the check in `Gear::do_create_program()`
+            init_message_cost + ed
         ));
 
         run_to_next_block(None);
@@ -6976,7 +6978,8 @@ fn test_upload_program_respects_keep_alive() {
         assert_ok!(Balances::force_set_balance(
             RuntimeOrigin::root(),
             USER_1,
-            upload_cost - ed
+            // message cost without ED will trigger keep alive check in `Gear::init_packet()`
+            init_message_cost,
         ));
 
         run_to_next_block(None);
