@@ -38,6 +38,7 @@ jobs:
       profiles: ${{ steps.profiles.outputs.value }}
       targets: ${{ steps.targets.outputs.targets }}
       unix-targets: ${{ steps.targets.outputs.unix-targets }}
+      ethexe-targets: ${{ steps.targets.outputs.ethexe-targets }}
     steps:
       - id: profiles
         run: |
@@ -56,6 +57,13 @@ jobs:
               "runs-on": ["kuberunner", "github-runner-02"]
             }
           ]')
+          ethexe_targets=$(jq -c -n '[
+            {
+              name: "linux-x86_64",
+              target: "x86_64-unknown-linux-gnu",
+              "runs-on": "ubuntu-latest"
+            }
+          ]')
           unix_targets="[]"
 
           if ${{ inputs.macos }}; then
@@ -68,10 +76,11 @@ jobs:
               {
                 name: "macos-x86_64",
                 target: "x86_64-apple-darwin",
-                "runs-on": "macos-15-intel"
+                "runs-on": "macos-latest"
               }
             ]'
             targets=$(echo "$targets" | jq -c ". += $macos")
+            ethexe_targets=$(echo "$ethexe_targets" | jq -c ". += $macos")
             unix_targets=$(echo "$unix_targets" | jq -c ". += $macos")
           fi
 
@@ -84,6 +93,7 @@ jobs:
               }
             ]'
             targets=$(echo "$targets" | jq -c ". += $linux_aarch64")
+            ethexe_targets=$(echo "$ethexe_targets" | jq -c ". += $linux_aarch64")
             unix_targets=$(echo "$unix_targets" | jq -c ". += $linux_aarch64")
           fi
 
@@ -95,22 +105,79 @@ jobs:
                 "runs-on": ["kuberunner", "github-runner-02"]
               }
             ]')
+            ethexe_targets=$(echo "$ethexe_targets" | jq -c '. += [
+              {
+                name: "windows-x86_64",
+                target: "x86_64-pc-windows-msvc",
+                "runs-on": "ubuntu-24.04-arm"
+              }
+            ]')
           fi
 
           echo "Targets: ${targets}"
           echo "targets=${targets}" >> $GITHUB_OUTPUT
 
+          echo "ethexe targets: ${ethexe_targets}"
+          echo "ethexe-targets=${ethexe_targets}" >> $GITHUB_OUTPUT
+
           echo "*NIX targets: ${unix_targets}"
           echo "unix-targets=${unix_targets}" >> $GITHUB_OUTPUT
 
-  node:
+  gear-cli:
     needs: dynamic-matrix
     strategy:
       fail-fast: false
       matrix:
         targets: ${{ fromJSON(needs.dynamic-matrix.outputs.targets) }}
     runs-on: ${{ matrix.targets.runs-on }}
-    name: node (${{ matrix.targets.name }})
+    name: gear-cli (${{ matrix.targets.name }})
+    steps:
+      - name: "ACTIONS: Checkout"
+        uses: actions/checkout@v4
+
+      - name: "Install: Setup linker"
+        uses: ./.github/actions/setup-linker
+
+      - name: "Install: Rust toolchain"
+        uses: ./.github/actions/install-rust
+
+      - name: "Install: Compilation environment"
+        uses: ./.github/actions/setup-compilation-env
+        with:
+          target: ${{ matrix.targets.target }}
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: "ACTIONS: Setup caching"
+        uses: ./.github/actions/rust-cache
+        with:
+          us-access-key-id: "${{ secrets.GEAR_CI_S3_US_ACCESS_KEY_ID }}"
+          us-secret-access-key: "${{ secrets.GEAR_CI_S3_US_SECRET_ACCESS_KEY }}"
+          eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
+          eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
+
+      - name: "Build: Gear node"
+        run: ./scripts/gear.sh build node --release --locked
+
+      - name: "Build: Prepare artifact"
+        run: |
+          mkdir -p artifact/wbuild/vara-runtime
+          cp target/${{ matrix.targets.target }}/release/gear* artifact/
+          cp target/${{ matrix.targets.target }}/release/wbuild/vara-runtime/*.wasm artifact/wbuild/vara-runtime/
+
+      - name: "ACTIONS: Upload node and VARA runtime"
+        uses: actions/upload-artifact@v4
+        with:
+          name: gear-cli-and-runtime-release-${{ matrix.targets.target }}
+          path: artifact
+
+  ethexe-cli:
+    needs: dynamic-matrix
+    strategy:
+      fail-fast: false
+      matrix:
+        targets: ${{ fromJSON(needs.dynamic-matrix.outputs.ethexe-targets) }}
+    runs-on: ${{ matrix.targets.runs-on }}
+    name: ethexe-cli (${{ matrix.targets.name }})
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
@@ -137,27 +204,17 @@ jobs:
           eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
           eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
 
-      - name: "Build: Node"
-        run: ./scripts/gear.sh build node --release --locked
-
-      - name: "Build: Ethexe Node"
+      - name: "Build: ethexe node"
         run: ./scripts/gear.sh build ethexe --release --locked
 
-      - name: "Build: Prepare artifact"
-        run: |
-          mkdir -p artifact/wbuild/vara-runtime
-          cp target/${{ matrix.targets.target }}/release/gear* artifact/
-          cp target/${{ matrix.targets.target }}/release/ethexe* artifact/
-          cp target/${{ matrix.targets.target }}/release/wbuild/vara-runtime/*.wasm artifact/wbuild/vara-runtime/
-
-      - name: "ACTIONS: Upload nodes and VARA runtime"
+      - name: "ACTIONS: Upload ethexe node"
         uses: actions/upload-artifact@v4
         with:
-          name: node-and-runtime-release-${{ matrix.targets.target }}
-          path: artifact
+          name: ethexe-cli-release-${{ matrix.targets.target }}
+          path: target/${{ matrix.targets.target }}/release/ethexe*
 
   docs:
-    needs: node
+    needs: gear-cli
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -206,7 +263,7 @@ jobs:
       #     SKIP_WASM_BUILD: 1
 
   workspace:
-    needs: [dynamic-matrix, node]
+    needs: [dynamic-matrix, gear-cli]
     runs-on: [kuberunner, github-runner-02]
     strategy:
       matrix:
@@ -237,7 +294,7 @@ jobs:
       - name: "Install: Foundry"
         uses: foundry-rs/foundry-toolchain@v1
         with:
-          version: v1.5.0-rc1
+          version: v1.5.0
 
       - name: "Show: Versioning"
         run: |
@@ -259,8 +316,8 @@ jobs:
       - name: "ACTIONS: Download node and runtime"
         uses: actions/download-artifact@v4
         with:
-          name: node-and-runtime-release-x86_64-unknown-linux-gnu
-          path: node-and-runtime-release
+          name: gear-cli-and-runtime-release-x86_64-unknown-linux-gnu
+          path: gear-cli-and-runtime-release
 
       - name: "Test: Workspace"
         run: cargo nextest run --workspace --all-targets --all-features -E 'not package(/fuzz/)' ${{ matrix.profiles.flags }}
@@ -325,29 +382,29 @@ jobs:
         # check that perf benchmarks works. `--steps=5` need to test, that benchmarks works for different input number.
         run: >-
           ./target/release/gear benchmark pallet
-          --chain=dev --steps=5 --repeat=0 --heap-pages=4096
+          --chain=dev --steps=5 --repeat=0 --heap-pages=16384
           --pallet="*" --extrinsic="*"
 
       - name: "Test: Extra `read_big_state` benchmark"
         run: >-
           ./target/release/gear benchmark pallet
-          --chain=dev --repeat=0 --heap-pages=4096
+          --chain=dev --repeat=0 --heap-pages=16384
           --pallet=pallet_gear --extrinsic="read_big_state" --extra
 
       - name: "Test: Extra `signal_stack_limit_exceeded_works` benchmark"
         run: >-
           ./target/release/gear benchmark pallet
-          --chain=dev --repeat=0 --heap-pages=4096
+          --chain=dev --repeat=0 --heap-pages=16384
           --pallet=pallet_gear --extrinsic="signal_stack_limit_exceeded_works" --extra
 
       - name: "Test: Extra `check_all` benchmark"
         run: >-
           ./target/release/gear benchmark pallet
-          --chain=dev --repeat=0 --heap-pages=4096
+          --chain=dev --repeat=0 --heap-pages=16384
           --pallet=pallet_gear --extrinsic="check_all" --extra
 
   try-runtime:
-    needs: [dynamic-matrix, node]
+    needs: [dynamic-matrix, gear-cli]
     runs-on: ubuntu-latest
     strategy:
       matrix:
@@ -475,11 +532,13 @@ jobs:
 
   production:
     runs-on: [kuberunner, github-runner-02]
-    needs: workspace
-    if: ${{ inputs.production }}
+    needs: [dynamic-matrix, workspace]
+    if: ${{ inputs.production && contains(fromJSON(needs.dynamic-matrix.outputs.profiles).*.name, 'release') }}
     steps:
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
+        with:
+          submodules: recursive
 
       - name: "Install: Setup linker"
         uses: ./.github/actions/setup-linker
@@ -493,8 +552,23 @@ jobs:
           name: examples-release-wasm32-gear
           path: examples-artifact
 
+      - name: "ACTIONS: Disable workspace hack"
+        uses: ./.github/actions/cargo-hakari
+        with:
+          # production binaries should not have additional features enabled for deps, too
+          args: disable
+
+      - name: "ACTIONS: Disable workspace hack"
+        uses: ./.github/actions/cargo-hakari
+        with:
+          # also don't compile manually written deps in the hack
+          args: remove-deps --yes
+
       - name: "Build: Production binaries"
         run: cargo build -p wasm-proc -p gear-cli -F cli --profile production
+
+      - name: "Build: Production ethexe"
+        run: cargo build -p ethexe-cli --profile production
 
       - name: Prepare artifacts
         run: |
@@ -511,6 +585,7 @@ jobs:
           # executables
           cp target/production/gear artifact/
           cp target/production/wasm-proc artifact/
+          cp target/production/ethexe artifact/
 
       - name: Upload artifacts
         if: ${{ github.event_name == 'push' }}

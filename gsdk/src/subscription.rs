@@ -18,110 +18,14 @@
 
 //! Subscription implementation.
 
-use crate::{Event, Result, config::GearConfig};
+use crate::Result;
 use futures::{Stream, StreamExt};
 use gear_core::ids::{ActorId, MessageId};
 use gear_core_errors::ReplyCode;
 use serde::{Deserialize, Deserializer, Serialize, de::Error as DeError};
 use sp_core::Bytes;
-use std::{convert::TryInto, marker::Unpin, ops::Deref, pin::Pin, task::Poll};
-use subxt::{
-    OnlineClient, backend::StreamOfResults, blocks::Block, events::Events as SubxtEvents,
-    ext::subxt_rpcs::client::RpcSubscription, utils::H256,
-};
-
-type SubxtBlock = Block<GearConfig, OnlineClient<GearConfig>>;
-type BlockSubscription = StreamOfResults<SubxtBlock>;
-
-/// Subscription of finalized blocks.
-pub struct Blocks(BlockSubscription);
-
-impl Unpin for Blocks {}
-
-impl Stream for Blocks {
-    type Item = Result<SubxtBlock>;
-
-    fn poll_next(
-        mut self: Pin<&mut Self>,
-        cx: &mut std::task::Context<'_>,
-    ) -> Poll<Option<Self::Item>> {
-        let res = futures::ready!(self.0.poll_next_unpin(cx));
-
-        Poll::Ready(res.map(|inner| inner.map_err(Into::into)))
-    }
-}
-
-impl Blocks {
-    /// Wait for the next block from the subscription.
-    pub async fn next_events(&mut self) -> Result<Option<BlockEvents>> {
-        let Some(next) = StreamExt::next(self).await else {
-            return Ok(None);
-        };
-
-        Ok(Some(BlockEvents::new(next?).await?))
-    }
-}
-
-impl From<BlockSubscription> for Blocks {
-    fn from(sub: BlockSubscription) -> Self {
-        Self(sub)
-    }
-}
-
-/// Subscription of events.
-pub struct Events(Blocks);
-
-impl Events {
-    /// Wait for the next events from the subscription.
-    pub async fn next(&mut self) -> Result<Vec<Event>> {
-        if let Some(es) = self.0.next_events().await? {
-            es.events()
-        } else {
-            Ok(Default::default())
-        }
-    }
-}
-
-impl From<BlockSubscription> for Events {
-    fn from(sub: BlockSubscription) -> Self {
-        Self(sub.into())
-    }
-}
-
-/// Subxt events wrapper with block info
-#[derive(Clone, Debug)]
-pub struct BlockEvents {
-    /// Block hash of the provided events
-    block_hash: H256,
-    /// subxt events
-    events: SubxtEvents<GearConfig>,
-}
-
-impl BlockEvents {
-    /// Wrap subxt events with block info
-    pub async fn new(block: Block<GearConfig, OnlineClient<GearConfig>>) -> Result<Self> {
-        Ok(Self {
-            block_hash: block.hash(),
-            events: block.events().await?,
-        })
-    }
-
-    /// Get the block hash of the holding events
-    pub fn block_hash(&self) -> H256 {
-        self.block_hash
-    }
-
-    /// Get gear events
-    pub fn events(&self) -> Result<Vec<Event>> {
-        self.events
-            .iter()
-            .map(|ev| {
-                ev.and_then(|e| e.as_root_event::<Event>())
-                    .map_err(Into::into)
-            })
-            .collect::<Result<Vec<_>>>()
-    }
-}
+use std::{convert::TryInto, marker::Unpin, pin::Pin, task::Poll};
+use subxt::{ext::subxt_rpcs::client::RpcSubscription, utils::H256};
 
 /// Program state change item.
 #[derive(Debug, Clone, Deserialize, PartialEq, Eq)]
@@ -388,11 +292,3 @@ impl Stream for UserMessageSentSubscription {
 }
 
 impl Unpin for UserMessageSentSubscription {}
-
-impl Deref for BlockEvents {
-    type Target = SubxtEvents<GearConfig>;
-
-    fn deref(&self) -> &Self::Target {
-        &self.events
-    }
-}

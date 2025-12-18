@@ -43,7 +43,7 @@ pub enum Wallet {
 
 impl Wallet {
     /// Run the wallet command.
-    pub fn run(&self) -> anyhow::Result<()> {
+    pub fn run(&self) -> Result<()> {
         match self {
             Wallet::Dev { name, uri } => Self::dev(name, uri.clone()),
             Wallet::Gring(command) => command.clone().run(),

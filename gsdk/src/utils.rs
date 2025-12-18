@@ -17,33 +17,24 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! gear api utils
-use crate::{Api, config::GearConfig, gear::DispatchError, result::Result};
+use crate::{
+    Api, AsGear, Event, Result, TxInBlock,
+    config::GearConfig,
+    gear::{DispatchError, system},
+};
 use parity_scale_codec::Encode;
 use sp_core::hashing;
 use subxt::{
     Metadata, OnlineClient,
-    error::{DispatchError as SubxtDispatchError, Error},
+    blocks::ExtrinsicEvents,
+    error::DispatchError as SubxtDispatchError,
     storage::{Address, Storage},
     utils::H256,
 };
 
 impl Api {
-    /// compare gas limit
-    pub fn cmp_gas_limit(&self, gas: u64) -> Result<u64> {
-        if let Ok(limit) = self.gas_limit() {
-            Ok(if gas > limit {
-                log::warn!("gas limit too high, use {limit} from the chain config");
-                limit
-            } else {
-                gas
-            })
-        } else {
-            Ok(gas)
-        }
-    }
-
     /// Decode `DispatchError` to `subxt::error::Error`.
-    pub fn decode_error(&self, dispatch_error: DispatchError) -> Error {
+    pub fn decode_error(&self, dispatch_error: DispatchError) -> subxt::Error {
         match SubxtDispatchError::decode_from(dispatch_error.encode(), self.metadata()) {
             Ok(err) => err.into(),
             Err(err) => err,
@@ -64,6 +55,37 @@ impl Api {
 
         Ok(storage)
     }
+
+    /// Capture the dispatch info of any extrinsic and display the weight spent
+    pub async fn capture_dispatch_info(
+        &self,
+        tx: &TxInBlock,
+    ) -> Result<ExtrinsicEvents<GearConfig>> {
+        let events = tx.fetch_events().await?;
+
+        for ev in events.iter() {
+            if let Event::System(system_event) = ev?.as_gear()? {
+                let extrinsic_result = match system_event {
+                    system::Event::ExtrinsicFailed {
+                        dispatch_error,
+                        dispatch_info,
+                    } => Some((dispatch_info, Err(self.decode_error(dispatch_error)))),
+                    system::Event::ExtrinsicSuccess { dispatch_info } => {
+                        Some((dispatch_info, Ok(())))
+                    }
+                    _ => None,
+                };
+
+                if let Some((dispatch_info, result)) = extrinsic_result {
+                    log::info!("	Weight cost: {:?}", dispatch_info.weight);
+                    result?;
+                    break;
+                }
+            }
+        }
+
+        Ok(events)
+    }
 }
 
 /// Return the root of a given [`StorageAddress`]: hash the pallet name and entry name
@@ -78,10 +100,15 @@ pub(crate) fn write_storage_address_root_bytes(addr: &impl Address, out: &mut Ve
 pub(crate) fn storage_address_bytes(
     addr: &impl Address,
     metadata: &Metadata,
-) -> Result<Vec<u8>, Box<Error>> {
+) -> Result<Vec<u8>, Box<subxt::Error>> {
     let mut bytes = Vec::new();
     write_storage_address_root_bytes(addr, &mut bytes);
     addr.append_entry_bytes(metadata, &mut bytes)
         .map_err(|e| Box::new(e.into()))?;
     Ok(bytes)
+}
+
+/// Convert hex string to byte array.
+pub(crate) fn hex_to_vec(string: impl AsRef<str>) -> Result<Vec<u8>> {
+    hex::decode(string.as_ref().trim_start_matches("0x")).map_err(Into::into)
 }

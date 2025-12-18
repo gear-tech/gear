@@ -14,9 +14,10 @@ dependencies = [
 
 [[package]]
 name = "actor-system-error"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
  "derive_more 2.0.1",
+ "gear-workspace-hack",
 ]
 
 [[package]]
@@ -1412,6 +1413,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "asn1-rs"
+version = "0.7.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "56624a96882bb8c26d61312ae18cb45868e5a9992ea73c58e45c3101e56a1e60"
+dependencies = [
+ "asn1-rs-derive 0.6.0",
+ "asn1-rs-impl 0.2.0",
+ "displaydoc",
+ "nom 7.1.3",
+ "num-traits",
+ "rusticata-macros",
+ "thiserror 2.0.12",
+ "time",
+]
+
+[[package]]
 name = "asn1-rs-derive"
 version = "0.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1428,6 +1445,18 @@ name = "asn1-rs-derive"
 version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7378575ff571966e99a744addeff0bff98b8ada0dedf1956d59e634db95eaac1"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.106",
+ "synstructure 0.13.1",
+]
+
+[[package]]
+name = "asn1-rs-derive"
+version = "0.6.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3109e49b1e4909e9db6515a30c633684d68cdeaa252f215214cb4fa1a5bfee2c"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -1501,7 +1530,7 @@ dependencies = [
  "async-lock 2.8.0",
  "async-task",
  "concurrent-queue",
- "fastrand 2.1.1",
+ "fastrand",
  "futures-lite 1.13.0",
  "slab",
 ]
@@ -1519,26 +1548,6 @@ dependencies = [
 
 [[package]]
 name = "async-io"
-version = "1.13.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0fc5b45d93ef0529756f812ca52e44c221b35341892d3dcc34132ac02f3dd2af"
-dependencies = [
- "async-lock 2.8.0",
- "autocfg",
- "cfg-if",
- "concurrent-queue",
- "futures-lite 1.13.0",
- "log",
- "parking",
- "polling 2.8.0",
- "rustix 0.37.23",
- "slab",
- "socket2 0.4.9",
- "waker-fn",
-]
-
-[[package]]
-name = "async-io"
 version = "2.3.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0d6baa8f0178795da0e71bc42c9e5d13261aac7ee549853162e66a241ba17964"
@@ -1549,7 +1558,7 @@ dependencies = [
  "futures-io",
  "futures-lite 2.3.0",
  "parking",
- "polling 3.5.0",
+ "polling",
  "rustix 0.38.41",
  "slab",
  "tracing",
@@ -1582,7 +1591,7 @@ version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b948000fad4873c1c9339d60f2623323a0cfd3816e5181033c6a5cb68b2accf7"
 dependencies = [
- "async-io 2.3.3",
+ "async-io",
  "blocking",
  "futures-lite 2.3.0",
 ]
@@ -1594,7 +1603,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f7eda79bbd84e29c2b308d1dc099d7de8dcc7035e48f4bf5dc4a531a44ff5e2a"
 dependencies = [
  "async-channel 2.3.1",
- "async-io 2.3.3",
+ "async-io",
  "async-lock 3.4.0",
  "async-signal",
  "async-task",
@@ -1624,7 +1633,7 @@ version = "0.2.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dfb3634b73397aa844481f814fad23bbf07fdb0eabec10f2eb95e58944b1ec32"
 dependencies = [
- "async-io 2.3.3",
+ "async-io",
  "async-lock 3.4.0",
  "atomic-waker",
  "cfg-if",
@@ -1756,6 +1765,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "attohttpc"
+version = "0.30.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "16e2cdb6d5ed835199484bb92bb8b3edd526effe995c61732580439c1a67e2e9"
+dependencies = [
+ "base64 0.22.1",
+ "http 1.1.0",
+ "log",
+ "url",
+]
+
+[[package]]
 name = "atty"
 version = "0.2.14"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1849,7 +1870,7 @@ checksum = "230c5f1ca6a325a32553f8640d31ac9b49f2411e901e427570154868b46da4f7"
 [[package]]
 name = "binary-merkle-tree"
 version = "15.0.1"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "hash-db",
  "log",
@@ -1894,7 +1915,7 @@ dependencies = [
  "bitflags 2.9.4",
  "cexpr",
  "clang-sys",
- "itertools 0.11.0",
+ "itertools 0.13.0",
  "log",
  "prettyplease 0.2.15",
  "proc-macro2",
@@ -2076,22 +2097,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "block-modes"
-version = "0.8.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2cb03d1bed155d89dce0f845b7899b18a9a163e148fd004e1c28421a783e2d8e"
-dependencies = [
- "block-padding",
- "cipher 0.3.0",
-]
-
-[[package]]
-name = "block-padding"
-version = "0.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8d696c370c750c948ada61c69a0ee2cbbb9c50b1019ddb86d9317157a99c2cae"
-
-[[package]]
 name = "blocking"
 version = "1.4.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2100,7 +2105,7 @@ dependencies = [
  "async-channel 1.9.0",
  "async-lock 2.8.0",
  "async-task",
- "fastrand 2.1.1",
+ "fastrand",
  "futures-io",
  "futures-lite 1.13.0",
  "piper",
@@ -2157,7 +2162,7 @@ dependencies = [
 [[package]]
 name = "bp-header-chain"
 version = "0.18.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "bp-runtime",
  "finality-grandpa",
@@ -2174,7 +2179,7 @@ dependencies = [
 [[package]]
 name = "bp-runtime"
 version = "0.18.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -2220,12 +2225,13 @@ dependencies = [
 
 [[package]]
 name = "builtins-common"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
  "derive_more 2.0.1",
  "gbuiltin-bls381",
  "gbuiltin-eth-bridge",
  "gear-core",
+ "gear-workspace-hack",
  "gprimitives",
  "log",
  "parity-scale-codec",
@@ -2376,11 +2382,12 @@ dependencies = [
 
 [[package]]
 name = "calc-stack-height"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
  "anyhow",
  "gear-core",
  "gear-wasm-instrument",
+ "gear-workspace-hack",
  "log",
  "tracing-subscriber",
  "wasmer",
@@ -2399,7 +2406,7 @@ dependencies = [
 
 [[package]]
 name = "cargo-gbuild"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
  "anyhow",
  "cargo_metadata",
@@ -2408,6 +2415,7 @@ dependencies = [
  "colored",
  "etc",
  "gear-wasm-optimizer",
+ "gear-workspace-hack",
  "glob",
  "gtest",
  "serde",
@@ -2786,33 +2794,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "color-eyre"
-version = "0.6.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "55146f5e46f237f7423d74111267d4597b59b0dad0ffaf7303bce9945d843ad5"
-dependencies = [
- "backtrace",
- "color-spantrace",
- "eyre",
- "indenter",
- "once_cell",
- "owo-colors",
- "tracing-error",
-]
-
-[[package]]
-name = "color-spantrace"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1ba75b3d9449ecdccb27ecbc479fdc0b87fa2dd43d2f8298f9bf0e59aacc8dce"
-dependencies = [
- "once_cell",
- "owo-colors",
- "tracing-core",
- "tracing-error",
-]
-
-[[package]]
 name = "colorchoice"
 version = "1.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3154,12 +3135,13 @@ dependencies = [
 
 [[package]]
 name = "crates-io"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
  "anyhow",
  "cargo-http-registry",
  "cargo_metadata",
  "clap 4.5.23",
+ "gear-workspace-hack",
  "reqwest",
  "serde",
  "tempfile",
@@ -3290,16 +3272,6 @@ name = "crypto-mac"
 version = "0.8.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b584a330336237c1eecd3e94266efb216c56ed91225d634cb2991c5f3fd1aeab"
-dependencies = [
- "generic-array 0.14.7",
- "subtle 2.6.1",
-]
-
-[[package]]
-name = "crypto-mac"
-version = "0.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "25fab6889090c8133f3deb8f73ba3c65a7f456f66436fc012a1b1e272b1e103e"
 dependencies = [
  "generic-array 0.14.7",
  "subtle 2.6.1",
@@ -3535,6 +3507,7 @@ name = "demo-async"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
+ "gear-workspace-hack",
  "gstd",
  "parity-scale-codec",
 ]
@@ -3544,6 +3517,7 @@ name = "demo-async-critical"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
+ "gear-workspace-hack",
  "gstd",
  "parity-scale-codec",
 ]
@@ -3553,6 +3527,7 @@ name = "demo-async-custom-entry"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
+ "gear-workspace-hack",
  "gstd",
 ]
 
@@ -3562,6 +3537,7 @@ version = "0.1.0"
 dependencies = [
  "futures",
  "gear-wasm-builder",
+ "gear-workspace-hack",
  "gstd",
  "parity-scale-codec",
 ]
@@ -3572,6 +3548,7 @@ version = "0.1.0"
 dependencies = [
  "async-recursion",
  "gear-wasm-builder",
+ "gear-workspace-hack",
  "gstd",
 ]
 
@@ -3580,6 +3557,7 @@ name = "demo-async-reply-hook"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
+ "gear-workspace-hack",
  "gstd",
 ]
 
@@ -3588,6 +3566,7 @@ name = "demo-async-signal-entry"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
+ "gear-workspace-hack",
  "gstd",
  "parity-scale-codec",
 ]
@@ -3597,6 +3576,7 @@ name = "demo-async-tester"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
+ "gear-workspace-hack",
  "gstd",
  "parity-scale-codec",
 ]
@@ -3606,15 +3586,17 @@ name = "demo-autoreply"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
+ "gear-workspace-hack",
  "gstd",
  "gtest",
 ]
 
 [[package]]
 name = "demo-big-data-section"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
  "gear-wasm-builder",
+ "gear-workspace-hack",
  "gstd",
  "gtest",
  "parity-scale-codec",
@@ -3627,6 +3609,7 @@ version = "0.1.0"
 dependencies = [
  "gbuiltin-bls381",
  "gear-wasm-builder",
+ "gear-workspace-hack",
  "gstd",
  "hex-literal",
  "parity-scale-codec",
@@ -3636,6 +3619,7 @@ dependencies = [
 name = "demo-calc-hash"
 version = "0.1.0"
 dependencies = [
+ "gear-workspace-hack",
  "parity-scale-codec",
  "sha2 0.10.8",
 ]
@@ -3646,6 +3630,7 @@ version = "0.1.0"
 dependencies = [
  "demo-calc-hash",
  "gear-wasm-builder",
+ "gear-workspace-hack",
  "gstd",
  "parity-scale-codec",
 ]
@@ -3656,6 +3641,7 @@ version = "0.1.0"
 dependencies = [
  "demo-calc-hash",
  "gear-wasm-builder",
+ "gear-workspace-hack",
  "gstd",
  "parity-scale-codec",
 ]
@@ -3665,6 +3651,7 @@ name = "demo-compose"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
+ "gear-workspace-hack",
  "gstd",
  "hex",
 ]
@@ -3675,15 +3662,17 @@ version = "0.1.0"
 dependencies = [
  "gcore",
  "gear-wasm-builder",
+ "gear-workspace-hack",
  "gstd",
  "parity-scale-codec",
 ]
 
 [[package]]
 name = "demo-create-program-reentrance"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
  "gear-wasm-builder",
+ "gear-workspace-hack",
  "gstd",
  "hex",
 ]
@@ -3693,6 +3682,7 @@ name = "demo-ctor"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
+ "gear-workspace-hack",
  "gstd",
  "gtest",
 ]
@@ -3702,6 +3692,7 @@ name = "demo-custom"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
+ "gear-workspace-hack",
  "gstd",
  "gsys",
  "gtest",
@@ -3713,6 +3704,7 @@ name = "demo-delayed-reservation-sender"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
+ "gear-workspace-hack",
  "gstd",
 ]
 
@@ -3721,6 +3713,7 @@ name = "demo-delayed-sender"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
+ "gear-workspace-hack",
  "gstd",
 ]
 
@@ -3729,6 +3722,7 @@ name = "demo-delayed-sender-ethexe"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
+ "gear-workspace-hack",
  "gstd",
 ]
 
@@ -3737,6 +3731,7 @@ name = "demo-distributor"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
+ "gear-workspace-hack",
  "gstd",
  "gtest",
  "parity-scale-codec",
@@ -3747,6 +3742,7 @@ name = "demo-fungible-token"
 version = "0.1.4"
 dependencies = [
  "gear-wasm-builder",
+ "gear-workspace-hack",
  "gstd",
  "hashbrown 0.14.5",
  "parity-scale-codec",
@@ -3759,6 +3755,7 @@ version = "0.1.0"
 dependencies = [
  "futures",
  "gear-wasm-builder",
+ "gear-workspace-hack",
  "gstd",
  "parity-scale-codec",
 ]
@@ -3768,6 +3765,7 @@ name = "demo-gas-burned"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
+ "gear-workspace-hack",
  "gstd",
  "gtest",
  "log",
@@ -3778,6 +3776,7 @@ name = "demo-incomplete-async-payloads"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
+ "gear-workspace-hack",
  "gstd",
  "parity-scale-codec",
 ]
@@ -3788,6 +3787,7 @@ version = "0.1.0"
 dependencies = [
  "gear-core",
  "gear-wasm-builder",
+ "gear-workspace-hack",
  "gstd",
  "gtest",
  "parity-scale-codec",
@@ -3798,6 +3798,7 @@ name = "demo-init-fail-sender"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
+ "gear-workspace-hack",
  "gstd",
 ]
 
@@ -3806,6 +3807,7 @@ name = "demo-init-wait"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
+ "gear-workspace-hack",
  "gstd",
 ]
 
@@ -3814,6 +3816,7 @@ name = "demo-init-wait-reply-exit"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
+ "gear-workspace-hack",
  "gstd",
 ]
 
@@ -3822,6 +3825,7 @@ name = "demo-messenger"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
+ "gear-workspace-hack",
  "gstd",
 ]
 
@@ -3830,6 +3834,7 @@ name = "demo-mul-by-const"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
+ "gear-workspace-hack",
  "gstd",
  "hex",
 ]
@@ -3839,6 +3844,7 @@ name = "demo-ncompose"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
+ "gear-workspace-hack",
  "gstd",
  "hex",
 ]
@@ -3848,6 +3854,7 @@ name = "demo-node"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
+ "gear-workspace-hack",
  "gstd",
  "gtest",
  "parity-scale-codec",
@@ -3858,6 +3865,7 @@ name = "demo-out-of-memory"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
+ "gear-workspace-hack",
  "gstd",
 ]
 
@@ -3867,6 +3875,7 @@ version = "0.1.0"
 dependencies = [
  "gear-core",
  "gear-wasm-builder",
+ "gear-workspace-hack",
  "gstd",
  "gtest",
 ]
@@ -3876,6 +3885,7 @@ name = "demo-piggy-bank"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
+ "gear-workspace-hack",
  "gstd",
 ]
 
@@ -3884,6 +3894,7 @@ name = "demo-ping"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
+ "gear-workspace-hack",
  "gstd",
 ]
 
@@ -3892,6 +3903,7 @@ name = "demo-program-factory"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
+ "gear-workspace-hack",
  "gstd",
  "gtest",
  "hex-literal",
@@ -3903,6 +3915,7 @@ name = "demo-program-generator"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
+ "gear-workspace-hack",
  "gstd",
  "hex-literal",
 ]
@@ -3912,6 +3925,7 @@ name = "demo-proxy"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
+ "gear-workspace-hack",
  "gstd",
  "parity-scale-codec",
  "scale-info",
@@ -3923,6 +3937,7 @@ version = "0.1.0"
 dependencies = [
  "gbuiltin-proxy",
  "gear-wasm-builder",
+ "gear-workspace-hack",
  "gstd",
 ]
 
@@ -3931,6 +3946,7 @@ name = "demo-proxy-relay"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
+ "gear-workspace-hack",
  "gstd",
  "parity-scale-codec",
  "scale-info",
@@ -3941,6 +3957,7 @@ name = "demo-proxy-reservation-with-gas"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
+ "gear-workspace-hack",
  "gstd",
  "parity-scale-codec",
  "scale-info",
@@ -3951,6 +3968,7 @@ name = "demo-read-big-state"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
+ "gear-workspace-hack",
  "gstd",
  "parity-scale-codec",
 ]
@@ -3960,6 +3978,7 @@ name = "demo-reservation-manager"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
+ "gear-workspace-hack",
  "gstd",
  "parity-scale-codec",
 ]
@@ -3969,6 +3988,7 @@ name = "demo-reserve-gas"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
+ "gear-workspace-hack",
  "gstd",
  "gtest",
  "parity-scale-codec",
@@ -3979,6 +3999,7 @@ name = "demo-rwlock"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
+ "gear-workspace-hack",
  "gstd",
  "parity-scale-codec",
 ]
@@ -3988,6 +4009,7 @@ name = "demo-send-from-reservation"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
+ "gear-workspace-hack",
  "gstd",
  "parity-scale-codec",
 ]
@@ -3999,6 +4021,7 @@ dependencies = [
  "gcore",
  "gear-core",
  "gear-wasm-builder",
+ "gear-workspace-hack",
  "gstd",
  "gtest",
  "parity-scale-codec",
@@ -4009,6 +4032,7 @@ name = "demo-stack-allocations"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
+ "gear-workspace-hack",
  "gstd",
  "gtest",
  "parity-scale-codec",
@@ -4022,6 +4046,7 @@ version = "0.1.0"
 dependencies = [
  "gbuiltin-staking",
  "gear-wasm-builder",
+ "gear-workspace-hack",
  "gstd",
  "hashbrown 0.14.5",
  "hex-literal",
@@ -4033,6 +4058,7 @@ name = "demo-state-rollback"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
+ "gear-workspace-hack",
  "gstd",
 ]
 
@@ -4041,6 +4067,7 @@ name = "demo-sync-duplicate"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
+ "gear-workspace-hack",
  "gstd",
 ]
 
@@ -4049,6 +4076,7 @@ name = "demo-syscall-error"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
+ "gear-workspace-hack",
  "gstd",
  "gtest",
 ]
@@ -4058,6 +4086,7 @@ name = "demo-value-sender"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
+ "gear-workspace-hack",
  "gstd",
 ]
 
@@ -4066,6 +4095,7 @@ name = "demo-value-sender-ethexe"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
+ "gear-workspace-hack",
  "gstd",
 ]
 
@@ -4074,6 +4104,7 @@ name = "demo-vec"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
+ "gear-workspace-hack",
  "gstd",
 ]
 
@@ -4082,6 +4113,7 @@ name = "demo-wait"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
+ "gear-workspace-hack",
  "gstd",
 ]
 
@@ -4091,6 +4123,7 @@ version = "0.1.0"
 dependencies = [
  "futures",
  "gear-wasm-builder",
+ "gear-workspace-hack",
  "gstd",
  "parity-scale-codec",
 ]
@@ -4100,6 +4133,7 @@ name = "demo-wait-wake"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
+ "gear-workspace-hack",
  "gstd",
  "gtest",
  "parity-scale-codec",
@@ -4114,6 +4148,7 @@ dependencies = [
  "gcore",
  "gear-core",
  "gear-wasm-builder",
+ "gear-workspace-hack",
  "gstd",
  "gtest",
  "parity-scale-codec",
@@ -4124,6 +4159,7 @@ name = "demo-waiting-proxy"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
+ "gear-workspace-hack",
  "gstd",
 ]
 
@@ -4131,6 +4167,7 @@ dependencies = [
 name = "demo-wat"
 version = "0.1.0"
 dependencies = [
+ "gear-workspace-hack",
  "hex",
  "wasmparser 0.230.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "wasmprinter",
@@ -4168,6 +4205,20 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5cd0a5c643689626bec213c4d8bd4d96acc8ffdb4ad4bb6bc16abf27d5f4b553"
 dependencies = [
  "asn1-rs 0.6.1",
+ "displaydoc",
+ "nom 7.1.3",
+ "num-bigint",
+ "num-traits",
+ "rusticata-macros",
+]
+
+[[package]]
+name = "der-parser"
+version = "10.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "07da5016415d5a3c4dd39b11ed26f915f52fc4e0dc197d87908bc916e51bc1a6"
+dependencies = [
+ "asn1-rs 0.7.1",
  "displaydoc",
  "nom 7.1.3",
  "num-bigint",
@@ -4730,32 +4781,11 @@ dependencies = [
 
 [[package]]
 name = "enumflags2"
-version = "0.6.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "83c8d82922337cd23a15f88b70d8e4ef5f11da38dd7cdb55e84dd5de99695da0"
-dependencies = [
- "enumflags2_derive 0.6.4",
- "serde",
-]
-
-[[package]]
-name = "enumflags2"
 version = "0.7.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c041f5090df68b32bcd905365fd51769c8b9d553fe87fde0b683534f10c01bd2"
 dependencies = [
- "enumflags2_derive 0.7.7",
-]
-
-[[package]]
-name = "enumflags2_derive"
-version = "0.6.4"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "946ee94e3dbf58fdd324f9ce245c7b238d46a66f00e86a020b71996349e46cce"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 1.0.109",
+ "enumflags2_derive",
 ]
 
 [[package]]
@@ -4866,11 +4896,12 @@ checksum = "1b241177c7107d9829286c2ffdc5eee98d992d6356f3515e7f412f988b1a72fd"
 
 [[package]]
 name = "ethexe-blob-loader"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
  "alloy",
  "ethexe-common",
  "futures",
+ "gear-workspace-hack",
  "gprimitives",
  "log",
  "reqwest",
@@ -4880,7 +4911,7 @@ dependencies = [
 
 [[package]]
 name = "ethexe-cli"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
  "anyhow",
  "clap 4.5.23",
@@ -4894,14 +4925,18 @@ dependencies = [
  "ethexe-rpc",
  "ethexe-service",
  "ethexe-signer",
+ "gear-workspace-hack",
  "gprimitives",
  "hex",
+ "jsonrpsee",
  "libp2p-identity",
  "log",
  "serde",
+ "serde_json",
  "sp-core",
  "static_init",
  "tempfile",
+ "thiserror 2.0.12",
  "tokio",
  "toml 0.8.14",
  "tracing-subscriber",
@@ -4909,13 +4944,14 @@ dependencies = [
 
 [[package]]
 name = "ethexe-common"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
  "alloy-primitives",
  "anyhow",
  "auto_impl",
  "derive_more 2.0.1",
  "gear-core",
+ "gear-workspace-hack",
  "gprimitives",
  "hex",
  "itertools 0.13.0",
@@ -4924,6 +4960,7 @@ dependencies = [
  "parity-scale-codec",
  "roast-secp256k1-evm",
  "serde",
+ "serde_json",
  "sha3",
  "sp-core",
  "tap",
@@ -4931,7 +4968,7 @@ dependencies = [
 
 [[package]]
 name = "ethexe-compute"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
  "derive_more 2.0.1",
  "ethexe-common",
@@ -4941,6 +4978,7 @@ dependencies = [
  "futures",
  "gear-core",
  "gear-utils",
+ "gear-workspace-hack",
  "gprimitives",
  "log",
  "ntest",
@@ -4952,7 +4990,7 @@ dependencies = [
 
 [[package]]
 name = "ethexe-consensus"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -4966,6 +5004,7 @@ dependencies = [
  "futures",
  "gear-core",
  "gear-utils",
+ "gear-workspace-hack",
  "gprimitives",
  "hashbrown 0.14.5",
  "lru 0.16.1",
@@ -4982,7 +5021,7 @@ dependencies = [
 
 [[package]]
 name = "ethexe-db"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
  "anyhow",
  "auto_impl",
@@ -4991,6 +5030,7 @@ dependencies = [
  "ethexe-common",
  "ethexe-runtime-common",
  "gear-core",
+ "gear-workspace-hack",
  "gprimitives",
  "parity-scale-codec",
  "paste",
@@ -5002,7 +5042,7 @@ dependencies = [
 
 [[package]]
 name = "ethexe-ethereum"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
  "alloy",
  "anyhow",
@@ -5013,18 +5053,20 @@ dependencies = [
  "gear-core",
  "gear-core-errors",
  "gear-utils",
+ "gear-workspace-hack",
  "gprimitives",
  "log",
  "nonempty 0.12.0",
  "rand 0.8.5",
  "roast-secp256k1-evm",
+ "serde",
  "tokio",
  "tracing",
 ]
 
 [[package]]
 name = "ethexe-network"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
  "anyhow",
  "assert_matches",
@@ -5036,9 +5078,11 @@ dependencies = [
  "ethexe-service-utils",
  "ethexe-signer",
  "futures",
+ "gear-workspace-hack",
  "gprimitives",
+ "indexmap 2.7.1",
  "itertools 0.13.0",
- "libp2p 0.55.0",
+ "libp2p 0.56.0",
  "libp2p-swarm-test",
  "log",
  "lru 0.16.1",
@@ -5052,16 +5096,18 @@ dependencies = [
 
 [[package]]
 name = "ethexe-observer"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
  "alloy",
  "anyhow",
+ "derive_more 2.0.1",
  "ethexe-common",
  "ethexe-db",
  "ethexe-ethereum",
  "ethexe-signer",
  "futures",
  "gear-utils",
+ "gear-workspace-hack",
  "gprimitives",
  "log",
  "tokio",
@@ -5072,7 +5118,7 @@ dependencies = [
 
 [[package]]
 name = "ethexe-processor"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
  "anyhow",
  "demo-async",
@@ -5087,6 +5133,7 @@ dependencies = [
  "gear-lazy-pages",
  "gear-runtime-interface",
  "gear-wasm-instrument",
+ "gear-workspace-hack",
  "gprimitives",
  "itertools 0.13.0",
  "log",
@@ -5103,10 +5150,11 @@ dependencies = [
 
 [[package]]
 name = "ethexe-prometheus"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
  "anyhow",
  "futures",
+ "gear-workspace-hack",
  "hyper 0.14.31",
  "log",
  "prometheus",
@@ -5115,7 +5163,7 @@ dependencies = [
 
 [[package]]
 name = "ethexe-rpc"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
  "anyhow",
  "dashmap 5.5.3",
@@ -5125,10 +5173,10 @@ dependencies = [
  "ethexe-runtime-common",
  "futures",
  "gear-core",
+ "gear-workspace-hack",
  "gprimitives",
  "hyper 1.4.1",
  "jsonrpsee",
- "log",
  "parity-scale-codec",
  "serde",
  "sp-core",
@@ -5140,13 +5188,14 @@ dependencies = [
 
 [[package]]
 name = "ethexe-runtime"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
  "ethexe-common",
  "ethexe-runtime-common",
  "gear-core",
  "gear-core-processor",
  "gear-lazy-pages-interface",
+ "gear-workspace-hack",
  "gprimitives",
  "log",
  "parity-scale-codec",
@@ -5155,7 +5204,7 @@ dependencies = [
 
 [[package]]
 name = "ethexe-runtime-common"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
  "anyhow",
  "auto_impl",
@@ -5165,6 +5214,7 @@ dependencies = [
  "gear-core-errors",
  "gear-core-processor",
  "gear-lazy-pages-common",
+ "gear-workspace-hack",
  "gprimitives",
  "gsys",
  "log",
@@ -5174,7 +5224,7 @@ dependencies = [
 
 [[package]]
 name = "ethexe-service"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
  "alloy",
  "anyhow",
@@ -5205,6 +5255,7 @@ dependencies = [
  "futures",
  "gear-core",
  "gear-core-errors",
+ "gear-workspace-hack",
  "gprimitives",
  "jsonrpsee",
  "log",
@@ -5220,21 +5271,23 @@ dependencies = [
 
 [[package]]
 name = "ethexe-service-utils"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
  "futures",
+ "gear-workspace-hack",
  "log",
  "tokio",
 ]
 
 [[package]]
 name = "ethexe-signer"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
  "alloy",
  "anyhow",
  "derive_more 2.0.1",
  "ethexe-common",
+ "gear-workspace-hack",
  "parity-scale-codec",
  "tempfile",
 ]
@@ -5289,16 +5342,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "eyre"
-version = "0.6.8"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4c2b6b5a29c02cdc822728b7d7b8ae1bab3e3b05d44522770ddd49722eeac7eb"
-dependencies = [
- "indenter",
- "once_cell",
-]
-
-[[package]]
 name = "fail"
 version = "0.5.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5320,15 +5363,6 @@ name = "fallible-iterator"
 version = "0.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2acce4a10f12dc2fb14a218589d4f1f62ef011b2d0cc4b3cb1bba8e94da14649"
-
-[[package]]
-name = "fastrand"
-version = "1.9.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e51093e27b0797c359783294ca4f0a911c270184cb10f85783b118614a1501be"
-dependencies = [
- "instant",
-]
 
 [[package]]
 name = "fastrand"
@@ -5507,7 +5541,7 @@ checksum = "00b0228411908ca8685dba7fc2cdd70ec9990a6e753e89b6ac91a84c40fbaf4b"
 [[package]]
 name = "fork-tree"
 version = "13.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "parity-scale-codec",
 ]
@@ -5540,7 +5574,7 @@ checksum = "6c2141d6d6c8512188a7891b4b01590a45f6dac67afb4f255c4124dbb86d4eaa"
 [[package]]
 name = "frame-benchmarking"
 version = "38.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "frame-support",
  "frame-support-procedural",
@@ -5564,7 +5598,7 @@ dependencies = [
 [[package]]
 name = "frame-benchmarking-cli"
 version = "43.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "Inflector",
  "array-bytes",
@@ -5630,7 +5664,7 @@ dependencies = [
 [[package]]
 name = "frame-election-provider-solution-type"
 version = "14.0.1"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "proc-macro-crate 3.1.0",
  "proc-macro2",
@@ -5641,7 +5675,7 @@ dependencies = [
 [[package]]
 name = "frame-election-provider-support"
 version = "38.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "frame-election-provider-solution-type",
  "frame-support",
@@ -5657,7 +5691,7 @@ dependencies = [
 [[package]]
 name = "frame-executive"
 version = "38.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "aquamarine",
  "frame-support",
@@ -5699,7 +5733,7 @@ dependencies = [
 [[package]]
 name = "frame-metadata-hash-extension"
 version = "0.6.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "array-bytes",
  "docify",
@@ -5714,7 +5748,7 @@ dependencies = [
 [[package]]
 name = "frame-remote-externalities"
 version = "0.46.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "futures",
  "indicatif",
@@ -5736,7 +5770,7 @@ dependencies = [
 [[package]]
 name = "frame-support"
 version = "38.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "aquamarine",
  "array-bytes",
@@ -5777,7 +5811,7 @@ dependencies = [
 [[package]]
 name = "frame-support-procedural"
 version = "30.0.3"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "Inflector",
  "cfg-expr",
@@ -5797,7 +5831,7 @@ dependencies = [
 [[package]]
 name = "frame-support-procedural-tools"
 version = "13.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "frame-support-procedural-tools-derive",
  "proc-macro-crate 3.1.0",
@@ -5809,7 +5843,7 @@ dependencies = [
 [[package]]
 name = "frame-support-procedural-tools-derive"
 version = "12.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -5819,7 +5853,7 @@ dependencies = [
 [[package]]
 name = "frame-support-test"
 version = "3.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "frame-benchmarking",
  "frame-executive",
@@ -5847,7 +5881,7 @@ dependencies = [
 [[package]]
 name = "frame-support-test-pallet"
 version = "4.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -5860,7 +5894,7 @@ dependencies = [
 [[package]]
 name = "frame-system"
 version = "38.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "cfg-if",
  "docify",
@@ -5880,7 +5914,7 @@ dependencies = [
 [[package]]
 name = "frame-system-benchmarking"
 version = "38.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -5894,7 +5928,7 @@ dependencies = [
 [[package]]
 name = "frame-system-rpc-runtime-api"
 version = "34.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "docify",
  "parity-scale-codec",
@@ -5904,7 +5938,7 @@ dependencies = [
 [[package]]
 name = "frame-try-runtime"
 version = "0.44.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "frame-support",
  "parity-scale-codec",
@@ -6067,13 +6101,8 @@ version = "1.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "49a9d51ce47660b1e808d3c990b4709f2f415d928835a17dfd16991515c46bce"
 dependencies = [
- "fastrand 1.9.0",
  "futures-core",
- "futures-io",
- "memchr",
- "parking",
  "pin-project-lite",
- "waker-fn",
 ]
 
 [[package]]
@@ -6082,7 +6111,7 @@ version = "2.3.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "52527eb5074e35e9339c6b4e8d12600c7128b68fb25dcb9fa9dec18f7c25f3a5"
 dependencies = [
- "fastrand 2.1.1",
+ "fastrand",
  "futures-core",
  "futures-io",
  "parking",
@@ -6178,28 +6207,31 @@ dependencies = [
 
 [[package]]
 name = "galloc"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
  "gear-dlmalloc",
+ "gear-workspace-hack",
 ]
 
 [[package]]
 name = "gbuiltin-bls381"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
  "ark-bls12-381",
  "ark-ec",
  "ark-ff 0.4.2",
  "ark-scale",
  "ark-serialize 0.4.2",
+ "gear-workspace-hack",
  "parity-scale-codec",
  "scale-info",
 ]
 
 [[package]]
 name = "gbuiltin-eth-bridge"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
+ "gear-workspace-hack",
  "gprimitives",
  "parity-scale-codec",
  "scale-info",
@@ -6207,8 +6239,9 @@ dependencies = [
 
 [[package]]
 name = "gbuiltin-proxy"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
+ "gear-workspace-hack",
  "gprimitives",
  "parity-scale-codec",
  "scale-info",
@@ -6216,8 +6249,9 @@ dependencies = [
 
 [[package]]
 name = "gbuiltin-staking"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
+ "gear-workspace-hack",
  "gprimitives",
  "parity-scale-codec",
  "scale-info",
@@ -6225,30 +6259,27 @@ dependencies = [
 
 [[package]]
 name = "gcli"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
  "anyhow",
  "async-trait",
  "clap 4.5.23",
- "color-eyre",
  "colored",
  "demo-fungible-token",
  "demo-messenger",
  "dirs",
  "etc",
- "gclient",
  "gear-core",
  "gear-node-wrapper",
  "gear-runtime-primitives",
+ "gear-workspace-hack",
  "gring",
  "gsdk",
  "hex",
- "keyring",
  "log",
  "reqwest",
  "scale-info",
  "serde",
- "thiserror 2.0.12",
  "tokio",
  "toml 0.8.14",
  "tracing-subscriber",
@@ -6256,50 +6287,15 @@ dependencies = [
 ]
 
 [[package]]
-name = "gclient"
-version = "1.9.9"
-dependencies = [
- "anyhow",
- "ark-bls12-381",
- "ark-ec",
- "ark-scale",
- "ark-serialize 0.4.2",
- "ark-std 0.4.0",
- "async-trait",
- "demo-bls381",
- "demo-constructor",
- "demo-custom",
- "demo-mul-by-const",
- "demo-ping",
- "demo-reserve-gas",
- "demo-wat",
- "futures",
- "gear-core",
- "gear-node-wrapper",
- "gear-utils",
- "gsdk",
- "gstd",
- "hex",
- "hex-literal",
- "log",
- "parity-scale-codec",
- "sp-core",
- "thiserror 2.0.12",
- "tokio",
- "tracing-subscriber",
- "url",
- "wat",
-]
-
-[[package]]
 name = "gcore"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
  "arrayvec 0.7.6",
  "cc",
  "galloc",
  "gear-core-errors",
  "gear-stack-buffer",
+ "gear-workspace-hack",
  "gprimitives",
  "gsys",
  "hex-literal",
@@ -6309,7 +6305,7 @@ dependencies = [
 
 [[package]]
 name = "gear-authorship"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
  "demo-constructor",
  "frame-support",
@@ -6319,6 +6315,7 @@ dependencies = [
  "gear-core",
  "gear-node-testing",
  "gear-runtime-primitives",
+ "gear-workspace-hack",
  "log",
  "pallet-gear",
  "pallet-gear-builtin",
@@ -6354,6 +6351,7 @@ name = "gear-bags-thresholds"
 version = "1.0.0"
 dependencies = [
  "clap 4.5.23",
+ "gear-workspace-hack",
  "generate-bags",
  "vara-runtime",
 ]
@@ -6363,6 +6361,7 @@ name = "gear-baremetal-weights-patcher"
 version = "0.1.0"
 dependencies = [
  "clap 4.5.23",
+ "gear-workspace-hack",
  "proc-macro2",
  "syn 2.0.106",
 ]
@@ -6376,6 +6375,7 @@ dependencies = [
  "gear-core",
  "gear-utils",
  "gear-wasm-gen",
+ "gear-workspace-hack",
  "hex",
  "log",
  "rand 0.8.5",
@@ -6384,7 +6384,7 @@ dependencies = [
 
 [[package]]
 name = "gear-cli"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
  "clap 4.5.23",
  "derive_more 2.0.1",
@@ -6397,6 +6397,7 @@ dependencies = [
  "gear-runtime-interface",
  "gear-runtime-primitives",
  "gear-service",
+ "gear-workspace-hack",
  "log",
  "mimalloc",
  "pallet-gear-payment",
@@ -6417,7 +6418,7 @@ dependencies = [
 
 [[package]]
 name = "gear-common"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
  "enum-iterator 1.5.0",
  "fail",
@@ -6428,6 +6429,7 @@ dependencies = [
  "gear-core",
  "gear-utils",
  "gear-wasm-instrument",
+ "gear-workspace-hack",
  "gsys",
  "log",
  "primitive-types 0.12.2",
@@ -6443,22 +6445,25 @@ dependencies = [
 
 [[package]]
 name = "gear-common-codegen"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
+ "gear-workspace-hack",
  "quote",
  "syn 2.0.106",
 ]
 
 [[package]]
 name = "gear-core"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
  "blake2 0.10.6",
+ "bytemuck",
  "byteorder",
  "derive_more 2.0.1",
  "enum-iterator 1.5.0",
  "gear-core-errors",
  "gear-wasm-instrument",
+ "gear-workspace-hack",
  "gprimitives",
  "gsys",
  "hex",
@@ -6481,7 +6486,7 @@ dependencies = [
 
 [[package]]
 name = "gear-core-backend"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
  "actor-system-error",
  "blake2 0.10.6",
@@ -6493,6 +6498,7 @@ dependencies = [
  "gear-sandbox",
  "gear-sandbox-env",
  "gear-wasm-instrument",
+ "gear-workspace-hack",
  "gsys",
  "log",
  "parity-scale-codec",
@@ -6501,9 +6507,10 @@ dependencies = [
 
 [[package]]
 name = "gear-core-errors"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
  "enum-iterator 1.5.0",
+ "gear-workspace-hack",
  "parity-scale-codec",
  "scale-decode 0.16.0",
  "scale-encode",
@@ -6514,7 +6521,7 @@ dependencies = [
 
 [[package]]
 name = "gear-core-processor"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
  "actor-system-error",
  "derive_more 2.0.1",
@@ -6524,6 +6531,7 @@ dependencies = [
  "gear-core-errors",
  "gear-lazy-pages-common",
  "gear-wasm-instrument",
+ "gear-workspace-hack",
  "gsys",
  "log",
  "parity-scale-codec",
@@ -6544,15 +6552,16 @@ dependencies = [
 
 [[package]]
 name = "gear-key-finder"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
  "directories",
+ "gear-workspace-hack",
  "hex",
 ]
 
 [[package]]
 name = "gear-lazy-pages"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
  "cfg-if",
  "derive_more 2.0.1",
@@ -6560,10 +6569,11 @@ dependencies = [
  "gear-core",
  "gear-lazy-pages-common",
  "gear-sandbox-host",
+ "gear-workspace-hack",
  "libc",
  "log",
  "mach",
- "nix 0.26.4",
+ "nix",
  "numerated",
  "proptest",
  "region",
@@ -6575,48 +6585,51 @@ dependencies = [
 
 [[package]]
 name = "gear-lazy-pages-common"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
  "gear-core",
+ "gear-workspace-hack",
  "num_enum 0.6.1",
  "parity-scale-codec",
 ]
 
 [[package]]
 name = "gear-lazy-pages-interface"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
  "byteorder",
  "gear-core",
  "gear-lazy-pages-common",
  "gear-runtime-interface",
+ "gear-workspace-hack",
  "log",
  "sp-std",
 ]
 
 [[package]]
 name = "gear-lazy-pages-native-interface"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
  "gear-core",
  "gear-lazy-pages",
  "gear-lazy-pages-common",
+ "gear-workspace-hack",
  "log",
 ]
 
 [[package]]
 name = "gear-node-loader"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
  "anyhow",
  "clap 4.5.23",
  "futures",
  "futures-timer",
- "gclient",
  "gear-call-gen",
  "gear-core",
  "gear-utils",
  "gear-wasm-gen",
+ "gear-workspace-hack",
  "gsdk",
  "names",
  "parking_lot 0.12.3",
@@ -6631,13 +6644,14 @@ dependencies = [
 
 [[package]]
 name = "gear-node-testing"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
  "frame-metadata-hash-extension",
  "frame-system",
  "gear-runtime-interface",
  "gear-runtime-primitives",
  "gear-service",
+ "gear-workspace-hack",
  "parity-scale-codec",
  "sc-service",
  "sp-core",
@@ -6651,9 +6665,10 @@ dependencies = [
 
 [[package]]
 name = "gear-node-wrapper"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
  "anyhow",
+ "gear-workspace-hack",
  "rand 0.8.5",
  "smallvec",
  "which",
@@ -6668,6 +6683,7 @@ dependencies = [
  "gear-runtime-interface",
  "gear-runtime-primitives",
  "gear-service",
+ "gear-workspace-hack",
  "hex",
  "log",
  "parity-scale-codec",
@@ -6688,13 +6704,14 @@ dependencies = [
 
 [[package]]
 name = "gear-runtime-common"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
  "frame-system",
  "frame-system-benchmarking",
  "gear-runtime-primitives",
+ "gear-workspace-hack",
  "pallet-authorship",
  "pallet-balances",
  "pallet-gear",
@@ -6706,13 +6723,14 @@ dependencies = [
 
 [[package]]
 name = "gear-runtime-interface"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
  "builtins-common",
  "gear-core",
  "gear-lazy-pages",
  "gear-lazy-pages-common",
  "gear-sandbox-interface",
+ "gear-workspace-hack",
  "log",
  "parity-scale-codec",
  "sp-io",
@@ -6722,20 +6740,22 @@ dependencies = [
 
 [[package]]
 name = "gear-runtime-primitives"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
+ "gear-workspace-hack",
  "sp-core",
  "sp-runtime",
 ]
 
 [[package]]
 name = "gear-sandbox"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
  "assert_matches",
  "gear-sandbox-env",
  "gear-sandbox-interface",
  "gear-wasmer-cache",
+ "gear-workspace-hack",
  "log",
  "parity-scale-codec",
  "pathdiff",
@@ -6751,8 +6771,9 @@ dependencies = [
 
 [[package]]
 name = "gear-sandbox-env"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
+ "gear-workspace-hack",
  "parity-scale-codec",
  "sp-debug-derive",
  "sp-std",
@@ -6761,13 +6782,14 @@ dependencies = [
 
 [[package]]
 name = "gear-sandbox-host"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
  "atomic_enum",
  "defer",
  "environmental",
  "gear-sandbox-env",
  "gear-wasmer-cache",
+ "gear-workspace-hack",
  "log",
  "parity-scale-codec",
  "region",
@@ -6782,9 +6804,10 @@ dependencies = [
 
 [[package]]
 name = "gear-sandbox-interface"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
  "gear-sandbox-host",
+ "gear-workspace-hack",
  "log",
  "parity-scale-codec",
  "sp-runtime-interface",
@@ -6793,7 +6816,7 @@ dependencies = [
 
 [[package]]
 name = "gear-service"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
  "frame-benchmarking",
  "frame-benchmarking-cli",
@@ -6806,6 +6829,7 @@ dependencies = [
  "gear-runtime-common",
  "gear-runtime-interface",
  "gear-runtime-primitives",
+ "gear-workspace-hack",
  "jsonrpsee",
  "log",
  "pallet-gear",
@@ -6870,25 +6894,28 @@ dependencies = [
 
 [[package]]
 name = "gear-ss58"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
  "blake2 0.10.6",
  "bs58 0.5.1",
+ "gear-workspace-hack",
  "hex",
 ]
 
 [[package]]
 name = "gear-stack-buffer"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
  "cc",
+ "gear-workspace-hack",
 ]
 
 [[package]]
 name = "gear-utils"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
  "gear-core",
+ "gear-workspace-hack",
  "hex",
  "nonempty 0.12.0",
  "parity-scale-codec",
@@ -6905,6 +6932,7 @@ dependencies = [
  "anyhow",
  "clap 4.5.23",
  "futures",
+ "gear-workspace-hack",
  "gsdk",
  "log",
  "parity-scale-codec",
@@ -6917,7 +6945,7 @@ dependencies = [
 
 [[package]]
 name = "gear-wasm-builder"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
  "anyhow",
  "cargo_metadata",
@@ -6926,6 +6954,7 @@ dependencies = [
  "gear-core",
  "gear-wasm-instrument",
  "gear-wasm-optimizer",
+ "gear-workspace-hack",
  "itertools 0.13.0",
  "log",
  "pathdiff",
@@ -6947,6 +6976,7 @@ dependencies = [
  "gear-lazy-pages-native-interface",
  "gear-utils",
  "gear-wasm-instrument",
+ "gear-workspace-hack",
  "gsys",
  "indexmap 2.7.1",
  "log",
@@ -6962,12 +6992,13 @@ dependencies = [
 
 [[package]]
 name = "gear-wasm-instrument"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
  "arbitrary",
  "derive_more 2.0.1",
  "diff",
  "enum-iterator 1.5.0",
+ "gear-workspace-hack",
  "log",
  "proptest",
  "wasm-encoder 0.230.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -6979,11 +7010,12 @@ dependencies = [
 
 [[package]]
 name = "gear-wasm-optimizer"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
  "anyhow",
  "colored",
  "gear-wasm-instrument",
+ "gear-workspace-hack",
  "log",
  "regex",
  "rustc_version 0.4.1",
@@ -6995,12 +7027,13 @@ dependencies = [
 
 [[package]]
 name = "gear-wasmer-cache"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
  "bytes",
  "demo-constructor",
  "derive_more 2.0.1",
  "fs4",
+ "gear-workspace-hack",
  "log",
  "loom",
  "tempfile",
@@ -7017,6 +7050,7 @@ dependencies = [
  "clap 4.5.23",
  "frame-support",
  "gear-utils",
+ "gear-workspace-hack",
  "heck 0.5.0",
  "indexmap 2.7.1",
  "pallet-gear",
@@ -7030,9 +7064,345 @@ dependencies = [
 ]
 
 [[package]]
+name = "gear-workspace-hack"
+version = "0.1.0"
+dependencies = [
+ "aes 0.8.4",
+ "ahash",
+ "alloy",
+ "alloy-consensus",
+ "alloy-contract",
+ "alloy-core",
+ "alloy-eip7702",
+ "alloy-eips",
+ "alloy-json-abi",
+ "alloy-network",
+ "alloy-primitives",
+ "alloy-provider",
+ "alloy-rpc-client",
+ "alloy-rpc-types",
+ "alloy-rpc-types-eth",
+ "alloy-sol-macro",
+ "alloy-sol-macro-expander",
+ "alloy-sol-macro-input",
+ "alloy-sol-type-parser",
+ "alloy-sol-types",
+ "anyhow",
+ "ark-bls12-381",
+ "ark-bls12-381-ext",
+ "ark-ec",
+ "ark-ff 0.4.2",
+ "ark-models-ext",
+ "ark-scale",
+ "ark-serialize 0.4.2",
+ "ark-std 0.4.0",
+ "arrayvec 0.7.6",
+ "base64 0.13.1",
+ "base64 0.22.1",
+ "binary-merkle-tree",
+ "bitflags 2.9.4",
+ "blake2 0.10.6",
+ "blake2b_simd",
+ "blake3",
+ "bounded-collections",
+ "bp-header-chain",
+ "bp-runtime",
+ "bs58 0.5.1",
+ "byte-slice-cast",
+ "bytemuck",
+ "byteorder",
+ "bytes",
+ "cc",
+ "cipher 0.4.4",
+ "clap 4.5.23",
+ "clap_builder",
+ "concurrent-queue",
+ "const-hex",
+ "core2",
+ "crc32fast",
+ "crossbeam-utils",
+ "crunchy",
+ "crypto-common",
+ "ctr 0.9.2",
+ "curve25519-dalek",
+ "darling 0.20.10",
+ "darling_core 0.20.10",
+ "data-encoding",
+ "der",
+ "derive_more 0.99.18",
+ "derive_more 2.0.1",
+ "derive_more-impl 2.0.1",
+ "digest 0.10.7",
+ "digest 0.9.0",
+ "displaydoc",
+ "ecdsa",
+ "ed25519",
+ "ed25519-dalek",
+ "ed25519-zebra",
+ "either",
+ "elliptic-curve",
+ "enumflags2",
+ "environmental",
+ "errno",
+ "finality-grandpa",
+ "fixed-hash",
+ "form_urlencoded",
+ "frame-executive",
+ "frame-metadata 16.0.0",
+ "frame-metadata 23.0.0",
+ "frame-metadata-hash-extension",
+ "frame-support",
+ "frame-support-procedural",
+ "frame-system-rpc-runtime-api",
+ "frame-try-runtime",
+ "futures",
+ "futures-channel",
+ "futures-core",
+ "futures-io",
+ "futures-sink",
+ "futures-task",
+ "futures-timer",
+ "futures-util",
+ "gear-dlmalloc",
+ "generic-array 0.14.7",
+ "getrandom 0.2.15",
+ "getrandom 0.3.1",
+ "getrandom_or_panic",
+ "gimli 0.28.1",
+ "hash-db",
+ "hash256-std-hasher",
+ "hashbrown 0.13.2",
+ "hashbrown 0.14.5",
+ "hashbrown 0.15.2",
+ "hex",
+ "hkdf",
+ "hmac 0.12.1",
+ "hyper 0.14.31",
+ "hyper 1.4.1",
+ "hyper-rustls 0.27.3",
+ "hyper-util",
+ "impl-codec 0.6.0",
+ "impl-serde 0.4.0",
+ "indexmap 1.9.3",
+ "indexmap 2.7.1",
+ "itertools 0.10.5",
+ "itertools 0.13.0",
+ "js-sys",
+ "jsonrpsee",
+ "jsonrpsee-client-transport",
+ "jsonrpsee-core",
+ "k256",
+ "libc",
+ "libp2p 0.52.4",
+ "libp2p-identity",
+ "libsecp256k1",
+ "libsecp256k1-core",
+ "linux-raw-sys 0.4.14",
+ "log",
+ "macro_magic",
+ "memchr",
+ "memory-db",
+ "merlin",
+ "miniz_oxide",
+ "mio",
+ "names",
+ "nix",
+ "nom 7.1.3",
+ "nonempty 0.12.0",
+ "num-bigint",
+ "num-integer",
+ "num-rational",
+ "num-traits",
+ "object 0.30.4",
+ "object 0.32.2",
+ "once_cell",
+ "openssl",
+ "openssl-sys",
+ "pallet-authority-discovery",
+ "pallet-authorship",
+ "pallet-babe",
+ "pallet-bags-list",
+ "pallet-balances",
+ "pallet-bounties",
+ "pallet-child-bounties",
+ "pallet-conviction-voting",
+ "pallet-election-provider-multi-phase",
+ "pallet-grandpa",
+ "pallet-identity",
+ "pallet-im-online",
+ "pallet-multisig",
+ "pallet-nomination-pools",
+ "pallet-nomination-pools-runtime-api",
+ "pallet-offences",
+ "pallet-preimage",
+ "pallet-proxy",
+ "pallet-ranked-collective",
+ "pallet-referenda",
+ "pallet-scheduler",
+ "pallet-session",
+ "pallet-staking-reward-fn",
+ "pallet-staking-runtime-api",
+ "pallet-sudo",
+ "pallet-timestamp",
+ "pallet-transaction-payment",
+ "pallet-transaction-payment-rpc-runtime-api",
+ "pallet-treasury",
+ "pallet-utility",
+ "pallet-vesting",
+ "pallet-whitelist",
+ "parity-bip39",
+ "parity-scale-codec",
+ "parity-scale-codec-derive",
+ "parity-wasm",
+ "pbkdf2",
+ "percent-encoding",
+ "pkcs8",
+ "polkavm-common",
+ "portable-atomic",
+ "ppv-lite86",
+ "prettyplease 0.2.15",
+ "primitive-types 0.12.2",
+ "primitive-types 0.13.1",
+ "proc-macro2",
+ "prost 0.12.6",
+ "quote",
+ "rand 0.8.5",
+ "rand_chacha 0.3.1",
+ "rand_chacha 0.9.0",
+ "rand_core 0.6.4",
+ "rand_core 0.9.3",
+ "regex",
+ "regex-automata 0.4.6",
+ "regex-syntax 0.8.2",
+ "reqwest",
+ "ring 0.17.14",
+ "ruint",
+ "rustc-hash 1.1.0",
+ "rustc-hex",
+ "rustix 0.36.15",
+ "rustix 0.38.41",
+ "rustls 0.23.10",
+ "rustls-pki-types",
+ "sc-cli",
+ "sc-client-db",
+ "sc-service",
+ "scale-bits 0.7.0",
+ "scale-decode 0.16.0",
+ "scale-encode",
+ "scale-info",
+ "scale-info-derive",
+ "scale-type-resolver",
+ "schnorrkel",
+ "scopeguard",
+ "sec1",
+ "secp256k1 0.28.2",
+ "security-framework",
+ "security-framework-sys",
+ "semver 1.0.26",
+ "serde",
+ "serde-json-wasm",
+ "serde_core",
+ "serde_json",
+ "serdect",
+ "sha-1",
+ "sha1",
+ "sha2 0.10.8",
+ "sha3",
+ "signature",
+ "slice-group-by",
+ "smallvec",
+ "soketto",
+ "sp-allocator",
+ "sp-api",
+ "sp-api-proc-macro",
+ "sp-application-crypto",
+ "sp-arithmetic",
+ "sp-authority-discovery",
+ "sp-block-builder",
+ "sp-consensus-babe",
+ "sp-consensus-grandpa",
+ "sp-consensus-slots",
+ "sp-core",
+ "sp-crypto-ec-utils",
+ "sp-crypto-hashing 0.1.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sp-crypto-hashing 0.1.0 (git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none)",
+ "sp-debug-derive",
+ "sp-externalities",
+ "sp-genesis-builder",
+ "sp-inherents",
+ "sp-io",
+ "sp-keyring",
+ "sp-keystore",
+ "sp-metadata-ir",
+ "sp-npos-elections",
+ "sp-offchain",
+ "sp-runtime-interface",
+ "sp-session",
+ "sp-state-machine",
+ "sp-std",
+ "sp-storage",
+ "sp-timestamp",
+ "sp-tracing",
+ "sp-transaction-pool",
+ "sp-trie",
+ "sp-version",
+ "sp-wasm-interface",
+ "sp-wasm-interface-common",
+ "sp-weights",
+ "spin 0.9.8",
+ "spki",
+ "ss58-registry",
+ "stable_deref_trait",
+ "strum 0.24.1",
+ "strum 0.26.2",
+ "substrate-bip39",
+ "subtle 2.6.1",
+ "subxt-metadata",
+ "syn 1.0.109",
+ "syn 2.0.106",
+ "target-lexicon",
+ "thiserror 2.0.12",
+ "time",
+ "tiny-keccak",
+ "tokio",
+ "tokio-rustls 0.26.0",
+ "tokio-stream",
+ "tokio-util",
+ "toml_datetime",
+ "toml_edit 0.22.14",
+ "tower 0.4.13",
+ "tracing",
+ "tracing-core",
+ "tracing-log",
+ "tracing-subscriber",
+ "trie-db",
+ "trie-root",
+ "trybuild",
+ "twox-hash 1.6.3",
+ "uint 0.10.0",
+ "uint 0.9.5",
+ "unicode-normalization",
+ "unsigned-varint 0.7.2",
+ "unsigned-varint 0.8.0",
+ "url",
+ "wasm-bindgen",
+ "wasm-encoder 0.230.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "wasmi 0.13.2",
+ "wasmi 0.38.0",
+ "wasmi_core 0.2.1",
+ "wasmparser 0.230.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "wasmtime",
+ "wasmtime-jit",
+ "wasmtime-jit-debug",
+ "wasmtime-runtime",
+ "winnow 0.7.3",
+ "zeroize",
+]
+
+[[package]]
 name = "generate-bags"
 version = "38.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "chrono",
  "frame-election-provider-support",
@@ -7254,13 +7624,14 @@ dependencies = [
 
 [[package]]
 name = "gprimitives"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
  "alloy-primitives",
  "alloy-sol-types",
  "bytemuck",
  "derive_more 2.0.1",
  "gear-ss58",
+ "gear-workspace-hack",
  "hex",
  "primitive-types 0.12.2",
  "scale-decode 0.16.0",
@@ -7272,7 +7643,7 @@ dependencies = [
 
 [[package]]
 name = "gring"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
  "anyhow",
  "base64 0.21.7",
@@ -7280,6 +7651,7 @@ dependencies = [
  "colored",
  "dirs",
  "gear-ss58",
+ "gear-workspace-hack",
  "hex",
  "nacl",
  "rand 0.8.5",
@@ -7303,18 +7675,32 @@ dependencies = [
 
 [[package]]
 name = "gsdk"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
+ "ark-bls12-381",
+ "ark-ec",
+ "ark-scale",
+ "ark-serialize 0.4.2",
+ "ark-std 0.4.0",
  "colored",
+ "demo-bls381",
+ "demo-constructor",
+ "demo-custom",
  "demo-fungible-token",
  "demo-messenger",
+ "demo-mul-by-const",
+ "demo-ping",
+ "demo-reserve-gas",
  "demo-vec",
  "demo-waiter",
+ "demo-wat",
  "derive_more 2.0.1",
  "futures",
  "gear-core",
  "gear-core-errors",
  "gear-node-wrapper",
+ "gear-utils",
+ "gear-workspace-hack",
  "gsdk-codegen",
  "hex",
  "indexmap 2.7.1",
@@ -7325,17 +7711,20 @@ dependencies = [
  "serde",
  "serde_json",
  "sp-core",
+ "sp-keyring",
  "sp-runtime",
  "subxt",
  "thiserror 2.0.12",
  "tokio",
  "url",
+ "wat",
 ]
 
 [[package]]
 name = "gsdk-codegen"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
+ "gear-workspace-hack",
  "proc-macro2",
  "quote",
  "syn 2.0.106",
@@ -7343,7 +7732,7 @@ dependencies = [
 
 [[package]]
 name = "gstd"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
  "arrayvec 0.7.6",
  "const_format",
@@ -7352,6 +7741,7 @@ dependencies = [
  "galloc",
  "gcore",
  "gear-core-errors",
+ "gear-workspace-hack",
  "gprimitives",
  "gstd-codegen",
  "hashbrown 0.14.5",
@@ -7364,8 +7754,9 @@ dependencies = [
 
 [[package]]
 name = "gstd-codegen"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
+ "gear-workspace-hack",
  "gprimitives",
  "gstd",
  "proc-macro2",
@@ -7376,14 +7767,15 @@ dependencies = [
 
 [[package]]
 name = "gsys"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
  "bytemuck",
+ "gear-workspace-hack",
 ]
 
 [[package]]
 name = "gtest"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
  "ark-std 0.4.0",
  "builtins-common",
@@ -7404,6 +7796,7 @@ dependencies = [
  "gear-lazy-pages-common",
  "gear-lazy-pages-native-interface",
  "gear-utils",
+ "gear-workspace-hack",
  "gprimitives",
  "gsys",
  "log",
@@ -7670,11 +8063,10 @@ checksum = "b07f60793ff0a4d9cef0f18e63b5357e06209987153a64648c972c1e5aff336f"
 
 [[package]]
 name = "hickory-proto"
-version = "0.25.0-alpha.5"
+version = "0.25.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1d00147af6310f4392a31680db52a3ed45a2e0f68eb18e8c3fe5537ecc96d9e2"
+checksum = "f8a6fe56c0038198998a6f217ca4e7ef3a5e51f46163bd6dd60b5c71ca6c6502"
 dependencies = [
- "async-recursion",
  "async-trait",
  "cfg-if",
  "data-encoding",
@@ -7686,6 +8078,7 @@ dependencies = [
  "ipnet",
  "once_cell",
  "rand 0.9.2",
+ "ring 0.17.14",
  "socket2 0.5.7",
  "thiserror 2.0.12",
  "tinyvec",
@@ -7696,9 +8089,9 @@ dependencies = [
 
 [[package]]
 name = "hickory-resolver"
-version = "0.25.0-alpha.5"
+version = "0.25.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5762f69ebdbd4ddb2e975cd24690bf21fe6b2604039189c26acddbc427f12887"
+checksum = "dc62a9a99b0bfb44d2ab95a7208ac952d31060efc16241c87eaf36406fecf87a"
 dependencies = [
  "cfg-if",
  "futures-util",
@@ -7717,16 +8110,6 @@ dependencies = [
 
 [[package]]
 name = "hkdf"
-version = "0.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "01706d578d5c281058480e673ae4086a9f4710d8df1ad80a5b03e39ece5f886b"
-dependencies = [
- "digest 0.9.0",
- "hmac 0.11.0",
-]
-
-[[package]]
-name = "hkdf"
 version = "0.12.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7b5f8eb2ad728638ea2c7d47a21db23b7b58a72ed6a38256b8a1849f15fbbdf7"
@@ -7741,16 +8124,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "126888268dcc288495a26bf004b38c5fdbb31682f992c84ceb046a1f0fe38840"
 dependencies = [
  "crypto-mac 0.8.0",
- "digest 0.9.0",
-]
-
-[[package]]
-name = "hmac"
-version = "0.11.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2a2a2320eb7ec0ebe8da8f744d7812d9fc4cb4d09344ac01898dbcb6a20ae69b"
-dependencies = [
- "crypto-mac 0.11.0",
  "digest 0.9.0",
 ]
 
@@ -7885,7 +8258,7 @@ dependencies = [
  "httpdate",
  "itoa",
  "pin-project-lite",
- "socket2 0.4.9",
+ "socket2 0.5.7",
  "tokio",
  "tower-service",
  "tracing",
@@ -8128,16 +8501,6 @@ dependencies = [
 
 [[package]]
 name = "idna"
-version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "634d9b1461af396cad843f47fdba5597a4f9e6ddd4bfb6ff5d85028c25cb12f6"
-dependencies = [
- "unicode-bidi",
- "unicode-normalization",
-]
-
-[[package]]
-name = "idna"
 version = "1.0.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "686f825264d630750a544639377bae737628043f20d38bbc029e8f29ea968a7e"
@@ -8173,7 +8536,7 @@ version = "3.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cdf9d64cfcf380606e64f9a0bcf493616b65331199f984151a6fa11a7b3cde38"
 dependencies = [
- "async-io 2.3.3",
+ "async-io",
  "core-foundation",
  "fnv",
  "futures",
@@ -8197,7 +8560,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "064d90fec10d541084e7b39ead8875a5a80d9114a2b18791565253bae25f49e4"
 dependencies = [
  "async-trait",
- "attohttpc",
+ "attohttpc 0.24.1",
  "bytes",
  "futures",
  "http 0.2.9",
@@ -8211,12 +8574,12 @@ dependencies = [
 
 [[package]]
 name = "igd-next"
-version = "0.15.1"
+version = "0.16.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "76b0d7d4541def58a37bf8efc559683f21edce7c82f0d866c93ac21f7e098f93"
+checksum = "516893339c97f6011282d5825ac94fc1c7aad5cad26bdc2d0cee068c0bf97f97"
 dependencies = [
  "async-trait",
- "attohttpc",
+ "attohttpc 0.30.1",
  "bytes",
  "futures",
  "http 1.1.0",
@@ -8224,7 +8587,7 @@ dependencies = [
  "hyper 1.4.1",
  "hyper-util",
  "log",
- "rand 0.8.5",
+ "rand 0.9.2",
  "tokio",
  "url",
  "xmltree",
@@ -8295,12 +8658,6 @@ dependencies = [
  "proc-macro2",
  "quote",
 ]
-
-[[package]]
-name = "indenter"
-version = "0.3.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ce23b50ad8242c51a442f3ff322d56b02f08852c77e4c0b4d3fd684abc89c683"
 
 [[package]]
 name = "indexmap"
@@ -8750,6 +9107,7 @@ dependencies = [
 name = "junit-common"
 version = "0.1.0"
 dependencies = [
+ "gear-workspace-hack",
  "serde",
 ]
 
@@ -8795,18 +9153,6 @@ checksum = "3e1b8590eb6148af2ea2d75f38e7d29f5ca970d5a4df456b3ef19b8b415d0264"
 dependencies = [
  "primitive-types 0.13.1",
  "tiny-keccak",
-]
-
-[[package]]
-name = "keyring"
-version = "1.2.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ba264b266563c1363dcce004776cbf198d7422a4262f77f4ca285bf26ae30955"
-dependencies = [
- "byteorder",
- "secret-service",
- "security-framework",
- "winapi",
 ]
 
 [[package]]
@@ -8859,6 +9205,7 @@ dependencies = [
  "gear-lazy-pages-common",
  "gear-wasm-gen",
  "gear-wasm-instrument",
+ "gear-workspace-hack",
  "log",
  "region",
  "wasmer",
@@ -8875,6 +9222,7 @@ dependencies = [
  "clap 4.5.23",
  "core_affinity",
  "env_logger 0.11.8",
+ "gear-workspace-hack",
  "hex",
  "ipc-channel",
  "lazy-pages-fuzzer",
@@ -9012,33 +9360,33 @@ dependencies = [
 
 [[package]]
 name = "libp2p"
-version = "0.55.0"
+version = "0.56.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b72dc443ddd0254cb49a794ed6b6728400ee446a0f7ab4a07d0209ee98de20e9"
+checksum = "ce71348bf5838e46449ae240631117b487073d5f347c06d434caddcb91dceb5a"
 dependencies = [
  "bytes",
  "either",
  "futures",
  "futures-timer",
  "getrandom 0.2.15",
- "libp2p-allow-block-list 0.5.0",
- "libp2p-connection-limits 0.5.0",
- "libp2p-core 0.43.0",
- "libp2p-dns 0.43.0",
+ "libp2p-allow-block-list 0.6.0",
+ "libp2p-connection-limits 0.6.0",
+ "libp2p-core 0.43.1",
+ "libp2p-dns 0.44.0",
  "libp2p-gossipsub",
- "libp2p-identify 0.46.0",
+ "libp2p-identify 0.47.0",
  "libp2p-identity",
- "libp2p-kad 0.47.0",
- "libp2p-mdns 0.47.0",
- "libp2p-metrics 0.16.0",
- "libp2p-ping 0.46.0",
+ "libp2p-kad 0.48.0",
+ "libp2p-mdns 0.48.0",
+ "libp2p-metrics 0.17.0",
+ "libp2p-ping 0.47.0",
  "libp2p-plaintext",
- "libp2p-quic 0.12.0",
- "libp2p-request-response 0.28.0",
- "libp2p-swarm 0.46.0",
- "libp2p-tcp 0.43.0",
- "libp2p-tls 0.6.1",
- "libp2p-upnp 0.4.0",
+ "libp2p-quic 0.13.0",
+ "libp2p-request-response 0.29.0",
+ "libp2p-swarm 0.47.0",
+ "libp2p-tcp 0.44.0",
+ "libp2p-tls 0.6.2",
+ "libp2p-upnp 0.5.0",
  "libp2p-yamux 0.47.0",
  "multiaddr 0.18.1",
  "pin-project",
@@ -9060,13 +9408,13 @@ dependencies = [
 
 [[package]]
 name = "libp2p-allow-block-list"
-version = "0.5.0"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "38944b7cb981cc93f2f0fb411ff82d0e983bd226fbcc8d559639a3a73236568b"
+checksum = "d16ccf824ee859ca83df301e1c0205270206223fd4b1f2e512a693e1912a8f4a"
 dependencies = [
- "libp2p-core 0.43.0",
+ "libp2p-core 0.43.1",
  "libp2p-identity",
- "libp2p-swarm 0.46.0",
+ "libp2p-swarm 0.47.0",
 ]
 
 [[package]]
@@ -9083,13 +9431,13 @@ dependencies = [
 
 [[package]]
 name = "libp2p-connection-limits"
-version = "0.5.0"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "efe9323175a17caa8a2ed4feaf8a548eeef5e0b72d03840a0eab4bcb0210ce1c"
+checksum = "a18b8b607cf3bfa2f8c57db9c7d8569a315d5cc0a282e6bfd5ebfc0a9840b2a0"
 dependencies = [
- "libp2p-core 0.43.0",
+ "libp2p-core 0.43.1",
  "libp2p-identity",
- "libp2p-swarm 0.46.0",
+ "libp2p-swarm 0.47.0",
 ]
 
 [[package]]
@@ -9122,9 +9470,9 @@ dependencies = [
 
 [[package]]
 name = "libp2p-core"
-version = "0.43.0"
+version = "0.43.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "193c75710ba43f7504ad8f58a62ca0615b1d7e572cb0f1780bc607252c39e9ef"
+checksum = "4d28e2d2def7c344170f5c6450c0dbe3dfef655610dbfde2f6ac28a527abbe36"
 dependencies = [
  "either",
  "fnv",
@@ -9134,7 +9482,6 @@ dependencies = [
  "multiaddr 0.18.1",
  "multihash 0.19.1",
  "multistream-select",
- "once_cell",
  "parking_lot 0.12.3",
  "pin-project",
  "quick-protobuf",
@@ -9164,14 +9511,14 @@ dependencies = [
 
 [[package]]
 name = "libp2p-dns"
-version = "0.43.0"
+version = "0.44.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1b780a1150214155b0ed1cdf09fbd2e1b0442604f9146a431d1b21d23eef7bd7"
+checksum = "0b770c1c8476736ca98c578cba4b505104ff8e842c2876b528925f9766379f9a"
 dependencies = [
  "async-trait",
  "futures",
  "hickory-resolver",
- "libp2p-core 0.43.0",
+ "libp2p-core 0.43.1",
  "libp2p-identity",
  "parking_lot 0.12.3",
  "smallvec",
@@ -9180,9 +9527,9 @@ dependencies = [
 
 [[package]]
 name = "libp2p-gossipsub"
-version = "0.48.0"
+version = "0.49.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d558548fa3b5a8e9b66392f785921e363c57c05dcadfda4db0d41ae82d313e4a"
+checksum = "c7f58e37d8d6848e5c4c9e3c35c6f61133235bff2960c9c00a663b0849301221"
 dependencies = [
  "async-channel 2.3.1",
  "asynchronous-codec 0.7.0",
@@ -9196,10 +9543,9 @@ dependencies = [
  "getrandom 0.2.15",
  "hashlink 0.9.1",
  "hex_fmt",
- "libp2p-core 0.43.0",
+ "libp2p-core 0.43.1",
  "libp2p-identity",
- "libp2p-swarm 0.46.0",
- "prometheus-client 0.22.2",
+ "libp2p-swarm 0.47.0",
  "quick-protobuf",
  "quick-protobuf-codec 0.3.1",
  "rand 0.8.5",
@@ -9234,18 +9580,18 @@ dependencies = [
 
 [[package]]
 name = "libp2p-identify"
-version = "0.46.0"
+version = "0.47.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e8c06862544f02d05d62780ff590cc25a75f5c2b9df38ec7a370dcae8bb873cf"
+checksum = "8ab792a8b68fdef443a62155b01970c81c3aadab5e659621b063ef252a8e65e8"
 dependencies = [
  "asynchronous-codec 0.7.0",
  "either",
  "futures",
  "futures-bounded 0.2.4",
  "futures-timer",
- "libp2p-core 0.43.0",
+ "libp2p-core 0.43.1",
  "libp2p-identity",
- "libp2p-swarm 0.46.0",
+ "libp2p-swarm 0.47.0",
  "quick-protobuf",
  "quick-protobuf-codec 0.3.1",
  "smallvec",
@@ -9262,7 +9608,7 @@ dependencies = [
  "asn1_der",
  "bs58 0.5.1",
  "ed25519-dalek",
- "hkdf 0.12.4",
+ "hkdf",
  "k256",
  "multihash 0.19.1",
  "quick-protobuf",
@@ -9304,9 +9650,9 @@ dependencies = [
 
 [[package]]
 name = "libp2p-kad"
-version = "0.47.0"
+version = "0.48.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2bab0466a27ebe955bcbc27328fae5429c5b48c915fd6174931414149802ec23"
+checksum = "13d3fd632a5872ec804d37e7413ceea20588f69d027a0fa3c46f82574f4dee60"
 dependencies = [
  "asynchronous-codec 0.7.0",
  "bytes",
@@ -9315,9 +9661,9 @@ dependencies = [
  "futures",
  "futures-bounded 0.2.4",
  "futures-timer",
- "libp2p-core 0.43.0",
+ "libp2p-core 0.43.1",
  "libp2p-identity",
- "libp2p-swarm 0.46.0",
+ "libp2p-swarm 0.47.0",
  "quick-protobuf",
  "quick-protobuf-codec 0.3.1",
  "rand 0.8.5",
@@ -9352,16 +9698,16 @@ dependencies = [
 
 [[package]]
 name = "libp2p-mdns"
-version = "0.47.0"
+version = "0.48.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "11d0ba095e1175d797540e16b62e7576846b883cb5046d4159086837b36846cc"
+checksum = "c66872d0f1ffcded2788683f76931be1c52e27f343edb93bc6d0bcd8887be443"
 dependencies = [
  "futures",
  "hickory-proto",
  "if-watch",
- "libp2p-core 0.43.0",
+ "libp2p-core 0.43.1",
  "libp2p-identity",
- "libp2p-swarm 0.46.0",
+ "libp2p-swarm 0.47.0",
  "rand 0.8.5",
  "smallvec",
  "socket2 0.5.7",
@@ -9388,20 +9734,20 @@ dependencies = [
 
 [[package]]
 name = "libp2p-metrics"
-version = "0.16.0"
+version = "0.17.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2ce58c64292e87af624fcb86465e7dd8342e46a388d71e8fec0ab37ee789630a"
+checksum = "805a555148522cb3414493a5153451910cb1a146c53ffbf4385708349baf62b7"
 dependencies = [
  "futures",
- "libp2p-core 0.43.0",
+ "libp2p-core 0.43.1",
  "libp2p-gossipsub",
- "libp2p-identify 0.46.0",
+ "libp2p-identify 0.47.0",
  "libp2p-identity",
- "libp2p-kad 0.47.0",
- "libp2p-ping 0.46.0",
- "libp2p-swarm 0.46.0",
+ "libp2p-kad 0.48.0",
+ "libp2p-ping 0.47.0",
+ "libp2p-swarm 0.47.0",
  "pin-project",
- "prometheus-client 0.22.2",
+ "prometheus-client 0.23.1",
  "web-time",
 ]
 
@@ -9450,15 +9796,15 @@ dependencies = [
 
 [[package]]
 name = "libp2p-ping"
-version = "0.46.0"
+version = "0.47.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7b2529993ff22deb2504c0130a58b60fb77f036be555053922db1a0490b5798b"
+checksum = "74bb7fcdfd9fead4144a3859da0b49576f171a8c8c7c0bfc7c541921d25e60d3"
 dependencies = [
  "futures",
  "futures-timer",
- "libp2p-core 0.43.0",
+ "libp2p-core 0.43.1",
  "libp2p-identity",
- "libp2p-swarm 0.46.0",
+ "libp2p-swarm 0.47.0",
  "rand 0.8.5",
  "tracing",
  "web-time",
@@ -9473,7 +9819,7 @@ dependencies = [
  "asynchronous-codec 0.7.0",
  "bytes",
  "futures",
- "libp2p-core 0.43.0",
+ "libp2p-core 0.43.1",
  "libp2p-identity",
  "quick-protobuf",
  "quick-protobuf-codec 0.3.1",
@@ -9506,16 +9852,16 @@ dependencies = [
 
 [[package]]
 name = "libp2p-quic"
-version = "0.12.0"
+version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "41432a159b00424a0abaa2c80d786cddff81055ac24aa127e0cf375f7858d880"
+checksum = "8dc448b2de9f4745784e3751fe8bc6c473d01b8317edd5ababcb0dec803d843f"
 dependencies = [
  "futures",
  "futures-timer",
  "if-watch",
- "libp2p-core 0.43.0",
+ "libp2p-core 0.43.1",
  "libp2p-identity",
- "libp2p-tls 0.6.1",
+ "libp2p-tls 0.6.2",
  "quinn 0.11.8",
  "rand 0.8.5",
  "ring 0.17.14",
@@ -9546,16 +9892,16 @@ dependencies = [
 
 [[package]]
 name = "libp2p-request-response"
-version = "0.28.0"
+version = "0.29.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "548fe44a80ff275d400f1b26b090d441d83ef73efabbeb6415f4ce37e5aed865"
+checksum = "a9f1cca83488b90102abac7b67d5c36fc65bc02ed47620228af7ed002e6a1478"
 dependencies = [
  "async-trait",
  "futures",
  "futures-bounded 0.2.4",
- "libp2p-core 0.43.0",
+ "libp2p-core 0.43.1",
  "libp2p-identity",
- "libp2p-swarm 0.46.0",
+ "libp2p-swarm 0.47.0",
  "rand 0.8.5",
  "smallvec",
  "tracing",
@@ -9586,20 +9932,19 @@ dependencies = [
 
 [[package]]
 name = "libp2p-swarm"
-version = "0.46.0"
+version = "0.47.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "803399b4b6f68adb85e63ab573ac568154b193e9a640f03e0f2890eabbcb37f8"
+checksum = "6aa762e5215919a34e31c35d4b18bf2e18566ecab7f8a3d39535f4a3068f8b62"
 dependencies = [
  "either",
  "fnv",
  "futures",
  "futures-timer",
- "libp2p-core 0.43.0",
+ "libp2p-core 0.43.1",
  "libp2p-identity",
- "libp2p-swarm-derive 0.35.0",
+ "libp2p-swarm-derive 0.35.1",
  "lru 0.12.3",
  "multistream-select",
- "once_cell",
  "rand 0.8.5",
  "smallvec",
  "tokio",
@@ -9622,30 +9967,29 @@ dependencies = [
 
 [[package]]
 name = "libp2p-swarm-derive"
-version = "0.35.0"
+version = "0.35.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "206e0aa0ebe004d778d79fb0966aa0de996c19894e2c0605ba2f8524dd4443d8"
+checksum = "dd297cf53f0cb3dee4d2620bb319ae47ef27c702684309f682bdb7e55a18ae9c"
 dependencies = [
  "heck 0.5.0",
- "proc-macro2",
  "quote",
  "syn 2.0.106",
 ]
 
 [[package]]
 name = "libp2p-swarm-test"
-version = "0.5.0"
+version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2bb6354e3a50496d750805f6cf33679bd698850d535602f42c61e465e0734d0b"
+checksum = "7b149112570d507efe305838c7130835955a0b1147aa8051c1c3867a83175cf6"
 dependencies = [
  "async-trait",
  "futures",
  "futures-timer",
- "libp2p-core 0.43.0",
+ "libp2p-core 0.43.1",
  "libp2p-identity",
  "libp2p-plaintext",
- "libp2p-swarm 0.46.0",
- "libp2p-tcp 0.43.0",
+ "libp2p-swarm 0.47.0",
+ "libp2p-tcp 0.44.0",
  "libp2p-yamux 0.47.0",
  "tracing",
 ]
@@ -9669,15 +10013,15 @@ dependencies = [
 
 [[package]]
 name = "libp2p-tcp"
-version = "0.43.0"
+version = "0.44.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "65346fb4d36035b23fec4e7be4c320436ba53537ce9b6be1d1db1f70c905cad0"
+checksum = "65b4e030c52c46c8d01559b2b8ca9b7c4185f10576016853129ca1fe5cd1a644"
 dependencies = [
  "futures",
  "futures-timer",
  "if-watch",
  "libc",
- "libp2p-core 0.43.0",
+ "libp2p-core 0.43.1",
  "socket2 0.5.7",
  "tokio",
  "tracing",
@@ -9704,20 +10048,20 @@ dependencies = [
 
 [[package]]
 name = "libp2p-tls"
-version = "0.6.1"
+version = "0.6.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "42bbf5084fb44133267ad4caaa72a253d68d709edd2ed1cf9b42431a8ead8fd5"
+checksum = "96ff65a82e35375cbc31ebb99cacbbf28cb6c4fefe26bf13756ddcf708d40080"
 dependencies = [
  "futures",
  "futures-rustls 0.26.0",
- "libp2p-core 0.43.0",
+ "libp2p-core 0.43.1",
  "libp2p-identity",
  "rcgen 0.13.2",
  "ring 0.17.14",
  "rustls 0.23.10",
- "rustls-webpki 0.101.4",
+ "rustls-webpki 0.103.8",
  "thiserror 2.0.12",
- "x509-parser 0.16.0",
+ "x509-parser 0.17.0",
  "yasna",
 ]
 
@@ -9739,15 +10083,15 @@ dependencies = [
 
 [[package]]
 name = "libp2p-upnp"
-version = "0.4.0"
+version = "0.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d457b9ecceb66e7199f049926fad447f1f17f040e8d29d690c086b4cab8ed14a"
+checksum = "4757e65fe69399c1a243bbb90ec1ae5a2114b907467bf09f3575e899815bb8d3"
 dependencies = [
  "futures",
  "futures-timer",
- "igd-next 0.15.1",
- "libp2p-core 0.43.0",
- "libp2p-swarm 0.46.0",
+ "igd-next 0.16.2",
+ "libp2p-core 0.43.1",
+ "libp2p-swarm 0.47.0",
  "tokio",
  "tracing",
 ]
@@ -9808,7 +10152,7 @@ checksum = "f15df094914eb4af272acf9adaa9e287baa269943f32ea348ba29cfb9bfc60d8"
 dependencies = [
  "either",
  "futures",
- "libp2p-core 0.43.0",
+ "libp2p-core 0.43.1",
  "thiserror 2.0.12",
  "tracing",
  "yamux 0.12.1",
@@ -10306,15 +10650,6 @@ dependencies = [
 
 [[package]]
 name = "memoffset"
-version = "0.6.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5aa361d4faea93603064a027415f07bd8e1d5c88c9fbf68bf56a285428fd79ce"
-dependencies = [
- "autocfg",
-]
-
-[[package]]
-name = "memoffset"
 version = "0.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5de893c32cde5f383baa4c04c5d6dbdd735cfd4a794b0debdb2bb1b421da5ff4"
@@ -10752,16 +11087,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "nb-connect"
-version = "1.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b1bb540dc6ef51cfe1916ec038ce7a620daf3a111e2502d745197cd53d6bca15"
-dependencies = [
- "libc",
- "socket2 0.4.9",
-]
-
-[[package]]
 name = "netlink-packet-core"
 version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -10835,19 +11160,6 @@ dependencies = [
  "libc",
  "thiserror 1.0.69",
  "winapi",
-]
-
-[[package]]
-name = "nix"
-version = "0.22.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e4916f159ed8e5de0082076562152a76b7a1f64a01fd9d1e0fea002c37624faf"
-dependencies = [
- "bitflags 1.3.2",
- "cc",
- "cfg-if",
- "libc",
- "memoffset 0.6.5",
 ]
 
 [[package]]
@@ -10951,7 +11263,7 @@ version = "0.9.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "fcc7c92f190c97f79b4a332f5e81dcf68c8420af2045c936c9be0bc9de6f63b5"
 dependencies = [
- "proc-macro-crate 1.1.3",
+ "proc-macro-crate 3.1.0",
  "proc-macro2",
  "quote",
  "syn 1.0.109",
@@ -10968,20 +11280,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "num"
-version = "0.4.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b05180d69e3da0e530ba2a1dae5110317e49e3b7f3d41be227dc5f92e49ee7af"
-dependencies = [
- "num-bigint",
- "num-complex",
- "num-integer",
- "num-iter",
- "num-rational",
- "num-traits",
-]
-
-[[package]]
 name = "num-bigint"
 version = "0.4.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -10994,9 +11292,9 @@ dependencies = [
 
 [[package]]
 name = "num-complex"
-version = "0.4.4"
+version = "0.4.6"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1ba157ca0885411de85d6ca030ba7e2a83a28636056c7c699b07c8b6f7383214"
+checksum = "73f88a1307638156682bada9d7604135552957b7818057dcef22705b4d509495"
 dependencies = [
  "num-traits",
 ]
@@ -11019,22 +11317,10 @@ dependencies = [
 
 [[package]]
 name = "num-integer"
-version = "0.1.45"
+version = "0.1.46"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "225d3389fb3509a24c93f5c29eb6bde2586b98d9f016636dff58d7c6f7569cd9"
+checksum = "7969661fd2958a5cb096e56c8e1ad0444ac2bbcd0061bd28660485a44879858f"
 dependencies = [
- "autocfg",
- "num-traits",
-]
-
-[[package]]
-name = "num-iter"
-version = "0.1.43"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7d03e6c028c5dc5cac6e2dec0efda81fc887605bb3d884578bb6d6bf7514e252"
-dependencies = [
- "autocfg",
- "num-integer",
  "num-traits",
 ]
 
@@ -11118,9 +11404,10 @@ checksum = "830b246a0e5f20af87141b25c173cd1b609bd7779a4617d6ec582abaf90870f3"
 
 [[package]]
 name = "numerated"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
  "derive_more 2.0.1",
+ "gear-workspace-hack",
  "log",
  "num-traits",
  "proptest",
@@ -11186,10 +11473,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "oid-registry"
+version = "0.8.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "12f40cff3dde1b6087cc5d5f5d4d65712f34016a03ed60e9c08dcc392736b5b7"
+dependencies = [
+ "asn1-rs 0.7.1",
+]
+
+[[package]]
 name = "once_cell"
 version = "1.21.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "42f5e15c9953c5e4ccceeb2e7382a716482c34515315f7b03532b8b4e8393d2d"
+dependencies = [
+ "critical-section",
+ "portable-atomic",
+]
 
 [[package]]
 name = "once_cell_polyfill"
@@ -11291,12 +11591,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "b15813163c1d831bf4a13c3610c05c0d03b39feb07f7e09fa234dac9b15aaf39"
 
 [[package]]
-name = "owo-colors"
-version = "3.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c1b04fb49957986fdce4d6ee7a65027d55d4b6d2265e5848bbb507b58ccfdb6f"
-
-[[package]]
 name = "page_size"
 version = "0.6.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -11309,7 +11603,7 @@ dependencies = [
 [[package]]
 name = "pallet-authority-discovery"
 version = "38.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -11324,7 +11618,7 @@ dependencies = [
 [[package]]
 name = "pallet-authorship"
 version = "38.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -11337,7 +11631,7 @@ dependencies = [
 [[package]]
 name = "pallet-babe"
 version = "38.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -11360,7 +11654,7 @@ dependencies = [
 [[package]]
 name = "pallet-bags-list"
 version = "37.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "aquamarine",
  "docify",
@@ -11381,7 +11675,7 @@ dependencies = [
 [[package]]
 name = "pallet-balances"
 version = "39.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "docify",
  "frame-benchmarking",
@@ -11396,7 +11690,7 @@ dependencies = [
 [[package]]
 name = "pallet-bounties"
 version = "37.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -11413,7 +11707,7 @@ dependencies = [
 [[package]]
 name = "pallet-child-bounties"
 version = "37.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -11431,7 +11725,7 @@ dependencies = [
 [[package]]
 name = "pallet-conviction-voting"
 version = "38.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "assert_matches",
  "frame-benchmarking",
@@ -11447,7 +11741,7 @@ dependencies = [
 [[package]]
 name = "pallet-election-provider-multi-phase"
 version = "37.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "frame-benchmarking",
  "frame-election-provider-support",
@@ -11469,7 +11763,7 @@ dependencies = [
 [[package]]
 name = "pallet-election-provider-support-benchmarking"
 version = "37.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "frame-benchmarking",
  "frame-election-provider-support",
@@ -11481,7 +11775,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
  "blake2 0.10.6",
  "demo-async",
@@ -11545,6 +11839,7 @@ dependencies = [
  "gear-runtime-interface",
  "gear-sandbox",
  "gear-wasm-instrument",
+ "gear-workspace-hack",
  "gstd",
  "gsys",
  "hex",
@@ -11579,12 +11874,13 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-bank"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
  "frame-system",
  "gear-common",
+ "gear-workspace-hack",
  "log",
  "pallet-authorship",
  "pallet-balances",
@@ -11597,7 +11893,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-builtin"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
  "ark-std 0.4.0",
  "builtins-common",
@@ -11616,6 +11912,7 @@ dependencies = [
  "gear-core-errors",
  "gear-core-processor",
  "gear-runtime-interface",
+ "gear-workspace-hack",
  "gprimitives",
  "hex-literal",
  "impl-trait-for-tuples",
@@ -11648,8 +11945,9 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-builtin-rpc"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
+ "gear-workspace-hack",
  "jsonrpsee",
  "pallet-gear-builtin-rpc-runtime-api",
  "sp-api",
@@ -11660,15 +11958,16 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-builtin-rpc-runtime-api"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
+ "gear-workspace-hack",
  "sp-api",
  "sp-core",
 ]
 
 [[package]]
 name = "pallet-gear-eth-bridge"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
  "binary-merkle-tree",
  "bp-header-chain",
@@ -11680,6 +11979,7 @@ dependencies = [
  "gear-common",
  "gear-core",
  "gear-core-errors",
+ "gear-workspace-hack",
  "gprimitives",
  "log",
  "pallet-authorship",
@@ -11700,6 +12000,7 @@ dependencies = [
  "sp-consensus-grandpa",
  "sp-core",
  "sp-io",
+ "sp-keystore",
  "sp-runtime",
  "sp-session",
  "sp-std",
@@ -11708,9 +12009,10 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-eth-bridge-primitives"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
  "binary-merkle-tree",
+ "gear-workspace-hack",
  "gprimitives",
  "parity-scale-codec",
  "scale-info",
@@ -11719,8 +12021,9 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-eth-bridge-rpc"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
+ "gear-workspace-hack",
  "jsonrpsee",
  "pallet-gear-eth-bridge-rpc-runtime-api",
  "primitive-types 0.12.2",
@@ -11731,8 +12034,9 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-eth-bridge-rpc-runtime-api"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
+ "gear-workspace-hack",
  "pallet-gear-eth-bridge",
  "sp-api",
  "sp-core",
@@ -11740,13 +12044,14 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-gas"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
  "frame-system",
  "gear-common",
  "gear-core",
+ "gear-workspace-hack",
  "pallet-balances",
  "pallet-gear-messenger",
  "parity-scale-codec",
@@ -11760,13 +12065,14 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-messenger"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
  "frame-system",
  "gear-common",
  "gear-core",
+ "gear-workspace-hack",
  "pallet-authorship",
  "pallet-balances",
  "pallet-gear-gas",
@@ -11781,7 +12087,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-payment"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -11789,6 +12095,7 @@ dependencies = [
  "frame-system",
  "gear-common",
  "gear-core",
+ "gear-workspace-hack",
  "pallet-authorship",
  "pallet-balances",
  "pallet-gear",
@@ -11810,8 +12117,9 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-proc-macro"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
+ "gear-workspace-hack",
  "proc-macro2",
  "quote",
  "syn 2.0.106",
@@ -11819,12 +12127,13 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-program"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
  "frame-support",
  "frame-system",
  "gear-common",
  "gear-core",
+ "gear-workspace-hack",
  "pallet-authorship",
  "pallet-balances",
  "pallet-gear-gas",
@@ -11841,12 +12150,13 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-rpc"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
  "futures",
  "gear-common",
  "gear-core",
  "gear-core-errors",
+ "gear-workspace-hack",
  "jsonrpsee",
  "log",
  "pallet-gear-rpc-runtime-api",
@@ -11862,8 +12172,9 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-rpc-runtime-api"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
+ "gear-workspace-hack",
  "pallet-gear",
  "sp-api",
  "sp-core",
@@ -11873,7 +12184,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-scheduler"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -11882,6 +12193,7 @@ dependencies = [
  "gear-common",
  "gear-core",
  "gear-core-errors",
+ "gear-workspace-hack",
  "log",
  "pallet-authorship",
  "pallet-balances",
@@ -11902,7 +12214,7 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-staking-rewards"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
  "frame-benchmarking",
  "frame-election-provider-support",
@@ -11910,6 +12222,7 @@ dependencies = [
  "frame-support",
  "frame-system",
  "gear-common",
+ "gear-workspace-hack",
  "log",
  "pallet-authorship",
  "pallet-balances",
@@ -11934,8 +12247,9 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-staking-rewards-rpc"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
+ "gear-workspace-hack",
  "jsonrpsee",
  "pallet-gear-staking-rewards-rpc-runtime-api",
  "sp-api",
@@ -11945,15 +12259,16 @@ dependencies = [
 
 [[package]]
 name = "pallet-gear-staking-rewards-rpc-runtime-api"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
+ "gear-workspace-hack",
  "pallet-gear-staking-rewards",
  "sp-api",
 ]
 
 [[package]]
 name = "pallet-gear-voucher"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
  "derive_more 2.0.1",
  "frame-benchmarking",
@@ -11961,6 +12276,7 @@ dependencies = [
  "frame-system",
  "gear-common",
  "gear-core",
+ "gear-workspace-hack",
  "pallet-balances",
  "parity-scale-codec",
  "primitive-types 0.12.2",
@@ -11974,7 +12290,7 @@ dependencies = [
 [[package]]
 name = "pallet-grandpa"
 version = "38.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -11994,11 +12310,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "pallet-grandpa-signer"
+version = "1.10.0"
+dependencies = [
+ "frame-support",
+ "frame-system",
+ "gear-workspace-hack",
+ "log",
+ "pallet-grandpa",
+ "parity-scale-codec",
+ "scale-info",
+ "sp-application-crypto",
+ "sp-consensus-grandpa",
+ "sp-core",
+ "sp-io",
+ "sp-runtime",
+ "sp-std",
+]
+
+[[package]]
 name = "pallet-identity"
 version = "38.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
- "enumflags2 0.7.7",
+ "enumflags2",
  "frame-benchmarking",
  "frame-support",
  "frame-system",
@@ -12012,7 +12347,7 @@ dependencies = [
 [[package]]
 name = "pallet-im-online"
 version = "37.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -12031,7 +12366,7 @@ dependencies = [
 [[package]]
 name = "pallet-multisig"
 version = "38.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -12046,7 +12381,7 @@ dependencies = [
 [[package]]
 name = "pallet-nomination-pools"
 version = "35.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -12064,7 +12399,7 @@ dependencies = [
 [[package]]
 name = "pallet-nomination-pools-runtime-api"
 version = "33.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "pallet-nomination-pools",
  "parity-scale-codec",
@@ -12074,7 +12409,7 @@ dependencies = [
 [[package]]
 name = "pallet-offences"
 version = "37.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -12090,7 +12425,7 @@ dependencies = [
 [[package]]
 name = "pallet-preimage"
 version = "38.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -12106,7 +12441,7 @@ dependencies = [
 [[package]]
 name = "pallet-proxy"
 version = "38.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -12120,7 +12455,7 @@ dependencies = [
 [[package]]
 name = "pallet-ranked-collective"
 version = "38.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -12138,7 +12473,7 @@ dependencies = [
 [[package]]
 name = "pallet-referenda"
 version = "38.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "assert_matches",
  "frame-benchmarking",
@@ -12156,7 +12491,7 @@ dependencies = [
 [[package]]
 name = "pallet-scheduler"
 version = "39.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "docify",
  "frame-benchmarking",
@@ -12173,7 +12508,7 @@ dependencies = [
 [[package]]
 name = "pallet-session"
 version = "38.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -12194,7 +12529,7 @@ dependencies = [
 [[package]]
 name = "pallet-staking"
 version = "38.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "frame-benchmarking",
  "frame-election-provider-support",
@@ -12216,7 +12551,7 @@ dependencies = [
 [[package]]
 name = "pallet-staking-reward-fn"
 version = "22.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "log",
  "sp-arithmetic",
@@ -12225,7 +12560,7 @@ dependencies = [
 [[package]]
 name = "pallet-staking-runtime-api"
 version = "24.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "parity-scale-codec",
  "sp-api",
@@ -12235,7 +12570,7 @@ dependencies = [
 [[package]]
 name = "pallet-sudo"
 version = "38.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "docify",
  "frame-benchmarking",
@@ -12250,7 +12585,7 @@ dependencies = [
 [[package]]
 name = "pallet-timestamp"
 version = "37.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "docify",
  "frame-benchmarking",
@@ -12269,7 +12604,7 @@ dependencies = [
 [[package]]
 name = "pallet-transaction-payment"
 version = "38.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "frame-support",
  "frame-system",
@@ -12284,7 +12619,7 @@ dependencies = [
 [[package]]
 name = "pallet-transaction-payment-rpc"
 version = "41.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "jsonrpsee",
  "pallet-transaction-payment-rpc-runtime-api",
@@ -12300,7 +12635,7 @@ dependencies = [
 [[package]]
 name = "pallet-transaction-payment-rpc-runtime-api"
 version = "38.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "pallet-transaction-payment",
  "parity-scale-codec",
@@ -12312,7 +12647,7 @@ dependencies = [
 [[package]]
 name = "pallet-treasury"
 version = "37.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "docify",
  "frame-benchmarking",
@@ -12330,7 +12665,7 @@ dependencies = [
 [[package]]
 name = "pallet-utility"
 version = "38.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -12345,7 +12680,7 @@ dependencies = [
 [[package]]
 name = "pallet-vesting"
 version = "38.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -12359,7 +12694,7 @@ dependencies = [
 [[package]]
 name = "pallet-whitelist"
 version = "37.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "frame-benchmarking",
  "frame-support",
@@ -12682,7 +13017,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "668d31b1c4eba19242f2088b2bf3316b82ca31082a8335764db4e083db7485d4"
 dependencies = [
  "atomic-waker",
- "fastrand 2.1.1",
+ "fastrand",
  "futures-io",
 ]
 
@@ -12784,22 +13119,6 @@ name = "polkavm-linux-raw"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "26e85d3456948e650dff0cfc85603915847faf893ed1e66b020bb82ef4557120"
-
-[[package]]
-name = "polling"
-version = "2.8.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4b2d323e8ca7996b3e23126511a523f7e62924d93ecd5ae73b333815b0eb3dce"
-dependencies = [
- "autocfg",
- "bitflags 1.3.2",
- "cfg-if",
- "concurrent-queue",
- "libc",
- "log",
- "pin-project-lite",
- "windows-sys 0.48.0",
-]
 
 [[package]]
 name = "polling"
@@ -13008,15 +13327,6 @@ dependencies = [
 
 [[package]]
 name = "proc-macro-crate"
-version = "0.1.5"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1d6ea3c4595b96363c13943497db34af4460fb474a95c43f4446ad341b8c9785"
-dependencies = [
- "toml 0.5.11",
-]
-
-[[package]]
-name = "proc-macro-crate"
 version = "1.1.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e17d47ce914bf4de440332250b0edd23ce48c005f59fab39d3335866b114f11a"
@@ -13139,9 +13449,9 @@ dependencies = [
 
 [[package]]
 name = "prometheus-client"
-version = "0.22.2"
+version = "0.23.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "c1ca959da22a332509f2a73ae9e5f23f9dcfc31fd3a54d71f159495bd5909baa"
+checksum = "cf41c1a7c32ed72abe5082fb19505b969095c12da9f5732a4bc9878757fd087c"
 dependencies = [
  "dtoa",
  "itoa",
@@ -13229,7 +13539,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "22505a5c94da8e3b7c2996394d1c933236c4d743e81a410bcca4e6989fc066a4"
 dependencies = [
  "bytes",
- "heck 0.4.1",
+ "heck 0.5.0",
  "itertools 0.12.1",
  "log",
  "multimap",
@@ -13876,6 +14186,7 @@ version = "0.1.0"
 dependencies = [
  "clap 4.5.23",
  "frame-support",
+ "gear-workspace-hack",
  "junit-common",
  "pallet-gear",
  "quick-xml",
@@ -14039,7 +14350,7 @@ dependencies = [
  "digest 0.10.7",
  "document-features",
  "frost-core",
- "hkdf 0.12.4",
+ "hkdf",
  "parity-scale-codec",
  "rand_core 0.6.4",
  "scale-info",
@@ -14097,7 +14408,7 @@ dependencies = [
  "netlink-packet-utils",
  "netlink-proto",
  "netlink-sys",
- "nix 0.26.4",
+ "nix",
  "thiserror 1.0.69",
  "tokio",
 ]
@@ -14160,6 +14471,7 @@ dependencies = [
  "gear-runtime-primitives",
  "gear-utils",
  "gear-wasm-gen",
+ "gear-workspace-hack",
  "hex",
  "hex-literal",
  "log",
@@ -14185,6 +14497,7 @@ name = "runtime-fuzzer-fuzz"
 version = "0.1.0"
 dependencies = [
  "gear-utils",
+ "gear-workspace-hack",
  "libfuzzer-sys",
  "log",
  "runtime-fuzzer",
@@ -14379,11 +14692,12 @@ dependencies = [
 
 [[package]]
 name = "rustls-pki-types"
-version = "1.7.0"
+version = "1.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "976295e77ce332211c0d24d92c0e83e50f5c5f046d11082cea19f3df13a3562d"
+checksum = "94182ad936a0c91c324cd46c6511b9510ed16af436d7b5bab34beab0afd55f7a"
 dependencies = [
  "web-time",
+ "zeroize",
 ]
 
 [[package]]
@@ -14428,6 +14742,17 @@ name = "rustls-webpki"
 version = "0.102.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "ff448f7e92e913c4b7d4c6d8e4540a1724b319b4152b8aef6d4cf8339712b33e"
+dependencies = [
+ "ring 0.17.14",
+ "rustls-pki-types",
+ "untrusted 0.9.0",
+]
+
+[[package]]
+name = "rustls-webpki"
+version = "0.103.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2ffdfa2f5286e2247234e03f680868ac2815974dc39e00ea15adc445d0aafe52"
 dependencies = [
  "ring 0.17.14",
  "rustls-pki-types",
@@ -14507,7 +14832,7 @@ dependencies = [
 [[package]]
 name = "sc-authority-discovery"
 version = "0.45.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "async-trait",
  "futures",
@@ -14537,7 +14862,7 @@ dependencies = [
 [[package]]
 name = "sc-block-builder"
 version = "0.42.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "parity-scale-codec",
  "sp-api",
@@ -14552,7 +14877,7 @@ dependencies = [
 [[package]]
 name = "sc-chain-spec"
 version = "38.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "array-bytes",
  "docify",
@@ -14579,7 +14904,7 @@ dependencies = [
 [[package]]
 name = "sc-chain-spec-derive"
 version = "12.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "proc-macro-crate 3.1.0",
  "proc-macro2",
@@ -14590,7 +14915,7 @@ dependencies = [
 [[package]]
 name = "sc-cli"
 version = "0.47.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "array-bytes",
  "chrono",
@@ -14631,7 +14956,7 @@ dependencies = [
 [[package]]
 name = "sc-client-api"
 version = "37.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "fnv",
  "futures",
@@ -14658,7 +14983,7 @@ dependencies = [
 [[package]]
 name = "sc-client-db"
 version = "0.44.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "hash-db",
  "kvdb",
@@ -14684,7 +15009,7 @@ dependencies = [
 [[package]]
 name = "sc-consensus"
 version = "0.44.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "async-trait",
  "futures",
@@ -14708,7 +15033,7 @@ dependencies = [
 [[package]]
 name = "sc-consensus-babe"
 version = "0.45.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "async-trait",
  "fork-tree",
@@ -14744,7 +15069,7 @@ dependencies = [
 [[package]]
 name = "sc-consensus-babe-rpc"
 version = "0.45.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "futures",
  "jsonrpsee",
@@ -14766,7 +15091,7 @@ dependencies = [
 [[package]]
 name = "sc-consensus-epochs"
 version = "0.44.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "fork-tree",
  "parity-scale-codec",
@@ -14779,7 +15104,7 @@ dependencies = [
 [[package]]
 name = "sc-consensus-grandpa"
 version = "0.30.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "ahash",
  "array-bytes",
@@ -14823,7 +15148,7 @@ dependencies = [
 [[package]]
 name = "sc-consensus-grandpa-rpc"
 version = "0.30.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "finality-grandpa",
  "futures",
@@ -14843,7 +15168,7 @@ dependencies = [
 [[package]]
 name = "sc-consensus-slots"
 version = "0.44.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "async-trait",
  "futures",
@@ -14866,7 +15191,7 @@ dependencies = [
 [[package]]
 name = "sc-executor"
 version = "0.40.1"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "parity-scale-codec",
  "parking_lot 0.12.3",
@@ -14890,7 +15215,7 @@ dependencies = [
 [[package]]
 name = "sc-executor-common"
 version = "0.35.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "polkavm",
  "sp-allocator",
@@ -14903,7 +15228,7 @@ dependencies = [
 [[package]]
 name = "sc-executor-polkavm"
 version = "0.32.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "log",
  "polkavm",
@@ -14914,7 +15239,7 @@ dependencies = [
 [[package]]
 name = "sc-executor-wasmtime"
 version = "0.35.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "anyhow",
  "cfg-if",
@@ -14932,7 +15257,7 @@ dependencies = [
 [[package]]
 name = "sc-informant"
 version = "0.44.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "console",
  "futures",
@@ -14949,7 +15274,7 @@ dependencies = [
 [[package]]
 name = "sc-keystore"
 version = "33.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "array-bytes",
  "parking_lot 0.12.3",
@@ -14963,7 +15288,7 @@ dependencies = [
 [[package]]
 name = "sc-mixnet"
 version = "0.15.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "array-bytes",
  "arrayvec 0.7.6",
@@ -14992,7 +15317,7 @@ dependencies = [
 [[package]]
 name = "sc-network"
 version = "0.45.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "array-bytes",
  "async-channel 1.9.0",
@@ -15043,7 +15368,7 @@ dependencies = [
 [[package]]
 name = "sc-network-common"
 version = "0.44.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "async-trait",
  "bitflags 1.3.2",
@@ -15061,7 +15386,7 @@ dependencies = [
 [[package]]
 name = "sc-network-gossip"
 version = "0.45.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "ahash",
  "futures",
@@ -15080,7 +15405,7 @@ dependencies = [
 [[package]]
 name = "sc-network-light"
 version = "0.44.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "array-bytes",
  "async-channel 1.9.0",
@@ -15101,7 +15426,7 @@ dependencies = [
 [[package]]
 name = "sc-network-sync"
 version = "0.44.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "array-bytes",
  "async-channel 1.9.0",
@@ -15138,7 +15463,7 @@ dependencies = [
 [[package]]
 name = "sc-network-transactions"
 version = "0.44.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "array-bytes",
  "futures",
@@ -15157,7 +15482,7 @@ dependencies = [
 [[package]]
 name = "sc-network-types"
 version = "0.12.1"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "bs58 0.5.1",
  "ed25519-dalek",
@@ -15174,7 +15499,7 @@ dependencies = [
 [[package]]
 name = "sc-offchain"
 version = "40.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "array-bytes",
  "bytes",
@@ -15208,7 +15533,7 @@ dependencies = [
 [[package]]
 name = "sc-proposer-metrics"
 version = "0.18.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "log",
  "substrate-prometheus-endpoint",
@@ -15217,7 +15542,7 @@ dependencies = [
 [[package]]
 name = "sc-rpc"
 version = "40.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "futures",
  "jsonrpsee",
@@ -15249,7 +15574,7 @@ dependencies = [
 [[package]]
 name = "sc-rpc-api"
 version = "0.44.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "jsonrpsee",
  "parity-scale-codec",
@@ -15269,7 +15594,7 @@ dependencies = [
 [[package]]
 name = "sc-rpc-server"
 version = "17.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "dyn-clone",
  "forwarded-header-value",
@@ -15293,7 +15618,7 @@ dependencies = [
 [[package]]
 name = "sc-rpc-spec-v2"
 version = "0.45.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "array-bytes",
  "futures",
@@ -15325,7 +15650,7 @@ dependencies = [
 [[package]]
 name = "sc-service"
 version = "0.46.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "async-trait",
  "directories",
@@ -15389,7 +15714,7 @@ dependencies = [
 [[package]]
 name = "sc-state-db"
 version = "0.36.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "log",
  "parity-scale-codec",
@@ -15400,7 +15725,7 @@ dependencies = [
 [[package]]
 name = "sc-sync-state-rpc"
 version = "0.45.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "jsonrpsee",
  "parity-scale-codec",
@@ -15419,7 +15744,7 @@ dependencies = [
 [[package]]
 name = "sc-sysinfo"
 version = "38.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "derive_more 0.99.18",
  "futures",
@@ -15440,7 +15765,7 @@ dependencies = [
 [[package]]
 name = "sc-telemetry"
 version = "25.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "chrono",
  "futures",
@@ -15460,7 +15785,7 @@ dependencies = [
 [[package]]
 name = "sc-tracing"
 version = "37.0.1"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "chrono",
  "console",
@@ -15489,7 +15814,7 @@ dependencies = [
 [[package]]
 name = "sc-tracing-proc-macro"
 version = "11.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "proc-macro-crate 3.1.0",
  "proc-macro2",
@@ -15500,7 +15825,7 @@ dependencies = [
 [[package]]
 name = "sc-transaction-pool"
 version = "37.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "async-trait",
  "futures",
@@ -15527,7 +15852,7 @@ dependencies = [
 [[package]]
 name = "sc-transaction-pool-api"
 version = "37.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "async-trait",
  "futures",
@@ -15543,7 +15868,7 @@ dependencies = [
 [[package]]
 name = "sc-utils"
 version = "17.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "async-channel 1.9.0",
  "futures",
@@ -15859,26 +16184,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "secret-service"
-version = "2.0.2"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e1da5c423b8783185fd3fecd1c8796c267d2c089d894ce5a93c280a5d3f780a2"
-dependencies = [
- "aes 0.7.5",
- "block-modes",
- "hkdf 0.11.0",
- "lazy_static",
- "num",
- "rand 0.8.5",
- "serde",
- "sha2 0.9.9",
- "zbus",
- "zbus_macros",
- "zvariant",
- "zvariant_derive",
-]
-
-[[package]]
 name = "security-framework"
 version = "2.10.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -16052,17 +16357,6 @@ dependencies = [
  "memchr",
  "ryu",
  "serde",
-]
-
-[[package]]
-name = "serde_repr"
-version = "0.1.16"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "8725e1dfadb3a50f7e5ce0b1a540466f6ed3fe7a0fca2ac2b8b831d31316bd00"
-dependencies = [
- "proc-macro2",
- "quote",
- "syn 2.0.106",
 ]
 
 [[package]]
@@ -16325,7 +16619,7 @@ dependencies = [
  "async-channel 2.3.1",
  "async-executor",
  "async-fs",
- "async-io 2.3.3",
+ "async-io",
  "async-lock 3.4.0",
  "async-net",
  "async-process",
@@ -16495,7 +16789,7 @@ dependencies = [
 [[package]]
 name = "sp-allocator"
 version = "29.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "log",
  "parity-scale-codec",
@@ -16506,7 +16800,7 @@ dependencies = [
 [[package]]
 name = "sp-api"
 version = "34.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "docify",
  "hash-db",
@@ -16528,7 +16822,7 @@ dependencies = [
 [[package]]
 name = "sp-api-proc-macro"
 version = "20.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "Inflector",
  "blake2 0.10.6",
@@ -16542,7 +16836,7 @@ dependencies = [
 [[package]]
 name = "sp-application-crypto"
 version = "38.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "parity-scale-codec",
  "scale-info",
@@ -16554,7 +16848,7 @@ dependencies = [
 [[package]]
 name = "sp-arithmetic"
 version = "26.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "docify",
  "integer-sqrt",
@@ -16568,7 +16862,7 @@ dependencies = [
 [[package]]
 name = "sp-authority-discovery"
 version = "34.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "parity-scale-codec",
  "scale-info",
@@ -16580,7 +16874,7 @@ dependencies = [
 [[package]]
 name = "sp-block-builder"
 version = "34.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "sp-api",
  "sp-inherents",
@@ -16590,7 +16884,7 @@ dependencies = [
 [[package]]
 name = "sp-blockchain"
 version = "37.0.1"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "futures",
  "parity-scale-codec",
@@ -16609,7 +16903,7 @@ dependencies = [
 [[package]]
 name = "sp-consensus"
 version = "0.40.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "async-trait",
  "futures",
@@ -16624,7 +16918,7 @@ dependencies = [
 [[package]]
 name = "sp-consensus-babe"
 version = "0.40.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "async-trait",
  "parity-scale-codec",
@@ -16642,7 +16936,7 @@ dependencies = [
 [[package]]
 name = "sp-consensus-grandpa"
 version = "21.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "finality-grandpa",
  "log",
@@ -16659,7 +16953,7 @@ dependencies = [
 [[package]]
 name = "sp-consensus-slots"
 version = "0.40.1"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "parity-scale-codec",
  "scale-info",
@@ -16670,7 +16964,7 @@ dependencies = [
 [[package]]
 name = "sp-core"
 version = "34.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "array-bytes",
  "bitflags 1.3.2",
@@ -16716,7 +17010,7 @@ dependencies = [
 [[package]]
 name = "sp-crypto-ec-utils"
 version = "0.14.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "ark-bls12-377",
  "ark-bls12-377-ext",
@@ -16750,7 +17044,7 @@ dependencies = [
 [[package]]
 name = "sp-crypto-hashing"
 version = "0.1.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "blake2b_simd",
  "byteorder",
@@ -16763,7 +17057,7 @@ dependencies = [
 [[package]]
 name = "sp-crypto-hashing-proc-macro"
 version = "0.1.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "quote",
  "sp-crypto-hashing 0.1.0 (git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none)",
@@ -16773,7 +17067,7 @@ dependencies = [
 [[package]]
 name = "sp-database"
 version = "10.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "kvdb",
  "parking_lot 0.12.3",
@@ -16782,7 +17076,7 @@ dependencies = [
 [[package]]
 name = "sp-debug-derive"
 version = "14.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -16792,7 +17086,7 @@ dependencies = [
 [[package]]
 name = "sp-externalities"
 version = "0.29.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "environmental",
  "parity-scale-codec",
@@ -16802,7 +17096,7 @@ dependencies = [
 [[package]]
 name = "sp-genesis-builder"
 version = "0.15.1"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "parity-scale-codec",
  "scale-info",
@@ -16814,7 +17108,7 @@ dependencies = [
 [[package]]
 name = "sp-inherents"
 version = "34.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "async-trait",
  "impl-trait-for-tuples",
@@ -16827,7 +17121,7 @@ dependencies = [
 [[package]]
 name = "sp-io"
 version = "38.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "bytes",
  "docify",
@@ -16853,7 +17147,7 @@ dependencies = [
 [[package]]
 name = "sp-keyring"
 version = "39.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "sp-core",
  "sp-runtime",
@@ -16863,7 +17157,7 @@ dependencies = [
 [[package]]
 name = "sp-keystore"
 version = "0.40.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "parity-scale-codec",
  "parking_lot 0.12.3",
@@ -16874,7 +17168,7 @@ dependencies = [
 [[package]]
 name = "sp-maybe-compressed-blob"
 version = "11.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "thiserror 1.0.69",
  "zstd 0.12.4",
@@ -16883,7 +17177,7 @@ dependencies = [
 [[package]]
 name = "sp-metadata-ir"
 version = "0.7.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "frame-metadata 16.0.0",
  "parity-scale-codec",
@@ -16893,7 +17187,7 @@ dependencies = [
 [[package]]
 name = "sp-mixnet"
 version = "0.12.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "parity-scale-codec",
  "scale-info",
@@ -16904,7 +17198,7 @@ dependencies = [
 [[package]]
 name = "sp-npos-elections"
 version = "34.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "parity-scale-codec",
  "scale-info",
@@ -16917,7 +17211,7 @@ dependencies = [
 [[package]]
 name = "sp-offchain"
 version = "34.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "sp-api",
  "sp-core",
@@ -16927,7 +17221,7 @@ dependencies = [
 [[package]]
 name = "sp-panic-handler"
 version = "13.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "backtrace",
  "lazy_static",
@@ -16937,7 +17231,7 @@ dependencies = [
 [[package]]
 name = "sp-rpc"
 version = "32.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "rustc-hash 1.1.0",
  "serde",
@@ -16947,7 +17241,7 @@ dependencies = [
 [[package]]
 name = "sp-runtime"
 version = "39.0.1"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "docify",
  "either",
@@ -16973,7 +17267,7 @@ dependencies = [
 [[package]]
 name = "sp-runtime-interface"
 version = "28.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "bytes",
  "impl-trait-for-tuples",
@@ -16992,7 +17286,7 @@ dependencies = [
 [[package]]
 name = "sp-runtime-interface-proc-macro"
 version = "18.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "Inflector",
  "expander",
@@ -17005,7 +17299,7 @@ dependencies = [
 [[package]]
 name = "sp-session"
 version = "36.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "parity-scale-codec",
  "scale-info",
@@ -17019,7 +17313,7 @@ dependencies = [
 [[package]]
 name = "sp-staking"
 version = "36.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "impl-trait-for-tuples",
  "parity-scale-codec",
@@ -17032,7 +17326,7 @@ dependencies = [
 [[package]]
 name = "sp-state-machine"
 version = "0.43.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "hash-db",
  "log",
@@ -17052,12 +17346,12 @@ dependencies = [
 [[package]]
 name = "sp-statement-store"
 version = "18.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "aes-gcm 0.10.3",
  "curve25519-dalek",
  "ed25519-dalek",
- "hkdf 0.12.4",
+ "hkdf",
  "parity-scale-codec",
  "rand 0.8.5",
  "scale-info",
@@ -17076,12 +17370,12 @@ dependencies = [
 [[package]]
 name = "sp-std"
 version = "14.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 
 [[package]]
 name = "sp-storage"
 version = "21.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "impl-serde 0.4.0",
  "parity-scale-codec",
@@ -17093,7 +17387,7 @@ dependencies = [
 [[package]]
 name = "sp-timestamp"
 version = "34.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "async-trait",
  "parity-scale-codec",
@@ -17105,7 +17399,7 @@ dependencies = [
 [[package]]
 name = "sp-tracing"
 version = "17.0.1"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "parity-scale-codec",
  "tracing",
@@ -17116,7 +17410,7 @@ dependencies = [
 [[package]]
 name = "sp-transaction-pool"
 version = "34.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "sp-api",
  "sp-runtime",
@@ -17125,7 +17419,7 @@ dependencies = [
 [[package]]
 name = "sp-transaction-storage-proof"
 version = "34.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "async-trait",
  "parity-scale-codec",
@@ -17139,7 +17433,7 @@ dependencies = [
 [[package]]
 name = "sp-trie"
 version = "37.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "ahash",
  "hash-db",
@@ -17162,7 +17456,7 @@ dependencies = [
 [[package]]
 name = "sp-version"
 version = "37.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "impl-serde 0.4.0",
  "parity-scale-codec",
@@ -17179,7 +17473,7 @@ dependencies = [
 [[package]]
 name = "sp-version-proc-macro"
 version = "14.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "parity-scale-codec",
  "proc-macro2",
@@ -17190,7 +17484,7 @@ dependencies = [
 [[package]]
 name = "sp-wasm-interface"
 version = "21.0.1"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "anyhow",
  "impl-trait-for-tuples",
@@ -17204,7 +17498,7 @@ dependencies = [
 [[package]]
 name = "sp-wasm-interface-common"
 version = "7.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "parity-scale-codec",
  "sp-std",
@@ -17214,7 +17508,7 @@ dependencies = [
 [[package]]
 name = "sp-weights"
 version = "31.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "bounded-collections",
  "parity-scale-codec",
@@ -17339,7 +17633,7 @@ checksum = "6706347e49b13373f7ddfafad47df7583ed52083d6fc8a594eb2c80497ef959d"
 dependencies = [
  "combine",
  "crc",
- "fastrand 2.1.1",
+ "fastrand",
  "hmac 0.12.1",
  "once_cell",
  "openssl",
@@ -17492,7 +17786,7 @@ dependencies = [
 [[package]]
 name = "substrate-bip39"
 version = "0.6.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "hmac 0.12.1",
  "pbkdf2",
@@ -17504,12 +17798,12 @@ dependencies = [
 [[package]]
 name = "substrate-build-script-utils"
 version = "11.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 
 [[package]]
 name = "substrate-frame-rpc-system"
 version = "39.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "docify",
  "frame-system-rpc-runtime-api",
@@ -17529,7 +17823,7 @@ dependencies = [
 [[package]]
 name = "substrate-prometheus-endpoint"
 version = "0.17.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "http-body-util",
  "hyper 1.4.1",
@@ -17543,7 +17837,7 @@ dependencies = [
 [[package]]
 name = "substrate-rpc-client"
 version = "0.44.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "async-trait",
  "jsonrpsee",
@@ -17556,7 +17850,7 @@ dependencies = [
 [[package]]
 name = "substrate-state-trie-migration-rpc"
 version = "38.0.0"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "jsonrpsee",
  "parity-scale-codec",
@@ -17573,7 +17867,7 @@ dependencies = [
 [[package]]
 name = "substrate-test-client"
 version = "2.0.1"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "array-bytes",
  "async-trait",
@@ -17600,7 +17894,7 @@ dependencies = [
 [[package]]
 name = "substrate-wasm-builder"
 version = "24.0.1"
-source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#e8fd208dd5dcc13d9d365aaad85f6aa406e66c0e"
+source = "git+https://github.com/gear-tech/polkadot-sdk.git?branch=gear-polkadot-stable2409-wasm32v1-none#1d1b394647eb26c094cf50c759b900dc5faa3b80"
 dependencies = [
  "array-bytes",
  "build-helper",
@@ -17958,7 +18252,7 @@ version = "3.20.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e8a64e3985349f2441a1a9ef0b853f869006c3855f2cda6862a94d26ebb9d6a1"
 dependencies = [
- "fastrand 2.1.1",
+ "fastrand",
  "getrandom 0.3.1",
  "once_cell",
  "rustix 1.0.7",
@@ -17995,6 +18289,7 @@ name = "test-syscalls"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
+ "gear-workspace-hack",
  "gstd",
  "parity-scale-codec",
 ]
@@ -18439,16 +18734,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "tracing-error"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "d686ec1c0f384b1277f097b2f279a2ecc11afe8c133c1aabf036a27cb4cd206e"
-dependencies = [
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
 name = "tracing-futures"
 version = "0.2.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -18840,12 +19125,12 @@ checksum = "8ecb6da28b8a351d773b68d5825ac39017e680750f980f3a1a85cd8dd28a47c1"
 
 [[package]]
 name = "url"
-version = "2.5.2"
+version = "2.5.4"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "22784dbdf76fdde8af1aeda5622b546b422b6fc585325248a2bf9f5e41e94d6c"
+checksum = "32f8b686cadd1473f4bd0117a5d28d36b1ade384ea9b5069a1c40aefed7fda60"
 dependencies = [
  "form_urlencoded",
- "idna 0.5.0",
+ "idna 1.0.3",
  "percent-encoding",
  "serde",
 ]
@@ -18885,7 +19170,7 @@ checksum = "830b7e5d4d90034032940e4ace0d9a9a057e7a45cd94e6c007832e39edb82f6d"
 
 [[package]]
 name = "vara-runtime"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
  "const-str",
  "frame-benchmarking",
@@ -18904,6 +19189,7 @@ dependencies = [
  "gear-runtime-interface",
  "gear-runtime-primitives",
  "gear-wasm-instrument",
+ "gear-workspace-hack",
  "log",
  "pallet-authority-discovery",
  "pallet-authorship",
@@ -18930,6 +19216,7 @@ dependencies = [
  "pallet-gear-staking-rewards-rpc-runtime-api",
  "pallet-gear-voucher",
  "pallet-grandpa",
+ "pallet-grandpa-signer",
  "pallet-identity",
  "pallet-im-online",
  "pallet-multisig",
@@ -19268,11 +19555,12 @@ dependencies = [
 
 [[package]]
 name = "wasm-proc"
-version = "1.9.9"
+version = "1.10.0"
 dependencies = [
  "clap 4.5.23",
  "gear-wasm-builder",
  "gear-wasm-instrument",
+ "gear-workspace-hack",
  "log",
  "tracing-subscriber",
 ]
@@ -20593,6 +20881,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "x509-parser"
+version = "0.17.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4569f339c0c402346d4a75a9e39cf8dad310e287eef1ff56d4c68e5067f53460"
+dependencies = [
+ "asn1-rs 0.7.1",
+ "data-encoding",
+ "der-parser 10.0.0",
+ "lazy_static",
+ "nom 7.1.3",
+ "oid-registry 0.8.1",
+ "rusticata-macros",
+ "thiserror 2.0.12",
+ "time",
+]
+
+[[package]]
 name = "xattr"
 version = "1.3.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -20698,41 +21003,6 @@ dependencies = [
  "quote",
  "syn 2.0.106",
  "synstructure 0.13.1",
-]
-
-[[package]]
-name = "zbus"
-version = "1.9.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9cbeb2291cd7267a94489b71376eda33496c1b9881adf6b36f26cc2779f3fc49"
-dependencies = [
- "async-io 1.13.0",
- "byteorder",
- "derivative",
- "enumflags2 0.6.4",
- "fastrand 1.9.0",
- "futures",
- "nb-connect",
- "nix 0.22.3",
- "once_cell",
- "polling 2.8.0",
- "scoped-tls",
- "serde",
- "serde_repr",
- "zbus_macros",
- "zvariant",
-]
-
-[[package]]
-name = "zbus_macros"
-version = "1.9.3"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "fa3959a7847cf95e3d51e312856617c5b1b77191176c65a79a5f14d778bbe0a6"
-dependencies = [
- "proc-macro-crate 0.1.5",
- "proc-macro2",
- "quote",
- "syn 1.0.109",
 ]
 
 [[package]]
@@ -20895,30 +21165,4 @@ checksum = "c253a4914af5bafc8fa8c86ee400827e83cf6ec01195ec1f1ed8441bf00d65aa"
 dependencies = [
  "cc",
  "pkg-config",
-]
-
-[[package]]
-name = "zvariant"
-version = "2.10.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "a68c7b55f2074489b7e8e07d2d0a6ee6b4f233867a653c664d8020ba53692525"
-dependencies = [
- "byteorder",
- "enumflags2 0.6.4",
- "libc",
- "serde",
- "static_assertions",
- "zvariant_derive",
-]
-
-[[package]]
-name = "zvariant_derive"
-version = "2.10.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "e4ca5e22593eb4212382d60d26350065bf2a02c34b85bc850474a74b589a3de9"
-dependencies = [
- "proc-macro-crate 1.1.3",
- "proc-macro2",
- "quote",
- "syn 1.0.109",
 ]

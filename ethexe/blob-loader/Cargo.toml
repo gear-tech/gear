@@ -9,7 +9,7 @@ repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
-ethexe-common.workspace = true
+ethexe-common = { workspace = true, features = ["std"] }
 gprimitives = { workspace = true, features = ["std"] }
 
 alloy = { workspace = true, features = ["rpc", "rpc-types", "rpc-types-beacon"] }
@@ -18,6 +18,7 @@ reqwest = { workspace = true, features = ["default-tls", "json"] }
 futures.workspace = true
 log.workspace = true
 tokio = { workspace = true, features = ["rt-multi-thread", "fs"] }
+gear-workspace-hack.workspace = true
 
 [lints]
 workspace = true

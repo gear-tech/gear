@@ -34,11 +34,8 @@ use futures::{
 };
 use gprimitives::{CodeId, H256};
 use reqwest::Client;
-use std::{collections::HashSet, fmt, hash::RandomState, pin::Pin, task::Poll};
-use tokio::{
-    sync::OnceCell,
-    time::{self, Duration},
-};
+use std::{collections::HashSet, fmt, num::NonZero, pin::Pin, task::Poll};
+use tokio::{sync::OnceCell, time::Duration};
 
 #[derive(Clone, PartialEq, Eq)]
 pub enum BlobLoaderEvent {
@@ -47,7 +44,14 @@ pub enum BlobLoaderEvent {
 
 #[derive(thiserror::Error, Debug)]
 pub enum BlobLoaderError {
-    // `ConsensusLayerBlobReader` errors
+    #[error("transport error: {0}")]
+    Transport(#[from] RpcError<TransportErrorKind>),
+    #[error("failed to get code blob info for: {0}")]
+    CodeBlobInfoNotFound(CodeId),
+}
+
+#[derive(thiserror::Error, Debug)]
+enum ReaderError {
     #[error("transport error: {0}")]
     Transport(#[from] RpcError<TransportErrorKind>),
     #[error("failed to find transaction by hash: {0}")]
@@ -62,25 +66,18 @@ pub enum BlobLoaderError {
     ReadBlob(reqwest::Error),
     #[error("failed to decode blobs")]
     DecodeBlobs,
-    #[error("expect code id {expected_code_id}, but got {code_id}, code: {code:?}")]
-    ReadUnexpectedCode {
-        code: Vec<u8>,
-        code_id: CodeId,
-        expected_code_id: CodeId,
-    },
-
-    // `BlobLoader` errors
-    #[error("failed to get code blob info for: {0}")]
-    CodeBlobInfoNotFound(CodeId),
+    #[error("failed to access genesis time: {0}")]
+    GenesisTimeAccess(reqwest::Error),
 }
 
-type Result<T> = std::result::Result<T, BlobLoaderError>;
+type LoaderResult<T> = Result<T, BlobLoaderError>;
+type ReaderResult<T> = Result<T, ReaderError>;
 
 // TODO (#4674): write tests for BlobLoaderService implementations
 pub trait BlobLoaderService:
-    Stream<Item = Result<BlobLoaderEvent>> + FusedStream + Send + Unpin
+    Stream<Item = LoaderResult<BlobLoaderEvent>> + FusedStream + Send + Unpin
 {
-    fn load_codes(&mut self, codes: HashSet<CodeId>, attempts: Option<u8>) -> Result<()>;
+    fn load_codes(&mut self, codes: HashSet<CodeId>) -> LoaderResult<()>;
 
     fn into_box(self) -> Box<dyn BlobLoaderService>;
 
@@ -100,6 +97,7 @@ pub struct ConsensusLayerConfig {
     pub ethereum_rpc: String,
     pub ethereum_beacon_rpc: String,
     pub beacon_block_time: Duration,
+    pub attempts: NonZero<u8>,
 }
 
 #[derive(Clone)]
@@ -110,39 +108,46 @@ struct ConsensusLayerBlobReader {
 }
 
 impl ConsensusLayerBlobReader {
-    /// Note: if `attempts` is `None`, it will be trying to read blob only once.
-    async fn read_code_from_tx_hash(
-        self,
-        code_id: CodeId,
-        tx_hash: H256,
-        attempts: Option<u8>,
-    ) -> Result<CodeAndIdUnchecked> {
-        let code = self.read_blob_from_tx_hash(tx_hash, attempts).await?;
+    async fn read_blob_from_tx_hash(&self, tx_hash: H256) -> ReaderResult<Vec<u8>> {
+        let mut last_err = None;
+        for attempt in 0..self.config.attempts.get() {
+            log::trace!("trying to get blob, attempt #{attempt}");
+            match self.try_query_blob(tx_hash).await {
+                Err(err) => {
+                    log::warn!("failed to get blob on attempt #{attempt}: {err}");
+                    last_err = Some(err);
 
-        let code_and_id = CodeAndIdUnchecked { code, code_id };
+                    tokio::time::sleep(self.config.beacon_block_time).await;
+                }
+                Ok(blob) => return Ok(blob),
+            }
+        }
 
-        Ok(code_and_id)
+        Err(last_err.expect("Must be set, because attempts is not zero"))
     }
 
-    async fn read_blob_from_tx_hash(&self, tx_hash: H256, attempts: Option<u8>) -> Result<Vec<u8>> {
+    async fn try_query_blob(&self, tx_hash: H256) -> ReaderResult<Vec<u8>> {
+        use ReaderError::*;
+
         let tx = self
             .provider
             .get_transaction_by_hash(tx_hash.0.into())
             .await?
-            .ok_or(BlobLoaderError::TransactionNotFound(tx_hash))?;
+            .ok_or(TransactionNotFound(tx_hash))?;
 
         let blob_versioned_hashes = tx
             .blob_versioned_hashes()
-            .ok_or(BlobLoaderError::BlobVersionedHashesNotFound(tx_hash))?;
-        let blob_versioned_hashes = HashSet::<_, RandomState>::from_iter(blob_versioned_hashes);
-        let block_hash = tx
-            .block_hash
-            .ok_or(BlobLoaderError::TransactionBlockNotFound(tx_hash))?;
+            .ok_or(BlobVersionedHashesNotFound(tx_hash))?
+            .iter()
+            .collect();
+
+        let block_hash = tx.block_hash.ok_or(TransactionBlockNotFound(tx_hash))?;
+
         let block = self
             .provider
             .get_block_by_hash(block_hash)
             .await?
-            .ok_or(BlobLoaderError::BlockNotFound(H256(block_hash.0)))?;
+            .ok_or(BlockNotFound(H256(block_hash.0)))?;
 
         // detect anvil by chain id
         let slot = if let Some(chain_id) = tx.chain_id()
@@ -155,28 +160,20 @@ impl ConsensusLayerBlobReader {
             let beacon_genesis_block_time = *BEACON_GENESIS_BLOCK_TIME
                 .get_or_try_init(|| self.read_genesis_time())
                 .await
-                .map_err(BlobLoaderError::ReadBlob)?;
+                .map_err(GenesisTimeAccess)?;
             (block.header.timestamp - beacon_genesis_block_time)
                 / self.config.beacon_block_time.as_secs()
         };
 
-        let attempts = attempts.unwrap_or(0);
-        let mut count = 0;
-        let blob_bundle = loop {
-            log::trace!("trying to get blob, attempt #{}", count + 1);
-            let blob_bundle_result = self.read_blob_bundle(slot, &blob_versioned_hashes).await;
-            if blob_bundle_result.is_ok() || count >= attempts {
-                break blob_bundle_result.map_err(BlobLoaderError::ReadBlob);
-            } else {
-                time::sleep(self.config.beacon_block_time).await;
-                count += 1;
-            }
-        }?;
+        let blob_bundle = self
+            .read_blob_bundle(slot, &blob_versioned_hashes)
+            .await
+            .map_err(ReadBlob)?;
 
         let mut coder = SimpleCoder::default();
         let data = coder
             .decode_all(&blob_bundle.data)
-            .ok_or(BlobLoaderError::DecodeBlobs)?
+            .ok_or(DecodeBlobs)?
             .concat();
 
         Ok(data)
@@ -221,7 +218,7 @@ pub trait Database: CodesStorageRO + OnChainStorageRO + Unpin + Send + Clone + '
 impl<T: CodesStorageRO + OnChainStorageRO + Unpin + Send + Clone + 'static> Database for T {}
 
 pub struct BlobLoader<DB: Database> {
-    futures: FuturesUnordered<BoxFuture<'static, Result<CodeAndIdUnchecked>>>,
+    futures: FuturesUnordered<BoxFuture<'static, ReaderResult<CodeAndIdUnchecked>>>,
     codes_loading: HashSet<CodeId>,
 
     blobs_reader: ConsensusLayerBlobReader,
@@ -229,19 +226,24 @@ pub struct BlobLoader<DB: Database> {
 }
 
 impl<DB: Database> Stream for BlobLoader<DB> {
-    type Item = Result<BlobLoaderEvent>;
+    type Item = LoaderResult<BlobLoaderEvent>;
 
     fn poll_next(
         mut self: Pin<&mut Self>,
         cx: &mut std::task::Context<'_>,
     ) -> std::task::Poll<Option<Self::Item>> {
-        let res = futures::ready!(self.futures.poll_next_unpin(cx)).map(|result| {
-            let code_and_id = result?;
-            self.codes_loading.remove(&code_and_id.code_id);
-            Ok(BlobLoaderEvent::BlobLoaded(code_and_id))
-        });
-
-        res.map_or(Poll::Pending, |res| Poll::Ready(Some(res)))
+        match futures::ready!(self.futures.poll_next_unpin(cx)) {
+            None => Poll::Pending,
+            Some(Err(err)) => {
+                // TODO: #4995 currently in case of error in blob loading we just skip it
+                log::error!("Failed to load blob: {err}, skipping");
+                Poll::Pending
+            }
+            Some(Ok(code_and_id)) => {
+                self.codes_loading.remove(&code_and_id.code_id);
+                Poll::Ready(Some(Ok(BlobLoaderEvent::BlobLoaded(code_and_id))))
+            }
+        }
     }
 }
 
@@ -252,7 +254,7 @@ impl<DB: Database> FusedStream for BlobLoader<DB> {
 }
 
 impl<DB: Database> BlobLoader<DB> {
-    pub async fn new(db: DB, consensus_cfg: ConsensusLayerConfig) -> Result<Self> {
+    pub async fn new(db: DB, consensus_cfg: ConsensusLayerConfig) -> LoaderResult<Self> {
         Ok(Self {
             futures: FuturesUnordered::new(),
             codes_loading: HashSet::new(),
@@ -278,7 +280,7 @@ impl<DB: Database> BlobLoaderService for BlobLoader<DB> {
         self.codes_loading.len()
     }
 
-    fn load_codes(&mut self, codes: HashSet<CodeId>, attempts: Option<u8>) -> Result<()> {
+    fn load_codes(&mut self, codes: HashSet<CodeId>) -> LoaderResult<()> {
         for code_id in codes {
             if self.codes_loading.contains(&code_id) {
                 continue;
@@ -289,27 +291,24 @@ impl<DB: Database> BlobLoaderService for BlobLoader<DB> {
                 .code_blob_info(code_id)
                 .ok_or(BlobLoaderError::CodeBlobInfoNotFound(code_id))?;
 
-            if let Some(code) = self.db.original_code(code_id) {
-                log::warn!("Code {code_id} is already loaded, skipping loading from remote source");
-                self.futures
-                    .push(futures::future::ready(Ok(CodeAndIdUnchecked { code_id, code })).boxed());
-                continue;
-            }
-
-            if let Some(code) = self.db.original_code(code_id) {
-                log::warn!("Code {code_id} is already loaded, skipping loading from remote source");
-                self.futures
-                    .push(futures::future::ready(Ok(CodeAndIdUnchecked { code_id, code })).boxed());
-                continue;
-            }
-
             self.codes_loading.insert(code_id);
-            self.futures.push(
-                self.blobs_reader
-                    .clone()
-                    .read_code_from_tx_hash(code_id, tx_hash, attempts)
+
+            if let Some(code) = self.db.original_code(code_id) {
+                log::warn!("Code {code_id} is already loaded, skipping loading from remote source");
+                self.futures
+                    .push(futures::future::ready(Ok(CodeAndIdUnchecked { code_id, code })).boxed());
+            } else {
+                let blobs_reader = self.blobs_reader.clone();
+                self.futures.push(
+                    async move {
+                        blobs_reader
+                            .read_blob_from_tx_hash(tx_hash)
+                            .map(|res| res.map(|code| CodeAndIdUnchecked { code_id, code }))
+                            .await
+                    }
                     .boxed(),
-            );
+                );
+            }
         }
 
         Ok(())
@@ -322,34 +321,35 @@ mod tests {
     use ethexe_common::gear_core::ids::prelude::CodeIdExt;
 
     #[tokio::test]
-    async fn test_read_code_from_tx_hash() -> Result<()> {
+    async fn test_read_code_from_tx_hash() {
         let consensus_cfg = ConsensusLayerConfig {
             ethereum_rpc: "https://hoodi-reth-rpc.gear-tech.io".into(),
             ethereum_beacon_rpc: "https://hoodi-lighthouse-rpc.gear-tech.io".into(),
             beacon_block_time: Duration::from_secs(12),
+            attempts: const { NonZero::<u8>::new(3).unwrap() },
         };
+
         let blobs_reader = ConsensusLayerBlobReader {
             provider: ProviderBuilder::default()
                 .connect(&consensus_cfg.ethereum_rpc)
-                .await?,
+                .await
+                .unwrap(),
             http_client: Client::new(),
             config: consensus_cfg,
         };
-        let expected_code_id = "0x94892c2d1acaeb2d47e2ea79fe580a5b41c534f21333be1a86fe611ba4e0b7dc"
-            .parse()
-            .unwrap();
-        let CodeAndIdUnchecked { code, code_id } = blobs_reader
-            .read_code_from_tx_hash(
-                expected_code_id,
-                "0xee7f0082b6ad2fb1d409f39e5b169e102c27e4cf86b69a8a4006224cc91b4ae3"
+
+        let expected_code_id: CodeId =
+            "0x7de51fb739aee5f2f2ec6bb3cb9a99aff68028b70aa0d14ac208bb9b2220a529"
+                .parse()
+                .unwrap();
+        let code = blobs_reader
+            .read_blob_from_tx_hash(
+                "0x3b3fb2d04c7aec2d269f142a3b147456f3e19d368bc41f966b10205a32867316"
                     .parse()
                     .unwrap(),
-                Some(3),
             )
-            .await?;
-        assert_eq!(code_id, expected_code_id);
-        assert_eq!(code_id, CodeId::generate(&code));
-
-        Ok(())
+            .await
+            .unwrap();
+        assert_eq!(expected_code_id, CodeId::generate(&code));
     }
 }

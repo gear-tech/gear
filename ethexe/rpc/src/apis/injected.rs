@@ -32,13 +32,14 @@ use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::{mpsc, oneshot};
 
+/// Determines whether the injected transaction was accepted by the main service.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum InjectedTransactionAcceptance {
     Accept,
 }
 
-#[cfg_attr(not(feature = "test-utils"), rpc(server))]
-#[cfg_attr(feature = "test-utils", rpc(server, client))]
+#[cfg_attr(not(feature = "client"), rpc(server))]
+#[cfg_attr(feature = "client", rpc(server, client))]
 pub trait Injected {
     #[method(name = "injected_sendTransaction")]
     async fn send_transaction(
@@ -69,7 +70,11 @@ impl InjectedServer for InjectedApi {
         &self,
         transaction: RpcOrNetworkInjectedTx,
     ) -> RpcResult<InjectedTransactionAcceptance> {
-        tracing::trace!("Called injected_sendTransaction with vars: {transaction:?}");
+        tracing::trace!(
+            tx_hash = %transaction.tx.data().to_hash(),
+            ?transaction,
+            "Called injected_sendTransaction with vars"
+        );
         self.forward_transaction(transaction).await
     }
 
@@ -102,7 +107,7 @@ impl InjectedServer for InjectedApi {
 
         let (promise_sender, promise_receiver) = oneshot::channel();
         self.promise_waiters.insert(tx_hash, promise_sender);
-        self.spawn_promise_waiter(subscription_sink, promise_receiver, tx_hash);
+        self.spawn_promise_subscriber(subscription_sink, promise_receiver, tx_hash);
 
         Ok(())
     }
@@ -132,6 +137,7 @@ impl InjectedApi {
         &self,
         transaction: RpcOrNetworkInjectedTx,
     ) -> Result<InjectedTransactionAcceptance, ErrorObjectOwned> {
+        let tx_hash = transaction.tx.data().to_hash();
         let (response_sender, response_receiver) = oneshot::channel();
 
         let event = RpcEvent::InjectedTransaction {
@@ -140,23 +146,27 @@ impl InjectedApi {
         };
 
         if let Err(err) = self.rpc_sender.send(event) {
-            log::error!(
+            tracing::error!(
                 "Failed to send `RpcEvent::InjectedTransaction` event task: {err}. \
                 The receiving end in the main service might have been dropped."
             );
             return Err(errors::internal());
         }
 
+        tracing::trace!(?tx_hash, "Accept transaction, waiting for promise");
+
         response_receiver.await.map_err(|e| {
             // No panic case, as a responsibility of the RPC API is fulfilled.
             // The dropped sender signalizes that the main service has crashed
             // or is malformed, so problems should be handled there.
-            log::error!("Response sender for the `RpcEvent::InjectedTransaction` was dropped: {e}");
+            tracing::error!(
+                "Response sender for the `RpcEvent::InjectedTransaction` was dropped: {e}"
+            );
             errors::internal()
         })
     }
 
-    fn spawn_promise_waiter(
+    fn spawn_promise_subscriber(
         &self,
         sink: SubscriptionSink,
         receiver: oneshot::Receiver<SignedPromise>,
@@ -172,7 +182,7 @@ impl InjectedApi {
                         promise
                     }
                     Err(_) => {
-                        unreachable!("promise sender can not be dropped, because of it stores locally.")
+                        unreachable!("promise sender is owned by the api; it cannot be dropped before this point")
                     }
                 },
                 _ = sink.closed() => {

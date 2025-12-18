@@ -17,12 +17,13 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Gear storage apis
+
 use crate::{
-    Api, BlockNumber, GearGasNode, GearGasNodeId, GearPages, IntoSubstrate, IntoSubxt,
+    Api, BlockNumber, GearGasNode, GearGasNodeId, GearPages, IntoAccountId32, IntoSubstrate,
     gear::{
         self,
         runtime_types::{
-            frame_system::{AccountInfo, EventRecord},
+            frame_system::AccountInfo,
             gear_common::storage::primitives::Interval,
             gear_core::{
                 pages::Page,
@@ -38,12 +39,13 @@ use crate::{
 use futures::prelude::*;
 use gear_core::{
     code::{CodeMetadata, InstrumentedCode},
-    ids::*,
+    ids::{ActorId, CodeId, MessageId},
     message::UserStoredMessage,
+    pages::GearPage,
     program::MemoryInfix,
 };
-use gsdk_codegen::storage_fetch;
-use sp_core::crypto::{AccountId32, Ss58Codec};
+use gsdk_codegen::at_block;
+use sp_core::crypto::AccountId32;
 use subxt::{
     error::MetadataError,
     ext::subxt_core::storage::address::StorageHashers,
@@ -80,7 +82,7 @@ impl Api {
     ///     let bn = api.number().await?;
     /// }
     /// ```
-    #[storage_fetch]
+    #[at_block]
     pub async fn storage_fetch_at<'a, Addr>(
         &self,
         address: &'a Addr,
@@ -89,38 +91,40 @@ impl Api {
     where
         Addr: Address<IsFetchable = Yes> + 'a,
     {
-        let client = self.storage();
-        let storage = if let Some(h) = block_hash {
-            client.at(h)
-        } else {
-            client.at_latest().await?
-        };
-
-        storage
+        self.storage_at(block_hash)
+            .await?
             .fetch(address)
             .await?
             .ok_or(Error::StorageEntryNotFound)
-    }
-
-    /// Get program pages from program id.
-    pub async fn program_pages(&self, program_id: ActorId) -> Result<GearPages> {
-        self.gpages(program_id, None).await
     }
 }
 
 // frame-system
 impl Api {
-    /// Get account info by address at specified block.
-    #[storage_fetch]
-    pub async fn info_at(
+    /// Get account info by its address at specified block.
+    #[at_block]
+    pub async fn account_info_at(
         &self,
-        address: &str,
+        address: impl IntoAccountId32,
         block_hash: Option<H256>,
     ) -> Result<AccountInfo<u32, AccountData<u128>>> {
-        let dest = AccountId32::from_ss58check(address)?;
-        let addr = gear::storage().system().account(dest.into_subxt());
+        self.storage_fetch_at(
+            &gear::storage().system().account(address.into_account_id()),
+            block_hash,
+        )
+        .await
+    }
 
-        self.storage_fetch_at(&addr, block_hash).await
+    /// Get account data by its address at specified block.
+    #[at_block]
+    pub async fn account_data_at(
+        &self,
+        address: impl IntoAccountId32,
+        block_hash: Option<H256>,
+    ) -> Result<AccountData<u128>> {
+        self.account_info_at(address, block_hash)
+            .map_ok(|info| info.data)
+            .await
     }
 
     /// Get block number.
@@ -128,18 +132,48 @@ impl Api {
         self.storage_fetch(&gear::storage().system().number()).await
     }
 
-    /// Get balance by account address.
-    pub async fn get_balance(&self, address: &str) -> Result<u128> {
-        Ok(self.info(address).await?.data.free)
+    /// Get the free funds balance of the account identified by `account_id` at specified block.
+    #[at_block]
+    pub async fn free_balance_at(
+        &self,
+        account_id: impl IntoAccountId32,
+        block_hash: Option<H256>,
+    ) -> Result<u128> {
+        Ok(self.account_data_at(account_id, block_hash).await?.free)
+    }
+
+    /// Get the reserved funds balance of the account identified by `account_id` at specified block.
+    #[at_block]
+    pub async fn reserved_balance_at(
+        &self,
+        account_id: impl IntoAccountId32,
+        block_hash: Option<H256>,
+    ) -> Result<u128> {
+        Ok(self.account_data_at(account_id, block_hash).await?.reserved)
+    }
+
+    /// Get the total balance of the account identified by `account_id` at specified block.
+    ///
+    /// Total balance includes free and reserved funds.
+    #[at_block]
+    pub async fn total_balance_at(
+        &self,
+        account_id: impl IntoAccountId32,
+        block_hash: Option<H256>,
+    ) -> Result<u128> {
+        let data = self.account_data_at(account_id, block_hash).await?;
+
+        data.free
+            .checked_add(data.reserved)
+            .ok_or(Error::BalanceOverflow)
     }
 
     /// Get events at specified block.
-    #[storage_fetch]
-    pub async fn get_events_at(&self, block_hash: Option<H256>) -> Result<Vec<RuntimeEvent>> {
+    #[at_block]
+    pub async fn block_events_at(&self, block_hash: Option<H256>) -> Result<Vec<RuntimeEvent>> {
         let addr = gear::storage().system().events();
 
-        let evs: Vec<EventRecord<RuntimeEvent, H256>> =
-            self.storage_fetch_at(&addr, block_hash).await?;
+        let evs = self.storage_fetch_at(&addr, block_hash).await?;
 
         Ok(evs.into_iter().map(|ev| ev.event).collect())
     }
@@ -170,42 +204,44 @@ impl Api {
 // pallet-gas
 impl Api {
     /// Get value of gas total issuance at specified block.
-    #[storage_fetch]
+    #[at_block]
     pub async fn total_issuance_at(&self, block_hash: Option<H256>) -> Result<u64> {
         self.storage_fetch_at(&gear::storage().gear_gas().total_issuance(), block_hash)
             .await
     }
 
     /// Get Gear gas nodes by their ids at specified block.
-    #[storage_fetch]
+    #[at_block]
     pub async fn gas_nodes_at(
         &self,
-        gas_node_ids: &impl AsRef<[GearGasNodeId]>,
+        gas_node_ids: impl IntoIterator<Item = GearGasNodeId>,
         block_hash: Option<H256>,
     ) -> Result<Vec<(GearGasNodeId, GearGasNode)>> {
-        let gas_node_ids = gas_node_ids.as_ref();
-        let mut gas_nodes = Vec::with_capacity(gas_node_ids.len());
+        stream::iter(gas_node_ids)
+            .then(|gas_node_id| async move {
+                let addr = gear::storage().gear_gas().gas_nodes(gas_node_id.clone());
+                let gas_node = self.storage_fetch_at(&addr, block_hash).await?;
 
-        for gas_node_id in gas_node_ids {
-            let addr = gear::storage().gear_gas().gas_nodes(gas_node_id.clone());
-            let gas_node = self.storage_fetch_at(&addr, block_hash).await?;
-            gas_nodes.push((gas_node_id.clone(), gas_node));
-        }
-        Ok(gas_nodes)
+                Ok((gas_node_id.clone(), gas_node))
+            })
+            .try_collect()
+            .await
     }
 }
 
 // pallet-gear-bank
 impl Api {
     /// Get Gear bank account data at specified block.
-    #[storage_fetch]
+    #[at_block]
     pub async fn bank_info_at(
         &self,
-        account_id: AccountId32,
+        account_id: impl IntoAccountId32,
         block_hash: Option<H256>,
     ) -> Result<BankAccount<u128>> {
         self.storage_fetch_at(
-            &gear::storage().gear_bank().bank(account_id.into_subxt()),
+            &gear::storage()
+                .gear_bank()
+                .bank(account_id.into_account_id()),
             block_hash,
         )
         .await
@@ -224,31 +260,29 @@ impl Api {
 impl Api {
     /// Check whether the message queue processing is stopped or not.
     pub async fn execute_inherent(&self) -> Result<bool> {
-        let addr = gear::storage().gear().execute_inherent();
         Ok(self
             .storage()
             .at_latest()
             .await?
-            .fetch_or_default(&addr)
+            .fetch_or_default(&gear::storage().gear().execute_inherent())
             .await?)
     }
 
     /// Get gear block number.
     pub async fn gear_block_number(&self, block_hash: Option<H256>) -> Result<BlockNumber> {
-        let addr = gear::storage().gear().block_number();
         Ok(self
             .storage_at(block_hash)
             .await?
-            .fetch_or_default(&addr)
+            .fetch_or_default(&gear::storage().gear().block_number())
             .await?)
     }
 }
 
 // pallet-gear-program
 impl Api {
-    /// Get original code by its `CodeId` at specified block.
-    #[storage_fetch]
-    pub async fn original_code_storage_at(
+    /// Returns original WASM code for the given `CodeId` at specified block.
+    #[at_block]
+    pub async fn original_code_at(
         &self,
         code_id: CodeId,
         block_hash: Option<H256>,
@@ -263,7 +297,7 @@ impl Api {
     }
 
     /// Get `InstrumentedCode` by its `CodeId` at specified block.
-    #[storage_fetch]
+    #[at_block]
     pub async fn instrumented_code_storage_at(
         &self,
         code_id: CodeId,
@@ -279,7 +313,7 @@ impl Api {
     }
 
     /// Get `CodeMetadata` by its `CodeId` at specified block.
-    #[storage_fetch]
+    #[at_block]
     pub async fn code_metadata_storage_at(
         &self,
         code_id: CodeId,
@@ -294,9 +328,9 @@ impl Api {
         .await
     }
 
-    /// Get active program from program id at specified block.
-    #[storage_fetch]
-    pub async fn gprog_at(
+    /// Returns `ActiveProgram` for the given `ActorId` at specified block.
+    #[at_block]
+    pub async fn active_program_at(
         &self,
         program_id: ActorId,
         block_hash: Option<H256>,
@@ -307,22 +341,16 @@ impl Api {
         }
     }
 
-    /// Get pages of active program at specified block.
-    #[storage_fetch]
-    pub async fn gpages_at(
+    /// Get pages of an active program at specified block.
+    #[at_block]
+    pub async fn program_pages_at(
         &self,
         program_id: ActorId,
-        memory_infix: Option<MemoryInfix>,
         block_hash: Option<H256>,
     ) -> Result<GearPages> {
-        let memory_infix = match memory_infix {
-            Some(infix) => infix,
-            None => self.gprog_at(program_id, block_hash).await?.memory_infix,
-        };
-
         let address = gear::storage()
             .gear_program()
-            .memory_pages_iter2(program_id, memory_infix);
+            .memory_pages_iter1(program_id);
 
         let metadata = self.metadata();
         let hashers = subxt::ext::subxt_core::storage::lookup_storage_entry_details(
@@ -337,6 +365,7 @@ impl Api {
             .await?
             .iter(address)
             .try_flatten_stream()
+            .map_err(Error::from)
             .and_then(|pair| {
                 std::future::ready({
                     // FIXME: Do not decode key manually.
@@ -350,8 +379,11 @@ impl Api {
                         &mut hashers.iter(),
                         metadata.types(),
                     )
-                    .map(|(_, _, page_index)| (page_index.into_key().0, pair.value))
                     .map_err(subxt::Error::from)
+                    .map_err(Error::from)
+                    .and_then(|(_, _, page_index)| {
+                        Ok((page_index.into_key().0.try_into()?, pair.value))
+                    })
                 })
             })
             .try_collect()
@@ -361,7 +393,7 @@ impl Api {
     }
 
     /// Get inheritor address by program id at specified block.
-    #[storage_fetch]
+    #[at_block]
     pub async fn inheritor_of_at(
         &self,
         program_id: ActorId,
@@ -374,25 +406,20 @@ impl Api {
     }
 
     /// Get pages of active program at specified block.
-    #[storage_fetch]
-    pub async fn specified_gpages_at(
+    #[at_block]
+    pub async fn specified_program_pages_at(
         &self,
         program_id: ActorId,
-        memory_infix: Option<MemoryInfix>,
-        page_numbers: impl IntoIterator<Item = u32>,
+        page_numbers: impl IntoIterator<Item = GearPage>,
         block_hash: Option<H256>,
     ) -> Result<GearPages> {
-        let memory_infix = match memory_infix {
-            Some(infix) => infix,
-            None => self.gprog_at(program_id, block_hash).await?.memory_infix,
-        };
-
         futures::stream::iter(page_numbers)
             .then(|page| async move {
                 let addr = gear::storage().gear_program().memory_pages(
                     program_id,
-                    memory_infix,
-                    Page(page),
+                    // memory infix is always zero now
+                    MemoryInfix::default(),
+                    page.into(),
                 );
 
                 let page_buf = self
@@ -409,7 +436,7 @@ impl Api {
     }
 
     /// Get program by its id at specified block.
-    #[storage_fetch]
+    #[at_block]
     pub async fn program_at(
         &self,
         program_id: ActorId,
@@ -426,51 +453,47 @@ impl Api {
 // pallet-gear-messenger
 impl Api {
     /// Get a message identified by `message_id` from the `account_id`'s
-    /// mailbox.
-    pub async fn get_mailbox_account_message(
+    /// mailbox at specified block.
+    #[at_block]
+    pub async fn mailbox_account_message_at(
         &self,
-        account_id: AccountId32,
+        account_id: impl IntoAccountId32,
         message_id: MessageId,
+        block_hash: Option<H256>,
     ) -> Result<Option<(UserStoredMessage, Interval<u32>)>> {
         Ok(self
-            .storage_fetch(
+            .storage_fetch_at(
                 &gear::storage()
                     .gear_messenger()
-                    .mailbox(account_id.into_subxt(), message_id),
+                    .mailbox(account_id.into_account_id(), message_id),
+                block_hash,
             )
             .await
             .ok())
     }
 
-    /// Get all mailbox messages or for the provided `address`.
-    pub async fn mailbox(
+    /// Retrieves up to `count` mailbox messages or for
+    /// the provided `address` at specified block.
+    #[at_block]
+    pub async fn mailbox_messages_at(
         &self,
-        account_id: Option<AccountId32>,
+        account_id: impl IntoAccountId32,
         count: usize,
+        block_hash: Option<H256>,
     ) -> Result<Vec<(UserStoredMessage, Interval<u32>)>> {
-        let storage = self.storage().at_latest().await?;
-
-        if let Some(account_id) = account_id {
-            let query_key = gear::storage()
-                .gear_messenger()
-                .mailbox_iter1(account_id.into_subxt());
-            storage
-                .iter(query_key)
-                .await?
-                .map_ok(|pair| pair.value)
-                .boxed()
-        } else {
-            let query_key = gear::storage().gear_messenger().mailbox_iter();
-            storage
-                .iter(query_key)
-                .await?
-                .map_ok(|pair| pair.value)
-                .boxed()
-        }
-        .take(count)
-        .try_collect()
-        .await
-        .map_err(Error::from)
+        self.storage_at(block_hash)
+            .await?
+            .iter(
+                gear::storage()
+                    .gear_messenger()
+                    .mailbox_iter1(account_id.into_account_id()),
+            )
+            .await?
+            .map_ok(|pair| pair.value)
+            .take(count)
+            .try_collect()
+            .await
+            .map_err(Error::from)
     }
 }
 

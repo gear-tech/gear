@@ -25,7 +25,7 @@ use ethexe_runtime_common::{
     BlockInfo,
     state::{
         ActiveProgram, MemoryPages, MemoryPagesRegionInner, Program, ProgramState,
-        QueriableStorage, RegionIdx, Storage,
+        QueryableStorage, RegionIdx, Storage,
     },
 };
 use gear_core::{ids::ActorId, memory::PageBuf, pages::GearPage};

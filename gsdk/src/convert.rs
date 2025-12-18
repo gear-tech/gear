@@ -18,6 +18,9 @@
 
 //! This module provides conversion traits between [`subxt`] types and Substrate types.
 
+use crate::{GearConfig, Result};
+use subxt::{error::ModuleError, events::EventDetails};
+
 /// Trait for Substrate types convertible to their
 /// [`subxt`] counterpart.
 pub trait IntoSubxt {
@@ -38,11 +41,34 @@ pub trait IntoSubstrate {
     fn into_substrate(self) -> Self::Target;
 }
 
+/// Helper traits to decoding [`subxt`] types into Gear-specific types.
+pub trait AsGear {
+    /// Gear-specific counterpart of the type.
+    type Target;
+
+    fn as_gear(&self) -> Result<Self::Target>;
+}
+
+/// Helper trait for different equivalents of [`AccountId32`].
+///
+/// [`AccountId32`]: subxt::utils::AccountId32
+pub trait IntoAccountId32 {
+    fn into_account_id(self) -> subxt::utils::AccountId32;
+}
+
 impl IntoSubxt for sp_runtime::AccountId32 {
     type Target = subxt::utils::AccountId32;
 
     fn into_subxt(self) -> Self::Target {
         subxt::utils::AccountId32(self.into())
+    }
+}
+
+impl IntoSubxt for gear_core::ids::ActorId {
+    type Target = subxt::utils::AccountId32;
+
+    fn into_subxt(self) -> Self::Target {
+        subxt::utils::AccountId32(self.into_bytes())
     }
 }
 
@@ -79,5 +105,45 @@ impl<A: IntoSubxt, B> IntoSubxt for sp_runtime::MultiAddress<A, B> {
             Self::Address32(address) => Self::Target::Address32(address),
             Self::Address20(address) => Self::Target::Address20(address),
         }
+    }
+}
+
+impl AsGear for EventDetails<GearConfig> {
+    type Target = crate::Event;
+
+    fn as_gear(&self) -> Result<Self::Target> {
+        Ok(self.as_root_event()?)
+    }
+}
+
+impl AsGear for ModuleError {
+    type Target = crate::RuntimeError;
+
+    fn as_gear(&self) -> Result<Self::Target> {
+        Ok(self.as_root_error()?)
+    }
+}
+
+impl<T: IntoAccountId32 + Clone> IntoAccountId32 for &'_ T {
+    fn into_account_id(self) -> subxt::utils::AccountId32 {
+        self.clone().into_account_id()
+    }
+}
+
+impl IntoAccountId32 for subxt::utils::AccountId32 {
+    fn into_account_id(self) -> subxt::utils::AccountId32 {
+        self
+    }
+}
+
+impl IntoAccountId32 for sp_runtime::AccountId32 {
+    fn into_account_id(self) -> subxt::utils::AccountId32 {
+        self.into_subxt()
+    }
+}
+
+impl IntoAccountId32 for gear_core::ids::ActorId {
+    fn into_account_id(self) -> subxt::utils::AccountId32 {
+        self.into_subxt()
     }
 }

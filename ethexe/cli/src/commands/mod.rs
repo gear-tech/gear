@@ -60,11 +60,3 @@ impl Command {
         }
     }
 }
-
-pub(crate) mod utils {
-    /// Parse a hex string into a byte vector.
-    pub fn hex_str_to_vec(s: String) -> anyhow::Result<Vec<u8>> {
-        let s = s.strip_prefix("0x").unwrap_or(&s);
-        hex::decode(s).map_err(|e| anyhow::anyhow!("Failed to parse hex: {e}"))
-    }
-}

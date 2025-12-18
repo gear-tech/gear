@@ -22,6 +22,25 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
     // keccak256(abi.encode(uint256(keccak256("router.storage.Transient")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant TRANSIENT_STORAGE = 0xf02b465737fa6045c2ff53fb2df43c66916ac2166fa303264668fb2f6a1d8c00;
 
+    struct StorageView {
+        /// @notice Genesis block information for this router.
+        Gear.GenesisBlockInfo genesisBlock;
+        /// @notice Information about the latest committed batch.
+        Gear.CommittedBatchInfo latestCommittedBatch;
+        /// @notice Details of the related contracts' implementation.
+        Gear.AddressBook implAddresses;
+        /// @notice Parameters for validation and signature verification.
+        Gear.ValidationSettingsView validationSettings;
+        /// @notice Computation parameters for programs processing.
+        Gear.ComputationSettings computeSettings;
+        /// @notice Protocol timelines.
+        Gear.Timelines timelines;
+        /// @notice Count of created programs.
+        uint256 programsCount;
+        /// @notice Count of validated codes.
+        uint256 validatedCodesCount;
+    }
+
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
@@ -55,7 +74,8 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
 
         router.genesisBlock = Gear.newGenesis();
         router.implAddresses = Gear.AddressBook(_mirror, _wrappedVara, _middleware);
-        router.validationSettings.signingThresholdPercentage = Gear.SIGNING_THRESHOLD_PERCENTAGE;
+        router.validationSettings.thresholdNumerator = Gear.VALIDATORS_THRESHOLD_NUMERATOR;
+        router.validationSettings.thresholdDenominator = Gear.VALIDATORS_THRESHOLD_DENOMINATOR;
         router.computeSettings = Gear.defaultComputationSettings();
         router.timelines = Gear.Timelines(_eraDuration, _electionDuration, _validationDelay);
 
@@ -69,9 +89,8 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
         );
     }
 
-    // TODO #4558: make reinitialization test.
     /// @custom:oz-upgrades-validate-as-initializer
-    function reinitialize() public onlyOwner reinitializer(2) {
+    function reinitialize() public reinitializer(2) {
         __Ownable_init(owner());
 
         Storage storage oldRouter = _router();
@@ -87,9 +106,9 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
         // Copy impl addresses from the old router.
         newRouter.implAddresses = oldRouter.implAddresses;
 
-        // Copy signing threshold percentage from the old router.
-        newRouter.validationSettings.signingThresholdPercentage =
-        oldRouter.validationSettings.signingThresholdPercentage;
+        // Copy signing threshold fraction from the old router.
+        newRouter.validationSettings.thresholdNumerator = oldRouter.validationSettings.thresholdNumerator;
+        newRouter.validationSettings.thresholdDenominator = oldRouter.validationSettings.thresholdDenominator;
 
         // Copy validators from the old router.
         // TODO #4557: consider what to do. Maybe we should start reelection process.
@@ -113,6 +132,23 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
     }
 
     // # Views.
+
+    /// @dev Returns the storage view of the contract storage.
+    function storageView() public view returns (StorageView memory) {
+        Storage storage router = _router();
+        Gear.ValidationSettingsView memory validationSettings = Gear.toView(router.validationSettings);
+        return StorageView({
+            genesisBlock: router.genesisBlock,
+            latestCommittedBatch: router.latestCommittedBatch,
+            implAddresses: router.implAddresses,
+            validationSettings: validationSettings,
+            computeSettings: router.computeSettings,
+            timelines: router.timelines,
+            programsCount: router.protocolData.programsCount,
+            validatedCodesCount: router.protocolData.validatedCodesCount
+        });
+    }
+
     function genesisBlockHash() public view returns (bytes32) {
         return _router().genesisBlock.hash;
     }
@@ -165,8 +201,9 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
         return Gear.currentEraValidators(_router()).map[_validator];
     }
 
-    function signingThresholdPercentage() public view returns (uint16) {
-        return _router().validationSettings.signingThresholdPercentage;
+    function signingThresholdFraction() public view returns (uint128, uint128) {
+        IRouter.Storage storage router = _router();
+        return (router.validationSettings.thresholdNumerator, router.validationSettings.thresholdDenominator);
     }
 
     function validators() public view returns (address[] memory) {
@@ -180,7 +217,9 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
     function validatorsThreshold() public view returns (uint256) {
         IRouter.Storage storage router = _router();
         return Gear.validatorsThreshold(
-            Gear.currentEraValidators(router).list.length, router.validationSettings.signingThresholdPercentage
+            Gear.currentEraValidators(router).list.length,
+            router.validationSettings.thresholdNumerator,
+            router.validationSettings.thresholdDenominator
         );
     }
 

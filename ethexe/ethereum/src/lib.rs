@@ -21,6 +21,7 @@
 use abi::{IMirror, IRouter};
 use alloy::{
     consensus::SignableTransaction,
+    eips::BlockId,
     network::{self, Ethereum as AlloyEthereum, EthereumWallet, Network, TxSigner},
     primitives::{Address, B256, ChainId, Signature, SignatureError},
     providers::{
@@ -31,7 +32,7 @@ use alloy::{
             SimpleNonceManager, WalletFiller,
         },
     },
-    rpc::types::{TransactionReceipt, eth::Log},
+    rpc::types::{TransactionReceipt, TransactionRequest, eth::Log},
     signers::{
         self as alloy_signer, Error as SignerError, Result as SignerResult, Signer, SignerSync,
         sign_transaction_with_chain_id,
@@ -224,7 +225,11 @@ pub trait TryGetReceipt<N: Network> {
     /// Works like `self.get_receipt().await`, but retries a few times if rpc returns a null response.
     async fn try_get_receipt(self) -> Result<N::ReceiptResponse>;
 
+    /// Works like `self.try_get_receipt().await`, but also extracts the message id from the logs.
     async fn try_get_message_send_receipt(self) -> Result<(H256, MessageId)>;
+
+    /// Works like `self.try_get_receipt().await`, but also checks if the transaction was reverted.
+    async fn try_get_receipt_check_reverted(self) -> Result<N::ReceiptResponse>;
 }
 
 #[async_trait::async_trait]
@@ -280,6 +285,40 @@ impl TryGetReceipt<network::Ethereum> for PendingTransactionBuilder<network::Eth
 
         Ok((tx_hash, message_id))
     }
+
+    async fn try_get_receipt_check_reverted(self) -> Result<TransactionReceipt> {
+        let provider = self.provider().clone();
+        let receipt = self.try_get_receipt().await?;
+
+        let try_request_error_reason = async |provider: RootProvider| {
+            let tx = provider
+                .get_transaction_by_hash(receipt.transaction_hash)
+                .await
+                .ok()??;
+            let request = TransactionRequest::from_recovered_transaction(tx.into_recovered());
+            provider
+                .call(request)
+                .block(receipt.block_hash?.into())
+                .await
+                .err()
+        };
+
+        if receipt.status() {
+            Ok(receipt)
+        } else if let Some(err) = try_request_error_reason(provider).await {
+            Err(anyhow!(
+                "Transaction {:?} was reverted at block {:?}: {err}",
+                receipt.transaction_hash,
+                receipt.block_hash
+            ))
+        } else {
+            Err(anyhow!(
+                "Transaction {:?} was reverted by unknown reason at block {:?}",
+                receipt.transaction_hash,
+                receipt.block_hash
+            ))
+        }
+    }
 }
 
 pub(crate) fn decode_log<E: SolEvent>(log: &Log) -> Result<E> {
@@ -302,3 +341,26 @@ macro_rules! signatures_consts {
 pub(crate) use signatures_consts;
 
 use crate::wvara::WVara;
+
+/// A helping trait for converting various types into `alloy::eips::BlockId`.
+pub trait IntoBlockId {
+    fn into_block_id(self) -> BlockId;
+}
+
+impl IntoBlockId for H256 {
+    fn into_block_id(self) -> BlockId {
+        BlockId::hash(self.0.into())
+    }
+}
+
+impl IntoBlockId for u32 {
+    fn into_block_id(self) -> BlockId {
+        BlockId::number(self.into())
+    }
+}
+
+impl IntoBlockId for BlockId {
+    fn into_block_id(self) -> BlockId {
+        self
+    }
+}

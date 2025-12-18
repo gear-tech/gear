@@ -32,12 +32,14 @@ hex = { workspace = true, features = ["alloc"] }
 paste.workspace = true
 enum-iterator.workspace = true
 byteorder.workspace = true
+bytemuck = { workspace = true, features = ["must_cast", "min_const_generics"] }
 num-traits.workspace = true
 numerated.workspace = true
 
 # Optional dependencies
 serde = { workspace = true, features = ["derive"], optional = true }
 impl-serde = { workspace = true, optional = true }
+gear-workspace-hack.workspace = true
 
 [dev-dependencies]
 tracing-subscriber.workspace = true
