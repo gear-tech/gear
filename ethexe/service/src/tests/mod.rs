@@ -3236,3 +3236,128 @@ async fn catch_up_test_case(commitment_delay_limit: u32) {
         unreachable!();
     }
 }
+
+mod xxx {
+    use alloy::{
+        eips::BlockId,
+        network::Ethereum,
+        providers::{Provider as _, ProviderBuilder, RootProvider},
+    };
+    use ethexe_common::{
+        Address,
+        injected::{InjectedTransaction, RpcOrNetworkInjectedTx},
+    };
+    use ethexe_consensus::block_producer_for;
+    use ethexe_ethereum::router::RouterQuery;
+    use ethexe_rpc::InjectedClient as _;
+    use ethexe_signer::Signer;
+    use gprimitives::H256;
+    use jsonrpsee::ws_client::WsClientBuilder;
+    use std::{
+        collections::BTreeMap,
+        str::FromStr as _,
+        time::{self, UNIX_EPOCH},
+    };
+
+    #[tokio::test]
+    async fn send_injected_transaction() {
+        const HOODI_RETH_RPC_URL: &str = "https://hoodi-reth-rpc.gear-tech.io";
+        const MIRROR_ADDRESS: &str = "0x38d588a4622bb0c9c738703128b3c912a1f24009";
+
+        let validators = BTreeMap::from([
+            (
+                Address::from_str("0x7462303a1aae98c96f8cad6ecec91dad29537518").unwrap(),
+                "wss://vara-eth-validator-1.gear-tech.io",
+            ),
+            (
+                Address::from_str("0xaee0cc6caa1cfbee638470a995b9bb75c1ab0972").unwrap(),
+                "wss://vara-eth-validator-2.gear-tech.io",
+            ),
+            (
+                Address::from_str("0xcc4e78ea999374e348e6d583af19b0f0e6689de8").unwrap(),
+                "wss://vara-eth-validator-3.gear-tech.io",
+            ),
+            (
+                Address::from_str("0x2ad8150a579e12f6dfb418100dbca0b0255e8dba").unwrap(),
+                "wss://vara-eth-validator-4.gear-tech.io",
+            ),
+        ]);
+
+        let provider: RootProvider<Ethereum> = ProviderBuilder::default()
+            .connect(HOODI_RETH_RPC_URL)
+            .await
+            .unwrap();
+
+        let router_address =
+            Address::from_str("0xBC888a8B050B9B76a985d91c815d2c4f2131a58A").unwrap();
+        let validators_from_router =
+            RouterQuery::from_provider(router_address.0.into(), provider.clone())
+                .validators_at(BlockId::latest())
+                .await
+                .unwrap();
+
+        let mut clients = BTreeMap::new();
+        for (address, url) in validators {
+            let client = WsClientBuilder::new().build(url).await.unwrap();
+            clients.insert(address, client);
+        }
+
+        let signer = Signer::memory();
+        let key = signer.generate_key().unwrap();
+
+        let reference_block = provider
+            .get_block(BlockId::latest())
+            .await
+            .unwrap()
+            .unwrap()
+            .hash()
+            .0
+            .into();
+
+        let tx = InjectedTransaction {
+            destination: Address::from_str(MIRROR_ADDRESS).unwrap().into(),
+            payload: b"".to_vec().into(),
+            value: 0,
+            reference_block,
+            salt: H256::random().0.to_vec().into(),
+        };
+
+        let transaction = RpcOrNetworkInjectedTx {
+            recipient: Address::default(),
+            tx: signer.signed_message(key, tx).unwrap(),
+        };
+
+        let validator = block_producer_for(
+            &validators_from_router,
+            time::SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .unwrap()
+                .as_secs()
+                + 12,
+            12,
+        );
+        let client = clients.get_mut(&validator).expect("Undefined validator");
+
+        println!("Sending transaction to {validator} ...");
+
+        let mut s = client
+            .send_transaction_and_watch(transaction)
+            .await
+            .unwrap();
+
+        let now = time::SystemTime::now();
+        println!("Waiting for promise...");
+
+        let promise = s
+            .next()
+            .await
+            .expect("promise from subscription")
+            .expect("transaction promise")
+            .into_data();
+
+        println!(
+            "Promise: {promise:?}, time to receive {:?}",
+            now.elapsed().unwrap()
+        );
+    }
+}
