@@ -210,10 +210,7 @@ impl TxCommand {
             .await
             .with_context(|| "failed to fetch chain id")?;
 
-        eprintln!("Router address: {router_addr}");
-        if let Some(url) = explorer_address_link(chain_id, router_addr) {
-            eprintln!("Router explorer: {url}");
-        }
+        print_address_with_explorer("Router address", chain_id, router_addr);
         eprintln!("Chain id: {chain_id}");
 
         match self.command {
@@ -411,12 +408,11 @@ impl TxCommand {
                     }
 
                     let program_address = actor_id.to_address_lossy();
-                    eprintln!("Program address on Ethereum {program_address:?}");
-                    if let Some(url) =
-                        explorer_address_link(chain_id, Address::from(program_address))
-                    {
-                        eprintln!("Program explorer: {url}");
-                    }
+                    print_address_with_explorer(
+                        "Program address on Ethereum",
+                        chain_id,
+                        Address::from(program_address),
+                    );
 
                     Ok(CreateResultData {
                         tx_hash: tx,
@@ -524,12 +520,11 @@ impl TxCommand {
                     }
 
                     let program_address = actor_id.to_address_lossy();
-                    eprintln!("Program address on Ethereum {program_address:?}");
-                    if let Some(url) =
-                        explorer_address_link(chain_id, Address::from(program_address))
-                    {
-                        eprintln!("Program explorer: {url}");
-                    }
+                    print_address_with_explorer(
+                        "Program address on Ethereum",
+                        chain_id,
+                        Address::from(program_address),
+                    );
 
                     Ok(CreateResultData {
                         tx_hash: tx,
@@ -830,10 +825,11 @@ impl TxCommand {
                             "Given mirror address is not recognized by router"
                         );
 
-                        eprintln!("Sending message on Ethereum to {mirror}");
-                        if let Some(url) = explorer_address_link(chain_id, mirror) {
-                            eprintln!("Mirror explorer: {url}");
-                        }
+                        print_address_with_explorer(
+                            "Sending message on Ethereum to",
+                            chain_id,
+                            mirror,
+                        );
 
                         let mirror = ethereum.mirror(mirror);
 
@@ -908,12 +904,11 @@ impl TxCommand {
 
                                 eprintln!("Reply info:");
                                 eprintln!("  Message Id: {message_id}");
-                                eprintln!("  Actor Id:   {actor_id:?}");
-                                if let Some(url) =
-                                    explorer_address_link(chain_id, Address::from(actor_id))
-                                {
-                                    eprintln!("  Actor explorer: {url}");
-                                }
+                                print_address_with_explorer(
+                                    "  Actor Id",
+                                    chain_id,
+                                    Address::from(actor_id),
+                                );
                                 eprintln!("  Payload:    {}", payload_hex_str(payload, verbose));
                                 eprintln!("  Code:       {code:?}");
                                 eprintln!("  Value:      {formatted_value} ({raw_value} wei)");
@@ -1023,6 +1018,13 @@ fn explorer_link(chain_id: u64, tx_hash: H256) -> Option<String> {
 
 fn explorer_address_link(chain_id: u64, address: Address) -> Option<String> {
     explorer_base(chain_id).map(|base| format!("{base}address/{address:?}"))
+}
+
+fn print_address_with_explorer(label: &str, chain_id: u64, address: Address) {
+    eprintln!("{label}: {address}");
+    if let Some(url) = explorer_address_link(chain_id, address) {
+        eprintln!("{label} explorer: {url}");
+    }
 }
 
 fn explorer_base(chain_id: u64) -> Option<&'static str> {
