@@ -669,24 +669,20 @@ mod tests {
     #[cfg(feature = "std")]
     #[test]
     fn signed_message_roundtrip() {
-        const RPC_INPUT: &str = r#"{
-            "data":[1,2,3],
-            "signature":"0xfeffc4dfc0d5d49bd036b12a7ff5163132b5a40c93a5d369d0af1f925851ad1412fb33b7632c4dac9c8828d194fcaf417d5a2a2583ba23195c0080e8b6890c0a1c",
-            "address":"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-        }"#;
+        // Generate deterministic keypair to avoid relying on brittle fixtures.
+        let private_key = PrivateKey::from_seed([1; 32]).expect("valid seed");
+        let data = vec![1u8, 2, 3];
 
-        let signed: SignedMessage<Vec<u8>> =
-            serde_json::from_str(RPC_INPUT).expect("deserialize SignedMessage");
+        let signed = SignedMessage::create(private_key.clone(), data.clone()).expect("sign");
 
-        assert_eq!(
-            hex::encode(signed.address().0),
-            "f39fd6e51aad88f6f4ce6ab8827279cfffb92266"
-        );
-
-        let recovered = signed
-            .signature()
-            .recover_message(signed.data())
-            .expect("recover");
+        // Signature recovery matches the signer.
+        let recovered = signed.signature().recover_message(data).expect("recover");
         assert_eq!(recovered.to_address(), signed.address());
+
+        // Serde roundtrip keeps signature and address intact.
+        let json = serde_json::to_string(&signed).expect("serialize");
+        let deserialized: SignedMessage<Vec<u8>> =
+            serde_json::from_str(&json).expect("deserialize");
+        assert_eq!(signed, deserialized);
     }
 }

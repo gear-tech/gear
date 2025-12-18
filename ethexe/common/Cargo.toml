@@ -19,12 +19,10 @@ roast-secp256k1-evm.workspace = true
 derive_more.workspace = true
 anyhow.workspace = true
 auto_impl.workspace = true
-gsigner = { workspace = true, features = [
-    "std",
+gsigner = { workspace = true, default-features = false, features = [
     "secp256k1",
     "codec",
     "serde",
-    "keyring",
 ] }
 sha3.workspace = true
 
@@ -34,7 +32,6 @@ nonempty.workspace = true
 # mock deps
 itertools = { workspace = true, optional = true }
 tap = { workspace = true, optional = true }
-gear-workspace-hack.workspace = true
 
 [dev-dependencies]
 serde_json.workspace = true
@@ -51,5 +48,7 @@ std = [
     "k256/std",
     "alloy-primitives/std",
     "sp-core/std",
+    "gsigner/std",
+    "gsigner/keyring",
 ]
 mock = ["std", "itertools/use_std", "tap"]
