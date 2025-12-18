@@ -260,7 +260,7 @@ impl TxCommand {
                     let tx: H256 = (*receipt.transaction_hash).into();
                     let explorer_url = explorer_link(chain_id, tx);
 
-                    let fee = fee_breakdown(
+                    let fee = TxCostSummary::new(
                         receipt.gas_used,
                         receipt.effective_gas_price,
                         receipt.blob_gas_used,
@@ -274,7 +274,7 @@ impl TxCommand {
                         eprintln!("Explorer URL: {url}");
                     }
                     eprintln!("Code id: {code_id}");
-                    print_fee_breakdown(&fee);
+                    fee.print_human();
 
                     if let Some(block_number) = block_number {
                         eprintln!("Included in block #{block_number}");
@@ -388,7 +388,7 @@ impl TxCommand {
                         .with_context(|| "failed to create program")?;
 
                     let tx: H256 = (*receipt.transaction_hash).into();
-                    let fee = fee_breakdown(
+                    let fee = TxCostSummary::new(
                         receipt.gas_used,
                         receipt.effective_gas_price,
                         receipt.blob_gas_used,
@@ -402,7 +402,7 @@ impl TxCommand {
                     if let Some(url) = &explorer_url {
                         eprintln!("Explorer URL: {url}");
                     }
-                    print_fee_breakdown(&fee);
+                    fee.print_human();
                     if let Some(block_number) = block_number {
                         eprintln!("Included in block #{block_number}");
                     }
@@ -501,7 +501,7 @@ impl TxCommand {
                         .with_context(|| "failed to create program")?;
 
                     let tx: H256 = (*receipt.transaction_hash).into();
-                    let fee = fee_breakdown(
+                    let fee = TxCostSummary::new(
                         receipt.gas_used,
                         receipt.effective_gas_price,
                         receipt.blob_gas_used,
@@ -515,7 +515,7 @@ impl TxCommand {
                     if let Some(url) = &explorer_url {
                         eprintln!("Explorer URL: {url}");
                     }
-                    print_fee_breakdown(&fee);
+                    fee.print_human();
                     if let Some(block_number) = block_number {
                         eprintln!("Included in block #{block_number}");
                     }
@@ -847,9 +847,12 @@ impl TxCommand {
                             .with_context(|| "failed to send message to mirror")?;
 
                         let tx: H256 = (*receipt.transaction_hash).into();
-                        let gas_used = receipt.gas_used;
-                        let effective_gas_price = receipt.effective_gas_price;
-                        let total_fee_wei = U256::from(gas_used) * U256::from(effective_gas_price);
+                        let fee = TxCostSummary::new(
+                            receipt.gas_used,
+                            receipt.effective_gas_price,
+                            receipt.blob_gas_used,
+                            receipt.blob_gas_price,
+                        );
                         let block_number = receipt.block_number;
                         let block_hash = receipt.block_hash.map(|h| H256(h.0));
                         let explorer_url = explorer_link(chain_id, tx);
@@ -859,21 +862,7 @@ impl TxCommand {
                         if let Some(url) = &explorer_url {
                             eprintln!("Explorer URL: {url}");
                         }
-                        eprintln!("Gas used: {gas_used}");
-                        eprintln!("Effective gas price: {effective_gas_price} wei");
-                        let formatted_total_fee = if total_fee_wei <= U256::from(u128::MAX) {
-                            Some(
-                                FormattedValue::<EthereumCurrency>::new(total_fee_wei.low_u128())
-                                    .to_string(),
-                            )
-                        } else {
-                            None
-                        };
-                        if let Some(formatted) = formatted_total_fee {
-                            eprintln!("Total fee: {total_fee_wei} wei ({formatted})");
-                        } else {
-                            eprintln!("Total fee: {total_fee_wei} wei");
-                        }
+                        fee.print_human();
                         if let Some(block_number) = block_number {
                             eprintln!("Included in block #{block_number}");
                         }
@@ -886,9 +875,9 @@ impl TxCommand {
                             tx_hash: tx,
                             message_id,
                             chain_id,
-                            gas_used,
-                            effective_gas_price,
-                            total_fee_wei,
+                            gas_used: fee.gas_used,
+                            effective_gas_price: fee.effective_gas_price,
+                            total_fee_wei: fee.total_fee_wei,
                             block_number,
                             block_hash,
                             explorer_url,
@@ -1053,7 +1042,7 @@ fn explorer_base(chain_id: u64) -> Option<&'static str> {
 }
 
 #[derive(Debug, Clone)]
-struct FeeBreakdown {
+struct TxCostSummary {
     gas_used: u64,
     effective_gas_price: u128,
     total_fee_wei: U256,
@@ -1062,59 +1051,63 @@ struct FeeBreakdown {
     blob_fee_wei: Option<U256>,
 }
 
-fn fee_breakdown(
-    gas_used: u64,
-    effective_gas_price: u128,
-    blob_gas_used: Option<u64>,
-    blob_gas_price: Option<u128>,
-) -> FeeBreakdown {
-    let total_fee_wei = U256::from(gas_used) * U256::from(effective_gas_price);
-    let blob_fee_wei = blob_gas_used
-        .zip(blob_gas_price)
-        .map(|(used, price)| U256::from(used).saturating_mul(U256::from(price)));
+impl TxCostSummary {
+    fn new(
+        gas_used: u64,
+        effective_gas_price: u128,
+        blob_gas_used: Option<u64>,
+        blob_gas_price: Option<u128>,
+    ) -> Self {
+        let total_fee_wei = U256::from(gas_used) * U256::from(effective_gas_price);
+        let blob_fee_wei = blob_gas_used
+            .zip(blob_gas_price)
+            .map(|(used, price)| U256::from(used).saturating_mul(U256::from(price)));
 
-    FeeBreakdown {
-        gas_used,
-        effective_gas_price,
-        total_fee_wei,
-        blob_gas_used,
-        blob_gas_price,
-        blob_fee_wei,
-    }
-}
-
-fn print_fee_breakdown(fee: &FeeBreakdown) {
-    eprintln!("Gas used: {}", fee.gas_used);
-    eprintln!("Effective gas price: {} wei", fee.effective_gas_price);
-
-    let formatted_total_fee = if fee.total_fee_wei <= U256::from(u128::MAX) {
-        Some(FormattedValue::<EthereumCurrency>::new(fee.total_fee_wei.low_u128()).to_string())
-    } else {
-        None
-    };
-    if let Some(formatted) = formatted_total_fee {
-        eprintln!("Total fee: {} wei ({formatted})", fee.total_fee_wei);
-    } else {
-        eprintln!("Total fee: {} wei", fee.total_fee_wei);
+        Self {
+            gas_used,
+            effective_gas_price,
+            total_fee_wei,
+            blob_gas_used,
+            blob_gas_price,
+            blob_fee_wei,
+        }
     }
 
-    if let Some((blob_used, blob_price, blob_fee)) = fee
-        .blob_gas_used
-        .zip(fee.blob_gas_price)
-        .zip(fee.blob_fee_wei)
-        .map(|((used, price), fee)| (used, price, fee))
-    {
-        let formatted_blob_fee = if blob_fee <= U256::from(u128::MAX) {
-            Some(FormattedValue::<EthereumCurrency>::new(blob_fee.low_u128()).to_string())
+    fn print_human(&self) {
+        eprintln!("Gas used: {}", self.gas_used);
+        eprintln!("Effective gas price: {} wei", self.effective_gas_price);
+
+        let formatted_total_fee = if self.total_fee_wei <= U256::from(u128::MAX) {
+            Some(FormattedValue::<EthereumCurrency>::new(self.total_fee_wei.low_u128()).to_string())
         } else {
             None
         };
-        if let Some(formatted) = formatted_blob_fee {
-            eprintln!(
-                "Blob gas fee: {blob_fee} wei ({formatted}) on {blob_used} blob gas @ {blob_price} wei"
-            );
+        if let Some(formatted) = formatted_total_fee {
+            eprintln!("Total fee: {} wei ({formatted})", self.total_fee_wei);
         } else {
-            eprintln!("Blob gas fee: {blob_fee} wei on {blob_used} blob gas @ {blob_price} wei");
+            eprintln!("Total fee: {} wei", self.total_fee_wei);
+        }
+
+        if let Some((blob_used, blob_price, blob_fee)) = self
+            .blob_gas_used
+            .zip(self.blob_gas_price)
+            .zip(self.blob_fee_wei)
+            .map(|((used, price), fee)| (used, price, fee))
+        {
+            let formatted_blob_fee = if blob_fee <= U256::from(u128::MAX) {
+                Some(FormattedValue::<EthereumCurrency>::new(blob_fee.low_u128()).to_string())
+            } else {
+                None
+            };
+            if let Some(formatted) = formatted_blob_fee {
+                eprintln!(
+                    "Blob gas fee: {blob_fee} wei ({formatted}) on {blob_used} blob gas @ {blob_price} wei"
+                );
+            } else {
+                eprintln!(
+                    "Blob gas fee: {blob_fee} wei on {blob_used} blob gas @ {blob_price} wei"
+                );
+            }
         }
     }
 }
