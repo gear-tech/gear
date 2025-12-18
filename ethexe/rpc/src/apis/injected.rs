@@ -123,7 +123,7 @@ impl InjectedApi {
 
     pub fn send_promise(&self, promise: SignedPromise) {
         let Some((_, promise_sender)) = self.promise_waiters.remove(&promise.data().tx_hash) else {
-            tracing::trace!(promise = ?promise, "receive unregistered promise");
+            tracing::warn!(promise = ?promise, "receive unregistered promise");
             return;
         };
 
