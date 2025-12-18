@@ -9,6 +9,7 @@ repository.workspace = true
 
 [dependencies]
 gstd.workspace = true
+gear-workspace-hack.workspace = true
 
 [dev-dependencies]
 gear-core.workspace = true

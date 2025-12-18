@@ -29,7 +29,11 @@ use std::{
     collections::{BTreeMap, BTreeSet, HashMap, HashSet, hash_map::Entry},
     fmt, io,
     marker::PhantomData,
+    pin::Pin,
+    task::{Context, Poll, ready},
+    time::Duration,
 };
+use tokio::{time, time::Instant};
 
 pub struct ParityScaleCodec<Req, Resp>(PhantomData<(Req, Resp)>);
 
@@ -217,11 +221,59 @@ impl<T: fmt::Debug> fmt::Debug for AlternateCollectionFmt<T> {
     }
 }
 
+#[derive(Debug)]
+pub struct ExponentialBackoffInterval {
+    delay: Pin<Box<time::Sleep>>,
+    next_duration: Duration,
+}
+
+impl ExponentialBackoffInterval {
+    pub const START: Duration = Duration::from_secs(2);
+    pub const FACTOR: u32 = 2;
+    pub const MAX: Duration = Duration::from_mins(10);
+
+    pub fn new() -> Self {
+        Self {
+            delay: Box::pin(time::sleep(Self::START)),
+            next_duration: Self::START,
+        }
+    }
+
+    fn reset(&mut self, new_duration: Duration) {
+        self.next_duration = new_duration;
+        self.delay
+            .as_mut()
+            .reset(Instant::now() + self.next_duration);
+    }
+
+    #[cfg(test)]
+    pub fn period(&self) -> Duration {
+        self.next_duration
+    }
+
+    pub fn tick_at_max(&mut self) {
+        self.reset(Self::MAX);
+    }
+
+    pub fn poll_tick(&mut self, cx: &mut Context) -> Poll<()> {
+        ready!(self.delay.as_mut().poll(cx));
+
+        let new_duration = (self.next_duration * Self::FACTOR).min(Self::MAX);
+        self.reset(new_duration);
+
+        Poll::Ready(())
+    }
+}
+
 #[cfg(test)]
 pub(crate) mod tests {
-    use crate::{db_sync::PeerId, utils::ConnectionMap};
+    use crate::{
+        db_sync::PeerId,
+        utils::{ConnectionMap, ExponentialBackoffInterval},
+    };
     use libp2p::swarm::ConnectionId;
-    use std::collections::HashSet;
+    use std::{collections::HashSet, future};
+    use tokio::time;
     use tracing_subscriber::EnvFilter;
 
     pub fn init_logger() {
@@ -292,5 +344,50 @@ pub(crate) mod tests {
             map.inner.into_keys().collect::<HashSet<PeerId>>(),
             HashSet::default()
         );
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn interval_smoke() {
+        let mut interval = ExponentialBackoffInterval::new();
+        assert_eq!(
+            interval.next_duration,
+            ExponentialBackoffInterval::START * ExponentialBackoffInterval::FACTOR.pow(0)
+        );
+
+        future::poll_fn(|cx| interval.poll_tick(cx)).await;
+        assert_eq!(
+            interval.next_duration,
+            ExponentialBackoffInterval::START * ExponentialBackoffInterval::FACTOR.pow(1)
+        );
+
+        future::poll_fn(|cx| interval.poll_tick(cx)).await;
+        assert_eq!(
+            interval.next_duration,
+            ExponentialBackoffInterval::START * ExponentialBackoffInterval::FACTOR.pow(2)
+        );
+
+        while interval.next_duration != ExponentialBackoffInterval::MAX {
+            future::poll_fn(|cx| interval.poll_tick(cx)).await;
+        }
+
+        assert_eq!(interval.next_duration, ExponentialBackoffInterval::MAX);
+        assert_eq!(interval.next_duration, ExponentialBackoffInterval::MAX);
+        assert_eq!(interval.next_duration, ExponentialBackoffInterval::MAX);
+    }
+
+    #[tokio::test(start_paused = true)]
+    async fn interval_tick_at_max() {
+        let mut interval = ExponentialBackoffInterval::new();
+        interval.tick_at_max();
+
+        let instant = time::Instant::now();
+
+        future::poll_fn(|cx| interval.poll_tick(cx)).await;
+        assert_eq!(interval.next_duration, ExponentialBackoffInterval::MAX);
+        assert_eq!(instant.elapsed(), ExponentialBackoffInterval::MAX);
+
+        future::poll_fn(|cx| interval.poll_tick(cx)).await;
+        assert_eq!(interval.next_duration, ExponentialBackoffInterval::MAX);
+        assert_eq!(instant.elapsed(), ExponentialBackoffInterval::MAX * 2);
     }
 }

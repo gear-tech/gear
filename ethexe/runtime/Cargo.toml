@@ -19,6 +19,7 @@ ethexe-common.workspace = true
 ## Operational deps.
 log.workspace = true
 parity-scale-codec.workspace = true
+gear-workspace-hack.workspace = true
 
 [build-dependencies]
 substrate-wasm-builder = { workspace = true, optional = true }

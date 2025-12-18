@@ -17,7 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! command `new`
-use crate::{result::Result, template};
+use crate::template;
+use anyhow::Result;
 use clap::Parser;
 
 /// Create a new gear program

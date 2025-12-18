@@ -30,7 +30,8 @@ use jsonrpsee::{
     proc_macros::rpc,
 };
 
-#[rpc(server)]
+#[cfg_attr(not(feature = "client"), rpc(server))]
+#[cfg_attr(feature = "client", rpc(server, client))]
 pub trait Block {
     #[method(name = "block_header")]
     async fn block_header(&self, hash: Option<H256>) -> RpcResult<(H256, BlockHeader)>;

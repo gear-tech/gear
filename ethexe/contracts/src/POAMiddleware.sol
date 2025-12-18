@@ -247,7 +247,7 @@ contract POAMiddleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransi
     }
 
     function executeSlash(SlashIdentifier[] calldata) public pure {
-        revert("Exectute slash not supported, SYMBIOTIC not integrated yet");
+        revert("Execute slash not supported, SYMBIOTIC not integrated yet");
     }
 
     function _storage() private view returns (Storage storage middleware) {

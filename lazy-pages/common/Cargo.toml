@@ -15,3 +15,4 @@ gear-core.workspace = true
 
 num_enum.workspace = true
 parity-scale-codec.workspace = true
+gear-workspace-hack.workspace = true

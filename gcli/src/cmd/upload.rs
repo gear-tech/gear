@@ -17,16 +17,15 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! command `upload_program`
-use crate::{App, result::Result, utils::Hex};
-use anyhow::{Context, anyhow};
+use crate::{App, utils::Hex};
+use anyhow::{Context, Result};
 use clap::Parser;
 use gsdk::{
     Event,
-    gear::{gear::Event as GearEvent, runtime_types::gear_common::event::MessageEntry},
-    signer::Signer,
+    gear::{gear, runtime_types::gear_common::event::MessageEntry},
 };
-use std::{fs, path::PathBuf};
-use tokio::{io, io::AsyncReadExt};
+use std::path::PathBuf;
+use tokio::{fs, io, io::AsyncReadExt};
 
 /// Deploy program to gear node or save program `code` in storage.
 #[derive(Clone, Debug, Parser)]
@@ -55,7 +54,7 @@ pub struct Upload {
 impl Upload {
     /// Exec command submit
     pub async fn exec(&self, app: &impl App) -> Result<()> {
-        let signer: Signer = app.signer().await?.into();
+        let api = app.signed().await?;
 
         #[allow(clippy::cmp_owned)]
         let code = if self.code == PathBuf::from("-") {
@@ -67,11 +66,13 @@ impl Upload {
                 .context("failed to read from stdin")?;
             code
         } else {
-            fs::read(&self.code).map_err(|e| anyhow!("program {:?} not found, {e}", &self.code))?
+            fs::read(&self.code)
+                .await
+                .with_context(|| format!("program {:?} not found", self.code))?
         };
 
         if self.code_only {
-            signer.calls().upload_code(code).await?;
+            api.upload_code(code).await?;
             return Ok(());
         }
 
@@ -79,21 +80,18 @@ impl Upload {
         let gas_limit = if let Some(gas_limit) = self.gas_limit {
             gas_limit
         } else {
-            signer
-                .rpc()
-                .calculate_upload_gas(None, code.clone(), payload.clone(), self.value, false, None)
+            api.calculate_upload_gas(code.clone(), payload.clone(), self.value, false)
                 .await?
                 .min_limit
         };
 
-        let tx = signer
-            .calls()
-            .upload_program(code, self.salt.to_vec()?, payload, gas_limit, self.value)
+        let tx = api
+            .upload_program_bytes(code, self.salt.to_vec()?, payload, gas_limit, self.value)
             .await?;
 
-        for event in signer.api().events_of(&tx).await? {
-            match event {
-                Event::Gear(GearEvent::MessageQueued {
+        for event in tx.events() {
+            match event? {
+                Event::Gear(gear::Event::MessageQueued {
                     id,
                     destination,
                     entry: MessageEntry::Init,
@@ -102,7 +100,7 @@ impl Upload {
                     log::info!("Program ID: 0x{}", hex::encode(destination));
                     log::info!("Init Message ID: 0x{}", hex::encode(id));
                 }
-                Event::Gear(GearEvent::CodeChanged { id, .. }) => {
+                Event::Gear(gear::Event::CodeChanged { id, .. }) => {
                     log::info!("Code ID: 0x{}", hex::encode(id));
                 }
                 _ => {}

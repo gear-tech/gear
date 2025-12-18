@@ -165,7 +165,7 @@ pub trait GearApi<BlockHash, ResponseType> {
     -> SubscriptionResult;
 }
 
-/// A struct that implements the [`GearApi`](/gclient/struct.GearApi.html).
+/// A struct that implements the [`GearApiServer`].
 pub struct Gear<C, P> {
     // If you have more generics, no need to Gear<C, M, N, P, ...>
     // just use a tuple like Gear<C, (M, N, P, ...)>

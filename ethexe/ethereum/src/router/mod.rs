@@ -26,7 +26,7 @@ use alloy::{
     eips::eip7594::BlobTransactionSidecarVariant,
     primitives::{Address, Bytes, fixed_bytes},
     providers::{PendingTransactionBuilder, Provider, ProviderBuilder, RootProvider},
-    rpc::types::{Filter, eth::state::AccountOverride},
+    rpc::types::{Filter, Topic, eth::state::AccountOverride},
 };
 use anyhow::{Result, anyhow};
 use ethexe_common::{
@@ -110,32 +110,21 @@ impl Router {
     ) -> Result<PendingCodeRequestBuilder> {
         let code_id = CodeId::generate(code);
 
-        let builder = self
-            .instance
-            .requestCodeValidation(code_id.into_bytes().into())
-            .sidecar(BlobTransactionSidecarVariant::Eip7594(
-                SidecarBuilder::<SimpleCoder>::from_slice(code).build_7594()?,
-            ));
-        let pending_builder = builder.send().await?;
-
-        Ok(PendingCodeRequestBuilder {
-            code_id,
-            pending_builder,
-        })
-    }
-
-    pub async fn request_code_validation_with_sidecar_old(
-        &self,
-        code: &[u8],
-    ) -> Result<PendingCodeRequestBuilder> {
-        let code_id = CodeId::generate(code);
-
-        let builder = self
-            .instance
-            .requestCodeValidation(code_id.into_bytes().into())
-            .sidecar(BlobTransactionSidecarVariant::Eip4844(
+        let chain_id = self.instance.provider().get_chain_id().await?;
+        let blob_tx_sidecar_variant = if chain_id == 31337 {
+            BlobTransactionSidecarVariant::Eip4844(
                 SidecarBuilder::<SimpleCoder>::from_slice(code).build()?,
-            ));
+            )
+        } else {
+            BlobTransactionSidecarVariant::Eip7594(
+                SidecarBuilder::<SimpleCoder>::from_slice(code).build_7594()?,
+            )
+        };
+
+        let builder = self
+            .instance
+            .requestCodeValidation(code_id.into_bytes().into())
+            .sidecar(blob_tx_sidecar_variant);
         let pending_builder = builder.send().await?;
 
         Ok(PendingCodeRequestBuilder {
@@ -145,7 +134,9 @@ impl Router {
     }
 
     pub async fn wait_code_validation(&self, code_id: CodeId) -> Result<bool> {
-        let filter = Filter::new().address(*self.instance.address());
+        let filter = Filter::new()
+            .address(*self.instance.address())
+            .event_signature(Topic::from_iter([signatures::CODE_GOT_VALIDATED]));
         let mut router_events = self
             .instance
             .provider()
@@ -406,11 +397,12 @@ impl RouterQuery {
             .map_err(Into::into)
     }
 
-    pub async fn signing_threshold_percentage(&self) -> Result<u16> {
+    pub async fn signing_threshold_fraction(&self) -> Result<(u128, u128)> {
         self.instance
-            .signingThresholdPercentage()
+            .signingThresholdFraction()
             .call()
             .await
+            .map(|res| (res._0, res._1))
             .map_err(Into::into)
     }
 

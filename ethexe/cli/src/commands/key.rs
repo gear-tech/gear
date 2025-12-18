@@ -16,12 +16,15 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use super::utils;
 use crate::params::Params;
 use anyhow::{Context, Result, anyhow, bail};
 use clap::{Parser, Subcommand};
-use ethexe_common::{ToDigest as _, ecdsa::Signature};
+use ethexe_common::{
+    ToDigest as _,
+    ecdsa::{PrivateKey, PublicKey, Signature},
+};
 use ethexe_signer::Signer;
+use sp_core::Bytes;
 use std::path::PathBuf;
 
 /// Keystore manipulations.
@@ -74,7 +77,6 @@ impl KeyCommand {
                 println!("Removed {len} keys");
             }
             KeySubcommand::Generate => {
-                // TODO: remove println from there.
                 let public = signer
                     .generate_key()
                     .with_context(|| "failed to generate new keypair")?;
@@ -92,13 +94,9 @@ impl KeyCommand {
                 }
             }
             KeySubcommand::Insert { private_key } => {
-                let private = private_key
-                    .parse()
-                    .with_context(|| "invalid `private-key`")?;
-
                 let public = signer
                     .storage_mut()
-                    .add_key(private)
+                    .add_key(private_key)
                     .with_context(|| "failed to add key")?;
 
                 println!("Public key: {public}");
@@ -126,12 +124,8 @@ impl KeyCommand {
                 }
             }
             KeySubcommand::Recover { message, signature } => {
-                let message =
-                    utils::hex_str_to_vec(message).with_context(|| "invalid `message`")?;
-                let signature =
-                    utils::hex_str_to_vec(signature).with_context(|| "invalid `signature`")?;
-
                 let signature_bytes: [u8; 65] = signature
+                    .0
                     .try_into()
                     .map_err(|_| anyhow!("signature isn't 65 bytes len"))
                     .with_context(|| "invalid `signature`")?;
@@ -178,13 +172,8 @@ impl KeyCommand {
                 println!("Ethereum address: {}", public.to_address());
             }
             KeySubcommand::Sign { key, message } => {
-                let public = key.parse().with_context(|| "invalid `key`")?;
-
-                let message =
-                    utils::hex_str_to_vec(message).with_context(|| "invalid `message`")?;
-
                 let signature = signer
-                    .sign(public, message)
+                    .sign(key, message.0)
                     .with_context(|| "failed to sign message")?;
 
                 println!("Signature: {signature}");
@@ -206,16 +195,16 @@ pub enum KeySubcommand {
     Insert {
         /// Private key to be inserted.
         #[arg()]
-        private_key: String,
+        private_key: PrivateKey,
     },
     /// Print all keys.
     List,
     /// Recover public key from message and signature.
     Recover {
-        #[arg(short, long)]
-        message: String,
-        #[arg(short, long)]
-        signature: String,
+        #[arg()]
+        message: Bytes,
+        #[arg()]
+        signature: Bytes,
     },
     /// Show private key for public key or address.
     Show {
@@ -224,11 +213,11 @@ pub enum KeySubcommand {
     },
     /// Sign a message with a key.
     Sign {
-        /// Public key or address.
-        #[arg(short, long)]
-        key: String,
+        /// Public key.
+        #[arg()]
+        key: PublicKey,
         /// Message to sign.
-        #[arg(short, long)]
-        message: String,
+        #[arg()]
+        message: Bytes,
     },
 }

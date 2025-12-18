@@ -229,9 +229,14 @@ impl Producer {
             return Initial::create(self.ctx);
         }
 
+        let era_index = self
+            .ctx
+            .core
+            .timelines
+            .era_from_ts(self.block.header.timestamp);
         let message = ValidatorMessage {
-            block: self.block.hash,
-            payload: network_announce,
+            era_index,
+            payload: network_announce.clone(),
         };
         let message = self
             .ctx

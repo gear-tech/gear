@@ -11,7 +11,6 @@ path = "src/main.rs"
 [dependencies]
 # internal dependencies
 gear-call-gen.workspace = true
-gclient.workspace = true
 gear-core.workspace = true
 gear-utils.workspace = true
 gsdk.workspace = true
@@ -31,3 +30,4 @@ tokio = { workspace = true, features = [ "macros", "rt-multi-thread" ] }
 tracing.workspace = true
 tracing-appender.workspace = true
 tracing-subscriber = { workspace = true, features = [ "json" ] }
+gear-workspace-hack.workspace = true

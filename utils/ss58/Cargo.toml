@@ -14,6 +14,7 @@ rust-version.workspace = true
 bs58.workspace = true
 blake2.workspace = true
 hex.workspace = true
+gear-workspace-hack.workspace = true
 
 [features]
 alloc = []

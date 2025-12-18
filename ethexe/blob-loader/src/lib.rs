@@ -339,12 +339,12 @@ mod tests {
         };
 
         let expected_code_id: CodeId =
-            "0xb529796a3d91f5a1f913c455245d7c7b6d02d0ea450852368d6a7c116161e762"
+            "0x7de51fb739aee5f2f2ec6bb3cb9a99aff68028b70aa0d14ac208bb9b2220a529"
                 .parse()
                 .unwrap();
         let code = blobs_reader
             .read_blob_from_tx_hash(
-                "0x952e5de52613b8e39656e6e7a1c667699c45f333bc6f5a1b48832484f7b15459"
+                "0x3b3fb2d04c7aec2d269f142a3b147456f3e19d368bc41f966b10205a32867316"
                     .parse()
                     .unwrap(),
             )

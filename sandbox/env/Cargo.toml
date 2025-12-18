@@ -18,6 +18,7 @@ parity-scale-codec.workspace = true
 sp-debug-derive.workspace = true
 sp-std.workspace = true
 sp-wasm-interface-common = { workspace = true, default-features = false }
+gear-workspace-hack.workspace = true
 
 [features]
 default = ["std"]

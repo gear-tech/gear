@@ -16,3 +16,6 @@ cc = { workspace = true, optional = true }
 [features]
 compile-alloca = ["cc"]
 stack-clash-protection = []
+
+[dependencies]
+gear-workspace-hack.workspace = true

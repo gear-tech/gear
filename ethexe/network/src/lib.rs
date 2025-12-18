@@ -20,6 +20,7 @@ mod custom_connection_limits;
 pub mod db_sync;
 mod gossipsub;
 mod injected;
+mod kad;
 pub mod peer_score;
 mod utils;
 mod validator;
@@ -28,7 +29,10 @@ pub mod export {
     pub use libp2p::{Multiaddr, PeerId, multiaddr::Protocol};
 }
 
-use crate::{db_sync::DbSyncDatabase, validator::ValidatorDatabase};
+use crate::{
+    db_sync::DbSyncDatabase,
+    validator::{ValidatorDatabase, list::ValidatorListSnapshot},
+};
 use anyhow::{Context, anyhow};
 use ethexe_common::{
     Address, BlockHeader, ValidatorsVec,
@@ -43,7 +47,7 @@ use libp2p::{
     Multiaddr, PeerId, Swarm, Transport, connection_limits,
     core::{muxing::StreamMuxerBox, transport, transport::ListenerId, upgrade},
     futures::StreamExt,
-    identify, identity, kad, mdns,
+    identify, identity, mdns,
     multiaddr::Protocol,
     ping,
     swarm::{
@@ -55,7 +59,7 @@ use libp2p::{
 };
 #[cfg(test)]
 use libp2p_swarm_test::SwarmExt;
-use std::{collections::HashSet, pin::Pin, task::Poll, time::Duration};
+use std::{collections::HashSet, pin::Pin, sync::Arc, task::Poll, time::Duration};
 use validator::{list::ValidatorList, topic::ValidatorTopic};
 
 pub const DEFAULT_LISTEN_PORT: u16 = 20333;
@@ -130,6 +134,8 @@ impl NetworkConfig {
 pub struct NetworkRuntimeConfig {
     pub latest_block_header: BlockHeader,
     pub latest_validators: ValidatorsVec,
+    pub validator_key: Option<PublicKey>,
+    pub general_signer: Signer,
     pub network_signer: Signer,
     pub external_data_provider: Box<dyn db_sync::ExternalDataProvider>,
     pub db: Box<dyn NetworkServiceDatabase>,
@@ -189,6 +195,8 @@ impl NetworkService {
         let NetworkRuntimeConfig {
             latest_block_header,
             latest_validators,
+            validator_key,
+            general_signer,
             network_signer,
             external_data_provider,
             db,
@@ -209,12 +217,14 @@ impl NetworkService {
             external_data_provider,
             db: DbSyncDatabase::clone_boxed(&db),
             enable_mdns: transport_type.mdns_enabled(),
+            validator_key,
+            general_signer,
+            validator_list_snapshot: validator_list_snapshot.clone(),
         };
         let mut swarm =
             NetworkService::create_swarm(keypair.clone(), transport_type, behaviour_config)?;
 
         let validator_topic = ValidatorTopic::new(
-            ValidatorDatabase::clone_boxed(&db),
             swarm.behaviour().peer_score.handle(),
             validator_list_snapshot,
         );
@@ -241,7 +251,7 @@ impl NetworkService {
                 })
                 .context("bootstrap nodes are not allowed without peer ID")?;
 
-            swarm.behaviour_mut().kad.add_address(&peer_id, multiaddr);
+            swarm.behaviour_mut().kad.add_address(peer_id, multiaddr);
         }
 
         log::info!(
@@ -341,6 +351,9 @@ impl NetworkService {
             BehaviourEvent::Gossipsub(event) => return self.handle_gossipsub_event(event),
             BehaviourEvent::DbSync(_event) => {}
             BehaviourEvent::Injected(event) => return self.handle_injected_event(event),
+            BehaviourEvent::ValidatorDiscovery(event) => {
+                self.handle_validator_discovery_event(event)
+            }
         }
 
         None
@@ -387,7 +400,7 @@ impl NetworkService {
                 // add listen addresses of new peers to KadDHT
                 // according to `identify` and `kad` protocols docs
                 for listen_addr in info.listen_addrs {
-                    behaviour.kad.add_address(&peer_id, listen_addr);
+                    behaviour.kad.add_address(peer_id, listen_addr);
                 }
             }
             identify::Event::Error { peer_id, error, .. } => {
@@ -422,20 +435,38 @@ impl NetworkService {
     }
 
     fn handle_kad_event(&mut self, event: kad::Event) {
-        #[allow(clippy::single_match)]
         match event {
-            kad::Event::RoutingUpdated { peer, .. } => {
+            kad::Event::RoutingUpdated { peer } => {
                 let behaviour = self.swarm.behaviour_mut();
                 if let Some(mdns4) = behaviour.mdns4.as_ref()
                     && mdns4.discovered_nodes().any(|&p| p == peer)
                 {
-                    // we don't want local peers to appear in KadDHT.
-                    // event can be emitted few times in a row for
-                    // the same peer, so we just ignore `None`
-                    let _res = behaviour.kad.remove_peer(&peer);
+                    let _res = behaviour.kad.remove_peer(peer);
                 }
             }
-            _ => {}
+            kad::Event::InboundPutRecord {
+                source: _,
+                validator,
+            } => {
+                let behaviour = self.swarm.behaviour_mut();
+                validator.validate(&mut behaviour.kad, |record| {
+                    let kad::Record::ValidatorIdentity(record) = record;
+                    match behaviour.validator_discovery.verify_record(record) {
+                        Ok(Some(_identity)) => true,
+                        Ok(None) => false,
+                        Err(err) => {
+                            log::trace!("failed to verify inbound identity: {err:?}");
+                            false
+                        }
+                    }
+                });
+            }
+            kad::Event::GetRecordStarted { query_id: _ }
+            | kad::Event::GetRecordProgressed { query_id: _ }
+            | kad::Event::GetRecordEarlyFinished { query_id: _ }
+            | kad::Event::GetRecordFinished { query_id: _ }
+            | kad::Event::PutRecordStarted { query_id: _ }
+            | kad::Event::PutRecordEarlyFinished { query_id: _ } => {}
         }
     }
 
@@ -446,9 +477,9 @@ impl NetworkService {
 
                 validator.validate(gossipsub, |message| match message {
                     gossipsub::Message::Commitments(message) => {
-                        let (acceptance, message) = self
-                            .validator_topic
-                            .verify_message_initially(source, message);
+                        let message = message.into_verified();
+                        let (acceptance, message) =
+                            self.validator_topic.verify_message(source, message);
                         (acceptance, message.map(NetworkEvent::ValidatorMessage))
                     }
                 })
@@ -474,6 +505,15 @@ impl NetworkService {
         }
     }
 
+    fn handle_validator_discovery_event(&mut self, event: validator::discovery::Event) {
+        match event {
+            validator::discovery::Event::GetIdentitiesStarted => {}
+            validator::discovery::Event::IdentityUpdated { .. } => {}
+            validator::discovery::Event::PutIdentityStarted => {}
+            validator::discovery::Event::PutIdentityTicksAtMax => {}
+        }
+    }
+
     pub fn local_peer_id(&self) -> PeerId {
         *self.swarm.local_peer_id()
     }
@@ -489,9 +529,11 @@ impl NetworkService {
     pub fn set_chain_head(&mut self, chain_head: H256) -> anyhow::Result<()> {
         let snapshot = self.validator_list.set_chain_head(chain_head)?;
 
-        if let Some(snapshot) = snapshot {
-            self.validator_topic.on_new_snapshot(snapshot.clone());
-        }
+        self.validator_topic.on_new_snapshot(snapshot.clone());
+        self.swarm
+            .behaviour_mut()
+            .validator_discovery
+            .on_new_snapshot(snapshot);
 
         Ok(())
     }
@@ -501,7 +543,8 @@ impl NetworkService {
     }
 
     pub fn send_injected_transaction(&mut self, data: RpcOrNetworkInjectedTx) {
-        self.swarm.behaviour_mut().injected.send_transaction(data);
+        let behaviour = self.swarm.behaviour_mut();
+        behaviour.injected.send_transaction(data);
     }
 }
 
@@ -534,6 +577,9 @@ struct BehaviourConfig {
     external_data_provider: Box<dyn db_sync::ExternalDataProvider>,
     db: Box<dyn DbSyncDatabase>,
     enable_mdns: bool,
+    validator_key: Option<PublicKey>,
+    general_signer: Signer,
+    validator_list_snapshot: Arc<ValidatorListSnapshot>,
 }
 
 #[derive(NetworkBehaviour)]
@@ -552,13 +598,15 @@ pub(crate) struct Behaviour {
     pub mdns4: Toggle<mdns::tokio::Behaviour>,
     // global traversal discovery
     // TODO: consider to cache records in fs
-    pub kad: kad::Behaviour<kad::store::MemoryStore>,
+    pub kad: kad::Behaviour,
     // general communication
     pub gossipsub: gossipsub::Behaviour,
     // database synchronization protocol
     pub db_sync: db_sync::Behaviour,
     // injected transaction shenanigans
     pub injected: injected::Behaviour,
+    // validator discovery
+    pub validator_discovery: validator::discovery::Behaviour,
 }
 
 impl Behaviour {
@@ -569,6 +617,9 @@ impl Behaviour {
             external_data_provider,
             db,
             enable_mdns,
+            validator_key,
+            general_signer,
+            validator_list_snapshot,
         } = config;
 
         let peer_id = keypair.public().to_peer_id();
@@ -607,8 +658,8 @@ impl Behaviour {
                 .transpose()?,
         );
 
-        let mut kad = kad::Behaviour::new(peer_id, kad::store::MemoryStore::new(peer_id));
-        kad.set_mode(Some(kad::Mode::Server));
+        let kad = kad::Behaviour::new(peer_id, peer_score_handle.clone());
+        let kad_handle = kad.handle();
 
         let gossipsub =
             gossipsub::Behaviour::new(keypair.clone(), peer_score_handle.clone(), router_address)
@@ -623,6 +674,14 @@ impl Behaviour {
 
         let injected = injected::Behaviour::new(peer_score_handle);
 
+        let validator_discovery = validator::discovery::Behaviour::new(
+            kad_handle,
+            keypair,
+            validator_key,
+            general_signer,
+            validator_list_snapshot,
+        );
+
         Ok(Self {
             custom_connection_limits,
             connection_limits,
@@ -634,6 +693,7 @@ impl Behaviour {
             gossipsub,
             db_sync,
             injected,
+            validator_discovery,
         })
     }
 }
@@ -653,10 +713,12 @@ mod tests {
     use nonempty::nonempty;
     use std::{
         collections::{BTreeSet, HashMap},
+        future,
         sync::Arc,
     };
     use tokio::{
         sync::RwLock,
+        time,
         time::{Duration, timeout},
     };
 
@@ -728,6 +790,7 @@ mod tests {
         data_provider: DataProvider,
         latest_validators: ValidatorsVec,
         signer: Signer,
+        validator_key: Option<PublicKey>,
     }
 
     impl NetworkServiceBuilder {
@@ -737,6 +800,7 @@ mod tests {
                 data_provider: DataProvider::default(),
                 latest_validators: nonempty![Address::default()].into(),
                 signer: Signer::memory(),
+                validator_key: None,
             }
         }
 
@@ -757,6 +821,7 @@ mod tests {
                 data_provider,
                 latest_validators,
                 signer,
+                validator_key,
             } = self;
 
             db.set_protocol_timelines(TIMELINES);
@@ -767,6 +832,8 @@ mod tests {
             let runtime_config = NetworkRuntimeConfig {
                 latest_block_header: GENESIS_BLOCK_HEADER,
                 latest_validators,
+                validator_key,
+                general_signer: signer.clone(),
                 network_signer: signer,
                 external_data_provider: Box::new(data_provider),
                 db: Box::new(db),
@@ -870,5 +937,52 @@ mod tests {
             .expect("time has elapsed")
             .unwrap();
         assert_eq!(response, expected_response);
+    }
+
+    #[tokio::test]
+    async fn validator_discovery() {
+        init_logger();
+
+        let signer = Signer::memory();
+
+        let alice_key = signer.generate_key().unwrap();
+        let bob_key = signer.generate_key().unwrap();
+
+        let latest_validators: ValidatorsVec =
+            nonempty![alice_key.to_address(), bob_key.to_address()].into();
+
+        let mut alice = NetworkServiceBuilder::new();
+        alice.latest_validators = latest_validators.clone();
+        alice.signer = signer.clone();
+        alice.validator_key = Some(alice_key);
+        let mut alice = alice.build();
+
+        let mut bob = NetworkServiceBuilder::new();
+        bob.latest_validators = latest_validators;
+        bob.signer = signer.clone();
+        bob.validator_key = Some(bob_key);
+        let mut bob = bob.build();
+
+        alice.connect(&mut bob).await;
+        tokio::spawn(bob.loop_on_next());
+
+        let wait_for_identity = future::poll_fn(|cx| {
+            let _poll = alice.poll_next_unpin(cx);
+
+            if let Some(identity) = alice
+                .swarm
+                .behaviour()
+                .validator_discovery
+                .get_identity(bob_key.to_address())
+            {
+                assert_eq!(identity.address(), bob_key.to_address());
+                Poll::Ready(())
+            } else {
+                Poll::Pending
+            }
+        });
+        time::timeout(Duration::from_secs(10), wait_for_identity)
+            .await
+            .unwrap();
     }
 }

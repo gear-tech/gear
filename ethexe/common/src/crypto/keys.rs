@@ -20,7 +20,10 @@ use super::address::Address;
 use alloc::string::String;
 use core::str::FromStr;
 use hex::FromHexError;
-use k256::ecdsa::{SigningKey, VerifyingKey};
+use k256::{
+    SecretKey,
+    ecdsa::{SigningKey, VerifyingKey},
+};
 use parity_scale_codec::{Decode, Encode};
 
 /// Private key.
@@ -44,6 +47,13 @@ use parity_scale_codec::{Decode, Encode};
 #[debug("0x{}", hex::encode(_0))]
 #[display("0x{}", hex::encode(_0))]
 pub struct PrivateKey([u8; 32]);
+
+impl From<SecretKey> for PrivateKey {
+    fn from(key: SecretKey) -> Self {
+        let bytes = key.to_bytes();
+        Self(bytes.into())
+    }
+}
 
 impl From<SigningKey> for PrivateKey {
     fn from(key: SigningKey) -> Self {

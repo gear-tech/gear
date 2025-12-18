@@ -134,7 +134,7 @@ impl PayloadLookup {
     }
 }
 
-impl<S: Storage> QueriableStorage<Allocations> for S {
+impl<S: Storage> QueryableStorage<Allocations> for S {
     fn query(&self, hash: &MaybeHashOf<Allocations>) -> Result<Allocations> {
         hash.try_map_or_default(|hash| {
             self.allocations(hash).ok_or(anyhow!(
@@ -160,7 +160,7 @@ impl<S: Storage> ModifiableStorage<Allocations> for S {
     }
 }
 
-impl<S: Storage> QueriableStorage<DispatchStash> for S {
+impl<S: Storage> QueryableStorage<DispatchStash> for S {
     fn query(&self, hash: &MaybeHashOf<DispatchStash>) -> Result<DispatchStash> {
         hash.try_map_or_default(|hash| {
             self.dispatch_stash(hash).ok_or(anyhow!(
@@ -186,7 +186,7 @@ impl<S: Storage> ModifiableStorage<DispatchStash> for S {
     }
 }
 
-impl<S: Storage> QueriableStorage<Mailbox> for S {
+impl<S: Storage> QueryableStorage<Mailbox> for S {
     fn query(&self, hash: &MaybeHashOf<Mailbox>) -> Result<Mailbox> {
         hash.try_map_or_default(|hash| {
             self.mailbox(hash)
@@ -207,7 +207,7 @@ impl<S: Storage> ModifiableStorage<Mailbox> for S {
     }
 }
 
-impl<S: Storage> QueriableStorage<UserMailbox> for S {
+impl<S: Storage> QueryableStorage<UserMailbox> for S {
     fn query(&self, hash: &MaybeHashOf<UserMailbox>) -> Result<UserMailbox> {
         hash.try_map_or_default(|hash| {
             self.user_mailbox(hash).ok_or(anyhow!(
@@ -217,7 +217,7 @@ impl<S: Storage> QueriableStorage<UserMailbox> for S {
     }
 }
 
-impl<S: Storage> QueriableStorage<MemoryPages> for S {
+impl<S: Storage> QueryableStorage<MemoryPages> for S {
     fn query(&self, hash: &MaybeHashOf<MemoryPages>) -> Result<MemoryPages> {
         hash.try_map_or_default(|hash| {
             self.memory_pages(hash).ok_or(anyhow!(
@@ -282,7 +282,7 @@ impl MessageQueueHashWithSize {
     }
 }
 
-impl<S: Storage> QueriableStorage<Payload> for S {
+impl<S: Storage> QueryableStorage<Payload> for S {
     fn query(&self, hash: &MaybeHashOf<Payload>) -> Result<Payload> {
         hash.try_map_or_default(|hash| {
             self.payload(hash)
@@ -293,7 +293,7 @@ impl<S: Storage> QueriableStorage<Payload> for S {
     }
 }
 
-impl<S: Storage> QueriableStorage<Waitlist> for S {
+impl<S: Storage> QueryableStorage<Waitlist> for S {
     fn query(&self, hash: &MaybeHashOf<Waitlist>) -> Result<Waitlist> {
         hash.try_map_or_default(|hash| {
             self.waitlist(hash)
@@ -1237,15 +1237,15 @@ pub trait Storage {
     }
 }
 
-/// [`QueriableStorage`] is a extenstion over [`Storage`] which provides methods to query
+/// [`QueryableStorage`] is a extension over [`Storage`] which provides methods to query
 /// runtime primitives from it.
-pub trait QueriableStorage<T>: Storage {
+pub trait QueryableStorage<T>: Storage {
     fn query(&self, hash: &MaybeHashOf<T>) -> Result<T>;
 }
 
 /// [`ModifiableStorage`] is a extension over [`Storage`] which provides method to modify
 /// runtime primitives by its hash.
-pub trait ModifiableStorage<T>: QueriableStorage<T> {
+pub trait ModifiableStorage<T>: QueryableStorage<T> {
     fn modify<U>(&self, hash: &mut MaybeHashOf<T>, f: impl FnOnce(&mut T) -> U) -> U;
 }
 

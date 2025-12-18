@@ -61,8 +61,8 @@ pub trait WeightInfo {
     fn instantiate_module_type_section_per_kb(t: u32, ) -> Weight;
     fn claim_value() -> Weight;
     fn upload_code(c: u32, ) -> Weight;
-    fn create_program(s: u32, ) -> Weight;
-    fn upload_program(c: u32, s: u32, ) -> Weight;
+    fn create_program(s: u32, p: u32) -> Weight;
+    fn upload_program(c: u32, s: u32, p: u32) -> Weight;
     fn send_message(p: u32, ) -> Weight;
     fn send_reply(p: u32, ) -> Weight;
     fn claim_value_to_inheritor(d: u32, ) -> Weight;
@@ -469,29 +469,33 @@ impl<T: frame_system::Config> WeightInfo for SubstrateWeight<T> {
             .saturating_add(T::DbWeight::get().writes(3_u64))
     }
     /// The range of component `s` is `[0, 4194304]`.
-    fn create_program(s: u32, ) -> Weight {
+    /// The range of component `p` is `[0, 2097152]`.
+    fn create_program(s: u32, p: u32, ) -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `669`
         //  Estimated: `6196`
-        // Minimum execution time: 201_951_000 picoseconds.
-        Weight::from_parts(299_426_143, 6196)
-            // Standard Error: 3
-            .saturating_add(Weight::from_parts(2_077, 0).saturating_mul(s.into()))
+        // Minimum execution time: 1_276_622_000 picoseconds.
+        Weight::from_parts(241_143_362, 6196)
+            // Standard Error: 2
+            .saturating_add(Weight::from_parts(1_041, 0).saturating_mul(s.into()))
+            // Standard Error: 5
+            .saturating_add(Weight::from_parts(511, 0).saturating_mul(p.into()))
             .saturating_add(T::DbWeight::get().reads(16_u64))
             .saturating_add(T::DbWeight::get().writes(12_u64))
     }
     /// The range of component `c` is `[0, 250]`.
     /// The range of component `s` is `[0, 4194304]`.
-    fn upload_program(c: u32, s: u32, ) -> Weight {
+    /// The range of component `p` is `[0, 2097152]`.
+    fn upload_program(c: u32, s: u32, _p: u32, ) -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `461`
         //  Estimated: `6196`
-        // Minimum execution time: 8_257_080_000 picoseconds.
-        Weight::from_parts(8_266_593_000, 6196)
-            // Standard Error: 393_001
-            .saturating_add(Weight::from_parts(68_759_963, 0).saturating_mul(c.into()))
-            // Standard Error: 23
-            .saturating_add(Weight::from_parts(712, 0).saturating_mul(s.into()))
+        // Minimum execution time: 5_077_703_000 picoseconds.
+        Weight::from_parts(5_080_167_000, 6196)
+            // Standard Error: 185_679
+            .saturating_add(Weight::from_parts(33_890_413, 0).saturating_mul(c.into()))
+            // Standard Error: 11
+            .saturating_add(Weight::from_parts(448, 0).saturating_mul(s.into()))
             .saturating_add(T::DbWeight::get().reads(16_u64))
             .saturating_add(T::DbWeight::get().writes(15_u64))
     }
@@ -2412,29 +2416,33 @@ impl WeightInfo for () {
             .saturating_add(RocksDbWeight::get().writes(3_u64))
     }
     /// The range of component `s` is `[0, 4194304]`.
-    fn create_program(s: u32, ) -> Weight {
+    /// The range of component `p` is `[0, 2097152]`.
+    fn create_program(s: u32, p: u32, ) -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `669`
         //  Estimated: `6196`
-        // Minimum execution time: 201_951_000 picoseconds.
-        Weight::from_parts(299_426_143, 6196)
-            // Standard Error: 3
-            .saturating_add(Weight::from_parts(2_077, 0).saturating_mul(s.into()))
+        // Minimum execution time: 1_276_622_000 picoseconds.
+        Weight::from_parts(241_143_362, 6196)
+            // Standard Error: 2
+            .saturating_add(Weight::from_parts(1_041, 0).saturating_mul(s.into()))
+            // Standard Error: 5
+            .saturating_add(Weight::from_parts(511, 0).saturating_mul(p.into()))
             .saturating_add(RocksDbWeight::get().reads(16_u64))
             .saturating_add(RocksDbWeight::get().writes(12_u64))
     }
     /// The range of component `c` is `[0, 250]`.
     /// The range of component `s` is `[0, 4194304]`.
-    fn upload_program(c: u32, s: u32, ) -> Weight {
+    /// The range of component `p` is `[0, 2097152]`.
+    fn upload_program(c: u32, s: u32, _p: u32, ) -> Weight {
         // Proof Size summary in bytes:
         //  Measured:  `461`
         //  Estimated: `6196`
-        // Minimum execution time: 8_257_080_000 picoseconds.
-        Weight::from_parts(8_266_593_000, 6196)
-            // Standard Error: 393_001
-            .saturating_add(Weight::from_parts(68_759_963, 0).saturating_mul(c.into()))
-            // Standard Error: 23
-            .saturating_add(Weight::from_parts(712, 0).saturating_mul(s.into()))
+        // Minimum execution time: 5_077_703_000 picoseconds.
+        Weight::from_parts(5_080_167_000, 6196)
+            // Standard Error: 185_679
+            .saturating_add(Weight::from_parts(33_890_413, 0).saturating_mul(c.into()))
+            // Standard Error: 11
+            .saturating_add(Weight::from_parts(448, 0).saturating_mul(s.into()))
             .saturating_add(RocksDbWeight::get().reads(16_u64))
             .saturating_add(RocksDbWeight::get().writes(15_u64))
     }

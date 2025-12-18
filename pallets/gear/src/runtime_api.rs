@@ -599,7 +599,7 @@ where
         gas: u64,
         value: BalanceOf<T>,
     ) -> RawOrigin<AccountIdOf<T>> {
-        // Querying transferrable balance of the origin taking into account a possibility of
+        // Querying transferable balance of the origin taking into account a possibility of
         // a part of its `free` balance being `frozen`.
         let origin_balance = <CurrencyOf<T> as fungible::Inspect<_>>::reducible_balance(
             &origin,
