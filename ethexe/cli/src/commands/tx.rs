@@ -78,6 +78,22 @@ struct UploadResultData {
     validation: Option<CodeValidationResult>,
 }
 
+#[derive(Debug, Clone)]
+struct CreateResultData {
+    tx_hash: H256,
+    actor_id: H160,
+    chain_id: u64,
+    salt: H256,
+    initializer: Address,
+    gas_used: u64,
+    effective_gas_price: u128,
+    total_fee_wei: U256,
+    block_number: Option<u64>,
+    block_hash: Option<H256>,
+    explorer_url: Option<String>,
+    abi_interface: Option<Address>,
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(untagged)]
 enum SendMessageResult {
@@ -366,32 +382,111 @@ impl TxCommand {
                 initializer,
                 json,
             } => {
-                let create_result = (async || -> Result<(H256, H160)> {
+                let create_result = (async || -> Result<CreateResultData> {
                     let salt = salt.unwrap_or_else(H256::random);
                     let override_initializer = initializer.map(Into::into);
+                    let initializer_used = initializer.unwrap_or(sender);
+                    let chain_id = router
+                        .chain_id()
+                        .await
+                        .with_context(|| "failed to fetch chain id")?;
 
                     eprintln!(
                         "Creating program on Ethereum from code id {code_id} and salt {salt:?}"
                     );
+                    eprintln!("  Initializer:     {initializer_used}");
+                    eprintln!("  Chain id:        {chain_id}");
 
-                    let (tx, actor_id) = router
-                        .create_program(code_id, salt, override_initializer)
+                    let (receipt, actor_id) = router
+                        .create_program_with_receipt(code_id, salt, override_initializer)
                         .await
                         .with_context(|| "failed to create program")?;
 
+                    let tx: H256 = (*receipt.transaction_hash).into();
+                    let block_number = receipt.block_number;
+                    let block_hash = receipt.block_hash.map(|h| H256(h.0));
+                    let explorer_url = explorer_link(chain_id, tx);
+                    let gas_used = receipt.gas_used;
+                    let effective_gas_price = receipt.effective_gas_price;
+                    let total_fee_wei = U256::from(gas_used) * U256::from(effective_gas_price);
+
                     eprintln!("Completed in transaction {tx:?}");
+                    if let Some(url) = &explorer_url {
+                        eprintln!("Explorer URL: {url}");
+                    }
+                    eprintln!("Gas used: {gas_used}");
+                    eprintln!("Effective gas price: {effective_gas_price} wei");
+                    let formatted_total_fee = if total_fee_wei <= U256::from(u128::MAX) {
+                        Some(
+                            FormattedValue::<EthereumCurrency>::new(total_fee_wei.low_u128())
+                                .to_string(),
+                        )
+                    } else {
+                        None
+                    };
+                    if let Some(formatted) = formatted_total_fee {
+                        eprintln!("Total fee: {total_fee_wei} wei ({formatted})");
+                    } else {
+                        eprintln!("Total fee: {total_fee_wei} wei");
+                    }
+                    if let Some(block_number) = block_number {
+                        eprintln!("Included in block #{block_number}");
+                    }
+                    if let Some(block_hash) = block_hash {
+                        eprintln!("Block hash: {block_hash:?}");
+                    }
+
                     eprintln!(
                         "Program address on Ethereum {:?}",
                         actor_id.to_address_lossy()
                     );
 
-                    Ok((tx, actor_id.to_address_lossy()))
+                    Ok(CreateResultData {
+                        tx_hash: tx,
+                        actor_id: actor_id.to_address_lossy(),
+                        chain_id,
+                        salt,
+                        initializer: initializer_used,
+                        gas_used,
+                        effective_gas_price,
+                        total_fee_wei,
+                        block_number,
+                        block_hash,
+                        explorer_url,
+                        abi_interface: None,
+                    })
                 })()
                 .await;
 
                 if json {
                     let value = match &create_result {
-                        Ok((tx, actor_id)) => json!({"tx_hash": tx, "actor_id": actor_id}),
+                        Ok(CreateResultData {
+                            tx_hash,
+                            actor_id,
+                            chain_id,
+                            salt,
+                            initializer,
+                            gas_used,
+                            effective_gas_price,
+                            total_fee_wei,
+                            block_number,
+                            block_hash,
+                            explorer_url,
+                            abi_interface,
+                        }) => json!({
+                            "tx_hash": tx_hash,
+                            "actor_id": actor_id,
+                            "chain_id": chain_id,
+                            "salt": salt,
+                            "initializer": initializer,
+                            "gas_used": gas_used,
+                            "effective_gas_price": effective_gas_price,
+                            "total_fee_wei": total_fee_wei.to_string(),
+                            "block_number": block_number,
+                            "block_hash": block_hash,
+                            "explorer_url": explorer_url,
+                            "abi_interface": abi_interface,
+                        }),
                         Err(err) => json!({"error": format!("{err}")}),
                     };
                     println!("{value}");
@@ -406,16 +501,24 @@ impl TxCommand {
                 abi_interface,
                 json,
             } => {
-                let create_abi_result = (async || -> Result<(H256, H160)> {
+                let create_abi_result = (async || -> Result<CreateResultData> {
                     let salt = salt.unwrap_or_else(H256::random);
                     let override_initializer = initializer.map(Into::into);
+                    let initializer_used = initializer.unwrap_or(sender);
+                    let chain_id = router
+                        .chain_id()
+                        .await
+                        .with_context(|| "failed to fetch chain id")?;
 
                     eprintln!(
                         "Creating program on Ethereum from code id {code_id} and salt {salt:?}"
                     );
+                    eprintln!("  Initializer:     {initializer_used}");
+                    eprintln!("  Chain id:        {chain_id}");
+                    eprintln!("  ABI interface:   {abi_interface}");
 
-                    let (tx, actor_id) = router
-                        .create_program_with_abi_interface(
+                    let (receipt, actor_id) = router
+                        .create_program_with_abi_interface_with_receipt(
                             code_id,
                             salt,
                             override_initializer,
@@ -424,19 +527,91 @@ impl TxCommand {
                         .await
                         .with_context(|| "failed to create program")?;
 
+                    let tx: H256 = (*receipt.transaction_hash).into();
+                    let block_number = receipt.block_number;
+                    let block_hash = receipt.block_hash.map(|h| H256(h.0));
+                    let explorer_url = explorer_link(chain_id, tx);
+                    let gas_used = receipt.gas_used;
+                    let effective_gas_price = receipt.effective_gas_price;
+                    let total_fee_wei = U256::from(gas_used) * U256::from(effective_gas_price);
+
                     eprintln!("Completed in transaction {tx:?}");
+                    if let Some(url) = &explorer_url {
+                        eprintln!("Explorer URL: {url}");
+                    }
+                    eprintln!("Gas used: {gas_used}");
+                    eprintln!("Effective gas price: {effective_gas_price} wei");
+                    let formatted_total_fee = if total_fee_wei <= U256::from(u128::MAX) {
+                        Some(
+                            FormattedValue::<EthereumCurrency>::new(total_fee_wei.low_u128())
+                                .to_string(),
+                        )
+                    } else {
+                        None
+                    };
+                    if let Some(formatted) = formatted_total_fee {
+                        eprintln!("Total fee: {total_fee_wei} wei ({formatted})");
+                    } else {
+                        eprintln!("Total fee: {total_fee_wei} wei");
+                    }
+                    if let Some(block_number) = block_number {
+                        eprintln!("Included in block #{block_number}");
+                    }
+                    if let Some(block_hash) = block_hash {
+                        eprintln!("Block hash: {block_hash:?}");
+                    }
+
                     eprintln!(
                         "Program address on Ethereum {:?}",
                         actor_id.to_address_lossy()
                     );
 
-                    Ok((tx, actor_id.to_address_lossy()))
+                    Ok(CreateResultData {
+                        tx_hash: tx,
+                        actor_id: actor_id.to_address_lossy(),
+                        chain_id,
+                        salt,
+                        initializer: initializer_used,
+                        gas_used,
+                        effective_gas_price,
+                        total_fee_wei,
+                        block_number,
+                        block_hash,
+                        explorer_url,
+                        abi_interface: Some(abi_interface),
+                    })
                 })()
                 .await;
 
                 if json {
                     let value = match &create_abi_result {
-                        Ok((tx, actor_id)) => json!({"tx_hash": tx, "actor_id": actor_id}),
+                        Ok(CreateResultData {
+                            tx_hash,
+                            actor_id,
+                            chain_id,
+                            salt,
+                            initializer,
+                            gas_used,
+                            effective_gas_price,
+                            total_fee_wei,
+                            block_number,
+                            block_hash,
+                            explorer_url,
+                            abi_interface,
+                        }) => json!({
+                            "tx_hash": tx_hash,
+                            "actor_id": actor_id,
+                            "chain_id": chain_id,
+                            "salt": salt,
+                            "initializer": initializer,
+                            "gas_used": gas_used,
+                            "effective_gas_price": effective_gas_price,
+                            "total_fee_wei": total_fee_wei.to_string(),
+                            "block_number": block_number,
+                            "block_hash": block_hash,
+                            "explorer_url": explorer_url,
+                            "abi_interface": abi_interface,
+                        }),
                         Err(err) => json!({"error": format!("{err}")}),
                     };
                     println!("{value}");

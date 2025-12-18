@@ -193,6 +193,19 @@ impl Router {
         salt: H256,
         override_initializer: Option<ActorId>,
     ) -> Result<(H256, ActorId)> {
+        let (receipt, actor_id) = self
+            .create_program_with_receipt(code_id, salt, override_initializer)
+            .await?;
+
+        Ok(((*receipt.transaction_hash).into(), actor_id))
+    }
+
+    pub async fn create_program_with_receipt(
+        &self,
+        code_id: CodeId,
+        salt: H256,
+        override_initializer: Option<ActorId>,
+    ) -> Result<(TransactionReceipt, ActorId)> {
         let builder = self.instance.createProgram(
             code_id.into_bytes().into(),
             salt.to_fixed_bytes().into(),
@@ -203,9 +216,12 @@ impl Router {
                 })
                 .unwrap_or_default(),
         );
-        let receipt = builder.send().await?.try_get_receipt().await?;
+        let receipt = builder
+            .send()
+            .await?
+            .try_get_receipt_check_reverted()
+            .await?;
 
-        let tx_hash = (*receipt.transaction_hash).into();
         let mut actor_id = None;
 
         for log in receipt.inner.logs() {
@@ -220,7 +236,7 @@ impl Router {
 
         let actor_id = actor_id.ok_or_else(|| anyhow!("Couldn't find `ProgramCreated` log"))?;
 
-        Ok((tx_hash, actor_id))
+        Ok((receipt, actor_id))
     }
 
     pub async fn create_program_with_abi_interface(
@@ -230,6 +246,25 @@ impl Router {
         override_initializer: Option<ActorId>,
         abi_interface: ActorId,
     ) -> Result<(H256, ActorId)> {
+        let (receipt, actor_id) = self
+            .create_program_with_abi_interface_with_receipt(
+                code_id,
+                salt,
+                override_initializer,
+                abi_interface,
+            )
+            .await?;
+
+        Ok(((*receipt.transaction_hash).into(), actor_id))
+    }
+
+    pub async fn create_program_with_abi_interface_with_receipt(
+        &self,
+        code_id: CodeId,
+        salt: H256,
+        override_initializer: Option<ActorId>,
+        abi_interface: ActorId,
+    ) -> Result<(TransactionReceipt, ActorId)> {
         let abi_interface = LocalAddress::try_from(abi_interface).expect("infallible");
         let abi_interface = Address::new(abi_interface.0);
 
@@ -249,8 +284,6 @@ impl Router {
             .await?
             .try_get_receipt_check_reverted()
             .await?;
-
-        let tx_hash = (*receipt.transaction_hash).into();
         let mut actor_id = None;
 
         for log in receipt.inner.logs() {
@@ -265,7 +298,7 @@ impl Router {
 
         let actor_id = actor_id.ok_or_else(|| anyhow!("Couldn't find `ProgramCreated` log"))?;
 
-        Ok((tx_hash, actor_id))
+        Ok((receipt, actor_id))
     }
 
     pub async fn commit_batch(
