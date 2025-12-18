@@ -1,4 +1,7 @@
-#![cfg(any(feature = "secp256k1", feature = "ed25519", feature = "sr25519"))]
+#![cfg(all(
+    feature = "cli",
+    any(feature = "secp256k1", feature = "ed25519", feature = "sr25519")
+))]
 
 use assert_cmd::{Command, cargo::cargo_bin_cmd};
 use gsigner::cli::StorageLocationArgs;

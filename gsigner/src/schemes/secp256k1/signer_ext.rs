@@ -18,7 +18,9 @@
 
 //! Secp256k1-specific signer extensions.
 
-use super::{Address, ContractSignature, PublicKey, Secp256k1, Signature, SignedData};
+use super::{
+    Address, ContractSignature, Digest, PublicKey, Secp256k1, Signature, SignedData, SignedMessage,
+};
 use crate::{
     Signer,
     error::{Result, SignerError},
@@ -36,6 +38,11 @@ pub trait Secp256k1SignerExt {
     fn signed_data<T>(&self, public_key: PublicKey, data: T) -> Result<SignedData<T>>
     where
         T: super::ToDigest;
+
+    /// Create a signed EIP-191 message with recovered address.
+    fn signed_message<T>(&self, public_key: PublicKey, data: T) -> Result<SignedMessage<T>>
+    where
+        for<'a> Digest: From<&'a T>;
 
     /// Create a contract-specific signature (EIP-191).
     fn sign_for_contract(
@@ -74,6 +81,15 @@ impl Secp256k1SignerExt for Signer<Secp256k1> {
         let private_key = self.get_private_key(public_key)?;
         SignedData::create(&private_key, data)
             .map_err(|e| SignerError::Crypto(format!("SignedData creation failed: {e}")))
+    }
+
+    fn signed_message<T>(&self, public_key: PublicKey, data: T) -> Result<SignedMessage<T>>
+    where
+        for<'a> Digest: From<&'a T>,
+    {
+        let private_key = self.get_private_key(public_key)?;
+        SignedMessage::create(private_key, data)
+            .map_err(|e| SignerError::Crypto(format!("SignedMessage creation failed: {e}")))
     }
 
     fn sign_for_contract(

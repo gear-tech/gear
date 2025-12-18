@@ -37,11 +37,12 @@ pub mod keyring;
 pub use address::{Address, FromActorIdError};
 pub use digest::{Digest, ToDigest};
 pub use keys::{PrivateKey, PublicKey};
-pub use signature::{ContractSignature, Signature, SignedData, VerifiedData};
+pub use signature::{ContractSignature, Signature, SignedData, SignedMessage, VerifiedData};
 
 pub mod ecdsa {
     pub use super::{
-        ContractSignature, PrivateKey, PublicKey, Signature, SignedData, VerifiedData,
+        ContractSignature, PrivateKey, PublicKey, Signature, SignedData, SignedMessage,
+        VerifiedData,
     };
 }
 

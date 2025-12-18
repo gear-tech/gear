@@ -29,7 +29,6 @@ use sha3::Digest as _;
 
 // TODO: support query from router.
 pub const COMPUTATION_THRESHOLD: u64 = 2_500_000_000;
-pub const SIGNING_THRESHOLD_PERCENTAGE: u16 = 6666;
 pub const WVARA_PER_SECOND: u128 = 10_000_000_000_000;
 
 /// Gas limit for chunk processing.
@@ -413,13 +412,6 @@ impl ToDigest for StateTransition {
         });
         hasher.update(messages.to_digest());
     }
-}
-
-#[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq)]
-pub struct ValidationSettings {
-    pub signing_threshold_percentage: u16,
-    pub validators: Vec<ActorId>,
-    // flatten mapping of validators ActorId => bool
 }
 
 #[derive(Clone, Debug, Default, Encode, Decode, PartialEq, Eq, Hash)]

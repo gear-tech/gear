@@ -657,7 +657,10 @@ impl AnnounceStorageRW for Database {
         announce_hash: HashOf<Announce>,
         program_states: ProgramStates,
     ) {
-        tracing::trace!("Set announce program states for {announce_hash}: {program_states:?}");
+        tracing::trace!(
+            "Set announce program states for {announce_hash}: len {}",
+            program_states.len()
+        );
         self.kv.put(
             &Key::AnnounceProgramStates(announce_hash).to_bytes(),
             program_states.encode(),
@@ -665,7 +668,10 @@ impl AnnounceStorageRW for Database {
     }
 
     fn set_announce_outcome(&self, announce_hash: HashOf<Announce>, outcome: Vec<StateTransition>) {
-        tracing::trace!("Set announce outcome for {announce_hash}: {outcome:?}");
+        tracing::trace!(
+            "Set announce outcome for {announce_hash}: len {}",
+            outcome.len()
+        );
         self.kv.put(
             &Key::AnnounceOutcome(announce_hash).to_bytes(),
             outcome.encode(),
@@ -673,7 +679,10 @@ impl AnnounceStorageRW for Database {
     }
 
     fn set_announce_schedule(&self, announce_hash: HashOf<Announce>, schedule: Schedule) {
-        tracing::trace!("Set announce schedule for {announce_hash}: {schedule:?}");
+        tracing::trace!(
+            "Set announce schedule for {announce_hash}: len {}",
+            schedule.len()
+        );
         self.kv.put(
             &Key::AnnounceSchedule(announce_hash).to_bytes(),
             schedule.encode(),
@@ -720,7 +729,7 @@ mod tests {
 
         let private_key = PrivateKey::from_seed([1; 32]).expect("valid seed");
         let tx = SignedInjectedTransaction::create(
-            &private_key,
+            private_key,
             InjectedTransaction {
                 destination: ActorId::zero(),
                 payload: vec![].into(),

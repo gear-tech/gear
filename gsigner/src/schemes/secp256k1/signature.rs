@@ -31,6 +31,7 @@ use parity_scale_codec::{
 };
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
+use sha3::{Digest as _, Keccak256};
 use sp_core::ecdsa::{Pair as SpPair, Public as SpPublic, Signature as SpSignature};
 
 /// Result type used throughout signature helpers.
@@ -68,6 +69,19 @@ impl Signature {
         Ok(Self::new(private_key.as_pair().sign_prehashed(&digest.0)))
     }
 
+    /// Create a recoverable signature for the provided digest using the private key according to EIP-191.
+    pub fn create_message<T>(private_key: &PrivateKey, data: T) -> SignResult<Self>
+    where
+        Digest: From<T>,
+    {
+        let digest = Digest::from(data);
+        let eip191_hash = Self::eip191_hash(digest.0);
+
+        Ok(Self::new(
+            private_key.as_pair().sign_prehashed(&eip191_hash),
+        ))
+    }
+
     /// Recovers the public key which was used to create the signature for the signed data.
     pub fn recover<T>(&self, data: T) -> SignResult<PublicKey>
     where
@@ -81,6 +95,20 @@ impl Signature {
     pub fn recover_from_digest(&self, digest: &Digest) -> SignResult<PublicKey> {
         self.inner
             .recover_prehashed(&digest.0)
+            .map(PublicKey::from)
+            .ok_or_else(|| SignerError::Crypto("Failed to recover public key".into()))
+    }
+
+    /// Recovers public key which was used to create the signature for the signed message
+    /// according to EIP-191 standard.
+    pub fn recover_message<T>(&self, data: T) -> SignResult<PublicKey>
+    where
+        Digest: From<T>,
+    {
+        let eip191_hash = Self::eip191_hash(Digest::from(data).0);
+
+        self.inner
+            .recover_prehashed(&eip191_hash)
             .map(PublicKey::from)
             .ok_or_else(|| SignerError::Crypto("Failed to recover public key".into()))
     }
@@ -103,6 +131,30 @@ impl Signature {
         }
     }
 
+    /// Verifies message using [`Self::verify`] method according to EIP-191 standard.
+    pub fn verify_message<T>(&self, public_key: PublicKey, data: T) -> SignResult<()>
+    where
+        Digest: From<T>,
+    {
+        let eip191_hash = Self::eip191_hash(Digest::from(data).0);
+
+        if SpPair::verify_prehashed(&self.inner, &eip191_hash, &SpPublic::from(public_key)) {
+            Ok(())
+        } else {
+            Err(SignerError::Crypto("Verification failed".into()))
+        }
+    }
+
+    fn eip191_hash(hash: [u8; 32]) -> [u8; 32] {
+        let mut hasher = Keccak256::new();
+
+        hasher.update(b"\x19Ethereum Signed Message:\n");
+        hasher.update(b"32");
+        hasher.update(hash.as_ref());
+
+        hasher.finalize().into()
+    }
+
     /// Signature validation with recovery.
     pub fn validate<T>(&self, data: T) -> SignResult<PublicKey>
     where
@@ -112,6 +164,18 @@ impl Signature {
         let public_key = self.recover_from_digest(&digest)?;
         self.verify_with_digest(public_key, &digest)?;
         Ok(public_key)
+    }
+
+    /// Signature validation: verify the signature with public key recovery from the signature
+    /// of the message signed according to EIP-191 standard.
+    pub fn validate_message<T>(&self, data: T) -> SignResult<PublicKey>
+    where
+        Digest: From<T>,
+    {
+        let digest = Digest::from(data);
+        let public_key = self.recover_message::<Digest>(digest)?;
+        self.verify_message::<Digest>(public_key, digest)
+            .map(|_| public_key)
     }
 
     /// Creates a signature from the bytes in the pre-EIP-155 format (V in {27, 28}).
@@ -341,6 +405,115 @@ impl<T> VerifiedData<T> {
     }
 }
 
+/// A signed according to EIP-191 message,that contains the data and its signature.
+/// Always valid after construction.
+#[derive(Clone, Encode, PartialEq, Eq, Debug, Display, Hash)]
+#[cfg_attr(feature = "std", derive(serde::Serialize))]
+#[display("SignedMessage({data}, {signature}, {address})")]
+pub struct SignedMessage<T: Sized> {
+    data: T,
+    signature: Signature,
+    address: Address,
+}
+
+impl<T: Sized> SignedMessage<T> {
+    pub fn data(&self) -> &T {
+        &self.data
+    }
+
+    pub fn signature(&self) -> &Signature {
+        &self.signature
+    }
+
+    pub fn into_data(self) -> T {
+        self.data
+    }
+
+    pub fn into_parts(self) -> (T, Signature) {
+        (self.data, self.signature)
+    }
+
+    /// Returns the address of the signer.
+    pub fn address(&self) -> Address {
+        self.address
+    }
+}
+
+impl<T: Sized + Decode> Decode for SignedMessage<T>
+where
+    for<'a> Digest: From<&'a T>,
+{
+    fn decode<I: CodecInput>(input: &mut I) -> Result<Self, CodecError> {
+        let data = T::decode(input)?;
+        let signature = Signature::decode(input)?;
+        let address = Address::decode(input)?;
+
+        Self::try_from_parts(data, signature, address).map_err(CodecError::from)
+    }
+}
+
+#[cfg(feature = "std")]
+impl<'de, T: Sized + serde::Deserialize<'de>> serde::Deserialize<'de> for SignedMessage<T>
+where
+    for<'a> Digest: From<&'a T>,
+{
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[derive(serde::Deserialize)]
+        struct Inner<T> {
+            data: T,
+            signature: Signature,
+            address: Address,
+        }
+
+        let Inner {
+            data,
+            signature,
+            address,
+        } = serde::Deserialize::deserialize(deserializer)?;
+
+        Self::try_from_parts(data, signature, address).map_err(serde::de::Error::custom)
+    }
+}
+
+impl<T: Sized> SignedMessage<T>
+where
+    for<'a> Digest: From<&'a T>,
+{
+    pub fn create(private_key: PrivateKey, data: T) -> SignResult<Self> {
+        let signature = Signature::create_message(&private_key, &data)?;
+        let public_key = PublicKey::from(&private_key);
+
+        Ok(Self {
+            data,
+            signature,
+            address: public_key.to_address(),
+        })
+    }
+
+    pub fn try_from_parts(
+        data: T,
+        signature: Signature,
+        address: Address,
+    ) -> Result<Self, &'static str> {
+        let pubkey = signature
+            .validate_message(&data)
+            .map_err(|_| "Invalid signature or attached data")?;
+
+        if pubkey.to_address() != address {
+            return Err("Address mismatch");
+        }
+
+        Ok(Self {
+            data,
+            signature,
+            address,
+        })
+    }
+}
+
 /// A recoverable ECDSA signature for a contract-specific digest format (ERC-191).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "codec", derive(Encode, Decode))]
@@ -491,5 +664,29 @@ mod tests {
             ContractSignature::create(CONTRACT_ADDRESS, &private_key, MOCK_DIGEST).unwrap();
 
         signature.validate(CONTRACT_ADDRESS, MOCK_DIGEST).unwrap();
+    }
+
+    #[cfg(feature = "std")]
+    #[test]
+    fn signed_message_roundtrip() {
+        const RPC_INPUT: &str = r#"{
+            "data":[1,2,3],
+            "signature":"0xfeffc4dfc0d5d49bd036b12a7ff5163132b5a40c93a5d369d0af1f925851ad1412fb33b7632c4dac9c8828d194fcaf417d5a2a2583ba23195c0080e8b6890c0a1c",
+            "address":"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
+        }"#;
+
+        let signed: SignedMessage<Vec<u8>> =
+            serde_json::from_str(RPC_INPUT).expect("deserialize SignedMessage");
+
+        assert_eq!(
+            hex::encode(signed.address().0),
+            "f39fd6e51aad88f6f4ce6ab8827279cfffb92266"
+        );
+
+        let recovered = signed
+            .signature()
+            .recover_message(signed.data())
+            .expect("recover");
+        assert_eq!(recovered.to_address(), signed.address());
     }
 }
