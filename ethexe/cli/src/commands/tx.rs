@@ -211,6 +211,7 @@ impl TxCommand {
             .with_context(|| "failed to fetch chain id")?;
 
         print_address_with_explorer("Router address", chain_id, router_addr);
+        print_address_with_explorer("Sender", chain_id, sender);
         eprintln!("Chain id: {chain_id}");
 
         match self.command {
