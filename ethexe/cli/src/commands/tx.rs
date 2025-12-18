@@ -27,8 +27,8 @@ use crate::{
 };
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use clap::{Parser, Subcommand};
-use ethexe_common::Address;
-use ethexe_ethereum::{Ethereum, mirror::ReplyInfo};
+use ethexe_common::{Address, gear_core::ids::prelude::CodeIdExt};
+use ethexe_ethereum::{Ethereum, mirror::ReplyInfo, router::CodeValidationResult};
 use ethexe_rpc::ProgramClient;
 use ethexe_signer::Signer;
 use gprimitives::{CodeId, H160, H256, MessageId, U256};
@@ -58,6 +58,24 @@ struct TopUpResult {
     actor_id: Address,
     value: u128,
     formatted_value: String,
+}
+
+#[derive(Debug, Clone)]
+struct UploadResultData {
+    tx_hash: H256,
+    code_id: CodeId,
+    code_size_bytes: usize,
+    chain_id: u64,
+    explorer_url: Option<String>,
+    block_number: Option<u64>,
+    block_hash: Option<H256>,
+    gas_used: u64,
+    effective_gas_price: u128,
+    total_fee_wei: U256,
+    blob_gas_used: Option<u64>,
+    blob_gas_price: Option<u128>,
+    blob_fee_wei: Option<U256>,
+    validation: Option<CodeValidationResult>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -156,46 +174,185 @@ impl TxCommand {
                 watch,
                 json,
             } => {
-                let upload_result = (async || -> Result<(H256, CodeId)> {
+                let upload_result = (async || -> Result<UploadResultData> {
                     let code =
                         fs::read(&path_to_wasm).with_context(|| "failed to read wasm from file")?;
+                    let code_size_bytes = code.len();
+                    let code_id = CodeId::generate(&code);
+                    let chain_id = router
+                        .chain_id()
+                        .await
+                        .with_context(|| "failed to fetch chain id")?;
 
                     eprintln!("Uploading {} to Ethereum", path_to_wasm.display());
+                    eprintln!("  RPC endpoint:    {rpc}");
+                    eprintln!("  Router address:  {router_addr}");
+                    eprintln!("  Chain id:        {chain_id}");
+                    eprintln!("  Code id (blake2): {code_id}");
+                    eprintln!(
+                        "  Code size:       {code_size_bytes} bytes ({:.2} KiB)",
+                        code_size_bytes as f64 / 1024.0
+                    );
 
                     let pending_builder = router
                         .request_code_validation_with_sidecar(&code)
                         .await
-                        .with_context(|| "failed to create code validation request")?;
+                        .with_context(|| {
+                            format!("failed to create code validation request (code_id {code_id})")
+                        })?;
 
-                    let (tx, code_id) = pending_builder
-                        .send()
+                    let pending_tx_hash = pending_builder.tx_hash();
+                    if let Some(url) = explorer_link(chain_id, pending_tx_hash) {
+                        eprintln!("  Pending tx:      {url}");
+                    } else {
+                        eprintln!("  Pending tx hash: {pending_tx_hash:?}");
+                    }
+
+                    let (receipt, code_id) = pending_builder
+                        .send_with_receipt()
                         .await
                         .with_context(|| "failed to request code validation")?;
 
+                    let tx: H256 = (*receipt.transaction_hash).into();
+                    let explorer_url = explorer_link(chain_id, tx);
+
+                    let gas_used = receipt.gas_used;
+                    let effective_gas_price = receipt.effective_gas_price;
+                    let total_fee_wei = U256::from(gas_used) * U256::from(effective_gas_price);
+                    let blob_gas_used = receipt.blob_gas_used;
+                    let blob_gas_price = receipt.blob_gas_price;
+                    let blob_fee_wei = blob_gas_used.zip(blob_gas_price).map(|(used, price)| {
+                        U256::from(used).saturating_mul(U256::from(price))
+                    });
+                    let block_number = receipt.block_number;
+                    let block_hash = receipt.block_hash.map(|h| H256(h.0));
+
                     eprintln!("Completed in transaction {tx:?}");
+                    if let Some(url) = &explorer_url {
+                        eprintln!("Explorer URL: {url}");
+                    }
+                    eprintln!("Code id: {code_id}");
+                    eprintln!("Gas used: {gas_used}");
+                    eprintln!("Effective gas price: {effective_gas_price} wei");
+
+                    let formatted_total_fee = if total_fee_wei <= U256::from(u128::MAX) {
+                        Some(
+                            FormattedValue::<EthereumCurrency>::new(total_fee_wei.low_u128())
+                                .to_string(),
+                        )
+                    } else {
+                        None
+                    };
+                    if let Some(formatted) = formatted_total_fee {
+                        eprintln!("Total fee: {total_fee_wei} wei ({formatted})");
+                    } else {
+                        eprintln!("Total fee: {total_fee_wei} wei");
+                    }
+
+                    if let Some((blob_used, blob_price)) = blob_gas_used.zip(blob_gas_price) {
+                        let blob_fee_wei =
+                            U256::from(blob_used).saturating_mul(U256::from(blob_price));
+                        let formatted_blob_fee = if blob_fee_wei <= U256::from(u128::MAX) {
+                            Some(
+                                FormattedValue::<EthereumCurrency>::new(blob_fee_wei.low_u128())
+                                    .to_string(),
+                            )
+                        } else {
+                            None
+                        };
+                        if let Some(formatted) = formatted_blob_fee {
+                            eprintln!(
+                                "Blob gas fee: {blob_fee_wei} wei ({formatted}) on {blob_used} blob gas @ {blob_price} wei"
+                            );
+                        } else {
+                            eprintln!(
+                                "Blob gas fee: {blob_fee_wei} wei on {blob_used} blob gas @ {blob_price} wei"
+                            );
+                        }
+                    }
+
+                    if let Some(block_number) = block_number {
+                        eprintln!("Included in block #{block_number}");
+                    }
+                    if let Some(block_hash) = block_hash {
+                        eprintln!("Block hash: {block_hash:?}");
+                    }
+
+                    let mut upload_info = UploadResultData {
+                        tx_hash: tx,
+                        code_id,
+                        code_size_bytes,
+                        chain_id,
+                        explorer_url,
+                        block_number,
+                        block_hash,
+                        gas_used,
+                        effective_gas_price,
+                        total_fee_wei,
+                        blob_gas_used,
+                        blob_gas_price,
+                        blob_fee_wei,
+                        validation: None,
+                    };
 
                     if watch {
                         eprintln!("Waiting for approval of code id {code_id}...");
 
-                        let valid = router
+                        let validation = router
                             .wait_code_validation(code_id)
                             .await
                             .with_context(|| "failed to wait for code validation")?;
 
-                        if valid {
+                        if validation.valid {
+                            eprintln!("Code validation approved");
+                            if let Some(block_number) = validation.block_number {
+                                eprintln!("  Validation block: #{block_number}");
+                            }
+                            if let Some(block_hash) = validation.block_hash {
+                                eprintln!("  Validation block hash: {block_hash:?}");
+                            }
+                            if let Some(tx_hash) = validation.tx_hash {
+                                if let Some(url) = explorer_link(chain_id, tx_hash) {
+                                    eprintln!("  Validation tx: {url}");
+                                } else {
+                                    eprintln!("  Validation tx: {tx_hash:?}");
+                                }
+                            }
                             eprintln!("Now you can create program from code id {code_id}!");
                         } else {
                             bail!("Given code is invalid and failed validation");
                         }
+
+                        upload_info.validation = Some(validation);
                     }
 
-                    Ok((tx, code_id))
+                    Ok(upload_info)
                 })()
                 .await;
 
                 if json {
                     let value = match &upload_result {
-                        Ok((tx, code_id)) => json!({"tx_hash": tx, "code_id": code_id}),
+                        Ok(upload_info) => json!({
+                            "tx_hash": upload_info.tx_hash,
+                            "code_id": upload_info.code_id,
+                            "code_size_bytes": upload_info.code_size_bytes,
+                            "chain_id": upload_info.chain_id,
+                            "explorer_url": upload_info.explorer_url,
+                            "block_number": upload_info.block_number,
+                            "block_hash": upload_info.block_hash,
+                            "gas_used": upload_info.gas_used,
+                            "effective_gas_price": upload_info.effective_gas_price,
+                            "total_fee_wei": upload_info.total_fee_wei.to_string(),
+                            "blob_gas_used": upload_info.blob_gas_used,
+                            "blob_gas_price": upload_info.blob_gas_price,
+                            "blob_fee_wei": upload_info.blob_fee_wei.as_ref().map(|v| v.to_string()),
+                            "validation": upload_info.validation.as_ref().map(|validation| json!({
+                                "valid": validation.valid,
+                                "tx_hash": validation.tx_hash,
+                                "block_hash": validation.block_hash,
+                                "block_number": validation.block_number,
+                            })),
+                        }),
                         Err(err) => json!({"error": format!("{err}")}),
                     };
                     println!("{value}");
@@ -594,6 +751,18 @@ impl TxCommand {
 
         Ok(())
     }
+}
+
+fn explorer_link(chain_id: u64, tx_hash: H256) -> Option<String> {
+    let base = match chain_id {
+        1 => "https://etherscan.io/tx/",
+        11155111 => "https://sepolia.etherscan.io/tx/",
+        17000 => "https://holesky.etherscan.io/tx/",
+        560048 => "https://hoodi.etherscan.io/tx/",
+        _ => return None,
+    };
+
+    Some(format!("{base}{tx_hash:?}"))
 }
 
 // TODO (breathx): impl reply, value claim.

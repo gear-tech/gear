@@ -26,7 +26,7 @@ use alloy::{
     eips::eip7594::BlobTransactionSidecarVariant,
     primitives::{Address, Bytes, fixed_bytes},
     providers::{PendingTransactionBuilder, Provider, ProviderBuilder, RootProvider},
-    rpc::types::{Filter, Topic, eth::state::AccountOverride},
+    rpc::types::{Filter, Topic, TransactionReceipt, eth::state::AccountOverride},
 };
 use anyhow::{Result, anyhow};
 use ethexe_common::{
@@ -47,12 +47,17 @@ type QueryInstance = IRouter::IRouterInstance<RootProvider>;
 
 pub struct PendingCodeRequestBuilder {
     code_id: CodeId,
+    chain_id: u64,
     pending_builder: PendingTransactionBuilder<AlloyEthereum>,
 }
 
 impl PendingCodeRequestBuilder {
     pub fn code_id(&self) -> CodeId {
         self.code_id
+    }
+
+    pub fn chain_id(&self) -> u64 {
+        self.chain_id
     }
 
     pub fn tx_hash(&self) -> H256 {
@@ -65,6 +70,15 @@ impl PendingCodeRequestBuilder {
             .try_get_receipt_check_reverted()
             .await?;
         Ok(((*receipt.transaction_hash).into(), self.code_id))
+    }
+
+    pub async fn send_with_receipt(self) -> Result<(TransactionReceipt, CodeId)> {
+        let receipt = self
+            .pending_builder
+            .try_get_receipt_check_reverted()
+            .await?;
+
+        Ok((receipt, self.code_id))
     }
 }
 
@@ -110,7 +124,7 @@ impl Router {
     ) -> Result<PendingCodeRequestBuilder> {
         let code_id = CodeId::generate(code);
 
-        let chain_id = self.instance.provider().get_chain_id().await?;
+        let chain_id = self.chain_id().await?;
         let blob_tx_sidecar_variant = if chain_id == 31337 {
             BlobTransactionSidecarVariant::Eip4844(
                 SidecarBuilder::<SimpleCoder>::from_slice(code).build()?,
@@ -129,11 +143,20 @@ impl Router {
 
         Ok(PendingCodeRequestBuilder {
             code_id,
+            chain_id,
             pending_builder,
         })
     }
 
-    pub async fn wait_code_validation(&self, code_id: CodeId) -> Result<bool> {
+    pub async fn chain_id(&self) -> Result<u64> {
+        self.instance
+            .provider()
+            .get_chain_id()
+            .await
+            .map_err(Into::into)
+    }
+
+    pub async fn wait_code_validation(&self, code_id: CodeId) -> Result<CodeValidationResult> {
         let filter = Filter::new()
             .address(*self.instance.address())
             .event_signature(Topic::from_iter([signatures::CODE_GOT_VALIDATED]));
@@ -151,7 +174,12 @@ impl Router {
                 let event = crate::decode_log::<IRouter::CodeGotValidated>(&log)?;
 
                 if event.codeId == code_id {
-                    return Ok(event.valid);
+                    return Ok(CodeValidationResult {
+                        valid: event.valid,
+                        tx_hash: log.transaction_hash.map(|h| H256(h.0)),
+                        block_hash: log.block_hash.map(|h| H256(h.0)),
+                        block_number: log.block_number,
+                    });
                 }
             }
         }
@@ -289,6 +317,14 @@ impl Router {
 
         builder.gas(gas_limit).send().await.map_err(Into::into)
     }
+}
+
+#[derive(Clone, Debug)]
+pub struct CodeValidationResult {
+    pub valid: bool,
+    pub tx_hash: Option<H256>,
+    pub block_hash: Option<H256>,
+    pub block_number: Option<u64>,
 }
 
 #[derive(Clone)]
