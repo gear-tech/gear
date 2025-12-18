@@ -201,6 +201,16 @@ impl TxCommand {
 
         let router = ethereum.router();
         let router_query = router.query();
+        let chain_id = router
+            .chain_id()
+            .await
+            .with_context(|| "failed to fetch chain id")?;
+
+        eprintln!("Router address: {router_addr}");
+        if let Some(url) = explorer_address_link(chain_id, router_addr) {
+            eprintln!("Router explorer: {url}");
+        }
+        eprintln!("Chain id: {chain_id}");
 
         match self.command {
             TxSubcommand::Upload {
@@ -213,10 +223,6 @@ impl TxCommand {
                         fs::read(&path_to_wasm).with_context(|| "failed to read wasm from file")?;
                     let code_size_bytes = code.len();
                     let code_id = CodeId::generate(&code);
-                    let chain_id = router
-                        .chain_id()
-                        .await
-                        .with_context(|| "failed to fetch chain id")?;
 
                     eprintln!("Uploading {} to Ethereum", path_to_wasm.display());
                     eprintln!("  RPC endpoint:    {rpc}");
@@ -404,10 +410,6 @@ impl TxCommand {
                     let salt = salt.unwrap_or_else(H256::random);
                     let override_initializer = initializer.map(Into::into);
                     let initializer_used = initializer.unwrap_or(sender);
-                    let chain_id = router
-                        .chain_id()
-                        .await
-                        .with_context(|| "failed to fetch chain id")?;
 
                     eprintln!(
                         "Creating program on Ethereum from code id {code_id} and salt {salt:?}"
@@ -523,10 +525,6 @@ impl TxCommand {
                     let salt = salt.unwrap_or_else(H256::random);
                     let override_initializer = initializer.map(Into::into);
                     let initializer_used = initializer.unwrap_or(sender);
-                    let chain_id = router
-                        .chain_id()
-                        .await
-                        .with_context(|| "failed to fetch chain id")?;
 
                     eprintln!(
                         "Creating program on Ethereum from code id {code_id} and salt {salt:?}"
@@ -870,129 +868,137 @@ impl TxCommand {
                 watch,
                 json,
             } => {
-                let send_message_result = (async || -> Result<(SendMessageResult, SendMessageExtra)> {
-                    let raw_value = value.into_inner();
-                    let maybe_code_id = router_query
-                        .program_code_id(mirror.into())
-                        .await
-                        .with_context(|| "failed to check if mirror in known by router")?;
+                let send_message_result =
+                    (async || -> Result<(SendMessageResult, SendMessageExtra)> {
+                        let raw_value = value.into_inner();
+                        let maybe_code_id = router_query
+                            .program_code_id(mirror.into())
+                            .await
+                            .with_context(|| "failed to check if mirror in known by router")?;
 
-                    ensure!(
-                        maybe_code_id.is_some(),
-                        "Given mirror address is not recognized by router"
-                    );
+                        ensure!(
+                            maybe_code_id.is_some(),
+                            "Given mirror address is not recognized by router"
+                        );
 
-                    eprintln!("Sending message on Ethereum to {mirror}");
+                        eprintln!("Sending message on Ethereum to {mirror}");
 
-                    let mirror = ethereum.mirror(mirror);
+                        let mirror = ethereum.mirror(mirror);
 
-                    let chain_id = router
-                        .chain_id()
-                        .await
-                        .with_context(|| "failed to fetch chain id")?;
+                        let payload_hex = hex::encode(&payload.0);
+                        eprintln!("Payload len: {} bytes", payload.0.len());
+                        eprintln!("Payload hex: 0x{payload_hex}");
 
-                    let payload_hex = hex::encode(&payload.0);
-                    eprintln!("Payload len: {} bytes", payload.0.len());
-                    eprintln!("Payload hex: 0x{payload_hex}");
+                        let (receipt, message_id) = mirror
+                            .send_message_with_receipt(payload.0.clone(), raw_value, call_reply)
+                            .await
+                            .with_context(|| "failed to send message to mirror")?;
 
-                    let (receipt, message_id) = mirror
-                        .send_message_with_receipt(payload.0.clone(), raw_value, call_reply)
-                        .await
-                        .with_context(|| "failed to send message to mirror")?;
-
-                    let tx: H256 = (*receipt.transaction_hash).into();
-                    let gas_used = receipt.gas_used;
-                    let effective_gas_price = receipt.effective_gas_price;
-                    let total_fee_wei = U256::from(gas_used) * U256::from(effective_gas_price);
-                    let block_number = receipt.block_number;
-                    let block_hash = receipt.block_hash.map(|h| H256(h.0));
-                    let explorer_url = explorer_link(chain_id, tx);
-                    let formatted_value = FormattedValue::<EthereumCurrency>::new(raw_value);
-
-                    eprintln!("Completed in transaction {tx:?}");
-                    if let Some(url) = &explorer_url {
-                        eprintln!("Explorer URL: {url}");
-                    }
-                    eprintln!("Gas used: {gas_used}");
-                    eprintln!("Effective gas price: {effective_gas_price} wei");
-                    let formatted_total_fee = if total_fee_wei <= U256::from(u128::MAX) {
-                        Some(
-                            FormattedValue::<EthereumCurrency>::new(total_fee_wei.low_u128())
-                                .to_string(),
-                        )
-                    } else {
-                        None
-                    };
-                    if let Some(formatted) = formatted_total_fee {
-                        eprintln!("Total fee: {total_fee_wei} wei ({formatted})");
-                    } else {
-                        eprintln!("Total fee: {total_fee_wei} wei");
-                    }
-                    if let Some(block_number) = block_number {
-                        eprintln!("Included in block #{block_number}");
-                    }
-                    if let Some(block_hash) = block_hash {
-                        eprintln!("Block hash: {block_hash:?}");
-                    }
-                    eprintln!("Message with id {message_id} successfully sent");
-
-                    let extra = SendMessageExtra {
-                        tx_hash: tx,
-                        message_id,
-                        chain_id,
-                        gas_used,
-                        effective_gas_price,
-                        total_fee_wei,
-                        block_number,
-                        block_hash,
-                        explorer_url,
-                        payload_len: payload.0.len(),
-                        payload_hex,
-                        raw_value,
-                        formatted_value: formatted_value.to_string(),
-                        watch,
-                    };
-
-                    Ok((if watch {
-                        eprintln!("Waiting for reply...");
-
-                        let reply_info = mirror.wait_for_reply(message_id).await?;
-                        let ReplyInfo {
-                            message_id,
-                            actor_id,
-                            payload,
-                            code,
-                            value,
-                        } = &reply_info;
-
-                        let actor_id = actor_id.to_address_lossy();
-                        let raw_value = *value;
+                        let tx: H256 = (*receipt.transaction_hash).into();
+                        let gas_used = receipt.gas_used;
+                        let effective_gas_price = receipt.effective_gas_price;
+                        let total_fee_wei = U256::from(gas_used) * U256::from(effective_gas_price);
+                        let block_number = receipt.block_number;
+                        let block_hash = receipt.block_hash.map(|h| H256(h.0));
+                        let explorer_url = explorer_link(chain_id, tx);
                         let formatted_value = FormattedValue::<EthereumCurrency>::new(raw_value);
 
-                        eprintln!("Reply info:");
-                        eprintln!("  Message Id: {message_id}");
-                        eprintln!("  Actor Id:   {actor_id:?}");
-                        eprintln!("  Payload:    0x{}", hex::encode(payload));
-                        eprintln!("  Code:       {code:?}");
-                        eprintln!("  Value:      {formatted_value} ({raw_value} wei)");
-
-                        SendMessageResult::WithReply {
-                            tx_hash: tx,
-                            reply_info,
+                        eprintln!("Completed in transaction {tx:?}");
+                        if let Some(url) = &explorer_url {
+                            eprintln!("Explorer URL: {url}");
                         }
-                    } else {
-                        eprintln!("To wait for the reply, rerun this command with --watch.");
-                        SendMessageResult::Simple {
+                        eprintln!("Gas used: {gas_used}");
+                        eprintln!("Effective gas price: {effective_gas_price} wei");
+                        let formatted_total_fee = if total_fee_wei <= U256::from(u128::MAX) {
+                            Some(
+                                FormattedValue::<EthereumCurrency>::new(total_fee_wei.low_u128())
+                                    .to_string(),
+                            )
+                        } else {
+                            None
+                        };
+                        if let Some(formatted) = formatted_total_fee {
+                            eprintln!("Total fee: {total_fee_wei} wei ({formatted})");
+                        } else {
+                            eprintln!("Total fee: {total_fee_wei} wei");
+                        }
+                        if let Some(block_number) = block_number {
+                            eprintln!("Included in block #{block_number}");
+                        }
+                        if let Some(block_hash) = block_hash {
+                            eprintln!("Block hash: {block_hash:?}");
+                        }
+                        eprintln!("Message with id {message_id} successfully sent");
+
+                        let extra = SendMessageExtra {
                             tx_hash: tx,
                             message_id,
-                        }
-                    }, extra))
-                })()
-                .await;
+                            chain_id,
+                            gas_used,
+                            effective_gas_price,
+                            total_fee_wei,
+                            block_number,
+                            block_hash,
+                            explorer_url,
+                            payload_len: payload.0.len(),
+                            payload_hex,
+                            raw_value,
+                            formatted_value: formatted_value.to_string(),
+                            watch,
+                        };
+
+                        Ok((
+                            if watch {
+                                eprintln!("Waiting for reply...");
+
+                                let reply_info = mirror.wait_for_reply(message_id).await?;
+                                let ReplyInfo {
+                                    message_id,
+                                    actor_id,
+                                    payload,
+                                    code,
+                                    value,
+                                } = &reply_info;
+
+                                let actor_id = actor_id.to_address_lossy();
+                                let raw_value = *value;
+                                let formatted_value =
+                                    FormattedValue::<EthereumCurrency>::new(raw_value);
+
+                                eprintln!("Reply info:");
+                                eprintln!("  Message Id: {message_id}");
+                                eprintln!("  Actor Id:   {actor_id:?}");
+                                eprintln!("  Payload:    0x{}", hex::encode(payload));
+                                eprintln!("  Code:       {code:?}");
+                                eprintln!("  Value:      {formatted_value} ({raw_value} wei)");
+
+                                SendMessageResult::WithReply {
+                                    tx_hash: tx,
+                                    reply_info,
+                                }
+                            } else {
+                                eprintln!(
+                                    "To wait for the reply, rerun this command with --watch."
+                                );
+                                SendMessageResult::Simple {
+                                    tx_hash: tx,
+                                    message_id,
+                                }
+                            },
+                            extra,
+                        ))
+                    })()
+                    .await;
 
                 if json {
                     match &send_message_result {
-                        Ok((SendMessageResult::Simple { tx_hash, message_id }, extra)) => {
+                        Ok((
+                            SendMessageResult::Simple {
+                                tx_hash,
+                                message_id,
+                            },
+                            extra,
+                        )) => {
                             let value = json!({
                                 "tx_hash": tx_hash,
                                 "message_id": message_id,
@@ -1066,15 +1072,27 @@ impl TxCommand {
 }
 
 fn explorer_link(chain_id: u64, tx_hash: H256) -> Option<String> {
-    let base = match chain_id {
-        1 => "https://etherscan.io/tx/",
-        11155111 => "https://sepolia.etherscan.io/tx/",
-        17000 => "https://holesky.etherscan.io/tx/",
-        560048 => "https://hoodi.etherscan.io/tx/",
-        _ => return None,
-    };
+    explorer_base(chain_id).map(|base| format!("{base}tx/{tx_hash:?}"))
+}
 
-    Some(format!("{base}{tx_hash:?}"))
+fn explorer_address_link(chain_id: u64, address: Address) -> Option<String> {
+    explorer_base(chain_id).map(|base| format!("{base}address/{address:?}"))
+}
+
+fn explorer_base(chain_id: u64) -> Option<&'static str> {
+    match chain_id {
+        1 => Some("https://etherscan.io/"),
+        5 => Some("https://goerli.etherscan.io/"),
+        10 => Some("https://optimistic.etherscan.io/"),
+        11155111 => Some("https://sepolia.etherscan.io/"),
+        17000 => Some("https://holesky.etherscan.io/"),
+        42161 => Some("https://arbiscan.io/"),
+        421614 => Some("https://sepolia.arbiscan.io/"),
+        560048 => Some("https://hoodi.etherscan.io/"),
+        8453 => Some("https://basescan.org/"),
+        84532 => Some("https://sepolia.basescan.org/"),
+        _ => None,
+    }
 }
 
 // TODO (breathx): impl reply, value claim.
