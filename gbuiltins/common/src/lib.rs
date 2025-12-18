@@ -38,7 +38,7 @@
 //! - `modl` = module (Substrate convention)
 //! - `bia` = builtin actor
 //! - `{name}` = actor name (max 16 bytes)
-//! - `v-{version}` = version number (u16, little-endian)
+//! - `v{version}` = version number (u16) as zero-padded ASCII (5 digits)
 //!
 //! ## Available Builtin Actor Types
 //!
@@ -51,11 +51,17 @@
 
 extern crate alloc;
 
+use core::slice::Split;
 use parity_scale_codec::{Decode, Encode, Error, Input, Output};
 use scale_info::TypeInfo;
 
 #[cfg(feature = "std")]
 use core::fmt;
+
+const NAME_CAPACITY: usize = 16;
+const VERSION_DIGITS: usize = 5;
+const ENCODED_LEN: usize = 32;
+const PREFIX: &[u8] = b"modl/bia/";
 
 /// Builtin Actor ID with name and version.
 ///
@@ -94,9 +100,12 @@ impl BuiltinActorId {
     /// ```
     pub const fn new(name: &[u8], version: u16) -> Self {
         assert!(!name.is_empty(), "Actor name cannot be empty");
-        assert!(name.len() <= 16, "Actor name too long (max 16 bytes)");
+        assert!(
+            name.len() <= NAME_CAPACITY,
+            "Actor name too long (max 16 bytes)"
+        );
 
-        let mut name_arr = [0u8; 16];
+        let mut name_arr = [0u8; NAME_CAPACITY];
         let mut i = 0;
 
         // Copy the name into the array.
@@ -111,10 +120,34 @@ impl BuiltinActorId {
         }
     }
 
+    /// Fallible constructor that reports validation errors instead of panicking.
+    pub fn try_new(name: &[u8], version: u16) -> Result<Self, &'static str> {
+        if name.is_empty() {
+            return Err("Actor name cannot be empty");
+        }
+        if name.len() > NAME_CAPACITY {
+            return Err("Actor name too long (max 16 bytes)");
+        }
+
+        let mut name_arr = [0u8; NAME_CAPACITY];
+        name_arr[..name.len()].copy_from_slice(name);
+
+        Ok(Self {
+            name: name_arr,
+            version,
+        })
+    }
+
+    /// Returns the raw name bytes without trailing padding.
+    pub fn name_bytes(&self) -> &[u8] {
+        let len = self.name_len();
+        &self.name[..len]
+    }
+
     /// Returns the length of the actor name (excluding padding zeros).
     pub const fn name_len(&self) -> usize {
         let mut len = 0;
-        while len < 16 && self.name[len] != 0 {
+        while len < NAME_CAPACITY && self.name[len] != 0 {
             len += 1;
         }
         len
@@ -133,33 +166,26 @@ impl fmt::Display for BuiltinActorId {
 impl Encode for BuiltinActorId {
     fn size_hint(&self) -> usize {
         // Always encoded as 32 bytes (ActorId size)
-        32
+        ENCODED_LEN
     }
 
     fn encode_to<T: Output + ?Sized>(&self, dest: &mut T) {
-        let name_len = self.name_len();
-
-        // Build a 32-byte buffer with the encoded data, padded with zeros
-        let mut buf = [0u8; 32];
+        let mut buf = [0u8; ENCODED_LEN];
         let mut pos = 0;
 
-        // Helper macro to write slice and advance position
-        macro_rules! write_slice {
-            ($slice:expr) => {{
-                let slice = $slice;
-                let len = slice.len();
-                buf[pos..pos + len].copy_from_slice(slice);
-                pos += len;
-            }};
+        // Helper to copy slices safely into the fixed buffer.
+        fn write(dst: &mut [u8], pos: &mut usize, src: &[u8]) {
+            let end = *pos + src.len();
+            dst[*pos..end].copy_from_slice(src);
+            *pos = end;
         }
 
-        write_slice!(b"modl/bia/");
-        write_slice!(&self.name[..name_len]);
-        write_slice!(b"/v-");
-        write_slice!(&self.version.to_le_bytes());
-        buf[pos] = b'/';
+        write(&mut buf, &mut pos, PREFIX);
+        write(&mut buf, &mut pos, self.name_bytes());
+        write(&mut buf, &mut pos, b"/v");
+        write(&mut buf, &mut pos, &encode_version_ascii(self.version));
 
-        // Remaining bytes are already zero-padded
+        debug_assert!(pos <= ENCODED_LEN, "BuiltinActorId encode overflow");
         dest.write(&buf);
     }
 }
@@ -168,27 +194,20 @@ impl Decode for BuiltinActorId {
     fn decode<I: Input>(input: &mut I) -> Result<Self, Error> {
         // BuiltinActorId is always encoded as exactly 32 bytes (ActorId size)
         // Shorter encodings are padded with zeros
-        let mut bytes = [0u8; 32];
+        let mut bytes = [0u8; ENCODED_LEN];
         input.read(&mut bytes)?;
 
         let mut parts = bytes.split(|&x| x == b'/');
 
         // Check for "modl" prefix
-        if parts.next() != Some(b"modl") {
-            return Err("BuiltinActorId decode: expected prefix 'modl'".into());
-        }
-
-        // Check for "bia" prefix
-        if parts.next() != Some(b"bia") {
-            return Err("BuiltinActorId decode: expected prefix 'modl/bia'".into());
-        }
+        expect_prefix(&mut parts)?;
 
         // Extract actor name
         let name_bytes = parts
             .next()
             .ok_or("BuiltinActorId decode: missing actor name after 'modl/bia/' prefix")?;
 
-        if name_bytes.len() > 16 {
+        if name_bytes.len() > NAME_CAPACITY {
             return Err("BuiltinActorId decode: actor name too long (max 16 bytes)".into());
         }
 
@@ -196,30 +215,73 @@ impl Decode for BuiltinActorId {
             return Err("BuiltinActorId decode: actor name is empty".into());
         }
 
-        let mut name = [0u8; 16];
+        let mut name = [0u8; NAME_CAPACITY];
         name[..name_bytes.len()].copy_from_slice(name_bytes);
 
         // Extract version
-        let version_bytes = parts
+        let mut version_bytes = parts
             .next()
             .ok_or("BuiltinActorId decode: missing version field")?;
 
-        if !version_bytes.starts_with(b"v-") {
-            return Err("BuiltinActorId decode: version must start with 'v-' prefix".into());
+        // Ignore zero padding after the version.
+        if let Some(idx) = version_bytes.iter().position(|&b| b == 0) {
+            version_bytes = &version_bytes[..idx];
         }
 
-        // Skip "v-" prefix and get version bytes
-        if version_bytes.len() < 4 {
-            return Err("BuiltinActorId decode: incomplete version data".into());
-        }
-
-        let version_number = &version_bytes[2..4];
-        let mut version_arr = [0u8; 2];
-        version_arr.copy_from_slice(version_number);
-        let version = u16::from_le_bytes(version_arr);
+        let version = parse_version_ascii(version_bytes)?;
 
         Ok(BuiltinActorId { name, version })
     }
+}
+
+fn encode_version_ascii(version: u16) -> [u8; VERSION_DIGITS] {
+    let mut buf = [b'0'; VERSION_DIGITS];
+    let mut v = version;
+
+    for digit in buf.iter_mut().rev() {
+        *digit = b'0' + (v % 10) as u8;
+        v /= 10;
+    }
+
+    buf
+}
+
+fn parse_version_ascii(bytes: &[u8]) -> Result<u16, Error> {
+    if !bytes.starts_with(b"v") {
+        return Err("BuiltinActorId decode: version must start with 'v' prefix".into());
+    }
+
+    if bytes.len() != 1 + VERSION_DIGITS {
+        return Err("BuiltinActorId decode: version must be 5 ASCII digits".into());
+    }
+
+    let mut version: u16 = 0;
+    for &digit in &bytes[1..] {
+        if !(b'0'..=b'9').contains(&digit) {
+            return Err("BuiltinActorId decode: version must contain only digits".into());
+        }
+        version = version
+            .checked_mul(10)
+            .and_then(|v| v.checked_add((digit - b'0') as u16))
+            .ok_or("BuiltinActorId decode: version overflow")?;
+    }
+
+    Ok(version)
+}
+
+fn expect_prefix<'a, F>(parts: &mut Split<'a, u8, F>) -> Result<(), Error>
+where
+    F: FnMut(&u8) -> bool,
+{
+    if parts.next() != Some(b"modl") {
+        return Err("BuiltinActorId decode: expected prefix 'modl'".into());
+    }
+
+    if parts.next() != Some(b"bia") {
+        return Err("BuiltinActorId decode: expected prefix 'modl/bia'".into());
+    }
+
+    Ok(())
 }
 
 /// Built-in actor types enumeration.
@@ -394,5 +456,33 @@ mod tests {
     fn builtin_actor_id_display_works() {
         let id = BuiltinActorId::new(b"staking", 1);
         assert_eq!(format!("{}", id), "staking/v1");
+    }
+
+    #[test]
+    fn try_new_handles_errors() {
+        assert!(BuiltinActorId::try_new(b"", 1).is_err());
+        assert!(BuiltinActorId::try_new(b"this-is-way-too-long-for-16-bytes", 1).is_err());
+        assert!(BuiltinActorId::try_new(b"ok", 1).is_ok());
+    }
+
+    #[test]
+    fn encode_decode_randomish_variants() {
+        let cases = [
+            (b"s" as &[u8], 0),
+            (b"staking", 1),
+            (b"bls12-381", 42),
+            (b"eth-bridge", u16::MAX),
+            (b"sixteenbytesname", 12345),
+        ];
+
+        for (name, version) in cases {
+            let id = BuiltinActorId::try_new(name, version).unwrap();
+            let encoded = id.encode();
+            assert_eq!(encoded.len(), ENCODED_LEN);
+            let decoded = BuiltinActorId::decode(&mut &encoded[..]).unwrap();
+            assert_eq!(decoded, id);
+            assert_eq!(decoded.name_bytes(), name);
+            assert_eq!(decoded.version, version);
+        }
     }
 }
