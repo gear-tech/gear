@@ -17,66 +17,143 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    Blocks, Events, TxInBlock, client::Rpc, config::GearConfig, metadata::Event, signer::Signer,
+    AsGear, ProgramStateChanges, Result, UserMessageSentFilter, UserMessageSentSubscription,
+    config::GearConfig, gear::Event,
 };
-use anyhow::Result;
 use core::ops::{Deref, DerefMut};
-use jsonrpsee::ws_client::WsClientBuilder;
-use subxt::OnlineClient;
+use futures::{Stream, prelude::*};
+use jsonrpsee::{client_transport::ws::Url, ws_client::WsClientBuilder};
+use sp_core::H256;
+use std::{borrow::Cow, time::Duration};
+use subxt::{
+    OnlineClient,
+    backend::rpc::RpcClient,
+    blocks::Block,
+    ext::subxt_rpcs::{LegacyRpcMethods, rpc_params},
+};
 
-pub const DEFAULT_GEAR_ENDPOINT: &str = "wss://rpc.vara.network:443";
-pub const DEFAULT_TIMEOUT_MILLISECS: u64 = 60_000;
-pub const DEFAULT_RETRIES: u8 = 0;
+const ONE_HUNDRED_MEGABYTES: u32 = 100 * 1024 * 1024;
 
-/// Gear api wrapper.
-#[derive(Clone)]
+/// Gear API wrapper.
+#[derive(Debug, Clone)]
 pub struct Api {
-    /// Substrate client
+    rpc: RpcClient,
+    legacy_methods: LegacyRpcMethods<GearConfig>,
     client: OnlineClient<GearConfig>,
+}
 
-    /// Gear RPC client
-    rpc: Rpc,
+#[derive(Debug, Clone, Default)]
+pub struct ApiBuilder<'a> {
+    uri: Option<Cow<'a, str>>,
+    timeout: Option<Duration>,
 }
 
 impl Api {
-    /// Create new API client.
-    pub async fn new(uri: impl Into<Option<&str>>) -> Result<Self> {
-        Self::builder().build(uri).await
-    }
+    /// Default Vara endpoint.
+    pub const VARA_ENDPOINT: &str = "wss://rpc.vara.network:443";
 
-    /// Resolve api builder
-    pub fn builder() -> ApiBuilder {
-        ApiBuilder::default()
-    }
+    /// Default Vara testnet endpoint.
+    pub const VARA_TESTNET_ENDPOINT: &str = "wss://testnet.vara.network:443";
 
-    /// Gear RPC Client
-    pub fn rpc(&self) -> Rpc {
-        self.rpc.clone()
-    }
+    /// Default address of a local node running in development mode.
+    pub const DEV_ENDPOINT: &str = "ws://127.0.0.1:9944";
 
-    /// Subscribe all blocks
+    /// Default timeout duration.
+    pub const DEFAULT_TIMEOUT: Duration = Duration::from_secs(60);
+
+    /// Creates an [`Api`] builder.
+    pub const fn builder<'a>() -> ApiBuilder<'a> {
+        ApiBuilder {
+            uri: None,
+            timeout: None,
+        }
+    }
+}
+
+impl<'a> ApiBuilder<'a> {
+    /// Sets node URI.
     ///
-    ///
-    /// ```ignore
-    /// let api = Api::new(None).await?;
-    /// let blocks = api.subscribe_blocks().await?;
-    ///
-    /// while let Ok(block) = blocks.next().await {
-    ///   // ...
-    /// }
-    /// ```
-    pub async fn subscribe_blocks(&self) -> Result<Blocks> {
-        Ok(self.client.blocks().subscribe_all().await?.into())
+    /// The default is [`Api::VARA_ENDPOINT`].
+    pub fn uri(mut self, uri: impl Into<Cow<'a, str>>) -> Self {
+        self.uri = Some(uri.into());
+        self
     }
 
-    /// Subscribe finalized blocks
-    ///
-    /// Same as `subscribe_blocks` but only finalized blocks.
-    pub async fn subscribe_finalized_blocks(&self) -> Result<Blocks> {
-        Ok(self.client.blocks().subscribe_finalized().await?.into())
+    /// Sets the default node URI of a local node running
+    /// in development node.
+    pub fn dev(self) -> Self {
+        self.uri(Api::DEV_ENDPOINT)
     }
 
-    /// Subscribe all events.
+    /// Sets the dfault node URI of Vara testnet.
+    pub fn testnet(self) -> Self {
+        self.uri(Api::VARA_TESTNET_ENDPOINT)
+    }
+
+    /// Sets requests timeout.
+    ///
+    /// The default is [`Api::DEFAULT_TIMEOUT`].
+    pub const fn timeout(mut self, timeout: Duration) -> Self {
+        self.timeout = Some(timeout);
+        self
+    }
+
+    /// Constructs an [`Api`] instance from the builder.
+    pub async fn build(self) -> Result<Api> {
+        Api::from_rpc_client(self.rpc_client().await?).await
+    }
+
+    async fn rpc_client(self) -> Result<RpcClient> {
+        let uri = self.uri.as_ref().map_or(Api::VARA_ENDPOINT, Cow::as_ref);
+        let uri = Url::parse(uri)?;
+
+        let timeout = self.timeout.unwrap_or(Api::DEFAULT_TIMEOUT);
+
+        let client = WsClientBuilder::new()
+            .max_request_size(ONE_HUNDRED_MEGABYTES)
+            .connection_timeout(timeout)
+            .request_timeout(timeout)
+            .build(uri)
+            .await?;
+
+        Ok(RpcClient::new(client))
+    }
+}
+
+impl Api {
+    /// Constructs an instance of [`Self`].
+    pub async fn new(uri: &str) -> Result<Self> {
+        Self::builder().uri(uri).build().await
+    }
+
+    /// Constructs an instance of [`Api`] from [`RpcClient`].
+    pub async fn from_rpc_client(rpc: RpcClient) -> Result<Self> {
+        let legacy_methods = LegacyRpcMethods::new(rpc.clone());
+        let client = OnlineClient::from_rpc_client(rpc.clone()).await?;
+
+        Ok(Self {
+            rpc,
+            client,
+            legacy_methods,
+        })
+    }
+
+    fn blocks_to_events(
+        blocks: impl Stream<
+            Item = Result<Block<GearConfig, subxt::OnlineClient<GearConfig>>, subxt::Error>,
+        >,
+    ) -> impl Stream<Item = Result<Event>> {
+        blocks
+            .then(|block| async move {
+                Ok::<_, subxt::Error>(stream::iter(
+                    block?.events().await?.iter().collect::<Vec<_>>(),
+                ))
+            })
+            .try_flatten()
+            .map(|event| event?.as_gear())
+    }
+
+    /// Subscribe finalized events.
     ///
     /// ```ignore
     /// let api = Api::new(None).await?;
@@ -86,29 +163,61 @@ impl Api {
     ///   // ...
     /// }
     /// ```
-    pub async fn events(&self) -> Result<Events> {
-        Ok(self.client.blocks().subscribe_all().await?.into())
-    }
-
-    /// Parse events of an extrinsic
-    pub async fn events_of(&self, tx: &TxInBlock) -> Result<Vec<Event>> {
-        tx.fetch_events()
-            .await?
-            .iter()
-            .map(|e| -> Result<Event> { e?.as_root_event::<Event>().map_err(Into::into) })
-            .collect::<Result<Vec<Event>>>()
+    pub async fn subscribe_all_events(&self) -> Result<impl Stream<Item = Result<Event>>> {
+        Ok(Self::blocks_to_events(self.blocks().subscribe_all().await?))
     }
 
     /// Subscribe finalized events
     ///
     /// Same as `events` but only finalized events.
-    pub async fn finalized_events(&self) -> Result<Events> {
-        Ok(self.client.blocks().subscribe_finalized().await?.into())
+    pub async fn subscribe_finalized_events(&self) -> Result<impl Stream<Item = Result<Event>>> {
+        Ok(Self::blocks_to_events(
+            self.blocks().subscribe_finalized().await?,
+        ))
     }
 
-    /// New signer from api
-    pub fn signer(self, suri: &str, passwd: Option<&str>) -> Result<Signer> {
-        Signer::new(self, suri, passwd).map_err(Into::into)
+    /// Subscribe to program state changes reported.
+    pub async fn subscribe_program_state_changes(
+        &self,
+        program_ids: Option<Vec<H256>>,
+    ) -> Result<ProgramStateChanges> {
+        let subscription = self
+            .rpc()
+            .subscribe(
+                "gear_subscribeProgramStateChanges",
+                rpc_params![program_ids],
+                "gear_unsubscribeProgramStateChanges",
+            )
+            .await?;
+
+        Ok(ProgramStateChanges::new(subscription))
+    }
+
+    /// Subscribe to user message notifications.
+    pub async fn subscribe_user_message_sent(
+        &self,
+        filter: UserMessageSentFilter,
+    ) -> Result<UserMessageSentSubscription> {
+        let subscription = self
+            .rpc()
+            .subscribe(
+                "gear_subscribeUserMessageSent",
+                rpc_params![filter],
+                "gear_unsubscribeUserMessageSent",
+            )
+            .await?;
+
+        Ok(UserMessageSentSubscription::new(subscription))
+    }
+
+    /// Get the underlying [`RpcClient`] instance.
+    pub fn rpc(&self) -> &RpcClient {
+        &self.rpc
+    }
+
+    /// Access legacy RPC methods.
+    pub fn legacy(&self) -> &LegacyRpcMethods<GearConfig> {
+        &self.legacy_methods
     }
 }
 
@@ -123,66 +232,5 @@ impl Deref for Api {
 impl DerefMut for Api {
     fn deref_mut(&mut self) -> &mut Self::Target {
         &mut self.client
-    }
-}
-
-/// gsdk api builder
-pub struct ApiBuilder {
-    /// RPC retries
-    retries: u8,
-    /// RPC timeout
-    timeout: u64,
-}
-
-impl ApiBuilder {
-    /// Build api from the provided config
-    pub async fn build(self, uri: impl Into<Option<&str>>) -> Result<Api> {
-        let uri: Option<&str> = uri.into();
-        let rpc = Rpc::new(
-            uri.unwrap_or(DEFAULT_GEAR_ENDPOINT),
-            self.timeout,
-            self.retries,
-        )
-        .await?;
-
-        Ok(Api {
-            client: OnlineClient::from_rpc_client(rpc.client()).await?,
-            rpc,
-        })
-    }
-
-    /// Build api with a custom WebSocket client.
-    pub async fn build_ws_custom(
-        self,
-        uri: &str,
-        init: impl FnOnce(WsClientBuilder) -> WsClientBuilder,
-    ) -> Result<Api> {
-        let rpc = Rpc::new_ws_custom(uri, self.timeout, self.retries, init).await?;
-
-        Ok(Api {
-            client: OnlineClient::from_rpc_client(rpc.client()).await?,
-            rpc,
-        })
-    }
-
-    /// Set rpc retries
-    pub fn retries(mut self, retries: u8) -> Self {
-        self.retries = retries;
-        self
-    }
-
-    /// Set rpc timeout in milliseconds
-    pub fn timeout(mut self, timeout: u64) -> Self {
-        self.timeout = timeout;
-        self
-    }
-}
-
-impl Default for ApiBuilder {
-    fn default() -> Self {
-        Self {
-            retries: DEFAULT_RETRIES,
-            timeout: DEFAULT_TIMEOUT_MILLISECS,
-        }
     }
 }

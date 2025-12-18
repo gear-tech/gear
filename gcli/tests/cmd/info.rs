@@ -17,10 +17,12 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Integration tests for command `deploy`
+
 use crate::common::{
-    self, Args, Result,
+    self, Args,
     node::{Convert, NodeExec},
 };
+use anyhow::Result;
 
 // ExtraFlags is hardcoded
 // const IS_NEW_LOGIC: u128 = 0x80000000_00000000_00000000_00000000u128;

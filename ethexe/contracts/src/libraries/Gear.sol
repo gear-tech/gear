@@ -18,8 +18,9 @@ library Gear {
     // 2.5 * 10^9 of gear gas.
     uint64 public constant COMPUTATION_THRESHOLD = 2_500_000_000;
 
-    // 2/3; 66.(6)% of validators signatures to verify.
-    uint16 public constant SIGNING_THRESHOLD_PERCENTAGE = 6666;
+    // 2/3; validators signatures to verify.
+    uint128 public constant VALIDATORS_THRESHOLD_NUMERATOR = 2;
+    uint128 public constant VALIDATORS_THRESHOLD_DENOMINATOR = 3;
 
     // 10 WVara tokens per compute second.
     uint128 public constant WVARA_PER_SECOND = 10_000_000_000_000;
@@ -35,6 +36,13 @@ library Gear {
         AggregatedPublicKey aggregatedPublicKey;
         address verifiableSecretSharingCommitmentPointer;
         mapping(address => bool) map;
+        address[] list;
+        uint256 useFromTimestamp;
+    }
+
+    struct ValidatorsView {
+        AggregatedPublicKey aggregatedPublicKey;
+        address verifiableSecretSharingCommitmentPointer;
         address[] list;
         uint256 useFromTimestamp;
     }
@@ -71,6 +79,11 @@ library Gear {
         uint48 blockTimestamp;
         /// @dev Hash of previously committed batch hash.
         bytes32 previousCommittedBatchHash;
+        /// @dev Expiry in blocks since `blockHash`.
+        /// if 1 - then valid only in child block
+        /// if 2 - then valid in child and grandchild blocks
+        /// ... etc.
+        uint8 expiry;
         /// @dev Chain commitment (contains one or zero commitments)
         ChainCommitment[] chainCommitment;
         /// @dev Code commitments
@@ -154,7 +167,11 @@ library Gear {
         bytes32 newStateHash;
         bool exited;
         address inheritor;
+        /// @dev We represent `valueToReceive` as `uint128` and `bool` because each non-zero byte costs 16 gas,
+        ///      and each zero byte costs 4 gas (see https://evm.codes/about#gascosts).
+        ///      Also see `ethexe/common/src/gear.rs`.
         uint128 valueToReceive;
+        bool valueToReceiveNegativeSign;
         ValueClaim[] valueClaims;
         Message[] messages;
     }
@@ -166,9 +183,17 @@ library Gear {
     }
 
     struct ValidationSettings {
-        uint16 signingThresholdPercentage;
+        uint128 thresholdNumerator;
+        uint128 thresholdDenominator;
         Validators validators0;
         Validators validators1;
+    }
+
+    struct ValidationSettingsView {
+        uint128 thresholdNumerator;
+        uint128 thresholdDenominator;
+        ValidatorsView validators0;
+        ValidatorsView validators1;
     }
 
     struct ValueClaim {
@@ -201,6 +226,7 @@ library Gear {
         bytes32 _block,
         uint48 _timestamp,
         bytes32 _prevCommittedBlock,
+        uint8 _expiry,
         bytes32 _chainCommitmentHash,
         bytes32 _codeCommitmentsHash,
         bytes32 _rewardsCommitmentHash,
@@ -211,6 +237,7 @@ library Gear {
                 _block,
                 _timestamp,
                 _prevCommittedBlock,
+                _expiry,
                 _chainCommitmentHash,
                 _codeCommitmentsHash,
                 _rewardsCommitmentHash,
@@ -234,8 +261,10 @@ library Gear {
         );
     }
 
-    function blockIsPredecessor(bytes32 hash) internal view returns (bool) {
-        for (uint256 i = block.number - 1; i > 0;) {
+    function blockIsPredecessor(bytes32 hash, uint8 expiry) internal view returns (bool) {
+        uint256 start = block.number - 1;
+        uint256 end = expiry >= block.number ? 0 : block.number - expiry;
+        for (uint256 i = start; i >= end;) {
             bytes32 ret = blockhash(i);
             if (ret == hash) {
                 return true;
@@ -283,12 +312,20 @@ library Gear {
         bool exited,
         address inheritor,
         uint128 valueToReceive,
+        bool valueToReceiveNegativeSign,
         bytes32 valueClaimsHash,
         bytes32 messagesHashesHash
     ) internal pure returns (bytes32) {
         return keccak256(
             abi.encodePacked(
-                actor, newStateHash, exited, inheritor, valueToReceive, valueClaimsHash, messagesHashesHash
+                actor,
+                newStateHash,
+                exited,
+                inheritor,
+                valueToReceive,
+                valueToReceiveNegativeSign,
+                valueClaimsHash,
+                messagesHashesHash
             )
         );
     }
@@ -365,8 +402,11 @@ library Gear {
                 _messageHash
             );
         } else if (_signatureType == SignatureType.ECDSA) {
-            uint256 threshold =
-                validatorsThreshold(validators.list.length, router.validationSettings.signingThresholdPercentage);
+            uint256 threshold = validatorsThreshold(
+                validators.list.length,
+                router.validationSettings.thresholdNumerator,
+                router.validationSettings.thresholdDenominator
+            );
 
             uint256 validSignatures = 0;
 
@@ -444,9 +484,20 @@ library Gear {
         return ts1Greater && (tsGe0 == tsGe1);
     }
 
-    function validatorsThreshold(uint256 validatorsAmount, uint16 thresholdPercentage) internal pure returns (uint256) {
-        // Dividing by 10000 to adjust for percentage
-        return (validatorsAmount * uint256(thresholdPercentage) + 9999) / 10000;
+    function validatorsThreshold(uint256 validatorsAmount, uint128 thresholdNumerator, uint128 thresholdDenominator)
+        internal
+        pure
+        returns (uint256)
+    {
+        uint256 a;
+        unchecked {
+            a = validatorsAmount * thresholdNumerator;
+        }
+        uint256 d = a / thresholdDenominator;
+        uint256 r = a % thresholdDenominator;
+        unchecked {
+            return (r > 0) ? d + 1 : d;
+        }
     }
 
     function valueClaimBytes(ValueClaim memory claim) internal pure returns (bytes memory) {
@@ -459,5 +510,29 @@ library Gear {
 
     function eraStartedAt(IRouter.Storage storage router, uint256 ts) internal view returns (uint256) {
         return router.genesisBlock.timestamp + eraIndexAt(router, ts) * router.timelines.era;
+    }
+
+    function toView(Gear.Validators storage validators) internal view returns (Gear.ValidatorsView memory) {
+        return Gear.ValidatorsView({
+            aggregatedPublicKey: validators.aggregatedPublicKey,
+            verifiableSecretSharingCommitmentPointer: validators.verifiableSecretSharingCommitmentPointer,
+            list: validators.list,
+            useFromTimestamp: validators.useFromTimestamp
+        });
+    }
+
+    function toView(Gear.ValidationSettings storage settings)
+        internal
+        view
+        returns (Gear.ValidationSettingsView memory)
+    {
+        Gear.ValidatorsView memory validators0 = toView(settings.validators0);
+        Gear.ValidatorsView memory validators1 = toView(settings.validators1);
+        return Gear.ValidationSettingsView({
+            thresholdNumerator: settings.thresholdNumerator,
+            thresholdDenominator: settings.thresholdDenominator,
+            validators0: validators0,
+            validators1: validators1
+        });
     }
 }

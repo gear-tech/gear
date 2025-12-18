@@ -18,93 +18,82 @@
 
 //! Requires node to be built in release mode
 
+use futures::prelude::*;
 use gear_core::{
     ids::{ActorId, CodeId, prelude::*},
     rpc::ReplyInfo,
 };
 use gear_core_errors::{ReplyCode, SuccessReplyReason};
-use gsdk::{Api, Error, Result};
-use jsonrpsee::types::error::ErrorObject;
+use gsdk::{AccountKeyring, Api, Error, Result, gear};
 use parity_scale_codec::Encode;
-use std::{borrow::Cow, process::Command, str::FromStr, time::Instant};
-use subxt::{Error as SubxtError, error::RpcError, utils::H256};
-use utils::{alice_account_id, dev_node};
+use std::{process::Command, str::FromStr, time::Instant};
+use subxt::{
+    ext::subxt_rpcs::{Error as SubxtRpcError, UserError},
+    utils::{AccountId32, H256},
+};
+use tokio::time::{Duration, timeout};
+use utils::dev_node;
 
 mod utils;
 
 #[tokio::test]
 async fn pallet_errors_formatting() -> Result<()> {
-    let node = dev_node();
-    let api = Api::new(node.ws().as_str()).await?;
+    let (_node, api) = dev_node().await;
 
     let err = api
+        .unsigned()
         .calculate_upload_gas(
-            [0u8; 32].into(),
+            AccountId32([0u8; 32]),
             /* invalid code */ vec![],
             vec![],
             0,
             true,
-            None,
         )
         .await
         .expect_err("Must return error");
+    let Error::SubxtRpc(err) = err else {
+        panic!("unexpected error variant: {err:?}")
+    };
 
-    let expected_err = Error::Subxt(Box::new(SubxtError::Rpc(RpcError::ClientError(Box::new(
-        ErrorObject::owned(
-            8000,
-            "Runtime error",
-            Some("\"Extrinsic `gear.upload_program` failed: 'ProgramConstructionFailed'\""),
+    let expected_err = SubxtRpcError::User(UserError {
+        code: 8000,
+        message: "Runtime error".into(),
+        data: Some(
+            serde_json::value::to_raw_value(
+                "Extrinsic `gear.upload_program` failed: 'ProgramConstructionFailed'",
+            )
+            .unwrap(),
         ),
-    )))));
+    });
 
-    assert_eq!(format!("{err}"), format!("{expected_err}"));
+    assert_eq!(err.to_string(), expected_err.to_string());
 
     Ok(())
 }
 
 #[tokio::test]
 async fn test_calculate_upload_gas() -> Result<()> {
-    let node = dev_node();
-    let api = Api::new(node.ws().as_str()).await?;
+    let (_node, api) = dev_node().await;
 
-    let alice: [u8; 32] = *alice_account_id().as_ref();
-
-    api.calculate_upload_gas(
-        alice.into(),
-        demo_messenger::WASM_BINARY.to_vec(),
-        vec![],
-        0,
-        true,
-        None,
-    )
-    .await?;
+    api.calculate_upload_gas(demo_messenger::WASM_BINARY.to_vec(), vec![], 0, true)
+        .await?;
 
     Ok(())
 }
 
 #[tokio::test]
 async fn test_calculate_create_gas() -> Result<()> {
-    let node = dev_node();
+    let (_node, api) = dev_node().await;
 
     // 1. upload code.
-    let signer = Api::new(node.ws().as_str())
-        .await?
-        .signer("//Alice", None)?;
-    signer
-        .calls
-        .upload_code(demo_messenger::WASM_BINARY.to_vec())
+    api.upload_code(demo_messenger::WASM_BINARY.to_vec())
         .await?;
 
     // 2. calculate create gas and create program.
     let code_id = CodeId::generate(demo_messenger::WASM_BINARY);
-    let gas_info = signer
-        .rpc
-        .calculate_create_gas(None, code_id, vec![], 0, true, None)
-        .await?;
+    let gas_info = api.calculate_create_gas(code_id, vec![], 0, true).await?;
 
-    signer
-        .calls
-        .create_program(code_id, vec![], vec![], gas_info.min_limit, 0)
+    api.create_program_bytes(code_id, vec![], vec![], gas_info.min_limit, 0)
         .await?;
 
     Ok(())
@@ -112,41 +101,30 @@ async fn test_calculate_create_gas() -> Result<()> {
 
 #[tokio::test]
 async fn test_calculate_handle_gas() -> Result<()> {
-    let node = dev_node();
+    let (_node, api) = dev_node().await;
 
     let salt = vec![];
     let pid = ActorId::generate_from_user(CodeId::generate(demo_messenger::WASM_BINARY), &salt);
 
     // 1. upload program.
-    let signer = Api::new(node.ws().as_str())
-        .await?
-        .signer("//Alice", None)?;
-
-    signer
-        .calls
-        .upload_program(
-            demo_messenger::WASM_BINARY.to_vec(),
-            salt,
-            vec![],
-            100_000_000_000,
-            0,
-        )
-        .await?;
+    api.upload_program_bytes(
+        demo_messenger::WASM_BINARY.to_vec(),
+        salt,
+        vec![],
+        100_000_000_000,
+        0,
+    )
+    .await?;
 
     assert!(
-        signer.api().gprog(pid).await.is_ok(),
+        api.active_program(pid).await.is_ok(),
         "Program not exists on chain."
     );
 
     // 2. calculate handle gas and send message.
-    let gas_info = signer
-        .rpc
-        .calculate_handle_gas(None, pid, vec![], 0, true, None)
-        .await?;
+    let gas_info = api.calculate_handle_gas(pid, vec![], 0, true).await?;
 
-    signer
-        .calls
-        .send_message(pid, vec![], gas_info.min_limit, 0)
+    api.send_message_bytes(pid, vec![], gas_info.min_limit, 0)
         .await?;
 
     Ok(())
@@ -154,116 +132,127 @@ async fn test_calculate_handle_gas() -> Result<()> {
 
 #[tokio::test]
 async fn test_calculate_reply_gas() -> Result<()> {
-    let node = dev_node();
-
-    let alice: [u8; 32] = *alice_account_id().as_ref();
+    let (_node, api) = dev_node().await;
 
     let salt = vec![];
 
     let pid = ActorId::generate_from_user(CodeId::generate(demo_waiter::WASM_BINARY), &salt);
-    let payload = demo_waiter::Command::SendUpTo(alice, 10);
+    let payload = demo_waiter::Command::SendUpTo(AccountKeyring::Alice.to_account_id().into(), 10);
 
     // 1. upload program.
-    let signer = Api::new(node.ws().as_str())
-        .await?
-        .signer("//Alice", None)?;
-    signer
-        .calls
-        .upload_program(
-            demo_waiter::WASM_BINARY.to_vec(),
-            salt,
-            vec![],
-            100_000_000_000,
-            0,
-        )
-        .await?;
+    api.upload_program_bytes(
+        demo_waiter::WASM_BINARY.to_vec(),
+        salt,
+        vec![],
+        100_000_000_000,
+        0,
+    )
+    .await?;
 
     assert!(
-        signer.api().gprog(pid).await.is_ok(),
+        api.active_program(pid).await.is_ok(),
         "Program not exists on chain"
     );
 
     // 2. send wait message.
-    signer
-        .calls
-        .send_message(pid, payload.encode(), 100_000_000_000, 0)
-        .await?;
+    api.send_message(pid, payload, 100_000_000_000, 0).await?;
 
-    let mailbox = signer
-        .api()
-        .mailbox(Some(alice_account_id().clone()), 10)
-        .await?;
+    let mailbox = api.mailbox_messages(10).await?;
     assert_eq!(mailbox.len(), 1);
-    let message_id = mailbox[0].0.id.into();
+    let message_id = mailbox[0].0.id();
 
     // 3. calculate reply gas and send reply.
-    let gas_info = signer
-        .rpc
-        .calculate_reply_gas(None, message_id, vec![], 0, true, None)
-        .await?;
+    let gas_info = api.calculate_reply_gas(message_id, vec![], 0, true).await?;
 
-    signer
-        .calls
-        .send_reply(message_id, vec![], gas_info.min_limit, 0)
+    api.send_reply_bytes(message_id, vec![], gas_info.min_limit, 0)
         .await?;
 
     Ok(())
 }
 
 #[tokio::test]
-async fn test_runtime_wasm_blob_version() -> Result<()> {
-    let git_commit_hash = || -> Cow<str> {
-        // This code is taken from
-        // https://github.com/paritytech/substrate/blob/ae1a608c91a5da441a0ee7c26a4d5d410713580d/utils/build-script-utils/src/version.rs#L21
-        if let Ok(hash) = std::env::var("SUBSTRATE_CLI_GIT_COMMIT_HASH") {
-            Cow::from(hash.trim().to_owned())
-        } else {
-            // We deliberately set the length here to `11` to ensure that
-            // the emitted hash is always of the same length; otherwise
-            // it can (and will!) vary between different build environments.
-            match Command::new("git")
-                .args(["rev-parse", "--short=11", "HEAD"])
-                .output()
-            {
-                Ok(o) if o.status.success() => {
-                    let sha = String::from_utf8_lossy(&o.stdout).trim().to_owned();
-                    Cow::from(sha)
-                }
-                Ok(o) => {
-                    println!("cargo:warning=Git command failed with status: {}", o.status);
-                    Cow::from("unknown")
-                }
-                Err(err) => {
-                    println!("cargo:warning=Failed to execute git command: {err}");
-                    Cow::from("unknown")
-                }
+async fn test_subscribe_program_state_changes() -> Result<()> {
+    let (_node, api) = dev_node().await;
+
+    let mut subscription = api.subscribe_program_state_changes(None).await?;
+
+    let salt = b"state-change".to_vec();
+
+    let program_id = api
+        .upload_program_bytes(
+            demo_messenger::WASM_BINARY.to_vec(),
+            salt,
+            vec![],
+            100_000_000_000,
+            0,
+        )
+        .await?
+        .value
+        .1;
+
+    let expected_id = H256::from(program_id.into_bytes());
+
+    let change = timeout(Duration::from_secs(30), async {
+        loop {
+            let event = subscription.next().await;
+            println!("Got event: {event:?}");
+            match event {
+                Some(Ok(event)) if event.program_ids.contains(&expected_id) => break Ok(event),
+                Some(Ok(_)) => continue,
+                Some(Err(err)) => break Err(err),
+                None => break Err(Error::EventNotFound),
             }
+        }
+    })
+    .await
+    .expect("timed out waiting for program state change")?;
+
+    assert!(change.program_ids.contains(&expected_id));
+
+    Ok(())
+}
+
+#[tokio::test]
+async fn test_runtime_wasm_blob_version() -> Result<()> {
+    // FIXME: this test relies on the fact the node has been built from the same commit hash
+    //        as the test has been.
+    let git_commit_hash = {
+        // We deliberately set the length here to `11` to ensure that
+        // the emitted hash is always of the same length; otherwise
+        // it can (and will!) vary between different build environments.
+        match Command::new("git")
+            .args(["rev-parse", "--short=11", "HEAD"])
+            .output()
+        {
+            Ok(o) if o.status.success() => String::from_utf8_lossy(&o.stdout).trim().to_owned(),
+            Ok(o) => panic!("Git command failed with status: {}", o.status),
+            Err(err) => panic!("cargo:warning=Failed to execute git command: {err}"),
         }
     };
 
-    // This test relies on the fact the node has been built from the same commit hash
-    // as the test has been.
-    let git_commit_hash = git_commit_hash();
-    assert_ne!(git_commit_hash, "unknown");
+    let (_node, api) = dev_node().await;
+    api.blocks()
+        .subscribe_finalized()
+        .await?
+        .then(|block| async { api.runtime_wasm_blob_version_at(block?.hash()).await })
+        .take(4)
+        .inspect_ok(|version| {
+            assert!(
+                version.ends_with(&git_commit_hash),
+                "Version `{}` must end with commit hash `{}`",
+                version,
+                git_commit_hash
+            )
+        })
+        .try_fold(
+            api.runtime_wasm_blob_version().await?,
+            |version_a, version_b| {
+                assert_eq!(version_a, version_b);
 
-    let node = dev_node();
-    let api = Api::new(node.ws().as_str()).await?;
-    let mut finalized_blocks = api.subscribe_finalized_blocks().await?;
-
-    let wasm_blob_version_1 = api.runtime_wasm_blob_version(None).await?;
-    assert!(
-        wasm_blob_version_1.ends_with(git_commit_hash.as_ref()),
-        "The WASM blob version {wasm_blob_version_1} does not end with the git commit hash {git_commit_hash}",
-    );
-
-    let block_hash_1 = finalized_blocks.next_events().await?.unwrap().block_hash();
-    let wasm_blob_version_2 = api.runtime_wasm_blob_version(Some(block_hash_1)).await?;
-    assert_eq!(wasm_blob_version_1, wasm_blob_version_2);
-
-    let block_hash_2 = finalized_blocks.next_events().await?.unwrap().block_hash();
-    let wasm_blob_version_3 = api.runtime_wasm_blob_version(Some(block_hash_2)).await?;
-    assert_ne!(block_hash_1, block_hash_2);
-    assert_eq!(wasm_blob_version_2, wasm_blob_version_3);
+                future::ready(Ok(version_b))
+            },
+        )
+        .await?;
 
     Ok(())
 }
@@ -272,59 +261,48 @@ async fn test_runtime_wasm_blob_version() -> Result<()> {
 async fn test_runtime_wasm_blob_version_history() -> Result<()> {
     let api = Api::new("wss://archive-rpc.vara.network:443").await?;
 
-    let no_method_block_hash = sp_core::H256::from_str(
-        "0xa84349fc30b8f2d02cc31d49fe8d4a45b6de5a3ac1f1ad975b8920b0628dd6b9",
-    )
-    .unwrap();
+    let no_method_block_hash =
+        H256::from_str("0xa84349fc30b8f2d02cc31d49fe8d4a45b6de5a3ac1f1ad975b8920b0628dd6b9")
+            .unwrap();
 
-    let wasm_blob_version_err = api
-        .runtime_wasm_blob_version(Some(no_method_block_hash))
+    let err = api
+        .runtime_wasm_blob_version_at(no_method_block_hash)
         .await
-        .unwrap_err()
-        .unwrap_subxt();
+        .unwrap_err();
+    let Error::SubxtRpc(wasm_blob_version_err) = err else {
+        panic!("unexpected error variant: {err:?}")
+    };
 
-    let err = ErrorObject::owned(
-        9000,
-        "Unable to find WASM blob version in WASM blob",
-        None::<String>,
-    );
+    let err = SubxtRpcError::User(UserError {
+        code: 9000,
+        message: "Unable to find WASM blob version in WASM blob".into(),
+        data: None,
+    });
 
-    if let SubxtError::Rpc(RpcError::ClientError(e)) = *wasm_blob_version_err {
-        assert_eq!(e.to_string(), err.to_string());
-        return Ok(());
-    }
+    assert_eq!(wasm_blob_version_err.to_string(), err.to_string());
 
-    panic!("Error does not match: {wasm_blob_version_err:?}");
+    Ok(())
 }
 
 #[tokio::test]
 async fn test_original_code_storage() -> Result<()> {
-    let node = dev_node();
+    let (_node, api) = dev_node().await;
 
     let salt = vec![];
     let pid = ActorId::generate_from_user(CodeId::generate(demo_messenger::WASM_BINARY), &salt);
 
-    let signer = Api::new(node.ws().as_str())
-        .await?
-        .signer("//Alice", None)?;
+    api.upload_program_bytes(
+        demo_messenger::WASM_BINARY.to_vec(),
+        salt,
+        vec![],
+        100_000_000_000,
+        0,
+    )
+    .await?;
 
-    signer
-        .calls
-        .upload_program(
-            demo_messenger::WASM_BINARY.to_vec(),
-            salt,
-            vec![],
-            100_000_000_000,
-            0,
-        )
-        .await?;
-
-    let program = signer.api().gprog(pid).await?;
-    let rpc = signer.api().backend();
-    let block_hash = rpc.latest_finalized_block_ref().await?.hash();
-    let code = signer
-        .api()
-        .original_code_storage_at(program.code_id.0.into(), Some(block_hash))
+    let program = api.active_program(pid).await?;
+    let code = api
+        .original_code(program.code_id.into_bytes().into())
         .await?;
 
     assert_eq!(
@@ -360,25 +338,19 @@ async fn test_program_counters() -> Result<()> {
 async fn test_calculate_reply_for_handle() -> Result<()> {
     use demo_fungible_token::{FTAction, FTEvent, InitConfig, WASM_BINARY};
 
-    let node = dev_node();
+    let (_node, api) = dev_node().await;
 
     let salt = vec![];
     let pid = ActorId::generate_from_user(CodeId::generate(WASM_BINARY), &salt);
 
     // 1. upload program.
-    let signer = Api::new(node.ws().as_str())
-        .await?
-        .signer("//Alice", None)?;
+    let payload = InitConfig::test_sequence();
 
-    let payload = InitConfig::test_sequence().encode();
-
-    signer
-        .calls
-        .upload_program(WASM_BINARY.to_vec(), salt, payload, 100_000_000_000, 0)
+    api.upload_program(WASM_BINARY.to_vec(), salt, payload, 100_000_000_000, 0)
         .await?;
 
     assert!(
-        signer.api().gprog(pid).await.is_ok(),
+        api.active_program(pid).await.is_ok(),
         "Program not exists on chain."
     );
 
@@ -387,9 +359,8 @@ async fn test_calculate_reply_for_handle() -> Result<()> {
     let message_out = FTEvent::TotalSupply(0);
 
     // 2. calculate reply for handle
-    let reply_info = signer
-        .rpc
-        .calculate_reply_for_handle(None, pid, message_in.encode(), 100_000_000_000, 0, None)
+    let reply_info = api
+        .calculate_reply_for_handle(pid, message_in.encode(), 100_000_000_000, 0)
         .await?;
 
     // 3. assert
@@ -407,40 +378,32 @@ async fn test_calculate_reply_for_handle() -> Result<()> {
 
 #[tokio::test]
 async fn test_calculate_reply_for_handle_does_not_change_state() -> Result<()> {
-    let node = dev_node();
+    let (_node, api) = dev_node().await;
 
     let salt = vec![];
     let pid = ActorId::generate_from_user(CodeId::generate(demo_vec::WASM_BINARY), &salt);
 
     // 1. upload program.
-    let signer = Api::new(node.ws().as_str())
-        .await?
-        .signer("//Alice", None)?;
-
-    signer
-        .calls
-        .upload_program(
-            demo_vec::WASM_BINARY.to_vec(),
-            salt,
-            vec![],
-            100_000_000_000,
-            0,
-        )
-        .await?;
+    api.upload_program_bytes(
+        demo_vec::WASM_BINARY.to_vec(),
+        salt,
+        vec![],
+        100_000_000_000,
+        0,
+    )
+    .await?;
 
     assert!(
-        signer.api().gprog(pid).await.is_ok(),
+        api.active_program(pid).await.is_ok(),
         "Program not exists on chain."
     );
 
     // 2. read initial state
-    let pid_h256 = H256::from_slice(pid.as_ref());
-    let initial_state = signer.api().read_state(pid_h256, vec![], None).await?;
+    let initial_state = api.read_state_bytes(pid, vec![]).await?;
 
     // 3. calculate reply for handle
-    let reply_info = signer
-        .rpc
-        .calculate_reply_for_handle(None, pid, 42i32.encode(), 100_000_000_000, 0, None)
+    let reply_info = api
+        .calculate_reply_for_handle(pid, 42i32.encode(), 100_000_000_000, 0)
         .await?;
 
     // 4. assert that calculated result correct
@@ -454,19 +417,16 @@ async fn test_calculate_reply_for_handle_does_not_change_state() -> Result<()> {
     );
 
     // 5. read state after calculate
-    let calculated_state = signer.api().read_state(pid_h256, vec![], None).await?;
+    let calculated_state = api.read_state_bytes(pid, vec![]).await?;
 
     // 6. assert that state hasn't changed
     assert_eq!(initial_state, calculated_state);
 
     // 7. make call
-    signer
-        .calls
-        .send_message(pid, 42i32.encode(), 100_000_000_000, 0)
-        .await?;
+    api.send_message(pid, 42i32, 100_000_000_000, 0).await?;
 
     // 8. read state after call
-    let updated_state = signer.api().read_state(pid_h256, vec![], None).await?;
+    let updated_state = api.read_state_bytes(pid, vec![]).await?;
 
     // 9. assert that state has changed
     assert_ne!(initial_state, updated_state);
@@ -478,33 +438,28 @@ async fn query_program_counters(
     uri: &str,
     block_hash: Option<H256>,
 ) -> Result<(H256, u32, u64, u64, u64)> {
-    use gsdk::{
-        BlockNumber,
-        metadata::{runtime_types::gear_core::program::Program, storage::GearProgramStorage},
-    };
+    use gsdk::gear::runtime_types::gear_core::program::Program;
     use parity_scale_codec::Decode;
-    use subxt::dynamic::Value;
 
-    let signer = Api::new(uri).await?.signer("//Alice", None)?;
+    let api = Api::new(uri).await?.signed_as_alice();
 
-    let client_block = signer.api().blocks();
     let (block_hash, block_number) = match block_hash {
         Some(hash) => {
-            let block = client_block.at(hash).await?;
+            let block = api.blocks().at(hash).await?;
             assert_eq!(hash, block.hash(), "block hash mismatched");
 
             (hash, block.number())
         }
 
         None => {
-            let latest_block = client_block.at_latest().await?;
+            let latest_block = api.blocks().at_latest().await?;
 
             (latest_block.hash(), latest_block.number())
         }
     };
 
-    let storage = signer.api().get_storage(Some(block_hash)).await?;
-    let addr = Api::storage(GearProgramStorage::ProgramStorage, Vec::<Value>::new());
+    let storage = api.storage_at(Some(block_hash)).await?;
+    let addr = gear::storage().gear_program().program_storage_iter();
 
     let mut iter = storage.iter(addr).await?;
     let mut count_memory_page = 0u64;
@@ -512,15 +467,15 @@ async fn query_program_counters(
     let mut count_active_program = 0u64;
     while let Some(pair) = iter.next().await {
         let pair = pair?;
-        let (key, value) = (pair.key_bytes, pair.value);
-        let program = Program::<BlockNumber>::decode(&mut value.encoded())?;
+        let (key, program) = (pair.key_bytes, pair.value);
+
         count_program += 1;
 
         let program_id = ActorId::decode(&mut key.as_ref())?;
 
         if let Program::Active(_) = program {
             count_active_program += 1;
-            count_memory_page += signer.api().gpages(program_id, None).await?.len() as u64;
+            count_memory_page += api.program_pages(program_id).await?.len() as u64;
         }
     }
 

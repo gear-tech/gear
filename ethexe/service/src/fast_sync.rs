@@ -17,16 +17,17 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::Service;
-use alloy::{eips::BlockId, providers::Provider};
 use anyhow::{Context, Result};
 use ethexe_common::{
-    Address, Announce, BlockData, CodeAndIdUnchecked, Digest, HashOf, ProgramStates,
-    StateHashWithQueueSize,
+    Address, Announce, BlockData, BlockHeader, CodeAndIdUnchecked, Digest, HashOf, ProgramStates,
+    ProtocolTimelines, StateHashWithQueueSize,
     db::{
         AnnounceStorageRO, BlockMetaStorageRO, CodesStorageRO, CodesStorageRW, FullAnnounceData,
-        FullBlockData, HashStorageRO, OnChainStorageRO, OnChainStorageRW,
+        FullBlockData, HashStorageRO, OnChainStorageRW,
     },
     events::{BlockEvent, RouterEvent},
+    injected,
+    network::{AnnouncesRequest, AnnouncesRequestUntil},
 };
 use ethexe_compute::ComputeService;
 use ethexe_db::{
@@ -38,9 +39,12 @@ use ethexe_db::{
     },
     visitor::DatabaseVisitor,
 };
-use ethexe_ethereum::mirror::MirrorQuery;
+use ethexe_ethereum::{abi::Gear::ValidationSettingsView, mirror::MirrorQuery};
 use ethexe_network::{NetworkService, db_sync};
-use ethexe_observer::ObserverService;
+use ethexe_observer::{
+    ObserverService,
+    utils::{BlockId, BlockLoader},
+};
 use ethexe_runtime_common::{
     ScheduleRestorer,
     state::{
@@ -51,7 +55,10 @@ use ethexe_runtime_common::{
 use futures::StreamExt;
 use gprimitives::{ActorId, CodeId, H256};
 use parity_scale_codec::Decode;
-use std::collections::{BTreeMap, BTreeSet, HashMap};
+use std::{
+    collections::{BTreeMap, BTreeSet, HashMap},
+    num::NonZeroU32,
+};
 
 struct EventData {
     /// Latest committed since latest prepared block batch
@@ -61,29 +68,10 @@ struct EventData {
 }
 
 impl EventData {
-    async fn get_block_data(
-        observer: &mut ObserverService,
-        db: &Database,
-        block: H256,
-    ) -> Result<BlockData> {
-        if let (Some(header), Some(events)) = (db.block_header(block), db.block_events(block)) {
-            Ok(BlockData {
-                hash: block,
-                header,
-                events,
-            })
-        } else {
-            let data = observer.load_block_data(block).await?;
-            db.set_block_header(block, data.header);
-            db.set_block_events(block, &data.events);
-            Ok(data)
-        }
-    }
-
     /// Collects metadata regarding the latest committed batch, block, and the previous committed block
     /// for a given blockchain observer and database.
     async fn collect(
-        observer: &mut ObserverService,
+        block_loader: &impl BlockLoader,
         db: &Database,
         highest_block: H256,
     ) -> Result<Option<Self>> {
@@ -91,7 +79,7 @@ impl EventData {
 
         let mut block = highest_block;
         'prepared: while !db.block_meta(block).prepared {
-            let block_data = Self::get_block_data(observer, db, block).await?;
+            let block_data = block_loader.load(block, None).await?;
 
             // NOTE: logic relies on events in order as they are emitted on Ethereum
             for event in block_data.events.into_iter().rev() {
@@ -186,18 +174,20 @@ async fn collect_announce(
         return Ok(announce);
     }
 
-    Ok(net_fetch(
+    let response = net_fetch(
         network,
-        db_sync::AnnouncesRequest {
+        AnnouncesRequest {
             head: announce_hash,
-            max_chain_len: 1,
+            until: AnnouncesRequestUntil::ChainLen(NonZeroU32::MIN),
         }
         .into(),
     )
     .await?
-    .unwrap_announces()
-    .pop()
-    .expect("announce must be present"))
+    .unwrap_announces();
+
+    // Response is checked so we can just take the first announce
+    let (_, mut announces) = response.into_parts();
+    Ok(announces.remove(0))
 }
 
 /// Collects a set of valid code IDs that are not yet validated in the local database.
@@ -409,26 +399,26 @@ impl DatabaseVisitor for RequestManager {
     fn on_db_error(&mut self, error: DatabaseIteratorError) {
         let (hash, metadata) = match error {
             DatabaseIteratorError::NoMemoryPages(hash) => {
-                (hash.hash(), RequestMetadata::MemoryPages)
+                (hash.inner(), RequestMetadata::MemoryPages)
             }
             DatabaseIteratorError::NoMemoryPagesRegion(hash) => {
-                (hash.hash(), RequestMetadata::MemoryPagesRegion)
+                (hash.inner(), RequestMetadata::MemoryPagesRegion)
             }
-            DatabaseIteratorError::NoPageData(hash) => (hash.hash(), RequestMetadata::Data),
+            DatabaseIteratorError::NoPageData(hash) => (hash.inner(), RequestMetadata::Data),
             DatabaseIteratorError::NoMessageQueue(hash) => {
-                (hash.hash(), RequestMetadata::MessageQueue)
+                (hash.inner(), RequestMetadata::MessageQueue)
             }
-            DatabaseIteratorError::NoWaitlist(hash) => (hash.hash(), RequestMetadata::Waitlist),
+            DatabaseIteratorError::NoWaitlist(hash) => (hash.inner(), RequestMetadata::Waitlist),
             DatabaseIteratorError::NoDispatchStash(hash) => {
-                (hash.hash(), RequestMetadata::DispatchStash)
+                (hash.inner(), RequestMetadata::DispatchStash)
             }
-            DatabaseIteratorError::NoMailbox(hash) => (hash.hash(), RequestMetadata::Mailbox),
+            DatabaseIteratorError::NoMailbox(hash) => (hash.inner(), RequestMetadata::Mailbox),
             DatabaseIteratorError::NoUserMailbox(hash) => {
-                (hash.hash(), RequestMetadata::UserMailbox)
+                (hash.inner(), RequestMetadata::UserMailbox)
             }
-            DatabaseIteratorError::NoAllocations(hash) => (hash.hash(), RequestMetadata::Data),
+            DatabaseIteratorError::NoAllocations(hash) => (hash.inner(), RequestMetadata::Data),
             DatabaseIteratorError::NoProgramState(hash) => (hash, RequestMetadata::ProgramState),
-            DatabaseIteratorError::NoPayload(hash) => (hash.hash(), RequestMetadata::Data),
+            DatabaseIteratorError::NoPayload(hash) => (hash.inner(), RequestMetadata::Data),
             DatabaseIteratorError::NoBlockHeader(_)
             | DatabaseIteratorError::NoBlockEvents(_)
             | DatabaseIteratorError::NoAnnounceProgramStates(_)
@@ -621,6 +611,56 @@ async fn instrument_codes(
     Ok(())
 }
 
+async fn set_tx_pool_data_requirement(
+    db: &Database,
+    block_loader: &impl BlockLoader,
+    latest_committed_block_height: u32,
+) -> Result<()> {
+    let to = latest_committed_block_height as u64;
+    let from = to - injected::VALIDITY_WINDOW as u64;
+
+    // TODO: #4926 unsafe solution - we need it for taking events from predecessor blocks in ethexe-compute
+    let blocks = block_loader.load_many(from..=to).await?;
+    for BlockData {
+        hash,
+        header,
+        events,
+    } in blocks.into_values()
+    {
+        db.set_block_header(hash, header);
+        db.set_block_events(hash, &events);
+    }
+
+    Ok(())
+}
+
+fn identify_latest_era_with_validators_committed(
+    start_block: &BlockHeader,
+    timelines: &ProtocolTimelines,
+    validation_view: &ValidationSettingsView,
+) -> Result<u64> {
+    let start_block_era = timelines.era_from_ts(start_block.timestamp);
+
+    // Identify timestamps when current and next eras start.
+    let current_era_start = timelines.era_start(start_block_era);
+    let next_era_start = timelines.era_start_ts(start_block_era + 1);
+
+    let validators0_ts = validation_view.validators0.useFromTimestamp.to::<u64>();
+    let validators1_ts = validation_view.validators1.useFromTimestamp.to::<u64>();
+
+    // In Router's `_resetValidators` function we set `useFromTimestamp` to `nextEraStart`.
+    // So we compare validators timestamps with eras start timestamps.
+    if validators0_ts == next_era_start || validators1_ts == next_era_start {
+        Ok(start_block_era + 1)
+    } else if validators0_ts == current_era_start || validators1_ts == current_era_start {
+        Ok(start_block_era)
+    } else {
+        anyhow::bail!(
+            "can not identify latest era for which validators was successfully committed "
+        )
+    }
+}
+
 pub(crate) async fn sync(service: &mut Service) -> Result<()> {
     let Service {
         observer,
@@ -639,20 +679,21 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
     log::info!("Fast synchronization is in progress...");
 
     let finalized_block = observer
-        .provider()
+        .block_loader()
         // we get finalized block to avoid block reorganization
         // because we restore the database only for the latest block of a chain,
         // and thus the reorganization can lead us to an empty block
-        .get_block(BlockId::finalized())
+        .load_simple(BlockId::Finalized)
         .await
         .context("failed to get latest block")?
-        .expect("latest block always exist");
-    let finalized_block = H256(finalized_block.header.hash.0);
+        .hash;
+
+    let block_loader = observer.block_loader();
 
     let Some(EventData {
         latest_committed_batch,
         latest_committed_announce: announce_hash,
-    }) = EventData::collect(observer, db, finalized_block).await?
+    }) = EventData::collect(&block_loader, db, finalized_block).await?
     else {
         log::warn!("No any committed block found. Skipping fast synchronization...");
         return Ok(());
@@ -669,7 +710,7 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
         hash: block_hash,
         header,
         events,
-    } = EventData::get_block_data(observer, db, announce.block_hash).await?;
+    } = block_loader.load(announce.block_hash, None).await?;
 
     let code_ids = collect_code_ids(observer, network, db, announce.block_hash).await?;
     let program_code_ids = collect_program_code_ids(observer, network, announce.block_hash).await?;
@@ -684,11 +725,19 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
 
     let schedule = ScheduleRestorer::from_storage(db, &program_states, header.height)?.restore();
 
+    set_tx_pool_data_requirement(db, &block_loader, header.height).await?;
+
     for (program_id, code_id) in program_code_ids {
         db.set_program_code_id(program_id, code_id);
     }
 
-    let validators = observer.router_query().validators_at(block_hash).await?;
+    let storage_view = observer.router_query().storage_view_at(block_hash).await?;
+
+    let timelines = ProtocolTimelines {
+        genesis_ts: storage_view.genesisBlock.timestamp.to::<u64>(),
+        election: storage_view.timelines.election.to::<u64>(),
+        era: storage_view.timelines.era.to::<u64>(),
+    };
 
     ethexe_common::setup_start_block_in_db(
         db,
@@ -696,7 +745,6 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
         FullBlockData {
             header,
             events,
-            validators,
             // NOTE: there is no invariant that fast sync should recover codes queue
             codes_queue: Default::default(),
             announces: [announce_hash].into(),
@@ -715,6 +763,12 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
             outcome: Default::default(),
             schedule: schedule.clone(),
         },
+        timelines,
+        identify_latest_era_with_validators_committed(
+            &header,
+            &timelines,
+            &storage_view.validationSettings,
+        )?,
     );
 
     log::info!(

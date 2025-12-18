@@ -24,6 +24,7 @@ log.workspace = true
 derive_more.workspace = true
 actor-system-error.workspace = true
 parity-scale-codec = { workspace = true, features = ["derive"] }
+gear-workspace-hack.workspace = true
 
 [dev-dependencies]
 enum-iterator.workspace = true

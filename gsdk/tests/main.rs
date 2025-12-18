@@ -17,10 +17,11 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use gsdk::Api;
+use std::time::Duration;
 
 #[tokio::test]
 async fn timeout() {
-    let error = Api::builder().timeout(0).build(None).await.err();
+    let error = Api::builder().timeout(Duration::ZERO).build().await.err();
     // NOTE:
     //
     // There are two kinds of timeout error provided by subxt:

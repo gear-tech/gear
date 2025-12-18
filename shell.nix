@@ -27,24 +27,27 @@ pkgs.mkShell.override { stdenv = pkgs.llvmPackages.stdenv; } {
     pkgs.just
 
     # Maintenance tools and script dependencies
+    pkgs.cargo-hakari
+    pkgs.cargo-shear
     pkgs.jq
     pkgs.typos
 
     # Build tools
-    pkgs.protobuf
     pkgs.binaryen
-    pkgs.foundry
     pkgs.cmake
+    pkgs.foundry
+    pkgs.nodejs
     pkgs.perl
     pkgs.pkg-config
+    pkgs.protobuf
 
     # Testing tools
-    pkgs.cargo-nextest
     pkgs.cargo-hack
+    pkgs.cargo-nextest
 
     # Fuzzing tools
-    pkgs.cargo-fuzz
     pkgs.cargo-binutils
+    pkgs.cargo-fuzz
     oldPkgs.rustfilt
   ];
 

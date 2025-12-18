@@ -14,9 +14,12 @@ rust-version.workspace = true
 enum-iterator.workspace = true
 parity-scale-codec = { workspace = true, features = ["derive"], optional = true }
 scale-info = { workspace = true, features = ["derive"], optional = true }
+scale-encode = { workspace = true, optional = true }
+scale-decode = { workspace = true, optional = true }
 serde = { workspace = true, features = ["derive"], optional = true }
 thiserror.workspace = true
+gear-workspace-hack.workspace = true
 
 [features]
-codec = ["parity-scale-codec", "scale-info"]
+codec = ["parity-scale-codec", "scale-info", "scale-encode", "scale-decode"]
 serde = ["dep:serde"]

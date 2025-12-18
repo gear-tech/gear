@@ -23,25 +23,52 @@ use alloc::{
 use anyhow::{Result, anyhow};
 use core::num::NonZero;
 use ethexe_common::{
-    BlockHeader, ProgramStates, Schedule, ScheduledTask, StateHashWithQueueSize,
+    BlockHeader, HashOf, ProgramStates, Schedule, ScheduledTask, StateHashWithQueueSize,
     gear::{Message, StateTransition, ValueClaim},
+    injected::Promise,
 };
-use gprimitives::{ActorId, H256};
+use gear_core::rpc::ReplyInfo;
+use gprimitives::{ActorId, H256, MessageId};
 
+/// In-memory store for the state transitions
+/// that are going to be applied in the current block.
+///
+/// The type is instantiated with states taken from the parent
+/// block, as parent block stores latest states to be possibly
+/// updated in the current block.
+///
+/// The type actually stores latest state transitions, which are going to be
+/// applied in the current block.
 #[derive(Debug, Default)]
 pub struct InBlockTransitions {
     header: BlockHeader,
     states: ProgramStates,
     schedule: Schedule,
     modifications: BTreeMap<ActorId, NonFinalTransition>,
+    injected_replies: BTreeMap<MessageId, Option<ReplyInfo>>,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct FinalizedBlockTransitions {
+    pub transitions: Vec<StateTransition>,
+    pub states: ProgramStates,
+    pub schedule: Schedule,
+    pub promises: Vec<Promise>,
 }
 
 impl InBlockTransitions {
-    pub fn new(header: BlockHeader, states: ProgramStates, schedule: Schedule) -> Self {
+    pub fn new(
+        header: BlockHeader,
+        states: ProgramStates,
+        schedule: Schedule,
+        injected_messages: Vec<MessageId>,
+    ) -> Self {
+        let injected_replies = injected_messages.into_iter().map(|id| (id, None)).collect();
         Self {
             header,
             states,
             schedule,
+            injected_replies,
             ..Default::default()
         }
     }
@@ -55,7 +82,7 @@ impl InBlockTransitions {
     }
 
     pub fn state_of(&self, actor_id: &ActorId) -> Option<StateHashWithQueueSize> {
-        self.states.get(actor_id).cloned()
+        self.states.get(actor_id).copied()
     }
 
     pub fn states_amount(&self) -> usize {
@@ -67,7 +94,7 @@ impl InBlockTransitions {
     }
 
     pub fn known_programs(&self) -> Vec<ActorId> {
-        self.states.keys().cloned().collect()
+        self.states.keys().copied().collect()
     }
 
     pub fn current_messages(&self) -> Vec<(ActorId, Message)> {
@@ -117,6 +144,13 @@ impl InBlockTransitions {
         self.modifications.insert(actor_id, Default::default());
     }
 
+    /// Register new reply for injected transaction.
+    pub fn maybe_store_injected_reply(&mut self, message_id: &MessageId, reply: ReplyInfo) {
+        if let Some(maybe_reply) = self.injected_replies.get_mut(message_id) {
+            *maybe_reply = Some(reply);
+        }
+    }
+
     pub fn modify_state(
         &mut self,
         actor_id: ActorId,
@@ -137,6 +171,19 @@ impl InBlockTransitions {
         f: impl FnOnce(&mut NonFinalTransition) -> T,
     ) -> T {
         self.modify(actor_id, |_state, transition| f(transition))
+    }
+
+    pub fn claim_value(&mut self, actor_id: ActorId, claim: ValueClaim) {
+        self.modify(actor_id, |_state, transition| {
+            transition.value_to_receive = transition
+                .value_to_receive
+                .checked_add(
+                    i128::try_from(claim.value).expect("claimed_value doesn't fit in i128"),
+                )
+                .expect("Overflow in transition.value_to_receive += claimed_value");
+
+            transition.claims.push(claim);
+        });
     }
 
     pub fn modify<T>(
@@ -160,15 +207,28 @@ impl InBlockTransitions {
         f(initial_state, transition)
     }
 
-    pub fn finalize(self) -> (Vec<StateTransition>, ProgramStates, Schedule) {
+    pub fn finalize(self) -> FinalizedBlockTransitions {
         let Self {
             states,
             schedule,
             modifications,
+            injected_replies,
             ..
         } = self;
 
-        let mut res = Vec::with_capacity(modifications.len());
+        let promises = injected_replies
+            .into_iter()
+            .filter_map(|(message_id, maybe_reply)| {
+                maybe_reply.map(|reply| {
+                    // Safety: we trust that message_id was created from a valid SignedInjectedTransaction.
+                    let tx_hash = unsafe { HashOf::new(message_id.into_bytes().into()) };
+
+                    Promise { tx_hash, reply }
+                })
+            })
+            .collect();
+
+        let mut transitions = Vec::with_capacity(modifications.len());
 
         for (actor_id, modification) in modifications {
             let new_state = states
@@ -177,19 +237,25 @@ impl InBlockTransitions {
                 .expect("failed to find state record for modified state");
 
             if !modification.is_noop(new_state.hash) {
-                res.push(StateTransition {
+                transitions.push(StateTransition {
                     actor_id,
                     new_state_hash: new_state.hash,
                     exited: modification.inheritor.is_some(),
                     inheritor: modification.inheritor.unwrap_or_default(),
-                    value_to_receive: modification.value_to_receive,
+                    value_to_receive: modification.value_to_receive.unsigned_abs(),
+                    value_to_receive_negative_sign: modification.value_to_receive < 0,
                     value_claims: modification.claims,
                     messages: modification.messages,
                 });
             }
         }
 
-        (res, states, schedule)
+        FinalizedBlockTransitions {
+            transitions,
+            states,
+            schedule,
+            promises,
+        }
     }
 }
 
@@ -197,7 +263,7 @@ impl InBlockTransitions {
 pub struct NonFinalTransition {
     initial_state: H256,
     pub inheritor: Option<ActorId>,
-    pub value_to_receive: u128,
+    pub value_to_receive: i128,
     pub claims: Vec<ValueClaim>,
     pub messages: Vec<Message>,
 }

@@ -8,6 +8,7 @@ import {Script, console} from "forge-std/Script.sol";
 import {Upgrades} from "openzeppelin-foundry-upgrades/Upgrades.sol";
 import {WrappedVara} from "../src/WrappedVara.sol";
 
+import {POAMiddleware} from "../src/POAMiddleware.sol";
 import {Middleware} from "../src/Middleware.sol";
 import {IMiddleware} from "../src/IMiddleware.sol";
 import {
@@ -18,7 +19,7 @@ contract DeploymentScript is Script {
     WrappedVara public wrappedVara;
     Router public router;
     Mirror public mirror;
-    Middleware public middleware;
+    IMiddleware public middleware;
 
     function setUp() public {}
 
@@ -38,8 +39,12 @@ contract DeploymentScript is Script {
             )
         );
 
+        bool isDevMode = vm.envExists("DEV_MODE") && vm.envBool("DEV_MODE");
+
         address mirrorAddress = vm.computeCreateAddress(deployerAddress, vm.getNonce(deployerAddress) + 2);
-        address middlewareAddress = vm.computeCreateAddress(deployerAddress, vm.getNonce(deployerAddress) + 3);
+
+        uint256 middlewareNonce = vm.getNonce(deployerAddress) + (isDevMode ? 4 : 5);
+        address middlewareAddress = vm.computeCreateAddress(deployerAddress, middlewareNonce);
 
         router = Router(
             payable(Upgrades.deployTransparentProxy(
@@ -65,8 +70,49 @@ contract DeploymentScript is Script {
 
         mirror = new Mirror(address(router));
 
-        // Don't deploy middleware in dev mode
-        if (!(vm.envExists("DEV_MODE") && vm.envBool("DEV_MODE"))) {
+        // In dev mode will be deployed POA Middleware
+        if (isDevMode) {
+            Gear.SymbioticContracts memory symbiotic = Gear.SymbioticContracts({
+                vaultRegistry: address(0),
+                operatorRegistry: address(0),
+                networkRegistry: address(0),
+                middlewareService: address(0),
+                networkOptIn: address(0),
+                stakerRewardsFactory: address(0),
+                operatorRewards: address(0),
+                roleSlashRequester: address(0),
+                roleSlashExecutor: address(0),
+                vetoResolver: address(0)
+            });
+
+            IMiddleware.InitParams memory initParams = IMiddleware.InitParams({
+                owner: deployerAddress,
+                eraDuration: 1 days,
+                minVaultEpochDuration: 2 hours,
+                operatorGracePeriod: 5 minutes,
+                vaultGracePeriod: 5 minutes,
+                minVetoDuration: 2 hours,
+                minSlashExecutionDelay: 5 minutes,
+                allowedVaultImplVersion: 1,
+                vetoSlasherImplType: 1,
+                maxResolverSetEpochsDelay: 5 minutes,
+                collateral: address(wrappedVara),
+                maxAdminFee: 0,
+                router: address(router),
+                symbiotic: symbiotic
+            });
+
+            POAMiddleware poaMiddleware = POAMiddleware(
+                Upgrades.deployTransparentProxy(
+                    "POAMiddleware.sol", deployerAddress, abi.encodeCall(POAMiddleware.initialize, (initParams))
+                )
+            );
+
+            vm.assertEq(middlewareAddress, address(poaMiddleware));
+
+            poaMiddleware.setValidators(validatorsArray);
+            middleware = poaMiddleware;
+        } else {
             address operatorRewardsFactoryAddress = vm.envAddress("SYMBIOTIC_OPERATOR_REWARDS_FACTORY");
 
             Gear.SymbioticContracts memory symbiotic = Gear.SymbioticContracts({
@@ -104,11 +150,8 @@ contract DeploymentScript is Script {
                     "Middleware.sol", deployerAddress, abi.encodeCall(Middleware.initialize, (initParams))
                 )
             );
-
             vm.assertEq(middlewareAddress, address(middleware));
         }
-
-        wrappedVara.approve(address(router), type(uint256).max);
 
         if (vm.envExists("SENDER_ADDRESS")) {
             address senderAddress = vm.envAddress("SENDER_ADDRESS");
@@ -116,14 +159,11 @@ contract DeploymentScript is Script {
             vm.assertTrue(success);
         }
 
-        vm.roll(vm.getBlockNumber() + 1);
-        router.lookupGenesisHash();
-
         vm.assertEq(router.mirrorImpl(), address(mirror));
-        vm.assertNotEq(router.genesisBlockHash(), bytes32(0));
 
         vm.stopBroadcast();
 
+        printContractInfo("Middleware", address(middleware), Upgrades.getImplementationAddress(address(middleware)));
         printContractInfo("Router", address(router), Upgrades.getImplementationAddress(address(router)));
         printContractInfo("WVara", address(wrappedVara), Upgrades.getImplementationAddress(address(wrappedVara)));
         printContractInfo("Mirror", mirrorAddress, address(0));
@@ -144,25 +184,18 @@ contract DeploymentScript is Script {
             console.log("                       Alternatively, run the following curl request.");
             console.log("```");
             uint256 chainId = block.chainid;
-            if (chainId == 1) {
-                console.log("curl --request POST 'https://api.etherscan.io/api' \\");
-            } else {
-                console.log(
-                    string.concat(
-                        "curl --request POST 'https://api-", vm.getChain(chainId).chainAlias, ".etherscan.io/api' \\"
-                    )
-                );
-            }
-            console.log("   --header 'Content-Type: application/x-www-form-urlencoded' \\");
-            console.log("   --data-urlencode 'module=contract' \\");
-            console.log("   --data-urlencode 'action=verifyproxycontract' \\");
-            console.log(string.concat("   --data-urlencode 'address=", vm.toString(contractAddress), "' \\"));
+            console.log("curl \\");
+            console.log(string.concat("    --data \"address=", vm.toString(contractAddress), "\" \\"));
+            console.log(
+                string.concat("    --data \"expectedimplementation=", vm.toString(expectedImplementation), "\" \\")
+            );
             console.log(
                 string.concat(
-                    "   --data-urlencode 'expectedimplementation=", vm.toString(expectedImplementation), "' \\"
+                    "    \"https://api.etherscan.io/v2/api?chainid=",
+                    vm.toString(chainId),
+                    "&module=contract&action=verifyproxycontract&apikey=$ETHERSCAN_API_KEY\""
                 )
             );
-            console.log("   --data-urlencode \"apikey=$ETHERSCAN_API_KEY\"");
             console.log("```");
         }
         console.log("================================================================================================");

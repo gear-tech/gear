@@ -143,16 +143,12 @@ contract Base is POCBaseTest {
 
         assertEq(router.mirrorImpl(), address(mirror));
         assertEq(router.validators(), _validators);
-        assertEq(router.signingThresholdPercentage(), 6666);
+        (uint128 numerator, uint128 denominator) = router.signingThresholdFraction();
+        assertEq(numerator, Gear.VALIDATORS_THRESHOLD_NUMERATOR);
+        assertEq(denominator, Gear.VALIDATORS_THRESHOLD_DENOMINATOR);
         assertTrue(router.areValidators(_validators));
         assertEq(router.latestCommittedBatchHash(), bytes32(0));
         assertEq(router.latestCommittedBatchTimestamp(), uint48(0));
-
-        vm.startPrank(admin);
-        {
-            wrappedVara.approve(address(router), type(uint256).max);
-        }
-        vm.stopPrank();
     }
 
     function createOperatorWithStake(address _operator, uint256 _stake) internal returns (address _vault) {
@@ -219,6 +215,7 @@ contract Base is POCBaseTest {
             blockHash: _blockHash,
             blockTimestamp: _timestamp,
             previousCommittedBatchHash: router.latestCommittedBatchHash(),
+            expiry: 3,
             chainCommitment: _chainCommitments,
             codeCommitments: new Gear.CodeCommitment[](0),
             rewardsCommitment: new Gear.RewardsCommitment[](0),
@@ -236,6 +233,7 @@ contract Base is POCBaseTest {
             blockHash: blockHash(vm.getBlockNumber()),
             blockTimestamp: uint48(vm.getBlockTimestamp()),
             previousCommittedBatchHash: router.latestCommittedBatchHash(),
+            expiry: 3,
             chainCommitment: new Gear.ChainCommitment[](0),
             codeCommitments: _codeCommitments,
             rewardsCommitment: new Gear.RewardsCommitment[](0),
@@ -259,6 +257,7 @@ contract Base is POCBaseTest {
             blockHash: blockHash(vm.getBlockNumber()),
             blockTimestamp: uint48(vm.getBlockTimestamp()),
             previousCommittedBatchHash: router.latestCommittedBatchHash(),
+            expiry: 3,
             chainCommitment: new Gear.ChainCommitment[](0),
             codeCommitments: new Gear.CodeCommitment[](0),
             rewardsCommitment: new Gear.RewardsCommitment[](0),
@@ -297,6 +296,7 @@ contract Base is POCBaseTest {
             _batch.blockHash,
             _batch.blockTimestamp,
             _batch.previousCommittedBatchHash,
+            _batch.expiry,
             _chainCommitmentHash,
             _codeCommitmentsHash,
             _rewardsCommitmentHash,
@@ -325,6 +325,7 @@ contract Base is POCBaseTest {
                 _transition.exited,
                 _transition.inheritor,
                 _transition.valueToReceive,
+                _transition.valueToReceiveNegativeSign,
                 keccak256(_valueClaimsBytes),
                 keccak256(_messagesHashesBytes)
             );

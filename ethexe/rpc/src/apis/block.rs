@@ -30,7 +30,8 @@ use jsonrpsee::{
     proc_macros::rpc,
 };
 
-#[rpc(server)]
+#[cfg_attr(not(feature = "client"), rpc(server))]
+#[cfg_attr(feature = "client", rpc(server, client))]
 pub trait Block {
     #[method(name = "block_header")]
     async fn block_header(&self, hash: Option<H256>) -> RpcResult<(H256, BlockHeader)>;
@@ -56,12 +57,12 @@ impl BlockApi {
 #[async_trait]
 impl BlockServer for BlockApi {
     async fn block_header(&self, hash: Option<H256>) -> RpcResult<(H256, BlockHeader)> {
-        let SimpleBlockData { hash, header } = utils::block_header_at_or_latest(&self.db, hash)?;
+        let SimpleBlockData { hash, header } = utils::block_at_or_latest_synced(&self.db, hash)?;
         Ok((hash, header))
     }
 
     async fn block_events(&self, hash: Option<H256>) -> RpcResult<Vec<BlockRequestEvent>> {
-        let block_hash = utils::block_header_at_or_latest(&self.db, hash)?.hash;
+        let block_hash = utils::block_at_or_latest_synced(&self.db, hash)?.hash;
 
         self.db
             .block_events(block_hash)
@@ -75,7 +76,7 @@ impl BlockServer for BlockApi {
     }
 
     async fn block_outcome(&self, hash: Option<H256>) -> RpcResult<Vec<StateTransition>> {
-        let announce_hash = utils::announce_at_or_latest(&self.db, hash)?;
+        let announce_hash = utils::announce_at_or_latest_computed(&self.db, hash)?;
 
         self.db
             .announce_outcome(announce_hash)

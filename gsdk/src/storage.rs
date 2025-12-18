@@ -17,46 +17,45 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Gear storage apis
+
 use crate::{
-    Api, BlockNumber, GearGasNode, GearGasNodeId, GearPages,
-    metadata::{
+    Api, BlockNumber, GearGasNode, GearGasNodeId, GearPages, IntoAccountId32, IntoSubstrate,
+    gear::{
+        self,
         runtime_types::{
-            frame_system::{AccountInfo, EventRecord},
+            frame_system::AccountInfo,
             gear_common::storage::primitives::Interval,
             gear_core::{
-                code::{instrumented::InstrumentedCode, metadata::CodeMetadata},
-                message::user::UserStoredMessage,
+                pages::Page,
                 program::{ActiveProgram, Program},
             },
             pallet_balances::types::AccountData,
             pallet_gear_bank::pallet::BankAccount,
+            vara_runtime::RuntimeEvent,
         },
-        storage::{
-            GearBankStorage, GearGasStorage, GearMessengerStorage, GearProgramStorage, GearStorage,
-            SessionStorage, SystemStorage, TimestampStorage,
-        },
-        vara_runtime::RuntimeEvent,
     },
-    result::{Error, Result},
-    utils,
+    result::{Error, FailedPage, Result},
 };
-use anyhow::anyhow;
-use gear_core::ids::*;
-use gsdk_codegen::storage_fetch;
-use hex::ToHex;
-use sp_core::{H256, crypto::Ss58Codec};
-use sp_runtime::AccountId32;
-use std::collections::HashMap;
+use futures::prelude::*;
+use gear_core::{
+    code::{CodeMetadata, InstrumentedCode},
+    ids::{ActorId, CodeId, MessageId},
+    message::UserStoredMessage,
+    pages::GearPage,
+    program::MemoryInfix,
+};
+use gsdk_codegen::at_block;
+use sp_core::crypto::AccountId32;
 use subxt::{
-    dynamic::{DecodedValueThunk, Value},
-    ext::codec::{Decode, Encode},
+    error::MetadataError,
+    ext::subxt_core::storage::address::StorageHashers,
     metadata::types::StorageEntryType,
-    storage::{Address, DynamicAddress, StaticStorageKey},
-    utils::Yes,
+    storage::{Address, StaticStorageKey, StorageKey},
+    utils::{H256, Yes},
 };
 
 impl Api {
-    /// Shortcut for fetching storage at specified block.
+    /// Shortcut for fetching a value from storage at specified block.
     ///
     /// # You may not need this.
     ///
@@ -73,7 +72,7 @@ impl Api {
     ///
     /// {
     ///     let address = Api::storage(SystemStorage::Number);
-    ///     let bn = api.fetch_storage(address).await?;
+    ///     let bn = api.storage_fetch(address).await?;
     /// }
     ///
     /// // The code above equals to the following code due to
@@ -83,71 +82,98 @@ impl Api {
     ///     let bn = api.number().await?;
     /// }
     /// ```
-    #[storage_fetch]
-    pub async fn fetch_storage_at<'a, Addr, Value>(
+    #[at_block]
+    pub async fn storage_fetch_at<'a, Addr>(
         &self,
         address: &'a Addr,
         block_hash: Option<H256>,
-    ) -> Result<Value>
+    ) -> Result<Addr::Target>
     where
-        Addr: Address<IsFetchable = Yes, IsDefaultable = Yes, Target = DecodedValueThunk> + 'a,
-        Value: Decode,
+        Addr: Address<IsFetchable = Yes> + 'a,
     {
-        let client = self.storage();
-        let storage = if let Some(h) = block_hash {
-            client.at(h)
-        } else {
-            client.at_latest().await?
-        };
-
-        Ok(Value::decode(
-            &mut storage
-                .fetch(address)
-                .await?
-                .ok_or(Error::StorageNotFound)?
-                .encoded(),
-        )?)
-    }
-
-    /// Get program pages from program id.
-    pub async fn program_pages(&self, program_id: ActorId) -> Result<GearPages> {
-        self.gpages(program_id, None).await
+        self.storage_at(block_hash)
+            .await?
+            .fetch(address)
+            .await?
+            .ok_or(Error::StorageEntryNotFound)
     }
 }
 
 // frame-system
 impl Api {
-    /// Get account info by address at specified block.
-    #[storage_fetch]
-    pub async fn info_at(
+    /// Get account info by its address at specified block.
+    #[at_block]
+    pub async fn account_info_at(
         &self,
-        address: &str,
+        address: impl IntoAccountId32,
         block_hash: Option<H256>,
     ) -> Result<AccountInfo<u32, AccountData<u128>>> {
-        let dest = AccountId32::from_ss58check(address)?;
-        let addr = Self::storage(SystemStorage::Account, vec![Value::from_bytes(dest)]);
+        self.storage_fetch_at(
+            &gear::storage().system().account(address.into_account_id()),
+            block_hash,
+        )
+        .await
+    }
 
-        self.fetch_storage_at(&addr, block_hash).await
+    /// Get account data by its address at specified block.
+    #[at_block]
+    pub async fn account_data_at(
+        &self,
+        address: impl IntoAccountId32,
+        block_hash: Option<H256>,
+    ) -> Result<AccountData<u128>> {
+        self.account_info_at(address, block_hash)
+            .map_ok(|info| info.data)
+            .await
     }
 
     /// Get block number.
     pub async fn number(&self) -> Result<u32> {
-        let addr = Self::storage_root(SystemStorage::Number);
-        self.fetch_storage(&addr).await
+        self.storage_fetch(&gear::storage().system().number()).await
     }
 
-    /// Get balance by account address.
-    pub async fn get_balance(&self, address: &str) -> Result<u128> {
-        Ok(self.info(address).await?.data.free)
+    /// Get the free funds balance of the account identified by `account_id` at specified block.
+    #[at_block]
+    pub async fn free_balance_at(
+        &self,
+        account_id: impl IntoAccountId32,
+        block_hash: Option<H256>,
+    ) -> Result<u128> {
+        Ok(self.account_data_at(account_id, block_hash).await?.free)
+    }
+
+    /// Get the reserved funds balance of the account identified by `account_id` at specified block.
+    #[at_block]
+    pub async fn reserved_balance_at(
+        &self,
+        account_id: impl IntoAccountId32,
+        block_hash: Option<H256>,
+    ) -> Result<u128> {
+        Ok(self.account_data_at(account_id, block_hash).await?.reserved)
+    }
+
+    /// Get the total balance of the account identified by `account_id` at specified block.
+    ///
+    /// Total balance includes free and reserved funds.
+    #[at_block]
+    pub async fn total_balance_at(
+        &self,
+        account_id: impl IntoAccountId32,
+        block_hash: Option<H256>,
+    ) -> Result<u128> {
+        let data = self.account_data_at(account_id, block_hash).await?;
+
+        data.free
+            .checked_add(data.reserved)
+            .ok_or(Error::BalanceOverflow)
     }
 
     /// Get events at specified block.
-    #[storage_fetch]
-    pub async fn get_events_at(&self, block_hash: Option<H256>) -> Result<Vec<RuntimeEvent>> {
-        let addr = Self::storage_root(SystemStorage::Events);
+    #[at_block]
+    pub async fn block_events_at(&self, block_hash: Option<H256>) -> Result<Vec<RuntimeEvent>> {
+        let addr = gear::storage().system().events();
 
-        let evs: Vec<EventRecord<RuntimeEvent, H256>> =
-            self.fetch_storage_at(&addr, block_hash).await?;
+        let evs = self.storage_fetch_at(&addr, block_hash).await?;
 
         Ok(evs.into_iter().map(|ev| ev.event).collect())
     }
@@ -157,8 +183,8 @@ impl Api {
 impl Api {
     /// Return a timestamp of the block.
     pub async fn block_timestamp(&self, block_hash: Option<H256>) -> Result<u64> {
-        let addr = Self::storage_root(TimestampStorage::Now);
-        self.fetch_storage_at(&addr, block_hash).await
+        self.storage_fetch_at(&gear::storage().timestamp().now(), block_hash)
+            .await
     }
 }
 
@@ -166,64 +192,67 @@ impl Api {
 impl Api {
     /// Get all validators from pallet_session.
     pub async fn validators(&self) -> Result<Vec<AccountId32>> {
-        let addr = Self::storage_root(SessionStorage::Validators);
-        self.fetch_storage(&addr).await
+        Ok(self
+            .storage_fetch(&gear::storage().session().validators())
+            .await?
+            .into_iter()
+            .map(|id| id.into_substrate())
+            .collect())
     }
 }
 
 // pallet-gas
 impl Api {
     /// Get value of gas total issuance at specified block.
-    #[storage_fetch]
+    #[at_block]
     pub async fn total_issuance_at(&self, block_hash: Option<H256>) -> Result<u64> {
-        let addr = Self::storage_root(GearGasStorage::TotalIssuance);
-        self.fetch_storage_at(&addr, block_hash).await
+        self.storage_fetch_at(&gear::storage().gear_gas().total_issuance(), block_hash)
+            .await
     }
 
     /// Get Gear gas nodes by their ids at specified block.
-    #[storage_fetch]
+    #[at_block]
     pub async fn gas_nodes_at(
         &self,
-        gas_node_ids: &impl AsRef<[GearGasNodeId]>,
+        gas_node_ids: impl IntoIterator<Item = GearGasNodeId>,
         block_hash: Option<H256>,
     ) -> Result<Vec<(GearGasNodeId, GearGasNode)>> {
-        let gas_node_ids = gas_node_ids.as_ref();
-        let mut gas_nodes = Vec::with_capacity(gas_node_ids.len());
+        stream::iter(gas_node_ids)
+            .then(|gas_node_id| async move {
+                let addr = gear::storage().gear_gas().gas_nodes(gas_node_id.clone());
+                let gas_node = self.storage_fetch_at(&addr, block_hash).await?;
 
-        for gas_node_id in gas_node_ids {
-            let addr = Self::storage(GearGasStorage::GasNodes, StaticStorageKey::new(gas_node_id));
-            let gas_node = self.fetch_storage_at(&addr, block_hash).await?;
-            gas_nodes.push((*gas_node_id, gas_node));
-        }
-        Ok(gas_nodes)
+                Ok((gas_node_id.clone(), gas_node))
+            })
+            .try_collect()
+            .await
     }
 }
 
 // pallet-gear-bank
 impl Api {
     /// Get Gear bank account data at specified block.
-    #[storage_fetch]
+    #[at_block]
     pub async fn bank_info_at(
         &self,
-        account_id: AccountId32,
+        account_id: impl IntoAccountId32,
         block_hash: Option<H256>,
     ) -> Result<BankAccount<u128>> {
-        let addr = Self::storage(GearBankStorage::Bank, vec![Value::from_bytes(account_id)]);
-
-        self.fetch_storage_at(&addr, block_hash).await
+        self.storage_fetch_at(
+            &gear::storage()
+                .gear_bank()
+                .bank(account_id.into_account_id()),
+            block_hash,
+        )
+        .await
     }
 
     /// Get Gear bank's sovereign account id.
     pub async fn bank_address(&self) -> Result<AccountId32> {
-        let addr = Self::storage_root(GearBankStorage::BankAddress);
-        let thunk = self
-            .get_storage(None)
+        Ok(self
+            .storage_fetch(&gear::storage().gear_bank().bank_address())
             .await?
-            .fetch(&addr)
-            .await?
-            .ok_or(Error::StorageNotFound)?
-            .into_encoded();
-        Ok(AccountId32::decode(&mut thunk.as_ref())?)
+            .into_substrate())
     }
 }
 
@@ -231,77 +260,77 @@ impl Api {
 impl Api {
     /// Check whether the message queue processing is stopped or not.
     pub async fn execute_inherent(&self) -> Result<bool> {
-        let addr = Self::storage_root(GearStorage::ExecuteInherent);
-        let thunk = self
-            .get_storage(None)
+        Ok(self
+            .storage()
+            .at_latest()
             .await?
-            .fetch_or_default(&addr)
-            .await?
-            .into_encoded();
-
-        Ok(bool::decode(&mut thunk.as_ref())?)
+            .fetch_or_default(&gear::storage().gear().execute_inherent())
+            .await?)
     }
 
     /// Get gear block number.
     pub async fn gear_block_number(&self, block_hash: Option<H256>) -> Result<BlockNumber> {
-        let addr = Self::storage_root(GearStorage::BlockNumber);
-        let thunk = self
-            .get_storage(block_hash)
+        Ok(self
+            .storage_at(block_hash)
             .await?
-            .fetch_or_default(&addr)
-            .await?
-            .into_encoded();
-        Ok(BlockNumber::decode(&mut thunk.as_ref())?)
+            .fetch_or_default(&gear::storage().gear().block_number())
+            .await?)
     }
 }
 
 // pallet-gear-program
 impl Api {
-    /// Get original code by its `CodeId` at specified block.
-    #[storage_fetch]
-    pub async fn original_code_storage_at(
+    /// Returns original WASM code for the given `CodeId` at specified block.
+    #[at_block]
+    pub async fn original_code_at(
         &self,
         code_id: CodeId,
         block_hash: Option<H256>,
     ) -> Result<Vec<u8>> {
-        let addr = Self::storage(
-            GearProgramStorage::OriginalCodeStorage,
-            vec![Value::from_bytes(code_id)],
-        );
-        self.fetch_storage_at(&addr, block_hash).await
+        self.storage_fetch_at(
+            &gear::storage()
+                .gear_program()
+                .original_code_storage(code_id),
+            block_hash,
+        )
+        .await
     }
 
     /// Get `InstrumentedCode` by its `CodeId` at specified block.
-    #[storage_fetch]
+    #[at_block]
     pub async fn instrumented_code_storage_at(
         &self,
         code_id: CodeId,
         block_hash: Option<H256>,
     ) -> Result<InstrumentedCode> {
-        let addr = Self::storage(
-            GearProgramStorage::InstrumentedCodeStorage,
-            vec![Value::from_bytes(code_id)],
-        );
-        self.fetch_storage_at(&addr, block_hash).await
+        self.storage_fetch_at(
+            &gear::storage()
+                .gear_program()
+                .instrumented_code_storage(code_id),
+            block_hash,
+        )
+        .await
     }
 
     /// Get `CodeMetadata` by its `CodeId` at specified block.
-    #[storage_fetch]
+    #[at_block]
     pub async fn code_metadata_storage_at(
         &self,
         code_id: CodeId,
         block_hash: Option<H256>,
     ) -> Result<CodeMetadata> {
-        let addr = Self::storage(
-            GearProgramStorage::CodeMetadataStorage,
-            vec![Value::from_bytes(code_id)],
-        );
-        self.fetch_storage_at(&addr, block_hash).await
+        self.storage_fetch_at(
+            &gear::storage()
+                .gear_program()
+                .code_metadata_storage(code_id),
+            block_hash,
+        )
+        .await
     }
 
-    /// Get active program from program id at specified block.
-    #[storage_fetch]
-    pub async fn gprog_at(
+    /// Returns `ActiveProgram` for the given `ActorId` at specified block.
+    #[at_block]
+    pub async fn active_program_at(
         &self,
         program_id: ActorId,
         block_hash: Option<H256>,
@@ -312,184 +341,179 @@ impl Api {
         }
     }
 
-    /// Get pages of active program at specified block.
-    #[storage_fetch]
-    pub async fn gpages_at(
+    /// Get pages of an active program at specified block.
+    #[at_block]
+    pub async fn program_pages_at(
         &self,
         program_id: ActorId,
-        memory_infix: Option<u32>,
         block_hash: Option<H256>,
     ) -> Result<GearPages> {
-        let mut pages = HashMap::new();
+        let address = gear::storage()
+            .gear_program()
+            .memory_pages_iter1(program_id);
 
-        let memory_infix = match memory_infix {
-            Some(infix) => infix,
-            None => self.gprog_at(program_id, block_hash).await?.memory_infix.0,
-        };
-
-        let pages_storage_address = Self::storage(
-            GearProgramStorage::MemoryPages,
-            vec![
-                Value::from_bytes(program_id),
-                Value::u128(memory_infix as u128),
-            ],
-        );
-
-        let mut pages_stream = self
-            .get_storage(block_hash)
+        let metadata = self.metadata();
+        let hashers = subxt::ext::subxt_core::storage::lookup_storage_entry_details(
+            address.pallet_name(),
+            address.entry_name(),
+            &metadata,
+        )
+        .and_then(|(_, entry)| StorageHashers::new(entry.entry_type(), metadata.types()))
+        .map_err(subxt::Error::from)?;
+        let pages = self
+            .storage_at(block_hash)
             .await?
-            .iter(pages_storage_address)
+            .iter(address)
+            .try_flatten_stream()
+            .map_err(Error::from)
+            .and_then(|pair| {
+                std::future::ready({
+                    // FIXME: Do not decode key manually.
+                    //        Requires a fix from `subxt`.
+                    <(
+                        StaticStorageKey<ActorId>,
+                        StaticStorageKey<MemoryInfix>,
+                        StaticStorageKey<Page>,
+                    ) as StorageKey>::decode_storage_key(
+                        &mut &pair.key_bytes[32..],
+                        &mut hashers.iter(),
+                        metadata.types(),
+                    )
+                    .map_err(subxt::Error::from)
+                    .map_err(Error::from)
+                    .and_then(|(_, _, page_index)| {
+                        Ok((page_index.into_key().0.try_into()?, pair.value))
+                    })
+                })
+            })
+            .try_collect()
             .await?;
-
-        while let Some(Ok(pair)) = pages_stream.next().await {
-            let (_, page) = <([u8; 68], u32)>::decode(&mut pair.key_bytes.as_ref())?;
-            let data = pair.value.encoded().to_vec();
-            pages.insert(page, data);
-        }
 
         Ok(pages)
     }
 
     /// Get inheritor address by program id at specified block.
-    #[storage_fetch]
+    #[at_block]
     pub async fn inheritor_of_at(
         &self,
         program_id: ActorId,
         block_hash: Option<H256>,
     ) -> Result<Option<ActorId>> {
         Ok(match self.program_at(program_id, block_hash).await? {
-            Program::Exited(p) => Some(p.into()),
+            Program::Exited(p) => Some(p),
             _ => None,
         })
     }
 
     /// Get pages of active program at specified block.
-    #[storage_fetch]
-    pub async fn specified_gpages_at(
+    #[at_block]
+    pub async fn specified_program_pages_at(
         &self,
         program_id: ActorId,
-        memory_infix: Option<u32>,
-        page_numbers: impl Iterator<Item = u32>,
+        page_numbers: impl IntoIterator<Item = GearPage>,
         block_hash: Option<H256>,
     ) -> Result<GearPages> {
-        let mut pages = HashMap::new();
+        futures::stream::iter(page_numbers)
+            .then(|page| async move {
+                let addr = gear::storage().gear_program().memory_pages(
+                    program_id,
+                    // memory infix is always zero now
+                    MemoryInfix::default(),
+                    page.into(),
+                );
 
-        let memory_infix = match memory_infix {
-            Some(infix) => infix,
-            None => self.gprog_at(program_id, block_hash).await?.memory_infix.0,
-        };
+                let page_buf = self
+                    .storage_at(block_hash)
+                    .await?
+                    .fetch(&addr)
+                    .await?
+                    .ok_or_else(|| FailedPage::new(page, program_id).not_found())?;
 
-        for page in page_numbers {
-            let addr: DynamicAddress<Vec<Value>> = Self::storage(
-                GearProgramStorage::MemoryPages,
-                vec![
-                    Value::from_bytes(program_id),
-                    Value::u128(memory_infix as u128),
-                    Value::u128(page as u128),
-                ],
-            );
-
-            let metadata = self.metadata();
-            let lookup_bytes = utils::storage_address_bytes(&addr, &metadata)?;
-            let encoded_page = self
-                .get_storage(block_hash)
-                .await?
-                .fetch_raw(lookup_bytes)
-                .await?
-                .ok_or_else(|| Error::PageNotFound(page, program_id.as_ref().encode_hex()))?;
-
-            pages.insert(page, encoded_page);
-        }
-
-        Ok(pages)
+                Ok((page, page_buf))
+            })
+            .try_collect()
+            .await
     }
 
     /// Get program by its id at specified block.
-    #[storage_fetch]
+    #[at_block]
     pub async fn program_at(
         &self,
         program_id: ActorId,
         block_hash: Option<H256>,
     ) -> Result<Program<BlockNumber>> {
-        let addr = Self::storage(
-            GearProgramStorage::ProgramStorage,
-            vec![Value::from_bytes(program_id)],
-        );
-
-        self.fetch_storage_at::<_, Program<BlockNumber>>(&addr, block_hash)
-            .await
+        self.storage_fetch_at(
+            &gear::storage().gear_program().program_storage(program_id),
+            block_hash,
+        )
+        .await
     }
 }
 
 // pallet-gear-messenger
 impl Api {
     /// Get a message identified by `message_id` from the `account_id`'s
-    /// mailbox.
-    pub async fn get_mailbox_account_message(
+    /// mailbox at specified block.
+    #[at_block]
+    pub async fn mailbox_account_message_at(
         &self,
-        account_id: AccountId32,
-        message_id: impl AsRef<[u8]>,
+        account_id: impl IntoAccountId32,
+        message_id: MessageId,
+        block_hash: Option<H256>,
     ) -> Result<Option<(UserStoredMessage, Interval<u32>)>> {
-        let addr = Self::storage(
-            GearMessengerStorage::Mailbox,
-            vec![
-                Value::from_bytes(account_id),
-                Value::from_bytes(message_id.as_ref()),
-            ],
-        );
-
-        Ok(self.fetch_storage(&addr).await.ok())
+        Ok(self
+            .storage_fetch_at(
+                &gear::storage()
+                    .gear_messenger()
+                    .mailbox(account_id.into_account_id(), message_id),
+                block_hash,
+            )
+            .await
+            .ok())
     }
 
-    /// Get all mailbox messages or for the provided `address`.
-    pub async fn mailbox(
+    /// Retrieves up to `count` mailbox messages or for
+    /// the provided `address` at specified block.
+    #[at_block]
+    pub async fn mailbox_messages_at(
         &self,
-        account_id: Option<AccountId32>,
-        count: u32,
+        account_id: impl IntoAccountId32,
+        count: usize,
+        block_hash: Option<H256>,
     ) -> Result<Vec<(UserStoredMessage, Interval<u32>)>> {
-        let storage = self.storage().at_latest().await?;
-        let mut query_key = Self::storage_root(GearMessengerStorage::Mailbox).to_root_bytes();
-
-        if let Some(account_id) = account_id {
-            query_key.extend(account_id.encode());
-        }
-
-        let mut keys = storage.fetch_raw_keys(query_key).await?;
-        let mut mailbox: Vec<(UserStoredMessage, Interval<u32>)> = vec![];
-
-        let mut fetched_keys = 0;
-        while let Some(key) = keys.next().await {
-            if let Some(storage_data) = storage.fetch_raw(key?).await?
-                && let Ok(value) =
-                    <(UserStoredMessage, Interval<u32>)>::decode(&mut &storage_data[..])
-            {
-                mailbox.push(value);
-            }
-
-            fetched_keys += 1;
-            if fetched_keys >= count {
-                break;
-            }
-        }
-
-        Ok(mailbox)
+        self.storage_at(block_hash)
+            .await?
+            .iter(
+                gear::storage()
+                    .gear_messenger()
+                    .mailbox_iter1(account_id.into_account_id()),
+            )
+            .await?
+            .map_ok(|pair| pair.value)
+            .take(count)
+            .try_collect()
+            .await
+            .map_err(Error::from)
     }
 }
 
 /// Get storage entry type id using `metadata` and storage entry `address`
-pub(crate) fn storage_type_id(metadata: &subxt::Metadata, address: &impl Address) -> Result<u32> {
+pub(crate) fn storage_type_id(
+    metadata: &subxt::Metadata,
+    address: &impl Address,
+) -> Result<u32, MetadataError> {
     let storage_type = metadata
         .pallet_by_name_err(address.pallet_name())?
         .storage()
-        .ok_or(anyhow!("Storage {} not found", address.pallet_name()))?
+        .ok_or_else(|| MetadataError::StorageNotFoundInPallet(address.pallet_name().to_owned()))?
         .entry_by_name(address.entry_name())
-        .ok_or(anyhow!("Entry {} not found", address.entry_name()))?
+        .ok_or_else(|| MetadataError::StorageEntryNotFound(address.entry_name().to_owned()))?
         .entry_type();
 
-    let storage_type_id = match storage_type {
+    let storage_type_id = *match storage_type {
         StorageEntryType::Plain(id) => id,
         StorageEntryType::Map { value_ty, .. } => value_ty,
     };
 
-    Ok(*storage_type_id)
+    Ok(storage_type_id)
 }

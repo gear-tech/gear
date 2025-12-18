@@ -1,27 +1,25 @@
-node_modules/
+# misc
+.binpath
+log/
+weight-dumps/
+gsdk/vara_runtime_prod.scale
+*.meta.txt
+
+# cargo
 target/
 target-rust-analyzer/
 target-no-lazy/
-target-rust-analyzer/
 target-xwin/
-log/
-weight-dumps/
-.binpath
-/.vscode
-/.cursor
-.DS_Store
-.idea
-.log
-*.meta.txt
-.terraform*
+
+# ethexe
+.ethexe.toml
+ethexe/contracts/bin/src
+
+# fuzzer
 utils/**/fuzz/corpus/*
 utils/**/fuzz/coverage/*
 utils/**/fuzz/artifacts/*
 utils/**/fuzz/fuzz/*
-.ethexe.toml
 fuzz_run
 lazy_pages_fuzz_run
 seed.bin
-.direnv/
-.ipynb_checkpoints
-.jupyter

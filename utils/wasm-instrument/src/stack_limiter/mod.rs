@@ -54,7 +54,7 @@ impl Context {
     }
 }
 
-/// Inject the instumentation that makes stack overflows deterministic, by introducing
+/// Inject the instrumentation that makes stack overflows deterministic, by introducing
 /// an upper bound of the stack size.
 ///
 /// This pass introduces a global mutable variable to track stack height,

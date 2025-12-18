@@ -22,9 +22,9 @@ use ethexe_common::{
     db::{AnnounceStorageRO, CodesStorageRO},
 };
 use ethexe_db::Database;
-use ethexe_processor::Processor;
+use ethexe_processor::{Processor, ProcessorConfig, RunnerConfig};
 use ethexe_runtime_common::state::{
-    DispatchStash, Mailbox, MemoryPages, MessageQueue, Program, ProgramState, QueriableStorage,
+    DispatchStash, Mailbox, MemoryPages, MessageQueue, Program, ProgramState, QueryableStorage,
     Storage, Waitlist,
 };
 use gear_core::rpc::ReplyInfo;
@@ -49,7 +49,8 @@ pub struct FullProgramState {
     pub executable_balance: u128,
 }
 
-#[rpc(server)]
+#[cfg_attr(not(feature = "client"), rpc(server))]
+#[cfg_attr(feature = "client", rpc(server, client))]
 pub trait Program {
     #[method(name = "program_calculateReplyForHandle")]
     async fn calculate_reply_for_handle(
@@ -94,11 +95,12 @@ pub trait Program {
 
 pub struct ProgramApi {
     db: Database,
+    runner_config: RunnerConfig,
 }
 
 impl ProgramApi {
-    pub fn new(db: Database) -> Self {
-        Self { db }
+    pub fn new(db: Database, runner_config: RunnerConfig) -> Self {
+        Self { db, runner_config }
     }
 
     fn read_queue(&self, hash: H256) -> Option<MessageQueue> {
@@ -128,28 +130,32 @@ impl ProgramServer for ProgramApi {
         payload: Bytes,
         value: u128,
     ) -> RpcResult<ReplyInfo> {
-        let block_hash = utils::block_header_at_or_latest(&self.db, at)?.hash;
+        let announce_hash = utils::announce_at_or_latest_computed(&self.db, at)?;
 
         // TODO (breathx): spawn in a new thread and catch panics. (?) Generally catch runtime panics (?).
         // TODO (breathx): optimize here instantiation if matches actual runtime.
-        let processor = Processor::new(self.db.clone()).map_err(|_| errors::internal())?;
-
+        let processor_config = ProcessorConfig {
+            chunk_processing_threads: self.runner_config.chunk_processing_threads(),
+        };
+        let processor = Processor::with_config(processor_config, self.db.clone())
+            .map_err(|_| errors::internal())?;
         let mut overlaid_processor = processor.overlaid();
 
         overlaid_processor
             .execute_for_reply(
-                block_hash,
+                announce_hash,
                 source.into(),
                 program_id.into(),
                 payload.0,
                 value,
+                self.runner_config.clone(),
             )
             .await
             .map_err(errors::runtime)
     }
 
     async fn ids(&self) -> RpcResult<Vec<H160>> {
-        let announce_hash = utils::announce_at_or_latest(&self.db, None)?;
+        let announce_hash = utils::announce_at_or_latest_computed(&self.db, None)?;
 
         Ok(self
             .db

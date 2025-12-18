@@ -19,7 +19,7 @@ scale-info.workspace = true
 
 # Gear deps.
 common.workspace = true
-gbuiltin-eth-bridge.workspace = true
+builtins-common = { workspace = true, features = ["eth-bridge"] }
 gear-core.workspace = true
 gprimitives.workspace = true
 pallet-gear-bank.workspace = true
@@ -36,12 +36,14 @@ pallet-grandpa.workspace = true
 sp-consensus-grandpa.workspace = true
 sp-runtime.workspace = true
 sp-std.workspace = true
+gear-workspace-hack.workspace = true
 
 [dev-dependencies]
 gprimitives.workspace = true
 gear-core-errors.workspace = true
 sp-core = { workspace = true, features = ["std"] }
 sp-io = { workspace = true, features = ["std"] }
+sp-keystore = { workspace = true, features = ["std"] }
 frame-support-test = { workspace = true, features = ["std"] }
 pallet-authorship = { workspace = true, features = ["std"] }
 pallet-balances = { workspace = true, features = ["std"] }
@@ -69,6 +71,7 @@ std = [
 
     # Gear deps.
     "common/std",
+    "builtins-common/eth-bridge-std",
     "gear-core/std",
     "gprimitives/std",
     "pallet-gear-builtin/std",

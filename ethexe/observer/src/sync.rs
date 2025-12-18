@@ -18,17 +18,23 @@
 
 //! Implementation of the on-chain data synchronization.
 
-use crate::{RuntimeConfig, utils};
+use crate::{
+    RuntimeConfig,
+    utils::{BlockLoader, EthereumBlockLoader},
+};
 use alloy::{providers::RootProvider, rpc::types::eth::Header};
 use anyhow::{Result, anyhow};
 use ethexe_common::{
-    self, BlockData, BlockHeader, CodeBlobInfo,
+    self, BlockData, BlockHeader, CodeBlobInfo, SimpleBlockData,
     db::{LatestDataStorageRW, OnChainStorageRW},
     events::{BlockEvent, RouterEvent},
 };
-use ethexe_ethereum::router::RouterQuery;
+use ethexe_ethereum::{
+    middleware::{ElectionProvider, MiddlewareQuery},
+    router::RouterQuery,
+};
 use gprimitives::H256;
-use std::collections::HashMap;
+use std::{collections::HashMap, ops::Add};
 
 pub(crate) trait SyncDB: OnChainStorageRW + LatestDataStorageRW + Clone {}
 impl<T: OnChainStorageRW + LatestDataStorageRW + Clone> SyncDB for T {}
@@ -38,53 +44,70 @@ impl<T: OnChainStorageRW + LatestDataStorageRW + Clone> SyncDB for T {}
 pub(crate) struct ChainSync<DB: SyncDB> {
     pub db: DB,
     pub config: RuntimeConfig,
-    pub provider: RootProvider,
+    pub router_query: RouterQuery,
+    pub middleware_query: MiddlewareQuery,
+    pub block_loader: EthereumBlockLoader,
 }
 
 impl<DB: SyncDB> ChainSync<DB> {
+    pub fn new(db: DB, config: RuntimeConfig, provider: RootProvider) -> Self {
+        let router_query =
+            RouterQuery::from_provider(config.router_address.0.into(), provider.clone());
+        let middleware_query =
+            MiddlewareQuery::from_provider(config.middleware_address.0.into(), provider.clone());
+        let block_loader = EthereumBlockLoader::new(provider, config.router_address);
+        Self {
+            db,
+            config,
+            router_query,
+            middleware_query,
+            block_loader,
+        }
+    }
+
     pub async fn sync(self, chain_head: Header) -> Result<H256> {
-        let block: H256 = chain_head.hash.0.into();
-        let header = BlockHeader {
-            height: chain_head.number as u32,
-            timestamp: chain_head.timestamp,
-            parent_hash: H256(chain_head.parent_hash.0),
+        let block = SimpleBlockData {
+            hash: H256(chain_head.hash.0),
+            header: BlockHeader {
+                height: chain_head.number as u32,
+                timestamp: chain_head.timestamp,
+                parent_hash: H256(chain_head.parent_hash.0),
+            },
         };
 
-        let blocks_data = self.pre_load_data(&header).await?;
-        let chain = self.load_chain(block, header, blocks_data).await?;
+        let blocks_data = self.pre_load_data(&block.header).await?;
+        let chain = self.load_chain(&block, blocks_data).await?;
 
-        self.propagate_validators(block, header).await?;
+        self.ensure_validators(block).await?;
         self.mark_chain_as_synced(chain.into_iter().rev());
 
-        Ok(block)
+        Ok(block.hash)
     }
 
     async fn load_chain(
         &self,
-        block: H256,
-        header: BlockHeader,
+        block: &SimpleBlockData,
         mut blocks_data: HashMap<H256, BlockData>,
-    ) -> Result<Vec<H256>> {
+    ) -> Result<Vec<SimpleBlockData>> {
         let mut chain = Vec::new();
 
-        let mut hash = block;
-        while !self.db.block_synced(hash) {
-            let block_data = match blocks_data.remove(&hash) {
+        let mut current_block_hash = block.hash;
+        while !self.db.block_synced(current_block_hash) {
+            let block_data = match blocks_data.remove(&current_block_hash) {
                 Some(data) => data,
                 None => {
-                    utils::load_block_data(
-                        self.provider.clone(),
-                        hash,
-                        self.config.router_address,
-                        (hash == block).then_some(header),
-                    )
-                    .await?
+                    self.block_loader
+                        .load(
+                            current_block_hash,
+                            (current_block_hash == block.hash).then_some(block.header),
+                        )
+                        .await?
                 }
             };
 
-            if hash != block_data.hash {
+            if current_block_hash != block_data.hash {
                 unreachable!(
-                    "Expected data for block hash {hash}, got for {}",
+                    "Expected data for block hash {current_block_hash}, got for {}",
                     block_data.hash
                 );
             }
@@ -101,112 +124,124 @@ impl<DB: SyncDB> ChainSync<DB> {
                 }
             }
 
-            let parent_hash = block_data.header.parent_hash;
+            self.db
+                .set_block_header(current_block_hash, block_data.header);
+            self.db
+                .set_block_events(current_block_hash, &block_data.events);
 
-            self.db.set_block_header(hash, block_data.header);
-            self.db.set_block_events(hash, &block_data.events);
+            chain.push(SimpleBlockData {
+                hash: current_block_hash,
+                header: block_data.header,
+            });
 
-            chain.push(hash);
-            hash = parent_hash;
+            current_block_hash = block_data.header.parent_hash;
         }
 
         Ok(chain)
     }
 
+    /// Loads blocks if there is a gap between the `header`'s height and the latest synced block height.
     async fn pre_load_data(&self, header: &BlockHeader) -> Result<HashMap<H256, BlockData>> {
         let Some(latest) = self.db.latest_data() else {
             tracing::warn!("latest data is not set in the database");
             return Ok(Default::default());
         };
+        let latest_synced_block_height = latest.synced_block.header.height;
 
-        if header.height <= latest.synced_block_height {
+        if header.height <= latest_synced_block_height {
             tracing::warn!(
-                "Get a block with number {} <= latest synced block number: {}, maybe a reorg",
+                "Got a block with number {} <= latest synced block number: {}, maybe a reorg",
                 header.height,
-                latest.synced_block_height
+                latest_synced_block_height
             );
             // Suppose here that all data is already in db.
             return Ok(Default::default());
         }
 
-        if (header.height - latest.synced_block_height) >= self.config.max_sync_depth {
+        if (header.height - latest_synced_block_height) >= self.config.max_sync_depth {
             // TODO (gsobol): return an event to notify about too deep chain.
             return Err(anyhow!(
                 "Too much to sync: current block number: {}, Latest valid block number: {}, Max depth: {}",
                 header.height,
-                latest.synced_block_height,
+                latest_synced_block_height,
                 self.config.max_sync_depth
             ));
         }
 
-        if header.height - latest.synced_block_height < self.config.batched_sync_depth {
+        if header.height - latest_synced_block_height < self.config.batched_sync_depth {
             // No need to pre load data, because amount of blocks is small enough.
             return Ok(Default::default());
         }
 
-        utils::load_blocks_data_batched(
-            self.provider.clone(),
-            latest.synced_block_height as u64,
-            header.height as u64,
-            self.config.router_address,
-        )
-        .await
+        self.block_loader
+            .load_many(latest_synced_block_height as u64..=header.height as u64)
+            .await
     }
 
-    // Propagate validators from the parent block. If start new era, fetch new validators from the router.
-    async fn propagate_validators(&self, block: H256, header: BlockHeader) -> Result<()> {
-        let validators = match self.db.block_validators(header.parent_hash) {
-            Some(validators) if !self.should_fetch_validators(header)? => validators,
-            _ => {
-                RouterQuery::from_provider(
-                    self.config.router_address.0.into(),
-                    self.provider.clone(),
-                )
-                .validators_at(block)
-                .await?
-            }
-        };
-        self.db.set_block_validators(block, validators.clone());
+    /// This function guarantees the next things:
+    /// 1. if there is no validators for current era in database - it fetches them.
+    /// 2. if the election result is `finalized` it requests for next era validators and sets them in database.
+    ///
+    /// See [`Self::election_timestamp_finalized`] for the our timestamp `finalization` rules.
+    async fn ensure_validators(&self, data: SimpleBlockData) -> Result<()> {
+        let timelines = self
+            .db
+            .protocol_timelines()
+            .ok_or_else(|| anyhow!("protocol timelines not found in database"))?;
+        let chain_head_era = timelines.era_from_ts(data.header.timestamp);
+
+        // If we don't have validators for current era - set them.
+        if self.db.validators(chain_head_era).is_none() {
+            let validators = self.router_query.validators_at(data.hash).await?;
+            self.db.set_validators(chain_head_era, validators);
+        }
+
+        // Fetch next era validators if timestamp `finalized` and we don't set them in database already.
+        if let Some(election_ts) = self.election_timestamp_finalized(data.header)
+            && self.db.validators(chain_head_era.add(1)).is_none()
+        {
+            let next_era_validators = self
+                .middleware_query
+                .make_election_at(election_ts, 10)
+                .await?;
+            self.db
+                .set_validators(chain_head_era.add(1), next_era_validators);
+        }
+
         Ok(())
     }
 
-    fn mark_chain_as_synced(&self, chain: impl Iterator<Item = H256>) {
-        for hash in chain {
-            let block_header = self
-                .db
-                .block_header(hash)
-                .unwrap_or_else(|| unreachable!("Block header for synced block {hash} is missing"));
+    fn mark_chain_as_synced(&self, chain: impl Iterator<Item = SimpleBlockData>) {
+        for data in chain {
+            let SimpleBlockData { hash, header } = data;
 
             self.db.set_block_synced(hash);
 
+            log::trace!(
+                "✅ block {hash} synced, events: {:?}",
+                self.db.block_events(hash)
+            );
+
             let _ = self
                 .db
-                .mutate_latest_data(|data| data.synced_block_height = block_header.height)
+                .mutate_latest_data(|data| data.synced_block = SimpleBlockData { hash, header })
                 .ok_or_else(|| {
                     log::error!("Failed to update latest data for synced block {hash}");
                 });
         }
     }
 
-    /// NOTE: we don't need to fetch validators for block from zero era, because of
-    /// it will be fetched in [`crate::ObserverService::pre_process_genesis_for_db`]
-    fn should_fetch_validators(&self, chain_head: BlockHeader) -> Result<bool> {
-        let timelines = self
-            .db
-            .protocol_timelines()
-            .ok_or_else(|| anyhow!("ProtocolTimelines not found in database"))?;
-        let chain_head_era = timelines.era_from_ts(chain_head.timestamp);
+    /// Function checks the `election_ts` in current era is `finalized` and if it true returns it.
+    ///
+    /// By `finalization` we mean the 64 blocks, because of it is closely to real finalization time and
+    /// reorgs for 64 blocks can not happen.
+    fn election_timestamp_finalized(&self, chain_head: BlockHeader) -> Option<u64> {
+        let timelines = self.db.protocol_timelines()?;
 
-        if chain_head_era == 0 {
-            return Ok(false);
-        }
+        let election_ts = timelines.era_end_ts(chain_head.timestamp) - timelines.election;
 
-        let parent = self.db.block_header(chain_head.parent_hash).ok_or(anyhow!(
-            "header not found for block({:?})",
-            chain_head.parent_hash
-        ))?;
-
-        let parent_era_index = timelines.era_from_ts(parent.timestamp);
-        Ok(chain_head_era > parent_era_index)
+        (chain_head.timestamp.saturating_sub(election_ts)
+            > alloy::eips::merge::SLOT_DURATION_SECS * 64)
+            .then_some(election_ts)
     }
 }

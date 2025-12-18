@@ -559,14 +559,22 @@ where
         }: &AnnounceNode,
     ) {
         let announce_hash = *announce_hash;
-        try_push_node!(with_hash: self.announce_schedule(announce_hash));
-        try_push_node!(with_hash: self.announce_outcome(announce_hash));
-        try_push_node!(with_hash: self.announce_program_states(announce_hash));
+
+        let announce_meta = self.storage.announce_meta(announce_hash);
+        let computed = announce_meta.computed;
 
         self.push_node(AnnounceMetaNode {
             announce_hash,
-            announce_meta: self.storage.announce_meta(announce_hash),
+            announce_meta,
         });
+
+        // Announce is not obligated to be computed
+        if computed {
+            // If computed, all of the following must be present
+            try_push_node!(with_hash: self.announce_schedule(announce_hash));
+            try_push_node!(with_hash: self.announce_outcome(announce_hash));
+            try_push_node!(with_hash: self.announce_program_states(announce_hash));
+        }
 
         // TODO #4830: offchain transactions
     }
@@ -740,6 +748,7 @@ where
             exited: _,
             inheritor: _,
             value_to_receive: _,
+            value_to_receive_negative_sign: _,
             value_claims: _,
             messages: _,
         } = state_transition;
@@ -1057,6 +1066,7 @@ pub(crate) mod tests {
                     exited: false,
                     inheritor: Default::default(),
                     value_to_receive: 0,
+                    value_to_receive_negative_sign: false,
                     value_claims: vec![],
                     messages: vec![],
                 }],
@@ -1080,6 +1090,7 @@ pub(crate) mod tests {
             exited: false,
             inheritor: ActorId::zero(),
             value_to_receive: 0,
+            value_to_receive_negative_sign: false,
             value_claims: Vec::new(),
             messages: Vec::new(),
         };
@@ -1110,6 +1121,7 @@ pub(crate) mod tests {
             exited: false,
             inheritor: ActorId::zero(),
             value_to_receive: 0,
+            value_to_receive_negative_sign: false,
             value_claims: Vec::new(),
             messages: Vec::new(),
         };
