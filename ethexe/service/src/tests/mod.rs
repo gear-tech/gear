@@ -3322,11 +3322,6 @@ mod xxx {
             salt: H256::random().0.to_vec().into(),
         };
 
-        let transaction = RpcOrNetworkInjectedTx {
-            recipient: Address::default(),
-            tx: signer.signed_message(key, tx).unwrap(),
-        };
-
         let validator = block_producer_for(
             &validators_from_router,
             time::SystemTime::now()
@@ -3336,6 +3331,12 @@ mod xxx {
                 + 12,
             12,
         );
+
+        let transaction = RpcOrNetworkInjectedTx {
+            recipient: validator,
+            tx: signer.signed_message(key, tx).unwrap(),
+        };
+
         let client = clients.get_mut(&validator).expect("Undefined validator");
 
         println!("Sending transaction to {validator} ...");
