@@ -51,9 +51,14 @@ pub fn setup_start_block_in_db<
     start_block_hash: H256,
     start_block_data: FullBlockData,
     start_announce_data: FullAnnounceData,
+    timelines: ProtocolTimelines,
+    latest_validators_committed_era: u64,
 ) {
-    let height = start_block_data.header.height;
     let announce_hash = start_announce_data.announce.to_hash();
+    let latest_synced_block = SimpleBlockData {
+        hash: start_block_hash,
+        header: start_block_data.header,
+    };
 
     assert_eq!(
         start_block_data.announces,
@@ -64,8 +69,11 @@ pub fn setup_start_block_in_db<
     setup_block_in_db(db, start_block_hash, start_block_data);
     setup_announce_in_db(db, start_announce_data);
 
+    db.set_protocol_timelines(timelines);
+    db.set_block_validators_committed_for_era(start_block_hash, latest_validators_committed_era);
+
     db.mutate_latest_data(|latest| {
-        latest.synced_block_height = height;
+        latest.synced_block = latest_synced_block;
         latest.prepared_block_hash = start_block_hash;
         latest.computed_announce_hash = announce_hash;
         latest.start_block_hash = start_block_hash;
@@ -79,7 +87,7 @@ pub fn setup_genesis_in_db<
 >(
     db: &DB,
     genesis_block: SimpleBlockData,
-    validators: ValidatorsVec,
+    genesis_validators: ValidatorsVec,
     timelines: ProtocolTimelines,
 ) {
     let genesis_announce = Announce::base(genesis_block.hash, HashOf::zero());
@@ -99,13 +107,20 @@ pub fn setup_genesis_in_db<
         FullBlockData {
             header: genesis_block.header,
             events: Default::default(),
-            validators,
             codes_queue: Default::default(),
             announces: [genesis_announce_hash].into(),
             last_committed_batch: Default::default(),
             last_committed_announce: HashOf::zero(),
         },
     );
+
+    // We understand, that genesis block is always in era 0, but we calculate it from timestamp to prevent some
+    // possible mismatches in future.
+    db.set_validators(
+        timelines.era_from_ts(genesis_block.header.timestamp),
+        genesis_validators,
+    );
+    db.set_block_validators_committed_for_era(genesis_block.hash, 0);
 
     db.set_protocol_timelines(timelines);
 
@@ -120,7 +135,10 @@ pub fn setup_genesis_in_db<
         );
     } else {
         db.set_latest_data(LatestData {
-            synced_block_height: genesis_block.header.height,
+            synced_block: SimpleBlockData {
+                hash: genesis_block.hash,
+                header: genesis_block.header,
+            },
             prepared_block_hash: genesis_block.hash,
             computed_announce_hash: genesis_announce_hash,
             genesis_block_hash: genesis_block.hash,
@@ -139,7 +157,6 @@ pub fn setup_block_in_db<DB: OnChainStorageRW + BlockMetaStorageRW>(
     db.set_block_header(block_hash, block_data.header);
     db.set_block_events(block_hash, &block_data.events);
     db.set_block_synced(block_hash);
-    db.set_block_validators(block_hash, block_data.validators);
 
     db.mutate_block_meta(block_hash, |meta| {
         *meta = BlockMeta {

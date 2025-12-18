@@ -20,7 +20,11 @@ use super::MergeParams;
 use anyhow::{Context, Result, ensure};
 use clap::Parser;
 use directories::ProjectDirs;
-use ethexe_common::{DEFAULT_BLOCK_GAS_LIMIT, gear::MAX_BLOCK_GAS_LIMIT};
+use ethexe_common::{
+    DEFAULT_BLOCK_GAS_LIMIT,
+    consensus::{DEFAULT_CHAIN_DEEPNESS_THRESHOLD, DEFAULT_VALIDATE_CHAIN_DEEPNESS_LIMIT},
+    gear::{CANONICAL_QUARANTINE, MAX_BLOCK_GAS_LIMIT},
+};
 use ethexe_processor::DEFAULT_CHUNK_PROCESSING_THREADS;
 use ethexe_service::config::{ConfigPublicKey, NodeConfig};
 use serde::Deserialize;
@@ -36,7 +40,7 @@ static mut TMP_DB: Option<TempDir> = None;
 pub struct NodeParams {
     /// Base directory for all node-related subdirectories.
     #[arg(long)]
-    pub base: Option<String>,
+    pub base: Option<PathBuf>,
 
     /// Flag to use temporary directory for database.
     #[arg(long)]
@@ -65,27 +69,41 @@ pub struct NodeParams {
     /// Number of worker threads to use in tokio runtime.
     #[arg(long)]
     #[serde(rename = "worker-threads")]
-    pub worker_threads: Option<NonZero<u8>>,
+    pub worker_threads: Option<NonZero<usize>>,
 
     /// Number of blocking threads to use in tokio runtime.
     #[arg(long)]
     #[serde(rename = "blocking-threads")]
-    pub blocking_threads: Option<NonZero<u8>>,
+    pub blocking_threads: Option<NonZero<usize>>,
 
     /// Number of threads to use for chunk processing.
     #[arg(long)]
     #[serde(rename = "chunk-processing-threads")]
-    pub chunk_processing_threads: Option<NonZero<u8>>,
+    pub chunk_processing_threads: Option<NonZero<usize>>,
 
     /// Block gas limit for the node.
     #[arg(long)]
     #[serde(rename = "block-gas-limit")]
     pub block_gas_limit: Option<u64>,
 
+    #[arg(long)]
+    #[serde(rename = "canonical-quarantine")]
+    pub canonical_quarantine: Option<u8>,
+
     /// Do P2P database synchronization before the main loop
     #[arg(long, default_value = "false")]
     #[serde(default, rename = "fast-sync")]
     pub fast_sync: bool,
+
+    /// Limit for validating chain deepness of coming commitments.
+    #[arg(long)]
+    #[serde(default, rename = "validate-chain-deepness-limit")]
+    pub validate_chain_deepness_limit: Option<u32>,
+
+    /// Threshold for producer to submit commitment despite of no transitions
+    #[arg(long)]
+    #[serde(default, rename = "chain-deepness-threshold")]
+    pub chain_deepness_threshold: Option<u32>,
 }
 
 impl NodeParams {
@@ -107,18 +125,25 @@ impl NodeParams {
             validator_session: ConfigPublicKey::new(&self.validator_session)
                 .with_context(|| "invalid `validator-session` key")?,
             eth_max_sync_depth: self.max_depth.unwrap_or(Self::DEFAULT_MAX_DEPTH).get(),
-            worker_threads: self.worker_threads.map(|v| v.get() as usize),
-            blocking_threads: self.blocking_threads.map(|v| v.get() as usize),
+            worker_threads: self.worker_threads.map(|v| v.get()),
+            blocking_threads: self.blocking_threads.map(|v| v.get()),
             chunk_processing_threads: self
                 .chunk_processing_threads
-                .unwrap_or(NonZero::new(DEFAULT_CHUNK_PROCESSING_THREADS).unwrap())
-                .get() as usize,
+                .unwrap_or(DEFAULT_CHUNK_PROCESSING_THREADS)
+                .get(),
             block_gas_limit: self
                 .block_gas_limit
                 .unwrap_or(DEFAULT_BLOCK_GAS_LIMIT)
                 .min(MAX_BLOCK_GAS_LIMIT),
+            canonical_quarantine: self.canonical_quarantine.unwrap_or(CANONICAL_QUARANTINE),
             dev: self.dev,
             fast_sync: self.fast_sync,
+            validate_chain_deepness_limit: self
+                .validate_chain_deepness_limit
+                .unwrap_or(DEFAULT_VALIDATE_CHAIN_DEEPNESS_LIMIT),
+            chain_deepness_threshold: self
+                .chain_deepness_threshold
+                .unwrap_or(DEFAULT_CHAIN_DEEPNESS_THRESHOLD),
         })
     }
 
@@ -142,10 +167,7 @@ impl NodeParams {
     }
 
     fn base(&self) -> PathBuf {
-        self.base
-            .as_ref()
-            .map(PathBuf::from)
-            .unwrap_or_else(Self::default_base)
+        self.base.clone().unwrap_or_else(Self::default_base)
     }
 
     fn default_base() -> PathBuf {
@@ -190,8 +212,16 @@ impl MergeParams for NodeParams {
                 .or(with.chunk_processing_threads),
 
             block_gas_limit: self.block_gas_limit.or(with.block_gas_limit),
+            canonical_quarantine: self.canonical_quarantine.or(with.canonical_quarantine),
 
             fast_sync: self.fast_sync || with.fast_sync,
+
+            validate_chain_deepness_limit: self
+                .validate_chain_deepness_limit
+                .or(with.validate_chain_deepness_limit),
+            chain_deepness_threshold: self
+                .chain_deepness_threshold
+                .or(with.chain_deepness_threshold),
         }
     }
 }

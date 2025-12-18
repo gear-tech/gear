@@ -17,10 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    self as pallet_gear_builtin, BuiltinActor, BuiltinActorError, BuiltinActorId, BuiltinActorType,
-    BuiltinContext, BuiltinReply,
+    self as pallet_gear_builtin, BuiltinActor, BuiltinActorId, BuiltinActorType, BuiltinReply,
     mock::{BLOCK_AUTHOR, ENDOWMENT, EXISTENTIAL_DEPOSIT, MILLISECS_PER_BLOCK, SIGNER},
 };
+use builtins_common::{BuiltinActorError, BuiltinContext};
 use common::Origin;
 use frame_support::{
     PalletId, assert_ok, construct_runtime, parameter_types,

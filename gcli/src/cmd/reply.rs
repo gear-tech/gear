@@ -17,7 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Command `reply`
-use crate::{App, result::Result, utils::Hex};
+use crate::{App, utils::Hex};
+use anyhow::Result;
 use clap::Parser;
 
 /// Sends a reply message.
@@ -51,7 +52,7 @@ pub struct Reply {
 
 impl Reply {
     pub async fn exec(&self, app: &impl App) -> Result<()> {
-        let signer = app.signer().await?;
+        let signer = app.signed().await?;
         let reply_to_id = self.reply_to_id.to_hash()?;
 
         let gas_limit = if let Some(gas_limit) = self.gas_limit {
@@ -59,7 +60,6 @@ impl Reply {
         } else {
             signer
                 .calculate_reply_gas(
-                    None,
                     reply_to_id.into(),
                     self.payload.to_vec()?,
                     self.value,

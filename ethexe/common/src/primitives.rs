@@ -16,7 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{DEFAULT_BLOCK_GAS_LIMIT, HashOf, ToDigest, events::BlockEvent};
+use crate::{
+    DEFAULT_BLOCK_GAS_LIMIT, HashOf, ToDigest, events::BlockEvent,
+    injected::SignedInjectedTransaction,
+};
 use alloc::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
     vec::Vec,
@@ -65,21 +68,24 @@ impl BlockData {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Encode, Decode, Default)]
 pub struct SimpleBlockData {
     pub hash: H256,
     pub header: BlockHeader,
 }
 
-#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, Hash, derive_more::Display)]
+#[cfg_attr(feature = "serde", derive(Hash))]
+#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, derive_more::Display)]
 #[display(
-    "Announce(block: {block_hash}, parent: {parent}, gas: {gas_allowance:?}, txs: {off_chain_transactions:?})"
+    "Announce(block: {block_hash}, parent: {parent}, gas: {gas_allowance:?}, txs: {injected_transactions:?})"
 )]
 pub struct Announce {
     pub block_hash: H256,
     pub parent: HashOf<Self>,
     pub gas_allowance: Option<u64>,
-    pub off_chain_transactions: Vec<H256>,
+    // TODO kuzmindev: remove InjectedTransaction from Announce and store only its hashes.
+    // Need to implement `PublicAnnounce` struct which will contain full bodies of injected transactions.
+    pub injected_transactions: Vec<SignedInjectedTransaction>,
 }
 
 impl Announce {
@@ -93,7 +99,7 @@ impl Announce {
             block_hash,
             parent,
             gas_allowance: None,
-            off_chain_transactions: Vec::new(),
+            injected_transactions: Vec::new(),
         }
     }
 
@@ -102,12 +108,12 @@ impl Announce {
             block_hash,
             parent,
             gas_allowance: Some(DEFAULT_BLOCK_GAS_LIMIT),
-            off_chain_transactions: Vec::new(),
+            injected_transactions: Vec::new(),
         }
     }
 
     pub fn is_base(&self) -> bool {
-        self.gas_allowance.is_none() && self.off_chain_transactions.is_empty()
+        self.gas_allowance.is_none() && self.injected_transactions.is_empty()
     }
 }
 
@@ -115,7 +121,7 @@ impl ToDigest for Announce {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
         hasher.update(self.block_hash);
         hasher.update(self.gas_allowance.encode());
-        hasher.update(self.off_chain_transactions.encode());
+        hasher.update(self.injected_transactions.encode());
     }
 }
 
@@ -212,7 +218,7 @@ pub struct ProtocolTimelines {
 
 impl ProtocolTimelines {
     /// Returns the era index for the given timestamp. Eras starts from 0.
-    /// If geven `ts` less than `genesis_ts` function returns `0`;
+    /// If given `ts` less than `genesis_ts` function returns `0`;
     #[inline(always)]
     pub fn era_from_ts(&self, ts: u64) -> u64 {
         if ts < self.genesis_ts {

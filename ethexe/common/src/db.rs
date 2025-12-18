@@ -16,13 +16,14 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! ethexe common db types and traits.
-
-// TODO #4547: move types to another module(s)
+//! Common db types and traits.
 
 use crate::{
     Announce, BlockHeader, CodeBlobInfo, Digest, HashOf, ProgramStates, ProtocolTimelines,
-    Schedule, ValidatorsVec, events::BlockEvent, gear::StateTransition,
+    Schedule, SimpleBlockData, ValidatorsVec,
+    events::BlockEvent,
+    gear::StateTransition,
+    injected::{InjectedTransaction, Promise, SignedInjectedTransaction},
 };
 use alloc::{
     collections::{BTreeSet, VecDeque},
@@ -41,6 +42,7 @@ pub struct BlockMeta {
     /// Block has been prepared, meaning:
     /// all metadata is ready, all predecessors till start block are prepared too.
     pub prepared: bool,
+    // TODO: #4945 remove announces from here
     /// Set of announces included in the block.
     pub announces: Option<BTreeSet<HashOf<Announce>>>,
     /// Queue of code ids waiting for validation status commitment on-chain.
@@ -108,7 +110,9 @@ pub trait OnChainStorageRO {
     fn block_events(&self, block_hash: H256) -> Option<Vec<BlockEvent>>;
     fn code_blob_info(&self, code_id: CodeId) -> Option<CodeBlobInfo>;
     fn block_synced(&self, block_hash: H256) -> bool;
-    fn block_validators(&self, block_hash: H256) -> Option<ValidatorsVec>;
+    fn validators(&self, era_index: u64) -> Option<ValidatorsVec>;
+    // TODO kuzmindev: temporal solution - must move into block meta or something else.
+    fn block_validators_committed_for_era(&self, block_hash: H256) -> Option<u64>;
     fn protocol_timelines(&self) -> Option<ProtocolTimelines>;
 }
 
@@ -118,8 +122,27 @@ pub trait OnChainStorageRW: OnChainStorageRO {
     fn set_block_events(&self, block_hash: H256, events: &[BlockEvent]);
     fn set_code_blob_info(&self, code_id: CodeId, code_info: CodeBlobInfo);
     fn set_protocol_timelines(&self, timelines: ProtocolTimelines);
-    fn set_block_validators(&self, block_hash: H256, validator_set: ValidatorsVec);
+    fn set_validators(&self, era_index: u64, validator_set: ValidatorsVec);
+    fn set_block_validators_committed_for_era(&self, block_hash: H256, era_index: u64);
     fn set_block_synced(&self, block_hash: H256);
+}
+
+#[auto_impl::auto_impl(&)]
+pub trait InjectedStorageRO {
+    /// Returns the transactions by its hash.
+    fn injected_transaction(
+        &self,
+        hash: HashOf<InjectedTransaction>,
+    ) -> Option<SignedInjectedTransaction>;
+
+    /// Returns the promise by transaction hash.
+    fn promise(&self, hash: HashOf<InjectedTransaction>) -> Option<Promise>;
+}
+
+#[auto_impl::auto_impl(&)]
+pub trait InjectedStorageRW: InjectedStorageRO {
+    fn set_injected_transaction(&self, tx: SignedInjectedTransaction);
+    fn set_promise(&self, promise: Promise);
 }
 
 #[derive(Debug, Clone, Default, Encode, Decode, PartialEq, Eq, Hash)]
@@ -146,6 +169,7 @@ pub trait AnnounceStorageRW: AnnounceStorageRO {
     );
     fn set_announce_outcome(&self, announce_hash: HashOf<Announce>, outcome: Vec<StateTransition>);
     fn set_announce_schedule(&self, announce_hash: HashOf<Announce>, schedule: Schedule);
+
     fn mutate_announce_meta(
         &self,
         announce_hash: HashOf<Announce>,
@@ -155,8 +179,8 @@ pub trait AnnounceStorageRW: AnnounceStorageRO {
 
 #[derive(Debug, Clone, Default, Encode, Decode, PartialEq, Eq)]
 pub struct LatestData {
-    /// Latest synced block height
-    pub synced_block_height: u32,
+    /// Latest synced block
+    pub synced_block: SimpleBlockData,
     /// Latest prepared block hash
     pub prepared_block_hash: H256,
     /// Latest computed announce hash
@@ -193,7 +217,6 @@ pub trait LatestDataStorageRW: LatestDataStorageRO {
 pub struct FullBlockData {
     pub header: BlockHeader,
     pub events: Vec<BlockEvent>,
-    pub validators: ValidatorsVec,
     pub codes_queue: VecDeque<CodeId>,
     pub announces: BTreeSet<HashOf<Announce>>,
     pub last_committed_batch: Digest,

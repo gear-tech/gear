@@ -34,7 +34,7 @@ use core::{
 };
 use ethexe_common::{
     HashOf, MaybeHashOf,
-    gear::{Message, Origin},
+    gear::{Message, MessageType},
 };
 pub use gear_core::program::ProgramState as InitStatus;
 use gear_core::{
@@ -134,7 +134,7 @@ impl PayloadLookup {
     }
 }
 
-impl<S: Storage> QueriableStorage<Allocations> for S {
+impl<S: Storage> QueryableStorage<Allocations> for S {
     fn query(&self, hash: &MaybeHashOf<Allocations>) -> Result<Allocations> {
         hash.try_map_or_default(|hash| {
             self.allocations(hash).ok_or(anyhow!(
@@ -160,7 +160,7 @@ impl<S: Storage> ModifiableStorage<Allocations> for S {
     }
 }
 
-impl<S: Storage> QueriableStorage<DispatchStash> for S {
+impl<S: Storage> QueryableStorage<DispatchStash> for S {
     fn query(&self, hash: &MaybeHashOf<DispatchStash>) -> Result<DispatchStash> {
         hash.try_map_or_default(|hash| {
             self.dispatch_stash(hash).ok_or(anyhow!(
@@ -186,7 +186,7 @@ impl<S: Storage> ModifiableStorage<DispatchStash> for S {
     }
 }
 
-impl<S: Storage> QueriableStorage<Mailbox> for S {
+impl<S: Storage> QueryableStorage<Mailbox> for S {
     fn query(&self, hash: &MaybeHashOf<Mailbox>) -> Result<Mailbox> {
         hash.try_map_or_default(|hash| {
             self.mailbox(hash)
@@ -207,7 +207,7 @@ impl<S: Storage> ModifiableStorage<Mailbox> for S {
     }
 }
 
-impl<S: Storage> QueriableStorage<UserMailbox> for S {
+impl<S: Storage> QueryableStorage<UserMailbox> for S {
     fn query(&self, hash: &MaybeHashOf<UserMailbox>) -> Result<UserMailbox> {
         hash.try_map_or_default(|hash| {
             self.user_mailbox(hash).ok_or(anyhow!(
@@ -217,7 +217,7 @@ impl<S: Storage> QueriableStorage<UserMailbox> for S {
     }
 }
 
-impl<S: Storage> QueriableStorage<MemoryPages> for S {
+impl<S: Storage> QueryableStorage<MemoryPages> for S {
     fn query(&self, hash: &MaybeHashOf<MemoryPages>) -> Result<MemoryPages> {
         hash.try_map_or_default(|hash| {
             self.memory_pages(hash).ok_or(anyhow!(
@@ -282,7 +282,7 @@ impl MessageQueueHashWithSize {
     }
 }
 
-impl<S: Storage> QueriableStorage<Payload> for S {
+impl<S: Storage> QueryableStorage<Payload> for S {
     fn query(&self, hash: &MaybeHashOf<Payload>) -> Result<Payload> {
         hash.try_map_or_default(|hash| {
             self.payload(hash)
@@ -293,7 +293,7 @@ impl<S: Storage> QueriableStorage<Payload> for S {
     }
 }
 
-impl<S: Storage> QueriableStorage<Waitlist> for S {
+impl<S: Storage> QueryableStorage<Waitlist> for S {
     fn query(&self, hash: &MaybeHashOf<Waitlist>) -> Result<Waitlist> {
         hash.try_map_or_default(|hash| {
             self.waitlist(hash)
@@ -417,6 +417,16 @@ impl ProgramState {
             && self.injected_queue.hash.is_empty()
             && self.waitlist_hash.is_empty()
     }
+
+    pub fn queue_from_msg_type(
+        &mut self,
+        message_type: MessageType,
+    ) -> &mut MessageQueueHashWithSize {
+        match message_type {
+            MessageType::Canonical => &mut self.canonical_queue,
+            MessageType::Injected => &mut self.injected_queue,
+        }
+    }
 }
 
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, Hash)]
@@ -436,8 +446,8 @@ pub struct Dispatch {
     pub details: Option<MessageDetails>,
     /// Message previous executions context.
     pub context: Option<ContextStore>,
-    /// Origin of the message.
-    pub origin: Origin,
+    /// Type of the message.
+    pub message_type: MessageType,
     /// If to call on eth.
     /// Currently only used for replies: assert_eq!(message.call, replyToThisMessage.call);
     pub call: bool,
@@ -452,7 +462,7 @@ impl Dispatch {
         payload: Vec<u8>,
         value: u128,
         is_init: bool,
-        origin: Origin,
+        message_type: MessageType,
         call: bool,
     ) -> Result<Self> {
         let payload = storage.write_payload_raw(payload)?;
@@ -471,7 +481,7 @@ impl Dispatch {
             value,
             details: None,
             context: None,
-            origin,
+            message_type,
             call,
         })
     }
@@ -482,7 +492,7 @@ impl Dispatch {
         source: ActorId,
         payload: Vec<u8>,
         value: u128,
-        origin: Origin,
+        message_type: MessageType,
         call: bool,
     ) -> Result<Self> {
         let payload_hash = storage.write_payload_raw(payload)?;
@@ -493,7 +503,7 @@ impl Dispatch {
             payload_hash,
             value,
             SuccessReplyReason::Manual,
-            origin,
+            message_type,
             call,
         ))
     }
@@ -504,7 +514,7 @@ impl Dispatch {
         payload: PayloadLookup,
         value: u128,
         reply_code: impl Into<ReplyCode>,
-        origin: Origin,
+        message_type: MessageType,
         call: bool,
     ) -> Self {
         Self {
@@ -515,7 +525,7 @@ impl Dispatch {
             value,
             details: Some(ReplyDetails::new(reply_to, reply_code.into()).into()),
             context: None,
-            origin,
+            message_type,
             call,
         }
     }
@@ -523,7 +533,7 @@ impl Dispatch {
     pub fn from_core_stored<S: Storage>(
         storage: &S,
         value: StoredDispatch,
-        origin: Origin,
+        message_type: MessageType,
         call_reply: bool,
     ) -> Self {
         let (kind, message, context) = value.into_parts();
@@ -541,7 +551,7 @@ impl Dispatch {
             value,
             details,
             context,
-            origin,
+            message_type,
             call: call_reply,
         }
     }
@@ -621,6 +631,18 @@ impl MessageQueue {
 
     pub fn store<S: Storage>(self, storage: &S) -> MaybeHashOf<Self> {
         MaybeHashOf::from_inner((!self.0.is_empty()).then(|| storage.write_message_queue(self)))
+    }
+}
+
+/// Methods introduced due to solution to #4513.
+/// Remove when becomes unnecessary.
+impl MessageQueue {
+    pub fn clear(&mut self) {
+        self.0.clear()
+    }
+
+    pub fn pop_back(&mut self) -> Option<Dispatch> {
+        self.0.pop_back()
     }
 }
 
@@ -755,15 +777,15 @@ impl DispatchStash {
 pub struct MailboxMessage {
     pub payload: PayloadLookup,
     pub value: Value,
-    pub origin: Origin,
+    pub message_type: MessageType,
 }
 
 impl MailboxMessage {
-    pub fn new(payload: PayloadLookup, value: Value, origin: Origin) -> Self {
+    pub fn new(payload: PayloadLookup, value: Value, message_type: MessageType) -> Self {
         Self {
             payload,
             value,
-            origin,
+            message_type,
         }
     }
 }
@@ -773,7 +795,7 @@ impl From<Dispatch> for MailboxMessage {
         Self {
             payload: dispatch.payload,
             value: dispatch.value,
-            origin: dispatch.origin,
+            message_type: dispatch.message_type,
         }
     }
 }
@@ -1215,15 +1237,15 @@ pub trait Storage {
     }
 }
 
-/// [`QueriableStorage`] is a extenstion over [`Storage`] which provides methods to query
+/// [`QueryableStorage`] is a extension over [`Storage`] which provides methods to query
 /// runtime primitives from it.
-pub trait QueriableStorage<T>: Storage {
+pub trait QueryableStorage<T>: Storage {
     fn query(&self, hash: &MaybeHashOf<T>) -> Result<T>;
 }
 
 /// [`ModifiableStorage`] is a extension over [`Storage`] which provides method to modify
 /// runtime primitives by its hash.
-pub trait ModifiableStorage<T>: QueriableStorage<T> {
+pub trait ModifiableStorage<T>: QueryableStorage<T> {
     fn modify<U>(&self, hash: &mut MaybeHashOf<T>, f: impl FnOnce(&mut T) -> U) -> U;
 }
 
@@ -1260,7 +1282,7 @@ impl Storage for MemStorage {
     }
 
     fn message_queue(&self, hash: HashOf<MessageQueue>) -> Option<MessageQueue> {
-        self.read(hash.hash())
+        self.read(hash.inner())
     }
 
     fn write_message_queue(&self, queue: MessageQueue) -> HashOf<MessageQueue> {
@@ -1268,7 +1290,7 @@ impl Storage for MemStorage {
     }
 
     fn waitlist(&self, hash: HashOf<Waitlist>) -> Option<Waitlist> {
-        self.read(hash.hash())
+        self.read(hash.inner())
     }
 
     fn write_waitlist(&self, waitlist: Waitlist) -> HashOf<Waitlist> {
@@ -1276,7 +1298,7 @@ impl Storage for MemStorage {
     }
 
     fn dispatch_stash(&self, hash: HashOf<DispatchStash>) -> Option<DispatchStash> {
-        self.read(hash.hash())
+        self.read(hash.inner())
     }
 
     fn write_dispatch_stash(&self, stash: DispatchStash) -> HashOf<DispatchStash> {
@@ -1284,7 +1306,7 @@ impl Storage for MemStorage {
     }
 
     fn mailbox(&self, hash: HashOf<Mailbox>) -> Option<Mailbox> {
-        self.read(hash.hash())
+        self.read(hash.inner())
     }
 
     fn write_mailbox(&self, mailbox: Mailbox) -> HashOf<Mailbox> {
@@ -1292,7 +1314,7 @@ impl Storage for MemStorage {
     }
 
     fn user_mailbox(&self, hash: HashOf<UserMailbox>) -> Option<UserMailbox> {
-        self.read(hash.hash())
+        self.read(hash.inner())
     }
 
     fn write_user_mailbox(&self, user_mailbox: UserMailbox) -> HashOf<UserMailbox> {
@@ -1300,11 +1322,11 @@ impl Storage for MemStorage {
     }
 
     fn memory_pages(&self, hash: HashOf<MemoryPages>) -> Option<MemoryPages> {
-        self.read(hash.hash())
+        self.read(hash.inner())
     }
 
     fn memory_pages_region(&self, hash: HashOf<MemoryPagesRegion>) -> Option<MemoryPagesRegion> {
-        self.read(hash.hash())
+        self.read(hash.inner())
     }
 
     fn write_memory_pages(&self, pages: MemoryPages) -> HashOf<MemoryPages> {
@@ -1319,7 +1341,7 @@ impl Storage for MemStorage {
     }
 
     fn allocations(&self, hash: HashOf<Allocations>) -> Option<Allocations> {
-        self.read(hash.hash())
+        self.read(hash.inner())
     }
 
     fn write_allocations(&self, allocations: Allocations) -> HashOf<Allocations> {
@@ -1327,7 +1349,7 @@ impl Storage for MemStorage {
     }
 
     fn payload(&self, hash: HashOf<Payload>) -> Option<Payload> {
-        self.read(hash.hash())
+        self.read(hash.inner())
     }
 
     fn write_payload(&self, payload: Payload) -> HashOf<Payload> {
@@ -1335,7 +1357,7 @@ impl Storage for MemStorage {
     }
 
     fn page_data(&self, hash: HashOf<PageBuf>) -> Option<PageBuf> {
-        self.read(hash.hash())
+        self.read(hash.inner())
     }
 
     fn write_page_data(&self, data: PageBuf) -> HashOf<PageBuf> {

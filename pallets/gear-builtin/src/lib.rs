@@ -84,6 +84,7 @@ use alloc::{
     collections::{BTreeMap, btree_map::Entry},
     format,
 };
+use builtins_common::{BuiltinActorError, BuiltinContext};
 use common::{BlockLimiter, Origin, storage::Limiter};
 use core::marker::PhantomData;
 use core_processor::{
@@ -96,7 +97,6 @@ use core_processor::{
 };
 use frame_support::{dispatch::extract_actual_weight, traits::StorageVersion};
 use gear_core::{
-    gas::{ChargeResult, GasAllowanceCounter, GasAmount, GasCounter},
     ids::ActorId,
     limited::LimitedStr,
     message::{ContextOutcomeDrain, DispatchKind, MessageContext, ReplyPacket, StoredDispatch},
@@ -116,92 +116,7 @@ pub use gbuiltin_common::{BuiltinActorId, BuiltinActorType};
 type CallOf<T> = <T as Config>::RuntimeCall;
 pub type GasAllowanceOf<T> = <<T as Config>::BlockLimiter as BlockLimiter>::GasAllowance;
 
-const LOG_TARGET: &str = "gear::builtin";
 pub type ActorErrorHandleFn = HandleFn<BuiltinContext, BuiltinActorError>;
-
-/// Built-in actor error type
-#[derive(Encode, Decode, Clone, Debug, PartialEq, Eq, derive_more::Display)]
-pub enum BuiltinActorError {
-    /// Occurs if the underlying call has the weight greater than the `gas_limit`.
-    #[display("Not enough gas supplied")]
-    InsufficientGas,
-    /// Occurs if the dispatch's value is less than the minimum required value.
-    #[display("Not enough value supplied")]
-    InsufficientValue,
-    /// Occurs if the dispatch's message can't be decoded into a known type.
-    #[display("Failure to decode message")]
-    DecodingError,
-    /// Actor's inner error encoded as a String.
-    #[display("Builtin execution resulted in error: {_0}")]
-    Custom(LimitedStr<'static>),
-    /// Occurs if a builtin actor execution does not fit in the current block.
-    #[display("Block gas allowance exceeded")]
-    GasAllowanceExceeded,
-}
-
-impl From<BuiltinActorError> for ActorExecutionErrorReplyReason {
-    /// Convert [`BuiltinActorError`] to [`core_processor::common::ActorExecutionErrorReplyReason`]
-    fn from(err: BuiltinActorError) -> Self {
-        match err {
-            BuiltinActorError::InsufficientGas => {
-                ActorExecutionErrorReplyReason::Trap(TrapExplanation::GasLimitExceeded)
-            }
-            BuiltinActorError::InsufficientValue => {
-                ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(
-                    LimitedStr::from_small_str("Not enough value supplied").into(),
-                ))
-            }
-            BuiltinActorError::DecodingError => ActorExecutionErrorReplyReason::Trap(
-                TrapExplanation::Panic(LimitedStr::from_small_str("Message decoding error").into()),
-            ),
-            BuiltinActorError::Custom(e) => {
-                ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(e.into()))
-            }
-            BuiltinActorError::GasAllowanceExceeded => {
-                unreachable!("Never supposed to be converted to error reply reason")
-            }
-        }
-    }
-}
-
-/// A builtin actor execution context. Primarily used to track gas usage.
-#[derive(Debug)]
-pub struct BuiltinContext {
-    pub(crate) gas_counter: GasCounter,
-    pub(crate) gas_allowance_counter: GasAllowanceCounter,
-}
-
-impl BuiltinContext {
-    // Tries to charge the gas amount from the gas counters.
-    pub fn try_charge_gas(&mut self, amount: u64) -> Result<(), BuiltinActorError> {
-        if self.gas_counter.charge_if_enough(amount) == ChargeResult::NotEnough {
-            return Err(BuiltinActorError::InsufficientGas);
-        }
-
-        if self.gas_allowance_counter.charge_if_enough(amount) == ChargeResult::NotEnough {
-            return Err(BuiltinActorError::GasAllowanceExceeded);
-        }
-
-        Ok(())
-    }
-
-    // Checks if an amount of gas can be charged without actually modifying the inner counters.
-    pub fn can_charge_gas(&self, amount: u64) -> Result<(), BuiltinActorError> {
-        if self.gas_counter.left() < amount {
-            return Err(BuiltinActorError::InsufficientGas);
-        }
-
-        if self.gas_allowance_counter.left() < amount {
-            return Err(BuiltinActorError::GasAllowanceExceeded);
-        }
-
-        Ok(())
-    }
-
-    fn to_gas_amount(&self) -> GasAmount {
-        self.gas_counter.to_amount()
-    }
-}
 
 /// A trait representing an interface of a builtin actor that can handle a message
 /// from message queue (a `StoredDispatch`) to produce an outcome and gas spent.
@@ -375,14 +290,11 @@ pub mod pallet {
             context.try_charge_gas(actual_gas)?;
 
             res.inspect(|_| {
-                log::debug!(
-                    target: LOG_TARGET,
-                    "Call dispatched successfully",
-                );
+                log::debug!("Call dispatched successfully",);
             })
             .map(|_| ())
             .inspect_err(|e| {
-                log::debug!(target: LOG_TARGET, "Error dispatching call: {e:?}");
+                log::debug!("Error dispatching call: {e:?}");
             })
             .map_err(|e| BuiltinActorError::Custom(LimitedStr::from_small_str(e.into())))
         }
@@ -495,10 +407,7 @@ impl<T: Config> BuiltinDispatcher for BuiltinRegistry<T> {
         }
 
         // Setting up the context to track gas usage.
-        let mut context = BuiltinContext {
-            gas_counter: GasCounter::new(gas_limit),
-            gas_allowance_counter: GasAllowanceCounter::new(current_gas_allowance),
-        };
+        let mut context = BuiltinContext::new(gas_limit, current_gas_allowance);
 
         // Actual call to the builtin actor
         let res = handle(&dispatch, &mut context);
@@ -511,7 +420,7 @@ impl<T: Config> BuiltinDispatcher for BuiltinRegistry<T> {
         match res {
             Ok(reply) => {
                 // Builtin actor call was successful and returned some payload.
-                log::debug!(target: LOG_TARGET, "Builtin call dispatched successfully");
+                log::debug!("Builtin call dispatched successfully");
 
                 let mut dispatch_result = DispatchResult::success(&dispatch, actor_id, gas_amount);
 
@@ -553,7 +462,7 @@ impl<T: Config> BuiltinDispatcher for BuiltinRegistry<T> {
             }
             Err(err) => {
                 // Builtin actor call failed.
-                log::debug!(target: LOG_TARGET, "Builtin actor error: {err:?}");
+                log::debug!("Builtin actor error: {err:?}");
                 let system_reservation_ctx = SystemReservationContext::from_dispatch(&dispatch);
                 // The core processor will take care of creating necessary `JournalNote`'s.
                 process_execution_error(
@@ -561,9 +470,38 @@ impl<T: Config> BuiltinDispatcher for BuiltinRegistry<T> {
                     actor_id,
                     gas_amount.burned(),
                     system_reservation_ctx,
-                    err,
+                    builtin_error_into_actor_error(err),
                 )
             }
         }
+    }
+}
+
+fn builtin_error_into_actor_error(err: BuiltinActorError) -> ActorExecutionErrorReplyReason {
+    match err {
+        BuiltinActorError::InsufficientGas => {
+            ActorExecutionErrorReplyReason::Trap(TrapExplanation::GasLimitExceeded)
+        }
+        BuiltinActorError::InsufficientValue => ActorExecutionErrorReplyReason::Trap(
+            TrapExplanation::Panic(LimitedStr::from_small_str("Not enough value supplied").into()),
+        ),
+        BuiltinActorError::DecodingError => ActorExecutionErrorReplyReason::Trap(
+            TrapExplanation::Panic(LimitedStr::from_small_str("Message decoding error").into()),
+        ),
+        BuiltinActorError::Custom(e) => {
+            ActorExecutionErrorReplyReason::Trap(TrapExplanation::Panic(e.into()))
+        }
+        BuiltinActorError::GasAllowanceExceeded => {
+            unreachable!("Never supposed to be converted to error reply reason")
+        }
+        BuiltinActorError::EmptyG1PointsList => ActorExecutionErrorReplyReason::Trap(
+            TrapExplanation::Panic(LimitedStr::from_small_str("Empty G1 points list").into()),
+        ),
+        BuiltinActorError::MapperCreationError => ActorExecutionErrorReplyReason::Trap(
+            TrapExplanation::Panic(LimitedStr::from_small_str("Mapper creation error").into()),
+        ),
+        BuiltinActorError::MessageMappingError => ActorExecutionErrorReplyReason::Trap(
+            TrapExplanation::Panic(LimitedStr::from_small_str("Message mapping error").into()),
+        ),
     }
 }

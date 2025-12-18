@@ -11,17 +11,6 @@ build = "build.rs"
 [package.metadata.docs.rs]
 targets = ["x86_64-unknown-linux-gnu"]
 
-[package.metadata.cargo-shear]
-ignored = [
-    "pallet-authorship",
-    "sp-storage",
-    "sp-block-builder",
-    "sp-transaction-pool",
-    "sp-offchain",
-    "sp-inherents",
-    "pallet-gear-rpc-runtime-api",
-]
-
 [lints]
 workspace = true
 
@@ -120,9 +109,11 @@ pallet-gear-rpc-runtime-api.workspace = true
 pallet-gear-staking-rewards-rpc-runtime-api.workspace = true
 pallet-gear-builtin-rpc-runtime-api.workspace = true
 pallet-gear-eth-bridge-rpc-runtime-api.workspace = true
+pallet-grandpa-signer.workspace = true
 runtime-primitives.workspace = true
 gbuiltin-common.workspace = true
 gbuiltin-proxy.workspace = true
+gear-workspace-hack.workspace = true
 
 [dev-dependencies]
 sp-io.workspace = true
@@ -135,6 +126,11 @@ gear-wasm-instrument.workspace = true
 [build-dependencies]
 substrate-build-script-utils.workspace = true
 substrate-wasm-builder = { workspace = true, optional = true }
+sc-executor.workspace = true
+sc-executor-common.workspace = true
+sp-io.workspace = true
+gear-runtime-interface = { workspace = true, features = ["std"] }
+parity-scale-codec.workspace = true
 
 [features]
 default = ["std"]
@@ -169,6 +165,7 @@ std = [
     "pallet-gear-builtin/std",
     "pallet-gear-eth-bridge/std",
     "pallet-gear-staking-rewards/std",
+    "pallet-grandpa-signer/std",
     "pallet-gear-rpc-runtime-api/std",
     "pallet-gear-staking-rewards-rpc-runtime-api/std",
     "pallet-gear-builtin-rpc-runtime-api/std",
@@ -235,6 +232,7 @@ runtime-benchmarks = [
     "pallet-gear-voucher/runtime-benchmarks",
     "pallet-gear-builtin/runtime-benchmarks",
     "pallet-gear-eth-bridge/runtime-benchmarks",
+    "pallet-grandpa-signer/runtime-benchmarks",
     "sp-runtime/runtime-benchmarks",
     "pallet-bags-list/runtime-benchmarks",
     "pallet-staking/runtime-benchmarks",
@@ -280,6 +278,7 @@ try-runtime = [
     "pallet-ranked-collective/try-runtime",
     "pallet-referenda/try-runtime",
     "pallet-scheduler/try-runtime",
+    "pallet-grandpa-signer/try-runtime",
     "pallet-session/try-runtime",
     "pallet-staking/try-runtime",
     "pallet-sudo?/try-runtime",

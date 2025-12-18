@@ -1,0 +1,37 @@
+name: cargo-hakari
+author: ark0f
+description: Run `cargo hakari`
+
+inputs:
+  args:
+    required: true
+    description: Arguments for `cargo hakari`
+
+runs:
+  using: composite
+  steps:
+    - id: host-target
+      run: "echo value=$(rustc -vV | grep host: | cut -d ' ' -f 2) >> $GITHUB_OUTPUT"
+      shell: bash
+
+    - id: already-installed
+      run: |
+        if cargo hakari --version; then
+          echo "value=true"  >> $GITHUB_OUTPUT
+        else
+          echo "value=false" >> $GITHUB_OUTPUT
+        fi
+      shell: bash
+
+    - uses: taiki-e/install-action@v2
+      if: ${{ steps.already-installed.outputs.value == 'false' }}
+      with:
+        tool: cargo-hakari
+      env:
+        CARGO_BUILD_TARGET: ${{ steps.host-target.outputs.value }}
+        CARGO_ENCODED_RUSTFLAGS: ""
+
+    - run: cargo hakari ${{ inputs.args }}
+      shell: bash
+      env:
+        CARGO_ENCODED_RUSTFLAGS: ""

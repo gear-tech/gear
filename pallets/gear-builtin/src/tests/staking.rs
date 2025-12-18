@@ -689,10 +689,10 @@ fn active_era_query_via_contract_works() {
                         assert_eq!(
                             active_era,
                             Response::ActiveEra {
-                                info: Some(ActiveEraInfo {
+                                info: ActiveEraInfo {
                                     index: test_era_index,
                                     start: Some(test_start_block),
-                                }),
+                                },
                                 executed_at: 2,
                                 executed_at_gear_block: 2,
                             }
@@ -709,7 +709,7 @@ fn active_era_query_via_contract_works() {
 }
 
 #[test]
-fn active_era_query_without_active_era_returns_none() {
+fn active_era_query_without_active_era_errors() {
     init_logger();
 
     new_test_ext().execute_with(|| {
@@ -733,32 +733,8 @@ fn active_era_query_without_active_era_returns_none() {
 
         run_to_next_block();
 
-        // The contract should respond with an empty ActiveEra info.
-        assert!(System::events().into_iter().any(|e| {
-            match e.event {
-                RuntimeEvent::Gear(pallet_gear::Event::UserMessageSent { message, .. }) => {
-                    if message.destination() == ActorId::from(SIGNER.into_origin()) {
-                        let payload = message.payload_bytes();
-                        if payload.is_empty() {
-                            return false;
-                        }
-                        let active_era = Response::decode(&mut &payload[..]).unwrap();
-                        assert_eq!(
-                            active_era,
-                            Response::ActiveEra {
-                                info: None,
-                                executed_at: 2,
-                                executed_at_gear_block: 2,
-                            }
-                        );
-                        true
-                    } else {
-                        false
-                    }
-                }
-                _ => false,
-            }
-        }));
+        util::assert_error_message_sent();
+        util::assert_payload_contains("Active era is not set");
     });
 }
 

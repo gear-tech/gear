@@ -35,7 +35,7 @@ use common::{Origin, ProgramStorage, storage::*};
 use core::marker::PhantomData;
 use gear_core::{
     ids::{ActorId, CodeId, MessageId, ReservationId},
-    memory::{PageBuf, PageBufInner},
+    memory::PageBuf,
     message::{Message, Value},
     pages::{GearPage, WasmPage, WasmPagesAmount, numerated::iterators::IntervalIterator},
     reservation::GasReservationSlot,
@@ -1556,7 +1556,7 @@ where
                     program_id,
                     exec.context.memory_infix(),
                     page,
-                    PageBuf::from_inner(PageBufInner::repeat(1)),
+                    PageBuf::filled_with(1),
                 );
             });
         Ok(exec)

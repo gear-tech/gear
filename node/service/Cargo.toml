@@ -15,9 +15,12 @@ futures.workspace = true
 jsonrpsee = { workspace = true, features = ["server"] }
 log.workspace = true
 serde = { workspace = true, features = ["derive"] }
+parking_lot.workspace = true
+parity-scale-codec = { workspace = true, features = ["std", "derive"] }
 
 # Gear
 common = { workspace = true, features = ["std"] }
+gear-core = { workspace = true, features = ["std"] }
 pallet-gear-rpc.workspace = true
 pallet-gear-rpc-runtime-api = { workspace = true, features = ["std"] }
 pallet-gear-staking-rewards-rpc.workspace = true
@@ -26,6 +29,7 @@ pallet-gear-builtin-rpc.workspace = true
 pallet-gear-builtin-rpc-runtime-api = { workspace = true, features = ["std"] }
 pallet-gear-eth-bridge-rpc.workspace = true
 pallet-gear-eth-bridge-rpc-runtime-api = { workspace = true, features = ["std"] }
+pallet-gear = { workspace = true, features = ["std"] }
 runtime-primitives = { workspace = true, features = ["std"] }
 gear-runtime-interface = { workspace = true, features = ["std"] }
 authorship.workspace = true
@@ -80,6 +84,8 @@ sp-offchain = { workspace = true, features = ["std"] }
 sp-session = { workspace = true, features = ["std"] }
 
 # Frame Pallets
+frame-system.workspace = true
+frame-support = { workspace = true, features = ["std"] }
 pallet-transaction-payment-rpc.workspace = true
 pallet-transaction-payment-rpc-runtime-api = { workspace = true, features = ["std"] }
 
@@ -88,6 +94,7 @@ frame-benchmarking = { workspace = true, features = ["std"] }
 frame-benchmarking-cli.workspace = true
 substrate-frame-rpc-system.workspace = true
 substrate-state-trie-migration-rpc.workspace = true
+gear-workspace-hack.workspace = true
 
 [build-dependencies]
 

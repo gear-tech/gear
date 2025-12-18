@@ -46,7 +46,9 @@ pub use self::{
     wallet::Wallet,
 };
 use crate::App;
+use anyhow::Result;
 use clap::Parser;
+use std::time::Duration;
 
 /// All SubCommands of gear command line interface.
 #[derive(Clone, Debug, Parser)]
@@ -68,7 +70,7 @@ pub enum Command {
 
 impl Command {
     /// Execute the command.
-    pub async fn exec(&self, app: &impl App) -> anyhow::Result<()> {
+    pub async fn exec(&self, app: &impl App) -> Result<()> {
         match self {
             Command::Config(config) => config.exec()?,
             Command::New(new) => new.exec().await?,
@@ -112,8 +114,8 @@ pub struct Opt {
 
 #[async_trait::async_trait]
 impl App for Opt {
-    fn timeout(&self) -> u64 {
-        self.timeout
+    fn timeout(&self) -> Duration {
+        Duration::from_millis(self.timeout)
     }
 
     fn verbose(&self) -> u8 {
@@ -132,14 +134,14 @@ impl App for Opt {
         self.passwd.clone()
     }
 
-    async fn exec(&self) -> anyhow::Result<()> {
+    async fn exec(&self) -> Result<()> {
         self.command.exec(self).await
     }
 }
 
 impl Opt {
     /// Run command sync.
-    pub fn exec_sync(&self) -> color_eyre::Result<()> {
+    pub fn exec_sync(&self) -> Result<()> {
         let rt = tokio::runtime::Runtime::new().unwrap();
         rt.block_on(self.run())
     }

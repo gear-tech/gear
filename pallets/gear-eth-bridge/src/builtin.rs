@@ -19,17 +19,19 @@
 //! Builtin actor for the Gear Ethereum bridge.
 
 use crate::{Config, Error, Pallet, QueueId, TransportFee, WeightInfo};
+use builtins_common::{
+    BuiltinActorError, BuiltinContext,
+    eth_bridge::{Request, Response},
+};
 use common::Origin;
 use core::marker::PhantomData;
-use gbuiltin_common::BuiltinActorType;
-use gbuiltin_eth_bridge::{Request, Response};
 use gear_core::{
     buffer::Payload,
     limited::LimitedStr,
     message::{StoredDispatch, Value},
 };
 use gprimitives::{ActorId, H160};
-use pallet_gear_builtin::{BuiltinActor, BuiltinActorError, BuiltinContext, BuiltinReply};
+use pallet_gear_builtin::{BuiltinActor, BuiltinActorType, BuiltinReply};
 use parity_scale_codec::{Decode, Encode};
 use sp_runtime::traits::UniqueSaturatedInto;
 use sp_std::vec::Vec;

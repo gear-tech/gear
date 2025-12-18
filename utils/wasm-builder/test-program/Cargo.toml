@@ -8,7 +8,7 @@ gstd = { path = "../../../gstd", features = ["debug"] }
 
 [dev-dependencies]
 gtest = { path = "../../../gtest" }
-gclient = { path = "../../../gclient" }
+gsdk = { path = "../../../gsdk" }
 
 [build-dependencies]
 gear-wasm-builder = { path = ".." }

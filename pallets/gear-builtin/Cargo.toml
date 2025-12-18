@@ -19,21 +19,15 @@ targets = ["x86_64-unknown-linux-gnu"]
 parity-scale-codec = { workspace = true, features = ["derive"] }
 scale-info = { workspace = true, features = ["derive"] }
 log.workspace = true
-derive_more.workspace = true
 impl-trait-for-tuples.workspace = true
-ark-serialize = { workspace = true, features = ["derive"] }
-ark-scale = { workspace = true, features = ["hazmat"] }
-ark-bls12-381 = { workspace = true, features = ["curve"], optional = true }
-ark-ec = { workspace = true, optional = true }
-ark-ff = { workspace = true, optional = true }
 ark-std = { workspace = true, optional = true }
 
 common.workspace = true
 core-processor.workspace = true
-gbuiltin-bls381.workspace = true
 gbuiltin-common.workspace = true
 gbuiltin-staking.workspace = true
 gbuiltin-proxy.workspace = true
+builtins-common = { workspace = true, features = ["bls12-381"] }
 gear-core.workspace = true
 gear-core-errors.workspace = true
 gear-runtime-interface.workspace = true
@@ -47,6 +41,7 @@ sp-runtime = { workspace = true, features = ["serde"] }
 pallet-gear.workspace = true
 pallet-staking.workspace = true
 pallet-proxy.workspace = true
+gear-workspace-hack.workspace = true
 
 [dev-dependencies]
 demo-waiting-proxy.workspace = true
@@ -70,20 +65,17 @@ pallet-gear-scheduler = { workspace = true, features = ["std"] }
 frame-support-test = { workspace = true, features = ["std"] }
 tracing-subscriber.workspace = true
 hex-literal.workspace = true
-ark-bls12-381.workspace = true
-ark-ec.workspace = true
-ark-ff.workspace = true
-ark-std.workspace = true
 sha2 = { workspace = true, features = ["std"] }
 
 [features]
 default = ["std"]
 std = [
     "common/std",
+    "gbuiltin-common/std",
+    "builtins-common/bls12-381-std",
     "frame-benchmarking?/std",
     "frame-support/std",
     "frame-system/std",
-    "gbuiltin-common/std",
     "gear-core/std",
     "gear-runtime-interface/std",
     "pallet-gear/std",
@@ -91,16 +83,10 @@ std = [
     "pallet-proxy/std",
     "parity-scale-codec/std",
     "scale-info/std",
-    "sp-core/std",
     "sp-crypto-ec-utils/std",
     "sp-runtime/std",
     "sp-std/std",
-    "ark-serialize/std",
-    "ark-scale/std",
-    "ark-bls12-381?/std",
-    "ark-ec?/std",
-    "ark-ff?/std",
-    "ark-std?/std",
+    "ark-std/std",
     # To be removed after migrations applied.
     "pallet-balances/std",
     "gprimitives/std",
@@ -111,9 +97,6 @@ runtime-benchmarks = [
     "frame-support/runtime-benchmarks",
     "frame-system/runtime-benchmarks",
     "pallet-staking/runtime-benchmarks",
-    "ark-bls12-381",
-    "ark-ec",
-    "ark-ff",
     "ark-std",
     # To be removed after migrations applied.
     "pallet-balances/runtime-benchmarks",

@@ -1,0 +1,235 @@
+// This file is part of Gear.
+//
+// Copyright (C) 2021-2025 Gear Technologies Inc.
+// SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
+//
+// This program is free software: you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation, either version 3 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License
+// along with this program. If not, see <https://www.gnu.org/licenses/>.
+
+//! Utils
+
+use crate::{
+    Error, SignedApi, TxInBlock, TxOutput, TxStatus,
+    backtrace::BacktraceStatus,
+    config::GearConfig,
+    gear::{
+        self,
+        runtime_types::vara_runtime::{RuntimeCall, RuntimeEvent},
+        sudo,
+    },
+    result::{Result, TxStatusExt, TxSuccess},
+};
+use colored::Colorize;
+use subxt::{
+    OnlineClient,
+    config::polkadot::PolkadotExtrinsicParamsBuilder,
+    tx::{Payload, TxProgress as SubxtTxProgress},
+    utils::H256,
+};
+
+type TxProgress = SubxtTxProgress<GearConfig, OnlineClient<GearConfig>>;
+
+impl SignedApi {
+    /// Logging balance spent
+    pub(crate) async fn log_balance_spent(&self, before: u128) -> Result<()> {
+        match self.free_balance().await {
+            Ok(balance) => {
+                let after = before.saturating_sub(balance);
+                log::info!("\tBalance spent: {after}");
+            }
+            Err(e) => log::info!("\tAccount was removed from storage: {e}"),
+        }
+
+        Ok(())
+    }
+
+    /// Propagates log::info for given status.
+    pub(crate) fn log_status(status: &TxStatus) {
+        match status {
+            TxStatus::Validated => log::info!("\tStatus: Validated"),
+            TxStatus::Broadcasted => log::info!("\tStatus: Broadcast"),
+            TxStatus::NoLongerInBestBlock => log::info!("\tStatus: NoLongerInBestBlock"),
+            TxStatus::InBestBlock(b) => log::info!(
+                "\tStatus: InBestBlock( block hash: {}, extrinsic hash: {} )",
+                b.block_hash(),
+                b.extrinsic_hash()
+            ),
+            TxStatus::InFinalizedBlock(b) => log::info!(
+                "\tStatus: Finalized( block hash: {}, extrinsic hash: {} )",
+                b.block_hash(),
+                b.extrinsic_hash()
+            ),
+            TxStatus::Error { message: e } => log::error!("\tStatus: Error( {e:?} )"),
+            TxStatus::Dropped { message: e } => log::error!("\tStatus: Dropped( {e:?} )"),
+            TxStatus::Invalid { message: e } => log::error!("\tStatus: Invalid( {e:?} )"),
+        }
+    }
+
+    /// Listen transaction process and print logs.
+    pub async fn process<Call: Payload>(&self, call: Call) -> Result<TxInBlock> {
+        let before = self.free_balance().await?;
+
+        let mut process = self.sign_and_submit_then_watch(&call).await?;
+
+        let extrinsic = if let Some(details) = call.validation_details() {
+            let (pallet, name) = (details.pallet_name, details.call_name);
+            format!("{pallet}::{name}")
+        } else {
+            "an unknown extrinsic".to_owned()
+        }
+        .magenta()
+        .bold();
+
+        log::info!("Pending {extrinsic} ...");
+        let mut queue: Vec<BacktraceStatus> = Default::default();
+        let mut hash: Option<H256> = None;
+
+        while let Some(status) = process.next().await {
+            let status = status?;
+            Self::log_status(&status);
+
+            if let Some(h) = &hash {
+                self.backtrace
+                    .clone()
+                    .append(*h, BacktraceStatus::from(&status));
+            } else {
+                queue.push((&status).into());
+            }
+
+            match status.into_result() {
+                Ok(success) => match success {
+                    TxSuccess::Validated
+                    | TxSuccess::Broadcasted
+                    | TxSuccess::NoLongerInBestBlock => (),
+                    TxSuccess::InBestBlock(b) => {
+                        hash = Some(b.extrinsic_hash());
+                        self.backtrace.append(
+                            b.extrinsic_hash(),
+                            BacktraceStatus::InBestBlock {
+                                block_hash: b.block_hash(),
+                                extrinsic_hash: b.extrinsic_hash(),
+                            },
+                        );
+                    }
+                    TxSuccess::InFinalizedBlock(b) => {
+                        log::info!("Submitted {extrinsic} !");
+                        log::info!("\tBlock Hash: {:?}", b.block_hash());
+                        log::info!("\tTransaction Hash: {:?}", b.extrinsic_hash());
+                        self.log_balance_spent(before).await?;
+                        return Ok(b);
+                    }
+                },
+                Err(err) => {
+                    self.log_balance_spent(before).await?;
+                    return Err(err.into());
+                }
+            }
+        }
+
+        Err(Error::SubscriptionDied)
+    }
+
+    /// Process sudo transaction.
+    pub async fn process_sudo<Call: Payload>(&self, call: Call) -> Result<TxOutput> {
+        let tx = self.process(call).await?;
+
+        TxOutput::new(tx).await?.try_for_each(|event| match event {
+            RuntimeEvent::Sudo(sudo::Event::Sudid {
+                sudo_result: Err(err),
+            }) => Err(self.decode_error(err).into()),
+            _ => Ok(()),
+        })
+    }
+
+    /// Run transaction.
+    ///
+    /// This low-level function allows us to execute any transactions in gear.
+    ///
+    /// # You may not need this.
+    ///
+    /// Read the docs of [`Signer`](`super::Signer`) to checkout the wrappred transactions,
+    /// we need this function only when we want to execute a transaction
+    /// which has not been wrapped in `gsdk`.
+    ///
+    /// # Example
+    ///
+    /// ```ignore
+    /// use gsdk::{
+    ///   Api,
+    ///   Signer,
+    ///   metadata::calls::BalancesCall,
+    ///   Value,
+    /// };
+    ///
+    /// let api = Api::new(None).await?;
+    /// let signer = Signer::new(api, "//Alice", None).await?;
+    ///
+    /// {
+    ///     let args = vec![
+    ///         Value::unnamed_variant("Id", [Value::from_bytes(dest.into())]),
+    ///         Value::u128(value),
+    ///     ];
+    ///     let in_block = signer.run_tx(BalancesCall::TransferKeepAlive, args).await?;
+    /// }
+    ///
+    /// // The code above equals to:
+    ///
+    /// {
+    ///    let in_block = signer.calls.transfer_keep_alive(dest, value).await?;
+    /// }
+    ///
+    /// // ...
+    /// ```
+    pub async fn run_tx<Call: Payload>(&self, call: Call) -> Result<TxOutput> {
+        TxOutput::new(self.process(call).await?).await
+    }
+
+    /// Run transaction with sudo.
+    pub async fn sudo_run_tx<Call: Payload>(&self, call: Call) -> Result<TxOutput> {
+        self.process_sudo(call).await
+    }
+
+    /// `pallet_sudo::sudo`
+    pub async fn sudo(&self, call: RuntimeCall) -> Result<TxOutput> {
+        self.sudo_run_tx(gear::tx().sudo().sudo(call)).await
+    }
+
+    /// Wrapper for submit and watch with nonce.
+    async fn sign_and_submit_then_watch<Call: Payload>(
+        &self,
+        call: &Call,
+    ) -> Result<TxProgress, subxt::Error> {
+        if let Some(nonce) = self.nonce {
+            self.tx()
+                .create_signed(
+                    call,
+                    self.signer(),
+                    PolkadotExtrinsicParamsBuilder::new().nonce(nonce).build(),
+                )
+                .await?
+                .submit_and_watch()
+                .await
+        } else {
+            self.tx()
+                .sign_and_submit_then_watch_default(call, self.signer())
+                .await
+        }
+    }
+
+    /// Get the next number used once (`nonce`) from the node.
+    ///
+    /// Actually sends the `system_accountNextIndex` RPC to the node.
+    pub async fn account_nonce(&self) -> Result<u64> {
+        Ok(self.tx().account_nonce(self.account_id()).await?)
+    }
+}

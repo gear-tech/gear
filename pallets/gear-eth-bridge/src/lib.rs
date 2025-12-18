@@ -37,6 +37,8 @@ pub use weights::WeightInfo;
 pub mod migrations {
     /// Reset migration.
     pub mod reset;
+    /// Force to set hash of the authority set.
+    pub mod set_hash;
 }
 
 pub mod weights;
@@ -77,11 +79,10 @@ pub mod pallet {
     use gprimitives::{H160, H256, U256};
     use sp_runtime::{
         BoundToRuntimeAppPublic,
-        traits::{Keccak256, One, Saturating, Zero},
+        traits::{Keccak256, Zero},
     };
     use sp_std::vec::Vec;
 
-    type SessionsPerEraOf<T> = <T as Config>::SessionsPerEra;
     type AccountIdOf<T> = <T as frame_system::Config>::AccountId;
     type BalanceOf<T> = <CurrencyOf<T> as Currency<AccountIdOf<T>>>::Balance;
     pub(crate) type CurrencyOf<T> = <T as pallet_gear_bank::Config>::Currency;
@@ -128,11 +129,6 @@ pub mod pallet {
         #[pallet::constant]
         type QueueCapacity: Get<u32>;
 
-        /// Constant defining amount of sessions in manager for keys rotation.
-        /// Similar to `pallet_staking::SessionsPerEra`.
-        #[pallet::constant]
-        type SessionsPerEra: Get<u32>;
-
         /// Weight cost incurred by pallet calls.
         type WeightInfo: WeightInfo;
     }
@@ -144,11 +140,6 @@ pub mod pallet {
         /// Grandpa validator's keys set was hashed and set in storage at
         /// first block of the last session in the era.
         AuthoritySetHashChanged(H256),
-
-        /// Authority set hash was reset.
-        ///
-        /// Related to bridge clearing on initialization of the second block in a new era.
-        AuthoritySetReset,
 
         /// Optimistically, single-time called event defining that pallet
         /// got initialized and started processing session changes,
@@ -261,17 +252,6 @@ pub mod pallet {
     /// Keeps queue infos to their ids. For details on info, see [`QueueInfo`].
     #[pallet::storage]
     pub(crate) type QueuesInfo<T> = StorageMap<_, Identity, u64, QueueInfo>;
-
-    /// Operational storage.
-    ///
-    /// Declares timer of the session changes (`on_new_session` calls),
-    /// when `queued_validators` must be stored within the pallet.
-    ///
-    /// **Invariant**: reducing each time on new session, it equals 0 only
-    /// since storing grandpa keys hash until next session change,
-    /// when it becomes `SessionPerEra - 1`.
-    #[pallet::storage]
-    pub(crate) type SessionsTimer<T> = StorageValue<_, u32, ValueQuery>;
 
     /// Operational storage.
     ///
@@ -537,69 +517,38 @@ pub mod pallet {
         fn on_disabled(_validator_index: u32) {}
 
         // TODO: consider support of `Stalled` changes of grandpa (#4113).
-        fn on_new_session<'a, I>(changed: bool, _validators: I, queued_validators: I)
+        fn on_new_session<'a, I>(changed: bool, validators: I, _queued_validators: I)
         where
             I: 'a + Iterator<Item = (&'a T::AccountId, Self::Key)>,
         {
-            // If historically pallet hasn't yet faced `changed = true`,
-            // any type of calculations aren't performed.
-            if !Initialized::<T>::get() && !changed {
+            if !changed {
                 return;
             }
 
-            // Here starts common processing of properly initialized pallet.
-            if changed {
-                // Checking invariant.
+            if !Initialized::<T>::get() {
+                // Setting pallet status initialized.
+                Initialized::<T>::put(true);
+
+                // Depositing event about getting initialized.
+                Self::deposit_event(Event::<T>::BridgeInitialized);
+
+                // Invariant.
                 //
-                // Reset scheduling must be resolved on the first block
-                // after session changed.
-                debug_assert!(ClearTimer::<T>::get().is_none());
-
-                // First time facing `changed = true`, so from now on, pallet
-                // is starting handling grandpa sets and queue.
-                if !Initialized::<T>::get() {
-                    // Setting pallet status initialized.
-                    Initialized::<T>::put(true);
-
-                    // Depositing event about getting initialized.
-                    Self::deposit_event(Event::<T>::BridgeInitialized);
-
-                    // Invariant.
-                    //
-                    // At any single point of pallet existence, when it's active
-                    // and queue is empty, queue merkle root must present
-                    // in storage and be zeroed.
-                    QueueMerkleRoot::<T>::put(H256::zero());
-                } else {
-                    // Scheduling reset on next block's init.
-                    //
-                    // Firstly, it will decrease in the same block, because call of
-                    // `on_new_session` hook will be performed earlier in the same
-                    // block, because `pallet_session` triggers it in its `on_init`
-                    // and has smaller pallet id.
-                    ClearTimer::<T>::put(2);
-                }
-
-                // Checking invariant.
-                //
-                // Timer is supposed to be `null` (default zero), if was just
-                // initialized, otherwise zero set in storage.
-                debug_assert!(SessionsTimer::<T>::get().is_zero());
-
-                // Scheduling settlement of grandpa keys in `SessionsPerEra - 1` session changes.
-                SessionsTimer::<T>::put(SessionsPerEraOf::<T>::get().saturating_sub(One::one()));
+                // At any single point of pallet existence, when it's active
+                // and queue is empty, queue merkle root must present
+                // in storage and be zeroed.
+                QueueMerkleRoot::<T>::put(H256::zero());
             } else {
-                // Reducing timer. If became zero, it means we're at the last
-                // session of the era and queued keys must be kept.
-                let needs_authorities_update = SessionsTimer::<T>::mutate(|timer| {
-                    timer.saturating_dec();
-                    timer.is_zero()
-                });
-
-                if needs_authorities_update {
-                    Self::update_authority_set_hash(queued_validators);
-                }
+                // Scheduling reset on next block's init.
+                //
+                // Firstly, it will decrease in the same block, because call of
+                // `on_new_session` hook will be performed earlier in the same
+                // block, because `pallet_session` triggers it in its `on_init`
+                // and has smaller pallet id.
+                ClearTimer::<T>::put(2);
             }
+
+            Self::update_authority_set_hash(validators);
         }
     }
 }

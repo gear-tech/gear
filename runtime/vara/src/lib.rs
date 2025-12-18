@@ -61,7 +61,7 @@ use runtime_primitives::{Balance, BlockNumber, Hash, Moment, Nonce};
 use scale_info::TypeInfo;
 use sp_api::impl_runtime_apis;
 use sp_authority_discovery::AuthorityId as AuthorityDiscoveryId;
-use sp_core::{ConstU8, ConstU64, H256, OpaqueMetadata, crypto::KeyTypeId};
+use sp_core::{ConstU8, ConstU64, H256, OpaqueMetadata, crypto::KeyTypeId, ed25519};
 use sp_runtime::{
     ApplyExtrinsicResult, FixedU128, Perbill, Percent, Permill, Perquintill, RuntimeDebug,
     create_runtime_str, generic, impl_opaque_keys,
@@ -173,7 +173,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     spec_name: create_runtime_str!("vara"),
     impl_name: create_runtime_str!("vara"),
 
-    spec_version: 1920,
+    spec_version: 1_10_00,
 
     apis: RUNTIME_API_VERSIONS,
     authoring_version: 1,
@@ -189,7 +189,7 @@ pub const VERSION: RuntimeVersion = RuntimeVersion {
     spec_name: create_runtime_str!("vara-testnet"),
     impl_name: create_runtime_str!("vara-testnet"),
 
-    spec_version: 1920,
+    spec_version: 1_10_00,
 
     apis: RUNTIME_API_VERSIONS,
     authoring_version: 1,
@@ -696,7 +696,6 @@ impl pallet_election_provider_multi_phase::Config for Runtime {
 
 parameter_types! {
     // Six sessions in an era (12 hours)
-    // **IMPORTANT**: update this value with care, GearEthBridge is sensitive to this.
     pub const SessionsPerEra: sp_staking::SessionIndex = 6;
     // 42 eras for unbonding (7 days)
     pub const BondingDuration: sp_staking::EraIndex = 14;
@@ -736,7 +735,6 @@ impl pallet_staking::Config for Runtime {
     type RuntimeEvent = RuntimeEvent;
     type Slash = Treasury;
     type Reward = StakingRewards;
-    // **IMPORTANT**: update this value with care, GearEthBridge is sensitive to this.
     type SessionsPerEra = SessionsPerEra;
     type BondingDuration = BondingDuration;
     type SlashDeferDuration = SlashDeferDuration;
@@ -1218,10 +1216,54 @@ impl pallet_gear_eth_bridge::Config for Runtime {
     type AdminOrigin = frame_system::EnsureSignedBy<GearEthBridgeAdminAccounts, AccountId>;
     type MaxPayloadSize = ConstU32<16_384>; // 16 KiB
     type QueueCapacity = ConstU32<2048>;
-    type SessionsPerEra = SessionsPerEra;
     type BridgeAdmin = GearEthBridgeAdminAccount;
     type BridgePauser = GearEthBridgePauserAccount;
     type WeightInfo = pallet_gear_eth_bridge::weights::SubstrateWeight<Runtime>;
+}
+
+parameter_types! {
+    pub const GrandpaSignerMaxPayloadLength: u32 = 16_384;
+    pub const GrandpaSignerMaxRequests: u32 = 256;
+    pub const GrandpaSignerMaxSignaturesPerRequest: u32 = 256;
+    pub const GrandpaSignerUnsignedPriority: TransactionPriority = TransactionPriority::max_value() / 4;
+}
+
+pub struct GrandpaAuthorityProvider;
+impl pallet_grandpa_signer::AuthorityProvider<ed25519::Public> for GrandpaAuthorityProvider {
+    fn current_set_id() -> u64 {
+        Grandpa::current_set_id()
+    }
+
+    fn authorities(set_id: u64) -> Vec<ed25519::Public> {
+        if set_id == Grandpa::current_set_id() {
+            Grandpa::grandpa_authorities()
+                .into_iter()
+                .filter_map(|(id, _weight)| {
+                    let bytes: &[u8] = id.as_ref();
+                    if bytes.len() != 32 {
+                        return None;
+                    }
+                    let mut raw = [0u8; 32];
+                    raw.copy_from_slice(bytes);
+                    Some(ed25519::Public::from_raw(raw))
+                })
+                .collect()
+        } else {
+            Vec::new()
+        }
+    }
+}
+
+impl pallet_grandpa_signer::Config for Runtime {
+    type RuntimeEvent = RuntimeEvent;
+    type AuthorityId = ed25519::Public;
+    type AuthoritySignature = ed25519::Signature;
+    type MaxPayloadLength = GrandpaSignerMaxPayloadLength;
+    type MaxRequests = GrandpaSignerMaxRequests;
+    type MaxSignaturesPerRequest = GrandpaSignerMaxSignaturesPerRequest;
+    type UnsignedPriority = GrandpaSignerUnsignedPriority;
+    type AuthorityProvider = GrandpaAuthorityProvider;
+    type WeightInfo = pallet_grandpa_signer::SubstrateWeight<Runtime>;
 }
 
 pub struct ExtraFeeFilter;
@@ -1451,6 +1493,9 @@ mod runtime {
     #[runtime::pallet_index(110)]
     pub type GearEthBridge = pallet_gear_eth_bridge;
 
+    #[runtime::pallet_index(111)]
+    pub type GrandpaSigner = pallet_grandpa_signer;
+
     #[runtime::pallet_index(99)]
     pub type Sudo = pallet_sudo;
 
@@ -1607,6 +1652,9 @@ mod runtime {
 
     #[runtime::pallet_index(110)]
     pub type GearEthBridge = pallet_gear_eth_bridge;
+
+    #[runtime::pallet_index(111)]
+    pub type GrandpaSigner = pallet_grandpa_signer;
 
     // NOTE (!): `pallet_sudo` used to be idx(99).
     // NOTE (!): `pallet_airdrop` used to be idx(198).

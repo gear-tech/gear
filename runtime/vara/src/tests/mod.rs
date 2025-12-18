@@ -80,26 +80,6 @@ fn bridge_storages_have_correct_prefixes() {
 
 #[cfg(feature = "dev")]
 #[test]
-fn bridge_session_timer_is_correct() {
-    assert_eq!(
-        <Runtime as pallet_gear_eth_bridge::Config>::SessionsPerEra::get(),
-        <Runtime as pallet_staking::Config>::SessionsPerEra::get()
-    );
-
-    // # SAFETY: Do not change staking's SessionsPerEra parameter without
-    // making sure of correct integration with already running network.
-    //
-    // Change of the param will require migrating `pallet-gear-eth-bridge`'s
-    // `ClearTimer` (or any actual time- or epoch- dependent entity) and
-    // corresponding constant or even total bridge re-deploy.
-    assert_eq!(
-        <Runtime as pallet_staking::Config>::SessionsPerEra::get(),
-        6
-    );
-}
-
-#[cfg(feature = "dev")]
-#[test]
 fn bridge_accounts_check() {
     // # SAFETY: Do not change bridge pallet id without check of
     // correct integration with already running network.

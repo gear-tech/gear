@@ -17,7 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Integration tests for command `send`
-use crate::common::{self, Args, NodeExec, Result};
+use crate::common::{self, Args, NodeExec};
+use anyhow::Result;
 use gsdk::Api;
 use scale_info::scale::Encode;
 
@@ -26,25 +27,17 @@ async fn test_command_reply_works() -> Result<()> {
     let node = common::create_messenger().await?;
 
     // Get balance of the testing address
-    let signer = Api::new(node.ws().as_str())
-        .await?
-        .signer("//Alice", None)?;
-    let mailbox = signer
-        .api()
-        .mailbox(Some(common::alice_account_id()), 10)
-        .await?;
+    let api = Api::new(node.ws().as_str()).await?.signed_as_alice();
+    let mailbox = api.mailbox_messages(10).await?;
     assert_eq!(mailbox.len(), 1, "Alice should have 1 message in mailbox");
 
     // Send message to messenger
-    let id = hex::encode(mailbox[0].0.id.0);
+    let id = hex::encode(mailbox[0].0.id());
     let _ = node.run(Args::new("reply").message_id(id).gas_limit("20000000000"))?;
-    let mailbox = signer
-        .api()
-        .mailbox(Some(common::alice_account_id()), 10)
-        .await?;
+    let mailbox = api.mailbox_messages(10).await?;
     assert_eq!(mailbox.len(), 1, "Alice should have 1 message in mailbox");
     assert_eq!(
-        mailbox[0].0.payload.0,
+        mailbox[0].0.payload_bytes(),
         demo_messenger::REPLY_REPLY.encode(),
         "Alice should have received a reply"
     );

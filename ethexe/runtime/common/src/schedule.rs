@@ -2,7 +2,7 @@ use crate::{
     TransitionController,
     state::{
         Dispatch, DispatchStash, Expiring, MAILBOX_VALIDITY, MailboxMessage, ModifiableStorage,
-        PayloadLookup, ProgramState, QueriableStorage, Storage, UserMailbox, Waitlist,
+        PayloadLookup, ProgramState, QueryableStorage, Storage, UserMailbox, Waitlist,
     },
 };
 use alloc::collections::{BTreeMap, BTreeSet};
@@ -25,7 +25,12 @@ impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
         self.controller
             .update_state(program_id, |state, storage, transitions| {
                 let Expiring {
-                    value: MailboxMessage { value, origin, .. },
+                    value:
+                        MailboxMessage {
+                            value,
+                            message_type: origin,
+                            ..
+                        },
                     ..
                 } = storage.modify(&mut state.mailbox_hash, |mailbox| {
                     mailbox
@@ -51,9 +56,8 @@ impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
                     false,
                 );
 
-                state
-                    .canonical_queue
-                    .modify_queue(storage, |queue| queue.queue(reply));
+                let queue = state.queue_from_msg_type(origin);
+                queue.modify_queue(storage, |queue| queue.queue(reply));
             });
 
         0
@@ -62,11 +66,12 @@ impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
     fn send_dispatch(&mut self, (program_id, message_id): (ActorId, MessageId)) -> u64 {
         self.controller
             .update_state(program_id, |state, storage, _| {
-                state.canonical_queue.modify_queue(storage, |queue| {
-                    let dispatch = storage.modify(&mut state.stash_hash, |stash| {
-                        stash.remove_to_program(&message_id)
-                    });
+                let dispatch = storage.modify(&mut state.stash_hash, |stash| {
+                    stash.remove_to_program(&message_id)
+                });
 
+                let queue = state.queue_from_msg_type(dispatch.message_type);
+                queue.modify_queue(storage, |queue| {
                     queue.queue(dispatch);
                 });
             });
@@ -120,7 +125,8 @@ impl<S: Storage> TaskHandler<Rfm, Sd, Sum> for Handler<'_, S> {
                         .expect("failed to find message in waitlist")
                 });
 
-                state.canonical_queue.modify_queue(storage, |queue| {
+                let queue = state.queue_from_msg_type(dispatch.message_type);
+                queue.modify_queue(storage, |queue| {
                     queue.queue(dispatch);
                 })
             });
@@ -293,7 +299,7 @@ impl Restorer {
 mod tests {
     use super::*;
     use crate::state::{Mailbox, MemStorage};
-    use ethexe_common::gear::Origin;
+    use ethexe_common::gear::MessageType;
     use gear_core::buffer::Payload;
     use std::collections::{BTreeMap, BTreeSet};
 
@@ -307,7 +313,7 @@ mod tests {
             PayloadLookup::Direct(Payload::repeat(0xfe)),
             0xffffff,
             SuccessReplyReason::Auto,
-            Origin::Ethereum,
+            MessageType::Canonical,
             false,
         );
 
@@ -339,7 +345,7 @@ mod tests {
         let message = MailboxMessage::new(
             PayloadLookup::Direct(Payload::repeat(0xfe)),
             0xffffff,
-            Origin::Ethereum,
+            MessageType::Canonical,
         );
 
         let mut mailbox = Mailbox::default();
@@ -381,7 +387,7 @@ mod tests {
             PayloadLookup::Direct(Payload::repeat(0xfe)),
             0xffffff,
             SuccessReplyReason::Auto,
-            Origin::Ethereum,
+            MessageType::Canonical,
             false,
         );
 
@@ -392,7 +398,7 @@ mod tests {
             PayloadLookup::Direct(Payload::repeat(0xaa)),
             0xbbbbbb,
             SuccessReplyReason::Auto,
-            Origin::Ethereum,
+            MessageType::Canonical,
             false,
         );
 

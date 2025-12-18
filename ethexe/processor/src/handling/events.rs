@@ -22,7 +22,8 @@ use ethexe_common::{
     ScheduledTask,
     db::{CodesStorageRO, CodesStorageRW},
     events::{MirrorRequestEvent, RouterRequestEvent},
-    gear::{Origin, ValueClaim},
+    gear::{MessageType, ValueClaim},
+    injected::SignedInjectedTransaction,
 };
 use ethexe_runtime_common::state::{
     Dispatch, Expiring, MailboxMessage, ModifiableStorage, PayloadLookup,
@@ -30,15 +31,41 @@ use ethexe_runtime_common::state::{
 use gear_core::{ids::ActorId, message::SuccessReplyReason};
 
 impl ProcessingHandler {
+    pub(crate) fn handle_injected_transaction(
+        &mut self,
+        tx: SignedInjectedTransaction,
+    ) -> Result<()> {
+        self.update_state(tx.data().destination, |state, storage, _| -> Result<()> {
+            // Build source from sender's Ethereum address
+            let source = tx.address().into();
+            let is_init = state.requires_init_message();
+
+            let raw_tx = tx.into_data();
+
+            let dispatch = Dispatch::new(
+                storage,
+                raw_tx.to_message_id(),
+                source,
+                raw_tx.payload.0,
+                raw_tx.value,
+                is_init,
+                MessageType::Injected,
+                false,
+            )?;
+
+            state
+                .injected_queue
+                .modify_queue(storage, |queue| queue.queue(dispatch));
+
+            Ok(())
+        })
+    }
+
     pub(crate) fn handle_router_event(&mut self, event: RouterRequestEvent) -> Result<()> {
         match event {
             RouterRequestEvent::ProgramCreated { actor_id, code_id } => {
                 if self.db.original_code(code_id).is_none() {
                     return Err(ProcessorError::MissingCode(code_id));
-                }
-
-                if self.db.program_code_id(actor_id).is_some() {
-                    return Err(ProcessorError::DuplicatedProgram(actor_id));
                 }
 
                 self.db.set_program_code_id(actor_id, code_id);
@@ -70,12 +97,18 @@ impl ProcessingHandler {
         match event {
             MirrorRequestEvent::OwnedBalanceTopUpRequested { value } => {
                 self.update_state(actor_id, |state, _, _| {
-                    state.balance += value;
+                    state.balance = state
+                        .balance
+                        .checked_add(value)
+                        .expect("Overflow in state.balance += value");
                 });
             }
             MirrorRequestEvent::ExecutableBalanceTopUpRequested { value } => {
                 self.update_state(actor_id, |state, _, _| {
-                    state.executable_balance += value;
+                    state.executable_balance = state
+                        .executable_balance
+                        .checked_add(value)
+                        .expect("Overflow in state.executable_balance += value");
                 });
             }
             MirrorRequestEvent::MessageQueueingRequested {
@@ -95,7 +128,7 @@ impl ProcessingHandler {
                         payload,
                         value,
                         is_init,
-                        Origin::Ethereum,
+                        MessageType::Canonical,
                         call_reply,
                     )?;
 
@@ -127,13 +160,14 @@ impl ProcessingHandler {
                         return Ok(());
                     };
 
-                    transitions.modify_transition(actor_id, |transition| {
-                        transition.claims.push(ValueClaim {
+                    transitions.claim_value(
+                        actor_id,
+                        ValueClaim {
                             message_id: replied_to,
                             destination: source,
                             value: claimed_value,
-                        });
-                    });
+                        },
+                    );
 
                     transitions.remove_task(
                         expiry,
@@ -146,7 +180,7 @@ impl ProcessingHandler {
                         source,
                         payload,
                         value,
-                        Origin::Ethereum,
+                        MessageType::Canonical,
                         false,
                     )?;
 
@@ -173,13 +207,14 @@ impl ProcessingHandler {
                         return Ok(());
                     };
 
-                    transitions.modify_transition(actor_id, |transition| {
-                        transition.claims.push(ValueClaim {
+                    transitions.claim_value(
+                        actor_id,
+                        ValueClaim {
                             message_id: claimed_id,
                             destination: source,
                             value: claimed_value,
-                        });
-                    });
+                        },
+                    );
 
                     transitions.remove_task(
                         expiry,
@@ -192,7 +227,7 @@ impl ProcessingHandler {
                         PayloadLookup::empty(),
                         0,
                         SuccessReplyReason::Auto,
-                        Origin::Ethereum,
+                        MessageType::Canonical,
                         false,
                     );
 

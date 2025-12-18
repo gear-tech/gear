@@ -11,6 +11,9 @@ repository.workspace = true
 rust-version.workspace = true
 
 [dependencies]
+# Gear related dependencies
+builtins-common = { workspace = true, features = ["bls12-381-std", "eth-bridge-std"] }
+gprimitives = { workspace = true, features = ["std"] }
 gear-core.workspace = true
 gear-common = { workspace = true, features = ["std"] }
 gear-core-errors.workspace = true
@@ -21,7 +24,9 @@ gear-lazy-pages-native-interface.workspace = true
 gear-utils.workspace = true
 gsys.workspace = true
 
+# General dependencies
 parity-scale-codec = { workspace = true, features = ["derive"] }
+scale-info = { workspace = true, features = ["derive"] }
 colored.workspace = true
 tracing-subscriber.workspace = true
 path-clean.workspace = true
@@ -30,9 +35,12 @@ log.workspace = true
 cargo_toml.workspace = true
 etc.workspace = true
 thiserror.workspace = true
+gear-workspace-hack.workspace = true
 
 [dev-dependencies]
+ark-std.workspace = true
 sp-core.workspace = true
+sha2.workspace = true
 demo-custom.workspace = true
 demo-piggy-bank.workspace = true
 demo-ping.workspace = true

@@ -49,7 +49,7 @@ pub enum HandleAction {
     ReplyFromReservation,
     AddReservationToList(GasAmount, BlockCount),
     ConsumeReservationsFromList,
-    RunInifitely,
+    RunInfinitely,
     SendFromReservationAndUnreserve,
 }
 
