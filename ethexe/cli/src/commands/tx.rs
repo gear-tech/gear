@@ -699,6 +699,9 @@ impl TxCommand {
                         .with_context(|| "failed to top up owned balance of mirror")?;
 
                     eprintln!("Completed in transaction {tx:?}");
+                    if let Some(url) = explorer_link(chain_id, tx) {
+                        eprintln!("Explorer URL: {url}");
+                    }
 
                     if watch {
                         eprintln!("Waiting for state change...");
@@ -772,6 +775,9 @@ impl TxCommand {
                         .with_context(|| "failed to top up executable balance of mirror")?;
 
                     eprintln!("Completed in transaction {tx:?}");
+                    if let Some(url) = explorer_link(chain_id, tx) {
+                        eprintln!("Explorer URL: {url}");
+                    }
 
                     if watch {
                         eprintln!("Waiting for state change...");
