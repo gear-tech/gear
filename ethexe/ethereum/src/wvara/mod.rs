@@ -49,6 +49,8 @@ impl WVara {
         ))
     }
 
+    // FIXME: methods should accept Address type, not AlloyAddress!
+
     pub async fn transfer(&self, to: Address, value: u128) -> Result<H256> {
         let builder = self.0.transfer(to, AlloyU256::from(value));
         let receipt = builder

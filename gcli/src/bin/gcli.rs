@@ -19,6 +19,6 @@
 use gcli::{App, clap::Parser, cmd::Opt};
 
 #[tokio::main]
-async fn main() -> color_eyre::Result<()> {
+async fn main() -> anyhow::Result<()> {
     Opt::parse().run().await
 }

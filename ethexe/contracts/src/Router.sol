@@ -74,7 +74,8 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
 
         router.genesisBlock = Gear.newGenesis();
         router.implAddresses = Gear.AddressBook(_mirror, _wrappedVara, _middleware);
-        router.validationSettings.signingThresholdPercentage = Gear.SIGNING_THRESHOLD_PERCENTAGE;
+        router.validationSettings.thresholdNumerator = Gear.VALIDATORS_THRESHOLD_NUMERATOR;
+        router.validationSettings.thresholdDenominator = Gear.VALIDATORS_THRESHOLD_DENOMINATOR;
         router.computeSettings = Gear.defaultComputationSettings();
         router.timelines = Gear.Timelines(_eraDuration, _electionDuration, _validationDelay);
 
@@ -91,6 +92,43 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
     /// @custom:oz-upgrades-validate-as-initializer
     function reinitialize() public reinitializer(2) {
         __Ownable_init(owner());
+
+        Storage storage oldRouter = _router();
+
+        _setStorageSlot("router.storage.RouterV2");
+        Storage storage newRouter = _router();
+
+        // Set current block as genesis.
+        newRouter.genesisBlock = Gear.newGenesis();
+
+        // New router latestCommittedBlock is already zeroed.
+
+        // Copy impl addresses from the old router.
+        newRouter.implAddresses = oldRouter.implAddresses;
+
+        // Copy signing threshold fraction from the old router.
+        newRouter.validationSettings.thresholdNumerator = oldRouter.validationSettings.thresholdNumerator;
+        newRouter.validationSettings.thresholdDenominator = oldRouter.validationSettings.thresholdDenominator;
+
+        // Copy validators from the old router.
+        // TODO #4557: consider what to do. Maybe we should start reelection process.
+        // Skipping validators1 copying - means we forget election results
+        // if an election is already done for the next era.
+        _resetValidators(
+            newRouter.validationSettings.validators0,
+            Gear.currentEraValidators(oldRouter).aggregatedPublicKey,
+            SSTORE2.read(Gear.currentEraValidators(oldRouter).verifiableSecretSharingCommitmentPointer),
+            Gear.currentEraValidators(oldRouter).list,
+            block.timestamp
+        );
+
+        // Copy computation settings from the old router.
+        newRouter.computeSettings = oldRouter.computeSettings;
+
+        // Copy timelines from the old router.
+        newRouter.timelines = oldRouter.timelines;
+
+        // All protocol data must be removed - so leave it zeroed in new router.
     }
 
     // # Views.
@@ -163,8 +201,9 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
         return Gear.currentEraValidators(_router()).map[_validator];
     }
 
-    function signingThresholdPercentage() public view returns (uint16) {
-        return _router().validationSettings.signingThresholdPercentage;
+    function signingThresholdFraction() public view returns (uint128, uint128) {
+        IRouter.Storage storage router = _router();
+        return (router.validationSettings.thresholdNumerator, router.validationSettings.thresholdDenominator);
     }
 
     function validators() public view returns (address[] memory) {
@@ -178,7 +217,9 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
     function validatorsThreshold() public view returns (uint256) {
         IRouter.Storage storage router = _router();
         return Gear.validatorsThreshold(
-            Gear.currentEraValidators(router).list.length, router.validationSettings.signingThresholdPercentage
+            Gear.currentEraValidators(router).list.length,
+            router.validationSettings.thresholdNumerator,
+            router.validationSettings.thresholdDenominator
         );
     }
 
