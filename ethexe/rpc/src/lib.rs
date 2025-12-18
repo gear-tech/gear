@@ -137,9 +137,7 @@ impl RpcService {
     }
 
     pub fn provide_promise(&self, promise: SignedPromise) {
-        let injected_api = self.injected_api.clone();
-
-        injected_api.send_promise(promise);
+        self.injected_api.send_promise(promise);
     }
 }
 
