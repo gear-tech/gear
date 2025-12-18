@@ -107,6 +107,24 @@ enum SendMessageResult {
     },
 }
 
+#[derive(Debug, Clone)]
+struct SendMessageExtra {
+    tx_hash: H256,
+    message_id: MessageId,
+    chain_id: u64,
+    gas_used: u64,
+    effective_gas_price: u128,
+    total_fee_wei: U256,
+    block_number: Option<u64>,
+    block_hash: Option<H256>,
+    explorer_url: Option<String>,
+    payload_len: usize,
+    payload_hex: String,
+    raw_value: u128,
+    formatted_value: String,
+    watch: bool,
+}
+
 /// Submit a transaction.
 #[derive(Debug, Parser)]
 pub struct TxCommand {
@@ -852,7 +870,7 @@ impl TxCommand {
                 watch,
                 json,
             } => {
-                let send_message_result = (async || -> Result<SendMessageResult> {
+                let send_message_result = (async || -> Result<(SendMessageResult, SendMessageExtra)> {
                     let raw_value = value.into_inner();
                     let maybe_code_id = router_query
                         .program_code_id(mirror.into())
@@ -868,15 +886,74 @@ impl TxCommand {
 
                     let mirror = ethereum.mirror(mirror);
 
-                    let (tx, message_id) = mirror
-                        .send_message(payload.0, raw_value, call_reply)
+                    let chain_id = router
+                        .chain_id()
+                        .await
+                        .with_context(|| "failed to fetch chain id")?;
+
+                    let payload_hex = hex::encode(&payload.0);
+                    eprintln!("Payload len: {} bytes", payload.0.len());
+                    eprintln!("Payload hex: 0x{payload_hex}");
+
+                    let (receipt, message_id) = mirror
+                        .send_message_with_receipt(payload.0.clone(), raw_value, call_reply)
                         .await
                         .with_context(|| "failed to send message to mirror")?;
 
+                    let tx: H256 = (*receipt.transaction_hash).into();
+                    let gas_used = receipt.gas_used;
+                    let effective_gas_price = receipt.effective_gas_price;
+                    let total_fee_wei = U256::from(gas_used) * U256::from(effective_gas_price);
+                    let block_number = receipt.block_number;
+                    let block_hash = receipt.block_hash.map(|h| H256(h.0));
+                    let explorer_url = explorer_link(chain_id, tx);
+                    let formatted_value = FormattedValue::<EthereumCurrency>::new(raw_value);
+
                     eprintln!("Completed in transaction {tx:?}");
+                    if let Some(url) = &explorer_url {
+                        eprintln!("Explorer URL: {url}");
+                    }
+                    eprintln!("Gas used: {gas_used}");
+                    eprintln!("Effective gas price: {effective_gas_price} wei");
+                    let formatted_total_fee = if total_fee_wei <= U256::from(u128::MAX) {
+                        Some(
+                            FormattedValue::<EthereumCurrency>::new(total_fee_wei.low_u128())
+                                .to_string(),
+                        )
+                    } else {
+                        None
+                    };
+                    if let Some(formatted) = formatted_total_fee {
+                        eprintln!("Total fee: {total_fee_wei} wei ({formatted})");
+                    } else {
+                        eprintln!("Total fee: {total_fee_wei} wei");
+                    }
+                    if let Some(block_number) = block_number {
+                        eprintln!("Included in block #{block_number}");
+                    }
+                    if let Some(block_hash) = block_hash {
+                        eprintln!("Block hash: {block_hash:?}");
+                    }
                     eprintln!("Message with id {message_id} successfully sent");
 
-                    Ok(if watch {
+                    let extra = SendMessageExtra {
+                        tx_hash: tx,
+                        message_id,
+                        chain_id,
+                        gas_used,
+                        effective_gas_price,
+                        total_fee_wei,
+                        block_number,
+                        block_hash,
+                        explorer_url,
+                        payload_len: payload.0.len(),
+                        payload_hex,
+                        raw_value,
+                        formatted_value: formatted_value.to_string(),
+                        watch,
+                    };
+
+                    Ok((if watch {
                         eprintln!("Waiting for reply...");
 
                         let reply_info = mirror.wait_for_reply(message_id).await?;
@@ -904,20 +981,80 @@ impl TxCommand {
                             reply_info,
                         }
                     } else {
+                        eprintln!("To wait for the reply, rerun this command with --watch.");
                         SendMessageResult::Simple {
                             tx_hash: tx,
                             message_id,
                         }
-                    })
+                    }, extra))
                 })()
                 .await;
 
                 if json {
-                    let value = match &send_message_result {
-                        Ok(send_message_result) => serde_json::to_string(send_message_result)?,
-                        Err(err) => json!({"error": format!("{err}")}).to_string(),
-                    };
-                    println!("{value}");
+                    match &send_message_result {
+                        Ok((SendMessageResult::Simple { tx_hash, message_id }, extra)) => {
+                            let value = json!({
+                                "tx_hash": tx_hash,
+                                "message_id": message_id,
+                                "chain_id": extra.chain_id,
+                                "gas_used": extra.gas_used,
+                                "effective_gas_price": extra.effective_gas_price,
+                                "total_fee_wei": extra.total_fee_wei.to_string(),
+                                "block_number": extra.block_number,
+                                "block_hash": extra.block_hash,
+                                "explorer_url": extra.explorer_url,
+                                "payload_len": extra.payload_len,
+                                "payload_hex": extra.payload_hex,
+                                "value": extra.raw_value,
+                                "formatted_value": extra.formatted_value,
+                                "watch": extra.watch,
+                            });
+                            println!("{value}");
+                        }
+                        Ok((
+                            SendMessageResult::WithReply {
+                                tx_hash,
+                                reply_info:
+                                    ReplyInfo {
+                                        message_id,
+                                        actor_id,
+                                        payload,
+                                        code,
+                                        value,
+                                    },
+                            },
+                            extra,
+                        )) => {
+                            let value = json!({
+                                "tx_hash": tx_hash,
+                                "message_id": message_id,
+                                "chain_id": extra.chain_id,
+                                "gas_used": extra.gas_used,
+                                "effective_gas_price": extra.effective_gas_price,
+                                "total_fee_wei": extra.total_fee_wei.to_string(),
+                                "block_number": extra.block_number,
+                                "block_hash": extra.block_hash,
+                                "explorer_url": extra.explorer_url,
+                                "payload_len": extra.payload_len,
+                                "payload_hex": extra.payload_hex,
+                                "value": extra.raw_value,
+                                "formatted_value": extra.formatted_value,
+                                "watch": extra.watch,
+                                "reply_info": {
+                                    "message_id": message_id,
+                                    "actor_id": actor_id.to_address_lossy(),
+                                    "payload": format!("0x{}", hex::encode(payload)),
+                                    "code": code,
+                                    "value": value,
+                                },
+                            });
+                            println!("{value}");
+                        }
+                        Err(err) => {
+                            let value = json!({"error": format!("{err}")});
+                            println!("{value}");
+                        }
+                    }
                 }
 
                 send_message_result?;

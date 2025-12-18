@@ -133,6 +133,33 @@ impl Mirror {
             .await
     }
 
+    pub async fn send_message_with_receipt(
+        &self,
+        payload: impl AsRef<[u8]>,
+        value: u128,
+        call_reply: bool,
+    ) -> Result<(alloy::rpc::types::TransactionReceipt, MessageId)> {
+        let receipt = self
+            .send_message_pending(payload, value, call_reply)
+            .await?
+            .try_get_receipt_check_reverted()
+            .await?;
+        let mut message_id = None;
+
+        for log in receipt.inner.logs() {
+            if log.topic0() == Some(&signatures::MESSAGE_QUEUEING_REQUESTED) {
+                let event = crate::decode_log::<IMirror::MessageQueueingRequested>(log)?;
+                message_id = Some((*event.id).into());
+                break;
+            }
+        }
+
+        let message_id =
+            message_id.ok_or_else(|| anyhow!("Couldn't find `MessageQueueingRequested` log"))?;
+
+        Ok((receipt, message_id))
+    }
+
     pub async fn send_message_pending(
         &self,
         payload: impl AsRef<[u8]>,
