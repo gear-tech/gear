@@ -50,6 +50,7 @@ pub struct HashOf<T: 'static> {
     hash: H256,
     #[into(ignore)]
     #[codec(skip)]
+    #[cfg_attr(feature = "std", serde(skip))]
     _phantom: PhantomData<T>,
 }
 
