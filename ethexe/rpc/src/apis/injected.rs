@@ -73,7 +73,7 @@ impl InjectedServer for InjectedApi {
         tracing::trace!(
             tx_hash = %transaction.tx.data().to_hash(),
             ?transaction,
-            "Called injected_sendTransaction with vars"
+            "Called injected_sendTransaction"
         );
         self.forward_transaction(transaction).await
     }
@@ -84,6 +84,7 @@ impl InjectedServer for InjectedApi {
         transaction: RpcOrNetworkInjectedTx,
     ) -> SubscriptionResult {
         let tx_hash = transaction.tx.data().to_hash();
+        tracing::trace!(%tx_hash, "Called injected_subscribeTransactionPromise");
 
         // Check, that transaction wasn't already send.
         if self.promise_waiters.get(&tx_hash).is_some() {
@@ -95,19 +96,14 @@ impl InjectedServer for InjectedApi {
 
         let _acceptance = self.forward_transaction(transaction).await?;
 
-        let subscription_sink = match pending.accept().await {
-            Ok(sink) => sink,
-            Err(err) => {
-                tracing::warn!(
-                    "failed to accept subscription for injected transaction promise: {err}"
-                );
-                return Ok(());
-            }
-        };
+        // Try accept subscription, if some errors occur, just log them and return error to client.
+        let subscription_sink = pending.accept().await.inspect_err(|err| {
+            tracing::warn!("failed to accept subscription for injected transaction promise: {err}");
+        })?;
 
         let (promise_sender, promise_receiver) = oneshot::channel();
         self.promise_waiters.insert(tx_hash, promise_sender);
-        self.spawn_promise_subscriber(subscription_sink, promise_receiver, tx_hash);
+        self.spawn_promise_waiter(subscription_sink, promise_receiver, tx_hash);
 
         Ok(())
     }
@@ -153,7 +149,7 @@ impl InjectedApi {
             return Err(errors::internal());
         }
 
-        tracing::trace!(?tx_hash, "Accept transaction, waiting for promise");
+        tracing::trace!(%tx_hash, "Accept transaction, waiting for promise");
 
         response_receiver.await.map_err(|e| {
             // No panic case, as a responsibility of the RPC API is fulfilled.
@@ -166,13 +162,16 @@ impl InjectedApi {
         })
     }
 
-    fn spawn_promise_subscriber(
+    // Spawns a task that waits for the promise and sends it to the client.
+    fn spawn_promise_waiter(
         &self,
         sink: SubscriptionSink,
         receiver: oneshot::Receiver<SignedPromise>,
         tx_hash: HashOf<InjectedTransaction>,
     ) {
+        // This clone is cheap, as it only increases the ref count.
         let promise_waiters = self.promise_waiters.clone();
+
         tokio::spawn(async move {
             // Waiting for promise or client disconnection.
             let promise = tokio::select! {
