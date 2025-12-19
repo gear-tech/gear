@@ -43,14 +43,37 @@ fn shortname<T: Any>() -> &'static str {
 }
 
 #[derive(Encode, Decode, derive_more::Into, derive_more::Display)]
-#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 #[display("{hash}")]
 pub struct HashOf<T: 'static> {
     hash: H256,
     #[into(ignore)]
     #[codec(skip)]
-    #[cfg_attr(feature = "std", serde(skip))]
     _phantom: PhantomData<T>,
+}
+#[cfg(feature = "std")]
+impl<T> serde::Serialize for HashOf<T> {
+    fn serialize<S>(&self, serializer: S) -> core::result::Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        #[derive(serde::Serialize)]
+        struct Inner<'a>(&'a H256);
+
+        Inner(&self.hash).serialize(serializer)
+    }
+}
+
+#[cfg(feature = "std")]
+impl<'de, T> serde::Deserialize<'de> for HashOf<T> {
+    fn deserialize<D>(deserializer: D) -> core::result::Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[derive(serde::Deserialize)]
+        struct Inner(H256);
+        let Inner(hash) = Inner::deserialize(deserializer)?;
+        Ok(unsafe { HashOf::new(hash) })
+    }
 }
 
 impl<T> Debug for HashOf<T> {
