@@ -61,7 +61,53 @@ pub struct ReplyInfo {
     /// Value attached to the reply.
     pub value: u128,
     /// Reply code of the reply.
+    #[cfg_attr(feature = "std", serde(with = "serialize_reply_code"))]
     pub code: ReplyCode,
+}
+
+/// Serializer and deserializer for ReplyCode as bytes (`[u8; 4]` array).
+#[cfg(feature = "std")]
+pub(crate) mod serialize_reply_code {
+    use super::ReplyCode;
+    use serde::de;
+
+    pub fn serialize<S>(code: &ReplyCode, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let encoded_str = alloc::format!("0x{}", hex::encode(code.to_bytes()));
+        serializer.serialize_str(encoded_str.as_str())
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<ReplyCode, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        struct Visitor;
+
+        impl<'b> de::Visitor<'b> for Visitor {
+            type Value = ReplyCode;
+
+            fn expecting(&self, formatter: &mut alloc::fmt::Formatter) -> alloc::fmt::Result {
+                formatter.write_str("a 4-byte array representing a ReplyCode")
+            }
+
+            fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
+            where
+                E: de::Error,
+            {
+                let v = v.strip_prefix("0x").ok_or_else(|| {
+                    E::custom("invalid format: expected a 0x-prefixed hex string")
+                })?;
+                let decoded_bytes = hex::decode(v)
+                    .map_err(|e| E::custom(alloc::format!("invalid hex string: {e}")))?;
+                let bytes = <[u8; 4]>::try_from(decoded_bytes)
+                    .map_err(|_| E::custom("expected a 4-byte array"))?;
+                Ok(ReplyCode::from_bytes(bytes))
+            }
+        }
+        deserializer.deserialize_str(Visitor)
+    }
 }
 
 /// `u128` value wrapper intended for usage in RPC calls due to serialization specifications.
