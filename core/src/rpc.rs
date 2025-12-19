@@ -99,10 +99,9 @@ pub(crate) mod serialize_reply_code {
                 let v = v.strip_prefix("0x").ok_or_else(|| {
                     E::custom("invalid format: expected a 0x-prefixed hex string")
                 })?;
-                let decoded_bytes = hex::decode(v)
+                let mut bytes = [0u8; 4];
+                hex::decode_to_slice(v, &mut bytes)
                     .map_err(|e| E::custom(alloc::format!("invalid hex string: {e}")))?;
-                let bytes = <[u8; 4]>::try_from(decoded_bytes)
-                    .map_err(|_| E::custom("expected a 4-byte array"))?;
                 Ok(ReplyCode::from_bytes(bytes))
             }
         }
