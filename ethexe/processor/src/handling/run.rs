@@ -373,7 +373,7 @@ impl<'a> OverlaidRunContext<'a> {
 
 impl<'a> RunContext for OverlaidRunContext<'a> {
     async fn run(self) {
-        let _ = run_inner(self, MessageType::Injected).await;
+        let _ = run_inner(self, MessageType::Canonical).await;
     }
 
     fn cas(&self) -> Box<dyn CASDatabase> {

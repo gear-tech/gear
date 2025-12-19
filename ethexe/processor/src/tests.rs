@@ -454,7 +454,9 @@ async fn async_and_ping() {
 async fn many_waits() {
     init_logger();
 
-    let wat = r#"
+    let blocks_to_wait = 10;
+    let wat = format!(
+        r#"
         (module
             (import "env" "memory" (memory 1))
             (import "env" "gr_reply" (func $reply (param i32 i32 i32 i32)))
@@ -465,7 +467,7 @@ async fn many_waits() {
                     (i32.eqz (i32.load (i32.const 0x200)))
                     (then
                         (i32.store (i32.const 0x200) (i32.const 1))
-                        (call $wait_for (i32.const 10))
+                        (call $wait_for (i32.const {blocks_to_wait}))
                     )
                     (else
                         (call $reply (i32.const 0) (i32.const 13) (i32.const 0x400) (i32.const 0x600))
@@ -474,9 +476,10 @@ async fn many_waits() {
             )
             (data (i32.const 0) "Hello, world!")
         )
-    "#;
+        "#
+    );
 
-    let (_, code) = wat_to_wasm(wat);
+    let (_, code) = wat_to_wasm(wat.as_str());
 
     let (mut processor, chain, [code_id]) = setup_test_env_and_load_codes([code.as_slice()]);
 
@@ -568,14 +571,16 @@ async fn many_waits() {
         .for_each(|(pid, cid)| processor.db.set_program_code_id(pid, cid));
 
     // Check all messages wake up and reply with "Hello, world!"
-    let transitions = InBlockTransitions::new(12, states, schedule, Default::default());
+    let wake_block = chain.blocks[1 + blocks_to_wait].to_simple();
+    let transitions = InBlockTransitions::new(
+        wake_block.header.height,
+        states,
+        schedule,
+        Default::default(),
+    );
     let transitions = processor.process_tasks(transitions);
     let transitions = processor
-        .process_queues(
-            transitions,
-            chain.blocks[12].to_simple(),
-            Some(DEFAULT_BLOCK_GAS_LIMIT),
-        )
+        .process_queues(transitions, wake_block, Some(DEFAULT_BLOCK_GAS_LIMIT))
         .await;
 
     assert_eq!(transitions.current_messages().len(), amount as usize);
