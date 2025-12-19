@@ -64,7 +64,7 @@ const MAX_PENDING_ANNOUNCES: NonZeroUsize = NonZeroUsize::new(10).unwrap();
 ///   └─ if no missing ─► process_after_propagation
 ///
 /// WaitingForMissingAnnounces (waiting for requested missing announces from network)
-///   └─ receive_announces_response ─► process_after_propagation
+///   └─ announces response via handle ─► process_after_propagation
 ///
 /// process_after_propagation (propagation done )
 ///   ├─ announce from producer already received ─► emit ComputeAnnounce ─► WaitingForBlock
@@ -272,8 +272,7 @@ impl ConsensusService for ConnectService {
                 announces_fetch: None,
             };
 
-            self.output
-                .push_back(ConsensusEvent::RequestAnnounces(request));
+            self.request_announces(request);
         } else {
             tracing::debug!(
                 block = %block.hash,
@@ -348,10 +347,6 @@ impl ConsensusService for ConnectService {
     fn receive_validation_reply(&mut self, _reply: BatchCommitmentValidationReply) -> Result<()> {
         Ok(())
     }
-
-    fn receive_announces_response(&mut self, _response: CheckedAnnouncesResponse) -> Result<()> {
-        Ok(())
-    }
 }
 
 impl Stream for ConnectService {
@@ -380,13 +375,7 @@ impl Stream for ConnectService {
             }
 
             if let Some(event) = self.output.pop_front() {
-                match event {
-                    ConsensusEvent::RequestAnnounces(request) => {
-                        self.request_announces(request);
-                        continue;
-                    }
-                    _ => return Poll::Ready(Some(Ok(event))),
-                }
+                return Poll::Ready(Some(Ok(event)));
             }
 
             return Poll::Pending;

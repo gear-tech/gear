@@ -617,9 +617,6 @@ impl Service {
                     ConsensusEvent::Warning(msg) => {
                         log::warn!("Consensus service warning: {msg}");
                     }
-                    ConsensusEvent::RequestAnnounces(_) => {
-                        unreachable!("announces requests must be handled within consensus service")
-                    }
                     ConsensusEvent::AnnounceAccepted(_) | ConsensusEvent::AnnounceRejected(_) => {
                         // TODO #4940: consider to publish network message
                     }

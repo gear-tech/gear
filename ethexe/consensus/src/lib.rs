@@ -37,7 +37,7 @@ use ethexe_common::{
     Announce, Digest, HashOf, SimpleBlockData,
     consensus::{BatchCommitmentValidationReply, VerifiedAnnounce, VerifiedValidationRequest},
     injected::{SignedInjectedTransaction, SignedPromise},
-    network::{AnnouncesRequest, CheckedAnnouncesResponse, SignedValidatorMessage},
+    network::SignedValidatorMessage,
 };
 use futures::{Stream, stream::FusedStream};
 use gprimitives::H256;
@@ -82,9 +82,6 @@ pub trait ConsensusService:
     /// Process a received validation reply
     fn receive_validation_reply(&mut self, reply: BatchCommitmentValidationReply) -> Result<()>;
 
-    /// Process a received announces data response
-    fn receive_announces_response(&mut self, response: CheckedAnnouncesResponse) -> Result<()>;
-
     /// Process a received injected transaction from network
     fn receive_injected_transaction(&mut self, tx: SignedInjectedTransaction) -> Result<()>;
 }
@@ -114,9 +111,6 @@ pub enum ConsensusEvent {
     /// Outer service have to publish signed message
     #[from]
     PublishMessage(SignedValidatorMessage),
-    /// Outer service have to request announces
-    #[from]
-    RequestAnnounces(AnnouncesRequest),
     /// Informational event: commitment was successfully submitted
     #[from]
     CommitmentSubmitted(CommitmentSubmitted),

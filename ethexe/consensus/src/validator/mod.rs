@@ -166,6 +166,7 @@ impl ValidatorService {
             },
             pending_events: VecDeque::new(),
             output: VecDeque::new(),
+            announces_requests: VecDeque::new(),
             tasks: Default::default(),
         };
 
@@ -192,8 +193,12 @@ impl ValidatorService {
             .take()
             .unwrap_or_else(|| unreachable!("inner must be Some"));
 
-        update(inner).map(|inner| {
+        update(inner).map(|mut inner| {
+            let requests = inner.context_mut().take_announces_requests();
             self.inner = Some(inner);
+            for request in requests {
+                self.request_announces(request);
+            }
         })
     }
 
@@ -238,10 +243,6 @@ impl ConsensusService for ValidatorService {
 
     fn receive_validation_reply(&mut self, reply: BatchCommitmentValidationReply) -> Result<()> {
         self.update_inner(|inner| inner.process_validation_reply(reply))
-    }
-
-    fn receive_announces_response(&mut self, response: CheckedAnnouncesResponse) -> Result<()> {
-        self.update_inner(|inner| inner.process_announces_response(response))
     }
 
     fn receive_injected_transaction(&mut self, tx: SignedInjectedTransaction) -> Result<()> {
@@ -300,10 +301,6 @@ impl Stream for ValidatorService {
             })?;
 
             match event {
-                Some(ConsensusEvent::RequestAnnounces(request)) => {
-                    self.request_announces(request);
-                    continue;
-                }
                 Some(event) => return Poll::Ready(Some(Ok(event))),
                 None => return Poll::Pending,
             }
@@ -578,6 +575,8 @@ struct ValidatorContext {
     pending_events: VecDeque<PendingEvent>,
     /// Output events for outer services. Populates during the poll.
     output: VecDeque<ConsensusEvent>,
+    /// Pending announces requests to be executed via db-sync handle.
+    announces_requests: VecDeque<AnnouncesRequest>,
 
     /// Ongoing consensus tasks, if any.
     #[debug("{}", tasks.len())]
@@ -587,6 +586,14 @@ struct ValidatorContext {
 impl ValidatorContext {
     pub fn output(&mut self, event: impl Into<ConsensusEvent>) {
         self.output.push_back(event.into());
+    }
+
+    pub fn request_announces(&mut self, request: AnnouncesRequest) {
+        self.announces_requests.push_back(request);
+    }
+
+    pub fn take_announces_requests(&mut self) -> VecDeque<AnnouncesRequest> {
+        std::mem::take(&mut self.announces_requests)
     }
 
     pub fn pending(&mut self, event: impl Into<PendingEvent>) {

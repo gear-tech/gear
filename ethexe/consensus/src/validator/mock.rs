@@ -172,6 +172,7 @@ pub fn mock_validator_context() -> (ValidatorContext, Vec<PublicKey>, MockEthere
         },
         pending_events: VecDeque::new(),
         output: VecDeque::new(),
+        announces_requests: VecDeque::new(),
         tasks: Default::default(),
     };
 
