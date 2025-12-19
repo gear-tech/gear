@@ -65,7 +65,7 @@ pub struct ReplyInfo {
     pub code: ReplyCode,
 }
 
-/// Serializer and deserializer for ReplyCode as bytes (`[u8; 4]` array).
+/// Serializer and deserializer for ReplyCode as 0x-prefixed hex string.
 #[cfg(feature = "std")]
 pub(crate) mod serialize_reply_code {
     use super::ReplyCode;
