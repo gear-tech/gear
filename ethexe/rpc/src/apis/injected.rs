@@ -90,6 +90,7 @@ impl InjectedApi {
     }
 
     /// Returns the number of current promise subscribers waiting for promises.
+    #[cfg(test)]
     pub fn promise_subscribers_count(&self) -> usize {
         self.promise_waiters.len()
     }

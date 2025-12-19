@@ -23,7 +23,7 @@ use crate::{
     ProtocolTimelines, Schedule, SimpleBlockData, ValidatorsVec,
     consensus::BatchCommitmentValidationRequest,
     db::*,
-    ecdsa::{PrivateKey, SignedData},
+    ecdsa::{PrivateKey, SignedMessage},
     events::BlockEvent,
     gear::{BatchCommitment, ChainCommitment, CodeCommitment, Message, StateTransition},
     injected::{InjectedTransaction, RpcOrNetworkInjectedTx},
@@ -180,7 +180,7 @@ impl Mock<PrivateKey> for RpcOrNetworkInjectedTx {
     fn mock(pk: PrivateKey) -> Self {
         RpcOrNetworkInjectedTx {
             recipient: Default::default(),
-            tx: SignedData::create(pk, InjectedTransaction::mock(()))
+            tx: SignedMessage::create(pk, InjectedTransaction::mock(()))
                 .expect("Signing injected transaction will succeed"),
         }
     }
