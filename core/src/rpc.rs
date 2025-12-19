@@ -69,14 +69,19 @@ pub struct ReplyInfo {
 #[cfg(feature = "std")]
 pub(crate) mod serialize_reply_code {
     use super::ReplyCode;
+    use core::fmt::Write;
     use serde::de;
 
     pub fn serialize<S>(code: &ReplyCode, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
-        let encoded_str = alloc::format!("0x{}", hex::encode(code.to_bytes()));
-        serializer.serialize_str(encoded_str.as_str())
+        let mut s = alloc::string::String::with_capacity(10);
+        s.push_str("0x");
+        for byte in code.to_bytes() {
+            write!(&mut s, "{:02x}", byte).unwrap();
+        }
+        serializer.serialize_str(&s)
     }
 
     pub fn deserialize<'de, D>(deserializer: D) -> Result<ReplyCode, D::Error>
@@ -89,7 +94,7 @@ pub(crate) mod serialize_reply_code {
             type Value = ReplyCode;
 
             fn expecting(&self, formatter: &mut alloc::fmt::Formatter) -> alloc::fmt::Result {
-                formatter.write_str("a 4-byte array representing a ReplyCode")
+                formatter.write_str("a 0x-prefixed hex string representing a 4-byte ReplyCode")
             }
 
             fn visit_str<E>(self, v: &str) -> Result<Self::Value, E>
