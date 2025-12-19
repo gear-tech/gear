@@ -20,7 +20,6 @@ use crate::{
     Result,
     host::{api::MemoryWrap, threads},
 };
-use ethexe_common::db::HashStorageRO;
 use gprimitives::H256;
 use sp_wasm_interface::StoreData;
 use wasmtime::{Caller, Linker};
@@ -58,7 +57,7 @@ fn read_by_hash(caller: Caller<'_, StoreData>, hash_ptr: i32) -> i64 {
     let hash_slice = memory.slice(&caller, hash_ptr as usize, size_of::<H256>());
     let hash = H256::from_slice(hash_slice);
 
-    let maybe_data = threads::with_db(|db| db.read_by_hash(hash));
+    let maybe_data = threads::with_db(|db| db.read(hash));
 
     let res = maybe_data
         .map(|data| super::allocate_and_write_raw(caller, data).1)
@@ -76,7 +75,7 @@ fn write(caller: Caller<'_, StoreData>, ptr: i32, len: i32) -> i32 {
 
     let data = memory.slice(&caller, ptr as usize, len as usize);
 
-    let hash = threads::with_db(|db| db.write_hash(data));
+    let hash = threads::with_db(|db| db.write(data));
 
     let (_caller, res) = super::allocate_and_write(caller, hash);
 

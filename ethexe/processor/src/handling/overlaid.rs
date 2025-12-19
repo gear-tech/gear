@@ -161,4 +161,8 @@ impl OverlaidState {
 
         true
     }
+
+    pub(crate) fn db(&self) -> &Database {
+        &self.db
+    }
 }

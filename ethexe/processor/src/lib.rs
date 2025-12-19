@@ -18,24 +18,32 @@
 
 //! Program's execution service for eGPU.
 
+use crate::handling::run::RunContext;
 use core::num::NonZero;
 use ethexe_common::{
-    Announce, CodeAndIdUnchecked, HashOf,
-    db::{AnnounceStorageRO, AnnounceStorageRW, CodesStorageRW},
+    Announce, CodeAndIdUnchecked, HashOf, ProgramStates, Schedule, SimpleBlockData,
+    ecdsa::VerifiedData,
     events::{BlockRequestEvent, MirrorRequestEvent},
+    injected::InjectedTransaction,
 };
 use ethexe_db::Database;
-use ethexe_runtime_common::{FinalizedBlockTransitions, state::Storage};
-use gear_core::{ids::prelude::CodeIdExt, rpc::ReplyInfo};
+use ethexe_runtime_common::{
+    FinalizedBlockTransitions, InBlockTransitions, ScheduleHandler, TransitionController,
+    state::Storage,
+};
+use gear_core::{
+    code::{CodeMetadata, InstrumentedCode},
+    ids::prelude::CodeIdExt,
+    rpc::ReplyInfo,
+};
 use gprimitives::{ActorId, CodeId, H256, MessageId};
 use handling::{
     ProcessingHandler,
-    run::{self, CommonRunContext, OverlaidRunContext},
+    run::{CommonRunContext, OverlaidRunContext},
 };
 use host::InstanceCreator;
 
 pub use common::LocalOutcome;
-pub use handling::run::RunnerConfig;
 
 pub mod host;
 
@@ -61,15 +69,12 @@ pub enum ProcessorError {
     ProgramNotInitialized,
     #[error("reply wasn't found")]
     ReplyNotFound,
-    #[error("not found state for program ({program_id}) at announce ({announce_hash})")]
-    StateNotFound {
-        program_id: ActorId,
-        announce_hash: HashOf<Announce>,
-    },
-    #[error("unreachable: state partially presents in storage")]
-    StatePartiallyPresentsInStorage,
-    #[error("not found header for processing block ({0})")]
-    BlockHeaderNotFound(H256),
+    #[error("not found state hash for program ({0})")]
+    StateNotFound(ActorId),
+    #[error("not found program state by hash ({0}) in database")]
+    StatePartiallyPresentsInStorage(H256),
+    #[error("block is not synced ({0})")]
+    BlockIsNotSynced(H256),
     #[error("not found program states for processing announce ({0})")]
     AnnounceProgramStatesNotFound(HashOf<Announce>),
     #[error("not found block start schedule for processing announce ({0})")]
@@ -80,7 +85,7 @@ pub enum ProcessorError {
     // `InstanceWrapper` errors
     #[error("couldn't find 'memory' export")]
     MemoryExportNotFound,
-    #[error("'memory' is not memory")]
+    #[error("'memory' export is not a wasm memory")]
     InvalidMemory,
     #[error("couldn't find `__indirect_function_table` export")]
     IndirectFunctionTableNotFound,
@@ -103,13 +108,22 @@ pub enum ProcessorError {
     #[error("db corrupted: missing code [OR] code existence wasn't checked on Eth, code id: {0}")]
     MissingCode(CodeId),
 
-    #[error(transparent)]
-    Wasm(#[from] wasmtime::Error),
+    #[error("code id not found for created program {0}")]
+    MissingCodeIdForProgram(ActorId),
 
-    #[error(transparent)]
-    ParityScaleCodes(#[from] parity_scale_codec::Error),
+    #[error("missing instrumented code for program {program_id} with code id {code_id}")]
+    MissingInstrumentedCodeForProgram {
+        program_id: ActorId,
+        code_id: CodeId,
+    },
 
-    #[error(transparent)]
+    #[error("wasmtime error: {0}")]
+    Wasmtime(#[from] wasmtime::Error),
+
+    #[error("decoding runtime call output error: {0}")]
+    CallOutput(#[from] parity_scale_codec::Error),
+
+    #[error("sp allocator error: {0}")]
     SpAllocator(#[from] sp_allocator::Error),
 }
 
@@ -117,13 +131,13 @@ pub(crate) type Result<T> = std::result::Result<T, ProcessorError>;
 
 #[derive(Clone, Debug)]
 pub struct ProcessorConfig {
-    pub chunk_processing_threads: usize,
+    pub chunk_size: usize,
 }
 
 impl Default for ProcessorConfig {
     fn default() -> Self {
         Self {
-            chunk_processing_threads: DEFAULT_CHUNK_PROCESSING_THREADS.get(),
+            chunk_size: DEFAULT_CHUNK_PROCESSING_THREADS.get(),
         }
     }
 }
@@ -162,33 +176,90 @@ impl Processor {
         OverlaidProcessor(self)
     }
 
-    pub fn process_upload_code(&mut self, code_and_id: CodeAndIdUnchecked) -> Result<bool> {
+    pub fn process_code(&mut self, code_and_id: CodeAndIdUnchecked) -> Result<ProcessedCodeInfo> {
         log::debug!("Processing upload code {code_and_id:?}");
 
         let CodeAndIdUnchecked { code, code_id } = code_and_id;
 
-        let valid = code_id == CodeId::generate(&code) && self.handle_new_code(code)?.is_some();
+        if code_id != CodeId::generate(&code) {
+            return Ok(ProcessedCodeInfo {
+                code_id,
+                valid: None,
+            });
+        }
 
-        self.db.set_code_valid(code_id, valid);
+        let Some((instrumented_code, code_metadata)) =
+            self.creator.instantiate()?.instrument(&code)?
+        else {
+            return Ok(ProcessedCodeInfo {
+                code_id,
+                valid: None,
+            });
+        };
 
-        Ok(valid)
+        let Some(instruction_weight_version) = code_metadata.instruction_weights_version() else {
+            return Ok(ProcessedCodeInfo {
+                code_id,
+                valid: None,
+            });
+        };
+
+        Ok(ProcessedCodeInfo {
+            code_id,
+            valid: Some(ValidCodeInfo {
+                code,
+                instrumented_code,
+                code_metadata,
+                instruction_weight_version,
+            }),
+        })
     }
 
-    pub async fn process_announce(
+    pub async fn process_programs(
         &mut self,
-        announce: Announce,
-        events: Vec<BlockRequestEvent>,
+        executable: ExecutableData,
     ) -> Result<FinalizedBlockTransitions> {
-        log::debug!(
-            "Processing events for {:?}: {events:#?}",
-            announce.block_hash
+        let ExecutableData {
+            block,
+            program_states,
+            schedule,
+            injected_transactions,
+            gas_allowance,
+            events,
+        } = executable;
+
+        let injected_messages = injected_transactions
+            .iter()
+            .map(|tx| tx.data().to_message_id())
+            .collect();
+
+        let transitions = InBlockTransitions::new(
+            block.header.height,
+            program_states,
+            schedule,
+            injected_messages,
         );
 
-        // TODO kuzmindev: remove clone here
-        let mut handler = self.handler(announce.clone())?;
+        let transitions = self.process_tasks(transitions);
+        let transitions =
+            self.process_injected_and_events(transitions, injected_transactions, events)?;
+        let transitions = self.process_queues(transitions, block, gas_allowance).await;
 
-        for tx in announce.injected_transactions {
-            handler.handle_injected_transaction(tx)?;
+        Ok(transitions.finalize())
+    }
+
+    fn process_injected_and_events(
+        &mut self,
+        transitions: InBlockTransitions,
+        injected_transactions: Vec<VerifiedData<InjectedTransaction>>,
+        events: Vec<BlockRequestEvent>,
+    ) -> Result<InBlockTransitions> {
+        let mut handler = ProcessingHandler::new(self.db.clone(), transitions);
+
+        for tx in injected_transactions {
+            let source = tx.address().into();
+            let tx = tx.into_parts().0;
+            handler.handle_injected_transaction(source, tx)?;
         }
 
         for event in events {
@@ -202,110 +273,168 @@ impl Processor {
             }
         }
 
-        self.process_queue(&mut handler).await;
-
-        handler.run_schedule();
-
-        Ok(handler.transitions.finalize())
+        Ok(handler.into_transitions())
     }
 
-    pub async fn process_queue(&mut self, handler: &mut ProcessingHandler) {
-        let Some(block_gas_limit) = handler.announce.gas_allowance else {
-            return;
+    async fn process_queues(
+        &mut self,
+        mut transitions: InBlockTransitions,
+        block: SimpleBlockData,
+        gas_allowance: Option<u64>,
+    ) -> InBlockTransitions {
+        let Some(gas_allowance) = gas_allowance else {
+            return transitions;
         };
 
-        self.creator.set_chain_head(handler.announce.block_hash);
+        self.creator.set_chain_head(block);
 
-        let ctx = CommonRunContext::new(&mut handler.transitions);
-        let run_config =
-            RunnerConfig::common(self.config().chunk_processing_threads, block_gas_limit);
+        CommonRunContext::new(
+            self.db.clone(),
+            self.creator.clone(),
+            &mut transitions,
+            gas_allowance,
+            self.config.chunk_size,
+        )
+        .run()
+        .await;
 
-        run::run(ctx, self.db.clone(), self.creator.clone(), run_config).await;
+        transitions
     }
+
+    fn process_tasks(&mut self, mut transitions: InBlockTransitions) -> InBlockTransitions {
+        let tasks = transitions.take_actual_tasks();
+        let block_height = transitions.block_height();
+
+        log::trace!("Running schedule for #{block_height}: tasks are {tasks:?}");
+
+        let mut handler = ScheduleHandler {
+            controller: TransitionController {
+                storage: &self.db,
+                transitions: &mut transitions,
+            },
+        };
+
+        for task in tasks {
+            let _gas = task.process_with(&mut handler);
+        }
+
+        transitions
+    }
+}
+
+pub struct ProcessedCodeInfo {
+    pub code_id: CodeId,
+    pub valid: Option<ValidCodeInfo>,
+}
+
+pub struct ValidCodeInfo {
+    pub code: Vec<u8>,
+    pub instrumented_code: InstrumentedCode,
+    pub code_metadata: CodeMetadata,
+    pub instruction_weight_version: u32,
+}
+
+pub struct ExecutableData {
+    pub block: SimpleBlockData,
+    pub program_states: ProgramStates,
+    pub schedule: Schedule,
+    pub injected_transactions: Vec<VerifiedData<InjectedTransaction>>,
+    pub gas_allowance: Option<u64>,
+    pub events: Vec<BlockRequestEvent>,
+}
+
+#[cfg(test)]
+impl Default for ExecutableData {
+    fn default() -> Self {
+        Self {
+            block: SimpleBlockData::default(),
+            program_states: ProgramStates::default(),
+            schedule: Schedule::default(),
+            injected_transactions: vec![],
+            gas_allowance: Some(DEFAULT_BLOCK_GAS_LIMIT),
+            events: vec![],
+        }
+    }
+}
+
+pub struct ExecutableDataForReply {
+    pub block: SimpleBlockData,
+    pub program_states: ProgramStates,
+    pub source: ActorId,
+    pub program_id: ActorId,
+    pub payload: Vec<u8>,
+    pub gas_limit: u64,
 }
 
 #[derive(Clone)]
 pub struct OverlaidProcessor(Processor);
 
 impl OverlaidProcessor {
-    // TODO (breathx): optimize for one single program.
     pub async fn execute_for_reply(
         &mut self,
-        announce_hash: HashOf<Announce>,
-        source: ActorId,
-        program_id: ActorId,
-        payload: Vec<u8>,
-        value: u128,
-        runner_config: RunnerConfig,
+        executable: ExecutableDataForReply,
     ) -> Result<ReplyInfo> {
-        let block_hash = self
-            .0
-            .db
-            .announce(announce_hash)
-            .ok_or(ProcessorError::AnnounceNotFound(announce_hash))?
-            .block_hash;
-        self.0.creator.set_chain_head(block_hash);
+        let ExecutableDataForReply {
+            block,
+            program_states,
+            source,
+            program_id,
+            payload,
+            gas_limit,
+        } = executable;
 
-        let announce = self
-            .0
-            .db
-            .announce(announce_hash)
-            .ok_or(ProcessorError::AnnounceNotFound(announce_hash))?;
+        self.0.creator.set_chain_head(block);
 
-        let mut handler = self.0.handler(announce)?;
-
-        let state_hash = handler
-            .transitions
-            .state_of(&program_id)
-            .ok_or(ProcessorError::StateNotFound {
-                program_id,
-                announce_hash,
-            })?
+        let state_hash = program_states
+            .get(&program_id)
+            .ok_or(ProcessorError::StateNotFound(program_id))?
             .hash;
 
-        let state = handler
+        let state = self
+            .0
             .db
             .program_state(state_hash)
-            .ok_or(ProcessorError::StatePartiallyPresentsInStorage)?;
+            .ok_or(ProcessorError::StatePartiallyPresentsInStorage(state_hash))?;
 
         if state.requires_init_message() {
             return Err(ProcessorError::ProgramNotInitialized);
         }
 
-        handler.handle_mirror_event(
-            program_id,
-            MirrorRequestEvent::MessageQueueingRequested {
-                id: MessageId::zero(),
-                source,
-                payload,
-                value,
-                call_reply: false,
-            },
+        let transitions = InBlockTransitions::new(
+            block.header.height,
+            program_states,
+            Schedule::default(),
+            Default::default(),
+        );
+
+        let mut transitions = self.0.process_injected_and_events(
+            transitions,
+            vec![],
+            vec![BlockRequestEvent::Mirror {
+                actor_id: program_id,
+                event: MirrorRequestEvent::MessageQueueingRequested {
+                    id: MessageId::zero(),
+                    source,
+                    payload: payload.clone(),
+                    value: 0,
+                    call_reply: true,
+                },
+            }],
         )?;
 
-        let ctx = OverlaidRunContext::new(program_id, self.0.db.clone(), &mut handler.transitions);
-
-        run::run_overlaid(
-            ctx,
+        OverlaidRunContext::new(
+            program_id,
             self.0.db.clone(),
+            &mut transitions,
+            gas_limit,
+            self.0.config.chunk_size,
             self.0.creator.clone(),
-            runner_config,
         )
+        .run()
         .await;
 
-        // Getting message to users now, because later transitions are moved.
-        let current_messages = handler.transitions.current_messages();
-
-        // Setting program states and schedule for the block is not necessary, but important for testing.
-        {
-            let FinalizedBlockTransitions {
-                states, schedule, ..
-            } = handler.transitions.finalize();
-            self.0.db.set_announce_program_states(announce_hash, states);
-            self.0.db.set_announce_schedule(announce_hash, schedule);
-        }
-
-        let res = current_messages
+        let res = transitions
+            .current_messages()
             .into_iter()
             .find_map(|(_, message)| {
                 message.reply_details.and_then(|details| {

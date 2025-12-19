@@ -16,9 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{Database, ProcessorError, Result};
+use crate::{ProcessorError, Result};
 use core_processor::common::JournalNote;
-use ethexe_common::gear::MessageType;
+use ethexe_common::{SimpleBlockData, gear::MessageType};
+use ethexe_db::CASDatabase;
 use ethexe_runtime_common::{ProgramJournals, unpack_i64_to_u32};
 use gear_core::{
     code::{CodeMetadata, InstrumentedCode},
@@ -59,7 +60,7 @@ pub(crate) struct InstanceCreator {
     /// Current chain head hash.
     ///
     /// NOTE: must be preset each time processor start to process new chain head.
-    chain_head: Option<H256>,
+    chain_head: Option<SimpleBlockData>,
 }
 
 impl InstanceCreator {
@@ -117,7 +118,7 @@ impl InstanceCreator {
         Ok(instance_wrapper)
     }
 
-    pub fn set_chain_head(&mut self, chain_head: H256) {
+    pub fn set_chain_head(&mut self, chain_head: SimpleBlockData) {
         self.chain_head = Some(chain_head);
     }
 }
@@ -125,7 +126,7 @@ impl InstanceCreator {
 pub(crate) struct InstanceWrapper {
     instance: wasmtime::Instance,
     store: Store,
-    chain_head: Option<H256>,
+    chain_head: Option<SimpleBlockData>,
 }
 
 impl InstanceWrapper {
@@ -154,7 +155,7 @@ impl InstanceWrapper {
     #[allow(clippy::too_many_arguments)]
     pub fn run(
         &mut self,
-        db: Database,
+        db: Box<dyn CASDatabase>,
         program_id: ActorId,
         state_hash: H256,
         queue_type: MessageType,
