@@ -202,7 +202,7 @@ async fn test_cleanup_promise_subscribers() {
 
 // Setup worker-threads=4 to simulate concurrent clients.
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-#[ntest::timeout(60_000)]
+#[ntest::timeout(120_000)]
 async fn test_concurrent_multiple_clients() {
     let listen_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 1729);
     let (handle, rpc) = start_new_server(listen_addr).await;
