@@ -28,6 +28,7 @@ use ethexe_common::{
     Address, COMMITMENT_DELAY_LIMIT,
     ecdsa::{PrivateKey, PublicKey},
     gear::CodeState,
+    injected::InjectedTransactionAcceptance,
     network::VerifiedValidatorMessage,
 };
 use ethexe_compute::{ComputeConfig, ComputeEvent, ComputeService};
@@ -46,7 +47,7 @@ use ethexe_observer::{
 };
 use ethexe_processor::{Processor, ProcessorConfig};
 use ethexe_prometheus::{PrometheusEvent, PrometheusService};
-use ethexe_rpc::{InjectedTransactionAcceptance, RpcEvent, RpcServer};
+use ethexe_rpc::{RpcEvent, RpcServer};
 use ethexe_service_utils::{OptionFuture as _, OptionStreamNext as _};
 use ethexe_signer::Signer;
 use futures::{StreamExt, stream::FuturesUnordered};
@@ -550,7 +551,14 @@ impl Service {
                         NetworkEvent::InjectedTransaction(transaction) => {
                             consensus.receive_injected_transaction(transaction)?;
                         }
-                        NetworkEvent::PeerBlocked(_) | NetworkEvent::PeerConnected(_) => {}
+                        NetworkEvent::PromiseMessage(promise) => {
+                            if let Some(rpc) = &rpc {
+                                rpc.send_promise(promise);
+                            }
+                        }
+                        NetworkEvent::ValidatorIdentityUpdated(_)
+                        | NetworkEvent::PeerBlocked(_)
+                        | NetworkEvent::PeerConnected(_) => {}
                     }
                 }
                 Event::Prometheus(event) => {
@@ -586,20 +594,22 @@ impl Service {
                             transaction,
                             response_sender,
                         } => {
-                            // Note: zero address means that no matter what validator will insert this tx.
-                            if transaction.recipient == Address::default()
+                            let acceptance = if
+                            // zero address means that no matter what validator will insert this tx.
+                            transaction.recipient == Address::default()
                                 || validator_address == Some(transaction.recipient)
                             {
                                 consensus.receive_injected_transaction(transaction.tx)?;
+                                InjectedTransactionAcceptance::Accept
                             } else {
                                 let Some(network) = network.as_mut() else {
                                     continue;
                                 };
 
-                                network.send_injected_transaction(transaction);
-                            }
+                                network.send_injected_transaction(transaction).into()
+                            };
 
-                            let _res = response_sender.send(InjectedTransactionAcceptance::Accept);
+                            let _res = response_sender.send(acceptance);
                         }
                     }
                 }
@@ -629,12 +639,17 @@ impl Service {
                         // TODO #4940: consider to publish network message
                     }
                     ConsensusEvent::Promise(promise) => {
-                        let rpc = rpc
-                            .as_mut()
-                            .expect("cannot produce promise without event from RPC");
-                        rpc.provide_promise(promise);
+                        if rpc.is_none() && network.is_none() {
+                            panic!("Promise without network or rpc");
+                        }
 
-                        // TODO kuzmindev: also should be sent to network peer, that waits for transaction promise
+                        if let Some(rpc) = &rpc {
+                            rpc.send_promise(promise.clone());
+                        }
+
+                        if let Some(network) = &mut network {
+                            network.publish_promise(promise);
+                        }
                     }
                 },
                 Event::Fetching(result) => {

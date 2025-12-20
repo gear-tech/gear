@@ -16,8 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-pub use crate::apis::InjectedTransactionAcceptance;
-
 #[cfg(feature = "client")]
 pub use crate::apis::{BlockClient, CodeClient, InjectedClient, ProgramClient};
 
@@ -26,7 +24,9 @@ use apis::{
     BlockApi, BlockServer, CodeApi, CodeServer, InjectedApi, InjectedServer, ProgramApi,
     ProgramServer,
 };
-use ethexe_common::injected::{RpcOrNetworkInjectedTx, SignedPromise};
+use ethexe_common::injected::{
+    AddressedInjectedTransaction, InjectedTransactionAcceptance, SignedPromise,
+};
 use ethexe_db::Database;
 use ethexe_processor::RunnerConfig;
 use futures::{Stream, stream::FusedStream};
@@ -50,7 +50,7 @@ mod utils;
 #[derive(Debug)]
 pub enum RpcEvent {
     InjectedTransaction {
-        transaction: RpcOrNetworkInjectedTx,
+        transaction: AddressedInjectedTransaction,
         response_sender: oneshot::Sender<InjectedTransactionAcceptance>,
     },
 }
@@ -136,10 +136,8 @@ impl RpcService {
         }
     }
 
-    pub fn provide_promise(&self, promise: SignedPromise) {
-        let injected_api = self.injected_api.clone();
-
-        injected_api.send_promise(promise);
+    pub fn send_promise(&self, promise: SignedPromise) {
+        self.injected_api.send_promise(promise);
     }
 }
 

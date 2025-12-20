@@ -20,6 +20,7 @@ use crate::{
     Address, HashOf, ToDigest,
     ecdsa::{SignedData, SignedMessage},
 };
+use alloc::string::{String, ToString};
 use core::hash::Hash;
 use gear_core::rpc::ReplyInfo;
 use gprimitives::{ActorId, H256, MessageId};
@@ -30,12 +31,30 @@ use sp_core::Bytes;
 /// Recent block hashes window size used to check transaction mortality.
 pub const VALIDITY_WINDOW: u8 = 32;
 
+#[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
+#[derive(Debug, Clone)]
+pub enum InjectedTransactionAcceptance {
+    Accept,
+    Reject { reason: String },
+}
+
+impl<E: ToString> From<Result<(), E>> for InjectedTransactionAcceptance {
+    fn from(value: Result<(), E>) -> Self {
+        match value {
+            Ok(()) => Self::Accept,
+            Err(err) => Self::Reject {
+                reason: err.to_string(),
+            },
+        }
+    }
+}
+
 pub type SignedInjectedTransaction = SignedMessage<InjectedTransaction>;
 
 #[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
 #[cfg_attr(feature = "serde", derive(Hash))]
 #[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
-pub struct RpcOrNetworkInjectedTx {
+pub struct AddressedInjectedTransaction {
     /// Address of validator the transaction intended for
     pub recipient: Address,
     pub tx: SignedInjectedTransaction,

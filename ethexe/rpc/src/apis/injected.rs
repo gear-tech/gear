@@ -20,22 +20,18 @@ use crate::{RpcEvent, errors};
 use dashmap::DashMap;
 use ethexe_common::{
     HashOf,
-    injected::{InjectedTransaction, RpcOrNetworkInjectedTx, SignedPromise},
+    injected::{
+        AddressedInjectedTransaction, InjectedTransaction, InjectedTransactionAcceptance,
+        SignedPromise,
+    },
 };
 use jsonrpsee::{
     PendingSubscriptionSink, SubscriptionMessage,
     core::{RpcResult, SubscriptionResult, async_trait},
     proc_macros::rpc,
 };
-use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::sync::{mpsc, oneshot};
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum InjectedTransactionAcceptance {
-    Accept,
-    Reject { reason: String },
-}
 
 #[cfg_attr(not(feature = "client"), rpc(server))]
 #[cfg_attr(feature = "client", rpc(server, client))]
@@ -43,7 +39,7 @@ pub trait Injected {
     #[method(name = "injected_sendTransaction")]
     async fn send_transaction(
         &self,
-        transaction: RpcOrNetworkInjectedTx,
+        transaction: AddressedInjectedTransaction,
     ) -> RpcResult<InjectedTransactionAcceptance>;
 
     #[subscription(
@@ -53,29 +49,33 @@ pub trait Injected {
     )]
     async fn send_transaction_and_watch(
         &self,
-        transaction: RpcOrNetworkInjectedTx,
+        transaction: AddressedInjectedTransaction,
     ) -> SubscriptionResult;
 }
+
+type PromiseWaiters = Arc<DashMap<HashOf<InjectedTransaction>, oneshot::Sender<SignedPromise>>>;
 
 #[derive(Debug, Clone)]
 pub struct InjectedApi {
     rpc_sender: mpsc::UnboundedSender<RpcEvent>,
-    promise_waiters: Arc<DashMap<HashOf<InjectedTransaction>, oneshot::Sender<SignedPromise>>>,
+    promise_waiters: PromiseWaiters,
 }
 
 impl InjectedApi {
     pub(crate) fn new(rpc_sender: mpsc::UnboundedSender<RpcEvent>) -> Self {
         Self {
             rpc_sender,
-            promise_waiters: Arc::new(DashMap::new()),
+            promise_waiters: PromiseWaiters::default(),
         }
     }
 }
 
 impl InjectedApi {
     pub fn send_promise(&self, promise: SignedPromise) {
-        let Some((_, promise_sender)) = self.promise_waiters.remove(&promise.data().tx_hash) else {
-            tracing::warn!(promise = ?promise, "receive unregistered promise");
+        let tx_hash = promise.data().tx_hash;
+
+        let Some((_, promise_sender)) = self.promise_waiters.remove(&tx_hash) else {
+            tracing::trace!(tx_hash = ?tx_hash, "receive unregistered promise");
             return;
         };
 
@@ -89,7 +89,7 @@ impl InjectedApi {
 impl InjectedServer for InjectedApi {
     async fn send_transaction(
         &self,
-        transaction: RpcOrNetworkInjectedTx,
+        transaction: AddressedInjectedTransaction,
     ) -> RpcResult<InjectedTransactionAcceptance> {
         let tx_hash = transaction.tx.data().to_hash();
         tracing::trace!(%tx_hash, ?transaction, "Called injected_sendTransaction with vars");
@@ -124,7 +124,7 @@ impl InjectedServer for InjectedApi {
     async fn send_transaction_and_watch(
         &self,
         pending: PendingSubscriptionSink,
-        transaction: RpcOrNetworkInjectedTx,
+        transaction: AddressedInjectedTransaction,
     ) -> SubscriptionResult {
         let tx_hash = transaction.tx.data().to_hash();
         tracing::trace!(%tx_hash, ?transaction, "Called injected_sendTransactionAndWatch");

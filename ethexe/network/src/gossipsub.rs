@@ -23,7 +23,7 @@ use crate::{
     peer_score,
 };
 use anyhow::anyhow;
-use ethexe_common::{Address, network::SignedValidatorMessage};
+use ethexe_common::{Address, injected::SignedPromise, network::SignedValidatorMessage};
 use libp2p::{
     core::{Endpoint, transport::PortUse},
     gossipsub,
@@ -42,19 +42,23 @@ use std::{
 
 #[derive(Debug, derive_more::From)]
 pub enum Message {
+    // TODO: rename to `Validators`
     Commitments(SignedValidatorMessage),
+    Promises(SignedPromise),
 }
 
 impl Message {
     fn topic_hash(&self, behaviour: &Behaviour) -> TopicHash {
         match self {
             Message::Commitments(_) => behaviour.commitments_topic.hash(),
+            Message::Promises(_) => behaviour.promises_topic.hash(),
         }
     }
 
     fn encode(&self) -> Vec<u8> {
         match self {
             Message::Commitments(message) => message.encode(),
+            Message::Promises(message) => message.encode(),
         }
     }
 }
@@ -90,8 +94,6 @@ impl MessageValidator {
 #[derive(derive_more::Debug)]
 pub(crate) enum Event {
     Message {
-        // will be used in the future
-        #[allow(dead_code)]
         source: PeerId,
         validator: MessageValidator,
     },
@@ -108,6 +110,7 @@ pub(crate) struct Behaviour {
     // TODO: consider to limit queue
     message_queue: VecDeque<Message>,
     commitments_topic: IdentTopic,
+    promises_topic: IdentTopic,
 }
 
 impl Behaviour {
@@ -117,6 +120,7 @@ impl Behaviour {
         router_address: Address,
     ) -> anyhow::Result<Self> {
         let commitments_topic = Self::topic_with_router("commitments", router_address);
+        let promises_topic = Self::topic_with_router("promises", router_address);
 
         let inner = ConfigBuilder::default()
             // dedup messages
@@ -135,12 +139,14 @@ impl Behaviour {
             .with_peer_score(PeerScoreParams::default(), PeerScoreThresholds::default())
             .map_err(|e| anyhow!("`gossipsub` scoring parameters error: {e}"))?;
         inner.subscribe(&commitments_topic)?;
+        inner.subscribe(&promises_topic)?;
 
         Ok(Self {
             inner,
             peer_score,
             message_queue: VecDeque::new(),
             commitments_topic,
+            promises_topic,
         })
     }
 
@@ -170,6 +176,8 @@ impl Behaviour {
 
                 let res = if topic == self.commitments_topic.hash() {
                     SignedValidatorMessage::decode(&mut &data[..]).map(Message::Commitments)
+                } else if topic == self.promises_topic.hash() {
+                    SignedPromise::decode(&mut &data[..]).map(Message::Promises)
                 } else {
                     unreachable!("topic we never subscribed to: {topic:?}");
                 };

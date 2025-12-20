@@ -20,40 +20,55 @@ use crate::{
     db_sync::{Multiaddr, PeerId},
     peer_score,
     utils::ParityScaleCodec,
+    validator,
 };
-use ethexe_common::injected::{RpcOrNetworkInjectedTx, SignedInjectedTransaction};
+use anyhow::Context as _;
+use ethexe_common::{
+    Address, HashOf,
+    injected::{AddressedInjectedTransaction, InjectedTransaction, SignedInjectedTransaction},
+};
 use libp2p::{
     StreamProtocol,
     core::{Endpoint, transport::PortUse},
     request_response,
-    request_response::{InboundFailure, Message, OutboundFailure, ProtocolSupport},
+    request_response::{
+        InboundFailure, Message, OutboundFailure, OutboundRequestId, ProtocolSupport,
+    },
     swarm::{
         ConnectionDenied, ConnectionId, FromSwarm, NetworkBehaviour, THandler, THandlerInEvent,
         THandlerOutEvent, ToSwarm,
     },
 };
+use lru::LruCache;
 use parity_scale_codec::{Decode, Encode};
-use std::task::{Context, Poll, ready};
+use std::{
+    collections::HashSet,
+    num::NonZeroUsize,
+    task::{Context, Poll, ready},
+};
 
 const STREAM_PROTOCOL: StreamProtocol =
     StreamProtocol::new(concat!("/ethexe/injected-tx/", env!("CARGO_PKG_VERSION")));
+const MAX_PENDING_REQUESTS: NonZeroUsize = NonZeroUsize::new(20).unwrap();
+const MAX_VALIDATORS: NonZeroUsize = NonZeroUsize::new(50).unwrap();
+const MAX_TRANSACTIONS_PER_VALIDATOR: NonZeroUsize = NonZeroUsize::new(20).unwrap();
 
 #[derive(Debug, Encode, Decode)]
 pub(crate) enum Request {
-    InjectedTransaction(SignedInjectedTransaction),
+    SubmitTx(SignedInjectedTransaction),
 }
 
 #[derive(Debug, Encode, Decode)]
-pub(crate) enum InjectedTransactionResponse {
+pub(crate) enum TxResponse {
     Accepted,
 }
 
 #[derive(Debug, Encode, Decode)]
 pub(crate) enum Response {
-    InjectedTransaction(InjectedTransactionResponse),
+    TxAccepted(TxResponse),
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Event {
     NewInjectedTransaction(SignedInjectedTransaction),
 }
@@ -63,6 +78,8 @@ type InnerBehaviour = request_response::Behaviour<ParityScaleCodec<Request, Resp
 pub(crate) struct Behaviour {
     inner: InnerBehaviour,
     peer_score: peer_score::Handle,
+    pending_requests: HashSet<OutboundRequestId>,
+    transaction_cache: LruCache<Address, LruCache<HashOf<InjectedTransaction>, ()>>,
 }
 
 impl Behaviour {
@@ -71,17 +88,49 @@ impl Behaviour {
             [(STREAM_PROTOCOL, ProtocolSupport::Full)],
             request_response::Config::default(),
         );
-        Self { inner, peer_score }
+        Self {
+            inner,
+            peer_score,
+            pending_requests: HashSet::new(),
+            transaction_cache: LruCache::new(MAX_VALIDATORS),
+        }
     }
 
-    pub fn send_transaction(&mut self, transaction: RpcOrNetworkInjectedTx) {
-        log::warn!("`send_transaction` is ignored for now: {transaction:?}");
+    pub fn send_transaction(
+        &mut self,
+        discovery: &validator::discovery::Behaviour,
+        transaction: AddressedInjectedTransaction,
+    ) -> anyhow::Result<()> {
+        let AddressedInjectedTransaction { recipient, tx } = transaction;
+        let tx_hash = tx.data().to_hash();
 
-        // TODO: send to actual peer when validator discovery is ready
-        // let peer: PeerId = PeerId::random();
-        //
-        // self.inner
-        //     .send_request(&peer, Request::InjectedTransaction(data));
+        anyhow::ensure!(
+            self.pending_requests.len() < MAX_PENDING_REQUESTS.get(),
+            "too many pending transactions"
+        );
+
+        if let Some(transactions) = self.transaction_cache.get_mut(&recipient)
+            && let Some(&()) = transactions.get(&tx_hash)
+        {
+            anyhow::bail!("transaction already sent");
+        }
+
+        let identity = discovery
+            .get_identity(recipient)
+            .context("validator not found")?;
+        let peer_id = identity.peer_id();
+        let addresses = identity.addresses().iter().cloned().collect();
+
+        let id = self
+            .inner
+            .send_request_with_addresses(&peer_id, Request::SubmitTx(tx), addresses);
+        self.pending_requests.insert(id);
+
+        self.transaction_cache
+            .get_or_insert_mut(recipient, || LruCache::new(MAX_TRANSACTIONS_PER_VALIDATOR))
+            .put(tx_hash, ());
+
+        Ok(())
     }
 
     fn handle_inner_event(
@@ -100,11 +149,10 @@ impl Behaviour {
                     },
             } => {
                 return match request {
-                    Request::InjectedTransaction(transaction) => {
-                        let _res = self.inner.send_response(
-                            channel,
-                            Response::InjectedTransaction(InjectedTransactionResponse::Accepted),
-                        );
+                    Request::SubmitTx(transaction) => {
+                        let _res = self
+                            .inner
+                            .send_response(channel, Response::TxAccepted(TxResponse::Accepted));
                         Poll::Ready(Event::NewInjectedTransaction(transaction))
                     }
                 };
@@ -114,26 +162,35 @@ impl Behaviour {
                 connection_id: _,
                 message:
                     Message::Response {
-                        request_id: _,
+                        request_id,
                         response,
                     },
             } => {
-                match response {
-                    Response::InjectedTransaction(InjectedTransactionResponse::Accepted) => {}
-                };
+                assert!(
+                    self.pending_requests.remove(&request_id),
+                    "unknown request id"
+                );
+
+                let Response::TxAccepted(TxResponse::Accepted) = response;
             }
             request_response::Event::OutboundFailure {
                 peer,
                 connection_id: _,
-                request_id: _,
-                error: OutboundFailure::UnsupportedProtocols,
+                request_id,
+                error,
             } => {
-                log::debug!(
-                    "request to {peer} failed because it doesn't support {STREAM_PROTOCOL} protocol"
+                assert!(
+                    self.pending_requests.remove(&request_id),
+                    "unknown request id"
                 );
-                self.peer_score.unsupported_protocol(peer);
+
+                if let OutboundFailure::UnsupportedProtocols = error {
+                    log::debug!(
+                        "request to {peer} failed because it doesn't support {STREAM_PROTOCOL} protocol"
+                    );
+                    self.peer_score.unsupported_protocol(peer);
+                }
             }
-            request_response::Event::OutboundFailure { .. } => {}
             request_response::Event::InboundFailure {
                 peer,
                 connection_id: _,
@@ -274,10 +331,10 @@ mod tests {
         let transaction = signer.signed_message(pub_key, transaction).unwrap();
 
         // TODO: replace with `Behaviour::send_transaction()` when it works
-        alice.behaviour_mut().inner.send_request(
-            bob.local_peer_id(),
-            Request::InjectedTransaction(transaction.clone()),
-        );
+        alice
+            .behaviour_mut()
+            .inner
+            .send_request(bob.local_peer_id(), Request::SubmitTx(transaction.clone()));
         tokio::spawn(alice.loop_on_next());
 
         let event = bob.next_behaviour_event().await;

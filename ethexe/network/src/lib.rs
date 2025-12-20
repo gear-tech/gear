@@ -37,7 +37,7 @@ use anyhow::{Context, anyhow};
 use ethexe_common::{
     Address, BlockHeader, ValidatorsVec,
     ecdsa::PublicKey,
-    injected::{RpcOrNetworkInjectedTx, SignedInjectedTransaction},
+    injected::{AddressedInjectedTransaction, SignedInjectedTransaction, SignedPromise},
     network::{SignedValidatorMessage, VerifiedValidatorMessage},
 };
 use ethexe_signer::Signer;
@@ -76,8 +76,14 @@ impl<T> NetworkServiceDatabase for T where T: DbSyncDatabase + ValidatorDatabase
 
 #[derive(derive_more::Debug, Eq, PartialEq, Clone)]
 pub enum NetworkEvent {
+    // gossipsub
     ValidatorMessage(VerifiedValidatorMessage),
+    PromiseMessage(SignedPromise),
+    // validator-identity
+    ValidatorIdentityUpdated(Address),
+    // injected-tx
     InjectedTransaction(SignedInjectedTransaction),
+    // peer-score
     PeerBlocked(PeerId),
     PeerConnected(PeerId),
 }
@@ -352,7 +358,7 @@ impl NetworkService {
             BehaviourEvent::DbSync(_event) => {}
             BehaviourEvent::Injected(event) => return self.handle_injected_event(event),
             BehaviourEvent::ValidatorDiscovery(event) => {
-                self.handle_validator_discovery_event(event)
+                return self.handle_validator_discovery_event(event);
             }
         }
 
@@ -395,6 +401,7 @@ impl NetworkService {
                         info.agent_version
                     );
                     behaviour.peer_score.handle().unsupported_protocol(peer_id);
+                    return;
                 }
 
                 // add listen addresses of new peers to KadDHT
@@ -482,6 +489,11 @@ impl NetworkService {
                             self.validator_topic.verify_message(source, message);
                         (acceptance, message.map(NetworkEvent::ValidatorMessage))
                     }
+                    gossipsub::Message::Promises(message) => {
+                        // TODO: ensure only validator sends it
+                        let acceptance = gossipsub::MessageAcceptance::Accept;
+                        (acceptance, Some(NetworkEvent::PromiseMessage(message)))
+                    }
                 })
             }
             gossipsub::Event::PublishFailure {
@@ -505,13 +517,20 @@ impl NetworkService {
         }
     }
 
-    fn handle_validator_discovery_event(&mut self, event: validator::discovery::Event) {
+    fn handle_validator_discovery_event(
+        &mut self,
+        event: validator::discovery::Event,
+    ) -> Option<NetworkEvent> {
         match event {
             validator::discovery::Event::GetIdentitiesStarted => {}
-            validator::discovery::Event::IdentityUpdated { .. } => {}
+            validator::discovery::Event::IdentityUpdated { address } => {
+                return Some(NetworkEvent::ValidatorIdentityUpdated(address));
+            }
             validator::discovery::Event::PutIdentityStarted => {}
             validator::discovery::Event::PutIdentityTicksAtMax => {}
         }
+
+        None
     }
 
     pub fn local_peer_id(&self) -> PeerId {
@@ -542,9 +561,18 @@ impl NetworkService {
         self.swarm.behaviour_mut().gossipsub.publish(data.into())
     }
 
-    pub fn send_injected_transaction(&mut self, data: RpcOrNetworkInjectedTx) {
+    pub fn send_injected_transaction(
+        &mut self,
+        data: AddressedInjectedTransaction,
+    ) -> anyhow::Result<()> {
         let behaviour = self.swarm.behaviour_mut();
-        behaviour.injected.send_transaction(data);
+        behaviour
+            .injected
+            .send_transaction(&behaviour.validator_discovery, data)
+    }
+
+    pub fn publish_promise(&mut self, promise: SignedPromise) {
+        self.swarm.behaviour_mut().gossipsub.publish(promise)
     }
 }
 
