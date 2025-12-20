@@ -75,13 +75,8 @@ async fn test_command_upload_code_works() -> Result<()> {
             .stdout
             .convert()
             .contains("Submitted Gear::upload_code"),
-        r#"code should be uploaded, but got:
-        STDERR: '{stderr}'
-        STDOUT: '{stdout}'
-        NODE LOGS: '{node_logs}'"#,
-        stderr = output.stderr.convert(),
-        stdout = output.stdout.convert(),
-        node_logs = node.logs().unwrap_or_default().join("\n"),
+        "code should be uploaded, but got: {}",
+        output.stderr.convert()
     );
     Ok(())
 }

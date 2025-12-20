@@ -323,8 +323,15 @@ jobs:
         run: cargo nextest run --workspace --all-targets --all-features -E 'not package(/fuzz/)' ${{ matrix.profiles.flags }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          GEAR_NODE_WRAPPER_LOG: ""
-          RUST_LOG: gear=trace,pallet=trace,ethexe=trace,gwasm=trace,runtime=trace
+          GEAR_NODE_WRAPPER_LOG: info
+          RUST_LOG: "gear=trace,\
+            pallet=trace,\
+            gsdk=trace,\
+            gcli=trace,\
+            ethexe=trace,\
+            runtime=trace,\
+            syscalls=trace,\
+            gwasm=trace"
 
       - name: "ACTIONS: Upload junit.xml"
         if: "!cancelled()"
