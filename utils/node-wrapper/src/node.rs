@@ -95,7 +95,9 @@ impl Node {
             .command
             .env(
                 "RUST_LOG",
-                env::var("RUST_LOG").unwrap_or_else(|_| "".into()),
+                env::var_os("GEAR_NODE_WRAPPER_LOG")
+                    .or_else(|| env::var_os("RUST_LOG"))
+                    .unwrap_or_default(),
             )
             .args(args)
             .stderr(Stdio::piped())
