@@ -35,6 +35,10 @@ tracing.workspace = true
 derive_more.workspace = true
 gear-workspace-hack.workspace = true
 
+# metrics
+metrics.workspace = true
+metrics-derive.workspace = true
+
 [dev-dependencies]
 gear-utils.workspace = true
 wasmparser.workspace = true
