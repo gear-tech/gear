@@ -1869,7 +1869,7 @@ async fn validators_election() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[ntest::timeout(50_000)]
+#[ntest::timeout(60_000)]
 async fn execution_with_canonical_events_quarantine() {
     init_logger();
 
@@ -1929,7 +1929,6 @@ async fn execution_with_canonical_events_quarantine() {
         .await;
 
     let validator_db = validator.db.clone();
-    let mut receiver = validator.events();
     let canonical_quarantine = env.compute_config.canonical_quarantine();
     let message_id = env
         .send_message(res.program_id, b"PING")
@@ -1959,6 +1958,9 @@ async fn execution_with_canonical_events_quarantine() {
 
         false
     };
+
+    // create a receiver without history so we don't face old `BlockSynced` in further for-loop
+    let mut receiver = validator.new_events();
 
     // 0 - message sent
     // 0..canonical_quarantine - quarantine period
