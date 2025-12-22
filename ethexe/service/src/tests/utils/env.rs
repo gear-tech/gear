@@ -19,7 +19,7 @@
 use crate::{
     RouterDataProvider, Service,
     tests::utils::{
-        TestingEvent, events,
+        InfiniteStreamExt, TestingEvent, events,
         events::{ObserverEventReceiver, ObserverEventSender, TestingEventReceiver},
     },
 };
@@ -570,12 +570,10 @@ impl TestEnv {
     /// Force new `blocks_amount` blocks generation on RPC node
     pub async fn skip_blocks(&self, blocks_amount: u32) {
         if self.continuous_block_generation {
-            let mut blocks_count = 0;
             self.new_observer_events()
-                .wait_block(|_| {
-                    blocks_count += 1;
-                    blocks_count == blocks_amount
-                })
+                .map_block()
+                .take(blocks_amount as usize)
+                .collect::<Vec<_>>()
                 .await;
         } else {
             self.provider
@@ -1035,13 +1033,13 @@ impl Node {
         if self.fast_sync {
             self.latest_fast_synced_block = Some(
                 self.events()
-                    .wait_map(|event| event.try_unwrap_fast_sync_done().ok())
+                    .find_map(|event| event.try_unwrap_fast_sync_done().ok())
                     .await,
             );
         }
 
         self.events()
-            .wait(|e| matches!(e, TestingEvent::ServiceStarted))
+            .find(|e| matches!(e, TestingEvent::ServiceStarted))
             .await;
 
         // fast sync implies network has connections
@@ -1199,12 +1197,13 @@ pub struct UploadCodeInfo {
 }
 
 impl WaitForUploadCode {
-    pub async fn wait_for(mut self) -> anyhow::Result<UploadCodeInfo> {
+    pub async fn wait_for(self) -> anyhow::Result<UploadCodeInfo> {
         log::info!("📗 Waiting for code upload, code_id {}", self.code_id);
 
         let valid = self
             .receiver
-            .wait_map_block_synced(|event| match event {
+            .map_block_synced()
+            .find_map(|event| match event {
                 BlockEvent::Router(RouterEvent::CodeGotValidated { code_id, valid })
                     if code_id == self.code_id =>
                 {
@@ -1234,12 +1233,13 @@ pub struct ProgramCreationInfo {
 }
 
 impl WaitForProgramCreation {
-    pub async fn wait_for(mut self) -> anyhow::Result<ProgramCreationInfo> {
+    pub async fn wait_for(self) -> anyhow::Result<ProgramCreationInfo> {
         log::info!("📗 Waiting for program {} creation", self.program_id);
 
         let code_id = self
             .receiver
-            .wait_map_block_synced(|event| {
+            .map_block_synced()
+            .find_map(|event| {
                 match event {
                     BlockEvent::Router(RouterEvent::ProgramCreated { actor_id, code_id })
                         if actor_id == self.program_id =>
@@ -1283,12 +1283,13 @@ impl WaitForReplyTo {
         }
     }
 
-    pub async fn wait_for(mut self) -> anyhow::Result<ReplyInfo> {
+    pub async fn wait_for(self) -> anyhow::Result<ReplyInfo> {
         log::info!("📗 Waiting for reply to message {}", self.message_id);
 
         let info = self
             .receiver
-            .wait_map_block_synced(|event| match event {
+            .map_block_synced()
+            .find_map(|event| match event {
                 BlockEvent::Mirror {
                     actor_id,
                     event:

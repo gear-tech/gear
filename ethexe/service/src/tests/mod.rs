@@ -18,14 +18,15 @@
 
 //! Integration tests.
 
+use futures::StreamExt;
 pub(crate) mod utils;
 
 use crate::{
     Service,
     config::{self, Config},
     tests::utils::{
-        AnnounceId, EnvNetworkConfig, Node, NodeConfig, TestEnv, TestEnvConfig, TestingEvent,
-        TestingRpcEvent, ValidatorsConfig, WaitForReplyTo, Wallets, init_logger,
+        AnnounceId, EnvNetworkConfig, InfiniteStreamExt, Node, NodeConfig, TestEnv, TestEnvConfig,
+        TestingEvent, TestingRpcEvent, ValidatorsConfig, WaitForReplyTo, Wallets, init_logger,
     },
 };
 use alloy::{
@@ -289,7 +290,7 @@ async fn uninitialized_program() {
         }
         .encode();
 
-        let mut receiver = env.new_observer_events();
+        let receiver = env.new_observer_events();
 
         let init_res = env
             .create_program_with_params(code_id, H256([0x11; 32]), None, 500_000_000_000_000)
@@ -304,22 +305,25 @@ async fn uninitialized_program() {
             .unwrap();
         let mirror = env.ethereum.mirror(init_res.program_id.try_into().unwrap());
 
-        let mut msgs_for_reply = vec![];
-
-        receiver
-            .wait_block_synced(|event| match event {
-                BlockEvent::Mirror {
-                    actor_id,
-                    event:
-                        MirrorEvent::Message {
-                            id, destination, ..
-                        },
-                } if *actor_id == init_res.program_id && *destination == env.sender_id => {
-                    msgs_for_reply.push(*id);
-                    msgs_for_reply.len() == 3
+        let msgs_for_reply: Vec<_> = receiver
+            .clone()
+            .map_block_synced()
+            .filter_map(|event| async move {
+                match event {
+                    BlockEvent::Mirror {
+                        actor_id,
+                        event:
+                            MirrorEvent::Message {
+                                id, destination, ..
+                            },
+                    } if actor_id == init_res.program_id && destination == env.sender_id => {
+                        Some(id)
+                    }
+                    _ => None,
                 }
-                _ => false,
             })
+            .take(3)
+            .collect()
             .await;
 
         // Handle message to uninitialized program.
@@ -343,7 +347,8 @@ async fn uninitialized_program() {
 
         // Success end of initialization.
         let code = receiver
-            .wait_map_block_synced(|event| match event {
+            .map_block_synced()
+            .find_map(|event| match event {
                 BlockEvent::Mirror {
                     actor_id,
                     event:
@@ -416,7 +421,7 @@ async fn mailbox() {
 
     let async_pid = res.program_id;
 
-    let mut receiver = env.new_observer_events();
+    let receiver = env.new_observer_events();
 
     let wait_for_mutex_request_command_reply = env
         .send_message(async_pid, &demo_async::Command::Mutex.encode())
@@ -430,7 +435,9 @@ async fn mailbox() {
     log::info!("📗 Waiting for announce with PING message committed");
     let (mut block, mut announce_hash) = (None, None);
     receiver
-        .wait_block_synced_with_header(|event, block_data| match event {
+        .clone()
+        .map_block_synced_with_header()
+        .find(|(event, block_data)| match event {
             BlockEvent::Mirror {
                 actor_id,
                 event:
@@ -447,7 +454,7 @@ async fn mailbox() {
                     assert_eq!(*payload, original_mid.encode());
                 } else if *id == ping_expected_message_id {
                     assert_eq!(*payload, b"PING");
-                    block = Some(block_data);
+                    block = Some(*block_data);
                 } else {
                     panic!("Unexpected message id {id}");
                 }
@@ -583,7 +590,8 @@ async fn mailbox() {
 
     let mut claimed = false;
     let announce_hash = receiver
-        .wait_map_block_synced(|event| match event {
+        .map_block_synced()
+        .find_map(|event| match event {
             BlockEvent::Mirror {
                 actor_id,
                 event: MirrorEvent::ValueClaimed { claimed_id, .. },
@@ -662,12 +670,13 @@ async fn value_reply_program_to_user() {
     // 1_000 ETH
     const VALUE_SENT: u128 = 1_000 * ETHER;
 
-    let mut receiver = env.new_observer_events();
+    let receiver = env.new_observer_events();
 
     piggy_bank.owned_balance_top_up(VALUE_SENT).await.unwrap();
 
     receiver
-        .wait_block_synced(|e| matches!(e, BlockEvent::Router(RouterEvent::BatchCommitted { .. })))
+        .map_block_synced()
+        .find(|e| matches!(e, BlockEvent::Router(RouterEvent::BatchCommitted { .. })))
         .await;
 
     let on_eth_balance = piggy_bank.get_balance().await.unwrap();
@@ -760,12 +769,14 @@ async fn value_send_program_to_user_and_claimed() {
     // 1_000 ETH
     const VALUE_SENT: u128 = 1_000 * ETHER;
 
-    let mut receiver = env.new_observer_events();
+    let receiver = env.new_observer_events();
 
     piggy_bank.owned_balance_top_up(VALUE_SENT).await.unwrap();
 
     receiver
-        .wait_block_synced(|e| matches!(e, BlockEvent::Router(RouterEvent::BatchCommitted { .. })))
+        .clone()
+        .map_block_synced()
+        .find(|e| matches!(e, BlockEvent::Router(RouterEvent::BatchCommitted { .. })))
         .await;
 
     let on_eth_balance = piggy_bank.get_balance().await.unwrap();
@@ -817,7 +828,8 @@ async fn value_send_program_to_user_and_claimed() {
     piggy_bank.claim_value(mailboxed_msg_id).await.unwrap();
 
     receiver
-        .wait_block_synced(|e| {
+        .map_block_synced()
+        .find(|e| {
             matches!(e, BlockEvent::Mirror {
                 actor_id,
                 event: MirrorEvent::ValueClaimed { claimed_id, .. },
@@ -889,12 +901,14 @@ async fn value_send_program_to_user_and_replied() {
     // 1_000 ETH
     const VALUE_SENT: u128 = 1_000 * ETHER;
 
-    let mut receiver = env.new_observer_events();
+    let receiver = env.new_observer_events();
 
     piggy_bank.owned_balance_top_up(VALUE_SENT).await.unwrap();
 
     receiver
-        .wait_block_synced(|e| matches!(e, BlockEvent::Router(RouterEvent::BatchCommitted { .. })))
+        .clone()
+        .map_block_synced()
+        .find(|e| matches!(e, BlockEvent::Router(RouterEvent::BatchCommitted { .. })))
         .await;
 
     let on_eth_balance = piggy_bank.get_balance().await.unwrap();
@@ -949,7 +963,8 @@ async fn value_send_program_to_user_and_replied() {
         .unwrap();
 
     receiver
-        .wait_block_synced(|e| {
+        .map_block_synced()
+        .find(|e| {
             matches!(e, BlockEvent::Mirror {
                 actor_id,
                 event: MirrorEvent::ValueClaimed { claimed_id, .. },
@@ -1021,12 +1036,13 @@ async fn incoming_transfers() {
     // 1_000 ETH
     const VALUE_SENT: u128 = 1_000 * ETHER;
 
-    let mut observer_events = env.new_observer_events();
+    let observer_events = env.new_observer_events();
 
     ping.owned_balance_top_up(VALUE_SENT).await.unwrap();
 
     observer_events
-        .wait_block_synced(|e| matches!(e, BlockEvent::Router(RouterEvent::BatchCommitted { .. })))
+        .map_block_synced()
+        .find(|e| matches!(e, BlockEvent::Router(RouterEvent::BatchCommitted { .. })))
         .await;
 
     let on_eth_balance = ping.get_balance().await.unwrap();
@@ -1470,7 +1486,7 @@ async fn send_injected_tx() {
     // Tx executable validation takes time, so wait for event.
     node1
         .events()
-        .wait(|event| {
+        .find(|event| {
             // TODO kuzmindev: after validators discovery will be done replace to wait for inclusion tx into announce from node1
             if let TestingEvent::Rpc(TestingRpcEvent::InjectedTransaction { transaction }) = event
                 && *transaction == tx_for_node1
@@ -1631,10 +1647,7 @@ async fn fast_sync() {
     }
 
     let latest_block = env.latest_block().await.hash;
-    alice
-        .events()
-        .wait_for_announce_computed(latest_block)
-        .await;
+    alice.events().find_announce_computed(latest_block).await;
 
     log::info!("Starting Bob (fast-sync)");
     let mut bob = env.new_node(NodeConfig::named("Bob").fast_sync());
@@ -1658,11 +1671,8 @@ async fn fast_sync() {
     }
 
     let latest_block = env.latest_block().await.hash;
-    alice
-        .events()
-        .wait_for_announce_computed(latest_block)
-        .await;
-    bob.events().wait_for_announce_computed(latest_block).await;
+    alice.events().find_announce_computed(latest_block).await;
+    bob.events().find_announce_computed(latest_block).await;
 
     log::info!("📗 Stopping Bob");
     bob.stop_service().await;
@@ -1692,10 +1702,7 @@ async fn fast_sync() {
     env.skip_blocks(100).await;
 
     let latest_block = env.latest_block().await.hash;
-    alice
-        .events()
-        .wait_for_announce_computed(latest_block)
-        .await;
+    alice.events().find_announce_computed(latest_block).await;
 
     log::info!("📗 Starting Bob again to check how it handles partially empty database");
     bob.start_service().await;
@@ -1711,11 +1718,8 @@ async fn fast_sync() {
     }
 
     let latest_block = env.latest_block().await.hash;
-    alice
-        .events()
-        .wait_for_announce_computed(latest_block)
-        .await;
-    bob.events().wait_for_announce_computed(latest_block).await;
+    alice.events().find_announce_computed(latest_block).await;
+    bob.events().find_announce_computed(latest_block).await;
 
     assert_chain(
         latest_block,
@@ -1805,7 +1809,8 @@ async fn validators_election() {
     env.force_new_block().await;
 
     env.new_observer_events()
-        .wait_block_synced(|event| {
+        .map_block_synced()
+        .find(|event| {
             matches!(
                 event,
                 BlockEvent::Router(RouterEvent::ValidatorsCommittedForEra { era_index: _ })
@@ -1909,7 +1914,8 @@ async fn execution_with_canonical_events_quarantine() {
         .await;
 
     env.new_observer_events()
-        .wait_block_synced(|event| {
+        .map_block_synced()
+        .find(|event| {
             matches!(
                 event,
                 BlockEvent::Mirror {
@@ -1925,7 +1931,7 @@ async fn execution_with_canonical_events_quarantine() {
     log::info!("📗 waiting announce for block {latest_block} computed");
     validator
         .events()
-        .wait_for_announce_computed(latest_block)
+        .find_announce_computed(latest_block)
         .await;
 
     let validator_db = validator.db.clone();
@@ -1967,19 +1973,19 @@ async fn execution_with_canonical_events_quarantine() {
     // canonical_quarantine - Process event
     // canonical_quarantine + 1 - PONG must be present
     for _ in 0..canonical_quarantine {
-        let block_hash = receiver.wait_for_block_synced().await;
+        let block_hash = receiver.find_block_synced().await;
 
         assert!(!check_for_pong(block_hash), "PONG received too early");
 
-        receiver.wait_for_announce_computed(block_hash).await;
+        receiver.find_announce_computed(block_hash).await;
         env.force_new_block().await;
     }
 
     // wait for block synced with PING msg processing
-    let _ = receiver.wait_for_block_synced().await;
+    let _ = receiver.find_block_synced().await;
 
     // wait for block with PONG
-    let block_hash = receiver.wait_for_block_synced().await;
+    let block_hash = receiver.find_block_synced().await;
     assert!(
         check_for_pong(block_hash),
         "PONG not received after quarantine"
@@ -2267,15 +2273,16 @@ async fn value_send_delayed() {
 
     assert_eq!(router_balance, VALUE_SENT);
 
-    let mut receiver = env.new_observer_events();
+    let receiver = env.new_observer_events();
 
     // Skip blocks to pass the delay
     env.provider
-        .anvil_mine(Some((demo_delayed_sender_ethexe::DELAY).into()), None)
+        .anvil_mine(Some(demo_delayed_sender_ethexe::DELAY.into()), None)
         .await
         .unwrap();
     receiver
-        .wait_block_synced(|e| matches!(e, BlockEvent::Router(RouterEvent::BatchCommitted { .. })))
+        .map_block_synced()
+        .find(|e| matches!(e, BlockEvent::Router(RouterEvent::BatchCommitted { .. })))
         .await;
 
     // Receiver should have the value now
@@ -2417,7 +2424,7 @@ async fn injected_tx_fungible_token() {
 
     // Listen for inclusion and check the expected payload.
     node.events()
-        .wait(|event| {
+        .find(|event| {
             if let TestingEvent::Consensus(ConsensusEvent::Promise(promise)) = event {
                 let promise = promise.data();
                 assert_eq!(promise.reply.payload, expected_event.encode());
@@ -2437,7 +2444,7 @@ async fn injected_tx_fungible_token() {
 
     let db = node.db.clone();
     node.events()
-        .wait(|event| {
+        .find(|event| {
             if let TestingEvent::Observer(ObserverEvent::BlockSynced(synced_block)) = event {
                 let Some(block_events) = db.block_events(*synced_block) else {
                     return false;
@@ -2623,7 +2630,7 @@ async fn announces_conflicts() {
 
         // Validators 1..=6 must reject this announce
         futures::future::join_all(receivers.iter_mut().map(|receiver| {
-            receiver.wait(|event| {
+            receiver.find(|event| {
                 matches!(
                     event,
                     TestingEvent::Consensus(ConsensusEvent::AnnounceRejected(rejected_announce_hash))
@@ -2655,7 +2662,7 @@ async fn announces_conflicts() {
         let latest_block = env.latest_block().await.hash;
         let mut latest_computed_announce_hash = HashOf::zero();
         for receiver in &mut receivers {
-            let announce_hash = receiver.wait_for_announce_computed(latest_block).await;
+            let announce_hash = receiver.find_announce_computed(latest_block).await;
             assert!(
                 latest_computed_announce_hash == HashOf::zero()
                     || latest_computed_announce_hash == announce_hash,
@@ -2719,7 +2726,7 @@ async fn announces_conflicts() {
             })
             .await;
         for receiver in &mut receivers {
-            receiver.wait_for_announce_computed(announce6_hash).await;
+            receiver.find_announce_computed(announce6_hash).await;
         }
 
         // Commitment does not sent by validator 6,
@@ -2752,7 +2759,7 @@ async fn announces_conflicts() {
 
         // Validators 1..=5 must accept this announce, as soon as parent is known base announce
         futures::future::join_all(receivers.iter_mut().map(|receiver| {
-            receiver.wait(|event| {
+            receiver.find(|event| {
                 matches!(
                     event,
                     TestingEvent::Consensus(ConsensusEvent::AnnounceAccepted(announce_hash))
@@ -2985,12 +2992,9 @@ async fn catch_up_test_case(commitment_delay_limit: u32) {
 
     // Wait until both stops processing
     let latest_block = env.latest_block().await.hash;
-    let latest_announce_hash = bob.events().wait_for_announce_computed(latest_block).await;
+    let latest_announce_hash = bob.events().find_announce_computed(latest_block).await;
     assert_eq!(
-        alice
-            .events()
-            .wait_for_announce_computed(latest_block)
-            .await,
+        alice.events().find_announce_computed(latest_block).await,
         latest_announce_hash
     );
 
@@ -3007,10 +3011,7 @@ async fn catch_up_test_case(commitment_delay_limit: u32) {
 
     // Wait until Alice stop processing
     let latest_block = env.latest_block().await.hash;
-    alice
-        .events()
-        .wait_for_announce_computed(latest_block)
-        .await;
+    alice.events().find_announce_computed(latest_block).await;
 
     log::info!("📗 Stopping Alice");
     alice.stop_service().await;
@@ -3073,9 +3074,7 @@ async fn catch_up_test_case(commitment_delay_limit: u32) {
 
     log::info!("📗 Waiting for two rejected announces from Bob");
     for _ in 0..2 {
-        bob.events()
-            .wait_for_announce_rejected(AnnounceId::Any)
-            .await;
+        bob.events().find_announce_rejected(AnnounceId::Any).await;
     }
 
     log::info!("📗 Sending third PING message, one more attempt for Bob to catch up Alice");
@@ -3132,20 +3131,17 @@ async fn catch_up_test_case(commitment_delay_limit: u32) {
     }
 
     let latest_block = env.latest_block().await.hash;
-    let latest_announce_hash = alice
-        .events()
-        .wait_for_announce_computed(latest_block)
-        .await;
+    let latest_announce_hash = alice.events().find_announce_computed(latest_block).await;
 
     if commitment_delay_limit == 3 {
         log::info!("📗 Bob accepts announce from Alice at last");
         bob.events()
-            .wait_for_announce_accepted(latest_announce_hash)
+            .find_announce_accepted(latest_announce_hash)
             .await;
     } else if commitment_delay_limit == 5 {
         log::info!("📗 Bob still rejects announce from Alice");
         bob.events()
-            .wait_for_announce_rejected(latest_announce_hash)
+            .find_announce_rejected(latest_announce_hash)
             .await;
     } else {
         unreachable!();

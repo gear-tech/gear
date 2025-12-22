@@ -31,7 +31,13 @@ use ethexe_network::NetworkEvent;
 use ethexe_observer::ObserverEvent;
 use ethexe_prometheus::PrometheusEvent;
 use ethexe_rpc::RpcEvent;
+use futures::{Stream, StreamExt, future::Either, stream, stream::FusedStream};
 use gprimitives::H256;
+use std::{
+    iter,
+    pin::Pin,
+    task::{Context, Poll, ready},
+};
 
 pub type TestingEventSender = EventSender<TestingEvent>;
 pub type TestingEventReceiver = EventReceiver<TestingEvent>;
@@ -99,6 +105,25 @@ pub enum AnnounceId {
     BlockHash(H256),
 }
 
+pub trait InfiniteStreamExt: StreamExt + Sized + Unpin {
+    #[must_use]
+    async fn find_map<U>(&mut self, mut f: impl FnMut(Self::Item) -> Option<U>) -> U {
+        loop {
+            let item = self.next().await.expect("always Some");
+            if let Some(res) = f(item) {
+                return res;
+            }
+        }
+    }
+
+    async fn find(&mut self, mut f: impl FnMut(&Self::Item) -> bool) -> Self::Item {
+        self.find_map(|item| if f(&item) { Some(item) } else { None })
+            .await
+    }
+}
+
+impl<T: StreamExt + Sized + Unpin> InfiniteStreamExt for T {}
+
 pub fn channel<T>(db: Database) -> (EventSender<T>, EventReceiver<T>) {
     let (mut tx, rx) = async_broadcast::broadcast(1024);
     tx.set_overflow(true);
@@ -122,48 +147,45 @@ pub struct EventReceiver<T> {
     db: Database,
 }
 
-impl<T: Clone> EventReceiver<T> {
-    pub fn new_receiver(&self) -> Self {
-        let inner = self.inner.new_receiver();
-        let db = self.db.clone();
-        Self { inner, db }
-    }
+impl<T: Clone> Stream for EventReceiver<T> {
+    type Item = T;
 
-    async fn recv(&mut self) -> T {
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
         loop {
-            match self.inner.recv_direct().await {
-                Ok(event) => break event,
-                Err(RecvError::Closed) => panic!("service unexpectedly closed"),
-                Err(RecvError::Overflowed(skipped)) => {
+            let res = ready!(Pin::new(&mut self.inner).poll_recv(cx));
+            match res {
+                Some(Ok(event)) => break Poll::Ready(Some(event)),
+                None | Some(Err(RecvError::Closed)) => panic!("service unexpectedly closed"),
+                Some(Err(RecvError::Overflowed(skipped))) => {
                     tracing::trace!("channel overflowed and skipped {skipped} events");
                     continue;
                 }
             }
         }
     }
+}
 
-    #[must_use]
-    pub async fn wait_map<U>(&mut self, mut f: impl FnMut(T) -> Option<U>) -> U {
-        loop {
-            let event = self.recv().await;
-            if let Some(res) = f(event) {
-                return res;
-            }
-        }
+impl<T: Clone> FusedStream for EventReceiver<T> {
+    fn is_terminated(&self) -> bool {
+        false
     }
+}
 
-    pub async fn wait(&mut self, mut f: impl FnMut(&T) -> bool) -> T {
-        self.wait_map(|e| f(&e).then_some(e)).await
+impl<T: Clone> EventReceiver<T> {
+    pub fn new_receiver(&self) -> Self {
+        let inner = self.inner.new_receiver();
+        let db = self.db.clone();
+        Self { inner, db }
     }
 }
 
 impl TestingEventReceiver {
-    async fn wait_for_announce<F>(&mut self, id: AnnounceId, event_to_hash: F) -> HashOf<Announce>
+    async fn find_announce<F>(&mut self, id: AnnounceId, event_to_hash: F) -> HashOf<Announce>
     where
         F: Fn(TestingEvent) -> Option<HashOf<Announce>>,
     {
         let db = self.db.clone();
-        self.wait_map(|event| {
+        self.find_map(|event| {
             let announce_hash = event_to_hash(event)?;
 
             match id {
@@ -184,13 +206,10 @@ impl TestingEventReceiver {
         .await
     }
 
-    pub async fn wait_for_announce_computed(
-        &mut self,
-        id: impl Into<AnnounceId>,
-    ) -> HashOf<Announce> {
+    pub async fn find_announce_computed(&mut self, id: impl Into<AnnounceId>) -> HashOf<Announce> {
         let id = id.into();
         log::info!("📗 waiting for announce computed: {id:?}");
-        self.wait_for_announce(id, |event| {
+        self.find_announce(id, |event| {
             if let TestingEvent::Compute(ComputeEvent::AnnounceComputed(hash)) = event {
                 Some(hash)
             } else {
@@ -200,13 +219,10 @@ impl TestingEventReceiver {
         .await
     }
 
-    pub async fn wait_for_announce_rejected(
-        &mut self,
-        id: impl Into<AnnounceId>,
-    ) -> HashOf<Announce> {
+    pub async fn find_announce_rejected(&mut self, id: impl Into<AnnounceId>) -> HashOf<Announce> {
         let id = id.into();
         log::info!("📗 waiting for announce rejected: {id:?}");
-        self.wait_for_announce(id, |event| {
+        self.find_announce(id, |event| {
             if let TestingEvent::Consensus(ConsensusEvent::AnnounceRejected(hash)) = event {
                 Some(hash)
             } else {
@@ -216,14 +232,10 @@ impl TestingEventReceiver {
         .await
     }
 
-    pub async fn wait_for_announce_accepted(
-        &mut self,
-        id: impl Into<AnnounceId>,
-    ) -> HashOf<Announce> {
+    pub async fn find_announce_accepted(&mut self, id: impl Into<AnnounceId>) -> HashOf<Announce> {
         let id = id.into();
         log::info!("📗 waiting for announce accepted: {id:?}");
-
-        self.wait_for_announce(id, |event| {
+        self.find_announce(id, |event| {
             if let TestingEvent::Consensus(ConsensusEvent::AnnounceAccepted(hash)) = event {
                 Some(hash)
             } else {
@@ -233,8 +245,8 @@ impl TestingEventReceiver {
         .await
     }
 
-    pub async fn wait_for_block_synced(&mut self) -> H256 {
-        self.wait_map(|event| {
+    pub async fn find_block_synced(&mut self) -> H256 {
+        self.find_map(|event| {
             if let TestingEvent::Observer(ObserverEvent::BlockSynced(block_hash)) = event {
                 Some(block_hash)
             } else {
@@ -246,38 +258,24 @@ impl TestingEventReceiver {
 }
 
 impl ObserverEventReceiver {
-    pub async fn wait_map_block<U>(
-        &mut self,
-        mut f: impl FnMut(SimpleBlockData) -> Option<U>,
-    ) -> U {
-        self.wait_map(|event| {
-            let ObserverEvent::Block(block_data) = event else {
-                return None;
-            };
-
-            f(block_data)
+    pub fn map_block(self) -> impl Stream<Item = SimpleBlockData> {
+        self.filter_map(|event| async move {
+            if let ObserverEvent::Block(block_data) = event {
+                Some(block_data)
+            } else {
+                None
+            }
         })
-        .await
-    }
-
-    pub async fn wait_block(
-        &mut self,
-        mut f: impl FnMut(SimpleBlockData) -> bool,
-    ) -> SimpleBlockData {
-        self.wait_map_block(|data| f(data).then_some(data)).await
     }
 
     // NOTE: skipped by observer blocks are not iterated (possible on reorgs).
     // If your test depends on events in skipped blocks, you need to improve this method.
     // TODO #4554: iterate thru skipped blocks.
-    pub async fn wait_map_block_synced_with_header<U>(
-        &mut self,
-        mut f: impl FnMut(BlockEvent, SimpleBlockData) -> Option<U>,
-    ) -> U {
+    pub fn map_block_synced_with_header(self) -> impl Stream<Item = (BlockEvent, SimpleBlockData)> {
         let db = self.db.clone();
-        self.wait_map(|event| {
+        self.flat_map(move |event| {
             let ObserverEvent::BlockSynced(block_hash) = event else {
-                return None;
+                return Either::Left(stream::empty());
             };
 
             let header = db.block_header(block_hash).expect("Block header not found");
@@ -288,37 +286,13 @@ impl ObserverEventReceiver {
                 header,
             };
 
-            for event in events {
-                if let Some(res) = f(event, block_data) {
-                    return Some(res);
-                }
-            }
-
-            None
+            Either::Right(stream::iter(
+                events.into_iter().zip(iter::repeat(block_data)),
+            ))
         })
-        .await
     }
 
-    pub async fn wait_block_synced_with_header(
-        &mut self,
-        mut f: impl FnMut(&BlockEvent, SimpleBlockData) -> bool,
-    ) -> (BlockEvent, SimpleBlockData) {
-        self.wait_map_block_synced_with_header(|e, d| f(&e, d).then_some((e, d)))
-            .await
-    }
-
-    pub async fn wait_map_block_synced<U>(
-        &mut self,
-        mut f: impl FnMut(BlockEvent) -> Option<U>,
-    ) -> U {
-        self.wait_map_block_synced_with_header(|e, _h| f(e)).await
-    }
-
-    pub async fn wait_block_synced(
-        &mut self,
-        mut f: impl FnMut(&BlockEvent) -> bool,
-    ) -> BlockEvent {
-        self.wait_map_block_synced(|event| f(&event).then_some(event))
-            .await
+    pub fn map_block_synced(self) -> impl Stream<Item = BlockEvent> {
+        self.map_block_synced_with_header().map(|(event, _)| event)
     }
 }
