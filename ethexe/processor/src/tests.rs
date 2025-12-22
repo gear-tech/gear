@@ -19,7 +19,10 @@
 use crate::*;
 use anyhow::{Result, anyhow};
 use ethexe_common::{
-    DEFAULT_BLOCK_GAS_LIMIT, SimpleBlockData, db::*, events::{BlockRequestEvent, MirrorRequestEvent, RouterRequestEvent}, mock::*
+    DEFAULT_BLOCK_GAS_LIMIT, SimpleBlockData,
+    db::*,
+    events::{BlockRequestEvent, MirrorRequestEvent, RouterRequestEvent},
+    mock::*,
 };
 use ethexe_runtime_common::{RUNTIME_ID, state::MessageQueue};
 use gear_core::ids::prelude::CodeIdExt;
