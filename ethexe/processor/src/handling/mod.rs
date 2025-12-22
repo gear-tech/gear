@@ -48,7 +48,7 @@ impl ProcessingHandler {
         self.transitions
     }
 
-    fn controller(&mut self) -> TransitionController<'_, Box<dyn CASDatabase>> {
+    fn controller(&mut self) -> TransitionController<'_, dyn CASDatabase + '_> {
         TransitionController {
             storage: self.db.cas(),
             transitions: &mut self.transitions,
@@ -59,7 +59,7 @@ impl ProcessingHandler {
     fn update_state<T>(
         &mut self,
         program_id: ActorId,
-        f: impl FnOnce(&mut ProgramState, &Box<dyn CASDatabase>, &mut InBlockTransitions) -> T,
+        f: impl FnOnce(&mut ProgramState, &(dyn CASDatabase + '_), &mut InBlockTransitions) -> T,
     ) -> T {
         self.controller().update_state(program_id, f)
     }

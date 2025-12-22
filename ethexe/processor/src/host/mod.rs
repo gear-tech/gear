@@ -16,7 +16,6 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{ProcessorError, Result};
 use core_processor::common::JournalNote;
 use ethexe_common::{SimpleBlockData, gear::MessageType};
 use ethexe_db::CASDatabase;
@@ -36,6 +35,38 @@ pub mod runtime;
 
 mod context;
 mod threads;
+
+#[derive(thiserror::Error, Debug)]
+pub enum InstanceError {
+    #[error("failed to write call input: {0}")]
+    CallInputWrite(String),
+    #[error("host state should be set before call and reset after")]
+    HostStateNotSet,
+    #[error("couldn't find 'memory' export")]
+    MemoryExportNotFound,
+    #[error("'memory' export is not a wasm memory")]
+    InvalidMemory,
+    #[error("couldn't find `__indirect_function_table` export")]
+    IndirectFunctionTableNotFound,
+    #[error("`__indirect_function_table` is not table")]
+    InvalidIndirectFunctionTable,
+    #[error("couldn't find `__heap_base` export")]
+    HeapBaseNotFound,
+    #[error("`__heap_base` is not global")]
+    HeapBaseIsNotGlobal,
+    #[error("`__heap_base` is not i32")]
+    HeapBaseIsNotI32,
+    #[error("allocator should be set after `set_host_state`")]
+    AllocatorNotSet,
+    #[error("wasmtime error: {0}")]
+    Wasmtime(#[from] wasmtime::Error),
+    #[error("decoding runtime call output error: {0}")]
+    CallOutput(#[from] parity_scale_codec::Error),
+    #[error("sp allocator error: {0}")]
+    SpAllocator(#[from] sp_allocator::Error),
+}
+
+pub(super) type Result<T> = std::result::Result<T, InstanceError>;
 
 /// Returns wasm runtime bytes.
 ///
@@ -230,7 +261,7 @@ impl InstanceWrapper {
         })?;
 
         sp_wasm_interface::util::write_memory_from(&mut self.store, ptr, bytes)
-            .map_err(ProcessorError::CallInputWrite)?;
+            .map_err(InstanceError::CallInputWrite)?;
 
         let ptr = ptr.into_value().as_i32().expect("must be i32");
 
@@ -266,7 +297,7 @@ impl InstanceWrapper {
             .data_mut()
             .host_state
             .take()
-            .ok_or(ProcessorError::HostStateNotSet)?;
+            .ok_or(InstanceError::HostStateNotSet)?;
 
         Ok(host_state.allocation_stats())
     }
@@ -280,7 +311,7 @@ impl InstanceWrapper {
             .host_state
             .as_mut()
             .and_then(|s| s.allocator.take())
-            .ok_or(ProcessorError::AllocatorNotSet)?;
+            .ok_or(InstanceError::AllocatorNotSet)?;
 
         let res = f(self, &mut allocator);
 
@@ -297,12 +328,11 @@ impl InstanceWrapper {
         let memory_export = self
             .instance
             .get_export(&mut self.store, "memory")
-            .ok_or(ProcessorError::MemoryExportNotFound)?;
+            .ok_or(InstanceError::MemoryExportNotFound)?;
 
         let memory = memory_export
             .into_memory()
-            .ok_or(ProcessorError::InvalidMemory)?;
-
+            .ok_or(InstanceError::InvalidMemory)?;
         Ok(memory)
     }
 
@@ -310,12 +340,11 @@ impl InstanceWrapper {
         let table_export = self
             .instance
             .get_export(&mut self.store, "__indirect_function_table")
-            .ok_or(ProcessorError::IndirectFunctionTableNotFound)?;
+            .ok_or(InstanceError::IndirectFunctionTableNotFound)?;
 
         let table = table_export
             .into_table()
-            .ok_or(ProcessorError::InvalidIndirectFunctionTable)?;
-
+            .ok_or(InstanceError::InvalidIndirectFunctionTable)?;
         Ok(table)
     }
 
@@ -323,16 +352,15 @@ impl InstanceWrapper {
         let heap_base_export = self
             .instance
             .get_export(&mut self.store, "__heap_base")
-            .ok_or(ProcessorError::HeapBaseNotFound)?;
+            .ok_or(InstanceError::HeapBaseNotFound)?;
 
         let heap_base_global = heap_base_export
             .into_global()
-            .ok_or(ProcessorError::HeapBaseIsNotGlobal)?;
-
+            .ok_or(InstanceError::HeapBaseIsNotGlobal)?;
         let heap_base = heap_base_global
             .get(&mut self.store)
             .i32()
-            .ok_or(ProcessorError::HeapBaseIsNotI32)?;
+            .ok_or(InstanceError::HeapBaseIsNotI32)?;
 
         Ok(heap_base as u32)
     }

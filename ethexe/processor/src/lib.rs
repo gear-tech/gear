@@ -21,7 +21,7 @@
 use crate::handling::run::RunContext;
 use core::num::NonZero;
 use ethexe_common::{
-    Announce, CodeAndIdUnchecked, HashOf, ProgramStates, Schedule, SimpleBlockData,
+    CodeAndIdUnchecked, ProgramStates, Schedule, SimpleBlockData,
     ecdsa::VerifiedData,
     events::{BlockRequestEvent, MirrorRequestEvent},
     injected::InjectedTransaction,
@@ -44,6 +44,7 @@ use handling::{
 use host::InstanceCreator;
 
 pub use common::LocalOutcome;
+pub use host::InstanceError;
 
 pub mod host;
 
@@ -58,47 +59,6 @@ pub const DEFAULT_CHUNK_PROCESSING_THREADS: NonZero<usize> = NonZero::new(16).un
 
 #[derive(thiserror::Error, Debug)]
 pub enum ProcessorError {
-    // `OverlaidProcessor` errors
-    #[error("program isn't yet initialized")]
-    ProgramNotInitialized,
-    #[error("reply wasn't found")]
-    ReplyNotFound,
-    #[error("not found state hash for program ({0})")]
-    StateNotFound(ActorId),
-    #[error("not found program state by hash ({0}) in database")]
-    StatePartiallyPresentsInStorage(H256),
-    #[error("block is not synced ({0})")]
-    BlockIsNotSynced(H256),
-    #[error("not found program states for processing announce ({0})")]
-    AnnounceProgramStatesNotFound(HashOf<Announce>),
-    #[error("not found block start schedule for processing announce ({0})")]
-    AnnounceScheduleNotFound(HashOf<Announce>),
-    #[error("not found announce by hash ({0})")]
-    AnnounceNotFound(HashOf<Announce>),
-
-    // `InstanceWrapper` errors
-    #[error("couldn't find 'memory' export")]
-    MemoryExportNotFound,
-    #[error("'memory' export is not a wasm memory")]
-    InvalidMemory,
-    #[error("couldn't find `__indirect_function_table` export")]
-    IndirectFunctionTableNotFound,
-    #[error("`__indirect_function_table` is not table")]
-    InvalidIndirectFunctionTable,
-    #[error("couldn't find `__heap_base` export")]
-    HeapBaseNotFound,
-    #[error("`__heap_base` is not global")]
-    HeapBaseIsNotGlobal,
-    #[error("`__heap_base` is not i32")]
-    HeapBaseIsNotI32,
-    #[error("failed to write call input: {0}")]
-    CallInputWrite(String),
-    #[error("host state should be set before call and reset after")]
-    HostStateNotSet,
-    #[error("allocator should be set after `set_host_state`")]
-    AllocatorNotSet,
-
-    // `ProcessingHandler` errors
     #[error("db corrupted: missing code [OR] code existence wasn't checked on Eth, code id: {0}")]
     MissingCode(CodeId),
 
@@ -111,17 +71,32 @@ pub enum ProcessorError {
         code_id: CodeId,
     },
 
-    #[error("wasmtime error: {0}")]
-    Wasmtime(#[from] wasmtime::Error),
+    #[error("injected message {0:?} sent to uninitialized program")]
+    InjectedToUninitializedProgram(Box<InjectedTransaction>),
 
-    #[error("decoding runtime call output error: {0}")]
-    CallOutput(#[from] parity_scale_codec::Error),
+    #[error("calling or instantiating runtime error: {0}")]
+    Runtime(#[from] host::InstanceError),
 
-    #[error("sp allocator error: {0}")]
-    SpAllocator(#[from] sp_allocator::Error),
+    #[error("anyhow error: {0}")]
+    Anyhow(#[from] anyhow::Error),
 }
 
-pub(crate) type Result<T> = std::result::Result<T, ProcessorError>;
+#[derive(thiserror::Error, Debug)]
+pub enum ExecuteForReplyError {
+    #[error("program isn't yet initialized")]
+    ProgramNotInitialized,
+    #[error("reply wasn't found")]
+    ReplyNotFound,
+    #[error("not found state hash for program ({0})")]
+    ProgramStateHashNotFound(ActorId),
+    #[error("not found program state by hash ({0}) in database")]
+    ProgramStateNotFound(H256),
+
+    #[error("common processor error: {0}")]
+    Processor(#[from] ProcessorError),
+}
+
+type Result<T, E = ProcessorError> = std::result::Result<T, E>;
 
 #[derive(Clone, Debug)]
 pub struct ProcessorConfig {
@@ -371,7 +346,7 @@ impl OverlaidProcessor {
     pub async fn execute_for_reply(
         &mut self,
         executable: ExecutableDataForReply,
-    ) -> Result<ReplyInfo> {
+    ) -> Result<ReplyInfo, ExecuteForReplyError> {
         let ExecutableDataForReply {
             block,
             program_states,
@@ -386,17 +361,17 @@ impl OverlaidProcessor {
 
         let state_hash = program_states
             .get(&program_id)
-            .ok_or(ProcessorError::StateNotFound(program_id))?
+            .ok_or(ExecuteForReplyError::ProgramStateHashNotFound(program_id))?
             .hash;
 
         let state = self
             .0
             .db
             .program_state(state_hash)
-            .ok_or(ProcessorError::StatePartiallyPresentsInStorage(state_hash))?;
+            .ok_or(ExecuteForReplyError::ProgramStateNotFound(state_hash))?;
 
         if state.requires_init_message() {
-            return Err(ProcessorError::ProgramNotInitialized);
+            return Err(ExecuteForReplyError::ProgramNotInitialized);
         }
 
         let transitions = InBlockTransitions::new(
@@ -444,7 +419,7 @@ impl OverlaidProcessor {
                     })
                 })
             })
-            .ok_or(ProcessorError::ReplyNotFound)?;
+            .ok_or(ExecuteForReplyError::ReplyNotFound)?;
 
         Ok(res)
     }

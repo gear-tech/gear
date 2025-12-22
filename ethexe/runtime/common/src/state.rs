@@ -253,7 +253,7 @@ pub struct MessageQueueHashWithSize {
 }
 
 impl MessageQueueHashWithSize {
-    pub fn query<S: Storage>(&self, storage: &S) -> Result<MessageQueue> {
+    pub fn query<S: Storage + ?Sized>(&self, storage: &S) -> Result<MessageQueue> {
         self.hash.try_map_or_default(|hash| {
             storage.message_queue(hash).ok_or(anyhow!(
                 "failed to read ['MessageQueue'] from storage by hash"
@@ -261,7 +261,7 @@ impl MessageQueueHashWithSize {
         })
     }
 
-    pub fn modify_queue<S: Storage, T>(
+    pub fn modify_queue<S: Storage + ?Sized, T>(
         &mut self,
         storage: &S,
         f: impl FnOnce(&mut MessageQueue) -> T,
@@ -455,7 +455,7 @@ pub struct Dispatch {
 
 impl Dispatch {
     #[allow(clippy::too_many_arguments)]
-    pub fn new<S: Storage>(
+    pub fn new<S: Storage + ?Sized>(
         storage: &S,
         id: MessageId,
         source: ActorId,
@@ -486,7 +486,7 @@ impl Dispatch {
         })
     }
 
-    pub fn new_reply<S: Storage>(
+    pub fn new_reply<S: Storage + ?Sized>(
         storage: &S,
         replied_to: MessageId,
         source: ActorId,
@@ -629,7 +629,7 @@ impl MessageQueue {
         self.0.front()
     }
 
-    pub fn store<S: Storage>(self, storage: &S) -> MaybeHashOf<Self> {
+    pub fn store<S: Storage + ?Sized>(self, storage: &S) -> MaybeHashOf<Self> {
         MaybeHashOf::from_inner((!self.0.is_empty()).then(|| storage.write_message_queue(self)))
     }
 }
@@ -818,7 +818,7 @@ impl UserMailbox {
         self.0.is_empty()
     }
 
-    fn store<S: Storage>(self, storage: &S) -> MaybeHashOf<Self> {
+    fn store<S: Storage + ?Sized>(self, storage: &S) -> MaybeHashOf<Self> {
         MaybeHashOf::from_inner((!self.0.is_empty()).then(|| storage.write_user_mailbox(self)))
     }
 }
@@ -874,7 +874,7 @@ impl Mailbox {
         let _ = self.inner.insert(user_id, hash);
     }
 
-    pub fn remove_and_store_user_mailbox<S: Storage>(
+    pub fn remove_and_store_user_mailbox<S: Storage + ?Sized>(
         &mut self,
         storage: &S,
         user_id: ActorId,

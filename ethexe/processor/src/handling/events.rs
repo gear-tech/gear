@@ -37,8 +37,9 @@ impl ProcessingHandler {
         tx: InjectedTransaction,
     ) -> Result<()> {
         self.update_state(tx.destination, |state, storage, _| -> Result<()> {
-            // Build source from sender's Ethereum address
-            let is_init = state.requires_init_message();
+            if state.requires_init_message() {
+                return Err(ProcessorError::InjectedToUninitializedProgram(Box::new(tx)));
+            }
 
             let dispatch = Dispatch::new(
                 storage,
@@ -46,7 +47,7 @@ impl ProcessingHandler {
                 source,
                 tx.payload.0,
                 tx.value,
-                is_init,
+                false,
                 MessageType::Injected,
                 false,
             )?;
@@ -62,17 +63,20 @@ impl ProcessingHandler {
     pub(crate) fn handle_router_event(&mut self, event: RouterRequestEvent) -> Result<()> {
         match event {
             RouterRequestEvent::ProgramCreated { actor_id, code_id } => {
-                if !self.db.original_code_exists(code_id) {
+                if !self.db.code_valid(code_id).unwrap_or(false) {
                     return Err(ProcessorError::MissingCode(code_id));
                 }
 
+                log::trace!("Registering new program: {actor_id} with code {code_id}");
                 self.transitions.register_new(actor_id, code_id);
             }
             RouterRequestEvent::ValidatorsCommittedForEra { .. }
-            | RouterRequestEvent::CodeValidationRequested { .. }
-            | RouterRequestEvent::ComputationSettingsChanged { .. }
+            | RouterRequestEvent::CodeValidationRequested { .. } => {
+                log::trace!("Event is handled by other modules: {event:?}");
+            }
+            RouterRequestEvent::ComputationSettingsChanged { .. }
             | RouterRequestEvent::StorageSlotChanged => {
-                log::debug!("Handler not yet implemented: {event:?}");
+                log::warn!("Handler not yet implemented: {event:?}");
             }
         };
 

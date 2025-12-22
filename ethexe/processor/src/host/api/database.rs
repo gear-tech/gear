@@ -16,15 +16,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{
-    Result,
-    host::{api::MemoryWrap, threads},
-};
+use crate::host::{api::MemoryWrap, threads};
 use gprimitives::H256;
 use sp_wasm_interface::StoreData;
 use wasmtime::{Caller, Linker};
 
-pub fn link(linker: &mut Linker<StoreData>) -> Result<()> {
+pub fn link(linker: &mut Linker<StoreData>) -> Result<(), wasmtime::Error> {
     linker.func_wrap("env", "ext_database_read_by_hash_version_1", read_by_hash)?;
     linker.func_wrap("env", "ext_database_write_version_1", write)?;
     linker.func_wrap("env", "ext_get_block_height_version_1", get_block_height)?;

@@ -1127,7 +1127,16 @@ async fn executable_balance_injected_panic_not_charged() {
 
     // Init message should not panic
     handler
-        .handle_injected_transaction(user_id, injected(actor_id, ActorId::zero().encode(), 0))
+        .handle_mirror_event(
+            actor_id,
+            MirrorRequestEvent::MessageQueueingRequested {
+                id: H256::random().0.into(),
+                source: user_id,
+                payload: ActorId::zero().encode(),
+                value: 0,
+                call_reply: false,
+            },
+        )
         .unwrap();
     handler.transitions = processor
         .process_queues(

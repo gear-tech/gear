@@ -205,8 +205,8 @@ impl Database {
             .put(&Key::BlockSmallData(block_hash).to_bytes(), meta.encode());
     }
 
-    pub fn cas(&self) -> &Box<dyn CASDatabase> {
-        &self.cas
+    pub fn cas(&self) -> &dyn CASDatabase {
+        self.cas.as_ref()
     }
 }
 
@@ -352,17 +352,7 @@ impl CodesStorageRW for Database {
     }
 }
 
-impl dyn CASDatabase {
-    pub fn original_code_exists(&self, code_id: CodeId) -> bool {
-        self.contains(code_id.into())
-    }
-
-    pub fn original_code(&self, code_id: CodeId) -> Option<Vec<u8>> {
-        self.read(code_id.into())
-    }
-}
-
-impl Storage for dyn CASDatabase {
+impl<'a> Storage for dyn CASDatabase + 'a {
     fn program_state(&self, hash: H256) -> Option<ProgramState> {
         if hash.is_zero() {
             return Some(ProgramState::zero());
@@ -490,96 +480,33 @@ impl Storage for dyn CASDatabase {
     }
 }
 
+// Delegate Storage implementation to inner CASDatabase (mostly for testing purposes)
 impl Storage for Database {
-    fn program_state(&self, hash: H256) -> Option<ProgramState> {
-        self.cas.program_state(hash)
-    }
-
-    fn write_program_state(&self, state: ProgramState) -> H256 {
-        self.cas.write_program_state(state)
-    }
-
-    fn message_queue(&self, hash: HashOf<MessageQueue>) -> Option<MessageQueue> {
-        self.cas.message_queue(hash)
-    }
-
-    fn write_message_queue(&self, queue: MessageQueue) -> HashOf<MessageQueue> {
-        self.cas.write_message_queue(queue)
-    }
-
-    fn waitlist(&self, hash: HashOf<Waitlist>) -> Option<Waitlist> {
-        self.cas.waitlist(hash)
-    }
-
-    fn write_waitlist(&self, waitlist: Waitlist) -> HashOf<Waitlist> {
-        self.cas.write_waitlist(waitlist)
-    }
-
-    fn dispatch_stash(&self, hash: HashOf<DispatchStash>) -> Option<DispatchStash> {
-        self.cas.dispatch_stash(hash)
-    }
-
-    fn write_dispatch_stash(&self, stash: DispatchStash) -> HashOf<DispatchStash> {
-        self.cas.write_dispatch_stash(stash)
-    }
-
-    fn mailbox(&self, hash: HashOf<Mailbox>) -> Option<Mailbox> {
-        self.cas.mailbox(hash)
-    }
-
-    fn write_mailbox(&self, mailbox: Mailbox) -> HashOf<Mailbox> {
-        self.cas.write_mailbox(mailbox)
-    }
-
-    fn user_mailbox(&self, hash: HashOf<UserMailbox>) -> Option<UserMailbox> {
-        self.cas.user_mailbox(hash)
-    }
-
-    fn write_user_mailbox(&self, use_mailbox: UserMailbox) -> HashOf<UserMailbox> {
-        self.cas.write_user_mailbox(use_mailbox)
-    }
-
-    fn memory_pages(&self, hash: HashOf<MemoryPages>) -> Option<MemoryPages> {
-        self.cas.memory_pages(hash)
-    }
-
-    fn memory_pages_region(&self, hash: HashOf<MemoryPagesRegion>) -> Option<MemoryPagesRegion> {
-        self.cas.memory_pages_region(hash)
-    }
-
-    fn write_memory_pages(&self, pages: MemoryPages) -> HashOf<MemoryPages> {
-        self.cas.write_memory_pages(pages)
-    }
-
-    fn write_memory_pages_region(
-        &self,
-        pages_region: MemoryPagesRegion,
-    ) -> HashOf<MemoryPagesRegion> {
-        self.cas.write_memory_pages_region(pages_region)
-    }
-
-    fn allocations(&self, hash: HashOf<Allocations>) -> Option<Allocations> {
-        self.cas.allocations(hash)
-    }
-
-    fn write_allocations(&self, allocations: Allocations) -> HashOf<Allocations> {
-        self.cas.write_allocations(allocations)
-    }
-
-    fn payload(&self, hash: HashOf<Payload>) -> Option<Payload> {
-        self.cas.payload(hash)
-    }
-
-    fn write_payload(&self, payload: Payload) -> HashOf<Payload> {
-        self.cas.write_payload(payload)
-    }
-
-    fn page_data(&self, hash: HashOf<PageBuf>) -> Option<PageBuf> {
-        self.cas.page_data(hash)
-    }
-
-    fn write_page_data(&self, data: PageBuf) -> HashOf<PageBuf> {
-        self.cas.write_page_data(data)
+    delegate::delegate! {
+        to self.cas {
+            fn program_state(&self, hash: H256) -> Option<ProgramState>;
+            fn write_program_state(&self, state: ProgramState) -> H256;
+            fn message_queue(&self, hash: HashOf<MessageQueue>) -> Option<MessageQueue>;
+            fn write_message_queue(&self, queue: MessageQueue) -> HashOf<MessageQueue>;
+            fn waitlist(&self, hash: HashOf<Waitlist>) -> Option<Waitlist>;
+            fn write_waitlist(&self, waitlist: Waitlist) -> HashOf<Waitlist>;
+            fn dispatch_stash(&self, hash: HashOf<DispatchStash>) -> Option<DispatchStash>;
+            fn write_dispatch_stash(&self, stash: DispatchStash) -> HashOf<DispatchStash>;
+            fn mailbox(&self, hash: HashOf<Mailbox>) -> Option<Mailbox>;
+            fn write_mailbox(&self, mailbox: Mailbox) -> HashOf<Mailbox>;
+            fn user_mailbox(&self, hash: HashOf<UserMailbox>) -> Option<UserMailbox>;
+            fn write_user_mailbox(&self, use_mailbox: UserMailbox) -> HashOf<UserMailbox>;
+            fn memory_pages(&self, hash: HashOf<MemoryPages>) -> Option<MemoryPages>;
+            fn memory_pages_region(&self, hash: HashOf<MemoryPagesRegion>) -> Option<MemoryPagesRegion>;
+            fn write_memory_pages(&self, pages: MemoryPages) -> HashOf<MemoryPages>;
+            fn write_memory_pages_region(&self, pages_region: MemoryPagesRegion) -> HashOf<MemoryPagesRegion>;
+            fn allocations(&self, hash: HashOf<Allocations>) -> Option<Allocations>;
+            fn write_allocations(&self, allocations: Allocations) -> HashOf<Allocations>;
+            fn payload(&self, hash: HashOf<Payload>) -> Option<Payload>;
+            fn write_payload(&self, payload: Payload) -> HashOf<Payload>;
+            fn page_data(&self, hash: HashOf<PageBuf>) -> Option<PageBuf>;
+            fn write_page_data(&self, data: PageBuf) -> HashOf<PageBuf>;
+        }
     }
 }
 
