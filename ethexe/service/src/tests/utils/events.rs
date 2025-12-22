@@ -258,7 +258,7 @@ impl TestingEventReceiver {
 }
 
 impl ObserverEventReceiver {
-    pub fn map_block(self) -> impl Stream<Item = SimpleBlockData> {
+    pub fn filter_map_block(self) -> impl Stream<Item = SimpleBlockData> {
         self.filter_map(|event| async move {
             if let ObserverEvent::Block(block_data) = event {
                 Some(block_data)
@@ -271,7 +271,9 @@ impl ObserverEventReceiver {
     // NOTE: skipped by observer blocks are not iterated (possible on reorgs).
     // If your test depends on events in skipped blocks, you need to improve this method.
     // TODO #4554: iterate thru skipped blocks.
-    pub fn map_block_synced_with_header(self) -> impl Stream<Item = (BlockEvent, SimpleBlockData)> {
+    pub fn filter_map_block_synced_with_header(
+        self,
+    ) -> impl Stream<Item = (BlockEvent, SimpleBlockData)> {
         let db = self.db.clone();
         self.flat_map(move |event| {
             let ObserverEvent::BlockSynced(block_hash) = event else {
@@ -292,7 +294,8 @@ impl ObserverEventReceiver {
         })
     }
 
-    pub fn map_block_synced(self) -> impl Stream<Item = BlockEvent> {
-        self.map_block_synced_with_header().map(|(event, _)| event)
+    pub fn filter_map_block_synced(self) -> impl Stream<Item = BlockEvent> {
+        self.filter_map_block_synced_with_header()
+            .map(|(event, _)| event)
     }
 }

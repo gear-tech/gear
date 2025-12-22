@@ -307,7 +307,7 @@ async fn uninitialized_program() {
 
         let msgs_for_reply: Vec<_> = receiver
             .clone()
-            .map_block_synced()
+            .filter_map_block_synced()
             .filter_map(|event| async move {
                 match event {
                     BlockEvent::Mirror {
@@ -347,7 +347,7 @@ async fn uninitialized_program() {
 
         // Success end of initialization.
         let code = receiver
-            .map_block_synced()
+            .filter_map_block_synced()
             .find_map(|event| match event {
                 BlockEvent::Mirror {
                     actor_id,
@@ -436,7 +436,7 @@ async fn mailbox() {
     let (mut block, mut announce_hash) = (None, None);
     receiver
         .clone()
-        .map_block_synced_with_header()
+        .filter_map_block_synced_with_header()
         .find(|(event, block_data)| match event {
             BlockEvent::Mirror {
                 actor_id,
@@ -590,7 +590,7 @@ async fn mailbox() {
 
     let mut claimed = false;
     let announce_hash = receiver
-        .map_block_synced()
+        .filter_map_block_synced()
         .find_map(|event| match event {
             BlockEvent::Mirror {
                 actor_id,
@@ -675,7 +675,7 @@ async fn value_reply_program_to_user() {
     piggy_bank.owned_balance_top_up(VALUE_SENT).await.unwrap();
 
     receiver
-        .map_block_synced()
+        .filter_map_block_synced()
         .find(|e| matches!(e, BlockEvent::Router(RouterEvent::BatchCommitted { .. })))
         .await;
 
@@ -775,7 +775,7 @@ async fn value_send_program_to_user_and_claimed() {
 
     receiver
         .clone()
-        .map_block_synced()
+        .filter_map_block_synced()
         .find(|e| matches!(e, BlockEvent::Router(RouterEvent::BatchCommitted { .. })))
         .await;
 
@@ -828,7 +828,7 @@ async fn value_send_program_to_user_and_claimed() {
     piggy_bank.claim_value(mailboxed_msg_id).await.unwrap();
 
     receiver
-        .map_block_synced()
+        .filter_map_block_synced()
         .find(|e| {
             matches!(e, BlockEvent::Mirror {
                 actor_id,
@@ -907,7 +907,7 @@ async fn value_send_program_to_user_and_replied() {
 
     receiver
         .clone()
-        .map_block_synced()
+        .filter_map_block_synced()
         .find(|e| matches!(e, BlockEvent::Router(RouterEvent::BatchCommitted { .. })))
         .await;
 
@@ -963,7 +963,7 @@ async fn value_send_program_to_user_and_replied() {
         .unwrap();
 
     receiver
-        .map_block_synced()
+        .filter_map_block_synced()
         .find(|e| {
             matches!(e, BlockEvent::Mirror {
                 actor_id,
@@ -1041,7 +1041,7 @@ async fn incoming_transfers() {
     ping.owned_balance_top_up(VALUE_SENT).await.unwrap();
 
     observer_events
-        .map_block_synced()
+        .filter_map_block_synced()
         .find(|e| matches!(e, BlockEvent::Router(RouterEvent::BatchCommitted { .. })))
         .await;
 
@@ -1809,7 +1809,7 @@ async fn validators_election() {
     env.force_new_block().await;
 
     env.new_observer_events()
-        .map_block_synced()
+        .filter_map_block_synced()
         .find(|event| {
             matches!(
                 event,
@@ -1914,7 +1914,7 @@ async fn execution_with_canonical_events_quarantine() {
         .await;
 
     env.new_observer_events()
-        .map_block_synced()
+        .filter_map_block_synced()
         .find(|event| {
             matches!(
                 event,
@@ -2281,7 +2281,7 @@ async fn value_send_delayed() {
         .await
         .unwrap();
     receiver
-        .map_block_synced()
+        .filter_map_block_synced()
         .find(|e| matches!(e, BlockEvent::Router(RouterEvent::BatchCommitted { .. })))
         .await;
 

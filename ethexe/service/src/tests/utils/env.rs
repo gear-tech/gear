@@ -570,7 +570,7 @@ impl TestEnv {
     pub async fn skip_blocks(&self, blocks_amount: u32) {
         if self.continuous_block_generation {
             self.new_observer_events()
-                .map_block()
+                .filter_map_block()
                 .take(blocks_amount as usize)
                 .collect::<Vec<_>>()
                 .await;
@@ -1209,7 +1209,7 @@ impl WaitForUploadCode {
 
         let valid = self
             .receiver
-            .map_block_synced()
+            .filter_map_block_synced()
             .find_map(|event| match event {
                 BlockEvent::Router(RouterEvent::CodeGotValidated { code_id, valid })
                     if code_id == self.code_id =>
@@ -1245,7 +1245,7 @@ impl WaitForProgramCreation {
 
         let code_id = self
             .receiver
-            .map_block_synced()
+            .filter_map_block_synced()
             .find_map(|event| {
                 match event {
                     BlockEvent::Router(RouterEvent::ProgramCreated { actor_id, code_id })
@@ -1295,7 +1295,7 @@ impl WaitForReplyTo {
 
         let info = self
             .receiver
-            .map_block_synced()
+            .filter_map_block_synced()
             .find_map(|event| match event {
                 BlockEvent::Mirror {
                     actor_id,
