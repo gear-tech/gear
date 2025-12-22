@@ -19,8 +19,8 @@
 use anyhow::{Result, anyhow};
 use ethexe_common::{
     Announce, HashOf, ProgramStates,
-    db::{AnnounceStorageRO, OnChainStorageRO},
-    injected::{InjectedTransaction, SignedInjectedTransaction, VALIDITY_WINDOW},
+    db::{AnnounceStorageRO, InjectedStorageRO, OnChainStorageRO},
+    injected::{InjectedTransaction, VALIDITY_WINDOW},
 };
 use ethexe_runtime_common::state::Storage;
 use gprimitives::H256;
@@ -50,7 +50,7 @@ pub struct TxValidityChecker<DB> {
     latest_states: ProgramStates,
 }
 
-impl<DB: OnChainStorageRO + AnnounceStorageRO + Storage> TxValidityChecker<DB> {
+impl<DB: OnChainStorageRO + AnnounceStorageRO + InjectedStorageRO + Storage> TxValidityChecker<DB> {
     pub fn new_for_announce(db: DB, chain_head: H256, announce: HashOf<Announce>) -> Result<Self> {
         // find last computed predecessor announce
         let mut last_computed_predecessor = announce;
@@ -80,7 +80,10 @@ impl<DB: OnChainStorageRO + AnnounceStorageRO + Storage> TxValidityChecker<DB> {
     /// Determine [`TxValidity`] status for injected transaction, based on current:
     /// - `chain_head` - Ethereum chain header
     /// - `latest_included_transactions` - see [`Self::collect_recent_included_txs`].
-    pub fn check_tx_validity(&self, tx: &SignedInjectedTransaction) -> Result<TxValidity> {
+    pub fn check_tx_validity(&self, tx_hash: &HashOf<InjectedTransaction>) -> Result<TxValidity> {
+        let Some(tx) = self.db.injected_transaction(*tx_hash) else {
+            anyhow::bail!("injected transaction not found for hash {tx_hash}");
+        };
         let reference_block = tx.data().reference_block;
 
         if !self.is_reference_block_within_validity_window(reference_block)? {
@@ -172,12 +175,7 @@ impl<DB: OnChainStorageRO + AnnounceStorageRO + Storage> TxValidityChecker<DB> {
 
             announce_hash = announce.parent;
 
-            txs.extend(
-                announce
-                    .injected_transactions
-                    .into_iter()
-                    .map(|tx| tx.data().to_hash()),
-            );
+            txs.extend(announce.injected_transactions.into_iter());
         }
 
         Ok(txs)
@@ -189,9 +187,9 @@ mod tests {
     use super::*;
     use ethexe_common::{
         MaybeHashOf, SimpleBlockData, StateHashWithQueueSize,
-        db::{AnnounceStorageRW, OnChainStorageRW},
+        db::{AnnounceStorageRW, InjectedStorageRW, OnChainStorageRW},
         ecdsa::PrivateKey,
-        injected::VALIDITY_WINDOW,
+        injected::{SignedInjectedTransaction, VALIDITY_WINDOW},
         mock::{BlockChain, Mock},
     };
     use ethexe_db::Database;
@@ -199,6 +197,16 @@ mod tests {
     use gear_core::program::MemoryInfix;
     use gprimitives::ActorId;
     use std::collections::BTreeMap;
+
+    fn store_mock_tx_and_get_hash(
+        db: &Database,
+        reference_block: H256,
+    ) -> HashOf<InjectedTransaction> {
+        let tx = mock_tx(reference_block);
+        let tx_hash = tx.data().to_hash();
+        db.set_injected_transaction(tx);
+        tx_hash
+    }
 
     fn mock_tx(reference_block: H256) -> SignedInjectedTransaction {
         let mut tx = InjectedTransaction::mock(());
@@ -214,11 +222,14 @@ mod tests {
         destination_initialized: bool,
         parent: HashOf<Announce>,
     ) -> HashOf<Announce> {
-        let announce = Announce {
-            parent,
-            injected_transactions: txs,
-            ..Announce::mock(())
-        };
+        let mut announce = Announce::mock(());
+        announce.parent = parent;
+        announce.injected_transactions =
+            txs.iter().map(|tx| tx.data().to_hash()).collect::<Vec<_>>();
+
+        for tx in txs {
+            db.set_injected_transaction(tx);
+        }
         let announce_hash = db.set_announce(announce);
 
         let mut state = ProgramState::zero();
@@ -255,13 +266,20 @@ mod tests {
             chain.block_top_announce_hash(VALIDITY_WINDOW as usize - 1),
         );
         let tx_checker =
-            TxValidityChecker::new_for_announce(db, chain_head, announce_hash).unwrap();
+            TxValidityChecker::new_for_announce(db.clone(), chain_head, announce_hash).unwrap();
 
-        for block in chain.blocks.iter().skip(1).take(VALIDITY_WINDOW as usize) {
-            let tx = mock_tx(block.hash);
+        let tx_hashes = chain
+            .blocks
+            .iter()
+            .skip(1)
+            .take(VALIDITY_WINDOW as usize)
+            .map(|block| store_mock_tx_and_get_hash(&db, block.hash))
+            .collect::<Vec<_>>();
+
+        for tx_hash in tx_hashes {
             assert_eq!(
                 TxValidity::Valid,
-                tx_checker.check_tx_validity(&tx).unwrap()
+                tx_checker.check_tx_validity(&tx_hash).unwrap()
             );
         }
     }
@@ -280,11 +298,12 @@ mod tests {
             chain.block_top_announce_hash(8),
         );
         let tx_checker =
-            TxValidityChecker::new_for_announce(db, chain_head, announce_hash).unwrap();
+            TxValidityChecker::new_for_announce(db.clone(), chain_head, announce_hash).unwrap();
 
+        let tx_hash = tx.data().to_hash();
         assert_eq!(
             TxValidity::Duplicate,
-            tx_checker.check_tx_validity(&tx).unwrap()
+            tx_checker.check_tx_validity(&tx_hash).unwrap()
         );
     }
 
@@ -301,13 +320,19 @@ mod tests {
             chain.block_top_announce_hash((VALIDITY_WINDOW * 2) as usize - 1),
         );
         let tx_checker =
-            TxValidityChecker::new_for_announce(db, chain_head, announce_hash).unwrap();
+            TxValidityChecker::new_for_announce(db.clone(), chain_head, announce_hash).unwrap();
 
-        for block in chain.blocks.iter().take(VALIDITY_WINDOW as usize) {
-            let tx = mock_tx(block.hash);
+        let tx_hashes = chain
+            .blocks
+            .iter()
+            .take(VALIDITY_WINDOW as usize)
+            .map(|block| store_mock_tx_and_get_hash(&db, block.hash))
+            .collect::<Vec<_>>();
+
+        for tx_hash in tx_hashes {
             assert_eq!(
                 TxValidity::Outdated,
-                tx_checker.check_tx_validity(&tx).unwrap()
+                tx_checker.check_tx_validity(&tx_hash).unwrap()
             );
         }
     }
@@ -333,21 +358,32 @@ mod tests {
         let chain_head = chain.blocks[35].hash;
         let announce_hash = setup_announce(&db, vec![], true, chain.block_top_announce_hash(34));
         let tx_checker =
-            TxValidityChecker::new_for_announce(db, chain_head, announce_hash).unwrap();
+            TxValidityChecker::new_for_announce(db.clone(), chain_head, announce_hash).unwrap();
 
-        for block in blocks_branch2.iter() {
-            let tx = mock_tx(block.hash);
+        let tx_hashes_branch2 = blocks_branch2
+            .iter()
+            .map(|block| store_mock_tx_and_get_hash(&db, block.hash))
+            .collect::<Vec<_>>();
+
+        for tx_hash in tx_hashes_branch2 {
             assert_eq!(
                 TxValidity::NotOnCurrentBranch,
-                tx_checker.check_tx_validity(&tx).unwrap()
+                tx_checker.check_tx_validity(&tx_hash).unwrap()
             );
         }
 
-        for block in chain.blocks.iter().rev().take(VALIDITY_WINDOW as usize) {
-            let tx = mock_tx(block.hash);
+        let valid_tx_hashes = chain
+            .blocks
+            .iter()
+            .rev()
+            .take(VALIDITY_WINDOW as usize)
+            .map(|block| store_mock_tx_and_get_hash(&db, block.hash))
+            .collect::<Vec<_>>();
+
+        for tx_hash in valid_tx_hashes {
             assert_eq!(
                 TxValidity::Valid,
-                tx_checker.check_tx_validity(&tx).unwrap()
+                tx_checker.check_tx_validity(&tx_hash).unwrap()
             );
         }
     }
@@ -358,14 +394,14 @@ mod tests {
         let chain = BlockChain::mock(10).setup(&db);
 
         let chain_head = chain.blocks[9].hash;
-        let tx = mock_tx(chain.blocks[5].hash);
+        let tx_hash = store_mock_tx_and_get_hash(&db, chain.blocks[5].hash);
         let announce_hash = setup_announce(&db, vec![], false, chain.block_top_announce_hash(8));
         let tx_checker =
             TxValidityChecker::new_for_announce(db, chain_head, announce_hash).unwrap();
 
         assert_eq!(
             TxValidity::UninitializedDestination,
-            tx_checker.check_tx_validity(&tx).unwrap()
+            tx_checker.check_tx_validity(&tx_hash).unwrap()
         );
     }
 }

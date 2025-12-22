@@ -28,8 +28,9 @@ use crate::{
 use anyhow::Result;
 use derive_more::{Debug, Display};
 use ethexe_common::{
-    Address, Announce, HashOf, SimpleBlockData,
+    Address, Announce, HashOf, NetworkAnnounce, SimpleBlockData,
     consensus::{VerifiedAnnounce, VerifiedValidationRequest},
+    db::InjectedStorageRW,
 };
 use std::mem;
 
@@ -168,7 +169,15 @@ impl Subordinate {
         }
     }
 
-    fn send_announce_for_computation(mut self, announce: Announce) -> Result<ValidatorState> {
+    fn send_announce_for_computation(
+        mut self,
+        network_announce: NetworkAnnounce,
+    ) -> Result<ValidatorState> {
+        for tx in &network_announce.injected_transactions {
+            self.ctx.core.db.set_injected_transaction(tx.clone());
+        }
+
+        let announce: Announce = Announce::from(&network_announce);
         match announces::accept_announce(&self.ctx.core.db, announce.clone())? {
             AnnounceStatus::Accepted(announce_hash) => {
                 self.ctx
@@ -195,7 +204,15 @@ impl Subordinate {
 mod tests {
     use super::*;
     use crate::{mock::*, validator::mock::*};
-    use ethexe_common::mock::*;
+    use ethexe_common::{
+        StateHashWithQueueSize,
+        db::{AnnounceStorageRW, InjectedStorageRO},
+        ecdsa::PrivateKey,
+        injected::{InjectedTransaction, SignedInjectedTransaction},
+        mock::*,
+    };
+    use gprimitives::{ActorId, H256};
+    use std::collections::BTreeMap;
 
     #[test]
     fn create_empty() {
@@ -233,8 +250,8 @@ mod tests {
         assert_eq!(
             s.context().output,
             vec![
-                ConsensusEvent::AnnounceAccepted(announce1.data().to_hash()),
-                ConsensusEvent::ComputeAnnounce(announce1.data().clone())
+                ConsensusEvent::AnnounceAccepted(announce1.data().announce_hash()),
+                ConsensusEvent::ComputeAnnounce(Announce::from(announce1.data()))
             ]
         );
         // announce2 must stay in pending events, because it's not from current producer.
@@ -293,8 +310,8 @@ mod tests {
         assert_eq!(
             s.context().output,
             vec![
-                ConsensusEvent::AnnounceAccepted(announce.data().to_hash()),
-                announce.data().clone().into()
+                ConsensusEvent::AnnounceAccepted(announce.data().announce_hash()),
+                Announce::from(announce.data()).into()
             ]
         );
         assert_eq!(s.context().pending_events.len(), MAX_PENDING_EVENTS);
@@ -322,21 +339,21 @@ mod tests {
         assert_eq!(
             s.context().output,
             vec![
-                ConsensusEvent::AnnounceAccepted(announce.data().to_hash()),
-                announce.data().clone().into()
+                ConsensusEvent::AnnounceAccepted(announce.data().announce_hash()),
+                Announce::from(announce.data()).into()
             ]
         );
 
         // After announce is computed, subordinate switches to participant state.
         let s = s
-            .process_computed_announce(announce.data().to_hash())
+            .process_computed_announce(announce.data().announce_hash())
             .unwrap();
         assert!(s.is_participant(), "got {s:?}");
         assert_eq!(
             s.context().output,
             vec![
-                ConsensusEvent::AnnounceAccepted(announce.data().to_hash()),
-                ConsensusEvent::ComputeAnnounce(announce.data().clone())
+                ConsensusEvent::AnnounceAccepted(announce.data().announce_hash()),
+                ConsensusEvent::ComputeAnnounce(Announce::from(announce.data()))
             ]
         );
     }
@@ -364,16 +381,74 @@ mod tests {
         assert_eq!(
             s.context().output,
             vec![
-                ConsensusEvent::AnnounceAccepted(announce.data().to_hash()),
-                announce.data().clone().into()
+                ConsensusEvent::AnnounceAccepted(announce.data().announce_hash()),
+                Announce::from(announce.data()).into()
             ]
         );
 
         // After announce is computed, not-validator subordinate switches to initial state.
         let s = s
-            .process_computed_announce(announce.data().to_hash())
+            .process_computed_announce(announce.data().announce_hash())
             .unwrap();
         assert!(s.is_initial(), "got {s:?}");
+    }
+
+    #[test]
+    fn network_announce_transactions_are_persisted() {
+        let (ctx, pub_keys, _) = mock_validator_context();
+        let producer = pub_keys[0];
+        let blocks = BlockChain::mock(1).setup(&ctx.core.db).blocks;
+        let block = blocks[1].to_simple();
+        let parent_announce_hash = blocks[0]
+            .as_prepared()
+            .announces
+            .as_ref()
+            .and_then(|set| set.iter().next())
+            .copied()
+            .unwrap();
+
+        let state = StateHashWithQueueSize {
+            hash: H256::zero(),
+            canonical_queue_size: 0,
+            injected_queue_size: 0,
+        };
+        ctx.core.db.set_announce_program_states(
+            parent_announce_hash,
+            BTreeMap::from([(ActorId::zero(), state)]),
+        );
+
+        let mut injected_tx_data = InjectedTransaction::mock(());
+        injected_tx_data.reference_block = block.header.parent_hash;
+
+        let injected_tx =
+            SignedInjectedTransaction::create(PrivateKey::random(), injected_tx_data).unwrap();
+        let injected_hash = injected_tx.data().to_hash();
+
+        let network_announce = NetworkAnnounce {
+            block_hash: block.hash,
+            parent: parent_announce_hash,
+            gas_allowance: Some(42),
+            injected_transactions: vec![injected_tx.clone()],
+        };
+
+        let verified_announce = ctx
+            .core
+            .signer
+            .signed_data(producer, network_announce)
+            .unwrap()
+            .into_verified();
+
+        let state = Subordinate::create(ctx, block, producer.to_address(), true).unwrap();
+        let state = state.process_prepared_block(block.hash).unwrap();
+        let state = state.process_announce(verified_announce).unwrap();
+
+        let stored = state
+            .context()
+            .core
+            .db
+            .injected_transaction(injected_hash)
+            .expect("transaction persisted");
+        assert_eq!(stored, injected_tx);
     }
 
     #[test]
@@ -399,8 +474,8 @@ mod tests {
         assert_eq!(
             s.context().output,
             vec![
-                ConsensusEvent::AnnounceAccepted(producer_announce.data().to_hash()),
-                producer_announce.data().clone().into()
+                ConsensusEvent::AnnounceAccepted(producer_announce.data().announce_hash()),
+                Announce::from(producer_announce.data()).into()
             ]
         );
         assert_eq!(s.context().pending_events, vec![alice_announce.into()]);
@@ -455,7 +530,7 @@ mod tests {
         assert_eq!(s.context().output.len(), 2);
         assert_eq!(
             s.context().output[0],
-            ConsensusEvent::AnnounceRejected(announce.data().to_hash())
+            ConsensusEvent::AnnounceRejected(announce.data().announce_hash())
         );
         assert!(
             s.context().output[1].is_warning(),
