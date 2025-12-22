@@ -18,14 +18,15 @@
 
 use crate::{ComputeError, ProcessorExt, Result, service::SubService};
 use ethexe_common::{
-    Announce, HashOf,
+    Announce, HashOf, SimpleBlockData,
     db::{
-        AnnounceStorageRO, AnnounceStorageRW, BlockMetaStorageRO, InjectedStorageRW,
-        LatestDataStorageRO, LatestDataStorageRW, OnChainStorageRO,
+        AnnounceStorageRO, AnnounceStorageRW, BlockMetaStorageRO, CodesStorageRW,
+        InjectedStorageRW, LatestDataStorageRO, LatestDataStorageRW, OnChainStorageRO,
     },
     events::BlockEvent,
 };
 use ethexe_db::Database;
+use ethexe_processor::ExecutableData;
 use ethexe_runtime_common::FinalizedBlockTransitions;
 use futures::future::BoxFuture;
 use gprimitives::H256;
@@ -142,21 +143,48 @@ impl<P: ProcessorExt> ComputeSubService<P> {
             config.canonical_quarantine(),
         )?;
 
-        let request_events = matured_events
+        let events = matured_events
             .into_iter()
             .filter_map(|event| event.to_request())
             .collect();
 
-        let processing_result = processor
-            .process_announce(announce.clone(), request_events)
-            .await?;
+        let executable = ExecutableData {
+            block: SimpleBlockData {
+                hash: block_hash,
+                header: db
+                    .block_header(block_hash)
+                    .ok_or(ComputeError::BlockHeaderNotFound(block_hash))?,
+            },
+            program_states: db
+                .announce_program_states(announce.parent)
+                .ok_or(ComputeError::ProgramStatesNotFound(announce.parent))?,
+            schedule: db
+                .announce_schedule(announce.parent)
+                .ok_or(ComputeError::ScheduleNotFound(announce.parent))?,
+            injected_transactions: announce
+                .injected_transactions
+                .into_iter()
+                .map(|tx| tx.into_verified())
+                .collect(),
+            gas_allowance: announce.gas_allowance,
+            events,
+        };
+
+        let processing_result = processor.process_announce(executable).await?;
 
         let FinalizedBlockTransitions {
             transitions,
             states,
             schedule,
             promises,
+            program_creations,
         } = processing_result;
+
+        program_creations
+            .into_iter()
+            .for_each(|(program_id, code_id)| {
+                db.set_program_code_id(program_id, code_id);
+            });
 
         db.set_announce_outcome(announce_hash, transitions);
         db.set_announce_program_states(announce_hash, states);

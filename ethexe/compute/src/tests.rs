@@ -26,7 +26,10 @@ use ethexe_common::{
 use ethexe_db::Database;
 use ethexe_processor::Processor;
 use futures::StreamExt;
-use gear_core::ids::prelude::CodeIdExt;
+use gear_core::{
+    code::{CodeMetadata, InstantiatedSectionSizes, InstrumentedCode},
+    ids::prelude::CodeIdExt,
+};
 use std::{cell::RefCell, collections::BTreeMap};
 
 thread_local! {
@@ -36,6 +39,7 @@ thread_local! {
             states: BTreeMap::new(),
             schedule: BTreeMap::new(),
             promises: Vec::new(),
+            program_creations: Vec::new(),
         }
     ) };
 }
@@ -47,8 +51,7 @@ pub(crate) struct MockProcessor;
 impl ProcessorExt for MockProcessor {
     async fn process_announce(
         &mut self,
-        _announce: Announce,
-        _events: Vec<BlockRequestEvent>,
+        _executable: ExecutableData,
     ) -> Result<FinalizedBlockTransitions> {
         let result = PROCESSOR_RESULT.with_borrow(|r| r.clone());
         PROCESSOR_RESULT.with_borrow_mut(|r| {
@@ -57,14 +60,37 @@ impl ProcessorExt for MockProcessor {
                 states: BTreeMap::new(),
                 schedule: BTreeMap::new(),
                 promises: vec![],
+                program_creations: vec![],
             }
         });
 
         Ok(result)
     }
 
-    fn process_upload_code(&mut self, _code_and_id: CodeAndIdUnchecked) -> Result<bool> {
-        Ok(true)
+    fn process_upload_code(
+        &mut self,
+        code_and_id: CodeAndIdUnchecked,
+    ) -> Result<ProcessedCodeInfo> {
+        Ok(ProcessedCodeInfo {
+            code_id: code_and_id.code_id,
+            valid: Some(ethexe_processor::ValidCodeInfo {
+                code: code_and_id.code,
+                instrumented_code: InstrumentedCode::new(
+                    vec![],
+                    InstantiatedSectionSizes::new(0, 0, 0, 0, 0, 0),
+                ),
+                code_metadata: CodeMetadata::new(
+                    0,
+                    Default::default(),
+                    0.into(),
+                    None,
+                    gear_core::code::InstrumentationStatus::Instrumented {
+                        version: 0,
+                        code_len: 0,
+                    },
+                ),
+            }),
+        })
     }
 }
 

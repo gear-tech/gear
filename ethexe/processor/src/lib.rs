@@ -32,7 +32,7 @@ use ethexe_runtime_common::{
     state::Storage,
 };
 use gear_core::{
-    code::{CodeMetadata, InstrumentedCode},
+    code::{CodeMetadata, InstrumentationStatus, InstrumentedCode},
     ids::prelude::CodeIdExt,
     rpc::ReplyInfo,
 };
@@ -55,12 +55,6 @@ mod tests;
 
 // Default amount of virtual threads to use for programs processing.
 pub const DEFAULT_CHUNK_PROCESSING_THREADS: NonZero<usize> = NonZero::new(16).unwrap();
-
-// Default block gas limit for the node.
-pub const DEFAULT_BLOCK_GAS_LIMIT: u64 = 4_000_000_000_000;
-
-// Default multiplier for the block gas limit in overlay execution.
-pub const DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER: u64 = 10;
 
 #[derive(thiserror::Error, Debug)]
 pub enum ProcessorError {
@@ -197,11 +191,9 @@ impl Processor {
             });
         };
 
-        let Some(instruction_weight_version) = code_metadata.instruction_weights_version() else {
-            return Ok(ProcessedCodeInfo {
-                code_id,
-                valid: None,
-            });
+        let InstrumentationStatus::Instrumented { .. } = code_metadata.instrumentation_status()
+        else {
+            panic!("Instrumented code returned, but instrumentation status is not Instrumented");
         };
 
         Ok(ProcessedCodeInfo {
@@ -210,7 +202,6 @@ impl Processor {
                 code,
                 instrumented_code,
                 code_metadata,
-                instruction_weight_version,
             }),
         })
     }
@@ -219,6 +210,12 @@ impl Processor {
         &mut self,
         executable: ExecutableData,
     ) -> Result<FinalizedBlockTransitions> {
+        // +_+_+ pretty logging
+        // log::trace!(
+        //     "Processing programs {}",
+        //     executable,
+        // );
+
         let ExecutableData {
             block,
             program_states,
@@ -276,6 +273,7 @@ impl Processor {
         Ok(handler.into_transitions())
     }
 
+    // +_+_+ take not option gas allowance
     async fn process_queues(
         &mut self,
         mut transitions: InBlockTransitions,
@@ -331,7 +329,6 @@ pub struct ValidCodeInfo {
     pub code: Vec<u8>,
     pub instrumented_code: InstrumentedCode,
     pub code_metadata: CodeMetadata,
-    pub instruction_weight_version: u32,
 }
 
 pub struct ExecutableData {
@@ -351,7 +348,7 @@ impl Default for ExecutableData {
             program_states: ProgramStates::default(),
             schedule: Schedule::default(),
             injected_transactions: vec![],
-            gas_allowance: Some(DEFAULT_BLOCK_GAS_LIMIT),
+            gas_allowance: Some(ethexe_common::DEFAULT_BLOCK_GAS_LIMIT),
             events: vec![],
         }
     }
@@ -363,6 +360,7 @@ pub struct ExecutableDataForReply {
     pub source: ActorId,
     pub program_id: ActorId,
     pub payload: Vec<u8>,
+    pub value: u128,
     pub gas_limit: u64,
 }
 
@@ -380,6 +378,7 @@ impl OverlaidProcessor {
             source,
             program_id,
             payload,
+            value,
             gas_limit,
         } = executable;
 
@@ -416,7 +415,7 @@ impl OverlaidProcessor {
                     id: MessageId::zero(),
                     source,
                     payload: payload.clone(),
-                    value: 0,
+                    value,
                     call_reply: true,
                 },
             }],

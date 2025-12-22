@@ -43,7 +43,7 @@ use ethexe_runtime_common::state::{
 use gear_core::{
     buffer::Payload,
     code::{CodeMetadata, InstrumentedCode},
-    ids::{ActorId, CodeId},
+    ids::{ActorId, CodeId, prelude::CodeIdExt as _},
     memory::PageBuf,
 };
 use gprimitives::H256;
@@ -309,10 +309,16 @@ impl CodesStorageRO for Database {
 
 impl CodesStorageRW for Database {
     fn set_original_code(&self, code: &[u8]) -> CodeId {
+        tracing::trace!(code_id = %CodeId::generate(code), code_len = %code.len(), "Set original code");
         self.cas.write(code).into()
     }
 
     fn set_program_code_id(&self, program_id: ActorId, code_id: CodeId) {
+        tracing::trace!(
+            program_id = ?program_id,
+            code_id = ?code_id,
+            "Set program to code id mapping"
+        );
         self.kv.put(
             &Key::ProgramToCodeId(program_id).to_bytes(),
             code_id.into_bytes().to_vec(),
@@ -320,6 +326,11 @@ impl CodesStorageRW for Database {
     }
 
     fn set_instrumented_code(&self, runtime_id: u32, code_id: CodeId, code: InstrumentedCode) {
+        tracing::trace!(
+            code_id = ?code_id,
+            runtime_id = %runtime_id,
+            "Set instrumented code"
+        );
         self.kv.put(
             &Key::InstrumentedCode(runtime_id, code_id).to_bytes(),
             code.encode(),
@@ -327,6 +338,7 @@ impl CodesStorageRW for Database {
     }
 
     fn set_code_metadata(&self, code_id: CodeId, code_metadata: CodeMetadata) {
+        tracing::trace!(code_id = ?code_id, "Set code metadata");
         self.kv.put(
             &Key::CodeMetadata(code_id).to_bytes(),
             code_metadata.encode(),
@@ -334,6 +346,7 @@ impl CodesStorageRW for Database {
     }
 
     fn set_code_valid(&self, code_id: CodeId, valid: bool) {
+        tracing::trace!(code_id = ?code_id, valid = %valid, "Set code status");
         self.kv
             .put(&Key::CodeValid(code_id).to_bytes(), valid.encode());
     }

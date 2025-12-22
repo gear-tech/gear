@@ -19,10 +19,7 @@
 use crate::*;
 use anyhow::{Result, anyhow};
 use ethexe_common::{
-    SimpleBlockData,
-    db::*,
-    events::{BlockRequestEvent, MirrorRequestEvent, RouterRequestEvent},
-    mock::*,
+    DEFAULT_BLOCK_GAS_LIMIT, SimpleBlockData, db::*, events::{BlockRequestEvent, MirrorRequestEvent, RouterRequestEvent}, mock::*
 };
 use ethexe_runtime_common::{RUNTIME_ID, state::MessageQueue};
 use gear_core::ids::prelude::CodeIdExt;
@@ -70,7 +67,6 @@ mod utils {
             code,
             instrumented_code,
             code_metadata,
-            instruction_weight_version: _,
         } = processor
             .process_code(CodeAndIdUnchecked {
                 code: code.to_vec(),
@@ -826,6 +822,7 @@ async fn overlay_execution() {
         source: user_id,
         program_id: async_id,
         payload: demo_async::Command::Common.encode(),
+        value: 0,
         gas_limit: DEFAULT_BLOCK_GAS_LIMIT,
     };
     let reply_info = overlaid_processor

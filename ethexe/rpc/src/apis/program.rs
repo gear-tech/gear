@@ -18,11 +18,11 @@
 
 use crate::{errors, utils};
 use ethexe_common::{
-    HashOf,
-    db::{AnnounceStorageRO, CodesStorageRO},
+    DEFAULT_BLOCK_GAS_LIMIT, HashOf, SimpleBlockData,
+    db::{AnnounceStorageRO, CodesStorageRO, OnChainStorageRO},
 };
 use ethexe_db::Database;
-use ethexe_processor::{Processor, ProcessorConfig, RunnerConfig};
+use ethexe_processor::{ExecutableDataForReply, Processor};
 use ethexe_runtime_common::state::{
     DispatchStash, Mailbox, MemoryPages, MessageQueue, Program, ProgramState, QueryableStorage,
     Storage, Waitlist,
@@ -95,12 +95,17 @@ pub trait Program {
 
 pub struct ProgramApi {
     db: Database,
-    runner_config: RunnerConfig,
+    processor: Processor,
+    gas_limit_multiplier: u64,
 }
 
 impl ProgramApi {
-    pub fn new(db: Database, runner_config: RunnerConfig) -> Self {
-        Self { db, runner_config }
+    pub fn new(db: Database, processor: Processor, gas_limit_multiplier: u64) -> Self {
+        Self {
+            db,
+            processor,
+            gas_limit_multiplier,
+        }
     }
 
     fn read_queue(&self, hash: H256) -> Option<MessageQueue> {
@@ -132,24 +137,38 @@ impl ProgramServer for ProgramApi {
     ) -> RpcResult<ReplyInfo> {
         let announce_hash = utils::announce_at_or_latest_computed(&self.db, at)?;
 
+        let announce = self
+            .db
+            .announce(announce_hash)
+            .ok_or_else(|| errors::db("Failed to get announce"))?;
+        let block_hash = announce.block_hash;
+
+        let executable = ExecutableDataForReply {
+            block: SimpleBlockData {
+                hash: block_hash,
+                header: self
+                    .db
+                    .block_header(block_hash)
+                    .ok_or_else(|| errors::db("Failed to get block header"))?,
+            },
+            program_states: self
+                .db
+                .announce_program_states(announce_hash)
+                .ok_or_else(|| errors::db("Failed to get program states"))?,
+            source: source.into(),
+            program_id: program_id.into(),
+            payload: payload.to_vec(),
+            value,
+            gas_limit: DEFAULT_BLOCK_GAS_LIMIT * self.gas_limit_multiplier,
+        };
+
         // TODO (breathx): spawn in a new thread and catch panics. (?) Generally catch runtime panics (?).
         // TODO (breathx): optimize here instantiation if matches actual runtime.
-        let processor_config = ProcessorConfig {
-            chunk_processing_threads: self.runner_config.chunk_processing_threads(),
-        };
-        let processor = Processor::with_config(processor_config, self.db.clone())
-            .map_err(|_| errors::internal())?;
-        let mut overlaid_processor = processor.overlaid();
 
-        overlaid_processor
-            .execute_for_reply(
-                announce_hash,
-                source.into(),
-                program_id.into(),
-                payload.0,
-                value,
-                self.runner_config.clone(),
-            )
+        self.processor
+            .clone()
+            .overlaid()
+            .execute_for_reply(executable)
             .await
             .map_err(errors::runtime)
     }
