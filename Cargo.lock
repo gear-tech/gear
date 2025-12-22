@@ -7157,6 +7157,8 @@ dependencies = [
  "enumflags2",
  "environmental",
  "errno",
+ "event-listener 5.4.1",
+ "event-listener-strategy",
  "finality-grandpa",
  "fixed-hash",
  "form_urlencoded",
