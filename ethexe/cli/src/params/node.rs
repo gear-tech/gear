@@ -40,12 +40,17 @@ static mut TMP_DB: Option<TempDir> = None;
 pub struct NodeParams {
     /// Base directory for all node-related subdirectories.
     #[arg(long)]
-    pub base: Option<String>,
+    pub base: Option<PathBuf>,
 
     /// Flag to use temporary directory for database.
     #[arg(long)]
     #[serde(default)]
     pub tmp: bool,
+
+    /// Flag to run node in development mode.
+    #[arg(long)]
+    #[serde(default)]
+    pub dev: bool,
 
     /// Public key of the validator, if node should act as one.
     #[arg(long)]
@@ -126,6 +131,7 @@ impl NodeParams {
                 .unwrap_or(DEFAULT_BLOCK_GAS_LIMIT)
                 .min(MAX_BLOCK_GAS_LIMIT),
             canonical_quarantine: self.canonical_quarantine.unwrap_or(CANONICAL_QUARANTINE),
+            dev: self.dev,
             fast_sync: self.fast_sync,
             chain_deepness_threshold: self
                 .chain_deepness_threshold
@@ -135,7 +141,7 @@ impl NodeParams {
 
     /// Get path to the database directory.
     pub fn db_dir(&self) -> PathBuf {
-        if self.tmp {
+        if self.tmp || self.dev {
             Self::tmp_db()
         } else {
             self.base().join("db")
@@ -153,10 +159,7 @@ impl NodeParams {
     }
 
     fn base(&self) -> PathBuf {
-        self.base
-            .as_ref()
-            .map(PathBuf::from)
-            .unwrap_or_else(Self::default_base)
+        self.base.clone().unwrap_or_else(Self::default_base)
     }
 
     fn default_base() -> PathBuf {
@@ -187,6 +190,7 @@ impl MergeParams for NodeParams {
         Self {
             base: self.base.or(with.base),
             tmp: self.tmp || with.tmp,
+            dev: self.dev || with.dev,
 
             validator: self.validator.or(with.validator),
             validator_session: self.validator_session.or(with.validator_session),

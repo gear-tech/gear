@@ -94,6 +94,7 @@ async fn basics() {
         chunk_processing_threads: 16,
         block_gas_limit: 4_000_000_000_000,
         canonical_quarantine: 0,
+        dev: false,
         fast_sync: false,
         chain_deepness_threshold: DEFAULT_CHAIN_DEEPNESS_THRESHOLD,
     };
@@ -1500,7 +1501,7 @@ async fn send_injected_tx() {
         recipient: validator1_pubkey.to_address(),
         tx: env
             .signer
-            .signed_data(validator0_pubkey, tx.clone())
+            .signed_message(validator0_pubkey, tx.clone())
             .unwrap(),
     };
 
@@ -2465,7 +2466,7 @@ async fn injected_tx_fungible_token() {
 
     let rpc_tx = RpcOrNetworkInjectedTx {
         recipient: pubkey.to_address(),
-        tx: env.signer.signed_data(pubkey, mint_tx.clone()).unwrap(),
+        tx: env.signer.signed_message(pubkey, mint_tx.clone()).unwrap(),
     };
 
     let acceptance = rpc_client
@@ -2549,7 +2550,10 @@ async fn injected_tx_fungible_token() {
 
     let rpc_tx = RpcOrNetworkInjectedTx {
         recipient: pubkey.to_address(),
-        tx: env.signer.signed_data(pubkey, transfer_tx.clone()).unwrap(),
+        tx: env
+            .signer
+            .signed_message(pubkey, transfer_tx.clone())
+            .unwrap(),
     };
     let ws_client = node
         .rpc_ws_client()
@@ -2674,11 +2678,13 @@ async fn announces_conflicts() {
         let wait_for_pong = env.send_message(ping_id, b"PING").await.unwrap();
 
         let block = env.latest_block().await;
+        let timelines = env.db.protocol_timelines().unwrap();
+        let era_index = timelines.era_from_ts(block.header.timestamp);
         let announce = Announce::with_default_gas(block.hash, HashOf::random());
         let announce_hash = announce.to_hash();
         validator0
             .publish_validator_message(ValidatorMessage {
-                block: block.hash,
+                era_index,
                 payload: announce,
             })
             .await;
@@ -2776,11 +2782,13 @@ async fn announces_conflicts() {
 
         // Send announce from stopped validator 6
         let block = env.latest_block().await;
+        let timelines = env.db.protocol_timelines().unwrap();
+        let era_index = timelines.era_from_ts(block.header.timestamp);
         let announce6 = Announce::with_default_gas(block.hash, latest_computed_announce_hash);
         let announce6_hash = announce6.to_hash();
         validator6
             .publish_validator_message(ValidatorMessage {
-                block: block.hash,
+                era_index,
                 payload: announce6,
             })
             .await;
@@ -2798,6 +2806,8 @@ async fn announces_conflicts() {
         // Announce is not on top of announce6 (already accepted),
         // so must be rejected by validators 1..=5
         let block = env.latest_block().await;
+        let timelines = env.db.protocol_timelines().unwrap();
+        let era_index = timelines.era_from_ts(block.header.timestamp);
         let parent = validator1_db
             .block_meta(block.header.parent_hash)
             .announces
@@ -2809,7 +2819,7 @@ async fn announces_conflicts() {
         let announce7_hash = announce7.to_hash();
         validator0
             .publish_validator_message(ValidatorMessage {
-                block: block.hash,
+                era_index,
                 payload: announce7,
             })
             .await;

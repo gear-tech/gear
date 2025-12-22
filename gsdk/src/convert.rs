@@ -18,9 +18,8 @@
 
 //! This module provides conversion traits between [`subxt`] types and Substrate types.
 
-use subxt::{error::ModuleError, events::EventDetails};
-
 use crate::{GearConfig, Result};
+use subxt::{error::ModuleError, events::EventDetails};
 
 /// Trait for Substrate types convertible to their
 /// [`subxt`] counterpart.
@@ -50,11 +49,26 @@ pub trait AsGear {
     fn as_gear(&self) -> Result<Self::Target>;
 }
 
+/// Helper trait for different equivalents of [`AccountId32`].
+///
+/// [`AccountId32`]: subxt::utils::AccountId32
+pub trait IntoAccountId32 {
+    fn into_account_id(self) -> subxt::utils::AccountId32;
+}
+
 impl IntoSubxt for sp_runtime::AccountId32 {
     type Target = subxt::utils::AccountId32;
 
     fn into_subxt(self) -> Self::Target {
         subxt::utils::AccountId32(self.into())
+    }
+}
+
+impl IntoSubxt for gear_core::ids::ActorId {
+    type Target = subxt::utils::AccountId32;
+
+    fn into_subxt(self) -> Self::Target {
+        subxt::utils::AccountId32(self.into_bytes())
     }
 }
 
@@ -107,5 +121,29 @@ impl AsGear for ModuleError {
 
     fn as_gear(&self) -> Result<Self::Target> {
         Ok(self.as_root_error()?)
+    }
+}
+
+impl<T: IntoAccountId32 + Clone> IntoAccountId32 for &'_ T {
+    fn into_account_id(self) -> subxt::utils::AccountId32 {
+        self.clone().into_account_id()
+    }
+}
+
+impl IntoAccountId32 for subxt::utils::AccountId32 {
+    fn into_account_id(self) -> subxt::utils::AccountId32 {
+        self
+    }
+}
+
+impl IntoAccountId32 for sp_runtime::AccountId32 {
+    fn into_account_id(self) -> subxt::utils::AccountId32 {
+        self.into_subxt()
+    }
+}
+
+impl IntoAccountId32 for gear_core::ids::ActorId {
+    fn into_account_id(self) -> subxt::utils::AccountId32 {
+        self.into_subxt()
     }
 }

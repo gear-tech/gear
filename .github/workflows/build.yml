@@ -294,7 +294,7 @@ jobs:
       - name: "Install: Foundry"
         uses: foundry-rs/foundry-toolchain@v1
         with:
-          version: v1.5.0-rc1
+          version: v1.5.0
 
       - name: "Show: Versioning"
         run: |
@@ -323,6 +323,22 @@ jobs:
         run: cargo nextest run --workspace --all-targets --all-features -E 'not package(/fuzz/)' ${{ matrix.profiles.flags }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GEAR_NODE_WRAPPER_LOG: info
+          RUST_LOG: "gear=trace,\
+            pallet=trace,\
+            gsdk=trace,\
+            gcli=trace,\
+            ethexe=trace,\
+            runtime=trace,\
+            syscalls=trace,\
+            gwasm=trace"
+
+      - name: "ACTIONS: Upload junit.xml"
+        if: "!cancelled()"
+        uses: actions/upload-artifact@v4
+        with:
+          name: "workspace-${{ matrix.profiles.name }}-junit"
+          path: target/nextest/ci/junit.xml
 
   crates-io:
     runs-on: [kuberunner, github-runner-02]
@@ -382,25 +398,25 @@ jobs:
         # check that perf benchmarks works. `--steps=5` need to test, that benchmarks works for different input number.
         run: >-
           ./target/release/gear benchmark pallet
-          --chain=dev --steps=5 --repeat=0 --heap-pages=4096
+          --chain=dev --steps=5 --repeat=0 --heap-pages=16384
           --pallet="*" --extrinsic="*"
 
       - name: "Test: Extra `read_big_state` benchmark"
         run: >-
           ./target/release/gear benchmark pallet
-          --chain=dev --repeat=0 --heap-pages=4096
+          --chain=dev --repeat=0 --heap-pages=16384
           --pallet=pallet_gear --extrinsic="read_big_state" --extra
 
       - name: "Test: Extra `signal_stack_limit_exceeded_works` benchmark"
         run: >-
           ./target/release/gear benchmark pallet
-          --chain=dev --repeat=0 --heap-pages=4096
+          --chain=dev --repeat=0 --heap-pages=16384
           --pallet=pallet_gear --extrinsic="signal_stack_limit_exceeded_works" --extra
 
       - name: "Test: Extra `check_all` benchmark"
         run: >-
           ./target/release/gear benchmark pallet
-          --chain=dev --repeat=0 --heap-pages=4096
+          --chain=dev --repeat=0 --heap-pages=16384
           --pallet=pallet_gear --extrinsic="check_all" --extra
 
   try-runtime:
@@ -551,6 +567,18 @@ jobs:
         with:
           name: examples-release-wasm32-gear
           path: examples-artifact
+
+      - name: "ACTIONS: Disable workspace hack"
+        uses: ./.github/actions/cargo-hakari
+        with:
+          # production binaries should not have additional features enabled for deps, too
+          args: disable
+
+      - name: "ACTIONS: Disable workspace hack"
+        uses: ./.github/actions/cargo-hakari
+        with:
+          # also don't compile manually written deps in the hack
+          args: remove-deps --yes
 
       - name: "Build: Production binaries"
         run: cargo build -p wasm-proc -p gear-cli -F cli --profile production

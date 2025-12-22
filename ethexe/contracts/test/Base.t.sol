@@ -143,7 +143,9 @@ contract Base is POCBaseTest {
 
         assertEq(router.mirrorImpl(), address(mirror));
         assertEq(router.validators(), _validators);
-        assertEq(router.signingThresholdPercentage(), 6666);
+        (uint128 numerator, uint128 denominator) = router.signingThresholdFraction();
+        assertEq(numerator, Gear.VALIDATORS_THRESHOLD_NUMERATOR);
+        assertEq(denominator, Gear.VALIDATORS_THRESHOLD_DENOMINATOR);
         assertTrue(router.areValidators(_validators));
         assertEq(router.latestCommittedBatchHash(), bytes32(0));
         assertEq(router.latestCommittedBatchTimestamp(), uint48(0));

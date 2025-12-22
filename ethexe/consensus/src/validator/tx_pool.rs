@@ -74,24 +74,36 @@ where
 
         for (reference_block, tx_hash) in self.inner.iter() {
             let Some(tx) = self.db.injected_transaction(*tx_hash) else {
-                continue;
+                // This must not happen, as we store txs in db when adding to pool.
+                anyhow::bail!("injected tx not found in db: {tx_hash}");
             };
 
             match tx_checker.check_tx_validity(&tx)? {
-                TxValidity::Valid => selected_txs.push(tx),
+                TxValidity::Valid => {
+                    tracing::trace!(tx_hash = ?tx_hash, tx = ?tx.data(), "tx is valid, including to announce");
+                    selected_txs.push(tx)
+                }
                 TxValidity::Duplicate => {
-                    // TODO kuzmindev: send result to submitter, that tx was already included.
+                    tracing::trace!(tx_hash = ?tx_hash, tx = ?tx.data(), "tx already included in chain, skipping");
                 }
                 TxValidity::UnknownDestination => {
-                    // TODO kuzmindev: also send to submitter result, that tx `destination` field is invalid.
+                    tracing::trace!(
+                        tx_hash = ?tx_hash,
+                        tx = ?tx.data(),
+                        "tx destination actor is unknown, removing from pool, skipping"
+                    );
                 }
                 TxValidity::NotOnCurrentBranch => {
-                    tracing::trace!(tx_hash = ?tx_hash, "tx on different branch, keeping in pool");
+                    tracing::trace!(tx_hash = ?tx_hash, tx = ?tx.data(), "tx on different branch, keeping in pool");
                 }
-                TxValidity::Outdated => outdated_txs.push((*reference_block, *tx_hash)),
+                TxValidity::Outdated => {
+                    tracing::trace!(tx_hash = ?tx_hash, tx = ?tx.data(), "tx is outdated, removing from pool, remove from pool");
+                    outdated_txs.push((*reference_block, *tx_hash))
+                }
                 TxValidity::UninitializedDestination => {
                     tracing::trace!(
                         tx_hash = ?tx_hash,
+                        tx = ?tx.data(),
                         "tx send to uninitialized actor, keeping in pool, because of in next blocks it can be"
                     );
                 }
@@ -103,5 +115,74 @@ where
         });
 
         Ok(selected_txs)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ethexe_common::{StateHashWithQueueSize, db::*, mock::*};
+    use ethexe_runtime_common::state::{Program, ProgramState, Storage};
+    use ethexe_signer::Signer;
+    use gprimitives::ActorId;
+
+    #[test]
+    fn test_select_for_announce() {
+        let db = Database::memory();
+
+        let state_hash = db.write_program_state(
+            // Make not required init message by setting terminated state.
+            ProgramState::zero()
+                .tap_mut(|s| s.program = Program::Terminated(ActorId::from([2; 32]))),
+        );
+        let program_id = ActorId::from([1; 32]);
+
+        let chain = BlockChain::mock(10)
+            .tap_mut(|c| {
+                // set 2 last announces as not computed
+                c.block_top_announce_mut(10).computed = None;
+                c.block_top_announce_mut(9).computed = None;
+
+                // append program to the announce at height 8
+                c.block_top_announce_mut(8)
+                    .as_computed_mut()
+                    .program_states
+                    .insert(
+                        program_id,
+                        StateHashWithQueueSize {
+                            hash: state_hash,
+                            canonical_queue_size: 0,
+                            injected_queue_size: 0,
+                        },
+                    );
+            })
+            .setup(&db);
+
+        let mut tx_pool = InjectedTxPool::new(db.clone());
+
+        let signer = Signer::memory();
+        let key = signer.generate_key().unwrap();
+        let tx = InjectedTransaction {
+            reference_block: chain.blocks[9].hash,
+            destination: program_id,
+            ..InjectedTransaction::mock(())
+        };
+        let tx_hash = tx.to_hash();
+        let signed_tx = signer.signed_message(key, tx).unwrap();
+
+        tx_pool.handle_tx(signed_tx.clone());
+        assert!(
+            db.injected_transaction(tx_hash).is_some(),
+            "tx should be stored in db"
+        );
+
+        let selected_txs = tx_pool
+            .select_for_announce(chain.blocks[10].hash, chain.block_top_announce_hash(9))
+            .unwrap();
+        assert_eq!(
+            selected_txs,
+            vec![signed_tx],
+            "tx should be selected for announce"
+        );
     }
 }

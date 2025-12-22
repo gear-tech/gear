@@ -24,6 +24,7 @@ thiserror.workspace = true
 async-trait.workspace = true
 url.workspace = true
 sp-core = { workspace = true, features = ["std", "full_crypto"] }
+gear-workspace-hack.workspace = true
 
 [dev-dependencies]
 tokio = { workspace = true, features = ["full"] }
