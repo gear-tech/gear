@@ -5165,8 +5165,10 @@ dependencies = [
 name = "ethexe-rpc"
 version = "1.10.0"
 dependencies = [
+ "alloy",
  "anyhow",
  "dashmap 5.5.3",
+ "derive_more 2.0.1",
  "ethexe-common",
  "ethexe-db",
  "ethexe-processor",
@@ -5180,7 +5182,9 @@ dependencies = [
  "parity-scale-codec",
  "serde",
  "sp-core",
+ "thiserror 2.0.12",
  "tokio",
+ "tokio-stream",
  "tower 0.4.13",
  "tower-http",
  "tracing",
