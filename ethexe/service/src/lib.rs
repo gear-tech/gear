@@ -453,7 +453,7 @@ impl Service {
         #[cfg(test)]
         sender
             .send(tests::utils::TestingEvent::ServiceStarted)
-            .expect("failed to broadcast service STARTED event");
+            .await;
 
         let mut network_fetcher = FuturesUnordered::new();
 
@@ -476,9 +476,7 @@ impl Service {
             log::trace!("Primary service produced event, start handling: {event:?}");
 
             #[cfg(test)]
-            sender
-                .send(tests::utils::TestingEvent::new(&event))
-                .expect("failed to broadcast service event");
+            sender.send(tests::utils::TestingEvent::new(&event)).await;
 
             match event {
                 Event::Observer(event) => match event {

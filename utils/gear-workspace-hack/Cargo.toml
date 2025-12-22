@@ -282,6 +282,8 @@ either = { version = "1", features = ["serde", "use_std"] }
 elliptic-curve = { version = "0.13", default-features = false, features = ["hash2curve", "hazmat", "serde", "std"] }
 enumflags2 = { version = "0.7", default-features = false, features = ["std"] }
 environmental = { version = "1" }
+event-listener = { version = "5" }
+event-listener-strategy = { version = "0.5" }
 finality-grandpa = { version = "0.16", features = ["derive-codec"] }
 fixed-hash = { version = "0.8", default-features = false, features = ["std"] }
 form_urlencoded = { version = "1" }
@@ -549,6 +551,8 @@ either = { version = "1", features = ["serde", "use_std"] }
 elliptic-curve = { version = "0.13", default-features = false, features = ["hash2curve", "hazmat", "serde", "std"] }
 enumflags2 = { version = "0.7", default-features = false, features = ["std"] }
 environmental = { version = "1" }
+event-listener = { version = "5" }
+event-listener-strategy = { version = "0.5" }
 finality-grandpa = { version = "0.16", features = ["derive-codec"] }
 fixed-hash = { version = "0.8", default-features = false, features = ["std"] }
 form_urlencoded = { version = "1" }
