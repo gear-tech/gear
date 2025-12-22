@@ -135,8 +135,8 @@ impl Debug for PageBuf {
         write!(
             f,
             "PageBuf({:?}..{:?})",
-            &self.0[0..10],
-            &self.0[GearPage::SIZE as usize - 10..GearPage::SIZE as usize]
+            &self.as_ref()[0..10],
+            &self.as_ref()[GearPage::SIZE as usize - 10..GearPage::SIZE as usize]
         )
     }
 }
