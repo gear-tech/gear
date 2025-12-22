@@ -1934,6 +1934,9 @@ async fn execution_with_canonical_events_quarantine() {
         .find_announce_computed(latest_block)
         .await;
 
+    // create a receiver without history so we don't face old `BlockSynced` in further for-loop
+    let mut receiver = validator.new_events();
+
     let validator_db = validator.db.clone();
     let canonical_quarantine = env.compute_config.canonical_quarantine();
     let message_id = env
@@ -1964,9 +1967,6 @@ async fn execution_with_canonical_events_quarantine() {
 
         false
     };
-
-    // create a receiver without history so we don't face old `BlockSynced` in further for-loop
-    let mut receiver = validator.new_events();
 
     // 0 - message sent
     // 0..canonical_quarantine - quarantine period

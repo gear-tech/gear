@@ -28,6 +28,7 @@ use alloy::{
     providers::{ProviderBuilder, RootProvider, ext::AnvilApi},
     rpc::types::anvil::MineOptions,
 };
+use anyhow::Context;
 use ethexe_blob_loader::{BlobLoader, BlobLoaderService, ConsensusLayerConfig};
 use ethexe_common::{
     Address, COMMITMENT_DELAY_LIMIT, CodeAndId, DEFAULT_BLOCK_GAS_LIMIT, SimpleBlockData, ToDigest,
@@ -47,8 +48,7 @@ use ethexe_ethereum::{
     router::RouterQuery,
 };
 use ethexe_network::{
-    NetworkConfig, NetworkRuntimeConfig, NetworkService,
-    export::{Multiaddr, PeerId},
+    NetworkConfig, NetworkEvent, NetworkRuntimeConfig, NetworkService, export::Multiaddr,
 };
 use ethexe_observer::{
     EthereumConfig, ObserverService,
@@ -72,9 +72,8 @@ use roast_secp256k1_evm::frost::{
     keys::{IdentifierList, PublicKeyPackage, VerifiableSecretSharingCommitment},
 };
 use std::{
-    collections::HashSet,
     fmt, mem,
-    net::{Ipv4Addr, TcpListener},
+    net::SocketAddr,
     num::NonZero,
     pin::Pin,
     sync::atomic::{AtomicUsize, Ordering},
@@ -1044,7 +1043,8 @@ impl Node {
 
         // fast sync implies network has connections
         if wait_for_network && !self.fast_sync {
-            self.wait_for(|e| matches!(e, TestingEvent::Network(NetworkEvent::PeerConnected(_))))
+            self.events()
+                .find(|e| matches!(e, TestingEvent::Network(NetworkEvent::PeerConnected(_))))
                 .await;
         }
     }
@@ -1075,6 +1075,13 @@ impl Node {
 
     pub fn events(&mut self) -> TestingEventReceiver {
         self.receiver.clone().expect("node is not started")
+    }
+
+    pub fn new_events(&mut self) -> TestingEventReceiver {
+        self.receiver
+            .as_ref()
+            .map(|r| r.new_receiver())
+            .expect("node is not started")
     }
 
     fn construct_network_service(
