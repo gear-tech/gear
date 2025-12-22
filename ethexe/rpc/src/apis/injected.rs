@@ -66,7 +66,7 @@ pub struct InjectedApi {
 impl InjectedServer for InjectedApi {
     async fn send_transaction(
         &self,
-        transaction: RpcOrNetworkInjectedTx,
+        transaction: AddressedInjectedTransaction,
     ) -> RpcResult<InjectedTransactionAcceptance> {
         tracing::trace!(
             tx_hash = %transaction.tx.data().to_hash(),
@@ -79,7 +79,7 @@ impl InjectedServer for InjectedApi {
     async fn send_transaction_and_watch(
         &self,
         pending: PendingSubscriptionSink,
-        transaction: RpcOrNetworkInjectedTx,
+        transaction: AddressedInjectedTransaction,
     ) -> SubscriptionResult {
         let tx_hash = transaction.tx.data().to_hash();
         tracing::trace!(%tx_hash, "Called injected_subscribeTransactionPromise");
