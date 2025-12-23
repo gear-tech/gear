@@ -341,8 +341,9 @@ async fn async_and_ping() {
 
     let (mut processor, chain, [ping_code_id, upload_code_id, ..]) =
         setup_test_env_and_load_codes([demo_ping::WASM_BINARY, demo_async::WASM_BINARY]);
+    let block1 = chain.blocks[1].to_simple();
 
-    let mut handler = setup_handler(processor.db.clone(), chain.blocks[1].to_simple());
+    let mut handler = setup_handler(processor.db.clone(), block1);
 
     let user_id = ActorId::from(10);
     let ping_id = ActorId::from(0x10000000);
@@ -422,11 +423,7 @@ async fn async_and_ping() {
         .expect("failed to send message");
 
     let transitions = processor
-        .process_queues(
-            handler.transitions,
-            chain.blocks[1].to_simple(),
-            DEFAULT_BLOCK_GAS_LIMIT,
-        )
+        .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT)
         .await;
 
     let to_users = transitions.current_messages();
@@ -478,8 +475,10 @@ async fn many_waits() {
     let (_, code) = wat_to_wasm(wat.as_str());
 
     let (mut processor, chain, [code_id]) = setup_test_env_and_load_codes([code.as_slice()]);
+    let block1 = chain.blocks[1].to_simple();
+    let wake_block = chain.blocks[1 + blocks_to_wait].to_simple();
 
-    let mut handler = setup_handler(processor.db.clone(), chain.blocks[1].to_simple());
+    let mut handler = setup_handler(processor.db.clone(), block1);
 
     let amount = 10000;
     for i in 0..amount {
@@ -517,11 +516,7 @@ async fn many_waits() {
 
     handler.transitions = processor.process_tasks(handler.transitions);
     handler.transitions = processor
-        .process_queues(
-            handler.transitions,
-            chain.blocks[1].to_simple(),
-            DEFAULT_BLOCK_GAS_LIMIT,
-        )
+        .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT)
         .await;
     assert_eq!(
         handler.transitions.current_messages().len(),
@@ -545,11 +540,7 @@ async fn many_waits() {
             .expect("failed to send message");
     }
     handler.transitions = processor
-        .process_queues(
-            handler.transitions,
-            chain.blocks[1].to_simple(),
-            DEFAULT_BLOCK_GAS_LIMIT,
-        )
+        .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT)
         .await;
     assert_eq!(
         handler.transitions.current_messages().len(),
@@ -567,7 +558,6 @@ async fn many_waits() {
         .for_each(|(pid, cid)| processor.db.set_program_code_id(pid, cid));
 
     // Check all messages wake up and reply with "Hello, world!"
-    let wake_block = chain.blocks[1 + blocks_to_wait].to_simple();
     let transitions = InBlockTransitions::new(
         wake_block.header.height,
         states,
@@ -611,6 +601,7 @@ async fn overlay_execution() {
 
     let (mut processor, chain, [ping_code_id, async_code_id]) =
         setup_test_env_and_load_codes([demo_ping::WASM_BINARY, demo_async::WASM_BINARY]);
+    let block1 = chain.blocks[1].to_simple();
 
     // -----------------------------------------------------------------------------
     // --------------------------- Create programs ---------------------------------
@@ -663,8 +654,6 @@ async fn overlay_execution() {
             },
         },
     ];
-
-    let block1 = chain.blocks[1].to_simple();
 
     let executable_data = ExecutableData {
         block: block1,
@@ -837,12 +826,13 @@ async fn injected_ping_pong() {
     init_logger();
 
     let (mut processor, chain, [code_id]) = setup_test_env_and_load_codes([demo_ping::WASM_BINARY]);
+    let block1 = chain.blocks[1].to_simple();
 
     let user_1 = ActorId::from(10);
     let user_2 = ActorId::from(20);
     let actor_id = ActorId::from(0x10000);
 
-    let mut handler = setup_handler(processor.db.clone(), chain.blocks[1].to_simple());
+    let mut handler = setup_handler(processor.db.clone(), block1);
 
     handler
         .handle_router_event(RouterRequestEvent::ProgramCreated { actor_id, code_id })
@@ -871,11 +861,7 @@ async fn injected_ping_pong() {
         .expect("failed to send message");
 
     handler.transitions = processor
-        .process_queues(
-            handler.transitions,
-            chain.blocks[1].to_simple(),
-            DEFAULT_BLOCK_GAS_LIMIT,
-        )
+        .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT)
         .await;
 
     handler
@@ -896,11 +882,7 @@ async fn injected_ping_pong() {
         .expect("failed to send message");
 
     handler.transitions = processor
-        .process_queues(
-            handler.transitions,
-            chain.blocks[1].to_simple(),
-            DEFAULT_BLOCK_GAS_LIMIT,
-        )
+        .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT)
         .await;
 
     let to_users = handler.transitions.current_messages();
@@ -923,17 +905,17 @@ async fn injected_ping_pong() {
 #[tokio::test(flavor = "multi_thread")]
 async fn injected_prioritized_over_canonical() {
     const MSG_NUM: usize = 100;
-    const GAS_ALLOWANCE: u64 = 600_000_000;
 
     init_logger();
 
     let (mut processor, chain, [code_id]) = setup_test_env_and_load_codes([demo_ping::WASM_BINARY]);
+    let block1 = chain.blocks[1].to_simple();
 
     let canonical_user = ActorId::from(10);
     let injected_user = ActorId::from(20);
     let actor_id = ActorId::from(0x10000);
 
-    let mut handler = setup_handler(processor.db.clone(), chain.blocks[1].to_simple());
+    let mut handler = setup_handler(processor.db.clone(), block1);
 
     handler
         .handle_router_event(RouterRequestEvent::ProgramCreated { actor_id, code_id })
@@ -962,11 +944,7 @@ async fn injected_prioritized_over_canonical() {
         .expect("failed to send message");
 
     handler.transitions = processor
-        .process_queues(
-            handler.transitions,
-            chain.blocks[1].to_simple(),
-            GAS_ALLOWANCE,
-        )
+        .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT)
         .await;
 
     // Send canonical messages
@@ -993,17 +971,13 @@ async fn injected_prioritized_over_canonical() {
     }
 
     let transitions = processor
-        .process_queues(
-            handler.transitions,
-            chain.blocks[1].to_simple(),
-            GAS_ALLOWANCE,
-        )
+        .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT)
         .await;
 
-    // +_+_+ strange that pass without skipping init
     // Verify that injected messages were processed first
+    // skip the first message which is INIT reply
     let mut is_canonical_found = false;
-    for (_, message) in transitions.current_messages() {
+    for (_, message) in transitions.current_messages().into_iter().skip(1) {
         if message.destination == canonical_user {
             is_canonical_found = true;
         } else if is_canonical_found && message.destination == injected_user {
@@ -1017,7 +991,8 @@ async fn executable_balance_charged() {
     init_logger();
 
     let (mut processor, chain, [code_id]) = setup_test_env_and_load_codes([demo_ping::WASM_BINARY]);
-    let mut handler = setup_handler(processor.db.clone(), chain.blocks[1].to_simple());
+    let block1 = chain.blocks[1].to_simple();
+    let mut handler = setup_handler(processor.db.clone(), block1);
 
     let user_id = ActorId::from(10);
     let actor_id = ActorId::from(0x10000);
@@ -1052,11 +1027,7 @@ async fn executable_balance_charged() {
         .expect("failed to send message");
 
     handler.transitions = processor
-        .process_queues(
-            handler.transitions,
-            chain.blocks[1].to_simple(),
-            DEFAULT_BLOCK_GAS_LIMIT,
-        )
+        .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT)
         .await;
 
     let to_users = handler.transitions.current_messages();
@@ -1100,11 +1071,12 @@ async fn executable_balance_injected_panic_not_charged() {
 
     let (mut processor, chain, [code_id]) =
         setup_test_env_and_load_codes([demo_panic_payload::WASM_BINARY]);
+    let block1 = chain.blocks[1].to_simple();
 
     let user_id = ActorId::from(10);
     let actor_id = ActorId::from(0x10000);
 
-    let mut handler = setup_handler(processor.db.clone(), chain.blocks[1].to_simple());
+    let mut handler = setup_handler(processor.db.clone(), block1);
 
     handler
         .handle_router_event(RouterRequestEvent::ProgramCreated { actor_id, code_id })
@@ -1136,11 +1108,7 @@ async fn executable_balance_injected_panic_not_charged() {
         )
         .unwrap();
     handler.transitions = processor
-        .process_queues(
-            handler.transitions,
-            chain.blocks[1].to_simple(),
-            DEFAULT_BLOCK_GAS_LIMIT,
-        )
+        .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT)
         .await;
     let init_balance = handler.program_state(actor_id).executable_balance;
 
@@ -1150,11 +1118,7 @@ async fn executable_balance_injected_panic_not_charged() {
         .handle_injected_transaction(user_id, injected(actor_id, b"", 0))
         .unwrap();
     handler.transitions = processor
-        .process_queues(
-            handler.transitions,
-            chain.blocks[1].to_simple(),
-            DEFAULT_BLOCK_GAS_LIMIT,
-        )
+        .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT)
         .await;
 
     let to_users = handler.transitions.current_messages();
@@ -1183,11 +1147,7 @@ async fn executable_balance_injected_panic_not_charged() {
         )
         .expect("failed to send message");
     let transitions = processor
-        .process_queues(
-            handler.transitions,
-            chain.blocks[1].to_simple(),
-            DEFAULT_BLOCK_GAS_LIMIT,
-        )
+        .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT)
         .await;
 
     let to_users = transitions.current_messages();
@@ -1213,7 +1173,8 @@ async fn insufficient_executable_balance_still_charged() {
     init_logger();
 
     let (mut processor, chain, [code_id]) = setup_test_env_and_load_codes([demo_ping::WASM_BINARY]);
-    let mut handler = setup_handler(processor.db.clone(), chain.blocks[1].to_simple());
+    let block1 = chain.blocks[1].to_simple();
+    let mut handler = setup_handler(processor.db.clone(), block1);
 
     let user_id = ActorId::from(10);
     let actor_id = ActorId::from(0x10000);
@@ -1246,11 +1207,7 @@ async fn insufficient_executable_balance_still_charged() {
         .expect("failed to send message");
 
     handler.transitions = processor
-        .process_queues(
-            handler.transitions,
-            chain.blocks[1].to_simple(),
-            DEFAULT_BLOCK_GAS_LIMIT,
-        )
+        .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT)
         .await;
 
     let to_users = handler.transitions.current_messages();
