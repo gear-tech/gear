@@ -180,9 +180,9 @@ mod tests {
     }
 
     #[test]
-    fn is_cloneable() {
+    fn is_clonable() {
         with_database(|db| {
-            tests::is_cloneable(db);
+            tests::is_clonable(db);
         });
     }
 

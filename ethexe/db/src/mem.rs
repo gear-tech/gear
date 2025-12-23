@@ -89,8 +89,8 @@ mod tests {
     use crate::tests;
 
     #[test]
-    fn is_cloneable() {
-        tests::is_cloneable(MemDb::default());
+    fn is_clonable() {
+        tests::is_clonable(MemDb::default());
     }
 
     #[test]

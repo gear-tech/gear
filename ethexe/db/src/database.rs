@@ -986,94 +986,94 @@ mod tests {
         assert_eq!(db.block_header(block_hash), Some(block_header));
     }
 
-    // #[test]
-    // fn test_state() {
-    //     let db = Database::memory();
+    #[test]
+    fn test_state() {
+        let db = Database::memory();
 
-    //     let state = ProgramState::zero();
-    //     let hash = db.write_program_state(state);
-    //     assert_eq!(db.program_state(hash), Some(state));
-    // }
+        let state = ProgramState::zero();
+        let hash = db.write_program_state(state);
+        assert_eq!(db.program_state(hash), Some(state));
+    }
 
-    // #[test]
-    // fn test_queue() {
-    //     let db = Database::memory();
+    #[test]
+    fn test_queue() {
+        let db = Database::memory();
 
-    //     let queue = MessageQueue::default();
-    //     let hash = db.write_message_queue(queue.clone());
-    //     assert_eq!(db.message_queue(hash), Some(queue));
-    // }
+        let queue = MessageQueue::default();
+        let hash = db.write_message_queue(queue.clone());
+        assert_eq!(db.message_queue(hash), Some(queue));
+    }
 
-    // #[test]
-    // fn test_waitlist() {
-    //     let db = Database::memory();
+    #[test]
+    fn test_waitlist() {
+        let db = Database::memory();
 
-    //     let waitlist = Waitlist::default();
-    //     let hash = db.write_waitlist(waitlist.clone());
-    //     assert_eq!(db.waitlist(hash), Some(waitlist));
-    // }
+        let waitlist = Waitlist::default();
+        let hash = db.write_waitlist(waitlist.clone());
+        assert_eq!(db.waitlist(hash), Some(waitlist));
+    }
 
-    // #[test]
-    // fn test_stash() {
-    //     let db = Database::memory();
+    #[test]
+    fn test_stash() {
+        let db = Database::memory();
 
-    //     let stash = DispatchStash::default();
-    //     let hash = db.write_dispatch_stash(stash.clone());
-    //     assert_eq!(db.dispatch_stash(hash), Some(stash));
-    // }
+        let stash = DispatchStash::default();
+        let hash = db.write_dispatch_stash(stash.clone());
+        assert_eq!(db.dispatch_stash(hash), Some(stash));
+    }
 
-    // #[test]
-    // fn test_mailbox() {
-    //     let db = Database::memory();
+    #[test]
+    fn test_mailbox() {
+        let db = Database::memory();
 
-    //     let mailbox = Mailbox::default();
-    //     let hash = db.write_mailbox(mailbox.clone());
-    //     assert_eq!(db.mailbox(hash), Some(mailbox));
-    // }
+        let mailbox = Mailbox::default();
+        let hash = db.write_mailbox(mailbox.clone());
+        assert_eq!(db.mailbox(hash), Some(mailbox));
+    }
 
-    // #[test]
-    // fn test_pages() {
-    //     let db = Database::memory();
+    #[test]
+    fn test_pages() {
+        let db = Database::memory();
 
-    //     let pages = MemoryPages::default();
-    //     let hash = db.write_memory_pages(pages.clone());
-    //     assert_eq!(db.memory_pages(hash), Some(pages));
-    // }
+        let pages = MemoryPages::default();
+        let hash = db.write_memory_pages(pages.clone());
+        assert_eq!(db.memory_pages(hash), Some(pages));
+    }
 
-    // #[test]
-    // fn test_pages_region() {
-    //     let db = Database::memory();
+    #[test]
+    fn test_pages_region() {
+        let db = Database::memory();
 
-    //     let pages_region = MemoryPagesRegion::default();
-    //     let hash = db.write_memory_pages_region(pages_region.clone());
-    //     assert_eq!(db.memory_pages_region(hash), Some(pages_region));
-    // }
+        let pages_region = MemoryPagesRegion::default();
+        let hash = db.write_memory_pages_region(pages_region.clone());
+        assert_eq!(db.memory_pages_region(hash), Some(pages_region));
+    }
 
-    // #[test]
-    // fn test_allocations() {
-    //     let db = Database::memory();
+    #[test]
+    fn test_allocations() {
+        let db = Database::memory();
 
-    //     let allocations = Allocations::default();
-    //     let hash = db.write_allocations(allocations.clone());
-    //     assert_eq!(db.allocations(hash), Some(allocations));
-    // }
+        let allocations = Allocations::default();
+        let hash = db.write_allocations(allocations.clone());
+        assert_eq!(db.allocations(hash), Some(allocations));
+    }
 
-    // #[test]
-    // fn test_payload() {
-    //     let db = Database::memory();
+    #[test]
+    fn test_payload() {
+        let db = Database::memory();
 
-    //     let payload: Payload = vec![1, 2, 3].try_into().unwrap();
-    //     let hash = db.write_payload(payload.clone());
-    //     assert_eq!(db.payload(hash), Some(payload));
-    // }
+        let payload: Payload = vec![1, 2, 3].try_into().unwrap();
+        let hash = db.write_payload(payload.clone());
+        assert_eq!(db.payload(hash), Some(payload));
+    }
 
-    // #[test]
-    // fn test_page_data() {
-    //     let db = Database::memory();
+    #[test]
+    fn test_page_data() {
+        let db = Database::memory();
 
-    //     let mut page_data = PageBuf::new_zeroed();
-    //     page_data[42] = 42;
-    //     let hash = db.write_page_data(page_data.clone());
-    //     assert_eq!(db.page_data(hash), Some(page_data));
-    // }
+        let mut page_data = PageBuf::new_zeroed();
+        page_data[42] = 42;
+        let hash = db.write_page_data(page_data.clone());
+        assert_eq!(db.page_data(hash), Some(page_data));
+    }
 }

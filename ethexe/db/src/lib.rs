@@ -91,7 +91,7 @@ mod tests {
             .collect::<Vec<_>>()
     }
 
-    pub fn is_cloneable<DB: Clone>(db: DB) {
+    pub fn is_clonable<DB: Clone>(db: DB) {
         let _ = db.clone();
     }
 
