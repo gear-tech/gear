@@ -28,6 +28,8 @@ sp-wasm-interface = { workspace = true, features = ["std", "wasmtime"] }
 tokio = { workspace = true, features = ["full"] }
 itertools = { workspace = true, features = ["use_std"] }
 gear-workspace-hack.workspace = true
+anyhow.workspace = true
+derive_more.workspace = true
 
 [dev-dependencies]
 anyhow.workspace = true
@@ -37,3 +39,4 @@ demo-ping = { workspace = true, features = ["debug", "ethexe"] }
 demo-async = { workspace = true, features = ["debug", "ethexe"] }
 demo-panic-payload = { workspace = true, features = ["debug", "ethexe"] }
 wat.workspace = true
+ethexe-common = { workspace = true, features = ["mock"] }

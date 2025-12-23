@@ -413,6 +413,20 @@ impl<T: Sized> SignedMessage<T> {
     }
 }
 
+impl<T: Sized> SignedMessage<T>
+where
+    for<'a> Digest: From<&'a T>,
+{
+    pub fn into_verified(self) -> VerifiedData<T> {
+        let data = self.data;
+        let public_key = self
+            .signature
+            .validate_message(&data)
+            .expect("SignedMessage is always valid after construction");
+        VerifiedData { data, public_key }
+    }
+}
+
 impl<T: Sized + Decode> Decode for SignedMessage<T>
 where
     for<'a> Digest: From<&'a T>,

@@ -16,19 +16,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{Processor, ProcessorError, Result};
-use ethexe_common::{
-    Announce,
-    db::{AnnounceStorageRO, CodesStorageRW, OnChainStorageRO},
-};
-use ethexe_db::Database;
-use ethexe_runtime_common::{
-    InBlockTransitions, ScheduleHandler, TransitionController, state::ProgramState,
-};
-use gprimitives::{ActorId, CodeId};
+use ethexe_db::{CASDatabase, Database};
+use ethexe_runtime_common::{InBlockTransitions, TransitionController, state::ProgramState};
+use gprimitives::ActorId;
 
 pub(crate) mod events;
-mod overlaid;
+pub(crate) mod overlaid;
 pub(crate) mod run;
 
 /// A high-level interface for executing ops,
@@ -37,114 +30,52 @@ pub(crate) mod run;
 /// This is based a wrapper which holds data needed to instantiate [`TransitionController`],
 /// which itself performs recording actual state transitions.
 pub struct ProcessingHandler {
-    pub announce: Announce,
-    pub db: Database,
+    db: Database,
+
+    #[cfg(not(test))]
+    transitions: InBlockTransitions,
+
+    #[cfg(test)]
     pub transitions: InBlockTransitions,
 }
 
 impl ProcessingHandler {
-    pub fn controller(&mut self) -> TransitionController<'_, Database> {
+    pub fn new(db: Database, transitions: InBlockTransitions) -> Self {
+        ProcessingHandler { db, transitions }
+    }
+
+    pub fn into_transitions(self) -> InBlockTransitions {
+        self.transitions
+    }
+
+    fn controller(&mut self) -> TransitionController<'_, dyn CASDatabase + '_> {
         TransitionController {
-            storage: &self.db,
+            storage: self.db.cas(),
             transitions: &mut self.transitions,
         }
     }
 
     /// A wrapper for the lower level [`TransitionController::update_state`].
-    pub fn update_state<T>(
+    fn update_state<T>(
         &mut self,
         program_id: ActorId,
-        f: impl FnOnce(&mut ProgramState, &Database, &mut InBlockTransitions) -> T,
+        f: impl FnOnce(&mut ProgramState, &(dyn CASDatabase + '_), &mut InBlockTransitions) -> T,
     ) -> T {
         self.controller().update_state(program_id, f)
     }
-}
 
-impl Processor {
-    /// Creates a new processing handler for the given block hash.
-    ///
-    /// The [`InBlockTransitions`] is created using states of the parent of the block with block_hash.
-    /// That's done because the parent actually has the latest view on program states. Also program states
-    /// for the `block_hash` block are written to database only after the block is processed.
-    pub fn handler(&self, announce: Announce) -> Result<ProcessingHandler> {
-        let corresponding_block_header = self
-            .db
-            .block_header(announce.block_hash)
-            .ok_or(ProcessorError::BlockHeaderNotFound(announce.block_hash))?;
+    #[cfg(test)]
+    #[track_caller]
+    pub fn program_state(&mut self, program_id: ActorId) -> ProgramState {
+        use ethexe_runtime_common::state::Storage;
 
-        let parent_final_states = self.db.announce_program_states(announce.parent).ok_or(
-            ProcessorError::AnnounceProgramStatesNotFound(announce.parent),
-        )?;
-
-        let parent_final_schedule = self
-            .db
-            .announce_schedule(announce.parent)
-            .ok_or(ProcessorError::AnnounceScheduleNotFound(announce.parent))?;
-
-        // TODO kuzmindev: Remove this when NetworkAnnounce will be implemented.
-        let injected_messages = announce
-            .injected_transactions
-            .iter()
-            .map(|tx| tx.data().to_message_id())
-            .collect();
-
-        let transitions = InBlockTransitions::new(
-            corresponding_block_header,
-            parent_final_states,
-            parent_final_schedule,
-            injected_messages,
-        );
-
-        Ok(ProcessingHandler {
-            announce,
-            db: self.db.clone(),
-            transitions,
-        })
-    }
-
-    /// Returns some CodeId in case of settlement and new code accepting.
-    pub(crate) fn handle_new_code(
-        &mut self,
-        original_code: impl AsRef<[u8]>,
-    ) -> Result<Option<CodeId>> {
-        let mut executor = self.creator.instantiate()?;
-
-        let original_code = original_code.as_ref();
-
-        let Some((instrumented_code, code_metadata)) = executor.instrument(original_code)? else {
-            return Ok(None);
-        };
-
-        let code_id = self.db.set_original_code(original_code);
-
-        let Some(instructions_weight) = code_metadata.instruction_weights_version() else {
-            return Ok(None);
-        };
-
+        let state_hash = self
+            .transitions
+            .state_of(&program_id)
+            .expect("Program not found")
+            .hash;
         self.db
-            .set_instrumented_code(instructions_weight, code_id, instrumented_code);
-
-        self.db.set_code_metadata(code_id, code_metadata);
-
-        Ok(Some(code_id))
-    }
-}
-
-impl ProcessingHandler {
-    pub fn run_schedule(&mut self) {
-        let tasks = self.transitions.take_actual_tasks();
-
-        log::debug!(
-            "Running schedule for #{}: tasks are {tasks:?}",
-            self.transitions.header().height
-        );
-
-        let mut handler = ScheduleHandler {
-            controller: self.controller(),
-        };
-
-        for task in tasks {
-            let _gas = task.process_with(&mut handler);
-        }
+            .program_state(state_hash)
+            .expect("Program state not found in DB")
     }
 }
