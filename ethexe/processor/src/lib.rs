@@ -36,10 +36,7 @@ use gear_core::{
     rpc::ReplyInfo,
 };
 use gprimitives::{ActorId, CodeId, H256, MessageId};
-use handling::{
-    ProcessingHandler,
-    run::{CommonRunContext, OverlaidRunContext},
-};
+use handling::{ProcessingHandler, overlaid::OverlaidRunContext, run::CommonRunContext};
 use host::InstanceCreator;
 
 pub use host::InstanceError;
@@ -402,8 +399,8 @@ impl OverlaidProcessor {
         )?;
 
         OverlaidRunContext::new(
-            program_id,
             self.0.db.clone(),
+            program_id,
             &mut transitions,
             gas_allowance,
             self.0.config.chunk_size,

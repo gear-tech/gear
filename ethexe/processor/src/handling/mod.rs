@@ -21,7 +21,7 @@ use ethexe_runtime_common::{InBlockTransitions, TransitionController, state::Pro
 use gprimitives::ActorId;
 
 pub(crate) mod events;
-mod overlaid;
+pub(crate) mod overlaid;
 pub(crate) mod run;
 
 /// A high-level interface for executing ops,

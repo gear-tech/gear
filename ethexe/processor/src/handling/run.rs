@@ -104,8 +104,11 @@
 //! In the future, we could introduce a weight multiplier to the queue size to improve partitioning efficiency.
 //! This weight multiplier could be calculated based on program execution time statistics.
 
-use crate::{ProcessorError, Result, handling::overlaid::OverlaidState, host::InstanceCreator};
+use crate::{
+    ProcessorError, Result, handling::run::chunks_splitting::ExecutionChunks, host::InstanceCreator,
+};
 use chunk_execution_processing::ChunkJournalsProcessingOutput;
+use chunks_splitting::ActorStateHashWithQueueSize;
 use core_processor::common::JournalNote;
 use ethexe_common::{
     StateHashWithQueueSize,
@@ -125,7 +128,7 @@ use itertools::Itertools;
 use tokio::task::JoinSet;
 
 // Process chosen queue type in chunks
-async fn run_inner<C: RunContext>(mut ctx: C, queue_type: MessageType) -> Option<C> {
+pub(super) async fn run_inner<C: RunContext>(mut ctx: C, queue_type: MessageType) -> Option<C> {
     let mut join_set = JoinSet::new();
     let mut is_out_of_gas_for_block = false;
 
@@ -197,8 +200,7 @@ pub(crate) trait RunContext {
     );
 
     /// Get program states for the specified queue type.
-    fn states(&self, queue_type: MessageType)
-    -> Vec<chunks_splitting::ActorStateHashWithQueueSize>;
+    fn states(&self, queue_type: MessageType) -> Vec<ActorStateHashWithQueueSize>;
 
     /// Amount of max programs to be processed in a single chunk.
     fn chunk_size(&self) -> usize;
@@ -212,11 +214,11 @@ pub(crate) trait RunContext {
     /// The trait method provides a default implementation for a common execution.
     fn handle_chunk_data(
         &self,
-        execution_chunks: &mut chunks_splitting::ExecutionChunks,
-        actor_state: chunks_splitting::ActorStateHashWithQueueSize,
+        execution_chunks: &mut ExecutionChunks,
+        actor_state: ActorStateHashWithQueueSize,
         queue_type: MessageType,
     ) {
-        let chunks_splitting::ActorStateHashWithQueueSize {
+        let ActorStateHashWithQueueSize {
             actor_id,
             hash,
             canonical_queue_size,
@@ -321,128 +323,12 @@ impl<'a> RunContext for CommonRunContext<'a> {
         )
     }
 
-    fn states(
-        &self,
-        processing_queue_type: MessageType,
-    ) -> Vec<chunks_splitting::ActorStateHashWithQueueSize> {
+    fn states(&self, processing_queue_type: MessageType) -> Vec<ActorStateHashWithQueueSize> {
         states(&*self.in_block_transitions, processing_queue_type)
     }
 
     fn chunk_size(&self) -> usize {
         self.chunk_size
-    }
-}
-
-/// Overlaid run context.
-pub(crate) struct OverlaidRunContext<'a> {
-    overlaid_ctx: OverlaidState,
-    in_block_transitions: &'a mut InBlockTransitions,
-    gas_allowance_counter: GasAllowanceCounter,
-    chunk_size: usize,
-    instance_creator: InstanceCreator,
-}
-
-impl<'a> OverlaidRunContext<'a> {
-    pub(crate) fn new(
-        base_program: ActorId,
-        db: Database,
-        in_block_transitions: &'a mut InBlockTransitions,
-        gas_allowance: u64,
-        chunk_size: usize,
-        instance_creator: InstanceCreator,
-    ) -> Self {
-        Self {
-            overlaid_ctx: OverlaidState::new(base_program, db, in_block_transitions),
-            in_block_transitions,
-            gas_allowance_counter: GasAllowanceCounter::new(gas_allowance),
-            chunk_size,
-            instance_creator,
-        }
-    }
-
-    pub(crate) async fn run(self) {
-        let _ = run_inner(self, MessageType::Canonical).await;
-    }
-}
-
-impl<'a> RunContext for OverlaidRunContext<'a> {
-    fn instance_creator(&self) -> &InstanceCreator {
-        &self.instance_creator
-    }
-
-    fn chunk_size(&self) -> usize {
-        self.chunk_size
-    }
-
-    fn program_code(&self, program_id: ActorId) -> Result<(InstrumentedCode, CodeMetadata)> {
-        let code_id = self
-            .overlaid_ctx
-            .db()
-            .program_code_id(program_id)
-            .ok_or_else(|| ProcessorError::MissingCodeIdForProgram(program_id))?;
-
-        instrumented_code_and_metadata(&self.overlaid_ctx.db(), code_id)
-    }
-
-    fn borrow_inner(
-        &mut self,
-    ) -> (
-        &dyn CASDatabase,
-        &mut InBlockTransitions,
-        &mut GasAllowanceCounter,
-    ) {
-        (
-            self.overlaid_ctx.db().cas(),
-            &mut self.in_block_transitions,
-            &mut self.gas_allowance_counter,
-        )
-    }
-
-    fn states(
-        &self,
-        processing_queue_type: MessageType,
-    ) -> Vec<chunks_splitting::ActorStateHashWithQueueSize> {
-        states(&*self.in_block_transitions, processing_queue_type)
-    }
-
-    fn handle_chunk_data(
-        &self,
-        execution_chunks: &mut chunks_splitting::ExecutionChunks,
-        actor_state: chunks_splitting::ActorStateHashWithQueueSize,
-        queue_type: MessageType,
-    ) {
-        let chunks_splitting::ActorStateHashWithQueueSize {
-            actor_id,
-            hash,
-            canonical_queue_size,
-            injected_queue_size,
-        } = actor_state;
-
-        let queue_size = match queue_type {
-            MessageType::Canonical => canonical_queue_size,
-            MessageType::Injected => injected_queue_size,
-        };
-
-        if self.overlaid_ctx.base_program() == actor_id {
-            // Insert base program into heaviest chunk, which is going to be executed first.
-            // This is done to get faster reply from the target dispatch for which overlaid
-            // executor was created.
-            execution_chunks.insert_into_heaviest(actor_id, hash);
-        } else {
-            let chunk_idx = execution_chunks.chunk_idx(queue_size);
-            execution_chunks.insert_into(chunk_idx, actor_id, hash);
-        }
-    }
-
-    fn check_task_no_run(&mut self, program_id: ActorId) -> bool {
-        // If the queue wasn't nullified, the following call will nullify it and skip job spawning.
-        self.overlaid_ctx
-            .nullify_queue(program_id, self.in_block_transitions)
-    }
-
-    fn break_early(&mut self, journal: &[JournalNote]) -> bool {
-        self.overlaid_ctx
-            .nullify_or_break_early(journal, self.in_block_transitions)
     }
 }
 
@@ -458,10 +344,10 @@ pub(super) fn instrumented_code_and_metadata(
         .ok_or_else(|| ProcessorError::MissingInstrumentedCodeForProgram(code_id))
 }
 
-fn states(
+pub(super) fn states(
     in_block_transitions: &InBlockTransitions,
     processing_queue_type: MessageType,
-) -> Vec<chunks_splitting::ActorStateHashWithQueueSize> {
+) -> Vec<ActorStateHashWithQueueSize> {
     in_block_transitions
         .states_iter()
         .filter_map(|(&actor_id, &state)| {
@@ -473,14 +359,14 @@ fn states(
             if queue_size == 0 {
                 return None;
             }
-            let actor_state = chunks_splitting::ActorStateHashWithQueueSize::new(actor_id, state);
+            let actor_state = ActorStateHashWithQueueSize::new(actor_id, state);
 
             Some(actor_state)
         })
         .collect()
 }
 
-mod chunks_splitting {
+pub(super) mod chunks_splitting {
     use super::*;
 
     // An alias introduced for better readability of the chunks splitting steps.
@@ -488,10 +374,7 @@ mod chunks_splitting {
 
     // `prepare_execution_chunks` is not exactly sorting (sorting usually `n*log(n)` this one is `O(n)`),
     // but rather partitioning into subsets (chunks) of programs with approximately similar queue sizes.
-    pub(super) fn prepare_execution_chunks(
-        ctx: &impl RunContext,
-        queue_type: MessageType,
-    ) -> Chunks {
+    pub fn prepare_execution_chunks(ctx: &impl RunContext, queue_type: MessageType) -> Chunks {
         let states = ctx.states(queue_type);
         let mut execution_chunks = ExecutionChunks::new(ctx.chunk_size(), states.len());
 
@@ -504,15 +387,15 @@ mod chunks_splitting {
 
     /// A helper  struct to bundle actor id, state hash and queue size together
     /// for easier handling in chunk preparation.
-    pub(crate) struct ActorStateHashWithQueueSize {
-        pub(crate) actor_id: ActorId,
-        pub(crate) hash: H256,
-        pub(crate) canonical_queue_size: usize,
-        pub(crate) injected_queue_size: usize,
+    pub struct ActorStateHashWithQueueSize {
+        pub actor_id: ActorId,
+        pub hash: H256,
+        pub canonical_queue_size: usize,
+        pub injected_queue_size: usize,
     }
 
     impl ActorStateHashWithQueueSize {
-        pub(super) fn new(actor_id: ActorId, state: StateHashWithQueueSize) -> Self {
+        pub fn new(actor_id: ActorId, state: StateHashWithQueueSize) -> Self {
             Self {
                 actor_id,
                 hash: state.hash,
@@ -523,7 +406,7 @@ mod chunks_splitting {
     }
 
     /// A helper struct to manage execution chunks during their preparation.
-    pub(crate) struct ExecutionChunks {
+    pub struct ExecutionChunks {
         chunk_size: usize,
         chunks: Chunks,
     }
@@ -539,14 +422,14 @@ mod chunks_splitting {
         }
 
         /// Gets chunk index in chunks tasks queue.
-        pub(super) fn chunk_idx(&self, mq_size: usize) -> usize {
+        pub fn chunk_idx(&self, mq_size: usize) -> usize {
             // Simplest implementation of chunk partitioning '| 1 | 2 | 3 | 4 | ..'
             debug_assert_ne!(mq_size, 0);
             mq_size.min(self.chunks.len()) - 1
         }
 
         /// Inserts chunk execution data into the specified chunk index.
-        pub(super) fn insert_into(&mut self, idx: usize, actor_id: ActorId, hash: H256) {
+        pub fn insert_into(&mut self, idx: usize, actor_id: ActorId, hash: H256) {
             if let Some(chunk) = self.chunks.get_mut(idx) {
                 chunk.push((actor_id, hash));
             } else {
@@ -558,7 +441,7 @@ mod chunks_splitting {
         }
 
         /// Insert chunk execution data into the heaviest chunk (most prior, the last one).
-        pub(super) fn insert_into_heaviest(&mut self, actor_id: ActorId, hash: H256) {
+        pub fn insert_into_heaviest(&mut self, actor_id: ActorId, hash: H256) {
             if let Some(chunk) = self.chunks.last_mut() {
                 chunk.push((actor_id, hash));
             } else {
@@ -752,9 +635,8 @@ mod chunk_execution_processing {
 
 #[cfg(test)]
 mod tests {
-    use crate::host;
-
     use super::*;
+    use crate::{handling::overlaid::OverlaidRunContext, host};
     use ethexe_common::{MaybeHashOf, StateHashWithQueueSize, gear::MessageType};
     use ethexe_runtime_common::state::{
         ActiveProgram, Dispatch, MessageQueueHashWithSize, Program, ProgramState, Storage,
@@ -949,26 +831,42 @@ mod tests {
             assert_eq!(queue.len(), 3);
         });
 
-        let mut overlaid_ctx =
-            OverlaidState::new(base_program, db.clone(), &mut in_block_transitions);
-        access_state(pid2, &mut in_block_transitions, &db, |state, storage, _| {
-            let mut queue = state
-                .canonical_queue
-                .query(storage)
-                .expect("Failed to read queue for pid2");
-            assert_eq!(queue.len(), 1);
+        let mut overlaid_ctx = OverlaidRunContext::new(
+            db.clone(),
+            base_program,
+            &mut in_block_transitions,
+            100,
+            16,
+            InstanceCreator::new(host::runtime()).unwrap(),
+        );
+        access_state(
+            pid2,
+            overlaid_ctx.borrow_inner().1,
+            &db,
+            |state, storage, _| {
+                let mut queue = state
+                    .canonical_queue
+                    .query(storage)
+                    .expect("Failed to read queue for pid2");
+                assert_eq!(queue.len(), 1);
 
-            let dispatch = queue.dequeue().expect("pid2 queue has 1 dispatch");
-            assert_eq!(dispatch.id, pid2_overlay_mid2);
-        });
+                let dispatch = queue.dequeue().expect("pid2 queue has 1 dispatch");
+                assert_eq!(dispatch.id, pid2_overlay_mid2);
+            },
+        );
 
-        assert!(overlaid_ctx.nullify_queue(pid1, &mut in_block_transitions));
-        access_state(pid1, &mut in_block_transitions, &db, |state, storage, _| {
-            let queue = state
-                .canonical_queue
-                .query(storage)
-                .expect("Failed to read queue for pid1");
-            assert_eq!(queue.len(), 0);
-        });
+        assert!(overlaid_ctx.nullify_queue(pid1));
+        access_state(
+            pid1,
+            overlaid_ctx.borrow_inner().1,
+            &db,
+            |state, storage, _| {
+                let queue = state
+                    .canonical_queue
+                    .query(storage)
+                    .expect("Failed to read queue for pid1");
+                assert_eq!(queue.len(), 0);
+            },
+        );
     }
 }
