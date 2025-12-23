@@ -56,9 +56,9 @@ benchmarks! {
     }
 
     calculate_id {
-        let builtin_id = 100_u64;
+        let builtin_id = BuiltinActorId::new(b"test", 0);
     }: {
-        Pallet::<T>::generate_actor_id(builtin_id)
+        Pallet::<T>::builtin_id_into_actor_id(builtin_id)
     } verify {
         // No changes in runtime are expected since the actual dispatch doesn't take place.
     }

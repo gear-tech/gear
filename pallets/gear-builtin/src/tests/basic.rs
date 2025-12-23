@@ -20,25 +20,28 @@
 
 #![cfg(test)]
 
-use crate::{mock::*, tests::DEFAULT_GAS_LIMIT};
+use crate::{BuiltinActorType, mock::*, tests::DEFAULT_GAS_LIMIT};
 use common::Origin;
 use demo_waiting_proxy::WASM_BINARY;
 use frame_support::assert_ok;
 use gear_core::ids::{ActorId, CodeId, prelude::*};
 use gear_core_errors::{ErrorReplyReason, ReplyCode, SimpleExecutionError};
 use parity_scale_codec::Encode;
-use primitive_types::H256;
 
 pub(crate) fn init_logger() {
     let _ = tracing_subscriber::fmt::try_init();
 }
 
-const SUCCESS_ACTOR_ID: [u8; 32] =
-    hex_literal::hex!("e9391bc9ccbc52c944f5e8c957d36393b7b96abc144e436731198eb650c5b874");
-const ERROR_ACTOR_ID: [u8; 32] =
-    hex_literal::hex!("eff0acac338350c3ca8adcbbd7be7552f980c28670ab03ff7224d5d5b012e4f9");
-const HONEST_ACTOR_ID: [u8; 32] =
-    hex_literal::hex!("7eb026f54b3ee698d933fbbbb0b22665acd4b435a7272ead5dc9152c97cbf032");
+/// Helper function to create expected ActorId from builtin actor type.
+/// This makes tests more maintainable by avoiding hardcoded byte arrays.
+fn builtin_actor_id<T: crate::BuiltinActor>() -> ActorId {
+    GearBuiltin::builtin_id_into_actor_id(T::TYPE.id())
+}
+
+/// Helper function to create ActorId for a specific BuiltinActorType.
+fn actor_id_for_type(actor_type: BuiltinActorType) -> ActorId {
+    GearBuiltin::builtin_id_into_actor_id(actor_type.id())
+}
 
 fn deploy_contract(init_payload: Vec<u8>) {
     assert_ok!(Gear::upload_program(
@@ -64,16 +67,70 @@ fn send_message(contract_id: ActorId, payload: Vec<u8>) {
 }
 
 #[test]
+fn builtin_actor_ids_are_correct() {
+    init_logger();
+
+    new_test_ext().execute_with(|| {
+        // Use helper functions to compute expected ActorIds
+        let success_actor_id = builtin_actor_id::<SuccessBuiltinActor>();
+        let error_actor_id = builtin_actor_id::<ErrorBuiltinActor>();
+        let honest_actor_id = builtin_actor_id::<HonestBuiltinActor>();
+        let proxy_actor_id = builtin_actor_id::<crate::proxy::Actor<Test>>();
+        let staking_actor_id = builtin_actor_id::<crate::staking::Actor<Test>>();
+        let bls_actor_id = builtin_actor_id::<crate::bls12_381::Actor<Test>>();
+        let eth_bridge_actor_id = actor_id_for_type(BuiltinActorType::EthBridge);
+
+        // Verify the encoding matches expected format
+        // These assertions validate that the encoding produces correct actor IDs
+        assert_eq!(
+            success_actor_id,
+            ActorId::from(*b"modl/bia/success-actor/v-\x01\0/\0\0\0\0"),
+            "Success actor ID encoding mismatch"
+        );
+        assert_eq!(
+            error_actor_id,
+            ActorId::from(*b"modl/bia/error-actor/v-\x01\0/\0\0\0\0\0\0"),
+            "Error actor ID encoding mismatch"
+        );
+        assert_eq!(
+            honest_actor_id,
+            ActorId::from(*b"modl/bia/honest-actor/v-\x01\0/\0\0\0\0\0"),
+            "Honest actor ID encoding mismatch"
+        );
+        assert_eq!(
+            proxy_actor_id,
+            ActorId::from(*b"modl/bia/proxy/v-\x01\0/\0\0\0\0\0\0\0\0\0\0\0\0"),
+            "Proxy actor ID encoding mismatch"
+        );
+        assert_eq!(
+            staking_actor_id,
+            ActorId::from(*b"modl/bia/staking/v-\x01\0/\0\0\0\0\0\0\0\0\0\0"),
+            "Staking actor ID encoding mismatch"
+        );
+        assert_eq!(
+            bls_actor_id,
+            ActorId::from(*b"modl/bia/bls12-381/v-\x01\0/\0\0\0\0\0\0\0\0"),
+            "BLS12-381 actor ID encoding mismatch"
+        );
+        assert_eq!(
+            eth_bridge_actor_id,
+            ActorId::from(*b"modl/bia/eth-bridge/v-\x01\0/\0\0\0\0\0\0\0"),
+            "Eth bridge actor ID encoding mismatch"
+        );
+    });
+}
+
+#[test]
 fn user_message_to_builtin_actor_works() {
     init_logger();
 
     new_test_ext().execute_with(|| {
-        let builtin_actor_id: ActorId = H256::from(SUCCESS_ACTOR_ID).cast();
+        let success_bia_id = builtin_actor_id::<SuccessBuiltinActor>();
 
         assert_eq!(current_stack(), vec![]);
 
         // Asserting success
-        send_message(builtin_actor_id, Default::default());
+        send_message(success_bia_id, Default::default());
 
         // Message is in the queue and a gas node has been created.
         assert!(!message_queue_empty());
@@ -90,8 +147,8 @@ fn user_message_to_builtin_actor_works() {
         assert!(gas_tree_empty());
 
         // Asserting error
-        let builtin_actor_id: ActorId = H256::from(ERROR_ACTOR_ID).cast();
-        send_message(builtin_actor_id, Default::default());
+        let error_bia_id = builtin_actor_id::<ErrorBuiltinActor>();
+        send_message(error_bia_id, Default::default());
         run_to_next_block();
 
         // A builtin contract has been called
@@ -113,7 +170,9 @@ fn invoking_builtin_from_program_works() {
 
         assert_eq!(current_stack(), vec![]);
 
-        deploy_contract((HONEST_ACTOR_ID, 0u64).encode());
+        let honest_bia_id = builtin_actor_id::<HonestBuiltinActor>();
+
+        deploy_contract((honest_bia_id, 0u64).encode());
         run_to_next_block();
 
         let signer_current_balance_at_blk_1 = Balances::free_balance(SIGNER);
@@ -167,7 +226,7 @@ fn calculate_gas_info_works() {
     init_logger();
 
     new_test_ext().execute_with(|| {
-        let builtin_actor_id: ActorId = H256::from(SUCCESS_ACTOR_ID).cast();
+        let success_bia_id = builtin_actor_id::<SuccessBuiltinActor>();
 
         assert_eq!(current_stack(), vec![]);
 
@@ -187,12 +246,12 @@ fn calculate_gas_info_works() {
             rollback_transaction();
             res
         };
-        let gas_info = get_gas_info(builtin_actor_id, Default::default());
+        let gas_info = get_gas_info(success_bia_id, Default::default());
 
         // Success builtin actor always reports success even if gas is insufficient.
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(SIGNER),
-            builtin_actor_id,
+            success_bia_id,
             Default::default(),
             gas_info.min_limit - 100,
             0,
@@ -215,11 +274,11 @@ fn calculate_gas_info_works() {
         assert!(gas_tree_empty());
 
         // Honest actor runs gas limit check and respects its outcome.
-        let builtin_actor_id: ActorId = H256::from(HONEST_ACTOR_ID).cast();
-        let gas_info = get_gas_info(builtin_actor_id, Default::default());
+        let honest_bia_id = builtin_actor_id::<HonestBuiltinActor>();
+        let gas_info = get_gas_info(honest_bia_id, Default::default());
         assert_ok!(Gear::send_message(
             RuntimeOrigin::signed(SIGNER),
-            builtin_actor_id,
+            honest_bia_id,
             Default::default(),
             gas_info.min_limit - 1_000,
             0,
