@@ -316,6 +316,7 @@ async fn ping_pong() {
     let to_users = processor
         .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT)
         .await
+        .unwrap()
         .current_messages();
 
     assert_eq!(to_users.len(), 2);
@@ -424,7 +425,8 @@ async fn async_and_ping() {
 
     let transitions = processor
         .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT)
-        .await;
+        .await
+        .unwrap();
 
     let to_users = transitions.current_messages();
 
@@ -517,7 +519,8 @@ async fn many_waits() {
     handler.transitions = processor.process_tasks(handler.transitions);
     handler.transitions = processor
         .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT)
-        .await;
+        .await
+        .unwrap();
     assert_eq!(
         handler.transitions.current_messages().len(),
         amount as usize
@@ -541,7 +544,8 @@ async fn many_waits() {
     }
     handler.transitions = processor
         .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT)
-        .await;
+        .await
+        .unwrap();
     assert_eq!(
         handler.transitions.current_messages().len(),
         amount as usize
@@ -567,7 +571,8 @@ async fn many_waits() {
     let transitions = processor.process_tasks(transitions);
     let transitions = processor
         .process_queues(transitions, wake_block, DEFAULT_BLOCK_GAS_LIMIT)
-        .await;
+        .await
+        .unwrap();
 
     assert_eq!(transitions.current_messages().len(), amount as usize);
 
@@ -862,7 +867,8 @@ async fn injected_ping_pong() {
 
     handler.transitions = processor
         .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT)
-        .await;
+        .await
+        .unwrap();
 
     handler
         .handle_mirror_event(
@@ -883,7 +889,8 @@ async fn injected_ping_pong() {
 
     handler.transitions = processor
         .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT)
-        .await;
+        .await
+        .unwrap();
 
     let to_users = handler.transitions.current_messages();
 
@@ -945,7 +952,8 @@ async fn injected_prioritized_over_canonical() {
 
     handler.transitions = processor
         .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT)
-        .await;
+        .await
+        .unwrap();
 
     // Send canonical messages
     for _ in 0..MSG_NUM {
@@ -972,7 +980,8 @@ async fn injected_prioritized_over_canonical() {
 
     let transitions = processor
         .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT)
-        .await;
+        .await
+        .unwrap();
 
     // Verify that injected messages were processed first
     // skip the first message which is INIT reply
@@ -1028,7 +1037,8 @@ async fn executable_balance_charged() {
 
     handler.transitions = processor
         .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT)
-        .await;
+        .await
+        .unwrap();
 
     let to_users = handler.transitions.current_messages();
 
@@ -1109,7 +1119,8 @@ async fn executable_balance_injected_panic_not_charged() {
         .unwrap();
     handler.transitions = processor
         .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT)
-        .await;
+        .await
+        .unwrap();
     let init_balance = handler.program_state(actor_id).executable_balance;
 
     // We know for sure handling this message is cost less than the threshold.
@@ -1119,7 +1130,8 @@ async fn executable_balance_injected_panic_not_charged() {
         .unwrap();
     handler.transitions = processor
         .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT)
-        .await;
+        .await
+        .unwrap();
 
     let to_users = handler.transitions.current_messages();
     assert_eq!(to_users.len(), 2);
@@ -1148,7 +1160,8 @@ async fn executable_balance_injected_panic_not_charged() {
         .expect("failed to send message");
     let transitions = processor
         .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT)
-        .await;
+        .await
+        .unwrap();
 
     let to_users = transitions.current_messages();
     assert_eq!(to_users.len(), 3);
@@ -1208,7 +1221,8 @@ async fn insufficient_executable_balance_still_charged() {
 
     handler.transitions = processor
         .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT)
-        .await;
+        .await
+        .unwrap();
 
     let to_users = handler.transitions.current_messages();
     assert_eq!(to_users.len(), 1);

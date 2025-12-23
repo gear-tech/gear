@@ -129,16 +129,16 @@ use tokio::task::JoinSet;
 
 // Process chosen queue type in chunks
 // Returns whether execution is not run out of gas and context back
-pub(super) async fn run_for_queue_type<C: RunContext>(
-    mut ctx: C,
+pub(super) async fn run_for_queue_type(
+    ctx: &mut impl RunContext,
     queue_type: MessageType,
-) -> (bool, C) {
+) -> Result<bool> {
     let mut join_set = JoinSet::new();
     let mut is_out_of_gas_for_block = false;
 
     loop {
         // Prepare chunks for execution, by splitting states into chunks of the specified size.
-        let chunks = chunks_splitting::prepare_execution_chunks(&ctx, queue_type);
+        let chunks = chunks_splitting::prepare_execution_chunks(ctx, queue_type);
 
         if chunks.is_empty() {
             // No more chunks to process. Stopping.
@@ -147,20 +147,14 @@ pub(super) async fn run_for_queue_type<C: RunContext>(
 
         for chunk in chunks {
             // Spawn on a separate thread an execution of each program (it's queue) in the chunk.
-            chunk_execution_spawn::spawn_chunk_execution(
-                &mut ctx,
-                chunk,
-                &mut join_set,
-                queue_type,
-            );
+            chunk_execution_spawn::spawn_chunk_execution(ctx, chunk, &mut join_set, queue_type)?;
 
             // Collect journals from all executed programs in the chunk.
             let (chunk_journals, max_gas_spent_in_chunk) =
-                chunk_execution_processing::collect_chunk_journals(&mut ctx, &mut join_set).await;
-
+                chunk_execution_processing::collect_chunk_journals(ctx, &mut join_set).await;
             // Process journals of all executed programs in the chunk.
             let output = chunk_execution_processing::process_chunk_execution_journals(
-                &mut ctx,
+                ctx,
                 chunk_journals,
                 &mut is_out_of_gas_for_block,
             );
@@ -180,7 +174,7 @@ pub(super) async fn run_for_queue_type<C: RunContext>(
         }
     }
 
-    (!is_out_of_gas_for_block, ctx)
+    Ok(!is_out_of_gas_for_block)
 }
 
 /// Context for running program queues in chunks.
@@ -188,7 +182,7 @@ pub(super) async fn run_for_queue_type<C: RunContext>(
 /// Main responsibility of the trait is to maintain DRY principle
 /// between common and overlaid execution contexts. It's not meant
 /// to emphasize any particular trait/feature/abstraction.
-pub(crate) trait RunContext {
+pub(super) trait RunContext {
     /// Get reference to instance creator.
     fn instance_creator(&self) -> &InstanceCreator;
 
@@ -282,17 +276,16 @@ impl CommonRunContext {
         }
     }
 
-    pub(crate) async fn run(self) -> InBlockTransitions {
+    pub(crate) async fn run(mut self) -> Result<InBlockTransitions> {
         // Start with injected queues processing.
-        let (can_continue, ctx) = run_for_queue_type(self, MessageType::Injected).await;
+        let can_continue = run_for_queue_type(&mut self, MessageType::Injected).await?;
 
         if can_continue {
             // If gas is still left in block, process canonical (Ethereum) queues
-            let (_, ctx) = run_for_queue_type(ctx, MessageType::Canonical).await;
-            ctx.in_block_transitions
-        } else {
-            ctx.in_block_transitions
+            let _ = run_for_queue_type(&mut self, MessageType::Canonical).await?;
         }
+
+        Ok(self.in_block_transitions)
     }
 }
 
@@ -497,13 +490,13 @@ mod chunk_execution_spawn {
         chunk: Vec<(ActorId, H256)>,
         join_set: &mut ChunksJoinSet,
         queue_type: MessageType,
-    ) {
+    ) -> Result<()> {
         for (chunk_pos, (program_id, state_hash)) in chunk.into_iter().enumerate() {
             if ctx.check_task_no_run(program_id) {
                 continue;
             }
 
-            let (instrumented_code, code_metadata) = ctx.program_code(program_id).expect("+_+_+");
+            let (instrumented_code, code_metadata) = ctx.program_code(program_id)?;
 
             let mut executor = ctx
                 .instance_creator()
@@ -530,6 +523,8 @@ mod chunk_execution_spawn {
                 (chunk_pos, program_id, new_state_hash, jn, gas_spent)
             });
         }
+
+        Ok(())
     }
 }
 

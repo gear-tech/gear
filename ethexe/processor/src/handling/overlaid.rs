@@ -91,9 +91,9 @@ impl OverlaidRunContext {
         }
     }
 
-    pub(crate) async fn run(self) -> InBlockTransitions {
-        let (_, ctx) = run::run_for_queue_type(self, MessageType::Canonical).await;
-        ctx.transitions
+    pub(crate) async fn run(mut self) -> Result<InBlockTransitions> {
+        let _ = run::run_for_queue_type(&mut self, MessageType::Canonical).await?;
+        Ok(self.transitions)
     }
 
     /// Nullifies queues of dispatches receivers in case there is no reply to the base message.

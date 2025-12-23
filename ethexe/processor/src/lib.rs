@@ -202,7 +202,9 @@ impl Processor {
         transitions =
             self.process_injected_and_events(transitions, injected_transactions, events)?;
         if let Some(gas_allowance) = gas_allowance {
-            transitions = self.process_queues(transitions, block, gas_allowance).await;
+            transitions = self
+                .process_queues(transitions, block, gas_allowance)
+                .await?;
         }
 
         Ok(transitions.finalize())
@@ -241,7 +243,7 @@ impl Processor {
         transitions: InBlockTransitions,
         block: SimpleBlockData,
         gas_allowance: u64,
-    ) -> InBlockTransitions {
+    ) -> Result<InBlockTransitions> {
         self.creator.set_chain_head(block);
 
         CommonRunContext::new(
@@ -405,7 +407,7 @@ impl OverlaidProcessor {
             self.0.creator.clone(),
         )
         .run()
-        .await;
+        .await?;
 
         let res = transitions
             .current_messages()
