@@ -530,7 +530,7 @@ impl Dispatch {
         }
     }
 
-    pub fn from_core_stored<S: Storage>(
+    pub fn from_core_stored<S: Storage + ?Sized>(
         storage: &S,
         value: StoredDispatch,
         message_type: MessageType,
@@ -851,7 +851,7 @@ pub struct Mailbox {
 }
 
 impl Mailbox {
-    pub fn add_and_store_user_mailbox<S: Storage>(
+    pub fn add_and_store_user_mailbox<S: Storage + ?Sized>(
         &mut self,
         storage: &S,
         user_id: ActorId,

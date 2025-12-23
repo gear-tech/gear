@@ -163,9 +163,8 @@ async fn run_inner<C: RunContext>(mut ctx: C, queue_type: MessageType) -> Option
             }
 
             // Charge global gas allowance counter with the maximum gas spent in the chunk.
-            ctx.transitions_and_allowance_counter()
-                .1
-                .charge(max_gas_spent_in_chunk);
+            let (_, _, gas_allowance_counter) = ctx.borrow_inner();
+            gas_allowance_counter.charge(max_gas_spent_in_chunk);
         }
 
         if is_out_of_gas_for_block {
@@ -183,23 +182,25 @@ async fn run_inner<C: RunContext>(mut ctx: C, queue_type: MessageType) -> Option
 /// between common and overlaid execution contexts. It's not meant
 /// to emphasize any particular trait/feature/abstraction.
 pub(crate) trait RunContext {
-    /// Return instance of CAS database.
-    fn cas(&self) -> Box<dyn CASDatabase>;
-
     /// Get reference to instance creator.
     fn instance_creator(&self) -> &InstanceCreator;
 
     fn program_code(&self, program_id: ActorId) -> Result<(InstrumentedCode, CodeMetadata)>;
 
     /// Get mutable reference to in-block transitions.
-    fn transitions_and_allowance_counter(
+    fn borrow_inner(
         &mut self,
-    ) -> (&mut InBlockTransitions, &mut GasAllowanceCounter);
+    ) -> (
+        &dyn CASDatabase,
+        &mut InBlockTransitions,
+        &mut GasAllowanceCounter,
+    );
 
     /// Get program states for the specified queue type.
     fn states(&self, queue_type: MessageType)
     -> Vec<chunks_splitting::ActorStateHashWithQueueSize>;
 
+    /// Amount of max programs to be processed in a single chunk.
     fn chunk_size(&self) -> usize;
 
     /// Handle chunk data for a specific actor state.
@@ -291,10 +292,6 @@ impl<'a> RunContext for CommonRunContext<'a> {
         &self.instance_creator
     }
 
-    fn cas(&self) -> Box<dyn CASDatabase> {
-        self.db.cas().clone_boxed()
-    }
-
     fn program_code(&self, program_id: ActorId) -> Result<(InstrumentedCode, CodeMetadata)> {
         let code_id = self
             .in_block_transitions
@@ -310,10 +307,15 @@ impl<'a> RunContext for CommonRunContext<'a> {
         instrumented_code_and_metadata(&self.db, code_id)
     }
 
-    fn transitions_and_allowance_counter(
+    fn borrow_inner(
         &mut self,
-    ) -> (&mut InBlockTransitions, &mut GasAllowanceCounter) {
+    ) -> (
+        &dyn CASDatabase,
+        &mut InBlockTransitions,
+        &mut GasAllowanceCounter,
+    ) {
         (
+            self.db.cas(),
             &mut self.in_block_transitions,
             &mut self.gas_allowance_counter,
         )
@@ -364,10 +366,6 @@ impl<'a> OverlaidRunContext<'a> {
 }
 
 impl<'a> RunContext for OverlaidRunContext<'a> {
-    fn cas(&self) -> Box<dyn CASDatabase> {
-        self.overlaid_ctx.db().cas().clone_boxed()
-    }
-
     fn instance_creator(&self) -> &InstanceCreator {
         &self.instance_creator
     }
@@ -386,10 +384,15 @@ impl<'a> RunContext for OverlaidRunContext<'a> {
         instrumented_code_and_metadata(&self.overlaid_ctx.db(), code_id)
     }
 
-    fn transitions_and_allowance_counter(
+    fn borrow_inner(
         &mut self,
-    ) -> (&mut InBlockTransitions, &mut GasAllowanceCounter) {
+    ) -> (
+        &dyn CASDatabase,
+        &mut InBlockTransitions,
+        &mut GasAllowanceCounter,
+    ) {
         (
+            self.overlaid_ctx.db().cas(),
             &mut self.in_block_transitions,
             &mut self.gas_allowance_counter,
         )
@@ -616,12 +619,11 @@ mod chunk_execution_spawn {
                 .instance_creator()
                 .instantiate()
                 .expect("Failed to instantiate executor");
-            let gas_allowance_for_chunk = ctx
-                .transitions_and_allowance_counter()
-                .1
-                .left()
-                .min(CHUNK_PROCESSING_GAS_LIMIT);
-            let db = ctx.cas();
+            let (_, _, gas_allowance_counter) = ctx.borrow_inner();
+            let gas_allowance_for_chunk =
+                gas_allowance_counter.left().min(CHUNK_PROCESSING_GAS_LIMIT);
+            let (db, _, _) = ctx.borrow_inner();
+            let db = db.clone_boxed();
 
             join_set.spawn_blocking(move || {
                 let (jn, new_state_hash, gas_spent) = executor
@@ -676,7 +678,7 @@ mod chunk_execution_processing {
         let mut max_gas_spent_in_chunk = 0u64;
         let mut chunk_journals = vec![None; join_set.len()];
 
-        let (in_block_transitions, _) = ctx.transitions_and_allowance_counter();
+        let (_, in_block_transitions, _) = ctx.borrow_inner();
         while let Some(result) = join_set
             .join_next()
             .await
@@ -723,14 +725,13 @@ mod chunk_execution_processing {
             for (journal, message_type, call_reply) in program_journals {
                 let break_flag = ctx.break_early(&journal);
 
-                let storage = ctx.cas();
-                let (transitions, allowance_counter) = ctx.transitions_and_allowance_counter();
+                let (storage, transitions, allowance_counter) = ctx.borrow_inner();
                 let mut journal_handler = JournalHandler {
                     program_id,
                     message_type,
                     call_reply,
                     controller: TransitionController {
-                        storage: &storage,
+                        storage,
                         transitions,
                     },
                     gas_allowance_counter: allowance_counter,
