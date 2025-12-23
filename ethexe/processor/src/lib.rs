@@ -18,7 +18,6 @@
 
 //! Program's execution service for eGPU.
 
-use crate::handling::run::RunContext;
 use core::num::NonZero;
 use ethexe_common::{
     CodeAndIdUnchecked, ProgramStates, Schedule, SimpleBlockData,
@@ -62,11 +61,8 @@ pub enum ProcessorError {
     #[error("code id not found for created program {0}")]
     MissingCodeIdForProgram(ActorId),
 
-    #[error("missing instrumented code for program {program_id} with code id {code_id}")]
-    MissingInstrumentedCodeForProgram {
-        program_id: ActorId,
-        code_id: CodeId,
-    },
+    #[error("missing instrumented code for code id {0}")]
+    MissingInstrumentedCodeForProgram(CodeId),
 
     #[error("injected message {0:?} was sent to uninitialized program")]
     InjectedToUninitializedProgram(Box<InjectedTransaction>),
@@ -198,17 +194,19 @@ impl Processor {
             .map(|tx| tx.data().to_message_id())
             .collect();
 
-        let transitions = InBlockTransitions::new(
+        let mut transitions = InBlockTransitions::new(
             block.header.height,
             program_states,
             schedule,
             injected_messages,
         );
 
-        let transitions = self.process_tasks(transitions);
-        let transitions =
+        transitions = self.process_tasks(transitions);
+        transitions =
             self.process_injected_and_events(transitions, injected_transactions, events)?;
-        let transitions = self.process_queues(transitions, block, gas_allowance).await;
+        if let Some(gas_allowance) = gas_allowance {
+            transitions = self.process_queues(transitions, block, gas_allowance).await;
+        }
 
         Ok(transitions.finalize())
     }
@@ -241,17 +239,12 @@ impl Processor {
         Ok(handler.into_transitions())
     }
 
-    // +_+_+ take not option gas allowance
     async fn process_queues(
         &mut self,
         mut transitions: InBlockTransitions,
         block: SimpleBlockData,
-        gas_allowance: Option<u64>,
+        gas_allowance: u64,
     ) -> InBlockTransitions {
-        let Some(gas_allowance) = gas_allowance else {
-            return transitions;
-        };
-
         self.creator.set_chain_head(block);
 
         CommonRunContext::new(
@@ -301,7 +294,7 @@ pub struct ValidCodeInfo {
 
 #[derive(Debug, derive_more::Display)]
 #[display(
-    "Programs processing for {block:?},
+    "Programs processing at {block:?},
         injected: {injected_transactions:?},
         events: {events:?},
         gas_allowance: {gas_allowance:?}"
@@ -329,6 +322,16 @@ impl Default for ExecutableData {
     }
 }
 
+#[derive(Debug, derive_more::Display)]
+#[display(
+    "Execution for reply at {block:?}:
+        block: {block:?},
+        program_id: {program_id},
+        source: {source},
+        payload len: {},
+        value: {value},
+        gas_allowance: {gas_allowance}", payload.len()
+)]
 pub struct ExecutableDataForReply {
     pub block: SimpleBlockData,
     pub program_states: ProgramStates,
@@ -336,7 +339,7 @@ pub struct ExecutableDataForReply {
     pub program_id: ActorId,
     pub payload: Vec<u8>,
     pub value: u128,
-    pub gas_limit: u64,
+    pub gas_allowance: u64,
 }
 
 #[derive(Clone)]
@@ -347,6 +350,8 @@ impl OverlaidProcessor {
         &mut self,
         executable: ExecutableDataForReply,
     ) -> Result<ReplyInfo, ExecuteForReplyError> {
+        log::debug!("{executable}");
+
         let ExecutableDataForReply {
             block,
             program_states,
@@ -354,7 +359,7 @@ impl OverlaidProcessor {
             program_id,
             payload,
             value,
-            gas_limit,
+            gas_allowance,
         } = executable;
 
         self.0.creator.set_chain_head(block);
@@ -400,7 +405,7 @@ impl OverlaidProcessor {
             program_id,
             self.0.db.clone(),
             &mut transitions,
-            gas_limit,
+            gas_allowance,
             self.0.config.chunk_size,
             self.0.creator.clone(),
         )

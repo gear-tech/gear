@@ -159,7 +159,7 @@ impl ProgramServer for ProgramApi {
             program_id: program_id.into(),
             payload: payload.to_vec(),
             value,
-            gas_limit: self.gas_allowance,
+            gas_allowance: self.gas_allowance,
         };
 
         // TODO (breathx): spawn in a new thread and catch panics. (?) Generally catch runtime panics (?).

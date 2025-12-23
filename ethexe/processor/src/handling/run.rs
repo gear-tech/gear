@@ -120,7 +120,7 @@ use gear_core::{
     code::{CodeMetadata, InstrumentedCode},
     gas::GasAllowanceCounter,
 };
-use gprimitives::{ActorId, H256};
+use gprimitives::{ActorId, CodeId, H256};
 use itertools::Itertools;
 use tokio::task::JoinSet;
 
@@ -183,8 +183,6 @@ async fn run_inner<C: RunContext>(mut ctx: C, queue_type: MessageType) -> Option
 /// between common and overlaid execution contexts. It's not meant
 /// to emphasize any particular trait/feature/abstraction.
 pub(crate) trait RunContext {
-    async fn run(self);
-
     /// Return instance of CAS database.
     fn cas(&self) -> Box<dyn CASDatabase>;
 
@@ -276,10 +274,8 @@ impl<'a> CommonRunContext<'a> {
             chunk_size,
         }
     }
-}
 
-impl<'a> RunContext for CommonRunContext<'a> {
-    async fn run(self) {
+    pub(crate) async fn run(self) {
         // Start with injected queues processing.
         let Some(ctx) = run_inner(self, MessageType::Injected).await else {
             return;
@@ -288,7 +284,9 @@ impl<'a> RunContext for CommonRunContext<'a> {
         // If gas is still left in block, process canonical (Ethereum) queues
         let _ = run_inner(ctx, MessageType::Canonical).await;
     }
+}
 
+impl<'a> RunContext for CommonRunContext<'a> {
     fn instance_creator(&self) -> &InstanceCreator {
         &self.instance_creator
     }
@@ -309,17 +307,7 @@ impl<'a> RunContext for CommonRunContext<'a> {
                     .ok_or_else(|| ProcessorError::MissingCodeIdForProgram(program_id))
             })?;
 
-        self.db
-            .instrumented_code(ethexe_runtime_common::VERSION, code_id)
-            .and_then(|instrumented_code| {
-                self.db
-                    .code_metadata(code_id)
-                    .map(|metadata| (instrumented_code, metadata))
-            })
-            .ok_or_else(|| ProcessorError::MissingInstrumentedCodeForProgram {
-                program_id,
-                code_id,
-            })
+        instrumented_code_and_metadata(&self.db, code_id)
     }
 
     fn transitions_and_allowance_counter(
@@ -357,25 +345,25 @@ impl<'a> OverlaidRunContext<'a> {
         base_program: ActorId,
         db: Database,
         in_block_transitions: &'a mut InBlockTransitions,
-        gas_limit: u64,
+        gas_allowance: u64,
         chunk_size: usize,
         instance_creator: InstanceCreator,
     ) -> Self {
         Self {
             overlaid_ctx: OverlaidState::new(base_program, db, in_block_transitions),
             in_block_transitions,
-            gas_allowance_counter: GasAllowanceCounter::new(gas_limit),
+            gas_allowance_counter: GasAllowanceCounter::new(gas_allowance),
             chunk_size,
             instance_creator,
         }
     }
+
+    pub(crate) async fn run(self) {
+        let _ = run_inner(self, MessageType::Canonical).await;
+    }
 }
 
 impl<'a> RunContext for OverlaidRunContext<'a> {
-    async fn run(self) {
-        let _ = run_inner(self, MessageType::Canonical).await;
-    }
-
     fn cas(&self) -> Box<dyn CASDatabase> {
         self.overlaid_ctx.db().cas().clone_boxed()
     }
@@ -395,19 +383,7 @@ impl<'a> RunContext for OverlaidRunContext<'a> {
             .program_code_id(program_id)
             .ok_or_else(|| ProcessorError::MissingCodeIdForProgram(program_id))?;
 
-        self.overlaid_ctx
-            .db()
-            .instrumented_code(ethexe_runtime_common::VERSION, code_id)
-            .and_then(|instrumented_code| {
-                self.overlaid_ctx
-                    .db()
-                    .code_metadata(code_id)
-                    .map(|metadata| (instrumented_code, metadata))
-            })
-            .ok_or_else(|| ProcessorError::MissingInstrumentedCodeForProgram {
-                program_id,
-                code_id,
-            })
+        instrumented_code_and_metadata(&self.overlaid_ctx.db(), code_id)
     }
 
     fn transitions_and_allowance_counter(
@@ -465,6 +441,18 @@ impl<'a> RunContext for OverlaidRunContext<'a> {
         self.overlaid_ctx
             .nullify_or_break_early(journal, self.in_block_transitions)
     }
+}
+
+pub(super) fn instrumented_code_and_metadata(
+    db: &Database,
+    code_id: CodeId,
+) -> Result<(InstrumentedCode, CodeMetadata)> {
+    db.instrumented_code(ethexe_runtime_common::VERSION, code_id)
+        .and_then(|instrumented_code| {
+            db.code_metadata(code_id)
+                .map(|metadata| (instrumented_code, metadata))
+        })
+        .ok_or_else(|| ProcessorError::MissingInstrumentedCodeForProgram(code_id))
 }
 
 fn states(

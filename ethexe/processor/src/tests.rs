@@ -316,7 +316,7 @@ async fn ping_pong() {
         .process_queues(
             handler.into_transitions(),
             chain.blocks[1].to_simple(),
-            Some(DEFAULT_BLOCK_GAS_LIMIT),
+            DEFAULT_BLOCK_GAS_LIMIT,
         )
         .await
         .current_messages();
@@ -428,7 +428,7 @@ async fn async_and_ping() {
         .process_queues(
             handler.into_transitions(),
             chain.blocks[1].to_simple(),
-            Some(DEFAULT_BLOCK_GAS_LIMIT),
+            DEFAULT_BLOCK_GAS_LIMIT,
         )
         .await;
 
@@ -523,7 +523,7 @@ async fn many_waits() {
         .process_queues(
             handler.transitions,
             chain.blocks[1].to_simple(),
-            Some(DEFAULT_BLOCK_GAS_LIMIT),
+            DEFAULT_BLOCK_GAS_LIMIT,
         )
         .await;
     assert_eq!(
@@ -551,7 +551,7 @@ async fn many_waits() {
         .process_queues(
             handler.transitions,
             chain.blocks[1].to_simple(),
-            Some(DEFAULT_BLOCK_GAS_LIMIT),
+            DEFAULT_BLOCK_GAS_LIMIT,
         )
         .await;
     assert_eq!(
@@ -579,7 +579,7 @@ async fn many_waits() {
     );
     let transitions = processor.process_tasks(transitions);
     let transitions = processor
-        .process_queues(transitions, wake_block, Some(DEFAULT_BLOCK_GAS_LIMIT))
+        .process_queues(transitions, wake_block, DEFAULT_BLOCK_GAS_LIMIT)
         .await;
 
     assert_eq!(transitions.current_messages().len(), amount as usize);
@@ -826,7 +826,7 @@ async fn overlay_execution() {
         program_id: async_id,
         payload: demo_async::Command::Common.encode(),
         value: 0,
-        gas_limit: DEFAULT_BLOCK_GAS_LIMIT,
+        gas_allowance: DEFAULT_BLOCK_GAS_LIMIT,
     };
     let reply_info = overlaid_processor
         .execute_for_reply(executable)
@@ -877,7 +877,7 @@ async fn injected_ping_pong() {
         .process_queues(
             handler.transitions,
             chain.blocks[1].to_simple(),
-            Some(DEFAULT_BLOCK_GAS_LIMIT),
+            DEFAULT_BLOCK_GAS_LIMIT,
         )
         .await;
 
@@ -902,7 +902,7 @@ async fn injected_ping_pong() {
         .process_queues(
             handler.transitions,
             chain.blocks[1].to_simple(),
-            Some(DEFAULT_BLOCK_GAS_LIMIT),
+            DEFAULT_BLOCK_GAS_LIMIT,
         )
         .await;
 
@@ -968,7 +968,7 @@ async fn injected_prioritized_over_canonical() {
         .process_queues(
             handler.transitions,
             chain.blocks[1].to_simple(),
-            Some(GAS_ALLOWANCE),
+            GAS_ALLOWANCE,
         )
         .await;
 
@@ -999,7 +999,7 @@ async fn injected_prioritized_over_canonical() {
         .process_queues(
             handler.transitions,
             chain.blocks[1].to_simple(),
-            Some(GAS_ALLOWANCE),
+            GAS_ALLOWANCE,
         )
         .await;
 
@@ -1058,7 +1058,7 @@ async fn executable_balance_charged() {
         .process_queues(
             handler.transitions,
             chain.blocks[1].to_simple(),
-            Some(DEFAULT_BLOCK_GAS_LIMIT),
+            DEFAULT_BLOCK_GAS_LIMIT,
         )
         .await;
 
@@ -1142,7 +1142,7 @@ async fn executable_balance_injected_panic_not_charged() {
         .process_queues(
             handler.transitions,
             chain.blocks[1].to_simple(),
-            Some(DEFAULT_BLOCK_GAS_LIMIT),
+            DEFAULT_BLOCK_GAS_LIMIT,
         )
         .await;
     let init_balance = handler.program_state(actor_id).executable_balance;
@@ -1156,7 +1156,7 @@ async fn executable_balance_injected_panic_not_charged() {
         .process_queues(
             handler.transitions,
             chain.blocks[1].to_simple(),
-            Some(DEFAULT_BLOCK_GAS_LIMIT),
+            DEFAULT_BLOCK_GAS_LIMIT,
         )
         .await;
 
@@ -1189,7 +1189,7 @@ async fn executable_balance_injected_panic_not_charged() {
         .process_queues(
             handler.into_transitions(),
             chain.blocks[1].to_simple(),
-            Some(DEFAULT_BLOCK_GAS_LIMIT),
+            DEFAULT_BLOCK_GAS_LIMIT,
         )
         .await;
 
@@ -1252,7 +1252,7 @@ async fn insufficient_executable_balance_still_charged() {
         .process_queues(
             handler.transitions,
             chain.blocks[1].to_simple(),
-            Some(DEFAULT_BLOCK_GAS_LIMIT),
+            DEFAULT_BLOCK_GAS_LIMIT,
         )
         .await;
 

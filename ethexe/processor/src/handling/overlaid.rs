@@ -30,8 +30,8 @@ use std::collections::HashSet;
 /// The nullification is an optimization for RPC overlay mode execution of the target dispatch.
 /// It allows not to empty unnecessary queues processing of not concerned programs.
 pub(crate) struct OverlaidState {
-    base_program: ActorId,
     db: Database,
+    base_program: ActorId,
     nullified_queue_programs: HashSet<ActorId>,
 }
 
