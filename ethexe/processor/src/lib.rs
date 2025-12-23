@@ -43,13 +43,10 @@ use handling::{
 };
 use host::InstanceCreator;
 
-pub use common::LocalOutcome;
 pub use host::InstanceError;
 
-pub mod host;
-
-mod common;
 mod handling;
+mod host;
 
 #[cfg(test)]
 mod tests;
@@ -59,8 +56,8 @@ pub const DEFAULT_CHUNK_PROCESSING_THREADS: NonZero<usize> = NonZero::new(16).un
 
 #[derive(thiserror::Error, Debug)]
 pub enum ProcessorError {
-    #[error("db corrupted: missing code [OR] code existence wasn't checked on Eth, code id: {0}")]
-    MissingCode(CodeId),
+    #[error("program {actor_id} was created with unknown or invalid code {code_id}")]
+    MissingCode { actor_id: ActorId, code_id: CodeId },
 
     #[error("code id not found for created program {0}")]
     MissingCodeIdForProgram(ActorId),
@@ -71,7 +68,7 @@ pub enum ProcessorError {
         code_id: CodeId,
     },
 
-    #[error("injected message {0:?} sent to uninitialized program")]
+    #[error("injected message {0:?} was sent to uninitialized program")]
     InjectedToUninitializedProgram(Box<InjectedTransaction>),
 
     #[error("calling or instantiating runtime error: {0}")]
@@ -185,11 +182,7 @@ impl Processor {
         &mut self,
         executable: ExecutableData,
     ) -> Result<FinalizedBlockTransitions> {
-        // +_+_+ pretty logging
-        // log::trace!(
-        //     "Processing programs {}",
-        //     executable,
-        // );
+        log::debug!("{executable}");
 
         let ExecutableData {
             block,
@@ -306,6 +299,13 @@ pub struct ValidCodeInfo {
     pub code_metadata: CodeMetadata,
 }
 
+#[derive(Debug, derive_more::Display)]
+#[display(
+    "Programs processing for {block:?},
+        injected: {injected_transactions:?},
+        events: {events:?},
+        gas_allowance: {gas_allowance:?}"
+)]
 pub struct ExecutableData {
     pub block: SimpleBlockData,
     pub program_states: ProgramStates,

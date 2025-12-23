@@ -64,7 +64,7 @@ impl ProcessingHandler {
         match event {
             RouterRequestEvent::ProgramCreated { actor_id, code_id } => {
                 if !self.db.code_valid(code_id).unwrap_or(false) {
-                    return Err(ProcessorError::MissingCode(code_id));
+                    return Err(ProcessorError::MissingCode { actor_id, code_id });
                 }
 
                 log::trace!("Registering new program: {actor_id} with code {code_id}");

@@ -5136,6 +5136,7 @@ dependencies = [
  "demo-async",
  "demo-panic-payload",
  "demo-ping",
+ "derive_more 2.0.1",
  "ethexe-common",
  "ethexe-db",
  "ethexe-runtime",
