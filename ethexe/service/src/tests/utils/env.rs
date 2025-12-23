@@ -842,7 +842,7 @@ impl NodeConfig {
         let service_rpc_config = RpcConfig {
             listen_addr: SocketAddr::new("127.0.0.1".parse().unwrap(), rpc_port),
             cors: None,
-            gas_limit_multiplier: DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER,
+            gas_allowance: DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER * DEFAULT_BLOCK_GAS_LIMIT,
             chunk_size: DEFAULT_CHUNK_PROCESSING_THREADS.get(),
         };
         self.rpc = Some(service_rpc_config);

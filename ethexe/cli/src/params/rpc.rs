@@ -94,7 +94,9 @@ impl RpcParams {
         Some(RpcConfig {
             listen_addr,
             cors,
-            gas_limit_multiplier,
+            gas_allowance: gas_limit_multiplier
+                .checked_mul(node_config.block_gas_limit)
+                .expect("RPC gas allowance overflow"),
             chunk_size: node_config.chunk_processing_threads,
         })
     }

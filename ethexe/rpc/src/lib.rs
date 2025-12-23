@@ -64,8 +64,8 @@ pub struct RpcConfig {
     pub listen_addr: SocketAddr,
     /// CORS.
     pub cors: Option<Vec<String>>,
-    /// Gas limit multiplier for block execution.
-    pub gas_limit_multiplier: u64,
+    /// Gas allowance for each reply calculation.
+    pub gas_allowance: u64,
     /// Amount of processing threads for queue processing.
     pub chunk_size: usize,
 }
@@ -105,7 +105,7 @@ impl RpcServer {
         let server_apis = RpcServerApis {
             code: CodeApi::new(self.db.clone()),
             block: BlockApi::new(self.db.clone()),
-            program: ProgramApi::new(self.db.clone(), processor, self.config.gas_limit_multiplier),
+            program: ProgramApi::new(self.db.clone(), processor, self.config.gas_allowance),
             injected: InjectedApi::new(rpc_sender),
         };
         let injected_api = server_apis.injected.clone();

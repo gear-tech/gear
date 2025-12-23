@@ -18,7 +18,7 @@
 
 use crate::{errors, utils};
 use ethexe_common::{
-    DEFAULT_BLOCK_GAS_LIMIT, HashOf, SimpleBlockData,
+    HashOf, SimpleBlockData,
     db::{AnnounceStorageRO, CodesStorageRO, OnChainStorageRO},
 };
 use ethexe_db::Database;
@@ -96,15 +96,15 @@ pub trait Program {
 pub struct ProgramApi {
     db: Database,
     processor: Processor,
-    gas_limit_multiplier: u64,
+    gas_allowance: u64,
 }
 
 impl ProgramApi {
-    pub fn new(db: Database, processor: Processor, gas_limit_multiplier: u64) -> Self {
+    pub fn new(db: Database, processor: Processor, gas_allowance: u64) -> Self {
         Self {
             db,
             processor,
-            gas_limit_multiplier,
+            gas_allowance,
         }
     }
 
@@ -159,7 +159,7 @@ impl ProgramServer for ProgramApi {
             program_id: program_id.into(),
             payload: payload.to_vec(),
             value,
-            gas_limit: DEFAULT_BLOCK_GAS_LIMIT * self.gas_limit_multiplier,
+            gas_limit: self.gas_allowance,
         };
 
         // TODO (breathx): spawn in a new thread and catch panics. (?) Generally catch runtime panics (?).
