@@ -42,9 +42,9 @@ use std::collections::HashSet;
 ///
 /// The nullification is an optimization for RPC overlay mode execution of the target dispatch.
 /// It allows not to empty unnecessary queues processing of not concerned programs.
-pub(crate) struct OverlaidRunContext<'a> {
+pub(crate) struct OverlaidRunContext {
     db: Database,
-    transitions: &'a mut InBlockTransitions,
+    transitions: InBlockTransitions,
     gas_allowance_counter: GasAllowanceCounter,
     chunk_size: usize,
     instance_creator: InstanceCreator,
@@ -52,17 +52,17 @@ pub(crate) struct OverlaidRunContext<'a> {
     nullified_queue_programs: HashSet<ActorId>,
 }
 
-impl<'a> OverlaidRunContext<'a> {
+impl OverlaidRunContext {
     pub(crate) fn new(
         db: Database,
         base_program: ActorId,
-        transitions: &'a mut InBlockTransitions,
+        mut transitions: InBlockTransitions,
         gas_allowance: u64,
         chunk_size: usize,
         instance_creator: InstanceCreator,
     ) -> Self {
         let mut transition_controller = TransitionController {
-            transitions,
+            transitions: &mut transitions,
             storage: &db,
         };
         transition_controller.update_state(base_program, |state, _, _| {
@@ -91,8 +91,9 @@ impl<'a> OverlaidRunContext<'a> {
         }
     }
 
-    pub(crate) async fn run(self) {
-        let _ = run::run_inner(self, MessageType::Canonical).await;
+    pub(crate) async fn run(self) -> InBlockTransitions {
+        let (_, ctx) = run::run_for_queue_type(self, MessageType::Canonical).await;
+        ctx.transitions
     }
 
     /// Nullifies queues of dispatches receivers in case there is no reply to the base message.
@@ -151,7 +152,7 @@ impl<'a> OverlaidRunContext<'a> {
 
         log::debug!("Nullifying queue for program {program_id}");
         let mut transition_controller = TransitionController {
-            transitions: self.transitions,
+            transitions: &mut self.transitions,
             storage: &self.db,
         };
         transition_controller.update_state(program_id, |state, _, _| {
@@ -168,7 +169,7 @@ impl<'a> OverlaidRunContext<'a> {
     }
 }
 
-impl<'a> RunContext for OverlaidRunContext<'a> {
+impl RunContext for OverlaidRunContext {
     fn instance_creator(&self) -> &InstanceCreator {
         &self.instance_creator
     }
@@ -201,7 +202,7 @@ impl<'a> RunContext for OverlaidRunContext<'a> {
     }
 
     fn states(&self, processing_queue_type: MessageType) -> Vec<ActorStateHashWithQueueSize> {
-        run::states(&*self.transitions, processing_queue_type)
+        run::states(&self.transitions, processing_queue_type)
     }
 
     fn handle_chunk_data(

@@ -73,8 +73,8 @@ pub enum ProcessorError {
 
 #[derive(thiserror::Error, Debug)]
 pub enum ExecuteForReplyError {
-    #[error("program isn't yet initialized")]
-    ProgramNotInitialized,
+    #[error("program {0} isn't yet initialized")]
+    ProgramNotInitialized(ActorId),
     #[error("reply wasn't found")]
     ReplyNotFound,
     #[error("not found state hash for program ({0})")]
@@ -82,7 +82,7 @@ pub enum ExecuteForReplyError {
     #[error("not found program state by hash ({0}) in database")]
     ProgramStateNotFound(H256),
 
-    #[error("common processor error: {0}")]
+    #[error("processor base error: {0}")]
     Processor(#[from] ProcessorError),
 }
 
@@ -238,7 +238,7 @@ impl Processor {
 
     async fn process_queues(
         &mut self,
-        mut transitions: InBlockTransitions,
+        transitions: InBlockTransitions,
         block: SimpleBlockData,
         gas_allowance: u64,
     ) -> InBlockTransitions {
@@ -247,14 +247,12 @@ impl Processor {
         CommonRunContext::new(
             self.db.clone(),
             self.creator.clone(),
-            &mut transitions,
+            transitions,
             gas_allowance,
             self.config.chunk_size,
         )
         .run()
-        .await;
-
-        transitions
+        .await
     }
 
     fn process_tasks(&mut self, mut transitions: InBlockTransitions) -> InBlockTransitions {
@@ -373,7 +371,7 @@ impl OverlaidProcessor {
             .ok_or(ExecuteForReplyError::ProgramStateNotFound(state_hash))?;
 
         if state.requires_init_message() {
-            return Err(ExecuteForReplyError::ProgramNotInitialized);
+            return Err(ExecuteForReplyError::ProgramNotInitialized(program_id));
         }
 
         let transitions = InBlockTransitions::new(
@@ -383,7 +381,7 @@ impl OverlaidProcessor {
             Default::default(),
         );
 
-        let mut transitions = self.0.process_injected_and_events(
+        let transitions = self.0.process_injected_and_events(
             transitions,
             vec![],
             vec![BlockRequestEvent::Mirror {
@@ -398,10 +396,10 @@ impl OverlaidProcessor {
             }],
         )?;
 
-        OverlaidRunContext::new(
+        let transitions = OverlaidRunContext::new(
             self.0.db.clone(),
             program_id,
-            &mut transitions,
+            transitions,
             gas_allowance,
             self.0.config.chunk_size,
             self.0.creator.clone(),

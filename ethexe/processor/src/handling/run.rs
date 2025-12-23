@@ -128,7 +128,11 @@ use itertools::Itertools;
 use tokio::task::JoinSet;
 
 // Process chosen queue type in chunks
-pub(super) async fn run_inner<C: RunContext>(mut ctx: C, queue_type: MessageType) -> Option<C> {
+// Returns whether execution is not run out of gas and context back
+pub(super) async fn run_for_queue_type<C: RunContext>(
+    mut ctx: C,
+    queue_type: MessageType,
+) -> (bool, C) {
     let mut join_set = JoinSet::new();
     let mut is_out_of_gas_for_block = false;
 
@@ -176,7 +180,7 @@ pub(super) async fn run_inner<C: RunContext>(mut ctx: C, queue_type: MessageType
         }
     }
 
-    (!is_out_of_gas_for_block).then_some(ctx)
+    (!is_out_of_gas_for_block, ctx)
 }
 
 /// Context for running program queues in chunks.
@@ -253,19 +257,19 @@ pub(crate) trait RunContext {
 }
 
 /// Common run context.
-pub(crate) struct CommonRunContext<'a> {
+pub(crate) struct CommonRunContext {
     db: Database,
     instance_creator: InstanceCreator,
-    in_block_transitions: &'a mut InBlockTransitions,
+    in_block_transitions: InBlockTransitions,
     gas_allowance_counter: GasAllowanceCounter,
     chunk_size: usize,
 }
 
-impl<'a> CommonRunContext<'a> {
+impl CommonRunContext {
     pub(crate) fn new(
         db: Database,
         instance_creator: InstanceCreator,
-        in_block_transitions: &'a mut InBlockTransitions,
+        in_block_transitions: InBlockTransitions,
         gas_allowance: u64,
         chunk_size: usize,
     ) -> Self {
@@ -278,18 +282,21 @@ impl<'a> CommonRunContext<'a> {
         }
     }
 
-    pub(crate) async fn run(self) {
+    pub(crate) async fn run(self) -> InBlockTransitions {
         // Start with injected queues processing.
-        let Some(ctx) = run_inner(self, MessageType::Injected).await else {
-            return;
-        };
+        let (can_continue, ctx) = run_for_queue_type(self, MessageType::Injected).await;
 
-        // If gas is still left in block, process canonical (Ethereum) queues
-        let _ = run_inner(ctx, MessageType::Canonical).await;
+        if can_continue {
+            // If gas is still left in block, process canonical (Ethereum) queues
+            let (_, ctx) = run_for_queue_type(ctx, MessageType::Canonical).await;
+            ctx.in_block_transitions
+        } else {
+            ctx.in_block_transitions
+        }
     }
 }
 
-impl<'a> RunContext for CommonRunContext<'a> {
+impl RunContext for CommonRunContext {
     fn instance_creator(&self) -> &InstanceCreator {
         &self.instance_creator
     }
@@ -324,7 +331,7 @@ impl<'a> RunContext for CommonRunContext<'a> {
     }
 
     fn states(&self, processing_queue_type: MessageType) -> Vec<ActorStateHashWithQueueSize> {
-        states(&*self.in_block_transitions, processing_queue_type)
+        states(&self.in_block_transitions, processing_queue_type)
     }
 
     fn chunk_size(&self) -> usize {
@@ -608,7 +615,7 @@ mod chunk_execution_processing {
             for (journal, message_type, call_reply) in program_journals {
                 let break_flag = ctx.break_early(&journal);
 
-                let (storage, transitions, allowance_counter) = ctx.borrow_inner();
+                let (storage, transitions, gas_allowance_counter) = ctx.borrow_inner();
                 let mut journal_handler = JournalHandler {
                     program_id,
                     message_type,
@@ -617,7 +624,7 @@ mod chunk_execution_processing {
                         storage,
                         transitions,
                     },
-                    gas_allowance_counter: allowance_counter,
+                    gas_allowance_counter,
                     chunk_gas_limit: CHUNK_PROCESSING_GAS_LIMIT,
                     out_of_gas_for_block: is_out_of_gas_for_block,
                 };
@@ -671,13 +678,13 @@ mod tests {
         .take(STATE_SIZE)
         .collect();
 
-        let mut transitions =
+        let transitions =
             InBlockTransitions::new(0, states, Default::default(), Default::default());
 
         let ctx = CommonRunContext {
             db: Database::memory(),
             instance_creator: InstanceCreator::new(host::runtime()).unwrap(),
-            in_block_transitions: &mut transitions,
+            in_block_transitions: transitions,
             gas_allowance_counter: GasAllowanceCounter::new(1_000_000),
             chunk_size: CHUNK_PROCESSING_THREADS,
         };
@@ -834,7 +841,7 @@ mod tests {
         let mut overlaid_ctx = OverlaidRunContext::new(
             db.clone(),
             base_program,
-            &mut in_block_transitions,
+            in_block_transitions,
             100,
             16,
             InstanceCreator::new(host::runtime()).unwrap(),

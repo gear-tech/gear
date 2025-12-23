@@ -267,11 +267,12 @@ async fn ping_pong() {
 
     let (mut processor, chain, [code_id, ..]) =
         setup_test_env_and_load_codes([demo_ping::WASM_BINARY, demo_async::WASM_BINARY]);
+    let block1 = chain.blocks[1].to_simple();
 
     let user_id = ActorId::from(10);
     let actor_id = ActorId::from(0x10000);
 
-    let mut handler = setup_handler(processor.db.clone(), chain.blocks[1].to_simple());
+    let mut handler = setup_handler(processor.db.clone(), block1);
 
     handler
         .handle_router_event(RouterRequestEvent::ProgramCreated { actor_id, code_id })
@@ -313,11 +314,7 @@ async fn ping_pong() {
         .expect("failed to send message");
 
     let to_users = processor
-        .process_queues(
-            handler.into_transitions(),
-            chain.blocks[1].to_simple(),
-            DEFAULT_BLOCK_GAS_LIMIT,
-        )
+        .process_queues(handler.transitions, block1, DEFAULT_BLOCK_GAS_LIMIT)
         .await
         .current_messages();
 
@@ -426,7 +423,7 @@ async fn async_and_ping() {
 
     let transitions = processor
         .process_queues(
-            handler.into_transitions(),
+            handler.transitions,
             chain.blocks[1].to_simple(),
             DEFAULT_BLOCK_GAS_LIMIT,
         )
@@ -1187,7 +1184,7 @@ async fn executable_balance_injected_panic_not_charged() {
         .expect("failed to send message");
     let transitions = processor
         .process_queues(
-            handler.into_transitions(),
+            handler.transitions,
             chain.blocks[1].to_simple(),
             DEFAULT_BLOCK_GAS_LIMIT,
         )
