@@ -17,8 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    InjectedApi, InjectedTransactionAcceptance, RpcConfig, RpcEvent, RpcServer, RpcService,
-    apis::InjectedClient,
+    InjectedApi, InjectedClient, InjectedTransactionAcceptance, RpcConfig, RpcEvent, RpcServer,
+    RpcService,
 };
 
 use ethexe_common::{
@@ -46,8 +46,14 @@ struct MockService {
 }
 
 impl MockService {
-    pub fn new(rpc: RpcService, handle: ServerHandle) -> Self {
+    /// Creates a new mock service which runs an RPC server listening on the given address.
+    pub async fn new(listen_addr: SocketAddr) -> Self {
+        let (handle, rpc) = start_new_server(listen_addr).await;
         Self { rpc, handle }
+    }
+
+    pub fn injected_api(&self) -> InjectedApi {
+        self.rpc.injected_api.clone()
     }
 
     /// Spawns the main loop which collects injected transactions within time intervals and
@@ -118,10 +124,11 @@ async fn wait_for_closed_subscriptions(injected_api: InjectedApi) {
 #[ntest::timeout(20_000)]
 async fn test_cleanup_promise_subscribers() {
     let listen_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 1728);
-    let (handle, rpc) = start_new_server(listen_addr).await;
+    let service = MockService::new(listen_addr).await;
+    let injected_api = service.injected_api();
 
-    let injected_api = rpc.injected_api.clone();
-    MockService::new(rpc, handle).spawn();
+    // Spawn the mock service main loop.
+    let _handle = service.spawn();
 
     let ws_client = WsClientBuilder::new()
         .build(format!("ws://{}", listen_addr))
@@ -205,10 +212,11 @@ async fn test_cleanup_promise_subscribers() {
 #[ntest::timeout(120_000)]
 async fn test_concurrent_multiple_clients() {
     let listen_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 1729);
-    let (handle, rpc) = start_new_server(listen_addr).await;
+    let service = MockService::new(listen_addr).await;
+    let injected_api = service.injected_api();
 
-    let injected_api = rpc.injected_api.clone();
-    MockService::new(rpc, handle).spawn();
+    // Spawn the mock service main loop.
+    let _handle = service.spawn();
 
     let mut tasks = JoinSet::new();
     for _ in 0..10 {
