@@ -867,8 +867,8 @@ mod tests {
         // second service
         let service2 = NetworkServiceBuilder::new();
 
-        let hello = service2.db.write_hash(b"hello");
-        let world = service2.db.write_hash(b"world");
+        let hello = service2.db.cas().write(b"hello");
+        let world = service2.db.cas().write(b"world");
 
         let mut service2 = service2.build();
 

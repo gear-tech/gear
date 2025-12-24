@@ -662,8 +662,8 @@ pub(crate) mod tests {
         let (mut bob, bob_db, _data_provider) = new_swarm().await;
         let bob_peer_id = *bob.local_peer_id();
 
-        let hello_hash = bob_db.write_hash(b"hello");
-        let world_hash = bob_db.write_hash(b"world");
+        let hello_hash = bob_db.cas().write(b"hello");
+        let world_hash = bob_db.cas().write(b"world");
 
         alice.connect(&mut bob).await;
         tokio::spawn(async move {
@@ -992,9 +992,9 @@ pub(crate) mod tests {
         tokio::spawn(charlie.loop_on_next());
         tokio::spawn(dave.loop_on_next());
 
-        let hello_hash = bob_db.write_hash(b"hello");
-        let world_hash = charlie_db.write_hash(b"world");
-        let mark_hash = dave_db.write_hash(b"!");
+        let hello_hash = bob_db.cas().write(b"hello");
+        let world_hash = charlie_db.cas().write(b"world");
+        let mark_hash = dave_db.cas().write(b"!");
 
         let request = alice_handle.request(Request::hashes([hello_hash, world_hash, mark_hash]));
         let request_id = request.request_id();
@@ -1050,8 +1050,8 @@ pub(crate) mod tests {
         alice.connect(&mut bob).await;
         tokio::spawn(bob.loop_on_next());
 
-        let hello_hash = bob_db.write_hash(b"hello");
-        let world_hash = charlie_db.write_hash(b"world");
+        let hello_hash = bob_db.cas().write(b"hello");
+        let world_hash = charlie_db.cas().write(b"world");
 
         let request = alice_handle.request(Request::hashes([hello_hash, world_hash]));
         let request_id = request.request_id();
@@ -1235,7 +1235,7 @@ pub(crate) mod tests {
         alice.connect(&mut charlie).await;
         tokio::spawn(charlie.loop_on_next());
 
-        let key = charlie_db.write_hash(b"test");
+        let key = charlie_db.cas().write(b"test");
         assert_eq!(request_key, key);
         let request = alice_handle.retry(retriable_request);
         let request_id = request.request_id();

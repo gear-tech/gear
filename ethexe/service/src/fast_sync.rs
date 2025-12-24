@@ -339,7 +339,7 @@ impl RequestManager {
     fn handle_pending_requests(&mut self) -> HashMap<H256, RequestMetadata> {
         let mut pending_requests = HashMap::new();
         for (hash, metadata) in self.pending_requests.drain() {
-            if metadata.is_data() && self.db.contains_hash(hash) {
+            if metadata.is_data() && self.db.cas().contains(hash) {
                 self.total_completed_requests += 1;
                 continue;
             }
@@ -366,7 +366,7 @@ impl RequestManager {
                 .remove(&hash)
                 .expect("unknown pending request");
 
-            let db_hash = self.db.write_hash(&data);
+            let db_hash = self.db.cas().write(&data);
             debug_assert_eq!(hash, db_hash);
 
             self.responses.push((metadata, data));

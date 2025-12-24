@@ -155,20 +155,19 @@ impl Clone for Database {
 }
 
 impl Database {
-    pub fn new(cas: Box<dyn CASDatabase>, kv: Box<dyn KVDatabase>) -> Self {
-        Self { cas, kv }
-    }
-
-    pub fn from_one<DB: CASDatabase + KVDatabase>(db: &DB) -> Self {
+    pub fn new(cas: &dyn CASDatabase, kv: &dyn KVDatabase) -> Self {
         Self {
-            cas: CASDatabase::clone_boxed(db),
-            kv: KVDatabase::clone_boxed(db),
+            cas: cas.clone_boxed(),
+            kv: kv.clone_boxed(),
         }
     }
 
+    pub fn from_one<DB: CASDatabase + KVDatabase>(db: &DB) -> Self {
+        Self::new(db, db)
+    }
+
     pub fn memory() -> Self {
-        let mem = MemDb::default();
-        Self::from_one(&mem)
+        Self::from_one(&MemDb::default())
     }
 
     /// # Safety
@@ -180,12 +179,8 @@ impl Database {
         }
     }
 
-    pub fn contains_hash(&self, hash: H256) -> bool {
-        self.cas.contains(hash)
-    }
-
-    pub fn write_hash(&self, data: &[u8]) -> H256 {
-        self.cas.write(data)
+    pub fn cas(&self) -> &dyn CASDatabase {
+        self.cas.as_ref()
     }
 
     fn with_small_data<R>(
@@ -217,10 +212,6 @@ impl Database {
     fn set_block_small_data(&self, block_hash: H256, meta: BlockSmallData) {
         self.kv
             .put(&Key::BlockSmallData(block_hash).to_bytes(), meta.encode());
-    }
-
-    pub fn cas(&self) -> &dyn CASDatabase {
-        self.cas.as_ref()
     }
 }
 
