@@ -243,7 +243,7 @@ impl Service {
 
         let processor = Processor::with_config(
             ProcessorConfig {
-                chunk_processing_threads: config.node.chunk_processing_threads,
+                chunk_size: config.node.chunk_processing_threads,
             },
             db.clone(),
         )
@@ -251,7 +251,7 @@ impl Service {
 
         log::info!(
             "🔧 Amount of chunk processing threads for programs processing: {}",
-            processor.config().chunk_processing_threads
+            processor.config().chunk_size
         );
 
         let signer = Signer::fs(config.node.key_path.clone());

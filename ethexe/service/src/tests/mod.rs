@@ -48,9 +48,10 @@ use ethexe_consensus::{BatchCommitter, ConsensusEvent};
 use ethexe_db::{Database, verifier::IntegrityVerifier};
 use ethexe_ethereum::{TryGetReceipt, deploy::ContractsDeploymentParams, router::Router};
 use ethexe_observer::{EthereumConfig, ObserverEvent};
-use ethexe_processor::{DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, RunnerConfig};
 use ethexe_prometheus::PrometheusConfig;
-use ethexe_rpc::{InjectedClient, InjectedTransactionAcceptance, RpcConfig};
+use ethexe_rpc::{
+    DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, InjectedClient, InjectedTransactionAcceptance, RpcConfig,
+};
 use ethexe_runtime_common::state::{Expiring, MailboxMessage, PayloadLookup, Storage};
 use ethexe_signer::Signer;
 use gear_core::{
@@ -125,15 +126,11 @@ async fn basics() {
         config.ethereum.router_address,
     ));
 
-    let runner_config = RunnerConfig::overlay(
-        config.node.chunk_processing_threads,
-        config.node.block_gas_limit,
-        DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER,
-    );
     config.rpc = Some(RpcConfig {
         listen_addr: SocketAddr::new(Ipv4Addr::LOCALHOST.into(), 9944),
         cors: None,
-        runner_config,
+        gas_allowance: DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER * config.node.block_gas_limit,
+        chunk_size: config.node.chunk_processing_threads,
     });
 
     config.prometheus = Some(PrometheusConfig::new(

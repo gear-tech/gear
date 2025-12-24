@@ -57,10 +57,8 @@ use ethexe_observer::{
     EthereumConfig, ObserverEvent, ObserverService,
     utils::{BlockId, BlockLoader, EthereumBlockLoader},
 };
-use ethexe_processor::{
-    DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, DEFAULT_CHUNK_PROCESSING_THREADS, Processor, RunnerConfig,
-};
-use ethexe_rpc::{RpcConfig, RpcServer};
+use ethexe_processor::{DEFAULT_CHUNK_PROCESSING_THREADS, Processor};
+use ethexe_rpc::{DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, RpcConfig, RpcServer};
 use ethexe_signer::Signer;
 use futures::StreamExt;
 use gear_core_errors::ReplyCode;
@@ -841,15 +839,11 @@ impl NodeConfig {
     }
 
     pub fn service_rpc(mut self, rpc_port: u16) -> Self {
-        let runner_config = RunnerConfig::overlay(
-            DEFAULT_CHUNK_PROCESSING_THREADS.get(),
-            DEFAULT_BLOCK_GAS_LIMIT,
-            DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER,
-        );
         let service_rpc_config = RpcConfig {
             listen_addr: SocketAddr::new("127.0.0.1".parse().unwrap(), rpc_port),
             cors: None,
-            runner_config,
+            gas_allowance: DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER * DEFAULT_BLOCK_GAS_LIMIT,
+            chunk_size: DEFAULT_CHUNK_PROCESSING_THREADS.get(),
         };
         self.rpc = Some(service_rpc_config);
 

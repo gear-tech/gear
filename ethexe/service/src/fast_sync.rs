@@ -22,8 +22,8 @@ use ethexe_common::{
     Address, Announce, BlockData, CodeAndIdUnchecked, Digest, HashOf, ProgramStates,
     ProtocolTimelines, StateHashWithQueueSize,
     db::{
-        AnnounceStorageRO, BlockMetaStorageRO, CodesStorageRO, CodesStorageRW,
-        ComputedAnnounceData, HashStorageRO, OnChainStorageRW, PreparedBlockData,
+        AnnounceStorageRO, BlockMetaStorageRO, CodesStorageRO, CodesStorageRW, PreparedBlockData, ComputedAnnounceData,
+        OnChainStorageRW,
     },
     events::{BlockEvent, RouterEvent},
     injected,
@@ -344,7 +344,7 @@ impl RequestManager {
                 continue;
             }
 
-            if let Some(data) = self.db.read_by_hash(hash) {
+            if let Some(data) = self.db.cas().read(hash) {
                 self.responses.push((metadata, data));
                 continue;
             }
