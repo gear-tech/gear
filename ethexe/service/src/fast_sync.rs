@@ -22,8 +22,8 @@ use ethexe_common::{
     Address, Announce, BlockData, CodeAndIdUnchecked, Digest, HashOf, ProgramStates,
     ProtocolTimelines, StateHashWithQueueSize,
     db::{
-        AnnounceStorageRO, BlockMetaStorageRO, CodesStorageRO, CodesStorageRW, PreparedBlockData, ComputedAnnounceData,
-        OnChainStorageRW,
+        AnnounceStorageRO, BlockMetaStorageRO, CodesStorageRO, CodesStorageRW,
+        ComputedAnnounceData, OnChainStorageRW, PreparedBlockData,
     },
     events::{BlockEvent, RouterEvent},
     injected,
