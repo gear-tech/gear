@@ -89,38 +89,52 @@ impl Key {
     }
 
     fn to_bytes(&self) -> Vec<u8> {
-        let prefix = self.prefix();
+        // Pre-allocate enough space for the largest possible key.
+        let mut bytes = Vec::with_capacity(2 * size_of::<H256>() + size_of::<u32>());
+        bytes.extend(self.prefix());
+
         match self {
             Self::BlockSmallData(hash)
             | Self::BlockEvents(hash)
-            | Self::LatestEraValidatorsCommitted(hash) => [prefix.as_ref(), hash.as_ref()].concat(),
+            | Self::LatestEraValidatorsCommitted(hash) => bytes.extend(hash.as_ref()),
 
             Self::ValidatorSet(era_index) => {
-                [prefix.as_ref(), era_index.to_le_bytes().as_ref()].concat()
+                bytes.extend(era_index.to_le_bytes());
             }
+
             Self::AnnounceProgramStates(hash)
             | Self::AnnounceOutcome(hash)
             | Self::AnnounceSchedule(hash)
-            | Self::AnnounceMeta(hash) => [prefix.as_ref(), hash.inner().as_ref()].concat(),
+            | Self::AnnounceMeta(hash) => bytes.extend(hash.as_ref()),
 
-            Self::InjectedTransaction(hash) | Self::Promise(hash) => {
-                [prefix.as_ref(), hash.inner().as_ref()].concat()
-            }
+            Self::InjectedTransaction(hash) | Self::Promise(hash) => bytes.extend(hash.as_ref()),
 
-            Self::ProgramToCodeId(program_id) => [prefix.as_ref(), program_id.as_ref()].concat(),
+            Self::ProgramToCodeId(program_id) => bytes.extend(program_id.as_ref()),
 
             Self::CodeMetadata(code_id)
             | Self::CodeUploadInfo(code_id)
-            | Self::CodeValid(code_id) => [prefix.as_ref(), code_id.as_ref()].concat(),
+            | Self::CodeValid(code_id) => bytes.extend(code_id.as_ref()),
 
-            Self::InstrumentedCode(runtime_id, code_id) => [
-                prefix.as_ref(),
-                runtime_id.to_le_bytes().as_ref(),
-                code_id.as_ref(),
-            ]
-            .concat(),
-            Self::LatestData | Self::Timelines => prefix.as_ref().to_vec(),
-        }
+            Self::InstrumentedCode(runtime_id, code_id) => {
+                bytes.extend(runtime_id.to_le_bytes());
+                bytes.extend(code_id.as_ref());
+            }
+            Self::LatestData | Self::Timelines => {
+                // append additional zero bytes to avoid intersection with CAS
+                bytes.extend([0; 8])
+            }
+        };
+
+        debug_assert!(
+            bytes.len() > size_of::<H256>(),
+            "Key must be longer than H256, to avoid collision with CAS keys"
+        );
+        debug_assert!(
+            bytes.len() <= 2 * size_of::<H256>() + size_of::<u32>(),
+            "Key must not be longer than maximum possible length"
+        );
+
+        bytes
     }
 }
 
