@@ -105,8 +105,5 @@ impl ToDigest for BatchCommitmentValidationReply {
     }
 }
 
-/// Default maximum allowed deepness of the chain for validating commitments.
-pub const DEFAULT_VALIDATE_CHAIN_DEEPNESS_LIMIT: u32 = 10_000;
-
 /// Default threshold for producer to submit commitment despite of no transitions
 pub const DEFAULT_CHAIN_DEEPNESS_THRESHOLD: u32 = 500;
