@@ -88,7 +88,7 @@
 //!    then `announce1` is strict predecessor of `announce` and is predecessor of each
 //!    announce from `lpb.announces`.
 
-use crate::tx_validation::{TxValidity, TxValidityChecker};
+use crate::tx_validation::TxValidityChecker;
 use anyhow::{Result, anyhow, ensure};
 use ethexe_common::{
     Announce, HashOf, SimpleBlockData,
@@ -96,6 +96,7 @@ use ethexe_common::{
         AnnounceStorageRW, BlockMetaStorageRW, InjectedStorageRW, LatestDataStorageRO,
         OnChainStorageRO,
     },
+    injected::TxValidity,
     network::{AnnouncesRequest, AnnouncesRequestUntil},
 };
 use ethexe_ethereum::primitives::map::HashMap;
@@ -723,7 +724,7 @@ pub fn accept_announce(db: &impl DBAnnouncesExt, announce: Announce) -> Result<A
             validity => {
                 tracing::trace!(
                     announce = ?announce.to_hash(),
-                    "announce contains invalid transition with status {validity_status:?}, rejecting announce."
+                    "announce contains invalid transition with status {validity:?}, rejecting announce."
                 );
 
                 return Ok(AnnounceStatus::Rejected {

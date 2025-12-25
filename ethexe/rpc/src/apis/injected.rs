@@ -20,7 +20,7 @@ use crate::{RpcEvent, errors};
 use dashmap::DashMap;
 use ethexe_common::{
     HashOf,
-    injected::{InjectedTransaction, RpcOrNetworkInjectedTx, SignedPromise},
+    injected::{InjectedTransaction, RpcOrNetworkInjectedTx, SignedPromise, TxRejection},
 };
 use jsonrpsee::{
     PendingSubscriptionSink, SubscriptionMessage, SubscriptionSink,
@@ -38,6 +38,15 @@ pub enum InjectedTransactionAcceptance {
     Accept,
 }
 
+/// This type will be sent to the subscriber when the promise is ready or the transaction is rejected.
+#[derive(Debug, Clone, Serialize, Deserialize, derive_more::From)]
+pub enum PromiseOrRejection {
+    #[from]
+    Promise(SignedPromise),
+    #[from]
+    Rejection(TxRejection),
+}
+
 #[cfg_attr(not(feature = "client"), rpc(server))]
 #[cfg_attr(feature = "client", rpc(server, client))]
 pub trait Injected {
@@ -50,7 +59,7 @@ pub trait Injected {
     #[subscription(
         name = "injected_subscribeTransactionPromise",
         unsubscribe = "injected_unsubscribeTransactionPromise", 
-        item = SignedPromise
+        item = PromiseOrRejection
     )]
     async fn send_transaction_and_watch(
         &self,
@@ -58,10 +67,12 @@ pub trait Injected {
     ) -> SubscriptionResult;
 }
 
+type SubscribersMap = DashMap<HashOf<InjectedTransaction>, oneshot::Sender<PromiseOrRejection>>;
+
 #[derive(Debug, Clone)]
 pub struct InjectedApi {
     rpc_sender: mpsc::UnboundedSender<RpcEvent>,
-    promise_waiters: Arc<DashMap<HashOf<InjectedTransaction>, oneshot::Sender<SignedPromise>>>,
+    promise_waiters: Arc<SubscribersMap>,
 }
 
 #[async_trait]
@@ -118,14 +129,23 @@ impl InjectedApi {
     }
 
     pub fn send_promise(&self, promise: SignedPromise) {
-        let Some((_, promise_sender)) = self.promise_waiters.remove(&promise.data().tx_hash) else {
+        let Some((_, waiter)) = self.promise_waiters.remove(&promise.data().tx_hash) else {
             tracing::warn!(promise = ?promise, "receive unregistered promise");
             return;
         };
 
-        if let Err(promise) = promise_sender.send(promise) {
+        if let Err(promise) = waiter.send(promise.into()) {
             tracing::trace!(promise = ?promise, "rpc promise receiver dropped");
         }
+    }
+
+    pub fn send_tx_rejections(&self, rejections: Vec<TxRejection>) {
+        rejections.into_iter().for_each(|rejection| {
+            if let Some((_, waiter)) = self.promise_waiters.remove(&rejection.tx_hash)
+                && let Err(rejection) = waiter.send(rejection.into()) {
+                    tracing::trace!(rejection = ?rejection, "failed to send tx rejection because of rpc receiver dropped");
+            }
+        });
     }
 
     /// This function forwards [`RpcOrNetworkInjectedTx`] to main service and waits for its acceptance.
@@ -166,7 +186,7 @@ impl InjectedApi {
     fn spawn_promise_waiter(
         &self,
         sink: SubscriptionSink,
-        receiver: oneshot::Receiver<SignedPromise>,
+        receiver: oneshot::Receiver<PromiseOrRejection>,
         tx_hash: HashOf<InjectedTransaction>,
     ) {
         // This clone is cheap, as it only increases the ref count.
