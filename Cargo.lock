@@ -4960,6 +4960,7 @@ dependencies = [
  "parity-scale-codec",
  "roast-secp256k1-evm",
  "serde",
+ "serde_json",
  "sha3",
  "sp-core",
  "tap",
@@ -5166,6 +5167,7 @@ version = "1.10.0"
 dependencies = [
  "anyhow",
  "dashmap 5.5.3",
+ "derive_more 2.0.1",
  "ethexe-common",
  "ethexe-db",
  "ethexe-processor",

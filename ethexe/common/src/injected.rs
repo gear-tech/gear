@@ -16,7 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{Address, HashOf, ToDigest, ecdsa::SignedData};
+use crate::{
+    Address, HashOf, ToDigest,
+    ecdsa::{SignedData, SignedMessage},
+};
 use core::hash::Hash;
 use gear_core::rpc::ReplyInfo;
 use gprimitives::{ActorId, H256, MessageId};
@@ -27,7 +30,7 @@ use sp_core::Bytes;
 /// Recent block hashes window size used to check transaction mortality.
 pub const VALIDITY_WINDOW: u8 = 32;
 
-pub type SignedInjectedTransaction = SignedData<InjectedTransaction>;
+pub type SignedInjectedTransaction = SignedMessage<InjectedTransaction>;
 
 #[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
 #[cfg_attr(feature = "serde", derive(Hash))]
@@ -38,6 +41,7 @@ pub struct RpcOrNetworkInjectedTx {
     pub tx: SignedInjectedTransaction,
 }
 
+/// IMPORTANT: message id == tx hash == blake2b256 hash of the struct fields concat.
 #[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
 #[cfg_attr(feature = "serde", derive(Hash))]
 #[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
@@ -122,8 +126,6 @@ impl ToDigest for Promise {
     }
 }
 
-// Injected transaction validity status.
-
 /// The status of [`InjectedTransaction`] for specific announce and chain head.
 #[derive(Debug, Clone, PartialEq, Eq, derive_more::From)]
 pub enum TxValidity {
@@ -152,16 +154,6 @@ pub enum TxValidityIntermediateStatus {
     UninitializedDestination { destination: ActorId },
 }
 
-/// Represents the rejection of injected transaction.
-/// This object will be sent back to the transaction's sender.
-#[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
-#[derive(Debug, Clone, PartialEq, Eq, derive_more::Display)]
-#[display("Transaction({tx_hash}) was rejected because of: {reason}")]
-pub struct TxRejection {
-    pub tx_hash: HashOf<InjectedTransaction>,
-    pub reason: TxInvalidityStatus,
-}
-
 /// The reason why the transaction is not valid and cannot be included into announce.
 #[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
 #[derive(Debug, Clone, PartialEq, Eq, derive_more::Display)]
@@ -172,4 +164,14 @@ pub enum TxInvalidityStatus {
     Outdated,
     #[display("Transaction's destination actor({destination}) not found")]
     UnknownDestination { destination: ActorId },
+}
+
+/// Represents the rejection of injected transaction.
+/// This object will be sent back to the transaction's sender.
+#[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
+#[derive(Debug, Clone, PartialEq, Eq, derive_more::Display)]
+#[display("Transaction({tx_hash}) was rejected because of: {reason}")]
+pub struct TxRejection {
+    pub tx_hash: HashOf<InjectedTransaction>,
+    pub reason: TxInvalidityStatus,
 }

@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-pub use crate::apis::InjectedTransactionAcceptance;
+pub use crate::apis::{InjectedTransactionAcceptance, PromiseOrRejection};
 
 #[cfg(feature = "client")]
 pub use crate::apis::{BlockClient, CodeClient, InjectedClient, ProgramClient};

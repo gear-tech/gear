@@ -271,7 +271,7 @@ mod tests {
         let transaction = InjectedTransaction::mock(());
         let signer = Signer::memory();
         let pub_key = signer.generate_key().unwrap();
-        let transaction = signer.signed_data(pub_key, transaction).unwrap();
+        let transaction = signer.signed_message(pub_key, transaction).unwrap();
 
         // TODO: replace with `Behaviour::send_transaction()` when it works
         alice.behaviour_mut().inner.send_request(

@@ -163,7 +163,7 @@ mod tests {
             ..InjectedTransaction::mock(())
         };
         let tx_hash = tx.to_hash();
-        let signed_tx = signer.signed_data(key, tx).unwrap();
+        let signed_tx = signer.signed_message(key, tx).unwrap();
 
         tx_pool.handle_tx(signed_tx.clone());
         assert!(

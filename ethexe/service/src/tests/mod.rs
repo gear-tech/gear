@@ -50,7 +50,7 @@ use ethexe_ethereum::{TryGetReceipt, deploy::ContractsDeploymentParams, router::
 use ethexe_observer::{EthereumConfig, ObserverEvent};
 use ethexe_processor::{DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, RunnerConfig};
 use ethexe_prometheus::PrometheusConfig;
-use ethexe_rpc::{InjectedClient, InjectedTransactionAcceptance, RpcConfig};
+use ethexe_rpc::{InjectedClient, InjectedTransactionAcceptance, PromiseOrRejection, RpcConfig};
 use ethexe_runtime_common::state::{Expiring, MailboxMessage, PayloadLookup, Storage};
 use ethexe_signer::Signer;
 use gear_core::{
@@ -1502,7 +1502,7 @@ async fn send_injected_tx() {
         recipient: validator1_pubkey.to_address(),
         tx: env
             .signer
-            .signed_data(validator0_pubkey, tx.clone())
+            .signed_message(validator0_pubkey, tx.clone())
             .unwrap(),
     };
 
@@ -2467,7 +2467,7 @@ async fn injected_tx_fungible_token() {
 
     let rpc_tx = RpcOrNetworkInjectedTx {
         recipient: pubkey.to_address(),
-        tx: env.signer.signed_data(pubkey, mint_tx.clone()).unwrap(),
+        tx: env.signer.signed_message(pubkey, mint_tx.clone()).unwrap(),
     };
 
     let acceptance = rpc_client
@@ -2551,7 +2551,10 @@ async fn injected_tx_fungible_token() {
 
     let rpc_tx = RpcOrNetworkInjectedTx {
         recipient: pubkey.to_address(),
-        tx: env.signer.signed_data(pubkey, transfer_tx.clone()).unwrap(),
+        tx: env
+            .signer
+            .signed_message(pubkey, transfer_tx.clone())
+            .unwrap(),
     };
     let ws_client = node
         .rpc_ws_client()
@@ -2567,9 +2570,11 @@ async fn injected_tx_fungible_token() {
         .next()
         .await
         .expect("subscription item")
-        .expect("no errors in subscription item")
-        .expect("tx won't be rejected")
-        .into_data();
+        .expect("no errors in subscription item");
+    let PromiseOrRejection::Promise(promise) = promise else {
+        panic!("expect promise, got rejection");
+    };
+    let promise = promise.into_data();
 
     assert_eq!(promise.tx_hash, transfer_tx.to_hash());
 
