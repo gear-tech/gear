@@ -21,7 +21,7 @@
 use anyhow::{Context, Result};
 use etc::{Etc, FileSystem, Read, Write};
 use reqwest::Client;
-use std::{env, process::Command};
+use std::{env, path::Path, process::Command};
 
 const GITHUB_TOKEN: &str = "GITHUB_TOKEN";
 
@@ -61,10 +61,11 @@ pub async fn list() -> Result<Vec<String>> {
 }
 
 /// Download example
-pub async fn download(example: &str, path: &str) -> Result<()> {
+pub async fn download(example: &str, path: &Path) -> Result<()> {
     let url = format!("{GEAR_DAPP_ORG}{example}.git");
     Command::new("git")
-        .args(["clone", &url, path, "--depth=1"])
+        .args(["clone", "--depth=1", &url])
+        .arg(path)
         .status()
         .context("failed to download example")?;
 
@@ -73,7 +74,8 @@ pub async fn download(example: &str, path: &str) -> Result<()> {
 
     // Init new git repo.
     Command::new("git")
-        .args(["init", path])
+        .arg("init")
+        .arg(path)
         .status()
         .context("failed to init git")?;
 

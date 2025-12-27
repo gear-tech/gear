@@ -18,131 +18,79 @@
 
 //! commands
 
+pub mod ask_state;
 pub mod claim;
 pub mod config;
-pub mod create;
+pub mod deploy;
 pub mod info;
 pub mod new;
-pub mod program;
 pub mod reply;
 pub mod send;
 pub mod transfer;
 pub mod update;
-pub mod upload;
+pub mod upload_code;
 pub mod wallet;
 
 pub use self::{
+    ask_state::AskState,
     claim::Claim,
     config::{Config, ConfigSettings},
-    create::Create,
+    deploy::Deploy,
     info::Info,
     new::New,
-    program::Program,
     reply::Reply,
     send::Send,
     transfer::Transfer,
     update::Update,
-    upload::Upload,
+    upload_code::UploadCode,
     wallet::Wallet,
 };
-use crate::App;
+
+use crate::app::App;
 use anyhow::Result;
 use clap::Parser;
-use std::time::Duration;
 
 /// All SubCommands of gear command line interface.
 #[derive(Clone, Debug, Parser)]
 pub enum Command {
-    Claim(Claim),
-    Create(Create),
-    Info(Info),
     New(New),
-    Config(Config),
-    Program(Program),
-    Reply(Reply),
+
+    UploadCode(UploadCode),
+    Deploy(Deploy),
+    Claim(Claim),
+
+    Info(Info),
+    AskState(AskState),
+
     Send(Send),
-    Upload(Upload),
+    Reply(Reply),
     Transfer(Transfer),
-    Update(Update),
+
+    Config(Config),
     #[clap(subcommand)]
     Wallet(Wallet),
+
+    Update(Update),
 }
 
 impl Command {
     /// Execute the command.
-    pub async fn exec(&self, app: &impl App) -> Result<()> {
+    pub async fn exec(self, app: &mut App) -> Result<()> {
         match self {
-            Command::Config(config) => config.exec()?,
+            Command::Config(config) => config.exec(app)?,
             Command::New(new) => new.exec().await?,
-            Command::Program(program) => program.exec(app).await?,
+            Command::AskState(program) => program.exec(app).await?,
             Command::Update(update) => update.exec().await?,
             Command::Claim(claim) => claim.exec(app).await?,
-            Command::Create(create) => create.exec(app).await?,
+            Command::Deploy(create) => create.exec(app).await?,
             Command::Info(info) => info.exec(app).await?,
             Command::Send(send) => send.exec(app).await?,
-            Command::Upload(upload) => upload.exec(app).await?,
+            Command::UploadCode(upload) => upload.exec(app).await?,
             Command::Transfer(transfer) => transfer.exec(app).await?,
             Command::Reply(reply) => reply.exec(app).await?,
-            Command::Wallet(wallet) => wallet.run()?,
+            Command::Wallet(wallet) => wallet.exec(app)?,
         }
 
         Ok(())
-    }
-}
-
-/// Gear command-line interface.
-#[derive(Debug, Parser)]
-#[clap(author, version)]
-#[command(name = "gcli")]
-pub struct Opt {
-    /// Commands.
-    #[command(subcommand)]
-    pub command: Command,
-    /// Timeout for rpc requests.
-    #[arg(short, long, default_value = "60000")]
-    pub timeout: u64,
-    /// Enable verbose logs.
-    #[clap(short, long, action = clap::ArgAction::Count)]
-    pub verbose: u8,
-    /// Gear node rpc endpoint.
-    #[arg(short, long)]
-    pub endpoint: Option<String>,
-    /// Password of the signer account.
-    #[arg(short, long)]
-    pub passwd: Option<String>,
-}
-
-#[async_trait::async_trait]
-impl App for Opt {
-    fn timeout(&self) -> Duration {
-        Duration::from_millis(self.timeout)
-    }
-
-    fn verbose(&self) -> u8 {
-        self.verbose
-    }
-
-    fn endpoint(&self) -> Option<String> {
-        if self.endpoint.is_some() {
-            return self.endpoint.clone();
-        }
-
-        ConfigSettings::read(None).ok().map(|c| c.url.to_string())
-    }
-
-    fn passwd(&self) -> Option<String> {
-        self.passwd.clone()
-    }
-
-    async fn exec(&self) -> Result<()> {
-        self.command.exec(self).await
-    }
-}
-
-impl Opt {
-    /// Run command sync.
-    pub fn exec_sync(&self) -> Result<()> {
-        let rt = tokio::runtime::Runtime::new().unwrap();
-        rt.block_on(self.run())
     }
 }

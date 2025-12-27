@@ -123,17 +123,15 @@
 //! GPL v3.0
 
 mod app;
-pub mod cmd;
-pub mod embed;
-pub mod template;
-pub mod utils;
+mod cli;
+mod cmd;
+mod template;
+mod utils;
 
-pub use self::{app::App, cmd::Command};
-pub use anyhow;
-pub use async_trait::async_trait;
-pub use clap;
-pub use log;
-pub use tokio;
+use self::cli::Cli;
+use clap::Parser;
 
-/// SS58 prefix for vara network.
-pub const VARA_SS58_PREFIX: u8 = 137;
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    Cli::parse().run().await
+}

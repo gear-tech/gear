@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2021-2025 Gear Technologies Inc.
+// Copyright (C) 2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -15,137 +15,59 @@
 //
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
-//
-//! Command line application abstraction
 
-use anyhow::{Context, Result, anyhow};
-use clap::Parser;
-use gring::Keyring;
-use gsdk::{
-    Api, SignedApi,
-    ext::sp_core::{self, Pair as _, crypto::Ss58Codec, sr25519::Pair},
+use crate::{
+    cmd::{Command, ConfigSettings, config::Endpoint},
+    utils::HexBytes,
 };
+use anyhow::{Error, Result, anyhow};
+use clap::Parser;
+use gring::{Keyring, Keystore};
+use gsdk::{Api, SignedApi, ext::sp_core};
 use std::{env, time::Duration};
 use tracing_subscriber::EnvFilter;
 
-/// Command line gear program application abstraction.
-///
-/// ```ignore
-/// use gcli::{async_trait, App, Command, clap::Parser, color_eyre};
-///
-/// /// My customized sub commands.
-/// #[derive(Debug, Parser)]
-/// pub enum SubCommand {
-///     /// GCli preset commands.
-///     #[clap(flatten)]
-///     GCliCommands(Command),
-///     /// My customized ping command.
-///     Ping,
-/// }
-///
-/// /// My customized gcli.
-/// #[derive(Debug, Parser)]
-/// pub struct MyGCli {
-///     #[clap(subcommand)]
-///     command: SubCommand,
-/// }
-///
-/// #[async_trait]
-/// impl App for MyGCli {
-///     async fn exec(&self) -> Result<()> {
-///         match &self.command {
-///             SubCommand::GCliCommands(command) => command.exec(self).await,
-///             SubCommand::Ping => {
-///                 println!("pong");
-///                 Ok(())
-///             }
-///         }
-///     }
-/// }
-///
-/// #[tokio::main]
-/// async fn main() -> color_eyre::Result<()> {
-///     MyGCli::parse().run().await
-/// }
-/// ```
-#[async_trait::async_trait]
-pub trait App: Parser + Sync {
-    /// Timeout of rpc requests.
-    fn timeout(&self) -> Duration {
-        Api::DEFAULT_TIMEOUT
-    }
+#[derive(Debug, Parser)]
+pub struct Opts {
+    /// Timeout for RPC requests, in milliseconds.
+    #[arg(short, long, default_value = "60000")]
+    pub timeout: u64,
 
-    /// The verbosity logging level.
-    fn verbose(&self) -> u8 {
-        0
-    }
+    /// Increase verbosity level, maximum is 3.
+    #[clap(short, long = "verbose", action = clap::ArgAction::Count)]
+    pub verbosity: u8,
 
-    /// The endpoint of the gear node.
-    fn endpoint(&self) -> Option<String> {
-        None
-    }
-
-    /// Password of the signer account.
-    fn passwd(&self) -> Option<String> {
-        None
-    }
-
-    /// Get the address of the primary key
-    fn ss58_address(&self) -> String {
-        gring::cmd::Command::store()
-            .and_then(Keyring::load)
-            .and_then(|mut s| s.primary())
-            .map(|k| k.address)
-            .unwrap_or(
-                Pair::from_string("//Alice", None)
-                    .expect("Alice always works")
-                    .public()
-                    .to_ss58check(),
-            )
-    }
-
-    /// Exec program from the parsed arguments.
-    async fn exec(&self) -> Result<()>;
-
-    /// Get gear api without signing in with password.
-    async fn api(&self) -> Result<Api> {
-        let endpoint = self.endpoint();
-        Api::builder()
-            .timeout(self.timeout())
-            .uri(endpoint.as_deref().unwrap_or(Api::VARA_ENDPOINT))
-            .build()
-            .await
-            .map_err(Into::into)
-    }
-
-    /// Get signer.
-    async fn signed(&self) -> Result<SignedApi> {
-        let passwd = self.passwd();
-
-        let api = Api::builder()
-            .timeout(self.timeout())
-            .uri(self.endpoint().as_deref().unwrap_or(Api::VARA_ENDPOINT))
-            .build()
-            .await?;
-        let pair = Keyring::load(gring::cmd::Command::store()?)?
-            .primary()?
-            .decrypt(passwd.clone().and_then(|p| hex::decode(p).ok()).as_deref())?;
-
-        Ok(SignedApi::with_pair(api, pair.into()))
-    }
-
-    /// Run application.
+    /// Gear node RPC endpoint.
     ///
-    /// This is a wrapper of [`Self::exec`] with preset retry
-    /// and verbose level.
-    async fn run(&self) -> Result<()> {
+    /// Can be `mainnet`, `testnest`, `localhost` or a custom URL.
+    #[arg(short, long)]
+    pub endpoint: Option<Endpoint>,
+
+    /// Password for the signer account, as hex string.
+    #[arg(short, long)]
+    pub passwd: Option<HexBytes>,
+}
+
+/// Application state.
+#[derive(Debug)]
+pub struct App {
+    opts: Opts,
+}
+
+impl App {
+    /// Constructs new application instance.
+    pub fn new(opts: Opts) -> Self {
+        Self { opts }
+    }
+
+    pub async fn run(mut self, command: Command) -> Result<()> {
         sp_core::crypto::set_default_ss58_version(runtime_primitives::VARA_SS58_PREFIX.into());
 
-        let name = Self::command().get_name().to_string();
+        let name = env!("CARGO_PKG_NAME");
         let filter = if env::var(EnvFilter::DEFAULT_ENV).is_ok() {
             EnvFilter::from_default_env()
         } else {
-            match self.verbose() {
+            match self.opts.verbosity {
                 0 => format!("{name}=info,gsdk=info").into(),
                 1 => format!("{name}=debug,gsdk=debug").into(),
                 2 => "debug".into(),
@@ -159,6 +81,52 @@ pub trait App: Parser + Sync {
             .try_init()
             .map_err(|err| anyhow!("{err}"))?;
 
-        self.exec().await.context("failed to run app")
+        command.exec(&mut self).await
+    }
+
+    /// Returns the persistent configuration.
+    ///
+    /// Loads it if it's not loaded yet.
+    pub fn config(&self) -> Result<ConfigSettings> {
+        ConfigSettings::read()
+    }
+
+    /// Returns a Gear node API wrapper.
+    pub async fn api(&self) -> Result<Api> {
+        let endpoint = self
+            .opts
+            .endpoint
+            .clone()
+            .map_or_else(|| Ok(self.config()?.endpoint), Ok::<_, Error>)?;
+
+        Ok(Api::builder()
+            .timeout(Duration::from_millis(self.opts.timeout))
+            .uri(endpoint.as_str())
+            .build()
+            .await?)
+    }
+
+    /// Returns the keyring.
+    pub fn keyring(&self) -> Result<Keyring> {
+        Keyring::load(gring::cmd::Command::store()?)
+    }
+
+    /// Returns the currently used keystore.
+    pub fn keystore(&self) -> Result<Keystore> {
+        self.keyring()?.primary()
+    }
+
+    pub fn ss58_address(&self) -> Result<String> {
+        Ok(self.keystore()?.address.to_owned())
+    }
+
+    /// Returns a signed Gear node API wrapper.
+    pub async fn signed_api(&self) -> Result<SignedApi> {
+        let pair = self
+            .keystore()?
+            .clone()
+            .decrypt(self.opts.passwd.as_deref())?;
+
+        Ok(SignedApi::with_pair(self.api().await?.clone(), pair.into()))
     }
 }

@@ -17,7 +17,9 @@ gsdk.workspace = true
 async-trait.workspace = true
 colored.workspace = true
 anyhow.workspace = true
+derive_more.workspace = true
 dirs.workspace = true
+futures.workspace = true
 tracing-subscriber.workspace = true
 gear-core.workspace = true
 gring = { workspace = true, features = ["cli"] }

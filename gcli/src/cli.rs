@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2021-2025 Gear Technologies Inc.
+// Copyright (C) 2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -16,29 +16,29 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Command `program`.
-use crate::App;
+//! This crate provides the main CLI interface.
+
+use crate::{
+    app::{App, Opts},
+    cmd::Command,
+};
 use anyhow::Result;
 use clap::Parser;
-use gear_core::ids::ActorId;
-use gsdk::ext::subxt::utils::H256;
 
-/// Read program state, etc.
-#[derive(Clone, Debug, Parser)]
-pub struct Program {
-    /// Program id.
-    pid: ActorId,
-    /// The block hash for reading state.
-    #[arg(long)]
-    at: Option<H256>,
+/// Interact with Gear API via node RPC.
+#[derive(Debug, Parser)]
+#[clap(author, version)]
+pub struct Cli {
+    #[command(flatten)]
+    opts: Opts,
+
+    /// Command to run.
+    #[command(subcommand)]
+    command: Command,
 }
 
-impl Program {
-    /// Run command program.
-    pub async fn exec(&self, app: &impl App) -> Result<()> {
-        let api = app.signed().await?;
-        let state = api.read_state_bytes_at(self.pid, vec![], self.at).await?;
-        println!("0x{}", hex::encode(state));
-        Ok(())
+impl Cli {
+    pub async fn run(self) -> Result<()> {
+        App::new(self.opts).run(self.command).await
     }
 }

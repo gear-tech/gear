@@ -17,9 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! command `update`
-use anyhow::Result;
+use anyhow::{Context, Result};
 use clap::Parser;
-use std::process::{self, Command};
+use std::{os::unix::process::CommandExt, process::Command};
 
 const REPO: &str = "https://github.com/gear-tech/gear-program";
 
@@ -33,21 +33,16 @@ pub struct Update {
 
 impl Update {
     /// exec command update
-    pub async fn exec(&self) -> Result<()> {
+    pub async fn exec(self) -> Result<()> {
         let args: &[&str] = if self.force {
             &["--git", REPO, "--force"]
         } else {
             &[env!("CARGO_PKG_NAME")]
         };
 
-        if !Command::new("cargo")
+        Err(Command::new("cargo")
             .args([&["install"], args].concat())
-            .status()?
-            .success()
-        {
-            process::exit(1);
-        }
-
-        Ok(())
+            .exec())
+        .context("failed to self-update using `cargo install`")
     }
 }
