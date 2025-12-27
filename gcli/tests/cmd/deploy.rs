@@ -16,21 +16,18 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Integration tests for command `upload`
+//! Integration tests for command `deploy`.
 
-use crate::common::{
-    self, Args,
-    node::{Convert, NodeExec},
-};
+use crate::common::{NodeExec, dev};
 use anyhow::Result;
 use demo_fungible_token::InitConfig;
-use gear_core::ids::{CodeId, prelude::*};
+use gear_core::ids::{CodeId, prelude::CodeIdExt};
 use gsdk::Api;
 use scale_info::scale::Encode;
 
 #[tokio::test]
-async fn test_command_upload_works() -> Result<()> {
-    let node = common::dev()?;
+async fn test_command_deploy_works() -> Result<()> {
+    let node = dev().await?;
     let api = Api::new(node.ws().as_str()).await?.signed_as_alice();
     let code_id = CodeId::generate(demo_fungible_token::WASM_BINARY);
     assert!(
@@ -40,43 +37,22 @@ async fn test_command_upload_works() -> Result<()> {
 
     let payload = hex::encode(InitConfig::test_sequence().encode());
 
-    let output = node.run(
-        Args::new("upload")
-            .program_stdin(demo_fungible_token::WASM_BINARY)
-            .payload(payload),
-    )?;
+    let output = node
+        .gcli_with_stdin(
+            ["deploy", "--init-payload", &payload, "--stdin"],
+            demo_fungible_token::WASM_BINARY,
+        )
+        .await?;
+
     assert!(
-        output
-            .stdout
-            .convert()
-            .contains("Submitted Gear::upload_program"),
+        String::from_utf8(output.stdout)?.contains("Successfully deployed the program"),
         "code should be uploaded, but got: '{}'",
-        output.stderr.convert()
+        String::from_utf8_lossy(&output.stderr)
     );
     assert!(
         api.instrumented_code_storage(code_id).await.is_ok(),
         "code should exist"
     );
 
-    Ok(())
-}
-
-#[tokio::test]
-async fn test_command_upload_code_works() -> Result<()> {
-    let node = common::dev()?;
-    let output = node.run(
-        Args::new("upload")
-            .flag("--code-only")
-            .program_stdin(demo_fungible_token::WASM_BINARY),
-    )?;
-
-    assert!(
-        output
-            .stdout
-            .convert()
-            .contains("Submitted Gear::upload_code"),
-        "code should be uploaded, but got: {}",
-        output.stderr.convert()
-    );
     Ok(())
 }

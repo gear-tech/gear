@@ -17,8 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 mod claim;
+mod deploy;
 mod info;
 mod reply;
 mod send;
 mod transfer;
-mod upload;
+mod upload_code;

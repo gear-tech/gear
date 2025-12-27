@@ -18,7 +18,7 @@
 
 //! Integration tests for command `deploy`
 
-use crate::common::{self, Args, NodeExec};
+use crate::common::{NodeExec, dev};
 use anyhow::Result;
 use gsdk::{
     Api,
@@ -31,7 +31,7 @@ const ADDRESS: &str = "kGhmTEymraqSPa1NYjXzqbko2p4Ge1CmEfACtC1s4aC5hTPYk";
 
 #[tokio::test]
 async fn test_command_transfer_works() -> Result<()> {
-    let node = common::dev()?;
+    let node = dev().await?;
 
     // Get balance of the testing address
     let signer = Api::new(node.ws().as_str()).await?.signed(SURI, None)?;
@@ -41,11 +41,8 @@ async fn test_command_transfer_works() -> Result<()> {
 
     // Run command transfer
     let value = 1_000_000_000_000_000u128;
-    let _ = node.run(
-        Args::new("transfer")
-            .destination(ADDRESS)
-            .amount(value.to_string()),
-    )?;
+
+    node.gcli(["transfer", ADDRESS, &value.to_string()]).await?;
 
     let after = signer.unsigned().free_balance(&address).await.unwrap_or(0);
     assert_eq!(

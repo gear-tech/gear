@@ -77,7 +77,7 @@ impl Info {
     /// Prints the account balance.
     async fn print_balance(api: &Api, acc: AccountId32) -> Result<()> {
         let balance = api.free_balance(acc).await?;
-        println!("{}: {}", "Free balance:".bold(), balance);
+        println!("{} {}", "Free balance:".bold(), balance);
         Ok(())
     }
 

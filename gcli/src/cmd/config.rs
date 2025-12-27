@@ -23,7 +23,7 @@ use clap::Parser;
 use colored::Colorize;
 use gsdk::Api;
 use serde::{Deserialize, Serialize};
-use std::{fs, path::PathBuf, str::FromStr};
+use std::{env, fs, path::PathBuf, str::FromStr};
 use url::Url;
 
 const CONFIG_PATH: &str = "vara/config.toml";
@@ -92,9 +92,13 @@ enum ConfigOption {
 
 impl ConfigSettings {
     fn config_path() -> Result<PathBuf> {
-        Ok(dirs::config_dir()
-            .context("failed to get config directory")?
-            .join(CONFIG_PATH))
+        Ok(if cfg!(test) {
+            env::temp_dir().join("gcli-test").join("config")
+        } else {
+            dirs::config_dir()
+                .context("failed to get config directory")?
+                .join(CONFIG_PATH)
+        })
     }
 
     /// Reads the configuration from disk.
@@ -132,7 +136,7 @@ impl ConfigSettings {
 
     /// Pretty-prints the configuration.
     pub fn pretty_print(&self) {
-        println!("{}: {}", "RPC URL".bold(), self.endpoint.as_str())
+        println!("{} {}", "RPC URL:".bold(), self.endpoint.as_str())
     }
 }
 

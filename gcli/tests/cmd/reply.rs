@@ -17,14 +17,14 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Integration tests for command `send`
-use crate::common::{self, Args, NodeExec};
+use crate::common::{NodeExec, create_messenger};
 use anyhow::Result;
 use gsdk::Api;
 use scale_info::scale::Encode;
 
 #[tokio::test]
 async fn test_command_reply_works() -> Result<()> {
-    let node = common::create_messenger().await?;
+    let node = create_messenger().await?;
 
     // Get balance of the testing address
     let api = Api::new(node.ws().as_str()).await?.signed_as_alice();
@@ -32,8 +32,11 @@ async fn test_command_reply_works() -> Result<()> {
     assert_eq!(mailbox.len(), 1, "Alice should have 1 message in mailbox");
 
     // Send message to messenger
-    let id = hex::encode(mailbox[0].0.id());
-    let _ = node.run(Args::new("reply").message_id(id).gas_limit("20000000000"))?;
+    let id = mailbox[0].0.id().to_string();
+
+    node.gcli(["reply", &id, "--gas-limit", "20000000000"])
+        .await?;
+
     let mailbox = api.mailbox_messages(10).await?;
     assert_eq!(mailbox.len(), 1, "Alice should have 1 message in mailbox");
     assert_eq!(

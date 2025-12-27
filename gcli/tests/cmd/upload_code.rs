@@ -16,35 +16,23 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Shared node.
+//! Integration tests for command `upload-code`.
 
-use crate::common::{Args, Output, Result};
+use crate::common::{NodeExec, dev};
+use anyhow::Result;
 
-/// Convert self into `String`.
-pub trait Convert<T> {
-    fn convert(&self) -> T;
-}
+#[tokio::test]
+async fn test_command_upload_code_works() -> Result<()> {
+    let node = dev().await?;
 
-impl Convert<String> for Vec<u8> {
-    fn convert(&self) -> String {
-        String::from_utf8_lossy(self).to_string()
-    }
-}
+    let output = node
+        .gcli_with_stdin(["upload-code", "--stdin"], demo_fungible_token::WASM_BINARY)
+        .await?;
 
-/// Run node.
-pub trait NodeExec {
-    /// Exec command gcli with Node instance.
-    ///
-    /// # Example
-    ///
-    /// ```ignore
-    /// let node = Node::new();
-    /// let args = Args::new("upload")
-    ///              .flag("--code-only")
-    ///              .program(env::wasm_bin("demo_fungible_token.opt.wasm"));
-    /// let output = node.run(args)
-    ///
-    /// // ...
-    /// ```
-    fn run(&self, args: Args) -> Result<Output>;
+    assert!(
+        str::from_utf8(&output.stdout)?.contains("Submitted Gear::upload_code"),
+        "code should be uploaded, but got: {}",
+        String::from_utf8_lossy(&output.stdout)
+    );
+    Ok(())
 }

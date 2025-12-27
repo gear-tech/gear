@@ -108,7 +108,11 @@ impl App {
 
     /// Returns the keyring.
     pub fn keyring(&self) -> Result<Keyring> {
-        Keyring::load(gring::cmd::Command::store()?)
+        Keyring::load(if cfg!(test) {
+            env::temp_dir().join("gcli-test").join("keyring")
+        } else {
+            gring::cmd::Command::store()?
+        })
     }
 
     /// Returns the currently used keystore.
