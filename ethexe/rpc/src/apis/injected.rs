@@ -50,18 +50,20 @@ pub enum InjectedTransactionAcceptance {
     Accept,
 }
 
-#[cfg_attr(not(feature = "client"), rpc(server))]
-#[cfg_attr(feature = "client", rpc(server, client))]
+#[cfg_attr(not(feature = "client"), rpc(server, namespace = "injected"))]
+#[cfg_attr(feature = "client", rpc(server, client, namespace = "injected"))]
 pub trait Injected {
-    #[method(name = "injected_sendTransaction")]
+    /// Just sends an injected transaction.
+    #[method(name = "sendTransaction")]
     async fn send_transaction(
         &self,
         transaction: RpcOrNetworkInjectedTx,
     ) -> RpcResult<InjectedTransactionAcceptance>;
 
+    /// Sends an injected transaction and subscribes to its promise.  
     #[subscription(
-        name = "injected_subscribeTransactionPromise",
-        unsubscribe = "injected_unsubscribeTransactionPromise", 
+        name = "sendTransactionAndWatch",
+        unsubscribe = "sendTransactionAndWatchUnsubscribe", 
         item = SignedPromise
     )]
     async fn send_transaction_and_watch(
@@ -77,11 +79,11 @@ pub trait Injected {
     async fn subscribe_promises(&self) -> SubscriptionResult;
 }
 
-/// Implementation of the Injected RPC API.
+/// Implementation of the injected transactions RPC API.
 #[derive(derive_more::Debug, Clone)]
 pub struct InjectedApi {
+    /// Sender to forward RPC events to the main service.
     rpc_sender: mpsc::UnboundedSender<RpcEvent>,
-
     #[debug(skip)]
     promise_manager: PromiseManager,
 }
@@ -188,6 +190,12 @@ impl InjectedApi {
 
     pub(crate) fn send_promise(&self, promise: SignedPromise) {
         self.promise_manager.handle_promise(promise);
+    }
+
+    /// Returns the number of current promise subscribers waiting for promises.
+    #[cfg(test)]
+    pub fn promise_subscribers_count(&self) -> usize {
+        self.promise_manager.promise_waiters.len()
     }
 
     /// This function forwards [`RpcOrNetworkInjectedTx`] to main service and waits for its acceptance.
