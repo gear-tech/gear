@@ -11,7 +11,7 @@ jobs:
     runs-on: [kuberunner]
     steps:
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: "Install: Rust toolchain"
         uses: ./.github/actions/install-rust
@@ -21,7 +21,7 @@ jobs:
           cargo build --release --locked --package gear-node-loader
 
       - name: Archive production artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: gear-loader
           path: |
@@ -32,15 +32,15 @@ jobs:
     needs: build-gear-loader
     steps:
       - name: "ACTIONS: Checkout"
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Download artifact
-        uses: actions/download-artifact@v4
+        uses: actions/download-artifact@v7
         with:
           name: gear-loader
 
       - name: Run playbook
-        uses: dawidd6/action-ansible-playbook@v3
+        uses: dawidd6/action-ansible-playbook@v6
         with:
           directory: ./ansible/
           playbook: gear-loader-update.yaml
