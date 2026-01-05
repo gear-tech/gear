@@ -45,7 +45,11 @@ pub struct InBlockTransitions {
     states: ProgramStates,
     schedule: Schedule,
     modifications: BTreeMap<ActorId, NonFinalTransition>,
-    injected_replies: BTreeMap<MessageId, Option<ReplyInfo>>,
+
+    /// The set of injected messages to track replies for.
+    injected_messages: BTreeSet<MessageId>,
+    /// Replies for injected messages, in the order of processing.
+    ordered_injected_replies: Vec<(MessageId, ReplyInfo)>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -63,12 +67,11 @@ impl InBlockTransitions {
         schedule: Schedule,
         injected_messages: Vec<MessageId>,
     ) -> Self {
-        let injected_replies = injected_messages.into_iter().map(|id| (id, None)).collect();
         Self {
             header,
             states,
             schedule,
-            injected_replies,
+            injected_messages: injected_messages.into_iter().collect(),
             ..Default::default()
         }
     }
@@ -145,9 +148,9 @@ impl InBlockTransitions {
     }
 
     /// Register new reply for injected transaction.
-    pub fn maybe_store_injected_reply(&mut self, message_id: &MessageId, reply: ReplyInfo) {
-        if let Some(maybe_reply) = self.injected_replies.get_mut(message_id) {
-            *maybe_reply = Some(reply);
+    pub fn maybe_store_injected_reply(&mut self, message_id: MessageId, reply: ReplyInfo) {
+        if self.injected_messages.contains(&message_id) {
+            self.ordered_injected_replies.push((message_id, reply));
         }
     }
 
@@ -212,19 +215,16 @@ impl InBlockTransitions {
             states,
             schedule,
             modifications,
-            injected_replies,
+            ordered_injected_replies,
             ..
         } = self;
 
-        let promises = injected_replies
+        let promises = ordered_injected_replies
             .into_iter()
-            .filter_map(|(message_id, maybe_reply)| {
-                maybe_reply.map(|reply| {
-                    // Safety: we trust that message_id was created from a valid SignedInjectedTransaction.
-                    let tx_hash = unsafe { HashOf::new(message_id.into_bytes().into()) };
-
-                    Promise { tx_hash, reply }
-                })
+            .map(|(message_id, reply)| {
+                // Safety: we trust that message_id was created from a valid SignedInjectedTransaction.
+                let tx_hash = unsafe { HashOf::new(message_id.into_bytes().into()) };
+                Promise { tx_hash, reply }
             })
             .collect();
 
