@@ -311,6 +311,7 @@ impl PromiseManager {
 
     /// Creates a new stream of signed promises for [`InjectedServer::subscribe_promises`].
     pub(crate) fn new_promise_stream(&self) -> BroadcastStream<SignedPromise> {
+        tracing::trace!("Creating new promise stream for subscriber");
         BroadcastStream::new(self.promise_broadcaster.subscribe())
     }
 

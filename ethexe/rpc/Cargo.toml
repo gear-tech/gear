@@ -33,6 +33,7 @@ tokio-stream.workspace = true
 derive_more.workspace = true
 thiserror.workspace = true
 alloy.workspace = true
+tracing-subscriber.workspace = true
 
 [dev-dependencies]
 jsonrpsee = { workspace = true, features = ["client"] }

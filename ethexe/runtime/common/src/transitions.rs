@@ -149,9 +149,9 @@ impl InBlockTransitions {
     }
 
     /// Register new reply for injected transaction.
-    pub fn maybe_store_injected_reply(&mut self, message_id: &MessageId, reply: ReplyInfo) {
-        if self.injected_messages.contains(message_id) {
-            self.ordered_injected_replies.push((*message_id, reply));
+    pub fn maybe_store_injected_reply(&mut self, message_id: MessageId, reply: ReplyInfo) {
+        if self.injected_messages.contains(&message_id) {
+            self.ordered_injected_replies.push((message_id, reply));
         }
     }
 
