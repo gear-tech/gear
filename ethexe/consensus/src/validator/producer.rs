@@ -99,7 +99,7 @@ impl StateHandler for Producer {
                         .ctx
                         .core
                         .signer
-                        .signed_data(self.ctx.core.pub_key, promise)?;
+                        .signed_message(self.ctx.core.pub_key, promise)?;
 
                     self.ctx.output(ConsensusEvent::Promise(signed_promise));
                 }
