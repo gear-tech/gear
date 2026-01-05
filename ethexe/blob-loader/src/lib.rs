@@ -318,15 +318,40 @@ impl<DB: Database> BlobLoaderService for BlobLoader<DB> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use alloy::{node_bindings::Anvil, providers::ext::AnvilApi};
     use ethexe_common::gear_core::ids::prelude::CodeIdExt;
+    use ethexe_ethereum::deploy::EthereumDeployer;
+    use ethexe_signer::Signer;
 
     #[tokio::test]
     async fn test_read_code_from_tx_hash() {
+        let signer = Signer::memory();
+        let alice = signer
+            .storage_mut()
+            .add_key(
+                "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
+                    .parse()
+                    .unwrap(),
+            )
+            .unwrap();
+
+        let beacon_block_time = Duration::from_secs(1);
+        let anvil = Anvil::new().block_time(beacon_block_time.as_secs()).spawn();
+
+        let ethereum =
+            EthereumDeployer::new(&anvil.ws_endpoint(), signer.clone(), alice.to_address())
+                .await
+                .unwrap()
+                .with_validators(vec![alice.to_address()].try_into().unwrap())
+                .deploy()
+                .await
+                .unwrap();
+
         let consensus_cfg = ConsensusLayerConfig {
-            ethereum_rpc: "https://hoodi-reth-rpc.gear-tech.io".into(),
-            ethereum_beacon_rpc: "https://hoodi-lighthouse-rpc.gear-tech.io".into(),
-            beacon_block_time: Duration::from_secs(12),
-            attempts: const { NonZero::<u8>::new(3).unwrap() },
+            ethereum_rpc: anvil.endpoint(),
+            ethereum_beacon_rpc: anvil.endpoint(),
+            beacon_block_time,
+            attempts: const { NonZero::new(3).unwrap() },
         };
 
         let blobs_reader = ConsensusLayerBlobReader {
@@ -338,18 +363,25 @@ mod tests {
             config: consensus_cfg,
         };
 
-        let expected_code_id: CodeId =
-            "0x7de51fb739aee5f2f2ec6bb3cb9a99aff68028b70aa0d14ac208bb9b2220a529"
-                .parse()
-                .unwrap();
-        let code = blobs_reader
-            .read_blob_from_tx_hash(
-                "0x3b3fb2d04c7aec2d269f142a3b147456f3e19d368bc41f966b10205a32867316"
-                    .parse()
-                    .unwrap(),
-            )
+        let code = &[];
+        let (tx_hash, expected_code_id) = ethereum
+            .router()
+            .request_code_validation_with_sidecar(code)
+            .await
+            .unwrap()
+            .send()
             .await
             .unwrap();
+
+        let provider: RootProvider = ProviderBuilder::default()
+            .connect(anvil.ws_endpoint().as_str())
+            .await
+            .unwrap();
+
+        // set chain id to 1 to avoid anvil special case
+        provider.anvil_set_chain_id(1).await.unwrap();
+
+        let code = blobs_reader.read_blob_from_tx_hash(tx_hash).await.unwrap();
         assert_eq!(expected_code_id, CodeId::generate(&code));
     }
 }
