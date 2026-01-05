@@ -124,5 +124,5 @@ pub enum ConsensusEvent {
     Warning(String),
     /// Promise for [`ethexe_common::injected::InjectedTransaction`] execution.
     #[from]
-    Promise(SignedPromise),
+    Promises(Vec<SignedPromise>),
 }

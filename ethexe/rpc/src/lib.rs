@@ -147,6 +147,14 @@ impl RpcService {
 
         injected_api.send_promise(promise);
     }
+
+    pub fn provide_promises_batch(&self, promises: Vec<SignedPromise>) {
+        let injected_api = self.injected_api.clone();
+
+        promises.into_iter().for_each(|promise| {
+            injected_api.send_promise(promise);
+        });
+    }
 }
 
 impl Stream for RpcService {

@@ -2485,8 +2485,12 @@ async fn injected_tx_fungible_token() {
     // Listen for inclusion and check the expected payload.
     node.listener()
         .apply_until(|event| {
-            if let TestingEvent::Consensus(ConsensusEvent::Promise(promise)) = event {
-                let promise = promise.into_data();
+            if let TestingEvent::Consensus(ConsensusEvent::Promises(promises)) = event {
+                let promise = promises
+                    .first()
+                    .expect("promise must exists")
+                    .clone()
+                    .into_data();
                 assert_eq!(promise.reply.payload, expected_event.encode());
                 assert_eq!(
                     promise.reply.code,

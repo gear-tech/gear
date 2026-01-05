@@ -24,7 +24,7 @@ use crate::{
     announces::{self, DBAnnouncesExt},
     validator::DefaultProcessing,
 };
-use anyhow::{Result, anyhow};
+use anyhow::{Context as _, Result, anyhow};
 use derive_more::{Debug, Display};
 use ethexe_common::{
     Announce, HashOf, SimpleBlockData, ValidatorsVec,
@@ -80,28 +80,23 @@ impl StateHandler for Producer {
     ) -> Result<ValidatorState> {
         match &self.state {
             State::WaitingAnnounceComputed(expected) if *expected == announce_hash => {
-                let announce = self
-                    .ctx
-                    .core
-                    .db
-                    .announce(announce_hash)
-                    .ok_or_else(|| anyhow!("computed announce must exists in database"))?;
+                // TODO kuzmindev: consider to publish promises only when batch commitment is created and sent to Ethereum.
+                if let Some(promise_hashes) = self.ctx.core.db.announce_promises(announce_hash) {
+                    let mut signed_promises = Vec::with_capacity(promise_hashes.len());
+                    for tx_hash in promise_hashes.into_iter() {
+                        let promise = self.ctx.core.db.promise(tx_hash).ok_or_else(|| {
+                            anyhow!("Not found promise for injected transaction {tx_hash:?}")
+                        })?;
+                        let signed_promise = self
+                            .ctx
+                            .core
+                            .signer
+                            .signed_message(self.ctx.core.pub_key, promise)
+                            .context("producer: failed to sign promise")?;
+                        signed_promises.push(signed_promise);
+                    }
 
-                for tx in announce.injected_transactions.iter() {
-                    let tx_hash = tx.data().to_hash();
-
-                    let Some(promise) = self.ctx.core.db.promise(tx_hash) else {
-                        tracing::warn!(tx_hash = ?tx_hash, "Not found promise for injected transaction");
-                        continue;
-                    };
-
-                    let signed_promise = self
-                        .ctx
-                        .core
-                        .signer
-                        .signed_data(self.ctx.core.pub_key, promise)?;
-
-                    self.ctx.output(ConsensusEvent::Promise(signed_promise));
+                    self.ctx.output(ConsensusEvent::Promises(signed_promises));
                 }
 
                 self.state = State::AggregateBatchCommitment {

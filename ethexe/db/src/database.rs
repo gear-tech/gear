@@ -707,6 +707,7 @@ impl AnnounceStorageRW for Database {
 
     fn set_announce_promises(&self, announce_hash: HashOf<Announce>, promises: &[Promise]) {
         let hashes = promises.iter().map(|p| p.tx_hash).collect::<Vec<_>>();
+        tracing::trace!(promise_transactions = ?hashes, %announce_hash, "Set announce promises");
         self.kv.put(
             &Key::AnnouncePromises(announce_hash).to_bytes(),
             hashes.encode(),
