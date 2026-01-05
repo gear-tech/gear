@@ -373,13 +373,8 @@ mod tests {
             .await
             .unwrap();
 
-        let provider: RootProvider = ProviderBuilder::default()
-            .connect(anvil.ws_endpoint().as_str())
-            .await
-            .unwrap();
-
         // set chain id to 1 to avoid anvil special case
-        provider.anvil_set_chain_id(1).await.unwrap();
+        blobs_reader.provider.anvil_set_chain_id(1).await.unwrap();
 
         let code = blobs_reader.read_blob_from_tx_hash(tx_hash).await.unwrap();
         assert_eq!(expected_code_id, CodeId::generate(&code));
