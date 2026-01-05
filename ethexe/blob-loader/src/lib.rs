@@ -320,6 +320,7 @@ mod tests {
     use super::*;
     use ethexe_common::gear_core::ids::prelude::CodeIdExt;
 
+    #[ignore = "until blob will be available on beacon node"]
     #[tokio::test]
     async fn test_read_code_from_tx_hash() {
         let consensus_cfg = ConsensusLayerConfig {
