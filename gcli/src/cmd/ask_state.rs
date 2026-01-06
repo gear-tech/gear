@@ -30,7 +30,7 @@ pub struct AskState {
     /// Program ID.
     pid: ActorId,
 
-    /// Payload
+    /// Payload for state request.
     #[arg(short, long, default_value = "0x")]
     payload: HexBytes,
 
