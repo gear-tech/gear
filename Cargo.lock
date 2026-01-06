@@ -4900,6 +4900,8 @@ version = "1.10.0"
 dependencies = [
  "alloy",
  "ethexe-common",
+ "ethexe-ethereum",
+ "ethexe-signer",
  "futures",
  "gear-workspace-hack",
  "gprimitives",
@@ -5177,6 +5179,7 @@ dependencies = [
  "gprimitives",
  "hyper 1.4.1",
  "jsonrpsee",
+ "ntest",
  "parity-scale-codec",
  "serde",
  "sp-core",
