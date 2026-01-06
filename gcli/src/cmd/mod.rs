@@ -57,14 +57,15 @@ pub enum Command {
 
     UploadCode(UploadCode),
     Deploy(Deploy),
-    Claim(Claim),
 
     Info(Info),
     AskState(AskState),
 
     Send(Send),
     Reply(Reply),
+
     Transfer(Transfer),
+    Claim(Claim),
 
     Config(Config),
     #[clap(subcommand)]
