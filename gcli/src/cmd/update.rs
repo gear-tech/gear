@@ -19,7 +19,7 @@
 //! command `update`
 use anyhow::{Context, Result};
 use clap::Parser;
-use std::{os::unix::process::CommandExt, process::Command};
+use std::process::Command;
 
 const REPO: &str = "https://github.com/gear-tech/gear-program";
 
@@ -40,9 +40,15 @@ impl Update {
             &[env!("CARGO_PKG_NAME")]
         };
 
-        Err(Command::new("cargo")
+        let status = Command::new("cargo")
             .args([&["install"], args].concat())
-            .exec())
-        .context("failed to self-update using `cargo install`")
+            .status()
+            .context("failed to self-update using `cargo install`")?;
+
+        if !status.success() {
+            std::process::exit(status.code().unwrap_or(1))
+        }
+
+        Ok(())
     }
 }
