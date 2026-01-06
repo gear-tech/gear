@@ -27,7 +27,7 @@ use gsdk::{Api, SignedApi, ext::sp_core};
 use std::{env, time::Duration};
 use tracing_subscriber::EnvFilter;
 
-#[derive(Debug, Parser)]
+#[derive(Debug, Clone, Parser)]
 pub struct Opts {
     /// Timeout for RPC requests, in milliseconds.
     #[arg(short, long, default_value = "60000")]

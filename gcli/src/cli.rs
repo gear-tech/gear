@@ -26,7 +26,7 @@ use anyhow::Result;
 use clap::Parser;
 
 /// Interact with Gear API via node RPC.
-#[derive(Debug, Parser)]
+#[derive(Debug, Clone, Parser)]
 #[clap(author, version)]
 pub struct Cli {
     #[command(flatten)]
@@ -40,5 +40,9 @@ pub struct Cli {
 impl Cli {
     pub async fn run(self) -> Result<()> {
         App::new(self.opts).run(self.command).await
+    }
+
+    pub fn run_blocking(self) -> Result<()> {
+        tokio::runtime::Runtime::new()?.block_on(self.run())
     }
 }

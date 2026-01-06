@@ -25,7 +25,7 @@ use std::{env, path::Path, process::Command};
 
 const GITHUB_TOKEN: &str = "GITHUB_TOKEN";
 
-/// see https://docs.github.com/en/rest/repos/repos
+/// See <https://docs.github.com/en/rest/repos/repos>.
 const GEAR_DAPPS_GH_API: &str = "https://api.github.com/orgs/gear-foundation/repos";
 const GEAR_DAPP_ORG: &str = "https://github.com/gear-foundation/";
 
