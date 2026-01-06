@@ -20,7 +20,7 @@ use crate::{
     cmd::{Command, ConfigSettings, config::Endpoint},
     utils::HexBytes,
 };
-use anyhow::{Error, Result, anyhow};
+use anyhow::{Result, anyhow};
 use clap::Parser;
 use gring::{Keyring, Keystore};
 use gsdk::{Api, SignedApi, ext::sp_core};
@@ -130,6 +130,6 @@ impl App {
             .clone()
             .decrypt(self.opts.passwd.as_deref())?;
 
-        Ok(SignedApi::with_pair(self.api().await?.clone(), pair.into()))
+        Ok(SignedApi::with_pair(self.api().await?, pair.into()))
     }
 }
