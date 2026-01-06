@@ -73,7 +73,7 @@ impl UploadCode {
 
         println!("Successfully uploaded the code");
         println!();
-        log::info!("{} {}", "Code ID:".bold(), code_id);
+        println!("{} {}", "Code ID:".bold(), code_id);
 
         Ok(())
     }
