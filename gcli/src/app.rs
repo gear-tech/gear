@@ -93,11 +93,10 @@ impl App {
 
     /// Returns a Gear node API wrapper.
     pub async fn api(&self) -> Result<Api> {
-        let endpoint = self
-            .opts
-            .endpoint
-            .clone()
-            .map_or_else(|| Ok(self.config()?.endpoint), Ok::<_, Error>)?;
+        let endpoint = match self.opts.endpoint.clone() {
+            Some(endpoint) => endpoint,
+            None => self.config()?.endpoint,
+        };
 
         Ok(Api::builder()
             .timeout(Duration::from_millis(self.opts.timeout))
