@@ -30,7 +30,7 @@ async fn test_command_upload_code_works() -> Result<()> {
         .await?;
 
     assert!(
-        str::from_utf8(&output.stdout)?.contains("Submitted Gear::upload_code"),
+        str::from_utf8(&output.stdout)?.contains("Successfully uploaded the code"),
         "code should be uploaded, but got: {}",
         String::from_utf8_lossy(&output.stdout)
     );
