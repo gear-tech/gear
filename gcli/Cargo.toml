@@ -14,17 +14,14 @@ rust-version.workspace = true
 
 [dependencies]
 gsdk.workspace = true
-async-trait.workspace = true
 colored.workspace = true
 anyhow.workspace = true
 derive_more.workspace = true
 dirs.workspace = true
-futures.workspace = true
 tracing-subscriber.workspace = true
 gear-core.workspace = true
 gring = { workspace = true, features = ["cli"] }
 hex.workspace = true
-log.workspace = true
 scale-info.workspace = true
 serde.workspace = true
 clap = { workspace = true, features = ["std", "derive"] }
