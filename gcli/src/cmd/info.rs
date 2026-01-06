@@ -53,10 +53,10 @@ pub enum Action {
 
 impl Info {
     pub async fn exec(self, app: &mut App) -> Result<()> {
-        let mut address = self
-            .address
-            .clone()
-            .map_or_else(|| app.ss58_address(), Ok)?;
+        let mut address = match self.address.clone() {
+            Some(address) => address,
+            None => app.ss58_address()?,
+        };
 
         let api = app.api().await?;
 
