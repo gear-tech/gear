@@ -58,8 +58,7 @@ pub fn announce_at_or_latest_computed<
 ) -> RpcResult<HashOf<Announce>> {
     if let Some(at) = at.into() {
         let computed_announces: Vec<_> = db
-            .block_meta(at)
-            .announces
+            .block_announces(at)
             .into_iter()
             .flatten()
             .filter(|announce_hash| db.announce_meta(*announce_hash).computed)
