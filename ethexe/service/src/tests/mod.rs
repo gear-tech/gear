@@ -2453,7 +2453,7 @@ async fn injected_tx_fungible_token() {
 
     tracing::info!("✅ Fungible token successfully initialized");
 
-    // 4. Try ming some tokens
+    // 4. Try mint some tokens
     let amount: u128 = 5_000_000_000;
     let mint_action = demo_fungible_token::FTAction::Mint(amount);
 
@@ -2536,14 +2536,14 @@ async fn injected_tx_fungible_token() {
     // 5. Transfer some token and wait for promise.
     let random_actor = ActorId::new(H256::random().0);
     let transfer_amount = 100_000;
-    let transfer_action = demo_fungible_token::FTAction::Transfer {
+    let action = demo_fungible_token::FTAction::Transfer {
         from: pubkey.to_address().into(),
         to: random_actor,
         amount: transfer_amount,
     };
     let transfer_tx = InjectedTransaction {
         destination: usdt_actor_id,
-        payload: transfer_action.encode().into(),
+        payload: action.encode().into(),
         value: 0,
         reference_block: node.db.latest_data().unwrap().prepared_block_hash,
         salt: vec![1u8, 2u8, 3u8].into(),
@@ -2590,6 +2590,59 @@ async fn injected_tx_fungible_token() {
         .expect("successfully unsubscribe for promise");
 
     tracing::info!("✅ Promise successfully received from RPC subscription");
+
+    // 6. Send multiple transfers and verify that all promises are appeared in subscription.
+    let transfers_amount = 20u32;
+
+    // Subscription for all promises
+    let mut subscription = ws_client
+        .subscribe_promises()
+        .await
+        .expect("Successfully subscribe for promises");
+
+    for i in 0..transfers_amount {
+        let action = demo_fungible_token::FTAction::Transfer {
+            from: pubkey.to_address().into(),
+            to: random_actor,
+            amount: i as u128 + 100,
+        };
+
+        let transfer_tx = InjectedTransaction {
+            destination: usdt_actor_id,
+            payload: action.encode().into(),
+            value: 0,
+            reference_block: node.db.latest_data().unwrap().prepared_block_hash,
+            salt: vec![i as u8].into(),
+        };
+
+        let rpc_tx = RpcOrNetworkInjectedTx {
+            recipient: pubkey.to_address(),
+            tx: env.signer.signed_message(pubkey, transfer_tx).unwrap(),
+        };
+        let original_promise = ws_client
+            .send_transaction_and_watch(rpc_tx)
+            .await
+            .expect("subscribe successfully")
+            .next()
+            .await
+            .expect("subscription item")
+            .expect("promise");
+
+        let promise = subscription
+            .next()
+            .await
+            .expect("subscription item")
+            .expect("promise");
+
+        assert_eq!(promise, original_promise);
+    }
+
+    subscription
+        .unsubscribe()
+        .await
+        .expect("successfully unsubscribe");
+
+    tracing::info!("✅ All promises successfully received from RPC subscription");
 }
 
 #[tokio::test(flavor = "multi_thread")]

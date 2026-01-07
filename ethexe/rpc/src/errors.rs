@@ -31,3 +31,7 @@ pub fn runtime(err: impl ToString) -> ErrorObject<'static> {
 pub fn internal() -> ErrorObject<'static> {
     ErrorObject::owned(8000, "Internal error", None::<&str>)
 }
+
+pub fn bad_request(message: String) -> ErrorObject<'static> {
+    ErrorObject::owned(8000, message, None::<&str>)
+}

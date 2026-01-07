@@ -29,6 +29,11 @@ serde = { workspace = true, features = ["std"] }
 tracing.workspace = true
 dashmap.workspace = true
 gear-workspace-hack.workspace = true
+tokio-stream.workspace = true
+derive_more.workspace = true
+thiserror.workspace = true
+alloy.workspace = true
+tracing-subscriber.workspace = true
 
 [dev-dependencies]
 jsonrpsee = { workspace = true, features = ["client"] }
