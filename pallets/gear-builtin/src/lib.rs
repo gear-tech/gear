@@ -18,7 +18,7 @@
 
 //! # Gear Builtin Actors Pallet
 //!
-//! The Builtn Actors pallet provides a registry of the builtin actors available in the Runtime.
+//! The Builtin Actors pallet provides a registry of the builtin actors available in the Runtime.
 //!
 //! - [`Config`]
 //!
@@ -26,6 +26,36 @@
 //!
 //! The pallet implements the `pallet_gear::BuiltinDispatcher` allowing to restore builtin actors
 //! claimed `BuiltinId`'s based on their corresponding `ActorId` address.
+//!
+//! ## Builtin Actor Identification
+//!
+//! Builtin actors are identified using a pallet-style naming convention with version support:
+//!
+//! ```rust
+//! use pallet_gear_builtin::BuiltinActorId;
+//! # use pallet_gear_builtin::Pallet;
+//! # type GearBuiltin = Pallet<()>;
+//!
+//! // Create a builtin actor ID
+//! let builtin_id = BuiltinActorId::new(b"staking", 1);
+//!
+//! // Convert to ActorId (requires runtime context)
+//! // let actor_id = GearBuiltin::builtin_id_into_actor_id(builtin_id);
+//! ```
+//!
+//! The encoding follows the pattern: `modl/bia/{name}/v-{version}/`
+//! where:
+//! - `modl` = module (Substrate convention)
+//! - `bia` = builtin actor
+//! - `{name}` = actor name (max 16 bytes)
+//! - `v-{version}` = version number (u16, little-endian)
+//!
+//! ## Available Builtin Actors
+//!
+//! - **Staking** (`b"staking"`, v1): Substrate staking operations
+//! - **Proxy** (`b"proxy"`, v1): Proxy account management
+//! - **BLS12-381** (`b"bls12-381"`, v1): BLS12-381 cryptographic operations
+//! - **Eth Bridge** (`b"eth-bridge"`, v1): Ethereum bridge operations
 
 #![cfg_attr(not(feature = "std"), no_std)]
 #![allow(clippy::manual_inspect)]
@@ -55,7 +85,7 @@ use alloc::{
     format,
 };
 use builtins_common::{BuiltinActorError, BuiltinContext};
-use common::{BlockLimiter, storage::Limiter};
+use common::{BlockLimiter, Origin, storage::Limiter};
 use core::marker::PhantomData;
 use core_processor::{
     SystemReservationContext,
@@ -80,6 +110,9 @@ use sp_std::prelude::*;
 
 pub use pallet_gear::BuiltinReply;
 
+// Re-export common types from gbuiltin-common
+pub use gbuiltin_common::{BuiltinActorId, BuiltinActorType};
+
 type CallOf<T> = <T as Config>::RuntimeCall;
 pub type GasAllowanceOf<T> = <<T as Config>::BlockLimiter as BlockLimiter>::GasAllowance;
 
@@ -88,52 +121,57 @@ pub type ActorErrorHandleFn = HandleFn<BuiltinContext, BuiltinActorError>;
 /// A trait representing an interface of a builtin actor that can handle a message
 /// from message queue (a `StoredDispatch`) to produce an outcome and gas spent.
 pub trait BuiltinActor {
+    /// Builtin actor Type
+    const TYPE: BuiltinActorType;
+
     /// Handles a message and returns a result and the actual gas spent.
     fn handle(
         dispatch: &StoredDispatch,
         context: &mut BuiltinContext,
     ) -> Result<BuiltinReply, BuiltinActorError>;
 
-    /// Returns the maximum gas that can be spent by the actor.
+    /// Returns the maximum gas that can be spent by the actor for a given payload.
+    ///
+    /// This is used for upfront gas allowance checks before message execution.
+    /// Returning 0 effectively disables the pre-flight check, allowing messages
+    /// to start execution even if the block gas allowance is low.
+    ///
+    /// **Note:** Implementations should either:
+    /// - Return a conservative upper bound for the actor's gas consumption
+    /// - Return 0 to rely on runtime gas metering during execution (current default)
+    ///
+    /// See issue #4395 for fine-grained estimation based on payload.
     fn max_gas() -> u64;
 }
 
-/// A marker struct to associate a builtin actor with its unique ID.
-pub struct ActorWithId<const ID: u64, A: BuiltinActor>(PhantomData<A>);
-
-/// Glue trait to implement `BuiltinCollection` for a tuple of `ActorWithId`.
-trait BuiltinActorWithId {
-    const ID: u64;
-    type Actor: BuiltinActor;
-}
-
-impl<const ID: u64, A: BuiltinActor> BuiltinActorWithId for ActorWithId<ID, A> {
-    const ID: u64 = ID;
-    type Actor = A;
-}
+type ActorsRegistry = BTreeMap<
+    ActorId,
+    (
+        BuiltinActorType,
+        u16,
+        Box<ActorErrorHandleFn>,
+        Box<WeightFn>,
+    ),
+>;
 
 /// A trait defining a method to convert a tuple of `BuiltinActor` types into
 /// a in-memory collection of builtin actors.
 pub trait BuiltinCollection {
-    fn collect(
-        registry: &mut BTreeMap<ActorId, (Box<ActorErrorHandleFn>, Box<WeightFn>)>,
-        id_converter: &dyn Fn(u64) -> ActorId,
-    );
+    fn collect(registry: &mut ActorsRegistry, id_converter: &dyn Fn(BuiltinActorId) -> ActorId);
 }
 
-// Assuming as many as 16 builtin actors for the meantime
-#[impl_for_tuples(16)]
-#[tuple_types_custom_trait_bound(BuiltinActorWithId + 'static)]
+// Assuming as many as 8 builtin actors for the meantime
+#[impl_for_tuples(8)]
+#[tuple_types_custom_trait_bound(BuiltinActor + 'static)]
 impl BuiltinCollection for Tuple {
-    fn collect(
-        registry: &mut BTreeMap<ActorId, (Box<ActorErrorHandleFn>, Box<WeightFn>)>,
-        id_converter: &dyn Fn(u64) -> ActorId,
-    ) {
+    fn collect(registry: &mut ActorsRegistry, id_converter: &dyn Fn(BuiltinActorId) -> ActorId) {
         for_tuples!(
             #(
-                let actor_id = id_converter(Tuple::ID);
+                let builtin_type = Tuple::TYPE;
+                let builtin_id = builtin_type.id();
+                let actor_id = id_converter(builtin_id);
                 if let Entry::Vacant(e) = registry.entry(actor_id) {
-                    e.insert((Box::new(Tuple::Actor::handle), Box::new(Tuple::Actor::max_gas)));
+                    e.insert((builtin_type, builtin_id.version, Box::new(Tuple::handle), Box::new(Tuple::max_gas)));
                 } else {
                     let err_msg = format!(
                         "Tuple::for_tuples: Duplicate builtin ids. \
@@ -160,8 +198,10 @@ pub mod pallet {
         pallet_prelude::*,
     };
     use frame_system::pallet_prelude::*;
-    use sp_runtime::traits::Dispatchable;
+    use sp_runtime::traits::{Dispatchable, TrailingZeroInput};
 
+    /// Seed used for legacy numeric ID-based actor ID generation.
+    /// Only used for backward compatibility in `generate_actor_id`.
     pub(crate) const SEED: [u8; 8] = *b"built/in";
 
     #[pallet::config]
@@ -189,14 +229,14 @@ pub mod pallet {
     #[pallet::hooks]
     impl<T: Config> Hooks<BlockNumberFor<T>> for Pallet<T> {}
 
-    impl<T: Config> Pallet<T> {
+    impl<T: Config> Pallet<T>
+    where
+        T::AccountId: Origin,
+    {
         /// Returns list of known builtins.
         ///
         /// This fn has some overhead, therefore it should be called only when necessary.
-        pub fn list_builtins() -> Vec<T::AccountId>
-        where
-            T::AccountId: Origin,
-        {
+        pub fn list_builtins() -> Vec<T::AccountId> {
             BuiltinRegistry::<T>::new()
                 .list()
                 .into_iter()
@@ -204,23 +244,38 @@ pub mod pallet {
                 .collect()
         }
 
-        /// Generate an `actor_id` given a builtin ID.
+        /// Returns information about builtin actors.
+        pub fn list_builtin_info() -> Vec<(BuiltinActorType, u16, ActorId)> {
+            BuiltinRegistry::<T>::new().info()
+        }
+
+        /// Generate an `ActorId` given a legacy numeric builtin ID.
         ///
+        /// **Note:** This function is deprecated and maintained only for backward compatibility.
+        /// Use `builtin_id_into_actor_id` with `BuiltinActorId` for new code.
         ///
         /// This does computations, therefore we should seek to cache the value at the time of
         /// a builtin actor registration.
+        #[deprecated(
+            since = "1.0.0",
+            note = "Use `builtin_id_into_actor_id` with `BuiltinActorId` instead"
+        )]
         pub fn generate_actor_id(builtin_id: u64) -> ActorId {
             hash((SEED, builtin_id).encode().as_slice()).into()
+        }
+
+        /// Converts a `BuiltinActorId` into an `ActorId`.
+        pub fn builtin_id_into_actor_id(builtin_id: BuiltinActorId) -> ActorId {
+            builtin_id
+                .using_encoded(|b| ActorId::decode(&mut TrailingZeroInput::new(b)))
+                .expect("All byte sequences are valid `ActorId`")
         }
 
         pub(crate) fn dispatch_call(
             origin: ActorId,
             call: CallOf<T>,
             context: &mut BuiltinContext,
-        ) -> Result<(), BuiltinActorError>
-        where
-            T::AccountId: Origin,
-        {
+        ) -> Result<(), BuiltinActorError> {
             let call_info = call.get_dispatch_info();
 
             // Necessary upfront gas sufficiency checks
@@ -246,7 +301,10 @@ pub mod pallet {
     }
 }
 
-impl<T: Config> BuiltinDispatcherFactory for Pallet<T> {
+impl<T: Config> BuiltinDispatcherFactory for Pallet<T>
+where
+    T::AccountId: Origin,
+{
     type Context = BuiltinContext;
     type Error = BuiltinActorError;
     type Output = BuiltinRegistry<T>;
@@ -260,14 +318,25 @@ impl<T: Config> BuiltinDispatcherFactory for Pallet<T> {
 }
 
 pub struct BuiltinRegistry<T: Config> {
-    pub registry: BTreeMap<ActorId, (Box<ActorErrorHandleFn>, Box<WeightFn>)>,
+    pub registry: BTreeMap<
+        ActorId,
+        (
+            BuiltinActorType,
+            u16,
+            Box<ActorErrorHandleFn>,
+            Box<WeightFn>,
+        ),
+    >,
     pub _phantom: sp_std::marker::PhantomData<T>,
 }
 
-impl<T: Config> BuiltinRegistry<T> {
+impl<T: Config> BuiltinRegistry<T>
+where
+    T::AccountId: Origin,
+{
     fn new() -> Self {
         let mut registry = BTreeMap::new();
-        <T as Config>::Builtins::collect(&mut registry, &Pallet::<T>::generate_actor_id);
+        <T as Config>::Builtins::collect(&mut registry, &Pallet::<T>::builtin_id_into_actor_id);
 
         Self {
             registry,
@@ -278,6 +347,13 @@ impl<T: Config> BuiltinRegistry<T> {
     pub fn list(&self) -> Vec<ActorId> {
         self.registry.keys().copied().collect()
     }
+
+    pub fn info(&self) -> Vec<(BuiltinActorType, u16, ActorId)> {
+        self.registry
+            .iter()
+            .map(|(id, (builtin_type, version, _, _))| (*builtin_type, *version, *id))
+            .collect()
+    }
 }
 
 impl<T: Config> BuiltinDispatcher for BuiltinRegistry<T> {
@@ -287,9 +363,13 @@ impl<T: Config> BuiltinDispatcher for BuiltinRegistry<T> {
     fn lookup<'a>(&'a self, id: &ActorId) -> Option<BuiltinInfo<'a, Self::Context, Self::Error>> {
         self.registry
             .get(id)
-            .map(|(f, g)| BuiltinInfo::<'a, Self::Context, Self::Error> {
-                handle: &**f,
-                max_gas: &**g,
+            .map(|(_type, _version, handle_fn, weight_fn)| BuiltinInfo::<
+                'a,
+                Self::Context,
+                Self::Error,
+            > {
+                handle: &**handle_fn,
+                max_gas: &**weight_fn,
             })
     }
 

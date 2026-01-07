@@ -16,10 +16,14 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{self as pallet_gear_builtin, ActorWithId, BuiltinActor, BuiltinReply};
+use crate::{
+    self as pallet_gear_builtin, BuiltinActor, BuiltinActorId, BuiltinActorType, BuiltinReply,
+    mock::{BLOCK_AUTHOR, ENDOWMENT, EXISTENTIAL_DEPOSIT, MILLISECS_PER_BLOCK, SIGNER},
+};
 use builtins_common::{BuiltinActorError, BuiltinContext};
+use common::Origin;
 use frame_support::{
-    PalletId, construct_runtime, parameter_types,
+    PalletId, assert_ok, construct_runtime, parameter_types,
     traits::{ConstU32, ConstU64, FindAuthor, OnFinalize, OnInitialize},
 };
 use frame_support_test::TestRandomness;
@@ -93,8 +97,16 @@ pallet_gear::impl_config!(
     BuiltinDispatcherFactory = GearBuiltin,
 );
 
-pub struct SomeBuiltinActor {}
-impl BuiltinActor for SomeBuiltinActor {
+const ACTOR_TYPES: [BuiltinActorType; 3] = [
+    BuiltinActorType::Custom(BuiltinActorId::new(b"actor-01", 1)),
+    BuiltinActorType::Custom(BuiltinActorId::new(b"actor-02", 1)),
+    BuiltinActorType::Custom(BuiltinActorId::new(b"actor-03", 1)),
+];
+
+pub struct SomeBuiltinActor<const INDEX: usize> {}
+impl<const INDEX: usize> BuiltinActor for SomeBuiltinActor<INDEX> {
+    const TYPE: BuiltinActorType = ACTOR_TYPES[INDEX];
+
     fn handle(
         dispatch: &StoredDispatch,
         context: &mut BuiltinContext,
@@ -116,10 +128,10 @@ impl BuiltinActor for SomeBuiltinActor {
 impl pallet_gear_builtin::Config for Test {
     type RuntimeCall = RuntimeCall;
     type Builtins = (
-        ActorWithId<1, SomeBuiltinActor>,
-        ActorWithId<2, SomeBuiltinActor>,
-        ActorWithId<3, SomeBuiltinActor>,
-        ActorWithId<2, SomeBuiltinActor>, // 2 already exists
+        SomeBuiltinActor<0>,
+        SomeBuiltinActor<1>,
+        SomeBuiltinActor<2>,
+        SomeBuiltinActor<1>, // 1 already exists
     );
     type BlockLimiter = GearGas;
     type WeightInfo = ();
@@ -221,10 +233,6 @@ pub(crate) fn new_test_ext() -> sp_io::TestExternalities {
 pub(crate) fn init_logger() {
     let _ = tracing_subscriber::fmt::try_init();
 }
-
-use crate::mock::{BLOCK_AUTHOR, ENDOWMENT, EXISTENTIAL_DEPOSIT, MILLISECS_PER_BLOCK, SIGNER};
-use common::Origin;
-use frame_support::assert_ok;
 
 const ARBITRARY_ADDRESS: [u8; 32] =
     hex_literal::hex!("1f81dd2c95c0006c335530c3f1b32d8b1314e08bc940ea26afdbe2af88b0400d");

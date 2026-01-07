@@ -111,6 +111,7 @@ pallet-gear-builtin-rpc-runtime-api.workspace = true
 pallet-gear-eth-bridge-rpc-runtime-api.workspace = true
 pallet-grandpa-signer.workspace = true
 runtime-primitives.workspace = true
+gbuiltin-common.workspace = true
 gbuiltin-proxy.workspace = true
 gear-workspace-hack.workspace = true
 
@@ -169,6 +170,7 @@ std = [
     "pallet-gear-staking-rewards-rpc-runtime-api/std",
     "pallet-gear-builtin-rpc-runtime-api/std",
     "pallet-gear-eth-bridge-rpc-runtime-api/std",
+    "gbuiltin-common/std",
     "pallet-grandpa/std",
     "pallet-identity/std",
     "pallet-im-online/std",
@@ -289,5 +291,9 @@ try-runtime = [
     "pallet-bags-list/try-runtime",
     "gear-runtime-common/try-runtime",
 ]
-dev = ["pallet-sudo", "pallet-gear/dev"]
+dev = [
+    "pallet-sudo",
+    "pallet-gear/dev",
+    "pallet-gear-eth-bridge/dev",
+]
 metadata-hash = ["substrate-wasm-builder?/metadata-hash"]
