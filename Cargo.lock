@@ -5000,6 +5000,7 @@ dependencies = [
  "ethexe-common",
  "ethexe-db",
  "ethexe-ethereum",
+ "ethexe-network",
  "ethexe-runtime-common",
  "ethexe-service-utils",
  "ethexe-signer",
