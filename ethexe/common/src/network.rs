@@ -17,20 +17,18 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    Address, Announce, HashOf, ToDigest,
+    Address, Announce, HashOf, NetworkAnnounce, ToDigest,
     consensus::{BatchCommitmentValidationReply, BatchCommitmentValidationRequest},
     ecdsa::{SignedData, VerifiedData},
-    injected::Promise,
 };
 use alloc::vec::Vec;
 use core::{hash::Hash, num::NonZeroU32};
 use parity_scale_codec::{Decode, Encode};
 use sha3::Keccak256;
 
-pub type ValidatorAnnounce = ValidatorMessage<Announce>;
+pub type ValidatorAnnounce = ValidatorMessage<NetworkAnnounce>;
 pub type ValidatorRequest = ValidatorMessage<BatchCommitmentValidationRequest>;
 pub type ValidatorReply = ValidatorMessage<BatchCommitmentValidationReply>;
-pub type ValidatorPromise = ValidatorMessage<Promise>;
 
 #[derive(Debug, Clone, Encode, Decode, Eq, PartialEq, Hash)]
 pub struct ValidatorMessage<T> {
@@ -119,7 +117,7 @@ pub struct AnnouncesRequest {
 #[derive(PartialEq, Eq, Debug, Clone, Default, Encode, Decode)]
 pub struct AnnouncesResponse {
     /// List of announces
-    pub announces: Vec<Announce>,
+    pub announces: Vec<NetworkAnnounce>,
 }
 
 /// Checked announces response ensuring that it matches the corresponding request.
@@ -128,7 +126,7 @@ pub struct CheckedAnnouncesResponse {
     /// Corresponding request for this response
     request: AnnouncesRequest,
     /// List of announces
-    announces: Vec<Announce>,
+    announces: Vec<NetworkAnnounce>,
 }
 
 #[derive(Debug, derive_more::Display)]
@@ -162,10 +160,10 @@ impl AnnouncesResponse {
             return Err(AnnouncesResponseError::Empty);
         };
 
-        if request.head != last.to_hash() {
+        if request.head != last.announce_hash() {
             return Err(AnnouncesResponseError::HeadMismatch {
                 expected: request.head,
-                received: last.to_hash(),
+                received: last.announce_hash(),
             });
         }
 
@@ -194,7 +192,7 @@ impl AnnouncesResponse {
             if announce.parent != expected_parent_hash {
                 return Err(AnnouncesResponseError::ChainIsNotLinked);
             }
-            expected_parent_hash = announce.to_hash();
+            expected_parent_hash = announce.announce_hash();
         }
 
         Ok(CheckedAnnouncesResponse { request, announces })
@@ -206,11 +204,11 @@ impl CheckedAnnouncesResponse {
         &self.request
     }
 
-    pub fn announces(&self) -> &[Announce] {
+    pub fn announces(&self) -> &[NetworkAnnounce] {
         &self.announces
     }
 
-    pub fn into_parts(self) -> (AnnouncesRequest, Vec<Announce>) {
+    pub fn into_parts(self) -> (AnnouncesRequest, Vec<NetworkAnnounce>) {
         (self.request, self.announces)
     }
 }
@@ -220,14 +218,19 @@ mod tests {
     use super::*;
     use gprimitives::H256;
 
-    fn make_chain(len: usize) -> Vec<Announce> {
+    fn make_chain(len: usize) -> Vec<NetworkAnnounce> {
         assert!(len > 0);
         let mut chain = Vec::with_capacity(len);
         let mut parent = HashOf::zero();
 
         for idx in 0..len {
-            let announce = Announce::base(H256([idx as u8 + 1; 32]), parent);
-            parent = announce.to_hash();
+            let announce = NetworkAnnounce {
+                block_hash: H256([idx as u8 + 1; 32]),
+                parent,
+                gas_allowance: None,
+                injected_transactions: Vec::new(),
+            };
+            parent = announce.announce_hash();
             chain.push(announce);
         }
 
@@ -237,7 +240,7 @@ mod tests {
     #[test]
     fn try_into_checked_accepts_valid_tail_range() {
         let announces = make_chain(3);
-        let head_hash = announces.last().unwrap().to_hash();
+        let head_hash = announces.last().unwrap().announce_hash();
         let tail_hash = announces.first().unwrap().parent;
 
         let request = AnnouncesRequest {
@@ -258,7 +261,7 @@ mod tests {
     #[test]
     fn try_into_checked_accepts_valid_chain_len() {
         let announces = make_chain(4);
-        let head_hash = announces.last().unwrap().to_hash();
+        let head_hash = announces.last().unwrap().announce_hash();
 
         let request = AnnouncesRequest {
             head: head_hash,
@@ -298,7 +301,7 @@ mod tests {
     #[test]
     fn try_into_checked_rejects_head_mismatch() {
         let announces = make_chain(2);
-        let actual_head = announces.last().unwrap().to_hash();
+        let actual_head = announces.last().unwrap().announce_hash();
         let wrong_head = HashOf::random();
         let tail_hash = announces.first().unwrap().parent;
 
@@ -324,7 +327,7 @@ mod tests {
     fn try_into_checked_rejects_tail_mismatch() {
         let announces = make_chain(3);
         let actual_tail = announces.first().unwrap().parent;
-        let head_hash = announces.last().unwrap().to_hash();
+        let head_hash = announces.last().unwrap().announce_hash();
         let wrong_tail = HashOf::random();
 
         let err = AnnouncesResponse { announces }
@@ -346,7 +349,7 @@ mod tests {
     #[test]
     fn try_into_checked_rejects_len_mismatch() {
         let announces = make_chain(2);
-        let head_hash = announces.last().unwrap().to_hash();
+        let head_hash = announces.last().unwrap().announce_hash();
 
         let err = AnnouncesResponse { announces }
             .try_into_checked(AnnouncesRequest {
@@ -368,7 +371,7 @@ mod tests {
     fn try_into_checked_rejects_non_linked_chain() {
         let mut announces = make_chain(3);
         announces[1].parent = HashOf::zero();
-        let head_hash = announces.last().unwrap().to_hash();
+        let head_hash = announces.last().unwrap().announce_hash();
         let tail_hash = announces.first().unwrap().parent;
 
         let err = AnnouncesResponse { announces }

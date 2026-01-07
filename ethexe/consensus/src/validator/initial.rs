@@ -29,7 +29,7 @@ use crate::{
 use anyhow::{Result, anyhow};
 use derive_more::{Debug, Display};
 use ethexe_common::{
-    SimpleBlockData,
+    Announce, SimpleBlockData,
     db::OnChainStorageRO,
     network::{AnnouncesRequest, CheckedAnnouncesResponse},
 };
@@ -187,7 +187,10 @@ impl StateHandler for Initial {
                     .into_parts()
                     .1
                     .into_iter()
-                    .map(|a| (a.to_hash(), a))
+                    .map(|a| {
+                        let announce: Announce = Announce::from(&a);
+                        (announce.to_hash(), announce)
+                    })
                     .collect();
 
                 announces::propagate_announces(
@@ -265,10 +268,20 @@ mod tests {
     use super::*;
     use crate::{ConsensusEvent, validator::mock::*};
     use ethexe_common::{
-        Announce, HashOf, ValidatorsVec, db::*, mock::*, network::AnnouncesResponse,
+        Announce, HashOf, NetworkAnnounce, ValidatorsVec, db::*, mock::*,
+        network::AnnouncesResponse,
     };
     use gprimitives::H256;
     use nonempty::nonempty;
+
+    fn to_network(announce: &Announce) -> NetworkAnnounce {
+        NetworkAnnounce {
+            block_hash: announce.block_hash,
+            parent: announce.parent,
+            gas_allowance: announce.gas_allowance,
+            injected_transactions: Vec::new(),
+        }
+    }
 
     #[test]
     fn create_initial_success() {
@@ -376,14 +389,15 @@ mod tests {
 
         let response = AnnouncesResponse {
             announces: vec![
-                chain
-                    .announces
-                    .get(&chain.block_top_announce_hash(last - 3))
-                    .unwrap()
-                    .announce
-                    .clone(),
-                announce2.clone(),
-                announce1.clone(),
+                to_network(
+                    &chain
+                        .announces
+                        .get(&chain.block_top_announce_hash(last - 3))
+                        .unwrap()
+                        .announce,
+                ),
+                to_network(&announce2),
+                to_network(&announce1),
             ],
         }
         .try_into_checked(expected_request)
@@ -564,7 +578,7 @@ mod tests {
             .unwrap()
             .process_announces_response(
                 AnnouncesResponse {
-                    announces: vec![invalid_announce],
+                    announces: vec![to_network(&invalid_announce)],
                 }
                 .try_into_checked(AnnouncesRequest {
                     head: invalid_announce_hash,
@@ -632,13 +646,14 @@ mod tests {
 
         let response = AnnouncesResponse {
             announces: vec![
-                chain
-                    .announces
-                    .get(&chain.block_top_announce_hash(last - 7))
-                    .unwrap()
-                    .announce
-                    .clone(),
-                unknown_announce,
+                to_network(
+                    &chain
+                        .announces
+                        .get(&chain.block_top_announce_hash(last - 7))
+                        .unwrap()
+                        .announce,
+                ),
+                to_network(&unknown_announce),
             ],
         }
         .try_into_checked(expected_request)

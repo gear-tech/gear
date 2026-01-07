@@ -78,7 +78,7 @@ where
                 anyhow::bail!("injected tx not found in db: {tx_hash}");
             };
 
-            match tx_checker.check_tx_validity(&tx)? {
+            match tx_checker.check_tx_validity(tx_hash)? {
                 TxValidity::Valid => {
                     tracing::trace!(tx_hash = ?tx_hash, tx = ?tx.data(), "tx is valid, including to announce");
                     selected_txs.push(tx)

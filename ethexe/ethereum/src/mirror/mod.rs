@@ -168,7 +168,7 @@ impl Mirror {
                 } = MirrorEvent::from(crate::decode_log::<IMirror::Reply>(&log)?)
                 && reply_to == message_id
             {
-                let actor_id = ActorId::from(*self.0.address());
+                let actor_id = ActorId::from(self.address());
                 return Ok(ReplyInfo {
                     message_id: reply_to,
                     actor_id,

@@ -38,6 +38,11 @@ pub struct RpcOrNetworkInjectedTx {
     pub tx: SignedInjectedTransaction,
 }
 
+impl RpcOrNetworkInjectedTx {
+    pub fn new(recipient: Address, tx: SignedInjectedTransaction) -> Self {
+        Self { recipient, tx }
+    }
+}
 /// IMPORTANT: message id == tx hash == blake2b256 hash of the struct fields concat.
 #[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
 #[cfg_attr(feature = "serde", derive(Hash))]
