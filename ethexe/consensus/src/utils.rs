@@ -32,8 +32,8 @@ use ethexe_common::{
         StateTransition, ValidatorsCommitment,
     },
 };
-use ethexe_signer::Signer;
 use gprimitives::{CodeId, U256};
+use gsigner::secp256k1::{Secp256k1SignerExt, Signer};
 use parity_scale_codec::{Decode, Encode};
 use rand::SeedableRng;
 use roast_secp256k1_evm::frost::{
@@ -70,7 +70,7 @@ impl MultisignedBatchCommitment {
         pub_key: PublicKey,
     ) -> Result<Self> {
         let batch_digest = batch.to_digest();
-        let signature = signer.sign_for_contract(router_address, pub_key, batch_digest)?;
+        let signature = signer.sign_for_contract_digest(router_address, pub_key, &batch_digest)?;
         let signatures: BTreeMap<_, _> = [(pub_key.to_address(), signature)].into_iter().collect();
 
         Ok(Self {
@@ -98,9 +98,9 @@ impl MultisignedBatchCommitment {
 
         anyhow::ensure!(digest == self.batch_digest, "Invalid reply digest");
 
-        let origin = signature
-            .validate(self.router_address, digest)?
-            .to_address();
+        let origin_public_key = signature.validate(self.router_address, digest)?;
+
+        let origin = origin_public_key.to_address();
 
         check_origin(origin)?;
 
@@ -248,7 +248,9 @@ pub fn validators_commitment(era: u64, validators: ValidatorsVec) -> Result<Vali
         .serialize()?
         .try_into()
         .unwrap();
-    let public_key_uncompressed = PublicKey(public_key_compressed).to_uncompressed();
+    let public_key_uncompressed = PublicKey::from_bytes(public_key_compressed)
+        .expect("valid aggregated public key")
+        .to_uncompressed();
     let (public_key_x_bytes, public_key_y_bytes) = public_key_uncompressed.split_at(32);
 
     let aggregated_public_key = AggregatedPublicKey {
@@ -520,12 +522,11 @@ mod tests {
             MultisignedBatchCommitment::new(batch, &signer, ADDRESS, pub_key).unwrap();
 
         let other_pub_key = public_keys[1];
-        let reply = BatchCommitmentValidationReply {
-            digest: multisigned_batch.batch_digest,
-            signature: signer
-                .sign_for_contract(ADDRESS, other_pub_key, multisigned_batch.batch_digest)
-                .unwrap(),
-        };
+        let digest = multisigned_batch.batch_digest;
+        let signature = signer
+            .sign_for_contract_digest(ADDRESS, other_pub_key, &digest)
+            .unwrap();
+        let reply = BatchCommitmentValidationReply { digest, signature };
 
         multisigned_batch
             .accept_batch_commitment_validation_reply(reply.clone(), |_| Ok(()))
@@ -553,11 +554,12 @@ mod tests {
             MultisignedBatchCommitment::new(batch, &signer, ADDRESS, pub_key).unwrap();
 
         let incorrect_digest = [1, 2, 3].to_digest();
+        let signature = signer
+            .sign_for_contract_digest(ADDRESS, pub_key, &incorrect_digest)
+            .unwrap();
         let reply = BatchCommitmentValidationReply {
             digest: incorrect_digest,
-            signature: signer
-                .sign_for_contract(ADDRESS, pub_key, incorrect_digest)
-                .unwrap(),
+            signature,
         };
 
         let result = multisigned_batch.accept_batch_commitment_validation_reply(reply, |_| Ok(()));
@@ -576,12 +578,11 @@ mod tests {
             MultisignedBatchCommitment::new(batch, &signer, ADDRESS, pub_key).unwrap();
 
         let other_pub_key = public_keys[1];
-        let reply = BatchCommitmentValidationReply {
-            digest: multisigned_batch.batch_digest,
-            signature: signer
-                .sign_for_contract(ADDRESS, other_pub_key, multisigned_batch.batch_digest)
-                .unwrap(),
-        };
+        let digest = multisigned_batch.batch_digest;
+        let signature = signer
+            .sign_for_contract_digest(ADDRESS, other_pub_key, &digest)
+            .unwrap();
+        let reply = BatchCommitmentValidationReply { digest, signature };
 
         // Case 1: check_origin allows the origin
         let result =
