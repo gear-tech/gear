@@ -1323,13 +1323,12 @@ pub(crate) mod tests {
             .set_programs_code_ids_at(program_ids.clone(), H256::zero(), code_ids.clone())
             .await;
 
-        let mut announce_hash = HashOf::zero();
-        right_db.mutate_block_meta(H256::zero(), |meta| {
-            assert!(meta.announces.is_none());
-            let announce = Announce::base(H256::zero(), HashOf::zero());
-            announce_hash = announce.to_hash();
-            meta.announces = Some([announce_hash].into());
+        let announce = Announce::base(H256::zero(), HashOf::zero());
+        let announce_hash = announce.to_hash();
+        right_db.mutate_block_announces(H256::zero(), |announces| {
+            announces.insert(announce_hash);
         });
+        right_db.mutate_block_meta(H256::zero(), |_meta| {});
 
         right_db.set_announce_program_states(
             announce_hash,
