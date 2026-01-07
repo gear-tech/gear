@@ -422,16 +422,41 @@ jobs:
   try-runtime:
     needs: [dynamic-matrix, gear-cli]
     runs-on: ubuntu-latest
+    env:
+      SNAPSHOT_FILE: vara_ci.snap
     strategy:
       matrix:
         profiles: ${{ fromJSON(needs.dynamic-matrix.outputs.profiles) }}
+        network:
+          - id: testnet
+            display: Vara Testnet
+            snapshot_url: https://snapshots.vara-network.io/vara-testnet.snap
+            checks: try-state
+            disable_spec_name_check: true
+          - id: mainnet
+            display: Vara Mainnet
+            snapshot_url: https://snapshots.vara-network.io/vara-mainnet.snap
+            checks: all
+            disable_spec_name_check: false
       fail-fast: false
-    name: try-runtime (${{ matrix.profiles.name }})
+    name: try-runtime - ${{ matrix.network.display }} [${{ matrix.profiles.name }}]
     steps:
       - name: "ACTIONS: Free disk space"
         uses: jlumbroso/free-disk-space@main
         with:
           large-packages: false
+          
+      - name: "System: Enable swap"
+        run: |
+          set -euo pipefail
+          SWAP_PATH=/swapfile
+
+          sudo fallocate -l 8G "$SWAP_PATH"
+          sudo chmod 600 "$SWAP_PATH"
+          sudo mkswap "$SWAP_PATH"
+          sudo swapon "$SWAP_PATH"
+
+          echo "SWAP_PATH=$SWAP_PATH" >> $GITHUB_ENV
 
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
@@ -465,19 +490,60 @@ jobs:
       - name: "Build: Vara mainnet runtime"
         run: cargo build -p vara-runtime -F std,try-runtime --locked ${{ matrix.profiles.flags }}
 
-      - name: "Test: Download Vara Mainnet snapshot"
-        run: curl -o vara_ci.snap -L https://snapshots.vara-network.io/vara-mainnet.snap
+      - name: "System: Save runtime artifact and clean target"
+        run: |
+          set -euo pipefail
 
-      - name: "Test: on-runtime-upgrade"
-        run: >-
-          ./try-runtime
-          --runtime target/x86_64-unknown-linux-gnu/${{ matrix.profiles.name }}/wbuild/vara-runtime/vara_runtime.wasm
-          on-runtime-upgrade
-          --blocktime 3000
-          --checks all
-          --disable-spec-version-check
-          --no-weight-warnings
-          snap -p vara_ci.snap
+          SRC_WASM="target/x86_64-unknown-linux-gnu/${{ matrix.profiles.name }}/wbuild/vara-runtime/vara_runtime.wasm"
+          DEST_WASM="$GITHUB_WORKSPACE/runtime.wasm"
+
+          if [ ! -f "$SRC_WASM" ]; then
+            echo "Runtime artifact not found at $SRC_WASM"
+            exit 1
+          fi
+
+          cp "$SRC_WASM" "$DEST_WASM"
+
+          echo "TRY_RUNTIME_WASM=$DEST_WASM" >> $GITHUB_ENV
+
+          if [ -d target ]; then
+            echo "Removing target directory contents..."
+            find target -mindepth 1 -maxdepth 1 -print -exec ionice -c3 nice -n 19 rm -rf {} +
+            sync
+          fi
+
+      - name: "Test: Download Vara ${{ matrix.network.display }} snapshot"
+        run: curl -o "$SNAPSHOT_FILE" -L "${{ matrix.network.snapshot_url }}"
+
+      - name: "Test: on-runtime-upgrade (${{ matrix.network.display }})"
+        shell: bash
+        env:
+          CHECKS: ${{ matrix.network.checks }}
+          DISABLE_SPEC_NAME_CHECK: ${{ matrix.network.disable_spec_name_check }}
+        run: |
+          set -euo pipefail
+
+          EXTRA_ARGS=()
+          if [ "$DISABLE_SPEC_NAME_CHECK" = "true" ]; then
+            EXTRA_ARGS+=(--disable-spec-name-check)
+          fi
+
+          ./try-runtime \
+            --runtime "$TRY_RUNTIME_WASM" \
+            "${EXTRA_ARGS[@]}" \
+            on-runtime-upgrade \
+            --blocktime 3000 \
+            --checks "$CHECKS" \
+            --disable-spec-version-check \
+            --no-weight-warnings \
+            snap -p "$SNAPSHOT_FILE"
+
+      - name: "System: Disable swap"
+        if: env.SWAP_PATH != ''
+        run: |
+          set -euo pipefail
+          sudo swapoff "$SWAP_PATH"
+          sudo rm -f "$SWAP_PATH"
 
   fuzzer:
     runs-on: [kuberunner, github-runner-01]
