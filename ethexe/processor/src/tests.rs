@@ -981,9 +981,9 @@ async fn overlay_execution_noop() {
     // -----------------------------------------------------------------------------
 
     // Setup the block3 block meta
-    processor.db.mutate_block_announces(block3, |announces| {
-        announces.insert(block3_announce_hash);
-    });
+    processor
+        .db
+        .set_block_announces(block3, BTreeSet::from([block3_announce_hash]));
 
     // Set announce so overlay finds it
     let block3_announce_hash = processor.db.set_announce(block3_announce);
