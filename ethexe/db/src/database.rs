@@ -734,6 +734,15 @@ impl AnnounceStorageRW for Database {
             announces.encode(),
         );
     }
+
+    fn take_block_announces(&self, block_hash: H256) -> Option<BTreeSet<HashOf<Announce>>> {
+        self.kv
+            .take(&Key::BlockAnnounces(block_hash).to_bytes())
+            .map(|data| {
+                BTreeSet::<HashOf<Announce>>::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `BTreeSet<HashOf<Announce>>`")
+            })
+    }
 }
 
 impl LatestDataStorageRO for Database {
