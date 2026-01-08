@@ -411,6 +411,9 @@ impl BlockChain {
 
                 if let Some(announces) = announces {
                     db.set_block_announces(hash, announces);
+                } else {
+                    // take announces, might've been set-up by previous test.
+                    db.take_block_announces(hash);
                 }
 
                 db.mutate_block_meta(hash, |meta| {
