@@ -129,25 +129,25 @@ impl ToDigest for Promise {
 // TODO kuzmindev: create separate crate `tx_pool` and move there types below.
 
 /// The status of [`InjectedTransaction`] for specific announce and chain head.
-#[derive(Debug, Clone, PartialEq, Eq, derive_more::From)]
-pub enum TxValidity {
+#[derive(Debug, Clone, PartialEq, Eq, derive_more::From, derive_more::Display)]
+pub enum TransactionStatus {
     /// Transaction is valid and can be include into announce.
     Valid,
-    /// Transaction is in intermediate status ([`TxValidityIntermediateStatus`]).
+    /// Transaction is in pending status ([`PendingStatus`]).
     #[from]
-    Intermediate(TxValidityIntermediateStatus),
+    Pending(PendingStatus),
     /// Transaction is not valid.
-    /// The [`TxRemovalInfo`] will be returned to the transaction's sender.
+    /// The [`RemovalNotification`] will be returned to the transaction's sender.
     #[from]
-    Invalid(TxInvalidityStatus),
+    Invalid(InvalidReason),
 }
 
-/// The intermediate status means that the transaction is not valid now, but
+/// The pending status means that the transaction is not valid now, but
 /// it may become valid in the future (e.g., after a reorg).
 ///
 /// In this status, the transaction should be kept in the pool.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, derive_more::Display)]
-pub enum TxValidityIntermediateStatus {
+pub enum PendingStatus {
     // If transaction was already included in some announce we keep it in pool, because of chain reorgs.
     #[display("Transaction with the same hash was already included")]
     AlreadyIncluded,
@@ -163,19 +163,19 @@ pub enum TxValidityIntermediateStatus {
 /// The reason why the transaction is not valid and cannot be included into announce.
 #[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
 #[derive(Debug, Clone, PartialEq, Eq, derive_more::Display)]
-pub enum TxInvalidityStatus {
+pub enum InvalidReason {
     #[display("Transaction was not included within validity window and becomes outdated")]
     Outdated,
     #[display("Transaction's destination actor({destination}) not found")]
     UnknownDestination { destination: ActorId },
 }
 
-/// Represents the info when transaction removed from pool.
+/// Notification about removed transaction from the pool.
 #[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct TxRemovalInfo {
+pub struct RemovalNotification {
     // Removed transaction hash
     pub tx_hash: HashOf<InjectedTransaction>,
     // The reason why it is removed
-    pub reason: TxInvalidityStatus,
+    pub reason: InvalidReason,
 }

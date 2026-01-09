@@ -21,7 +21,9 @@ use anyhow::Result;
 use ethexe_common::{
     Announce, HashOf,
     db::{AnnounceStorageRO, CodesStorageRO, InjectedStorageRW, OnChainStorageRO},
-    injected::{InjectedTransaction, SignedInjectedTransaction, TxRemovalInfo, TxValidity},
+    injected::{
+        InjectedTransaction, RemovalNotification, SignedInjectedTransaction, TransactionStatus,
+    },
 };
 use ethexe_db::Database;
 use ethexe_runtime_common::state::Storage;
@@ -40,7 +42,7 @@ pub struct TxPoolOutput {
     /// Selected transactions to be included in announce.
     pub selected_txs: Vec<SignedInjectedTransaction>,
     /// Invalid transactions reasons.
-    pub removed_txs: Vec<TxRemovalInfo>,
+    pub removed_txs: Vec<RemovalNotification>,
 }
 
 /// This error returned when user trying to add the same transaction twice to the pool.
@@ -97,16 +99,16 @@ where
             };
 
             match tx_checker.check_tx_validity(&tx)? {
-                TxValidity::Valid => {
+                TransactionStatus::Valid => {
                     tracing::trace!(tx_hash = ?tx_hash, tx = ?tx.data(), "tx is valid, including to announce");
                     output.selected_txs.push(tx)
                 }
-                TxValidity::Intermediate(status) => {
-                    tracing::trace!(tx_hash = ?tx_hash, state = %status, "tx is in intermediate state, keeping in pool")
+                TransactionStatus::Pending(status) => {
+                    tracing::trace!(tx_hash = ?tx_hash, state = %status, "tx is in pending status, keeping in pool")
                 }
-                TxValidity::Invalid(reason) => {
+                TransactionStatus::Invalid(reason) => {
                     tracing::trace!(tx_hash = ?tx_hash, invalidity_reason = %reason, "tx is invalid, removing from pool");
-                    output.removed_txs.push(TxRemovalInfo {
+                    output.removed_txs.push(RemovalNotification {
                         tx_hash: *tx_hash,
                         reason,
                     });

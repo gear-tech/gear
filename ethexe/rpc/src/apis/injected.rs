@@ -20,7 +20,7 @@ use crate::{RpcEvent, errors};
 use dashmap::DashMap;
 use ethexe_common::{
     HashOf,
-    injected::{InjectedTransaction, RpcOrNetworkInjectedTx, SignedPromise, TxRemovalInfo},
+    injected::{InjectedTransaction, RemovalNotification, RpcOrNetworkInjectedTx, SignedPromise},
 };
 use jsonrpsee::{
     PendingSubscriptionSink, SubscriptionMessage, SubscriptionSink,
@@ -51,7 +51,7 @@ impl From<anyhow::Error> for RejectionMessage {
 }
 
 /// Type represents the result for injected transaction promise subscription.
-pub(crate) type PromiseResult = Result<SignedPromise, TxRemovalInfo>;
+pub(crate) type PromiseResult = Result<SignedPromise, RemovalNotification>;
 
 #[cfg_attr(not(feature = "client"), rpc(server))]
 #[cfg_attr(feature = "client", rpc(server, client))]
@@ -156,7 +156,7 @@ impl InjectedApi {
         }
     }
 
-    pub fn notify_transactions_removed(&self, removals_info: Vec<TxRemovalInfo>) {
+    pub fn notify_transactions_removed(&self, removals_info: Vec<RemovalNotification>) {
         removals_info.into_iter().for_each(|info| {
             if let Some((_, waiter)) = self.promise_waiters.remove(&info.tx_hash)
                 && let Err(value) = waiter.send(Err(info))

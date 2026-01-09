@@ -26,7 +26,7 @@ use apis::{
     BlockApi, BlockServer, CodeApi, CodeServer, InjectedApi, InjectedServer, ProgramApi,
     ProgramServer,
 };
-use ethexe_common::injected::{RpcOrNetworkInjectedTx, SignedPromise, TxRemovalInfo};
+use ethexe_common::injected::{RemovalNotification, RpcOrNetworkInjectedTx, SignedPromise};
 use ethexe_db::Database;
 use ethexe_processor::RunnerConfig;
 use futures::{Stream, stream::FusedStream};
@@ -140,7 +140,7 @@ impl RpcService {
         self.injected_api.send_promise(promise);
     }
 
-    pub fn notify_transactions_removed_from_pool(&self, removals_info: Vec<TxRemovalInfo>) {
+    pub fn notify_transactions_removed_from_pool(&self, removals_info: Vec<RemovalNotification>) {
         self.injected_api.notify_transactions_removed(removals_info);
     }
 }

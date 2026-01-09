@@ -96,7 +96,7 @@ use ethexe_common::{
         AnnounceStorageRW, BlockMetaStorageRW, InjectedStorageRW, LatestDataStorageRO,
         OnChainStorageRO,
     },
-    injected::TxValidity,
+    injected::TransactionStatus,
     network::{AnnouncesRequest, AnnouncesRequestUntil},
 };
 use ethexe_ethereum::primitives::map::HashMap;
@@ -678,8 +678,8 @@ pub enum AnnounceRejectionReason {
     },
     #[display("Announce {_0} is already included")]
     AlreadyIncluded(HashOf<Announce>),
-    #[display("Invalid transactions: {_0:?}")]
-    TxValidity(TxValidity),
+    #[display("Announce contains invalid injected transaction with status({_0})")]
+    InvalidTransaction(TransactionStatus),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, derive_more::Display)]
@@ -717,7 +717,7 @@ pub fn accept_announce(db: &impl DBAnnouncesExt, announce: Announce) -> Result<A
         let validity_status = tx_checker.check_tx_validity(tx)?;
 
         match validity_status {
-            TxValidity::Valid => {
+            TransactionStatus::Valid => {
                 db.set_injected_transaction(tx.clone());
             }
 
@@ -729,7 +729,7 @@ pub fn accept_announce(db: &impl DBAnnouncesExt, announce: Announce) -> Result<A
 
                 return Ok(AnnounceStatus::Rejected {
                     announce,
-                    reason: AnnounceRejectionReason::TxValidity(validity),
+                    reason: AnnounceRejectionReason::InvalidTransaction(validity),
                 });
             }
         }
