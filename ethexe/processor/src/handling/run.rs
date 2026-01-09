@@ -119,7 +119,6 @@ use ethexe_db::Database;
 use ethexe_runtime_common::{
     InBlockTransitions, JournalHandler, ProgramJournals, TransitionController,
 };
-use futures::prelude::*;
 use gear_core::gas::GasAllowanceCounter;
 use gprimitives::{ActorId, H256};
 use itertools::Itertools;
@@ -570,6 +569,7 @@ mod chunks_splitting {
 
 mod chunk_execution_spawn {
     use super::*;
+    use futures::prelude::*;
     use tokio::sync::oneshot;
 
     // An alias introduced for better readability of the chunks execution steps.
