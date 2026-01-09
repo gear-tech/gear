@@ -577,7 +577,7 @@ mod chunk_execution_spawn {
     /// An alias introduced for better readability of the chunks execution steps.
     pub(super) type ChunksOutput = (usize, ActorId, H256, ProgramJournals, u64);
 
-    /// Spawns in the `join_set` tasks for each program in the chunk remembering position of the program in the chunk.
+    /// Spawns in the thread pool tasks for each program in the chunk remembering position of the program in the chunk.
     ///
     /// Each program receives one (same copy) value of gas allowance, because all programs in the chunk are executed in parallel.
     /// It means that in the same time unit (!) all programs simultaneously charge gas allowance. If programs were to be
@@ -680,7 +680,7 @@ mod chunk_execution_processing {
 
     /// Collects journals from all executed programs in the chunk.
     ///
-    /// The [`chunk_execution_spawn::spawn_chunk_execution`] step adds to the `join_set` tasks for each program in the chunk.
+    /// The [`chunk_execution_spawn::spawn_chunk_execution`] step spawns tasks for each program in the chunk.
     /// The loop in the functions handles the output of each task:
     /// - modifies the state by setting a new state hash calculated by the [`ethexe_runtime_common::RuntimeJournalHandler`]
     /// - collects journals for later processing
