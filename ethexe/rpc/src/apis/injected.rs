@@ -53,18 +53,20 @@ impl From<anyhow::Error> for RejectionMessage {
 /// Type represents the result for injected transaction promise subscription.
 pub(crate) type PromiseResult = Result<SignedPromise, RemovalNotification>;
 
-#[cfg_attr(not(feature = "client"), rpc(server))]
-#[cfg_attr(feature = "client", rpc(server, client))]
+#[cfg_attr(not(feature = "client"), rpc(server, namespace = "injected"))]
+#[cfg_attr(feature = "client", rpc(server, client, namespace = "injected"))]
 pub trait Injected {
-    #[method(name = "injected_sendTransaction")]
+    /// Just sends an injected transaction.
+    #[method(name = "sendTransaction")]
     async fn send_transaction(
         &self,
         transaction: RpcOrNetworkInjectedTx,
     ) -> RpcResult<InjectedTransactionAcceptance>;
 
+    /// Sends an injected transaction and subscribes to its promise.  
     #[subscription(
-        name = "injected_subscribeTransactionPromise",
-        unsubscribe = "injected_unsubscribeTransactionPromise", 
+        name = "sendTransactionAndWatch",
+        unsubscribe = "sendTransactionAndWatchUnsubscribe", 
         item = PromiseResult
     )]
     async fn send_transaction_and_watch(
@@ -73,13 +75,13 @@ pub trait Injected {
     ) -> SubscriptionResult;
 }
 
-pub(crate) type SubscribersMap =
-    DashMap<HashOf<InjectedTransaction>, oneshot::Sender<PromiseResult>>;
-
+/// Implementation of the injected transactions RPC API.
 #[derive(Debug, Clone)]
 pub struct InjectedApi {
+    /// Sender to forward RPC events to the main service.
     rpc_sender: mpsc::UnboundedSender<RpcEvent>,
-    promise_waiters: Arc<SubscribersMap>,
+    /// Map of promise waiters.
+    promise_waiters: Arc<DashMap<HashOf<InjectedTransaction>, oneshot::Sender<PromiseResult>>>,
 }
 
 #[async_trait]
@@ -164,6 +166,12 @@ impl InjectedApi {
                 tracing::trace!("rpc promise receiver dropped for removed tx: {:?}", value);
             }
         })
+    }
+
+    /// Returns the number of current promise subscribers waiting for promises.
+    #[cfg(test)]
+    pub fn promise_subscribers_count(&self) -> usize {
+        self.promise_waiters.len()
     }
 
     /// This function forwards [`RpcOrNetworkInjectedTx`] to main service and waits for its acceptance.

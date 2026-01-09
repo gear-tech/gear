@@ -4966,6 +4966,7 @@ dependencies = [
  "sha3",
  "sp-core",
  "tap",
+ "thiserror 2.0.12",
 ]
 
 [[package]]
@@ -5017,6 +5018,7 @@ dependencies = [
  "rand 0.8.5",
  "rand_chacha 0.3.1",
  "roast-secp256k1-evm",
+ "thiserror 2.0.12",
  "tokio",
  "tracing",
 ]
@@ -5169,6 +5171,7 @@ version = "1.10.0"
 dependencies = [
  "anyhow",
  "dashmap 5.5.3",
+ "derive_more 2.0.1",
  "ethexe-common",
  "ethexe-db",
  "ethexe-processor",
