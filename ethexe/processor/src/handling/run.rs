@@ -119,10 +119,10 @@ use ethexe_db::Database;
 use ethexe_runtime_common::{
     InBlockTransitions, JournalHandler, ProgramJournals, TransitionController,
 };
+use futures::prelude::*;
 use gear_core::gas::GasAllowanceCounter;
 use gprimitives::{ActorId, H256};
 use itertools::Itertools;
-use tokio::task::JoinSet;
 
 #[derive(Debug, Clone)]
 pub struct RunnerConfig {
@@ -220,7 +220,6 @@ async fn run_inner<C: RunContext>(
     chunk_size: usize,
     processing_queue_type: MessageType,
 ) -> (bool, C) {
-    let mut join_set = JoinSet::new();
     let mut is_out_of_gas_for_block = false;
 
     loop {
@@ -242,20 +241,23 @@ async fn run_inner<C: RunContext>(
 
         for chunk in chunks {
             // Spawn on a separate thread an execution of each program (it's queue) in the chunk.
-            chunk_execution_spawn::spawn_chunk_execution(
+            let chunk_outputs = chunk_execution_spawn::spawn_chunk_execution(
                 chunk,
                 db.clone(),
                 &instance_creator,
                 allowance_counter,
-                &mut join_set,
                 &mut run_ctx,
                 processing_queue_type,
             );
 
             // Collect journals from all executed programs in the chunk.
             let (chunk_journals, max_gas_spent_in_chunk) =
-                chunk_execution_processing::collect_chunk_journals(&mut join_set, &mut run_ctx)
-                    .await;
+                chunk_execution_processing::collect_chunk_journals(
+                    chunk_outputs,
+                    chunk_size,
+                    &mut run_ctx,
+                )
+                .await;
 
             // Process journals of all executed programs in the chunk.
             let output = chunk_execution_processing::process_chunk_execution_journals(
@@ -569,11 +571,11 @@ mod chunks_splitting {
 
 mod chunk_execution_spawn {
     use super::*;
-    use futures::prelude::*;
+    use futures::stream::FuturesOrdered;
     use tokio::sync::oneshot;
 
-    // An alias introduced for better readability of the chunks execution steps.
-    pub(super) type ChunksJoinSet = JoinSet<(usize, ActorId, H256, ProgramJournals, u64)>;
+    /// An alias introduced for better readability of the chunks execution steps.
+    pub(super) type ChunksOutput = (usize, ActorId, H256, ProgramJournals, u64);
 
     /// Spawns in the `join_set` tasks for each program in the chunk remembering position of the program in the chunk.
     ///
@@ -591,37 +593,42 @@ mod chunk_execution_spawn {
         chunk: Vec<(ActorId, H256)>,
         db: Database,
         instance_creator: &InstanceCreator,
-        allowance_counter: &mut GasAllowanceCounter,
-        join_set: &mut ChunksJoinSet,
+        allowance_counter: &GasAllowanceCounter,
         run_ctx: &mut R,
         processing_queue_type: MessageType,
-    ) {
-        for (chunk_pos, (program_id, state_hash)) in chunk.into_iter().enumerate() {
-            if run_ctx.check_task_no_run(program_id) {
-                continue;
-            }
+    ) -> impl Stream<Item = ChunksOutput> + use<R> {
+        chunk
+            .into_iter()
+            .enumerate()
+            .flat_map(|(chunk_pos, (program_id, state_hash))| {
+                if run_ctx.check_task_no_run(program_id) {
+                    return None;
+                }
 
-            let db = db.clone();
-            let mut executor = instance_creator
-                .instantiate()
-                .expect("Failed to instantiate executor");
-            let gas_allowance_for_chunk = allowance_counter.left().min(CHUNK_PROCESSING_GAS_LIMIT);
+                let db = db.clone();
+                let mut executor = instance_creator
+                    .instantiate()
+                    .expect("Failed to instantiate executor");
+                let gas_allowance_for_chunk =
+                    allowance_counter.left().min(CHUNK_PROCESSING_GAS_LIMIT);
 
-            let (tx, rx) = oneshot::channel();
-            rayon::spawn(move || {
-                let (jn, new_state_hash, gas_spent) = run_runtime(
-                    db,
-                    &mut executor,
-                    program_id,
-                    state_hash,
-                    processing_queue_type,
-                    gas_allowance_for_chunk,
-                );
-                tx.send((chunk_pos, program_id, new_state_hash, jn, gas_spent))
-                    .expect("the main thread should not drop the receiver");
-            });
-            join_set.spawn(rx.unwrap_or_else(|_| panic!("worker thread has died")));
-        }
+                let (tx, rx) = oneshot::channel();
+                rayon::spawn(move || {
+                    let (jn, new_state_hash, gas_spent) = run_runtime(
+                        db,
+                        &mut executor,
+                        program_id,
+                        state_hash,
+                        processing_queue_type,
+                        gas_allowance_for_chunk,
+                    );
+                    tx.send((chunk_pos, program_id, new_state_hash, jn, gas_spent))
+                        .expect("the main thread should not drop the receiver");
+                });
+
+                Some(rx.unwrap_or_else(|_| panic!("worker thread has died")))
+            })
+            .collect::<FuturesOrdered<_>>()
     }
 
     fn run_runtime(
@@ -653,6 +660,8 @@ mod chunk_execution_spawn {
 
 mod chunk_execution_processing {
     use super::*;
+    use crate::handling::run::chunk_execution_spawn::ChunksOutput;
+    use futures::Stream;
 
     // Aliases introduced for better readability of the chunk journals processing steps.
     type MaybeProgramChunkJournals = Option<(ActorId, ChunkJournals)>;
@@ -679,20 +688,19 @@ mod chunk_execution_processing {
     ///
     /// Due to the nature of the parallel program queues execution (see [`chunk_execution_spawn::spawn_chunk_execution`] gas allowance clarifications),
     /// the actual gas allowance spent is actually the maximum among all programs in the chunk, not the sum.
-    pub(super) async fn collect_chunk_journals<R: RunContext>(
-        join_set: &mut chunk_execution_spawn::ChunksJoinSet,
+    pub(super) async fn collect_chunk_journals<
+        S: Stream<Item = ChunksOutput> + Unpin,
+        R: RunContext,
+    >(
+        mut chunk_outputs: S,
+        chunk_size: usize,
         run_ctx: &mut R,
     ) -> (Vec<MaybeProgramChunkJournals>, u64) {
         let mut max_gas_spent_in_chunk = 0u64;
-        let mut chunk_journals = vec![None; join_set.len()];
+        let mut chunk_journals = vec![None; chunk_size];
 
         let in_block_transitions = run_ctx.transitions();
-        while let Some(result) = join_set
-            .join_next()
-            .await
-            .transpose()
-            .expect("Failed to join task")
-        {
+        while let Some(result) = chunk_outputs.next().await {
             let (chunk_pos, program_id, new_state_hash, program_journals, gas_spent) = result;
 
             // Handle state updates that occurred during journal processing within the runtime (allocations, pages).
