@@ -5130,7 +5130,6 @@ dependencies = [
  "ethexe-db",
  "ethexe-runtime",
  "ethexe-runtime-common",
- "futures",
  "gear-core",
  "gear-core-processor",
  "gear-lazy-pages",
