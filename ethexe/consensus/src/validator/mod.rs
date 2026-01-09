@@ -47,7 +47,7 @@ use crate::{
         participant::Participant,
         producer::Producer,
         subordinate::Subordinate,
-        tx_pool::InjectedTxPool,
+        tx_pool::TransactionPool,
     },
 };
 use anyhow::{Result, anyhow};
@@ -150,7 +150,7 @@ impl ValidatorService {
                 db: db.clone(),
                 committer: committer.into(),
                 middleware: MiddlewareWrapper::from_inner(election_provider),
-                injected_pool: InjectedTxPool::new(db),
+                injected_pool: TransactionPool::new(db),
                 validate_chain_deepness_limit: config.validate_chain_deepness_limit,
                 chain_deepness_threshold: config.chain_deepness_threshold,
                 block_gas_limit: config.block_gas_limit,
@@ -181,10 +181,10 @@ impl ValidatorService {
             .context_mut()
     }
 
-    fn update_inner(
+    fn update_inner<E>(
         &mut self,
-        update: impl FnOnce(ValidatorState) -> Result<ValidatorState>,
-    ) -> Result<()> {
+        update: impl FnOnce(ValidatorState) -> Result<ValidatorState, E>,
+    ) -> Result<(), E> {
         let inner = self
             .inner
             .take()
@@ -261,7 +261,7 @@ impl Stream for ValidatorService {
                 ctx.output(res?);
             }
 
-            Ok(inner)
+            Ok::<ValidatorState, anyhow::Error>(inner)
         })?;
 
         self.context_mut()

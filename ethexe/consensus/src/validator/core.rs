@@ -21,7 +21,7 @@
 use crate::{
     announces,
     utils::{self, CodeNotValidatedError},
-    validator::tx_pool::InjectedTxPool,
+    validator::tx_pool::TransactionPool,
 };
 use anyhow::{Result, anyhow};
 use async_trait::async_trait;
@@ -60,7 +60,7 @@ pub struct ValidatorCore {
     #[debug(skip)]
     pub middleware: MiddlewareWrapper,
     #[debug(skip)]
-    pub injected_pool: InjectedTxPool,
+    pub injected_pool: TransactionPool,
 
     /// Maximum deepness for chain commitment validation.
     pub validate_chain_deepness_limit: u32,
@@ -357,8 +357,7 @@ impl ValidatorCore {
 
     pub fn process_injected_transaction(&mut self, tx: SignedInjectedTransaction) -> Result<()> {
         tracing::trace!(tx = ?tx, "Receive new injected transaction");
-        self.injected_pool.handle_tx(tx);
-        Ok(())
+        self.injected_pool.add_transaction(tx).map_err(Into::into)
     }
 }
 

@@ -22,7 +22,7 @@ use super::{
 use crate::{
     ConsensusEvent,
     announces::{self, DBAnnouncesExt},
-    validator::DefaultProcessing,
+    validator::{DefaultProcessing, tx_pool::TxPoolOutput},
 };
 use anyhow::{Result, anyhow};
 use derive_more::{Debug, Display};
@@ -194,7 +194,10 @@ impl Producer {
             self.ctx.core.commitment_delay_limit,
         )?;
 
-        let output = self
+        let TxPoolOutput {
+            selected_txs,
+            removed_txs,
+        } = self
             .ctx
             .core
             .injected_pool
@@ -204,13 +207,12 @@ impl Producer {
             block_hash: self.block.hash,
             parent,
             gas_allowance: Some(self.ctx.core.block_gas_limit),
-            injected_transactions: output.selected_txs,
+            injected_transactions: selected_txs,
         };
 
-        if !output.rejected_txs.is_empty() {
+        if !removed_txs.is_empty() {
             self.ctx
-                .output
-                .push_back(ConsensusEvent::TransactionsRejected(output.rejected_txs));
+                .output(ConsensusEvent::TransactionsRemoved(removed_txs));
         }
 
         let (announce_hash, newly_included) =

@@ -50,7 +50,7 @@ use ethexe_ethereum::{TryGetReceipt, deploy::ContractsDeploymentParams, router::
 use ethexe_observer::{EthereumConfig, ObserverEvent};
 use ethexe_processor::{DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, RunnerConfig};
 use ethexe_prometheus::PrometheusConfig;
-use ethexe_rpc::{InjectedClient, InjectedTransactionAcceptance, PromiseOrRejection, RpcConfig};
+use ethexe_rpc::{InjectedClient, InjectedTransactionAcceptance, RpcConfig};
 use ethexe_runtime_common::state::{Expiring, MailboxMessage, PayloadLookup, Storage};
 use ethexe_signer::Signer;
 use gear_core::{
@@ -2570,11 +2570,9 @@ async fn injected_tx_fungible_token() {
         .next()
         .await
         .expect("subscription item")
-        .expect("no errors in subscription item");
-    let PromiseOrRejection::Promise(promise) = promise else {
-        panic!("expect promise, got rejection");
-    };
-    let promise = promise.into_data();
+        .expect("no errors in subscription item")
+        .expect("promise received from subscription")
+        .into_data();
 
     assert_eq!(promise.tx_hash, transfer_tx.to_hash());
 

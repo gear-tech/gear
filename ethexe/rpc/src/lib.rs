@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-pub use crate::apis::{InjectedTransactionAcceptance, PromiseOrRejection};
+pub use crate::apis::InjectedTransactionAcceptance;
 
 #[cfg(feature = "client")]
 pub use crate::apis::{BlockClient, CodeClient, InjectedClient, ProgramClient};
@@ -26,7 +26,7 @@ use apis::{
     BlockApi, BlockServer, CodeApi, CodeServer, InjectedApi, InjectedServer, ProgramApi,
     ProgramServer,
 };
-use ethexe_common::injected::{RpcOrNetworkInjectedTx, SignedPromise, TxRejection};
+use ethexe_common::injected::{RpcOrNetworkInjectedTx, SignedPromise, TxRemovalInfo};
 use ethexe_db::Database;
 use ethexe_processor::RunnerConfig;
 use futures::{Stream, stream::FusedStream};
@@ -140,8 +140,8 @@ impl RpcService {
         self.injected_api.send_promise(promise);
     }
 
-    pub fn provide_tx_rejections(&self, rejections: Vec<TxRejection>) {
-        self.injected_api.send_tx_rejections(rejections);
+    pub fn notify_transactions_removed_from_pool(&self, removals_info: Vec<TxRemovalInfo>) {
+        self.injected_api.notify_transactions_removed(removals_info);
     }
 }
 

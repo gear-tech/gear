@@ -21,17 +21,16 @@ use anyhow::Result;
 use ethexe_common::{
     Announce, HashOf,
     db::{AnnounceStorageRO, CodesStorageRO, InjectedStorageRW, OnChainStorageRO},
-    injected::{InjectedTransaction, SignedInjectedTransaction, TxRejection, TxValidity},
+    injected::{InjectedTransaction, SignedInjectedTransaction, TxRemovalInfo, TxValidity},
 };
 use ethexe_db::Database;
 use ethexe_runtime_common::state::Storage;
 use gprimitives::H256;
 use std::collections::HashSet;
 
-/// [`InjectedTxPool`] is a local pool of injected transactions, which validator can include in announces.
+/// [`TransactionPool`] is a local pool of [`InjectedTransaction`]s, which validator can include in announces.
 #[derive(Clone)]
-pub(crate) struct InjectedTxPool<DB = Database> {
-    /// HashSet of injected_tx_hash.
+pub(crate) struct TransactionPool<DB = Database> {
     inner: HashSet<HashOf<InjectedTransaction>>,
     db: DB,
 }
@@ -41,10 +40,15 @@ pub struct TxPoolOutput {
     /// Selected transactions to be included in announce.
     pub selected_txs: Vec<SignedInjectedTransaction>,
     /// Invalid transactions reasons.
-    pub rejected_txs: Vec<TxRejection>,
+    pub removed_txs: Vec<TxRemovalInfo>,
 }
 
-impl<DB> InjectedTxPool<DB>
+/// This error returned when user trying to add the same transaction twice to the pool.
+#[derive(Debug, Clone, thiserror::Error)]
+#[error("Injected transaction with hash {0} already exists in the pool")]
+pub struct TxDuplicateError(pub HashOf<InjectedTransaction>);
+
+impl<DB> TransactionPool<DB>
 where
     DB: OnChainStorageRO + InjectedStorageRW + AnnounceStorageRO + CodesStorageRO + Storage + Clone,
 {
@@ -55,14 +59,21 @@ where
         }
     }
 
-    pub fn handle_tx(&mut self, tx: SignedInjectedTransaction) {
+    /// Adds new injected transaction to the pool.
+    /// Returns an error if transaction is already present in the pool.
+    pub fn add_transaction(
+        &mut self,
+        tx: SignedInjectedTransaction,
+    ) -> Result<(), TxDuplicateError> {
         let tx_hash = tx.data().to_hash();
-        tracing::trace!(tx_hash = ?tx_hash, reference_block = ?tx.data().reference_block,  "handle new injected tx");
+        tracing::trace!(?tx_hash, reference_block = ?tx.data().reference_block, "tx pool received new injected transaction");
 
         if self.inner.insert(tx_hash) {
             // Write tx in database only if its not already contains in pool.
             self.db.set_injected_transaction(tx);
+            return Ok(());
         }
+        Err(TxDuplicateError(tx_hash))
     }
 
     /// Returns the injected transactions that are valid and can be included to announce.
@@ -95,7 +106,7 @@ where
                 }
                 TxValidity::Invalid(reason) => {
                     tracing::trace!(tx_hash = ?tx_hash, invalidity_reason = %reason, "tx is invalid, removing from pool");
-                    output.rejected_txs.push(TxRejection {
+                    output.removed_txs.push(TxRemovalInfo {
                         tx_hash: *tx_hash,
                         reason,
                     });
@@ -153,7 +164,7 @@ mod tests {
             })
             .setup(&db);
 
-        let mut tx_pool = InjectedTxPool::new(db.clone());
+        let mut tx_pool = TransactionPool::new(db.clone());
 
         let signer = Signer::memory();
         let key = signer.generate_key().unwrap();
@@ -165,7 +176,9 @@ mod tests {
         let tx_hash = tx.to_hash();
         let signed_tx = signer.signed_message(key, tx).unwrap();
 
-        tx_pool.handle_tx(signed_tx.clone());
+        tx_pool
+            .add_transaction(signed_tx.clone())
+            .expect("transaction is not duplicate");
         assert!(
             db.injected_transaction(tx_hash).is_some(),
             "tx should be stored in db"
@@ -174,7 +187,7 @@ mod tests {
         let output = tx_pool
             .select_for_announce(chain.blocks[10].hash, chain.block_top_announce_hash(9))
             .unwrap();
-        assert!(output.rejected_txs.is_empty(), "no tx should be rejected");
+        assert!(output.removed_txs.is_empty(), "no tx should be removed");
         assert_eq!(
             output.selected_txs,
             vec![signed_tx],

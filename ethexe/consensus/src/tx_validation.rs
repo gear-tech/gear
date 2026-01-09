@@ -80,7 +80,7 @@ impl<DB: OnChainStorageRO + AnnounceStorageRO + Storage> TxValidityChecker<DB> {
         }
 
         if self.recent_included_txs.contains(&tx.data().to_hash()) {
-            return Ok(TxInvalidityStatus::Duplicate.into());
+            return Ok(TxValidityIntermediateStatus::AlreadyIncluded.into());
         }
 
         let Some(destination_state_hash) = self.latest_states.get(&tx.data().destination) else {
@@ -277,7 +277,7 @@ mod tests {
             TxValidityChecker::new_for_announce(db, chain_head, announce_hash).unwrap();
 
         assert_eq!(
-            TxValidity::Invalid(TxInvalidityStatus::Duplicate),
+            TxValidity::Intermediate(TxValidityIntermediateStatus::AlreadyIncluded),
             tx_checker.check_tx_validity(&tx).unwrap()
         );
     }

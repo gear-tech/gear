@@ -548,7 +548,13 @@ impl Service {
                             };
                         }
                         NetworkEvent::InjectedTransaction(transaction) => {
-                            consensus.receive_injected_transaction(transaction)?;
+                            if let Err(rejection) =
+                                consensus.receive_injected_transaction(transaction)
+                            {
+                                log::debug!(
+                                    "Injected transaction receive from network, but rejected from consensus: {rejection:?}"
+                                );
+                            }
                         }
                         NetworkEvent::PeerBlocked(_) | NetworkEvent::PeerConnected(_) => {}
                     }
@@ -587,19 +593,29 @@ impl Service {
                             response_sender,
                         } => {
                             // Note: zero address means that no matter what validator will insert this tx.
-                            if transaction.recipient == Address::default()
+                            let acceptance = if transaction.recipient == Address::default()
                                 || validator_address == Some(transaction.recipient)
                             {
-                                consensus.receive_injected_transaction(transaction.tx)?;
+                                match consensus.receive_injected_transaction(transaction.tx) {
+                                    Ok(()) => InjectedTransactionAcceptance::Accept,
+                                    Err(error) => {
+                                        InjectedTransactionAcceptance::Reject(error.into())
+                                    }
+                                }
                             } else {
                                 let Some(network) = network.as_mut() else {
                                     continue;
                                 };
 
                                 network.send_injected_transaction(transaction);
-                            }
+                                InjectedTransactionAcceptance::Accept
+                            };
 
-                            let _res = response_sender.send(InjectedTransactionAcceptance::Accept);
+                            if let Err(value) = response_sender.send(acceptance) {
+                                tracing::warn!(
+                                    "failed to send injected transaction acceptance status({value:?}) because of rpc receiver dropped"
+                                );
+                            }
                         }
                     }
                 }
@@ -615,9 +631,9 @@ impl Service {
                     ConsensusEvent::CommitmentSubmitted(info) => {
                         log::info!("{info}");
                     }
-                    ConsensusEvent::TransactionsRejected(rejected_txs) => {
+                    ConsensusEvent::TransactionsRemoved(removals) => {
                         if let Some(rpc) = rpc.as_mut() {
-                            rpc.provide_tx_rejections(rejected_txs);
+                            rpc.notify_transactions_removed_from_pool(removals);
                         }
                     }
                     ConsensusEvent::Warning(msg) => {
