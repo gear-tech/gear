@@ -119,6 +119,7 @@ use ethexe_db::Database;
 use ethexe_runtime_common::{
     InBlockTransitions, JournalHandler, ProgramJournals, TransitionController,
 };
+use futures::prelude::*;
 use gear_core::gas::GasAllowanceCounter;
 use gprimitives::{ActorId, H256};
 use itertools::Itertools;
@@ -569,6 +570,7 @@ mod chunks_splitting {
 
 mod chunk_execution_spawn {
     use super::*;
+    use tokio::sync::oneshot;
 
     // An alias introduced for better readability of the chunks execution steps.
     pub(super) type ChunksJoinSet = JoinSet<(usize, ActorId, H256, ProgramJournals, u64)>;
@@ -605,7 +607,8 @@ mod chunk_execution_spawn {
                 .expect("Failed to instantiate executor");
             let gas_allowance_for_chunk = allowance_counter.left().min(CHUNK_PROCESSING_GAS_LIMIT);
 
-            join_set.spawn_blocking(move || {
+            let (tx, rx) = oneshot::channel();
+            rayon::spawn(move || {
                 let (jn, new_state_hash, gas_spent) = run_runtime(
                     db,
                     &mut executor,
@@ -614,8 +617,10 @@ mod chunk_execution_spawn {
                     processing_queue_type,
                     gas_allowance_for_chunk,
                 );
-                (chunk_pos, program_id, new_state_hash, jn, gas_spent)
+                tx.send((chunk_pos, program_id, new_state_hash, jn, gas_spent))
+                    .expect("the main thread should not drop the receiver");
             });
+            join_set.spawn(rx.unwrap_or_else(|_| panic!("worker thread has died")));
         }
     }
 
