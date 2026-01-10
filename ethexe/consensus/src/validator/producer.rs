@@ -80,7 +80,7 @@ impl StateHandler for Producer {
     ) -> Result<ValidatorState> {
         match &self.state {
             State::WaitingAnnounceComputed(expected) if *expected == announce_hash => {
-                // TODO kuzmindev: consider to publish promises only when batch commitment is signed by other validators. 
+                // TODO kuzmindev: consider to publish promises only when batch commitment is signed by other validators.
                 if let Some(promise_hashes) = self.ctx.core.db.announce_promises(announce_hash) {
                     let mut signed_promises = Vec::with_capacity(promise_hashes.len());
                     for tx_hash in promise_hashes.into_iter() {
