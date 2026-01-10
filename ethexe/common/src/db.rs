@@ -157,6 +157,11 @@ pub trait AnnounceStorageRO {
     fn announce_outcome(&self, announce_hash: HashOf<Announce>) -> Option<Vec<StateTransition>>;
     fn announce_schedule(&self, announce_hash: HashOf<Announce>) -> Option<Schedule>;
     fn announce_meta(&self, announce_hash: HashOf<Announce>) -> AnnounceMeta;
+    /// Returns the hashes of transactions for which promises were created in the announce.
+    fn announce_promises(
+        &self,
+        announce_hash: HashOf<Announce>,
+    ) -> Option<Vec<HashOf<InjectedTransaction>>>;
 }
 
 #[auto_impl::auto_impl(&)]
@@ -169,6 +174,7 @@ pub trait AnnounceStorageRW: AnnounceStorageRO {
     );
     fn set_announce_outcome(&self, announce_hash: HashOf<Announce>, outcome: Vec<StateTransition>);
     fn set_announce_schedule(&self, announce_hash: HashOf<Announce>, schedule: Schedule);
+    fn set_announce_promises(&self, announce_hash: HashOf<Announce>, promises: &[Promise]);
 
     fn mutate_announce_meta(
         &self,

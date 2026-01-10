@@ -77,6 +77,9 @@ enum Key {
 
     // TODO kuzmindev: temporal solution - must move into block meta or something else.
     LatestEraValidatorsCommitted(H256),
+    // TODO !!! kuzmindev: this key should be moved upper into announce related keys.
+    // Now it placed here in purpose to not corrupt the existing key layout.
+    AnnouncePromises(HashOf<Announce>),
 }
 
 impl Key {
@@ -101,7 +104,8 @@ impl Key {
             Self::AnnounceProgramStates(hash)
             | Self::AnnounceOutcome(hash)
             | Self::AnnounceSchedule(hash)
-            | Self::AnnounceMeta(hash) => [prefix.as_ref(), hash.inner().as_ref()].concat(),
+            | Self::AnnounceMeta(hash)
+            | Self::AnnouncePromises(hash) => [prefix.as_ref(), hash.inner().as_ref()].concat(),
 
             Self::InjectedTransaction(hash) | Self::Promise(hash) => {
                 [prefix.as_ref(), hash.inner().as_ref()].concat()
@@ -643,6 +647,18 @@ impl AnnounceStorageRO for Database {
             })
             .unwrap_or_default()
     }
+
+    fn announce_promises(
+        &self,
+        announce_hash: HashOf<Announce>,
+    ) -> Option<Vec<HashOf<InjectedTransaction>>> {
+        self.kv
+            .get(&Key::AnnouncePromises(announce_hash).to_bytes())
+            .map(|data| {
+                Vec::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `Vec<HashOf<InjectedTransaction>>`")
+            })
+    }
 }
 
 impl AnnounceStorageRW for Database {
@@ -686,6 +702,15 @@ impl AnnounceStorageRW for Database {
         self.kv.put(
             &Key::AnnounceSchedule(announce_hash).to_bytes(),
             schedule.encode(),
+        );
+    }
+
+    fn set_announce_promises(&self, announce_hash: HashOf<Announce>, promises: &[Promise]) {
+        tracing::trace!(promises_amount = ?promises.len(), %announce_hash, "Set announce promises");
+        let hashes = promises.iter().map(|p| p.tx_hash).collect::<Vec<_>>();
+        self.kv.put(
+            &Key::AnnouncePromises(announce_hash).to_bytes(),
+            hashes.encode(),
         );
     }
 

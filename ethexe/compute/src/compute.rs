@@ -165,9 +165,12 @@ impl<P: ProcessorExt> ComputeSubService<P> {
             meta.computed = true;
         });
 
-        promises.into_iter().for_each(|promise| {
-            db.set_promise(promise);
-        });
+        if !promises.is_empty() {
+            db.set_announce_promises(announce_hash, &promises);
+            promises.into_iter().for_each(|promise| {
+                db.set_promise(promise);
+            })
+        }
 
         db.mutate_latest_data(|data| {
             data.computed_announce_hash = announce_hash;
