@@ -49,7 +49,7 @@ pub struct InBlockTransitions {
     /// The set of injected messages to track replies for.
     injected_messages: BTreeSet<MessageId>,
     /// Replies for injected messages, in the order of processing.
-    ordered_injected_replies: Vec<(MessageId, ReplyInfo)>,
+    injected_replies: Vec<(MessageId, ReplyInfo)>,
 }
 
 #[derive(Debug, Clone, Default)]
@@ -147,10 +147,10 @@ impl InBlockTransitions {
         self.modifications.insert(actor_id, Default::default());
     }
 
-    /// Register new reply for injected transaction.
+    /// Handles new reply for injected transaction.
     pub fn maybe_store_injected_reply(&mut self, message_id: MessageId, reply: ReplyInfo) {
         if self.injected_messages.contains(&message_id) {
-            self.ordered_injected_replies.push((message_id, reply));
+            self.injected_replies.push((message_id, reply));
         }
     }
 
@@ -215,14 +215,14 @@ impl InBlockTransitions {
             states,
             schedule,
             modifications,
-            ordered_injected_replies,
+            injected_replies,
             ..
         } = self;
 
-        let promises = ordered_injected_replies
+        let promises = injected_replies
             .into_iter()
             .map(|(message_id, reply)| {
-                // Safety: we trust that message_id was created from a valid SignedInjectedTransaction.
+                // SAFETY: message_id for injected transaction is created from its hash bytes.
                 let tx_hash = unsafe { HashOf::new(message_id.into_bytes().into()) };
                 Promise { tx_hash, reply }
             })

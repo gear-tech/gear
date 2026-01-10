@@ -122,7 +122,7 @@ pub enum ConsensusEvent {
     CommitmentSubmitted(CommitmentSubmitted),
     /// Informational event: during service processing, a warning situation was detected
     Warning(String),
-    /// Promise for [`ethexe_common::injected::InjectedTransaction`] execution.
+    /// Promises for [`ethexe_common::injected::InjectedTransaction`]s execution in some announce.
     #[from]
     Promises(Vec<SignedPromise>),
 }

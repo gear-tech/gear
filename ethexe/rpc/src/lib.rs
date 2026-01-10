@@ -142,12 +142,6 @@ impl RpcService {
         }
     }
 
-    pub fn provide_promise(&self, promise: SignedPromise) {
-        let injected_api = self.injected_api.clone();
-
-        injected_api.send_promise(promise);
-    }
-
     pub fn provide_promises_batch(&self, promises: Vec<SignedPromise>) {
         let injected_api = self.injected_api.clone();
 

@@ -77,7 +77,7 @@ enum Key {
 
     // TODO kuzmindev: temporal solution - must move into block meta or something else.
     LatestEraValidatorsCommitted(H256),
-    // TODO !!! kuzmindev: this key should be move upper.
+    // TODO !!! kuzmindev: this key should be moved upper into announce related keys. 
     // Now it placed here in purpose to not corrupt the existing key layout.
     AnnouncePromises(HashOf<Announce>),
 }
