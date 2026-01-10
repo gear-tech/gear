@@ -77,7 +77,7 @@ enum Key {
 
     // TODO kuzmindev: temporal solution - must move into block meta or something else.
     LatestEraValidatorsCommitted(H256),
-    // TODO !!! kuzmindev: this key should be moved upper into announce related keys. 
+    // TODO !!! kuzmindev: this key should be moved upper into announce related keys.
     // Now it placed here in purpose to not corrupt the existing key layout.
     AnnouncePromises(HashOf<Announce>),
 }
@@ -706,8 +706,8 @@ impl AnnounceStorageRW for Database {
     }
 
     fn set_announce_promises(&self, announce_hash: HashOf<Announce>, promises: &[Promise]) {
+        tracing::trace!(promises_amount = ?promises.len(), %announce_hash, "Set announce promises");
         let hashes = promises.iter().map(|p| p.tx_hash).collect::<Vec<_>>();
-        tracing::trace!(promise_transactions = ?hashes, %announce_hash, "Set announce promises");
         self.kv.put(
             &Key::AnnouncePromises(announce_hash).to_bytes(),
             hashes.encode(),
