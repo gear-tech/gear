@@ -28,8 +28,8 @@ use alloy::{
         Identity, PendingTransactionBuilder, PendingTransactionError, Provider, ProviderBuilder,
         RootProvider,
         fillers::{
-            BlobGasFiller, ChainIdFiller, FillProvider, GasFiller, JoinFill, NonceFiller,
-            SimpleNonceManager, WalletFiller,
+            BlobGasEstimator, BlobGasFiller, ChainIdFiller, FillProvider, GasFiller, JoinFill,
+            NonceFiller, SimpleNonceManager, WalletFiller,
         },
     },
     rpc::types::{TransactionReceipt, TransactionRequest, eth::Log},
@@ -141,8 +141,21 @@ pub(crate) async fn create_provider(
     signer: LocalSigner,
     sender_address: LocalAddress,
 ) -> Result<AlloyProvider> {
+    // TODO: use proper builder pattern to configure the estimator
+    // https://github.com/alloy-rs/alloy/issues/3487
+    let estimator = BlobGasEstimator::scaled(3);
+    let filler: AlloyRecommendedFillers = JoinFill::new(
+        GasFiller,
+        JoinFill::new(
+            BlobGasFiller { estimator },
+            JoinFill::new(
+                NonceFiller::new(SimpleNonceManager::default()),
+                ChainIdFiller::default(),
+            ),
+        ),
+    );
     Ok(ProviderBuilder::default()
-        .filler(AlloyRecommendedFillers::default())
+        .filler(filler)
         .wallet(EthereumWallet::new(Sender::new(signer, sender_address)?))
         .connect(rpc_url)
         .await?)
