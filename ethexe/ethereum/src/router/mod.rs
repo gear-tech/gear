@@ -23,7 +23,6 @@ use crate::{
 };
 use alloy::{
     consensus::{SidecarBuilder, SimpleCoder},
-    eips::eip7594::BlobTransactionSidecarVariant,
     primitives::{Address, Bytes, fixed_bytes},
     providers::{PendingTransactionBuilder, Provider, ProviderBuilder, RootProvider},
     rpc::types::{Filter, Topic, eth::state::AccountOverride},
@@ -111,20 +110,14 @@ impl Router {
         let code_id = CodeId::generate(code);
 
         let chain_id = self.instance.provider().get_chain_id().await?;
-        let blob_tx_sidecar_variant = if chain_id == 31337 {
-            BlobTransactionSidecarVariant::Eip4844(
-                SidecarBuilder::<SimpleCoder>::from_slice(code).build()?,
-            )
-        } else {
-            BlobTransactionSidecarVariant::Eip7594(
-                SidecarBuilder::<SimpleCoder>::from_slice(code).build_7594()?,
-            )
-        };
-
         let builder = self
             .instance
-            .requestCodeValidation(code_id.into_bytes().into())
-            .sidecar(blob_tx_sidecar_variant);
+            .requestCodeValidation(code_id.into_bytes().into());
+        let builder = if chain_id == 31337 {
+            builder.sidecar(SidecarBuilder::<SimpleCoder>::from_slice(code).build()?)
+        } else {
+            builder.sidecar_7594(SidecarBuilder::<SimpleCoder>::from_slice(code).build_7594()?)
+        };
         let pending_builder = builder.send().await?;
 
         Ok(PendingCodeRequestBuilder {
