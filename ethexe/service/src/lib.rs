@@ -632,7 +632,7 @@ impl Service {
                         let rpc = rpc
                             .as_mut()
                             .expect("cannot produce promise without event from RPC");
-                        rpc.provide_promises_batch(promises);
+                        rpc.provide_promises_bundle(promises);
 
                         // TODO kuzmindev: also should be sent to network peer, that waits for transaction promise
                     }
