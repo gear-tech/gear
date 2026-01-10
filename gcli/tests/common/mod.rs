@@ -17,88 +17,112 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Common utils for integration tests
-pub use self::{args::Args, node::NodeExec};
-
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, bail};
 use gear_node_wrapper::{Node, NodeInstance};
 use std::{
-    io::Write,
-    process::{Command, Output, Stdio},
+    ffi::OsStr,
+    process::{Output, Stdio},
 };
-use tracing_subscriber::EnvFilter;
+use tokio::{
+    io::AsyncWriteExt,
+    process::{Child, Command},
+};
 
-mod args;
 pub mod env;
-pub mod node;
 
-impl NodeExec for NodeInstance {
-    /// Run binary `gcli`
-    fn run(&self, args: Args) -> Result<Output> {
-        gcli(args.endpoint(self.ws()))
-    }
+pub trait NodeExec {
+    async fn gcli(&self, args: impl IntoIterator<Item = impl AsRef<OsStr>>) -> Result<Output>;
+    async fn gcli_with_stdin(
+        &self,
+        args: impl IntoIterator<Item = impl AsRef<OsStr>>,
+        buf: &[u8],
+    ) -> Result<Output>;
 }
 
-/// Run binary `gcli`
-pub fn gcli(args: impl Into<Args>) -> Result<Output> {
-    let args = args.into();
-
-    let mut args_vec = Vec::new();
-    if let Some(endpoint) = args.endpoint {
-        args_vec.extend(["--endpoint".to_string(), endpoint]);
-    }
-    args_vec.push(args.command);
-    args_vec.extend(args.args);
-    args_vec.extend(args.with);
-
-    let mut cmd = Command::new(env::gcli_bin())
-        .args(args_vec)
+async fn spawn_gcli(
+    node: &NodeInstance,
+    args: impl IntoIterator<Item = impl AsRef<OsStr>>,
+) -> Result<Child> {
+    Ok(Command::new(env::gcli_bin())
         .stdin(Stdio::piped())
         .stdout(Stdio::piped())
         .stderr(Stdio::piped())
-        // tests rely on filter `gsdk=info`
         .env_remove("RUST_LOG")
-        .spawn()
-        .context("failed to spawn gcli")?;
-    if !args.stdin.is_empty() {
-        cmd.stdin
-            .as_mut()
-            .unwrap()
-            .write_all(&args.stdin)
-            .context("failed to write stdin")?;
+        .args(["--endpoint", &node.ws()])
+        .args(args)
+        .spawn()?)
+}
+
+async fn wait_gcli(child: Child) -> Result<Output> {
+    let output = child.wait_with_output().await?;
+
+    if !output.status.success() {
+        bail!(
+            "process `gcli` exited with non-zero code, stderr:\n\n{}",
+            String::from_utf8_lossy(&output.stderr)
+        )
     }
-    cmd.wait_with_output().context("failed to run gcli")
+
+    Ok(output)
+}
+
+impl NodeExec for NodeInstance {
+    async fn gcli(&self, args: impl IntoIterator<Item = impl AsRef<OsStr>>) -> Result<Output> {
+        wait_gcli(spawn_gcli(self, args).await?).await
+    }
+
+    async fn gcli_with_stdin(
+        &self,
+        args: impl IntoIterator<Item = impl AsRef<OsStr>>,
+        buf: &[u8],
+    ) -> Result<Output> {
+        let mut child = spawn_gcli(self, args).await?;
+        let mut stdin = child
+            .stdin
+            .take()
+            .context("failed to get child process stdin")?;
+        stdin.write_all(buf).await?;
+        drop(stdin);
+
+        wait_gcli(child).await
+    }
 }
 
 /// Run the dev node
-pub fn dev() -> Result<NodeInstance> {
-    login_as_alice()?;
+pub async fn dev() -> Result<NodeInstance> {
+    login_as_alice().await?;
     Node::from_path(env::node_bin())
         .and_then(|mut node| node.spawn())
         .context("failed to spawn node")
 }
 
-/// Init env logger
-#[allow(dead_code)]
-pub fn init_logger() {
-    let _ = tracing_subscriber::fmt()
-        .with_env_filter(EnvFilter::from_default_env())
-        .with_test_writer()
-        .try_init();
-}
-
 /// Login as //Alice
-pub fn login_as_alice() -> Result<()> {
-    let _ = gcli(["wallet", "dev"])?;
+pub async fn login_as_alice() -> Result<()> {
+    let output = Command::new(env::gcli_bin())
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .env_remove("RUST_LOG")
+        .args(["wallet", "dev"])
+        .output()
+        .await?;
+
+    assert!(
+        output.status.success(),
+        "Command failed with stderr:\n\n{}",
+        String::from_utf8_lossy(&output.stderr)
+    );
 
     Ok(())
 }
 
 /// Create program messenger
 pub async fn create_messenger() -> Result<NodeInstance> {
-    let node = dev()?;
+    let node = dev().await?;
 
-    let args = Args::new("upload").program_stdin(demo_messenger::WASM_BINARY);
-    let output = node.run(args)?;
+    let output = node
+        .gcli_with_stdin(["deploy", "--stdin"], demo_messenger::WASM_BINARY)
+        .await?;
 
     assert!(
         output.status.success(),

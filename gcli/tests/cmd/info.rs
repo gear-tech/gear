@@ -18,28 +18,17 @@
 
 //! Integration tests for command `deploy`
 
-use crate::common::{
-    self, Args,
-    node::{Convert, NodeExec},
-};
+use crate::common::{NodeExec, create_messenger, dev};
 use anyhow::Result;
-
-// ExtraFlags is hardcoded
-// const IS_NEW_LOGIC: u128 = 0x80000000_00000000_00000000_00000000u128;
-const EXPECTED_BALANCE: &str = "Free balance: 1000000000000000000";
-
-const EXPECTED_MAILBOX: &str = r#"
-    destination: "0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d",
-    payload: "0x",
-    value: 0,
-"#;
 
 #[tokio::test]
 async fn test_action_balance_works() -> Result<()> {
-    let node = common::dev()?;
+    let node = dev().await?;
 
-    let output = node.run(Args::new("info").address("//Alice").action("balance"))?;
-    let stdout = output.stdout.convert();
+    let output = node.gcli(["info", "//Alice", "balance"]).await?;
+    let stdout = String::from_utf8(output.stdout)?;
+
+    const EXPECTED_BALANCE: &str = "Free balance: 1000000000000000000";
     assert!(
         stdout.contains(EXPECTED_BALANCE),
         "Wrong balance. Expected contains:\n{EXPECTED_BALANCE}\nGot:\n{stdout}",
@@ -49,13 +38,19 @@ async fn test_action_balance_works() -> Result<()> {
 
 #[tokio::test]
 async fn test_action_mailbox_works() -> Result<()> {
-    let node = common::create_messenger().await?;
-    let output = node.run(Args::new("info").address("//Alice").action("mailbox"))?;
+    let node = create_messenger().await?;
+    let output = node.gcli(["info", "//Alice", "mailbox"]).await?;
 
-    if !output.stdout.convert().contains(EXPECTED_MAILBOX.trim()) {
+    let expected_mailbox: String = [
+        "destination: 0xd43593c715fdd31c61141abd04a99fd6822c8558854ccde39a5684e7a56da27d",
+        "payload: 0x",
+        "value: 0",
+    ]
+    .join("\n");
+    if !str::from_utf8(&output.stdout)?.contains(&expected_mailbox) {
         panic!(
-            "Wrong mailbox response. Expected:\n{EXPECTED_MAILBOX}\nGot:\n{}",
-            output.stderr.convert()
+            "Wrong mailbox response. Expected:\n{expected_mailbox}\nGot:\n{}",
+            String::from_utf8_lossy(&output.stdout)
         );
     }
     Ok(())

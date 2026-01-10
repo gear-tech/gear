@@ -16,9 +16,23 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use gcli::{App, clap::Parser, cmd::Opt};
+//! Integration tests for command `upload-code`.
 
-#[tokio::main]
-async fn main() -> anyhow::Result<()> {
-    Opt::parse().run().await
+use crate::common::{NodeExec, dev};
+use anyhow::Result;
+
+#[tokio::test]
+async fn test_command_upload_code_works() -> Result<()> {
+    let node = dev().await?;
+
+    let output = node
+        .gcli_with_stdin(["upload-code", "--stdin"], demo_fungible_token::WASM_BINARY)
+        .await?;
+
+    assert!(
+        str::from_utf8(&output.stdout)?.contains("Successfully uploaded the code"),
+        "code should be uploaded, but got: {}",
+        String::from_utf8_lossy(&output.stdout)
+    );
+    Ok(())
 }

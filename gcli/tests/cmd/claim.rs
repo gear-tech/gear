@@ -18,7 +18,7 @@
 
 //! Integration tests for command `send`
 
-use crate::common::{self, Args, node::NodeExec};
+use crate::common::{NodeExec, create_messenger};
 use anyhow::Result;
 use gsdk::{
     AccountKeyring, Api,
@@ -29,7 +29,7 @@ const REWARD_PER_BLOCK: u128 = 300_000; // 3_000 gas * 100 value per gas
 
 #[tokio::test]
 async fn test_command_claim_works() -> Result<()> {
-    let node = common::create_messenger().await?;
+    let node = create_messenger().await?;
 
     // Check the mailbox of the testing account
     let api = Api::new(node.ws().as_str())
@@ -42,7 +42,7 @@ async fn test_command_claim_works() -> Result<()> {
         .await?;
 
     assert_eq!(mailbox.len(), 1, "Mailbox should have 1 message");
-    let id = hex::encode(mailbox[0].0.id());
+    let id = mailbox[0].0.id().to_string();
 
     let treasury_address = api
         .constants()
@@ -55,7 +55,7 @@ async fn test_command_claim_works() -> Result<()> {
         .unwrap_or(0);
 
     // Claim value from message id
-    let _ = node.run(Args::new("claim").message_id(id))?;
+    node.gcli(["claim", &id]).await?;
 
     let mailbox = api
         .unsigned()
