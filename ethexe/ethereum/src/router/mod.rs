@@ -38,6 +38,7 @@ use events::signatures;
 use futures::StreamExt;
 use gear_core::ids::prelude::CodeIdExt as _;
 use gprimitives::{ActorId, CodeId, H256};
+use serde::Serialize;
 use std::collections::HashMap;
 
 pub mod events;
@@ -352,7 +353,7 @@ impl Router {
     }
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize)]
 pub struct CodeValidationResult {
     pub valid: bool,
     pub tx_hash: Option<H256>,

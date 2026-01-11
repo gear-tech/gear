@@ -25,7 +25,7 @@ use alloy::{
     hex, network,
     primitives::{Address, Bytes, U256 as AlloyU256},
     providers::{PendingTransactionBuilder, Provider, RootProvider},
-    rpc::types::{Filter, Topic},
+    rpc::types::{Filter, Topic, TransactionReceipt},
 };
 use anyhow::{Result, anyhow};
 use ethexe_common::{Address as LocalAddress, events::MirrorEvent};
@@ -97,7 +97,10 @@ impl Mirror {
             .map_err(Into::into)
     }
 
-    pub async fn owned_balance_top_up(&self, value: u128) -> Result<H256> {
+    pub async fn owned_balance_top_up_with_receipt(
+        &self,
+        value: u128,
+    ) -> Result<TransactionReceipt> {
         let builder = CallBuilder::new_raw(self.0.provider(), Bytes::new())
             .to(*self.0.address())
             .value(AlloyU256::from(value));
@@ -107,10 +110,18 @@ impl Mirror {
             .try_get_receipt_check_reverted()
             .await?;
 
+        Ok(receipt)
+    }
+
+    pub async fn owned_balance_top_up(&self, value: u128) -> Result<H256> {
+        let receipt = self.owned_balance_top_up_with_receipt(value).await?;
         Ok((*receipt.transaction_hash).into())
     }
 
-    pub async fn executable_balance_top_up(&self, value: u128) -> Result<H256> {
+    pub async fn executable_balance_top_up_with_receipt(
+        &self,
+        value: u128,
+    ) -> Result<TransactionReceipt> {
         let builder = self.0.executableBalanceTopUp(value);
         let receipt = builder
             .send()
@@ -118,6 +129,11 @@ impl Mirror {
             .try_get_receipt_check_reverted()
             .await?;
 
+        Ok(receipt)
+    }
+
+    pub async fn executable_balance_top_up(&self, value: u128) -> Result<H256> {
+        let receipt = self.executable_balance_top_up_with_receipt(value).await?;
         Ok((*receipt.transaction_hash).into())
     }
 
@@ -138,7 +154,7 @@ impl Mirror {
         payload: impl AsRef<[u8]>,
         value: u128,
         call_reply: bool,
-    ) -> Result<(alloy::rpc::types::TransactionReceipt, MessageId)> {
+    ) -> Result<(TransactionReceipt, MessageId)> {
         let receipt = self
             .send_message_pending(payload, value, call_reply)
             .await?
