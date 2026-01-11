@@ -25,7 +25,7 @@ jobs:
       image_name: ${{ steps.image.outputs.image_name }}
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Get branch
         id: branch
@@ -50,7 +50,7 @@ jobs:
     needs: prepare
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Log in to the github container registry
         uses: docker/login-action@v3
@@ -67,7 +67,7 @@ jobs:
           tags: ${{ needs.prepare.outputs.image_name }}
 
       - name: SSH into VM
-        uses: appleboy/ssh-action@v1.2.2
+        uses: appleboy/ssh-action@v1.2.4
         env:
           NEW_IMAGE: ${{ needs.prepare.outputs.image_name }}
         with:
