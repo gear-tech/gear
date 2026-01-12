@@ -915,7 +915,7 @@ impl TxCommand {
                         let actor_id = actor_id.to_address_lossy();
                         let payload_len = payload.len();
                         // TODO: consider truncating long payloads in non-verbose mode and hexdump in verbose mode
-                        let payload_hex = format!("0x{}", hex::encode(&payload));
+                        let payload_hex = format!("0x{}", hex::encode(payload));
                         let code_hex = format!("0x{}", hex::encode(code.to_bytes()));
                         let raw_value = *value;
                         let formatted_value = FormattedValue::<EthereumCurrency>::new(raw_value);
