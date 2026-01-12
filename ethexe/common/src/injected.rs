@@ -16,10 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{
-    Address, HashOf, ToDigest,
-    ecdsa::{SignedData, SignedMessage},
-};
+use crate::{Address, HashOf, ToDigest, ecdsa::SignedMessage};
 use alloc::string::{String, ToString};
 use core::hash::Hash;
 use gear_core::rpc::ReplyInfo;
@@ -134,7 +131,7 @@ pub struct Promise {
 
 /// Signed wrapper on top of [`Promise`].
 /// It will be shared among other validators as a proof of promise.
-pub type SignedPromise = SignedData<Promise>;
+pub type SignedPromise = SignedMessage<Promise>;
 
 impl ToDigest for Promise {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {

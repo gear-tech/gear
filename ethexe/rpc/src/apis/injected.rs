@@ -34,18 +34,20 @@ use jsonrpsee::{
 use std::sync::Arc;
 use tokio::sync::{mpsc, oneshot};
 
-#[cfg_attr(not(feature = "client"), rpc(server))]
-#[cfg_attr(feature = "client", rpc(server, client))]
+#[cfg_attr(not(feature = "client"), rpc(server, namespace = "injected"))]
+#[cfg_attr(feature = "client", rpc(server, client, namespace = "injected"))]
 pub trait Injected {
-    #[method(name = "injected_sendTransaction")]
+    /// Just sends an injected transaction.
+    #[method(name = "sendTransaction")]
     async fn send_transaction(
         &self,
         transaction: AddressedInjectedTransaction,
     ) -> RpcResult<InjectedTransactionAcceptance>;
 
+    /// Sends an injected transaction and subscribes to its promise.
     #[subscription(
-        name = "injected_subscribeTransactionPromise",
-        unsubscribe = "injected_unsubscribeTransactionPromise", 
+        name = "sendTransactionAndWatch",
+        unsubscribe = "sendTransactionAndWatchUnsubscribe",
         item = SignedPromise
     )]
     async fn send_transaction_and_watch(
@@ -56,9 +58,12 @@ pub trait Injected {
 
 type PromiseWaiters = Arc<DashMap<HashOf<InjectedTransaction>, oneshot::Sender<SignedPromise>>>;
 
+/// Implementation of the injected transactions RPC API.
 #[derive(Debug, Clone)]
 pub struct InjectedApi {
+    /// Sender to forward RPC events to the main service.
     rpc_sender: mpsc::UnboundedSender<RpcEvent>,
+    /// Map of promise waiters.
     promise_waiters: PromiseWaiters,
 }
 
@@ -116,16 +121,20 @@ impl InjectedApi {
     }
 
     pub fn send_promise(&self, promise: SignedPromise) {
-        let tx_hash = promise.data().tx_hash;
-
-        let Some((_, promise_sender)) = self.promise_waiters.remove(&tx_hash) else {
-            tracing::trace!(tx_hash = ?tx_hash, "receive unregistered promise");
+        let Some((_, promise_sender)) = self.promise_waiters.remove(&promise.data().tx_hash) else {
+            tracing::warn!(promise = ?promise, "receive unregistered promise");
             return;
         };
 
         if let Err(promise) = promise_sender.send(promise) {
             tracing::trace!(promise = ?promise, "rpc promise receiver dropped");
         }
+    }
+
+    /// Returns the number of current promise subscribers waiting for promises.
+    #[cfg(test)]
+    pub fn promise_subscribers_count(&self) -> usize {
+        self.promise_waiters.len()
     }
 
     /// This function forwards [`RpcOrNetworkInjectedTx`] to main service and waits for its acceptance.
