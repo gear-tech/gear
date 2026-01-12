@@ -31,6 +31,7 @@ pub mod export {
 
 use crate::{
     db_sync::DbSyncDatabase,
+    gossipsub::MessageAcceptance,
     validator::{ValidatorDatabase, list::ValidatorListSnapshot},
 };
 use anyhow::{Context, anyhow};
@@ -480,7 +481,9 @@ impl NetworkService {
     fn handle_gossipsub_event(&mut self, event: gossipsub::Event) -> Option<NetworkEvent> {
         match event {
             gossipsub::Event::Message { source, validator } => {
-                let gossipsub = &mut self.swarm.behaviour_mut().gossipsub;
+                let behaviour = self.swarm.behaviour_mut();
+                let gossipsub = &mut behaviour.gossipsub;
+                let discovery = &behaviour.validator_discovery;
 
                 validator.validate(gossipsub, |message| match message {
                     gossipsub::Message::Commitments(message) => {
@@ -490,9 +493,20 @@ impl NetworkService {
                         (acceptance, message.map(NetworkEvent::ValidatorMessage))
                     }
                     gossipsub::Message::Promises(message) => {
-                        // TODO: ensure only validator sends it
-                        let acceptance = gossipsub::MessageAcceptance::Accept;
-                        (acceptance, Some(NetworkEvent::PromiseMessage(message)))
+                        // FIXME: messages from previous era validators are ignored
+
+                        let address = message.address();
+
+                        if let Some(identity) = discovery.get_identity(address)
+                            && identity.peer_id() != source
+                        {
+                            return (MessageAcceptance::Ignore, None);
+                        }
+
+                        (
+                            MessageAcceptance::Accept,
+                            Some(NetworkEvent::PromiseMessage(message)),
+                        )
                     }
                 })
             }
