@@ -560,6 +560,11 @@ mod chunks_splitting {
                 .into_iter()
                 .map(|c| {
                     c.into_iter()
+                        // `check_task_no_run` function isn't used in a common execution, but it's used only for an overlaid one.
+                        // The function is intended to nullify program queues only once before execution. If the queue wasn't nullified
+                        // earlier the function will nullify it and skip spawning the job for the program queue as it's empty. If the queue
+                        // was already nullified, the function will return `false` and the job will be spawned as usual.
+                        // For more info, see impl of the [`OverlaidContext`].
                         .filter(|&(program_id, _)| !run_ctx.check_task_no_run(program_id))
                         .collect()
                 })
@@ -581,12 +586,6 @@ mod chunk_execution_spawn {
     /// It means that in the same time unit (!) all programs simultaneously charge gas allowance. If programs were to be
     /// executed concurrently, then each of the program should have received a reference to the global gas allowance counter
     /// and charge gas from it concurrently.
-    ///
-    /// `check_task_no_run` closure isn't used in a common execution, but it's used only for an overlaid one.
-    /// The closure is intended to nullify program queues only once before execution. If the queue wasn't nullified
-    /// earlier the closure will nullify it and skip spawning the job for the program queue as it's empty. If the queue
-    /// was already nullified, the closure will return `false` and the job will be spawned as usual.
-    /// For more info, see impl of the [`OverlaidContext`].
     pub(super) async fn spawn_chunk_execution(
         chunk: Vec<(ActorId, H256)>,
         db: Database,
