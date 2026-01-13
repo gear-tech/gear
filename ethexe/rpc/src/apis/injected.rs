@@ -50,8 +50,8 @@ pub trait Injected {
 
     /// Sends an injected transaction and subscribes to its promise.  
     #[subscription(
-        name = "sendTransactionAndWatch",
-        unsubscribe = "sendTransactionAndWatchUnsubscribe", 
+        name = "subscribeTransactionPromise",
+        unsubscribe = "unsubscribeTransactionPromise", 
         item = SignedPromise
     )]
     async fn send_transaction_and_watch(
