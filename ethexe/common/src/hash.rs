@@ -44,6 +44,7 @@ fn shortname<T: Any>() -> &'static str {
 
 #[derive(Encode, Decode, derive_more::Into, derive_more::Display)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
+#[cfg_attr(feature = "std", serde(transparent))]
 #[display("{hash}")]
 pub struct HashOf<T: 'static> {
     hash: H256,
