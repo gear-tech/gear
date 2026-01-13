@@ -52,9 +52,9 @@ pub mod state;
 
 mod journal;
 mod schedule;
-mod transitions;
 #[cfg(test)]
 mod tests;
+mod transitions;
 
 // TODO: consider format.
 /// Version of the runtime.

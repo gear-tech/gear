@@ -17,32 +17,30 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    process_dispatch, BlockConfig, Dispatch, JournalHandler, ProgramState, RuntimeInterface,
-    RuntimeJournalHandler, Storage,
+    BlockConfig, Dispatch, JournalHandler, ProgramState, RuntimeInterface, RuntimeJournalHandler,
+    Storage, process_dispatch,
+    state::{ActiveProgram, MemStorage, PayloadLookup, Program},
 };
+use alloc::vec::Vec;
 use core_processor::{
     common::{DispatchOutcome, InitFailureReason, JournalNote},
     configs::BlockInfo,
 };
+use ethexe_common::{MaybeHashOf, gear::MessageType};
 use gear_core::{
-    ids::ActorId,
-    message::DispatchKind,
-    memory::{Memory, MemoryInterval, HostPointer},
-    pages::{WasmPage, GearPage, WasmPagesAmount},
+    buffer::Payload,
+    code::MAX_WASM_PAGES_AMOUNT,
     costs::LazyPagesCosts,
+    gas_metering::Schedule,
+    ids::ActorId,
+    memory::{HostPointer, Memory, MemoryInterval},
+    message::DispatchKind,
+    pages::{GearPage, WasmPage, WasmPagesAmount},
+    program::MemoryInfix,
 };
-use ethexe_common::gear::MessageType;
-use gprimitives::{MessageId, H256};
-use crate::state::{ActiveProgram, MemStorage, Program};
-use ethexe_common::MaybeHashOf;
-use gear_core::program::MemoryInfix;
-use gsys::{GasMultiplier, Percent};
-use gear_core::gas_metering::Schedule;
-use gear_core::code::MAX_WASM_PAGES_AMOUNT;
-use gear_core::buffer::Payload;
-use crate::state::PayloadLookup;
 use gear_lazy_pages_common::{GlobalsAccessConfig, ProcessAccessError, Status};
-use alloc::vec::Vec;
+use gprimitives::{H256, MessageId};
+use gsys::{GasMultiplier, Percent};
 
 struct MockRuntimeInterface {
     storage: MemStorage,
@@ -66,7 +64,9 @@ impl RuntimeInterface<MemStorage> for MockRuntimeInterface {
 
 struct MockLazyPages;
 impl gear_lazy_pages_common::LazyPagesInterface for MockLazyPages {
-    fn try_to_enable_lazy_pages(_prefix: [u8; 32]) -> bool { true }
+    fn try_to_enable_lazy_pages(_prefix: [u8; 32]) -> bool {
+        true
+    }
 
     fn init_for_program<Context>(
         _ctx: &mut Context,
@@ -76,7 +76,8 @@ impl gear_lazy_pages_common::LazyPagesInterface for MockLazyPages {
         _stack_end: Option<WasmPage>,
         _globals_config: GlobalsAccessConfig,
         _costs: LazyPagesCosts,
-    ) {}
+    ) {
+    }
 
     fn remove_lazy_pages_prot<Context>(_ctx: &mut Context, _mem: &mut impl Memory<Context>) {}
 
@@ -86,24 +87,31 @@ impl gear_lazy_pages_common::LazyPagesInterface for MockLazyPages {
         _old_mem_addr: Option<HostPointer>,
         _old_mem_size: WasmPagesAmount,
         _new_mem_addr: HostPointer,
-    ) {}
+    ) {
+    }
 
-    fn get_write_accessed_pages() -> Vec<GearPage> { Vec::new() }
+    fn get_write_accessed_pages() -> Vec<GearPage> {
+        Vec::new()
+    }
 
-    fn get_status() -> Status { Status::Normal }
+    fn get_status() -> Status {
+        Status::Normal
+    }
 
     fn pre_process_memory_accesses(
         _reads: &[MemoryInterval],
         _writes: &[MemoryInterval],
         _gas_counter: &mut u64,
-    ) -> Result<(), ProcessAccessError> { Ok(()) }
+    ) -> Result<(), ProcessAccessError> {
+        Ok(())
+    }
 }
 
 #[test]
 fn test_init_oog_does_not_terminate() {
     let storage = MemStorage::default();
     let ri = MockRuntimeInterface { storage };
-    
+
     let program_id = ActorId::from(100);
     let mut program_state = ProgramState::zero();
     // Ensure program is active but uninitialized
@@ -178,9 +186,9 @@ fn test_init_oog_does_not_terminate() {
         is_first_execution: true,
         stop_processing: false,
     };
-    
+
     let _ = handler.handle_journal(journal);
-    
+
     if let Program::Terminated(_) = program_state.program {
         panic!("Program should NOT be terminated");
     }
@@ -232,9 +240,7 @@ fn test_init_oog_after_first_precharge_does_not_terminate() {
 
     let first_charge = block_config.costs.db.read.cost_for_one();
     let gas_limit = first_charge + 1;
-    program_state.executable_balance = block_config
-        .gas_multiplier
-        .gas_to_value(gas_limit);
+    program_state.executable_balance = block_config.gas_multiplier.gas_to_value(gas_limit);
 
     let journal = process_dispatch(
         dispatch,
@@ -344,7 +350,10 @@ fn test_init_allowance_exceed_does_not_terminate() {
             }
         }
     }
-    assert!(found, "Should have produced InitFailure with RanOutOfAllowance");
+    assert!(
+        found,
+        "Should have produced InitFailure with RanOutOfAllowance"
+    );
 
     let mut gas_allowance_counter = gear_core::gas::GasAllowanceCounter::new(10_000_000);
     let mut handler = RuntimeJournalHandler {
