@@ -18,6 +18,7 @@
 
 use crate::{RpcEvent, errors};
 use dashmap::DashMap;
+use either::Either;
 use ethexe_common::{
     HashOf,
     injected::{InjectedTransaction, RemovalNotification, RpcOrNetworkInjectedTx, SignedPromise},
@@ -51,7 +52,7 @@ impl From<anyhow::Error> for RejectionMessage {
 }
 
 /// Type represents the result for injected transaction promise subscription.
-pub(crate) type PromiseResult = Result<SignedPromise, RemovalNotification>;
+pub(crate) type PromiseResult = Either<SignedPromise, RemovalNotification>;
 
 #[cfg_attr(not(feature = "client"), rpc(server, namespace = "injected"))]
 #[cfg_attr(feature = "client", rpc(server, client, namespace = "injected"))]
@@ -153,7 +154,7 @@ impl InjectedApi {
             return;
         };
 
-        if let Err(promise) = waiter.send(Ok(promise)) {
+        if let Err(promise) = waiter.send(Either::Left(promise)) {
             tracing::trace!(promise = ?promise, "rpc promise receiver dropped");
         }
     }
@@ -161,7 +162,7 @@ impl InjectedApi {
     pub fn notify_transactions_removed(&self, removals_info: Vec<RemovalNotification>) {
         removals_info.into_iter().for_each(|info| {
             if let Some((_, waiter)) = self.promise_waiters.remove(&info.tx_hash)
-                && let Err(value) = waiter.send(Err(info))
+                && let Err(value) = waiter.send(Either::Right(info))
             {
                 tracing::trace!("rpc promise receiver dropped for removed tx: {:?}", value);
             }

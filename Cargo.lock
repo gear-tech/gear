@@ -5172,6 +5172,7 @@ dependencies = [
  "anyhow",
  "dashmap 5.5.3",
  "derive_more 2.0.1",
+ "either",
  "ethexe-common",
  "ethexe-db",
  "ethexe-processor",

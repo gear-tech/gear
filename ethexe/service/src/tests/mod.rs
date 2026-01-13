@@ -2571,7 +2571,7 @@ async fn injected_tx_fungible_token() {
         .await
         .expect("subscription item")
         .expect("no errors in subscription item")
-        .expect("promise received from subscription")
+        .expect_left("promise received from subscription")
         .into_data();
 
     assert_eq!(promise.tx_hash, transfer_tx.to_hash());
