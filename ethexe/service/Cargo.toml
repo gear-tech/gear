@@ -57,7 +57,7 @@ alloy = { workspace = true, features = [
     "rpc-types-beacon",
     "signer-local",
 ] }
-ntest = "0.9.3"
+ntest.workspace = true
 gear-core-errors.workspace = true
 ethexe-network.workspace = true
 roast-secp256k1-evm.workspace = true
@@ -66,6 +66,7 @@ tracing.workspace = true
 tracing-subscriber.workspace = true
 ethexe-common = { workspace = true, features = ["mock"] }
 jsonrpsee = { workspace = true, features = ["client"] }
+async-broadcast.workspace = true
 
 demo-ping = { workspace = true, features = ["debug", "ethexe"] }
 demo-value-sender-ethexe = { workspace = true, features = ["debug", "ethexe"] }
