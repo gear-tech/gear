@@ -123,8 +123,8 @@ mod tests {
     use super::*;
     use ethexe_common::{StateHashWithQueueSize, db::*, mock::*};
     use ethexe_runtime_common::state::{Program, ProgramState, Storage};
-    use ethexe_signer::Signer;
     use gprimitives::ActorId;
+    use gsigner::secp256k1::{Secp256k1SignerExt, Signer};
 
     #[test]
     fn test_select_for_announce() {

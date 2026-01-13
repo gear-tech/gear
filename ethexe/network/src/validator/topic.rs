@@ -261,7 +261,7 @@ mod tests {
         mock::Mock,
         network::{SignedValidatorMessage, ValidatorMessage},
     };
-    use ethexe_signer::Signer;
+    use gsigner::secp256k1::{Secp256k1SignerExt, Signer};
     use nonempty::{NonEmpty, nonempty};
 
     const CHAIN_HEAD_ERA: u64 = 10;

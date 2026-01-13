@@ -30,8 +30,8 @@ use clap::{Parser, Subcommand};
 use ethexe_common::Address;
 use ethexe_ethereum::{Ethereum, mirror::ReplyInfo};
 use ethexe_rpc::ProgramClient;
-use ethexe_signer::Signer;
 use gprimitives::{CodeId, H160, H256, MessageId, U256};
+use gsigner::secp256k1::Signer;
 use jsonrpsee::ws_client::WsClientBuilder;
 use serde::Serialize;
 use serde_json::json;
@@ -131,7 +131,7 @@ impl TxCommand {
     async fn exec_inner(self) -> Result<()> {
         let key_store = self.key_store.expect("must never be empty after merging");
 
-        let signer = Signer::fs(key_store);
+        let signer = Signer::fs(key_store)?;
 
         let rpc = self
             .ethereum_rpc
