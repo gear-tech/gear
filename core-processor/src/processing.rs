@@ -725,6 +725,31 @@ pub fn process_allowance_exceed(
     program_id: ActorId,
     gas_burned: u64,
 ) -> Vec<JournalNote> {
+    if dispatch.kind() == DispatchKind::Init {
+        let mut journal = Vec::with_capacity(3);
+        let message_id = dispatch.id();
+        let origin = dispatch.source();
+
+        // Report allowance failure for init to avoid queue stall.
+        journal.push(JournalNote::GasBurned {
+            message_id,
+            amount: gas_burned,
+            is_panic: false,
+        });
+        journal.push(JournalNote::MessageDispatched {
+            message_id,
+            source: origin,
+            outcome: DispatchOutcome::InitFailure {
+                program_id,
+                origin,
+                reason: InitFailureReason::RanOutOfAllowance,
+            },
+        });
+        journal.push(JournalNote::MessageConsumed(message_id));
+
+        return journal;
+    }
+
     let mut journal = Vec::with_capacity(1);
 
     let (kind, message, opt_context) = dispatch.into_parts();
