@@ -360,15 +360,23 @@ where
 
                     // Checking execution for panic happened.
                     JournalNote::MessageDispatched {
-                        outcome:
-                            CoreDispatchOutcome::MessageTrap { trap, .. }
-                            | CoreDispatchOutcome::InitFailure { reason: trap, .. },
+                        outcome: CoreDispatchOutcome::MessageTrap { trap, .. },
                         message_id,
                         ..
                     } if (message_id == main_message_id || !allow_other_panics)
                         && !(skip_if_allowed && allow_skip_zero_replies) =>
                     {
                         return Err(format!("Program terminated with a trap: '{trap}'"));
+                    }
+                    JournalNote::MessageDispatched {
+                        outcome: CoreDispatchOutcome::InitFailure { reason, .. },
+                        message_id,
+                        ..
+                    } if (message_id == main_message_id || !allow_other_panics)
+                        && !(skip_if_allowed && allow_skip_zero_replies) =>
+                    {
+                        // Propagate init failures to callers since they are state-significant.
+                        return Err(format!("Program init failed: '{reason:?}'"));
                     }
 
                     _ => (),

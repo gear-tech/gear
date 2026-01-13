@@ -25,7 +25,7 @@ extern crate alloc;
 use alloc::vec::Vec;
 use core_processor::{
     ContextCharged, Ext, ProcessExecutionContext,
-    common::{DispatchOutcome, ExecutableActorData, JournalNote},
+    common::{ExecutableActorData, JournalNote},
     configs::{BlockConfig, SyscallName},
 };
 use ethexe_common::gear::{CHUNK_PROCESSING_GAS_LIMIT, MessageType};
@@ -250,60 +250,6 @@ where
 
 #[allow(clippy::too_many_arguments)]
 fn process_dispatch<S, RI>(
-    dispatch: Dispatch,
-    block_config: &BlockConfig,
-    program_id: ActorId,
-    program_state: &ProgramState,
-    instrumented_code: &Option<InstrumentedCode>,
-    code_metadata: &Option<CodeMetadata>,
-    ri: &RI,
-    gas_allowance: u64,
-) -> Vec<JournalNote>
-where
-    S: Storage,
-    RI: RuntimeInterface<S>,
-    <RI as RuntimeInterface<S>>::LazyPages: Send,
-{
-    let kind = dispatch.kind;
-
-    // Calculate gas limit exactly as done in process_dispatch_inner to detect funding issues.
-    let gas_limit = block_config
-        .gas_multiplier
-        .value_to_gas(program_state.executable_balance)
-        .min(CHUNK_PROCESSING_GAS_LIMIT);
-    
-    // The very first charge in process_dispatch_inner is charge_for_program, 
-    // which costs db.read.cost_for_one().
-    let min_start_gas = block_config.costs.db.read.cost_for_one();
-    let is_funding_issue = gas_limit < min_start_gas;
-
-    let mut journal = process_dispatch_inner(
-        dispatch,
-        block_config,
-        program_id,
-        program_state,
-        instrumented_code,
-        code_metadata,
-        ri,
-        gas_allowance,
-    );
-
-    if kind == DispatchKind::Init && is_funding_issue {
-        for note in &mut journal {
-            if let JournalNote::MessageDispatched { outcome, .. } = note {
-                if let DispatchOutcome::InitFailure { .. } = outcome {
-                    log::trace!("Init failure due to insufficient gas (funding issue) converted to NoExecution (retryable)");
-                    *outcome = DispatchOutcome::NoExecution;
-                }
-            }
-        }
-    }
-
-    journal
-}
-
-#[allow(clippy::too_many_arguments)]
-fn process_dispatch_inner<S, RI>(
     dispatch: Dispatch,
     block_config: &BlockConfig,
     program_id: ActorId,

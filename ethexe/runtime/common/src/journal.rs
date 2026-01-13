@@ -7,7 +7,7 @@ use crate::{
 };
 use alloc::{collections::BTreeMap, vec::Vec};
 use core::{mem, num::NonZero, panic};
-use core_processor::common::{DispatchOutcome, JournalHandler, JournalNote};
+use core_processor::common::{DispatchOutcome, InitFailureReason, JournalHandler, JournalNote};
 use ethexe_common::{
     ScheduledTask,
     gear::{INJECTED_MESSAGE_PANIC_GAS_CHARGE_THRESHOLD, Message, MessageType},
@@ -597,9 +597,20 @@ where
                 origin,
                 reason,
             } => {
-                log::trace!("Dispatch {message_id} failed init of program {program_id}: {reason}");
+                log::trace!(
+                    "Dispatch {message_id} failed init of program {program_id}: {:?}",
+                    reason
+                );
 
-                self.program_state.program = Program::Terminated(origin)
+                match reason {
+                    InitFailureReason::RanOutOfGas | InitFailureReason::RanOutOfAllowance => {
+                        // Keep program uninitialized so it can be retried after funding.
+                    }
+                    _ => {
+                        // Non-funding failures are terminal for init.
+                        self.program_state.program = Program::Terminated(origin);
+                    }
+                }
             }
 
             DispatchOutcome::MessageTrap { program_id, trap } => {
