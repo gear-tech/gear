@@ -36,8 +36,9 @@ use anyhow::Result;
 use ethexe_common::{
     Announce, Digest, HashOf, SimpleBlockData,
     consensus::{BatchCommitmentValidationReply, VerifiedAnnounce, VerifiedValidationRequest},
-    injected::{RemovalNotification, SignedInjectedTransaction, SignedPromise},
+    injected::{SignedInjectedTransaction, SignedPromise},
     network::{AnnouncesRequest, CheckedAnnouncesResponse, SignedValidatorMessage},
+    tx_pool::RemovalNotification,
 };
 use futures::{Stream, stream::FusedStream};
 use gprimitives::H256;

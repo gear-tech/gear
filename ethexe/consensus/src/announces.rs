@@ -88,7 +88,7 @@
 //!    then `announce1` is strict predecessor of `announce` and is predecessor of each
 //!    announce from `lpb.announces`.
 
-use crate::tx_validation::TxValidityChecker;
+use crate::tx_validation::TransactionStatusResolver;
 use anyhow::{Result, anyhow, ensure};
 use ethexe_common::{
     Announce, HashOf, SimpleBlockData,
@@ -96,8 +96,8 @@ use ethexe_common::{
         AnnounceStorageRW, BlockMetaStorageRW, InjectedStorageRW, LatestDataStorageRO,
         OnChainStorageRO,
     },
-    injected::TransactionStatus,
     network::{AnnouncesRequest, AnnouncesRequestUntil},
+    tx_pool::TransactionStatus,
 };
 use ethexe_ethereum::primitives::map::HashMap;
 use ethexe_runtime_common::state::Storage;
@@ -711,10 +711,11 @@ pub fn accept_announce(db: &impl DBAnnouncesExt, announce: Announce) -> Result<A
     }
 
     // Verify for parent announce, because of the current is not processed.
-    let tx_checker = TxValidityChecker::new_for_announce(db, announce.block_hash, announce.parent)?;
+    let resolver =
+        TransactionStatusResolver::new_for_announce(db, announce.block_hash, announce.parent)?;
 
     for tx in announce.injected_transactions.iter() {
-        let validity_status = tx_checker.check_tx_validity(tx)?;
+        let validity_status = resolver.resolve(tx)?;
 
         match validity_status {
             TransactionStatus::Valid => {

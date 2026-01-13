@@ -16,14 +16,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::tx_validation::TxValidityChecker;
+use crate::tx_validation::TransactionStatusResolver;
 use anyhow::Result;
 use ethexe_common::{
     Announce, HashOf,
     db::{AnnounceStorageRO, CodesStorageRO, InjectedStorageRW, OnChainStorageRO},
-    injected::{
-        InjectedTransaction, RemovalNotification, SignedInjectedTransaction, TransactionStatus,
-    },
+    injected::{InjectedTransaction, SignedInjectedTransaction},
+    tx_pool::{RemovalNotification, TransactionStatus},
 };
 use ethexe_db::Database;
 use ethexe_runtime_common::state::Storage;
@@ -86,8 +85,11 @@ where
     ) -> Result<TxPoolOutput> {
         tracing::trace!(block = ?block_hash, "start collecting injected transactions");
 
-        let tx_checker =
-            TxValidityChecker::new_for_announce(self.db.clone(), block_hash, parent_announce)?;
+        let resolver = TransactionStatusResolver::new_for_announce(
+            self.db.clone(),
+            block_hash,
+            parent_announce,
+        )?;
 
         let mut output = TxPoolOutput::default();
         let mut to_remove = Vec::new();
@@ -98,7 +100,7 @@ where
                 anyhow::bail!("injected tx not found in db: {tx_hash}");
             };
 
-            match tx_checker.check_tx_validity(&tx)? {
+            match resolver.resolve(&tx)? {
                 TransactionStatus::Valid => {
                     tracing::trace!(tx_hash = ?tx_hash, tx = ?tx.data(), "tx is valid, including to announce");
                     output.selected_txs.push(tx)

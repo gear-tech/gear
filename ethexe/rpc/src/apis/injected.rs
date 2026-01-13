@@ -21,7 +21,8 @@ use dashmap::DashMap;
 use either::Either;
 use ethexe_common::{
     HashOf,
-    injected::{InjectedTransaction, RemovalNotification, RpcOrNetworkInjectedTx, SignedPromise},
+    injected::{InjectedTransaction, RpcOrNetworkInjectedTx, SignedPromise},
+    tx_pool::RemovalNotification,
 };
 use jsonrpsee::{
     PendingSubscriptionSink, SubscriptionMessage, SubscriptionSink,
