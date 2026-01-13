@@ -65,6 +65,8 @@ pub enum ObserverEvent {
 
 #[derive(Clone, Debug)]
 struct RuntimeConfig {
+    /// Protocol timelines.
+    timelines: ProtocolTimelines,
     /// Address of the Router contract.
     router_address: Address,
     /// Address of the Middleware contract.
@@ -74,8 +76,6 @@ struct RuntimeConfig {
     /// If block sync depth is greater than this value, blocks are synced in batches of this size.
     /// Must be greater than 1.
     batched_sync_depth: u32,
-    /// Slot duration in seconds.
-    slot_duration_secs: u64,
     /// Number of blocks after which election timestamp is considered finalized.
     finalization_period_blocks: u64,
 }
@@ -191,12 +191,12 @@ impl ObserverService {
             .into_stream();
 
         let config = RuntimeConfig {
+            timelines: db.config().timelines,
             router_address: *router_address,
             middleware_address,
             max_sync_depth,
             // TODO #4562: make this configurable.
             batched_sync_depth: 2,
-            slot_duration_secs: eth_cfg.block_time.as_secs(),
             // TODO #4562: make this configurable, since different networks may have different finalization periods.
             finalization_period_blocks: 64,
         };
@@ -215,6 +215,7 @@ impl ObserverService {
         })
     }
 
+    // +_+_+ remove
     // TODO #4563: this is a temporary solution
     /// Setup genesis block in the database if it's not prepared yet.
     async fn pre_process_genesis_for_db(
@@ -246,6 +247,7 @@ impl ObserverService {
             genesis_ts: genesis_header.timestamp,
             era: router_timelines.era,
             election: router_timelines.election,
+            slot: 12,
         };
         let genesis_validators = router_query.validators_at(genesis_block_hash).await?;
 

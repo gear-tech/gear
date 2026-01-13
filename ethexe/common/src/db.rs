@@ -19,7 +19,7 @@
 //! Common db types and traits.
 
 use crate::{
-    Announce, BlockHeader, CodeBlobInfo, Digest, HashOf, ProgramStates, ProtocolTimelines,
+    Address, Announce, BlockHeader, CodeBlobInfo, Digest, HashOf, ProgramStates, ProtocolTimelines,
     Schedule, SimpleBlockData, ValidatorsVec,
     events::BlockEvent,
     gear::StateTransition,
@@ -113,7 +113,6 @@ pub trait OnChainStorageRO {
     fn validators(&self, era_index: u64) -> Option<ValidatorsVec>;
     // TODO kuzmindev: temporal solution - must move into block meta or something else.
     fn block_validators_committed_for_era(&self, block_hash: H256) -> Option<u64>;
-    fn protocol_timelines(&self) -> Option<ProtocolTimelines>;
 }
 
 #[auto_impl::auto_impl(&)]
@@ -121,7 +120,6 @@ pub trait OnChainStorageRW: OnChainStorageRO {
     fn set_block_header(&self, block_hash: H256, header: BlockHeader);
     fn set_block_events(&self, block_hash: H256, events: &[BlockEvent]);
     fn set_code_blob_info(&self, code_id: CodeId, code_info: CodeBlobInfo);
-    fn set_protocol_timelines(&self, timelines: ProtocolTimelines);
     fn set_validators(&self, era_index: u64, validator_set: ValidatorsVec);
     fn set_block_validators_committed_for_era(&self, block_hash: H256, era_index: u64);
     fn set_block_synced(&self, block_hash: H256);
@@ -229,4 +227,22 @@ pub struct ComputedAnnounceData {
     pub program_states: ProgramStates,
     pub outcome: Vec<StateTransition>,
     pub schedule: Schedule,
+}
+
+#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
+pub struct DBConfig {
+    pub version: u32,
+    pub chain_id: u64,
+    pub router_address: Address,
+    pub timelines: ProtocolTimelines,
+    pub genesis_block_hash: H256,
+}
+
+#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
+pub struct DBGlobals {
+    pub start_block: H256,
+    pub start_announce_hash: HashOf<Announce>,
+    pub latest_synced_block: SimpleBlockData,
+    pub latest_prepared_block_hash: H256,
+    pub latest_computed_announce_hash: HashOf<Announce>,
 }

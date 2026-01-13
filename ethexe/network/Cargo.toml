@@ -42,3 +42,4 @@ tokio = { workspace = true, features = ["full", "test-util"] }
 tracing-subscriber.workspace = true
 assert_matches.workspace = true
 ethexe-common = { workspace = true, features = ["mock"] }
+ethexe-db = { workspace = true, features = ["mock"] }

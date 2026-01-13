@@ -27,7 +27,7 @@ use crate::{
 };
 use anyhow::{Result, anyhow};
 use ethexe_common::{
-    Address, Announce, HashOf, SimpleBlockData,
+    Address, Announce, HashOf, ProtocolTimelines, SimpleBlockData,
     consensus::{VerifiedAnnounce, VerifiedValidationRequest},
     db::OnChainStorageRO,
     injected::SignedInjectedTransaction,
@@ -103,6 +103,7 @@ pub struct ConnectService {
     db: Database,
     slot_duration: Duration,
     commitment_delay_limit: u32,
+    timelines: ProtocolTimelines,
 
     state: State,
     pending_announces: LruCache<(Address, H256), Announce>,
@@ -117,10 +118,13 @@ impl ConnectService {
     /// - `slot_duration`: Duration of each slot in the consensus protocol.
     /// - `commitment_delay_limit`: Maximum allowed delay for announce to be committed.
     pub fn new(db: Database, slot_duration: Duration, commitment_delay_limit: u32) -> Self {
+        let timelines = db.config().timelines;
+
         Self {
             db,
             slot_duration,
             commitment_delay_limit,
+            timelines,
             state: State::WaitingForBlock,
             pending_announces: LruCache::new(MAX_PENDING_ANNOUNCES),
             output: VecDeque::new(),
@@ -152,11 +156,7 @@ impl ConsensusService for ConnectService {
         if let State::WaitingForSyncedBlock { block } = &self.state
             && block.hash == block_hash
         {
-            let timelines = self
-                .db
-                .protocol_timelines()
-                .ok_or_else(|| anyhow!("protocol timelines not found in database"))?;
-            let block_era = timelines.era_from_ts(block.header.timestamp);
+            let block_era = self.timelines.era_from_ts(block.header.timestamp);
             let validators = self.db.validators(block_era).ok_or(anyhow!(
                 "validators not found for synced block({block_hash})"
             ))?;

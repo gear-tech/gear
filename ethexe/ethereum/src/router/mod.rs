@@ -305,9 +305,9 @@ impl RouterQuery {
         })
     }
 
-    pub fn from_provider(router_address: Address, provider: RootProvider) -> Self {
+    pub fn from_provider(router_address: LocalAddress, provider: RootProvider) -> Self {
         Self {
-            instance: QueryInstance::new(router_address, provider),
+            instance: QueryInstance::new(Address::new(router_address.0), provider),
         }
     }
 

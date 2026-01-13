@@ -21,7 +21,7 @@ use anyhow::anyhow;
 use async_trait::async_trait;
 use ethexe_common::{
     COMMITMENT_DELAY_LIMIT, DEFAULT_BLOCK_GAS_LIMIT, ProtocolTimelines, ValidatorsVec,
-    consensus::DEFAULT_CHAIN_DEEPNESS_THRESHOLD, db::OnChainStorageRW, ecdsa::ContractSignature,
+    consensus::DEFAULT_CHAIN_DEEPNESS_THRESHOLD, db::*, ecdsa::ContractSignature,
     gear::BatchCommitment, mock::*,
 };
 use hashbrown::HashMap;
@@ -143,6 +143,7 @@ impl WaitFor for ValidatorState {
     }
 }
 
+// +_+_+ restructure - pass db as parameter
 pub fn mock_validator_context() -> (ValidatorContext, Vec<PublicKey>, MockEthereum) {
     let (signer, _, mut keys) = crate::mock::init_signer_with_keys(10);
     let ethereum = MockEthereum::default();
@@ -171,7 +172,10 @@ pub fn mock_validator_context() -> (ValidatorContext, Vec<PublicKey>, MockEthere
         tasks: Default::default(),
     };
 
-    ctx.core.db.set_protocol_timelines(timelines);
+    ctx.core.db.set_config(DBConfig {
+        timelines,
+        ..DBConfig::mock(())
+    });
 
     (ctx, keys, ethereum)
 }

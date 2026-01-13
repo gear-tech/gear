@@ -603,7 +603,7 @@ pub(crate) mod tests {
     use crate::{tests::DataProvider, utils::tests::init_logger};
     use assert_matches::assert_matches;
     use ethexe_common::{Announce, HashOf, StateHashWithQueueSize, db::*};
-    use ethexe_db::{Database, MemDb};
+    use ethexe_db::Database;
     use libp2p::{
         Swarm, Transport,
         core::{transport::MemoryTransport, upgrade::Version},
@@ -637,7 +637,7 @@ pub(crate) mod tests {
 
     async fn new_swarm_with_config(config: Config) -> (Swarm<Behaviour>, Database, DataProvider) {
         let data_provider = DataProvider::default();
-        let db = Database::from_one(&MemDb::default());
+        let db = Database::memory();
         let behaviour = Behaviour::new(
             config,
             peer_score::Handle::new_test(),

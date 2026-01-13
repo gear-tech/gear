@@ -280,13 +280,11 @@ fn prepare_one_block<DB: BlockMetaStorageRW + LatestDataStorageRW + OnChainStora
         .ok_or(ComputeError::CodesQueueNotFound(parent))?;
 
     let mut last_committed_announce_hash = None;
+
+    // +_+_+ append check in intializer
     let mut latest_validators_committed_era = db
         .block_validators_committed_for_era(parent)
-        .unwrap_or_else(|| {
-            // TODO: !!! temporary fix
-            let tl = db.protocol_timelines().expect("must be");
-            tl.era_from_ts(block.header.timestamp)
-        });
+        .ok_or(ComputeError::CommittedEraNotFound(parent))?;
 
     for event in block.events {
         match event {

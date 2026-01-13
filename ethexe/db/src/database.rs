@@ -22,20 +22,21 @@ use crate::{
     CASDatabase, KVDatabase, MemDb,
     overlay::{CASOverlay, KVOverlay},
 };
+use anyhow::Result;
+use delegate::delegate;
 use ethexe_common::{
-    Announce, BlockHeader, CodeBlobInfo, HashOf, ProgramStates, ProtocolTimelines, Schedule,
-    ValidatorsVec,
+    Address, Announce, BlockHeader, CodeBlobInfo, HashOf, ProgramStates, ProtocolTimelines,
+    Schedule, SimpleBlockData, ValidatorsVec,
     db::{
         AnnounceMeta, AnnounceStorageRO, AnnounceStorageRW, BlockMeta, BlockMetaStorageRO,
-        BlockMetaStorageRW, CodesStorageRO, CodesStorageRW, HashStorageRO, InjectedStorageRO,
-        InjectedStorageRW, LatestData, LatestDataStorageRO, LatestDataStorageRW, OnChainStorageRO,
-        OnChainStorageRW,
+        BlockMetaStorageRW, CodesStorageRO, CodesStorageRW, DBConfig, DBGlobals, HashStorageRO,
+        InjectedStorageRO, InjectedStorageRW, LatestData, LatestDataStorageRO, LatestDataStorageRW,
+        OnChainStorageRO, OnChainStorageRW,
     },
     events::BlockEvent,
     gear::StateTransition,
     injected::{InjectedTransaction, Promise, SignedInjectedTransaction},
 };
-
 use ethexe_runtime_common::state::{
     Allocations, DispatchStash, Mailbox, MemoryPages, MemoryPagesRegion, MessageQueue,
     ProgramState, Storage, UserMailbox, Waitlist,
@@ -48,7 +49,12 @@ use gear_core::{
 };
 use gprimitives::H256;
 use parity_scale_codec::{Decode, Encode};
-use std::collections::BTreeSet;
+use std::{
+    collections::BTreeSet,
+    sync::{Arc, RwLock, RwLockReadGuard},
+};
+
+pub const VERSION: u32 = 1;
 
 #[repr(u64)]
 enum Key {
@@ -72,8 +78,8 @@ enum Key {
     InjectedTransaction(HashOf<InjectedTransaction>) = 12,
     Promise(HashOf<InjectedTransaction>) = 13,
 
-    LatestData = 14,
-    Timelines = 15,
+    Globals = 14,
+    Config = 15,
 
     // TODO kuzmindev: temporal solution - must move into block meta or something else.
     LatestEraValidatorsCommitted(H256),
@@ -119,7 +125,7 @@ impl Key {
                 bytes.extend(runtime_id.to_le_bytes());
                 bytes.extend(code_id.as_ref());
             }
-            Self::LatestData | Self::Timelines => {
+            Self::Globals | Self::Config => {
                 // append additional zero bytes to avoid intersection with CAS
                 bytes.extend([0; 8])
             }
@@ -138,11 +144,298 @@ impl Key {
     }
 }
 
+impl dyn KVDatabase {
+    pub fn config(&self) -> Result<Option<DBConfig>> {
+        self.get(&Key::Config.to_bytes())
+            .map(|data| DBConfig::decode(&mut data.as_ref()).map_err(Into::into))
+            .transpose()
+    }
+
+    pub fn globals(&self) -> Result<DBGlobals> {
+        DBGlobals::decode(
+            &mut self
+                .get(&Key::Globals.to_bytes())
+                .expect("Database globals not found")
+                .as_ref(),
+        )
+        .map_err(Into::into)
+    }
+
+    pub fn set_config(&self, config: DBConfig) {
+        self.put(&Key::Config.to_bytes(), config.encode());
+    }
+
+    pub fn set_globals(&self, globals: DBGlobals) {
+        self.put(&Key::Globals.to_bytes(), globals.encode());
+    }
+}
+
+pub struct DatabaseRef<'a, 'b> {
+    pub cas: &'a dyn CASDatabase,
+    pub kv: &'b dyn KVDatabase,
+}
+
+impl<'a, 'b> DatabaseRef<'a, 'b> {
+    fn block_small_data(&self, block_hash: H256) -> Option<BlockSmallData> {
+        self.kv
+            .get(&Key::BlockSmallData(block_hash).to_bytes())
+            .map(|data| {
+                BlockSmallData::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `BlockSmallMetaInfo`")
+            })
+    }
+
+    fn set_block_small_data(&self, block_hash: H256, meta: BlockSmallData) {
+        self.kv
+            .put(&Key::BlockSmallData(block_hash).to_bytes(), meta.encode());
+    }
+
+    fn with_small_data<R>(
+        &self,
+        block_hash: H256,
+        f: impl FnOnce(BlockSmallData) -> R,
+    ) -> Option<R> {
+        self.block_small_data(block_hash).map(f)
+    }
+
+    /// Mutates `BlockSmallData` for the given block hash.
+    ///
+    /// If data wasn't found, it will be created with default values and then mutated.
+    fn mutate_small_data(&self, block_hash: H256, f: impl FnOnce(&mut BlockSmallData)) {
+        let mut data = self.block_small_data(block_hash).unwrap_or_default();
+        f(&mut data);
+        self.set_block_small_data(block_hash, data);
+    }
+
+    pub fn config(&self) -> Result<Option<DBConfig>> {
+        self.kv
+            .get(&Key::Config.to_bytes())
+            .map(|data| DBConfig::decode(&mut data.as_ref()).map_err(Into::into))
+            .transpose()
+    }
+
+    pub fn globals(&self) -> Result<DBGlobals> {
+        DBGlobals::decode(
+            &mut self
+                .kv
+                .get(&Key::Globals.to_bytes())
+                .expect("Database globals not found")
+                .as_ref(),
+        )
+        .map_err(Into::into)
+    }
+
+    pub fn set_config(&self, config: DBConfig) {
+        self.kv.put(&Key::Config.to_bytes(), config.encode());
+    }
+
+    pub fn set_globals(&self, globals: DBGlobals) {
+        self.kv.put(&Key::Globals.to_bytes(), globals.encode());
+    }
+}
+
+impl<'a, 'b> AnnounceStorageRO for DatabaseRef<'a, 'b> {
+    fn announce(&self, hash: HashOf<Announce>) -> Option<Announce> {
+        self.cas.read(hash.inner()).map(|data| {
+            Announce::decode(&mut &data[..]).expect("Failed to decode data into `Announce`")
+        })
+    }
+
+    fn announce_program_states(&self, announce_hash: HashOf<Announce>) -> Option<ProgramStates> {
+        self.kv
+            .get(&Key::AnnounceProgramStates(announce_hash).to_bytes())
+            .map(|data| {
+                ProgramStates::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `ProgramStates`")
+            })
+    }
+
+    fn announce_outcome(&self, announce_hash: HashOf<Announce>) -> Option<Vec<StateTransition>> {
+        self.kv
+            .get(&Key::AnnounceOutcome(announce_hash).to_bytes())
+            .map(|data| {
+                Vec::<StateTransition>::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `Vec<StateTransition>`")
+            })
+    }
+
+    fn announce_schedule(&self, announce_hash: HashOf<Announce>) -> Option<Schedule> {
+        self.kv
+            .get(&Key::AnnounceSchedule(announce_hash).to_bytes())
+            .map(|data| {
+                Schedule::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `Schedule`")
+            })
+    }
+
+    fn announce_meta(&self, announce_hash: HashOf<Announce>) -> AnnounceMeta {
+        self.kv
+            .get(&Key::AnnounceMeta(announce_hash).to_bytes())
+            .map(|data| {
+                AnnounceMeta::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `AnnounceMeta`")
+            })
+            .unwrap_or_default()
+    }
+}
+
+impl<'a, 'b> AnnounceStorageRW for DatabaseRef<'a, 'b> {
+    fn set_announce(&self, announce: Announce) -> HashOf<Announce> {
+        tracing::trace!(announce_hash = %announce.to_hash(), announce = ?announce, "Set announce");
+        unsafe { HashOf::new(self.cas.write(&announce.encode())) }
+    }
+
+    fn set_announce_program_states(
+        &self,
+        announce_hash: HashOf<Announce>,
+        program_states: ProgramStates,
+    ) {
+        tracing::trace!(announce_hash = %announce_hash, "Set announce program states");
+        self.kv.put(
+            &Key::AnnounceProgramStates(announce_hash).to_bytes(),
+            program_states.encode(),
+        );
+    }
+
+    fn set_announce_outcome(&self, announce_hash: HashOf<Announce>, outcome: Vec<StateTransition>) {
+        tracing::trace!(announce_hash = %announce_hash, "Set announce outcome");
+        self.kv.put(
+            &Key::AnnounceOutcome(announce_hash).to_bytes(),
+            outcome.encode(),
+        );
+    }
+
+    fn set_announce_schedule(&self, announce_hash: HashOf<Announce>, schedule: Schedule) {
+        tracing::trace!(announce_hash = %announce_hash, "Set announce schedule");
+        self.kv.put(
+            &Key::AnnounceSchedule(announce_hash).to_bytes(),
+            schedule.encode(),
+        );
+    }
+
+    fn mutate_announce_meta(
+        &self,
+        announce_hash: HashOf<Announce>,
+        f: impl FnOnce(&mut AnnounceMeta),
+    ) {
+        tracing::trace!(announce_hash = %announce_hash, "Mutate announce meta");
+        let mut meta = self.announce_meta(announce_hash);
+        f(&mut meta);
+        self.kv
+            .put(&Key::AnnounceMeta(announce_hash).to_bytes(), meta.encode());
+    }
+}
+
+impl<'a, 'b> OnChainStorageRO for DatabaseRef<'a, 'b> {
+    fn block_header(&self, block_hash: H256) -> Option<BlockHeader> {
+        self.with_small_data(block_hash, |data| data.block_header)?
+    }
+
+    fn block_events(&self, block_hash: H256) -> Option<Vec<BlockEvent>> {
+        self.kv
+            .get(&Key::BlockEvents(block_hash).to_bytes())
+            .map(|data| {
+                Vec::<BlockEvent>::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `Vec<BlockEvent>`")
+            })
+    }
+
+    fn code_blob_info(&self, code_id: CodeId) -> Option<CodeBlobInfo> {
+        self.kv
+            .get(&Key::CodeUploadInfo(code_id).to_bytes())
+            .map(|data| {
+                Decode::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `CodeBlobInfo`")
+            })
+    }
+
+    fn block_synced(&self, block_hash: H256) -> bool {
+        self.with_small_data(block_hash, |data| data.block_is_synced)
+            .unwrap_or_default()
+    }
+
+    fn validators(&self, era_index: u64) -> Option<ValidatorsVec> {
+        self.kv
+            .get(&Key::ValidatorSet(era_index).to_bytes())
+            .map(|data| {
+                Decode::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `ValidatorsVec`")
+            })
+    }
+
+    fn block_validators_committed_for_era(&self, block_hash: H256) -> Option<u64> {
+        self.kv
+            .get(&Key::LatestEraValidatorsCommitted(block_hash).to_bytes())
+            .map(|data| {
+                Decode::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `u64` (era_index)")
+            })
+    }
+}
+
+impl<'a, 'b> OnChainStorageRW for DatabaseRef<'a, 'b> {
+    fn set_block_header(&self, block_hash: H256, header: BlockHeader) {
+        tracing::trace!("Set block header for {block_hash}");
+        self.mutate_small_data(block_hash, |data| data.block_header = Some(header));
+    }
+
+    fn set_block_events(&self, block_hash: H256, events: &[BlockEvent]) {
+        tracing::trace!("Set block events for {block_hash}");
+        self.kv
+            .put(&Key::BlockEvents(block_hash).to_bytes(), events.encode());
+    }
+
+    fn set_code_blob_info(&self, code_id: CodeId, code_info: CodeBlobInfo) {
+        tracing::trace!("Set code upload info for {code_id}");
+        self.kv
+            .put(&Key::CodeUploadInfo(code_id).to_bytes(), code_info.encode());
+    }
+
+    fn set_block_synced(&self, block_hash: H256) {
+        tracing::trace!("For block {block_hash} set synced");
+        self.mutate_small_data(block_hash, |data| {
+            data.block_is_synced = true;
+        });
+    }
+
+    fn set_validators(&self, era_index: u64, validator_set: ValidatorsVec) {
+        self.kv.put(
+            &Key::ValidatorSet(era_index).to_bytes(),
+            validator_set.encode(),
+        );
+    }
+
+    fn set_block_validators_committed_for_era(&self, block_hash: H256, era_index: u64) {
+        self.kv.put(
+            &Key::LatestEraValidatorsCommitted(block_hash).to_bytes(),
+            era_index.encode(),
+        );
+    }
+}
+
+impl<'a, 'b> BlockMetaStorageRO for DatabaseRef<'a, 'b> {
+    fn block_meta(&self, block_hash: H256) -> BlockMeta {
+        self.with_small_data(block_hash, |data| data.meta)
+            .unwrap_or_default()
+    }
+}
+
+impl<'a, 'b> BlockMetaStorageRW for DatabaseRef<'a, 'b> {
+    fn mutate_block_meta(&self, block_hash: H256, f: impl FnOnce(&mut BlockMeta)) {
+        tracing::trace!("For block {block_hash} mutate meta");
+        self.mutate_small_data(block_hash, |data| {
+            f(&mut data.meta);
+        });
+    }
+}
+
 #[derive(derive_more::Debug)]
 #[debug("Database(CAS + KV)")]
 pub struct Database {
     cas: Box<dyn CASDatabase>,
     kv: Box<dyn KVDatabase>,
+    globals: Arc<RwLock<DBGlobals>>,
+    config: Arc<RwLock<DBConfig>>,
 }
 
 impl Clone for Database {
@@ -150,23 +443,83 @@ impl Clone for Database {
         Self {
             cas: self.cas.clone_boxed(),
             kv: self.kv.clone_boxed(),
+            config: self.config.clone(),
+            globals: self.globals.clone(),
         }
     }
 }
 
 impl Database {
-    pub fn new(cas: &dyn CASDatabase, kv: &dyn KVDatabase) -> Self {
-        Self {
+    pub fn new(cas: &dyn CASDatabase, kv: &dyn KVDatabase) -> Result<Self> {
+        let config = DBConfig::decode(
+            &mut (kv
+                .get(&Key::Config.to_bytes())
+                .ok_or_else(|| anyhow::anyhow!("Database config not found"))?)
+            .as_ref(),
+        )?;
+
+        if config.version != VERSION {
+            return Err(anyhow::anyhow!(
+                "Database version mismatch: expected {}, found {}",
+                VERSION,
+                config.version
+            ));
+        }
+
+        let globals = DBGlobals::decode(
+            &mut (kv
+                .get(&Key::Globals.to_bytes())
+                .ok_or_else(|| anyhow::anyhow!("Database globals not found"))?)
+            .as_ref(),
+        )?;
+
+        // TODO +_+_+: implement verifier and clean up
+
+        let db = Self {
             cas: cas.clone_boxed(),
             kv: kv.clone_boxed(),
+            globals: Arc::new(RwLock::new(globals)),
+            config: Arc::new(RwLock::new(config)),
+        };
+
+        Ok(db)
+    }
+
+    fn as_ref(&self) -> DatabaseRef<'_, '_> {
+        DatabaseRef {
+            cas: self.cas.as_ref(),
+            kv: self.kv.as_ref(),
         }
     }
 
     pub fn from_one<DB: CASDatabase + KVDatabase>(db: &DB) -> Self {
-        Self::new(db, db)
+        Self::new(db, db).expect("+_+_+ Failed to create Database from one DB")
     }
 
+    #[cfg(feature = "mock")]
     pub fn memory() -> Self {
+        let mem_db = MemDb::default();
+
+        // set default config and globals
+        let config = DBConfig {
+            version: VERSION,
+            chain_id: 0,
+            router_address: Address([0; 20]),
+            timelines: ProtocolTimelines::default(),
+            genesis_block_hash: H256::zero(),
+        };
+        let globals = DBGlobals {
+            // +_+_+
+            start_block: H256::zero(),
+            start_announce_hash: HashOf::zero(),
+            latest_synced_block: SimpleBlockData::default(),
+            latest_prepared_block_hash: H256::zero(),
+            latest_computed_announce_hash: HashOf::zero(),
+        };
+
+        mem_db.put(&Key::Config.to_bytes(), config.encode());
+        mem_db.put(&Key::Globals.to_bytes(), globals.encode());
+
         Self::from_one(&MemDb::default())
     }
 
@@ -176,11 +529,35 @@ impl Database {
         Self {
             cas: Box::new(CASOverlay::new(self.cas)),
             kv: Box::new(KVOverlay::new(self.kv)),
+            config: self.config,
+            globals: self.globals,
         }
     }
 
     pub fn cas(&self) -> &dyn CASDatabase {
         self.cas.as_ref()
+    }
+
+    pub fn config(&self) -> RwLockReadGuard<'_, DBConfig> {
+        self.config
+            .read()
+            .expect("Failed to lock config for reading")
+    }
+
+    pub fn globals(&self) -> RwLockReadGuard<'_, DBGlobals> {
+        self.globals
+            .read()
+            .expect("Failed to lock globals for reading")
+    }
+
+    pub fn globals_mutate<R>(&self, mut f: impl FnMut(&mut DBGlobals) -> R) -> R {
+        let mut globals = self
+            .globals
+            .write()
+            .expect("Failed to lock globals for writing");
+        let res = f(&mut globals);
+        self.kv.put(&Key::Globals.to_bytes(), globals.encode());
+        res
     }
 
     fn with_small_data<R>(
@@ -516,13 +893,6 @@ impl Storage for Database {
 }
 
 impl OnChainStorageRO for Database {
-    fn protocol_timelines(&self) -> Option<ProtocolTimelines> {
-        self.kv.get(&Key::Timelines.to_bytes()).map(|data| {
-            Decode::decode(&mut data.as_slice())
-                .expect("Failed to decode data into `GearExeTimelines`")
-        })
-    }
-
     fn block_header(&self, block_hash: H256) -> Option<BlockHeader> {
         self.with_small_data(block_hash, |data| data.block_header)?
     }
@@ -570,11 +940,6 @@ impl OnChainStorageRO for Database {
 }
 
 impl OnChainStorageRW for Database {
-    fn set_protocol_timelines(&self, timelines: ProtocolTimelines) {
-        tracing::trace!("Set protocol timelines");
-        self.kv.put(&Key::Timelines.to_bytes(), timelines.encode());
-    }
-
     fn set_block_header(&self, block_hash: H256, header: BlockHeader) {
         tracing::trace!("Set block header for {block_hash}");
         self.mutate_small_data(block_hash, |data| data.block_header = Some(header));
@@ -651,110 +1016,36 @@ impl InjectedStorageRW for Database {
 }
 
 impl AnnounceStorageRO for Database {
-    fn announce(&self, hash: HashOf<Announce>) -> Option<Announce> {
-        self.cas.read(hash.inner()).map(|data| {
-            Announce::decode(&mut &data[..]).expect("Failed to decode data into `Announce`")
-        })
-    }
-
-    fn announce_program_states(&self, announce_hash: HashOf<Announce>) -> Option<ProgramStates> {
-        self.kv
-            .get(&Key::AnnounceProgramStates(announce_hash).to_bytes())
-            .map(|data| {
-                ProgramStates::decode(&mut data.as_slice())
-                    .expect("Failed to decode data into `ProgramStates`")
-            })
-    }
-
-    fn announce_outcome(&self, announce_hash: HashOf<Announce>) -> Option<Vec<StateTransition>> {
-        self.kv
-            .get(&Key::AnnounceOutcome(announce_hash).to_bytes())
-            .map(|data| {
-                Vec::<StateTransition>::decode(&mut data.as_slice())
-                    .expect("Failed to decode data into `Vec<StateTransition>`")
-            })
-    }
-
-    fn announce_schedule(&self, announce_hash: HashOf<Announce>) -> Option<Schedule> {
-        self.kv
-            .get(&Key::AnnounceSchedule(announce_hash).to_bytes())
-            .map(|data| {
-                Schedule::decode(&mut data.as_slice())
-                    .expect("Failed to decode data into `Schedule`")
-            })
-    }
-
-    fn announce_meta(&self, announce_hash: HashOf<Announce>) -> AnnounceMeta {
-        self.kv
-            .get(&Key::AnnounceMeta(announce_hash).to_bytes())
-            .map(|data| {
-                AnnounceMeta::decode(&mut data.as_slice())
-                    .expect("Failed to decode data into `AnnounceMeta`")
-            })
-            .unwrap_or_default()
-    }
+    delegate!(to self.as_ref() {
+        fn announce(&self, hash: HashOf<Announce>) -> Option<Announce>;
+        fn announce_program_states(&self, announce_hash: HashOf<Announce>) -> Option<ProgramStates>;
+        fn announce_outcome(&self, announce_hash: HashOf<Announce>) -> Option<Vec<StateTransition>>;
+        fn announce_schedule(&self, announce_hash: HashOf<Announce>) -> Option<Schedule>;
+        fn announce_meta(&self, announce_hash: HashOf<Announce>) -> AnnounceMeta;
+    });
 }
 
 impl AnnounceStorageRW for Database {
-    fn set_announce(&self, announce: Announce) -> HashOf<Announce> {
-        tracing::trace!("Set announce {}: {announce}", announce.to_hash());
-        // Safe, because of inner method implementation.
-        unsafe { HashOf::new(self.cas.write(&announce.encode())) }
-    }
-
-    fn set_announce_program_states(
-        &self,
-        announce_hash: HashOf<Announce>,
-        program_states: ProgramStates,
-    ) {
-        tracing::trace!(
-            "Set announce program states for {announce_hash}: len {}",
-            program_states.len()
+    delegate!(to self.as_ref() {
+        fn set_announce(&self, announce: Announce) -> HashOf<Announce>;
+        fn set_announce_program_states(
+            &self,
+            announce_hash: HashOf<Announce>,
+            program_states: ProgramStates,
         );
-        self.kv.put(
-            &Key::AnnounceProgramStates(announce_hash).to_bytes(),
-            program_states.encode(),
+        fn set_announce_outcome(&self, announce_hash: HashOf<Announce>, outcome: Vec<StateTransition>);
+        fn set_announce_schedule(&self, announce_hash: HashOf<Announce>, schedule: Schedule);
+        fn mutate_announce_meta(
+            &self,
+            announce_hash: HashOf<Announce>,
+            f: impl FnOnce(&mut AnnounceMeta),
         );
-    }
-
-    fn set_announce_outcome(&self, announce_hash: HashOf<Announce>, outcome: Vec<StateTransition>) {
-        tracing::trace!(
-            "Set announce outcome for {announce_hash}: len {}",
-            outcome.len()
-        );
-        self.kv.put(
-            &Key::AnnounceOutcome(announce_hash).to_bytes(),
-            outcome.encode(),
-        );
-    }
-
-    fn set_announce_schedule(&self, announce_hash: HashOf<Announce>, schedule: Schedule) {
-        tracing::trace!(
-            "Set announce schedule for {announce_hash}: len {}",
-            schedule.len()
-        );
-        self.kv.put(
-            &Key::AnnounceSchedule(announce_hash).to_bytes(),
-            schedule.encode(),
-        );
-    }
-
-    fn mutate_announce_meta(
-        &self,
-        announce_hash: HashOf<Announce>,
-        f: impl FnOnce(&mut AnnounceMeta),
-    ) {
-        tracing::trace!("For announce {announce_hash} mutate meta");
-        let mut meta = self.announce_meta(announce_hash);
-        f(&mut meta);
-        self.kv
-            .put(&Key::AnnounceMeta(announce_hash).to_bytes(), meta.encode());
-    }
+    });
 }
 
 impl LatestDataStorageRO for Database {
     fn latest_data(&self) -> Option<LatestData> {
-        self.kv.get(&Key::LatestData.to_bytes()).map(|data| {
+        self.kv.get(&Key::Globals.to_bytes()).map(|data| {
             LatestData::decode(&mut data.as_slice())
                 .expect("Failed to decode data into `LatestData`")
         })
@@ -763,7 +1054,29 @@ impl LatestDataStorageRO for Database {
 
 impl LatestDataStorageRW for Database {
     fn set_latest_data(&self, data: LatestData) {
-        self.kv.put(&Key::LatestData.to_bytes(), data.encode());
+        self.kv.put(&Key::Globals.to_bytes(), data.encode());
+    }
+}
+
+#[cfg(feature = "mock")]
+mod mock {
+    use super::*;
+    use ethexe_common::mock::*;
+
+    impl SetConfig for Database {
+        fn set_config(&self, config: DBConfig) {
+            *self
+                .config
+                .write()
+                .expect("Failed to lock config for writing") = config.clone();
+            self.kv.put(&Key::Config.to_bytes(), config.encode());
+        }
+    }
+
+    impl SetGlobals for Database {
+        fn set_globals(&self, globals: DBGlobals) {
+            self.kv.put(&Key::Globals.to_bytes(), globals.encode());
+        }
     }
 }
 

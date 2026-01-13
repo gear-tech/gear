@@ -326,7 +326,7 @@ impl TestEnv {
                 general_signer: signer.clone(),
                 network_signer: signer.clone(),
                 external_data_provider: Box::new(RouterDataProvider(router_query.clone())),
-                db: Box::new(db.clone()),
+                db: db.clone(),
             };
 
             let mut service = NetworkService::new(config, runtime_config).unwrap();
@@ -1157,7 +1157,7 @@ impl Node {
             general_signer: self.signer.clone(),
             network_signer: self.signer.clone(),
             external_data_provider: Box::new(RouterDataProvider(self.router_query.clone())),
-            db: Box::new(self.db.clone()),
+            db: self.db.clone(),
         };
 
         let network = NetworkService::new(config, runtime_config).unwrap();

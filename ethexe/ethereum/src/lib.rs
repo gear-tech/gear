@@ -84,24 +84,24 @@ pub struct Ethereum {
 impl Ethereum {
     pub async fn new(
         rpc: &str,
-        router_address: Address,
+        router_address: LocalAddress,
         signer: LocalSigner,
         sender_address: LocalAddress,
     ) -> Result<Ethereum> {
         let provider = create_provider(rpc, signer, sender_address).await?;
         let router_query = RouterQuery::from_provider(router_address, provider.root().clone());
         Ok(Self {
-            router: router_address,
+            router: Address::new(router_address.0),
             wvara: router_query.wvara_address().await?,
             middleware: router_query.middleware_address().await?,
             provider,
         })
     }
 
-    pub async fn from_provider(provider: AlloyProvider, router: Address) -> Result<Self> {
+    pub async fn from_provider(provider: AlloyProvider, router: LocalAddress) -> Result<Self> {
         let router_query = RouterQuery::from_provider(router, provider.root().clone());
         Ok(Self {
-            router,
+            router: Address::new(router.0),
             wvara: router_query.wvara_address().await?,
             middleware: router_query.middleware_address().await?,
             provider,

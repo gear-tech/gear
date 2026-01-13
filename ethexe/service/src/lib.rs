@@ -34,7 +34,7 @@ use ethexe_compute::{ComputeConfig, ComputeEvent, ComputeService};
 use ethexe_consensus::{
     ConnectService, ConsensusEvent, ConsensusService, ValidatorConfig, ValidatorService,
 };
-use ethexe_db::{Database, RocksDatabase};
+use ethexe_db::{Database, DatabaseRef, RocksDatabase};
 use ethexe_ethereum::{Ethereum, deploy::EthereumDeployer, router::RouterQuery};
 use ethexe_network::{
     NetworkEvent, NetworkRuntimeConfig, NetworkService,
@@ -56,6 +56,7 @@ use std::{collections::BTreeSet, num::NonZero, path::PathBuf, pin::Pin, time::Du
 pub mod config;
 
 mod fast_sync;
+mod init;
 #[cfg(test)]
 mod tests;
 
@@ -187,6 +188,16 @@ impl Service {
                 .database_path_for(config.ethereum.router_address),
         )
         .with_context(|| "failed to open database")?;
+
+        init::version1::initialize_db(
+            config,
+            DatabaseRef {
+                cas: &rocks_db,
+                kv: &rocks_db,
+            },
+        )
+        .await?;
+
         let db = Database::from_one(&rocks_db);
 
         let consensus_config = ConsensusLayerConfig {
@@ -269,7 +280,7 @@ impl Service {
             if let Some(pub_key) = validator_pub_key {
                 let ethereum = Ethereum::new(
                     &config.ethereum.rpc,
-                    config.ethereum.router_address.into(),
+                    config.ethereum.router_address,
                     signer.clone(),
                     pub_key.to_address(),
                 )
@@ -331,7 +342,7 @@ impl Service {
                 general_signer: signer.clone(),
                 network_signer,
                 external_data_provider: Box::new(RouterDataProvider(router_query)),
-                db: Box::new(db.clone()),
+                db: db.clone(),
             };
 
             let network = NetworkService::new(net_config.clone(), runtime_config)

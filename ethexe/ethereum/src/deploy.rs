@@ -146,7 +146,7 @@ impl EthereumDeployer {
 
     pub async fn deploy(self) -> Result<Ethereum> {
         let router = self.deploy_contracts().await?;
-        Ethereum::from_provider(self.provider.clone(), router).await
+        Ethereum::from_provider(self.provider.clone(), LocalAddress(router.0.into())).await
     }
 }
 

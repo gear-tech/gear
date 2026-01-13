@@ -707,10 +707,12 @@ pub(crate) async fn sync(service: &mut Service) -> Result<()> {
 
     let storage_view = observer.router_query().storage_view_at(block_hash).await?;
 
+    // +_+_+ todo remove
     let timelines = ProtocolTimelines {
         genesis_ts: storage_view.genesisBlock.timestamp.to::<u64>(),
         election: storage_view.timelines.election.to::<u64>(),
         era: storage_view.timelines.era.to::<u64>(),
+        slot: 12,
     };
 
     // Since we get storage view at `block_hash`

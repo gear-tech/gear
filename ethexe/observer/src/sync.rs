@@ -183,11 +183,7 @@ impl<DB: SyncDB> ChainSync<DB> {
     ///
     /// See [`Self::election_timestamp_finalized`] for the our timestamp `finalization` rules.
     async fn ensure_validators(&self, data: SimpleBlockData) -> Result<()> {
-        let timelines = self
-            .db
-            .protocol_timelines()
-            .ok_or_else(|| anyhow!("protocol timelines not found in database"))?;
-        let chain_head_era = timelines.era_from_ts(data.header.timestamp);
+        let chain_head_era = self.config.timelines.era_from_ts(data.header.timestamp);
 
         // If we don't have validators for current era - set them.
         if self.db.validators(chain_head_era).is_none() {
@@ -235,11 +231,12 @@ impl<DB: SyncDB> ChainSync<DB> {
     /// By `finalization` we mean the 64 blocks, because of it is closely to real finalization time and
     /// reorgs for 64 blocks can not happen.
     fn election_timestamp_finalized(&self, chain_head: BlockHeader) -> Option<u64> {
-        let timelines = self.db.protocol_timelines()?;
-        let election_ts =
-            timelines.era_election_start_ts(timelines.era_from_ts(chain_head.timestamp));
+        let election_ts = self
+            .config
+            .timelines
+            .era_election_start_ts(self.config.timelines.era_from_ts(chain_head.timestamp));
         (chain_head.timestamp.saturating_sub(election_ts)
-            > self.config.slot_duration_secs * self.config.finalization_period_blocks)
+            > self.config.timelines.slot * self.config.finalization_period_blocks)
             .then_some(election_ts)
     }
 }

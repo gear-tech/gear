@@ -56,7 +56,7 @@ pub enum ComputeError {
     #[error("block header not found for synced block({0})")]
     BlockHeaderNotFound(H256),
     #[error("block validators committed for era not found for block({0})")]
-    BlockValidatorsCommittedForEraNotFound(H256),
+    CommittedEraNotFound(H256),
     #[error("process code join error")]
     CodeProcessJoin(#[from] tokio::task::JoinError),
     #[error("codes queue not found for computed block({0})")]

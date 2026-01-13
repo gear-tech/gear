@@ -813,11 +813,11 @@ mod tests {
         let (mut ctx, _, eth) = mock_validator_context();
         let chain = BlockChain::mock(20)
             .tap_mut(|chain| {
-                chain.protocol_timelines.era = 10 * chain.slot_duration as u64;
-                chain.protocol_timelines.election = 5 * chain.slot_duration as u64;
+                chain.config.timelines.era = 10 * chain.config.timelines.slot as u64;
+                chain.config.timelines.election = 5 * chain.config.timelines.slot as u64;
             })
             .setup(&ctx.core.db);
-        ctx.core.timelines = chain.protocol_timelines;
+        ctx.core.timelines = chain.config.timelines;
 
         let validators1 = [Address([1; 20]), Address([2; 20]), Address([3; 20])]
             .into_iter()
@@ -828,14 +828,13 @@ mod tests {
             .collect::<Result<ValidatorsVec, _>>()
             .unwrap();
         eth.predefined_election_at.write().await.insert(
-            chain.protocol_timelines.era_election_start_ts(0),
+            chain.config.timelines.era_election_start_ts(0),
             validators1.clone(),
         );
         eth.predefined_election_at.write().await.insert(
-            chain.protocol_timelines.era_election_start_ts(1),
+            chain.config.timelines.era_election_start_ts(1),
             validators2.clone(),
         );
-
         // Before election
         let commitment = ctx
             .core

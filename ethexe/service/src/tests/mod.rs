@@ -2675,7 +2675,7 @@ async fn announces_conflicts() {
         let wait_for_pong = env.send_message(ping_id, b"PING").await.unwrap();
 
         let block = env.latest_block().await;
-        let timelines = env.db.protocol_timelines().unwrap();
+        let timelines = env.db.config().timelines;
         let era_index = timelines.era_from_ts(block.header.timestamp);
         let announce = Announce::with_default_gas(block.hash, HashOf::random());
         let announce_hash = announce.to_hash();
@@ -2779,7 +2779,7 @@ async fn announces_conflicts() {
 
         // Send announce from stopped validator 6
         let block = env.latest_block().await;
-        let timelines = env.db.protocol_timelines().unwrap();
+        let timelines = env.db.config().timelines;
         let era_index = timelines.era_from_ts(block.header.timestamp);
         let announce6 = Announce::with_default_gas(block.hash, latest_computed_announce_hash);
         let announce6_hash = announce6.to_hash();
@@ -2803,7 +2803,7 @@ async fn announces_conflicts() {
         // Announce is not on top of announce6 (already accepted),
         // so must be rejected by validators 1..=5
         let block = env.latest_block().await;
-        let timelines = env.db.protocol_timelines().unwrap();
+        let timelines = env.db.config().timelines;
         let era_index = timelines.era_from_ts(block.header.timestamp);
         let parent = validator1_db
             .block_meta(block.header.parent_hash)

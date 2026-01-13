@@ -143,7 +143,7 @@ impl TxCommand {
 
         let sender = self.sender.ok_or_else(|| anyhow!("missing `sender`"))?;
 
-        let ethereum = Ethereum::new(&rpc, router_addr.into(), signer, sender)
+        let ethereum = Ethereum::new(&rpc, router_addr, signer, sender)
             .await
             .with_context(|| "failed to create Ethereum client")?;
 

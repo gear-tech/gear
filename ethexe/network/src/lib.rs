@@ -40,6 +40,7 @@ use ethexe_common::{
     injected::{RpcOrNetworkInjectedTx, SignedInjectedTransaction},
     network::{SignedValidatorMessage, VerifiedValidatorMessage},
 };
+use ethexe_db::Database;
 use ethexe_signer::Signer;
 use futures::{Stream, future::Either, ready, stream::FusedStream};
 use gprimitives::H256;
@@ -70,9 +71,6 @@ pub const AGENT_VERSION: &str = concat!(env!("CARGO_PKG_NAME"), "/", env!("CARGO
 const MAX_ESTABLISHED_INCOMING_PER_PEER_CONNECTIONS: u32 = 1;
 const MAX_ESTABLISHED_OUTBOUND_PER_PEER_CONNECTIONS: u32 = 1;
 const MAX_ESTABLISHED_INCOMING_CONNECTIONS: u32 = 100;
-
-pub trait NetworkServiceDatabase: DbSyncDatabase + ValidatorDatabase {}
-impl<T> NetworkServiceDatabase for T where T: DbSyncDatabase + ValidatorDatabase {}
 
 #[derive(derive_more::Debug, Eq, PartialEq, Clone)]
 pub enum NetworkEvent {
@@ -138,7 +136,7 @@ pub struct NetworkRuntimeConfig {
     pub general_signer: Signer,
     pub network_signer: Signer,
     pub external_data_provider: Box<dyn db_sync::ExternalDataProvider>,
-    pub db: Box<dyn NetworkServiceDatabase>,
+    pub db: Database,
 }
 
 pub struct NetworkService {
@@ -202,8 +200,11 @@ impl NetworkService {
             db,
         } = runtime_config;
 
+        let timelines = db.config().timelines;
+
         let (validator_list, validator_list_snapshot) = ValidatorList::new(
             ValidatorDatabase::clone_boxed(&db),
+            timelines,
             latest_block_header,
             latest_validators,
         )
@@ -706,7 +707,7 @@ mod tests {
         utils::tests::init_logger,
     };
     use async_trait::async_trait;
-    use ethexe_common::{BlockHeader, ProtocolTimelines, db::OnChainStorageRW, gear::CodeState};
+    use ethexe_common::{BlockHeader, ProtocolTimelines, db::*, gear::CodeState, mock::*};
     use ethexe_db::Database;
     use ethexe_signer::Signer;
     use gprimitives::{ActorId, CodeId, H256};
@@ -814,6 +815,7 @@ mod tests {
                 genesis_ts: GENESIS_BLOCK_HEADER.timestamp,
                 era: 1,
                 election: 1,
+                slot: 1,
             };
 
             let Self {
@@ -824,7 +826,10 @@ mod tests {
                 validator_key,
             } = self;
 
-            db.set_protocol_timelines(TIMELINES);
+            db.set_config(DBConfig {
+                timelines: TIMELINES,
+                ..DBConfig::mock(())
+            });
 
             let key = signer.generate_key().unwrap();
             let config = NetworkConfig::new_test(key, Address::default());
@@ -836,7 +841,7 @@ mod tests {
                 general_signer: signer.clone(),
                 network_signer: signer,
                 external_data_provider: Box::new(data_provider),
-                db: Box::new(db),
+                db,
             };
 
             NetworkService::new(config, runtime_config).unwrap()

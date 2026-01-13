@@ -51,7 +51,7 @@ pub fn setup_start_block_in_db<
     start_block_hash: H256,
     start_block_data: PreparedBlockData,
     start_announce_data: ComputedAnnounceData,
-    timelines: ProtocolTimelines,
+    _timelines: ProtocolTimelines,
 ) {
     let announce_hash = start_announce_data.announce.to_hash();
     let latest_synced_block = SimpleBlockData {
@@ -68,7 +68,8 @@ pub fn setup_start_block_in_db<
     setup_block_in_db(db, start_block_hash, start_block_data);
     setup_announce_in_db(db, start_announce_data);
 
-    db.set_protocol_timelines(timelines);
+    // +_+_+ muse be set before
+    // db.set_protocol_timelines(timelines);
 
     db.mutate_latest_data(|latest| {
         latest.synced_block = latest_synced_block;
@@ -86,7 +87,7 @@ pub fn setup_genesis_in_db<
     db: &DB,
     genesis_block: SimpleBlockData,
     genesis_validators: ValidatorsVec,
-    timelines: ProtocolTimelines,
+    _timelines: ProtocolTimelines,
 ) {
     let genesis_announce = Announce::base(genesis_block.hash, HashOf::zero());
     let genesis_announce_hash = setup_announce_in_db(
@@ -113,14 +114,10 @@ pub fn setup_genesis_in_db<
         },
     );
 
-    // We understand, that genesis block is always in era 0, but we calculate it from timestamp to prevent some
-    // possible mismatches in future.
-    db.set_validators(
-        timelines.era_from_ts(genesis_block.header.timestamp),
-        genesis_validators,
-    );
+    db.set_validators(0, genesis_validators);
 
-    db.set_protocol_timelines(timelines);
+    // +_+_+ must be set before
+    // db.set_protocol_timelines(timelines);
 
     if let Some(latest) = db.latest_data() {
         assert_eq!(

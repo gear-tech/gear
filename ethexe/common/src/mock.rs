@@ -16,10 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-pub use tap::Tap;
-
 use crate::{
-    Announce, BlockData, BlockHeader, CodeBlobInfo, Digest, HashOf, ProgramStates,
+    Address, Announce, BlockData, BlockHeader, CodeBlobInfo, Digest, HashOf, ProgramStates,
     ProtocolTimelines, Schedule, SimpleBlockData, ValidatorsVec,
     consensus::BatchCommitmentValidationRequest,
     db::*,
@@ -32,6 +30,7 @@ use gear_core::code::{CodeMetadata, InstrumentedCode};
 use gprimitives::{CodeId, H256};
 use itertools::Itertools;
 use std::collections::{BTreeSet, VecDeque};
+pub use tap::Tap;
 
 // TODO #4881: use `proptest::Arbitrary` instead
 pub trait Mock<Args> {
@@ -63,6 +62,7 @@ impl Mock<()> for ProtocolTimelines {
             genesis_ts: 0,
             era: 1000,
             election: 200,
+            slot: 10,
         }
     }
 }
@@ -293,9 +293,8 @@ pub struct BlockChain {
     pub announces: BTreeMap<HashOf<Announce>, AnnounceData>,
     pub codes: BTreeMap<CodeId, CodeData>,
     pub validators: ValidatorsVec,
-    pub protocol_timelines: ProtocolTimelines,
-    pub latest_data: LatestData,
-    pub slot_duration: u32,
+    pub config: DBConfig,
+    pub globals: DBGlobals,
 }
 
 impl BlockChain {
@@ -334,20 +333,21 @@ impl BlockChain {
             + BlockMetaStorageRW
             + OnChainStorageRW
             + CodesStorageRW
-            + LatestDataStorageRW,
+            + LatestDataStorageRW
+            + SetConfig
+            + SetGlobals,
     {
         let BlockChain {
             blocks,
             announces,
             codes,
             validators,
-            protocol_timelines: timelines,
-            latest_data,
-            slot_duration: _,
+            config,
+            globals,
         } = self.clone();
 
-        db.set_latest_data(latest_data);
-        db.set_protocol_timelines(timelines);
+        db.set_config(config.clone());
+        db.set_globals(globals);
 
         if let Some(genesis) = blocks.front() {
             db.mutate_latest_data(|latest| {
@@ -383,7 +383,7 @@ impl BlockChain {
                 db.set_block_events(hash, &events);
                 db.set_block_synced(hash);
 
-                let block_era = timelines.era_from_ts(header.timestamp);
+                let block_era = config.timelines.era_from_ts(header.timestamp);
                 db.set_validators(block_era, validators.clone());
                 db.set_block_validators_committed_for_era(hash, block_era);
             }
@@ -447,7 +447,7 @@ impl BlockChain {
 impl Mock<(u32, ValidatorsVec)> for BlockChain {
     /// `len` - length of chain not counting genesis block
     fn mock((len, validators): (u32, ValidatorsVec)) -> Self {
-        let slot_duration = 10;
+        let slot = 10;
         let genesis_height = 1_000_000;
         let genesis_ts = 1_000_000;
 
@@ -462,7 +462,7 @@ impl Mock<(u32, ValidatorsVec)> for BlockChain {
                     // Human readable blocks, to avoid zero values append some readable numbers
                     let hash = H256::from_low_u64_be(h as u64).tap_mut(|hash| hash.0[0] = 0x10);
                     let height = genesis_height + h;
-                    let timestamp = genesis_ts + h * slot_duration;
+                    let timestamp = genesis_ts + h * slot as u32;
                     (hash, height, timestamp)
                 } else {
                     (H256([u8::MAX; 32]), 0, 0)
@@ -522,14 +522,25 @@ impl Mock<(u32, ValidatorsVec)> for BlockChain {
             })
             .collect();
 
-        let latest_data = LatestData {
-            genesis_block_hash: blocks[1].hash,
-            start_block_hash: blocks[1].hash,
-            genesis_announce_hash: genesis_announce_hash.unwrap(),
+        let config = DBConfig {
+            version: 0,
+            chain_id: 0,
+            router_address: Address(<[u8; 20]>::try_from(&H256::random()[..20]).unwrap()),
+            timelines: ProtocolTimelines {
+                genesis_ts: genesis_ts as u64,
+                era: slot * 100,
+                election: slot * 20,
+                slot,
+            },
+            genesis_block_hash: blocks[0].hash,
+        };
+
+        let globals = DBGlobals {
+            start_block: blocks[0].hash,
             start_announce_hash: genesis_announce_hash.unwrap(),
-            synced_block: blocks.back().unwrap().to_simple(),
-            prepared_block_hash: blocks.back().unwrap().hash,
-            computed_announce_hash: parent_announce_hash,
+            latest_synced_block: blocks.back().unwrap().to_simple(),
+            latest_prepared_block_hash: blocks.back().unwrap().hash,
+            latest_computed_announce_hash: parent_announce_hash,
         };
 
         BlockChain {
@@ -537,13 +548,8 @@ impl Mock<(u32, ValidatorsVec)> for BlockChain {
             announces,
             codes: Default::default(),
             validators,
-            protocol_timelines: ProtocolTimelines {
-                genesis_ts: genesis_ts as u64,
-                era: slot_duration as u64 * 100,
-                election: slot_duration as u64 * 20,
-            },
-            latest_data,
-            slot_duration,
+            config,
+            globals,
         }
     }
 }
@@ -614,4 +620,36 @@ impl BlockData {
         db.set_block_synced(self.hash);
         self
     }
+}
+
+impl Mock<()> for DBConfig {
+    fn mock(_args: ()) -> Self {
+        DBConfig {
+            version: 0,
+            chain_id: 0,
+            router_address: Address::default(),
+            timelines: ProtocolTimelines::mock(()),
+            genesis_block_hash: H256::random(),
+        }
+    }
+}
+
+impl Mock<()> for DBGlobals {
+    fn mock(_args: ()) -> Self {
+        DBGlobals {
+            start_block: H256::random(),
+            start_announce_hash: HashOf::random(),
+            latest_synced_block: SimpleBlockData::mock(()),
+            latest_prepared_block_hash: H256::random(),
+            latest_computed_announce_hash: HashOf::random(),
+        }
+    }
+}
+
+pub trait SetGlobals {
+    fn set_globals(&self, globals: DBGlobals);
+}
+
+pub trait SetConfig {
+    fn set_config(&self, config: DBConfig);
 }

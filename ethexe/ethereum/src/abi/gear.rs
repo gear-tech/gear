@@ -20,6 +20,7 @@ use crate::abi::{Gear, utils::*};
 use ethexe_common::gear::*;
 use gear_core::message::ReplyDetails;
 use gear_core_errors::{ReplyCode, SuccessReplyReason};
+use gprimitives::H256;
 
 //                          //
 // From Rust types to alloy //
@@ -197,5 +198,15 @@ impl From<ValueClaim> for Gear::ValueClaim {
             destination: actor_id_to_address_lossy(value.destination),
             value: value.value,
         }
+    }
+}
+
+impl From<Gear::GenesisBlockInfo> for (H256, u32, u64) {
+    fn from(value: Gear::GenesisBlockInfo) -> Self {
+        (
+            bytes32_to_h256(value.hash),
+            value.number,
+            value.timestamp.to::<u64>(),
+        )
     }
 }

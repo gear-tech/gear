@@ -82,7 +82,7 @@ impl KVDatabase for KVOverlay {
         self.mem.get(key).or_else(|| self.db.get(key))
     }
 
-    fn take(&self, _key: &[u8]) -> Option<Vec<u8>> {
+    unsafe fn take(&self, _key: &[u8]) -> Option<Vec<u8>> {
         unimplemented!()
     }
 
@@ -109,5 +109,9 @@ impl KVDatabase for KVOverlay {
             .filter_map(move |(k, v)| known_keys.insert(utils::hash(&k)).then_some((k, v)));
 
         Box::new(filtered_iter)
+    }
+
+    fn is_empty(&self) -> bool {
+        unimplemented!()
     }
 }
