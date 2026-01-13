@@ -19,11 +19,8 @@
 use crate::{
     RouterDataProvider, Service,
     tests::utils::{
-        TestingEvent,
-        events::{
-            ObserverEventsListener, ObserverEventsPublisher, ServiceEventsListener,
-            TestingEventReceiver,
-        },
+        InfiniteStreamExt, TestingEvent, events,
+        events::{ObserverEventReceiver, ObserverEventSender, TestingEventReceiver},
     },
 };
 use alloy::{
@@ -54,7 +51,7 @@ use ethexe_network::{
     NetworkConfig, NetworkEvent, NetworkRuntimeConfig, NetworkService, export::Multiaddr,
 };
 use ethexe_observer::{
-    EthereumConfig, ObserverEvent, ObserverService,
+    EthereumConfig, ObserverService,
     utils::{BlockId, BlockLoader, EthereumBlockLoader},
 };
 use ethexe_processor::{
@@ -78,16 +75,11 @@ use std::{
     fmt, mem,
     net::SocketAddr,
     num::NonZero,
-    ops::ControlFlow,
     pin::Pin,
     sync::atomic::{AtomicUsize, Ordering},
     time::Duration,
 };
-use tokio::{
-    sync::{broadcast, broadcast::Sender},
-    task,
-    task::JoinHandle,
-};
+use tokio::{task, task::JoinHandle};
 use tracing::Instrument;
 
 /// Max network services which can be created by one test environment.
@@ -112,13 +104,12 @@ pub struct TestEnv {
 
     router_query: RouterQuery,
     /// In order to reduce amount of observers, we create only one observer and broadcast events to all subscribers.
-    broadcaster: Sender<ObserverEvent>,
+    observer_events: (ObserverEventSender, ObserverEventReceiver),
     /// If network is enabled by test, then we store here:
     /// network service polling thread, bootstrap address and nonce for new node address generation.
     bootstrap_network: Option<(JoinHandle<()>, String, usize)>,
 
     _anvil: Option<AnvilInstance>,
-    _events_stream: JoinHandle<()>,
 }
 
 impl TestEnv {
@@ -263,40 +254,23 @@ impl TestEnv {
 
         let provider = observer.provider().clone();
 
-        let (broadcaster, _events_stream) = {
-            let (sender, mut receiver) = broadcast::channel(2048);
+        let observer_events = {
+            let (sender, receiver) = events::channel(db.clone());
+
             let cloned_sender = sender.clone();
-
-            let (send_subscription_created, receive_subscription_created) =
-                tokio::sync::oneshot::channel::<()>();
-
-            let handle = task::spawn(
+            tokio::spawn(
                 async move {
-                    send_subscription_created.send(()).unwrap();
-
                     while let Ok(event) = observer.select_next_some().await {
                         log::trace!(target: "test-event", "📗 Event: {event:?}");
-
-                        cloned_sender
-                            .send(event)
-                            .inspect_err(|err| log::error!("Failed to broadcast event: {err}"))
-                            .unwrap();
-
-                        // At least one receiver is presented always, in order to avoid the channel dropping.
-                        receiver
-                            .recv()
-                            .await
-                            .inspect_err(|err| log::error!("Failed to receive event: {err}"))
-                            .unwrap();
+                        cloned_sender.send(event).await;
                     }
 
                     panic!("📗 Observer stream ended");
                 }
                 .instrument(tracing::error_span!("observer-stream")),
             );
-            receive_subscription_created.await.unwrap();
 
-            (sender, handle)
+            (sender, receiver)
         };
 
         let threshold = router_query.threshold().await?;
@@ -364,11 +338,10 @@ impl TestEnv {
             commitment_delay_limit,
             compute_config,
             router_query,
-            broadcaster,
+            observer_events,
             db,
             bootstrap_network,
             _anvil: anvil,
-            _events_stream,
         })
     }
 
@@ -424,7 +397,7 @@ impl TestEnv {
     pub async fn upload_code(&self, code: &[u8]) -> anyhow::Result<WaitForUploadCode> {
         log::info!("📗 Upload code, len {}", code.len());
 
-        let listener = self.observer_events_publisher().subscribe();
+        let receiver = self.new_observer_events();
 
         let code_and_id = CodeAndId::new(code.to_vec());
         let code_id = code_and_id.code_id();
@@ -436,7 +409,7 @@ impl TestEnv {
             .await?;
         assert_eq!(pending_builder.code_id(), code_id);
 
-        Ok(WaitForUploadCode { listener, code_id })
+        Ok(WaitForUploadCode { receiver, code_id })
     }
 
     pub async fn create_program(
@@ -457,8 +430,7 @@ impl TestEnv {
     ) -> anyhow::Result<WaitForProgramCreation> {
         log::info!("📗 Create program, code_id {code_id} with salt {salt:?}");
 
-        let listener = self.observer_events_publisher().subscribe();
-
+        let receiver = self.new_observer_events();
         let router = self.ethereum.router();
 
         let (_, program_id) = router
@@ -480,7 +452,7 @@ impl TestEnv {
         }
 
         Ok(WaitForProgramCreation {
-            listener,
+            receiver,
             program_id,
         })
     }
@@ -496,8 +468,7 @@ impl TestEnv {
     ) -> anyhow::Result<WaitForProgramCreation> {
         log::info!("📗 Create program, code_id {code_id} with salt {salt:?}");
 
-        let listener = self.observer_events_publisher().subscribe();
-
+        let receiver = self.new_observer_events();
         let router = self.ethereum.router();
 
         let (_, program_id) = router
@@ -519,7 +490,7 @@ impl TestEnv {
         }
 
         Ok(WaitForProgramCreation {
-            listener,
+            receiver,
             program_id,
         })
     }
@@ -545,15 +516,14 @@ impl TestEnv {
             payload.len()
         );
 
-        let listener = self.observer_events_publisher().subscribe();
-
+        let receiver = self.new_observer_events();
         let program_address = Address::try_from(program_id)?;
         let program = self.ethereum.mirror(program_address);
 
         let (_, message_id) = program.send_message(payload, value, call_reply).await?;
 
         Ok(WaitForReplyTo {
-            listener,
+            receiver,
             message_id,
         })
     }
@@ -579,11 +549,9 @@ impl TestEnv {
             .unwrap();
     }
 
-    pub fn observer_events_publisher(&self) -> ObserverEventsPublisher {
-        ObserverEventsPublisher {
-            broadcaster: self.broadcaster.clone(),
-            db: self.db.clone(),
-        }
+    /// Creates a new observer events receiver without previously emitted events
+    pub fn new_observer_events(&self) -> ObserverEventReceiver {
+        self.observer_events.1.new_receiver()
     }
 
     /// Force new block generation on rpc node.
@@ -601,19 +569,11 @@ impl TestEnv {
     /// Force new `blocks_amount` blocks generation on RPC node
     pub async fn skip_blocks(&self, blocks_amount: u32) {
         if self.continuous_block_generation {
-            let mut blocks_count = 0;
-            self.observer_events_publisher()
-                .subscribe()
-                .apply_until_block(|_| {
-                    blocks_count += 1;
-                    if blocks_count == blocks_amount {
-                        Ok(ControlFlow::Break(()))
-                    } else {
-                        Ok(ControlFlow::Continue(()))
-                    }
-                })
-                .await
-                .unwrap();
+            self.new_observer_events()
+                .filter_map_block()
+                .take(blocks_amount as usize)
+                .collect::<Vec<_>>()
+                .await;
         } else {
             self.provider
                 .evm_mine(Some(MineOptions::Options {
@@ -1012,7 +972,7 @@ impl Node {
             .as_ref()
             .map(|c| c.public_key.to_address());
 
-        let (sender, receiver) = broadcast::channel(2048);
+        let (sender, receiver) = events::channel(self.db.clone());
 
         let consensus_config = ConsensusLayerConfig {
             ethereum_rpc: self.eth_cfg.rpc.clone(),
@@ -1066,26 +1026,21 @@ impl Node {
         self.running_service_handle = Some(handle);
 
         if self.fast_sync {
-            self.latest_fast_synced_block = self
-                .listener()
-                .apply_until(|e| {
-                    if let TestingEvent::FastSyncDone(block) = e {
-                        Ok(ControlFlow::Break(block))
-                    } else {
-                        Ok(ControlFlow::Continue(()))
-                    }
-                })
-                .await
-                .map(Some)
-                .unwrap();
+            self.latest_fast_synced_block = Some(
+                self.events()
+                    .find_map(|event| event.try_unwrap_fast_sync_done().ok())
+                    .await,
+            );
         }
 
-        self.wait_for(|e| matches!(e, TestingEvent::ServiceStarted))
+        self.events()
+            .find(|e| matches!(e, TestingEvent::ServiceStarted))
             .await;
 
         // fast sync implies network has connections
         if wait_for_network && !self.fast_sync {
-            self.wait_for(|e| matches!(e, TestingEvent::Network(NetworkEvent::PeerConnected(_))))
+            self.events()
+                .find(|e| matches!(e, TestingEvent::Network(NetworkEvent::PeerConnected(_))))
                 .await;
         }
     }
@@ -1099,7 +1054,6 @@ impl Node {
 
         assert!(handle.await.unwrap_err().is_cancelled());
 
-        self.multiaddr = None;
         self.receiver = None;
     }
 
@@ -1115,19 +1069,15 @@ impl Node {
         Some(WsClientBuilder::new().build(&url).await.unwrap())
     }
 
-    pub fn listener(&mut self) -> ServiceEventsListener<'_> {
-        ServiceEventsListener {
-            receiver: self.receiver.as_mut().expect("channel isn't created"),
-            db: self.db.clone(),
-        }
+    pub fn events(&mut self) -> TestingEventReceiver {
+        self.receiver.clone().expect("node is not started")
     }
 
-    // TODO(playX18): Tests that actually use Event broadcast channel extensively
-    pub async fn wait_for(&mut self, f: impl Fn(TestingEvent) -> bool) {
-        self.listener()
-            .wait_for(|e| Ok(f(e)))
-            .await
-            .expect("infallible; always ok")
+    pub fn new_events(&mut self) -> TestingEventReceiver {
+        self.receiver
+            .as_ref()
+            .map(|r| r.new_receiver())
+            .expect("node is not started")
     }
 
     fn construct_network_service(
@@ -1239,7 +1189,7 @@ impl Drop for Node {
 
 #[derive(Clone)]
 pub struct WaitForUploadCode {
-    listener: ObserverEventsListener,
+    receiver: ObserverEventReceiver,
     pub code_id: CodeId,
 }
 
@@ -1250,33 +1200,32 @@ pub struct UploadCodeInfo {
 }
 
 impl WaitForUploadCode {
-    pub async fn wait_for(mut self) -> anyhow::Result<UploadCodeInfo> {
+    pub async fn wait_for(self) -> anyhow::Result<UploadCodeInfo> {
         log::info!("📗 Waiting for code upload, code_id {}", self.code_id);
 
-        let mut valid_info = None;
-
-        self.listener
-            .apply_until_block_event(|event| match event {
+        let valid = self
+            .receiver
+            .filter_map_block_synced()
+            .find_map(|event| match event {
                 BlockEvent::Router(RouterEvent::CodeGotValidated { code_id, valid })
                     if code_id == self.code_id =>
                 {
-                    valid_info = Some(valid);
-                    Ok(ControlFlow::Break(()))
+                    Some(valid)
                 }
-                _ => Ok(ControlFlow::Continue(())),
+                _ => None,
             })
-            .await?;
+            .await;
 
         Ok(UploadCodeInfo {
             code_id: self.code_id,
-            valid: valid_info.expect("Valid must be set"),
+            valid,
         })
     }
 }
 
 #[derive(Clone)]
 pub struct WaitForProgramCreation {
-    listener: ObserverEventsListener,
+    receiver: ObserverEventReceiver,
     pub program_id: ActorId,
 }
 
@@ -1287,27 +1236,26 @@ pub struct ProgramCreationInfo {
 }
 
 impl WaitForProgramCreation {
-    pub async fn wait_for(mut self) -> anyhow::Result<ProgramCreationInfo> {
+    pub async fn wait_for(self) -> anyhow::Result<ProgramCreationInfo> {
         log::info!("📗 Waiting for program {} creation", self.program_id);
 
-        let mut code_id_info = None;
-        self.listener
-            .apply_until_block_event(|event| {
+        let code_id = self
+            .receiver
+            .filter_map_block_synced()
+            .find_map(|event| {
                 match event {
                     BlockEvent::Router(RouterEvent::ProgramCreated { actor_id, code_id })
                         if actor_id == self.program_id =>
                     {
-                        code_id_info = Some(code_id);
-                        return Ok(ControlFlow::Break(()));
+                        return Some(code_id);
                     }
 
                     _ => {}
                 }
-                Ok(ControlFlow::Continue(()))
+                None
             })
-            .await?;
+            .await;
 
-        let code_id = code_id_info.expect("Code ID must be set");
         Ok(ProgramCreationInfo {
             program_id: self.program_id,
             code_id,
@@ -1317,7 +1265,7 @@ impl WaitForProgramCreation {
 
 #[derive(Clone)]
 pub struct WaitForReplyTo {
-    listener: ObserverEventsListener,
+    receiver: ObserverEventReceiver,
     pub message_id: MessageId,
 }
 
@@ -1331,20 +1279,20 @@ pub struct ReplyInfo {
 }
 
 impl WaitForReplyTo {
-    pub fn from_raw_parts(listener: ObserverEventsListener, message_id: MessageId) -> Self {
+    pub fn from_raw_parts(receiver: ObserverEventReceiver, message_id: MessageId) -> Self {
         Self {
-            listener,
+            receiver,
             message_id,
         }
     }
 
-    pub async fn wait_for(mut self) -> anyhow::Result<ReplyInfo> {
+    pub async fn wait_for(self) -> anyhow::Result<ReplyInfo> {
         log::info!("📗 Waiting for reply to message {}", self.message_id);
 
-        let mut info = None;
-
-        self.listener
-            .apply_until_block_event(|event| match event {
+        let info = self
+            .receiver
+            .filter_map_block_synced()
+            .find_map(|event| match event {
                 BlockEvent::Mirror {
                     actor_id,
                     event:
@@ -1354,20 +1302,17 @@ impl WaitForReplyTo {
                             reply_code,
                             value,
                         },
-                } if reply_to == self.message_id => {
-                    info = Some(ReplyInfo {
-                        message_id: reply_to,
-                        program_id: actor_id,
-                        payload,
-                        code: reply_code,
-                        value,
-                    });
-                    Ok(ControlFlow::Break(()))
-                }
-                _ => Ok(ControlFlow::Continue(())),
+                } if reply_to == self.message_id => Some(ReplyInfo {
+                    message_id: reply_to,
+                    program_id: actor_id,
+                    payload,
+                    code: reply_code,
+                    value,
+                }),
+                _ => None,
             })
-            .await?;
+            .await;
 
-        Ok(info.expect("Reply info must be set"))
+        Ok(info)
     }
 }
