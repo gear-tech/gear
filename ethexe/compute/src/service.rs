@@ -187,7 +187,7 @@ mod tests {
 
         // Poll service to process the block
         let event = service.next().await.unwrap().unwrap();
-        assert_eq!(event, ComputeEvent::AnnounceComputed(announce_hash));
+        assert_eq!(event, ComputeEvent::AnnounceComputed(announce_hash.into()));
 
         // Verify block is marked as computed in DB
         assert!(db.announce_meta(announce_hash).computed);

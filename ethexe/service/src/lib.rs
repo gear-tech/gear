@@ -512,8 +512,8 @@ impl Service {
                     ComputeEvent::RequestLoadCodes(codes) => {
                         blob_loader.load_codes(codes)?;
                     }
-                    ComputeEvent::AnnounceComputed(announce_hash) => {
-                        consensus.receive_computed_announce(announce_hash)?
+                    ComputeEvent::AnnounceComputed(computed_data) => {
+                        consensus.receive_computed_announce(computed_data)?
                     }
                     ComputeEvent::BlockPrepared(block_hash) => {
                         consensus.receive_prepared_block(block_hash)?

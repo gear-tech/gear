@@ -54,7 +54,7 @@ use anyhow::{Result, anyhow};
 pub use core::BatchCommitter;
 use derive_more::{Debug, From};
 use ethexe_common::{
-    Address, Announce, HashOf, SimpleBlockData,
+    Address, AnnounceWithPromises, SimpleBlockData,
     consensus::{VerifiedAnnounce, VerifiedValidationRequest},
     db::OnChainStorageRO,
     ecdsa::PublicKey,
@@ -213,8 +213,8 @@ impl ConsensusService for ValidatorService {
         self.update_inner(|inner| inner.process_prepared_block(block))
     }
 
-    fn receive_computed_announce(&mut self, announce: HashOf<Announce>) -> Result<()> {
-        self.update_inner(|inner| inner.process_computed_announce(announce))
+    fn receive_computed_announce(&mut self, computed_data: AnnounceWithPromises) -> Result<()> {
+        self.update_inner(|inner| inner.process_computed_announce(computed_data))
     }
 
     fn receive_announce(&mut self, announce: VerifiedAnnounce) -> Result<()> {
@@ -317,8 +317,11 @@ where
         DefaultProcessing::prepared_block(self.into(), block)
     }
 
-    fn process_computed_announce(self, announce: HashOf<Announce>) -> Result<ValidatorState> {
-        DefaultProcessing::computed_announce(self.into(), announce)
+    fn process_computed_announce(
+        self,
+        computed_data: AnnounceWithPromises,
+    ) -> Result<ValidatorState> {
+        DefaultProcessing::computed_announce(self.into(), computed_data)
     }
 
     fn process_announce(self, block: VerifiedAnnounce) -> Result<ValidatorState> {
@@ -408,8 +411,11 @@ impl StateHandler for ValidatorState {
         delegate_call!(self => process_prepared_block(block))
     }
 
-    fn process_computed_announce(self, announce: HashOf<Announce>) -> Result<ValidatorState> {
-        delegate_call!(self => process_computed_announce(announce))
+    fn process_computed_announce(
+        self,
+        computed_data: AnnounceWithPromises,
+    ) -> Result<ValidatorState> {
+        delegate_call!(self => process_computed_announce(computed_data))
     }
 
     fn process_announce(self, announce: VerifiedAnnounce) -> Result<ValidatorState> {
@@ -467,10 +473,13 @@ impl DefaultProcessing {
 
     fn computed_announce(
         s: impl Into<ValidatorState>,
-        announce_hash: HashOf<Announce>,
+        computed_data: AnnounceWithPromises,
     ) -> Result<ValidatorState> {
         let mut s = s.into();
-        s.warning(format!("unexpected computed block: {announce_hash}"));
+        s.warning(format!(
+            "unexpected computed block: {}",
+            computed_data.announce_hash
+        ));
         Ok(s)
     }
 

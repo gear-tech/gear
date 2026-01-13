@@ -19,8 +19,8 @@
 pub use tap::Tap;
 
 use crate::{
-    Announce, BlockData, BlockHeader, CodeBlobInfo, Digest, HashOf, ProgramStates,
-    ProtocolTimelines, Schedule, SimpleBlockData, ValidatorsVec,
+    Announce, AnnounceWithPromises, BlockData, BlockHeader, CodeBlobInfo, Digest, HashOf,
+    ProgramStates, ProtocolTimelines, Schedule, SimpleBlockData, ValidatorsVec,
     consensus::BatchCommitmentValidationRequest,
     db::*,
     ecdsa::{PrivateKey, SignedMessage},
@@ -35,7 +35,7 @@ use itertools::Itertools;
 use std::collections::{BTreeSet, VecDeque};
 
 // TODO #4881: use `proptest::Arbitrary` instead
-pub trait Mock<Args> {
+pub trait Mock<Args = ()> {
     fn mock(args: Args) -> Self;
 }
 
@@ -597,5 +597,23 @@ impl BlockData {
         db.set_block_events(self.hash, &self.events);
         db.set_block_synced(self.hash);
         self
+    }
+}
+
+impl Mock for AnnounceWithPromises {
+    fn mock(_: ()) -> Self {
+        Self {
+            announce_hash: HashOf::random(),
+            promises: Default::default(),
+        }
+    }
+}
+
+impl From<HashOf<Announce>> for AnnounceWithPromises {
+    fn from(announce_hash: HashOf<Announce>) -> Self {
+        Self {
+            announce_hash,
+            promises: Default::default(),
+        }
     }
 }

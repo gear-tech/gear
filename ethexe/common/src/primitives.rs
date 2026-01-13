@@ -17,8 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    DEFAULT_BLOCK_GAS_LIMIT, HashOf, ToDigest, events::BlockEvent,
-    injected::SignedInjectedTransaction,
+    DEFAULT_BLOCK_GAS_LIMIT, HashOf, ToDigest,
+    events::BlockEvent,
+    injected::{Promise, SignedInjectedTransaction},
 };
 use alloc::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
@@ -123,6 +124,12 @@ impl ToDigest for Announce {
         hasher.update(self.gas_allowance.encode());
         hasher.update(self.injected_transactions.encode());
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AnnounceWithPromises {
+    pub announce_hash: HashOf<Announce>,
+    pub promises: Vec<Promise>,
 }
 
 #[derive(PartialEq, Eq, Hash, Debug, Clone, Copy, Default, Encode, Decode)]

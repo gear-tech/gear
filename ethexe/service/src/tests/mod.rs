@@ -2426,6 +2426,7 @@ async fn injected_tx_fungible_token() {
     node.events()
         .find(|event| {
             if let TestingEvent::Consensus(ConsensusEvent::Promises(promises)) = event {
+                tracing::error!("Promises received: {:?}", promises);
                 let promise = promises.first().expect("promise must exists").data();
                 assert_eq!(promise.reply.payload, expected_event.encode());
                 assert_eq!(

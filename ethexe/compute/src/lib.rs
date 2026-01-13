@@ -17,7 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 pub use compute::ComputeConfig;
-use ethexe_common::{Announce, CodeAndIdUnchecked, HashOf, events::BlockRequestEvent};
+use ethexe_common::{
+    Announce, CodeAndIdUnchecked, AnnounceWithPromises, HashOf, events::BlockRequestEvent,
+};
 use ethexe_processor::{Processor, ProcessorError};
 use ethexe_runtime_common::FinalizedBlockTransitions;
 use gprimitives::{CodeId, H256};
@@ -42,7 +44,7 @@ pub enum ComputeEvent {
     RequestLoadCodes(HashSet<CodeId>),
     CodeProcessed(CodeId),
     BlockPrepared(H256),
-    AnnounceComputed(HashOf<Announce>),
+    AnnounceComputed(AnnounceWithPromises),
 }
 
 #[derive(thiserror::Error, Debug)]
