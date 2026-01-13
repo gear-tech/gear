@@ -162,6 +162,7 @@ proptest = "1.5.0"
 quick-xml = "0.28"
 quote = { version = "1.0.36", default-features = false }
 rand = { version = "0.8", default-features = false }
+rayon = { version = "1.11.0" }
 regex = "^1.9"
 region = "3.0.2"
 reqwest = { version = "0.12.8", default-features = false }
@@ -552,6 +553,7 @@ bytes = "1.8.0"                                              # utils/gear-wasmer
 loom = "0.7.2"                                               # utils/gear-wasmer-cache
 wasm-smith = { version = "0.230", features = ["wasmparser"] } # utils/wasm-gen
 wasm-encoder = { version = "0.230", default-features = false, features = ["wasmparser"] } # utils/wasm-instrument
+async-broadcast = "0.7.2" # ethexe/service
 
 [workspace.lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = [
