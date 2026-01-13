@@ -598,8 +598,7 @@ where
                 reason,
             } => {
                 log::trace!(
-                    "Dispatch {message_id} failed init of program {program_id}: {:?}",
-                    reason
+                    "Dispatch {message_id} failed init of program {program_id}: {reason:?}"
                 );
 
                 match reason {

@@ -17,8 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    BlockConfig, Dispatch, JournalHandler, ProgramState, RuntimeInterface, RuntimeJournalHandler,
-    Storage, process_dispatch,
+    BlockConfig, Dispatch, ProgramState, RuntimeInterface, RuntimeJournalHandler, process_dispatch,
     state::{ActiveProgram, MemStorage, PayloadLookup, Program},
 };
 use alloc::vec::Vec;
@@ -166,11 +165,13 @@ fn test_init_oog_does_not_terminate() {
     println!("Journal: {:?}", journal);
     let mut found = false;
     for note in &journal {
-        if let JournalNote::MessageDispatched { outcome, .. } = note {
-            if let DispatchOutcome::InitFailure { reason, .. } = outcome {
-                assert_eq!(*reason, InitFailureReason::RanOutOfGas);
-                found = true;
-            }
+        if let JournalNote::MessageDispatched {
+            outcome: DispatchOutcome::InitFailure { reason, .. },
+            ..
+        } = note
+        {
+            assert_eq!(*reason, InitFailureReason::RanOutOfGas);
+            found = true;
         }
     }
     assert!(found, "Should have produced InitFailure with RanOutOfGas");
@@ -255,11 +256,13 @@ fn test_init_oog_after_first_precharge_does_not_terminate() {
 
     let mut found = false;
     for note in &journal {
-        if let JournalNote::MessageDispatched { outcome, .. } = note {
-            if let DispatchOutcome::InitFailure { reason, .. } = outcome {
-                assert_eq!(*reason, InitFailureReason::RanOutOfGas);
-                found = true;
-            }
+        if let JournalNote::MessageDispatched {
+            outcome: DispatchOutcome::InitFailure { reason, .. },
+            ..
+        } = note
+        {
+            assert_eq!(*reason, InitFailureReason::RanOutOfGas);
+            found = true;
         }
     }
     assert!(found, "Should have produced InitFailure with RanOutOfGas");
@@ -343,11 +346,13 @@ fn test_init_allowance_exceed_does_not_terminate() {
 
     let mut found = false;
     for note in &journal {
-        if let JournalNote::MessageDispatched { outcome, .. } = note {
-            if let DispatchOutcome::InitFailure { reason, .. } = outcome {
-                assert_eq!(*reason, InitFailureReason::RanOutOfAllowance);
-                found = true;
-            }
+        if let JournalNote::MessageDispatched {
+            outcome: DispatchOutcome::InitFailure { reason, .. },
+            ..
+        } = note
+        {
+            assert_eq!(*reason, InitFailureReason::RanOutOfAllowance);
+            found = true;
         }
     }
     assert!(
