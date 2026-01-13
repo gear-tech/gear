@@ -3173,7 +3173,12 @@ mod xxx {
     #[tokio::test]
     async fn send_injected_transaction() {
         const HOODI_RETH_RPC_URL: &str = "https://hoodi-reth-rpc.gear-tech.io";
-        const MIRROR_ADDRESS: &str = "0x38d588a4622bb0c9c738703128b3c912a1f24009";
+        const MIRROR_ADDRESS: &str = "0xc8dc84313016fcc9fbe44731b8420f8edd3da234";
+
+        let payload =
+            std::fs::read("/Users/gsobol/src/gear/payloads.txt").expect("Cannot open file");
+        let payload = String::from_utf8(payload).expect("Cannot read file as UTF-8");
+        let payload = hex::decode(payload).unwrap();
 
         let validators = BTreeMap::from([
             (
@@ -3227,7 +3232,7 @@ mod xxx {
 
         let tx = InjectedTransaction {
             destination: Address::from_str(MIRROR_ADDRESS).unwrap().into(),
-            payload: b"".to_vec().into(),
+            payload: payload.into(),
             value: 0,
             reference_block,
             salt: H256::random().0.to_vec().into(),

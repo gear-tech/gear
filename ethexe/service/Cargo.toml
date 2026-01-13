@@ -67,6 +67,7 @@ tracing-subscriber.workspace = true
 ethexe-common = { workspace = true, features = ["mock"] }
 jsonrpsee = { workspace = true, features = ["client"] }
 async-broadcast.workspace = true
+hex.workspace = true
 
 demo-ping = { workspace = true, features = ["debug", "ethexe"] }
 demo-value-sender-ethexe = { workspace = true, features = ["debug", "ethexe"] }

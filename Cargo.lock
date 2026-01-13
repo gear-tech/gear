@@ -5274,6 +5274,7 @@ dependencies = [
  "gear-core-errors",
  "gear-workspace-hack",
  "gprimitives",
+ "hex",
  "jsonrpsee",
  "log",
  "ntest",
