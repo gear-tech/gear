@@ -28,7 +28,7 @@ use crate::{
 use anyhow::Result;
 use derive_more::{Debug, Display};
 use ethexe_common::{
-    Address, Announce, AnnounceWithPromises, HashOf, SimpleBlockData,
+    Address, Announce, ComputationOutcome, HashOf, SimpleBlockData,
     consensus::{VerifiedAnnounce, VerifiedValidationRequest},
 };
 use std::mem;
@@ -72,7 +72,7 @@ impl StateHandler for Subordinate {
 
     fn process_computed_announce(
         self,
-        computed_data: AnnounceWithPromises,
+        computed_data: ComputationOutcome,
     ) -> Result<ValidatorState> {
         match &self.state {
             State::WaitingAnnounceComputed { announce_hash }
@@ -195,7 +195,7 @@ impl Subordinate {
 mod tests {
     use super::*;
     use crate::{mock::*, validator::mock::*};
-    use ethexe_common::{AnnounceWithPromises, mock::*};
+    use ethexe_common::{ComputationOutcome, mock::*};
 
     #[test]
     fn create_empty() {
@@ -432,7 +432,7 @@ mod tests {
         let s = Subordinate::create(ctx, block, producer.to_address(), true).unwrap();
 
         let s = s
-            .process_computed_announce(AnnounceWithPromises::mock(()))
+            .process_computed_announce(ComputationOutcome::mock(()))
             .unwrap();
         assert_eq!(s.context().output.len(), 1);
         assert!(matches!(s.context().output[0], ConsensusEvent::Warning(_)));

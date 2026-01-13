@@ -19,7 +19,7 @@
 pub use tap::Tap;
 
 use crate::{
-    Announce, AnnounceWithPromises, BlockData, BlockHeader, CodeBlobInfo, Digest, HashOf,
+    Announce, ComputationOutcome, BlockData, BlockHeader, CodeBlobInfo, Digest, HashOf,
     ProgramStates, ProtocolTimelines, Schedule, SimpleBlockData, ValidatorsVec,
     consensus::BatchCommitmentValidationRequest,
     db::*,
@@ -600,7 +600,7 @@ impl BlockData {
     }
 }
 
-impl Mock for AnnounceWithPromises {
+impl Mock for ComputationOutcome {
     fn mock(_: ()) -> Self {
         Self {
             announce_hash: HashOf::random(),
@@ -609,7 +609,7 @@ impl Mock for AnnounceWithPromises {
     }
 }
 
-impl From<HashOf<Announce>> for AnnounceWithPromises {
+impl From<HashOf<Announce>> for ComputationOutcome {
     fn from(announce_hash: HashOf<Announce>) -> Self {
         Self {
             announce_hash,

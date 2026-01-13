@@ -54,7 +54,7 @@ use anyhow::{Result, anyhow};
 pub use core::BatchCommitter;
 use derive_more::{Debug, From};
 use ethexe_common::{
-    Address, AnnounceWithPromises, SimpleBlockData,
+    Address, ComputationOutcome, SimpleBlockData,
     consensus::{VerifiedAnnounce, VerifiedValidationRequest},
     db::OnChainStorageRO,
     ecdsa::PublicKey,
@@ -213,7 +213,7 @@ impl ConsensusService for ValidatorService {
         self.update_inner(|inner| inner.process_prepared_block(block))
     }
 
-    fn receive_computed_announce(&mut self, computed_data: AnnounceWithPromises) -> Result<()> {
+    fn receive_computed_announce(&mut self, computed_data: ComputationOutcome) -> Result<()> {
         self.update_inner(|inner| inner.process_computed_announce(computed_data))
     }
 
@@ -319,7 +319,7 @@ where
 
     fn process_computed_announce(
         self,
-        computed_data: AnnounceWithPromises,
+        computed_data: ComputationOutcome,
     ) -> Result<ValidatorState> {
         DefaultProcessing::computed_announce(self.into(), computed_data)
     }
@@ -413,7 +413,7 @@ impl StateHandler for ValidatorState {
 
     fn process_computed_announce(
         self,
-        computed_data: AnnounceWithPromises,
+        computed_data: ComputationOutcome,
     ) -> Result<ValidatorState> {
         delegate_call!(self => process_computed_announce(computed_data))
     }
@@ -473,7 +473,7 @@ impl DefaultProcessing {
 
     fn computed_announce(
         s: impl Into<ValidatorState>,
-        computed_data: AnnounceWithPromises,
+        computed_data: ComputationOutcome,
     ) -> Result<ValidatorState> {
         let mut s = s.into();
         s.warning(format!(

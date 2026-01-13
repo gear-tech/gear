@@ -127,7 +127,7 @@ impl ToDigest for Announce {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct AnnounceWithPromises {
+pub struct ComputationOutcome {
     pub announce_hash: HashOf<Announce>,
     pub promises: Vec<Promise>,
 }

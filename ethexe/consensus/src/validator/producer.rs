@@ -27,7 +27,7 @@ use crate::{
 use anyhow::{Context as _, Result, anyhow};
 use derive_more::{Debug, Display};
 use ethexe_common::{
-    Announce, AnnounceWithPromises, HashOf, SimpleBlockData, ValidatorsVec, db::BlockMetaStorageRO,
+    Announce, ComputationOutcome, HashOf, SimpleBlockData, ValidatorsVec, db::BlockMetaStorageRO,
     gear::BatchCommitment, network::ValidatorMessage,
 };
 use ethexe_service_utils::Timer;
@@ -74,7 +74,7 @@ impl StateHandler for Producer {
 
     fn process_computed_announce(
         mut self,
-        computed_data: AnnounceWithPromises,
+        computed_data: ComputationOutcome,
     ) -> Result<ValidatorState> {
         match &self.state {
             State::WaitingAnnounceComputed(expected)
