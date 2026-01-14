@@ -119,6 +119,9 @@ pub struct Service {
 }
 
 impl Service {
+    /// Number of reserved dev accounts (deployer, validator).
+    const RESERVED_DEV_ACCOUNTS: u32 = 2;
+
     pub async fn configure_dev_environment(
         key_path: PathBuf,
         block_time: Duration,
@@ -126,10 +129,11 @@ impl Service {
     ) -> Result<(AnvilInstance, PublicKey, Address)> {
         let signer = Signer::fs(key_path);
 
-        // reserve 2 accounts for deployer and validator
-        let pre_funded_accounts = pre_funded_accounts.checked_add(2).with_context(|| {
-            format!("number of pre-funded accounts is too large: {pre_funded_accounts}")
-        })?;
+        let pre_funded_accounts = pre_funded_accounts
+            .checked_add(Self::RESERVED_DEV_ACCOUNTS)
+            .with_context(|| {
+                format!("number of pre-funded accounts is too large: {pre_funded_accounts}")
+            })?;
         let anvil = Anvil::new()
             .arg("--accounts")
             .arg(pre_funded_accounts.to_string())

@@ -40,6 +40,9 @@ pub struct RunCommand {
 }
 
 impl RunCommand {
+    /// Default block time (dev mode) in seconds.
+    const DEFAULT_DEV_BLOCK_TIME: u64 = 1;
+
     /// Merge the command with the provided params.
     pub fn with_params(mut self, params: Params) -> Self {
         self.params = self.params.merge(params);
@@ -73,7 +76,7 @@ impl RunCommand {
                     .ethereum
                     .as_ref()
                     .and_then(|ethereum| ethereum.block_time)
-                    .unwrap_or(1),
+                    .unwrap_or(Self::DEFAULT_DEV_BLOCK_TIME),
             );
             let pre_funded_accounts = node
                 .pre_funded_accounts
@@ -101,7 +104,7 @@ impl RunCommand {
             ethereum.ethereum_router = Some(router_address);
             ethereum.block_time = Some(block_time.as_secs());
 
-            // because WS RPC is disabled by default
+            // make sure RPC is enabled as RPC is disabled by default
             self.params.rpc.get_or_insert_with(Default::default);
 
             anvil_instance = Some(anvil);
