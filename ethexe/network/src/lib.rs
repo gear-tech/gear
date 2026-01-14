@@ -578,11 +578,11 @@ impl NetworkService {
     pub fn send_injected_transaction(
         &mut self,
         data: AddressedInjectedTransaction,
-    ) -> anyhow::Result<()> {
+    ) -> Result<(), injected::SendTransactionError> {
         let behaviour = self.swarm.behaviour_mut();
         behaviour
             .injected
-            .send_transaction(&behaviour.validator_discovery, data)
+            .send_transaction(behaviour.validator_discovery.identities(), data)
     }
 
     pub fn publish_promise(&mut self, promise: SignedPromise) {

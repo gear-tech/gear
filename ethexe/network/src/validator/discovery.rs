@@ -67,6 +67,8 @@ const MAX_IDENTITY_ADDRESSES: usize = 10;
 /// Limit is to not flood the network
 const MAX_IN_FLIGHT_QUERIES: usize = 10;
 
+pub type ValidatorIdentities = HashMap<Address, SignedValidatorIdentity>;
+
 /// Signed validator discovery
 ///
 /// Signed by both validator key and networking key,
@@ -369,7 +371,7 @@ pub enum Event {
 
 struct GetIdentities {
     snapshot: Arc<ValidatorListSnapshot>,
-    identities: HashMap<Address, SignedValidatorIdentity>,
+    identities: ValidatorIdentities,
     query_identities: Option<BoxStream<'static, GetRecordResult>>,
     query_identities_interval: ExponentialBackoffInterval,
     pending_events: VecDeque<ToSwarm<Event, THandlerInEvent<Behaviour>>>,
@@ -601,6 +603,10 @@ impl Behaviour {
 
     pub(crate) fn on_new_snapshot(&mut self, snapshot: Arc<ValidatorListSnapshot>) {
         self.get_identities.on_new_snapshot(snapshot);
+    }
+
+    pub fn identities(&self) -> &ValidatorIdentities {
+        &self.get_identities.identities
     }
 
     pub fn get_identity(&self, address: Address) -> Option<&SignedValidatorIdentity> {
