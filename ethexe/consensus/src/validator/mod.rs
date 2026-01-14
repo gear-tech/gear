@@ -181,10 +181,10 @@ impl ValidatorService {
             .context_mut()
     }
 
-    fn update_inner<E>(
+    fn update_inner(
         &mut self,
-        update: impl FnOnce(ValidatorState) -> Result<ValidatorState, E>,
-    ) -> Result<(), E> {
+        update: impl FnOnce(ValidatorState) -> Result<ValidatorState>,
+    ) -> Result<()> {
         let inner = self
             .inner
             .take()
@@ -261,7 +261,7 @@ impl Stream for ValidatorService {
                 ctx.output(res?);
             }
 
-            Ok::<ValidatorState, anyhow::Error>(inner)
+            Ok(inner)
         })?;
 
         self.context_mut()
