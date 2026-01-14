@@ -18,7 +18,7 @@
 
 use crate::{
     Params,
-    params::{EthereumParams, MergeParams},
+    params::{MergeParams, NodeParams},
 };
 use anyhow::{Context as _, Result, anyhow};
 use clap::Args;
@@ -67,26 +67,42 @@ impl RunCommand {
         if let Some(node) = self.params.node.as_mut()
             && node.dev
         {
+            // set block time to 1 second if not set explicitly
             let block_time = Duration::from_secs(
                 self.params
                     .ethereum
                     .as_ref()
                     .and_then(|ethereum| ethereum.block_time)
-                    .unwrap_or(EthereumParams::BLOCK_TIME),
+                    .unwrap_or(1),
             );
-            let (anvil, validator_public_key, _sender_public_key, router_address) =
-                Builder::new_multi_thread().enable_all().build()?.block_on(
-                    Service::configure_dev_environment(node.keys_dir(), block_time),
-                )?;
+            let pre_funded_accounts = node
+                .pre_funded_accounts
+                .unwrap_or(NodeParams::DEFAULT_PRE_FUNDED_ACCOUNTS)
+                .get();
+            let (anvil, validator_public_key, router_address) = Builder::new_multi_thread()
+                .enable_all()
+                .build()?
+                .block_on(Service::configure_dev_environment(
+                    node.keys_dir(),
+                    block_time,
+                    pre_funded_accounts,
+                ))?;
 
             node.validator = Some(validator_public_key.to_string());
             node.validator_session = Some(validator_public_key.to_string());
+            if node.canonical_quarantine.is_none() {
+                // disable quarantine in dev mode if not set explicitly
+                node.canonical_quarantine = Some(0);
+            }
 
             let ethereum = self.params.ethereum.get_or_insert_with(Default::default);
             ethereum.ethereum_rpc = Some(anvil.ws_endpoint());
             ethereum.ethereum_beacon_rpc = Some(anvil.endpoint());
             ethereum.ethereum_router = Some(router_address);
             ethereum.block_time = Some(block_time.as_secs());
+
+            // because WS RPC is disabled by default
+            self.params.rpc.get_or_insert_with(Default::default);
 
             anvil_instance = Some(anvil);
         }
