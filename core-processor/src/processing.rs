@@ -247,10 +247,11 @@ impl ProcessErrorCase {
             ProcessErrorCase::ExecutionFailed(reason) => reason.as_simple().into(),
         }
     }
+}
 
-    // TODO: consider to convert `self` into `Payload` to avoid `PanicBuffer` cloning (#4594)
-    fn to_payload(&self) -> Payload {
-        match self {
+impl From<ProcessErrorCase> for Payload {
+    fn from(value: ProcessErrorCase) -> Self {
+        match value {
             ProcessErrorCase::ProgramExited { inheritor } => {
                 const _: () = assert!(size_of::<ActorId>() <= Payload::MAX_LEN);
                 inheritor
@@ -263,7 +264,7 @@ impl ProcessErrorCase {
             }
             ProcessErrorCase::ExecutionFailed(ActorExecutionErrorReplyReason::Trap(
                 TrapExplanation::Panic(buf),
-            )) => buf.inner().clone(),
+            )) => buf.into(),
             _ => Payload::default(),
         }
     }
@@ -336,9 +337,30 @@ fn process_error(
         journal.push(JournalNote::SystemUnreserveGas { message_id });
     }
 
+    let outcome = match case {
+        ProcessErrorCase::ExecutionFailed { .. } | ProcessErrorCase::ReinstrumentationFailed => {
+            let err_msg = case.to_string();
+            match dispatch.kind() {
+                DispatchKind::Init => DispatchOutcome::InitFailure {
+                    program_id,
+                    origin,
+                    reason: err_msg,
+                },
+                _ => DispatchOutcome::MessageTrap {
+                    program_id,
+                    trap: err_msg,
+                },
+            }
+        }
+        ProcessErrorCase::ProgramExited { .. }
+        | ProcessErrorCase::FailedInit
+        | ProcessErrorCase::Uninitialized
+        | ProcessErrorCase::CodeNotExists => DispatchOutcome::NoExecution,
+    };
+
     if to_send_reply {
         let err = case.to_reason();
-        let err_payload = case.to_payload();
+        let err_payload = Payload::from(case);
 
         let value = if dispatch.context().is_none() {
             value
@@ -365,27 +387,6 @@ fn process_error(
             reservation: None,
         });
     }
-
-    let outcome = match case {
-        ProcessErrorCase::ExecutionFailed { .. } | ProcessErrorCase::ReinstrumentationFailed => {
-            let err_msg = case.to_string();
-            match dispatch.kind() {
-                DispatchKind::Init => DispatchOutcome::InitFailure {
-                    program_id,
-                    origin,
-                    reason: err_msg,
-                },
-                _ => DispatchOutcome::MessageTrap {
-                    program_id,
-                    trap: err_msg,
-                },
-            }
-        }
-        ProcessErrorCase::ProgramExited { .. }
-        | ProcessErrorCase::FailedInit
-        | ProcessErrorCase::Uninitialized
-        | ProcessErrorCase::CodeNotExists => DispatchOutcome::NoExecution,
-    };
 
     journal.push(JournalNote::MessageDispatched {
         message_id,
