@@ -80,7 +80,7 @@ impl<DB: OnChainStorageRO + AnnounceStorageRO + Storage> TransactionStatusResolv
         }
 
         if self.recent_included_txs.contains(&tx.data().to_hash()) {
-            return Ok(PendingStatus::AlreadyIncluded.into());
+            return Ok(InvalidReason::AlreadyIncluded.into());
         }
 
         let Some(destination_state_hash) = self.latest_states.get(&tx.data().destination) else {
@@ -275,7 +275,7 @@ mod tests {
             TransactionStatusResolver::new_for_announce(db, chain_head, announce_hash).unwrap();
 
         assert_eq!(
-            TransactionStatus::Pending(PendingStatus::AlreadyIncluded),
+            TransactionStatus::Invalid(InvalidReason::AlreadyIncluded),
             resolver.resolve(&tx).unwrap()
         );
     }

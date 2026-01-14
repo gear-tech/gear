@@ -4978,7 +4978,6 @@ dependencies = [
  "sha3",
  "sp-core",
  "tap",
- "thiserror 2.0.12",
 ]
 
 [[package]]

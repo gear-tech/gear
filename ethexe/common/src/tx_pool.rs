@@ -19,6 +19,16 @@
 use crate::{hash::HashOf, injected::InjectedTransaction};
 use gprimitives::ActorId;
 
+/// The notification for transaction's sender about removal from the pool.
+#[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct RemovalNotification {
+    // Removed transaction hash
+    pub tx_hash: HashOf<InjectedTransaction>,
+    // The reason why it is removed
+    pub reason: InvalidReason,
+}
+
 /// The status of [`InjectedTransaction`] for specific announce and chain head.
 #[derive(Debug, Clone, PartialEq, Eq, derive_more::From, derive_more::Display)]
 pub enum TransactionStatus {
@@ -39,9 +49,6 @@ pub enum TransactionStatus {
 /// In this status, the transaction should be kept in the pool.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, derive_more::Display)]
 pub enum PendingStatus {
-    // If transaction was already included in some announce we keep it in pool, because of chain reorgs.
-    #[display("Transaction with the same hash was already included")]
-    AlreadyIncluded,
     // If transaction's reference block is not on current branch we keep it in pool, because of chain reorgs.
     #[display("Transaction's reference block is not on current branch")]
     NotOnCurrentBranch,
@@ -55,18 +62,10 @@ pub enum PendingStatus {
 #[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
 #[derive(Debug, Clone, PartialEq, Eq, derive_more::Display)]
 pub enum InvalidReason {
+    #[display("Transaction with the same hash was already included in announce chain")]
+    AlreadyIncluded,
     #[display("Transaction was not included within validity window and becomes outdated")]
     Outdated,
     #[display("Transaction's destination actor({destination}) not found")]
     UnknownDestination { destination: ActorId },
-}
-
-/// Notification will be sent to the transaction's sender when transaction is removed from the pool.
-#[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct RemovalNotification {
-    // Removed transaction hash
-    pub tx_hash: HashOf<InjectedTransaction>,
-    // The reason why it is removed
-    pub reason: InvalidReason,
 }
