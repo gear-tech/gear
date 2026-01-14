@@ -2628,7 +2628,8 @@ async fn injected_tx_fungible_token_over_network() {
     };
 
     alice_node
-        .wait_for(|event| {
+        .events()
+        .find(|event| {
             matches!(
                 event,
                 TestingEvent::Network(NetworkEvent::ValidatorIdentityUpdated(_))
@@ -2643,7 +2644,8 @@ async fn injected_tx_fungible_token_over_network() {
 
     // wait for the injected transaction received before forcing a block
     bob_node
-        .wait_for(|event| {
+        .events()
+        .find(|event| {
             matches!(
                 event,
                 TestingEvent::Network(NetworkEvent::InjectedTransaction(_))
