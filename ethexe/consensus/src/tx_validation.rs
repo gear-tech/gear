@@ -27,8 +27,6 @@ use ethexe_runtime_common::state::Storage;
 use gprimitives::H256;
 use hashbrown::HashSet;
 
-// TODO !!!: rename this type
-
 /// [`TransactionStatusResolver`] determines the [`TransactionStatus`] for injected transactions for
 /// specific announce and chain head.
 pub struct TransactionStatusResolver<DB> {
@@ -64,8 +62,6 @@ impl<DB: OnChainStorageRO + AnnounceStorageRO + Storage> TransactionStatusResolv
             chain_head,
         })
     }
-
-    // TODO: rename this method
 
     /// Determine [`TransactionStatus`] for injected transaction.
     pub fn resolve(&self, tx: &SignedInjectedTransaction) -> Result<TransactionStatus> {

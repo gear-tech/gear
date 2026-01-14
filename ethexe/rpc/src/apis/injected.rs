@@ -53,7 +53,7 @@ impl From<anyhow::Error> for RejectionMessage {
 }
 
 /// Type represents the result for injected transaction promise subscription.
-pub(crate) type PromiseResult = Either<SignedPromise, RemovalNotification>;
+pub(crate) type PromiseOrNotification = Either<SignedPromise, RemovalNotification>;
 
 #[cfg_attr(not(feature = "client"), rpc(server, namespace = "injected"))]
 #[cfg_attr(feature = "client", rpc(server, client, namespace = "injected"))]
@@ -69,7 +69,7 @@ pub trait Injected {
     #[subscription(
         name = "sendTransactionAndWatch",
         unsubscribe = "sendTransactionAndWatchUnsubscribe", 
-        item = PromiseResult
+        item = PromiseOrNotification
     )]
     async fn send_transaction_and_watch(
         &self,
@@ -83,7 +83,8 @@ pub struct InjectedApi {
     /// Sender to forward RPC events to the main service.
     rpc_sender: mpsc::UnboundedSender<RpcEvent>,
     /// Map of promise waiters.
-    promise_waiters: Arc<DashMap<HashOf<InjectedTransaction>, oneshot::Sender<PromiseResult>>>,
+    promise_waiters:
+        Arc<DashMap<HashOf<InjectedTransaction>, oneshot::Sender<PromiseOrNotification>>>,
 }
 
 #[async_trait]
@@ -214,7 +215,7 @@ impl InjectedApi {
     fn spawn_promise_waiter(
         &self,
         sink: SubscriptionSink,
-        receiver: oneshot::Receiver<PromiseResult>,
+        receiver: oneshot::Receiver<PromiseOrNotification>,
         tx_hash: HashOf<InjectedTransaction>,
     ) {
         // This clone is cheap, as it only increases the ref count.

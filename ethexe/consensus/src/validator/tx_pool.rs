@@ -123,7 +123,6 @@ where
             }
         }
 
-        // Remove invalid transactions from pool.
         to_remove.into_iter().for_each(|tx_hash| {
             self.inner.remove(&tx_hash);
         });
