@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{self as pallet_gear_eth_bridge};
+use crate as pallet_gear_eth_bridge;
 use common::Origin as _;
 use frame_support::{
     PalletId, construct_runtime, parameter_types,
@@ -25,7 +25,7 @@ use frame_support::{
 use frame_support_test::TestRandomness;
 use frame_system::{self as system, EnsureSignedBy, pallet_prelude::BlockNumberFor};
 use gprimitives::ActorId;
-use pallet_gear_builtin::ActorWithId;
+use pallet_gear_builtin::BuiltinActor;
 use pallet_session::{SessionManager, ShouldEndSession};
 use sp_core::{H256, ed25519::Public};
 use sp_runtime::{
@@ -176,15 +176,13 @@ pallet_gear::impl_config!(
     BuiltinDispatcherFactory = GearBuiltin,
 );
 
-pub const BUILTIN_ID: u64 = 3;
-
 pub(crate) fn mock_builtin_id() -> ActorId {
-    GearBuiltin::generate_actor_id(BUILTIN_ID)
+    GearBuiltin::builtin_id_into_actor_id(<crate::builtin::Actor<Test> as BuiltinActor>::TYPE.id())
 }
 
 impl pallet_gear_builtin::Config for Test {
     type RuntimeCall = RuntimeCall;
-    type Builtins = (ActorWithId<BUILTIN_ID, crate::builtin::Actor<Test>>,);
+    type Builtins = (crate::builtin::Actor<Test>,);
     type BlockLimiter = GearGas;
     type WeightInfo = ();
 }

@@ -24,13 +24,10 @@
 use gbuiltin_staking::*;
 use gstd::{ActorId, debug, errors::Error, msg, prelude::*};
 use hashbrown::HashMap;
-use hex_literal::hex;
 use parity_scale_codec::Encode;
 
 // Staking proxy builtin actor program id (hardcoded for all runtimes)
-const BUILTIN_ADDRESS: ActorId = ActorId::new(hex!(
-    "77f65ef190e11bfecb8fc8970fd3749e94bed66a23ec2f7a3623e785d0816761"
-));
+const BUILTIN_ADDRESS: ActorId = ActorId::new(*b"modl/bia/staking/v-\x01\0/\0\0\0\0\0\0\0\0\0\0");
 
 #[derive(Debug, Default)]
 struct StakingBroker {

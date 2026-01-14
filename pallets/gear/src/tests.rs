@@ -6723,7 +6723,7 @@ fn test_sequence_inheritor_of() {
         // serial inheritance
         let mut programs = vec![];
         for i in 1000..1100 {
-            let program_id = i.cast();
+            let program_id = ActorId::from(i);
             manager.set_program(program_id, code_id, message_id, 1.unique_saturated_into());
 
             ProgramStorageOf::<Test>::update_program_if_active(program_id, |program, _bn| {
@@ -6739,7 +6739,8 @@ fn test_sequence_inheritor_of() {
             programs.push(program_id);
         }
 
-        let indexed_programs: Vec<u64> = (1000..1100).collect();
+        let indexed_programs: Vec<u64> =
+            (1000..1100).map(ActorId::from).map(ActorId::cast).collect();
         let convert_holders = |holders: BTreeSet<ActorId>| {
             let mut holders = holders
                 .into_iter()

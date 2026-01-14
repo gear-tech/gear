@@ -17,14 +17,14 @@ targets = ["x86_64-unknown-linux-gnu"]
 
 [dependencies]
 parity-scale-codec = { workspace = true, features = ["derive"] }
-scale-info = { workspace = true, features = ["derive", "serde"] }
-primitive-types = { workspace = true, features = ["scale-info"] }
+scale-info = { workspace = true, features = ["derive"] }
 log.workspace = true
 impl-trait-for-tuples.workspace = true
 ark-std = { workspace = true, optional = true }
 
 common.workspace = true
 core-processor.workspace = true
+gbuiltin-common.workspace = true
 gbuiltin-staking.workspace = true
 gbuiltin-proxy.workspace = true
 builtins-common = { workspace = true, features = ["bls12-381"] }
@@ -34,6 +34,7 @@ gear-runtime-interface.workspace = true
 frame-support.workspace = true
 frame-system.workspace = true
 frame-benchmarking = { workspace = true, optional = true }
+sp-core.workspace = true
 sp-crypto-ec-utils = { workspace = true, features = ["bls12-381"] }
 sp-std.workspace = true
 sp-runtime = { workspace = true, features = ["serde"] }
@@ -46,8 +47,8 @@ gear-workspace-hack.workspace = true
 demo-waiting-proxy.workspace = true
 demo-staking-broker.workspace = true
 demo-proxy-broker.workspace = true
+gbuiltin-common = { workspace = true, features = ["dev"] }
 gprimitives.workspace = true
-sp-core = { workspace = true, features = ["std"] }
 sp-externalities = { workspace = true, features = ["std"] }
 sp-io = { workspace = true, features = ["std"] }
 sp-staking = { workspace = true, features = ["std"] }
@@ -69,38 +70,39 @@ sha2 = { workspace = true, features = ["std"] }
 [features]
 default = ["std"]
 std = [
-	"common/std",
-	"builtins-common/bls12-381-std",
-	"frame-benchmarking?/std",
-	"frame-support/std",
-	"frame-system/std",
-	"gear-core/std",
-	"gear-runtime-interface/std",
-	"pallet-gear/std",
-	"pallet-staking/std",
-	"pallet-proxy/std",
-	"parity-scale-codec/std",
-	"scale-info/std",
-	"sp-crypto-ec-utils/std",
-	"sp-runtime/std",
-	"sp-std/std",
-	"ark-std/std",
-	# To be removed after migrations applied.
-	"pallet-balances/std",
-	"gprimitives/std",
+    "common/std",
+    "gbuiltin-common/std",
+    "builtins-common/bls12-381-std",
+    "frame-benchmarking?/std",
+    "frame-support/std",
+    "frame-system/std",
+    "gear-core/std",
+    "gear-runtime-interface/std",
+    "pallet-gear/std",
+    "pallet-staking/std",
+    "pallet-proxy/std",
+    "parity-scale-codec/std",
+    "scale-info/std",
+    "sp-crypto-ec-utils/std",
+    "sp-runtime/std",
+    "sp-std/std",
+    "ark-std/std",
+    # To be removed after migrations applied.
+    "pallet-balances/std",
+    "gprimitives/std",
 ]
 runtime-benchmarks = [
-	"common/runtime-benchmarks",
-	"frame-benchmarking/runtime-benchmarks",
-	"frame-support/runtime-benchmarks",
-	"frame-system/runtime-benchmarks",
-	"pallet-staking/runtime-benchmarks",
-	"ark-std",
-	# To be removed after migrations applied.
-	"pallet-balances/runtime-benchmarks",
+    "common/runtime-benchmarks",
+    "frame-benchmarking/runtime-benchmarks",
+    "frame-support/runtime-benchmarks",
+    "frame-system/runtime-benchmarks",
+    "pallet-staking/runtime-benchmarks",
+    "ark-std",
+    # To be removed after migrations applied.
+    "pallet-balances/runtime-benchmarks",
 ]
 try-runtime = [
-	"frame-support/try-runtime",
-	# To be removed after migrations applied.
-	"pallet-balances/try-runtime",
+    "frame-support/try-runtime",
+    # To be removed after migrations applied.
+    "pallet-balances/try-runtime",
 ]

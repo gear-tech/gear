@@ -68,7 +68,6 @@ std = [
     "log/std",
     "parity-scale-codec/std",
     "scale-info/std",
-
     # Gear deps.
     "common/std",
     "builtins-common/eth-bridge-std",
@@ -76,9 +75,8 @@ std = [
     "gprimitives/std",
     "pallet-gear-builtin/std",
     "pallet-gear-eth-bridge-primitives/std",
-
     # Substrate deps.
-	"bp-header-chain/std",
+    "bp-header-chain/std",
     "binary-merkle-tree/std",
     "frame-support/std",
     "frame-system/std",
@@ -91,7 +89,6 @@ runtime-benchmarks = [
     # Gear deps.
     "common/runtime-benchmarks",
     "pallet-gear-builtin/runtime-benchmarks",
-
     # Substrate deps.
     "frame-benchmarking/runtime-benchmarks",
     "frame-support/runtime-benchmarks",
@@ -102,10 +99,10 @@ runtime-benchmarks = [
 try-runtime = [
     # Gear deps.
     "pallet-gear-builtin/try-runtime",
-
     # Substrate deps.
     "frame-support/try-runtime",
     "frame-system/try-runtime",
     "pallet-grandpa/try-runtime",
     "sp-runtime/try-runtime",
 ]
+dev = []

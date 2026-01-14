@@ -26,13 +26,10 @@ use gstd::{
     msg,
     prelude::*,
 };
-use hex_literal::hex;
 
 type ArkScale<T> = ark_scale::ArkScale<T, { ark_scale::HOST_CALL }>;
 
-const BUILTIN_BLS381: ActorId = ActorId::new(hex!(
-    "6b6e292c382945e80bf51af2ba7fe9f458dcff81ae6075c46f9095e1bbecdc37"
-));
+const BUILTIN_ADDRESS: ActorId = ActorId::new(*b"modl/bia/bls12-381/v-\x01\0/\0\0\0\0\0\0\0\0");
 
 #[allow(dead_code)]
 #[derive(Default)]
@@ -102,7 +99,7 @@ async fn main() {
                 b: aggregate_pub_key.encode(),
             }
             .encode();
-            let reply = msg::send_bytes_for_reply(BUILTIN_BLS381, &request, 0, 0)
+            let reply = msg::send_bytes_for_reply(BUILTIN_ADDRESS, &request, 0, 0)
                 .expect("Failed to send message")
                 .await
                 .expect("Received error reply");
@@ -128,7 +125,7 @@ async fn main() {
                 b: g2_gen.encode(),
             }
             .encode();
-            let reply = msg::send_bytes_for_reply(BUILTIN_BLS381, &request, 0, 0)
+            let reply = msg::send_bytes_for_reply(BUILTIN_ADDRESS, &request, 0, 0)
                 .expect("Failed to send message")
                 .await
                 .expect("Received error reply");
@@ -147,7 +144,7 @@ async fn main() {
                     f: miller_out1.clone(),
                 }
                 .encode();
-                let reply = msg::send_bytes_for_reply(BUILTIN_BLS381, &request, 0, 0)
+                let reply = msg::send_bytes_for_reply(BUILTIN_ADDRESS, &request, 0, 0)
                     .expect("Failed to send message")
                     .await
                     .expect("Received error reply");
@@ -164,7 +161,7 @@ async fn main() {
                     f: miller_out2.clone(),
                 }
                 .encode();
-                let reply = msg::send_bytes_for_reply(BUILTIN_BLS381, &request, 0, 0)
+                let reply = msg::send_bytes_for_reply(BUILTIN_ADDRESS, &request, 0, 0)
                     .expect("Failed to send message")
                     .await
                     .expect("Received error reply");

@@ -17,11 +17,11 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    self as pallet_gear_builtin, ActorWithId, BuiltinActor, BuiltinReply, GasAllowanceOf,
-    bls12_381, proxy,
+    self as pallet_gear_builtin, BuiltinActor, BuiltinActorId, BuiltinActorType, BuiltinReply,
+    GasAllowanceOf, bls12_381, proxy,
 };
 use builtins_common::{BuiltinActorError, BuiltinContext};
-use common::{GasProvider, GasTree, storage::Limiter};
+use common::{GasProvider, GasTree, Origin, storage::Limiter};
 use core::cell::RefCell;
 use frame_support::{
     PalletId, construct_runtime,
@@ -225,14 +225,19 @@ pallet_gear::impl_config!(
 // A builtin actor who always returns success (even if not enough gas is provided).
 pub struct SuccessBuiltinActor {}
 impl BuiltinActor for SuccessBuiltinActor {
+    const TYPE: BuiltinActorType =
+        BuiltinActorType::Custom(BuiltinActorId::new(b"success-actor", 1));
+
     fn handle(
         dispatch: &StoredDispatch,
         context: &mut BuiltinContext,
     ) -> Result<BuiltinReply, BuiltinActorError> {
         if !in_transaction() {
+            let builtin_id =
+                GearBuiltin::builtin_id_into_actor_id(<Self as BuiltinActor>::TYPE.id()).cast();
             DEBUG_EXECUTION_TRACE.with(|d| {
                 d.borrow_mut().push(ExecutionTraceFrame {
-                    destination: SUCCESS_ACTOR_ID,
+                    destination: builtin_id,
                     source: dispatch.source(),
                     input: dispatch.payload_bytes().to_vec(),
                     is_success: true,
@@ -258,14 +263,19 @@ impl BuiltinActor for SuccessBuiltinActor {
 // A builtin actor that always returns an error.
 pub struct ErrorBuiltinActor {}
 impl BuiltinActor for ErrorBuiltinActor {
+    const TYPE: BuiltinActorType = BuiltinActorType::Custom(BuiltinActorId::new(b"error-actor", 1));
+
     fn handle(
         dispatch: &StoredDispatch,
         context: &mut BuiltinContext,
     ) -> Result<BuiltinReply, BuiltinActorError> {
         if !in_transaction() {
+            let builtin_id =
+                GearBuiltin::builtin_id_into_actor_id(<Self as BuiltinActor>::TYPE.id()).cast();
+
             DEBUG_EXECUTION_TRACE.with(|d| {
                 d.borrow_mut().push(ExecutionTraceFrame {
-                    destination: ERROR_ACTOR_ID,
+                    destination: builtin_id,
                     source: dispatch.source(),
                     input: dispatch.payload_bytes().to_vec(),
                     is_success: false,
@@ -284,6 +294,9 @@ impl BuiltinActor for ErrorBuiltinActor {
 // An honest bulitin actor that actually checks whether the gas is sufficient.
 pub struct HonestBuiltinActor {}
 impl BuiltinActor for HonestBuiltinActor {
+    const TYPE: BuiltinActorType =
+        BuiltinActorType::Custom(BuiltinActorId::new(b"honest-actor", 1));
+
     fn handle(
         dispatch: &StoredDispatch,
         context: &mut BuiltinContext,
@@ -291,9 +304,12 @@ impl BuiltinActor for HonestBuiltinActor {
         let is_error = context.to_gas_amount().left() < 500_000_u64;
 
         if !in_transaction() {
+            let builtin_id =
+                GearBuiltin::builtin_id_into_actor_id(<Self as BuiltinActor>::TYPE.id()).cast();
+
             DEBUG_EXECUTION_TRACE.with(|d| {
                 d.borrow_mut().push(ExecutionTraceFrame {
-                    destination: HONEST_ACTOR_ID,
+                    destination: builtin_id,
                     source: dispatch.source(),
                     input: dispatch.payload_bytes().to_vec(),
                     is_success: !is_error,
@@ -321,18 +337,14 @@ impl BuiltinActor for HonestBuiltinActor {
     }
 }
 
-const HONEST_ACTOR_ID: u64 = u64::from_le_bytes(*b"bltn/hon");
-const SUCCESS_ACTOR_ID: u64 = u64::from_le_bytes(*b"bltn/suc");
-const ERROR_ACTOR_ID: u64 = u64::from_le_bytes(*b"bltn/err");
-
 impl pallet_gear_builtin::Config for Test {
     type RuntimeCall = RuntimeCall;
     type Builtins = (
-        ActorWithId<SUCCESS_ACTOR_ID, SuccessBuiltinActor>,
-        ActorWithId<ERROR_ACTOR_ID, ErrorBuiltinActor>,
-        ActorWithId<HONEST_ACTOR_ID, HonestBuiltinActor>,
-        ActorWithId<1, bls12_381::Actor<Self>>,
-        ActorWithId<4, proxy::Actor<Self>>,
+        SuccessBuiltinActor,
+        ErrorBuiltinActor,
+        HonestBuiltinActor,
+        bls12_381::Actor<Self>,
+        proxy::Actor<Self>,
     );
     type BlockLimiter = GearGas;
     type WeightInfo = ();

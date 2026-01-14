@@ -33,6 +33,7 @@ use pallet_gear::{
 use pallet_staking::WeightInfo as _;
 use sp_runtime::AccountId32;
 
+use pallet_gear_builtin::BuiltinActor;
 #[cfg(feature = "dev")]
 use sp_runtime::traits::AccountIdConversion;
 
@@ -483,7 +484,10 @@ fn eth_bridge_builtin_id_matches() {
     use common::Origin;
 
     assert_eq!(
-        GearBuiltin::generate_actor_id(super::ETH_BRIDGE_BUILTIN_ID).cast::<AccountId>(),
+        GearBuiltin::builtin_id_into_actor_id(
+            <pallet_gear_eth_bridge::builtin::Actor<Runtime> as BuiltinActor>::TYPE.id()
+        )
+        .cast::<AccountId>(),
         <Runtime as pallet_gear_eth_bridge::Config>::BuiltinAddress::get(),
     )
 }

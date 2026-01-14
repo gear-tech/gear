@@ -10,6 +10,8 @@ repository = "https://github.com/gear-tech/gear"
 [dependencies]
 jsonrpsee = { workspace = true, features = ["server", "macros"] }
 
+gbuiltin-common.workspace = true
+
 # Substrate packages
 sp-api.workspace = true
 sp-blockchain.workspace = true

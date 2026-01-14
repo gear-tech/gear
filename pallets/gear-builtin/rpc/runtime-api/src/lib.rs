@@ -18,11 +18,17 @@
 
 #![cfg_attr(not(feature = "std"), no_std)]
 
+use gbuiltin_common::BuiltinActorType;
 use sp_core::H256;
+use sp_std::vec::Vec;
 
 sp_api::decl_runtime_apis! {
     pub trait GearBuiltinApi {
         /// Calculate `ActorId` (a.k.a. actor id) for a given builtin id.
-        fn query_actor_id(builtin_id: u64) -> H256;
+        fn query_actor_id(builtin_id: u64) -> Option<H256>;
+        /// Get list of all current builtin actors.
+        fn list_actors() -> Vec<(BuiltinActorType, u16, H256)>;
+        /// Get specific builtin `ActorId` by its type.
+        fn get_actor_id(actor_type: BuiltinActorType, version: u16) -> Option<H256>;
     }
 }
