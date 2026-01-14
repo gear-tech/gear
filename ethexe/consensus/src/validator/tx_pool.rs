@@ -36,11 +36,12 @@ pub(crate) struct TransactionPool<DB = Database> {
     db: DB,
 }
 
+/// The output of [`TransactionPool::select_for_announce`].
 #[derive(Debug, Clone, Default)]
-pub struct TxPoolOutput {
+pub struct SelectionOutput {
     /// Selected transactions to be included in announce.
     pub selected_txs: Vec<SignedInjectedTransaction>,
-    /// Invalid transactions reasons.
+    /// Removed transactions notifications.
     pub removed_txs: Vec<RemovalNotification>,
 }
 
@@ -82,7 +83,7 @@ where
         &mut self,
         block_hash: H256,
         parent_announce: HashOf<Announce>,
-    ) -> Result<TxPoolOutput> {
+    ) -> Result<SelectionOutput> {
         tracing::trace!(block = ?block_hash, "start collecting injected transactions");
 
         let resolver = TransactionStatusResolver::new_for_announce(
@@ -91,7 +92,7 @@ where
             parent_announce,
         )?;
 
-        let mut output = TxPoolOutput::default();
+        let mut output = SelectionOutput::default();
         let mut to_remove = Vec::new();
 
         for tx_hash in self.inner.iter() {
@@ -103,7 +104,10 @@ where
             match resolver.resolve(&tx)? {
                 TransactionStatus::Valid => {
                     tracing::trace!(tx_hash = ?tx_hash, tx = ?tx.data(), "tx is valid, including to announce");
-                    output.selected_txs.push(tx)
+                    output.selected_txs.push(tx);
+                    // TODO kuzmindev
+                    // Note: remove tx from pool because of now we don't support transaction re-inclusion after reorgs.
+                    to_remove.push(*tx_hash);
                 }
                 TransactionStatus::Pending(status) => {
                     tracing::trace!(tx_hash = ?tx_hash, state = %status, "tx is in pending status, keeping in pool")

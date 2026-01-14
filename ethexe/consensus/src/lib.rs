@@ -109,7 +109,7 @@ pub enum ConsensusEvent {
     AnnounceAccepted(HashOf<Announce>),
     /// Announce from producer was rejected
     AnnounceRejected(HashOf<Announce>),
-    /// The list of injected transactions was rejected by the consensus
+    /// The list of notifications about removed injected transactions from the pool
     #[from]
     TransactionsRemoved(Vec<RemovalNotification>),
     /// Outer service have to compute announce

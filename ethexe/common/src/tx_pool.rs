@@ -61,7 +61,7 @@ pub enum InvalidReason {
     UnknownDestination { destination: ActorId },
 }
 
-/// Notification about removed transaction from the pool.
+/// Notification will be sent to the transaction's sender when transaction is removed from the pool.
 #[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RemovalNotification {

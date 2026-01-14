@@ -22,7 +22,7 @@ use super::{
 use crate::{
     ConsensusEvent,
     announces::{self, DBAnnouncesExt},
-    validator::{DefaultProcessing, tx_pool::TxPoolOutput},
+    validator::{DefaultProcessing, tx_pool::SelectionOutput},
 };
 use anyhow::{Result, anyhow};
 use derive_more::{Debug, Display};
@@ -194,7 +194,7 @@ impl Producer {
             self.ctx.core.commitment_delay_limit,
         )?;
 
-        let TxPoolOutput {
+        let SelectionOutput {
             selected_txs,
             removed_txs,
         } = self
