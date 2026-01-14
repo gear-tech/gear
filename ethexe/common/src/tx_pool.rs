@@ -20,7 +20,7 @@ use crate::{hash::HashOf, injected::InjectedTransaction};
 use gprimitives::ActorId;
 
 /// The notification for transaction's sender about removal from the pool.
-#[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
+#[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RemovalNotification {
     // Removed transaction hash
@@ -59,13 +59,19 @@ pub enum PendingStatus {
 }
 
 /// The reason why the transaction is not valid and cannot be included into announce.
-#[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
+///
+/// Note: serialize as [`u8`]` for compactness.
+#[cfg_attr(
+    feature = "std",
+    derive(serde_repr::Serialize_repr, serde_repr::Deserialize_repr)
+)]
 #[derive(Debug, Clone, PartialEq, Eq, derive_more::Display)]
+#[repr(u8)]
 pub enum InvalidReason {
     #[display("Transaction with the same hash was already included in announce chain")]
-    AlreadyIncluded,
+    AlreadyIncluded = 0,
     #[display("Transaction was not included within validity window and becomes outdated")]
-    Outdated,
-    #[display("Transaction's destination actor({destination}) not found")]
-    UnknownDestination { destination: ActorId },
+    Outdated = 1,
+    #[display("Transaction's destination actor not found")]
+    UnknownDestination = 2,
 }

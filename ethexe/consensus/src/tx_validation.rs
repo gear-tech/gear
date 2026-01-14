@@ -84,10 +84,7 @@ impl<DB: OnChainStorageRO + AnnounceStorageRO + Storage> TransactionStatusResolv
         }
 
         let Some(destination_state_hash) = self.latest_states.get(&tx.data().destination) else {
-            return Ok(InvalidReason::UnknownDestination {
-                destination: tx.data().destination,
-            }
-            .into());
+            return Ok(InvalidReason::UnknownDestination.into());
         };
 
         let Some(state) = self.db.program_state(destination_state_hash.hash) else {
