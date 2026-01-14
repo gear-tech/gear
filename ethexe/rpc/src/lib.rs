@@ -149,8 +149,8 @@ impl RpcService {
         self.injected_api.send_promise(promise);
     }
 
-    pub fn notify_transactions_removed_from_pool(&self, removals_info: Vec<RemovalNotification>) {
-        self.injected_api.notify_transactions_removed(removals_info);
+    pub fn notify_transactions_removed_from_pool(&self, notifications: Vec<RemovalNotification>) {
+        self.injected_api.notify_transactions_removed(notifications);
     }
 }
 

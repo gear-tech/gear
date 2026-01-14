@@ -161,12 +161,12 @@ impl InjectedApi {
         }
     }
 
-    pub fn notify_transactions_removed(&self, removals_info: Vec<RemovalNotification>) {
-        removals_info.into_iter().for_each(|info| {
-            if let Some((_, waiter)) = self.promise_waiters.remove(&info.tx_hash)
-                && let Err(value) = waiter.send(Either::Right(info))
+    pub fn notify_transactions_removed(&self, notifications: Vec<RemovalNotification>) {
+        notifications.into_iter().for_each(|notification| {
+            if let Some((_, waiter)) = self.promise_waiters.remove(&notification.tx_hash)
+                && let Err(unsent_value) = waiter.send(Either::Right(notification))
             {
-                tracing::trace!("rpc promise receiver dropped for removed tx: {:?}", value);
+                tracing::trace!("rpc promise receiver dropped for removed tx: {unsent_value:?}");
             }
         })
     }

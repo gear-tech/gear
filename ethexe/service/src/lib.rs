@@ -629,9 +629,9 @@ impl Service {
                     ConsensusEvent::CommitmentSubmitted(info) => {
                         log::info!("{info}");
                     }
-                    ConsensusEvent::TransactionsRemoved(removals) => {
-                        if let Some(rpc) = rpc.as_mut() {
-                            rpc.notify_transactions_removed_from_pool(removals);
+                    ConsensusEvent::TransactionsRemoved(notifications) => {
+                        if let Some(ref mut rpc) = rpc {
+                            rpc.notify_transactions_removed_from_pool(notifications);
                         }
                     }
                     ConsensusEvent::Warning(msg) => {
@@ -648,7 +648,7 @@ impl Service {
                         // TODO #4940: consider to publish network message
                     }
                     ConsensusEvent::Promise(promise) => {
-                        if let Some(rpc) = rpc.as_mut() {
+                        if let Some(ref mut rpc) = rpc {
                             rpc.provide_promise(promise);
                         }
 
