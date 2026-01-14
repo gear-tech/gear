@@ -19,7 +19,7 @@
 pub use tap::Tap;
 
 use crate::{
-    Announce, ComputationOutcome, BlockData, BlockHeader, CodeBlobInfo, Digest, HashOf,
+    Announce, BlockData, BlockHeader, CodeBlobInfo, ComputationOutcome, Digest, HashOf,
     ProgramStates, ProtocolTimelines, Schedule, SimpleBlockData, ValidatorsVec,
     consensus::BatchCommitmentValidationRequest,
     db::*,

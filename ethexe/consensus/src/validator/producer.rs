@@ -80,18 +80,20 @@ impl StateHandler for Producer {
             State::WaitingAnnounceComputed(expected)
                 if *expected == computed_data.announce_hash =>
             {
-                let mut signed_promises = Vec::with_capacity(computed_data.promises.len());
-                for promise in computed_data.promises.into_iter() {
-                    let signed_promise = self
-                        .ctx
-                        .core
-                        .signer
-                        .signed_message(self.ctx.core.pub_key, promise)
-                        .context("producer: failed to sign promise")?;
-                    signed_promises.push(signed_promise);
-                }
+                if !computed_data.promises.is_empty() {
+                    let mut signed_promises = Vec::with_capacity(computed_data.promises.len());
+                    for promise in computed_data.promises.into_iter() {
+                        let signed_promise = self
+                            .ctx
+                            .core
+                            .signer
+                            .signed_message(self.ctx.core.pub_key, promise)
+                            .context("producer: failed to sign promise")?;
+                        signed_promises.push(signed_promise);
+                    }
 
-                self.ctx.output(ConsensusEvent::Promises(signed_promises));
+                    self.ctx.output(ConsensusEvent::Promises(signed_promises));
+                }
 
                 self.state = State::AggregateBatchCommitment {
                     future: self
