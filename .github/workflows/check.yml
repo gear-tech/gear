@@ -277,14 +277,14 @@ jobs:
           target: x86_64-unknown-linux-gnu
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      # - name: "ACTIONS: Setup caching"
-      #   uses: ./.github/actions/rust-cache
-      #   with:
-      #     us-access-key-id: "${{ secrets.GEAR_CI_S3_US_ACCESS_KEY_ID }}"
-      #     us-secret-access-key: "${{ secrets.GEAR_CI_S3_US_SECRET_ACCESS_KEY }}"
-      #     eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
-      #     eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
-      #     key: "${{ matrix.name }}"
+      - name: "ACTIONS: Setup caching"
+        uses: ./.github/actions/rust-cache
+        with:
+          us-access-key-id: "${{ secrets.GEAR_CI_S3_US_ACCESS_KEY_ID }}"
+          us-secret-access-key: "${{ secrets.GEAR_CI_S3_US_SECRET_ACCESS_KEY }}"
+          eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
+          eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
+          key: "${{ matrix.name }}"
 
       - name: "Build: Vara runtime and wasm-proc"
         run: cargo build -p vara-runtime -p wasm-proc --release
@@ -329,7 +329,6 @@ jobs:
         uses: ./.github/actions/install-rust
 
       - name: "ACTIONS: Setup caching"
-        if: matrix.name != 'macos-x86_64'
         uses: ./.github/actions/rust-cache
         with:
           us-access-key-id: "${{ secrets.GEAR_CI_S3_US_ACCESS_KEY_ID }}"
@@ -359,13 +358,13 @@ jobs:
           target: x86_64-unknown-linux-gnu
           token: ${{ secrets.GITHUB_TOKEN }}
 
-      # - name: "ACTIONS: Setup caching"
-      #   uses: ./.github/actions/rust-cache
-      #   with:
-      #     us-access-key-id: "${{ secrets.GEAR_CI_S3_US_ACCESS_KEY_ID }}"
-      #     us-secret-access-key: "${{ secrets.GEAR_CI_S3_US_SECRET_ACCESS_KEY }}"
-      #     eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
-      #     eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
+      - name: "ACTIONS: Setup caching"
+        uses: ./.github/actions/rust-cache
+        with:
+          us-access-key-id: "${{ secrets.GEAR_CI_S3_US_ACCESS_KEY_ID }}"
+          us-secret-access-key: "${{ secrets.GEAR_CI_S3_US_SECRET_ACCESS_KEY }}"
+          eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
+          eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
 
       - name: "Check: Changes in vara_runtime.scale file"
         run: |
