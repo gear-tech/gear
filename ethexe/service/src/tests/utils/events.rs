@@ -16,8 +16,10 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+#![allow(clippy::double_parens)] // produced by `derive_more::TryUnwrap`
+
 use crate::Event;
-use anyhow::Result;
+use async_broadcast::{Receiver, RecvError, Sender};
 use ethexe_blob_loader::BlobLoaderEvent;
 use ethexe_common::{
     Announce, HashOf, SimpleBlockData, db::*, events::BlockEvent,
@@ -30,12 +32,18 @@ use ethexe_network::NetworkEvent;
 use ethexe_observer::ObserverEvent;
 use ethexe_prometheus::PrometheusEvent;
 use ethexe_rpc::RpcEvent;
+use futures::{Stream, StreamExt, future::Either, stream, stream::FusedStream};
 use gprimitives::H256;
-use std::ops::ControlFlow;
-use tokio::sync::broadcast::{self, Receiver, Sender};
+use std::{
+    iter,
+    pin::Pin,
+    task::{Context, Poll, ready},
+};
 
-pub type TestingEventSender = Sender<TestingEvent>;
-pub type TestingEventReceiver = Receiver<TestingEvent>;
+pub type TestingEventSender = EventSender<TestingEvent>;
+pub type TestingEventReceiver = EventReceiver<TestingEvent>;
+pub type ObserverEventSender = EventSender<ObserverEvent>;
+pub type ObserverEventReceiver = EventReceiver<ObserverEvent>;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum TestingRpcEvent {
@@ -57,9 +65,8 @@ impl TestingRpcEvent {
     }
 }
 
-#[derive(Debug, Clone, Eq, PartialEq)]
-#[allow(dead_code)]
-pub(crate) enum TestingEvent {
+#[derive(Debug, Clone, Eq, PartialEq, derive_more::TryUnwrap)]
+pub enum TestingEvent {
     // Fast sync done. Sent just once.
     FastSyncDone(H256),
     // Basic event to notify that service has started. Sent just once.
@@ -76,7 +83,7 @@ pub(crate) enum TestingEvent {
 }
 
 impl TestingEvent {
-    pub(crate) fn new(event: &Event) -> Self {
+    pub fn new(event: &Event) -> Self {
         match event {
             Event::Compute(event) => Self::Compute(event.clone()),
             Event::Consensus(event) => Self::Consensus(event.clone()),
@@ -90,11 +97,6 @@ impl TestingEvent {
     }
 }
 
-pub struct ServiceEventsListener<'a> {
-    pub receiver: &'a mut TestingEventReceiver,
-    pub db: Database,
-}
-
 #[derive(Debug, Default, Clone, Copy, derive_more::From)]
 pub enum AnnounceId {
     /// Wait for any next computed announce
@@ -106,222 +108,179 @@ pub enum AnnounceId {
     BlockHash(H256),
 }
 
-impl ServiceEventsListener<'_> {
-    pub async fn next_event(&mut self) -> Result<TestingEvent> {
-        self.receiver.recv().await.map_err(Into::into)
-    }
-
-    pub async fn wait_for(
-        &mut self,
-        mut f: impl FnMut(TestingEvent) -> Result<bool>,
-    ) -> Result<()> {
-        self.apply_until(|e| {
-            if f(e)? {
-                Ok(ControlFlow::Break(()))
-            } else {
-                Ok(ControlFlow::Continue(()))
-            }
-        })
-        .await
-    }
-
-    pub async fn wait_for_announce_computed(
-        &mut self,
-        id: impl Into<AnnounceId>,
-    ) -> HashOf<Announce> {
-        let id = id.into();
-        log::info!("📗 waiting for announce computed: {id:?}");
-
-        let db = self.db.clone();
-        self.apply_until(|event| {
-            let TestingEvent::Compute(ComputeEvent::AnnounceComputed(announce_hash)) = event else {
-                return Ok(ControlFlow::Continue(()));
-            };
-
-            let found = match id {
-                AnnounceId::Any => Some(announce_hash),
-                AnnounceId::AnnounceHash(waited_announce_hash) => {
-                    (waited_announce_hash == announce_hash).then_some(announce_hash)
-                }
-                AnnounceId::BlockHash(block_hash) => db
-                    .announce(announce_hash)
-                    .unwrap_or_else(|| {
-                        panic!("Accepted announce {announce_hash} not found in listener's node DB")
-                    })
-                    .block_hash
-                    .eq(&block_hash)
-                    .then_some(announce_hash),
-            };
-
-            Ok(found
-                .map(ControlFlow::Break)
-                .unwrap_or(ControlFlow::Continue(())))
-        })
-        .await
-        .unwrap()
-    }
-
-    pub async fn wait_for_announce_rejected(
-        &mut self,
-        id: impl Into<AnnounceId>,
-    ) -> HashOf<Announce> {
-        let id = id.into();
-        log::info!("📗 waiting for announce rejected: {id:?}");
-
-        self.apply_until(|event| {
-            let TestingEvent::Consensus(ConsensusEvent::AnnounceRejected(announce_hash)) = event
-            else {
-                return Ok(ControlFlow::Continue(()));
-            };
-
-            match id {
-                AnnounceId::Any => Ok(ControlFlow::Break(announce_hash)),
-                AnnounceId::AnnounceHash(waited_announce_hash) => {
-                    if waited_announce_hash == announce_hash {
-                        Ok(ControlFlow::Break(announce_hash))
-                    } else {
-                        Ok(ControlFlow::Continue(()))
-                    }
-                }
-                AnnounceId::BlockHash(_) => unimplemented!("do not support BlockHash here yet"),
-            }
-        })
-        .await
-        .unwrap()
-    }
-
-    pub async fn wait_for_announce_accepted(
-        &mut self,
-        id: impl Into<AnnounceId>,
-    ) -> HashOf<Announce> {
-        let id = id.into();
-        log::info!("📗 waiting for announce accepted: {id:?}");
-
-        let db = self.db.clone();
-        self.apply_until(|event| {
-            let TestingEvent::Consensus(ConsensusEvent::AnnounceAccepted(announce_hash)) = event
-            else {
-                return Ok(ControlFlow::Continue(()));
-            };
-
-            let found = match id {
-                AnnounceId::Any => Some(announce_hash),
-                AnnounceId::AnnounceHash(waited_announce_hash) => {
-                    (waited_announce_hash == announce_hash).then_some(announce_hash)
-                }
-                AnnounceId::BlockHash(block_hash) => db
-                    .announce(announce_hash)
-                    .unwrap_or_else(|| {
-                        panic!("Accepted announce {announce_hash} not found in listener's node DB")
-                    })
-                    .block_hash
-                    .eq(&block_hash)
-                    .then_some(announce_hash),
-            };
-
-            Ok(found
-                .map(ControlFlow::Break)
-                .unwrap_or(ControlFlow::Continue(())))
-        })
-        .await
-        .unwrap()
-    }
-
-    pub async fn apply_until<R: Sized>(
-        &mut self,
-        mut f: impl FnMut(TestingEvent) -> Result<ControlFlow<R>>,
-    ) -> Result<R> {
+pub trait InfiniteStreamExt: StreamExt + Sized + Unpin {
+    #[must_use]
+    async fn find_map<U>(&mut self, mut f: impl FnMut(Self::Item) -> Option<U>) -> U {
         loop {
-            let event = self.next_event().await?;
-            if let ControlFlow::Break(res) = f(event)? {
-                return Ok(res);
+            let item = self.next().await.expect("always Some");
+            if let Some(res) = f(item) {
+                return res;
             }
         }
     }
 
-    pub async fn wait_for_block_synced(&mut self) -> H256 {
-        self.apply_until(|event| {
-            if let TestingEvent::Observer(ObserverEvent::BlockSynced(block_hash)) = event {
-                Ok(ControlFlow::Break(block_hash))
-            } else {
-                Ok(ControlFlow::Continue(()))
-            }
-        })
-        .await
-        .unwrap()
+    async fn find(&mut self, mut f: impl FnMut(&Self::Item) -> bool) -> Self::Item {
+        self.find_map(|item| if f(&item) { Some(item) } else { None })
+            .await
     }
 }
 
-pub struct ObserverEventsPublisher {
-    pub broadcaster: Sender<ObserverEvent>,
-    pub db: Database,
+impl<T: StreamExt + Sized + Unpin> InfiniteStreamExt for T {}
+
+pub fn channel<T>(db: Database) -> (EventSender<T>, EventReceiver<T>) {
+    let (mut tx, rx) = async_broadcast::broadcast(1024);
+    tx.set_overflow(true);
+    (EventSender { inner: tx }, EventReceiver { inner: rx, db })
 }
 
-impl ObserverEventsPublisher {
-    pub fn subscribe(&self) -> ObserverEventsListener {
-        ObserverEventsListener {
-            receiver: self.broadcaster.subscribe(),
-            db: self.db.clone(),
-        }
+#[derive(Debug, Clone)]
+pub struct EventSender<T> {
+    inner: Sender<T>,
+}
+
+impl<T: Clone> EventSender<T> {
+    pub async fn send(&self, event: T) {
+        self.inner.broadcast_direct(event).await.unwrap();
     }
 }
 
-pub struct ObserverEventsListener {
-    receiver: broadcast::Receiver<ObserverEvent>,
+#[derive(Debug, Clone)]
+pub struct EventReceiver<T> {
+    inner: Receiver<T>,
     db: Database,
 }
 
-impl Clone for ObserverEventsListener {
-    fn clone(&self) -> Self {
-        Self {
-            receiver: self.receiver.resubscribe(),
-            db: self.db.clone(),
+impl<T: Clone> Stream for EventReceiver<T> {
+    type Item = T;
+
+    fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
+        loop {
+            let res = ready!(Pin::new(&mut self.inner).poll_recv(cx));
+            match res {
+                Some(Ok(event)) => break Poll::Ready(Some(event)),
+                None | Some(Err(RecvError::Closed)) => panic!("service unexpectedly closed"),
+                Some(Err(RecvError::Overflowed(skipped))) => {
+                    tracing::trace!("channel overflowed and skipped {skipped} events");
+                    continue;
+                }
+            }
         }
     }
 }
 
-impl ObserverEventsListener {
-    pub async fn next_event(&mut self) -> Result<ObserverEvent> {
-        self.receiver.recv().await.map_err(Into::into)
+impl<T: Clone> FusedStream for EventReceiver<T> {
+    fn is_terminated(&self) -> bool {
+        false
     }
+}
 
-    pub async fn apply_until<R: Sized>(
-        &mut self,
-        mut f: impl FnMut(ObserverEvent) -> Result<ControlFlow<R>>,
-    ) -> Result<R> {
-        loop {
-            let event = self.next_event().await?;
-            if let ControlFlow::Break(res) = f(event)? {
-                break Ok(res);
+impl<T: Clone> EventReceiver<T> {
+    pub fn new_receiver(&self) -> Self {
+        let inner = self.inner.new_receiver();
+        let db = self.db.clone();
+        Self { inner, db }
+    }
+}
+
+impl TestingEventReceiver {
+    async fn find_announce<F>(&mut self, id: AnnounceId, event_to_hash: F) -> HashOf<Announce>
+    where
+        F: Fn(TestingEvent) -> Option<HashOf<Announce>>,
+    {
+        let db = self.db.clone();
+        self.find_map(|event| {
+            let announce_hash = event_to_hash(event)?;
+
+            match id {
+                AnnounceId::Any => Some(announce_hash),
+                AnnounceId::AnnounceHash(waited_announce_hash) => {
+                    (waited_announce_hash == announce_hash).then_some(announce_hash)
+                }
+                AnnounceId::BlockHash(block_hash) => db
+                    .announce(announce_hash)
+                    .unwrap_or_else(|| {
+                        panic!("Accepted announce {announce_hash} not found in listener's node DB")
+                    })
+                    .block_hash
+                    .eq(&block_hash)
+                    .then_some(announce_hash),
             }
-        }
-    }
-
-    pub async fn apply_until_block<R: Sized>(
-        &mut self,
-        mut f: impl FnMut(SimpleBlockData) -> Result<ControlFlow<R>>,
-    ) -> Result<R> {
-        self.apply_until(|event| {
-            let ObserverEvent::Block(block_data) = event else {
-                return Ok(ControlFlow::Continue(()));
-            };
-
-            f(block_data)
         })
         .await
+    }
+
+    pub async fn find_announce_computed(&mut self, id: impl Into<AnnounceId>) -> HashOf<Announce> {
+        let id = id.into();
+        log::info!("📗 waiting for announce computed: {id:?}");
+        self.find_announce(id, |event| {
+            if let TestingEvent::Compute(ComputeEvent::AnnounceComputed(hash)) = event {
+                Some(hash)
+            } else {
+                None
+            }
+        })
+        .await
+    }
+
+    pub async fn find_announce_rejected(&mut self, id: impl Into<AnnounceId>) -> HashOf<Announce> {
+        let id = id.into();
+        log::info!("📗 waiting for announce rejected: {id:?}");
+        self.find_announce(id, |event| {
+            if let TestingEvent::Consensus(ConsensusEvent::AnnounceRejected(hash)) = event {
+                Some(hash)
+            } else {
+                None
+            }
+        })
+        .await
+    }
+
+    pub async fn find_announce_accepted(&mut self, id: impl Into<AnnounceId>) -> HashOf<Announce> {
+        let id = id.into();
+        log::info!("📗 waiting for announce accepted: {id:?}");
+        self.find_announce(id, |event| {
+            if let TestingEvent::Consensus(ConsensusEvent::AnnounceAccepted(hash)) = event {
+                Some(hash)
+            } else {
+                None
+            }
+        })
+        .await
+    }
+
+    pub async fn find_block_synced(&mut self) -> H256 {
+        self.find_map(|event| {
+            if let TestingEvent::Observer(ObserverEvent::BlockSynced(block_hash)) = event {
+                Some(block_hash)
+            } else {
+                None
+            }
+        })
+        .await
+    }
+}
+
+impl ObserverEventReceiver {
+    pub fn filter_map_block(self) -> impl Stream<Item = SimpleBlockData> {
+        self.filter_map(|event| async move {
+            if let ObserverEvent::Block(block_data) = event {
+                Some(block_data)
+            } else {
+                None
+            }
+        })
     }
 
     // NOTE: skipped by observer blocks are not iterated (possible on reorgs).
     // If your test depends on events in skipped blocks, you need to improve this method.
     // TODO #4554: iterate thru skipped blocks.
-    pub async fn apply_until_block_event_with_header<R: Sized>(
-        &mut self,
-        mut f: impl FnMut(BlockEvent, &SimpleBlockData) -> Result<ControlFlow<R>>,
-    ) -> Result<R> {
+    pub fn filter_map_block_synced_with_header(
+        self,
+    ) -> impl Stream<Item = (BlockEvent, SimpleBlockData)> {
         let db = self.db.clone();
-        self.apply_until(|event| {
+        self.flat_map(move |event| {
             let ObserverEvent::BlockSynced(block_hash) = event else {
-                return Ok(ControlFlow::Continue(()));
+                return Either::Left(stream::empty());
             };
 
             let header = db.block_header(block_hash).expect("Block header not found");
@@ -332,21 +291,14 @@ impl ObserverEventsListener {
                 header,
             };
 
-            for event in events {
-                if let ControlFlow::Break(res) = f(event, &block_data)? {
-                    return Ok(ControlFlow::Break(res));
-                }
-            }
-
-            Ok(ControlFlow::Continue(()))
+            Either::Right(stream::iter(
+                events.into_iter().zip(iter::repeat(block_data)),
+            ))
         })
-        .await
     }
 
-    pub async fn apply_until_block_event<R: Sized>(
-        &mut self,
-        mut f: impl FnMut(BlockEvent) -> Result<ControlFlow<R>>,
-    ) -> Result<R> {
-        self.apply_until_block_event_with_header(|e, _h| f(e)).await
+    pub fn filter_map_block_synced(self) -> impl Stream<Item = BlockEvent> {
+        self.filter_map_block_synced_with_header()
+            .map(|(event, _)| event)
     }
 }

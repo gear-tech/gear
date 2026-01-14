@@ -176,6 +176,7 @@ checksum = "7734aecfc58a597dde036e4c5cace2ae43e2f8bf3d406b022a1ef34da178dd49"
 dependencies = [
  "alloy-primitives",
  "num_enum 0.7.2",
+ "serde",
  "strum 0.27.1",
 ]
 
@@ -1497,6 +1498,18 @@ name = "assert_matches"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9b34d609dfbaf33d6889b2b7106d3ca345eacad44200913df5ba02bfd31d2ba9"
+
+[[package]]
+name = "async-broadcast"
+version = "0.7.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "435a87a52755b8f27fcf321ac4f04b2802e337c8c4872923137471ec39c37532"
+dependencies = [
+ "event-listener 5.4.1",
+ "event-listener-strategy",
+ "futures-core",
+ "pin-project-lite",
+]
 
 [[package]]
 name = "async-channel"
@@ -4915,6 +4928,7 @@ dependencies = [
 name = "ethexe-cli"
 version = "1.10.0"
 dependencies = [
+ "alloy-chains",
  "anyhow",
  "clap 4.5.23",
  "directories",
@@ -5232,6 +5246,7 @@ version = "1.10.0"
 dependencies = [
  "alloy",
  "anyhow",
+ "async-broadcast",
  "async-trait",
  "demo-async",
  "demo-async-init",
@@ -7074,6 +7089,7 @@ dependencies = [
  "aes 0.8.4",
  "ahash",
  "alloy",
+ "alloy-chains",
  "alloy-consensus",
  "alloy-contract",
  "alloy-core",
@@ -7148,6 +7164,8 @@ dependencies = [
  "enumflags2",
  "environmental",
  "errno",
+ "event-listener 5.4.1",
+ "event-listener-strategy",
  "finality-grandpa",
  "fixed-hash",
  "form_urlencoded",
@@ -7359,6 +7377,7 @@ dependencies = [
  "stable_deref_trait",
  "strum 0.24.1",
  "strum 0.26.2",
+ "strum 0.27.1",
  "substrate-bip39",
  "subtle 2.6.1",
  "subxt-metadata",
