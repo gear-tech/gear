@@ -10,11 +10,24 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  gate:
+    name: Skip duplicates
+    runs-on: ubuntu-latest
+    outputs:
+      should_skip: ${{ steps.skip.outputs.should_skip }}
+    steps:
+      - id: skip
+        uses: fkirc/skip-duplicate-actions@v5
+        with:
+          concurrent_skipping: same_content_newer
+
   check:
+    if: ${{ needs.gate.outputs.should_skip != 'true' }}
     uses: ./.github/workflows/check.yml
     secrets: inherit
 
   build:
+    if: ${{ needs.gate.outputs.should_skip != 'true' }}
     uses: ./.github/workflows/build.yml
     secrets: inherit
     with:
@@ -25,7 +38,7 @@ jobs:
       production: ${{ contains(github.event.pull_request.labels.*.name, 'E4-forceproduction') }}
 
   validator:
-    if: ${{ contains(github.event.pull_request.labels.*.name, 'check-validator') }}
+    if: ${{ needs.gate.outputs.should_skip != 'true' && contains(github.event.pull_request.labels.*.name, 'check-validator') }}
     uses: ./.github/workflows/validation.yml
     secrets:
       VARA_VALIDATOR_8: ${{ secrets.VARA_VALIDATOR_8 }}
@@ -33,5 +46,5 @@ jobs:
       VARA_SSH_PRIVATE_KEY: ${{ secrets.VARA_SSH_PRIVATE_KEY }}
 
   check-node-sync:
-    if: ${{ contains(github.event.pull_request.labels.*.name, 'check-node-sync') }}
+    if: ${{ needs.gate.outputs.should_skip != 'true' && contains(github.event.pull_request.labels.*.name, 'check-node-sync') }}
     uses: ./.github/workflows/check-node-sync.yml
