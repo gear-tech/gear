@@ -48,9 +48,13 @@ use std::{
 
 const STREAM_PROTOCOL: StreamProtocol =
     StreamProtocol::new(concat!("/ethexe/injected-tx/", env!("CARGO_PKG_VERSION")));
+
+/// The maximum number of concurrent requests is allowed to be handled
 const MAX_PENDING_REQUESTS: NonZeroUsize = NonZeroUsize::new(20).unwrap();
-const MAX_VALIDATORS: NonZeroUsize = NonZeroUsize::new(50).unwrap();
-const MAX_TRANSACTIONS_PER_VALIDATOR: NonZeroUsize = NonZeroUsize::new(20).unwrap();
+/// Maximum number of transactions we cache to deny double submission
+const MAX_TRANSACTIONS: NonZeroUsize = NonZeroUsize::new(50).unwrap();
+/// Maximum number of validators we cache per transaction
+const MAX_VALIDATORS_PER_TRANSACTION: NonZeroUsize = NonZeroUsize::new(20).unwrap();
 
 #[derive(Debug, Encode, Decode)]
 pub(crate) enum Request {
@@ -101,7 +105,7 @@ impl Behaviour {
             inner,
             peer_score,
             pending_requests: HashSet::new(),
-            transaction_cache: LruCache::new(MAX_VALIDATORS),
+            transaction_cache: LruCache::new(MAX_TRANSACTIONS),
         }
     }
 
@@ -135,7 +139,7 @@ impl Behaviour {
         self.pending_requests.insert(id);
 
         self.transaction_cache
-            .get_or_insert_mut(tx_hash, || LruCache::new(MAX_TRANSACTIONS_PER_VALIDATOR))
+            .get_or_insert_mut(tx_hash, || LruCache::new(MAX_VALIDATORS_PER_TRANSACTION))
             .put(recipient, ());
 
         Ok(())
