@@ -176,6 +176,7 @@ checksum = "7734aecfc58a597dde036e4c5cace2ae43e2f8bf3d406b022a1ef34da178dd49"
 dependencies = [
  "alloy-primitives",
  "num_enum 0.7.2",
+ "serde",
  "strum 0.27.1",
 ]
 
@@ -1497,6 +1498,18 @@ name = "assert_matches"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9b34d609dfbaf33d6889b2b7106d3ca345eacad44200913df5ba02bfd31d2ba9"
+
+[[package]]
+name = "async-broadcast"
+version = "0.7.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "435a87a52755b8f27fcf321ac4f04b2802e337c8c4872923137471ec39c37532"
+dependencies = [
+ "event-listener 5.4.1",
+ "event-listener-strategy",
+ "futures-core",
+ "pin-project-lite",
+]
 
 [[package]]
 name = "async-channel"
@@ -4900,6 +4913,8 @@ version = "1.10.0"
 dependencies = [
  "alloy",
  "ethexe-common",
+ "ethexe-ethereum",
+ "ethexe-signer",
  "futures",
  "gear-workspace-hack",
  "gprimitives",
@@ -4913,6 +4928,7 @@ dependencies = [
 name = "ethexe-cli"
 version = "1.10.0"
 dependencies = [
+ "alloy-chains",
  "anyhow",
  "clap 4.5.23",
  "directories",
@@ -4981,6 +4997,7 @@ dependencies = [
  "gear-workspace-hack",
  "gprimitives",
  "log",
+ "nonempty 0.12.0",
  "ntest",
  "thiserror 2.0.12",
  "tokio",
@@ -5139,6 +5156,7 @@ dependencies = [
  "log",
  "parity-scale-codec",
  "rand 0.8.5",
+ "rayon",
  "sp-allocator",
  "sp-wasm-interface",
  "thiserror 2.0.12",
@@ -5234,6 +5252,7 @@ version = "1.10.0"
 dependencies = [
  "alloy",
  "anyhow",
+ "async-broadcast",
  "async-trait",
  "demo-async",
  "demo-async-init",
@@ -7076,6 +7095,7 @@ dependencies = [
  "aes 0.8.4",
  "ahash",
  "alloy",
+ "alloy-chains",
  "alloy-consensus",
  "alloy-contract",
  "alloy-core",
@@ -7150,6 +7170,8 @@ dependencies = [
  "enumflags2",
  "environmental",
  "errno",
+ "event-listener 5.4.1",
+ "event-listener-strategy",
  "finality-grandpa",
  "fixed-hash",
  "form_urlencoded",
@@ -7361,6 +7383,7 @@ dependencies = [
  "stable_deref_trait",
  "strum 0.24.1",
  "strum 0.26.2",
+ "strum 0.27.1",
  "substrate-bip39",
  "subtle 2.6.1",
  "subxt-metadata",
@@ -14013,9 +14036,9 @@ checksum = "60a357793950651c4ed0f3f52338f53b2f809f32d83a07f72909fa13e4c6c1e3"
 
 [[package]]
 name = "rayon"
-version = "1.10.0"
+version = "1.11.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b418a60154510ca1a002a752ca9714984e21e4241e804d32555251faf8b78ffa"
+checksum = "368f01d005bf8fd9b1206fb6fa653e6c4a81ceb1466406b81792d87c5677a58f"
 dependencies = [
  "either",
  "rayon-core",
@@ -14023,9 +14046,9 @@ dependencies = [
 
 [[package]]
 name = "rayon-core"
-version = "1.12.1"
+version = "1.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1465873a3dfdaa8ae7cb14b4383657caab0b3e8a0aa9ae8e04b044854c8dfce2"
+checksum = "22e18b0f0062d30d4230b2e85ff77fdfe4326feb054b9783a3460d8435c8ab91"
 dependencies = [
  "crossbeam-deque",
  "crossbeam-utils",
