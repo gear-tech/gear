@@ -33,11 +33,6 @@ url = { workspace = true, features = ["serde"] }
 toml.workspace = true
 gear-workspace-hack.workspace = true
 
-[dev-dependencies]
-demo-messenger.workspace = true
-demo-fungible-token.workspace = true
-gear-node-wrapper.workspace = true
-
 [build-dependencies]
 
 [package.metadata.docs.rs]
