@@ -127,7 +127,7 @@ pub(crate) trait SubService: Unpin + Send + 'static {
 mod tests {
     use super::*;
     use crate::tests::MockProcessor;
-    use ethexe_common::{CodeAndIdUnchecked, db::*, mock::*};
+    use ethexe_common::{CodeAndIdUnchecked, ComputedAnnounce, db::*, mock::*};
     use ethexe_db::Database as DB;
     use futures::StreamExt;
     use gear_core::ids::prelude::CodeIdExt;
@@ -187,7 +187,10 @@ mod tests {
 
         // Poll service to process the block
         let event = service.next().await.unwrap().unwrap();
-        assert_eq!(event, ComputeEvent::AnnounceComputed(announce_hash.into()));
+        assert_eq!(
+            event,
+            ComputeEvent::AnnounceComputed(ComputedAnnounce::mock(announce_hash))
+        );
 
         // Verify block is marked as computed in DB
         assert!(db.announce_meta(announce_hash).computed);

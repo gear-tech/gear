@@ -18,7 +18,7 @@
 
 use crate::{ComputeError, ProcessorExt, Result, service::SubService};
 use ethexe_common::{
-    Announce, ComputationOutcome, HashOf,
+    Announce, ComputedAnnounce, HashOf,
     db::{
         AnnounceStorageRO, AnnounceStorageRW, BlockMetaStorageRO, LatestDataStorageRO,
         LatestDataStorageRW, OnChainStorageRO,
@@ -30,6 +30,7 @@ use ethexe_db::Database;
 use ethexe_runtime_common::FinalizedBlockTransitions;
 use futures::future::BoxFuture;
 use gprimitives::H256;
+use nonempty::NonEmpty;
 use std::{
     collections::VecDeque,
     task::{Context, Poll},
@@ -68,7 +69,7 @@ pub struct ComputeSubService<P: ProcessorExt> {
     config: ComputeConfig,
 
     input: VecDeque<Announce>,
-    computation: Option<BoxFuture<'static, Result<ComputationOutcome>>>,
+    computation: Option<BoxFuture<'static, Result<ComputedAnnounce>>>,
 }
 
 impl<P: ProcessorExt> ComputeSubService<P> {
@@ -91,7 +92,7 @@ impl<P: ProcessorExt> ComputeSubService<P> {
         config: ComputeConfig,
         mut processor: P,
         announce: Announce,
-    ) -> Result<ComputationOutcome> {
+    ) -> Result<ComputedAnnounce> {
         let announce_hash = announce.to_hash();
         let block_hash = announce.block_hash;
 
@@ -118,9 +119,9 @@ impl<P: ProcessorExt> ComputeSubService<P> {
 
         if announces_chain.is_empty() {
             log::trace!("All announces are already computed");
-            return Ok(ComputationOutcome {
+            return Ok(ComputedAnnounce {
                 announce_hash,
-                promises: vec![],
+                promises: None,
             });
         }
 
@@ -131,9 +132,9 @@ impl<P: ProcessorExt> ComputeSubService<P> {
             promises.extend(announce_promises)
         }
 
-        Ok(ComputationOutcome {
+        Ok(ComputedAnnounce {
             announce_hash,
-            promises,
+            promises: NonEmpty::from_vec(promises),
         })
     }
 
@@ -218,7 +219,7 @@ impl<P: ProcessorExt> ComputeSubService<P> {
 }
 
 impl<P: ProcessorExt> SubService for ComputeSubService<P> {
-    type Output = ComputationOutcome;
+    type Output = ComputedAnnounce;
 
     fn poll_next(&mut self, cx: &mut Context<'_>) -> Poll<Result<Self::Output>> {
         if self.computation.is_none()

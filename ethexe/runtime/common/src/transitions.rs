@@ -65,13 +65,13 @@ impl InBlockTransitions {
         header: BlockHeader,
         states: ProgramStates,
         schedule: Schedule,
-        injected_messages: Vec<MessageId>,
+        injected_messages: impl Iterator<Item = MessageId>,
     ) -> Self {
         Self {
             header,
             states,
             schedule,
-            injected_messages: injected_messages.into_iter().collect(),
+            injected_messages: injected_messages.collect(),
             ..Default::default()
         }
     }

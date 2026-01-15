@@ -4997,6 +4997,7 @@ dependencies = [
  "gear-workspace-hack",
  "gprimitives",
  "log",
+ "nonempty 0.12.0",
  "ntest",
  "thiserror 2.0.12",
  "tokio",

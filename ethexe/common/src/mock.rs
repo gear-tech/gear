@@ -19,7 +19,7 @@
 pub use tap::Tap;
 
 use crate::{
-    Announce, BlockData, BlockHeader, CodeBlobInfo, ComputationOutcome, Digest, HashOf,
+    Announce, BlockData, BlockHeader, CodeBlobInfo, ComputedAnnounce, Digest, HashOf,
     ProgramStates, ProtocolTimelines, Schedule, SimpleBlockData, ValidatorsVec,
     consensus::BatchCommitmentValidationRequest,
     db::*,
@@ -239,7 +239,7 @@ impl BlockFullData {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct ComputedAnnounceData {
+pub struct MockComputedAnnounceData {
     pub outcome: Vec<StateTransition>,
     pub program_states: ProgramStates,
     pub schedule: Schedule,
@@ -248,15 +248,15 @@ pub struct ComputedAnnounceData {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AnnounceData {
     pub announce: Announce,
-    pub computed: Option<ComputedAnnounceData>,
+    pub computed: Option<MockComputedAnnounceData>,
 }
 
 impl AnnounceData {
-    pub fn as_computed(&self) -> &ComputedAnnounceData {
+    pub fn as_computed(&self) -> &MockComputedAnnounceData {
         self.computed.as_ref().expect("announce not computed")
     }
 
-    pub fn as_computed_mut(&mut self) -> &mut ComputedAnnounceData {
+    pub fn as_computed_mut(&mut self) -> &mut MockComputedAnnounceData {
         self.computed.as_mut().expect("announce not computed")
     }
 
@@ -513,7 +513,7 @@ impl Mock<(u32, ValidatorsVec)> for BlockChain {
                     announce_hash,
                     AnnounceData {
                         announce,
-                        computed: Some(ComputedAnnounceData {
+                        computed: Some(MockComputedAnnounceData {
                             outcome: Default::default(),
                             program_states: Default::default(),
                             schedule: Default::default(),
@@ -600,20 +600,20 @@ impl BlockData {
     }
 }
 
-impl Mock for ComputationOutcome {
+impl Mock for ComputedAnnounce {
     fn mock(_: ()) -> Self {
         Self {
             announce_hash: HashOf::random(),
-            promises: Default::default(),
+            promises: None,
         }
     }
 }
 
-impl From<HashOf<Announce>> for ComputationOutcome {
-    fn from(announce_hash: HashOf<Announce>) -> Self {
+impl Mock<HashOf<Announce>> for ComputedAnnounce {
+    fn mock(announce_hash: HashOf<Announce>) -> Self {
         Self {
             announce_hash,
-            promises: Default::default(),
+            promises: None,
         }
     }
 }

@@ -27,7 +27,7 @@ use crate::{
 use anyhow::{Context as _, Result, anyhow};
 use derive_more::{Debug, Display};
 use ethexe_common::{
-    Announce, ComputationOutcome, HashOf, SimpleBlockData, ValidatorsVec, db::BlockMetaStorageRO,
+    Announce, ComputedAnnounce, HashOf, SimpleBlockData, ValidatorsVec, db::BlockMetaStorageRO,
     gear::BatchCommitment, network::ValidatorMessage,
 };
 use ethexe_service_utils::Timer;
@@ -74,23 +74,21 @@ impl StateHandler for Producer {
 
     fn process_computed_announce(
         mut self,
-        computed_data: ComputationOutcome,
+        computed_data: ComputedAnnounce,
     ) -> Result<ValidatorState> {
         match &self.state {
             State::WaitingAnnounceComputed(expected)
                 if *expected == computed_data.announce_hash =>
             {
-                if !computed_data.promises.is_empty() {
-                    let mut signed_promises = Vec::with_capacity(computed_data.promises.len());
-                    for promise in computed_data.promises.into_iter() {
-                        let signed_promise = self
-                            .ctx
-                            .core
-                            .signer
-                            .signed_message(self.ctx.core.pub_key, promise)
-                            .context("producer: failed to sign promise")?;
-                        signed_promises.push(signed_promise);
-                    }
+                if let Some(promises) = computed_data.promises {
+                    let signed_promises = promises
+                        .into_iter()
+                        .map(|promise| {
+                            self.ctx
+                                .sign_message(promise)
+                                .context("producer: failed to sign promise")
+                        })
+                        .collect::<Result<_, _>>()?;
 
                     self.ctx.output(ConsensusEvent::Promises(signed_promises));
                 }
@@ -284,7 +282,7 @@ mod tests {
             .unwrap();
 
         let state = state
-            .process_computed_announce(announce_hash.into())
+            .process_computed_announce(ComputedAnnounce::mock(announce_hash))
             .unwrap()
             .wait_for_state(|state| state.is_initial())
             .await
@@ -326,12 +324,12 @@ mod tests {
         // compute announce
         AnnounceData {
             announce: state.context().core.db.announce(announce_hash).unwrap(),
-            computed: Some(ComputedAnnounceData::default()),
+            computed: Some(MockComputedAnnounceData::default()),
         }
         .setup(&state.context().core.db);
 
         let mut state = state
-            .process_computed_announce(announce_hash.into())
+            .process_computed_announce(ComputedAnnounce::mock(announce_hash))
             .unwrap()
             .wait_for_state(|state| matches!(state, ValidatorState::Initial(_)))
             .await
@@ -371,12 +369,12 @@ mod tests {
         // compute announce
         AnnounceData {
             announce: state.context().core.db.announce(announce_hash).unwrap(),
-            computed: Some(ComputedAnnounceData::default()),
+            computed: Some(MockComputedAnnounceData::default()),
         }
         .setup(&state.context().core.db);
 
         let (state, event) = state
-            .process_computed_announce(announce_hash.into())
+            .process_computed_announce(ComputedAnnounce::mock(announce_hash))
             .unwrap()
             .wait_for_event()
             .await
@@ -415,7 +413,7 @@ mod tests {
             .unwrap();
 
         let mut state = state
-            .process_computed_announce(announce_hash.into())
+            .process_computed_announce(ComputedAnnounce::mock(announce_hash))
             .unwrap()
             .wait_for_state(|state| matches!(state, ValidatorState::Initial(_)))
             .await

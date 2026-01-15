@@ -27,6 +27,7 @@ use alloc::{
 };
 use gear_core::{ids::prelude::CodeIdExt as _, utils};
 use gprimitives::{ActorId, CodeId, H256, MessageId};
+use nonempty::NonEmpty;
 use parity_scale_codec::{Decode, Encode};
 use sha3::Digest as _;
 
@@ -127,9 +128,9 @@ impl ToDigest for Announce {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct ComputationOutcome {
+pub struct ComputedAnnounce {
     pub announce_hash: HashOf<Announce>,
-    pub promises: Vec<Promise>,
+    pub promises: Option<NonEmpty<Promise>>,
 }
 
 #[derive(PartialEq, Eq, Hash, Debug, Clone, Copy, Default, Encode, Decode)]

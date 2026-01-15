@@ -18,7 +18,7 @@
 
 pub use compute::ComputeConfig;
 use ethexe_common::{
-    Announce, CodeAndIdUnchecked, ComputationOutcome, HashOf, events::BlockRequestEvent,
+    Announce, CodeAndIdUnchecked, ComputedAnnounce, HashOf, events::BlockRequestEvent,
 };
 use ethexe_processor::{Processor, ProcessorError};
 use ethexe_runtime_common::FinalizedBlockTransitions;
@@ -44,7 +44,7 @@ pub enum ComputeEvent {
     RequestLoadCodes(HashSet<CodeId>),
     CodeProcessed(CodeId),
     BlockPrepared(H256),
-    AnnounceComputed(ComputationOutcome),
+    AnnounceComputed(ComputedAnnounce),
 }
 
 #[derive(thiserror::Error, Debug)]

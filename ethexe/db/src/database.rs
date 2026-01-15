@@ -71,7 +71,7 @@ enum Key {
 
     InjectedTransaction(HashOf<InjectedTransaction>) = 12,
 
-    // TODO kuzmindev: make keys prefixes consistent. Now it doesn't in purpose to not corrupt existing key layout.
+    // TODO kuzmindev: make keys prefixes consistent. We don't change it to avoid corrupting existing key layout.
     LatestData = 14,
     Timelines = 15,
 

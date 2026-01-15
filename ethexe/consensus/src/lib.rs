@@ -34,7 +34,7 @@
 
 use anyhow::Result;
 use ethexe_common::{
-    Announce, ComputationOutcome, Digest, HashOf, SimpleBlockData,
+    Announce, ComputedAnnounce, Digest, HashOf, SimpleBlockData,
     consensus::{BatchCommitmentValidationReply, VerifiedAnnounce, VerifiedValidationRequest},
     injected::{SignedInjectedTransaction, SignedPromise},
     network::{AnnouncesRequest, CheckedAnnouncesResponse, SignedValidatorMessage},
@@ -71,7 +71,7 @@ pub trait ConsensusService:
     fn receive_prepared_block(&mut self, block: H256) -> Result<()>;
 
     /// Process a computed block received
-    fn receive_computed_announce(&mut self, computed_data: ComputationOutcome) -> Result<()>;
+    fn receive_computed_announce(&mut self, computed_data: ComputedAnnounce) -> Result<()>;
 
     /// Process a received producer block
     fn receive_announce(&mut self, block: VerifiedAnnounce) -> Result<()>;
