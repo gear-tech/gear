@@ -2534,12 +2534,19 @@ async fn injected_tx_fungible_token() {
     // 6. Send multiple transfers and verify that all promises are appeared in subscription.
     let transfers_amount = 20u32;
 
-    // Subscription for all promises
-    let mut subscription = ws_client
-        .subscribe_promises()
-        .await
-        .expect("Successfully subscribe for promises");
+    // Create multiple subscriptions for all promises
+    let mut subscriptions = vec![];
+    for _ in 0..5 {
+        // let ws_client = node.rpc_ws_client().await.expect("");
+        subscriptions.push(
+            ws_client
+                .subscribe_promises()
+                .await
+                .expect("Successfully subscribe for promises"),
+        );
+    }
 
+    let mut original_promises = vec![];
     for i in 0..transfers_amount {
         let action = demo_fungible_token::FTAction::Transfer {
             from: pubkey.to_address().into(),
@@ -2567,20 +2574,27 @@ async fn injected_tx_fungible_token() {
             .await
             .expect("subscription item")
             .expect("promise");
-
-        let promise = subscription
-            .next()
-            .await
-            .expect("subscription item")
-            .expect("promise");
-
-        assert_eq!(promise, original_promise);
+        original_promises.push(original_promise);
     }
 
-    subscription
-        .unsubscribe()
-        .await
-        .expect("successfully unsubscribe");
+    for mut subscription in subscriptions {
+        let mut values = vec![];
+        for _ in 0..original_promises.len() {
+            let promise = subscription
+                .next()
+                .await
+                .expect("subscription item")
+                .expect("Promise instead of error");
+            values.push(promise);
+        }
+
+        assert_eq!(original_promises, values);
+
+        subscription
+            .unsubscribe()
+            .await
+            .expect("successfully unsubscribe");
+    }
 
     tracing::info!("✅ All promises successfully received from RPC subscription");
 }
