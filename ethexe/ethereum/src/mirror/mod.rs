@@ -141,9 +141,8 @@ impl Mirror {
         &self,
         payload: impl AsRef<[u8]>,
         value: u128,
-        call_reply: bool,
     ) -> Result<(H256, MessageId)> {
-        self.send_message_pending(payload, value, call_reply)
+        self.send_message_pending(payload, value)
             .await?
             .try_get_message_send_receipt()
             .await
@@ -153,10 +152,9 @@ impl Mirror {
         &self,
         payload: impl AsRef<[u8]>,
         value: u128,
-        call_reply: bool,
     ) -> Result<(TransactionReceipt, MessageId)> {
         let receipt = self
-            .send_message_pending(payload, value, call_reply)
+            .send_message_pending(payload, value)
             .await?
             .try_get_receipt_check_reverted()
             .await?;
@@ -180,8 +178,8 @@ impl Mirror {
         &self,
         payload: impl AsRef<[u8]>,
         value: u128,
-        call_reply: bool,
     ) -> Result<PendingTransactionBuilder<network::Ethereum>> {
+        let call_reply = false;
         self.0
             .sendMessage(payload.as_ref().to_vec().into(), call_reply)
             .value(AlloyU256::from(value))
