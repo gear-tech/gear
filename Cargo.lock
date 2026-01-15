@@ -176,6 +176,7 @@ checksum = "7734aecfc58a597dde036e4c5cace2ae43e2f8bf3d406b022a1ef34da178dd49"
 dependencies = [
  "alloy-primitives",
  "num_enum 0.7.2",
+ "serde",
  "strum 0.27.1",
 ]
 
@@ -4927,6 +4928,7 @@ dependencies = [
 name = "ethexe-cli"
 version = "1.10.0"
 dependencies = [
+ "alloy-chains",
  "anyhow",
  "clap 4.5.23",
  "directories",
@@ -7087,6 +7089,7 @@ dependencies = [
  "aes 0.8.4",
  "ahash",
  "alloy",
+ "alloy-chains",
  "alloy-consensus",
  "alloy-contract",
  "alloy-core",
@@ -7374,6 +7377,7 @@ dependencies = [
  "stable_deref_trait",
  "strum 0.24.1",
  "strum 0.26.2",
+ "strum 0.27.1",
  "substrate-bip39",
  "subtle 2.6.1",
  "subxt-metadata",
