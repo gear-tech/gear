@@ -20,10 +20,39 @@ jobs:
         if: ${{ github.event.action == 'labeled' }}
         run: sleep 10
 
-      - id: skip
-        uses: fkirc/skip-duplicate-actions@v5
-        with:
-          concurrent_skipping: ${{ github.event.action == 'labeled' && 'always' || 'never' }}
+      - name: Only run latest workflow-run for this PR
+        id: skip
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          RUN_ID: ${{ github.run_id }}
+          WF_REF: ${{ github.workflow_ref }}
+        run: |
+          set -euo pipefail
+
+          # github.workflow_ref looks like this, so we extract filename:
+          # owner/repo/.github/workflows/pr.yml@refs/pull/123/merge
+          wf_file="$(echo "$WF_REF" | sed -E 's#^[^/]*/[^/]*/##; s#@.*$##')"
+          echo "workflow file: $wf_file"
+
+          latest_id=$(
+            gh api "/repos/$REPO/actions/workflows/$wf_file/runs?per_page=50" \
+              | jq -r --arg PR "$PR" '
+                  .workflow_runs
+                  | map(select(.pull_requests | any(.number == ($PR|tonumber))))
+                  | sort_by(.run_number)
+                  | last
+                  | .id
+                '
+          )
+
+          echo "latest_id=$latest_id current=$RUN_ID"
+          if [ -n "$latest_id" ] && [ "$latest_id" != "$RUN_ID" ]; then
+            echo "should_skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "should_skip=false" >> "$GITHUB_OUTPUT"
+          fi
 
   check:
     needs: gate
