@@ -116,6 +116,7 @@ members = [
 gear-workspace-hack = "0.1.0"
 
 alloy = "1.1"
+alloy-chains = "0.2"
 alloy-primitives = { version = "1.4", default-features = false }
 alloy-sol-types = { version = "1.4", default-features = false }
 anyhow = { version = "1.0.86", default-features = false }
