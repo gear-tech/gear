@@ -122,6 +122,7 @@ use ethexe_runtime_common::{
 use gear_core::gas::GasAllowanceCounter;
 use gprimitives::{ActorId, H256};
 use itertools::Itertools;
+use std::collections::HashSet;
 
 #[derive(Debug, Clone)]
 pub struct RunnerConfig {
@@ -163,11 +164,16 @@ pub async fn run(
     let mut allowance_counter = GasAllowanceCounter::new(config.block_gas_limit);
     let chunk_size = config.chunk_processing_threads;
 
+    // Set of programs which has already processed
+    // their queue. Used to charge first message fee.
+    let mut processed_first_queue = HashSet::new();
+
     // Start with injected queues processing.
     let (is_out_of_gas_for_block, run_ctx) = run_inner(
         run_ctx,
         db.clone(),
         instance_creator.clone(),
+        &mut processed_first_queue,
         &mut allowance_counter,
         chunk_size,
         MessageType::Injected,
@@ -180,6 +186,7 @@ pub async fn run(
             run_ctx,
             db,
             instance_creator,
+            &mut processed_first_queue,
             &mut allowance_counter,
             chunk_size,
             MessageType::Canonical,
@@ -203,6 +210,7 @@ pub async fn run_overlaid(
         run_ctx,
         db,
         instance_creator,
+        &mut HashSet::new(),
         &mut allowance_counter,
         chunk_size,
         MessageType::Canonical,
@@ -215,6 +223,7 @@ async fn run_inner<C: RunContext>(
     mut run_ctx: C,
     db: Database,
     instance_creator: InstanceCreator,
+    processed_first_queue: &mut HashSet<ActorId>,
     allowance_counter: &mut GasAllowanceCounter,
     chunk_size: usize,
     processing_queue_type: MessageType,
@@ -244,6 +253,7 @@ async fn run_inner<C: RunContext>(
                 chunk,
                 db.clone(),
                 instance_creator.clone(),
+                processed_first_queue,
                 allowance_counter.left().min(CHUNK_PROCESSING_GAS_LIMIT),
                 processing_queue_type,
             )
@@ -590,13 +600,25 @@ mod chunk_execution_spawn {
         chunk: Vec<(ActorId, H256)>,
         db: Database,
         instance_creator: InstanceCreator,
+        processed_first_queue: &mut HashSet<ActorId>,
         gas_allowance_for_chunk: u64,
         processing_queue_type: MessageType,
     ) -> Vec<ChunkItemOutput> {
+        let chunk = chunk
+            .into_iter()
+            .map(|(program_id, state_hash)| {
+                (
+                    program_id,
+                    state_hash,
+                    processed_first_queue.insert(program_id),
+                )
+            })
+            .collect::<Vec<_>>();
+
         tokio::task::spawn_blocking(move || {
             chunk
                 .into_par_iter()
-                .map(|(program_id, state_hash)| {
+                .map(|(program_id, state_hash, is_first_queue)| {
                     let db = db.clone();
                     let mut executor = instance_creator
                         .instantiate()
@@ -608,6 +630,7 @@ mod chunk_execution_spawn {
                         program_id,
                         state_hash,
                         processing_queue_type,
+                        is_first_queue,
                         gas_allowance_for_chunk,
                     );
                     (program_id, new_state_hash, jn, gas_spent)
@@ -624,6 +647,7 @@ mod chunk_execution_spawn {
         program_id: ActorId,
         state_hash: H256,
         queue_type: MessageType,
+        is_first_queue: bool,
         gas_allowance: u64,
     ) -> (ProgramJournals, H256, u64) {
         let code_id = db.program_code_id(program_id).expect("Code ID must be set");
@@ -639,6 +663,7 @@ mod chunk_execution_spawn {
                 queue_type,
                 instrumented_code,
                 code_metadata,
+                is_first_queue,
                 gas_allowance,
             )
             .expect("Some error occurs while running program in instance")

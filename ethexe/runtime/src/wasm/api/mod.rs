@@ -50,6 +50,7 @@ fn _run(arg_ptr: i32, arg_len: i32) -> i64 {
         queue_kind,
         maybe_instrumented_code,
         maybe_code_metadata,
+        is_first_queue,
         gas_allowance,
     ) = Decode::decode(&mut get_slice(arg_ptr, arg_len)).unwrap();
 
@@ -59,6 +60,7 @@ fn _run(arg_ptr: i32, arg_len: i32) -> i64 {
         queue_kind,
         maybe_instrumented_code,
         maybe_code_metadata,
+        is_first_queue,
         gas_allowance,
     );
 

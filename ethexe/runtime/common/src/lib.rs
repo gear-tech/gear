@@ -116,6 +116,19 @@ impl<S: Storage> TransitionController<'_, S> {
     }
 }
 
+/// Configuration for Ethereum-related constants.
+pub struct EthereumConfig {
+    /// The amount of gas charged for the first message in announce.
+    first_message_fee: u64,
+}
+
+/// Processes the program message queue of given type.
+///
+/// Panics if the queue is empty. It's needed to guarantee
+/// that the function always charges for the first message.
+///
+/// Returns journals and the amount of gas burned.
+#[allow(clippy::too_many_arguments)]
 pub fn process_queue<S, RI>(
     program_id: ActorId,
     mut program_state: ProgramState,
@@ -123,6 +136,7 @@ pub fn process_queue<S, RI>(
     instrumented_code: Option<InstrumentedCode>,
     code_metadata: Option<CodeMetadata>,
     ri: &RI,
+    is_first_queue: bool,
     gas_allowance: u64,
 ) -> (ProgramJournals, u64)
 where
@@ -139,10 +153,10 @@ where
         MessageType::Injected => program_state.injected_queue.hash.is_empty(),
     };
 
-    if is_queue_empty {
-        // Queue is empty, nothing to process.
-        return (Vec::new(), 0);
-    }
+    assert!(
+        !is_queue_empty,
+        "the function must not be run with empty queues"
+    );
 
     let queue = program_state
         .queue_from_msg_type(queue_type)
@@ -196,21 +210,31 @@ where
         reserve_for: 0,
     };
 
+    // TODO: must be set somewhere by some runtime configuration
+    let ethereum_config = EthereumConfig {
+        // TODO: the value of the fee must be something sensible,
+        //       not just some arbitrary number.
+        first_message_fee: 1000,
+    };
+
     let mut mega_journal = Vec::new();
     let mut queue_gas_allowance_counter = GasAllowanceCounter::new(gas_allowance);
 
     ri.init_lazy_pages();
 
-    for dispatch in queue {
+    for (i, dispatch) in queue.into_iter().enumerate() {
         let origin = dispatch.message_type;
         let call_reply = dispatch.call;
+        let is_first_message = i == 0 && is_first_queue;
         let is_first_execution = dispatch.context.is_none();
 
-        let journal = process_dispatch(
+        let (Ok(journal) | Err(journal)) = process_dispatch(
             dispatch,
             &block_config,
+            &ethereum_config,
             program_id,
             &program_state,
+            is_first_message,
             &instrumented_code,
             &code_metadata,
             ri,
@@ -250,13 +274,15 @@ where
 fn process_dispatch<S, RI>(
     dispatch: Dispatch,
     block_config: &BlockConfig,
+    ethereum_config: &EthereumConfig,
     program_id: ActorId,
     program_state: &ProgramState,
+    is_first_message: bool,
     instrumented_code: &Option<InstrumentedCode>,
     code_metadata: &Option<CodeMetadata>,
     ri: &RI,
     gas_allowance: u64,
-) -> Vec<JournalNote>
+) -> Result<Vec<JournalNote>, Vec<JournalNote>>
 where
     S: Storage,
     RI: RuntimeInterface<S>,
@@ -285,22 +311,27 @@ where
 
     let dispatch = IncomingDispatch::new(kind, incoming_message, context);
 
-    let context = ContextCharged::new(program_id, dispatch, gas_allowance);
+    let mut context = ContextCharged::new(program_id, dispatch, gas_allowance);
 
-    let context = match context.charge_for_program(block_config) {
-        Ok(context) => context,
-        Err(journal) => return journal,
-    };
+    if is_first_message {
+        context = context.charge_extra_fee(
+            "process the first message",
+            false,
+            ethereum_config.first_message_fee,
+        )?;
+    }
+
+    let context = context.charge_for_program(block_config)?;
 
     let active_state = match &program_state.program {
         state::Program::Active(state) => state,
         state::Program::Terminated(program_id) => {
             log::trace!("Program {program_id} has failed init");
-            return core_processor::process_failed_init(context);
+            return Err(core_processor::process_failed_init(context));
         }
         state::Program::Exited(program_id) => {
             log::trace!("Program {program_id} has exited");
-            return core_processor::process_program_exited(context, *program_id);
+            return Err(core_processor::process_program_exited(context, *program_id));
         }
     };
 
@@ -319,13 +350,10 @@ where
         log::trace!(
             "Program {program_id} is not yet finished initialization, so cannot process handle message"
         );
-        return core_processor::process_uninitialized(context);
+        return Err(core_processor::process_uninitialized(context));
     }
 
-    let context = match context.charge_for_code_metadata(block_config) {
-        Ok(context) => context,
-        Err(journal) => return journal,
-    };
+    let context = context.charge_for_code_metadata(block_config)?;
 
     let code = instrumented_code
         .as_ref()
@@ -334,11 +362,7 @@ where
         .as_ref()
         .expect("Code metadata must be provided if program is active");
 
-    let context =
-        match context.charge_for_instrumented_code(block_config, code.bytes().len() as u32) {
-            Ok(context) => context,
-            Err(journal) => return journal,
-        };
+    let context = context.charge_for_instrumented_code(block_config, code.bytes().len() as u32)?;
 
     let allocations = active_state.allocations_hash.map_or_default(|hash| {
         ri.storage()
@@ -346,10 +370,7 @@ where
             .expect("Cannot get allocations")
     });
 
-    let context = match context.charge_for_allocations(block_config, allocations.tree_len()) {
-        Ok(context) => context,
-        Err(journal) => return journal,
-    };
+    let context = context.charge_for_allocations(block_config, allocations.tree_len())?;
 
     let actor_data = ExecutableActorData {
         allocations: allocations.into(),
@@ -357,15 +378,12 @@ where
         memory_infix: active_state.memory_infix,
     };
 
-    let context = match context.charge_for_module_instantiation(
+    let context = context.charge_for_module_instantiation(
         block_config,
         actor_data,
         code.instantiated_section_sizes(),
         code_metadata,
-    ) {
-        Ok(context) => context,
-        Err(journal) => return journal,
-    };
+    )?;
 
     let execution_context = ProcessExecutionContext::new(
         context,
@@ -378,8 +396,10 @@ where
 
     let random_data = ri.random_data();
 
-    core_processor::process::<Ext<RI::LazyPages>>(block_config, execution_context, random_data)
-        .unwrap_or_else(|err| unreachable!("{err}"))
+    Ok(
+        core_processor::process::<Ext<RI::LazyPages>>(block_config, execution_context, random_data)
+            .unwrap_or_else(|err| unreachable!("{err}")),
+    )
 }
 
 pub const fn pack_u32_to_i64(low: u32, high: u32) -> i64 {
