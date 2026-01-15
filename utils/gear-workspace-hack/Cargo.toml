@@ -218,6 +218,7 @@ features = ["test-helpers"]
 aes = { version = "0.8", default-features = false, features = ["zeroize"] }
 ahash = { version = "0.8" }
 alloy = { version = "1", features = ["k256", "kzg", "node-bindings", "provider-anvil-api", "provider-ws", "rpc-types-beacon", "rpc-types-eth"] }
+alloy-chains = { version = "0.2" }
 alloy-consensus = { version = "1", default-features = false, features = ["k256", "kzg", "serde"] }
 alloy-contract = { version = "1", default-features = false, features = ["pubsub"] }
 alloy-core = { version = "1", features = ["dyn-abi", "json-abi", "k256", "rlp"] }
@@ -281,6 +282,8 @@ either = { version = "1", features = ["serde", "use_std"] }
 elliptic-curve = { version = "0.13", default-features = false, features = ["hash2curve", "hazmat", "serde", "std"] }
 enumflags2 = { version = "0.7", default-features = false, features = ["std"] }
 environmental = { version = "1" }
+event-listener = { version = "5" }
+event-listener-strategy = { version = "0.5" }
 finality-grandpa = { version = "0.16", features = ["derive-codec"] }
 fixed-hash = { version = "0.8", default-features = false, features = ["std"] }
 foldhash = { version = "0.2", default-features = false, features = ["std"] }
@@ -436,6 +439,7 @@ spki = { version = "0.7", default-features = false, features = ["std"] }
 ss58-registry = { version = "1", default-features = false, features = ["std"] }
 stable_deref_trait = { version = "1", default-features = false, features = ["std"] }
 strum-2f80eeee3b1b6c7e = { package = "strum", version = "0.26", features = ["derive"] }
+strum-754bda37e0fb3874 = { package = "strum", version = "0.27", default-features = false, features = ["derive", "std"] }
 strum-adf3d7031871b0af = { package = "strum", version = "0.24", features = ["derive"] }
 substrate-bip39 = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std"] }
 subtle = { version = "2" }
@@ -482,6 +486,7 @@ zeroize = { version = "1", features = ["derive", "std"] }
 aes = { version = "0.8", default-features = false, features = ["zeroize"] }
 ahash = { version = "0.8" }
 alloy = { version = "1", features = ["k256", "kzg", "node-bindings", "provider-anvil-api", "provider-ws", "rpc-types-beacon", "rpc-types-eth"] }
+alloy-chains = { version = "0.2" }
 alloy-consensus = { version = "1", default-features = false, features = ["k256", "kzg", "serde"] }
 alloy-contract = { version = "1", default-features = false, features = ["pubsub"] }
 alloy-core = { version = "1", features = ["dyn-abi", "json-abi", "k256", "rlp"] }
@@ -554,6 +559,8 @@ either = { version = "1", features = ["serde", "use_std"] }
 elliptic-curve = { version = "0.13", default-features = false, features = ["hash2curve", "hazmat", "serde", "std"] }
 enumflags2 = { version = "0.7", default-features = false, features = ["std"] }
 environmental = { version = "1" }
+event-listener = { version = "5" }
+event-listener-strategy = { version = "0.5" }
 finality-grandpa = { version = "0.16", features = ["derive-codec"] }
 fixed-hash = { version = "0.8", default-features = false, features = ["std"] }
 foldhash = { version = "0.2", default-features = false, features = ["std"] }
@@ -714,6 +721,7 @@ spki = { version = "0.7", default-features = false, features = ["std"] }
 ss58-registry = { version = "1", default-features = false, features = ["std"] }
 stable_deref_trait = { version = "1", default-features = false, features = ["std"] }
 strum-2f80eeee3b1b6c7e = { package = "strum", version = "0.26", features = ["derive"] }
+strum-754bda37e0fb3874 = { package = "strum", version = "0.27", default-features = false, features = ["derive", "std"] }
 strum-adf3d7031871b0af = { package = "strum", version = "0.24", features = ["derive"] }
 substrate-bip39 = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std"] }
 subtle = { version = "2" }
@@ -762,7 +770,7 @@ errno = { version = "0.3" }
 gimli = { version = "0.28" }
 hyper-rustls = { version = "0.27", default-features = false, features = ["http1", "http2", "logging", "ring", "tls12", "webpki-tokio"] }
 hyper-util = { version = "0.1", default-features = false, features = ["client-proxy"] }
-itertools-594e8ee84c453af0 = { package = "itertools", version = "0.13", default-features = false, features = ["use_std"] }
+itertools-a6292c17cd707f01 = { package = "itertools", version = "0.11" }
 libc = { version = "0.2", default-features = false, features = ["extra_traits"] }
 miniz_oxide = { version = "0.8", default-features = false, features = ["simd", "with-alloc"] }
 mio = { version = "1", features = ["net", "os-ext"] }
@@ -787,7 +795,7 @@ errno = { version = "0.3" }
 gimli = { version = "0.28" }
 hyper-rustls = { version = "0.27", default-features = false, features = ["http1", "http2", "logging", "ring", "tls12", "webpki-tokio"] }
 hyper-util = { version = "0.1", default-features = false, features = ["client-proxy"] }
-itertools-594e8ee84c453af0 = { package = "itertools", version = "0.13", default-features = false, features = ["use_std"] }
+itertools-a6292c17cd707f01 = { package = "itertools", version = "0.11" }
 libc = { version = "0.2", default-features = false, features = ["extra_traits"] }
 miniz_oxide = { version = "0.8", default-features = false, features = ["simd", "with-alloc"] }
 mio = { version = "1", features = ["net", "os-ext"] }
@@ -813,7 +821,7 @@ errno = { version = "0.3" }
 gimli = { version = "0.28" }
 hyper-rustls = { version = "0.27", default-features = false, features = ["http1", "http2", "logging", "ring", "tls12", "webpki-tokio"] }
 hyper-util = { version = "0.1", default-features = false, features = ["client-proxy"] }
-itertools-594e8ee84c453af0 = { package = "itertools", version = "0.13", default-features = false, features = ["use_std"] }
+itertools-a6292c17cd707f01 = { package = "itertools", version = "0.11" }
 libc = { version = "0.2", default-features = false, features = ["extra_traits"] }
 miniz_oxide = { version = "0.8", default-features = false, features = ["simd", "with-alloc"] }
 mio = { version = "1", features = ["net", "os-ext"] }
@@ -837,7 +845,7 @@ errno = { version = "0.3" }
 gimli = { version = "0.28" }
 hyper-rustls = { version = "0.27", default-features = false, features = ["http1", "http2", "logging", "ring", "tls12", "webpki-tokio"] }
 hyper-util = { version = "0.1", default-features = false, features = ["client-proxy"] }
-itertools-594e8ee84c453af0 = { package = "itertools", version = "0.13", default-features = false, features = ["use_std"] }
+itertools-a6292c17cd707f01 = { package = "itertools", version = "0.11" }
 libc = { version = "0.2", default-features = false, features = ["extra_traits"] }
 miniz_oxide = { version = "0.8", default-features = false, features = ["simd", "with-alloc"] }
 mio = { version = "1", features = ["net", "os-ext"] }
@@ -862,7 +870,7 @@ errno = { version = "0.3" }
 gimli = { version = "0.28" }
 hyper-rustls = { version = "0.27", default-features = false, features = ["http1", "http2", "logging", "ring", "tls12", "webpki-tokio"] }
 hyper-util = { version = "0.1", default-features = false, features = ["client-proxy"] }
-itertools-594e8ee84c453af0 = { package = "itertools", version = "0.13", default-features = false, features = ["use_std"] }
+itertools-a6292c17cd707f01 = { package = "itertools", version = "0.11" }
 libc = { version = "0.2", default-features = false, features = ["extra_traits"] }
 miniz_oxide = { version = "0.8", default-features = false, features = ["simd", "with-alloc"] }
 nom = { version = "7" }
@@ -884,7 +892,7 @@ errno = { version = "0.3" }
 gimli = { version = "0.28" }
 hyper-rustls = { version = "0.27", default-features = false, features = ["http1", "http2", "logging", "ring", "tls12", "webpki-tokio"] }
 hyper-util = { version = "0.1", default-features = false, features = ["client-proxy"] }
-itertools-594e8ee84c453af0 = { package = "itertools", version = "0.13", default-features = false, features = ["use_std"] }
+itertools-a6292c17cd707f01 = { package = "itertools", version = "0.11" }
 libc = { version = "0.2", default-features = false, features = ["extra_traits"] }
 miniz_oxide = { version = "0.8", default-features = false, features = ["simd", "with-alloc"] }
 nom = { version = "7" }
