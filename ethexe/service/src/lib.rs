@@ -551,7 +551,7 @@ impl Service {
                         }
                         NetworkEvent::PromiseMessage(promise) => {
                             if let Some(rpc) = &rpc {
-                                rpc.send_promise(promise);
+                                rpc.provide_promise(promise);
                             }
                         }
                         NetworkEvent::ValidatorIdentityUpdated(_)
@@ -642,7 +642,7 @@ impl Service {
                         }
 
                         if let Some(rpc) = &rpc {
-                            rpc.send_promise(promise.clone());
+                            rpc.provide_promise(promise.clone());
                         }
 
                         if let Some(network) = &mut network {

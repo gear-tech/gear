@@ -142,7 +142,7 @@ impl RpcService {
         }
     }
 
-    pub fn send_promise(&self, promise: SignedPromise) {
+    pub fn provide_promise(&self, promise: SignedPromise) {
         self.injected_api.send_promise(promise);
     }
 }

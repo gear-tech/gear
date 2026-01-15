@@ -70,7 +70,7 @@ impl MockService {
                     _ = tx_batch_interval.tick() => {
                         for tx in tx_batch.drain(..) {
                             let promise = Self::create_promise_for(tx);
-                            self.rpc.send_promise(promise);
+                            self.rpc.provide_promise(promise);
                         }
                     },
                     _ = self.handle.clone().stopped() => {
