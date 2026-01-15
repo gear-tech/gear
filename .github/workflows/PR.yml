@@ -16,17 +16,23 @@ jobs:
     outputs:
       should_skip: ${{ steps.skip.outputs.should_skip }}
     steps:
+      - name: Wait a bit for label storms
+        if: ${{ github.event.action == 'labeled' }}
+        run: sleep 10
+
       - id: skip
         uses: fkirc/skip-duplicate-actions@v5
         with:
-          concurrent_skipping: same_content_newer
+          concurrent_skipping: ${{ github.event.action == 'labeled' && 'always' || 'never' }}
 
   check:
+    needs: gate
     if: ${{ needs.gate.outputs.should_skip != 'true' }}
     uses: ./.github/workflows/check.yml
     secrets: inherit
 
   build:
+    needs: gate
     if: ${{ needs.gate.outputs.should_skip != 'true' }}
     uses: ./.github/workflows/build.yml
     secrets: inherit
@@ -38,6 +44,7 @@ jobs:
       production: ${{ contains(github.event.pull_request.labels.*.name, 'E4-forceproduction') }}
 
   validator:
+    needs: gate
     if: ${{ needs.gate.outputs.should_skip != 'true' && contains(github.event.pull_request.labels.*.name, 'check-validator') }}
     uses: ./.github/workflows/validation.yml
     secrets:
@@ -46,5 +53,6 @@ jobs:
       VARA_SSH_PRIVATE_KEY: ${{ secrets.VARA_SSH_PRIVATE_KEY }}
 
   check-node-sync:
+    needs: gate
     if: ${{ needs.gate.outputs.should_skip != 'true' && contains(github.event.pull_request.labels.*.name, 'check-node-sync') }}
     uses: ./.github/workflows/check-node-sync.yml
