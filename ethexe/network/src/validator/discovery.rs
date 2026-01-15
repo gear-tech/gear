@@ -418,15 +418,6 @@ impl GetIdentities {
             return Ok(false);
         };
 
-        let peer_id = identity.peer_id();
-        for multiaddr in identity.addresses() {
-            self.pending_events
-                .push_back(ToSwarm::NewExternalAddrOfPeer {
-                    peer_id,
-                    address: multiaddr.clone(),
-                });
-        }
-
         self.identities.insert(identity.address(), identity);
         Ok(true)
     }
