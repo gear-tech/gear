@@ -24,9 +24,9 @@ use crate::{
 use alloy::{
     consensus::{SidecarBuilder, SimpleCoder},
     eips::eip7594::BlobTransactionSidecarVariant,
-    primitives::{Address, Bytes, fixed_bytes},
+    primitives::{Address, Bytes},
     providers::{PendingTransactionBuilder, Provider, ProviderBuilder, RootProvider},
-    rpc::types::{Filter, Topic, TransactionReceipt, eth::state::AccountOverride},
+    rpc::types::{Filter, Topic, TransactionReceipt},
 };
 use anyhow::{Result, anyhow};
 use ethexe_common::{
@@ -39,7 +39,6 @@ use futures::StreamExt;
 use gear_core::ids::prelude::CodeIdExt as _;
 use gprimitives::{ActorId, CodeId, H256};
 use serde::Serialize;
-use std::collections::HashMap;
 
 pub mod events;
 
