@@ -153,7 +153,7 @@ impl InjectedApi {
                 value = transaction.tx.data().value,
                 "Injected transaction with non-zero value is not supported"
             );
-            return Err(errors::params(
+            return Err(errors::bad_request(
                 "Injected transactions with non-zero value are not supported",
             ));
         }

@@ -41,6 +41,7 @@ pub enum TxValidity {
     UnknownDestination,
     /// Transaction's destination [`gprimitives::ActorId`] not initialized.
     UninitializedDestination,
+    // TODO: #5083 support non zero value transactions.
     /// Transaction with non zero value is not supported for now.
     NonZeroValue,
 }

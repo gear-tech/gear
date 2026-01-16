@@ -85,7 +85,7 @@ where
                 }
                 TxValidity::Duplicate => {
                     // Keep in pool, in case of reorg it can be valid again.
-                    tracing::trace!(tx_hash = ?tx_hash, tx = ?tx.data(), "tx already included in chain, keeping in pool");
+                    tracing::trace!(tx_hash = ?tx_hash, tx = ?tx.data(), "tx is already included in chain, keeping in pool");
                 }
                 TxValidity::UnknownDestination => {
                     // Keep in pool, in case reorg destination may become known.
@@ -97,7 +97,7 @@ where
                 }
                 TxValidity::NotOnCurrentBranch => {
                     // Keep in pool, in case of reorg it can be valid again.
-                    tracing::trace!(tx_hash = ?tx_hash, tx = ?tx.data(), "tx on different branch, keeping in pool");
+                    tracing::trace!(tx_hash = ?tx_hash, tx = ?tx.data(), "tx is on different branch, keeping in pool");
                 }
                 TxValidity::Outdated => {
                     tracing::trace!(tx_hash = ?tx_hash, tx = ?tx.data(), "tx is outdated, removing from pool");
@@ -108,7 +108,7 @@ where
                     tracing::trace!(
                         tx_hash = ?tx_hash,
                         tx = ?tx.data(),
-                        "tx send to uninitialized actor, keeping in pool"
+                        "tx sent to uninitialized actor, keeping in pool"
                     );
                 }
                 TxValidity::NonZeroValue => {
@@ -188,6 +188,21 @@ mod tests {
             "tx should be stored in db"
         );
 
+        // Append another tx with non-zero value, should be removed during selection.
+        tx_pool.handle_tx(
+            signer
+                .signed_message(
+                    key,
+                    InjectedTransaction {
+                        reference_block: chain.blocks[9].hash,
+                        value: 100,
+                        destination: program_id,
+                        ..InjectedTransaction::mock(())
+                    },
+                )
+                .unwrap(),
+        );
+
         let selected_txs = tx_pool
             .select_for_announce(chain.blocks[10].hash, chain.block_top_announce_hash(9))
             .unwrap();
@@ -195,6 +210,11 @@ mod tests {
             selected_txs,
             vec![signed_tx],
             "tx should be selected for announce"
+        );
+        assert_eq!(
+            tx_pool.inner.len(),
+            1,
+            "only one valid tx should remain in pool"
         );
     }
 }
