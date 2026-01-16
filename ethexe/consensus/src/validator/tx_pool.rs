@@ -50,7 +50,7 @@ where
     pub fn handle_tx(&mut self, tx: SignedInjectedTransaction) {
         let tx_hash = tx.data().to_hash();
         let reference_block = tx.data().reference_block;
-        tracing::trace!(tx_hash = ?tx_hash, reference_block = ?reference_block,  "handle new injected tx");
+        tracing::error!(tx_hash = ?tx_hash, reference_block = ?reference_block,  "handle new injected tx");
 
         if self.inner.insert((reference_block, tx_hash)) {
             // Write tx in database only if its not already contains in pool.
@@ -65,6 +65,7 @@ where
         parent_announce: HashOf<Announce>,
     ) -> Result<Vec<SignedInjectedTransaction>> {
         tracing::trace!(block = ?block_hash, "start collecting injected transactions");
+        tracing::error!("INJECTED TX POOL: {:?}", self.inner);
 
         let tx_checker =
             TxValidityChecker::new_for_announce(self.db.clone(), block_hash, parent_announce)?;
@@ -110,6 +111,7 @@ where
             }
         }
 
+        tracing::error!("OUTDATED transactions: {outdated_txs:?}");
         outdated_txs.into_iter().for_each(|key| {
             self.inner.remove(&key);
         });

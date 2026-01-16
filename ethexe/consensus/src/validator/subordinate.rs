@@ -103,6 +103,10 @@ impl StateHandler for Subordinate {
     }
 
     fn process_announce(mut self, validated_announce: VerifiedAnnounce) -> Result<ValidatorState> {
+        tracing::error!(
+            "RECEIVE ANNOUNCE FROM VALIDATOR, injected txs: {:?}",
+            validated_announce.data().injected_transactions
+        );
         match &mut self.state {
             State::WaitingForAnnounce
                 if validated_announce.address() == self.producer

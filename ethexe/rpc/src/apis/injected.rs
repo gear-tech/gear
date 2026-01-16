@@ -219,7 +219,7 @@ impl InjectedApi {
             return Err(errors::internal());
         }
 
-        tracing::trace!(%tx_hash, "Accept transaction, waiting for promise");
+        tracing::trace!(%tx_hash, "Accept transaction, waiting for acceptance");
 
         response_receiver.await.map_err(|e| {
             // No panic case, as a responsibility of the RPC API is fulfilled.
@@ -319,6 +319,7 @@ impl PromiseManager {
     /// 1. If there is a waiter for the promise's transaction hash, sends the promise to it.
     /// 2. Broadcasts the promise to all subscribers.
     pub(crate) fn handle_promise(&self, promise: SignedPromise) {
+        tracing::error!("PROMISE MANAGER: HANDLE PROMISE: {promise:?}");
         let tx_hash = promise.data().tx_hash;
 
         // Send to specific waiter if exists.

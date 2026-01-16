@@ -72,7 +72,7 @@ impl MockService {
             loop {
                 tokio::select! {
                     _ = tx_batch_interval.tick() => {
-                        let promises = tx_batch.drain(..).map(Self::create_promise_for).collect();
+                        let promises = tx_batch.drain(..).map(Self::create_promise).collect();
                         self.rpc.provide_promises(promises);
                     },
                     _ = self.handle.clone().stopped() => {
