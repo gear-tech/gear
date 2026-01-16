@@ -20,7 +20,6 @@ use crate::{
     Address, Announce, HashOf, ToDigest,
     consensus::{BatchCommitmentValidationReply, BatchCommitmentValidationRequest},
     ecdsa::{SignedData, VerifiedData},
-    injected::Promise,
 };
 use alloc::vec::Vec;
 use core::{hash::Hash, num::NonZeroU32};
@@ -30,7 +29,6 @@ use sha3::Keccak256;
 pub type ValidatorAnnounce = ValidatorMessage<Announce>;
 pub type ValidatorRequest = ValidatorMessage<BatchCommitmentValidationRequest>;
 pub type ValidatorReply = ValidatorMessage<BatchCommitmentValidationReply>;
-pub type ValidatorPromise = ValidatorMessage<Promise>;
 
 #[derive(Debug, Clone, Encode, Decode, Eq, PartialEq, Hash)]
 pub struct ValidatorMessage<T> {

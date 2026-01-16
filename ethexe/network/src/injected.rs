@@ -20,42 +20,70 @@ use crate::{
     db_sync::{Multiaddr, PeerId},
     peer_score,
     utils::ParityScaleCodec,
+    validator::discovery::ValidatorIdentities,
 };
-use ethexe_common::injected::{RpcOrNetworkInjectedTx, SignedInjectedTransaction};
+use ethexe_common::{
+    Address, HashOf,
+    injected::{AddressedInjectedTransaction, InjectedTransaction, SignedInjectedTransaction},
+};
 use libp2p::{
     StreamProtocol,
     core::{Endpoint, transport::PortUse},
     request_response,
-    request_response::{InboundFailure, Message, OutboundFailure, ProtocolSupport},
+    request_response::{
+        InboundFailure, Message, OutboundFailure, OutboundRequestId, ProtocolSupport,
+    },
     swarm::{
         ConnectionDenied, ConnectionId, FromSwarm, NetworkBehaviour, THandler, THandlerInEvent,
         THandlerOutEvent, ToSwarm,
     },
 };
+use lru::LruCache;
 use parity_scale_codec::{Decode, Encode};
-use std::task::{Context, Poll, ready};
+use std::{
+    collections::HashSet,
+    num::NonZeroUsize,
+    task::{Context, Poll, ready},
+};
 
 const STREAM_PROTOCOL: StreamProtocol =
     StreamProtocol::new(concat!("/ethexe/injected-tx/", env!("CARGO_PKG_VERSION")));
 
+/// The maximum number of concurrent requests is allowed to be handled
+const MAX_PENDING_REQUESTS: NonZeroUsize = NonZeroUsize::new(20).unwrap();
+/// Maximum number of transactions we cache to deny double submission
+const MAX_TRANSACTIONS: NonZeroUsize = NonZeroUsize::new(50).unwrap();
+/// Maximum number of validators we cache per transaction
+const MAX_VALIDATORS_PER_TRANSACTION: NonZeroUsize = NonZeroUsize::new(20).unwrap();
+
 #[derive(Debug, Encode, Decode)]
 pub(crate) enum Request {
-    InjectedTransaction(SignedInjectedTransaction),
+    SubmitTx(SignedInjectedTransaction),
 }
 
 #[derive(Debug, Encode, Decode)]
-pub(crate) enum InjectedTransactionResponse {
+pub(crate) enum TxResponse {
     Accepted,
 }
 
 #[derive(Debug, Encode, Decode)]
 pub(crate) enum Response {
-    InjectedTransaction(InjectedTransactionResponse),
+    TxAccepted(TxResponse),
 }
 
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub(crate) enum Event {
     NewInjectedTransaction(SignedInjectedTransaction),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, derive_more::Display)]
+pub enum SendTransactionError {
+    #[display("too many pending requests")]
+    TooManyPendingRequests,
+    #[display("transaction already sent")]
+    TransactionAlreadySent,
+    #[display("validator not found")]
+    ValidatorNotFound,
 }
 
 type InnerBehaviour = request_response::Behaviour<ParityScaleCodec<Request, Response>>;
@@ -63,6 +91,8 @@ type InnerBehaviour = request_response::Behaviour<ParityScaleCodec<Request, Resp
 pub(crate) struct Behaviour {
     inner: InnerBehaviour,
     peer_score: peer_score::Handle,
+    pending_requests: HashSet<OutboundRequestId>,
+    transaction_cache: LruCache<HashOf<InjectedTransaction>, LruCache<Address, ()>>,
 }
 
 impl Behaviour {
@@ -71,17 +101,48 @@ impl Behaviour {
             [(STREAM_PROTOCOL, ProtocolSupport::Full)],
             request_response::Config::default(),
         );
-        Self { inner, peer_score }
+        Self {
+            inner,
+            peer_score,
+            pending_requests: HashSet::new(),
+            transaction_cache: LruCache::new(MAX_TRANSACTIONS),
+        }
     }
 
-    pub fn send_transaction(&mut self, transaction: RpcOrNetworkInjectedTx) {
-        log::warn!("`send_transaction` is ignored for now: {transaction:?}");
+    pub fn send_transaction(
+        &mut self,
+        identities: &ValidatorIdentities,
+        transaction: AddressedInjectedTransaction,
+    ) -> Result<(), SendTransactionError> {
+        let AddressedInjectedTransaction { recipient, tx } = transaction;
+        let tx_hash = tx.data().to_hash();
 
-        // TODO: send to actual peer when validator discovery is ready
-        // let peer: PeerId = PeerId::random();
-        //
-        // self.inner
-        //     .send_request(&peer, Request::InjectedTransaction(data));
+        if self.pending_requests.len() >= MAX_PENDING_REQUESTS.get() {
+            return Err(SendTransactionError::TooManyPendingRequests);
+        }
+
+        if let Some(transactions) = self.transaction_cache.get_mut(&tx_hash)
+            && let Some(&()) = transactions.get(&recipient)
+        {
+            return Err(SendTransactionError::TransactionAlreadySent);
+        }
+
+        let identity = identities
+            .get(&recipient)
+            .ok_or(SendTransactionError::ValidatorNotFound)?;
+        let peer_id = identity.peer_id();
+        let addresses = identity.addresses().iter().cloned().collect();
+
+        let id = self
+            .inner
+            .send_request_with_addresses(&peer_id, Request::SubmitTx(tx), addresses);
+        self.pending_requests.insert(id);
+
+        self.transaction_cache
+            .get_or_insert_mut(tx_hash, || LruCache::new(MAX_VALIDATORS_PER_TRANSACTION))
+            .put(recipient, ());
+
+        Ok(())
     }
 
     fn handle_inner_event(
@@ -100,11 +161,10 @@ impl Behaviour {
                     },
             } => {
                 return match request {
-                    Request::InjectedTransaction(transaction) => {
-                        let _res = self.inner.send_response(
-                            channel,
-                            Response::InjectedTransaction(InjectedTransactionResponse::Accepted),
-                        );
+                    Request::SubmitTx(transaction) => {
+                        let _res = self
+                            .inner
+                            .send_response(channel, Response::TxAccepted(TxResponse::Accepted));
                         Poll::Ready(Event::NewInjectedTransaction(transaction))
                     }
                 };
@@ -114,26 +174,35 @@ impl Behaviour {
                 connection_id: _,
                 message:
                     Message::Response {
-                        request_id: _,
+                        request_id,
                         response,
                     },
             } => {
-                match response {
-                    Response::InjectedTransaction(InjectedTransactionResponse::Accepted) => {}
-                };
+                assert!(
+                    self.pending_requests.remove(&request_id),
+                    "unknown request id"
+                );
+
+                let Response::TxAccepted(TxResponse::Accepted) = response;
             }
             request_response::Event::OutboundFailure {
                 peer,
                 connection_id: _,
-                request_id: _,
-                error: OutboundFailure::UnsupportedProtocols,
+                request_id,
+                error,
             } => {
-                log::debug!(
-                    "request to {peer} failed because it doesn't support {STREAM_PROTOCOL} protocol"
+                assert!(
+                    self.pending_requests.remove(&request_id),
+                    "unknown request id"
                 );
-                self.peer_score.unsupported_protocol(peer);
+
+                if let OutboundFailure::UnsupportedProtocols = error {
+                    log::debug!(
+                        "request to {peer} failed because it doesn't support {STREAM_PROTOCOL} protocol"
+                    );
+                    self.peer_score.unsupported_protocol(peer);
+                }
             }
-            request_response::Event::OutboundFailure { .. } => {}
             request_response::Event::InboundFailure {
                 peer,
                 connection_id: _,
@@ -247,40 +316,135 @@ impl NetworkBehaviour for Behaviour {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::utils::tests::init_logger;
+    use crate::{
+        utils::tests::init_logger,
+        validator::discovery::{SignedValidatorIdentity, ValidatorAddresses, ValidatorIdentity},
+    };
     use ethexe_common::{injected::InjectedTransaction, mock::Mock};
     use ethexe_signer::Signer;
-    use libp2p::Swarm;
+    use libp2p::{
+        Swarm, Transport,
+        core::{transport::MemoryTransport, upgrade::Version},
+        identity::Keypair,
+    };
     use libp2p_swarm_test::SwarmExt;
+    use std::time::Duration;
 
-    async fn new_swarm() -> Swarm<Behaviour> {
-        let mut swarm =
-            Swarm::new_ephemeral_tokio(|_keypair| Behaviour::new(peer_score::Handle::new_test()));
-        swarm.listen().with_memory_addr_external().await;
-        swarm
+    fn addressed_injected_tx(recipient: Address) -> AddressedInjectedTransaction {
+        let signer = Signer::memory();
+        let pub_key = signer.generate_key().unwrap();
+
+        let tx = InjectedTransaction::mock(());
+        let tx = signer.signed_message(pub_key, tx).unwrap();
+
+        AddressedInjectedTransaction { recipient, tx }
+    }
+
+    async fn new_swarm() -> (Swarm<Behaviour>, SignedValidatorIdentity) {
+        // code exactly from `Swarm::new_ephemeral_tokio` but with SECP256K1 keypair
+        let keypair = Keypair::generate_secp256k1();
+        let peer_id = PeerId::from(keypair.public());
+
+        let transport = MemoryTransport::default()
+            .or_transport(libp2p::tcp::tokio::Transport::default())
+            .upgrade(Version::V1)
+            .authenticate(libp2p::plaintext::Config::new(&keypair))
+            .multiplex(libp2p::yamux::Config::default())
+            .timeout(Duration::from_secs(20))
+            .boxed();
+
+        let mut swarm = Swarm::new(
+            transport,
+            Behaviour::new(peer_score::Handle::new_test()),
+            peer_id,
+            libp2p::swarm::Config::with_tokio_executor(),
+        );
+
+        let (mem_addr, _tcp_addr) = swarm.listen().with_memory_addr_external().await;
+
+        let signer = Signer::memory();
+        let pub_key = signer.generate_key().unwrap();
+
+        let identity = ValidatorIdentity {
+            addresses: ValidatorAddresses::new(*swarm.local_peer_id(), mem_addr),
+            creation_time: 0,
+        };
+        let identity = identity.sign(&signer, pub_key, &keypair).unwrap();
+
+        (swarm, identity)
     }
 
     #[tokio::test]
     async fn smoke() {
         init_logger();
 
-        let mut alice = new_swarm().await;
-        let mut bob = new_swarm().await;
-        alice.connect(&mut bob).await;
+        let (mut alice, _) = new_swarm().await;
+        let (mut bob, bob_identity) = new_swarm().await;
 
-        let transaction = InjectedTransaction::mock(());
-        let signer = Signer::memory();
-        let pub_key = signer.generate_key().unwrap();
-        let transaction = signer.signed_message(pub_key, transaction).unwrap();
+        let transaction = addressed_injected_tx(bob_identity.address());
+        let identities = [(bob_identity.address(), bob_identity)].into();
 
-        // TODO: replace with `Behaviour::send_transaction()` when it works
-        alice.behaviour_mut().inner.send_request(
-            bob.local_peer_id(),
-            Request::InjectedTransaction(transaction.clone()),
-        );
+        alice
+            .behaviour_mut()
+            .send_transaction(&identities, transaction.clone())
+            .unwrap();
         tokio::spawn(alice.loop_on_next());
 
         let event = bob.next_behaviour_event().await;
-        assert_eq!(event, Event::NewInjectedTransaction(transaction));
+        assert_eq!(event, Event::NewInjectedTransaction(transaction.tx));
+    }
+
+    #[tokio::test]
+    async fn too_many_pending_requests() {
+        init_logger();
+
+        let mut alice = Behaviour::new(peer_score::Handle::new_test());
+        let (_bob, bob_identity) = new_swarm().await;
+        let bob_address = bob_identity.address();
+
+        let identities = [(bob_address, bob_identity)].into();
+
+        for _ in 0..MAX_PENDING_REQUESTS.get() {
+            let transaction = addressed_injected_tx(bob_address);
+            alice.send_transaction(&identities, transaction).unwrap();
+        }
+
+        let transaction = addressed_injected_tx(bob_address);
+        let err = alice
+            .send_transaction(&identities, transaction)
+            .unwrap_err();
+        assert_eq!(err, SendTransactionError::TooManyPendingRequests);
+    }
+
+    #[tokio::test]
+    async fn transaction_already_sent() {
+        init_logger();
+
+        let mut alice = Behaviour::new(peer_score::Handle::new_test());
+        let (_bob, bob_identity) = new_swarm().await;
+
+        let transaction = addressed_injected_tx(bob_identity.address());
+        let identities = [(bob_identity.address(), bob_identity)].into();
+
+        alice
+            .send_transaction(&identities, transaction.clone())
+            .unwrap();
+
+        let err = alice
+            .send_transaction(&identities, transaction)
+            .unwrap_err();
+        assert_eq!(err, SendTransactionError::TransactionAlreadySent);
+    }
+
+    #[tokio::test]
+    async fn validator_not_found() {
+        let mut alice = Behaviour::new(peer_score::Handle::new_test());
+
+        let transaction = addressed_injected_tx(Address::default());
+
+        let err = alice
+            .send_transaction(&Default::default(), transaction)
+            .unwrap_err();
+        assert_eq!(err, SendTransactionError::ValidatorNotFound);
     }
 }

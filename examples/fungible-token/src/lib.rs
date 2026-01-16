@@ -64,7 +64,7 @@ pub enum FTAction {
     BalanceOf(ActorId),
 }
 
-#[derive(Debug, Encode, Decode, TypeInfo, MaxEncodedLen)]
+#[derive(Debug, Encode, Decode, TypeInfo, MaxEncodedLen, Eq, PartialEq)]
 pub enum FTEvent {
     Transfer {
         from: ActorId,

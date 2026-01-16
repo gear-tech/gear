@@ -211,6 +211,7 @@ impl ValidatorTopic {
     /// caching messages that can become valid once the node enters the hinted next era
     /// (`NewEra`). All other mismatches are penalized via peer scoring and
     /// rejected immediately or ignored.
+    // TODO: `source` is only used for caching, message replaying is possible
     pub(crate) fn verify_message(
         &mut self,
         source: PeerId,
