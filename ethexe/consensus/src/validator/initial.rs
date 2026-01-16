@@ -66,7 +66,7 @@ pub struct Initial {
 ///     |   |
 ///     |  MissingAnnounces (waiting for requested missing announces from network)
 ///     |   |
-///     |   └─ receive announces response, then do propagation
+///     |   └─ announces response via handle, then do propagation
 ///     |       ├─ if is producer ─► Producer
 ///     |       └─ if is subordinate ─► Subordinate
 ///     |
@@ -143,7 +143,7 @@ impl StateHandler for Initial {
                     "Missing announces detected for block {block_hash}, send request: {request:?}"
                 );
 
-                self.ctx.output(request);
+                self.ctx.request_announces(request);
 
                 Ok(Self {
                     ctx: self.ctx,
@@ -372,7 +372,10 @@ mod tests {
             head: chain.blocks[last].as_prepared().last_committed_announce,
             until: tail.into(),
         };
-        assert_eq!(state.context().output, vec![expected_request.into()]);
+        assert_eq!(
+            state.context().announces_requests,
+            VecDeque::from([expected_request])
+        );
 
         let response = AnnouncesResponse {
             announces: vec![
@@ -391,7 +394,10 @@ mod tests {
 
         // In successful case no new events are produced
         let state = state.process_announces_response(response).unwrap();
-        assert_eq!(state.context().output, vec![expected_request.into()]);
+        assert_eq!(
+            state.context().announces_requests,
+            VecDeque::from([expected_request])
+        );
     }
 
     #[test]
@@ -574,9 +580,9 @@ mod tests {
             )
             .unwrap();
         assert!(state.is_initial(), "got {:?}", state);
-        assert_eq!(state.context().output.len(), 2);
+        assert_eq!(state.context().output.len(), 1);
         assert!(matches!(
-            state.context().output[1],
+            state.context().output[0],
             ConsensusEvent::Warning(_)
         ));
     }
@@ -628,7 +634,10 @@ mod tests {
             head: chain.blocks[last].as_prepared().last_committed_announce,
             until: chain.block_top_announce_hash(last - 8).into(),
         };
-        assert_eq!(state.context().output, vec![expected_request.into()]);
+        assert_eq!(
+            state.context().announces_requests,
+            VecDeque::from([expected_request])
+        );
 
         let response = AnnouncesResponse {
             announces: vec![
@@ -646,9 +655,8 @@ mod tests {
 
         let state = state.process_announces_response(response).unwrap();
         assert!(state.is_subordinate(), "got {:?}", state);
-        assert_eq!(
-            state.context().output.len(),
-            1,
+        assert!(
+            state.context().output.is_empty(),
             "No additional output expected, got {:?}",
             state.context().output
         );

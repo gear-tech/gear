@@ -41,6 +41,7 @@
 
 use crate::{
     BatchCommitmentValidationReply, ConsensusEvent, ConsensusService,
+    utils::AnnouncesRequestState,
     validator::{
         coordinator::Coordinator,
         core::{MiddlewareWrapper, ValidatorCore},
@@ -59,10 +60,11 @@ use ethexe_common::{
     db::OnChainStorageRO,
     ecdsa::PublicKey,
     injected::SignedInjectedTransaction,
-    network::CheckedAnnouncesResponse,
+    network::{AnnouncesRequest, CheckedAnnouncesResponse},
 };
 use ethexe_db::Database;
 use ethexe_ethereum::middleware::ElectionProvider;
+use ethexe_network::db_sync::Handle;
 use ethexe_signer::Signer;
 use futures::{
     Stream, StreamExt,
@@ -94,6 +96,8 @@ mod mock;
 /// This service manages the validation workflow.
 pub struct ValidatorService {
     inner: Option<ValidatorState>,
+    db_sync_handle: Option<Handle>,
+    announces_fetch: Option<AnnouncesRequestState>,
 }
 
 /// Configuration parameters for the validator service.
@@ -126,6 +130,8 @@ impl ValidatorService {
     /// * `signer` - The signer used for cryptographic operations
     /// * `db` - The database instance
     /// * `config` - Configuration parameters for the validator
+    /// * `db_sync_handle` - Optional network handle used for db-sync requests; when `None`,
+    ///   announces are not fetched from peers
     ///
     /// # Returns
     /// A new `ValidatorService` instance
@@ -135,6 +141,7 @@ impl ValidatorService {
         committer: impl Into<Box<dyn BatchCommitter>>,
         db: Database,
         config: ValidatorConfig,
+        db_sync_handle: Option<Handle>,
     ) -> Result<Self> {
         let timelines = db
             .protocol_timelines()
@@ -159,11 +166,14 @@ impl ValidatorService {
             },
             pending_events: VecDeque::new(),
             output: VecDeque::new(),
+            announces_requests: VecDeque::new(),
             tasks: Default::default(),
         };
 
         Ok(Self {
             inner: Some(Initial::create(ctx)?),
+            db_sync_handle,
+            announces_fetch: None,
         })
     }
 
@@ -172,13 +182,6 @@ impl ValidatorService {
             .as_ref()
             .unwrap_or_else(|| unreachable!("inner must be Some"))
             .context()
-    }
-
-    fn context_mut(&mut self) -> &mut ValidatorContext {
-        self.inner
-            .as_mut()
-            .unwrap_or_else(|| unreachable!("inner must be Some"))
-            .context_mut()
     }
 
     fn update_inner(
@@ -190,9 +193,22 @@ impl ValidatorService {
             .take()
             .unwrap_or_else(|| unreachable!("inner must be Some"));
 
-        update(inner).map(|inner| {
+        update(inner).map(|mut inner| {
+            let requests = inner.context_mut().take_announces_requests();
             self.inner = Some(inner);
+            for request in requests {
+                self.request_announces(request);
+            }
         })
+    }
+
+    fn request_announces(&mut self, request: AnnouncesRequest) {
+        let Some(handle) = self.db_sync_handle.clone() else {
+            tracing::debug!("Skipping announces request: network handle is not available");
+            return;
+        };
+
+        self.announces_fetch = Some(AnnouncesRequestState::new(&handle, request));
     }
 }
 
@@ -229,10 +245,6 @@ impl ConsensusService for ValidatorService {
         self.update_inner(|inner| inner.process_validation_reply(reply))
     }
 
-    fn receive_announces_response(&mut self, response: CheckedAnnouncesResponse) -> Result<()> {
-        self.update_inner(|inner| inner.process_announces_response(response))
-    }
-
     fn receive_injected_transaction(&mut self, tx: SignedInjectedTransaction) -> Result<()> {
         self.update_inner(|inner| inner.process_injected_transaction(tx))
     }
@@ -242,33 +254,57 @@ impl Stream for ValidatorService {
     type Item = Result<ConsensusEvent>;
 
     fn poll_next(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
-        self.update_inner(|mut inner| {
-            // Waits until inner futures become pending.
-            loop {
-                let (poll, state) = inner.poll_next_state(cx)?;
-                inner = state;
-                if poll.is_pending() {
-                    break;
+        loop {
+            if let Some(handle) = self.db_sync_handle.clone()
+                && let Some(mut fetch) = self.announces_fetch.take()
+            {
+                match fetch.poll(&handle, cx) {
+                    Poll::Ready(response) => {
+                        if let Err(err) =
+                            self.update_inner(|inner| inner.process_announces_response(response))
+                        {
+                            return Poll::Ready(Some(Err(err)));
+                        }
+
+                        continue;
+                    }
+                    Poll::Pending => {
+                        self.announces_fetch = Some(fetch);
+                    }
                 }
             }
 
-            // Note: polling tasks after inner state futures is important,
-            // because polling inner state can create consensus tasks.
+            let mut event = None;
+            self.update_inner(|mut inner| {
+                // Waits until some event is available or inner futures are not ready.
+                loop {
+                    let (poll, state) = inner.poll_next_state(cx)?;
+                    inner = state;
 
-            // Poll consensus tasks if any
-            let ctx = inner.context_mut();
-            if let Poll::Ready(Some(res)) = ctx.tasks.poll_next_unpin(cx) {
-                ctx.output(res?);
+                    // Note: polling tasks after inner state futures is important,
+                    // because polling inner state can create consensus tasks.
+
+                    // Poll consensus tasks if any
+                    let ctx = inner.context_mut();
+                    if let Poll::Ready(Some(res)) = ctx.tasks.poll_next_unpin(cx) {
+                        ctx.output(res?);
+                    }
+
+                    event = inner.context_mut().output.pop_front();
+
+                    if poll.is_pending() || event.is_some() {
+                        break;
+                    }
+                }
+
+                Ok(inner)
+            })?;
+
+            match event {
+                Some(event) => return Poll::Ready(Some(Ok(event))),
+                None => return Poll::Pending,
             }
-
-            Ok(inner)
-        })?;
-
-        self.context_mut()
-            .output
-            .pop_front()
-            .map(|event| Poll::Ready(Some(Ok(event))))
-            .unwrap_or(Poll::Pending)
+        }
     }
 }
 
@@ -539,6 +575,8 @@ struct ValidatorContext {
     pending_events: VecDeque<PendingEvent>,
     /// Output events for outer services. Populates during the poll.
     output: VecDeque<ConsensusEvent>,
+    /// Pending announces requests to be executed via db-sync handle.
+    announces_requests: VecDeque<AnnouncesRequest>,
 
     /// Ongoing consensus tasks, if any.
     #[debug("{}", tasks.len())]
@@ -548,6 +586,14 @@ struct ValidatorContext {
 impl ValidatorContext {
     pub fn output(&mut self, event: impl Into<ConsensusEvent>) {
         self.output.push_back(event.into());
+    }
+
+    pub fn request_announces(&mut self, request: AnnouncesRequest) {
+        self.announces_requests.push_back(request);
+    }
+
+    pub fn take_announces_requests(&mut self) -> VecDeque<AnnouncesRequest> {
+        std::mem::take(&mut self.announces_requests)
     }
 
     pub fn pending(&mut self, event: impl Into<PendingEvent>) {

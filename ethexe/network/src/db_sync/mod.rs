@@ -597,6 +597,44 @@ impl NetworkBehaviour for Behaviour {
     }
 }
 
+pub mod test_utils {
+    use super::*;
+
+    pub struct HandleStub {
+        handle: Handle,
+        rx: mpsc::UnboundedReceiver<(HandleAction, oneshot::Sender<HandleResult>)>,
+    }
+
+    impl Default for HandleStub {
+        fn default() -> Self {
+            Self::new()
+        }
+    }
+
+    impl HandleStub {
+        pub fn new() -> Self {
+            let (tx, rx) = mpsc::unbounded_channel();
+            Self {
+                handle: Handle(tx),
+                rx,
+            }
+        }
+
+        pub fn handle(&self) -> Handle {
+            self.handle.clone()
+        }
+
+        pub async fn recv_request(
+            &mut self,
+        ) -> (RequestId, Request, oneshot::Sender<HandleResult>) {
+            match self.rx.recv().await.expect("handle channel closed") {
+                (HandleAction::Request(id, request), tx) => (id, request, tx),
+                (HandleAction::Retry(_), _) => panic!("unexpected retry in HandleStub"),
+            }
+        }
+    }
+}
+
 #[cfg(test)]
 pub(crate) mod tests {
     use super::*;

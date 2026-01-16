@@ -923,6 +923,16 @@ impl Node {
             .await
             .unwrap();
 
+        let wait_for_network = self.network_bootstrap_address.is_some();
+
+        let network = self.construct_network_service(latest_block, latest_validators);
+        if let Some(addr) = self.network_address.as_ref() {
+            let peer_id = network.as_ref().unwrap().local_peer_id();
+            self.multiaddr = Some(format!("{addr}/p2p/{peer_id}"));
+        }
+
+        let db_sync_handle = network.as_ref().map(|network| network.db_sync_handle());
+
         let consensus: Pin<Box<dyn ConsensusService>> = {
             if let Some(config) = self.validator_config.as_ref() {
                 let committer = if let Some(custom_committer) = self.custom_committer.take() {
@@ -957,6 +967,7 @@ impl Node {
                             validate_chain_deepness_limit: DEFAULT_VALIDATE_CHAIN_DEEPNESS_LIMIT,
                             chain_deepness_threshold: DEFAULT_CHAIN_DEEPNESS_THRESHOLD,
                         },
+                        db_sync_handle,
                     )
                     .unwrap(),
                 )
@@ -965,6 +976,7 @@ impl Node {
                     self.db.clone(),
                     self.block_time,
                     self.commitment_delay_limit,
+                    db_sync_handle,
                 ))
             }
         };
@@ -986,14 +998,6 @@ impl Node {
             .await
             .expect("failed to create blob loader")
             .into_box();
-
-        let wait_for_network = self.network_bootstrap_address.is_some();
-
-        let network = self.construct_network_service(latest_block, latest_validators);
-        if let Some(addr) = self.network_address.as_ref() {
-            let peer_id = network.as_ref().unwrap().local_peer_id();
-            self.multiaddr = Some(format!("{addr}/p2p/{peer_id}"));
-        }
 
         let rpc = self
             .service_rpc_config
