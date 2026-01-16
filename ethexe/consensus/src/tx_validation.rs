@@ -21,36 +21,22 @@ use ethexe_common::{
     Announce, HashOf, ProgramStates,
     db::{AnnounceStorageRO, OnChainStorageRO},
     injected::{InjectedTransaction, SignedInjectedTransaction, VALIDITY_WINDOW},
+    tx_pool::{InvalidReason, PendingStatus, TransactionStatus},
 };
 use ethexe_runtime_common::state::Storage;
 use gprimitives::H256;
 use hashbrown::HashSet;
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq)]
-pub enum TxValidity {
-    /// Transaction is valid and can be include into announce.
-    Valid,
-    /// Transaction was already include into one of previous [`VALIDITY_WINDOW`] announces.
-    Duplicate,
-    /// Transaction is outdated and should be remove from pool.
-    Outdated,
-    /// Transaction's reference block not on current branch.
-    /// Keep tx in pool in case of reorg.
-    NotOnCurrentBranch,
-    /// Transaction's destination [`gprimitives::ActorId`] not found.
-    UnknownDestination,
-    /// Transaction's destination [`gprimitives::ActorId`] not initialized.
-    UninitializedDestination,
-}
-
-pub struct TxValidityChecker<DB> {
+/// [`TransactionStatusResolver`] determines the [`TransactionStatus`] for injected transactions for
+/// specific announce and chain head.
+pub struct TransactionStatusResolver<DB> {
     db: DB,
     chain_head: H256,
     recent_included_txs: HashSet<HashOf<InjectedTransaction>>,
     latest_states: ProgramStates,
 }
 
-impl<DB: OnChainStorageRO + AnnounceStorageRO + Storage> TxValidityChecker<DB> {
+impl<DB: OnChainStorageRO + AnnounceStorageRO + Storage> TransactionStatusResolver<DB> {
     pub fn new_for_announce(db: DB, chain_head: H256, announce: HashOf<Announce>) -> Result<Self> {
         // find last computed predecessor announce
         let mut last_computed_predecessor = announce;
@@ -77,26 +63,24 @@ impl<DB: OnChainStorageRO + AnnounceStorageRO + Storage> TxValidityChecker<DB> {
         })
     }
 
-    /// Determine [`TxValidity`] status for injected transaction, based on current:
-    /// - `chain_head` - Ethereum chain header
-    /// - `latest_included_transactions` - see [`Self::collect_recent_included_txs`].
-    pub fn check_tx_validity(&self, tx: &SignedInjectedTransaction) -> Result<TxValidity> {
+    /// Determine [`TransactionStatus`] for injected transaction.
+    pub fn resolve(&self, tx: &SignedInjectedTransaction) -> Result<TransactionStatus> {
         let reference_block = tx.data().reference_block;
 
         if !self.is_reference_block_within_validity_window(reference_block)? {
-            return Ok(TxValidity::Outdated);
+            return Ok(InvalidReason::Outdated.into());
         }
 
         if !self.is_reference_block_on_current_branch(reference_block)? {
-            return Ok(TxValidity::NotOnCurrentBranch);
+            return Ok(PendingStatus::NotOnCurrentBranch.into());
         }
 
         if self.recent_included_txs.contains(&tx.data().to_hash()) {
-            return Ok(TxValidity::Duplicate);
+            return Ok(InvalidReason::AlreadyIncluded.into());
         }
 
         let Some(destination_state_hash) = self.latest_states.get(&tx.data().destination) else {
-            return Ok(TxValidity::UnknownDestination);
+            return Ok(InvalidReason::UnknownDestination.into());
         };
 
         let Some(state) = self.db.program_state(destination_state_hash.hash) else {
@@ -108,10 +92,13 @@ impl<DB: OnChainStorageRO + AnnounceStorageRO + Storage> TxValidityChecker<DB> {
         };
 
         if state.requires_init_message() {
-            return Ok(TxValidity::UninitializedDestination);
+            return Ok(PendingStatus::UninitializedDestination {
+                destination: tx.data().destination,
+            }
+            .into());
         }
 
-        Ok(TxValidity::Valid)
+        Ok(TransactionStatus::Valid)
     }
 
     fn is_reference_block_within_validity_window(&self, reference_block: H256) -> Result<bool> {
@@ -193,6 +180,7 @@ mod tests {
         ecdsa::PrivateKey,
         injected::VALIDITY_WINDOW,
         mock::{BlockChain, Mock},
+        tx_pool::InvalidReason,
     };
     use ethexe_db::Database;
     use ethexe_runtime_common::state::{ActiveProgram, Program, ProgramState};
@@ -254,15 +242,12 @@ mod tests {
             true,
             chain.block_top_announce_hash(VALIDITY_WINDOW as usize - 1),
         );
-        let tx_checker =
-            TxValidityChecker::new_for_announce(db, chain_head, announce_hash).unwrap();
+        let resolver =
+            TransactionStatusResolver::new_for_announce(db, chain_head, announce_hash).unwrap();
 
         for block in chain.blocks.iter().skip(1).take(VALIDITY_WINDOW as usize) {
             let tx = mock_tx(block.hash);
-            assert_eq!(
-                TxValidity::Valid,
-                tx_checker.check_tx_validity(&tx).unwrap()
-            );
+            assert_eq!(TransactionStatus::Valid, resolver.resolve(&tx).unwrap());
         }
     }
 
@@ -279,12 +264,12 @@ mod tests {
             true,
             chain.block_top_announce_hash(8),
         );
-        let tx_checker =
-            TxValidityChecker::new_for_announce(db, chain_head, announce_hash).unwrap();
+        let resolver =
+            TransactionStatusResolver::new_for_announce(db, chain_head, announce_hash).unwrap();
 
         assert_eq!(
-            TxValidity::Duplicate,
-            tx_checker.check_tx_validity(&tx).unwrap()
+            TransactionStatus::Invalid(InvalidReason::AlreadyIncluded),
+            resolver.resolve(&tx).unwrap()
         );
     }
 
@@ -300,14 +285,14 @@ mod tests {
             true,
             chain.block_top_announce_hash((VALIDITY_WINDOW * 2) as usize - 1),
         );
-        let tx_checker =
-            TxValidityChecker::new_for_announce(db, chain_head, announce_hash).unwrap();
+        let resolver =
+            TransactionStatusResolver::new_for_announce(db, chain_head, announce_hash).unwrap();
 
         for block in chain.blocks.iter().take(VALIDITY_WINDOW as usize) {
             let tx = mock_tx(block.hash);
             assert_eq!(
-                TxValidity::Outdated,
-                tx_checker.check_tx_validity(&tx).unwrap()
+                TransactionStatus::Invalid(InvalidReason::Outdated),
+                resolver.resolve(&tx).unwrap()
             );
         }
     }
@@ -332,23 +317,20 @@ mod tests {
 
         let chain_head = chain.blocks[35].hash;
         let announce_hash = setup_announce(&db, vec![], true, chain.block_top_announce_hash(34));
-        let tx_checker =
-            TxValidityChecker::new_for_announce(db, chain_head, announce_hash).unwrap();
+        let resolver =
+            TransactionStatusResolver::new_for_announce(db, chain_head, announce_hash).unwrap();
 
         for block in blocks_branch2.iter() {
             let tx = mock_tx(block.hash);
             assert_eq!(
-                TxValidity::NotOnCurrentBranch,
-                tx_checker.check_tx_validity(&tx).unwrap()
+                TransactionStatus::Pending(PendingStatus::NotOnCurrentBranch),
+                resolver.resolve(&tx).unwrap()
             );
         }
 
         for block in chain.blocks.iter().rev().take(VALIDITY_WINDOW as usize) {
             let tx = mock_tx(block.hash);
-            assert_eq!(
-                TxValidity::Valid,
-                tx_checker.check_tx_validity(&tx).unwrap()
-            );
+            assert_eq!(TransactionStatus::Valid, resolver.resolve(&tx).unwrap());
         }
     }
 
@@ -360,12 +342,12 @@ mod tests {
         let chain_head = chain.blocks[9].hash;
         let tx = mock_tx(chain.blocks[5].hash);
         let announce_hash = setup_announce(&db, vec![], false, chain.block_top_announce_hash(8));
-        let tx_checker =
-            TxValidityChecker::new_for_announce(db, chain_head, announce_hash).unwrap();
+        let resolver =
+            TransactionStatusResolver::new_for_announce(db, chain_head, announce_hash).unwrap();
 
-        assert_eq!(
-            TxValidity::UninitializedDestination,
-            tx_checker.check_tx_validity(&tx).unwrap()
-        );
+        assert!(matches!(
+            resolver.resolve(&tx).unwrap(),
+            TransactionStatus::Pending(PendingStatus::UninitializedDestination { .. }),
+        ));
     }
 }

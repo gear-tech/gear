@@ -4977,6 +4977,7 @@ dependencies = [
  "roast-secp256k1-evm",
  "serde",
  "serde_json",
+ "serde_repr",
  "sha3",
  "sp-core",
  "tap",
@@ -5031,6 +5032,7 @@ dependencies = [
  "rand 0.8.5",
  "rand_chacha 0.3.1",
  "roast-secp256k1-evm",
+ "thiserror 2.0.12",
  "tokio",
  "tracing",
 ]
@@ -5184,6 +5186,8 @@ version = "1.10.0"
 dependencies = [
  "anyhow",
  "dashmap 5.5.3",
+ "derive_more 2.0.1",
+ "either",
  "ethexe-common",
  "ethexe-db",
  "ethexe-processor",
@@ -16380,6 +16384,17 @@ dependencies = [
  "memchr",
  "ryu",
  "serde",
+]
+
+[[package]]
+name = "serde_repr"
+version = "0.1.20"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "175ee3e80ae9982737ca543e96133087cbd9a485eecc3bc4de9c1a37b47ea59c"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.106",
 ]
 
 [[package]]

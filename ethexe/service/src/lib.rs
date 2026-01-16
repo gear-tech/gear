@@ -573,7 +573,13 @@ impl Service {
                             };
                         }
                         NetworkEvent::InjectedTransaction(transaction) => {
-                            consensus.receive_injected_transaction(transaction)?;
+                            if let Err(rejection) =
+                                consensus.receive_injected_transaction(transaction)
+                            {
+                                log::debug!(
+                                    "Injected transaction receive from network, but rejected from consensus: {rejection:?}"
+                                );
+                            }
                         }
                         NetworkEvent::PeerBlocked(_) | NetworkEvent::PeerConnected(_) => {}
                     }
@@ -612,19 +618,29 @@ impl Service {
                             response_sender,
                         } => {
                             // Note: zero address means that no matter what validator will insert this tx.
-                            if transaction.recipient == Address::default()
+                            let acceptance = if transaction.recipient == Address::default()
                                 || validator_address == Some(transaction.recipient)
                             {
-                                consensus.receive_injected_transaction(transaction.tx)?;
+                                match consensus.receive_injected_transaction(transaction.tx) {
+                                    Ok(()) => InjectedTransactionAcceptance::Accept,
+                                    Err(error) => {
+                                        InjectedTransactionAcceptance::Reject(error.into())
+                                    }
+                                }
                             } else {
                                 let Some(network) = network.as_mut() else {
                                     continue;
                                 };
 
                                 network.send_injected_transaction(transaction);
-                            }
+                                InjectedTransactionAcceptance::Accept
+                            };
 
-                            let _res = response_sender.send(InjectedTransactionAcceptance::Accept);
+                            if let Err(value) = response_sender.send(acceptance) {
+                                tracing::warn!(
+                                    "failed to send injected transaction acceptance status({value:?}) because of rpc receiver dropped"
+                                );
+                            }
                         }
                     }
                 }
@@ -640,6 +656,11 @@ impl Service {
                     ConsensusEvent::CommitmentSubmitted(info) => {
                         log::info!("{info}");
                     }
+                    ConsensusEvent::TransactionsRemoved(notifications) => {
+                        if let Some(ref mut rpc) = rpc {
+                            rpc.notify_transactions_removed_from_pool(notifications);
+                        }
+                    }
                     ConsensusEvent::Warning(msg) => {
                         log::warn!("Consensus service warning: {msg}");
                     }
@@ -654,10 +675,9 @@ impl Service {
                         // TODO #4940: consider to publish network message
                     }
                     ConsensusEvent::Promise(promise) => {
-                        let rpc = rpc
-                            .as_mut()
-                            .expect("cannot produce promise without event from RPC");
-                        rpc.provide_promise(promise);
+                        if let Some(ref mut rpc) = rpc {
+                            rpc.provide_promise(promise);
+                        }
 
                         // TODO kuzmindev: also should be sent to network peer, that waits for transaction promise
                     }

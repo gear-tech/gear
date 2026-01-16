@@ -47,7 +47,7 @@ use crate::{
         participant::Participant,
         producer::Producer,
         subordinate::Subordinate,
-        tx_pool::InjectedTxPool,
+        tx_pool::TransactionPool,
     },
 };
 use anyhow::{Result, anyhow};
@@ -150,7 +150,7 @@ impl ValidatorService {
                 db: db.clone(),
                 committer: committer.into(),
                 middleware: MiddlewareWrapper::from_inner(election_provider),
-                injected_pool: InjectedTxPool::new(db),
+                injected_pool: TransactionPool::new(db),
                 validate_chain_deepness_limit: config.validate_chain_deepness_limit,
                 chain_deepness_threshold: config.chain_deepness_threshold,
                 block_gas_limit: config.block_gas_limit,
