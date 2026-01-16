@@ -500,8 +500,7 @@ impl TestEnv {
         program_id: ActorId,
         payload: &[u8],
     ) -> anyhow::Result<WaitForReplyTo> {
-        self.send_message_with_params(program_id, payload, 0, false)
-            .await
+        self.send_message_with_params(program_id, payload, 0).await
     }
 
     pub async fn send_message_with_params(
@@ -509,7 +508,6 @@ impl TestEnv {
         program_id: ActorId,
         payload: &[u8],
         value: u128,
-        call_reply: bool,
     ) -> anyhow::Result<WaitForReplyTo> {
         log::info!(
             "📗 Send message to {program_id}, payload len {}",
@@ -520,7 +518,7 @@ impl TestEnv {
         let program_address = Address::try_from(program_id)?;
         let program = self.ethereum.mirror(program_address);
 
-        let (_, message_id) = program.send_message(payload, value, call_reply).await?;
+        let (_, message_id) = program.send_message(payload, value).await?;
 
         Ok(WaitForReplyTo {
             receiver,
