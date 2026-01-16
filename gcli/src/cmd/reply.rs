@@ -17,66 +17,59 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 //! Command `reply`
-use crate::{App, utils::Hex};
+use crate::{app::App, utils::HexBytes};
 use anyhow::Result;
 use clap::Parser;
+use colored::Colorize;
+use gear_core::ids::MessageId;
 
-/// Sends a reply message.
-///
-/// The origin must be Signed and the sender must have sufficient funds to pay
-/// for `gas` and `value` (in case the latter is being transferred).
-///
-/// Parameters:
-/// - `reply_to_id`: the original message id.
-/// - `payload`: data expected by the original sender.
-/// - `gas_limit`: maximum amount of gas the program can spend before it is halted.
-/// - `value`: balance to be transferred to the program once it's been created.
-///
-/// - `DispatchMessageEnqueued(H256)` when dispatch message is placed in the queue.
+/// Reply to a message.
 #[derive(Clone, Debug, Parser)]
 pub struct Reply {
-    /// Reply to
-    reply_to_id: String,
-    /// Reply payload
+    /// Message to reply to.
+    reply_to_id: MessageId,
+
+    /// Reply payload, as hex string.
     #[arg(short, long, default_value = "0x")]
-    payload: String,
-    /// Reply gas limit
+    payload: HexBytes,
+
+    /// Operation gas limit.
     ///
-    /// Use estimated gas limit automatically if not set.
+    /// Defaults to the estimated gas limit
+    /// required for the operation.
     #[arg(short, long)]
     gas_limit: Option<u64>,
-    /// Reply value
+
+    /// Value to send with the reply.
     #[arg(short, long, default_value = "0")]
     value: u128,
 }
 
 impl Reply {
-    pub async fn exec(&self, app: &impl App) -> Result<()> {
-        let signer = app.signed().await?;
-        let reply_to_id = self.reply_to_id.to_hash()?;
+    pub async fn exec(self, app: &mut App) -> Result<()> {
+        let api = app.signed_api().await?;
 
         let gas_limit = if let Some(gas_limit) = self.gas_limit {
             gas_limit
         } else {
-            signer
-                .calculate_reply_gas(
-                    reply_to_id.into(),
-                    self.payload.to_vec()?,
-                    self.value,
-                    false,
-                )
+            api.calculate_reply_gas(self.reply_to_id, &self.payload, self.value, false)
                 .await?
                 .min_limit
         };
 
-        signer
-            .send_reply(
-                reply_to_id.into(),
-                self.payload.to_vec()?,
+        let (message_id, _) = api
+            .send_reply_bytes(
+                self.reply_to_id,
+                self.payload.as_slice(),
                 gas_limit,
                 self.value,
             )
-            .await?;
+            .await?
+            .value;
+
+        println!("Successfully sent the reply");
+        println!();
+        println!("{} {}", "Message ID:".bold(), message_id);
 
         Ok(())
     }

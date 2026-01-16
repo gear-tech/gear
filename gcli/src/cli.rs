@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2021-2025 Gear Technologies Inc.
+// Copyright (C) 2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -16,18 +16,33 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use common::env;
+//! This crate provides the main CLI interface.
 
-mod cmd;
-mod common;
+use crate::{
+    app::{App, Opts},
+    cmd::Command,
+};
+use anyhow::Result;
+use clap::Parser;
 
-#[test]
-fn paths() {
-    [env::node_bin(), env::gcli_bin()]
-        .into_iter()
-        .for_each(|path| {
-            if !path.exists() {
-                panic!("{} not found.", path.display())
-            }
-        })
+/// Interact with Gear API via node RPC.
+#[derive(Debug, Clone, Parser)]
+#[clap(author, version)]
+pub struct Cli {
+    #[command(flatten)]
+    opts: Opts,
+
+    /// Command to run.
+    #[command(subcommand)]
+    command: Command,
+}
+
+impl Cli {
+    pub async fn run(self) -> Result<()> {
+        App::new(self.opts).run(self.command).await
+    }
+
+    pub fn run_blocking(self) -> Result<()> {
+        tokio::runtime::Runtime::new()?.block_on(self.run())
+    }
 }
