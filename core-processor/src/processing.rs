@@ -247,11 +247,9 @@ impl ProcessErrorCase {
             ProcessErrorCase::ExecutionFailed(reason) => reason.as_simple().into(),
         }
     }
-}
 
-impl From<ProcessErrorCase> for Payload {
-    fn from(value: ProcessErrorCase) -> Self {
-        match value {
+    fn into_payload(self) -> Payload {
+        match self {
             ProcessErrorCase::ProgramExited { inheritor } => {
                 const _: () = assert!(size_of::<ActorId>() <= Payload::MAX_LEN);
                 inheritor
@@ -360,7 +358,7 @@ fn process_error(
 
     if to_send_reply {
         let err = case.to_reason();
-        let err_payload = Payload::from(case);
+        let err_payload = case.into_payload();
 
         let value = if dispatch.context().is_none() {
             value
