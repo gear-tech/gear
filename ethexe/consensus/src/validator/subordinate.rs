@@ -28,7 +28,7 @@ use crate::{
 use anyhow::Result;
 use derive_more::{Debug, Display};
 use ethexe_common::{
-    Address, Announce, HashOf, SimpleBlockData,
+    Address, Announce, ComputedAnnounce, HashOf, SimpleBlockData,
     consensus::{VerifiedAnnounce, VerifiedValidationRequest},
 };
 use std::mem;
@@ -71,20 +71,25 @@ impl StateHandler for Subordinate {
     }
 
     fn process_computed_announce(
-        self,
-        computed_announce_hash: HashOf<Announce>,
+        mut self,
+        computed_data: ComputedAnnounce,
     ) -> Result<ValidatorState> {
         match &self.state {
             State::WaitingAnnounceComputed { announce_hash }
-                if *announce_hash == computed_announce_hash =>
+                if *announce_hash == computed_data.announce_hash =>
             {
+                if let Some(promises) = computed_data.promises {
+                    let signed_promises = self.ctx.sign_promises(promises)?;
+                    self.ctx.output(ConsensusEvent::Promises(signed_promises));
+                }
+
                 if self.is_validator {
                     Participant::create(self.ctx, self.block, self.producer)
                 } else {
                     Initial::create(self.ctx)
                 }
             }
-            _ => DefaultProcessing::computed_announce(self, computed_announce_hash),
+            _ => DefaultProcessing::computed_announce(self, computed_data),
         }
     }
 
@@ -195,7 +200,7 @@ impl Subordinate {
 mod tests {
     use super::*;
     use crate::{mock::*, validator::mock::*};
-    use ethexe_common::mock::*;
+    use ethexe_common::{ComputedAnnounce, injected::Promise, mock::*};
 
     #[test]
     fn create_empty() {
@@ -329,7 +334,7 @@ mod tests {
 
         // After announce is computed, subordinate switches to participant state.
         let s = s
-            .process_computed_announce(announce.data().to_hash())
+            .process_computed_announce(ComputedAnnounce::mock(announce.data().to_hash()))
             .unwrap();
         assert!(s.is_participant(), "got {s:?}");
         assert_eq!(
@@ -371,7 +376,7 @@ mod tests {
 
         // After announce is computed, not-validator subordinate switches to initial state.
         let s = s
-            .process_computed_announce(announce.data().to_hash())
+            .process_computed_announce(ComputedAnnounce::mock(announce.data().to_hash()))
             .unwrap();
         assert!(s.is_initial(), "got {s:?}");
     }
@@ -431,7 +436,9 @@ mod tests {
 
         let s = Subordinate::create(ctx, block, producer.to_address(), true).unwrap();
 
-        let s = s.process_computed_announce(HashOf::random()).unwrap();
+        let s = s
+            .process_computed_announce(ComputedAnnounce::mock(()))
+            .unwrap();
         assert_eq!(s.context().output.len(), 1);
         assert!(matches!(s.context().output[0], ConsensusEvent::Warning(_)));
     }
@@ -461,6 +468,56 @@ mod tests {
             s.context().output[1].is_warning(),
             "got {:?}",
             s.context().output[1]
+        );
+    }
+
+    #[test]
+    fn subordinate_produce_promises() {
+        let (ctx, pub_keys, _) = mock_validator_context();
+        let producer = pub_keys[0];
+        let signer = ctx.core.signer.clone();
+        let chain = BlockChain::mock(1).setup(&ctx.core.db);
+        let block = chain.blocks[1].to_simple();
+        let announce = ctx
+            .core
+            .signer
+            .mock_verified_data(producer, (block.hash, chain.block_top_announce_hash(0)));
+
+        // Subordinate waits for block prepared and announce after creation.
+        let s = Subordinate::create(ctx, block, producer.to_address(), true).unwrap();
+        assert!(s.is_subordinate(), "got {s:?}");
+        assert_eq!(s.context().output, vec![]);
+
+        // After receiving valid announce - subordinate sends it to computation.
+        let s = s.process_announce(announce.clone()).unwrap();
+        assert!(s.is_subordinate(), "got {s:?}");
+        assert_eq!(
+            s.context().output,
+            vec![
+                ConsensusEvent::AnnounceAccepted(announce.data().to_hash()),
+                announce.data().clone().into()
+            ]
+        );
+
+        // After announce is computed, subordinate switches to participant state.
+        let promise = Promise::mock(());
+        let computed_data = ComputedAnnounce {
+            announce_hash: announce.data().to_hash(),
+            promises: Some(nonempty::nonempty![promise.clone()]),
+        };
+        let s = s.process_computed_announce(computed_data).unwrap();
+        assert!(s.is_participant(), "got {s:?}");
+
+        let signed_promise = signer
+            .signed_message(s.context().core.pub_key, promise)
+            .unwrap();
+        assert_eq!(
+            s.context().output,
+            vec![
+                ConsensusEvent::AnnounceAccepted(announce.data().to_hash()),
+                ConsensusEvent::ComputeAnnounce(announce.data().clone()),
+                ConsensusEvent::Promises(nonempty::nonempty![signed_promise])
+            ]
         );
     }
 }

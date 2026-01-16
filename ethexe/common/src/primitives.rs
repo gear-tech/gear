@@ -17,8 +17,9 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    DEFAULT_BLOCK_GAS_LIMIT, HashOf, ToDigest, events::BlockEvent,
-    injected::SignedInjectedTransaction,
+    DEFAULT_BLOCK_GAS_LIMIT, HashOf, ToDigest,
+    events::BlockEvent,
+    injected::{Promise, SignedInjectedTransaction},
 };
 use alloc::{
     collections::{btree_map::BTreeMap, btree_set::BTreeSet},
@@ -26,6 +27,7 @@ use alloc::{
 };
 use gear_core::{ids::prelude::CodeIdExt as _, utils};
 use gprimitives::{ActorId, CodeId, H256, MessageId};
+use nonempty::NonEmpty;
 use parity_scale_codec::{Decode, Encode};
 use sha3::Digest as _;
 
@@ -123,6 +125,12 @@ impl ToDigest for Announce {
         hasher.update(self.gas_allowance.encode());
         hasher.update(self.injected_transactions.encode());
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ComputedAnnounce {
+    pub announce_hash: HashOf<Announce>,
+    pub promises: Option<NonEmpty<Promise>>,
 }
 
 #[derive(PartialEq, Eq, Hash, Debug, Clone, Copy, Default, Encode, Decode)]

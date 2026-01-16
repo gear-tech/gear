@@ -50,15 +50,15 @@ use crate::{
         tx_pool::InjectedTxPool,
     },
 };
-use anyhow::{Result, anyhow};
+use anyhow::{Context as _, Result, anyhow};
 pub use core::BatchCommitter;
 use derive_more::{Debug, From};
 use ethexe_common::{
-    Address, Announce, HashOf, SimpleBlockData,
+    Address, ComputedAnnounce, SimpleBlockData,
     consensus::{VerifiedAnnounce, VerifiedValidationRequest},
     db::OnChainStorageRO,
     ecdsa::PublicKey,
-    injected::SignedInjectedTransaction,
+    injected::{Promise, SignedInjectedTransaction, SignedPromise},
     network::CheckedAnnouncesResponse,
 };
 use ethexe_db::Database;
@@ -71,6 +71,7 @@ use futures::{
 };
 use gprimitives::H256;
 use initial::Initial;
+use nonempty::NonEmpty;
 use std::{
     collections::VecDeque,
     fmt,
@@ -213,8 +214,8 @@ impl ConsensusService for ValidatorService {
         self.update_inner(|inner| inner.process_prepared_block(block))
     }
 
-    fn receive_computed_announce(&mut self, announce: HashOf<Announce>) -> Result<()> {
-        self.update_inner(|inner| inner.process_computed_announce(announce))
+    fn receive_computed_announce(&mut self, computed_data: ComputedAnnounce) -> Result<()> {
+        self.update_inner(|inner| inner.process_computed_announce(computed_data))
     }
 
     fn receive_announce(&mut self, announce: VerifiedAnnounce) -> Result<()> {
@@ -317,8 +318,8 @@ where
         DefaultProcessing::prepared_block(self.into(), block)
     }
 
-    fn process_computed_announce(self, announce: HashOf<Announce>) -> Result<ValidatorState> {
-        DefaultProcessing::computed_announce(self.into(), announce)
+    fn process_computed_announce(self, computed_data: ComputedAnnounce) -> Result<ValidatorState> {
+        DefaultProcessing::computed_announce(self.into(), computed_data)
     }
 
     fn process_announce(self, block: VerifiedAnnounce) -> Result<ValidatorState> {
@@ -408,8 +409,8 @@ impl StateHandler for ValidatorState {
         delegate_call!(self => process_prepared_block(block))
     }
 
-    fn process_computed_announce(self, announce: HashOf<Announce>) -> Result<ValidatorState> {
-        delegate_call!(self => process_computed_announce(announce))
+    fn process_computed_announce(self, computed_data: ComputedAnnounce) -> Result<ValidatorState> {
+        delegate_call!(self => process_computed_announce(computed_data))
     }
 
     fn process_announce(self, announce: VerifiedAnnounce) -> Result<ValidatorState> {
@@ -467,10 +468,13 @@ impl DefaultProcessing {
 
     fn computed_announce(
         s: impl Into<ValidatorState>,
-        announce_hash: HashOf<Announce>,
+        computed_data: ComputedAnnounce,
     ) -> Result<ValidatorState> {
         let mut s = s.into();
-        s.warning(format!("unexpected computed block: {announce_hash}"));
+        s.warning(format!(
+            "unexpected computed block: {}",
+            computed_data.announce_hash
+        ));
         Ok(s)
     }
 
@@ -552,5 +556,23 @@ impl ValidatorContext {
 
     pub fn pending(&mut self, event: impl Into<PendingEvent>) {
         self.pending_events.push_front(event.into());
+    }
+
+    pub fn sign_promises(
+        &mut self,
+        promises: NonEmpty<Promise>,
+    ) -> Result<NonEmpty<SignedPromise>> {
+        let signed_promises = promises
+            .into_iter()
+            .map(|promise| {
+                self.core
+                    .signer
+                    .signed_message(self.core.pub_key, promise)
+                    .context("producer: failed to sign promise")
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        // SAFETY: because of vec was constructed from `NonEmpty<Promise>`
+        Ok(NonEmpty::from_vec(signed_promises).unwrap())
     }
 }

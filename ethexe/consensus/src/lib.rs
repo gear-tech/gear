@@ -34,7 +34,7 @@
 
 use anyhow::Result;
 use ethexe_common::{
-    Announce, Digest, HashOf, SimpleBlockData,
+    Announce, ComputedAnnounce, Digest, HashOf, SimpleBlockData,
     consensus::{BatchCommitmentValidationReply, VerifiedAnnounce, VerifiedValidationRequest},
     injected::{SignedInjectedTransaction, SignedPromise},
     network::{AnnouncesRequest, CheckedAnnouncesResponse, SignedValidatorMessage},
@@ -43,6 +43,7 @@ use futures::{Stream, stream::FusedStream};
 use gprimitives::H256;
 
 pub use connect::ConnectService;
+use nonempty::NonEmpty;
 pub use utils::{block_producer_for, block_producer_index};
 pub use validator::{BatchCommitter, ValidatorConfig, ValidatorService};
 
@@ -71,7 +72,7 @@ pub trait ConsensusService:
     fn receive_prepared_block(&mut self, block: H256) -> Result<()>;
 
     /// Process a computed block received
-    fn receive_computed_announce(&mut self, announce: HashOf<Announce>) -> Result<()>;
+    fn receive_computed_announce(&mut self, computed_data: ComputedAnnounce) -> Result<()>;
 
     /// Process a received producer block
     fn receive_announce(&mut self, block: VerifiedAnnounce) -> Result<()>;
@@ -122,7 +123,7 @@ pub enum ConsensusEvent {
     CommitmentSubmitted(CommitmentSubmitted),
     /// Informational event: during service processing, a warning situation was detected
     Warning(String),
-    /// Promise for [`ethexe_common::injected::InjectedTransaction`] execution.
+    /// Promises for [`ethexe_common::injected::InjectedTransaction`]s execution in some announce.
     #[from]
-    Promise(SignedPromise),
+    Promises(NonEmpty<SignedPromise>),
 }

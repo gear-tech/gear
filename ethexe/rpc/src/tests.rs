@@ -22,9 +22,10 @@ use crate::{
 };
 
 use ethexe_common::{
-    ecdsa::PrivateKey,
+    Address,
+    ecdsa::{PrivateKey, SignedMessage},
     gear::MAX_BLOCK_GAS_LIMIT,
-    injected::{Promise, RpcOrNetworkInjectedTx, SignedPromise},
+    injected::{InjectedTransaction, Promise, RpcOrNetworkInjectedTx, SignedPromise},
     mock::Mock,
 };
 use ethexe_db::Database;
@@ -34,7 +35,10 @@ use gear_core::{
     message::{ReplyCode, SuccessReplyReason},
     rpc::ReplyInfo,
 };
-use jsonrpsee::{server::ServerHandle, ws_client::WsClientBuilder};
+use jsonrpsee::{
+    server::ServerHandle,
+    ws_client::{WsClient, WsClientBuilder},
+};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use tokio::task::{JoinHandle, JoinSet};
 
@@ -68,10 +72,8 @@ impl MockService {
             loop {
                 tokio::select! {
                     _ = tx_batch_interval.tick() => {
-                        for tx in tx_batch.drain(..) {
-                            let promise = Self::create_promise_for(tx);
-                            self.rpc.provide_promise(promise);
-                        }
+                        let promises = tx_batch.drain(..).map(Self::create_promise).collect();
+                        self.rpc.provide_promises(promises);
                     },
                     _ = self.handle.clone().stopped() => {
                         unreachable!("RPC server should not be stopped during the test")
@@ -87,12 +89,14 @@ impl MockService {
         })
     }
 
-    fn create_promise_for(tx: RpcOrNetworkInjectedTx) -> SignedPromise {
+    fn create_promise(tx: RpcOrNetworkInjectedTx) -> SignedPromise {
+        let tx = tx.tx.into_data();
         let promise = Promise {
-            tx_hash: tx.tx.data().to_hash(),
+            tx_hash: tx.to_hash(),
             reply: ReplyInfo {
                 payload: vec![],
-                value: 0,
+                // Take value from the transaction for testing purposes.
+                value: tx.value,
                 code: ReplyCode::Success(SuccessReplyReason::Manual),
             },
         };
@@ -120,6 +124,14 @@ async fn wait_for_closed_subscriptions(injected_api: InjectedApi) {
     }
 }
 
+/// Creates a new WebSocket client connected to the given address.
+async fn ws_client(addr: SocketAddr) -> WsClient {
+    WsClientBuilder::new()
+        .build(format!("ws://{addr}"))
+        .await
+        .expect("WS client will be created")
+}
+
 #[tokio::test]
 #[ntest::timeout(20_000)]
 async fn test_cleanup_promise_subscribers() {
@@ -130,10 +142,7 @@ async fn test_cleanup_promise_subscribers() {
     // Spawn the mock service main loop.
     let _handle = service.spawn();
 
-    let ws_client = WsClientBuilder::new()
-        .build(format!("ws://{}", listen_addr))
-        .await
-        .expect("WS client will be created");
+    let ws_client = ws_client(listen_addr).await;
 
     // Correct workflow: send transaction, receive promise, unsubscribe.
     {
@@ -207,7 +216,6 @@ async fn test_cleanup_promise_subscribers() {
     }
 }
 
-// Setup worker-threads=4 to simulate concurrent clients.
 #[tokio::test]
 #[ntest::timeout(120_000)]
 async fn test_concurrent_multiple_clients() {
@@ -221,11 +229,7 @@ async fn test_concurrent_multiple_clients() {
     let mut tasks = JoinSet::new();
     for _ in 0..10 {
         tasks.spawn(async move {
-            let client = WsClientBuilder::new()
-                .build(format!("ws://{listen_addr}"))
-                .await
-                .expect("WS client will be created");
-
+            let client = ws_client(listen_addr).await;
             // Each client sequentially creates 50 subscriptions.
             let mut subscriptions = vec![];
             for _ in 0..50 {
@@ -252,4 +256,68 @@ async fn test_concurrent_multiple_clients() {
 
     let _ = tasks.join_all().await;
     wait_for_closed_subscriptions(injected_api).await;
+}
+
+#[tokio::test]
+#[ntest::timeout(20_000)]
+async fn test_subscribe_all_promises() {
+    tracing_subscriber::fmt().init();
+
+    let listen_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8020);
+    let service = MockService::new(listen_addr).await;
+    let _injected_api = service.injected_api();
+
+    // Spawn the mock service main loop.
+    let _handle = service.spawn();
+
+    let transactions_count = 100u32;
+    let subscribers = 5;
+
+    let mut tasks = JoinSet::new();
+    for _ in 0..subscribers {
+        let client = ws_client(listen_addr).await;
+
+        tasks.spawn(async move {
+            let mut subscription = client
+                .subscribe_promises()
+                .await
+                .expect("Successfully established subscription");
+
+            for expected_idx in 0..transactions_count {
+                let promise = subscription
+                    .next()
+                    .await
+                    .expect("Promise will be received")
+                    .expect("No error in subscription result");
+
+                assert_eq!(
+                    promise.data().reply.code,
+                    ReplyCode::Success(SuccessReplyReason::Manual)
+                );
+                assert_eq!(
+                    promise.data().reply.value,
+                    expected_idx as u128,
+                    "Ordering of the promises should be preserved"
+                );
+            }
+        });
+    }
+
+    let client = ws_client(listen_addr).await;
+
+    for idx in 0..transactions_count {
+        let mut tx = InjectedTransaction::mock(());
+        tx.value = idx as u128;
+        let tx = RpcOrNetworkInjectedTx {
+            recipient: Address::default(),
+            tx: SignedMessage::create(PrivateKey::random(), tx).unwrap(),
+        };
+
+        let _ = client
+            .send_transaction(tx)
+            .await
+            .expect("Transaction will be sent");
+    }
+
+    let _ = tasks.join_all().await;
 }

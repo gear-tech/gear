@@ -923,7 +923,7 @@ mod tests {
         };
 
         let mut in_block_transitions =
-            InBlockTransitions::new(block_header, states, Default::default(), Default::default());
+            InBlockTransitions::new(block_header, states, Default::default(), std::iter::empty());
 
         let base_program = pid2;
 
