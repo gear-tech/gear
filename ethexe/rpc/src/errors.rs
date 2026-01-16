@@ -28,6 +28,10 @@ pub fn runtime(err: impl ToString) -> ErrorObject<'static> {
     ErrorObject::owned(8000, "Runtime error", Some(err.to_string()))
 }
 
+pub fn params(err: impl ToString) -> ErrorObject<'static> {
+    ErrorObject::owned(8000, "Parameters error", Some(err.to_string()))
+}
+
 pub fn internal() -> ErrorObject<'static> {
     ErrorObject::owned(8000, "Internal error", None::<&str>)
 }

@@ -41,6 +41,8 @@ pub enum TxValidity {
     UnknownDestination,
     /// Transaction's destination [`gprimitives::ActorId`] not initialized.
     UninitializedDestination,
+    /// Transaction with non zero value is not supported for now.
+    NonZeroValue,
 }
 
 pub struct TxValidityChecker<DB> {
@@ -82,6 +84,10 @@ impl<DB: OnChainStorageRO + AnnounceStorageRO + Storage> TxValidityChecker<DB> {
     /// - `latest_included_transactions` - see [`Self::collect_recent_included_txs`].
     pub fn check_tx_validity(&self, tx: &SignedInjectedTransaction) -> Result<TxValidity> {
         let reference_block = tx.data().reference_block;
+
+        if tx.data().value != 0 {
+            return Ok(TxValidity::NonZeroValue);
+        }
 
         if !self.is_reference_block_within_validity_window(reference_block)? {
             return Ok(TxValidity::Outdated);
@@ -192,7 +198,7 @@ mod tests {
         db::{AnnounceStorageRW, OnChainStorageRW},
         ecdsa::PrivateKey,
         injected::VALIDITY_WINDOW,
-        mock::{BlockChain, Mock},
+        mock::*,
     };
     use ethexe_db::Database;
     use ethexe_runtime_common::state::{ActiveProgram, Program, ProgramState};
@@ -366,6 +372,31 @@ mod tests {
         assert_eq!(
             TxValidity::UninitializedDestination,
             tx_checker.check_tx_validity(&tx).unwrap()
+        );
+    }
+
+    #[test]
+    fn test_check_injected_transaction_non_zero_value() {
+        let db = Database::memory();
+        let chain = BlockChain::mock(10).setup(&db);
+
+        let chain_head = chain.blocks[9].hash;
+        let tx = InjectedTransaction::mock(()).tap_mut(|tx| {
+            tx.reference_block = chain.blocks[5].hash;
+            tx.value = 100
+        });
+
+        let announce_hash = setup_announce(&db, vec![], true, chain.block_top_announce_hash(8));
+        let tx_checker =
+            TxValidityChecker::new_for_announce(db, chain_head, announce_hash).unwrap();
+
+        assert_eq!(
+            TxValidity::NonZeroValue,
+            tx_checker
+                .check_tx_validity(
+                    &SignedInjectedTransaction::create(PrivateKey::random(), tx).unwrap()
+                )
+                .unwrap()
         );
     }
 }
