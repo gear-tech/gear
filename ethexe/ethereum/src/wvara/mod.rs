@@ -64,6 +64,19 @@ impl WVara {
         Ok(tx_hash)
     }
 
+    pub async fn mint(&self, to: Address, amount: u128) -> Result<H256> {
+        let builder = self.0.mint(to, AlloyU256::from(amount));
+        let receipt = builder
+            .send()
+            .await?
+            .try_get_receipt_check_reverted()
+            .await?;
+
+        let tx_hash = (*receipt.transaction_hash).into();
+
+        Ok(tx_hash)
+    }
+
     pub async fn transfer_from(&self, from: Address, to: Address, value: u128) -> Result<H256> {
         let builder = self.0.transferFrom(from, to, AlloyU256::from(value));
         let receipt = builder
