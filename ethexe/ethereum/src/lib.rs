@@ -63,14 +63,19 @@ pub mod primitives {
     pub use alloy::primitives::*;
 }
 
-type AlloyRecommendedFillers = JoinFill<
-    GasFiller,
-    JoinFill<BlobGasFiller, JoinFill<NonceFiller<SimpleNonceManager>, ChainIdFiller>>,
+type AlloyProvider = FillProvider<
+    JoinFill<
+        JoinFill<
+            JoinFill<
+                JoinFill<JoinFill<Identity, GasFiller>, BlobGasFiller>,
+                NonceFiller<SimpleNonceManager>,
+            >,
+            ChainIdFiller,
+        >,
+        WalletFiller<EthereumWallet>,
+    >,
+    RootProvider,
 >;
-type AlloyProvider = FillProvider<ExeFiller, RootProvider, AlloyEthereum>;
-
-pub(crate) type ExeFiller =
-    JoinFill<JoinFill<Identity, AlloyRecommendedFillers>, WalletFiller<EthereumWallet>>;
 
 pub struct Ethereum {
     router: Address,
@@ -141,21 +146,11 @@ pub(crate) async fn create_provider(
     signer: LocalSigner,
     sender_address: LocalAddress,
 ) -> Result<AlloyProvider> {
-    // TODO: use proper builder pattern to configure the estimator
-    // https://github.com/alloy-rs/alloy/issues/3487
-    let estimator = BlobGasEstimator::scaled(3);
-    let filler: AlloyRecommendedFillers = JoinFill::new(
-        GasFiller,
-        JoinFill::new(
-            BlobGasFiller { estimator },
-            JoinFill::new(
-                NonceFiller::new(SimpleNonceManager::default()),
-                ChainIdFiller::default(),
-            ),
-        ),
-    );
     Ok(ProviderBuilder::default()
-        .filler(filler)
+        .with_gas_estimation()
+        .with_blob_gas_estimator(BlobGasEstimator::scaled(3))
+        .with_simple_nonce_management()
+        .fetch_chain_id()
         .wallet(EthereumWallet::new(Sender::new(signer, sender_address)?))
         .connect(rpc_url)
         .await?)
