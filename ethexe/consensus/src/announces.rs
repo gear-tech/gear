@@ -716,9 +716,7 @@ pub fn accept_announce(db: &impl DBAnnouncesExt, announce: Announce) -> Result<A
         let validity_status = tx_checker.check_tx_validity(tx)?;
 
         match validity_status {
-            TxValidity::Valid => {
-                db.set_injected_transaction(tx.clone());
-            }
+            TxValidity::Valid => {}
 
             validity => {
                 tracing::trace!(

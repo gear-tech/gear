@@ -19,7 +19,7 @@
 pub use tap::Tap;
 
 use crate::{
-    Announce, BlockData, BlockHeader, CodeBlobInfo, Digest, HashOf, ProgramStates,
+    Announce, BlockData, BlockHeader, CodeBlobInfo, Digest, HashOf, NetworkAnnounce, ProgramStates,
     ProtocolTimelines, Schedule, SimpleBlockData, ValidatorsVec,
     consensus::BatchCommitmentValidationRequest,
     db::*,
@@ -88,6 +88,29 @@ impl Mock<H256> for Announce {
 impl Mock<()> for Announce {
     fn mock(_args: ()) -> Self {
         Announce::mock(H256::random())
+    }
+}
+
+impl Mock<(H256, HashOf<Announce>)> for NetworkAnnounce {
+    fn mock((block_hash, parent): (H256, HashOf<Announce>)) -> Self {
+        NetworkAnnounce {
+            block_hash,
+            parent,
+            gas_allowance: Some(100),
+            injected_transactions: vec![],
+        }
+    }
+}
+
+impl Mock<H256> for NetworkAnnounce {
+    fn mock(block_hash: H256) -> Self {
+        NetworkAnnounce::mock((block_hash, HashOf::random()))
+    }
+}
+
+impl Mock<()> for NetworkAnnounce {
+    fn mock(_args: ()) -> Self {
+        NetworkAnnounce::mock(H256::random())
     }
 }
 
