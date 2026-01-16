@@ -81,15 +81,7 @@ impl StateHandler for Producer {
                 if *expected == computed_data.announce_hash =>
             {
                 if let Some(promises) = computed_data.promises {
-                    let signed_promises = promises
-                        .into_iter()
-                        .map(|promise| {
-                            self.ctx
-                                .sign_message(promise)
-                                .context("producer: failed to sign promise")
-                        })
-                        .collect::<Result<_, _>>()?;
-
+                    let signed_promises = self.ctx.sign_promises(promises)?;
                     self.ctx.output(ConsensusEvent::Promises(signed_promises));
                 }
 

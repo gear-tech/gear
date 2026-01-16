@@ -2425,10 +2425,8 @@ async fn injected_tx_fungible_token() {
     // Listen for inclusion and check the expected payload.
     node.events()
         .find(|event| {
-            if let TestingEvent::Consensus(ConsensusEvent::Promises(promises)) = event
-                && !promises.is_empty()
-            {
-                let promise = promises.first().unwrap().data();
+            if let TestingEvent::Consensus(ConsensusEvent::Promises(promises)) = event {
+                let promise = promises.first().data();
                 assert_eq!(promise.reply.payload, expected_event.encode());
                 assert_eq!(
                     promise.reply.code,
@@ -3222,8 +3220,6 @@ async fn catch_up_test_case(commitment_delay_limit: u32) {
 async fn all_validators_produce_promises() {
     init_logger();
 
-    let test_start = tokio::time::Instant::now();
-
     let env_config = TestEnvConfig {
         validators: ValidatorsConfig::PreDefined(4),
         network: EnvNetworkConfig::Enabled,
@@ -3244,12 +3240,6 @@ async fn all_validators_produce_promises() {
         node.start_service().await;
         nodes.push(node)
     }
-
-    let node_started = tokio::time::Instant::now();
-    tracing::error!(
-        "different: {:?}",
-        node_started.duration_since(test_start).as_millis()
-    );
 
     // 1. Create Fungible token config
     let token_config = demo_fungible_token::InitConfig {
@@ -3356,7 +3346,7 @@ async fn all_validators_produce_promises() {
         .await
         .expect("subscription item")
         .expect("transaction promise");
-    tracing::error!("RECEIVE MINT PROMISE: {promise:?}");
+    tracing::info!("✅ receive mint promise: {promise:?}");
     expected_promises.push(promise.into_data());
 
     // 6. Do transfers to produce more promises
@@ -3404,7 +3394,7 @@ async fn all_validators_produce_promises() {
             .expect("subscription item")
             .expect("transaction promise");
 
-        tracing::error!("RECEIVE TRANSFER PROMISE: {promise:?}");
+        tracing::info!("✅ receive transfer promise: {promise:?}");
         expected_promises.push(promise.into_data());
     }
 

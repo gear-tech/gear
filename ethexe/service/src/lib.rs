@@ -628,7 +628,7 @@ impl Service {
                     }
                     ConsensusEvent::Promises(promises) => {
                         if let Some(ref mut rpc) = rpc {
-                            rpc.provide_promises(promises);
+                            rpc.provide_promises(promises.into());
                         }
 
                         // TODO kuzmindev: also should be sent to network peer, that waits for transaction promise

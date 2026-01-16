@@ -25,7 +25,7 @@ use crate::{
     announces::{self, AnnounceStatus},
     validator::participant::Participant,
 };
-use anyhow::{Context as _, Result};
+use anyhow::Result;
 use derive_more::{Debug, Display};
 use ethexe_common::{
     Address, Announce, ComputedAnnounce, HashOf, SimpleBlockData,
@@ -78,17 +78,8 @@ impl StateHandler for Subordinate {
             State::WaitingAnnounceComputed { announce_hash }
                 if *announce_hash == computed_data.announce_hash =>
             {
-                // TODO: create another function for boilerplate code
                 if let Some(promises) = computed_data.promises {
-                    let signed_promises = promises
-                        .into_iter()
-                        .map(|promise| {
-                            self.ctx
-                                .sign_message(promise)
-                                .context("producer: failed to sign promise")
-                        })
-                        .collect::<Result<_, _>>()?;
-
+                    let signed_promises = self.ctx.sign_promises(promises)?;
                     self.ctx.output(ConsensusEvent::Promises(signed_promises));
                 }
 
@@ -103,10 +94,6 @@ impl StateHandler for Subordinate {
     }
 
     fn process_announce(mut self, validated_announce: VerifiedAnnounce) -> Result<ValidatorState> {
-        tracing::error!(
-            "RECEIVE ANNOUNCE FROM VALIDATOR, injected txs: {:?}",
-            validated_announce.data().injected_transactions
-        );
         match &mut self.state {
             State::WaitingForAnnounce
                 if validated_announce.address() == self.producer
@@ -213,7 +200,7 @@ impl Subordinate {
 mod tests {
     use super::*;
     use crate::{mock::*, validator::mock::*};
-    use ethexe_common::{ComputedAnnounce, ecdsa::VerifiedData, injected::Promise, mock::*};
+    use ethexe_common::{ComputedAnnounce, injected::Promise, mock::*};
 
     #[test]
     fn create_empty() {
@@ -529,7 +516,7 @@ mod tests {
             vec![
                 ConsensusEvent::AnnounceAccepted(announce.data().to_hash()),
                 ConsensusEvent::ComputeAnnounce(announce.data().clone()),
-                ConsensusEvent::Promises(vec![signed_promise])
+                ConsensusEvent::Promises(nonempty::nonempty![signed_promise])
             ]
         );
     }
