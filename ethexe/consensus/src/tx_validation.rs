@@ -92,10 +92,7 @@ impl<DB: OnChainStorageRO + AnnounceStorageRO + Storage> TransactionStatusResolv
         };
 
         if state.requires_init_message() {
-            return Ok(PendingStatus::UninitializedDestination {
-                destination: tx.data().destination,
-            }
-            .into());
+            return Ok(PendingStatus::UninitializedDestination(tx.data().destination).into());
         }
 
         Ok(TransactionStatus::Valid)
@@ -347,7 +344,7 @@ mod tests {
 
         assert!(matches!(
             resolver.resolve(&tx).unwrap(),
-            TransactionStatus::Pending(PendingStatus::UninitializedDestination { .. }),
+            TransactionStatus::Pending(PendingStatus::UninitializedDestination(_)),
         ));
     }
 }

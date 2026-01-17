@@ -594,12 +594,9 @@ impl Service {
                             let acceptance = if transaction.recipient == Address::default()
                                 || validator_address == Some(transaction.recipient)
                             {
-                                match consensus.receive_injected_transaction(transaction.tx) {
-                                    Ok(()) => InjectedTransactionAcceptance::Accept,
-                                    Err(error) => {
-                                        InjectedTransactionAcceptance::Reject(error.into())
-                                    }
-                                }
+                                consensus
+                                    .receive_injected_transaction(transaction.tx)
+                                    .into()
                             } else {
                                 let Some(network) = network.as_mut() else {
                                     continue;

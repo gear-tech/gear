@@ -54,8 +54,8 @@ pub enum PendingStatus {
     NotOnCurrentBranch,
     /// In case when transaction is sent to uninitialized actor, we keep it in pool,
     /// because in next blocks actor can be initialized.
-    #[display("Transaction's destination actor({destination}) is uninitialized")]
-    UninitializedDestination { destination: ActorId },
+    #[display("Transaction's destination actor({_0}) is uninitialized")]
+    UninitializedDestination(ActorId),
 }
 
 /// The reason why the transaction is not valid and cannot be included into announce.

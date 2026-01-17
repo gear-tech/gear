@@ -678,7 +678,7 @@ pub enum AnnounceRejectionReason {
     },
     #[display("Announce {_0} is already included")]
     AlreadyIncluded(HashOf<Announce>),
-    #[display("Announce contains invalid injected transaction with status({_0})")]
+    #[display("Announce contains not valid injected transaction with status({_0})")]
     InvalidTransaction(TransactionStatus),
 }
 
@@ -715,22 +715,19 @@ pub fn accept_announce(db: &impl DBAnnouncesExt, announce: Announce) -> Result<A
         TransactionStatusResolver::new_for_announce(db, announce.block_hash, announce.parent)?;
 
     for tx in announce.injected_transactions.iter() {
-        let validity_status = resolver.resolve(tx)?;
-
-        match validity_status {
+        match resolver.resolve(tx)? {
             TransactionStatus::Valid => {
                 db.set_injected_transaction(tx.clone());
             }
-
-            validity => {
+            status => {
                 tracing::trace!(
                     announce = ?announce.to_hash(),
-                    "announce contains invalid transition with status {validity:?}, rejecting announce."
+                    "announce contains not a valid transaction with status {status:?}, rejecting announce."
                 );
 
                 return Ok(AnnounceStatus::Rejected {
                     announce,
-                    reason: AnnounceRejectionReason::InvalidTransaction(validity),
+                    reason: AnnounceRejectionReason::InvalidTransaction(status),
                 });
             }
         }

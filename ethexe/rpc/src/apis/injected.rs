@@ -39,16 +39,15 @@ use tokio::sync::{mpsc, oneshot};
 pub enum InjectedTransactionAcceptance {
     Accept,
     /// Transaction was rejected with a some error (tx is duplicated, or rpc-node lost connection).
-    Reject(RejectionMessage),
+    Reject(String),
 }
 
-/// Represents a rejection message for an injected transaction.
-#[derive(Debug, Clone, Serialize, Deserialize, derive_more::Display)]
-pub struct RejectionMessage(pub String);
-
-impl From<anyhow::Error> for RejectionMessage {
-    fn from(error: anyhow::Error) -> Self {
-        Self(error.to_string())
+impl<E: ToString> From<Result<(), E>> for InjectedTransactionAcceptance {
+    fn from(value: Result<(), E>) -> Self {
+        match value {
+            Ok(()) => Self::Accept,
+            Err(error) => Self::Reject(error.to_string()),
+        }
     }
 }
 
