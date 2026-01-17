@@ -12,7 +12,7 @@ runs:
       uses: cargo-bins/cargo-binstall@main
 
     - name: "Install: cargo-xwin"
-      run: cargo +stable binstall --no-confirm cargo-xwin@0.19
+      run: cargo +stable binstall --no-confirm cargo-xwin@0.20.2
       shell: bash
 
     - run: |
