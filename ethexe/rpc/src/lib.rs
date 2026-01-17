@@ -33,7 +33,7 @@ use futures::{Stream, stream::FusedStream};
 use hyper::header::HeaderValue;
 use jsonrpsee::{
     RpcModule as JsonrpcModule,
-    server::{Server, ServerHandle},
+    server::{PingConfig, Server, ServerHandle},
 };
 use std::{
     net::SocketAddr,
@@ -47,6 +47,9 @@ mod apis;
 mod errors;
 mod metrics;
 mod utils;
+
+#[cfg(all(test, feature = "client"))]
+mod tests;
 
 #[derive(Debug)]
 pub enum RpcEvent {
@@ -90,6 +93,9 @@ impl RpcServer {
 
         let server = Server::builder()
             .set_http_middleware(http_middleware)
+            // Setup WebSocket pings to detect dead connections.
+            // Now it is set to default: ping_interval = 30s, inactive_limit = 40s
+            .enable_ws_ping(PingConfig::default())
             .build(self.config.listen_addr)
             .await?;
 

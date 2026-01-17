@@ -31,6 +31,10 @@ itertools = { workspace = true, optional = true }
 tap = { workspace = true, optional = true }
 gear-workspace-hack.workspace = true
 
+[dev-dependencies]
+serde_json.workspace = true
+gprimitives = { workspace = true, features = ["ethexe"] }
+
 [features]
 default = ["std"]
 std = [

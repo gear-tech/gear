@@ -20,7 +20,7 @@ use crate::storage::{FSKeyStorage, KeyStorage, MemoryKeyStorage};
 use anyhow::Result;
 use ethexe_common::{
     Address, Digest,
-    ecdsa::{ContractSignature, PrivateKey, PublicKey, Signature, SignedData},
+    ecdsa::{ContractSignature, PrivateKey, PublicKey, Signature, SignedData, SignedMessage},
 };
 use std::{
     fs,
@@ -86,6 +86,18 @@ impl Signer {
         for<'a> Digest: From<&'a T>,
     {
         SignedData::create(self.storage().get_private_key(public_key)?, data).map_err(Into::into)
+    }
+
+    /// Create a ECDSA recoverable signature packed together with message according to EIP-191.
+    pub fn signed_message<T: Sized>(
+        &self,
+        public_key: PublicKey,
+        data: T,
+    ) -> Result<SignedMessage<T>>
+    where
+        for<'a> Digest: From<&'a T>,
+    {
+        SignedMessage::create(self.storage().get_private_key(public_key)?, data).map_err(Into::into)
     }
 
     /// Create a ECDSA recoverable contract-specific signature.
