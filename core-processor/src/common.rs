@@ -143,7 +143,7 @@ pub enum DispatchOutcome {
         /// Source of the init message. Funds inheritor.
         origin: ActorId,
         /// Reason of the fail.
-        reason: String,
+        reason: InitFailureReason,
     },
     /// Message was a trap.
     MessageTrap {
@@ -156,6 +156,21 @@ pub enum DispatchOutcome {
     Success,
     /// Message was processed, but not executed
     NoExecution,
+}
+
+/// Reason for init failure. Used to decide whether init is retryable.
+#[derive(Clone, Debug, Encode, Decode, Eq, PartialEq)]
+pub enum InitFailureReason {
+    /// Program ran out of executable balance during precharge.
+    RanOutOfGas,
+    /// Program exceeded block gas allowance during precharge.
+    RanOutOfAllowance,
+    /// Userspace panic during init execution.
+    UserspacePanic,
+    /// Backend execution error during init.
+    BackendError,
+    /// Any other init failure not classified above.
+    Other,
 }
 
 /// Journal record for the state update.

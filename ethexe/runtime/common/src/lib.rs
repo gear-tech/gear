@@ -52,6 +52,8 @@ pub mod state;
 
 mod journal;
 mod schedule;
+#[cfg(test)]
+mod tests;
 mod transitions;
 
 // TODO: consider format.
