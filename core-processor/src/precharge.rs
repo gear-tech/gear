@@ -29,7 +29,7 @@ use core::marker::PhantomData;
 use gear_core::{
     code::{CodeMetadata, InstantiatedSectionSizes, SectionName},
     costs::{BytesAmount, ProcessCosts},
-    gas::{ChargeResult, GasAllowanceCounter, GasCounter},
+    gas::{GasAllowanceCounter, GasCounter},
     ids::ActorId,
     message::IncomingDispatch,
 };
@@ -61,6 +61,27 @@ pub enum PreChargeGasOperation {
     /// Obtain program allocations.
     #[display("obtain program allocations")]
     Allocations,
+    /// Other operations.
+    #[display("{description}")]
+    Other {
+        /// Operation description.
+        description: &'static str,
+
+        /// Whether the operation affects block gas allowance.
+        affects_allowance: bool,
+    },
+}
+
+impl PreChargeGasOperation {
+    /// Checks whether the operation affects block gas allowance.
+    pub const fn affects_allowance(&self) -> bool {
+        match self {
+            &Self::Other {
+                affects_allowance, ..
+            } => affects_allowance,
+            _ => true,
+        }
+    }
 }
 
 /// Defines result variants of the precharge functions.
@@ -142,13 +163,34 @@ impl<T> ContextCharged<T> {
         self.gas_counter.left()
     }
 
+    /// Charges gas for a non-standard operation.
+    pub fn charge_extra_fee(
+        self,
+        description: &'static str,
+        affects_allowance: bool,
+        amount: u64,
+    ) -> PrechargeResult<Self> {
+        self.charge_gas(
+            PreChargeGasOperation::Other {
+                description,
+                affects_allowance,
+            },
+            amount,
+        )
+    }
+
     /// Charges gas for the operation.
     fn charge_gas<For>(
         mut self,
         operation: PreChargeGasOperation,
         amount: u64,
     ) -> PrechargeResult<ContextCharged<For>> {
-        if self.gas_allowance_counter.charge_if_enough(amount) != ChargeResult::Enough {
+        if operation.affects_allowance()
+            && self
+                .gas_allowance_counter
+                .charge_if_enough(amount)
+                .is_not_enough()
+        {
             let gas_burned = self.gas_counter.burned();
 
             return Err(process_allowance_exceed(
@@ -158,7 +200,7 @@ impl<T> ContextCharged<T> {
             ));
         }
 
-        if self.gas_counter.charge_if_enough(amount) != ChargeResult::Enough {
+        if self.gas_counter.charge_if_enough(amount).is_not_enough() {
             let gas_burned = self.gas_counter.burned();
             let system_reservation_ctx = SystemReservationContext::from_dispatch(&self.dispatch);
 
