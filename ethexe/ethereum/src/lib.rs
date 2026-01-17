@@ -28,8 +28,8 @@ use alloy::{
         Identity, PendingTransactionBuilder, PendingTransactionError, Provider, ProviderBuilder,
         RootProvider,
         fillers::{
-            BlobGasFiller, ChainIdFiller, FillProvider, GasFiller, JoinFill, NonceFiller,
-            SimpleNonceManager, WalletFiller,
+            BlobGasEstimator, BlobGasFiller, ChainIdFiller, FillProvider, GasFiller, JoinFill,
+            NonceFiller, SimpleNonceManager, WalletFiller,
         },
     },
     rpc::types::{TransactionReceipt, TransactionRequest, eth::Log},
@@ -63,14 +63,19 @@ pub mod primitives {
     pub use alloy::primitives::*;
 }
 
-type AlloyRecommendedFillers = JoinFill<
-    GasFiller,
-    JoinFill<BlobGasFiller, JoinFill<NonceFiller<SimpleNonceManager>, ChainIdFiller>>,
+type AlloyProvider = FillProvider<
+    JoinFill<
+        JoinFill<
+            JoinFill<
+                JoinFill<JoinFill<Identity, GasFiller>, BlobGasFiller>,
+                NonceFiller<SimpleNonceManager>,
+            >,
+            ChainIdFiller,
+        >,
+        WalletFiller<EthereumWallet>,
+    >,
+    RootProvider,
 >;
-type AlloyProvider = FillProvider<ExeFiller, RootProvider, AlloyEthereum>;
-
-pub(crate) type ExeFiller =
-    JoinFill<JoinFill<Identity, AlloyRecommendedFillers>, WalletFiller<EthereumWallet>>;
 
 pub struct Ethereum {
     router: Address,
@@ -142,7 +147,10 @@ pub(crate) async fn create_provider(
     sender_address: LocalAddress,
 ) -> Result<AlloyProvider> {
     Ok(ProviderBuilder::default()
-        .filler(AlloyRecommendedFillers::default())
+        .with_gas_estimation()
+        .with_blob_gas_estimator(BlobGasEstimator::scaled(3))
+        .with_simple_nonce_management()
+        .fetch_chain_id()
         .wallet(EthereumWallet::new(Sender::new(signer, sender_address)?))
         .connect(rpc_url)
         .await?)
