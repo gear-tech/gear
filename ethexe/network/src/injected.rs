@@ -62,13 +62,13 @@ pub(crate) enum Request {
 }
 
 #[derive(Debug, Encode, Decode)]
-pub(crate) enum TxResponse {
+pub(crate) enum TxSubmittanceResponse {
     Accepted,
 }
 
 #[derive(Debug, Encode, Decode)]
 pub(crate) enum Response {
-    TxAccepted(TxResponse),
+    TxSubmittance(TxSubmittanceResponse),
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -162,9 +162,10 @@ impl Behaviour {
             } => {
                 return match request {
                     Request::SubmitTx(transaction) => {
-                        let _res = self
-                            .inner
-                            .send_response(channel, Response::TxAccepted(TxResponse::Accepted));
+                        let _res = self.inner.send_response(
+                            channel,
+                            Response::TxSubmittance(TxSubmittanceResponse::Accepted),
+                        );
                         Poll::Ready(Event::NewInjectedTransaction(transaction))
                     }
                 };
@@ -183,7 +184,7 @@ impl Behaviour {
                     "unknown request id"
                 );
 
-                let Response::TxAccepted(TxResponse::Accepted) = response;
+                let Response::TxSubmittance(TxSubmittanceResponse::Accepted) = response;
             }
             request_response::Event::OutboundFailure {
                 peer,
