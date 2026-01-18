@@ -28,7 +28,6 @@ use ethexe_common::{
     Address, COMMITMENT_DELAY_LIMIT,
     ecdsa::{PrivateKey, PublicKey},
     gear::CodeState,
-    injected::InjectedTransactionAcceptance,
     network::VerifiedValidatorMessage,
 };
 use ethexe_compute::{ComputeConfig, ComputeEvent, ComputeService};
@@ -52,7 +51,14 @@ use ethexe_service_utils::{OptionFuture as _, OptionStreamNext as _};
 use ethexe_signer::Signer;
 use futures::{StreamExt, stream::FuturesUnordered};
 use gprimitives::{ActorId, CodeId, H256};
-use std::{collections::BTreeSet, num::NonZero, path::PathBuf, pin::Pin, time::Duration};
+use std::{
+    collections::{BTreeSet, HashMap},
+    num::NonZero,
+    path::PathBuf,
+    pin::Pin,
+    time::Duration,
+};
+use tokio::sync::oneshot;
 
 pub mod config;
 
@@ -457,6 +463,7 @@ impl Service {
             .await;
 
         let mut network_fetcher = FuturesUnordered::new();
+        let mut network_injected_txs: HashMap<_, oneshot::Sender<_>> = HashMap::new();
 
         loop {
             let event: Event = tokio::select! {
@@ -546,8 +553,19 @@ impl Service {
                                 }
                             };
                         }
-                        NetworkEvent::InjectedTransaction(transaction) => {
-                            consensus.receive_injected_transaction(transaction)?;
+                        NetworkEvent::InjectedTransaction(event) => {
+                            match event {
+                                ethexe_network::NetworkInjectedEvent::NewInjectedTransaction {
+                                    transaction, channel
+                                } => {
+                                    let res = consensus.receive_injected_transaction(transaction);
+                                    channel.send(res.into()).expect("channel must never be closed");
+                                }
+                                ethexe_network::NetworkInjectedEvent::InjectedTransactionAcceptance { transaction_hash, acceptance } => {
+                                    let response_sender = network_injected_txs.remove(&transaction_hash).expect("unknown transaction");
+                                    let _res = response_sender.send(acceptance);
+                                }
+                            }
                         }
                         NetworkEvent::PromiseMessage(promise) => {
                             if let Some(rpc) = &rpc {
@@ -592,22 +610,31 @@ impl Service {
                             transaction,
                             response_sender,
                         } => {
-                            let acceptance = if
+                            if
                             // zero address means that no matter what validator will insert this tx.
                             transaction.recipient == Address::default()
                                 || validator_address == Some(transaction.recipient)
                             {
-                                consensus.receive_injected_transaction(transaction.tx)?;
-                                InjectedTransactionAcceptance::Accept
+                                let acceptance = consensus
+                                    .receive_injected_transaction(transaction.tx)
+                                    .into();
+                                let _res = response_sender.send(acceptance);
                             } else {
                                 let Some(network) = network.as_mut() else {
                                     continue;
                                 };
 
-                                network.send_injected_transaction(transaction).into()
-                            };
+                                let tx_hash = transaction.tx.data().to_hash();
 
-                            let _res = response_sender.send(acceptance);
+                                match network.send_injected_transaction(transaction) {
+                                    Ok(()) => {
+                                        network_injected_txs.insert(tx_hash, response_sender);
+                                    }
+                                    Err(err) => {
+                                        let _res = response_sender.send(Err(err).into());
+                                    }
+                                }
+                            }
                         }
                     }
                 }

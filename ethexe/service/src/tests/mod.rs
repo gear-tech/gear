@@ -26,7 +26,8 @@ use crate::{
     config::{self, Config},
     tests::utils::{
         AnnounceId, EnvNetworkConfig, InfiniteStreamExt, Node, NodeConfig, TestEnv, TestEnvConfig,
-        TestingEvent, TestingRpcEvent, ValidatorsConfig, WaitForReplyTo, Wallets, init_logger,
+        TestingEvent, TestingNetworkEvent, TestingRpcEvent, ValidatorsConfig, WaitForReplyTo,
+        Wallets, init_logger,
     },
 };
 use alloy::{
@@ -48,7 +49,6 @@ use ethexe_compute::ComputeConfig;
 use ethexe_consensus::{BatchCommitter, ConsensusEvent};
 use ethexe_db::{Database, verifier::IntegrityVerifier};
 use ethexe_ethereum::{TryGetReceipt, deploy::ContractsDeploymentParams, router::Router};
-use ethexe_network::NetworkEvent;
 use ethexe_observer::{EthereumConfig, ObserverEvent};
 use ethexe_processor::{DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, RunnerConfig};
 use ethexe_prometheus::PrometheusConfig;
@@ -2622,7 +2622,7 @@ async fn injected_tx_fungible_token_over_network() {
         .find(|event| {
             matches!(
                 event,
-                TestingEvent::Network(NetworkEvent::ValidatorIdentityUpdated(_))
+                TestingEvent::Network(TestingNetworkEvent::ValidatorIdentityUpdated(_))
             )
         })
         .await;
@@ -2638,7 +2638,7 @@ async fn injected_tx_fungible_token_over_network() {
         .find(|event| {
             matches!(
                 event,
-                TestingEvent::Network(NetworkEvent::InjectedTransaction(_))
+                TestingEvent::Network(TestingNetworkEvent::InjectedTransaction(_))
             )
         })
         .await;

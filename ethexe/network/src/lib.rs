@@ -29,6 +29,8 @@ pub mod export {
     pub use libp2p::{Multiaddr, PeerId, multiaddr::Protocol};
 }
 
+pub use injected::Event as NetworkInjectedEvent;
+
 use crate::{
     db_sync::DbSyncDatabase,
     gossipsub::MessageAcceptance,
@@ -38,7 +40,7 @@ use anyhow::{Context, anyhow};
 use ethexe_common::{
     Address, BlockHeader, ValidatorsVec,
     ecdsa::PublicKey,
-    injected::{AddressedInjectedTransaction, SignedInjectedTransaction, SignedPromise},
+    injected::{AddressedInjectedTransaction, SignedPromise},
     network::{SignedValidatorMessage, VerifiedValidatorMessage},
 };
 use ethexe_signer::Signer;
@@ -75,7 +77,7 @@ const MAX_ESTABLISHED_INCOMING_CONNECTIONS: u32 = 100;
 pub trait NetworkServiceDatabase: DbSyncDatabase + ValidatorDatabase {}
 impl<T> NetworkServiceDatabase for T where T: DbSyncDatabase + ValidatorDatabase {}
 
-#[derive(derive_more::Debug, Eq, PartialEq, Clone)]
+#[derive(derive_more::Debug)]
 pub enum NetworkEvent {
     // gossipsub
     ValidatorMessage(VerifiedValidatorMessage),
@@ -83,7 +85,7 @@ pub enum NetworkEvent {
     // validator-identity
     ValidatorIdentityUpdated(Address),
     // injected-tx
-    InjectedTransaction(SignedInjectedTransaction),
+    InjectedTransaction(NetworkInjectedEvent),
     // peer-score
     PeerBlocked(PeerId),
     PeerConnected(PeerId),
@@ -524,11 +526,7 @@ impl NetworkService {
     }
 
     fn handle_injected_event(&mut self, event: injected::Event) -> Option<NetworkEvent> {
-        match event {
-            injected::Event::NewInjectedTransaction(transaction) => {
-                Some(NetworkEvent::InjectedTransaction(transaction))
-            }
-        }
+        Some(NetworkEvent::InjectedTransaction(event))
     }
 
     fn handle_validator_discovery_event(
@@ -747,6 +745,7 @@ mod tests {
         db_sync::{ExternalDataProvider, tests::fill_data_provider},
         utils::tests::init_logger,
     };
+    use assert_matches::assert_matches;
     use async_trait::async_trait;
     use ethexe_common::{BlockHeader, ProtocolTimelines, db::OnChainStorageRW, gear::CodeState};
     use ethexe_db::Database;
@@ -951,7 +950,7 @@ mod tests {
             .await
             .expect("time has elapsed")
             .unwrap();
-        assert_eq!(event, NetworkEvent::PeerBlocked(service2_peer_id));
+        assert_matches!(event, NetworkEvent::PeerBlocked(peer_id) if peer_id == service2_peer_id);
     }
 
     #[tokio::test]

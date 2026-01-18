@@ -24,14 +24,19 @@ use crate::{
 };
 use ethexe_common::{
     Address, HashOf,
-    injected::{AddressedInjectedTransaction, InjectedTransaction, SignedInjectedTransaction},
+    injected::{
+        AddressedInjectedTransaction, InjectedTransaction, InjectedTransactionAcceptance,
+        SignedInjectedTransaction,
+    },
 };
+use futures::{FutureExt, StreamExt, future::BoxFuture, stream::FuturesUnordered};
 use libp2p::{
     StreamProtocol,
     core::{Endpoint, transport::PortUse},
     request_response,
     request_response::{
         InboundFailure, Message, OutboundFailure, OutboundRequestId, ProtocolSupport,
+        ResponseChannel,
     },
     swarm::{
         ConnectionDenied, ConnectionId, FromSwarm, NetworkBehaviour, THandler, THandlerInEvent,
@@ -41,10 +46,11 @@ use libp2p::{
 use lru::LruCache;
 use parity_scale_codec::{Decode, Encode};
 use std::{
-    collections::HashSet,
+    collections::HashMap,
     num::NonZeroUsize,
     task::{Context, Poll, ready},
 };
+use tokio::sync::oneshot;
 
 const STREAM_PROTOCOL: StreamProtocol =
     StreamProtocol::new(concat!("/ethexe/injected-tx/", env!("CARGO_PKG_VERSION")));
@@ -56,24 +62,56 @@ const MAX_TRANSACTIONS: NonZeroUsize = NonZeroUsize::new(50).unwrap();
 /// Maximum number of validators we cache per transaction
 const MAX_VALIDATORS_PER_TRANSACTION: NonZeroUsize = NonZeroUsize::new(20).unwrap();
 
+/// Network-only type to be encoded-decoded and sent over the network
 #[derive(Debug, Encode, Decode)]
-pub(crate) enum Request {
-    SubmitTx(SignedInjectedTransaction),
+pub(crate) struct InnerRequest(SignedInjectedTransaction);
+
+/// Network-only type to be encoded-decoded and sent over the network
+#[derive(Debug, Encode, Decode)]
+pub(crate) struct InnerResponse(InjectedTransactionAcceptance);
+
+#[derive(Debug)]
+pub enum Event {
+    /// Peer sent a new transaction to us
+    NewInjectedTransaction {
+        transaction: SignedInjectedTransaction,
+        channel: oneshot::Sender<InjectedTransactionAcceptance>,
+    },
+    /// We got a response from a validator we sent transaction to
+    InjectedTransactionAcceptance {
+        transaction_hash: HashOf<InjectedTransaction>,
+        acceptance: InjectedTransactionAcceptance,
+    },
 }
 
-#[derive(Debug, Encode, Decode)]
-pub(crate) enum TxSubmittanceResponse {
-    Accepted,
-}
+#[cfg(test)]
+impl Event {
+    fn unwrap_new_injected_transaction(
+        self,
+    ) -> (
+        SignedInjectedTransaction,
+        oneshot::Sender<InjectedTransactionAcceptance>,
+    ) {
+        match self {
+            Event::NewInjectedTransaction {
+                transaction,
+                channel,
+            } => (transaction, channel),
+            _ => panic!("Expected NewInjectedTransaction event"),
+        }
+    }
 
-#[derive(Debug, Encode, Decode)]
-pub(crate) enum Response {
-    TxSubmittance(TxSubmittanceResponse),
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub(crate) enum Event {
-    NewInjectedTransaction(SignedInjectedTransaction),
+    fn unwrap_injected_transaction_acceptance(
+        self,
+    ) -> (HashOf<InjectedTransaction>, InjectedTransactionAcceptance) {
+        match self {
+            Event::InjectedTransactionAcceptance {
+                transaction_hash,
+                acceptance,
+            } => (transaction_hash, acceptance),
+            _ => panic!("Expected InjectedTransactionAcceptance event"),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, derive_more::Display)]
@@ -86,12 +124,14 @@ pub enum SendTransactionError {
     ValidatorNotFound,
 }
 
-type InnerBehaviour = request_response::Behaviour<ParityScaleCodec<Request, Response>>;
+type InnerBehaviour = request_response::Behaviour<ParityScaleCodec<InnerRequest, InnerResponse>>;
+type PendingResponseFuture = BoxFuture<'static, (ResponseChannel<InnerResponse>, InnerResponse)>;
 
 pub(crate) struct Behaviour {
     inner: InnerBehaviour,
     peer_score: peer_score::Handle,
-    pending_requests: HashSet<OutboundRequestId>,
+    pending_requests: HashMap<OutboundRequestId, HashOf<InjectedTransaction>>,
+    pending_responses: FuturesUnordered<PendingResponseFuture>,
     transaction_cache: LruCache<HashOf<InjectedTransaction>, LruCache<Address, ()>>,
 }
 
@@ -104,7 +144,8 @@ impl Behaviour {
         Self {
             inner,
             peer_score,
-            pending_requests: HashSet::new(),
+            pending_requests: HashMap::new(),
+            pending_responses: FuturesUnordered::new(),
             transaction_cache: LruCache::new(MAX_TRANSACTIONS),
         }
     }
@@ -135,8 +176,8 @@ impl Behaviour {
 
         let id = self
             .inner
-            .send_request_with_addresses(&peer_id, Request::SubmitTx(tx), addresses);
-        self.pending_requests.insert(id);
+            .send_request_with_addresses(&peer_id, InnerRequest(tx), addresses);
+        self.pending_requests.insert(id, tx_hash);
 
         self.transaction_cache
             .get_or_insert_mut(tx_hash, || LruCache::new(MAX_VALIDATORS_PER_TRANSACTION))
@@ -147,7 +188,7 @@ impl Behaviour {
 
     fn handle_inner_event(
         &mut self,
-        event: request_response::Event<Request, Response>,
+        event: request_response::Event<InnerRequest, InnerResponse>,
     ) -> Poll<Event> {
         match event {
             request_response::Event::Message {
@@ -160,15 +201,19 @@ impl Behaviour {
                         channel,
                     },
             } => {
-                return match request {
-                    Request::SubmitTx(transaction) => {
-                        let _res = self.inner.send_response(
-                            channel,
-                            Response::TxSubmittance(TxSubmittanceResponse::Accepted),
-                        );
-                        Poll::Ready(Event::NewInjectedTransaction(transaction))
-                    }
+                let InnerRequest(transaction) = request;
+                let (tx, rx) = oneshot::channel();
+
+                let fut = async {
+                    let acceptance = rx.await.expect("channel must never be dropped");
+                    (channel, InnerResponse(acceptance))
                 };
+                self.pending_responses.push(fut.boxed());
+
+                return Poll::Ready(Event::NewInjectedTransaction {
+                    transaction,
+                    channel: tx,
+                });
             }
             request_response::Event::Message {
                 peer: _,
@@ -179,12 +224,16 @@ impl Behaviour {
                         response,
                     },
             } => {
-                assert!(
-                    self.pending_requests.remove(&request_id),
-                    "unknown request id"
-                );
+                let transaction_hash = self
+                    .pending_requests
+                    .remove(&request_id)
+                    .expect("unknown request id");
 
-                let Response::TxSubmittance(TxSubmittanceResponse::Accepted) = response;
+                let InnerResponse(acceptance) = response;
+                return Poll::Ready(Event::InjectedTransactionAcceptance {
+                    transaction_hash,
+                    acceptance,
+                });
             }
             request_response::Event::OutboundFailure {
                 peer,
@@ -192,10 +241,10 @@ impl Behaviour {
                 request_id,
                 error,
             } => {
-                assert!(
-                    self.pending_requests.remove(&request_id),
-                    "unknown request id"
-                );
+                let transaction_hash = self
+                    .pending_requests
+                    .remove(&request_id)
+                    .expect("unknown request id");
 
                 if let OutboundFailure::UnsupportedProtocols = error {
                     log::debug!(
@@ -203,6 +252,12 @@ impl Behaviour {
                     );
                     self.peer_score.unsupported_protocol(peer);
                 }
+
+                let acceptance = Err(error.to_string()).into();
+                return Poll::Ready(Event::InjectedTransactionAcceptance {
+                    transaction_hash,
+                    acceptance,
+                });
             }
             request_response::Event::InboundFailure {
                 peer,
@@ -302,6 +357,10 @@ impl NetworkBehaviour for Behaviour {
         &mut self,
         cx: &mut Context<'_>,
     ) -> Poll<ToSwarm<Self::ToSwarm, THandlerInEvent<Self>>> {
+        if let Poll::Ready(Some((channel, response))) = self.pending_responses.poll_next_unpin(cx) {
+            let _res = self.inner.send_response(channel, response);
+        }
+
         let to_swarm = ready!(self.inner.poll(cx));
         match to_swarm {
             ToSwarm::GenerateEvent(event) => {
@@ -376,7 +435,7 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn smoke() {
+    async fn accept() {
         init_logger();
 
         let (mut alice, _) = new_swarm().await;
@@ -389,10 +448,100 @@ mod tests {
             .behaviour_mut()
             .send_transaction(&identities, transaction.clone())
             .unwrap();
-        tokio::spawn(alice.loop_on_next());
+        let alice_handle = tokio::spawn(async move {
+            let (_tx_hash, acceptance) = alice
+                .next_behaviour_event()
+                .await
+                .unwrap_injected_transaction_acceptance();
+            assert_eq!(acceptance, InjectedTransactionAcceptance::Accept);
+        });
 
-        let event = bob.next_behaviour_event().await;
-        assert_eq!(event, Event::NewInjectedTransaction(transaction.tx));
+        let (new_tx, channel) = bob
+            .next_behaviour_event()
+            .await
+            .unwrap_new_injected_transaction();
+        assert_eq!(new_tx, transaction.tx);
+        channel.send(InjectedTransactionAcceptance::Accept).unwrap();
+        tokio::spawn(bob.loop_on_next());
+
+        alice_handle.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn rejected() {
+        const REJECT_REASON: &str = "test reason";
+
+        let (mut alice, _) = new_swarm().await;
+        let (mut bob, bob_identity) = new_swarm().await;
+
+        let transaction = addressed_injected_tx(bob_identity.address());
+        let identities = [(bob_identity.address(), bob_identity)].into();
+
+        alice
+            .behaviour_mut()
+            .send_transaction(&identities, transaction.clone())
+            .unwrap();
+        let alice_handle = tokio::spawn(async move {
+            let (_tx_hash, acceptance) = alice
+                .next_behaviour_event()
+                .await
+                .unwrap_injected_transaction_acceptance();
+            assert_eq!(
+                acceptance,
+                InjectedTransactionAcceptance::Reject {
+                    reason: REJECT_REASON.to_string(),
+                }
+            );
+        });
+
+        let (new_tx, channel) = bob
+            .next_behaviour_event()
+            .await
+            .unwrap_new_injected_transaction();
+        assert_eq!(new_tx, transaction.tx);
+        channel
+            .send(InjectedTransactionAcceptance::Reject {
+                reason: REJECT_REASON.to_string(),
+            })
+            .unwrap();
+        tokio::spawn(bob.loop_on_next());
+
+        alice_handle.await.unwrap();
+    }
+
+    #[tokio::test]
+    async fn outbound_failure_rejected() {
+        let (mut alice, _) = new_swarm().await;
+        let (mut bob, bob_identity) = new_swarm().await;
+
+        let transaction = addressed_injected_tx(bob_identity.address());
+        let identities = [(bob_identity.address(), bob_identity)].into();
+
+        alice
+            .behaviour_mut()
+            .send_transaction(&identities, transaction.clone())
+            .unwrap();
+        let alice_handle = tokio::spawn(async move {
+            let (_tx_hash, acceptance) = alice
+                .next_behaviour_event()
+                .await
+                .unwrap_injected_transaction_acceptance();
+            assert_eq!(
+                acceptance,
+                InjectedTransactionAcceptance::Reject {
+                    reason: OutboundFailure::ConnectionClosed.to_string(),
+                }
+            );
+        });
+
+        let (new_tx, _channel) = bob
+            .next_behaviour_event()
+            .await
+            .unwrap_new_injected_transaction();
+        assert_eq!(new_tx, transaction.tx);
+        drop(bob);
+
+        alice_handle.await.unwrap();
     }
 
     #[tokio::test]

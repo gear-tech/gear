@@ -29,7 +29,7 @@ use sp_core::Bytes;
 pub const VALIDITY_WINDOW: u8 = 32;
 
 #[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Encode, Decode, Eq, PartialEq)]
 pub enum InjectedTransactionAcceptance {
     Accept,
     Reject { reason: String },
