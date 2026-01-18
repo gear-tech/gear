@@ -2384,7 +2384,7 @@ async fn injected_tx_fungible_token() {
 
     tracing::info!("✅ Fungible token successfully initialized");
 
-    // 4. Try ming some tokens
+    // 4. Try minting some tokens
     let amount: u128 = 5_000_000_000;
     let mint_action = demo_fungible_token::FTAction::Mint(amount);
 
@@ -2597,7 +2597,7 @@ async fn injected_tx_fungible_token_over_network() {
 
     tracing::info!("✅ Fungible token successfully initialized");
 
-    // 4. Try ming some tokens
+    // 4. Try minting some tokens
     let amount: u128 = 5_000_000_000;
     let mint_action = demo_fungible_token::FTAction::Mint(amount);
 
