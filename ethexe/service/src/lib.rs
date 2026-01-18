@@ -610,11 +610,11 @@ impl Service {
                             transaction,
                             response_sender,
                         } => {
-                            if
                             // zero address means that no matter what validator will insert this tx.
-                            transaction.recipient == Address::default()
-                                || validator_address == Some(transaction.recipient)
-                            {
+                            let is_zero_address = transaction.recipient == Address::default();
+                            let is_our_address = Some(transaction.recipient) == validator_address;
+
+                            if is_zero_address || is_our_address {
                                 let acceptance = consensus
                                     .receive_injected_transaction(transaction.tx)
                                     .into();
