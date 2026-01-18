@@ -24,6 +24,7 @@ use ethexe_common::{
         LatestDataStorageRO, LatestDataStorageRW, OnChainStorageRO,
     },
     events::BlockEvent,
+    futures::{FutureExt, TimedFuture, TimedFutureExt},
 };
 use ethexe_db::Database;
 use ethexe_runtime_common::FinalizedBlockTransitions;
@@ -38,6 +39,14 @@ use std::{
 pub struct ComputeConfig {
     /// The delay in **blocks** in which events from Ethereum will be apply.
     canonical_quarantine: u8,
+}
+
+/// Metrics for the [`ComputeSubService`].
+#[derive(Clone, metrics_derive::Metrics)]
+#[metrics(scope = "ethexe_compute:compute")]
+struct Metrics {
+    /// The latency of announce processing in seconds represented as f64.
+    announce_processing_latency: metrics::Histogram,
 }
 
 impl ComputeConfig {
@@ -61,13 +70,17 @@ impl ComputeConfig {
     }
 }
 
+/// Type alias for computation future with timing.
+type ComputationFuture = TimedFuture<BoxFuture<'static, Result<HashOf<Announce>>>>;
+
 pub struct ComputeSubService<P: ProcessorExt> {
     db: Database,
     processor: P,
     config: ComputeConfig,
+    metrics: Metrics,
 
     input: VecDeque<Announce>,
-    computation: Option<BoxFuture<'static, Result<HashOf<Announce>>>>,
+    computation: Option<ComputationFuture>,
 }
 
 impl<P: ProcessorExt> ComputeSubService<P> {
@@ -76,6 +89,7 @@ impl<P: ProcessorExt> ComputeSubService<P> {
             db,
             processor,
             config,
+            metrics: Metrics::default(),
             input: VecDeque::new(),
             computation: None,
         }
@@ -218,17 +232,22 @@ impl<P: ProcessorExt> SubService for ComputeSubService<P> {
         if self.computation.is_none()
             && let Some(announce) = self.input.pop_front()
         {
-            self.computation = Some(Box::pin(Self::compute(
-                self.db.clone(),
-                self.config,
-                self.processor.clone(),
-                announce,
-            )));
+            self.computation = Some(
+                Self::compute(
+                    self.db.clone(),
+                    self.config,
+                    self.processor.clone(),
+                    announce,
+                )
+                .boxed()
+                .timed(),
+            );
         }
 
         if let Some(computation) = &mut self.computation
-            && let Poll::Ready(res) = computation.as_mut().poll(cx)
+            && let Poll::Ready((delay, res)) = computation.poll_unpin(cx)
         {
+            self.metrics.announce_processing_latency.record(delay);
             self.computation = None;
             return Poll::Ready(res);
         }

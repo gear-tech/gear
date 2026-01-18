@@ -29,7 +29,6 @@ use ethexe_consensus::ConsensusEvent;
 use ethexe_db::Database;
 use ethexe_network::NetworkEvent;
 use ethexe_observer::ObserverEvent;
-use ethexe_prometheus::PrometheusEvent;
 use ethexe_rpc::RpcEvent;
 use futures::{Stream, StreamExt, future::Either, stream, stream::FusedStream};
 use gprimitives::H256;
@@ -74,7 +73,6 @@ pub enum TestingEvent {
     Network(NetworkEvent),
     Observer(ObserverEvent),
     BlobLoader(BlobLoaderEvent),
-    Prometheus(PrometheusEvent),
     Rpc(TestingRpcEvent),
     Fetching,
 }
@@ -87,7 +85,6 @@ impl TestingEvent {
             Event::Network(event) => Self::Network(event.clone()),
             Event::Observer(event) => Self::Observer(event.clone()),
             Event::BlobLoader(event) => Self::BlobLoader(event.clone()),
-            Event::Prometheus(event) => Self::Prometheus(event.clone()),
             Event::Rpc(event) => Self::Rpc(TestingRpcEvent::new(event)),
             Event::Fetching(_) => Self::Fetching,
         }
