@@ -156,7 +156,7 @@ impl RunnerConfig {
 
 // Run all program queues
 pub async fn run(
-    run_ctx: impl RunContext,
+    mut run_ctx: impl RunContext,
     db: Database,
     instance_creator: InstanceCreator,
     config: RunnerConfig,
@@ -169,8 +169,8 @@ pub async fn run(
     let mut processed_first_queue = HashSet::new();
 
     // Start with injected queues processing.
-    let (is_out_of_gas_for_block, run_ctx) = run_inner(
-        run_ctx,
+    let is_out_of_gas_for_block = run_inner(
+        &mut run_ctx,
         db.clone(),
         instance_creator.clone(),
         &mut processed_first_queue,
@@ -183,7 +183,7 @@ pub async fn run(
     // If gas is still left in block, process canonical (Ethereum) queues
     if !is_out_of_gas_for_block {
         let _ = run_inner(
-            run_ctx,
+            &mut run_ctx,
             db,
             instance_creator,
             &mut processed_first_queue,
@@ -197,7 +197,7 @@ pub async fn run(
 
 // Convenience function to run overlaid execution
 pub async fn run_overlaid(
-    run_ctx: impl RunContext,
+    mut run_ctx: impl RunContext,
     db: Database,
     instance_creator: InstanceCreator,
     config: RunnerConfig,
@@ -207,7 +207,7 @@ pub async fn run_overlaid(
 
     // TODO: Use injected queues for overlaid execution
     let _ = run_inner(
-        run_ctx,
+        &mut run_ctx,
         db,
         instance_creator,
         &mut HashSet::new(),
@@ -218,16 +218,18 @@ pub async fn run_overlaid(
     .await;
 }
 
-// Process chosen queue type in chunks
+/// Processes chosen queue type in chunks.
+///
+/// Returns whether the block is out of gas.
 async fn run_inner<C: RunContext>(
-    mut run_ctx: C,
+    run_ctx: &mut C,
     db: Database,
     instance_creator: InstanceCreator,
     processed_first_queue: &mut HashSet<ActorId>,
     allowance_counter: &mut GasAllowanceCounter,
     chunk_size: usize,
     processing_queue_type: MessageType,
-) -> (bool, C) {
+) -> bool {
     let mut is_out_of_gas_for_block = false;
 
     loop {
@@ -238,7 +240,7 @@ async fn run_inner<C: RunContext>(
         let chunks = chunks_splitting::prepare_execution_chunks(
             chunk_size,
             states,
-            &mut run_ctx,
+            run_ctx,
             processing_queue_type,
         );
 
@@ -261,8 +263,7 @@ async fn run_inner<C: RunContext>(
 
             // Collect journals from all executed programs in the chunk.
             let (chunk_journals, max_gas_spent_in_chunk) =
-                chunk_execution_processing::collect_chunk_journals(chunk_outputs, &mut run_ctx)
-                    .await;
+                chunk_execution_processing::collect_chunk_journals(chunk_outputs, run_ctx).await;
 
             // Process journals of all executed programs in the chunk.
             let output = chunk_execution_processing::process_chunk_execution_journals(
@@ -270,7 +271,7 @@ async fn run_inner<C: RunContext>(
                 &db,
                 allowance_counter,
                 &mut is_out_of_gas_for_block,
-                &mut run_ctx,
+                run_ctx,
             );
             match output {
                 ChunkJournalsProcessingOutput::Processed => {}
@@ -287,7 +288,7 @@ async fn run_inner<C: RunContext>(
         }
     }
 
-    (is_out_of_gas_for_block, run_ctx)
+    is_out_of_gas_for_block
 }
 
 /// Context for running program queues in chunks.
