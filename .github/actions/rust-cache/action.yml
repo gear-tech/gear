@@ -45,9 +45,12 @@ runs:
           echo "AWS_ACCESS_KEY_ID=${{ inputs.eu-access-key-id }}" >> $GITHUB_ENV
           echo "AWS_SECRET_ACCESS_KEY=${{ inputs.eu-secret-access-key }}" >> $GITHUB_ENV
           echo "AWS_REGION=fsn1" >> $GITHUB_ENV
+        
           echo "SCCACHE_REGION=fsn1" >> $GITHUB_ENV
-
           echo "SCCACHE_ENDPOINT=https://fsn1.your-objectstorage.com" >> $GITHUB_ENV
+          echo "SCCACHE_BUCKET=gear-ci" >> $GITHUB_ENV
+          echo "SCCACHE_S3_KEY_PREFIX=sccache/" >> $GITHUB_ENV
+        
           echo "RUNS_ON_S3_BUCKET_ENDPOINT=https://fsn1.your-objectstorage.com" >> $GITHUB_ENV
         fi
       shell: bash
@@ -57,10 +60,6 @@ runs:
         disable_annotations: true
 
     - run: |
-        echo "SCCACHE_BUCKET=gear-ci" >> $GITHUB_ENV
-        echo "SCCACHE_S3_KEY_PREFIX=sccache/" >> $GITHUB_ENV
-        echo "SCCACHE_STARTUP_TIMEOUT=300" >> $GITHUB_ENV
-
         echo "CARGO_INCREMENTAL=0" >> $GITHUB_ENV
         echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
       shell: bash
