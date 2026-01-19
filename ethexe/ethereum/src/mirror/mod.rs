@@ -22,12 +22,13 @@ use crate::{
 };
 use alloy::{
     contract::CallBuilder,
+    eips::BlockId,
     hex, network,
     primitives::{Address, Bytes, U256 as AlloyU256},
     providers::{PendingTransactionBuilder, Provider, RootProvider},
     rpc::types::{Filter, Topic, TransactionReceipt},
 };
-use anyhow::{Result, anyhow};
+use anyhow::{Context, Result, anyhow};
 use ethexe_common::{Address as LocalAddress, events::MirrorEvent};
 pub use events::signatures;
 use futures::StreamExt;
@@ -86,6 +87,19 @@ impl Mirror {
         }
 
         Err(anyhow!("Failed to define if state changed"))
+    }
+
+    pub async fn get_reference_block(&self) -> Result<(u64, H256)> {
+        let block_resp = self
+            .0
+            .provider()
+            .get_block(BlockId::latest())
+            .await
+            .with_context(|| "failed to get latest block")?
+            .ok_or_else(|| anyhow!("latest block not found"))?;
+        let block_number = block_resp.number();
+        let block_hash = block_resp.hash().0.into();
+        Ok((block_number, block_hash))
     }
 
     pub async fn get_balance(&self) -> Result<u128> {

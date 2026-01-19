@@ -28,9 +28,13 @@ use crate::{
 use alloy_chains::NamedChain;
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use clap::{Parser, Subcommand};
-use ethexe_common::{Address, gear_core::ids::prelude::CodeIdExt};
+use ethexe_common::{
+    Address,
+    gear_core::ids::prelude::CodeIdExt,
+    injected::{InjectedTransaction, RpcOrNetworkInjectedTx},
+};
 use ethexe_ethereum::{Ethereum, mirror::ReplyInfo, router::CodeValidationResult};
-use ethexe_rpc::ProgramClient;
+use ethexe_rpc::{InjectedClient, ProgramClient};
 use ethexe_signer::Signer;
 use gprimitives::{ActorId, CodeId, H160, H256, MessageId, U256};
 use jsonrpsee::ws_client::WsClientBuilder;
@@ -106,16 +110,7 @@ struct TopUpResult {
 }
 
 #[derive(Debug, Clone, Serialize)]
-struct SendMessageResult {
-    chain_id: u64,
-    tx_hash: H256,
-    explorer_url: Option<String>,
-    block_number: Option<u64>,
-    block_hash: Option<H256>,
-    gas_used: u64,
-    effective_gas_price: u128,
-    total_fee_wei: U256,
-
+struct SendMessagePayload {
     message_id: MessageId,
     actor_id: H160,
     payload_len: usize,
@@ -124,6 +119,32 @@ struct SendMessageResult {
     formatted_value: String,
     watch: bool,
     reply_info: Option<ReplyInfo>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(untagged)]
+enum SendMessageResult {
+    Ethereum {
+        chain_id: u64,
+        tx_hash: H256,
+        explorer_url: Option<String>,
+        block_number: Option<u64>,
+        block_hash: Option<H256>,
+        gas_used: u64,
+        effective_gas_price: u128,
+        total_fee_wei: U256,
+
+        #[serde(flatten)]
+        payload: SendMessagePayload,
+    },
+    Injected {
+        tx_hash: H256,
+        reference_block_number: u64,
+        reference_block_hash: H256,
+
+        #[serde(flatten)]
+        payload: SendMessagePayload,
+    },
 }
 
 /// Submit a transaction.
@@ -185,7 +206,9 @@ impl TxCommand {
     }
 
     async fn exec_inner(self) -> Result<()> {
-        let key_store = self.key_store.expect("must never be empty after merging");
+        let key_store = self
+            .key_store
+            .with_context(|| "must never be empty after merging")?;
         let _verbose = self.verbose;
 
         let signer = Signer::fs(key_store);
@@ -200,12 +223,18 @@ impl TxCommand {
 
         let sender = self.sender.ok_or_else(|| anyhow!("missing `sender`"))?;
 
-        let ethereum = Ethereum::new(&rpc, router_addr.into(), signer, sender)
+        let ethereum = Ethereum::new(&rpc, router_addr.into(), signer.clone(), sender)
             .await
             .with_context(|| "failed to create Ethereum client")?;
 
         eprintln!("RPC:      {rpc}");
-        if let TxSubcommand::Query { rpc_url, .. } = &self.command {
+        if let TxSubcommand::Query { rpc_url, .. }
+        | TxSubcommand::SendMessage {
+            rpc_url: Some(rpc_url),
+            injected: true,
+            ..
+        } = &self.command
+        {
             eprintln!("WS RPC:   {rpc_url}");
         }
         let router = ethereum.router();
@@ -834,6 +863,8 @@ impl TxCommand {
                 mirror,
                 payload,
                 value,
+                rpc_url,
+                injected,
                 watch,
                 json,
             } => {
@@ -844,6 +875,11 @@ impl TxCommand {
                         .await
                         .with_context(|| "failed to check if mirror in known by router")?;
 
+                    if rpc_url.is_some() && injected && raw_value != 0 {
+                        // TODO: consider allowing this in future
+                        bail!("Cannot send value along with injected message");
+                    }
+
                     ensure!(
                         maybe_code_id.is_some(),
                         "Given mirror address is not recognized by router"
@@ -853,7 +889,11 @@ impl TxCommand {
                     // TODO: consider truncating long payloads in non-verbose mode and hexdump in verbose mode
                     let payload_hex = format!("0x{}", hex::encode(&payload.0));
                     let formatted_value = FormattedValue::<EthereumCurrency>::new(raw_value);
-                    eprintln!("Sending message to program on Ethereum:");
+                    if rpc_url.is_some() && injected {
+                        eprintln!("Sending injected message to program:");
+                    } else {
+                        eprintln!("Sending message to program on Ethereum:");
+                    }
                     eprintln!("  Mirror:      {mirror}");
                     eprintln!("  Payload len: {payload_len} bytes");
                     eprintln!("  Payload hex: {payload_hex}");
@@ -861,95 +901,226 @@ impl TxCommand {
                     eprintln!();
 
                     let mirror = ethereum.mirror(mirror);
-                    let actor_id: ActorId = mirror.address().into();
-                    let actor_id = actor_id.to_address_lossy();
+                    let raw_actor_id: ActorId = mirror.address().into();
+                    let actor_id = raw_actor_id.to_address_lossy();
 
-                    let (receipt, message_id) = mirror
-                        .send_message_with_receipt(payload.0.clone(), raw_value)
-                        .await
-                        .with_context(|| format!("failed to send message to mirror {actor_id}"))?;
+                    if let Some(rpc_url) = &rpc_url
+                        && injected
+                    {
+                        // TODO: consider crate like gsdk but for Vara.eth to avoid direct RPC calls
+                        let ws_client: jsonrpsee::ws_client::WsClient = WsClientBuilder::new()
+                            .build(rpc_url)
+                            .await
+                            .with_context(|| "failed to create ws client for Vara.eth RPC")?;
 
-                    let tx_hash: H256 = (*receipt.transaction_hash).into();
-                    let fee = TxCostSummary::new(
-                        receipt.gas_used,
-                        receipt.effective_gas_price,
-                        receipt.blob_gas_used,
-                        receipt.blob_gas_price,
-                    );
-                    let block_number = receipt.block_number;
-                    let block_hash = receipt.block_hash.map(|block_hash| H256(block_hash.0));
+                        let public_key = signer
+                            .storage()
+                            .get_key_by_addr(sender)
+                            .with_context(|| format!("failed to get key for sender {sender}"))?
+                            .ok_or_else(|| anyhow!("no key found for {sender}"))?;
 
-                    eprintln!("Completed, transaction receipt:");
-                    eprintln!("  Tx hash:      {tx_hash:?}");
-                    let explorer_url = explorer_link(chain_id, tx_hash);
-                    if let Some(url) = &explorer_url {
-                        eprintln!("  Explorer:     {url}");
-                    }
-                    if let Some(block_number) = block_number {
-                        eprintln!("  Block number: {block_number}");
-                    }
-                    if let Some(block_hash) = block_hash {
-                        eprintln!("  Block hash:   {block_hash:?}");
-                    }
-                    fee.print_human();
-                    eprintln!();
+                        let (reference_block_number, reference_block_hash) =
+                            mirror.get_reference_block().await?;
+                        let salt = H256::random();
 
-                    eprintln!("Message successfully sent:");
-                    eprintln!("  Message id: {message_id:?}");
-                    eprintln!();
+                        let injected_transaction = InjectedTransaction {
+                            destination: raw_actor_id,
+                            payload: payload.0.clone().into(),
+                            value: raw_value,
+                            reference_block: reference_block_hash,
+                            salt: salt.0.to_vec().into(),
+                        };
+                        let message_id = injected_transaction.to_message_id();
+                        let tx_hash = injected_transaction.to_hash().into();
 
-                    let reply_info = if watch {
-                        eprintln!("Waiting for reply...");
+                        let transaction = RpcOrNetworkInjectedTx {
+                            recipient: Address::default(),
+                            tx: signer
+                                .signed_message(public_key, injected_transaction)
+                                .with_context(|| "failed to create signed injected transaction")?,
+                        };
 
-                        let reply_info = mirror.wait_for_reply(message_id).await?;
-                        let ReplyInfo {
-                            message_id,
-                            actor_id,
-                            payload,
-                            code,
-                            value,
-                        } = &reply_info;
+                        if !watch {
+                            ws_client
+                                .send_transaction(transaction.clone())
+                                .await
+                                .with_context(|| "failed to send injected transaction")?;
+                        }
 
-                        let actor_id = actor_id.to_address_lossy();
-                        let payload_len = payload.len();
-                        // TODO: consider truncating long payloads in non-verbose mode and hexdump in verbose mode
-                        let payload_hex = format!("0x{}", hex::encode(payload));
-                        let code_hex = format!("0x{}", hex::encode(code.to_bytes()));
-                        let raw_value = *value;
-                        let formatted_value = FormattedValue::<EthereumCurrency>::new(raw_value);
+                        // TODO: consider adding tx fee estimation in ETH here?
+                        eprintln!("Completed, injected transaction info:");
+                        eprintln!("  Tx hash:      {tx_hash:?}");
+                        eprintln!("  Block number: {reference_block_number:<66} (reference block)");
+                        eprintln!("  Block hash:   {reference_block_hash:?} (reference block)");
+                        eprintln!("  Salt:         {salt:?}");
+                        eprintln!();
 
-                        eprintln!("Reply info:");
-                        eprintln!("  Message id:  {message_id}");
-                        eprintln!("  Actor id:    {actor_id}");
-                        eprintln!("  Payload len: {payload_len} bytes");
-                        eprintln!("  Payload hex: {payload_hex}");
-                        eprintln!("  Code:        {code:?} ({code_hex})");
-                        eprintln!("  Value:       {formatted_value} ({raw_value} wei)");
+                        eprintln!("Message successfully sent:");
+                        eprintln!("  Message id: {message_id:?}");
+                        eprintln!();
 
-                        Some(reply_info)
+                        let reply_info = if watch {
+                            eprintln!("Waiting for reply (promise for injected transaction)...");
+
+                            let mut subscription = ws_client
+                                .send_transaction_and_watch(transaction)
+                                .await
+                                .with_context(
+                                    || "failed to send injected transaction to Vara.eth RPC",
+                                )?;
+
+                            let promise = subscription
+                                .next()
+                                .await
+                                .ok_or_else(|| anyhow!("no promise received from subscription"))?
+                                .with_context(|| "failed to receive transaction promise")?
+                                .into_data();
+                            let ethexe_common::gear_core::rpc::ReplyInfo {
+                                payload,
+                                value,
+                                code,
+                            } = promise.reply;
+
+                            let payload_len = payload.len();
+                            // TODO: consider truncating long payloads in non-verbose mode and hexdump in verbose mode
+                            let payload_hex = format!("0x{}", hex::encode(&payload));
+                            let code_hex = format!("0x{}", hex::encode(code.to_bytes()));
+                            let raw_value = value;
+                            let formatted_value =
+                                FormattedValue::<EthereumCurrency>::new(raw_value);
+
+                            eprintln!("Reply info:");
+                            eprintln!("  Message id:  {message_id}");
+                            eprintln!("  Actor id:    {actor_id:?}");
+                            eprintln!("  Payload len: {payload_len} bytes");
+                            eprintln!("  Payload hex: {payload_hex}");
+                            eprintln!("  Code:        {code:?} ({code_hex})");
+                            eprintln!("  Value:       {formatted_value} ({raw_value} wei)");
+
+                            Some(ReplyInfo {
+                                message_id,
+                                actor_id: raw_actor_id,
+                                payload,
+                                code,
+                                value: raw_value,
+                            })
+                        } else {
+                            eprintln!(
+                                "To wait for the reply, run this command with `--watch` flag"
+                            );
+                            None
+                        };
+
+                        Ok(SendMessageResult::Injected {
+                            tx_hash,
+                            reference_block_number,
+                            reference_block_hash,
+                            payload: SendMessagePayload {
+                                message_id,
+                                actor_id,
+                                payload_len,
+                                payload_hex,
+                                raw_value,
+                                formatted_value: formatted_value.to_string(),
+                                watch,
+                                reply_info,
+                            },
+                        })
                     } else {
-                        eprintln!("To wait for the reply, run this command with `--watch` flag");
-                        None
-                    };
+                        let (receipt, message_id) = mirror
+                            .send_message_with_receipt(payload.0.clone(), raw_value)
+                            .await
+                            .with_context(|| {
+                                format!("failed to send message to mirror {actor_id}")
+                            })?;
 
-                    Ok(SendMessageResult {
-                        chain_id,
-                        tx_hash,
-                        explorer_url,
-                        block_number,
-                        block_hash,
-                        gas_used: fee.gas_used,
-                        effective_gas_price: fee.effective_gas_price,
-                        total_fee_wei: fee.total_fee_wei,
-                        message_id,
-                        actor_id,
-                        payload_len,
-                        payload_hex,
-                        raw_value,
-                        formatted_value: formatted_value.to_string(),
-                        watch,
-                        reply_info,
-                    })
+                        let tx_hash: H256 = (*receipt.transaction_hash).into();
+                        let fee = TxCostSummary::new(
+                            receipt.gas_used,
+                            receipt.effective_gas_price,
+                            receipt.blob_gas_used,
+                            receipt.blob_gas_price,
+                        );
+                        let block_number = receipt.block_number;
+                        let block_hash = receipt.block_hash.map(|block_hash| H256(block_hash.0));
+
+                        eprintln!("Completed, transaction receipt:");
+                        eprintln!("  Tx hash:      {tx_hash:?}");
+                        let explorer_url = explorer_link(chain_id, tx_hash);
+                        if let Some(url) = &explorer_url {
+                            eprintln!("  Explorer:     {url}");
+                        }
+                        if let Some(block_number) = block_number {
+                            eprintln!("  Block number: {block_number}");
+                        }
+                        if let Some(block_hash) = block_hash {
+                            eprintln!("  Block hash:   {block_hash:?}");
+                        }
+                        fee.print_human();
+                        eprintln!();
+
+                        eprintln!("Message successfully sent:");
+                        eprintln!("  Message id: {message_id:?}");
+                        eprintln!();
+
+                        let reply_info = if watch {
+                            eprintln!("Waiting for reply...");
+
+                            let reply_info = mirror.wait_for_reply(message_id).await?;
+                            let ReplyInfo {
+                                message_id,
+                                actor_id,
+                                payload,
+                                code,
+                                value,
+                            } = &reply_info;
+
+                            let actor_id = actor_id.to_address_lossy();
+                            let payload_len = payload.len();
+                            // TODO: consider truncating long payloads in non-verbose mode and hexdump in verbose mode
+                            let payload_hex = format!("0x{}", hex::encode(payload));
+                            let code_hex = format!("0x{}", hex::encode(code.to_bytes()));
+                            let raw_value = *value;
+                            let formatted_value =
+                                FormattedValue::<EthereumCurrency>::new(raw_value);
+
+                            eprintln!("Reply info:");
+                            eprintln!("  Message id:  {message_id}");
+                            eprintln!("  Actor id:    {actor_id:?}");
+                            eprintln!("  Payload len: {payload_len} bytes");
+                            eprintln!("  Payload hex: {payload_hex}");
+                            eprintln!("  Code:        {code:?} ({code_hex})");
+                            eprintln!("  Value:       {formatted_value} ({raw_value} wei)");
+
+                            Some(reply_info)
+                        } else {
+                            eprintln!(
+                                "To wait for the reply, run this command with `--watch` flag"
+                            );
+                            None
+                        };
+
+                        Ok(SendMessageResult::Ethereum {
+                            chain_id,
+                            tx_hash,
+                            explorer_url,
+                            block_number,
+                            block_hash,
+                            gas_used: fee.gas_used,
+                            effective_gas_price: fee.effective_gas_price,
+                            total_fee_wei: fee.total_fee_wei,
+                            payload: SendMessagePayload {
+                                message_id,
+                                actor_id,
+                                payload_len,
+                                payload_hex,
+                                raw_value,
+                                formatted_value: formatted_value.to_string(),
+                                watch,
+                                reply_info,
+                            },
+                        })
+                    }
                 })()
                 .await;
 
@@ -1169,6 +1340,12 @@ pub enum TxSubcommand {
         /// ETH value to send with message.
         #[arg()]
         value: RawOrFormattedValue<EthereumCurrency>,
+        /// RPC URL of Vara.eth node. Example: ws://127.0.0.1:9944. Used only if `injected` is true.
+        #[arg(short, long, requires = "injected")]
+        rpc_url: Option<String>,
+        /// Flag to send injected transaction. If false, normal transaction is sent.
+        #[arg(short, long, default_value = "false")]
+        injected: bool,
         /// Flag to watch for reply from mirror. If false, command will do not wait for reply.
         #[arg(short, long, default_value = "false")]
         watch: bool,
