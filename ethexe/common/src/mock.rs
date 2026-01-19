@@ -604,7 +604,7 @@ impl Mock for ComputedAnnounce {
     fn mock(_: ()) -> Self {
         Self {
             announce_hash: HashOf::random(),
-            promises: None,
+            promises: Default::default(),
         }
     }
 }
@@ -613,7 +613,7 @@ impl Mock<HashOf<Announce>> for ComputedAnnounce {
     fn mock(announce_hash: HashOf<Announce>) -> Self {
         Self {
             announce_hash,
-            promises: None,
+            promises: Default::default(),
         }
     }
 }

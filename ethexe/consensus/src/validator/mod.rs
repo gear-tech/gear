@@ -471,7 +471,7 @@ impl DefaultProcessing {
     ) -> Result<ValidatorState> {
         let mut s = s.into();
         s.warning(format!(
-            "unexpected computed block: {}",
+            "unexpected computed announce: {}",
             computed_data.announce_hash
         ));
         Ok(s)

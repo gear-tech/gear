@@ -80,8 +80,9 @@ impl StateHandler for Producer {
             State::WaitingAnnounceComputed(expected)
                 if *expected == computed_data.announce_hash =>
             {
-                if let Some(promises) = computed_data.promises {
-                    let signed_promises = promises
+                if !computed_data.promises.is_empty() {
+                    let signed_promises = computed_data
+                        .promises
                         .into_iter()
                         .map(|promise| {
                             self.ctx
