@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Command `ask-state`.
+//! Command `read-state`.
 
 use crate::{app::App, utils::HexBytes};
 use anyhow::Result;
@@ -26,7 +26,7 @@ use gsdk::ext::subxt::utils::H256;
 
 /// Ask program for its state.
 #[derive(Clone, Debug, Parser)]
-pub struct AskState {
+pub struct ReadState {
     /// Program ID.
     pid: ActorId,
 
@@ -39,7 +39,7 @@ pub struct AskState {
     at: Option<H256>,
 }
 
-impl AskState {
+impl ReadState {
     /// Run command program.
     pub async fn exec(self, app: &mut App) -> Result<()> {
         let api = app.signed_api().await?;

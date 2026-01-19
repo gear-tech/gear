@@ -18,12 +18,12 @@
 
 //! commands
 
-pub mod ask_state;
 pub mod claim;
 pub mod config;
 pub mod deploy;
 pub mod info;
 pub mod new;
+pub mod read_state;
 pub mod reply;
 pub mod send;
 pub mod transfer;
@@ -32,12 +32,12 @@ pub mod upload_code;
 pub mod wallet;
 
 pub use self::{
-    ask_state::AskState,
     claim::Claim,
     config::{Config, ConfigSettings},
     deploy::Deploy,
     info::Info,
     new::New,
+    read_state::ReadState,
     reply::Reply,
     send::Send,
     transfer::Transfer,
@@ -59,7 +59,7 @@ pub enum Command {
     Deploy(Deploy),
 
     Info(Info),
-    AskState(AskState),
+    ReadState(ReadState),
 
     Send(Send),
     Reply(Reply),
@@ -80,7 +80,7 @@ impl Command {
         match self {
             Command::Config(config) => config.exec(app)?,
             Command::New(new) => new.exec().await?,
-            Command::AskState(program) => program.exec(app).await?,
+            Command::ReadState(program) => program.exec(app).await?,
             Command::Update(update) => update.exec().await?,
             Command::Claim(claim) => claim.exec(app).await?,
             Command::Deploy(create) => create.exec(app).await?,
