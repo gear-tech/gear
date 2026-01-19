@@ -26,7 +26,7 @@ use serde::{Deserialize, Serialize};
 use std::{env, fs, path::PathBuf, str::FromStr};
 use url::Url;
 
-const CONFIG_PATH: &str = "vara/config.toml";
+const CONFIG_PATH: &str = "gear-gcli/config.toml";
 
 /// Access `gcli` persistent configuration.
 #[derive(Clone, Debug, Parser)]
