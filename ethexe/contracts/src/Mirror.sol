@@ -123,7 +123,7 @@ contract Mirror is IMirror {
     /* Primary Gear logic */
 
     function sendMessage(bytes calldata _payload, bool _callReply) external payable returns (bytes32) {
-        return _sendMessage(_payload, _callReply);
+        return sendMessage(_payload, _callReply);
     }
 
     function sendReply(bytes32 _repliedTo, bytes calldata _payload) external payable onlyIfActive onlyAfterInitMessage {
@@ -183,10 +183,10 @@ contract Mirror is IMirror {
         }
 
         /// @dev Send all outgoing messages.
-        bytes32 messagesHashesHash = _sendMessages(_transition.messages);
+        bytes32 messagesHashesHash = sendMessages(_transition.messages);
 
         /// @dev Send value for each claim.
-        bytes32 valueClaimsHash = _claimValues(_transition.valueClaims);
+        bytes32 valueClaimsHash = claimValues(_transition.valueClaims);
 
         /// @dev Set inheritor if exited.
         if (_transition.exited) {
@@ -213,8 +213,8 @@ contract Mirror is IMirror {
         );
     }
 
-    function _sendMessage(bytes calldata _payload, bool _callReply)
-        private
+    function sendMessage(bytes calldata _payload, bool _callReply)
+        internal
         onlyIfActive
         onlyAfterInitMessageOrInitializer
         returns (bytes32)
@@ -233,7 +233,7 @@ contract Mirror is IMirror {
     // TODO (breathx): consider when to emit event: on success in decoder, on failure etc.
     // TODO (breathx): make decoder gas configurable.
     // TODO (breathx): handle if goes to mailbox or not.
-    function _sendMessages(Gear.Message[] calldata _messages) private returns (bytes32) {
+    function sendMessages(Gear.Message[] calldata _messages) internal returns (bytes32) {
         uint256 len = _messages.length;
 
         // we know every Gear.messageHash(...) is 32 bytes, so allocate once
@@ -253,9 +253,9 @@ contract Mirror is IMirror {
 
             // send the message
             if (message.replyDetails.to == 0) {
-                _sendMailboxedMessage(message);
+                sendMailboxedMessage(message);
             } else {
-                _sendReplyMessage(message);
+                sendReplyMessage(message);
             }
         }
 
@@ -263,7 +263,7 @@ contract Mirror is IMirror {
     }
 
     /// @dev Value never sent since goes to mailbox.
-    function _sendMailboxedMessage(Gear.Message calldata _message) private {
+    function sendMailboxedMessage(Gear.Message calldata _message) internal {
         if (!_tryParseAndEmitSailsEvent(_message)) {
             if (_message.call) {
                 (bool success,) = _message.destination.call{gas: 500_000}(_message.payload);
@@ -379,7 +379,7 @@ contract Mirror is IMirror {
     }
 
     /// @dev Non-zero value always sent since never goes to mailbox.
-    function _sendReplyMessage(Gear.Message calldata _message) private {
+    function sendReplyMessage(Gear.Message calldata _message) internal {
         if (_message.call) {
             bool isSuccessReply = _message.replyDetails.code[0] == 0;
 
@@ -411,7 +411,7 @@ contract Mirror is IMirror {
     }
 
     // TODO (breathx): claimValues will fail if the program is exited: keep the funds on router.
-    function _claimValues(Gear.ValueClaim[] calldata _claims) private returns (bytes32) {
+    function claimValues(Gear.ValueClaim[] calldata _claims) internal returns (bytes32) {
         bytes memory valueClaimsBytes;
 
         for (uint256 i = 0; i < _claims.length; i++) {
@@ -483,7 +483,7 @@ contract Mirror is IMirror {
             callReply := calldataload(0x04)
         }
 
-        bytes32 messageId = _sendMessage(msg.data, callReply != 0);
+        bytes32 messageId = sendMessage(msg.data, callReply != 0);
 
         assembly ("memory-safe") {
             mstore(0x00, messageId)

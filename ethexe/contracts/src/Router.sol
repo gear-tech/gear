@@ -6,6 +6,8 @@ import {ClonesSmall} from "./libraries/ClonesSmall.sol";
 import {Gear} from "./libraries/Gear.sol";
 import {SSTORE2} from "./libraries/SSTORE2.sol";
 import {FROST} from "frost-secp256k1-evm/FROST.sol";
+import {Memory} from "frost-secp256k1-evm/utils/Memory.sol";
+import {Hashes} from "frost-secp256k1-evm/utils/cryptography/Hashes.sol";
 import {IMirror} from "./IMirror.sol";
 import {IRouter} from "./IRouter.sol";
 import {IMiddleware} from "./IMiddleware.sol";
@@ -417,7 +419,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
 
         Gear.ChainCommitment calldata _commitment = _batch.chainCommitment[0];
 
-        bytes32 _transitionsHash = _commitTransitions(router, _commitment.transitions);
+        bytes32 _transitionsHash = commitTransitions(router, _commitment.transitions);
 
         emit AnnouncesCommitted(_commitment.head);
 
@@ -525,13 +527,16 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
         return Gear.validatorsCommitmentHash(_commitment);
     }
 
-    function _commitTransitions(Storage storage router, Gear.StateTransition[] calldata _transitions)
-        private
+    function commitTransitions(Storage storage router, Gear.StateTransition[] calldata _transitions)
+        internal
         returns (bytes32)
     {
-        bytes memory transitionsHashes;
+        uint256 transitionsLen = _transitions.length;
+        uint256 transitionsHashesMemPtr = Memory.allocate(transitionsLen * 32);
 
-        for (uint256 i = 0; i < _transitions.length; i++) {
+        uint256 offset = 0;
+
+        for (uint256 i = 0; i < transitionsLen; i++) {
             Gear.StateTransition calldata transition = _transitions[i];
 
             require(
@@ -547,6 +552,9 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
             bytes32 transitionHash = IMirror(transition.actorId).performStateTransition{value: value}(transition);
 
             transitionsHashes = bytes.concat(transitionsHashes, transitionHash);
+
+            offset += 32;
+
         }
 
         return keccak256(transitionsHashes);
