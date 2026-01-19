@@ -20,13 +20,13 @@
 use crate::app::App;
 use anyhow::Result;
 use clap::Parser;
-use gsdk::ext::{sp_core::crypto::Ss58Codec, sp_runtime::AccountId32};
+use gear_core::ids::ActorId;
 
 /// Transfer value.
 #[derive(Clone, Debug, Parser)]
 pub struct Transfer {
     /// Destination address.
-    destination: String,
+    destination: ActorId,
 
     /// Value to transfer.
     value: u128,
@@ -36,8 +36,8 @@ impl Transfer {
     pub async fn exec(self, app: &App) -> Result<()> {
         let api = app.signed_api().await?;
 
-        let addr = AccountId32::from_ss58check(&self.destination)?;
-        api.transfer_keep_alive(addr, self.value).await?;
+        api.transfer_keep_alive(self.destination, self.value)
+            .await?;
 
         println!("Successfully transferred the value");
 
