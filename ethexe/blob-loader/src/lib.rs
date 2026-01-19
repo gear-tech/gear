@@ -335,15 +335,12 @@ fn handle_blob(
     previously_received_code_id: &mut Option<CodeId>,
     attempt: u8,
 ) -> ReaderResult<Vec<u8>> {
-    // Attempt is only for logging purposes, so use it to avoid unused variable warning
-    let _ = attempt;
-
-    let received_code_id = CodeId::generate(&blob);
     if blob.is_empty() {
         log::warn!("received empty blob on attempt #{attempt}");
         return Err(ReaderError::EmptyBlob);
     }
 
+    let received_code_id = CodeId::generate(&blob);
     if *previously_received_code_id == Some(received_code_id) {
         log::warn!(
             "received same blob with invalid id on attempt #{attempt}, code id: {received_code_id:?}, consider blob as loaded then",
