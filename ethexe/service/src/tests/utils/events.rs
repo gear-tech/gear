@@ -277,8 +277,8 @@ impl TestingEventReceiver {
         let id = id.into();
         log::info!("📗 waiting for announce computed: {id:?}");
         self.find_announce(id, |event| {
-            if let TestingEvent::Compute(ComputeEvent::AnnounceComputed(hash)) = event {
-                Some(hash)
+            if let TestingEvent::Compute(ComputeEvent::AnnounceComputed(computed_data)) = event {
+                Some(computed_data.announce_hash)
             } else {
                 None
             }

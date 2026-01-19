@@ -547,8 +547,8 @@ impl Service {
                     ComputeEvent::RequestLoadCodes(codes) => {
                         blob_loader.load_codes(codes)?;
                     }
-                    ComputeEvent::AnnounceComputed(announce_hash) => {
-                        consensus.receive_computed_announce(announce_hash)?
+                    ComputeEvent::AnnounceComputed(computed_data) => {
+                        consensus.receive_computed_announce(computed_data)?
                     }
                     ComputeEvent::BlockPrepared(block_hash) => {
                         consensus.receive_prepared_block(block_hash)?
@@ -696,17 +696,19 @@ impl Service {
                     ConsensusEvent::AnnounceAccepted(_) | ConsensusEvent::AnnounceRejected(_) => {
                         // TODO #4940: consider to publish network message
                     }
-                    ConsensusEvent::Promise(promise) => {
+                    ConsensusEvent::Promises(promises) => {
                         if rpc.is_none() && network.is_none() {
                             panic!("Promise without network or rpc");
                         }
 
                         if let Some(rpc) = &rpc {
-                            rpc.provide_promise(promise.clone());
+                            rpc.provide_promises(promises.clone());
                         }
 
                         if let Some(network) = &mut network {
-                            network.publish_promise(promise);
+                            for promise in promises {
+                                network.publish_promise(promise);
+                            }
                         }
                     }
                 },
