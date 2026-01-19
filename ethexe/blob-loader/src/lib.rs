@@ -326,7 +326,7 @@ impl<DB: Database> BlobLoaderService for BlobLoader<DB> {
     }
 }
 
-// TODO: temporary solution to protect against inconsistent blob data,
+// TODO: #5092 temporary solution to protect against inconsistent blob data,
 // we have second check of code id in ethexe-processor in handle_new_code as well,
 // so this solution must be reconsidered.
 fn handle_blob(
