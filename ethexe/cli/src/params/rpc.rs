@@ -28,7 +28,7 @@ use std::{
 };
 
 /// Parameters for the RPC service to start.
-#[derive(Clone, Debug, Deserialize, Parser)]
+#[derive(Clone, Debug, Default, Deserialize, Parser)]
 #[serde(deny_unknown_fields)]
 pub struct RpcParams {
     /// Port to expose RPC service.
