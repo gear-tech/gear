@@ -43,6 +43,13 @@ runs:
         sudo apt-fast install -y protobuf-compiler binaryen
       shell: bash
 
+    - name: "Install: LLVM on Linux"
+      if: runner.os == 'Linux'
+      uses: KyleMayes/install-llvm-action@v2
+      with:
+        version: "20.1.8"
+        env: true
+
     - name: "Install: Linux cross compilers and packages"
       if: runner.arch == 'ARM64' && runner.os == 'Linux' && inputs.target == 'x86_64-unknown-linux-gnu'
       run: |
