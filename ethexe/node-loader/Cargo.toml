@@ -34,11 +34,13 @@ ethexe-ethereum.workspace = true
 ethexe-rpc.workspace = true
 ethexe-observer.workspace = true
 ethexe-db.workspace = true
-gprimitives.workspace = true
+gprimitives = { workspace = true, features = ["ethexe"] }
 async-trait.workspace = true
 gear-call-gen.workspace = true
 gear-wasm-gen.workspace = true
 gear-core.workspace = true
+gear-utils.workspace = true
+gear-core-errors.workspace = true
 rand = { workspace = true }
 
 [dev-dependencies]

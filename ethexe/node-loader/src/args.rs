@@ -22,39 +22,6 @@ pub struct LoadParams {
     /// Anvil node
     #[arg(long, default_value = "ws://localhost:8545")]
     pub node: String,
-    /*
-    /// Node stopping service.
-    #[arg(long, default_value = "http://localhost:5000/executions/start")]
-    pub node_stopper: String,*/
-    /// User name
-    /*#[arg(long, default_value = "//Bob")]
-    pub user: String,
-
-    /// Root account of the node
-    #[arg(long, default_value = "//Alice")]
-    pub root: String,
-
-    /// Starting seed for loading the network
-    #[arg(long)]
-    pub loader_seed: Option<u64>,
-
-    /// Seed used to generate random seeds for various internal generators.
-    /// If the parameter isn't provided, then timestamp will be used by default.
-    /// There are either 2 seed variants: start or constant. Start sets starting
-    ///  seed value for the generator. Constant sets constant seed which will be
-    /// used in every test, therefore generated input data (for example, program)
-    /// for each test will be the same.
-    /// Example value: `<seed_variant>=<seed_u64_value>`.
-    #[arg(long)]
-    pub code_seed_type: Option<SeedVariant>,
-
-    /// Desirable amount of workers in task pool.
-    #[arg(long, short, default_value = "8")]
-    pub workers: usize,
-
-    /// Desirable amount of calls in the sending batch.
-    #[arg(long, short, default_value = "4")]
-    pub batch_size: usize,*/
 
     /// Router address to send messages into.
     #[arg(long, default_value = "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9")]
@@ -66,19 +33,19 @@ pub struct LoadParams {
     /// A private key for sender account.
     #[arg(
         long,
-        default_value = "0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a"
+        default_value = "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
     )]
     pub sender_private_key: String,
-    #[arg(long, default_value = "0x3c44cdddb6a900fa2b585dd299e03d12fa4293bc")]
+    #[arg(long, default_value = "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266")]
     pub sender_address: String,
 
     #[arg(long)]
     pub loader_seed: Option<u64>,
     #[arg(long)]
     pub code_seed_type: Option<SeedVariant>,
-    #[arg(long, short, default_value = "8")]
+    #[arg(long, short, default_value = "1")]
     pub workers: usize,
-    #[arg(long, short, default_value = "4")]
+    #[arg(long, short, default_value = "1")]
     pub batch_size: usize,
 }
 

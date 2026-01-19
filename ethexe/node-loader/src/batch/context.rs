@@ -4,10 +4,10 @@ use gprimitives::{ActorId, CodeId, MessageId};
 
 #[derive(Debug, Default)]
 pub struct ContextUpdate {
-    program_ids: BTreeSet<ActorId>,
-    codes: BTreeSet<CodeId>,
-    added_mailbox: BTreeSet<MessageId>,
-    removed_mailbox: BTreeSet<MessageId>,
+    pub program_ids: BTreeSet<ActorId>,
+    pub codes: BTreeSet<CodeId>,
+    pub added_mailbox: BTreeSet<MessageId>,
+    pub removed_mailbox: BTreeSet<MessageId>,
 }
 
 #[derive(Debug, Clone, Default)]
