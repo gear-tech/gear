@@ -65,13 +65,13 @@ pub enum TestingNetworkInjectedEvent {
 impl TestingNetworkInjectedEvent {
     fn new(event: &NetworkInjectedEvent) -> Self {
         match event {
-            NetworkInjectedEvent::NewInjectedTransaction {
+            NetworkInjectedEvent::InboundTransaction {
                 transaction,
                 channel: _,
             } => Self::NewInjectedTransaction {
                 transaction: transaction.clone(),
             },
-            NetworkInjectedEvent::InjectedTransactionAcceptance {
+            NetworkInjectedEvent::OutboundAcceptance {
                 transaction_hash,
                 acceptance,
             } => Self::InjectedTransactionAcceptance {

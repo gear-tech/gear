@@ -73,12 +73,12 @@ pub(crate) struct InnerResponse(InjectedTransactionAcceptance);
 #[derive(Debug)]
 pub enum Event {
     /// Peer sent a new transaction to us
-    NewInjectedTransaction {
+    InboundTransaction {
         transaction: SignedInjectedTransaction,
         channel: oneshot::Sender<InjectedTransactionAcceptance>,
     },
     /// We got a response from a validator we sent transaction to
-    InjectedTransactionAcceptance {
+    OutboundAcceptance {
         transaction_hash: HashOf<InjectedTransaction>,
         acceptance: InjectedTransactionAcceptance,
     },
@@ -93,7 +93,7 @@ impl Event {
         oneshot::Sender<InjectedTransactionAcceptance>,
     ) {
         match self {
-            Event::NewInjectedTransaction {
+            Event::InboundTransaction {
                 transaction,
                 channel,
             } => (transaction, channel),
@@ -105,7 +105,7 @@ impl Event {
         self,
     ) -> (HashOf<InjectedTransaction>, InjectedTransactionAcceptance) {
         match self {
-            Event::InjectedTransactionAcceptance {
+            Event::OutboundAcceptance {
                 transaction_hash,
                 acceptance,
             } => (transaction_hash, acceptance),
@@ -210,7 +210,7 @@ impl Behaviour {
                 };
                 self.pending_responses.push(fut.boxed());
 
-                return Poll::Ready(Event::NewInjectedTransaction {
+                return Poll::Ready(Event::InboundTransaction {
                     transaction,
                     channel: tx,
                 });
@@ -230,7 +230,7 @@ impl Behaviour {
                     .expect("unknown request id");
 
                 let InnerResponse(acceptance) = response;
-                return Poll::Ready(Event::InjectedTransactionAcceptance {
+                return Poll::Ready(Event::OutboundAcceptance {
                     transaction_hash,
                     acceptance,
                 });
@@ -254,7 +254,7 @@ impl Behaviour {
                 }
 
                 let acceptance = Err(error.to_string()).into();
-                return Poll::Ready(Event::InjectedTransactionAcceptance {
+                return Poll::Ready(Event::OutboundAcceptance {
                     transaction_hash,
                     acceptance,
                 });

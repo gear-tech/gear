@@ -580,20 +580,26 @@ impl Service {
                                 }
                             };
                         }
-                        NetworkEvent::InjectedTransaction(event) => {
-                            match event {
-                                ethexe_network::NetworkInjectedEvent::NewInjectedTransaction {
-                                    transaction, channel
-                                } => {
-                                    let res = consensus.receive_injected_transaction(transaction);
-                                    channel.send(res.into()).expect("channel must never be closed");
-                                }
-                                ethexe_network::NetworkInjectedEvent::InjectedTransactionAcceptance { transaction_hash, acceptance } => {
-                                    let response_sender = network_injected_txs.remove(&transaction_hash).expect("unknown transaction");
-                                    let _res = response_sender.send(acceptance);
-                                }
+                        NetworkEvent::InjectedTransaction(event) => match event {
+                            ethexe_network::NetworkInjectedEvent::InboundTransaction {
+                                transaction,
+                                channel,
+                            } => {
+                                let res = consensus.receive_injected_transaction(transaction);
+                                channel
+                                    .send(res.into())
+                                    .expect("channel must never be closed");
                             }
-                        }
+                            ethexe_network::NetworkInjectedEvent::OutboundAcceptance {
+                                transaction_hash,
+                                acceptance,
+                            } => {
+                                let response_sender = network_injected_txs
+                                    .remove(&transaction_hash)
+                                    .expect("unknown transaction");
+                                let _res = response_sender.send(acceptance);
+                            }
+                        },
                         NetworkEvent::PromiseMessage(promise) => {
                             if let Some(rpc) = &rpc {
                                 rpc.provide_promise(promise);
