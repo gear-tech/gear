@@ -26,6 +26,7 @@ use alloy::{
 use ethexe_common::{
     CodeAndIdUnchecked, CodeBlobInfo,
     db::{CodesStorageRO, OnChainStorageRO},
+    gear_core::ids::prelude::CodeIdExt,
 };
 use futures::{
     FutureExt, Stream, StreamExt,
@@ -68,6 +69,10 @@ enum ReaderError {
     DecodeBlobs,
     #[error("failed to access genesis time: {0}")]
     GenesisTimeAccess(reqwest::Error),
+    #[error("received empty blob")]
+    EmptyBlob,
+    #[error("blob code id mismatch: expected {expected:?}, found {found:?}")]
+    CodeIdMismatch { expected: CodeId, found: CodeId },
 }
 
 type LoaderResult<T> = Result<T, BlobLoaderError>;
@@ -108,19 +113,47 @@ struct ConsensusLayerBlobReader {
 }
 
 impl ConsensusLayerBlobReader {
-    async fn read_blob_from_tx_hash(&self, tx_hash: H256) -> ReaderResult<Vec<u8>> {
+    async fn read_blob(&self, code_id: CodeId, tx_hash: H256) -> ReaderResult<Vec<u8>> {
         let mut last_err = None;
+        let mut previously_received_code_id = None;
         for attempt in 0..self.config.attempts.get() {
             log::trace!("trying to get blob, attempt #{attempt}");
             match self.try_query_blob(tx_hash).await {
+                Ok(blob) => {
+                    // TODO: temporary solution to protect against inconsistent blob data,
+                    // we have second check in ethexe-processor in handle_new_code as well,
+                    // so this solution must be reconsidered.
+
+                    let received_code_id = CodeId::generate(&blob);
+                    if blob.is_empty() {
+                        log::warn!("received empty blob on attempt #{attempt}");
+                        last_err = Some(ReaderError::EmptyBlob);
+                    } else if previously_received_code_id == Some(received_code_id) {
+                        log::warn!(
+                            "received same blob with invalid id on attempt #{attempt}, code id: {received_code_id:?},
+                            consider blob as loaded then",
+                        );
+                        return Ok(blob);
+                    } else if code_id != received_code_id {
+                        previously_received_code_id = Some(received_code_id);
+                        log::warn!(
+                            "received blob code id mismatch on attempt #{attempt}: expected {code_id:?}, got {received_code_id:?}",
+                        );
+                        last_err = Some(ReaderError::CodeIdMismatch {
+                            expected: code_id,
+                            found: received_code_id,
+                        });
+                    } else {
+                        return Ok(blob);
+                    }
+                }
                 Err(err) => {
                     log::warn!("failed to get blob on attempt #{attempt}: {err}");
                     last_err = Some(err);
-
-                    tokio::time::sleep(self.config.beacon_block_time).await;
                 }
-                Ok(blob) => return Ok(blob),
             }
+
+            tokio::time::sleep(self.config.beacon_block_time).await;
         }
 
         Err(last_err.expect("Must be set, because attempts is not zero"))
@@ -302,7 +335,7 @@ impl<DB: Database> BlobLoaderService for BlobLoader<DB> {
                 self.futures.push(
                     async move {
                         blobs_reader
-                            .read_blob_from_tx_hash(tx_hash)
+                            .read_blob(code_id, tx_hash)
                             .map(|res| res.map(|code| CodeAndIdUnchecked { code_id, code }))
                             .await
                     }
@@ -314,6 +347,13 @@ impl<DB: Database> BlobLoaderService for BlobLoader<DB> {
         Ok(())
     }
 }
+
+// fn read_blob_inner(
+//     try_query_blob: impl Fn() -> BoxFuture<'static, ReaderResult<Vec<u8>>>,
+//     code_id: CodeId,
+//     tx_hash: H256,
+//     action_if_not_successful: impl Fn(ReaderError) -> BoxFuture<'static, ReaderResult<()>,
+// )
 
 #[cfg(test)]
 mod tests {
@@ -377,7 +417,10 @@ mod tests {
         // set chain id to 1 to avoid anvil special case
         blobs_reader.provider.anvil_set_chain_id(1).await.unwrap();
 
-        let code = blobs_reader.read_blob_from_tx_hash(tx_hash).await.unwrap();
+        let code = blobs_reader
+            .read_blob(expected_code_id, tx_hash)
+            .await
+            .unwrap();
         assert_eq!(expected_code_id, CodeId::generate(&code));
     }
 }
