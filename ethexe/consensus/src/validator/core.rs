@@ -356,7 +356,7 @@ impl ValidatorCore {
     }
 
     pub fn process_injected_transaction(&mut self, tx: SignedInjectedTransaction) -> Result<()> {
-        tracing::error!(tx = ?tx, "Receive new injected transaction");
+        tracing::trace!(tx = ?tx, "Receive new injected transaction");
         self.injected_pool.handle_tx(tx);
         Ok(())
     }

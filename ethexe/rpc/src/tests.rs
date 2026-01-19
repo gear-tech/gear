@@ -22,10 +22,9 @@ use crate::{
 };
 
 use ethexe_common::{
-    Address,
-    ecdsa::{PrivateKey, SignedMessage},
+    ecdsa::PrivateKey,
     gear::MAX_BLOCK_GAS_LIMIT,
-    injected::{InjectedTransaction, Promise, RpcOrNetworkInjectedTx, SignedPromise},
+    injected::{Promise, RpcOrNetworkInjectedTx, SignedPromise},
     mock::Mock,
 };
 use ethexe_db::Database;

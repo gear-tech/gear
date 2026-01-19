@@ -134,14 +134,8 @@ impl<DB: OnChainStorageRO + AnnounceStorageRO + Storage> TxValidityChecker<DB> {
             .ok_or_else(|| anyhow!("Block header not found for hash: {}", self.chain_head))?
             .height;
 
-        let is_validity_window = reference_block_height <= chain_head_height
-            && reference_block_height + VALIDITY_WINDOW as u32 > chain_head_height;
-        if !is_validity_window {
-            tracing::error!(
-                "REF BLOCK OUTDATED: ref block height - {reference_block_height}, chain_head heigh - {chain_head_height}"
-            );
-        }
-        Ok(is_validity_window)
+        Ok(reference_block_height <= chain_head_height
+            && reference_block_height + VALIDITY_WINDOW as u32 > chain_head_height)
     }
 
     // TODO #4808: branch check must be until genesis block

@@ -140,7 +140,7 @@ impl InjectedServer for InjectedApi {
     }
 
     async fn subscribe_promises(&self, pending: PendingSubscriptionSink) -> SubscriptionResult {
-        tracing::error!("Called injected_subscribePromises");
+        tracing::trace!("Called injected_subscribePromises");
         let sink = pending.accept().await?;
         let mut stream = self.promise_manager.new_promise_stream();
 
@@ -158,19 +158,17 @@ impl InjectedServer for InjectedApi {
                                 continue;
                             };
                             if sink.send(msg).await.is_err() {
-                                tracing::error!("promises stream subscriber disconnected, finishing subscription");
+                                tracing::trace!("promises stream subscriber disconnected, finishing subscription");
                                 break;
                             }
                         }
                         Some(Err(err)) => {
-                            tracing::error!(
-                                "Promise subscription lagged by {err} messages",
-                            );
+                            tracing::trace!("Promise subscription lagged by {err} messages");
                             // TODO kuzmindev: handle lagging case properly
                             continue
                         },
                         None => {
-                            tracing::error!("Promise stream ended");
+                            tracing::trace!("Promise stream ended");
                             break
                         }
                     }
@@ -330,7 +328,6 @@ impl PromiseManager {
     /// 1. If there is a waiter for the promise's transaction hash, sends the promise to it.
     /// 2. Broadcasts the promise to all subscribers.
     pub(crate) fn handle_promise(&self, promise: SignedPromise) {
-        tracing::error!("PROMISE MANAGER: HANDLE PROMISE: {promise:?}");
         let tx_hash = promise.data().tx_hash;
 
         // Send to specific waiter if exists.
@@ -348,10 +345,10 @@ impl PromiseManager {
         // Broadcast to all subscribers.
         match self.promise_broadcaster.send(promise) {
             Ok(receivers_count) => {
-                tracing::error!("promise broadcasted to {receivers_count} subscribers");
+                tracing::trace!("promise broadcasted to {receivers_count} subscribers");
             }
             Err(err) => {
-                tracing::error!(
+                tracing::trace!(
                     "there are no subscribers to receive the broadcasted promise: {err}",
                 );
             }
