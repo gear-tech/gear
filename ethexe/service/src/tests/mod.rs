@@ -95,6 +95,7 @@ async fn basics() {
         block_gas_limit: 4_000_000_000_000,
         canonical_quarantine: 0,
         dev: false,
+        pre_funded_accounts: 10,
         fast_sync: false,
         validate_chain_deepness_limit: DEFAULT_VALIDATE_CHAIN_DEEPNESS_LIMIT,
         chain_deepness_threshold: DEFAULT_CHAIN_DEEPNESS_THRESHOLD,
@@ -1053,7 +1054,7 @@ async fn incoming_transfers() {
     assert_eq!(local_balance, VALUE_SENT);
 
     let res = env
-        .send_message_with_params(ping_id, b"PING", VALUE_SENT, false)
+        .send_message_with_params(ping_id, b"PING", VALUE_SENT)
         .await
         .unwrap()
         .wait_for()
@@ -2066,12 +2067,7 @@ async fn value_send_program_to_program() {
 
     // Send init message to value sender program with value to be sent to value receiver
     let res = env
-        .send_message_with_params(
-            res.program_id,
-            &value_receiver_id.encode(),
-            VALUE_SENT,
-            false,
-        )
+        .send_message_with_params(res.program_id, &value_receiver_id.encode(), VALUE_SENT)
         .await
         .unwrap()
         .wait_for()
@@ -2217,12 +2213,7 @@ async fn value_send_delayed() {
 
     // Send init message to value sender which sends value to receiver with delay
     let res = env
-        .send_message_with_params(
-            res.program_id,
-            &value_receiver_id.encode(),
-            VALUE_SENT,
-            false,
-        )
+        .send_message_with_params(res.program_id, &value_receiver_id.encode(), VALUE_SENT)
         .await
         .unwrap()
         .wait_for()
@@ -2425,8 +2416,10 @@ async fn injected_tx_fungible_token() {
     // Listen for inclusion and check the expected payload.
     node.events()
         .find(|event| {
-            if let TestingEvent::Consensus(ConsensusEvent::Promises(promises)) = event {
-                let promise = promises.first().data();
+            if let TestingEvent::Consensus(ConsensusEvent::Promises(promises)) = event
+                && !promises.is_empty()
+            {
+                let promise = promises.first().unwrap().data();
                 assert_eq!(promise.reply.payload, expected_event.encode());
                 assert_eq!(
                     promise.reply.code,
@@ -3105,7 +3098,7 @@ async fn catch_up_test_case(commitment_delay_limit: u32) {
         let pending = env
             .ethereum
             .mirror(ping_id.try_into().unwrap())
-            .send_message_pending(b"PING", 0, false)
+            .send_message_pending(b"PING", 0)
             .await
             .unwrap();
         env.force_new_block().await;
@@ -3150,7 +3143,7 @@ async fn catch_up_test_case(commitment_delay_limit: u32) {
         let pending = env
             .ethereum
             .mirror(ping_id.try_into().unwrap())
-            .send_message_pending(b"PING", 0, false)
+            .send_message_pending(b"PING", 0)
             .await
             .unwrap();
         env.force_new_block().await;

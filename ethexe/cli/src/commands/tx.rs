@@ -122,7 +122,6 @@ struct SendMessageResult {
     payload_hex: String,
     raw_value: u128,
     formatted_value: String,
-    call_reply: bool,
     watch: bool,
     reply_info: Option<ReplyInfo>,
 }
@@ -835,7 +834,6 @@ impl TxCommand {
                 mirror,
                 payload,
                 value,
-                call_reply,
                 watch,
                 json,
             } => {
@@ -867,7 +865,7 @@ impl TxCommand {
                     let actor_id = actor_id.to_address_lossy();
 
                     let (receipt, message_id) = mirror
-                        .send_message_with_receipt(payload.0.clone(), raw_value, call_reply)
+                        .send_message_with_receipt(payload.0.clone(), raw_value)
                         .await
                         .with_context(|| format!("failed to send message to mirror {actor_id}"))?;
 
@@ -949,7 +947,6 @@ impl TxCommand {
                         payload_hex,
                         raw_value,
                         formatted_value: formatted_value.to_string(),
-                        call_reply,
                         watch,
                         reply_info,
                     })
@@ -1172,9 +1169,6 @@ pub enum TxSubcommand {
         /// ETH value to send with message.
         #[arg()]
         value: RawOrFormattedValue<EthereumCurrency>,
-        /// Flag to force mirror to make call to destination actor id on reply. If false, reply will be saved as logs.
-        #[arg(short, long, default_value = "false", conflicts_with = "watch")]
-        call_reply: bool,
         /// Flag to watch for reply from mirror. If false, command will do not wait for reply.
         #[arg(short, long, default_value = "false")]
         watch: bool,

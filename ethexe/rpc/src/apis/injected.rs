@@ -206,6 +206,17 @@ impl InjectedApi {
         let tx_hash = transaction.tx.data().to_hash();
         let (response_sender, response_receiver) = oneshot::channel();
 
+        if transaction.tx.data().value != 0 {
+            tracing::warn!(
+                tx_hash = %tx_hash,
+                value = transaction.tx.data().value,
+                "Injected transaction with non-zero value is not supported"
+            );
+            return Err(errors::bad_request(
+                "Injected transactions with non-zero value are not supported",
+            ));
+        }
+
         let event = RpcEvent::InjectedTransaction {
             transaction,
             response_sender,

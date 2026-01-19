@@ -24,13 +24,11 @@ use ethexe_common::{
         LatestDataStorageRW, OnChainStorageRO,
     },
     events::BlockEvent,
-    injected::Promise,
 };
 use ethexe_db::Database;
 use ethexe_runtime_common::FinalizedBlockTransitions;
 use futures::future::BoxFuture;
 use gprimitives::H256;
-use nonempty::NonEmpty;
 use std::{
     collections::VecDeque,
     task::{Context, Poll},
@@ -117,25 +115,19 @@ impl<P: ProcessorExt> ComputeSubService<P> {
             parent_hash = next_parent_hash;
         }
 
+        let mut computed_announce = ComputedAnnounce::from_announce_hash(announce_hash);
         if announces_chain.is_empty() {
             log::trace!("All announces are already computed");
-            return Ok(ComputedAnnounce {
-                announce_hash,
-                promises: None,
-            });
+            return Ok(computed_announce);
         }
 
-        let mut promises = vec![];
         for (announce_hash, announce) in announces_chain {
-            let (_, announce_promises) =
-                Self::compute_one(&db, &mut processor, announce_hash, announce, config).await?;
-            promises.extend(announce_promises)
+            computed_announce.merge_promises(
+                Self::compute_one(&db, &mut processor, announce_hash, announce, config).await?,
+            );
         }
 
-        Ok(ComputedAnnounce {
-            announce_hash,
-            promises: NonEmpty::from_vec(promises),
-        })
+        Ok(computed_announce)
     }
 
     async fn compute_one(
@@ -144,7 +136,7 @@ impl<P: ProcessorExt> ComputeSubService<P> {
         announce_hash: HashOf<Announce>,
         announce: Announce,
         config: ComputeConfig,
-    ) -> Result<(HashOf<Announce>, Vec<Promise>)> {
+    ) -> Result<ComputedAnnounce> {
         let block_hash = announce.block_hash;
 
         let matured_events = Self::find_canonical_events_post_quarantine(
@@ -181,7 +173,10 @@ impl<P: ProcessorExt> ComputeSubService<P> {
         })
         .ok_or(ComputeError::LatestDataNotFound)?;
 
-        Ok((announce_hash, promises))
+        Ok(ComputedAnnounce {
+            announce_hash,
+            promises,
+        })
     }
 
     /// Finds events from Ethereum in database which can be processed in current block.

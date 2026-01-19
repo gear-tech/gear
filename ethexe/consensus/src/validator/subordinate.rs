@@ -25,7 +25,7 @@ use crate::{
     announces::{self, AnnounceStatus},
     validator::participant::Participant,
 };
-use anyhow::Result;
+use anyhow::{Context as _, Result};
 use derive_more::{Debug, Display};
 use ethexe_common::{
     Address, Announce, ComputedAnnounce, HashOf, SimpleBlockData,
@@ -78,8 +78,11 @@ impl StateHandler for Subordinate {
             State::WaitingAnnounceComputed { announce_hash }
                 if *announce_hash == computed_data.announce_hash =>
             {
-                if let Some(promises) = computed_data.promises {
-                    let signed_promises = self.ctx.sign_promises(promises)?;
+                if !computed_data.promises.is_empty() {
+                    let signed_promises = self
+                        .ctx
+                        .sign_promises(computed_data.promises)
+                        .context("subordinate: failed to sign promises")?;
                     self.ctx.output(ConsensusEvent::Promises(signed_promises));
                 }
 
@@ -503,7 +506,7 @@ mod tests {
         let promise = Promise::mock(());
         let computed_data = ComputedAnnounce {
             announce_hash: announce.data().to_hash(),
-            promises: Some(nonempty::nonempty![promise.clone()]),
+            promises: vec![promise.clone()],
         };
         let s = s.process_computed_announce(computed_data).unwrap();
         assert!(s.is_participant(), "got {s:?}");
@@ -516,7 +519,7 @@ mod tests {
             vec![
                 ConsensusEvent::AnnounceAccepted(announce.data().to_hash()),
                 ConsensusEvent::ComputeAnnounce(announce.data().clone()),
-                ConsensusEvent::Promises(nonempty::nonempty![signed_promise])
+                ConsensusEvent::Promises(vec![signed_promise])
             ]
         );
     }

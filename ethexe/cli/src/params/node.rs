@@ -52,6 +52,11 @@ pub struct NodeParams {
     #[serde(default)]
     pub dev: bool,
 
+    /// Number of pre-funded accounts to generate in dev mode.
+    #[arg(long)]
+    #[serde(rename = "pre-funded-accounts")]
+    pub pre_funded_accounts: Option<NonZero<u32>>,
+
     /// Public key of the validator, if node should act as one.
     #[arg(long)]
     pub validator: Option<String>,
@@ -109,6 +114,8 @@ pub struct NodeParams {
 impl NodeParams {
     /// Default max allowed height diff from head for sync directly from Ethereum.
     pub const DEFAULT_MAX_DEPTH: NonZero<u32> = NonZero::new(100_000).unwrap();
+    /// Default number of pre-funded accounts in dev mode.
+    pub const DEFAULT_PRE_FUNDED_ACCOUNTS: NonZero<u32> = NonZero::new(10).unwrap();
 
     /// Convert self into a proper `NodeConfig` object.
     pub fn into_config(self) -> Result<NodeConfig> {
@@ -137,6 +144,10 @@ impl NodeParams {
                 .min(MAX_BLOCK_GAS_LIMIT),
             canonical_quarantine: self.canonical_quarantine.unwrap_or(CANONICAL_QUARANTINE),
             dev: self.dev,
+            pre_funded_accounts: self
+                .pre_funded_accounts
+                .unwrap_or(Self::DEFAULT_PRE_FUNDED_ACCOUNTS)
+                .get(),
             fast_sync: self.fast_sync,
             validate_chain_deepness_limit: self
                 .validate_chain_deepness_limit
@@ -200,6 +211,7 @@ impl MergeParams for NodeParams {
             tmp: self.tmp || with.tmp,
             dev: self.dev || with.dev,
 
+            pre_funded_accounts: self.pre_funded_accounts.or(with.pre_funded_accounts),
             validator: self.validator.or(with.validator),
             validator_session: self.validator_session.or(with.validator_session),
 

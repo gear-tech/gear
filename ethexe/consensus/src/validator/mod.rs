@@ -50,7 +50,7 @@ use crate::{
         tx_pool::InjectedTxPool,
     },
 };
-use anyhow::{Context as _, Result, anyhow};
+use anyhow::{Result, anyhow};
 pub use core::BatchCommitter;
 use derive_more::{Debug, From};
 use ethexe_common::{
@@ -71,7 +71,6 @@ use futures::{
 };
 use gprimitives::H256;
 use initial::Initial;
-use nonempty::NonEmpty;
 use std::{
     collections::VecDeque,
     fmt,
@@ -472,7 +471,7 @@ impl DefaultProcessing {
     ) -> Result<ValidatorState> {
         let mut s = s.into();
         s.warning(format!(
-            "unexpected computed block: {}",
+            "unexpected computed announce: {}",
             computed_data.announce_hash
         ));
         Ok(s)
@@ -558,21 +557,10 @@ impl ValidatorContext {
         self.pending_events.push_front(event.into());
     }
 
-    pub fn sign_promises(
-        &mut self,
-        promises: NonEmpty<Promise>,
-    ) -> Result<NonEmpty<SignedPromise>> {
-        let signed_promises = promises
+    pub fn sign_promises(&mut self, promises: Vec<Promise>) -> Result<Vec<SignedPromise>> {
+        promises
             .into_iter()
-            .map(|promise| {
-                self.core
-                    .signer
-                    .signed_message(self.core.pub_key, promise)
-                    .context("producer: failed to sign promise")
-            })
-            .collect::<Result<Vec<_>, _>>()?;
-
-        // SAFETY: because of vec was constructed from `NonEmpty<Promise>`
-        Ok(NonEmpty::from_vec(signed_promises).unwrap())
+            .map(|promise| self.core.signer.signed_message(self.core.pub_key, promise))
+            .collect::<Result<Vec<_>, _>>()
     }
 }

@@ -27,10 +27,8 @@ use alloc::{
 };
 use gear_core::{ids::prelude::CodeIdExt as _, utils};
 use gprimitives::{ActorId, CodeId, H256, MessageId};
-use nonempty::NonEmpty;
 use parity_scale_codec::{Decode, Encode};
 use sha3::Digest as _;
-
 pub type ProgramStates = BTreeMap<ActorId, StateHashWithQueueSize>;
 
 #[derive(Debug, Clone, Copy, Default, Encode, Decode, PartialEq, Eq, Hash)]
@@ -130,7 +128,20 @@ impl ToDigest for Announce {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ComputedAnnounce {
     pub announce_hash: HashOf<Announce>,
-    pub promises: Option<NonEmpty<Promise>>,
+    pub promises: Vec<Promise>,
+}
+
+impl ComputedAnnounce {
+    pub fn from_announce_hash(announce_hash: HashOf<Announce>) -> Self {
+        Self {
+            announce_hash,
+            promises: Default::default(),
+        }
+    }
+
+    pub fn merge_promises(&mut self, other: ComputedAnnounce) {
+        self.promises.extend(other.promises);
+    }
 }
 
 #[derive(PartialEq, Eq, Hash, Debug, Clone, Copy, Default, Encode, Decode)]

@@ -43,7 +43,6 @@ use futures::{Stream, stream::FusedStream};
 use gprimitives::H256;
 
 pub use connect::ConnectService;
-use nonempty::NonEmpty;
 pub use utils::{block_producer_for, block_producer_index};
 pub use validator::{BatchCommitter, ValidatorConfig, ValidatorService};
 
@@ -125,5 +124,5 @@ pub enum ConsensusEvent {
     Warning(String),
     /// Promises for [`ethexe_common::injected::InjectedTransaction`]s execution in some announce.
     #[from]
-    Promises(NonEmpty<SignedPromise>),
+    Promises(Vec<SignedPromise>),
 }
