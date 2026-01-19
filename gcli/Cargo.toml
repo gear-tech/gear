@@ -35,5 +35,9 @@ gear-workspace-hack.workspace = true
 
 [build-dependencies]
 
+[features]
+default = ["self-update"]
+self-update = []
+
 [package.metadata.docs.rs]
 all-features = true

@@ -18,34 +18,27 @@
 
 //! commands
 
-pub mod claim;
+mod claim;
 pub mod config;
-pub mod create_program;
-pub mod info;
-pub mod new;
-pub mod read_state;
-pub mod reply;
-pub mod send;
-pub mod transfer;
-pub mod update;
-pub mod upload_code;
-pub mod wallet;
+mod create_program;
+mod info;
+mod new;
+mod read_state;
+mod reply;
+mod send;
+mod transfer;
+#[cfg(feature = "self-update")]
+mod update;
+mod upload_code;
+mod wallet;
 
-pub use self::{
-    claim::Claim,
-    config::{Config, ConfigSettings},
-    create_program::CreateProgram,
-    info::Info,
-    new::New,
-    read_state::ReadState,
-    reply::Reply,
-    send::Send,
-    transfer::Transfer,
-    update::Update,
-    upload_code::UploadCode,
+#[cfg(feature = "self-update")]
+use self::update::Update;
+use self::{
+    claim::Claim, config::Config, create_program::CreateProgram, info::Info, new::New,
+    read_state::ReadState, reply::Reply, send::Send, transfer::Transfer, upload_code::UploadCode,
     wallet::Wallet,
 };
-
 use crate::app::App;
 use anyhow::Result;
 use clap::Parser;
@@ -71,6 +64,7 @@ pub enum Command {
     #[clap(subcommand)]
     Wallet(Wallet),
 
+    #[cfg(feature = "self-update")]
     Update(Update),
 }
 
@@ -81,7 +75,6 @@ impl Command {
             Command::Config(config) => config.exec(app)?,
             Command::New(new) => new.exec().await?,
             Command::ReadState(program) => program.exec(app).await?,
-            Command::Update(update) => update.exec().await?,
             Command::Claim(claim) => claim.exec(app).await?,
             Command::CreateProgram(create) => create.exec(app).await?,
             Command::Info(info) => info.exec(app).await?,
@@ -90,6 +83,8 @@ impl Command {
             Command::Transfer(transfer) => transfer.exec(app).await?,
             Command::Reply(reply) => reply.exec(app).await?,
             Command::Wallet(wallet) => wallet.exec(app)?,
+            #[cfg(feature = "self-update")]
+            Command::Update(update) => update.exec().await?,
         }
 
         Ok(())

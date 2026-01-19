@@ -17,7 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{
-    cmd::{Command, ConfigSettings, config::Endpoint},
+    cmd::{
+        Command,
+        config::{ConfigSettings, Endpoint},
+    },
     utils::HexBytes,
 };
 use anyhow::{Result, anyhow};
