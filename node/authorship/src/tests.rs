@@ -503,7 +503,7 @@ fn test_block_max_gas_works() {
             best_hash,
             sp_core::H256::from(alice().as_ref()),
             pallet_gear::HandleKind::Init(WASM_BINARY.to_vec()),
-            Scheme::direct(Calls::builder().noop()).encode(),
+            Scheme::direct(Calls::builder().write_in_loop(1000)).encode(),
             0,
             true,
             None,
@@ -520,7 +520,7 @@ fn test_block_max_gas_works() {
 
     // Preparing block #2
     // Creating 5 extrinsics
-    let checked = checked_extrinsics(5, bob(), 0, || CallBuilder::noop().build());
+    let checked = checked_extrinsics(5, bob(), 0, || CallBuilder::long_init(1000).build());
     let extrinsics = sign_extrinsics(
         checked,
         VERSION.spec_version,
@@ -547,7 +547,7 @@ fn test_block_max_gas_works() {
     assert_eq!(block.extrinsics().len(), 7);
 
     let state = backend.state_at(block.hash()).unwrap();
-    // Ensure message queue still has 5 messages as none of the messages fit into the gas allowance
+    // Ensure message queue is empty as all init messages are processed (either success or allowance failure)
     let queue_entry_prefix = storage_prefix(
         pallet_gear_messenger::Pallet::<Runtime>::name().as_bytes(),
         "Dispatches".as_bytes(),
@@ -557,8 +557,8 @@ fn test_block_max_gas_works() {
 
     let queue_len = state.keys(queue_entry_args).unwrap().count();
 
-    // 2 out of 5 messages have been processed, 3 remain in the queue
-    assert_eq!(queue_len, 3);
+    // All 5 messages have been removed from the queue
+    assert_eq!(queue_len, 0);
 
     let programs_prefix = storage_prefix(
         pallet_gear_program::Pallet::<Runtime>::name().as_bytes(),

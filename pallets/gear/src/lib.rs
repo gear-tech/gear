@@ -1589,7 +1589,10 @@ pub mod pallet {
         /// Process message queue
         #[pallet::call_index(6)]
         #[pallet::weight((
-            <T as frame_system::Config>::BlockWeights::get().max_block,
+            max_gas.map_or(
+                <T as frame_system::Config>::BlockWeights::get().max_block,
+                |g| Weight::from_parts(g, 0).saturating_add(T::DbWeight::get().writes(1))
+            ),
             DispatchClass::Mandatory,
         ))]
         pub fn run(
