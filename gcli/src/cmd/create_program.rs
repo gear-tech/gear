@@ -16,7 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! command `create`
+//! Command `create-program`.
+
 use crate::{app::App, utils::HexBytes};
 use anyhow::{Context, Result};
 use clap::{Args, Parser};
@@ -30,7 +31,7 @@ use tokio::{
 
 /// Deploy a program to a Gear node.
 #[derive(Clone, Debug, Parser)]
-pub struct Deploy {
+pub struct CreateProgram {
     /// Program salt, as hex string.
     ///
     /// Used to create multiple programs with the same code.
@@ -119,7 +120,7 @@ impl CodeArgs {
     }
 }
 
-impl Deploy {
+impl CreateProgram {
     pub async fn exec(self, app: &mut App) -> Result<()> {
         let api = app.signed_api().await?;
 

@@ -20,7 +20,7 @@
 
 pub mod claim;
 pub mod config;
-pub mod deploy;
+pub mod create_program;
 pub mod info;
 pub mod new;
 pub mod read_state;
@@ -34,7 +34,7 @@ pub mod wallet;
 pub use self::{
     claim::Claim,
     config::{Config, ConfigSettings},
-    deploy::Deploy,
+    create_program::CreateProgram,
     info::Info,
     new::New,
     read_state::ReadState,
@@ -56,7 +56,7 @@ pub enum Command {
     New(New),
 
     UploadCode(UploadCode),
-    Deploy(Deploy),
+    CreateProgram(CreateProgram),
 
     Info(Info),
     ReadState(ReadState),
@@ -83,7 +83,7 @@ impl Command {
             Command::ReadState(program) => program.exec(app).await?,
             Command::Update(update) => update.exec().await?,
             Command::Claim(claim) => claim.exec(app).await?,
-            Command::Deploy(create) => create.exec(app).await?,
+            Command::CreateProgram(create) => create.exec(app).await?,
             Command::Info(info) => info.exec(app).await?,
             Command::Send(send) => send.exec(app).await?,
             Command::UploadCode(upload) => upload.exec(app).await?,
