@@ -120,31 +120,9 @@ impl ConsensusLayerBlobReader {
             log::trace!("trying to get blob, attempt #{attempt}");
             match self.try_query_blob(tx_hash).await {
                 Ok(blob) => {
-                    // TODO: temporary solution to protect against inconsistent blob data,
-                    // we have second check in ethexe-processor in handle_new_code as well,
-                    // so this solution must be reconsidered.
-
-                    let received_code_id = CodeId::generate(&blob);
-                    if blob.is_empty() {
-                        log::warn!("received empty blob on attempt #{attempt}");
-                        last_err = Some(ReaderError::EmptyBlob);
-                    } else if previously_received_code_id == Some(received_code_id) {
-                        log::warn!(
-                            "received same blob with invalid id on attempt #{attempt}, code id: {received_code_id:?},
-                            consider blob as loaded then",
-                        );
-                        return Ok(blob);
-                    } else if code_id != received_code_id {
-                        previously_received_code_id = Some(received_code_id);
-                        log::warn!(
-                            "received blob code id mismatch on attempt #{attempt}: expected {code_id:?}, got {received_code_id:?}",
-                        );
-                        last_err = Some(ReaderError::CodeIdMismatch {
-                            expected: code_id,
-                            found: received_code_id,
-                        });
-                    } else {
-                        return Ok(blob);
+                    match handle_blob(blob, code_id, &mut previously_received_code_id, attempt) {
+                        Ok(blob) => return Ok(blob),
+                        Err(err) => last_err = Some(err),
                     }
                 }
                 Err(err) => {
@@ -348,12 +326,44 @@ impl<DB: Database> BlobLoaderService for BlobLoader<DB> {
     }
 }
 
-// fn read_blob_inner(
-//     try_query_blob: impl Fn() -> BoxFuture<'static, ReaderResult<Vec<u8>>>,
-//     code_id: CodeId,
-//     tx_hash: H256,
-//     action_if_not_successful: impl Fn(ReaderError) -> BoxFuture<'static, ReaderResult<()>,
-// )
+// TODO: temporary solution to protect against inconsistent blob data,
+// we have second check of code id in ethexe-processor in handle_new_code as well,
+// so this solution must be reconsidered.
+fn handle_blob(
+    blob: Vec<u8>,
+    code_id: CodeId,
+    previously_received_code_id: &mut Option<CodeId>,
+    attempt: u8,
+) -> ReaderResult<Vec<u8>> {
+    // Attempt is only for logging purposes, so use it to avoid unused variable warning
+    let _ = attempt;
+
+    let received_code_id = CodeId::generate(&blob);
+    if blob.is_empty() {
+        log::warn!("received empty blob on attempt #{attempt}");
+        return Err(ReaderError::EmptyBlob);
+    }
+
+    if *previously_received_code_id == Some(received_code_id) {
+        log::warn!(
+            "received same blob with invalid id on attempt #{attempt}, code id: {received_code_id:?}, consider blob as loaded then",
+        );
+        return Ok(blob);
+    }
+
+    if code_id != received_code_id {
+        *previously_received_code_id = Some(received_code_id);
+        log::warn!(
+            "received blob code id mismatch on attempt #{attempt}: expected {code_id:?}, got {received_code_id:?}",
+        );
+        return Err(ReaderError::CodeIdMismatch {
+            expected: code_id,
+            found: received_code_id,
+        });
+    }
+
+    return Ok(blob);
+}
 
 #[cfg(test)]
 mod tests {
@@ -422,5 +432,59 @@ mod tests {
             .await
             .unwrap();
         assert_eq!(expected_code_id, CodeId::generate(&code));
+    }
+
+    #[test]
+    fn test_handle_blob() {
+        let code_id = CodeId::generate(&[1, 2, 3, 4]);
+
+        // correct blob
+        let blob = vec![1, 2, 3, 4];
+        let mut previously_received_code_id = None;
+        let result =
+            handle_blob(blob.clone(), code_id, &mut previously_received_code_id, 1).unwrap();
+        assert_eq!(result, blob);
+
+        // blob with incorrect code id
+        let blob = vec![4, 3, 2, 1];
+        let blob_code_id = CodeId::generate(&blob);
+        let mut previously_received_code_id = None;
+        let result = handle_blob(blob.clone(), code_id, &mut previously_received_code_id, 1);
+        assert!(matches!(
+            result,
+            Err(ReaderError::CodeIdMismatch {
+                expected,
+                found,
+            }) if expected == code_id && found == blob_code_id
+        ),);
+        assert_eq!(previously_received_code_id, Some(blob_code_id));
+
+        // same incorrect blob again - should be considered as loaded
+        let result =
+            handle_blob(blob.clone(), code_id, &mut previously_received_code_id, 2).unwrap();
+        assert_eq!(result, blob);
+
+        // same incorrect blob again, but another code id
+        let previously_received_code_id = CodeId::from([1; 32]);
+        let result = handle_blob(
+            blob.clone(),
+            code_id,
+            &mut Some(previously_received_code_id),
+            2,
+        );
+        assert!(matches!(
+            result,
+            Err(ReaderError::CodeIdMismatch {
+                expected,
+                found,
+            }) if expected == code_id && found == blob_code_id
+        ),);
+
+        // empty blob
+        let blob = vec![];
+        let mut previously_received_code_id = None;
+        let result = handle_blob(blob.clone(), code_id, &mut previously_received_code_id, 1);
+        assert!(result.is_err());
+        assert!(previously_received_code_id.is_none());
     }
 }
