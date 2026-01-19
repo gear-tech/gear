@@ -19,8 +19,8 @@
 pub use tap::Tap;
 
 use crate::{
-    Announce, BlockData, BlockHeader, CodeBlobInfo, Digest, HashOf, ProgramStates,
-    ProtocolTimelines, Schedule, SimpleBlockData, ValidatorsVec,
+    Announce, BlockData, BlockHeader, CodeBlobInfo, ComputedAnnounce, Digest, HashOf,
+    ProgramStates, ProtocolTimelines, Schedule, SimpleBlockData, ValidatorsVec,
     consensus::BatchCommitmentValidationRequest,
     db::*,
     ecdsa::{PrivateKey, SignedMessage},
@@ -35,7 +35,7 @@ use itertools::Itertools;
 use std::collections::{BTreeSet, VecDeque};
 
 // TODO #4881: use `proptest::Arbitrary` instead
-pub trait Mock<Args> {
+pub trait Mock<Args = ()> {
     fn mock(args: Args) -> Self;
 }
 
@@ -239,7 +239,7 @@ impl BlockFullData {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct ComputedAnnounceData {
+pub struct MockComputedAnnounceData {
     pub outcome: Vec<StateTransition>,
     pub program_states: ProgramStates,
     pub schedule: Schedule,
@@ -248,15 +248,15 @@ pub struct ComputedAnnounceData {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AnnounceData {
     pub announce: Announce,
-    pub computed: Option<ComputedAnnounceData>,
+    pub computed: Option<MockComputedAnnounceData>,
 }
 
 impl AnnounceData {
-    pub fn as_computed(&self) -> &ComputedAnnounceData {
+    pub fn as_computed(&self) -> &MockComputedAnnounceData {
         self.computed.as_ref().expect("announce not computed")
     }
 
-    pub fn as_computed_mut(&mut self) -> &mut ComputedAnnounceData {
+    pub fn as_computed_mut(&mut self) -> &mut MockComputedAnnounceData {
         self.computed.as_mut().expect("announce not computed")
     }
 
@@ -513,7 +513,7 @@ impl Mock<(u32, ValidatorsVec)> for BlockChain {
                     announce_hash,
                     AnnounceData {
                         announce,
-                        computed: Some(ComputedAnnounceData {
+                        computed: Some(MockComputedAnnounceData {
                             outcome: Default::default(),
                             program_states: Default::default(),
                             schedule: Default::default(),
@@ -597,5 +597,23 @@ impl BlockData {
         db.set_block_events(self.hash, &self.events);
         db.set_block_synced(self.hash);
         self
+    }
+}
+
+impl Mock for ComputedAnnounce {
+    fn mock(_: ()) -> Self {
+        Self {
+            announce_hash: HashOf::random(),
+            promises: Default::default(),
+        }
+    }
+}
+
+impl Mock<HashOf<Announce>> for ComputedAnnounce {
+    fn mock(announce_hash: HashOf<Announce>) -> Self {
+        Self {
+            announce_hash,
+            promises: Default::default(),
+        }
     }
 }
