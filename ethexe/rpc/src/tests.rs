@@ -148,7 +148,7 @@ async fn test_cleanup_promise_subscribers() {
                     .await
                     .expect("Promise will be received")
                     .expect("No error in subscription result")
-                    .expect_left("transaction will not be removed");
+                    .unwrap_promise();
 
                 assert_eq!(
                     promise.data().reply.code,
@@ -177,7 +177,7 @@ async fn test_cleanup_promise_subscribers() {
                     .await
                     .expect("Promise will be received")
                     .expect("No error in subscription result")
-                    .expect_left("transaction will not be removed");
+                    .unwrap_promise();
 
                 assert_eq!(
                     promise.data().reply.code,
@@ -239,7 +239,7 @@ async fn test_concurrent_multiple_clients() {
                     .await
                     .expect("Promise will be received")
                     .expect("No error in subscription result")
-                    .expect_left("transaction will not be removed");
+                    .unwrap_promise();
 
                 assert_eq!(
                     promise.data().reply.code,

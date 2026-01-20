@@ -29,12 +29,13 @@ serde = { workspace = true, features = ["std"] }
 tracing.workspace = true
 dashmap.workspace = true
 gear-workspace-hack.workspace = true
-either.workspace = true
+derive_more.workspace = true
 
 [dev-dependencies]
 jsonrpsee = { workspace = true, features = ["client"] }
 ethexe-common = { workspace = true, features = ["std", "mock"] }
 ntest.workspace = true
+serde_json = { workspace = true, features = ["std"] }
 
 [features]
 client = ["jsonrpsee/client"]

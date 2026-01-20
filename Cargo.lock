@@ -5186,7 +5186,7 @@ version = "1.10.0"
 dependencies = [
  "anyhow",
  "dashmap 5.5.3",
- "either",
+ "derive_more 2.0.1",
  "ethexe-common",
  "ethexe-db",
  "ethexe-processor",
@@ -5200,6 +5200,7 @@ dependencies = [
  "ntest",
  "parity-scale-codec",
  "serde",
+ "serde_json",
  "sp-core",
  "tokio",
  "tower 0.4.13",
