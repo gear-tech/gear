@@ -53,10 +53,10 @@ pub type ObserverEventReceiver = EventReceiver<ObserverEvent>;
 
 #[derive(Debug, Clone, Eq, PartialEq)]
 pub enum TestingNetworkInjectedEvent {
-    NewInjectedTransaction {
+    InboundTransaction {
         transaction: SignedInjectedTransaction,
     },
-    InjectedTransactionAcceptance {
+    OutboundAcceptance {
         transaction_hash: HashOf<InjectedTransaction>,
         acceptance: InjectedTransactionAcceptance,
     },
@@ -68,13 +68,13 @@ impl TestingNetworkInjectedEvent {
             NetworkInjectedEvent::InboundTransaction {
                 transaction,
                 channel: _,
-            } => Self::NewInjectedTransaction {
+            } => Self::InboundTransaction {
                 transaction: transaction.clone(),
             },
             NetworkInjectedEvent::OutboundAcceptance {
                 transaction_hash,
                 acceptance,
-            } => Self::InjectedTransactionAcceptance {
+            } => Self::OutboundAcceptance {
                 transaction_hash: *transaction_hash,
                 acceptance: acceptance.clone(),
             },
