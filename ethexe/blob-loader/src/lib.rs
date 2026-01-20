@@ -359,7 +359,7 @@ fn handle_blob(
         });
     }
 
-    return Ok(blob);
+    Ok(blob)
 }
 
 #[cfg(test)]
