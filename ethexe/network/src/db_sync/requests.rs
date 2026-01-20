@@ -365,7 +365,7 @@ pub enum AnnouncesResponseError {
 }
 
 #[derive(Debug, derive_more::Display, derive_more::From)]
-enum ResponseError {
+pub(crate) enum ResponseError {
     #[display("{_0}")]
     Hashes(HashesResponseError),
     #[display("{_0}")]
@@ -378,7 +378,7 @@ enum ResponseError {
     TypeMismatch,
 }
 
-#[derive(Debug, Eq, PartialEq)]
+#[derive(Debug, derive_more::Unwrap)]
 pub(crate) enum ResponseHandlerResult {
     Ok(Response),
     NewRound(ResponseHandler),
@@ -395,7 +395,7 @@ impl From<Result<Response, (ResponseHandler, ResponseError)>> for ResponseHandle
 }
 
 #[derive(Debug, Eq, PartialEq)]
-enum ResponseHandler {
+pub(crate) enum ResponseHandler {
     Hashes {
         acc: InnerHashesResponse,
         request: HashesRequest,
