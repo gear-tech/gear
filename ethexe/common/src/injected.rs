@@ -17,15 +17,19 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{Address, HashOf, ToDigest, ecdsa::SignedMessage};
+use alloy_primitives::hex;
 use core::hash::Hash;
-use gear_core::rpc::ReplyInfo;
+use gear_core::{limited::LimitedVec, rpc::ReplyInfo};
 use gprimitives::{ActorId, H256, MessageId};
 use parity_scale_codec::{Decode, Encode};
 use sha3::{Digest, Keccak256};
-use sp_core::Bytes;
 
 /// Recent block hashes window size used to check transaction mortality.
 pub const VALIDITY_WINDOW: u8 = 32;
+
+/// Maximum total size of single injected tx payload.
+/// Currently set to 1 MB.
+pub const MAX_INJECTED_TX_PAYLOAD_SIZE: usize = 1024 * 1024;
 
 pub type SignedInjectedTransaction = SignedMessage<InjectedTransaction>;
 
@@ -46,7 +50,8 @@ pub struct InjectedTransaction {
     /// Destination program inside `Vara.eth`.
     pub destination: ActorId,
     /// Payload of the message.
-    pub payload: Bytes,
+    #[cfg_attr(feature = "std", serde(with = "limited_vec_hex"))]
+    pub payload: LimitedVec<u8, MAX_INJECTED_TX_PAYLOAD_SIZE>,
     /// Value attached to the message.
     /// NOTE: at this moment will be zero.
     pub value: u128,
@@ -55,7 +60,53 @@ pub struct InjectedTransaction {
     /// Arbitrary bytes to allow multiple synonymous
     /// transactions to be sent simultaneously.
     /// NOTE: this is also a salt for MessageId generation.
-    pub salt: Bytes,
+    // #[cfg_attr(feature = "std", serde(with = "const_hex"))]
+    #[cfg_attr(feature = "std", serde(with = "u256_hex"))]
+    pub salt: gprimitives::U256,
+}
+#[cfg(feature = "std")]
+mod limited_vec_hex {
+    pub fn serialize<S, const N: usize>(
+        data: &super::LimitedVec<u8, N>,
+        serializer: S,
+    ) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        alloy_primitives::hex::serialize(data.to_vec(), serializer)
+    }
+
+    pub fn deserialize<'de, D, const N: usize>(
+        deserializer: D,
+    ) -> Result<super::LimitedVec<u8, N>, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let vec: Vec<u8> = alloy_primitives::hex::deserialize(deserializer)?;
+        super::LimitedVec::<u8, N>::try_from(vec)
+            .map_err(|_| serde::de::Error::custom("failed to convert to LimitedVec"))
+    }
+}
+
+#[cfg(feature = "std")]
+mod u256_hex {
+    use gprimitives::U256;
+    pub fn serialize<S>(data: &U256, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        let mut buffer = [0u8; 32];
+        data.to_big_endian(&mut buffer);
+        alloy_primitives::hex::serialize(buffer, serializer)
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<U256, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let buffer: [u8; 32] = alloy_primitives::hex::deserialize(deserializer)?;
+        Ok(U256::from_big_endian(buffer.as_slice()))
+    }
 }
 
 impl ToDigest for InjectedTransaction {
@@ -72,7 +123,7 @@ impl ToDigest for InjectedTransaction {
         payload.update_hasher(hasher);
         value.to_be_bytes().update_hasher(hasher);
         reference_block.0.update_hasher(hasher);
-        salt.update_hasher(hasher);
+        salt.encode().as_slice().update_hasher(hasher);
     }
 }
 
@@ -85,7 +136,7 @@ impl InjectedTransaction {
             self.payload.as_ref(),
             &self.value.to_be_bytes(),
             &self.reference_block.0,
-            self.salt.as_ref(),
+            self.salt.encode().as_ref(),
         ]
         .concat();
         unsafe { HashOf::new(gear_core::utils::hash(&bytes).into()) }
