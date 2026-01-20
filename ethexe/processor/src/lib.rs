@@ -188,8 +188,7 @@ impl Processor {
 
         let injected_messages = injected_transactions
             .iter()
-            .map(|tx| tx.data().to_message_id())
-            .collect();
+            .map(|tx| tx.data().to_message_id());
 
         let mut transitions = InBlockTransitions::new(
             block.header.height,
@@ -380,7 +379,7 @@ impl OverlaidProcessor {
             block.header.height,
             program_states,
             Schedule::default(),
-            Default::default(),
+            vec![],
         );
 
         let transitions = self.0.process_injected_and_events(

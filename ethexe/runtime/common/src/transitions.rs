@@ -67,13 +67,13 @@ impl InBlockTransitions {
         block_height: u32,
         states: ProgramStates,
         schedule: Schedule,
-        injected_messages: impl Iterator<Item = MessageId>,
+        injected_messages: impl IntoIterator<Item = MessageId>,
     ) -> Self {
         Self {
             block_height,
             states,
             schedule,
-            injected_messages: injected_messages.collect(),
+            injected_messages: injected_messages.into_iter().collect(),
             ..Default::default()
         }
     }

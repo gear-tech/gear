@@ -673,8 +673,7 @@ mod tests {
         .take(STATE_SIZE)
         .collect();
 
-        let transitions =
-            InBlockTransitions::new(0, states, Default::default(), Default::default());
+        let transitions = InBlockTransitions::new(0, states, Default::default(), vec![]);
 
         let ctx = CommonRunContext {
             db: Database::memory(),
@@ -809,7 +808,7 @@ mod tests {
         ]);
 
         let mut in_block_transitions =
-            InBlockTransitions::new(3, states, Default::default(), Default::default());
+            InBlockTransitions::new(3, states, Default::default(), vec![]);
 
         let base_program = pid2;
 
