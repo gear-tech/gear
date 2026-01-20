@@ -33,7 +33,7 @@ use futures::{Stream, stream::FusedStream};
 use hyper::header::HeaderValue;
 use jsonrpsee::{
     RpcModule as JsonrpcModule,
-    server::{Server, ServerHandle},
+    server::{PingConfig, Server, ServerHandle},
 };
 use std::{
     net::SocketAddr,
@@ -46,6 +46,9 @@ use tower_http::cors::{AllowOrigin, CorsLayer};
 mod apis;
 mod errors;
 mod utils;
+
+#[cfg(all(test, feature = "client"))]
+mod tests;
 
 #[derive(Debug)]
 pub enum RpcEvent {
@@ -89,6 +92,9 @@ impl RpcServer {
 
         let server = Server::builder()
             .set_http_middleware(http_middleware)
+            // Setup WebSocket pings to detect dead connections.
+            // Now it is set to default: ping_interval = 30s, inactive_limit = 40s
+            .enable_ws_ping(PingConfig::default())
             .build(self.config.listen_addr)
             .await?;
 
@@ -136,10 +142,13 @@ impl RpcService {
         }
     }
 
-    pub fn provide_promise(&self, promise: SignedPromise) {
+    /// Provides a bundle of promises inside RPC service to be sent to subscribers.
+    pub fn provide_promises(&self, promises: Vec<SignedPromise>) {
         let injected_api = self.injected_api.clone();
 
-        injected_api.send_promise(promise);
+        promises.into_iter().for_each(|promise| {
+            injected_api.send_promise(promise);
+        });
     }
 }
 
