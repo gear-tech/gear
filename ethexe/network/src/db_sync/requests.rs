@@ -378,8 +378,8 @@ enum ResponseError {
     TypeMismatch,
 }
 
-#[derive(Debug, derive_more::Unwrap)]
-enum ResponseHandlerResult {
+#[derive(Debug, Eq, PartialEq)]
+pub(crate) enum ResponseHandlerResult {
     Ok(Response),
     NewRound(ResponseHandler),
     Err(ResponseHandler, ResponseError),
@@ -395,7 +395,7 @@ impl From<Result<Response, (ResponseHandler, ResponseError)>> for ResponseHandle
 }
 
 #[derive(Debug, Eq, PartialEq)]
-pub(crate) enum ResponseHandler {
+enum ResponseHandler {
     Hashes {
         acc: InnerHashesResponse,
         request: HashesRequest,
