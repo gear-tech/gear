@@ -149,8 +149,6 @@ jobs:
       - name: "ACTIONS: Setup caching"
         uses: ./.github/actions/rust-cache
         with:
-          us-access-key-id: "${{ secrets.GEAR_CI_S3_US_ACCESS_KEY_ID }}"
-          us-secret-access-key: "${{ secrets.GEAR_CI_S3_US_SECRET_ACCESS_KEY }}"
           eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
           eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
           key: "${{ matrix.name }}"
@@ -201,8 +199,6 @@ jobs:
       - name: "ACTIONS: Setup caching"
         uses: ./.github/actions/rust-cache
         with:
-          us-access-key-id: "${{ secrets.GEAR_CI_S3_US_ACCESS_KEY_ID }}"
-          us-secret-access-key: "${{ secrets.GEAR_CI_S3_US_SECRET_ACCESS_KEY }}"
           eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
           eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
           # we want to test the hack that doesn't interfere with some Substrate features
@@ -234,8 +230,6 @@ jobs:
       - name: "ACTIONS: Setup caching"
         uses: ./.github/actions/rust-cache
         with:
-          us-access-key-id: "${{ secrets.GEAR_CI_S3_US_ACCESS_KEY_ID }}"
-          us-secret-access-key: "${{ secrets.GEAR_CI_S3_US_SECRET_ACCESS_KEY }}"
           eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
           eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
 
@@ -280,8 +274,6 @@ jobs:
       - name: "ACTIONS: Setup caching"
         uses: ./.github/actions/rust-cache
         with:
-          us-access-key-id: "${{ secrets.GEAR_CI_S3_US_ACCESS_KEY_ID }}"
-          us-secret-access-key: "${{ secrets.GEAR_CI_S3_US_SECRET_ACCESS_KEY }}"
           eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
           eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
           key: "${{ matrix.name }}"
@@ -323,21 +315,24 @@ jobs:
         uses: actions/checkout@v4
 
       - name: "Install: Setup linker"
+        if: matrix.name != 'macos-x86_64'
         uses: ./.github/actions/setup-linker
 
       - name: "Install: Rust toolchain"
+        if: matrix.name != 'macos-x86_64'
         uses: ./.github/actions/install-rust
 
       - name: "ACTIONS: Setup caching"
+        if: matrix.name != 'macos-x86_64'
         uses: ./.github/actions/rust-cache
         with:
-          us-access-key-id: "${{ secrets.GEAR_CI_S3_US_ACCESS_KEY_ID }}"
-          us-secret-access-key: "${{ secrets.GEAR_CI_S3_US_SECRET_ACCESS_KEY }}"
           eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
           eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
           key: "${{ matrix.name }}"
 
-      - run: cargo run -p calc-stack-height --release --locked
+      - name: "Run: Calculate stack height"
+        if: matrix.name != 'macos-x86_64'
+        run: cargo run -p calc-stack-height --release --locked
 
   gsdk-metadata:
     runs-on: ubuntu-latest
@@ -361,8 +356,6 @@ jobs:
       - name: "ACTIONS: Setup caching"
         uses: ./.github/actions/rust-cache
         with:
-          us-access-key-id: "${{ secrets.GEAR_CI_S3_US_ACCESS_KEY_ID }}"
-          us-secret-access-key: "${{ secrets.GEAR_CI_S3_US_SECRET_ACCESS_KEY }}"
           eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
           eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
 
