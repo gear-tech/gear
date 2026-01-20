@@ -65,7 +65,7 @@ runs:
       shell: bash
 
     # GitHub hosted runners have no enough space for big Rust caches
-    - if: ${{ runner.environment == 'github-hosted' }}
+    - if: ${{ runner.os == 'Linux' && runner.environment == 'github-hosted' }}
       uses: jlumbroso/free-disk-space@main
       with:
         large-packages: false
