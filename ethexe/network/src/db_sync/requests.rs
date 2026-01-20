@@ -291,7 +291,7 @@ enum HashesResponseHandled {
         response: BTreeMap<H256, Vec<u8>>,
         stripped: bool,
     },
-    NewRequest {
+    IncompleteData {
         acc: InnerHashesResponse,
         new_request: HashesRequest,
         stripped: bool,
@@ -307,7 +307,7 @@ impl HashesResponseHandled {
     fn stripped(&self) -> bool {
         match self {
             Self::Done { stripped, .. } => *stripped,
-            Self::NewRequest { stripped, .. } => *stripped,
+            Self::IncompleteData { stripped, .. } => *stripped,
             Self::Err { stripped, .. } => *stripped,
         }
     }
@@ -347,11 +347,25 @@ enum ResponseError {
     Announces(AnnouncesResponseError),
     #[display("request and response types mismatch")]
     TypeMismatch,
-    #[display("new round required")]
-    NewRound,
 }
 
 #[derive(Debug)]
+enum ResponseHandlerResult {
+    Ok(Response),
+    NewRound(ResponseHandler),
+    Err(ResponseHandler, ResponseError),
+}
+
+impl From<Result<Response, (ResponseHandler, ResponseError)>> for ResponseHandlerResult {
+    fn from(value: Result<Response, (ResponseHandler, ResponseError)>) -> Self {
+        match value {
+            Ok(response) => Self::Ok(response),
+            Err((handler, error)) => Self::Err(handler, error),
+        }
+    }
+}
+
+#[derive(Debug, Eq, PartialEq)]
 enum ResponseHandler {
     Hashes {
         acc: InnerHashesResponse,
@@ -450,7 +464,7 @@ impl ResponseHandler {
                 stripped,
             }
         } else {
-            HashesResponseHandled::NewRequest {
+            HashesResponseHandled::IncompleteData {
                 acc,
                 new_request: HashesRequest(new_request),
                 stripped,
@@ -522,7 +536,7 @@ impl ResponseHandler {
         response: InnerResponse,
         peer_score_handle: &Handle,
         external_data_provider: Box<dyn ExternalDataProvider>,
-    ) -> Result<Response, (Self, ResponseError)> {
+    ) -> ResponseHandlerResult {
         match (self, response) {
             (
                 Self::Hashes {
@@ -542,29 +556,26 @@ impl ResponseHandler {
                     HashesResponseHandled::Done {
                         response,
                         stripped: _,
-                    } => Ok(Response::Hashes(response)),
-                    HashesResponseHandled::NewRequest {
+                    } => ResponseHandlerResult::Ok(Response::Hashes(response)),
+                    HashesResponseHandled::IncompleteData {
                         acc,
                         new_request,
                         stripped: _,
-                    } => Err((
-                        Self::Hashes {
-                            acc,
-                            request: new_request,
-                        },
-                        ResponseError::NewRound,
-                    )),
+                    } => ResponseHandlerResult::NewRound(Self::Hashes {
+                        acc,
+                        request: new_request,
+                    }),
                     HashesResponseHandled::Err {
                         acc,
                         err,
                         stripped: _,
-                    } => Err((
+                    } => ResponseHandlerResult::Err(
                         Self::Hashes {
                             acc,
                             request: reduced_request,
                         },
                         err.into(),
-                    )),
+                    ),
                 }
             }
             (Self::ProgramIds { request }, InnerResponse::ProgramIds(response)) => {
@@ -572,18 +583,21 @@ impl ResponseHandler {
                     .await
                     .map(Into::into)
                     .map_err(|err| (Self::ProgramIds { request }, err.into()))
+                    .into()
             }
             (Self::ValidCodes { request }, InnerResponse::ValidCodes(response)) => {
                 Self::handle_valid_codes(response, &request, external_data_provider)
                     .await
                     .map(Into::into)
                     .map_err(|err| (Self::ValidCodes { request }, err.into()))
+                    .into()
             }
             (Self::Announces { request }, InnerResponse::Announces(response)) => response
                 .try_into_checked(request)
+                .map(Into::into)
                 .map_err(|err| (Self::Announces { request }, err.into()))
-                .map(Response::Announces),
-            (this, _) => Err((this, ResponseError::TypeMismatch)),
+                .into(),
+            (this, _) => ResponseHandlerResult::Err(this, ResponseError::TypeMismatch),
         }
     }
 }
@@ -682,11 +696,18 @@ impl OngoingRequest {
             .handle(peer, response, peer_score_handle, external_data_provider)
             .await
         {
-            Ok(response) => Ok(response),
-            Err((processor, err)) => {
+            ResponseHandlerResult::Ok(response) => Ok(response),
+            ResponseHandlerResult::NewRound(handler) => {
+                log::trace!(
+                    "response is incomplete from peer {peer}: we are going for a new round"
+                );
+                self.response_handler = Some(handler);
+                Err(NewRequestRoundReason::PartialData)
+            }
+            ResponseHandlerResult::Err(handler, err) => {
                 log::warn!("response processing failed for request from {peer}: {err:?}");
                 peer_score_handle.invalid_data(peer);
-                self.response_handler = Some(processor);
+                self.response_handler = Some(handler);
                 Err(NewRequestRoundReason::PartialData)
             }
         }
@@ -781,6 +802,33 @@ impl RetriableRequest {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use assert_matches::assert_matches;
+    use async_trait::async_trait;
+
+    struct UnreachableExternalDataProvider;
+
+    #[async_trait]
+    impl ExternalDataProvider for UnreachableExternalDataProvider {
+        fn clone_boxed(&self) -> Box<dyn ExternalDataProvider> {
+            unreachable!()
+        }
+
+        async fn programs_code_ids_at(
+            self: Box<Self>,
+            _program_ids: BTreeSet<ActorId>,
+            _block: H256,
+        ) -> anyhow::Result<Vec<CodeId>> {
+            unreachable!()
+        }
+
+        async fn codes_states_at(
+            self: Box<Self>,
+            _code_ids: BTreeSet<CodeId>,
+            _block: H256,
+        ) -> anyhow::Result<Vec<CodeState>> {
+            unreachable!()
+        }
+    }
 
     #[test]
     fn validate_data_stripped() {
@@ -821,5 +869,38 @@ mod tests {
         assert_eq!(acc, Default::default());
         assert_eq!(err, HashesResponseError::HashMismatch);
         assert!(!stripped);
+    }
+
+    #[tokio::test]
+    async fn validate_data_hash_incomplete() {
+        let hash1 = ethexe_db::hash(b"1");
+        let hash2 = ethexe_db::hash(b"2");
+
+        let request = HashesRequest([hash1, hash2].into());
+        let response = InnerHashesResponse([(hash1, b"1".to_vec())].into());
+        let processed =
+            ResponseHandler::handle_hashes(Default::default(), &request, response.clone());
+        let HashesResponseHandled::IncompleteData {
+            acc,
+            new_request,
+            stripped,
+        } = processed
+        else {
+            unreachable!("{processed:?}")
+        };
+        assert_eq!(acc, response);
+        assert_eq!(new_request, HashesRequest([hash2].into()));
+        assert!(!stripped);
+
+        let handler = ResponseHandler::new(request.into());
+        let res = handler
+            .handle(
+                PeerId::random(),
+                response.into(),
+                &Handle::new_test(),
+                Box::new(UnreachableExternalDataProvider),
+            )
+            .await;
+        assert_matches!(res, ResponseHandlerResult::NewRound(_));
     }
 }
