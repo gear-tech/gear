@@ -227,8 +227,8 @@ impl TestEnv {
             .unwrap()
             .expect("expect block will be processing");
 
-        let processed_announce = event.unwrap_announce_computed();
-        assert_eq!(processed_announce, announce_hash);
+        let computed_data = event.unwrap_announce_computed();
+        assert_eq!(computed_data.announce_hash, announce_hash);
 
         self.db.mutate_block_meta(announce.block_hash, |meta| {
             meta.announces.get_or_insert_default().insert(announce_hash);

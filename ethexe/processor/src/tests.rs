@@ -108,7 +108,7 @@ mod utils {
             block.header.height,
             Default::default(),
             Default::default(),
-            Default::default(),
+            vec![],
         );
 
         ProcessingHandler::new(db, transitions)
@@ -562,12 +562,7 @@ async fn many_waits() {
         .for_each(|(pid, cid)| processor.db.set_program_code_id(pid, cid));
 
     // Check all messages wake up and reply with "Hello, world!"
-    let transitions = InBlockTransitions::new(
-        wake_block.header.height,
-        states,
-        schedule,
-        Default::default(),
-    );
+    let transitions = InBlockTransitions::new(wake_block.header.height, states, schedule, vec![]);
     let transitions = processor.process_tasks(transitions);
     let transitions = processor
         .process_queues(transitions, wake_block, DEFAULT_BLOCK_GAS_LIMIT)
@@ -699,7 +694,7 @@ async fn overlay_execution() {
     let block2 = chain.blocks[2].to_simple();
     let mut handler = ProcessingHandler::new(
         processor.db.clone(),
-        InBlockTransitions::new(block2.header.height, states, schedule, Default::default()),
+        InBlockTransitions::new(block2.header.height, states, schedule, vec![]),
     );
 
     // Manually add messages to programs queues
