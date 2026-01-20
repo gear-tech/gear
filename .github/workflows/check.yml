@@ -159,11 +159,6 @@ jobs:
   workspace-hack:
     runs-on: ubuntu-latest
     steps:
-      - name: Free disk space
-        uses: jlumbroso/free-disk-space@main
-        with:
-          large-packages: false
-
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
         with:
