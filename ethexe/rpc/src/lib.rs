@@ -142,10 +142,13 @@ impl RpcService {
         }
     }
 
-    pub fn provide_promise(&self, promise: SignedPromise) {
+    /// Provides a bundle of promises inside RPC service to be sent to subscribers.
+    pub fn provide_promises(&self, promises: Vec<SignedPromise>) {
         let injected_api = self.injected_api.clone();
 
-        injected_api.send_promise(promise);
+        promises.into_iter().for_each(|promise| {
+            injected_api.send_promise(promise);
+        });
     }
 }
 

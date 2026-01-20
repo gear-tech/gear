@@ -2416,8 +2416,10 @@ async fn injected_tx_fungible_token() {
     // Listen for inclusion and check the expected payload.
     node.events()
         .find(|event| {
-            if let TestingEvent::Consensus(ConsensusEvent::Promise(promise)) = event {
-                let promise = promise.data();
+            if let TestingEvent::Consensus(ConsensusEvent::Promises(promises)) = event
+                && !promises.is_empty()
+            {
+                let promise = promises.first().unwrap().data();
                 assert_eq!(promise.reply.payload, expected_event.encode());
                 assert_eq!(
                     promise.reply.code,

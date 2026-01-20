@@ -6,15 +6,64 @@ on:
     types: [labeled, synchronize]
 
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
+  group: ${{ github.workflow }}-pr-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
 jobs:
+  gate:
+    name: Skip duplicates
+    runs-on: ubuntu-latest
+    outputs:
+      should_skip: ${{ steps.skip.outputs.should_skip }}
+    steps:
+      - name: Wait a bit for label storms
+        if: ${{ github.event.action == 'labeled' }}
+        run: sleep 10
+
+      - name: Only run latest workflow-run for this PR
+        id: skip
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+          RUN_ID: ${{ github.run_id }}
+          WF_REF: ${{ github.workflow_ref }}
+        run: |
+          set -euo pipefail
+
+          # github.workflow_ref looks like this, so we extract filename:
+          # owner/repo/.github/workflows/pr.yml@refs/pull/123/merge
+          wf_path="$(echo "$WF_REF" | sed -E 's#^[^/]*/[^/]*/##; s#@.*$##')"   # .github/workflows/PR.yml
+          wf_file="$(basename "$wf_path")"
+          echo "workflow file: $wf_file"
+
+          latest_id=$(
+            gh api "/repos/$REPO/actions/workflows/$wf_file/runs?per_page=50" \
+              | jq -r --arg PR "$PR" '
+                  .workflow_runs
+                  | map(select(.pull_requests | any(.number == ($PR|tonumber))))
+                  | sort_by(.run_number)
+                  | last
+                  | .id
+                '
+          )
+
+          echo "latest_id=$latest_id current=$RUN_ID"
+          if [ -n "$latest_id" ] && [ "$latest_id" != "$RUN_ID" ]; then
+            echo "should_skip=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "should_skip=false" >> "$GITHUB_OUTPUT"
+          fi
+
   check:
+    needs: gate
+    if: ${{ needs.gate.outputs.should_skip != 'true' }}
     uses: ./.github/workflows/check.yml
     secrets: inherit
 
   build:
+    needs: gate
+    if: ${{ needs.gate.outputs.should_skip != 'true' }}
     uses: ./.github/workflows/build.yml
     secrets: inherit
     with:
@@ -25,7 +74,8 @@ jobs:
       production: ${{ contains(github.event.pull_request.labels.*.name, 'E4-forceproduction') }}
 
   validator:
-    if: ${{ contains(github.event.pull_request.labels.*.name, 'check-validator') }}
+    needs: gate
+    if: ${{ needs.gate.outputs.should_skip != 'true' && contains(github.event.pull_request.labels.*.name, 'check-validator') }}
     uses: ./.github/workflows/validation.yml
     secrets:
       VARA_VALIDATOR_8: ${{ secrets.VARA_VALIDATOR_8 }}
@@ -33,5 +83,6 @@ jobs:
       VARA_SSH_PRIVATE_KEY: ${{ secrets.VARA_SSH_PRIVATE_KEY }}
 
   check-node-sync:
-    if: ${{ contains(github.event.pull_request.labels.*.name, 'check-node-sync') }}
+    needs: gate
+    if: ${{ needs.gate.outputs.should_skip != 'true' && contains(github.event.pull_request.labels.*.name, 'check-node-sync') }}
     uses: ./.github/workflows/check-node-sync.yml
