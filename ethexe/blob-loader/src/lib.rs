@@ -120,7 +120,12 @@ impl ConsensusLayerBlobReader {
             log::trace!("trying to get blob, attempt #{attempt}");
             match self.try_query_blob(tx_hash).await {
                 Ok(blob) => {
-                    match handle_blob(blob, expected_code_id, &mut previously_received_code_id, attempt) {
+                    match handle_blob(
+                        blob,
+                        expected_code_id,
+                        &mut previously_received_code_id,
+                        attempt,
+                    ) {
                         Ok(blob) => return Ok(blob),
                         Err(err) => last_err = Some(err),
                     }
