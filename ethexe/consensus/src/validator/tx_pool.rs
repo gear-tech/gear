@@ -48,7 +48,7 @@ pub struct SelectionOutput {
 /// Error returned when adding transaction to the pool.
 #[derive(Debug, Clone, thiserror::Error, PartialEq, Eq)]
 pub enum AddTransactionError {
-    #[error("Injected transaction is duplicate: {0}")]
+    #[error("Injected transaction with the same hash {0} is already present in the pool")]
     Duplicate(HashOf<InjectedTransaction>),
     // TODO: #5083 support non zero value transactions.
     #[error("Injected transaction with hash {0} has non-zero value")]
