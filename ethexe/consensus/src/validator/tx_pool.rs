@@ -45,10 +45,15 @@ pub struct SelectionOutput {
     pub removed_txs: Vec<RemovalNotification>,
 }
 
-/// This error returned when user trying to add the same transaction twice to the pool.
-#[derive(Debug, Clone, thiserror::Error)]
-#[error("Injected transaction with hash {0} already exists in the pool")]
-pub struct TxDuplicateError(pub HashOf<InjectedTransaction>);
+/// Error returned when adding transaction to the pool.
+#[derive(Debug, Clone, thiserror::Error, PartialEq, Eq)]
+pub enum AddTransactionError {
+    #[error("Injected transaction is duplicate: {0}")]
+    Duplicate(HashOf<InjectedTransaction>),
+    // TODO: #5083 support non zero value transactions.
+    #[error("Injected transaction with hash {0} has non-zero value")]
+    NonZeroValue(HashOf<InjectedTransaction>),
+}
 
 impl<DB> TransactionPool<DB>
 where
@@ -66,16 +71,21 @@ where
     pub fn add_transaction(
         &mut self,
         tx: SignedInjectedTransaction,
-    ) -> Result<(), TxDuplicateError> {
+    ) -> Result<(), AddTransactionError> {
         let tx_hash = tx.data().to_hash();
         tracing::trace!(?tx_hash, reference_block = ?tx.data().reference_block, "tx pool received new injected transaction");
+
+        if tx.data().value != 0 {
+            return Err(AddTransactionError::NonZeroValue(tx_hash));
+        }
 
         if self.inner.insert(tx_hash) {
             // Write tx in database only if its not already contains in pool.
             self.db.set_injected_transaction(tx);
             return Ok(());
         }
-        Err(TxDuplicateError(tx_hash))
+
+        Err(AddTransactionError::Duplicate(tx_hash))
     }
 
     /// Returns the injected transactions that are valid and can be included to announce.
@@ -93,7 +103,7 @@ where
         )?;
 
         let mut output = SelectionOutput::default();
-        let mut to_remove = Vec::new();
+        let mut remove_txs = vec![];
 
         for tx_hash in self.inner.iter() {
             let Some(tx) = self.db.injected_transaction(*tx_hash) else {
@@ -107,7 +117,7 @@ where
                     output.selected_txs.push(tx);
                     // TODO kuzmindev
                     // Note: remove tx from pool because of now we don't support transaction re-inclusion after reorgs.
-                    to_remove.push(*tx_hash);
+                    remove_txs.push(*tx_hash);
                 }
                 TransactionStatus::Pending(status) => {
                     tracing::trace!(tx_hash = ?tx_hash, state = %status, "tx is in pending status, keeping in pool")
@@ -118,12 +128,12 @@ where
                         tx_hash: *tx_hash,
                         reason,
                     });
-                    to_remove.push(*tx_hash)
+                    remove_txs.push(*tx_hash)
                 }
             }
         }
 
-        to_remove.into_iter().for_each(|tx_hash| {
+        remove_txs.into_iter().for_each(|tx_hash| {
             self.inner.remove(&tx_hash);
         });
 
@@ -185,10 +195,21 @@ mod tests {
 
         tx_pool
             .add_transaction(signed_tx.clone())
-            .expect("transaction is not duplicate");
+            .expect("transaction will be added");
         assert!(
             db.injected_transaction(tx_hash).is_some(),
             "tx should be stored in db"
+        );
+
+        // Append another tx with non-zero value, should be removed during selection.
+        let tx2 = InjectedTransaction {
+            value: 100,
+            ..InjectedTransaction::mock(())
+        };
+        let tx2_hash = tx2.to_hash();
+        assert_eq!(
+            tx_pool.add_transaction(signer.signed_message(key, tx2).unwrap()),
+            Err(AddTransactionError::NonZeroValue(tx2_hash))
         );
 
         let output = tx_pool
@@ -199,6 +220,11 @@ mod tests {
             output.selected_txs,
             vec![signed_tx],
             "tx should be selected for announce"
+        );
+        assert_eq!(
+            tx_pool.inner.len(),
+            0,
+            "no txs should remain in the pool after selection"
         );
     }
 }

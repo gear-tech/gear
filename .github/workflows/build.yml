@@ -150,8 +150,6 @@ jobs:
       - name: "ACTIONS: Setup caching"
         uses: ./.github/actions/rust-cache
         with:
-          us-access-key-id: "${{ secrets.GEAR_CI_S3_US_ACCESS_KEY_ID }}"
-          us-secret-access-key: "${{ secrets.GEAR_CI_S3_US_SECRET_ACCESS_KEY }}"
           eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
           eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
 
@@ -199,8 +197,6 @@ jobs:
       - name: "ACTIONS: Setup caching"
         uses: ./.github/actions/rust-cache
         with:
-          us-access-key-id: "${{ secrets.GEAR_CI_S3_US_ACCESS_KEY_ID }}"
-          us-secret-access-key: "${{ secrets.GEAR_CI_S3_US_SECRET_ACCESS_KEY }}"
           eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
           eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
 
@@ -244,8 +240,6 @@ jobs:
       - name: Setup caching
         uses: ./.github/actions/rust-cache
         with:
-          us-access-key-id: "${{ secrets.GEAR_CI_S3_US_ACCESS_KEY_ID }}"
-          us-secret-access-key: "${{ secrets.GEAR_CI_S3_US_SECRET_ACCESS_KEY }}"
           eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
           eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
 
@@ -285,8 +279,6 @@ jobs:
       - name: "ACTIONS: Setup caching"
         uses: ./.github/actions/rust-cache
         with:
-          us-access-key-id: "${{ secrets.GEAR_CI_S3_US_ACCESS_KEY_ID }}"
-          us-secret-access-key: "${{ secrets.GEAR_CI_S3_US_SECRET_ACCESS_KEY }}"
           eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
           eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
           key: "${{ matrix.profiles.name }}"
@@ -358,8 +350,6 @@ jobs:
       - name: "ACTIONS: Setup caching"
         uses: ./.github/actions/rust-cache
         with:
-          us-access-key-id: "${{ secrets.GEAR_CI_S3_US_ACCESS_KEY_ID }}"
-          us-secret-access-key: "${{ secrets.GEAR_CI_S3_US_SECRET_ACCESS_KEY }}"
           eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
           eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
           cache-all-crates: true
@@ -386,8 +376,6 @@ jobs:
       - name: "ACTIONS: Setup caching"
         uses: ./.github/actions/rust-cache
         with:
-          us-access-key-id: "${{ secrets.GEAR_CI_S3_US_ACCESS_KEY_ID }}"
-          us-secret-access-key: "${{ secrets.GEAR_CI_S3_US_SECRET_ACCESS_KEY }}"
           eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
           eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
 
@@ -451,8 +439,6 @@ jobs:
       - name: "ACTIONS: Setup caching"
         uses: ./.github/actions/rust-cache
         with:
-          us-access-key-id: "${{ secrets.GEAR_CI_S3_US_ACCESS_KEY_ID }}"
-          us-secret-access-key: "${{ secrets.GEAR_CI_S3_US_SECRET_ACCESS_KEY }}"
           eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
           eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
           key: "${{ matrix.profiles.name }}"
@@ -515,8 +501,6 @@ jobs:
       - name: "ACTIONS: Setup caching"
         uses: ./.github/actions/rust-cache
         with:
-          us-access-key-id: "${{ secrets.GEAR_CI_S3_US_ACCESS_KEY_ID }}"
-          us-secret-access-key: "${{ secrets.GEAR_CI_S3_US_SECRET_ACCESS_KEY }}"
           eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
           eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
 

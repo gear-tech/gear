@@ -71,10 +71,6 @@ impl<DB: OnChainStorageRO + AnnounceStorageRO + Storage> TransactionStatusResolv
             return Ok(InvalidReason::Outdated.into());
         }
 
-        if !self.is_reference_block_on_current_branch(reference_block)? {
-            return Ok(PendingStatus::NotOnCurrentBranch.into());
-        }
-
         if self.recent_included_txs.contains(&tx.data().to_hash()) {
             return Ok(InvalidReason::AlreadyIncluded.into());
         }
@@ -82,6 +78,10 @@ impl<DB: OnChainStorageRO + AnnounceStorageRO + Storage> TransactionStatusResolv
         let Some(destination_state_hash) = self.latest_states.get(&tx.data().destination) else {
             return Ok(InvalidReason::UnknownDestination.into());
         };
+
+        if !self.is_reference_block_on_current_branch(reference_block)? {
+            return Ok(PendingStatus::NotOnCurrentBranch.into());
+        }
 
         let Some(state) = self.db.program_state(destination_state_hash.hash) else {
             anyhow::bail!(
@@ -176,7 +176,7 @@ mod tests {
         db::{AnnounceStorageRW, OnChainStorageRW},
         ecdsa::PrivateKey,
         injected::VALIDITY_WINDOW,
-        mock::{BlockChain, Mock},
+        mock::*,
         tx_pool::InvalidReason,
     };
     use ethexe_db::Database;
