@@ -113,14 +113,14 @@ struct ConsensusLayerBlobReader {
 }
 
 impl ConsensusLayerBlobReader {
-    async fn read_blob(&self, code_id: CodeId, tx_hash: H256) -> ReaderResult<Vec<u8>> {
+    async fn read_blob(&self, expected_code_id: CodeId, tx_hash: H256) -> ReaderResult<Vec<u8>> {
         let mut last_err = None;
         let mut previously_received_code_id = None;
         for attempt in 0..self.config.attempts.get() {
             log::trace!("trying to get blob, attempt #{attempt}");
             match self.try_query_blob(tx_hash).await {
                 Ok(blob) => {
-                    match handle_blob(blob, code_id, &mut previously_received_code_id, attempt) {
+                    match handle_blob(blob, expected_code_id, &mut previously_received_code_id, attempt) {
                         Ok(blob) => return Ok(blob),
                         Err(err) => last_err = Some(err),
                     }
@@ -475,7 +475,7 @@ mod tests {
                 expected,
                 found,
             }) if expected == code_id && found == blob_code_id
-        ),);
+        ));
 
         // empty blob
         let blob = vec![];
