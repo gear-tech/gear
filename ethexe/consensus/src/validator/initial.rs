@@ -31,7 +31,7 @@ use derive_more::{Debug, Display};
 use ethexe_common::{
     SimpleBlockData,
     db::OnChainStorageRO,
-    network::{AnnouncesRequest, CheckedAnnouncesResponse},
+    network::{AnnouncesRequest, AnnouncesResponse},
 };
 use gprimitives::H256;
 
@@ -171,10 +171,7 @@ impl StateHandler for Initial {
         }
     }
 
-    fn process_announces_response(
-        mut self,
-        response: CheckedAnnouncesResponse,
-    ) -> Result<ValidatorState> {
+    fn process_announces_response(mut self, response: AnnouncesResponse) -> Result<ValidatorState> {
         match self.state {
             WaitingFor::MissingAnnounces {
                 block,
@@ -374,20 +371,21 @@ mod tests {
         };
         assert_eq!(state.context().output, vec![expected_request.into()]);
 
-        let response = AnnouncesResponse {
-            announces: vec![
-                chain
-                    .announces
-                    .get(&chain.block_top_announce_hash(last - 3))
-                    .unwrap()
-                    .announce
-                    .clone(),
-                announce2.clone(),
-                announce1.clone(),
-            ],
-        }
-        .try_into_checked(expected_request)
-        .unwrap();
+        let response = unsafe {
+            AnnouncesResponse::from_parts(
+                expected_request,
+                vec![
+                    chain
+                        .announces
+                        .get(&chain.block_top_announce_hash(last - 3))
+                        .unwrap()
+                        .announce
+                        .clone(),
+                    announce2.clone(),
+                    announce1.clone(),
+                ],
+            )
+        };
 
         // In successful case no new events are produced
         let state = state.process_announces_response(response).unwrap();
@@ -556,22 +554,23 @@ mod tests {
         let invalid_announce = Announce::base(H256::random(), HashOf::random());
         let invalid_announce_hash = invalid_announce.to_hash();
 
+        let response = unsafe {
+            AnnouncesResponse::from_parts(
+                AnnouncesRequest {
+                    head: invalid_announce_hash,
+                    until: NonZeroU32::new(1).unwrap().into(),
+                },
+                vec![invalid_announce],
+            )
+        };
+
         let state = Initial::create_with_chain_head(ctx, block)
             .unwrap()
             .process_synced_block(block.hash)
             .unwrap()
             .process_prepared_block(block.hash)
             .unwrap()
-            .process_announces_response(
-                AnnouncesResponse {
-                    announces: vec![invalid_announce],
-                }
-                .try_into_checked(AnnouncesRequest {
-                    head: invalid_announce_hash,
-                    until: NonZeroU32::new(1).unwrap().into(),
-                })
-                .unwrap(),
-            )
+            .process_announces_response(response)
             .unwrap();
         assert!(state.is_initial(), "got {:?}", state);
         assert_eq!(state.context().output.len(), 2);
@@ -630,19 +629,20 @@ mod tests {
         };
         assert_eq!(state.context().output, vec![expected_request.into()]);
 
-        let response = AnnouncesResponse {
-            announces: vec![
-                chain
-                    .announces
-                    .get(&chain.block_top_announce_hash(last - 7))
-                    .unwrap()
-                    .announce
-                    .clone(),
-                unknown_announce,
-            ],
-        }
-        .try_into_checked(expected_request)
-        .unwrap();
+        let response = unsafe {
+            AnnouncesResponse::from_parts(
+                expected_request,
+                vec![
+                    chain
+                        .announces
+                        .get(&chain.block_top_announce_hash(last - 7))
+                        .unwrap()
+                        .announce
+                        .clone(),
+                    unknown_announce,
+                ],
+            )
+        };
 
         let state = state.process_announces_response(response).unwrap();
         assert!(state.is_subordinate(), "got {:?}", state);

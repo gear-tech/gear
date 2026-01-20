@@ -59,7 +59,7 @@ use ethexe_common::{
     db::OnChainStorageRO,
     ecdsa::{PublicKey, SignedMessage},
     injected::SignedInjectedTransaction,
-    network::CheckedAnnouncesResponse,
+    network::AnnouncesResponse,
 };
 use ethexe_db::Database;
 use ethexe_ethereum::middleware::ElectionProvider;
@@ -229,7 +229,7 @@ impl ConsensusService for ValidatorService {
         self.update_inner(|inner| inner.process_validation_reply(reply))
     }
 
-    fn receive_announces_response(&mut self, response: CheckedAnnouncesResponse) -> Result<()> {
+    fn receive_announces_response(&mut self, response: AnnouncesResponse) -> Result<()> {
         self.update_inner(|inner| inner.process_announces_response(response))
     }
 
@@ -339,10 +339,7 @@ where
         DefaultProcessing::validation_reply(self, reply)
     }
 
-    fn process_announces_response(
-        self,
-        _response: CheckedAnnouncesResponse,
-    ) -> Result<ValidatorState> {
+    fn process_announces_response(self, _response: AnnouncesResponse) -> Result<ValidatorState> {
         DefaultProcessing::announces_response(self, _response)
     }
 
@@ -430,10 +427,7 @@ impl StateHandler for ValidatorState {
         delegate_call!(self => process_validation_reply(reply))
     }
 
-    fn process_announces_response(
-        self,
-        response: CheckedAnnouncesResponse,
-    ) -> Result<ValidatorState> {
+    fn process_announces_response(self, response: AnnouncesResponse) -> Result<ValidatorState> {
         delegate_call!(self => process_announces_response(response))
     }
 
@@ -511,7 +505,7 @@ impl DefaultProcessing {
 
     fn announces_response(
         s: impl Into<ValidatorState>,
-        response: CheckedAnnouncesResponse,
+        response: AnnouncesResponse,
     ) -> Result<ValidatorState> {
         let mut s = s.into();
         s.warning(format!(
