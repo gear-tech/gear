@@ -215,11 +215,6 @@ jobs:
     permissions:
       contents: write
     steps:
-      - name: Free disk space
-        uses: jlumbroso/free-disk-space@main
-        with:
-          large-packages: false
-
       - name: Checkout
         uses: actions/checkout@v4
         with:
@@ -416,11 +411,6 @@ jobs:
       fail-fast: false
     name: try-runtime (${{ matrix.profiles.name }})
     steps:
-      - name: "ACTIONS: Free disk space"
-        uses: jlumbroso/free-disk-space@main
-        with:
-          large-packages: false
-
       - name: "ACTIONS: Checkout"
         uses: actions/checkout@v4
 
