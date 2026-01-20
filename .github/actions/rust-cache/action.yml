@@ -64,6 +64,12 @@ runs:
         echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
       shell: bash
 
+    # GitHub hosted runners have no enough space for big Rust caches
+    - if: ${{ runner.environment == 'github-hosted' }}
+      uses: jlumbroso/free-disk-space@main
+      with:
+        large-packages: false
+
     - id: date
       run: echo "value=$(date +%Y)-$(( $(date +%W) - $(date +%W) % 2 ))" >> $GITHUB_OUTPUT
       shell: bash
