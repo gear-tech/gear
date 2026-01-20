@@ -75,13 +75,13 @@ impl<DB: OnChainStorageRO + AnnounceStorageRO + Storage> TransactionStatusResolv
             return Ok(InvalidReason::AlreadyIncluded.into());
         }
 
-        let Some(destination_state_hash) = self.latest_states.get(&tx.data().destination) else {
-            return Ok(InvalidReason::UnknownDestination.into());
-        };
-
         if !self.is_reference_block_on_current_branch(reference_block)? {
             return Ok(PendingStatus::NotOnCurrentBranch.into());
         }
+
+        let Some(destination_state_hash) = self.latest_states.get(&tx.data().destination) else {
+            return Ok(InvalidReason::UnknownDestination.into());
+        };
 
         let Some(state) = self.db.program_state(destination_state_hash.hash) else {
             anyhow::bail!(
