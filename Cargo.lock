@@ -176,6 +176,7 @@ checksum = "7734aecfc58a597dde036e4c5cace2ae43e2f8bf3d406b022a1ef34da178dd49"
 dependencies = [
  "alloy-primitives",
  "num_enum 0.7.2",
+ "serde",
  "strum 0.27.1",
 ]
 
@@ -4952,6 +4953,7 @@ dependencies = [
 name = "ethexe-cli"
 version = "1.10.0"
 dependencies = [
+ "alloy-chains",
  "anyhow",
  "clap 4.5.23",
  "directories",

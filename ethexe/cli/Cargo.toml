@@ -32,6 +32,7 @@ ethexe-processor.workspace = true
 gprimitives = { workspace = true, features = ["std"] }
 
 anyhow.workspace = true
+alloy-chains.workspace = true
 clap = { workspace = true, features = ["derive"] }
 directories.workspace = true
 tracing-subscriber.workspace = true
