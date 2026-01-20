@@ -29,7 +29,6 @@ serde = { workspace = true, features = ["std"] }
 tracing.workspace = true
 dashmap.workspace = true
 gear-workspace-hack.workspace = true
-derive_more.workspace = true
 either.workspace = true
 
 [dev-dependencies]
