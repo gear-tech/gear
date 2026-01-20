@@ -97,7 +97,7 @@ impl Event {
                 transaction,
                 channel,
             } => (transaction, channel),
-            _ => panic!("Expected NewInjectedTransaction event"),
+            _ => panic!("Expected InboundTransaction event"),
         }
     }
 
@@ -109,7 +109,7 @@ impl Event {
                 transaction_hash,
                 acceptance,
             } => (transaction_hash, acceptance),
-            _ => panic!("Expected InjectedTransactionAcceptance event"),
+            _ => panic!("Expected OutboundAcceptance event"),
         }
     }
 }
