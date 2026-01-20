@@ -67,16 +67,3 @@ runs:
     - id: date
       run: echo "value=$(date +%Y)-$(( $(date +%W) - $(date +%W) % 2 ))" >> $GITHUB_OUTPUT
       shell: bash
-
-    - uses: gear-tech/rust-cache@wasm
-      with:
-        prefix-key: 'rust-cache/date-${{ steps.date.outputs.value }}-workspace-hack'
-        key: ${{ inputs.key }}
-        workspaces: |
-          . -> target
-          utils/wasm-builder/test-program -> target
-          utils/cargo-gbuild/test-program -> target
-        cache-provider: ${{ steps.env.outputs.cache-provider }}
-        cache-all-crates: ${{ inputs.cache-all-crates }}
-      env:
-        RUNS_ON_S3_BUCKET_CACHE: gear-ci
