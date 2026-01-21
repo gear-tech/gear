@@ -34,7 +34,10 @@ use gear_core::{
     message::{ReplyCode, SuccessReplyReason},
     rpc::ReplyInfo,
 };
-use jsonrpsee::{server::ServerHandle, ws_client::WsClientBuilder};
+use jsonrpsee::{
+    server::ServerHandle,
+    ws_client::{WsClient, WsClientBuilder},
+};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use tokio::task::{JoinHandle, JoinSet};
 
@@ -68,7 +71,7 @@ impl MockService {
             loop {
                 tokio::select! {
                     _ = tx_batch_interval.tick() => {
-                        let promises = tx_batch.drain(..).map(Self::create_promise_for).collect();
+                        let promises = tx_batch.drain(..).map(Self::create_promise).collect();
                         self.rpc.provide_promises(promises);
                     },
                     _ = self.handle.clone().stopped() => {
@@ -85,12 +88,14 @@ impl MockService {
         })
     }
 
-    fn create_promise_for(tx: RpcOrNetworkInjectedTx) -> SignedPromise {
+    fn create_promise(tx: RpcOrNetworkInjectedTx) -> SignedPromise {
+        let tx = tx.tx.into_data();
         let promise = Promise {
-            tx_hash: tx.tx.data().to_hash(),
+            tx_hash: tx.to_hash(),
             reply: ReplyInfo {
                 payload: vec![],
-                value: 0,
+                // Take value from the transaction for testing purposes.
+                value: tx.value,
                 code: ReplyCode::Success(SuccessReplyReason::Manual),
             },
         };
@@ -118,9 +123,18 @@ async fn wait_for_closed_subscriptions(injected_api: InjectedApi) {
     }
 }
 
+/// Creates a new WebSocket client connected to the given address.
+async fn ws_client(addr: SocketAddr) -> WsClient {
+    WsClientBuilder::new()
+        .build(format!("ws://{addr}"))
+        .await
+        .expect("WS client will be created")
+}
+
 #[tokio::test]
 #[ntest::timeout(20_000)]
 async fn test_cleanup_promise_subscribers() {
+    let _ = tracing_subscriber::fmt::try_init();
     let listen_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8002);
     let service = MockService::new(listen_addr).await;
     let injected_api = service.injected_api();
@@ -128,10 +142,7 @@ async fn test_cleanup_promise_subscribers() {
     // Spawn the mock service main loop.
     let _handle = service.spawn();
 
-    let ws_client = WsClientBuilder::new()
-        .build(format!("ws://{}", listen_addr))
-        .await
-        .expect("WS client will be created");
+    let ws_client = ws_client(listen_addr).await;
 
     // Correct workflow: send transaction, receive promise, unsubscribe.
     {
@@ -205,10 +216,11 @@ async fn test_cleanup_promise_subscribers() {
     }
 }
 
-// Setup worker-threads=4 to simulate concurrent clients.
 #[tokio::test]
 #[ntest::timeout(120_000)]
 async fn test_concurrent_multiple_clients() {
+    let _ = tracing_subscriber::fmt::try_init();
+
     let listen_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8010);
     let service = MockService::new(listen_addr).await;
     let injected_api = service.injected_api();
@@ -219,11 +231,7 @@ async fn test_concurrent_multiple_clients() {
     let mut tasks = JoinSet::new();
     for _ in 0..10 {
         tasks.spawn(async move {
-            let client = WsClientBuilder::new()
-                .build(format!("ws://{listen_addr}"))
-                .await
-                .expect("WS client will be created");
-
+            let client = ws_client(listen_addr).await;
             // Each client sequentially creates 50 subscriptions.
             let mut subscriptions = vec![];
             for _ in 0..50 {

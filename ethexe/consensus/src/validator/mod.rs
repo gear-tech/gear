@@ -54,11 +54,11 @@ use anyhow::{Result, anyhow};
 pub use core::BatchCommitter;
 use derive_more::{Debug, From};
 use ethexe_common::{
-    Address, ComputedAnnounce, SimpleBlockData, ToDigest,
+    Address, ComputedAnnounce, SimpleBlockData,
     consensus::{VerifiedAnnounce, VerifiedValidationRequest},
     db::OnChainStorageRO,
-    ecdsa::{PublicKey, SignedMessage},
-    injected::SignedInjectedTransaction,
+    ecdsa::PublicKey,
+    injected::{Promise, SignedInjectedTransaction, SignedPromise},
     network::CheckedAnnouncesResponse,
 };
 use ethexe_db::Database;
@@ -557,7 +557,10 @@ impl ValidatorContext {
         self.pending_events.push_front(event.into());
     }
 
-    pub fn sign_message<T: Sized + ToDigest>(&self, data: T) -> Result<SignedMessage<T>> {
-        self.core.signer.signed_message(self.core.pub_key, data)
+    pub fn sign_promises(&mut self, promises: Vec<Promise>) -> Result<Vec<SignedPromise>> {
+        promises
+            .into_iter()
+            .map(|promise| self.core.signer.signed_message(self.core.pub_key, promise))
+            .collect::<Result<Vec<_>, _>>()
     }
 }

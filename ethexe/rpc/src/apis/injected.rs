@@ -17,20 +17,34 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{RpcEvent, errors};
-use dashmap::DashMap;
+use dashmap::{DashMap, DashSet};
 use ethexe_common::{
     HashOf,
-    injected::{InjectedTransaction, RpcOrNetworkInjectedTx, SignedPromise},
+    injected::{InjectedTransaction, RpcOrNetworkInjectedTx, SignedPromise, VALIDITY_WINDOW},
 };
+use futures::StreamExt;
 use jsonrpsee::{
     PendingSubscriptionSink, SubscriptionMessage, SubscriptionSink,
     core::{RpcResult, SubscriptionResult, async_trait},
     proc_macros::rpc,
-    types::error::ErrorObjectOwned,
+    types::{ErrorObject, ErrorObjectOwned},
 };
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
-use tokio::sync::{mpsc, oneshot};
+use tokio::{
+    sync::{broadcast, mpsc, oneshot},
+    time::{Duration, timeout},
+};
+use tokio_stream::wrappers::BroadcastStream;
+
+const MAX_PROMISE_CHANNEL_CAPACITY: usize = 1024;
+
+/// The timeout for receiving the promise for an injected transaction.
+///
+/// Important: if promise is not received within a [`VALIDITY_WINDOW`], we assume that
+///            the transaction is lost in the network and we should stop waiting for its promise.
+const PROMISE_RECEIVING_TIMEOUT: Duration =
+    Duration::from_secs(alloy::eips::merge::SLOT_DURATION_SECS * VALIDITY_WINDOW as u64);
 
 /// Determines whether the injected transaction was accepted by the main service.
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -58,15 +72,22 @@ pub trait Injected {
         &self,
         transaction: RpcOrNetworkInjectedTx,
     ) -> SubscriptionResult;
+
+    #[subscription(
+        name = "injected_subscribePromises",
+        unsubscribe = "injected_unsubscribePromises",
+        item = SignedPromise
+    )]
+    async fn subscribe_promises(&self) -> SubscriptionResult;
 }
 
 /// Implementation of the injected transactions RPC API.
-#[derive(Debug, Clone)]
+#[derive(derive_more::Debug, Clone)]
 pub struct InjectedApi {
     /// Sender to forward RPC events to the main service.
     rpc_sender: mpsc::UnboundedSender<RpcEvent>,
-    /// Map of promise waiters.
-    promise_waiters: Arc<DashMap<HashOf<InjectedTransaction>, oneshot::Sender<SignedPromise>>>,
+    #[debug(skip)]
+    promise_manager: PromiseManager,
 }
 
 #[async_trait]
@@ -89,54 +110,103 @@ impl InjectedServer for InjectedApi {
         transaction: RpcOrNetworkInjectedTx,
     ) -> SubscriptionResult {
         let tx_hash = transaction.tx.data().to_hash();
-        tracing::trace!(%tx_hash, "Called injected_subscribeTransactionPromise");
+        tracing::trace!(%tx_hash, ?transaction, "Called injected_sendTransactionAndWatch");
 
-        // Check, that transaction wasn't already send.
-        if self.promise_waiters.get(&tx_hash).is_some() {
-            tracing::warn!(tx_hash = ?tx_hash, "transaction was already sent");
-            return Err(
-                format!("transaction with the same hash was already sent: {tx_hash}").into(),
-            );
+        // Registering a new promise waiter.
+        // Registering must be done before forwarding the transaction to avoid race conditions.
+        if !self.promise_manager.register_pending_subscription(tx_hash) {
+            tracing::trace!(tx_hash = ?tx_hash, "rejecting subscription: subscriber already exists");
+
+            // Rejecting the subscription.
+            pending
+                .reject(errors::bad_request(
+                    SubscriberAlreadyExistsError(tx_hash).to_string(),
+                ))
+                .await;
+            return Ok(());
         }
 
-        let _acceptance = self.forward_transaction(transaction).await?;
+        // TODO kuzmindev: handle the InjectedTransactionAcceptance::Reject case.
+        match self.forward_transaction(transaction).await {
+            Ok(InjectedTransactionAcceptance::Accept) => (), // nothing to do
+            Err(err) => {
+                tracing::warn!("failed to forward injected transaction: {err}");
+                // Clean up the pending subscription on failure.
+                self.promise_manager.remove_pending_subscription(&tx_hash);
+                return Err(err.into());
+            }
+        }
 
-        // Try accept subscription, if some errors occur, just log them and return error to client.
         let subscription_sink = pending.accept().await.inspect_err(|err| {
             tracing::warn!("failed to accept subscription for injected transaction promise: {err}");
+            // Clean up the pending subscription on failure.
+            self.promise_manager.remove_pending_subscription(&tx_hash);
         })?;
 
-        let (promise_sender, promise_receiver) = oneshot::channel();
-        self.promise_waiters.insert(tx_hash, promise_sender);
+        tracing::trace!(?tx_hash, "Accept transaction, start promise waiter");
+
+        // let promise_receiver = unsafe { self.promise_manager.register_waiter_unchecked(tx_hash) };
+        let promise_receiver = self.promise_manager.register_promise_waiter(tx_hash);
         self.spawn_promise_waiter(subscription_sink, promise_receiver, tx_hash);
 
         Ok(())
     }
-}
 
+    async fn subscribe_promises(&self, pending: PendingSubscriptionSink) -> SubscriptionResult {
+        tracing::trace!("Called injected_subscribePromises");
+        let sink = pending.accept().await?;
+        let mut stream = self.promise_manager.new_promises_stream();
+
+        tokio::spawn(async move {
+            loop {
+                tokio::select! {
+                    _ = sink.closed() => {
+                        tracing::error!("Promise subscription sink closed");
+                        break
+                    }
+                    maybe_result = stream.next() => match maybe_result{
+                        Some(Ok(promise)) => {
+                            let Ok(msg) = subscription_message(&promise) else {
+                                // Skip sending message if serialization fails.
+                                continue;
+                            };
+                            if sink.send(msg).await.is_err() {
+                                tracing::trace!("promises stream subscriber disconnected, finishing subscription");
+                                break;
+                            }
+                        }
+                        Some(Err(err)) => {
+                            tracing::trace!("Promise subscription lagged by {err} messages");
+                            // TODO kuzmindev: handle lagging case properly
+                            continue
+                        },
+                        None => {
+                            tracing::trace!("Promise stream ended");
+                            break
+                        }
+                    }
+                }
+            }
+        });
+        Ok(())
+    }
+}
 impl InjectedApi {
     pub(crate) fn new(rpc_sender: mpsc::UnboundedSender<RpcEvent>) -> Self {
         Self {
             rpc_sender,
-            promise_waiters: Arc::new(DashMap::new()),
+            promise_manager: PromiseManager::new(),
         }
     }
 
-    pub fn send_promise(&self, promise: SignedPromise) {
-        let Some((_, promise_sender)) = self.promise_waiters.remove(&promise.data().tx_hash) else {
-            tracing::warn!(promise = ?promise, "receive unregistered promise");
-            return;
-        };
-
-        if let Err(promise) = promise_sender.send(promise) {
-            tracing::trace!(promise = ?promise, "rpc promise receiver dropped");
-        }
+    pub(crate) fn send_promise(&self, promise: SignedPromise) {
+        self.promise_manager.handle_promise(promise);
     }
 
     /// Returns the number of current promise subscribers waiting for promises.
     #[cfg(test)]
     pub fn promise_subscribers_count(&self) -> usize {
-        self.promise_waiters.len()
+        self.promise_manager.promise_waiters.len()
     }
 
     /// This function forwards [`RpcOrNetworkInjectedTx`] to main service and waits for its acceptance.
@@ -171,7 +241,7 @@ impl InjectedApi {
             return Err(errors::internal());
         }
 
-        tracing::trace!(%tx_hash, "Accept transaction, waiting for promise");
+        tracing::trace!(%tx_hash, "Accept transaction, waiting for acceptance");
 
         response_receiver.await.map_err(|e| {
             // No panic case, as a responsibility of the RPC API is fulfilled.
@@ -192,44 +262,170 @@ impl InjectedApi {
         tx_hash: HashOf<InjectedTransaction>,
     ) {
         // This clone is cheap, as it only increases the ref count.
-        let promise_waiters = self.promise_waiters.clone();
+        let promises_manager = self.promise_manager.clone();
 
         tokio::spawn(async move {
-            // Waiting for promise or client disconnection.
+            // Applying timeout to the receiver to avoid the infinite waiting for promise.
+            let receiver = timeout(PROMISE_RECEIVING_TIMEOUT, receiver);
+
+            // Waiting for promise, client disconnection or timeout.
             let promise = tokio::select! {
-                result = receiver => match result {
-                    Ok(promise) => {
-                        promise_waiters.remove(&tx_hash);
-                        promise
-                    }
-                    Err(_) => {
-                        unreachable!("promise sender is owned by the api; it cannot be dropped before this point")
+                result = receiver => {
+                    promises_manager.remove_waiter(&tx_hash);
+                    match result {
+                        Ok(Ok(promise)) => promise,
+                        Ok(Err(_)) => {
+                            unreachable!("promise sender is owned by the api; it cannot be dropped before this point")
+                        }
+                        Err(_) => {
+                            todo!("handle this after PR with RemovalNotification")
+                        }
                     }
                 },
                 _ = sink.closed() => {
-                    promise_waiters.remove(&tx_hash);
+                    promises_manager.remove_waiter(&tx_hash);
                     return;
                 },
             };
 
-            let promise_msg = match SubscriptionMessage::from_json(&promise) {
-                Ok(msg) => msg,
-                Err(err) => {
-                    tracing::error!(
-                        error = %err,
-                        "failed to create `SubscriptionMessage` from json object"
-                    );
-                    return;
-                }
+            let Ok(promise_msg) = subscription_message(&promise) else {
+                return;
             };
 
             if let Err(err) = sink.send(promise_msg).await {
-                tracing::warn!(
+                tracing::trace!(
                     tx_hash = ?tx_hash,
                     error = %err,
-                    "failed to send subscription message"
+                    "failed to send subscription message, client disconnected"
                 )
             }
         });
     }
+}
+
+/// [`PromiseManager`] is responsible for delivering signed promises
+/// to waiters for exact injected tx promise and broadcasting all
+/// incoming promises to subscribers.
+#[derive(Clone)]
+struct PromiseManager {
+    /// The set of pending subscriptions for injected transactions.
+    /// If a transaction will be accepted by a main service, a waiter for its promise will be registered.
+    pending_subscriptions: Arc<DashSet<HashOf<InjectedTransaction>>>,
+    /// The waiters for exact injected tx promises.
+    promise_waiters: Arc<DashMap<HashOf<InjectedTransaction>, oneshot::Sender<SignedPromise>>>,
+    /// The broadcaster for promise subscribers ([`InjectedServer::subscribe_promises`]).
+    promise_broadcaster: broadcast::Sender<SignedPromise>,
+}
+
+/// Error returned when a subscriber for an injected transaction already exists.
+#[derive(thiserror::Error, Debug, Clone)]
+#[error("Subscriber for injected transaction with hash {0} already exists")]
+pub struct SubscriberAlreadyExistsError(HashOf<InjectedTransaction>);
+
+impl PromiseManager {
+    /// Creates a new instance of [`PromiseManager`].
+    pub(crate) fn new() -> Self {
+        let promise_broadcaster = broadcast::Sender::new(MAX_PROMISE_CHANNEL_CAPACITY);
+        Self {
+            pending_subscriptions: Default::default(),
+            promise_waiters: Default::default(),
+            promise_broadcaster,
+        }
+    }
+
+    /// Creates a new stream of signed promises for [`InjectedServer::subscribe_promises`].
+    pub(crate) fn new_promises_stream(&self) -> BroadcastStream<SignedPromise> {
+        tracing::trace!("Creating new promise stream for subscriber");
+        BroadcastStream::new(self.promise_broadcaster.subscribe())
+    }
+
+    /// Handles an incoming signed promise.
+    /// 1. If there is a waiter for the promise's transaction hash, sends the promise to it.
+    /// 2. Broadcasts the promise to all subscribers.
+    pub(crate) fn handle_promise(&self, promise: SignedPromise) {
+        let tx_hash = promise.data().tx_hash;
+
+        // Send to specific waiter if exists.
+        if let Some((_, waiter)) = self.promise_waiters.remove(&tx_hash) {
+            match waiter.send(promise.clone()) {
+                Ok(()) => {
+                    tracing::trace!(%tx_hash, ?promise, "successfully send promise to waiter");
+                }
+                Err(promise) => {
+                    tracing::trace!(%tx_hash, ?promise, "failed to send promise because waiter dropped");
+                }
+            }
+        }
+
+        // Broadcast to all subscribers.
+        match self.promise_broadcaster.send(promise) {
+            Ok(receivers_count) => {
+                tracing::trace!("promise broadcasted to {receivers_count} subscribers");
+            }
+            Err(err) => {
+                tracing::trace!(
+                    "there are no subscribers to receive the broadcasted promise: {err}",
+                );
+            }
+        }
+    }
+
+    /// Handles a new pending subscription for the given transaction hash.
+    /// Returns `true` if the subscription was successfully registered,
+    /// or `false` if a pending subscription or a waiter for the given transaction hash already exists.
+    pub(crate) fn register_pending_subscription(
+        &self,
+        tx_hash: HashOf<InjectedTransaction>,
+    ) -> bool {
+        if self.promise_waiters.contains_key(&tx_hash) {
+            return false;
+        }
+        self.pending_subscriptions.insert(tx_hash)
+    }
+
+    /// Removes the pending subscription for the given transaction hash.
+    pub(crate) fn remove_pending_subscription(
+        &self,
+        tx_hash: &HashOf<InjectedTransaction>,
+    ) -> bool {
+        self.pending_subscriptions.remove(tx_hash).is_some()
+    }
+
+    /// Registers a new promise waiter for the given transaction hash.
+    ///
+    /// Returns an error if a waiter for the given transaction hash already exists.
+    pub(crate) fn register_promise_waiter(
+        &self,
+        tx_hash: HashOf<InjectedTransaction>,
+    ) -> oneshot::Receiver<SignedPromise> {
+        let (sender, receiver) = oneshot::channel();
+
+        // Important: the order of operations is important to avoid case when a new subscription
+        //            arrives between removing pending subscription and inserting waiter.
+        self.promise_waiters.insert(tx_hash, sender);
+        self.pending_subscriptions.remove(&tx_hash);
+
+        receiver
+    }
+
+    /// Remove the promise waiter for the given transaction hash.
+    pub(crate) fn remove_waiter(&self, tx_hash: &HashOf<InjectedTransaction>) -> bool {
+        self.promise_waiters.remove(tx_hash).is_some()
+    }
+}
+
+/// Helper function to create a subscription message from serializable data.
+pub(crate) fn subscription_message<T>(data: &T) -> Result<SubscriptionMessage, ErrorObjectOwned>
+where
+    T: Serialize + std::fmt::Debug,
+{
+    SubscriptionMessage::from_json(data).map_err(|err| {
+        tracing::trace!(
+            ?data,
+            %err,
+            "failed to create `SubscriptionMessage` from json object"
+        );
+
+        ErrorObject::owned(8000, format!("serialization error: {err}"), None::<String>)
+    })
 }

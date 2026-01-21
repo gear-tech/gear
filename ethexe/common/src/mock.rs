@@ -26,10 +26,14 @@ use crate::{
     ecdsa::{PrivateKey, SignedMessage},
     events::BlockEvent,
     gear::{BatchCommitment, ChainCommitment, CodeCommitment, Message, StateTransition},
-    injected::{InjectedTransaction, RpcOrNetworkInjectedTx},
+    injected::{InjectedTransaction, Promise, RpcOrNetworkInjectedTx},
 };
 use alloc::{collections::BTreeMap, vec};
-use gear_core::code::{CodeMetadata, InstrumentedCode};
+use gear_core::{
+    code::{CodeMetadata, InstrumentedCode},
+    message::{ReplyCode, SuccessReplyReason},
+    rpc::ReplyInfo,
+};
 use gprimitives::{CodeId, H256};
 use itertools::Itertools;
 use std::collections::{BTreeSet, VecDeque};
@@ -189,6 +193,19 @@ impl Mock<PrivateKey> for RpcOrNetworkInjectedTx {
 impl Mock<()> for RpcOrNetworkInjectedTx {
     fn mock(_args: ()) -> Self {
         RpcOrNetworkInjectedTx::mock(PrivateKey::random())
+    }
+}
+
+impl Mock<()> for Promise {
+    fn mock(_: ()) -> Self {
+        Self {
+            tx_hash: HashOf::random(),
+            reply: ReplyInfo {
+                code: ReplyCode::Success(SuccessReplyReason::Auto),
+                value: Default::default(),
+                payload: Default::default(),
+            },
+        }
     }
 }
 
