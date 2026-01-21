@@ -37,7 +37,8 @@ use tokio::{
 };
 use tokio_stream::wrappers::BroadcastStream;
 
-const MAX_PROMISE_CHANNEL_CAPACITY: usize = 1024;
+/// The maximum capacity of the promise broadcaster channel.
+const PROMISE_BROADCASTER_CAPACITY: usize = 1024;
 
 /// The timeout for receiving the promise for an injected transaction.
 ///
@@ -274,8 +275,12 @@ impl InjectedApi {
                     promises_manager.remove_waiter(&tx_hash);
                     match result {
                         Ok(Ok(promise)) => promise,
-                        Ok(Err(_)) => {
-                            unreachable!("promise sender is owned by the api; it cannot be dropped before this point")
+                        Ok(Err(err)) => {
+                            tracing::error!(
+                                ?tx_hash,
+                                "promise sender is dropped before sending promise for tx: {err}"
+                            );
+                            return;
                         }
                         Err(_) => {
                             todo!("handle this after PR with RemovalNotification")
@@ -306,13 +311,17 @@ impl InjectedApi {
 /// [`PromiseManager`] is responsible for delivering signed promises
 /// to waiters for exact injected tx promise and broadcasting all
 /// incoming promises to subscribers.
+///
+/// Note: the cloning is cheap, because all inner data is wrapped in [`Arc`].
 #[derive(Clone)]
-struct PromiseManager {
+pub(crate) struct PromiseManager {
     /// The set of pending subscriptions for injected transactions.
     /// If a transaction will be accepted by a main service, a waiter for its promise will be registered.
     pending_subscriptions: Arc<DashSet<HashOf<InjectedTransaction>>>,
+
     /// The waiters for exact injected tx promises.
     promise_waiters: Arc<DashMap<HashOf<InjectedTransaction>, oneshot::Sender<SignedPromise>>>,
+
     /// The broadcaster for promise subscribers ([`InjectedServer::subscribe_promises`]).
     promise_broadcaster: broadcast::Sender<SignedPromise>,
 }
@@ -325,7 +334,7 @@ pub struct SubscriberAlreadyExistsError(HashOf<InjectedTransaction>);
 impl PromiseManager {
     /// Creates a new instance of [`PromiseManager`].
     pub(crate) fn new() -> Self {
-        let promise_broadcaster = broadcast::Sender::new(MAX_PROMISE_CHANNEL_CAPACITY);
+        let promise_broadcaster = broadcast::Sender::new(PROMISE_BROADCASTER_CAPACITY);
         Self {
             pending_subscriptions: Default::default(),
             promise_waiters: Default::default(),
@@ -335,7 +344,7 @@ impl PromiseManager {
 
     /// Creates a new stream of signed promises for [`InjectedServer::subscribe_promises`].
     pub(crate) fn new_promises_stream(&self) -> BroadcastStream<SignedPromise> {
-        tracing::trace!("Creating new promise stream for subscriber");
+        tracing::trace!("Creating new promises stream for subscriber");
         BroadcastStream::new(self.promise_broadcaster.subscribe())
     }
 

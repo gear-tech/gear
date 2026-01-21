@@ -50,6 +50,7 @@ where
     pub fn handle_tx(&mut self, tx: SignedInjectedTransaction) {
         let tx_hash = tx.data().to_hash();
         let reference_block = tx.data().reference_block;
+        tracing::trace!(?tx_hash, "receive new injected transaction");
 
         if self.inner.insert((reference_block, tx_hash)) {
             // Write tx in database only if its not already contains in pool.
