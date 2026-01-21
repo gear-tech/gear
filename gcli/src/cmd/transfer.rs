@@ -25,7 +25,7 @@ use gear_core::ids::ActorId;
 /// Transfer value.
 #[derive(Clone, Debug, Parser)]
 pub struct Transfer {
-    /// Destination address, in SS58 format.
+    /// Destination address.
     destination: ActorId,
 
     /// Value to transfer.
