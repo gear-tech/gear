@@ -27,11 +27,11 @@ gsigner = { workspace = true, default-features = false, features = [
 sha3.workspace = true
 k256 = { version = "0.13.4", features = ["ecdsa"], default-features = false }
 nonempty.workspace = true
-gear-workspace-hack.workspace = true
 
 # mock deps
 itertools = { workspace = true, optional = true }
 tap = { workspace = true, optional = true }
+gear-workspace-hack.workspace = true
 
 [dev-dependencies]
 serde_json.workspace = true
