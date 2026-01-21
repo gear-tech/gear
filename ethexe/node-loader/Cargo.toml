@@ -13,29 +13,21 @@ name = "ethexe-node-loader"
 path = "src/main.rs"
 
 [dependencies]
-# internal dependencies
-# gear-core.workspace = true # likely not needed yet for skeleton
 
-# external dependencies
 anyhow.workspace = true
 clap = { workspace = true, features = ["derive"] }
 futures.workspace = true
-log.workspace = true
 tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
 tracing.workspace = true
 tracing-subscriber = { workspace = true, features = ["env-filter"] }
 gear-workspace-hack.workspace = true
 
-# ethexe dependencies
 alloy = { workspace = true, features = ["full"] }
 ethexe-signer.workspace = true
 ethexe-common = { workspace = true, features = ["std"] }
 ethexe-ethereum.workspace = true
-ethexe-rpc.workspace = true
-ethexe-observer.workspace = true
-ethexe-db.workspace = true
+#ethexe-rpc.workspace = true TODO: Injectex txs
 gprimitives = { workspace = true, features = ["ethexe"] }
-async-trait.workspace = true
 gear-call-gen.workspace = true
 gear-wasm-gen.workspace = true
 gear-core.workspace = true

@@ -426,7 +426,7 @@ async fn run_batch_impl(
             })
         }
 
-        Batch::SendReply(args) => {
+        Batch::SendReply(_args) => {
             tracing::warn!("SendReply batch is not implemented yet");
             /*let removed_from_mailbox = args.clone().into_iter().map(|SendReplyArgs((mid, ..))| mid);
 
