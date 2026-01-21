@@ -85,8 +85,7 @@ impl Processor {
         let injected_messages = announce
             .injected_transactions
             .iter()
-            .map(|tx| tx.data().to_message_id())
-            .collect();
+            .map(|tx| tx.data().to_message_id());
 
         let transitions = InBlockTransitions::new(
             corresponding_block_header,
