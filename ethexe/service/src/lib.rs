@@ -539,8 +539,8 @@ impl Service {
                     ComputeEvent::RequestLoadCodes(codes) => {
                         blob_loader.load_codes(codes)?;
                     }
-                    ComputeEvent::AnnounceComputed(announce_hash) => {
-                        consensus.receive_computed_announce(announce_hash)?
+                    ComputeEvent::AnnounceComputed(computed_data) => {
+                        consensus.receive_computed_announce(computed_data)?
                     }
                     ComputeEvent::BlockPrepared(block_hash) => {
                         consensus.receive_prepared_block(block_hash)?
@@ -653,11 +653,10 @@ impl Service {
                     ConsensusEvent::AnnounceAccepted(_) | ConsensusEvent::AnnounceRejected(_) => {
                         // TODO #4940: consider to publish network message
                     }
-                    ConsensusEvent::Promise(promise) => {
-                        let rpc = rpc
-                            .as_mut()
-                            .expect("cannot produce promise without event from RPC");
-                        rpc.provide_promise(promise);
+                    ConsensusEvent::Promises(promises) => {
+                        if let Some(ref mut rpc) = rpc {
+                            rpc.provide_promises(promises);
+                        }
 
                         // TODO kuzmindev: also should be sent to network peer, that waits for transaction promise
                     }
