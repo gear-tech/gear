@@ -272,6 +272,7 @@ where
     (mega_journal, gas_spent)
 }
 
+// TODO: refactor the function to reduce the number of arguments (#5100)
 #[allow(clippy::too_many_arguments)]
 fn process_dispatch<S, RI>(
     dispatch: Dispatch,
