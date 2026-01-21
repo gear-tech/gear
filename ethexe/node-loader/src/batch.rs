@@ -1,17 +1,33 @@
-use alloy::primitives::Address;
+use alloy::{
+    eips::BlockId,
+    network::{Network, primitives::HeaderResponse},
+    primitives::{Address, FixedBytes, LogData},
+    providers::Provider,
+    rpc::types::{Filter, Log},
+    sol_types::SolEvent,
+};
 use anyhow::Result;
 use ethexe_ethereum::{
     Ethereum,
-    abi::IMirror::{
-        ExecutableBalanceTopUpRequested, MessageQueueingRequested, OwnedBalanceTopUpRequested,
-        ReplyQueueingRequested, StateChanged, ValueClaimingRequested,
+    abi::{
+        IMirror::*,
+        //IRouter::*,
+    },
+    mirror::signatures::{
+        EXECUTABLE_BALANCE_TOP_UP_REQUESTED, MESSAGE, MESSAGE_CALL_FAILED,
+        MESSAGE_QUEUEING_REQUESTED, OWNED_BALANCE_TOP_UP_REQUESTED, REPLY, REPLY_CALL_FAILED,
+        REPLY_QUEUEING_REQUESTED, STATE_CHANGED, VALUE_CLAIMED, VALUE_CLAIMING_REQUESTED,
     },
 };
 use futures::{StreamExt, stream::FuturesUnordered};
 use gear_call_gen::CallGenRng;
 use gear_core::message::ReplyCode;
-use gprimitives::{H256, MessageId};
-use std::{collections::BTreeSet, marker::PhantomData};
+use gprimitives::{ActorId, H256, MessageId};
+use std::{
+    collections::{BTreeMap, BTreeSet},
+    marker::PhantomData,
+    time::Duration,
+};
 use tokio::sync::broadcast::Receiver;
 use tracing::instrument;
 
@@ -22,6 +38,7 @@ use crate::{
         generator::{Batch, BatchGenerator, BatchWithSeed, RuntimeSettings},
         report::{BatchRunReport, Report},
     },
+    utils,
 };
 
 pub mod context;
@@ -33,16 +50,17 @@ pub struct BatchPool<Rng: CallGenRng> {
     pool_size: usize,
     batch_size: usize,
     task_context: Context,
-    rx: Receiver<Event>,
+    rx: Receiver<<alloy::network::Ethereum as Network>::HeaderResponse>,
     _marker: PhantomData<Rng>,
 }
 
 /// Events emitted by mirror contract. Used to build mailbox and other context state for
 /// batch report.
-#[derive(Clone)]
+#[derive(Debug, Clone)]
 pub struct Event {
     pub kind: EventKind,
     /// Address of the contract that emitted the event
+    #[allow(dead_code)]
     pub address: Address,
 }
 
@@ -58,7 +76,6 @@ pub enum EventKind {
     MessageCallFailed(ethexe_ethereum::abi::IMirror::MessageCallFailed),
     Reply(ethexe_ethereum::abi::IMirror::Reply),
     ReplyCallFailed(ethexe_ethereum::abi::IMirror::ReplyCallFailed),
-
     ValueClaimed(ethexe_ethereum::abi::IMirror::ValueClaimed),
 }
 
@@ -161,8 +178,58 @@ impl std::fmt::Debug for EventKind {
     }
 }
 
+impl Event {
+    pub fn decode_rpc_log(log: Log<LogData>) -> Result<Option<Self>> {
+        let kind = match log.topic0().copied() {
+            Some(STATE_CHANGED) => {
+                EventKind::StateChanged(StateChanged::decode_log_data(log.data())?)
+            }
+            Some(MESSAGE_QUEUEING_REQUESTED) => EventKind::MessageQueueingRequested(
+                MessageQueueingRequested::decode_log_data(log.data())?,
+            ),
+            Some(REPLY_QUEUEING_REQUESTED) => EventKind::ReplyQueueingRequested(
+                ReplyQueueingRequested::decode_log_data(log.data())?,
+            ),
+            Some(VALUE_CLAIMING_REQUESTED) => EventKind::ValueClaimingRequested(
+                ValueClaimingRequested::decode_log_data(log.data())?,
+            ),
+            Some(OWNED_BALANCE_TOP_UP_REQUESTED) => EventKind::OwnedBalanceTopUpRequested(
+                OwnedBalanceTopUpRequested::decode_log_data(log.data())?,
+            ),
+            Some(EXECUTABLE_BALANCE_TOP_UP_REQUESTED) => {
+                EventKind::ExecutableBalanceTopUpRequested(
+                    ExecutableBalanceTopUpRequested::decode_log_data(log.data())?,
+                )
+            }
+            Some(MESSAGE) => EventKind::Message(Message::decode_log_data(log.data())?),
+            Some(MESSAGE_CALL_FAILED) => {
+                EventKind::MessageCallFailed(MessageCallFailed::decode_log_data(log.data())?)
+            }
+            Some(REPLY) => EventKind::Reply(Reply::decode_log_data(log.data())?),
+            Some(REPLY_CALL_FAILED) => {
+                EventKind::ReplyCallFailed(ReplyCallFailed::decode_log_data(log.data())?)
+            }
+            Some(VALUE_CLAIMED) => {
+                EventKind::ValueClaimed(ValueClaimed::decode_log_data(log.data())?)
+            }
+
+            _ => return Ok(None),
+        };
+
+        Ok(Some(Event {
+            kind,
+            address: log.address(),
+        }))
+    }
+}
+
 impl<Rng: CallGenRng> BatchPool<Rng> {
-    pub fn new(api: Ethereum, pool_size: usize, batch_size: usize, rx: Receiver<Event>) -> Self {
+    pub fn new(
+        api: Ethereum,
+        pool_size: usize,
+        batch_size: usize,
+        rx: Receiver<<alloy::network::Ethereum as Network>::HeaderResponse>,
+    ) -> Self {
         Self {
             api,
             pool_size,
@@ -173,7 +240,11 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
         }
     }
 
-    pub async fn run(mut self, params: LoadParams, _rx: Receiver<Event>) -> Result<()> {
+    pub async fn run(
+        mut self,
+        params: LoadParams,
+        _rx: Receiver<<alloy::network::Ethereum as Network>::HeaderResponse>,
+    ) -> Result<()> {
         let run_pool_task = self.run_pool_loop(params.loader_seed, params.code_seed_type);
 
         let run_result = tokio::select! {
@@ -235,7 +306,7 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
 async fn run_batch(
     api: Ethereum,
     batch: BatchWithSeed,
-    rx: Receiver<Event>,
+    rx: Receiver<<alloy::network::Ethereum as Network>::HeaderResponse>,
 ) -> Result<BatchRunReport> {
     let (seed, batch) = batch.into();
 
@@ -249,9 +320,14 @@ async fn run_batch(
 }
 
 #[instrument(skip_all)]
-async fn run_batch_impl(api: Ethereum, batch: Batch, _rx: Receiver<Event>) -> Result<Report> {
+async fn run_batch_impl(
+    api: Ethereum,
+    batch: Batch,
+    rx: Receiver<<alloy::network::Ethereum as Network>::HeaderResponse>,
+) -> Result<Report> {
     match batch {
         Batch::UploadProgram(args) => {
+            tracing::info!("Uploading programs");
             let mut code_ids = Vec::with_capacity(args.len());
 
             for arg in args.iter() {
@@ -302,6 +378,7 @@ async fn run_batch_impl(api: Ethereum, batch: Batch, _rx: Receiver<Event>) -> Re
         }
 
         Batch::UploadCode(args) => {
+            tracing::info!("Uploading codes");
             let mut code_ids = Vec::with_capacity(args.len());
 
             for arg in args.iter() {
@@ -324,15 +401,22 @@ async fn run_batch_impl(api: Ethereum, batch: Batch, _rx: Receiver<Event>) -> Re
         }
 
         Batch::SendMessage(args) => {
-            for arg in args.iter() {
+            tracing::info!("Sending messages");
+            let mut messages = BTreeMap::new();
+            for (i, arg) in args.iter().enumerate() {
                 let to = arg.0.0;
                 let mirror = api.mirror(ethexe_common::Address::try_from(to).unwrap());
-                mirror.send_message(&arg.0.1, arg.0.3).await?;
+                let (_, message_id) = mirror.send_message(&arg.0.1, arg.0.3).await?;
+                messages.insert(message_id, (to, i));
             }
+            let block = api
+                .provider()
+                .get_block(BlockId::latest())
+                .await?
+                .unwrap()
+                .hash();
 
-            Ok(Report {
-                ..Default::default()
-            })
+            process_events(api, messages, rx, block).await
         }
 
         Batch::ClaimValue(_args) => {
@@ -342,15 +426,32 @@ async fn run_batch_impl(api: Ethereum, batch: Batch, _rx: Receiver<Event>) -> Re
             })
         }
 
-        Batch::SendReply(_args) => {
+        Batch::SendReply(args) => {
             tracing::warn!("SendReply batch is not implemented yet");
+            /*let removed_from_mailbox = args.clone().into_iter().map(|SendReplyArgs((mid, ..))| mid);
+
+            let mut messages = BTreeMap::new();
+
+            for (i, arg) in args.iter().enumerate() {
+                let arg = arg.0;
+                let mid = arg.0;
+                let payload = arg.1;
+                let _gas_limit = arg.2;
+                let value = arg.3;
+
+                let mirror = api.mirror(address)
+            }*/
+
             Ok(Report {
+                //    removed_from_mailbox,
                 ..Default::default()
             })
         }
 
         Batch::CreateProgram(args) => {
+            tracing::info!("Creating programs");
             let mut programs = BTreeSet::new();
+            let mut messages = BTreeMap::new();
             for arg in args.iter() {
                 let code_id = arg.0.0;
                 let salt = &arg.0.1;
@@ -377,6 +478,7 @@ async fn run_batch_impl(api: Ethereum, batch: Batch, _rx: Receiver<Event>) -> Re
                     .executable_balance_top_up(500_000_000_000_000)
                     .await?;
                 programs.insert(program.1);
+                messages.insert(program.1, (program.1, 0));
             }
 
             Ok(Report {
@@ -385,4 +487,100 @@ async fn run_batch_impl(api: Ethereum, batch: Batch, _rx: Receiver<Event>) -> Re
             })
         }
     }
+}
+
+/// Wait for the new events since provided `block_hash`.
+async fn process_events(
+    api: Ethereum,
+    mut messages: BTreeMap<MessageId, (ActorId, usize)>,
+    mut rx: Receiver<<alloy::network::Ethereum as Network>::HeaderResponse>,
+    block_hash: FixedBytes<32>,
+) -> Result<Report> {
+    let wait_for_event_blocks = 10;
+    let wait_for_events_millisec = 12 * 1000 * wait_for_event_blocks * 5;
+    let mut mailbox_added = BTreeSet::new();
+    let results = {
+        let mut block = rx.recv().await?;
+        while block.hash() != block_hash {
+            tokio::time::sleep(Duration::new(0, 500)).await;
+            block =
+                tokio::time::timeout(Duration::from_millis(wait_for_events_millisec), rx.recv())
+                    .await
+                    .map_err(|_| {
+                        tracing::debug!("Timeout is reached while waiting for block events");
+                        anyhow::anyhow!("Event waiting timed out")
+                    })??;
+        }
+
+        let mut v = Vec::new();
+        let mut current_bn = block.hash();
+        let mut i = 0;
+        while i < wait_for_event_blocks {
+            if block.hash() != current_bn {
+                current_bn = block.hash();
+                i += 1;
+            }
+
+            let logs = api
+                .provider()
+                .get_logs(&Filter::new().at_block_hash(current_bn))
+                .await?;
+
+            for log in logs {
+                if let Some(event) = Event::decode_rpc_log(log)? {
+                    v.push(event);
+                }
+            }
+
+            println!("Logs for #{current_bn}: {v:#?}");
+            tokio::time::sleep(Duration::new(0, 100)).await;
+
+            block =
+                tokio::time::timeout(Duration::from_millis(wait_for_events_millisec), rx.recv())
+                    .await
+                    .map_err(|_| {
+                        tracing::debug!("Timeout is reached while waiting for block events");
+                        anyhow::anyhow!("Event waiting timed out")
+                    })??;
+
+            let mut mailbox_from_events = utils::capture_mailbox_messages(&api, &v)
+                .await
+                .expect("always valid");
+            mailbox_added.append(&mut mailbox_from_events);
+        }
+
+        utils::err_waited_or_succeed_batch(&mut v, messages.keys().copied()).await
+    };
+
+    let mut program_ids = BTreeSet::new();
+
+    for (mid, maybe_err) in results {
+        if messages.is_empty() {
+            break;
+        }
+
+        if let Some((pid, call_id)) = messages.remove(&mid) {
+            if let Some(expl) = maybe_err {
+                tracing::debug!(
+                    "[Call with id: {call_id}]: {mid:#.2} executing withing program '{pid:#.2}' ended with a trap: '{expl}'"
+                );
+            } else {
+                tracing::debug!(
+                    "[Call with id: {call_id}]: {mid:#.2} executing withing program '{pid:#.2}' ended successfully"
+                );
+            }
+            program_ids.insert(pid);
+        }
+    }
+
+    if !messages.is_empty() {
+        unreachable!("unresolved messages")
+    }
+
+    tracing::debug!("Mailbox {:?}", mailbox_added);
+    Ok(Report {
+        program_ids,
+        mailbox_data: mailbox_added.into(),
+        ..Default::default()
+    })
 }

@@ -1,10 +1,10 @@
 use std::collections::BTreeSet;
 
-use alloy::{network::NetworkWallet, primitives::Address, providers::WalletProvider};
+use alloy::{primitives::Address, providers::WalletProvider};
 use anyhow::Result;
-use ethexe_common::gear::Message;
 use ethexe_ethereum::Ethereum;
 use gear_call_gen::Seed;
+use gear_core_errors::ReplyCode;
 use gear_wasm_gen::{
     EntryPointsSet, InvocableSyscall, RegularParamType, StandardGearWasmConfigsBundle, SyscallName,
     SyscallsInjectionTypes, SyscallsParamsConfig,
@@ -64,4 +64,59 @@ pub async fn capture_mailbox_messages(
     });
 
     Ok(BTreeSet::from_iter(mailbox_messages))
+}
+
+/// Check whether processing batch of messages identified by corresponding
+/// `message_ids` resulted in errors or has been successful.
+///
+/// This function returns a vector of statuses with an associated message
+/// identifier ([`MessageId`]). Each status can be an error message in case
+/// of an error.
+pub async fn err_waited_or_succeed_batch(
+    event_source: &mut [Event],
+    message_ids: impl IntoIterator<Item = MessageId>,
+) -> Vec<(MessageId, Option<String>)> {
+    let message_ids: Vec<MessageId> = message_ids.into_iter().collect();
+    let mut caught_ids = Vec::with_capacity(message_ids.len());
+
+    event_source
+        .iter_mut()
+        .filter_map(|e| match &e.kind {
+            EventKind::Reply(reply) if message_ids.contains(&MessageId::new(reply.replyTo.0)) => {
+                caught_ids.push(MessageId::new(reply.replyTo.0));
+                Some(vec![(
+                    MessageId::new(reply.replyTo.0),
+                    (!ReplyCode::from_bytes(reply.replyCode.0).is_success())
+                        .then(|| String::from_utf8(reply.payload.to_vec()).expect("Infallible")),
+                )])
+            }
+            EventKind::MessageCallFailed(call)
+                if message_ids.contains(&MessageId::new(call.id.0)) =>
+            {
+                Some(vec![(
+                    MessageId::new(call.id.0),
+                    Some(format!(
+                        "Call to {} failed (value={})",
+                        call.destination, call.value
+                    )),
+                )])
+            }
+
+            EventKind::ReplyCallFailed(call) => Some(vec![(
+                MessageId::new(call.replyTo.0),
+                Some(format!(
+                    "Reply failed with: '{}'",
+                    ReplyCode::from_bytes(call.replyCode.0)
+                )),
+            )]),
+
+            EventKind::MessageQueueingRequested(msg)
+                if message_ids.contains(&MessageId::new(msg.id.0)) =>
+            {
+                Some(vec![(MessageId::new(msg.id.0), None)])
+            }
+            _ => None,
+        })
+        .flatten()
+        .collect()
 }

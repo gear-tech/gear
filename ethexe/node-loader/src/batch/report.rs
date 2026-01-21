@@ -18,6 +18,7 @@ pub struct MailboxReport {
 }
 
 impl MailboxReport {
+    #[allow(dead_code)]
     pub fn append_removed(&mut self, removed: impl IntoIterator<Item = MessageId>) {
         self.removed.append(&mut BTreeSet::from_iter(removed));
     }

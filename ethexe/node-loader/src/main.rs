@@ -2,41 +2,21 @@ mod args;
 mod batch;
 mod utils;
 use alloy::{
-    consensus::BlockHeader,
-    eips::BlockId,
-    network::primitives::HeaderResponse,
+    network::Network,
     primitives::Address,
-    providers::{Provider, ProviderBuilder, RootProvider, WalletProvider, fillers::FillProvider},
-    rpc::types::Filter,
-    sol_types::SolEvent,
+    providers::{Provider, RootProvider},
 };
 use anyhow::Result;
 use args::{Params, parse_cli_params};
-use ethexe_common::{Address as LocalAddress, k256::ecdsa::SigningKey};
-use ethexe_ethereum::{
-    Ethereum,
-    abi::IMirror::*,
-    mirror::signatures::{
-        EXECUTABLE_BALANCE_TOP_UP_REQUESTED, MESSAGE, MESSAGE_CALL_FAILED,
-        MESSAGE_QUEUEING_REQUESTED, OWNED_BALANCE_TOP_UP_REQUESTED, REPLY, REPLY_CALL_FAILED,
-        REPLY_QUEUEING_REQUESTED, STATE_CHANGED, VALUE_CLAIMED, VALUE_CLAIMING_REQUESTED,
-    },
-    router::Router,
-};
-use ethexe_observer::{EthereumConfig, ObserverService};
-use ethexe_signer::{KeyStorage, MemoryKeyStorage, Signer};
-use gear_core::{code::CodeAndId, ids::prelude::CodeIdExt};
-use gear_wasm_gen::StandardGearWasmConfigsBundle;
-use gprimitives::CodeId;
+use ethexe_common::k256::ecdsa::SigningKey;
+use ethexe_ethereum::Ethereum;
+use ethexe_signer::{KeyStorage, MemoryKeyStorage};
 use rand::rngs::SmallRng;
-use std::{str::FromStr, sync::Arc, time::Duration};
+use std::str::FromStr;
 use tokio::sync::broadcast::Sender;
 use tracing::info;
 
-use crate::{
-    args::LoadParams,
-    batch::{BatchPool, Event, EventKind},
-};
+use crate::{args::LoadParams, batch::BatchPool};
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -90,11 +70,14 @@ async fn load_node(params: LoadParams) -> Result<()> {
     run_result
 }
 
-async fn listen_blocks(tx: Sender<Event>, provider: RootProvider) -> Result<()> {
+async fn listen_blocks(
+    tx: Sender<<alloy::network::Ethereum as Network>::HeaderResponse>,
+    provider: RootProvider,
+) -> Result<()> {
     let mut sub = provider.subscribe_blocks().await?;
 
     while let Ok(block) = sub.recv().await {
-        let logs = provider
+        /*let logs = provider
             .get_logs(&Filter::new().at_block_hash(block.hash()))
             .await?;
         for log in logs.iter() {
@@ -138,7 +121,9 @@ async fn listen_blocks(tx: Sender<Event>, provider: RootProvider) -> Result<()> 
                 address: log.address(),
             })
             .map_err(|_| anyhow::anyhow!("Failed to send event"))?;
-        }
+        }*/
+        tx.send(block)
+            .map_err(|_| anyhow::anyhow!("Failed to send block"))?;
     }
 
     todo!()

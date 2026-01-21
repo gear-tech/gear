@@ -2,7 +2,6 @@ use super::seed;
 use crate::{args::SeedVariant, batch::context::Context, utils};
 use anyhow::Result;
 use ethexe_common::DEFAULT_BLOCK_GAS_LIMIT;
-use futures::FutureExt;
 use gear_call_gen::{
     CallArgs, CallGenRng, CallGenRngCore, ClaimValueArgs, CreateProgramArgs, Seed, SendMessageArgs,
     SendReplyArgs, UploadCodeArgs, UploadProgramArgs,
