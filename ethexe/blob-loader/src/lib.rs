@@ -151,6 +151,8 @@ impl ConsensusLayerBlobReader {
             .await?
             .ok_or(TransactionNotFound(tx_hash))?;
 
+        // TODO: #5102 here may be a problem with code if it has same versioned hashes,
+        // consider to change it to more reliable way.
         let blob_versioned_hashes = tx
             .blob_versioned_hashes()
             .ok_or(BlobVersionedHashesNotFound(tx_hash))?;
