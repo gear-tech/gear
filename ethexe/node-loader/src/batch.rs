@@ -562,11 +562,11 @@ async fn process_events(
         if let Some((pid, call_id)) = messages.remove(&mid) {
             if let Some(expl) = maybe_err {
                 tracing::debug!(
-                    "[Call with id: {call_id}]: {mid:#.2} executing withing program '{pid:#.2}' ended with a trap: '{expl}'"
+                    "[Call with id: {call_id}]: {mid:#.2} executing within program '{pid:#.2}' ended with a trap: '{expl}'"
                 );
             } else {
                 tracing::debug!(
-                    "[Call with id: {call_id}]: {mid:#.2} executing withing program '{pid:#.2}' ended successfully"
+                    "[Call with id: {call_id}]: {mid:#.2} executing within program '{pid:#.2}' ended successfully"
                 );
             }
             program_ids.insert(pid);
