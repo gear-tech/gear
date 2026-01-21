@@ -23,7 +23,7 @@ mod program;
 
 pub use block::{BlockApi, BlockServer};
 pub use code::{CodeApi, CodeServer};
-pub use injected::{InjectedApi, InjectedServer, InjectedTransactionAcceptance};
+pub use injected::{InjectedApi, InjectedServer, PromiseOrNotification};
 pub use program::{ProgramApi, ProgramServer};
 
 #[cfg(feature = "client")]

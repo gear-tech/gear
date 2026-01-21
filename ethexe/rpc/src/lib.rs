@@ -16,8 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-pub use crate::apis::InjectedTransactionAcceptance;
-
+pub use crate::apis::PromiseOrNotification;
 #[cfg(feature = "client")]
 pub use crate::apis::{BlockClient, CodeClient, InjectedClient, ProgramClient};
 
@@ -27,7 +26,7 @@ use apis::{
     ProgramServer,
 };
 use ethexe_common::{
-    injected::{RpcOrNetworkInjectedTx, SignedPromise},
+    injected::{AddressedInjectedTransaction, InjectedTransactionAcceptance, SignedPromise},
     tx_pool::RemovalNotification,
 };
 use ethexe_db::Database;
@@ -56,7 +55,7 @@ mod tests;
 #[derive(Debug)]
 pub enum RpcEvent {
     InjectedTransaction {
-        transaction: RpcOrNetworkInjectedTx,
+        transaction: AddressedInjectedTransaction,
         response_sender: oneshot::Sender<InjectedTransactionAcceptance>,
     },
 }
@@ -150,10 +149,15 @@ impl RpcService {
         self.injected_api.notify_transactions_removed(notifications);
     }
 
+    /// Provides a promise inside RPC service to be sent to subscribers.
+    pub fn provide_promise(&self, promise: SignedPromise) {
+        self.injected_api.send_promise(promise);
+    }
+
     /// Provides a bundle of promises inside RPC service to be sent to subscribers.
     pub fn provide_promises(&self, promises: Vec<SignedPromise>) {
         promises.into_iter().for_each(|promise| {
-            self.injected_api.send_promise(promise);
+            self.provide_promise(promise);
         });
     }
 }

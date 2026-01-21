@@ -24,7 +24,7 @@ use crate::{
 use ethexe_common::{
     ecdsa::PrivateKey,
     gear::MAX_BLOCK_GAS_LIMIT,
-    injected::{Promise, RpcOrNetworkInjectedTx, SignedPromise},
+    injected::{AddressedInjectedTransaction, Promise, SignedPromise},
     mock::Mock,
 };
 use ethexe_db::Database;
@@ -85,7 +85,7 @@ impl MockService {
         })
     }
 
-    fn create_promise_for(tx: RpcOrNetworkInjectedTx) -> SignedPromise {
+    fn create_promise_for(tx: AddressedInjectedTransaction) -> SignedPromise {
         let promise = Promise {
             tx_hash: tx.tx.data().to_hash(),
             reply: ReplyInfo {
@@ -138,7 +138,7 @@ async fn test_cleanup_promise_subscribers() {
         let mut subscribers = JoinSet::new();
         for _ in 0..20 {
             let mut sub = ws_client
-                .send_transaction_and_watch(RpcOrNetworkInjectedTx::mock(()))
+                .send_transaction_and_watch(AddressedInjectedTransaction::mock(()))
                 .await
                 .expect("Subscription will be created");
 
@@ -167,7 +167,7 @@ async fn test_cleanup_promise_subscribers() {
         let mut subscribers = JoinSet::new();
         for _ in 0..20 {
             let mut subscription = ws_client
-                .send_transaction_and_watch(RpcOrNetworkInjectedTx::mock(()))
+                .send_transaction_and_watch(AddressedInjectedTransaction::mock(()))
                 .await
                 .expect("Subscription will be created");
 
@@ -195,7 +195,7 @@ async fn test_cleanup_promise_subscribers() {
         let mut subscriptions = vec![];
         for _ in 0..20 {
             let subscription = ws_client
-                .send_transaction_and_watch(RpcOrNetworkInjectedTx::mock(()))
+                .send_transaction_and_watch(AddressedInjectedTransaction::mock(()))
                 .await
                 .expect("Subscription will be created");
             subscriptions.push(subscription);
@@ -230,7 +230,7 @@ async fn test_concurrent_multiple_clients() {
             let mut subscriptions = vec![];
             for _ in 0..50 {
                 let mut subscription = client
-                    .send_transaction_and_watch(RpcOrNetworkInjectedTx::mock(()))
+                    .send_transaction_and_watch(AddressedInjectedTransaction::mock(()))
                     .await
                     .expect("Subscription will be created");
 
