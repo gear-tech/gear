@@ -128,6 +128,8 @@ pub struct EthereumConfig {
 /// that the function always charges for the first message.
 ///
 /// Returns journals and the amount of gas burned.
+//
+// TODO: refactor the function to reduce the number of arguments (#5100)
 #[allow(clippy::too_many_arguments)]
 pub fn process_queue<S, RI>(
     program_id: ActorId,
