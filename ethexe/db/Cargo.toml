@@ -21,6 +21,7 @@ paste.workspace = true
 derive_more.workspace = true
 auto_impl.workspace = true
 gear-workspace-hack.workspace = true
+delegate = "0.13.5"
 
 # TODO: remove when https://github.com/tikv/jemallocator/pull/99 merged
 [target.'cfg(target_env = "msvc")'.dependencies.rocksdb]

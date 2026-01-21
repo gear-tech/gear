@@ -17,8 +17,12 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{ComputeError, ProcessorExt, Result, service::SubService};
-use ethexe_common::{CodeAndIdUnchecked, db::CodesStorageRO};
+use ethexe_common::{
+    CodeAndIdUnchecked,
+    db::{CodesStorageRO, CodesStorageRW},
+};
 use ethexe_db::Database;
+use ethexe_processor::{ProcessedCodeInfo, ValidCodeInfo};
 use gprimitives::CodeId;
 use std::task::{Context, Poll};
 use tokio::task::JoinSet;
@@ -59,12 +63,31 @@ impl<P: ProcessorExt> CodesSubService<P> {
 
             self.processions.spawn(async move { Ok(code_id) });
         } else {
+            let db = self.db.clone();
             let mut processor = self.processor.clone();
 
             self.processions.spawn_blocking(move || {
-                processor
-                    .process_upload_code(code_and_id)
-                    .map(|_valid| code_id)
+                processor.process_upload_code(code_and_id).map(
+                    |ProcessedCodeInfo { code_id, valid }| {
+                        if let Some(ValidCodeInfo {
+                            code,
+                            instrumented_code,
+                            code_metadata,
+                        }) = valid
+                        {
+                            db.set_original_code(&code);
+                            db.set_instrumented_code(
+                                ethexe_runtime_common::VERSION,
+                                code_id,
+                                instrumented_code,
+                            );
+                            db.set_code_metadata(code_id, code_metadata);
+                            db.set_code_valid(code_id, true);
+                        }
+
+                        code_id
+                    },
+                )
             });
         }
     }
@@ -88,7 +111,7 @@ impl<P: ProcessorExt> SubService for CodesSubService<P> {
 mod tests {
     use super::*;
     use crate::tests::*;
-    use ethexe_common::{CodeAndId, db::*};
+    use ethexe_common::CodeAndId;
     use gear_core::code::{InstantiatedSectionSizes, InstrumentedCode};
 
     #[tokio::test]

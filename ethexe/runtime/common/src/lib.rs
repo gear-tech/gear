@@ -77,12 +77,12 @@ pub trait RuntimeInterface<S: Storage> {
 /// Has a main method `update_state` which allows to update program state
 /// along with writing the updated state to the storage.
 /// By design updates are stored in-memory inside the [`InBlockTransitions`].
-pub struct TransitionController<'a, S: Storage> {
+pub struct TransitionController<'a, S: Storage + ?Sized> {
     pub storage: &'a S,
     pub transitions: &'a mut InBlockTransitions,
 }
 
-impl<S: Storage> TransitionController<'_, S> {
+impl<S: Storage + ?Sized> TransitionController<'_, S> {
     pub fn update_state<T>(
         &mut self,
         program_id: ActorId,

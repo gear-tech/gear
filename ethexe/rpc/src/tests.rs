@@ -28,7 +28,6 @@ use ethexe_common::{
     mock::Mock,
 };
 use ethexe_db::Database;
-use ethexe_processor::RunnerConfig;
 use futures::StreamExt;
 use gear_core::{
     message::{ReplyCode, SuccessReplyReason},
@@ -103,7 +102,8 @@ async fn start_new_server(listen_addr: SocketAddr) -> (ServerHandle, RpcService)
     let rpc_config = RpcConfig {
         listen_addr,
         cors: None,
-        runner_config: RunnerConfig::common(2, MAX_BLOCK_GAS_LIMIT),
+        gas_allowance: MAX_BLOCK_GAS_LIMIT,
+        chunk_size: 2,
     };
     RpcServer::new(rpc_config, Database::memory())
         .run_server()

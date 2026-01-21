@@ -17,10 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 pub use compute::ComputeConfig;
-use ethexe_common::{
-    Announce, CodeAndIdUnchecked, ComputedAnnounce, HashOf, events::BlockRequestEvent,
-};
-use ethexe_processor::{Processor, ProcessorError};
+use ethexe_common::{Announce, CodeAndIdUnchecked, ComputedAnnounce, HashOf};
+use ethexe_processor::{ExecutableData, ProcessedCodeInfo, Processor, ProcessorError};
 use ethexe_runtime_common::FinalizedBlockTransitions;
 use gprimitives::{CodeId, H256};
 pub use service::ComputeService;
@@ -80,6 +78,10 @@ pub enum ComputeError {
         previous_commitment_era_index: u64,
         commitment_era_index: u64,
     },
+    #[error("Program states not found for computed Announce {0:?}")]
+    ProgramStatesNotFound(HashOf<Announce>),
+    #[error("Schedule not found for computed Announce {0:?}")]
+    ScheduleNotFound(HashOf<Announce>),
 
     #[error(transparent)]
     Processor(#[from] ProcessorError),
@@ -91,24 +93,24 @@ pub trait ProcessorExt: Sized + Unpin + Send + Clone + 'static {
     /// Process block events and return the result.
     fn process_announce(
         &mut self,
-        announce: Announce,
-        events: Vec<BlockRequestEvent>,
+        executable: ExecutableData,
     ) -> impl Future<Output = Result<FinalizedBlockTransitions>> + Send;
-    fn process_upload_code(&mut self, code_and_id: CodeAndIdUnchecked) -> Result<bool>;
+    fn process_upload_code(&mut self, code_and_id: CodeAndIdUnchecked)
+    -> Result<ProcessedCodeInfo>;
 }
 
 impl ProcessorExt for Processor {
     async fn process_announce(
         &mut self,
-        announce: Announce,
-        events: Vec<BlockRequestEvent>,
+        executable: ExecutableData,
     ) -> Result<FinalizedBlockTransitions> {
-        self.process_announce(announce, events)
-            .await
-            .map_err(Into::into)
+        self.process_programs(executable).await.map_err(Into::into)
     }
 
-    fn process_upload_code(&mut self, code_and_id: CodeAndIdUnchecked) -> Result<bool> {
-        self.process_upload_code(code_and_id).map_err(Into::into)
+    fn process_upload_code(
+        &mut self,
+        code_and_id: CodeAndIdUnchecked,
+    ) -> Result<ProcessedCodeInfo> {
+        self.process_code(code_and_id).map_err(Into::into)
     }
 }

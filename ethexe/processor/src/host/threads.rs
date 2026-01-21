@@ -19,8 +19,8 @@
 // TODO: for each panic here place log::error, otherwise it won't be printed.
 
 use core::fmt;
-use ethexe_common::{HashOf, db::OnChainStorageRO};
-use ethexe_db::Database;
+use ethexe_common::{HashOf, SimpleBlockData};
+use ethexe_db::CASDatabase;
 use ethexe_runtime_common::{
     BlockInfo,
     state::{
@@ -42,7 +42,7 @@ thread_local! {
 }
 
 pub struct ThreadParams {
-    pub db: Database,
+    pub db: Box<dyn CASDatabase>,
     pub block_info: BlockInfo,
     pub state_hash: H256,
     pages_registry_cache: Option<MemoryPages>,
@@ -106,13 +106,12 @@ impl PageKey {
     }
 }
 
-pub fn set(db: Database, chain_head: H256, state_hash: H256) {
-    let header = db.block_header(chain_head).expect("Block info not found");
+pub fn set(db: Box<dyn CASDatabase>, chain_head: SimpleBlockData, state_hash: H256) {
     PARAMS.set(Some(ThreadParams {
         db,
         block_info: BlockInfo {
-            height: header.height,
-            timestamp: header.timestamp,
+            height: chain_head.header.height,
+            timestamp: chain_head.header.timestamp,
         },
         state_hash,
         pages_registry_cache: None,
@@ -130,11 +129,11 @@ pub fn update_state_hash(state_hash: H256) {
     })
 }
 
-pub fn with_db<T>(f: impl FnOnce(&Database) -> T) -> T {
+pub fn with_db<T>(f: impl FnOnce(&dyn CASDatabase) -> T) -> T {
     PARAMS.with_borrow(|v| {
         let params = v.as_ref().expect(UNSET_PANIC);
 
-        f(&params.db)
+        f(params.db.as_ref())
     })
 }
 
