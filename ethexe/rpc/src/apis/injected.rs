@@ -20,7 +20,9 @@ use crate::{RpcEvent, errors};
 use dashmap::{DashMap, DashSet};
 use ethexe_common::{
     HashOf,
-    injected::{InjectedTransaction, RpcOrNetworkInjectedTx, SignedPromise, VALIDITY_WINDOW},
+    injected::{
+        InjectedTransaction, PromisesBundle, RpcOrNetworkInjectedTx, SignedPromise, VALIDITY_WINDOW,
+    },
 };
 use futures::StreamExt;
 use jsonrpsee::{
@@ -324,6 +326,9 @@ pub(crate) struct PromiseManager {
 
     /// The broadcaster for promise subscribers ([`InjectedServer::subscribe_promises`]).
     promise_broadcaster: broadcast::Sender<SignedPromise>,
+
+    // Mapping from announce to mapping of (bundle-order, bundle).
+    // incoming_bundles: Arc<HashMap<HashOf<Announce>, HashMap<u32, PromisesBundle>>>,
 }
 
 /// Error returned when a subscriber for an injected transaction already exists.

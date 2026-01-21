@@ -26,7 +26,7 @@ use apis::{
     BlockApi, BlockServer, CodeApi, CodeServer, InjectedApi, InjectedServer, ProgramApi,
     ProgramServer,
 };
-use ethexe_common::injected::{RpcOrNetworkInjectedTx, SignedPromise};
+use ethexe_common::injected::{PromisesBundle, RpcOrNetworkInjectedTx, SignedPromise};
 use ethexe_db::Database;
 use ethexe_processor::RunnerConfig;
 use futures::{Stream, stream::FusedStream};

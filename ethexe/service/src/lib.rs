@@ -654,6 +654,10 @@ impl Service {
                         // TODO #4940: consider to publish network message
                     }
                     ConsensusEvent::Promises(promises) => {
+                        // let bundles = ethexe_common::injected::split_promises_into_bundles(
+                        //     promises,
+                        //     announce_hash,
+                        // );
                         if let Some(ref mut rpc) = rpc {
                             rpc.provide_promises(promises);
                         }
