@@ -153,9 +153,7 @@ impl ConsensusLayerBlobReader {
 
         let blob_versioned_hashes = tx
             .blob_versioned_hashes()
-            .ok_or(BlobVersionedHashesNotFound(tx_hash))?
-            .iter()
-            .collect();
+            .ok_or(BlobVersionedHashesNotFound(tx_hash))?;
 
         let block_hash = tx.block_hash.ok_or(TransactionBlockNotFound(tx_hash))?;
 
@@ -182,7 +180,7 @@ impl ConsensusLayerBlobReader {
         };
 
         let blob_bundle = self
-            .read_blob_bundle(slot, &blob_versioned_hashes)
+            .read_blob_bundle(slot, blob_versioned_hashes)
             .await
             .map_err(ReadBlob)?;
 
@@ -211,7 +209,7 @@ impl ConsensusLayerBlobReader {
     async fn read_blob_bundle(
         &self,
         slot: u64,
-        versioned_hashes: &HashSet<&B256>,
+        versioned_hashes: &[B256],
     ) -> reqwest::Result<GetBlobsResponse> {
         let ethereum_beacon_rpc = &self.config.ethereum_beacon_rpc;
         self.http_client
