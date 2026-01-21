@@ -44,21 +44,21 @@ use std::{
 pub enum Message {
     // TODO: rename to `Validators`
     Commitments(SignedValidatorMessage),
-    Promises(SignedPromise),
+    Promise(SignedPromise),
 }
 
 impl Message {
     fn topic_hash(&self, behaviour: &Behaviour) -> TopicHash {
         match self {
             Message::Commitments(_) => behaviour.commitments_topic.hash(),
-            Message::Promises(_) => behaviour.promises_topic.hash(),
+            Message::Promise(_) => behaviour.promises_topic.hash(),
         }
     }
 
     fn encode(&self) -> Vec<u8> {
         match self {
             Message::Commitments(message) => message.encode(),
-            Message::Promises(message) => message.encode(),
+            Message::Promise(message) => message.encode(),
         }
     }
 }
@@ -177,7 +177,7 @@ impl Behaviour {
                 let res = if topic == self.commitments_topic.hash() {
                     SignedValidatorMessage::decode(&mut &data[..]).map(Message::Commitments)
                 } else if topic == self.promises_topic.hash() {
-                    SignedPromise::decode(&mut &data[..]).map(Message::Promises)
+                    SignedPromise::decode(&mut &data[..]).map(Message::Promise)
                 } else {
                     unreachable!("topic we never subscribed to: {topic:?}");
                 };

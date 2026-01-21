@@ -23,7 +23,11 @@ use crate::{
     db_sync::PeerId, gossipsub::MessageAcceptance, peer_score,
     validator::list::ValidatorListSnapshot,
 };
-use ethexe_common::{Address, network::VerifiedValidatorMessage};
+use ethexe_common::{
+    Address, HashOf,
+    injected::{InjectedTransaction, SignedPromise},
+    network::VerifiedValidatorMessage,
+};
 use lru::LruCache;
 use std::{cmp::Ordering, collections::VecDeque, mem, num::NonZeroUsize, sync::Arc};
 
@@ -79,6 +83,15 @@ enum VerificationError {
     Reject(VerificationRejectReason),
 }
 
+#[derive(Debug, PartialEq, Eq, derive_more::Display)]
+enum VerifyPromiseError {
+    #[display("unknown validator: address={address}, tx_hash={tx_hash}")]
+    UnknownValidator {
+        address: Address,
+        tx_hash: HashOf<InjectedTransaction>,
+    },
+}
+
 /// Tracks validator-signed messages and admits each one once the on-chain
 /// context confirms it is timely and originates from a legitimate validator.
 ///
@@ -104,7 +117,10 @@ impl ValidatorTopic {
         }
     }
 
-    fn inner_verify(&self, message: &VerifiedValidatorMessage) -> Result<(), VerificationError> {
+    fn inner_verify_validator_message(
+        &self,
+        message: &VerifiedValidatorMessage,
+    ) -> Result<(), VerificationError> {
         let chain_head_era = self.snapshot.current_era_index;
 
         let message_era = message.era_index();
@@ -212,12 +228,12 @@ impl ValidatorTopic {
     /// (`NewEra`). All other mismatches are penalized via peer scoring and
     /// rejected immediately or ignored.
     // TODO: `source` is only used for caching, message replaying is possible
-    pub(crate) fn verify_message(
+    pub(crate) fn verify_validator_message(
         &mut self,
         source: PeerId,
         message: VerifiedValidatorMessage,
     ) -> (MessageAcceptance, Option<VerifiedValidatorMessage>) {
-        match self.inner_verify(&message) {
+        match self.inner_verify_validator_message(&message) {
             Ok(()) => (MessageAcceptance::Accept, Some(message)),
             Err(VerificationError::Ignore(reason)) => {
                 log::trace!("ignore message from {source} peer: {reason:?}, message: {message:?}");
@@ -247,6 +263,36 @@ impl ValidatorTopic {
         }
     }
 
+    fn inner_verify_promise(
+        &self,
+        _source: PeerId,
+        promise: SignedPromise,
+    ) -> Result<SignedPromise, VerifyPromiseError> {
+        let address = promise.address();
+        let tx_hash = promise.data().tx_hash;
+
+        if !self.snapshot.contains(address) {
+            return Err(VerifyPromiseError::UnknownValidator { address, tx_hash });
+        }
+
+        Ok(promise)
+    }
+
+    // FIXME: messages from previous era validators are ignored
+    pub fn verify_promise(
+        &self,
+        source: PeerId,
+        promise: SignedPromise,
+    ) -> (MessageAcceptance, Option<SignedPromise>) {
+        match self.inner_verify_promise(source, promise) {
+            Ok(promise) => (MessageAcceptance::Accept, Some(promise)),
+            Err(err) => {
+                log::trace!("failed to verify promise: {err}");
+                (MessageAcceptance::Ignore, None)
+            }
+        }
+    }
+
     /// Retrieve the next verified message that is ready for further processing.
     pub(crate) fn next_message(&mut self) -> Option<VerifiedValidatorMessage> {
         self.verified_messages.pop_front()
@@ -259,6 +305,8 @@ mod tests {
     use assert_matches::assert_matches;
     use ethexe_common::{
         Announce,
+        gear_core::{message::ReplyCode, rpc::ReplyInfo},
+        injected::Promise,
         mock::Mock,
         network::{SignedValidatorMessage, ValidatorMessage},
     };
@@ -302,13 +350,28 @@ mod tests {
             .into_verified()
     }
 
+    fn signed_promise() -> SignedPromise {
+        let signer = Signer::memory();
+        let pub_key = signer.generate_key().unwrap();
+        let promise = Promise {
+            tx_hash: Default::default(),
+            reply: ReplyInfo {
+                payload: vec![],
+                value: 0,
+                code: ReplyCode::Unsupported,
+            },
+        };
+
+        signer.signed_message(pub_key, promise).unwrap()
+    }
+
     #[test]
     fn too_old_era() {
         let bob_message = new_validator_message(CHAIN_HEAD_ERA - 2);
         let mut alice = new_topic(nonempty![bob_message.address()]);
 
         let err = alice
-            .inner_verify(&bob_message)
+            .inner_verify_validator_message(&bob_message)
             .unwrap_err()
             .unwrap_reject();
         assert_eq!(
@@ -320,7 +383,7 @@ mod tests {
         );
 
         let bob_source = PeerId::random();
-        let (acceptance, verified_msg) = alice.verify_message(bob_source, bob_message);
+        let (acceptance, verified_msg) = alice.verify_validator_message(bob_source, bob_message);
         assert_matches!(acceptance, MessageAcceptance::Reject);
         assert_eq!(verified_msg, None);
         assert_eq!(alice.cached_messages.len(), 0);
@@ -333,7 +396,7 @@ mod tests {
         let mut alice = new_topic(nonempty![bob_message.address()]);
 
         let err = alice
-            .inner_verify(&bob_message)
+            .inner_verify_validator_message(&bob_message)
             .unwrap_err()
             .unwrap_ignore();
         assert_eq!(
@@ -345,7 +408,7 @@ mod tests {
         );
 
         let bob_source = PeerId::random();
-        let (acceptance, verified_msg) = alice.verify_message(bob_source, bob_message);
+        let (acceptance, verified_msg) = alice.verify_validator_message(bob_source, bob_message);
         assert_matches!(acceptance, MessageAcceptance::Ignore);
         assert_eq!(verified_msg, None);
         assert_eq!(alice.cached_messages.len(), 0);
@@ -358,7 +421,7 @@ mod tests {
         let mut alice = new_topic(nonempty![bob_message.address()]);
 
         let err = alice
-            .inner_verify(&bob_message)
+            .inner_verify_validator_message(&bob_message)
             .unwrap_err()
             .unwrap_reject();
         assert_eq!(
@@ -370,7 +433,7 @@ mod tests {
         );
 
         let bob_source = PeerId::random();
-        let (acceptance, verified_msg) = alice.verify_message(bob_source, bob_message);
+        let (acceptance, verified_msg) = alice.verify_validator_message(bob_source, bob_message);
         assert_matches!(acceptance, MessageAcceptance::Reject);
         assert_eq!(verified_msg, None);
         assert_eq!(alice.cached_messages.len(), 0);
@@ -388,7 +451,10 @@ mod tests {
         };
         let mut alice = ValidatorTopic::new(peer_score::Handle::new_test(), Arc::new(snapshot));
 
-        let err = alice.inner_verify(&bob_message).unwrap_err().unwrap_cache();
+        let err = alice
+            .inner_verify_validator_message(&bob_message)
+            .unwrap_err()
+            .unwrap_cache();
         assert_eq!(
             err,
             VerificationCacheReason::NewEra {
@@ -398,7 +464,8 @@ mod tests {
         );
 
         let bob_source = PeerId::random();
-        let (acceptance, verified_msg) = alice.verify_message(bob_source, bob_message.clone());
+        let (acceptance, verified_msg) =
+            alice.verify_validator_message(bob_source, bob_message.clone());
         assert_matches!(acceptance, MessageAcceptance::Ignore);
         assert_eq!(verified_msg, None);
         assert_eq!(alice.cached_messages.len(), 1);
@@ -415,7 +482,7 @@ mod tests {
         let bob_message = new_validator_message(CHAIN_HEAD_ERA);
 
         let err = alice
-            .inner_verify(&bob_message)
+            .inner_verify_validator_message(&bob_message)
             .unwrap_err()
             .unwrap_reject();
         assert_eq!(
@@ -426,7 +493,7 @@ mod tests {
         );
 
         let bob_source = PeerId::random();
-        let (acceptance, verified_msg) = alice.verify_message(bob_source, bob_message);
+        let (acceptance, verified_msg) = alice.verify_validator_message(bob_source, bob_message);
         assert_matches!(acceptance, MessageAcceptance::Reject);
         assert_eq!(verified_msg, None);
         assert_eq!(alice.cached_messages.len(), 0);
@@ -439,7 +506,7 @@ mod tests {
         let bob_message = new_validator_message(CHAIN_HEAD_ERA + 1);
 
         let err = alice
-            .inner_verify(&bob_message)
+            .inner_verify_validator_message(&bob_message)
             .unwrap_err()
             .unwrap_reject();
         assert_eq!(
@@ -450,7 +517,7 @@ mod tests {
         );
 
         let bob_source = PeerId::random();
-        let (acceptance, verified_msg) = alice.verify_message(bob_source, bob_message);
+        let (acceptance, verified_msg) = alice.verify_validator_message(bob_source, bob_message);
         assert_matches!(acceptance, MessageAcceptance::Reject);
         assert_eq!(verified_msg, None);
         assert_eq!(alice.cached_messages.len(), 0);
@@ -465,7 +532,10 @@ mod tests {
         let mut alice = new_topic(nonempty![Default::default()]);
 
         for message in [bob_message, charlie_message] {
-            let err = alice.inner_verify(&message).unwrap_err().unwrap_reject();
+            let err = alice
+                .inner_verify_validator_message(&message)
+                .unwrap_err()
+                .unwrap_reject();
             assert_eq!(
                 err,
                 VerificationRejectReason::AddressIsNotValidator {
@@ -474,7 +544,7 @@ mod tests {
             );
 
             let bob_source = PeerId::random();
-            let (acceptance, verified_msg) = alice.verify_message(bob_source, message);
+            let (acceptance, verified_msg) = alice.verify_validator_message(bob_source, message);
             assert_matches!(acceptance, MessageAcceptance::Reject);
             assert_eq!(verified_msg, None);
             assert_eq!(alice.cached_messages.len(), 0);
@@ -487,10 +557,11 @@ mod tests {
         let bob_message = new_validator_message(CHAIN_HEAD_ERA);
         let mut alice = new_topic(nonempty![bob_message.address()]);
 
-        alice.inner_verify(&bob_message).unwrap();
+        alice.inner_verify_validator_message(&bob_message).unwrap();
 
         let bob_source = PeerId::random();
-        let (acceptance, verified_msg) = alice.verify_message(bob_source, bob_message.clone());
+        let (acceptance, verified_msg) =
+            alice.verify_validator_message(bob_source, bob_message.clone());
         assert_matches!(acceptance, MessageAcceptance::Accept);
         assert_eq!(verified_msg, Some(bob_message));
     }
@@ -512,18 +583,18 @@ mod tests {
         let mut alice = new_topic(nonempty![bob_message.address(), charlie_message.address()]);
 
         let (bob_acceptance, bob_verified_msg) =
-            alice.verify_message(bob_source, bob_message.clone());
+            alice.verify_validator_message(bob_source, bob_message.clone());
         assert_matches!(bob_acceptance, MessageAcceptance::Accept);
         assert_eq!(bob_verified_msg, Some(bob_message.clone()));
 
         let (charlie_acceptance, charlie_verified_msg) =
-            alice.verify_message(charlie_source, charlie_message.clone());
+            alice.verify_validator_message(charlie_source, charlie_message.clone());
         assert_matches!(charlie_acceptance, MessageAcceptance::Accept);
         assert_eq!(charlie_verified_msg, Some(charlie_message.clone()));
 
         // we have no next validators yet, so the message should be rejected
         let (dave_acceptance, dave_verified_msg) =
-            alice.verify_message(dave_source, dave_message.clone());
+            alice.verify_validator_message(dave_source, dave_message.clone());
         assert_matches!(dave_acceptance, MessageAcceptance::Reject);
         assert!(dave_verified_msg.is_none());
         assert_eq!(alice.cached_messages.len(), 0);
@@ -538,7 +609,7 @@ mod tests {
 
         // Dave's message is cached
         let (dave_acceptance, dave_verified_msg) =
-            alice.verify_message(dave_source, dave_message.clone());
+            alice.verify_validator_message(dave_source, dave_message.clone());
         assert_matches!(dave_acceptance, MessageAcceptance::Ignore);
         assert!(dave_verified_msg.is_none());
         assert_eq!(alice.cached_messages.len(), 1);
@@ -553,5 +624,42 @@ mod tests {
 
         let dave_verified_msg = alice.next_message().unwrap();
         assert_eq!(dave_verified_msg, dave_message);
+    }
+
+    #[test]
+    fn verify_promise_unknown_validator() {
+        let topic = new_topic(nonempty![Address::default()]);
+        let promise = signed_promise();
+        let peer_id = PeerId::random();
+
+        let err = topic
+            .inner_verify_promise(peer_id, promise.clone())
+            .unwrap_err();
+        assert_eq!(
+            err,
+            VerifyPromiseError::UnknownValidator {
+                address: promise.address(),
+                tx_hash: promise.data().tx_hash,
+            }
+        );
+
+        let (acceptance, promise) = topic.verify_promise(peer_id, promise);
+        assert_matches!(acceptance, MessageAcceptance::Ignore);
+        assert_eq!(promise, None);
+    }
+
+    #[tokio::test]
+    async fn verify_promise_ok() {
+        let promise = signed_promise();
+        let topic = new_topic(nonempty![promise.address()]);
+        let peer_id = PeerId::random();
+
+        topic
+            .inner_verify_promise(peer_id, promise.clone())
+            .unwrap();
+
+        let (acceptance, returned_promise) = topic.verify_promise(peer_id, promise.clone());
+        assert_matches!(acceptance, MessageAcceptance::Accept);
+        assert_eq!(returned_promise, Some(promise));
     }
 }

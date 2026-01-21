@@ -600,6 +600,7 @@ impl Behaviour {
         &self.get_identities.identities
     }
 
+    #[cfg(test)]
     pub fn get_identity(&self, address: Address) -> Option<&SignedValidatorIdentity> {
         self.get_identities.identities.get(&address)
     }

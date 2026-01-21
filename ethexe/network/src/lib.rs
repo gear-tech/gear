@@ -33,7 +33,6 @@ pub use injected::Event as NetworkInjectedEvent;
 
 use crate::{
     db_sync::DbSyncDatabase,
-    gossipsub::MessageAcceptance,
     validator::{ValidatorDatabase, list::ValidatorListSnapshot},
 };
 use anyhow::{Context, anyhow};
@@ -485,30 +484,20 @@ impl NetworkService {
             gossipsub::Event::Message { source, validator } => {
                 let behaviour = self.swarm.behaviour_mut();
                 let gossipsub = &mut behaviour.gossipsub;
-                let discovery = &behaviour.validator_discovery;
 
                 validator.validate(gossipsub, |message| match message {
                     gossipsub::Message::Commitments(message) => {
                         let message = message.into_verified();
-                        let (acceptance, message) =
-                            self.validator_topic.verify_message(source, message);
+                        let (acceptance, message) = self
+                            .validator_topic
+                            .verify_validator_message(source, message);
                         (acceptance, message.map(NetworkEvent::ValidatorMessage))
                     }
-                    gossipsub::Message::Promises(message) => {
-                        // FIXME: messages from previous era validators are ignored
-
-                        let address = message.address();
-
-                        if let Some(identity) = discovery.get_identity(address)
-                            && identity.peer_id() != source
-                        {
-                            return (MessageAcceptance::Ignore, None);
-                        }
-
-                        (
-                            MessageAcceptance::Accept,
-                            Some(NetworkEvent::PromiseMessage(message)),
-                        )
+                    gossipsub::Message::Promise(promise) => {
+                        // FIXME: previous era validators are ignored
+                        let (acceptance, promise) =
+                            self.validator_topic.verify_promise(source, promise);
+                        (acceptance, promise.map(NetworkEvent::PromiseMessage))
                     }
                 })
             }
