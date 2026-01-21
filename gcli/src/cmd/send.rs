@@ -26,7 +26,7 @@ use gear_core::ids::ActorId;
 /// Send a message.
 #[derive(Clone, Debug, Parser)]
 pub struct Send {
-    /// Destination address.
+    /// Destination address, in SS58 or hex format.
     destination: ActorId,
 
     /// Message payload, as hex string.
