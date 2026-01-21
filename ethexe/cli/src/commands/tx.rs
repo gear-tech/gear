@@ -31,7 +31,7 @@ use clap::{Parser, Subcommand};
 use ethexe_common::{
     Address,
     gear_core::ids::prelude::CodeIdExt,
-    injected::{InjectedTransaction, RpcOrNetworkInjectedTx},
+    injected::{AddressedInjectedTransaction, InjectedTransaction},
 };
 use ethexe_ethereum::{
     Ethereum,
@@ -988,7 +988,7 @@ impl TxCommand {
                         let message_id = injected_transaction.to_message_id();
                         let tx_hash = injected_transaction.to_hash().into();
 
-                        let transaction = RpcOrNetworkInjectedTx {
+                        let transaction = AddressedInjectedTransaction {
                             recipient: Address::default(),
                             tx: signer
                                 .signed_message(public_key, injected_transaction)
