@@ -399,6 +399,7 @@ sha3 = { version = "0.10", default-features = false, features = ["std"] }
 signature = { version = "2", default-features = false, features = ["digest", "rand_core", "std"] }
 slice-group-by = { version = "0.3" }
 smallvec = { version = "1", default-features = false, features = ["const_new", "serde", "union"] }
+socket2 = { version = "0.4", default-features = false, features = ["all"] }
 soketto = { version = "0.8", features = ["http"] }
 sp-allocator = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
 sp-api = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", features = ["frame-metadata"] }
@@ -679,6 +680,7 @@ sha3 = { version = "0.10", default-features = false, features = ["std"] }
 signature = { version = "2", default-features = false, features = ["digest", "rand_core", "std"] }
 slice-group-by = { version = "0.3" }
 smallvec = { version = "1", default-features = false, features = ["const_new", "serde", "union"] }
+socket2 = { version = "0.4", default-features = false, features = ["all"] }
 soketto = { version = "0.8", features = ["http"] }
 sp-allocator = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
 sp-api = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", features = ["frame-metadata"] }
