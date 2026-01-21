@@ -260,11 +260,6 @@ impl ConsensusService for ConnectService {
                     self.output
                         .push_back(ConsensusEvent::ComputeAnnounce(announce));
 
-                    // rpc + connect_node
-                    // 1. rpc  receives announce
-                    // 2. rpc send compute announce
-                    // 3. rpc send promises to subscribers
-
                     self.state = State::WaitingForBlock;
                 }
             }
