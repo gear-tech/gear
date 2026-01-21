@@ -4916,6 +4916,7 @@ dependencies = [
  "ethexe-ethereum",
  "ethexe-signer",
  "futures",
+ "gear-utils",
  "gear-workspace-hack",
  "gprimitives",
  "log",

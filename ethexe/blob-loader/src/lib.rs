@@ -17,8 +17,8 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use alloy::{
-    consensus::{SidecarCoder, SimpleCoder, Transaction},
-    primitives::B256,
+    consensus::{SidecarCoder, SimpleCoder, Transaction, utils::WholeFe},
+    primitives::{B256, FixedBytes},
     providers::{Provider, ProviderBuilder, RootProvider},
     rpc::types::beacon::{genesis::GenesisResponse, sidecar::GetBlobsResponse},
     transports::{RpcError, TransportErrorKind},
@@ -66,7 +66,7 @@ enum ReaderError {
     #[error("failed to read blob bundle: {0}")]
     ReadBlob(reqwest::Error),
     #[error("failed to decode blobs")]
-    DecodeBlobs,
+    DecodeBlobs(Vec<FixedBytes<131072>>),
     #[error("failed to access genesis time: {0}")]
     GenesisTimeAccess(reqwest::Error),
     #[error("received empty blob")]
@@ -187,9 +187,31 @@ impl ConsensusLayerBlobReader {
             .map_err(ReadBlob)?;
 
         let mut coder = SimpleCoder::default();
+
+        {
+            let blobs = blob_bundle.data.clone();
+
+            log::info!("blobs len = {}", blobs.len());
+
+            if blob_bundle.data.is_empty() {
+                log::error!("no blobs found in blob bundle for tx {tx_hash:?}");
+            }
+
+            if blobs
+                .iter()
+                .flat_map(|blob| blob.chunks(32).map(WholeFe::new))
+                .any(|fe| fe.is_none())
+            {
+                log::error!("invalid blob data in blob bundle for tx {tx_hash:?}");
+            }
+        }
+
         let data = coder
             .decode_all(&blob_bundle.data)
-            .ok_or(DecodeBlobs)?
+            .ok_or_else(|| {
+                log::error!("failed to decode blobs for tx {tx_hash:?}");
+                DecodeBlobs(blob_bundle.data)
+            })?
             .concat();
 
         Ok(data)
@@ -214,15 +236,17 @@ impl ConsensusLayerBlobReader {
         versioned_hashes: &HashSet<&B256>,
     ) -> reqwest::Result<GetBlobsResponse> {
         let ethereum_beacon_rpc = &self.config.ethereum_beacon_rpc;
+        let request = format!(
+            "{ethereum_beacon_rpc}/eth/v1/beacon/blobs/{slot}?versioned_hashes={}",
+            versioned_hashes
+                .iter()
+                .map(|versioned_hash| versioned_hash.to_string())
+                .collect::<Vec<_>>()
+                .join(",")
+        );
+        log::info!("requesting blobs from beacon node: {request}");
         self.http_client
-            .get(format!(
-                "{ethereum_beacon_rpc}/eth/v1/beacon/blobs/{slot}?versioned_hashes={}",
-                versioned_hashes
-                    .iter()
-                    .map(|versioned_hash| versioned_hash.to_string())
-                    .collect::<Vec<_>>()
-                    .join(",")
-            ))
+            .get(request)
             .send()
             .await?
             .json::<GetBlobsResponse>()
@@ -374,6 +398,59 @@ mod tests {
     use ethexe_common::gear_core::ids::prelude::CodeIdExt;
     use ethexe_ethereum::deploy::EthereumDeployer;
     use ethexe_signer::Signer;
+
+    #[tokio::test]
+    async fn lol() {
+        gear_utils::init_default_logger();
+
+        let rpc = "wss://hoodi-reth-rpc.gear-tech.io/ws";
+        // let beacon_rpc = "https://ethereum-hoodi-beacon-api.publicnode.com";
+        let beacon_rpc = "https://hoodi-lighthouse-rpc.gear-tech.io";
+
+        let consensus_cfg = ConsensusLayerConfig {
+            ethereum_rpc: rpc.to_string(),
+            ethereum_beacon_rpc: beacon_rpc.to_string(),
+            beacon_block_time: Duration::from_secs(12),
+            attempts: const { NonZero::new(3).unwrap() },
+        };
+
+        let blobs_reader = ConsensusLayerBlobReader {
+            provider: ProviderBuilder::default()
+                .connect(&consensus_cfg.ethereum_rpc)
+                .await
+                .unwrap(),
+            http_client: Client::new(),
+            config: consensus_cfg,
+        };
+
+        let mut previously_received_blobs: Option<Vec<FixedBytes<131072>>> = None;
+        loop {
+            let tx_hash = "0x922d7f85b61a98dc7a46abe2e28fead3a8d3f88c3db023fe6be6e5277cc78e87"
+                .parse()
+                .unwrap();
+
+            match blobs_reader.try_query_blob(tx_hash).await {
+                Ok(x) => log::info!("blob len: {}", x.len()),
+                Err(ReaderError::DecodeBlobs(blobs)) => {
+                    if let Some(previously_received_blobs) = &previously_received_blobs {
+                        for (k, (blob, pblob)) in blobs
+                            .iter()
+                            .zip(previously_received_blobs.iter())
+                            .enumerate()
+                        {
+                            if blob != pblob {
+                                log::error!("blob mismatch at index {}", k);
+                            }
+                        }
+                    }
+                    previously_received_blobs = Some(blobs);
+                }
+                Err(e) => log::error!("error: {}", e),
+            }
+
+            tokio::time::sleep(Duration::from_secs(10)).await;
+        }
+    }
 
     #[ignore = "until blob will be available on beacon node"]
     #[tokio::test]
