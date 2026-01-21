@@ -19,7 +19,7 @@
 use crate::{
     RouterDataProvider, Service,
     tests::utils::{
-        InfiniteStreamExt, TestingEvent, events,
+        InfiniteStreamExt, TestingEvent, TestingNetworkEvent, events,
         events::{ObserverEventReceiver, ObserverEventSender, TestingEventReceiver},
     },
 };
@@ -47,9 +47,7 @@ use ethexe_ethereum::{
     middleware::MockElectionProvider,
     router::RouterQuery,
 };
-use ethexe_network::{
-    NetworkConfig, NetworkEvent, NetworkRuntimeConfig, NetworkService, export::Multiaddr,
-};
+use ethexe_network::{NetworkConfig, NetworkRuntimeConfig, NetworkService, export::Multiaddr};
 use ethexe_observer::{
     EthereumConfig, ObserverService,
     utils::{BlockId, BlockLoader, EthereumBlockLoader},
@@ -1041,7 +1039,12 @@ impl Node {
         // fast sync implies network has connections
         if wait_for_network && !self.fast_sync {
             self.events()
-                .find(|e| matches!(e, TestingEvent::Network(NetworkEvent::PeerConnected(_))))
+                .find(|e| {
+                    matches!(
+                        e,
+                        TestingEvent::Network(TestingNetworkEvent::PeerConnected(_))
+                    )
+                })
                 .await;
         }
     }
