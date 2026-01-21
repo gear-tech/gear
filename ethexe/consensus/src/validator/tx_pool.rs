@@ -65,8 +65,7 @@ where
             db,
         }
     }
-
-    /// Adds new injected transaction to the pool.
+    /// Adds a new injected transaction to the pool.
     /// Returns an error if transaction is already present in the pool.
     pub fn add_transaction(
         &mut self,

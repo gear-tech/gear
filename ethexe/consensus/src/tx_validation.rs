@@ -21,7 +21,7 @@ use ethexe_common::{
     Announce, HashOf, ProgramStates,
     db::{AnnounceStorageRO, OnChainStorageRO},
     injected::{InjectedTransaction, SignedInjectedTransaction, VALIDITY_WINDOW},
-    tx_pool::{InvalidReason, PendingStatus, TransactionStatus},
+    tx_pool::{InvalidityReason, PendingStatus, TransactionStatus},
 };
 use ethexe_runtime_common::state::Storage;
 use gprimitives::H256;
@@ -68,11 +68,11 @@ impl<DB: OnChainStorageRO + AnnounceStorageRO + Storage> TransactionStatusResolv
         let reference_block = tx.data().reference_block;
 
         if !self.is_reference_block_within_validity_window(reference_block)? {
-            return Ok(InvalidReason::Outdated.into());
+            return Ok(InvalidityReason::Outdated.into());
         }
 
         if self.recent_included_txs.contains(&tx.data().to_hash()) {
-            return Ok(InvalidReason::AlreadyIncluded.into());
+            return Ok(InvalidityReason::AlreadyIncluded.into());
         }
 
         if !self.is_reference_block_on_current_branch(reference_block)? {
@@ -80,7 +80,7 @@ impl<DB: OnChainStorageRO + AnnounceStorageRO + Storage> TransactionStatusResolv
         }
 
         let Some(destination_state_hash) = self.latest_states.get(&tx.data().destination) else {
-            return Ok(InvalidReason::UnknownDestination.into());
+            return Ok(InvalidityReason::UnknownDestination.into());
         };
 
         let Some(state) = self.db.program_state(destination_state_hash.hash) else {
@@ -177,7 +177,7 @@ mod tests {
         ecdsa::PrivateKey,
         injected::VALIDITY_WINDOW,
         mock::*,
-        tx_pool::InvalidReason,
+        tx_pool::InvalidityReason,
     };
     use ethexe_db::Database;
     use ethexe_runtime_common::state::{ActiveProgram, Program, ProgramState};
@@ -265,7 +265,7 @@ mod tests {
             TransactionStatusResolver::new_for_announce(db, chain_head, announce_hash).unwrap();
 
         assert_eq!(
-            TransactionStatus::Invalid(InvalidReason::AlreadyIncluded),
+            TransactionStatus::Invalid(InvalidityReason::AlreadyIncluded),
             resolver.resolve(&tx).unwrap()
         );
     }
@@ -288,7 +288,7 @@ mod tests {
         for block in chain.blocks.iter().take(VALIDITY_WINDOW as usize) {
             let tx = mock_tx(block.hash);
             assert_eq!(
-                TransactionStatus::Invalid(InvalidReason::Outdated),
+                TransactionStatus::Invalid(InvalidityReason::Outdated),
                 resolver.resolve(&tx).unwrap()
             );
         }

@@ -19,41 +19,41 @@
 use crate::{hash::HashOf, injected::InjectedTransaction};
 use gprimitives::ActorId;
 
-/// The notification for transaction's sender about removal from the pool.
+/// Removal notification for the transaction sender from the pool.
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct RemovalNotification {
-    // Removed transaction hash
+    /// Removed transaction hash
     pub tx_hash: HashOf<InjectedTransaction>,
-    // The reason why it is removed
-    pub reason: InvalidReason,
+    /// The reason it has been removed
+    pub reason: InvalidityReason,
 }
 
 /// The status of [`InjectedTransaction`] for specific announce and chain head.
 #[derive(Debug, Clone, PartialEq, Eq, derive_more::From, derive_more::Display)]
 pub enum TransactionStatus {
-    /// Transaction is valid and can be include into announce.
+    /// Transaction is valid and can be included into announce.
     Valid,
     /// Transaction is in pending status ([`PendingStatus`]).
     #[from]
     Pending(PendingStatus),
-    /// Transaction is not valid.
-    /// The [`RemovalNotification`] will be returned to the transaction's sender.
+    /// Transaction is invalid.
+    /// [`RemovalNotification`] will be returned to the transaction sender.
     #[from]
-    Invalid(InvalidReason),
+    Invalid(InvalidityReason),
 }
 
-/// The pending status means that the transaction is not valid now, but
+/// A pending status means that the transaction is invalid right now, but
 /// it may become valid in the future (e.g., after a reorg).
 ///
 /// In this status, the transaction should be kept in the pool.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, derive_more::Display)]
 pub enum PendingStatus {
-    // If transaction's reference block is not on current branch we keep it in pool, because of chain reorgs.
+    /// If the transaction reference block is not on the current branch, we keep it in the pool because of possible chain reorgs.
     #[display("Transaction's reference block is not on current branch")]
     NotOnCurrentBranch,
-    /// In case when transaction is sent to uninitialized actor, we keep it in pool,
-    /// because in next blocks actor can be initialized.
+    /// If the transaction is sent to an uninitialized actor, we keep it in the pool
+    /// because the actor may be initialized in a future block.
     #[display("Transaction's destination actor({_0}) is uninitialized")]
     UninitializedDestination(ActorId),
 }
@@ -67,7 +67,7 @@ pub enum PendingStatus {
 )]
 #[derive(Debug, Clone, PartialEq, Eq, derive_more::Display)]
 #[repr(u8)]
-pub enum InvalidReason {
+pub enum InvalidityReason {
     #[display("Transaction with the same hash was already included in announce chain")]
     AlreadyIncluded = 0,
     #[display("Transaction was not included within validity window and becomes outdated")]
