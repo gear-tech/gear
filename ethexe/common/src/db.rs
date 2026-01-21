@@ -171,43 +171,6 @@ pub trait AnnounceStorageRW: AnnounceStorageRO {
     );
 }
 
-#[derive(Debug, Clone, Default, Encode, Decode, PartialEq, Eq)]
-pub struct LatestData {
-    /// Latest synced block
-    pub synced_block: SimpleBlockData,
-    /// Latest prepared block hash
-    pub prepared_block_hash: H256,
-    /// Latest computed announce hash
-    pub computed_announce_hash: HashOf<Announce>,
-    /// Genesis block hash
-    pub genesis_block_hash: H256,
-    /// Genesis announce hash
-    pub genesis_announce_hash: HashOf<Announce>,
-    /// Start block hash: genesis or defined by fast-sync
-    pub start_block_hash: H256,
-    /// Start announce hash: genesis or defined by fast-sync
-    pub start_announce_hash: HashOf<Announce>,
-}
-
-#[auto_impl::auto_impl(&, Box)]
-pub trait LatestDataStorageRO {
-    fn latest_data(&self) -> Option<LatestData>;
-}
-
-#[auto_impl::auto_impl(&)]
-pub trait LatestDataStorageRW: LatestDataStorageRO {
-    fn set_latest_data(&self, data: LatestData);
-    fn mutate_latest_data(&self, f: impl FnOnce(&mut LatestData)) -> Option<()> {
-        if let Some(mut latest_data) = self.latest_data() {
-            f(&mut latest_data);
-            self.set_latest_data(latest_data);
-            Some(())
-        } else {
-            None
-        }
-    }
-}
-
 pub struct PreparedBlockData {
     pub header: BlockHeader,
     pub events: Vec<BlockEvent>,
@@ -232,6 +195,7 @@ pub struct DBConfig {
     pub router_address: Address,
     pub timelines: ProtocolTimelines,
     pub genesis_block_hash: H256,
+    pub genesis_announce_hash: HashOf<Announce>,
 }
 
 #[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
@@ -242,3 +206,45 @@ pub struct DBGlobals {
     pub latest_prepared_block_hash: H256,
     pub latest_computed_announce_hash: HashOf<Announce>,
 }
+
+#[cfg(feature = "std")]
+mod std_interfaces {
+    use super::{DBConfig, DBGlobals};
+    use std::sync::RwLockReadGuard;
+
+    #[auto_impl::auto_impl(&, Box)]
+    pub trait GlobalsStorageRO {
+        fn globals(&self) -> RwLockReadGuard<'_, DBGlobals>;
+    }
+
+    #[auto_impl::auto_impl(&, Box)]
+    pub trait GlobalsStorageRW: GlobalsStorageRO {
+        fn mutate_globals<R>(&self, f: impl FnMut(&mut DBGlobals) -> R) -> R;
+    }
+
+    #[auto_impl::auto_impl(&, Box)]
+    pub trait ConfigStorageRO {
+        fn config(&self) -> RwLockReadGuard<'_, DBConfig>;
+    }
+}
+
+#[cfg(feature = "std")]
+pub use std_interfaces::{ConfigStorageRO, GlobalsStorageRO, GlobalsStorageRW};
+
+#[cfg(feature = "mock")]
+mod mock_interfaces {
+    use super::{DBConfig, DBGlobals};
+
+    #[auto_impl::auto_impl(&, Box)]
+    pub trait SetGlobals {
+        fn set_globals(&self, globals: DBGlobals);
+    }
+
+    #[auto_impl::auto_impl(&, Box)]
+    pub trait SetConfig {
+        fn set_config(&self, config: DBConfig);
+    }
+}
+
+#[cfg(feature = "mock")]
+pub use mock_interfaces::{SetConfig, SetGlobals};

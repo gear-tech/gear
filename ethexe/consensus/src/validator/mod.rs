@@ -56,6 +56,7 @@ use derive_more::{Debug, From};
 use ethexe_common::{
     Address, ComputedAnnounce, SimpleBlockData, ToDigest,
     consensus::{VerifiedAnnounce, VerifiedValidationRequest},
+    db::ConfigStorageRO,
     ecdsa::{PublicKey, SignedMessage},
     injected::SignedInjectedTransaction,
     network::CheckedAnnouncesResponse,

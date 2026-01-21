@@ -29,7 +29,7 @@ use anyhow::{Result, anyhow};
 use ethexe_common::{
     Address, Announce, ComputedAnnounce, ProtocolTimelines, SimpleBlockData,
     consensus::{VerifiedAnnounce, VerifiedValidationRequest},
-    db::OnChainStorageRO,
+    db::{ConfigStorageRO, OnChainStorageRO},
     injected::SignedInjectedTransaction,
     network::{AnnouncesRequest, CheckedAnnouncesResponse},
 };

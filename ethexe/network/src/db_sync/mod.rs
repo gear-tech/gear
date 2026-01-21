@@ -29,7 +29,8 @@ pub(crate) use crate::{
 use async_trait::async_trait;
 use ethexe_common::{
     db::{
-        AnnounceStorageRO, BlockMetaStorageRO, CodesStorageRO, HashStorageRO, LatestDataStorageRO,
+        AnnounceStorageRO, BlockMetaStorageRO, CodesStorageRO, ConfigStorageRO, GlobalsStorageRO,
+        HashStorageRO,
     },
     gear::CodeState,
     network::{AnnouncesRequest, AnnouncesResponse, CheckedAnnouncesResponse},
@@ -352,7 +353,13 @@ type InnerBehaviour = request_response::Behaviour<ParityScaleCodec<InnerRequest,
 
 #[auto_impl::auto_impl(&, Box)]
 pub trait DbSyncDatabase:
-    Send + HashStorageRO + LatestDataStorageRO + BlockMetaStorageRO + AnnounceStorageRO + CodesStorageRO
+    Send
+    + HashStorageRO
+    + BlockMetaStorageRO
+    + AnnounceStorageRO
+    + CodesStorageRO
+    + ConfigStorageRO
+    + GlobalsStorageRO
 {
     fn clone_boxed(&self) -> Box<dyn DbSyncDatabase>;
 }

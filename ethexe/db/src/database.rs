@@ -29,8 +29,8 @@ use ethexe_common::{
     Schedule, SimpleBlockData, ValidatorsVec,
     db::{
         AnnounceMeta, AnnounceStorageRO, AnnounceStorageRW, BlockMeta, BlockMetaStorageRO,
-        BlockMetaStorageRW, CodesStorageRO, CodesStorageRW, DBConfig, DBGlobals, HashStorageRO,
-        InjectedStorageRO, InjectedStorageRW, LatestData, LatestDataStorageRO, LatestDataStorageRW,
+        BlockMetaStorageRW, CodesStorageRO, CodesStorageRW, ConfigStorageRO, DBConfig, DBGlobals,
+        GlobalsStorageRO, GlobalsStorageRW, HashStorageRO, InjectedStorageRO, InjectedStorageRW,
         OnChainStorageRO, OnChainStorageRW,
     },
     events::BlockEvent,
@@ -500,6 +500,7 @@ impl Database {
     pub fn memory() -> Self {
         let mem_db = MemDb::default();
 
+        // +_+_+
         // set default config and globals
         let config = DBConfig {
             version: VERSION,
@@ -507,9 +508,9 @@ impl Database {
             router_address: Address([0; 20]),
             timelines: ProtocolTimelines::default(),
             genesis_block_hash: H256::zero(),
+            genesis_announce_hash: HashOf::zero(),
         };
         let globals = DBGlobals {
-            // +_+_+
             start_block: H256::zero(),
             start_announce_hash: HashOf::zero(),
             latest_synced_block: SimpleBlockData::default(),
@@ -520,7 +521,7 @@ impl Database {
         mem_db.put(&Key::Config.to_bytes(), config.encode());
         mem_db.put(&Key::Globals.to_bytes(), globals.encode());
 
-        Self::from_one(&MemDb::default())
+        Self::from_one(&mem_db)
     }
 
     /// # Safety
@@ -536,28 +537,6 @@ impl Database {
 
     pub fn cas(&self) -> &dyn CASDatabase {
         self.cas.as_ref()
-    }
-
-    pub fn config(&self) -> RwLockReadGuard<'_, DBConfig> {
-        self.config
-            .read()
-            .expect("Failed to lock config for reading")
-    }
-
-    pub fn globals(&self) -> RwLockReadGuard<'_, DBGlobals> {
-        self.globals
-            .read()
-            .expect("Failed to lock globals for reading")
-    }
-
-    pub fn globals_mutate<R>(&self, mut f: impl FnMut(&mut DBGlobals) -> R) -> R {
-        let mut globals = self
-            .globals
-            .write()
-            .expect("Failed to lock globals for writing");
-        let res = f(&mut globals);
-        self.kv.put(&Key::Globals.to_bytes(), globals.encode());
-        res
     }
 
     fn with_small_data<R>(
@@ -1031,38 +1010,55 @@ impl AnnounceStorageRW for Database {
     });
 }
 
-impl LatestDataStorageRO for Database {
-    fn latest_data(&self) -> Option<LatestData> {
-        self.kv.get(&Key::Globals.to_bytes()).map(|data| {
-            LatestData::decode(&mut data.as_slice())
-                .expect("Failed to decode data into `LatestData`")
-        })
+impl GlobalsStorageRO for Database {
+    fn globals(&self) -> RwLockReadGuard<'_, DBGlobals> {
+        self.globals
+            .read()
+            .expect("Failed to lock globals for reading")
     }
 }
 
-impl LatestDataStorageRW for Database {
-    fn set_latest_data(&self, data: LatestData) {
-        self.kv.put(&Key::Globals.to_bytes(), data.encode());
+impl GlobalsStorageRW for Database {
+    fn mutate_globals<R>(&self, mut f: impl FnMut(&mut DBGlobals) -> R) -> R {
+        let mut globals = self
+            .globals
+            .write()
+            .expect("Failed to lock globals for writing");
+        let res = f(&mut globals);
+        self.kv.put(&Key::Globals.to_bytes(), globals.encode());
+        res
+    }
+}
+
+impl ConfigStorageRO for Database {
+    fn config(&self) -> RwLockReadGuard<'_, DBConfig> {
+        self.config
+            .read()
+            .expect("Failed to lock config for reading")
     }
 }
 
 #[cfg(feature = "mock")]
 mod mock {
     use super::*;
-    use ethexe_common::mock::*;
+    use ethexe_common::db::{SetConfig, SetGlobals};
 
     impl SetConfig for Database {
         fn set_config(&self, config: DBConfig) {
-            *self
-                .config
+            self.config
                 .write()
-                .expect("Failed to lock config for writing") = config.clone();
+                .expect("Failed to lock config for writing")
+                .clone_from(&config);
             self.kv.put(&Key::Config.to_bytes(), config.encode());
         }
     }
 
     impl SetGlobals for Database {
         fn set_globals(&self, globals: DBGlobals) {
+            self.globals
+                .write()
+                .expect("Failed to lock globals for writing")
+                .clone_from(&globals);
             self.kv.put(&Key::Globals.to_bytes(), globals.encode());
         }
     }
@@ -1071,7 +1067,7 @@ mod mock {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ethexe_common::{SimpleBlockData, ecdsa::PrivateKey, events::RouterEvent};
+    use ethexe_common::{ecdsa::PrivateKey, events::RouterEvent};
     use gear_core::code::{InstantiatedSectionSizes, InstrumentationStatus};
 
     #[test]
@@ -1173,27 +1169,28 @@ mod tests {
         assert!(db.block_synced(block_hash));
     }
 
-    #[test]
-    fn test_latest_data() {
-        let db = Database::memory();
+    // +_+_+ write new tests
+    // #[test]
+    // fn test_latest_data() {
+    //     let db = Database::memory();
 
-        assert!(db.latest_data().is_none());
+    //     assert!(db.latest_data().is_none());
 
-        let latest_data = LatestData {
-            synced_block: SimpleBlockData {
-                hash: H256::random(),
-                header: Default::default(),
-            },
-            prepared_block_hash: H256::random(),
-            computed_announce_hash: HashOf::random(),
-            genesis_block_hash: H256::random(),
-            genesis_announce_hash: HashOf::random(),
-            start_block_hash: H256::random(),
-            start_announce_hash: HashOf::random(),
-        };
-        db.set_latest_data(latest_data.clone());
-        assert_eq!(db.latest_data(), Some(latest_data));
-    }
+    //     let latest_data = LatestData {
+    //         synced_block: SimpleBlockData {
+    //             hash: H256::random(),
+    //             header: Default::default(),
+    //         },
+    //         prepared_block_hash: H256::random(),
+    //         computed_announce_hash: HashOf::random(),
+    //         genesis_block_hash: H256::random(),
+    //         genesis_announce_hash: HashOf::random(),
+    //         start_block_hash: H256::random(),
+    //         start_announce_hash: HashOf::random(),
+    //     };
+    //     db.set_latest_data(latest_data.clone());
+    //     assert_eq!(db.latest_data(), Some(latest_data));
+    // }
 
     #[test]
     fn test_original_code() {

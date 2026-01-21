@@ -122,6 +122,7 @@ impl<T> HashOf<T> {
         }
     }
 
+    // +_+_+ change to mock
     #[cfg(feature = "std")]
     pub fn random() -> Self {
         Self {

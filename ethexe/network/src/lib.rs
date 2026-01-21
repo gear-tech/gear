@@ -35,10 +35,7 @@ use crate::{
 };
 use anyhow::{Context, anyhow};
 use ethexe_common::{
-    Address, BlockHeader, ValidatorsVec,
-    ecdsa::PublicKey,
-    injected::{RpcOrNetworkInjectedTx, SignedInjectedTransaction},
-    network::{SignedValidatorMessage, VerifiedValidatorMessage},
+    Address, BlockHeader, ValidatorsVec, db::ConfigStorageRO, ecdsa::PublicKey, injected::{RpcOrNetworkInjectedTx, SignedInjectedTransaction}, network::{SignedValidatorMessage, VerifiedValidatorMessage}
 };
 use ethexe_db::Database;
 use ethexe_signer::Signer;

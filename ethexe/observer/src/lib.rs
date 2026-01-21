@@ -27,7 +27,7 @@ use alloy::{
 };
 use anyhow::{Context as _, Result, anyhow};
 use ethexe_common::{
-    Address, BlockHeader, ProtocolTimelines, SimpleBlockData, db::BlockMetaStorageRO,
+    Address, BlockHeader, ProtocolTimelines, SimpleBlockData, db::ConfigStorageRO,
 };
 use ethexe_db::Database;
 use ethexe_ethereum::router::RouterQuery;
@@ -84,7 +84,7 @@ struct RuntimeConfig {
 pub struct ObserverService {
     provider: RootProvider,
     config: RuntimeConfig,
-    chain_sync: ChainSync<Database>,
+    chain_sync: ChainSync,
 
     last_block_number: u32,
     headers_stream: SubscriptionStream<Header>,
@@ -105,7 +105,7 @@ impl Stream for ObserverService {
             match ready!(future.as_mut().poll(cx)) {
                 Ok(subscription) => self.headers_stream = subscription.into_stream(),
                 Err(e) => {
-                    return Poll::Ready(Some(Err(anyhow::anyhow!(
+                    return Poll::Ready(Some(Err(anyhow!(
                         "failed to create new headers stream: {e}"
                     ))));
                 }
@@ -181,9 +181,6 @@ impl ObserverService {
             .await
             .context("failed to create ethereum provider")?;
 
-        let _genesis_block_hash =
-            Self::pre_process_genesis_for_db(&db, &provider, &router_query).await?;
-
         let headers_stream = provider
             .subscribe_blocks()
             .await
@@ -218,51 +215,51 @@ impl ObserverService {
     // +_+_+ remove
     // TODO #4563: this is a temporary solution
     /// Setup genesis block in the database if it's not prepared yet.
-    async fn pre_process_genesis_for_db(
-        db: &Database,
-        provider: &RootProvider,
-        router_query: &RouterQuery,
-    ) -> Result<H256> {
-        let genesis_block_hash = router_query.genesis_block_hash().await?;
+    // async fn pre_process_genesis_for_db(
+    //     db: &Database,
+    //     provider: &RootProvider,
+    //     router_query: &RouterQuery,
+    // ) -> Result<H256> {
+    //     let genesis_block_hash = router_query.genesis_block_hash().await?;
 
-        if db.block_meta(genesis_block_hash).prepared {
-            return Ok(genesis_block_hash);
-        }
+    //     if db.block_meta(genesis_block_hash).prepared {
+    //         return Ok(genesis_block_hash);
+    //     }
 
-        let genesis_block = provider
-            .get_block_by_hash(genesis_block_hash.0.into())
-            .await?
-            .ok_or_else(|| {
-                anyhow!("Genesis block with hash {genesis_block_hash:?} not found by rpc")
-            })?;
+    //     let genesis_block = provider
+    //         .get_block_by_hash(genesis_block_hash.0.into())
+    //         .await?
+    //         .ok_or_else(|| {
+    //             anyhow!("Genesis block with hash {genesis_block_hash:?} not found by rpc")
+    //         })?;
 
-        let genesis_header = BlockHeader {
-            height: genesis_block.header.number as u32,
-            timestamp: genesis_block.header.timestamp,
-            parent_hash: H256(genesis_block.header.parent_hash.0),
-        };
+    //     let genesis_header = BlockHeader {
+    //         height: genesis_block.header.number as u32,
+    //         timestamp: genesis_block.header.timestamp,
+    //         parent_hash: H256(genesis_block.header.parent_hash.0),
+    //     };
 
-        let router_timelines = router_query.timelines().await?;
-        let timelines = ProtocolTimelines {
-            genesis_ts: genesis_header.timestamp,
-            era: router_timelines.era,
-            election: router_timelines.election,
-            slot: 12,
-        };
-        let genesis_validators = router_query.validators_at(genesis_block_hash).await?;
+    //     let router_timelines = router_query.timelines().await?;
+    //     let timelines = ProtocolTimelines {
+    //         genesis_ts: genesis_header.timestamp,
+    //         era: router_timelines.era,
+    //         election: router_timelines.election,
+    //         slot: 12,
+    //     };
+    //     let genesis_validators = router_query.validators_at(genesis_block_hash).await?;
 
-        ethexe_common::setup_genesis_in_db(
-            db,
-            SimpleBlockData {
-                hash: genesis_block_hash,
-                header: genesis_header,
-            },
-            genesis_validators,
-            timelines,
-        );
+    //     ethexe_common::setup_genesis_in_db(
+    //         db,
+    //         SimpleBlockData {
+    //             hash: genesis_block_hash,
+    //             header: genesis_header,
+    //         },
+    //         genesis_validators,
+    //         timelines,
+    //     );
 
-        Ok(genesis_block_hash)
-    }
+    //     Ok(genesis_block_hash)
+    // }
 
     pub fn provider(&self) -> &RootProvider {
         &self.provider
