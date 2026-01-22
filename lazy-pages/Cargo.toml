@@ -33,7 +33,7 @@ libc.workspace = true
 errno.workspace = true
 
 [target.'cfg(windows)'.dependencies]
-winapi = { workspace = true, features = ["excpt", "memoryapi"] }
+winapi = { workspace = true, features = ["excpt", "memoryapi", "errhandlingapi"] }
 
 [dev-dependencies]
 tracing-subscriber.workspace = true
