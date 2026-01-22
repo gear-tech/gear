@@ -40,7 +40,18 @@ runs:
       if: runner.os == 'Linux'
       run: |
         sudo apt-fast update
-        sudo apt-fast install -y protobuf-compiler binaryen libclang-19-dev
+        sudo apt-fast install -y protobuf-compiler binaryen
+      shell: bash
+
+    - name: "Install: LLVM on Linux"
+      if: ${{ runner.os == 'Linux' }}
+      run: |
+        wget https://apt.llvm.org/llvm.sh
+        chmod +x llvm.sh
+        sudo ./llvm.sh 20
+        
+        sudo apt-fast update
+        sudo apt-fast install -y libclang-20-dev clang-tools-20
       shell: bash
 
     - name: "Install: Linux cross compilers and packages"
