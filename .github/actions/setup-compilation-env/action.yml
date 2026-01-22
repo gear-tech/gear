@@ -59,21 +59,11 @@ runs:
     - name: "Install: Linux compilers"
       if: runner.arch == 'X64' && runner.os == 'Linux'
       run: |
-        set -euo pipefail
+        sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-20 100
+        sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-20 100
         
-        sudo apt-fast update
-        sudo apt-fast install -y gcc-12 g++-12
-        
-        sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-12 100
-        sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-12 100
-        
-        echo "CC_x86_64_unknown_linux_gnu=gcc-12" >> $GITHUB_ENV
-        echo "CXX_x86_64_unknown_linux_gnu=g++-12" >> $GITHUB_ENV
-        
-        which cc gcc as
-        readlink -f "$(which cc)"
-        gcc -print-prog-name=as
-        "$(gcc -print-prog-name=as)" --version
+        echo "CC_x86_64_unknown_linux_gnu=clang-20" >> $GITHUB_ENV
+        echo "CXX_x86_64_unknown_linux_gnu=clang++-20" >> $GITHUB_ENV
       shell: bash
 
     - name: "Install: Linux cross compilers and packages"
