@@ -61,8 +61,14 @@ runs:
       run: |
         set -euo pipefail
         
-        echo "CC_x86_64_unknown_linux_gnu=gcc" >> $GITHUB_ENV
-        echo "CXX_x86_64_unknown_linux_gnu=g++" >> $GITHUB_ENV
+        sudo apt-fast update
+        sudo apt-fast install -y gcc-12 g++-12
+        
+        sudo update-alternatives --install /usr/bin/gcc gcc /usr/bin/gcc-12 100
+        sudo update-alternatives --install /usr/bin/g++ g++ /usr/bin/g++-12 100
+        
+        echo "CC_x86_64_unknown_linux_gnu=gcc-12" >> $GITHUB_ENV
+        echo "CXX_x86_64_unknown_linux_gnu=g++-12" >> $GITHUB_ENV
         
         which cc gcc as
         readlink -f "$(which cc)"
