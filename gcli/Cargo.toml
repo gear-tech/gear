@@ -39,5 +39,13 @@ gear-workspace-hack.workspace = true
 default = ["self-update"]
 self-update = []
 
+[dev-dependencies]
+snapbox.workspace = true
+gear-node-wrapper.workspace = true
+demo-messenger.workspace = true
+demo-vec.workspace = true
+indoc.workspace = true
+regex.workspace = true
+
 [package.metadata.docs.rs]
 all-features = true
