@@ -17,6 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{Address, HashOf, ToDigest, ecdsa::SignedMessage};
+use alloc::string::{String, ToString};
 use core::hash::Hash;
 use gear_core::{limited::LimitedVec, rpc::ReplyInfo};
 use gprimitives::{ActorId, H256, MessageId};
@@ -26,16 +27,34 @@ use sha3::{Digest, Keccak256};
 /// Recent block hashes window size used to check transaction mortality.
 pub const VALIDITY_WINDOW: u8 = 32;
 
-/// Maximum total size of single injected tx payload.
+/// Maximum size of single injected tx payload.
 /// Currently set to 1 MB.
 pub const MAX_INJECTED_TX_PAYLOAD_SIZE: usize = 1024 * 1024;
+
+#[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
+#[derive(Debug, Clone, Encode, Decode, Eq, PartialEq)]
+pub enum InjectedTransactionAcceptance {
+    Accept,
+    Reject { reason: String },
+}
+
+impl<E: ToString> From<Result<(), E>> for InjectedTransactionAcceptance {
+    fn from(value: Result<(), E>) -> Self {
+        match value {
+            Ok(()) => Self::Accept,
+            Err(err) => Self::Reject {
+                reason: err.to_string(),
+            },
+        }
+    }
+}
 
 pub type SignedInjectedTransaction = SignedMessage<InjectedTransaction>;
 
 #[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
 #[cfg_attr(feature = "serde", derive(Hash))]
 #[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
-pub struct RpcOrNetworkInjectedTx {
+pub struct AddressedInjectedTransaction {
     /// Address of validator the transaction intended for
     pub recipient: Address,
     pub tx: SignedInjectedTransaction,
@@ -133,8 +152,8 @@ impl ToDigest for Promise {
 }
 
 /// Hex (de)serialization helpers for the following types:
-/// - [`LimitedVec<u8, N>`] as hex string.
-/// - [`gprimitives::U256`] as hex string.
+/// - [`LimitedVec<u8, N>`]
+/// - [`gprimitives::U256`]
 #[cfg(feature = "std")]
 mod hex {
     use super::*;

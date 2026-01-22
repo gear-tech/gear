@@ -76,7 +76,7 @@ where
 
         let mut selected_txs = vec![];
         let mut remove_txs = vec![];
-        let mut transactions_size_counter = 0usize;
+        let mut size_counter = 0usize;
 
         for (reference_block, tx_hash) in self.inner.iter() {
             let Some(tx) = self.db.injected_transaction(*tx_hash) else {
@@ -89,10 +89,8 @@ where
                     tracing::trace!(tx_hash = ?tx_hash, tx = ?tx.data(), "tx is valid, including to announce");
                     // NOTE: we calculate size with signature, because tx will be sent to network with it.
                     let tx_size = tx.encoded_size();
-                    if transactions_size_counter + tx_size
-                        > MAX_INJECTED_TRANSACTIONS_SIZE_PER_ANNOUNCE
-                    {
-                        tracing::warn!(
+                    if size_counter + tx_size > MAX_INJECTED_TRANSACTIONS_SIZE_PER_ANNOUNCE {
+                        tracing::trace!(
                             ?tx_hash,
                             "transaction is valid, but exceeds max announce size limit, so skipping it for future announces"
                         );
@@ -100,7 +98,7 @@ where
                     }
 
                     selected_txs.push(tx);
-                    transactions_size_counter += tx_size;
+                    size_counter += tx_size;
                 }
                 TxValidity::Duplicate => {
                     // Keep in pool, in case of reorg it can be valid again.

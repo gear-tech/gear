@@ -26,7 +26,7 @@ use crate::{
     ecdsa::{PrivateKey, SignedMessage},
     events::BlockEvent,
     gear::{BatchCommitment, ChainCommitment, CodeCommitment, Message, StateTransition},
-    injected::{InjectedTransaction, RpcOrNetworkInjectedTx},
+    injected::{AddressedInjectedTransaction, InjectedTransaction},
 };
 use alloc::{collections::BTreeMap, vec};
 use gear_core::{
@@ -179,9 +179,9 @@ impl Mock<()> for InjectedTransaction {
     }
 }
 
-impl Mock<PrivateKey> for RpcOrNetworkInjectedTx {
+impl Mock<PrivateKey> for AddressedInjectedTransaction {
     fn mock(pk: PrivateKey) -> Self {
-        RpcOrNetworkInjectedTx {
+        AddressedInjectedTransaction {
             recipient: Default::default(),
             tx: SignedMessage::create(pk, InjectedTransaction::mock(()))
                 .expect("Signing injected transaction will succeed"),
@@ -189,9 +189,9 @@ impl Mock<PrivateKey> for RpcOrNetworkInjectedTx {
     }
 }
 
-impl Mock<()> for RpcOrNetworkInjectedTx {
+impl Mock<()> for AddressedInjectedTransaction {
     fn mock(_args: ()) -> Self {
-        RpcOrNetworkInjectedTx::mock(PrivateKey::random())
+        AddressedInjectedTransaction::mock(PrivateKey::random())
     }
 }
 
