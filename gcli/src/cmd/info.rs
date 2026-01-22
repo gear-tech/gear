@@ -21,12 +21,10 @@ use crate::{app::App, utils::HexBytes};
 use anyhow::Result;
 use clap::Parser;
 use colored::Colorize;
+use gear_core::ids::ActorId;
 use gsdk::{
     Api,
-    ext::{
-        sp_core::{Pair as PairT, crypto::Ss58Codec, sr25519::Pair},
-        sp_runtime::AccountId32,
-    },
+    ext::sp_core::{Pair as PairT, crypto::Ss58Codec, sr25519::Pair},
 };
 
 /// Get account info.
@@ -67,7 +65,7 @@ impl Info {
                 .to_ss58check()
         }
 
-        let acc = AccountId32::from_ss58check(&address)?;
+        let acc: ActorId = address.parse()?;
         match self.action {
             Action::Balance => Self::print_balance(&api, acc).await,
             Action::Mailbox { count } => Self::print_mailbox(&api, acc, count).await,
@@ -75,14 +73,14 @@ impl Info {
     }
 
     /// Prints the account balance.
-    async fn print_balance(api: &Api, acc: AccountId32) -> Result<()> {
+    async fn print_balance(api: &Api, acc: ActorId) -> Result<()> {
         let balance = api.free_balance(acc).await?;
         println!("{} {}", "Free balance:".bold(), balance);
         Ok(())
     }
 
     /// Prints the account mailbox.
-    async fn print_mailbox(api: &Api, acc: AccountId32, count: usize) -> Result<()> {
+    async fn print_mailbox(api: &Api, acc: ActorId, count: usize) -> Result<()> {
         let mails = api.mailbox_messages(acc, count).await?;
         if mails.is_empty() {
             println!("{}", "Mailbox is empty".dimmed());
