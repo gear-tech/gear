@@ -52,6 +52,8 @@ runs:
         
         sudo apt-fast update
         sudo apt-fast install -y libclang-20-dev clang-tools-20
+        
+        sudo update-alternatives --install /usr/bin/clang-cl clang-cl /usr/bin/clang-cl-20 100
       shell: bash
 
     - name: "Install: Linux cross compilers and packages"
