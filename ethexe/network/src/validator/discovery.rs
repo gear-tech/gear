@@ -53,7 +53,7 @@ use libp2p::{
 };
 use parity_scale_codec::{Decode, Encode, Input, Output};
 use std::{
-    collections::HashMap,
+    collections::{HashMap, VecDeque},
     sync::Arc,
     task::{Context, Poll, ready},
     time::SystemTime,
@@ -66,6 +66,8 @@ const MAX_IDENTITY_ADDRESSES: usize = 10;
 ///
 /// Limit is to not flood the network
 const MAX_IN_FLIGHT_QUERIES: usize = 10;
+
+pub type ValidatorIdentities = HashMap<Address, SignedValidatorIdentity>;
 
 /// Signed validator discovery
 ///
@@ -82,8 +84,8 @@ pub struct SignedValidatorIdentity {
 }
 
 impl SignedValidatorIdentity {
-    pub(crate) fn data(&self) -> &ValidatorIdentity {
-        &self.inner
+    pub(crate) fn addresses(&self) -> &ValidatorAddresses {
+        &self.inner.addresses
     }
 
     pub(crate) fn address(&self) -> Address {
@@ -176,6 +178,7 @@ enum FromVecOfVecError {
 // TODO: consider to not expect peer ID at the end of addresses
 // because it is signed by the network key (and thus the same peer ID)
 #[derive(Debug, Clone, PartialEq, Eq, derive_more::IntoIterator)]
+#[into_iterator(owned, ref)]
 pub(crate) struct ValidatorAddresses {
     // use indexed set for stable encoding/decoding and digest generation
     addresses: IndexSet<Multiaddr>,
@@ -275,11 +278,9 @@ impl ValidatorAddresses {
             unreachable!("always contains `p2p` protocol as last")
         }
     }
-}
 
-impl<const N: usize> PartialEq<[Multiaddr; N]> for ValidatorAddresses {
-    fn eq(&self, other: &[Multiaddr; N]) -> bool {
-        self.addresses.iter().eq(other)
+    pub(crate) fn iter(&self) -> impl Iterator<Item = &Multiaddr> {
+        self.addresses.iter()
     }
 }
 
@@ -370,9 +371,10 @@ pub enum Event {
 
 struct GetIdentities {
     snapshot: Arc<ValidatorListSnapshot>,
-    identities: HashMap<Address, SignedValidatorIdentity>,
+    identities: ValidatorIdentities,
     query_identities: Option<BoxStream<'static, GetRecordResult>>,
     query_identities_interval: ExponentialBackoffInterval,
+    pending_events: VecDeque<ToSwarm<Event, THandlerInEvent<Behaviour>>>,
 }
 
 impl GetIdentities {
@@ -403,7 +405,7 @@ impl GetIdentities {
         }
 
         if let Some(old_identity) = self.identities.get(&identity.address())
-            && old_identity.data().creation_time >= identity.inner.creation_time
+            && old_identity.inner.creation_time >= identity.inner.creation_time
         {
             return Ok(None);
         }
@@ -411,16 +413,24 @@ impl GetIdentities {
         Ok(Some(identity))
     }
 
-    fn put_identity(&mut self, record: ValidatorIdentityRecord) -> Result<(), VerifyRecordError> {
-        let identity = self.verify_record(record)?;
-        if let Some(identity) = identity {
-            self.identities.insert(identity.address(), identity);
-        }
+    fn put_identity(&mut self, record: ValidatorIdentityRecord) -> Result<bool, VerifyRecordError> {
+        let Some(identity) = self.verify_record(record)? else {
+            return Ok(false);
+        };
 
-        Ok(())
+        self.identities.insert(identity.address(), identity);
+        Ok(true)
     }
 
-    fn poll(&mut self, cx: &mut Context<'_>, kad: &kad::Handle) -> Poll<Event> {
+    fn poll(
+        &mut self,
+        cx: &mut Context<'_>,
+        kad: &kad::Handle,
+    ) -> Poll<ToSwarm<Event, THandlerInEvent<Behaviour>>> {
+        if let Some(event) = self.pending_events.pop_front() {
+            return Poll::Ready(event);
+        }
+
         if self.query_identities_interval.poll_tick(cx).is_ready() {
             let streams = self
                 .identity_keys()
@@ -433,7 +443,7 @@ impl GetIdentities {
                 .flatten_unordered(Some(MAX_IN_FLIGHT_QUERIES))
                 .boxed();
             self.query_identities.replace(stream);
-            return Poll::Ready(Event::GetIdentitiesStarted);
+            return Poll::Ready(ToSwarm::GenerateEvent(Event::GetIdentitiesStarted));
         }
 
         if let Some(stream) = &mut self.query_identities
@@ -444,8 +454,13 @@ impl GetIdentities {
                     let record = record.unwrap_validator_identity();
                     let address = record.value.address();
                     match self.put_identity(record) {
-                        Ok(()) => {
-                            return Poll::Ready(Event::IdentityUpdated { address });
+                        Ok(true) => {
+                            return Poll::Ready(ToSwarm::GenerateEvent(Event::IdentityUpdated {
+                                address,
+                            }));
+                        }
+                        Ok(false) => {
+                            /* we already have a newer identity or the same one for this validator */
                         }
                         Err(err) => {
                             log::trace!("failed to save identity from get record query: {err}");
@@ -564,6 +579,7 @@ impl Behaviour {
                 identities: HashMap::new(),
                 query_identities: None,
                 query_identities_interval: ExponentialBackoffInterval::new(),
+                pending_events: VecDeque::new(),
             },
             put_identity: validator_key.map(|validator_key| PutIdentity {
                 keypair,
@@ -580,7 +596,11 @@ impl Behaviour {
         self.get_identities.on_new_snapshot(snapshot);
     }
 
-    #[allow(unused)] // will be used in next PRs
+    pub fn identities(&self) -> &ValidatorIdentities {
+        &self.get_identities.identities
+    }
+
+    #[cfg(test)]
     pub fn get_identity(&self, address: Address) -> Option<&SignedValidatorIdentity> {
         self.get_identities.identities.get(&address)
     }
@@ -637,7 +657,7 @@ impl NetworkBehaviour for Behaviour {
         cx: &mut Context<'_>,
     ) -> Poll<ToSwarm<Self::ToSwarm, THandlerInEvent<Self>>> {
         if let Poll::Ready(event) = self.get_identities.poll(cx, &self.kad) {
-            return Poll::Ready(ToSwarm::GenerateEvent(event));
+            return Poll::Ready(event);
         }
 
         if let Some(put_identity) = &mut self.put_identity
@@ -893,7 +913,7 @@ mod tests {
             behaviour
                 .get_identity(validator_key.to_address())
                 .unwrap()
-                .data()
+                .inner
                 .creation_time,
             20
         );
@@ -909,7 +929,7 @@ mod tests {
             behaviour
                 .get_identity(validator_key.to_address())
                 .unwrap()
-                .data()
+                .inner
                 .creation_time,
             30
         );
