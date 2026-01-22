@@ -199,8 +199,8 @@ impl ValidatorCore {
         // Sort elected validators, because of RPC can not guarantee the determinism of returned validators order.
         elected_validators.sort();
 
-        let commitment = utils::validators_commitment(block_era + 1, elected_validators)?;
-        Ok(Some(commitment))
+        let commitment = utils::validators_commitment(&self.db, block_era + 1, elected_validators)?;
+        Ok(commitment)
     }
 
     // TODO #4742
@@ -305,14 +305,29 @@ impl ValidatorCore {
             };
 
         let validators_commitment = if validators {
-            let Some(commitment) = Self::aggregate_validators_commitment(&mut self, &block).await?
-            else {
-                return Ok(ValidationStatus::Rejected {
-                    request,
-                    reason: ValidationRejectReason::ValidatorsNotReady,
-                });
-            };
-            Some(commitment)
+            match Self::aggregate_validators_commitment(&mut self, &block).await {
+                Ok(Some(commitment)) => Some(commitment),
+                Ok(None) => {
+                    return Ok(ValidationStatus::Rejected {
+                        request,
+                        reason: ValidationRejectReason::ValidatorsNotReady,
+                    });
+                }
+                Err(err) => {
+                    if let Some(mismatch) =
+                        err.downcast_ref::<crate::utils::ValidatorsCommitmentCountMismatch>()
+                    {
+                        return Ok(ValidationStatus::Rejected {
+                            request,
+                            reason: ValidationRejectReason::ValidatorsCommitmentMismatch {
+                                expected: mismatch.package_participants,
+                                found: mismatch.elected_validators,
+                            },
+                        });
+                    }
+                    return Err(err);
+                }
+            }
         } else {
             None
         };
@@ -392,6 +407,8 @@ pub enum ValidationRejectReason {
         "received batch contains validators commitment, but it's not time for validators election yet"
     )]
     ValidatorsNotReady,
+    #[display("validators commitment rejected: expected {expected} validators, got {found}")]
+    ValidatorsCommitmentMismatch { expected: usize, found: usize },
     #[display(
         "received batch contains rewards commitment, but it's not time for rewards distribution yet"
     )]
@@ -406,11 +423,11 @@ pub trait BatchCommitter: Send {
     /// Creates a boxed clone of the committer.
     fn clone_boxed(&self) -> Box<dyn BatchCommitter>;
 
-    /// Commits a batch of signed commitments to the blockchain.
+    /// Commits a batch of signed commitments to the blockchain with ECDSA signatures.
     ///
     /// # Arguments
     /// * `batch` - The batch of commitments to commit
-    /// * `signatures` - The signatures for the batch commitments
+    /// * `signatures` - The ECDSA signatures for the batch commitments
     ///
     /// # Returns
     /// The hash of the transaction that was sent to the blockchain
@@ -418,6 +435,20 @@ pub trait BatchCommitter: Send {
         self: Box<Self>,
         batch: BatchCommitment,
         signatures: Vec<ContractSignature>,
+    ) -> Result<H256>;
+
+    /// Commits a batch of signed commitments to the blockchain with FROST threshold signature.
+    ///
+    /// # Arguments
+    /// * `batch` - The batch of commitments to commit
+    /// * `signature96` - The 96-byte FROST threshold signature (R_x || R_y || z)
+    ///
+    /// # Returns
+    /// The hash of the transaction that was sent to the blockchain
+    async fn commit_frost(
+        self: Box<Self>,
+        batch: BatchCommitment,
+        signature96: [u8; 96],
     ) -> Result<H256>;
 }
 
@@ -493,6 +524,16 @@ impl BatchCommitter for Router {
         tracing::debug!("Batch commitment to submit: {batch:?}");
 
         self.commit_batch(batch, signatures).await
+    }
+
+    async fn commit_frost(
+        self: Box<Self>,
+        batch: BatchCommitment,
+        signature96: [u8; 96],
+    ) -> Result<H256> {
+        tracing::debug!("Batch commitment with FROST signature to submit: {batch:?}");
+
+        self.commit_batch_frost(batch, signature96).await
     }
 }
 

@@ -10,7 +10,13 @@ repository.workspace = true
 [dependencies]
 ethexe-db.workspace = true
 ethexe-service-utils.workspace = true
-gsigner = { workspace = true, features = ["std", "secp256k1", "codec", "keyring", "serde"] }
+gsigner = { workspace = true, features = [
+    "std",
+    "secp256k1",
+    "codec",
+    "keyring",
+    "serde",
+] }
 ethexe-ethereum.workspace = true
 ethexe-common.workspace = true
 ethexe-runtime-common.workspace = true
@@ -21,6 +27,7 @@ tokio.workspace = true
 parity-scale-codec = { workspace = true, features = ["std", "derive"] }
 tracing.workspace = true
 anyhow = { workspace = true, features = ["std"] }
+thiserror.workspace = true
 futures.workspace = true
 derive_more.workspace = true
 nonempty.workspace = true

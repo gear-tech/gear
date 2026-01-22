@@ -23,6 +23,7 @@
 extern crate alloc;
 
 pub mod consensus;
+pub mod crypto;
 pub mod db;
 pub mod events;
 pub mod gear;

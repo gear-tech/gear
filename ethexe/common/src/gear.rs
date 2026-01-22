@@ -239,13 +239,25 @@ impl ToDigest for ValidatorsCommitment {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
         let ValidatorsCommitment {
             aggregated_public_key,
-            verifiable_secret_sharing_commitment: _, // TODO: add to digest
+            verifiable_secret_sharing_commitment,
             validators,
             era_index,
         } = self;
 
+        // Include aggregated public key coordinates
         hasher.update(<[u8; 32]>::from(aggregated_public_key.x));
         hasher.update(<[u8; 32]>::from(aggregated_public_key.y));
+
+        // Include hash of VSS commitment
+        // This matches Solidity: keccak256(abi.encodePacked(..., keccak256(vss), ...))
+        let vss_bytes = verifiable_secret_sharing_commitment
+            .serialize()
+            .expect("VSS commitment serialization failed")
+            .concat();
+        let vss_hash = sha3::Keccak256::digest(&vss_bytes);
+        hasher.update(vss_hash);
+
+        // Include validators (each address as 32 bytes)
         hasher.update(
             validators
                 .iter()
@@ -258,6 +270,7 @@ impl ToDigest for ValidatorsCommitment {
                 .collect::<Vec<u8>>(),
         );
 
+        // Include era index as U256 big-endian
         let bytes = AlloyU256::from(*era_index).to_be_bytes::<32>();
         hasher.update(bytes);
     }
@@ -368,7 +381,7 @@ pub struct StateTransition {
     /// and each zero byte costs 4 gas (see <https://evm.codes/about#gascosts>).
     ///
     /// Negative numbers will be stored like this:
-    /// ```
+    /// ```text
     /// $ cast
     /// > -1 ether
     /// Type: int256
