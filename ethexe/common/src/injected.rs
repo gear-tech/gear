@@ -17,7 +17,6 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{Address, HashOf, ToDigest, ecdsa::SignedMessage};
-use alloy_primitives::hex;
 use core::hash::Hash;
 use gear_core::{limited::LimitedVec, rpc::ReplyInfo};
 use gprimitives::{ActorId, H256, MessageId};
@@ -50,7 +49,7 @@ pub struct InjectedTransaction {
     /// Destination program inside `Vara.eth`.
     pub destination: ActorId,
     /// Payload of the message.
-    #[cfg_attr(feature = "std", serde(with = "limited_vec_hex"))]
+    #[cfg_attr(feature = "std", serde(with = "hex::limited_vec"))]
     pub payload: LimitedVec<u8, MAX_INJECTED_TX_PAYLOAD_SIZE>,
     /// Value attached to the message.
     /// NOTE: at this moment will be zero.
@@ -60,53 +59,8 @@ pub struct InjectedTransaction {
     /// Arbitrary bytes to allow multiple synonymous
     /// transactions to be sent simultaneously.
     /// NOTE: this is also a salt for MessageId generation.
-    // #[cfg_attr(feature = "std", serde(with = "const_hex"))]
-    #[cfg_attr(feature = "std", serde(with = "u256_hex"))]
+    #[cfg_attr(feature = "std", serde(with = "hex::u256"))]
     pub salt: gprimitives::U256,
-}
-#[cfg(feature = "std")]
-mod limited_vec_hex {
-    pub fn serialize<S, const N: usize>(
-        data: &super::LimitedVec<u8, N>,
-        serializer: S,
-    ) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        alloy_primitives::hex::serialize(data.to_vec(), serializer)
-    }
-
-    pub fn deserialize<'de, D, const N: usize>(
-        deserializer: D,
-    ) -> Result<super::LimitedVec<u8, N>, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let vec: Vec<u8> = alloy_primitives::hex::deserialize(deserializer)?;
-        super::LimitedVec::<u8, N>::try_from(vec)
-            .map_err(|_| serde::de::Error::custom("failed to convert to LimitedVec"))
-    }
-}
-
-#[cfg(feature = "std")]
-mod u256_hex {
-    use gprimitives::U256;
-    pub fn serialize<S>(data: &U256, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        let mut buffer = [0u8; 32];
-        data.to_big_endian(&mut buffer);
-        alloy_primitives::hex::serialize(buffer, serializer)
-    }
-
-    pub fn deserialize<'de, D>(deserializer: D) -> Result<U256, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let buffer: [u8; 32] = alloy_primitives::hex::deserialize(deserializer)?;
-        Ok(U256::from_big_endian(buffer.as_slice()))
-    }
 }
 
 impl ToDigest for InjectedTransaction {
@@ -123,7 +77,9 @@ impl ToDigest for InjectedTransaction {
         payload.update_hasher(hasher);
         value.to_be_bytes().update_hasher(hasher);
         reference_block.0.update_hasher(hasher);
-        salt.encode().as_slice().update_hasher(hasher);
+        alloy_primitives::U256::from_limbs(salt.0)
+            .to_be_bytes::<32>()
+            .update_hasher(hasher);
     }
 }
 
@@ -136,7 +92,9 @@ impl InjectedTransaction {
             self.payload.as_ref(),
             &self.value.to_be_bytes(),
             &self.reference_block.0,
-            self.salt.encode().as_ref(),
+            alloy_primitives::U256::from_limbs(self.salt.0)
+                .to_be_bytes::<32>()
+                .as_ref(),
         ]
         .concat();
         unsafe { HashOf::new(gear_core::utils::hash(&bytes).into()) }
@@ -171,5 +129,60 @@ impl ToDigest for Promise {
 
         hasher.update(tx_hash.inner());
         reply.update_hasher(hasher);
+    }
+}
+
+/// Hex (de)serialization helpers for the following types:
+/// - [`LimitedVec<u8, N>`] as hex string.
+/// - [`gprimitives::U256`] as hex string.
+#[cfg(feature = "std")]
+mod hex {
+    use super::*;
+    /// Encoding and decoding of `LimitedVec<u8, N>` as hex string.
+    #[cfg(feature = "std")]
+    pub mod limited_vec {
+        pub fn serialize<S, const N: usize>(
+            data: &super::LimitedVec<u8, N>,
+            serializer: S,
+        ) -> Result<S::Ok, S::Error>
+        where
+            S: serde::Serializer,
+        {
+            alloy_primitives::hex::serialize(data.to_vec(), serializer)
+        }
+
+        pub fn deserialize<'de, D, const N: usize>(
+            deserializer: D,
+        ) -> Result<super::LimitedVec<u8, N>, D::Error>
+        where
+            D: serde::Deserializer<'de>,
+        {
+            let vec: Vec<u8> = alloy_primitives::hex::deserialize(deserializer)?;
+            super::LimitedVec::<u8, N>::try_from(vec)
+                .map_err(|_| serde::de::Error::custom("LimitedVec deserialization overflow"))
+        }
+    }
+
+    /// Encoding and decoding of [`gprimitives::U256`] as hex string using
+    /// [`alloy_primitives::hex`] module.
+    #[cfg(feature = "std")]
+    pub mod u256 {
+        use gprimitives::U256;
+        pub fn serialize<S>(data: &U256, serializer: S) -> Result<S::Ok, S::Error>
+        where
+            S: serde::Serializer,
+        {
+            let mut buffer = [0u8; 32];
+            data.to_big_endian(&mut buffer);
+            alloy_primitives::hex::serialize(buffer, serializer)
+        }
+
+        pub fn deserialize<'de, D>(deserializer: D) -> Result<U256, D::Error>
+        where
+            D: serde::Deserializer<'de>,
+        {
+            let buffer: [u8; 32] = alloy_primitives::hex::deserialize(deserializer)?;
+            Ok(U256::from_big_endian(buffer.as_slice()))
+        }
     }
 }
