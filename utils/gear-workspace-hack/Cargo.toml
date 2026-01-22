@@ -217,19 +217,20 @@ features = ["test-helpers"]
 [dependencies]
 aes = { version = "0.8", default-features = false, features = ["zeroize"] }
 ahash = { version = "0.8" }
-alloy = { git = "https://github.com/gear-tech/alloy", features = ["k256", "kzg", "node-bindings", "provider-anvil-api", "provider-ws", "rpc-types-beacon", "rpc-types-eth"] }
+alloy = { git = "https://github.com/gear-tech/alloy", features = ["full", "node-bindings", "rpc-types-beacon", "rpc-types-eth"] }
 alloy-chains = { version = "0.2" }
 alloy-consensus = { git = "https://github.com/gear-tech/alloy", default-features = false, features = ["k256", "kzg", "serde"] }
 alloy-contract = { git = "https://github.com/gear-tech/alloy", default-features = false, features = ["pubsub"] }
-alloy-core = { version = "1", features = ["dyn-abi", "json-abi", "k256"] }
+alloy-core = { version = "1", features = ["dyn-abi", "json-abi", "k256", "rlp"] }
 alloy-eip7702 = { version = "0.6", default-features = false, features = ["k256", "serde", "std"] }
 alloy-eips = { git = "https://github.com/gear-tech/alloy", default-features = false, features = ["k256", "kzg", "serde", "std"] }
 alloy-json-abi = { version = "1", features = ["serde_json"] }
 alloy-network = { git = "https://github.com/gear-tech/alloy", default-features = false, features = ["k256"] }
 alloy-primitives = { version = "1", features = ["k256", "rlp", "serde"] }
-alloy-provider = { git = "https://github.com/gear-tech/alloy", default-features = false, features = ["anvil-node", "ws"] }
-alloy-rpc-client = { git = "https://github.com/gear-tech/alloy", default-features = false, features = ["reqwest", "ws"] }
-alloy-rpc-types = { git = "https://github.com/gear-tech/alloy", default-features = false, features = ["anvil", "beacon", "eth", "k256", "kzg"] }
+alloy-provider = { git = "https://github.com/gear-tech/alloy", default-features = false, features = ["anvil-node", "debug-api", "ipc", "trace-api", "txpool-api", "ws"] }
+alloy-rlp = { version = "0.3", features = ["arrayvec", "derive"] }
+alloy-rpc-client = { git = "https://github.com/gear-tech/alloy", default-features = false, features = ["ipc", "reqwest", "ws"] }
+alloy-rpc-types = { git = "https://github.com/gear-tech/alloy", default-features = false, features = ["anvil", "beacon", "debug", "eth", "k256", "kzg", "trace", "txpool"] }
 alloy-rpc-types-eth = { git = "https://github.com/gear-tech/alloy", default-features = false, features = ["k256", "serde", "std"] }
 alloy-sol-type-parser = { version = "1", default-features = false, features = ["serde", "std"] }
 alloy-sol-types = { version = "1", features = ["json"] }
@@ -387,6 +388,7 @@ serde = { version = "1", features = ["alloc", "derive", "rc"] }
 serde-json-wasm = { version = "1", default-features = false, features = ["std"] }
 serde_core = { version = "1", default-features = false, features = ["alloc", "rc", "result", "std"] }
 serde_json = { version = "1", features = ["alloc", "arbitrary_precision", "raw_value", "unbounded_depth"] }
+serde_with = { version = "3", default-features = false, features = ["base64", "macros", "std"] }
 serdect = { version = "0.2" }
 sha1 = { version = "0.10" }
 sha2 = { version = "0.10" }
@@ -479,19 +481,20 @@ zeroize = { version = "1", features = ["derive", "std"] }
 [build-dependencies]
 aes = { version = "0.8", default-features = false, features = ["zeroize"] }
 ahash = { version = "0.8" }
-alloy = { git = "https://github.com/gear-tech/alloy", features = ["k256", "kzg", "node-bindings", "provider-anvil-api", "provider-ws", "rpc-types-beacon", "rpc-types-eth"] }
+alloy = { git = "https://github.com/gear-tech/alloy", features = ["full", "node-bindings", "rpc-types-beacon", "rpc-types-eth"] }
 alloy-chains = { version = "0.2" }
 alloy-consensus = { git = "https://github.com/gear-tech/alloy", default-features = false, features = ["k256", "kzg", "serde"] }
 alloy-contract = { git = "https://github.com/gear-tech/alloy", default-features = false, features = ["pubsub"] }
-alloy-core = { version = "1", features = ["dyn-abi", "json-abi", "k256"] }
+alloy-core = { version = "1", features = ["dyn-abi", "json-abi", "k256", "rlp"] }
 alloy-eip7702 = { version = "0.6", default-features = false, features = ["k256", "serde", "std"] }
 alloy-eips = { git = "https://github.com/gear-tech/alloy", default-features = false, features = ["k256", "kzg", "serde", "std"] }
 alloy-json-abi = { version = "1", features = ["serde_json"] }
 alloy-network = { git = "https://github.com/gear-tech/alloy", default-features = false, features = ["k256"] }
 alloy-primitives = { version = "1", features = ["k256", "rlp", "serde"] }
-alloy-provider = { git = "https://github.com/gear-tech/alloy", default-features = false, features = ["anvil-node", "ws"] }
-alloy-rpc-client = { git = "https://github.com/gear-tech/alloy", default-features = false, features = ["reqwest", "ws"] }
-alloy-rpc-types = { git = "https://github.com/gear-tech/alloy", default-features = false, features = ["anvil", "beacon", "eth", "k256", "kzg"] }
+alloy-provider = { git = "https://github.com/gear-tech/alloy", default-features = false, features = ["anvil-node", "debug-api", "ipc", "trace-api", "txpool-api", "ws"] }
+alloy-rlp = { version = "0.3", features = ["arrayvec", "derive"] }
+alloy-rpc-client = { git = "https://github.com/gear-tech/alloy", default-features = false, features = ["ipc", "reqwest", "ws"] }
+alloy-rpc-types = { git = "https://github.com/gear-tech/alloy", default-features = false, features = ["anvil", "beacon", "debug", "eth", "k256", "kzg", "trace", "txpool"] }
 alloy-rpc-types-eth = { git = "https://github.com/gear-tech/alloy", default-features = false, features = ["k256", "serde", "std"] }
 alloy-sol-macro = { version = "1", default-features = false, features = ["json"] }
 alloy-sol-macro-expander = { version = "1", default-features = false, features = ["json"] }
@@ -661,6 +664,7 @@ serde = { version = "1", features = ["alloc", "derive", "rc"] }
 serde-json-wasm = { version = "1", default-features = false, features = ["std"] }
 serde_core = { version = "1", default-features = false, features = ["alloc", "rc", "result", "std"] }
 serde_json = { version = "1", features = ["alloc", "arbitrary_precision", "raw_value", "unbounded_depth"] }
+serde_with = { version = "3", default-features = false, features = ["base64", "macros", "std"] }
 serdect = { version = "0.2" }
 sha1 = { version = "0.10" }
 sha2 = { version = "0.10" }
