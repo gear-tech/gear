@@ -27,7 +27,7 @@ use gear_core::ids::MessageId;
 #[derive(Clone, Debug, Parser)]
 pub struct Reply {
     /// Message to reply to.
-    reply_to_id: MessageId,
+    message_id: MessageId,
 
     /// Reply payload, as hex string.
     #[arg(short, long, default_value = "0x")]
@@ -52,14 +52,14 @@ impl Reply {
         let gas_limit = if let Some(gas_limit) = self.gas_limit {
             gas_limit
         } else {
-            api.calculate_reply_gas(self.reply_to_id, &self.payload, self.value, false)
+            api.calculate_reply_gas(self.message_id, &self.payload, self.value, false)
                 .await?
                 .min_limit
         };
 
         let (message_id, _) = api
             .send_reply_bytes(
-                self.reply_to_id,
+                self.message_id,
                 self.payload.as_slice(),
                 gas_limit,
                 self.value,
