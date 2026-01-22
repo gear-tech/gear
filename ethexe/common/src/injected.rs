@@ -18,9 +18,10 @@
 
 use crate::{Address, HashOf, ToDigest, ecdsa::SignedMessage};
 use alloc::string::{String, ToString};
+use alloy_primitives::U256 as AlloyU256;
 use core::hash::Hash;
 use gear_core::{limited::LimitedVec, rpc::ReplyInfo};
-use gprimitives::{ActorId, H256, MessageId};
+use gprimitives::{ActorId, H256, MessageId, U256};
 use parity_scale_codec::{Decode, Encode};
 use sha3::{Digest, Keccak256};
 
@@ -79,7 +80,7 @@ pub struct InjectedTransaction {
     /// transactions to be sent simultaneously.
     /// NOTE: this is also a salt for MessageId generation.
     #[cfg_attr(feature = "std", serde(with = "hex::u256"))]
-    pub salt: gprimitives::U256,
+    pub salt: U256,
 }
 
 impl ToDigest for InjectedTransaction {
@@ -96,7 +97,7 @@ impl ToDigest for InjectedTransaction {
         payload.update_hasher(hasher);
         value.to_be_bytes().update_hasher(hasher);
         reference_block.0.update_hasher(hasher);
-        alloy_primitives::U256::from_limbs(salt.0)
+        AlloyU256::from_limbs(salt.0)
             .to_be_bytes::<32>()
             .update_hasher(hasher);
     }
@@ -111,7 +112,7 @@ impl InjectedTransaction {
             self.payload.as_ref(),
             &self.value.to_be_bytes(),
             &self.reference_block.0,
-            alloy_primitives::U256::from_limbs(self.salt.0)
+            AlloyU256::from_limbs(self.salt.0)
                 .to_be_bytes::<32>()
                 .as_ref(),
         ]
@@ -153,7 +154,7 @@ impl ToDigest for Promise {
 
 /// Hex (de)serialization helpers for the following types:
 /// - [`LimitedVec<u8, N>`]
-/// - [`gprimitives::U256`]
+/// - [`U256`]
 #[cfg(feature = "std")]
 mod hex {
     use super::*;
@@ -187,6 +188,7 @@ mod hex {
     #[cfg(feature = "std")]
     pub mod u256 {
         use gprimitives::U256;
+
         pub fn serialize<S>(data: &U256, serializer: S) -> Result<S::Ok, S::Error>
         where
             S: serde::Serializer,

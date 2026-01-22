@@ -983,7 +983,7 @@ impl TxCommand {
                             payload: payload.0.clone().try_into().unwrap(),
                             value: raw_value,
                             reference_block: reference_block_hash,
-                            salt: gprimitives::U256::from(salt.0),
+                            salt: U256::from(salt.0),
                         };
                         let message_id = injected_transaction.to_message_id();
                         let tx_hash = injected_transaction.to_hash().into();
