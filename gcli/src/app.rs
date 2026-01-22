@@ -27,7 +27,7 @@ use anyhow::{Result, anyhow};
 use clap::Parser;
 use gring::{Keyring, Keystore};
 use gsdk::{Api, SignedApi, ext::sp_core};
-use std::{env, time::Duration};
+use std::{env, io, time::Duration};
 use tracing_subscriber::EnvFilter;
 
 #[derive(Debug, Clone, Parser)]
@@ -81,6 +81,7 @@ impl App {
         tracing_subscriber::fmt()
             .with_env_filter(filter)
             .without_time()
+            .with_writer(io::stderr)
             .try_init()
             .map_err(|err| anyhow!("{err}"))?;
 
