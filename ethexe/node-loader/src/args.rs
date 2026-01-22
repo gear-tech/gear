@@ -19,7 +19,7 @@ pub enum Params {
 /// Parameters for the load test. Default values come from .env.example.local file.
 #[derive(Debug, Parser)]
 pub struct LoadParams {
-    /// Anvil node
+    /// Ethexe node
     #[arg(long, default_value = "ws://localhost:8545")]
     pub node: String,
 
