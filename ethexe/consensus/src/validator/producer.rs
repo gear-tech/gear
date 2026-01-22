@@ -139,6 +139,15 @@ impl StateHandler for Producer {
                     return Initial::create(self.ctx).map(|s| (Poll::Ready(()), s));
                 }
                 Poll::Ready(Err(err)) => {
+                    if let Some(mismatch) =
+                        err.downcast_ref::<crate::utils::ValidatorsCommitmentCountMismatch>()
+                    {
+                        self.warning(format!(
+                            "validators commitment rejected: expected {}, got {}",
+                            mismatch.package_participants, mismatch.elected_validators
+                        ));
+                        return Initial::create(self.ctx).map(|s| (Poll::Ready(()), s));
+                    }
                     return Err(err);
                 }
                 Poll::Pending => {}
@@ -247,8 +256,7 @@ mod tests {
         validator::{PendingEvent, mock::*},
     };
     use async_trait::async_trait;
-    use ethexe_common::{HashOf, db::*, gear::CodeCommitment, mock::*};
-    use futures::StreamExt;
+    use ethexe_common::{Address, Digest, HashOf, db::*, gear::CodeCommitment, mock::*};
     use nonempty::nonempty;
 
     #[tokio::test]
@@ -276,7 +284,8 @@ mod tests {
     #[ntest::timeout(3000)]
     async fn simple() {
         let (ctx, keys, eth) = mock_validator_context();
-        let validators = nonempty![ctx.core.pub_key.to_address(), keys[0].to_address()].into();
+        let validators: ValidatorsVec =
+            nonempty![ctx.core.pub_key.to_address(), keys[0].to_address()].into();
         let block = BlockChain::mock(1).setup(&ctx.core.db).blocks[1].to_simple();
 
         let (state, announce_hash) = Producer::create(ctx, block, validators)
@@ -307,17 +316,26 @@ mod tests {
 
     #[tokio::test]
     #[ntest::timeout(3000)]
-    async fn threshold_one() {
+    async fn threshold_one_roast() {
         gear_utils::init_default_logger();
 
-        let (ctx, keys, eth) = mock_validator_context();
+        let (ctx, keys, _eth) = mock_validator_context();
         let validators: ValidatorsVec =
             nonempty![ctx.core.pub_key.to_address(), keys[0].to_address()].into();
-        let mut batch = prepare_chain_for_batch_commitment(&ctx.core.db);
+        let batch = prepare_chain_for_batch_commitment(&ctx.core.db);
         let block = ctx.core.db.simple_block_data(batch.block_hash);
+        let era_index = ctx.core.timelines.era_from_ts(batch.timestamp);
+        let validator_addrs: Vec<Address> = validators.clone().into();
+        setup_test_dkg(
+            &ctx.core.db,
+            &validator_addrs,
+            ctx.core.pub_key.to_address(),
+            ctx.core.signatures_threshold as u16,
+            era_index,
+        )
+        .unwrap();
 
-        // If threshold is 1, we should not emit any events and goes thru states coordinator -> submitter -> initial
-        // until batch is committed
+        // With ROAST, producer always becomes coordinator and initiates threshold signing
         let (state, announce_hash) = Producer::create(ctx, block, validators.clone())
             .unwrap()
             .skip_timer()
@@ -327,47 +345,45 @@ mod tests {
         // Waiting for announce to be computed
         assert!(state.is_producer());
 
-        // change head announce in the batch
-        if let Some(c) = batch.chain_commitment.as_mut() {
-            c.head_announce = announce_hash
-        }
-
-        // compute announce
-        AnnounceData {
-            announce: state.context().core.db.announce(announce_hash).unwrap(),
-            computed: Some(Default::default()),
-        }
-        .setup(&state.context().core.db);
-
-        let mut state = state
+        let (state, event) = state
             .process_computed_announce(ComputedAnnounce::mock(announce_hash))
             .unwrap()
-            .wait_for_state(|state| matches!(state, ValidatorState::Initial(_)))
+            .wait_for_event()
             .await
             .unwrap();
 
-        state.context_mut().tasks.select_next_some().await.unwrap();
+        // Producer transitions to Coordinator and initiates ROAST signing
+        assert!(
+            state.is_coordinator(),
+            "Expected Coordinator state, got: {state:?}"
+        );
 
-        // Check that we have a batch with commitments after submitting
-        let (committed_batch, signatures) = eth
-            .committed_batch
-            .read()
-            .await
-            .clone()
-            .expect("Expected that batch is committed");
-
-        assert_eq!(committed_batch, batch);
-        assert_eq!(signatures.len(), 1);
+        // With ROAST, coordinator sends BroadcastValidatorMessage (SignSessionRequest)
+        assert!(
+            matches!(event, ConsensusEvent::BroadcastValidatorMessage(_)),
+            "Expected BroadcastValidatorMessage, got: {event:?}"
+        );
     }
 
     #[tokio::test]
     #[ntest::timeout(3000)]
-    async fn threshold_two() {
+    async fn threshold_two_roast() {
         let (mut ctx, keys, _) = mock_validator_context();
         ctx.core.signatures_threshold = 2;
-        let validators = nonempty![ctx.core.pub_key.to_address(), keys[0].to_address()].into();
+        let validators: ValidatorsVec =
+            nonempty![ctx.core.pub_key.to_address(), keys[0].to_address()].into();
         let batch = prepare_chain_for_batch_commitment(&ctx.core.db);
         let block = ctx.core.db.simple_block_data(batch.block_hash);
+        let era_index = ctx.core.timelines.era_from_ts(batch.timestamp);
+        let validator_addrs: Vec<Address> = validators.clone().into();
+        setup_test_dkg(
+            &ctx.core.db,
+            &validator_addrs,
+            ctx.core.pub_key.to_address(),
+            ctx.core.signatures_threshold as u16,
+            era_index,
+        )
+        .unwrap();
 
         let (state, announce_hash) = Producer::create(ctx, block, validators)
             .unwrap()
@@ -391,21 +407,36 @@ mod tests {
             .await
             .unwrap();
 
-        // If threshold is 2, producer must goes to coordinator state and emit validation request
-        assert!(state.is_coordinator());
-        event
-            .unwrap_publish_message()
-            .unwrap_request_batch_validation();
+        // With ROAST, producer always transitions to coordinator and initiates threshold signing
+        assert!(
+            state.is_coordinator(),
+            "Expected Coordinator state, got: {state:?}"
+        );
+
+        // With ROAST, coordinator sends BroadcastValidatorMessage (SignSessionRequest)
+        assert!(
+            matches!(event, ConsensusEvent::BroadcastValidatorMessage(_)),
+            "Expected BroadcastValidatorMessage, got: {event:?}"
+        );
     }
 
     #[tokio::test]
     #[ntest::timeout(3000)]
-    async fn code_commitments_only() {
-        gear_utils::init_default_logger();
-
-        let (ctx, keys, eth) = mock_validator_context();
-        let validators = nonempty![ctx.core.pub_key.to_address(), keys[0].to_address()].into();
+    async fn code_commitments_only_roast() {
+        let (ctx, keys, _eth) = mock_validator_context();
+        let validators: ValidatorsVec =
+            nonempty![ctx.core.pub_key.to_address(), keys[0].to_address()].into();
         let block = BlockChain::mock(1).setup(&ctx.core.db).blocks[1].to_simple();
+        let era_index = ctx.core.timelines.era_from_ts(block.header.timestamp);
+        let validator_addrs: Vec<Address> = validators.clone().into();
+        setup_test_dkg(
+            &ctx.core.db,
+            &validator_addrs,
+            ctx.core.pub_key.to_address(),
+            ctx.core.signatures_threshold as u16,
+            era_index,
+        )
+        .unwrap();
 
         let code1 = CodeCommitment::mock(());
         let code2 = CodeCommitment::mock(());
@@ -421,31 +452,24 @@ mod tests {
             .await
             .unwrap();
 
-        // compute announce
-        AnnounceData {
-            announce: state.context().core.db.announce(announce_hash).unwrap(),
-            computed: Some(Default::default()),
-        }
-        .setup(&state.context().core.db);
-
-        let mut state = state
+        let (state, event) = state
             .process_computed_announce(ComputedAnnounce::mock(announce_hash))
             .unwrap()
-            .wait_for_state(|state| matches!(state, ValidatorState::Initial(_)))
+            .wait_for_event()
             .await
             .unwrap();
 
-        state.context_mut().tasks.select_next_some().await.unwrap();
+        // With ROAST, producer transitions to coordinator
+        assert!(
+            state.is_coordinator(),
+            "Expected Coordinator state, got: {state:?}"
+        );
 
-        let (batch, signatures) = eth
-            .committed_batch
-            .read()
-            .await
-            .clone()
-            .expect("Expected that batch is committed");
-        assert_eq!(signatures.len(), 1);
-        assert_eq!(batch.chain_commitment, None);
-        assert_eq!(batch.code_commitments.len(), 2);
+        // Coordinator sends ROAST SignSessionRequest
+        assert!(
+            matches!(event, ConsensusEvent::BroadcastValidatorMessage(_)),
+            "Expected BroadcastValidatorMessage, got: {event:?}"
+        );
     }
 
     // TODO: test that zero timer works as expected

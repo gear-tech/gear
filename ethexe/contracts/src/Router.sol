@@ -166,6 +166,12 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
         return SSTORE2.read(Gear.currentEraValidators(_router()).verifiableSecretSharingCommitmentPointer);
     }
 
+    function validatorsVssCommitmentHash() external view returns (bytes32) {
+        bytes memory commitment =
+            SSTORE2.read(Gear.currentEraValidators(_router()).verifiableSecretSharingCommitmentPointer);
+        return keccak256(commitment);
+    }
+
     function areValidators(address[] calldata _validators) public view returns (bool) {
         Gear.Validators storage _currentValidators = Gear.currentEraValidators(_router());
 

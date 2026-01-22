@@ -19,6 +19,13 @@
 use crate::{
     Address, Announce, HashOf, ToDigest,
     consensus::{BatchCommitmentValidationReply, BatchCommitmentValidationRequest},
+    crypto::{
+        dkg::{DkgComplaint, DkgJustification, DkgRound1, DkgRound2, DkgRound2Culprits},
+        frost::{
+            SignAggregate, SignCulprits, SignNonceCommit, SignNoncePackage, SignSessionRequest,
+            SignShare,
+        },
+    },
     ecdsa::{SignedData, VerifiedData},
 };
 use alloc::vec::Vec;
@@ -29,6 +36,21 @@ use sha3::Keccak256;
 pub type ValidatorAnnounce = ValidatorMessage<Announce>;
 pub type ValidatorRequest = ValidatorMessage<BatchCommitmentValidationRequest>;
 pub type ValidatorReply = ValidatorMessage<BatchCommitmentValidationReply>;
+
+// DKG message types
+pub type ValidatorDkgRound1 = ValidatorMessage<DkgRound1>;
+pub type ValidatorDkgRound2 = ValidatorMessage<DkgRound2>;
+pub type ValidatorDkgRound2Culprits = ValidatorMessage<DkgRound2Culprits>;
+pub type ValidatorDkgComplaint = ValidatorMessage<DkgComplaint>;
+pub type ValidatorDkgJustification = ValidatorMessage<DkgJustification>;
+
+// ROAST/FROST message types
+pub type ValidatorSignRequest = ValidatorMessage<SignSessionRequest>;
+pub type ValidatorSignNonce = ValidatorMessage<SignNonceCommit>;
+pub type ValidatorSignNoncePackage = ValidatorMessage<SignNoncePackage>;
+pub type ValidatorSignPartial = ValidatorMessage<SignShare>;
+pub type ValidatorSignCulprits = ValidatorMessage<SignCulprits>;
+pub type ValidatorSignResult = ValidatorMessage<SignAggregate>;
 
 #[derive(Debug, Clone, Encode, Decode, Eq, PartialEq, Hash)]
 pub struct ValidatorMessage<T> {
@@ -46,9 +68,25 @@ impl<T: ToDigest> ToDigest for ValidatorMessage<T> {
 
 #[derive(Debug, Clone, Encode, Decode, Eq, PartialEq, derive_more::Unwrap, derive_more::From)]
 pub enum SignedValidatorMessage {
+    // Existing consensus messages
     Announce(SignedData<ValidatorAnnounce>),
     RequestBatchValidation(SignedData<ValidatorRequest>),
     ApproveBatch(SignedData<ValidatorReply>),
+
+    // DKG protocol messages
+    DkgRound1(SignedData<ValidatorDkgRound1>),
+    DkgRound2(SignedData<ValidatorDkgRound2>),
+    DkgRound2Culprits(SignedData<ValidatorDkgRound2Culprits>),
+    DkgComplaint(SignedData<ValidatorDkgComplaint>),
+    DkgJustification(SignedData<ValidatorDkgJustification>),
+
+    // ROAST/FROST signing messages
+    SignSessionRequest(SignedData<ValidatorSignRequest>),
+    SignNonceCommit(SignedData<ValidatorSignNonce>),
+    SignNoncePackage(SignedData<ValidatorSignNoncePackage>),
+    SignShare(SignedData<ValidatorSignPartial>),
+    SignCulprits(SignedData<ValidatorSignCulprits>),
+    SignAggregate(SignedData<ValidatorSignResult>),
 }
 
 impl SignedValidatorMessage {
@@ -59,6 +97,21 @@ impl SignedValidatorMessage {
                 request.into_verified().into()
             }
             SignedValidatorMessage::ApproveBatch(reply) => reply.into_verified().into(),
+
+            // DKG messages
+            SignedValidatorMessage::DkgRound1(msg) => msg.into_verified().into(),
+            SignedValidatorMessage::DkgRound2(msg) => msg.into_verified().into(),
+            SignedValidatorMessage::DkgRound2Culprits(msg) => msg.into_verified().into(),
+            SignedValidatorMessage::DkgComplaint(msg) => msg.into_verified().into(),
+            SignedValidatorMessage::DkgJustification(msg) => msg.into_verified().into(),
+
+            // ROAST messages
+            SignedValidatorMessage::SignSessionRequest(msg) => msg.into_verified().into(),
+            SignedValidatorMessage::SignNonceCommit(msg) => msg.into_verified().into(),
+            SignedValidatorMessage::SignNoncePackage(msg) => msg.into_verified().into(),
+            SignedValidatorMessage::SignShare(msg) => msg.into_verified().into(),
+            SignedValidatorMessage::SignCulprits(msg) => msg.into_verified().into(),
+            SignedValidatorMessage::SignAggregate(msg) => msg.into_verified().into(),
         }
     }
 }
@@ -66,9 +119,25 @@ impl SignedValidatorMessage {
 #[cfg_attr(feature = "serde", derive(Hash))]
 #[derive(Debug, Clone, Eq, PartialEq, derive_more::Unwrap, derive_more::From)]
 pub enum VerifiedValidatorMessage {
+    // Existing consensus messages
     Announce(VerifiedData<ValidatorAnnounce>),
     RequestBatchValidation(VerifiedData<ValidatorRequest>),
     ApproveBatch(VerifiedData<ValidatorReply>),
+
+    // DKG protocol messages
+    DkgRound1(VerifiedData<ValidatorDkgRound1>),
+    DkgRound2(VerifiedData<ValidatorDkgRound2>),
+    DkgRound2Culprits(VerifiedData<ValidatorDkgRound2Culprits>),
+    DkgComplaint(VerifiedData<ValidatorDkgComplaint>),
+    DkgJustification(VerifiedData<ValidatorDkgJustification>),
+
+    // ROAST/FROST signing messages
+    SignSessionRequest(VerifiedData<ValidatorSignRequest>),
+    SignNonceCommit(VerifiedData<ValidatorSignNonce>),
+    SignNoncePackage(VerifiedData<ValidatorSignNoncePackage>),
+    SignShare(VerifiedData<ValidatorSignPartial>),
+    SignCulprits(VerifiedData<ValidatorSignCulprits>),
+    SignAggregate(VerifiedData<ValidatorSignResult>),
 }
 
 impl VerifiedValidatorMessage {
@@ -77,6 +146,21 @@ impl VerifiedValidatorMessage {
             VerifiedValidatorMessage::Announce(announce) => announce.data().era_index,
             VerifiedValidatorMessage::RequestBatchValidation(request) => request.data().era_index,
             VerifiedValidatorMessage::ApproveBatch(reply) => reply.data().era_index,
+
+            // DKG messages
+            VerifiedValidatorMessage::DkgRound1(msg) => msg.data().era_index,
+            VerifiedValidatorMessage::DkgRound2(msg) => msg.data().era_index,
+            VerifiedValidatorMessage::DkgRound2Culprits(msg) => msg.data().era_index,
+            VerifiedValidatorMessage::DkgComplaint(msg) => msg.data().era_index,
+            VerifiedValidatorMessage::DkgJustification(msg) => msg.data().era_index,
+
+            // ROAST messages
+            VerifiedValidatorMessage::SignSessionRequest(msg) => msg.data().era_index,
+            VerifiedValidatorMessage::SignNonceCommit(msg) => msg.data().era_index,
+            VerifiedValidatorMessage::SignNoncePackage(msg) => msg.data().era_index,
+            VerifiedValidatorMessage::SignShare(msg) => msg.data().era_index,
+            VerifiedValidatorMessage::SignCulprits(msg) => msg.data().era_index,
+            VerifiedValidatorMessage::SignAggregate(msg) => msg.data().era_index,
         }
     }
 
@@ -85,6 +169,21 @@ impl VerifiedValidatorMessage {
             VerifiedValidatorMessage::Announce(announce) => announce.address(),
             VerifiedValidatorMessage::RequestBatchValidation(request) => request.address(),
             VerifiedValidatorMessage::ApproveBatch(reply) => reply.address(),
+
+            // DKG messages
+            VerifiedValidatorMessage::DkgRound1(msg) => msg.address(),
+            VerifiedValidatorMessage::DkgRound2(msg) => msg.address(),
+            VerifiedValidatorMessage::DkgRound2Culprits(msg) => msg.address(),
+            VerifiedValidatorMessage::DkgComplaint(msg) => msg.address(),
+            VerifiedValidatorMessage::DkgJustification(msg) => msg.address(),
+
+            // ROAST messages
+            VerifiedValidatorMessage::SignSessionRequest(msg) => msg.address(),
+            VerifiedValidatorMessage::SignNonceCommit(msg) => msg.address(),
+            VerifiedValidatorMessage::SignNoncePackage(msg) => msg.address(),
+            VerifiedValidatorMessage::SignShare(msg) => msg.address(),
+            VerifiedValidatorMessage::SignCulprits(msg) => msg.address(),
+            VerifiedValidatorMessage::SignAggregate(msg) => msg.address(),
         }
     }
 }

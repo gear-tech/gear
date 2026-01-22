@@ -25,11 +25,16 @@ use crate::{
 use ethexe_common::{
     Announce, BlockHeader, CodeBlobInfo, HashOf, ProgramStates, ProtocolTimelines, Schedule,
     ValidatorsVec,
+    crypto::{
+        DkgKeyPackage, DkgPublicKeyPackage, DkgSessionId, DkgShare, DkgVssCommitment,
+        PreNonceCommitment, SignAggregate,
+    },
     db::{
         AnnounceMeta, AnnounceStorageRO, AnnounceStorageRW, BlockMeta, BlockMetaStorageRO,
-        BlockMetaStorageRW, CodesStorageRO, CodesStorageRW, HashStorageRO, InjectedStorageRO,
-        InjectedStorageRW, LatestData, LatestDataStorageRO, LatestDataStorageRW, OnChainStorageRO,
-        OnChainStorageRW,
+        BlockMetaStorageRW, CodesStorageRO, CodesStorageRW, DkgSessionState, DkgStorageRO,
+        DkgStorageRW, HashStorageRO, InjectedStorageRO, InjectedStorageRW, LatestData,
+        LatestDataStorageRO, LatestDataStorageRW, OnChainStorageRO, OnChainStorageRW,
+        SignSessionState, SignStorageRO, SignStorageRW,
     },
     events::BlockEvent,
     gear::StateTransition,
@@ -76,7 +81,17 @@ enum Key {
     Timelines = 15,
 
     // TODO kuzmindev: temporal solution - must move into block meta or something else.
-    LatestEraValidatorsCommitted(H256),
+    LatestEraValidatorsCommitted(H256) = 16,
+
+    // DKG and ROAST storage keys
+    DkgSessionState(DkgSessionId) = 17,
+    PublicKeyPackage(u64) = 18,              // era_index
+    DkgKeyPackage(u64) = 19,                 // era_index
+    DkgVssCommitment(u64) = 20,              // era_index
+    SignSessionState(H256, u64) = 21,        // (msg_hash, era_index)
+    DkgShare(u64) = 22,                      // era_index
+    SignatureCache(u64, ActorId, H256) = 23, // (era_index, target, msg_hash)
+    PreNonceCache(u64, ActorId) = 24,        // (era_index, target)
 }
 
 impl Key {
@@ -95,7 +110,11 @@ impl Key {
             | Self::BlockEvents(hash)
             | Self::LatestEraValidatorsCommitted(hash) => [prefix.as_ref(), hash.as_ref()].concat(),
 
-            Self::ValidatorSet(era_index) => {
+            Self::ValidatorSet(era_index)
+            | Self::PublicKeyPackage(era_index)
+            | Self::DkgKeyPackage(era_index)
+            | Self::DkgVssCommitment(era_index)
+            | Self::DkgShare(era_index) => {
                 [prefix.as_ref(), era_index.to_le_bytes().as_ref()].concat()
             }
             Self::AnnounceProgramStates(hash)
@@ -104,6 +123,19 @@ impl Key {
             | Self::AnnounceMeta(hash) => [prefix.as_ref(), hash.inner().as_ref()].concat(),
 
             Self::InjectedTransaction(hash) => [prefix.as_ref(), hash.inner().as_ref()].concat(),
+            Self::SignatureCache(era_index, target, msg_hash) => [
+                prefix.as_ref(),
+                era_index.to_le_bytes().as_ref(),
+                target.as_ref(),
+                msg_hash.as_ref(),
+            ]
+            .concat(),
+            Self::PreNonceCache(era_index, target) => [
+                prefix.as_ref(),
+                era_index.to_le_bytes().as_ref(),
+                target.as_ref(),
+            ]
+            .concat(),
 
             Self::ProgramToCodeId(program_id) => [prefix.as_ref(), program_id.as_ref()].concat(),
 
@@ -117,6 +149,15 @@ impl Key {
                 code_id.as_ref(),
             ]
             .concat(),
+
+            Self::DkgSessionState(session_id) => {
+                [prefix.as_ref(), &session_id.era.to_le_bytes()].concat()
+            }
+
+            Self::SignSessionState(msg_hash, era_index) => {
+                [prefix.as_ref(), msg_hash.as_ref(), &era_index.to_le_bytes()].concat()
+            }
+
             Self::LatestData | Self::Timelines => prefix.as_ref().to_vec(),
         }
     }
@@ -153,6 +194,45 @@ impl Database {
     pub fn memory() -> Self {
         let mem = MemDb::default();
         Self::from_one(&mem)
+    }
+
+    pub fn prune_roast_caches_before(&self, min_era: u64) -> (usize, usize) {
+        let sig_prefix = Key::SignatureCache(0, ActorId::zero(), H256::zero()).prefix();
+        let pre_nonce_prefix = Key::PreNonceCache(0, ActorId::zero()).prefix();
+
+        let sig_removed = self.prune_cache_by_prefix(&sig_prefix, min_era);
+        let pre_nonce_removed = self.prune_cache_by_prefix(&pre_nonce_prefix, min_era);
+
+        (sig_removed, pre_nonce_removed)
+    }
+
+    fn prune_cache_by_prefix(&self, prefix: &[u8], min_era: u64) -> usize {
+        let keys: Vec<_> = self
+            .kv
+            .iter_prefix(prefix)
+            .filter_map(|(key, _)| match Self::roast_cache_era_from_key(&key) {
+                Some(era) if era < min_era => Some(key),
+                _ => None,
+            })
+            .collect();
+
+        for key in &keys {
+            self.kv.take(key);
+        }
+
+        keys.len()
+    }
+
+    fn roast_cache_era_from_key(key: &[u8]) -> Option<u64> {
+        let era_offset: usize = 32;
+        let end = era_offset.checked_add(8)?;
+        if key.len() < end {
+            return None;
+        }
+
+        let mut buf = [0u8; 8];
+        buf.copy_from_slice(&key[era_offset..end]);
+        Some(u64::from_le_bytes(buf))
     }
 
     /// # Safety
@@ -703,6 +783,192 @@ impl LatestDataStorageRW for Database {
     }
 }
 
+impl DkgStorageRO for Database {
+    fn dkg_session_state(&self, session_id: DkgSessionId) -> Option<DkgSessionState> {
+        self.kv
+            .get(&Key::DkgSessionState(session_id).to_bytes())
+            .map(|data| {
+                DkgSessionState::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `DkgSessionState`")
+            })
+    }
+
+    fn public_key_package(&self, era_index: u64) -> Option<DkgPublicKeyPackage> {
+        self.kv
+            .get(&Key::PublicKeyPackage(era_index).to_bytes())
+            .map(|data| {
+                DkgPublicKeyPackage::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `PublicKeyPackage`")
+            })
+    }
+
+    fn dkg_key_package(&self, era_index: u64) -> Option<DkgKeyPackage> {
+        self.kv
+            .get(&Key::DkgKeyPackage(era_index).to_bytes())
+            .and_then(|data| DkgKeyPackage::deserialize(&data).ok())
+    }
+
+    fn dkg_share(&self, era_index: u64) -> Option<DkgShare> {
+        self.kv
+            .get(&Key::DkgShare(era_index).to_bytes())
+            .map(|data| {
+                DkgShare::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `DkgShare`")
+            })
+    }
+
+    fn dkg_vss_commitment(&self, era_index: u64) -> Option<DkgVssCommitment> {
+        self.kv
+            .get(&Key::DkgVssCommitment(era_index).to_bytes())
+            .map(|data| {
+                DkgVssCommitment::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `DkgVssCommitment`")
+            })
+    }
+
+    fn dkg_completed(&self, era_index: u64) -> bool {
+        self.dkg_session_state(DkgSessionId { era: era_index })
+            .map(|state| state.completed)
+            .unwrap_or(false)
+    }
+}
+
+impl DkgStorageRW for Database {
+    fn set_dkg_session_state(&self, session_id: DkgSessionId, state: DkgSessionState) {
+        tracing::trace!("Set DKG session state for era {}", session_id.era);
+        self.kv
+            .put(&Key::DkgSessionState(session_id).to_bytes(), state.encode());
+    }
+
+    fn mutate_dkg_session_state(
+        &self,
+        session_id: DkgSessionId,
+        f: impl FnOnce(&mut DkgSessionState),
+    ) {
+        tracing::trace!("Mutate DKG session state for era {}", session_id.era);
+        let mut state = self.dkg_session_state(session_id).unwrap_or_default();
+        f(&mut state);
+        self.set_dkg_session_state(session_id, state);
+    }
+
+    fn set_public_key_package(&self, era_index: u64, package: DkgPublicKeyPackage) {
+        tracing::trace!("Set PublicKeyPackage for era {era_index}");
+        self.kv.put(
+            &Key::PublicKeyPackage(era_index).to_bytes(),
+            package.encode(),
+        );
+    }
+
+    fn set_dkg_key_package(&self, era_index: u64, package: DkgKeyPackage) {
+        tracing::trace!("Set DkgKeyPackage for era {era_index}");
+        let bytes = package
+            .serialize()
+            .expect("Failed to serialize DkgKeyPackage");
+        self.kv
+            .put(&Key::DkgKeyPackage(era_index).to_bytes(), bytes);
+    }
+
+    fn set_dkg_share(&self, share: DkgShare) {
+        tracing::trace!("Set DkgShare for era {}", share.era);
+        self.kv
+            .put(&Key::DkgShare(share.era).to_bytes(), share.encode());
+    }
+
+    fn set_dkg_vss_commitment(&self, era_index: u64, commitment: DkgVssCommitment) {
+        tracing::trace!("Set DkgVssCommitment for era {era_index}");
+        self.kv.put(
+            &Key::DkgVssCommitment(era_index).to_bytes(),
+            commitment.encode(),
+        );
+    }
+}
+
+impl SignStorageRO for Database {
+    fn sign_session_state(&self, msg_hash: H256, era_index: u64) -> Option<SignSessionState> {
+        self.kv
+            .get(&Key::SignSessionState(msg_hash, era_index).to_bytes())
+            .map(|data| {
+                SignSessionState::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `SignSessionState`")
+            })
+    }
+
+    fn signature_cache(
+        &self,
+        era_index: u64,
+        target: ActorId,
+        msg_hash: H256,
+    ) -> Option<SignAggregate> {
+        self.kv
+            .get(&Key::SignatureCache(era_index, target, msg_hash).to_bytes())
+            .map(|data| {
+                SignAggregate::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `SignAggregate`")
+            })
+    }
+
+    fn pre_nonce_cache(&self, era_index: u64, target: ActorId) -> Option<Vec<PreNonceCommitment>> {
+        self.kv
+            .get(&Key::PreNonceCache(era_index, target).to_bytes())
+            .map(|data| {
+                Vec::<PreNonceCommitment>::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `PreNonceCommitment` list")
+            })
+    }
+
+    fn sign_completed(&self, msg_hash: H256, era_index: u64) -> bool {
+        self.sign_session_state(msg_hash, era_index)
+            .map(|state| state.completed)
+            .unwrap_or(false)
+    }
+}
+
+impl SignStorageRW for Database {
+    fn set_sign_session_state(&self, msg_hash: H256, era_index: u64, state: SignSessionState) {
+        tracing::trace!("Set sign session state for msg {msg_hash} era {era_index}");
+        self.kv.put(
+            &Key::SignSessionState(msg_hash, era_index).to_bytes(),
+            state.encode(),
+        );
+    }
+
+    fn set_signature_cache(
+        &self,
+        era_index: u64,
+        target: ActorId,
+        msg_hash: H256,
+        aggregate: SignAggregate,
+    ) {
+        tracing::trace!("Set signature cache for msg {msg_hash} era {era_index}");
+        self.kv.put(
+            &Key::SignatureCache(era_index, target, msg_hash).to_bytes(),
+            aggregate.encode(),
+        );
+    }
+
+    fn set_pre_nonce_cache(&self, era_index: u64, target: ActorId, cache: Vec<PreNonceCommitment>) {
+        tracing::trace!("Set pre-nonce cache for era {era_index}");
+        self.kv.put(
+            &Key::PreNonceCache(era_index, target).to_bytes(),
+            cache.encode(),
+        );
+    }
+
+    fn mutate_sign_session_state(
+        &self,
+        msg_hash: H256,
+        era_index: u64,
+        f: impl FnOnce(&mut SignSessionState),
+    ) {
+        tracing::trace!("Mutate sign session state for msg {msg_hash} era {era_index}");
+        let mut state = self
+            .sign_session_state(msg_hash, era_index)
+            .unwrap_or_default();
+        f(&mut state);
+        self.set_sign_session_state(msg_hash, era_index, state);
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1024,5 +1290,34 @@ mod tests {
         page_data[42] = 42;
         let hash = db.write_page_data(page_data.clone());
         assert_eq!(db.page_data(hash), Some(page_data));
+    }
+
+    #[test]
+    fn test_sign_session_state() {
+        let db = Database::memory();
+
+        let msg_hash = H256::random();
+        let era_index = 1;
+
+        // Initially no state
+        assert_eq!(db.sign_session_state(msg_hash, era_index), None);
+        assert!(!db.sign_completed(msg_hash, era_index));
+
+        // Set state
+        let state = SignSessionState {
+            request: None,
+            nonce_commits: vec![],
+            sign_shares: vec![],
+            aggregate: None,
+            completed: false,
+        };
+        db.set_sign_session_state(msg_hash, era_index, state.clone());
+        assert_eq!(db.sign_session_state(msg_hash, era_index), Some(state));
+
+        // Mutate state
+        db.mutate_sign_session_state(msg_hash, era_index, |s| {
+            s.completed = true;
+        });
+        assert!(db.sign_completed(msg_hash, era_index));
     }
 }

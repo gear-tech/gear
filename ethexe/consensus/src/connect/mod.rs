@@ -31,7 +31,7 @@ use ethexe_common::{
     consensus::{VerifiedAnnounce, VerifiedValidationRequest},
     db::OnChainStorageRO,
     injected::SignedInjectedTransaction,
-    network::{AnnouncesRequest, AnnouncesResponse},
+    network::{AnnouncesRequest, AnnouncesResponse, SignedValidatorMessage},
 };
 use ethexe_db::Database;
 use futures::{Stream, stream::FusedStream};
@@ -275,6 +275,20 @@ impl ConsensusService for ConnectService {
     fn receive_injected_transaction(&mut self, tx: SignedInjectedTransaction) -> Result<()> {
         // In "connect-node" we do not process injected transactions.
         tracing::trace!("Received injected transaction: {tx:?}. Ignoring it.");
+        Ok(())
+    }
+
+    fn receive_validator_message(&mut self, message: SignedValidatorMessage) -> Result<()> {
+        // In "connect-node" we do not process DKG/ROAST messages.
+        tracing::trace!("Received validator message: {message:?}. Ignoring it.");
+        Ok(())
+    }
+
+    fn receive_verified_validator_message(
+        &mut self,
+        message: ethexe_common::network::VerifiedValidatorMessage,
+    ) -> Result<()> {
+        tracing::trace!("Received verified validator message: {message:?}. Ignoring it.");
         Ok(())
     }
 

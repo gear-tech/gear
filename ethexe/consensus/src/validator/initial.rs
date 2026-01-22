@@ -20,10 +20,12 @@ use std::collections::VecDeque;
 
 use super::{
     DefaultProcessing, StateHandler, ValidatorContext, ValidatorState, producer::Producer,
-    subordinate::Subordinate,
+    sign_dkg_action, subordinate::Subordinate,
 };
 use crate::{
+    ConsensusEvent,
     announces::{self, DBAnnouncesExt},
+    engine::prelude::DkgEngineEvent,
     utils,
 };
 use anyhow::{Result, anyhow};
@@ -222,13 +224,47 @@ impl Initial {
 }
 
 impl ValidatorContext {
-    fn switch_to_producer_or_subordinate(self, block: SimpleBlockData) -> Result<ValidatorState> {
-        let era_index = self.core.timelines.era_from_ts(block.header.timestamp);
+    fn switch_to_producer_or_subordinate(
+        mut self,
+        block: SimpleBlockData,
+    ) -> Result<ValidatorState> {
+        let current_era = self.core.timelines.era_from_ts(block.header.timestamp);
+
         let validators = self
             .core
             .db
-            .validators(era_index)
-            .ok_or(anyhow!("validators not found for era {era_index}"))?;
+            .validators(current_era)
+            .ok_or(anyhow!("validators not found for block({})", block.hash))?;
+
+        // Check if we need to start DKG for this era
+        if !self.dkg_engine.is_completed(current_era) {
+            // Check if DKG session already exists
+            if self.dkg_engine.get_state(current_era).is_none() {
+                tracing::info!(era = current_era, "🔑 Starting DKG for new era");
+
+                // Start DKG with threshold = (2/3 * validators.len())
+                let threshold = ((validators.len() as u64 * 2) / 3).max(1) as u16;
+
+                match self.dkg_engine.handle_event(DkgEngineEvent::Start {
+                    era: current_era,
+                    validators: validators.clone().into(),
+                    threshold,
+                }) {
+                    Ok(actions) => {
+                        for action in actions {
+                            if let Ok(Some(msg)) =
+                                sign_dkg_action(&self.core.signer, self.core.pub_key, action)
+                            {
+                                self.output(ConsensusEvent::BroadcastValidatorMessage(msg));
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        tracing::warn!(era = current_era, "Failed to start DKG: {}", e);
+                    }
+                }
+            }
+        }
 
         let producer = utils::block_producer_for(
             &validators,

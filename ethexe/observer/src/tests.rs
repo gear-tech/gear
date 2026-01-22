@@ -48,11 +48,11 @@ async fn test_deployment() -> Result<()> {
     let sender_address = sender_public_key.to_address();
     let validators: Vec<Address> = vec!["0x45D6536E3D4AdC8f4e13c5c4aA54bE968C55Abf1".parse()?];
 
-    let deployer = EthereumDeployer::new(&ethereum_rpc, signer, sender_address)
+    let ethereum = EthereumDeployer::new(&ethereum_rpc, signer, sender_address)
         .await
-        .unwrap();
-    let ethereum = deployer
+        .unwrap()
         .with_validators(validators.try_into().unwrap())
+        .with_generated_verifiable_secret_sharing_commitment()
         .deploy()
         .await?;
 

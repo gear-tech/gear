@@ -393,6 +393,7 @@ mod tests {
             .await
             .unwrap()
             .with_validators(vec![alice_address].try_into().unwrap())
+            .with_generated_verifiable_secret_sharing_commitment()
             .deploy()
             .await
             .unwrap();

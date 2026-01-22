@@ -19,7 +19,11 @@
 //! Integration tests.
 
 use futures::StreamExt;
+mod dkg_roast;
+mod storage_cache;
 pub(crate) mod utils;
+mod validators_commitment;
+mod validators_election;
 
 use crate::{
     Service,
@@ -37,6 +41,7 @@ use alloy::{
 use ethexe_common::{
     Announce, HashOf, ScheduledTask, ToDigest,
     consensus::DEFAULT_CHAIN_DEEPNESS_THRESHOLD,
+    crypto::{DkgSessionId, DkgVssCommitment},
     db::*,
     ecdsa::ContractSignature,
     events::{
@@ -157,7 +162,7 @@ async fn ping() {
 
     let mut env = TestEnv::new(Default::default()).await.unwrap();
 
-    let mut node = env.new_node(NodeConfig::default().validator(env.validators[0]));
+    let mut node = env.new_node(NodeConfig::default().validator(env.validators[0].clone()));
     node.start_service().await;
 
     let res = env
@@ -236,7 +241,7 @@ async fn uninitialized_program() {
 
     let mut env = TestEnv::new(Default::default()).await.unwrap();
 
-    let mut node = env.new_node(NodeConfig::default().validator(env.validators[0]));
+    let mut node = env.new_node(NodeConfig::default().validator(env.validators[0].clone()));
     node.start_service().await;
 
     let res = env
@@ -392,7 +397,7 @@ async fn mailbox() {
 
     let mut env = TestEnv::new(Default::default()).await.unwrap();
 
-    let mut node = env.new_node(NodeConfig::default().validator(env.validators[0]));
+    let mut node = env.new_node(NodeConfig::default().validator(env.validators[0].clone()));
     node.start_service().await;
 
     let res = env
@@ -632,7 +637,7 @@ async fn value_reply_program_to_user() {
 
     let mut env = TestEnv::new(Default::default()).await.unwrap();
 
-    let mut node = env.new_node(NodeConfig::default().validator(env.validators[0]));
+    let mut node = env.new_node(NodeConfig::default().validator(env.validators[0].clone()));
     node.start_service().await;
 
     let res = env
@@ -731,7 +736,7 @@ async fn value_send_program_to_user_and_claimed() {
 
     let mut env = TestEnv::new(Default::default()).await.unwrap();
 
-    let mut node = env.new_node(NodeConfig::default().validator(env.validators[0]));
+    let mut node = env.new_node(NodeConfig::default().validator(env.validators[0].clone()));
     node.start_service().await;
 
     let res = env
@@ -863,7 +868,7 @@ async fn value_send_program_to_user_and_replied() {
 
     let mut env = TestEnv::new(Default::default()).await.unwrap();
 
-    let mut node = env.new_node(NodeConfig::default().validator(env.validators[0]));
+    let mut node = env.new_node(NodeConfig::default().validator(env.validators[0].clone()));
     node.start_service().await;
 
     let res = env
@@ -998,7 +1003,7 @@ async fn incoming_transfers() {
 
     let mut env = TestEnv::new(Default::default()).await.unwrap();
 
-    let mut node = env.new_node(NodeConfig::default().validator(env.validators[0]));
+    let mut node = env.new_node(NodeConfig::default().validator(env.validators[0].clone()));
     node.start_service().await;
 
     let res = env
@@ -1095,7 +1100,8 @@ async fn ping_reorg() {
     let mut connect_node = env.new_node(NodeConfig::named("connect"));
     connect_node.start_service().await;
 
-    let mut node = env.new_node(NodeConfig::named("validator").validator(env.validators[0]));
+    let mut node =
+        env.new_node(NodeConfig::named("validator").validator(env.validators[0].clone()));
     node.start_service().await;
 
     let res = env
@@ -1199,7 +1205,7 @@ async fn ping_deep_sync() {
 
     let mut env = TestEnv::new(Default::default()).await.unwrap();
 
-    let mut node = env.new_node(NodeConfig::default().validator(env.validators[0]));
+    let mut node = env.new_node(NodeConfig::default().validator(env.validators[0].clone()));
     node.start_service().await;
 
     let res = env
@@ -1258,7 +1264,7 @@ async fn ping_deep_sync() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[ntest::timeout(60_000)]
+#[ntest::timeout(120_000)]
 async fn multiple_validators() {
     init_logger();
 
@@ -1422,6 +1428,96 @@ async fn multiple_validators() {
 
 #[tokio::test(flavor = "multi_thread")]
 #[ntest::timeout(60_000)]
+async fn commit_rejected_with_bad_frost_signature() {
+    init_logger();
+
+    #[derive(Clone)]
+    struct BadSignatureCommitter {
+        router: Router,
+    }
+
+    #[async_trait::async_trait]
+    impl BatchCommitter for BadSignatureCommitter {
+        fn clone_boxed(&self) -> Box<dyn BatchCommitter> {
+            Box::new(self.clone())
+        }
+
+        async fn commit(
+            self: Box<Self>,
+            batch: BatchCommitment,
+            signatures: Vec<ContractSignature>,
+        ) -> anyhow::Result<H256> {
+            let pending = self.router.commit_batch_pending(batch, signatures).await?;
+            pending
+                .try_get_receipt_check_reverted()
+                .await
+                .map(|r| r.transaction_hash.0.into())
+        }
+
+        async fn commit_frost(
+            self: Box<Self>,
+            batch: BatchCommitment,
+            mut signature96: [u8; 96],
+        ) -> anyhow::Result<H256> {
+            signature96[0] ^= 0x01;
+            let pending = self
+                .router
+                .commit_batch_frost_pending(batch, signature96)
+                .await?;
+            pending
+                .try_get_receipt_check_reverted()
+                .await
+                .map(|r| r.transaction_hash.0.into())
+        }
+    }
+
+    let config = TestEnvConfig {
+        validators: ValidatorsConfig::PreDefined(1),
+        network: EnvNetworkConfig::Enabled,
+        ..Default::default()
+    };
+    let mut env = TestEnv::new(config).await.unwrap();
+
+    log::info!("📗 Starting validator with normal committer");
+    let mut validator =
+        env.new_node(NodeConfig::named("validator").validator(env.validators[0].clone()));
+    validator.start_service().await;
+
+    let uploaded_code = env
+        .upload_code(demo_ping::WASM_BINARY)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert!(uploaded_code.valid);
+
+    let ping_actor = env
+        .create_program(uploaded_code.code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    validator.stop_service().await;
+    validator.custom_committer = Some(Box::new(BadSignatureCommitter {
+        router: env.ethereum.router(),
+    }));
+    validator.start_service().await;
+
+    let pending = env
+        .send_message(ping_actor.program_id, b"PING")
+        .await
+        .unwrap();
+
+    tokio::time::timeout(env.block_time * 5, pending.wait_for())
+        .await
+        .expect_err("Timeout expected due to bad signature");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ntest::timeout(60_000)]
 async fn send_injected_tx() {
     init_logger();
 
@@ -1440,7 +1536,7 @@ async fn send_injected_tx() {
     log::info!("📗 Starting node 0");
     let mut node0 = env.new_node(
         NodeConfig::default()
-            .validator(env.validators[0])
+            .validator(env.validators[0].clone())
             .service_rpc(9505),
     );
     node0.start_service().await;
@@ -1449,7 +1545,7 @@ async fn send_injected_tx() {
     let mut node1 = env.new_node(
         NodeConfig::default()
             .service_rpc(9506)
-            .validator(env.validators[1]),
+            .validator(env.validators[1].clone()),
     );
     node1.start_service().await;
 
@@ -1617,7 +1713,7 @@ async fn fast_sync() {
     let mut env = TestEnv::new(config).await.unwrap();
 
     log::info!("📗 Starting Alice");
-    let mut alice = env.new_node(NodeConfig::named("Alice").validator(env.validators[0]));
+    let mut alice = env.new_node(NodeConfig::named("Alice").validator(env.validators[0].clone()));
     alice.start_service().await;
 
     log::info!("📗 Creating `demo-autoreply` programs");
@@ -1795,7 +1891,10 @@ async fn validators_election() {
 
     // Setup next validators to be elected for previous era
     let (next_validators_configs, _commitment) =
-        TestEnv::define_session_keys(&signer, next_validators);
+        TestEnv::define_session_keys_for_era(&signer, next_validators, 1);
+    let next_public_key_package = next_validators_configs[0].dkg_public_key_package.clone();
+    let next_vss_commitment = next_validators_configs[0].dkg_vss_commitment.clone();
+    let next_dkg_session = DkgSessionId { era: 1 };
 
     let next_validators: Vec<_> = next_validators_configs
         .iter()
@@ -1814,6 +1913,22 @@ async fn validators_election() {
         .anvil_set_next_block_timestamp(election_ts + genesis_ts)
         .await
         .unwrap();
+
+    for validator in validators.iter_mut() {
+        validator
+            .db
+            .set_public_key_package(next_dkg_session.era, next_public_key_package.clone());
+        validator
+            .db
+            .set_dkg_vss_commitment(next_dkg_session.era, next_vss_commitment.clone());
+        validator.db.set_dkg_session_state(
+            next_dkg_session,
+            DkgSessionState {
+                completed: true,
+                ..Default::default()
+            },
+        );
+    }
     env.force_new_block().await;
 
     env.new_observer_events()
@@ -1895,7 +2010,7 @@ async fn execution_with_canonical_events_quarantine() {
     let mut env = TestEnv::new(config).await.unwrap();
 
     log::info!("📗 Starting validator");
-    let mut validator = env.new_node(NodeConfig::default().validator(env.validators[0]));
+    let mut validator = env.new_node(NodeConfig::default().validator(env.validators[0].clone()));
     validator.start_service().await;
 
     let uploaded_code = env
@@ -2012,7 +2127,7 @@ async fn value_send_program_to_program() {
 
     let mut env = TestEnv::new(Default::default()).await.unwrap();
 
-    let mut node = env.new_node(NodeConfig::default().validator(env.validators[0]));
+    let mut node = env.new_node(NodeConfig::default().validator(env.validators[0].clone()));
     node.start_service().await;
 
     let res = env
@@ -2158,7 +2273,7 @@ async fn value_send_delayed() {
 
     let mut env = TestEnv::new(Default::default()).await.unwrap();
 
-    let mut node = env.new_node(NodeConfig::default().validator(env.validators[0]));
+    let mut node = env.new_node(NodeConfig::default().validator(env.validators[0].clone()));
     node.start_service().await;
 
     let res = env
@@ -2338,7 +2453,7 @@ async fn injected_tx_fungible_token() {
     let mut node = env.new_node(
         NodeConfig::default()
             .service_rpc(8090)
-            .validator(env.validators[0]),
+            .validator(env.validators[0].clone()),
     );
     node.start_service().await;
     let rpc_client = node.rpc_http_client().expect("RPC client provide by node");
@@ -2558,7 +2673,7 @@ async fn injected_tx_fungible_token_over_network() {
         .expect("RPC client provide by node");
 
     let bob_pubkey = env.validators[0].public_key;
-    let mut bob_node = env.new_node(NodeConfig::named("Bob").validator(env.validators[0]));
+    let mut bob_node = env.new_node(NodeConfig::named("Bob").validator(env.validators[0].clone()));
     bob_node.start_service().await;
 
     // 1. Create Fungible token config
@@ -2685,7 +2800,7 @@ async fn injected_tx_fungible_token_over_network() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[ntest::timeout(120_000)]
+#[ntest::timeout(180_000)]
 async fn announces_conflicts() {
     init_logger();
 
@@ -3109,6 +3224,39 @@ async fn catch_up_test_case(commitment_delay_limit: u32) {
                 .await
                 .map(|r| r.transaction_hash.0.into())
         }
+
+        async fn commit_frost(
+            mut self: Box<Self>,
+            batch: BatchCommitment,
+            signature96: [u8; 96],
+        ) -> anyhow::Result<H256> {
+            log::info!("📗 LateCommitter wait for signal to commit ...");
+            self.wait_signal_sender.send(()).unwrap();
+            self.commit_signal_receiver
+                .lock()
+                .await
+                .recv()
+                .await
+                .unwrap();
+
+            log::info!(
+                "📗 LateCommitter committing batch {}: {:?}",
+                batch.to_digest(),
+                batch
+            );
+            let pending = self
+                .router
+                .commit_batch_frost_pending(batch, signature96)
+                .await;
+
+            self.wait_signal_sender.send(()).unwrap();
+
+            log::info!("📗 LateCommitter waiting for transaction to be applied ...");
+            pending?
+                .try_get_receipt_check_reverted()
+                .await
+                .map(|r| r.transaction_hash.0.into())
+        }
     }
 
     let config = TestEnvConfig {
@@ -3119,7 +3267,7 @@ async fn catch_up_test_case(commitment_delay_limit: u32) {
     let mut env = TestEnv::new(config).await.unwrap();
 
     log::info!("📗 Starting Alice");
-    let mut alice = env.new_node(NodeConfig::named("Alice").validator(env.validators[0]));
+    let mut alice = env.new_node(NodeConfig::named("Alice").validator(env.validators[0].clone()));
     alice.start_service().await;
 
     log::info!("📗 Starting Bob");

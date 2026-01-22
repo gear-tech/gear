@@ -34,6 +34,8 @@ use ethexe_common::{
     Address, COMMITMENT_DELAY_LIMIT, CodeAndId, DEFAULT_BLOCK_GAS_LIMIT, SimpleBlockData, ToDigest,
     ValidatorsVec,
     consensus::DEFAULT_CHAIN_DEEPNESS_THRESHOLD,
+    crypto::{DkgKeyPackage, DkgPublicKeyPackage, DkgSessionId, DkgShare, DkgVssCommitment},
+    db::{DkgSessionState, DkgStorageRW},
     ecdsa::{PrivateKey, PublicKey, SignedData},
     events::{
         BlockEvent, MirrorEvent, RouterEvent,
@@ -624,6 +626,14 @@ impl TestEnv {
         signer: &Signer,
         validators: Vec<PublicKey>,
     ) -> (Vec<ValidatorConfig>, VerifiableSecretSharingCommitment) {
+        Self::define_session_keys_for_era(signer, validators, 0)
+    }
+
+    pub fn define_session_keys_for_era(
+        signer: &Signer,
+        validators: Vec<PublicKey>,
+        era: u64,
+    ) -> (Vec<ValidatorConfig>, VerifiableSecretSharingCommitment) {
         let max_signers: u16 = validators.len().try_into().expect("conversion failed");
         let min_signers = max_signers
             .checked_mul(2)
@@ -632,9 +642,7 @@ impl TestEnv {
 
         let maybe_validator_identifiers: anyhow::Result<Vec<_>, _> = validators
             .iter()
-            .map(|public_key| {
-                Identifier::deserialize(&ActorId::from(public_key.to_address()).into_bytes())
-            })
+            .map(|public_key| Identifier::derive(public_key.to_address().as_ref()))
             .collect();
         let validator_identifiers = maybe_validator_identifiers.expect("conversion failed");
         let identifiers = IdentifierList::Custom(&validator_identifiers);
@@ -659,18 +667,48 @@ impl TestEnv {
                 .expect("conversion failed");
         assert_eq!(public_key_package1, public_key_package2);
 
+        let mut sorted_addresses: Vec<Address> = validators
+            .iter()
+            .map(|public_key| public_key.to_address())
+            .collect();
+        sorted_addresses.sort();
+        let address_index: std::collections::BTreeMap<_, _> = sorted_addresses
+            .into_iter()
+            .enumerate()
+            .map(|(idx, addr)| (addr, idx.saturating_add(1)))
+            .collect();
+
         (
             validators
                 .into_iter()
                 .zip(validator_identifiers.iter())
                 .map(|(public_key, id)| {
-                    let signing_share = *secret_shares[id].signing_share();
+                    let secret_share = secret_shares.get(id).expect("missing secret share").clone();
+                    let key_package =
+                        DkgKeyPackage::try_from(secret_share.clone()).expect("key package failed");
+                    let signing_share = *secret_share.signing_share();
                     let seed: [u8; 32] = <[u8; 32]>::try_from(signing_share.serialize()).unwrap();
                     let private_key =
                         PrivateKey::from_seed(seed).expect("signing share must be valid seed");
+                    let address = public_key.to_address();
+                    let index = *address_index.get(&address).expect("missing address index");
+                    let verifying_share = key_package.verifying_share();
                     ValidatorConfig {
                         public_key,
                         session_public_key: signer.import(private_key).unwrap(),
+                        dkg_key_package: key_package.clone(),
+                        dkg_share: DkgShare {
+                            era,
+                            identifier: *id,
+                            index: index as u16,
+                            signing_share: signing_share.serialize().to_vec(),
+                            verifying_share: verifying_share
+                                .serialize()
+                                .expect("verifying share serialization failed"),
+                            threshold: min_signers,
+                        },
+                        dkg_public_key_package: public_key_package1.clone(),
+                        dkg_vss_commitment: verifiable_secret_sharing_commitment.clone(),
                     }
                 })
                 .collect(),
@@ -792,8 +830,8 @@ impl NodeConfig {
         self
     }
 
-    pub fn validator(mut self, config: ValidatorConfig) -> Self {
-        self.validator_config = Some(config);
+    pub fn validator(mut self, config: impl Into<ValidatorConfig>) -> Self {
+        self.validator_config = Some(config.into());
         self
     }
 
@@ -819,12 +857,22 @@ impl NodeConfig {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, PartialEq, Eq, Debug)]
 pub struct ValidatorConfig {
     /// Validator public key.
     pub public_key: PublicKey,
     /// Validator session public key.
     pub session_public_key: PublicKey,
+    pub dkg_key_package: DkgKeyPackage,
+    pub dkg_share: DkgShare,
+    pub dkg_public_key_package: DkgPublicKeyPackage,
+    pub dkg_vss_commitment: DkgVssCommitment,
+}
+
+impl From<&ValidatorConfig> for ValidatorConfig {
+    fn from(value: &ValidatorConfig) -> Self {
+        value.clone()
+    }
 }
 
 /// Provides access to hardcoded anvil wallets or custom set wallets.
@@ -916,6 +964,24 @@ impl Node {
             .validators_at(latest_block.hash)
             .await
             .unwrap();
+
+        if let Some(config) = self.validator_config.as_ref() {
+            let era = config.dkg_share.era;
+            self.db
+                .set_public_key_package(era, config.dkg_public_key_package.clone());
+            self.db
+                .set_dkg_vss_commitment(era, config.dkg_vss_commitment.clone());
+            self.db
+                .set_dkg_key_package(era, config.dkg_key_package.clone());
+            self.db.set_dkg_share(config.dkg_share.clone());
+            self.db.set_dkg_session_state(
+                DkgSessionId { era },
+                DkgSessionState {
+                    completed: true,
+                    ..Default::default()
+                },
+            );
+        }
 
         let consensus: Pin<Box<dyn ConsensusService>> = {
             if let Some(config) = self.validator_config.as_ref() {
@@ -1148,6 +1214,7 @@ impl Node {
             .signer
             .signed_data(
                 self.validator_config
+                    .as_ref()
                     .expect("validator config not set")
                     .public_key,
                 message,

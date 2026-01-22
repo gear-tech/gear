@@ -5049,6 +5049,7 @@ dependencies = [
  "rand 0.8.5",
  "rand_chacha 0.3.1",
  "roast-secp256k1-evm",
+ "thiserror 2.0.17",
  "tokio",
  "tracing",
 ]

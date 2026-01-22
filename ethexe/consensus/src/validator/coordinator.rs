@@ -16,30 +16,32 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use super::{StateHandler, ValidatorContext, ValidatorState};
+use super::{StateHandler, ValidatorContext, ValidatorState, sign_roast_message};
 use crate::{
     BatchCommitmentValidationReply, CommitmentSubmitted, ConsensusEvent,
-    utils::MultisignedBatchCommitment, validator::initial::Initial,
+    engine::prelude::RoastEngineEvent, validator::initial::Initial,
 };
 use anyhow::{Result, anyhow, ensure};
 use derive_more::Display;
-use ethexe_common::{
-    Address, ToDigest, ValidatorsVec, consensus::BatchCommitmentValidationRequest,
-    gear::BatchCommitment, network::ValidatorMessage,
-};
+use ethexe_common::{Address, Digest, ToDigest, ValidatorsVec, gear::BatchCommitment};
 use futures::FutureExt;
-use gsigner::secp256k1::Secp256k1SignerExt;
+use gprimitives::{ActorId, H256};
+#[cfg(test)]
+use gsigner::ContractSignature;
+use gsigner::hash::keccak256_iter;
 use std::collections::BTreeSet;
 
-/// [`Coordinator`] sends batch commitment validation request to other validators
-/// and waits for validation replies.
-/// Switches to [`Submitter`], after receiving enough validators replies from other validators.
+/// [`Coordinator`] initiates ROAST threshold signing for batch commitment.
+/// Waits for threshold signature to be completed, then switches to submission.
 #[derive(Debug, Display)]
 #[display("COORDINATOR")]
 pub struct Coordinator {
     ctx: ValidatorContext,
     validators: BTreeSet<Address>,
-    multisigned_batch: MultisignedBatchCommitment,
+    pub(crate) batch: BatchCommitment,
+    pub(crate) batch_digest: Digest,
+    pub(crate) signing_hash: H256,
+    pub(crate) era_index: u64,
 }
 
 impl StateHandler for Coordinator {
@@ -56,26 +58,13 @@ impl StateHandler for Coordinator {
     }
 
     fn process_validation_reply(
-        mut self,
-        reply: BatchCommitmentValidationReply,
+        self,
+        _reply: BatchCommitmentValidationReply,
     ) -> Result<ValidatorState> {
-        if let Err(err) = self
-            .multisigned_batch
-            .accept_batch_commitment_validation_reply(reply, |addr| {
-                self.validators
-                    .contains(&addr)
-                    .then_some(())
-                    .ok_or_else(|| anyhow!("Received validation reply is not known validator"))
-            })
-        {
-            self.warning(format!("validation reply rejected: {err}"));
-        }
-
-        if self.multisigned_batch.signatures().len() as u64 >= self.ctx.core.signatures_threshold {
-            Self::submission(self.ctx, self.multisigned_batch)
-        } else {
-            Ok(self.into())
-        }
+        // Validation replies are no longer used with ROAST
+        // ROAST threshold signing handles coordination
+        tracing::trace!("Ignoring validation reply - using ROAST threshold signing");
+        Ok(self.into())
     }
 }
 
@@ -95,50 +84,120 @@ impl Coordinator {
             "Threshold should be greater than 0"
         );
 
-        let multisigned_batch = MultisignedBatchCommitment::new(
-            batch,
-            &ctx.core.signer,
-            ctx.core.router_address,
-            ctx.core.pub_key,
-        )?;
+        let era_index = ctx.core.timelines.era_from_ts(batch.timestamp);
+        let batch_digest = batch.to_digest();
 
-        if multisigned_batch.signatures().len() as u64 >= ctx.core.signatures_threshold {
-            return Self::submission(ctx, multisigned_batch);
+        tracing::info!(
+            era = era_index,
+            block_hash = %batch.block_hash,
+            "🔐 Starting ROAST threshold signing for batch commitment"
+        );
+
+        // Start ROAST signing session
+        // Convert Digest to H256 for ROAST
+        let contract_digest = keccak256_iter([
+            &[0x19, 0x00],
+            ctx.core.router_address.0.as_ref(),
+            batch_digest.0.as_ref(),
+        ]);
+        let msg_hash = H256(contract_digest);
+
+        let tweak_target = ActorId::zero();
+        let threshold = ctx.core.signatures_threshold as u16;
+        let participants: Vec<Address> = validators.clone().into();
+
+        let messages = ctx
+            .roast_engine
+            .handle_event(RoastEngineEvent::StartSigning {
+                msg_hash,
+                era: era_index,
+                tweak_target,
+                threshold,
+                participants,
+            })?;
+
+        // Broadcast ROAST session request
+        for msg in messages {
+            let signed = sign_roast_message(&ctx.core.signer, ctx.core.pub_key, msg)?;
+            ctx.output(ConsensusEvent::BroadcastValidatorMessage(signed));
         }
-
-        let era_index = ctx
-            .core
-            .timelines
-            .era_from_ts(multisigned_batch.batch().timestamp);
-        let payload = BatchCommitmentValidationRequest::new(multisigned_batch.batch());
-        let message = ValidatorMessage { era_index, payload };
-
-        let validation_request = ctx
-            .core
-            .signer
-            .signed_data(ctx.core.pub_key, message, None)?;
-
-        ctx.output(ConsensusEvent::PublishMessage(validation_request.into()));
 
         Ok(Self {
             ctx,
             validators: validators.into_iter().collect(),
-            multisigned_batch,
+            batch,
+            batch_digest,
+            signing_hash: msg_hash,
+            era_index,
         }
         .into())
     }
 
-    pub fn submission(
+    /// Called when ROAST threshold signature is complete
+    pub fn on_signature_complete(self) -> Result<ValidatorState> {
+        // Get the threshold signature from RoastEngine
+        let signature = self
+            .ctx
+            .roast_engine
+            .get_signature(self.signing_hash, self.era_index)
+            .ok_or_else(|| anyhow!("Signature not found after completion"))?;
+
+        Self::submission_frost(self.ctx, self.batch, signature)
+    }
+
+    pub fn submission_frost(
         ctx: ValidatorContext,
-        multisigned_batch: MultisignedBatchCommitment,
+        batch: BatchCommitment,
+        frost_signature: ethexe_common::crypto::frost::SignAggregate,
     ) -> Result<ValidatorState> {
-        let (batch, signatures) = multisigned_batch.into_parts();
         let cloned_committer = ctx.core.committer.clone_boxed();
+
+        tracing::info!(
+            block_hash = %batch.block_hash,
+            "📤 Submitting batch commitment with FROST threshold signature"
+        );
+
         ctx.tasks.push(
             async move {
                 let block_hash = batch.block_hash;
                 let batch_digest = batch.to_digest();
-                let event = match cloned_committer.commit(batch, signatures).await {
+                // Submit with FROST signature
+                let event = match cloned_committer.commit_frost(batch, frost_signature.signature96).await {
+                    Ok(tx) => CommitmentSubmitted {
+                        block_hash,
+                        batch_digest,
+                        tx,
+                    }.into(),
+                    Err(err) => ConsensusEvent::Warning(format!(
+                        "Failed to submit FROST commitment for block {block_hash}, digest {batch_digest}: {err}"
+                    ))
+                };
+                Ok(event)
+            }
+            .boxed(),
+        );
+        Initial::create(ctx)
+    }
+
+    #[cfg(test)]
+    pub fn submission(
+        ctx: ValidatorContext,
+        batch: BatchCommitment,
+        threshold_signature: ContractSignature,
+    ) -> Result<ValidatorState> {
+        let cloned_committer = ctx.core.committer.clone_boxed();
+
+        tracing::info!(
+            block_hash = %batch.block_hash,
+            "📤 Submitting batch commitment with ROAST threshold signature"
+        );
+
+        ctx.tasks.push(
+            async move {
+                let block_hash = batch.block_hash;
+                let batch_digest = batch.to_digest();
+                // Submit with single threshold signature
+                let event = match cloned_committer.commit(batch, vec![threshold_signature]).await {
                     Ok(tx) => CommitmentSubmitted {
                         block_hash,
                         batch_digest,
@@ -160,8 +219,8 @@ impl Coordinator {
 mod tests {
     use super::*;
     use crate::{mock::*, validator::mock::*};
-    use ethexe_common::{ToDigest, ValidatorsVec};
-    use gprimitives::H256;
+    use ethexe_common::{Address, ToDigest, ValidatorsVec};
+    use gsigner::secp256k1::Secp256k1SignerExt;
     use nonempty::NonEmpty;
 
     #[test]
@@ -176,13 +235,24 @@ mod tests {
             .try_into()
             .unwrap();
         let batch = BatchCommitment::default();
+        let era_index = ctx.core.timelines.era_from_ts(batch.timestamp);
+        let validator_addrs: Vec<Address> = validators.clone().into();
+        setup_test_dkg(
+            &ctx.core.db,
+            &validator_addrs,
+            ctx.core.pub_key.to_address(),
+            ctx.core.signatures_threshold as u16,
+            era_index,
+        )
+        .unwrap();
 
         let coordinator = Coordinator::create(ctx, validators, batch).unwrap();
         assert!(coordinator.is_coordinator());
-        coordinator.context().output[0]
-            .clone()
-            .unwrap_publish_message()
-            .unwrap_request_batch_validation();
+        // With ROAST, coordinator sends BroadcastValidatorMessage instead of PublishMessage
+        assert!(
+            !coordinator.context().output.is_empty(),
+            "Expected ROAST messages to be sent"
+        );
     }
 
     #[test]
@@ -222,59 +292,45 @@ mod tests {
 
         let batch = BatchCommitment::default();
         let digest = batch.to_digest();
+        let era_index = ctx.core.timelines.era_from_ts(batch.timestamp);
+        let validator_addrs: Vec<Address> = validators.clone().into();
+        setup_test_dkg(
+            &ctx.core.db,
+            &validator_addrs,
+            ctx.core.pub_key.to_address(),
+            ctx.core.signatures_threshold as u16,
+            era_index,
+        )
+        .unwrap();
 
         let reply1 = ctx
             .core
             .signer
             .validation_reply(keys[0], ctx.core.router_address, digest);
 
-        let reply2_invalid =
-            ctx.core
-                .signer
-                .validation_reply(keys[4], ctx.core.router_address, digest);
+        let coordinator = Coordinator::create(ctx, validators.into(), batch).unwrap();
+        assert!(coordinator.is_coordinator());
 
-        let reply3_invalid = ctx.core.signer.validation_reply(
-            keys[1],
-            ctx.core.router_address,
-            H256::random().0.into(),
-        );
+        // With ROAST, validation replies are ignored
+        let coordinator = coordinator.process_validation_reply(reply1).unwrap();
+        assert!(coordinator.is_coordinator());
 
-        let reply4 = ctx
+        // Coordinator should still be waiting for ROAST signature
+        // (validation replies don't affect ROAST flow)
+    }
+
+    #[test]
+    fn submission_transitions_to_initial() {
+        let (ctx, _, _) = mock_validator_context();
+        let batch = BatchCommitment::default();
+        let digest = batch.to_digest();
+        let signature = ctx
             .core
             .signer
-            .validation_reply(keys[2], ctx.core.router_address, digest);
-
-        let mut coordinator = Coordinator::create(ctx, validators.into(), batch).unwrap();
-        assert!(coordinator.is_coordinator());
-        coordinator.context().output[0]
-            .clone()
-            .unwrap_publish_message()
-            .unwrap_request_batch_validation();
-
-        coordinator = coordinator.process_validation_reply(reply1).unwrap();
-        assert!(coordinator.is_coordinator());
-
-        coordinator = coordinator
-            .process_validation_reply(reply2_invalid)
+            .sign_for_contract_digest(ctx.core.router_address, ctx.core.pub_key, &digest)
             .unwrap();
-        assert!(coordinator.is_coordinator());
-        assert!(matches!(
-            coordinator.context().output[1],
-            ConsensusEvent::Warning(_)
-        ));
 
-        coordinator = coordinator
-            .process_validation_reply(reply3_invalid)
-            .unwrap();
-        assert!(coordinator.is_coordinator());
-        assert!(matches!(
-            coordinator.context().output[2],
-            ConsensusEvent::Warning(_)
-        ));
-
-        coordinator = coordinator.process_validation_reply(reply4).unwrap();
-        assert!(coordinator.is_initial());
-        assert_eq!(coordinator.context().output.len(), 3);
-        assert!(coordinator.context().tasks.len() == 1);
+        let state = Coordinator::submission(ctx, batch, signature).unwrap();
+        assert!(state.is_initial());
     }
 }

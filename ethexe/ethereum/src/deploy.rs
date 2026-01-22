@@ -41,7 +41,7 @@ use anyhow::Result;
 use ethexe_common::{
     Address as LocalAddress, ValidatorsVec, ecdsa::PublicKey, gear::AggregatedPublicKey,
 };
-use gprimitives::{ActorId, H160, U256 as GearU256};
+use gprimitives::U256 as GearU256;
 use gsigner::secp256k1::Signer as LocalSigner;
 use roast_secp256k1_evm::frost::{
     Identifier,
@@ -69,7 +69,7 @@ pub struct EthereumDeployer {
     params: ContractsDeploymentParams,
 
     /// Verifiable secret sharing commitment generated during key generation.
-    /// If not provided, will be generate with [`keys::generate_with_dealer`] function.
+    /// Must be provided explicitly for production deployments.
     verifiable_secret_sharing_commitment: Option<VerifiableSecretSharingCommitment>,
 }
 
@@ -136,6 +136,14 @@ impl EthereumDeployer {
         self
     }
 
+    pub fn with_generated_verifiable_secret_sharing_commitment(mut self) -> Self {
+        let validators: Vec<LocalAddress> = self.validators.clone().into();
+        let identifiers = identifiers_from_validators(&validators);
+        self.verifiable_secret_sharing_commitment =
+            Some(generate_secret_sharing_commitment(&identifiers));
+        self
+    }
+
     pub fn with_verifiable_secret_sharing_commitment(
         mut self,
         verifiable_secret_sharing_commitment: VerifiableSecretSharingCommitment,
@@ -164,7 +172,13 @@ impl EthereumDeployer {
         let router = deploy_router(
             deployer,
             *wrapped_vara.address(),
-            self.verifiable_secret_sharing_commitment.clone(),
+            self.verifiable_secret_sharing_commitment
+                .clone()
+                .ok_or_else(|| {
+                    anyhow::anyhow!(
+                        "Missing verifiable secret sharing commitment for router deployment"
+                    )
+                })?,
             self.validators
                 .clone()
                 .into_iter()
@@ -240,7 +254,7 @@ where
 async fn deploy_router<P>(
     deployer: Address,
     wvara_address: Address,
-    maybe_verifiable_secret_sharing_commitment: Option<VerifiableSecretSharingCommitment>,
+    verifiable_secret_sharing_commitment: VerifiableSecretSharingCommitment,
     validators: Vec<Address>,
     params: ContractsDeploymentParams,
     provider: P,
@@ -248,18 +262,8 @@ async fn deploy_router<P>(
 where
     P: Provider + Clone,
 {
-    let validators_identifiers: Vec<_> = validators
-        .iter()
-        .map(|address| {
-            Identifier::deserialize(&ActorId::from(H160(address.0.0)).into_bytes())
-                .expect("conversion failed")
-        })
-        .collect();
-
-    let verifiable_secret_sharing_commitment = match maybe_verifiable_secret_sharing_commitment {
-        Some(commitment) => commitment,
-        None => generate_secret_sharing_commitment(&validators_identifiers),
-    };
+    let validators_local: Vec<LocalAddress> = validators.iter().copied().map(Into::into).collect();
+    let validators_identifiers = identifiers_from_validators(&validators_local);
     let identifiers = validators_identifiers.clone().into_iter().collect();
     let aggregated_public_key =
         aggregated_public_key(&identifiers, &verifiable_secret_sharing_commitment);
@@ -450,6 +454,13 @@ fn generate_secret_sharing_commitment(
         .unwrap()
 }
 
+fn identifiers_from_validators(validators: &[LocalAddress]) -> Vec<Identifier> {
+    validators
+        .iter()
+        .map(|address| Identifier::derive(address.as_ref()).expect("conversion failed"))
+        .collect()
+}
+
 fn aggregated_public_key(
     identifiers: &BTreeSet<Identifier>,
     verifiable_secret_sharing_commitment: &VerifiableSecretSharingCommitment,
@@ -494,6 +505,7 @@ mod tests {
 
         let ethereum = EthereumDeployer::new(&anvil.endpoint(), signer, sender_address)
             .await?
+            .with_generated_verifiable_secret_sharing_commitment()
             .with_middleware()
             .deploy()
             .await?;

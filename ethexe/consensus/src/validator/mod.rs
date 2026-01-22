@@ -39,9 +39,13 @@
 //! * [`Participant`] switches to [`Initial`] after receiving request from [`Coordinator`] and sending validation reply (or rejecting request).
 //! * Each state can be interrupted by a new chain head -> switches to [`Initial`] immediately.
 
+pub(crate) use crate::engine::message_adapter::{sign_dkg_action, sign_roast_message};
 use crate::{
     BatchCommitmentValidationReply, ConsensusEvent, ConsensusService,
+    engine::prelude::{DkgEngine, DkgEngineEvent, RoastEngine, RoastEngineEvent},
+    policy::is_recoverable_roast_request_error,
     validator::{
+        adapters::handle_dkg_error,
         coordinator::Coordinator,
         core::{MiddlewareWrapper, ValidatorCore},
         participant::Participant,
@@ -59,7 +63,7 @@ use ethexe_common::{
     db::OnChainStorageRO,
     ecdsa::{PublicKey, SignedMessage},
     injected::SignedInjectedTransaction,
-    network::AnnouncesResponse,
+    network::{AnnouncesResponse, SignedValidatorMessage, VerifiedValidatorMessage},
 };
 use ethexe_db::Database;
 use ethexe_ethereum::middleware::ElectionProvider;
@@ -79,6 +83,7 @@ use std::{
     time::Duration,
 };
 
+mod adapters;
 mod coordinator;
 mod core;
 mod initial;
@@ -87,8 +92,13 @@ mod producer;
 mod subordinate;
 mod tx_pool;
 
+pub(crate) type DkgEngineDb = DkgEngine<Database>;
+pub(crate) type RoastEngineDb = RoastEngine<Database>;
+
 #[cfg(test)]
 mod mock;
+#[allow(unused_imports)]
+pub(crate) use crate::engine::roast::RoastMessage;
 
 /// The main validator service that implements the `ConsensusService` trait.
 /// This service manages the validation workflow.
@@ -137,6 +147,9 @@ impl ValidatorService {
         let timelines = db
             .protocol_timelines()
             .ok_or_else(|| anyhow!("Protocol timelines not found in database"))?;
+
+        let self_address = config.pub_key.to_address();
+
         let ctx = ValidatorContext {
             core: ValidatorCore {
                 slot_duration: config.slot_duration,
@@ -144,11 +157,11 @@ impl ValidatorService {
                 router_address: config.router_address,
                 pub_key: config.pub_key,
                 timelines,
-                signer,
+                signer: signer.clone(),
                 db: db.clone(),
                 committer: committer.into(),
                 middleware: MiddlewareWrapper::from_inner(election_provider),
-                injected_pool: InjectedTxPool::new(db),
+                injected_pool: InjectedTxPool::new(db.clone()),
                 chain_deepness_threshold: config.chain_deepness_threshold,
                 block_gas_limit: config.block_gas_limit,
                 commitment_delay_limit: config.commitment_delay_limit,
@@ -157,6 +170,8 @@ impl ValidatorService {
             pending_events: VecDeque::new(),
             output: VecDeque::new(),
             tasks: Default::default(),
+            dkg_engine: DkgEngine::new(db.clone(), self_address),
+            roast_engine: RoastEngine::new(db, self_address),
         };
 
         Ok(Self {
@@ -233,6 +248,17 @@ impl ConsensusService for ValidatorService {
     fn receive_injected_transaction(&mut self, tx: SignedInjectedTransaction) -> Result<()> {
         self.update_inner(|inner| inner.process_injected_transaction(tx))
     }
+
+    fn receive_validator_message(&mut self, message: SignedValidatorMessage) -> Result<()> {
+        self.update_inner(|inner| inner.process_validator_message(message))
+    }
+
+    fn receive_verified_validator_message(
+        &mut self,
+        message: ethexe_common::network::VerifiedValidatorMessage,
+    ) -> Result<()> {
+        self.update_inner(|inner| inner.process_verified_validator_message(message))
+    }
 }
 
 impl Stream for ValidatorService {
@@ -256,6 +282,16 @@ impl Stream for ValidatorService {
             let ctx = inner.context_mut();
             if let Poll::Ready(Some(res)) = ctx.tasks.poll_next_unpin(cx) {
                 ctx.output(res?);
+            }
+
+            for action in ctx.dkg_engine.tick_timeouts()? {
+                if let Some(msg) = sign_dkg_action(&ctx.core.signer, ctx.core.pub_key, action)? {
+                    ctx.output(ConsensusEvent::BroadcastValidatorMessage(msg));
+                }
+            }
+            for msg in ctx.roast_engine.tick_timeouts()? {
+                let signed = sign_roast_message(&ctx.core.signer, ctx.core.pub_key, msg)?;
+                ctx.output(ConsensusEvent::BroadcastValidatorMessage(signed));
             }
 
             Ok(inner)
@@ -336,12 +372,26 @@ where
         DefaultProcessing::validation_reply(self, reply)
     }
 
-    fn process_announces_response(self, _response: AnnouncesResponse) -> Result<ValidatorState> {
+    fn process_verified_validator_message(
+        self,
+        message: ethexe_common::network::VerifiedValidatorMessage,
+    ) -> Result<ValidatorState> {
+        DefaultProcessing::verified_validator_message(self.into(), message)
+    }
+
+    fn process_announces_response(
+        self,
+        _response: AnnouncesResponse,
+    ) -> Result<ValidatorState> {
         DefaultProcessing::announces_response(self, _response)
     }
 
     fn process_injected_transaction(self, tx: SignedInjectedTransaction) -> Result<ValidatorState> {
         DefaultProcessing::injected_transaction(self, tx)
+    }
+
+    fn process_validator_message(self, message: SignedValidatorMessage) -> Result<ValidatorState> {
+        DefaultProcessing::validator_message(self, message)
     }
 
     fn poll_next_state(self, _cx: &mut Context<'_>) -> Result<(Poll<()>, ValidatorState)> {
@@ -428,12 +478,23 @@ impl StateHandler for ValidatorState {
         delegate_call!(self => process_announces_response(response))
     }
 
+    fn process_verified_validator_message(
+        self,
+        message: ethexe_common::network::VerifiedValidatorMessage,
+    ) -> Result<ValidatorState> {
+        delegate_call!(self => process_verified_validator_message(message))
+    }
+
     fn poll_next_state(self, cx: &mut Context<'_>) -> Result<(Poll<()>, ValidatorState)> {
         delegate_call!(self => poll_next_state(cx))
     }
 
     fn process_injected_transaction(self, tx: SignedInjectedTransaction) -> Result<ValidatorState> {
         delegate_call!(self => process_injected_transaction(tx))
+    }
+
+    fn process_validator_message(self, message: SignedValidatorMessage) -> Result<ValidatorState> {
+        delegate_call!(self => process_validator_message(message))
     }
 }
 
@@ -519,6 +580,290 @@ impl DefaultProcessing {
         s.context_mut().core.process_injected_transaction(tx)?;
         Ok(s)
     }
+
+    fn validator_message(
+        s: impl Into<ValidatorState>,
+        message: SignedValidatorMessage,
+    ) -> Result<ValidatorState> {
+        Self::verified_validator_message(s, message.into_verified())
+    }
+
+    fn verified_validator_message(
+        s: impl Into<ValidatorState>,
+        message: VerifiedValidatorMessage,
+    ) -> Result<ValidatorState> {
+        let mut s = s.into();
+
+        // Process DKG/ROAST messages
+        match message {
+            VerifiedValidatorMessage::DkgRound1(msg) => {
+                let era = msg.data().payload.session.era;
+                match s
+                    .context_mut()
+                    .dkg_engine
+                    .handle_event(DkgEngineEvent::Round1 {
+                        from: msg.address(),
+                        message: Box::new(msg.data().payload.clone()),
+                    }) {
+                    Ok(actions) => {
+                        for action in actions {
+                            if let Some(msg) = sign_dkg_action(
+                                &s.context().core.signer,
+                                s.context().core.pub_key,
+                                action,
+                            )? {
+                                s.context_mut()
+                                    .output(ConsensusEvent::BroadcastValidatorMessage(msg));
+                            }
+                        }
+                    }
+                    Err(err) => handle_dkg_error(&mut s, era, err),
+                }
+            }
+            VerifiedValidatorMessage::DkgRound2(msg) => {
+                let era = msg.data().payload.session.era;
+                match s
+                    .context_mut()
+                    .dkg_engine
+                    .handle_event(DkgEngineEvent::Round2 {
+                        from: msg.address(),
+                        message: msg.data().payload.clone(),
+                    }) {
+                    Ok(actions) => {
+                        for action in actions {
+                            if let Some(msg) = sign_dkg_action(
+                                &s.context().core.signer,
+                                s.context().core.pub_key,
+                                action,
+                            )? {
+                                s.context_mut()
+                                    .output(ConsensusEvent::BroadcastValidatorMessage(msg));
+                            }
+                        }
+                    }
+                    Err(err) => handle_dkg_error(&mut s, era, err),
+                }
+            }
+            VerifiedValidatorMessage::DkgRound2Culprits(msg) => {
+                let era = msg.data().payload.session.era;
+                match s
+                    .context_mut()
+                    .dkg_engine
+                    .handle_event(DkgEngineEvent::Round2Culprits {
+                        from: msg.address(),
+                        message: msg.data().payload.clone(),
+                    }) {
+                    Ok(actions) => {
+                        for action in actions {
+                            if let Some(msg) = sign_dkg_action(
+                                &s.context().core.signer,
+                                s.context().core.pub_key,
+                                action,
+                            )? {
+                                s.context_mut()
+                                    .output(ConsensusEvent::BroadcastValidatorMessage(msg));
+                            }
+                        }
+                    }
+                    Err(err) => handle_dkg_error(&mut s, era, err),
+                }
+            }
+            VerifiedValidatorMessage::DkgComplaint(msg) => {
+                let era = msg.data().payload.session.era;
+                match s
+                    .context_mut()
+                    .dkg_engine
+                    .handle_event(DkgEngineEvent::Complaint {
+                        from: msg.address(),
+                        message: msg.data().payload.clone(),
+                    }) {
+                    Ok(actions) => {
+                        for action in actions {
+                            if let Some(msg) = sign_dkg_action(
+                                &s.context().core.signer,
+                                s.context().core.pub_key,
+                                action,
+                            )? {
+                                s.context_mut()
+                                    .output(ConsensusEvent::BroadcastValidatorMessage(msg));
+                            }
+                        }
+                    }
+                    Err(err) => handle_dkg_error(&mut s, era, err),
+                }
+            }
+            VerifiedValidatorMessage::DkgJustification(msg) => {
+                let era = msg.data().payload.session.era;
+                match s
+                    .context_mut()
+                    .dkg_engine
+                    .handle_event(DkgEngineEvent::Justification {
+                        from: msg.address(),
+                        message: msg.data().payload.clone(),
+                    }) {
+                    Ok(actions) => {
+                        for action in actions {
+                            if let Some(msg) = sign_dkg_action(
+                                &s.context().core.signer,
+                                s.context().core.pub_key,
+                                action,
+                            )? {
+                                s.context_mut()
+                                    .output(ConsensusEvent::BroadcastValidatorMessage(msg));
+                            }
+                        }
+                    }
+                    Err(err) => handle_dkg_error(&mut s, era, err),
+                }
+            }
+            VerifiedValidatorMessage::SignSessionRequest(msg) => {
+                let request = msg.data().payload.clone();
+                let result = s.context_mut().roast_engine.handle_event(
+                    RoastEngineEvent::SignSessionRequest {
+                        from: msg.address(),
+                        request: request.clone(),
+                    },
+                );
+                match result {
+                    Ok(messages) => {
+                        for msg in messages {
+                            let signed = sign_roast_message(
+                                &s.context().core.signer,
+                                s.context().core.pub_key,
+                                msg,
+                            )?;
+                            s.context_mut()
+                                .output(ConsensusEvent::BroadcastValidatorMessage(signed));
+                        }
+                    }
+                    Err(err) => {
+                        let era = request.session.era;
+                        let recoverable = is_recoverable_roast_request_error(&err);
+                        s.warning(format!("ROAST sign request failed for era {era}: {err}"));
+                        if recoverable {
+                            match s.context_mut().dkg_engine.restart_with(
+                                era,
+                                request.participants.clone(),
+                                request.threshold,
+                            ) {
+                                Ok(actions) => {
+                                    s.warning(format!(
+                                        "Restarting DKG for era {era} after invalid share data"
+                                    ));
+                                    for action in actions {
+                                        if let Some(msg) = sign_dkg_action(
+                                            &s.context().core.signer,
+                                            s.context().core.pub_key,
+                                            action,
+                                        )? {
+                                            s.context_mut().output(
+                                                ConsensusEvent::BroadcastValidatorMessage(msg),
+                                            );
+                                        }
+                                    }
+                                }
+                                Err(restart_err) => {
+                                    s.warning(format!(
+                                        "Failed to restart DKG for era {era}: {restart_err}"
+                                    ));
+                                }
+                            }
+                        } else {
+                            return Err(err);
+                        }
+                    }
+                }
+            }
+            VerifiedValidatorMessage::SignNonceCommit(msg) => {
+                let messages =
+                    s.context_mut()
+                        .roast_engine
+                        .handle_event(RoastEngineEvent::NonceCommit {
+                            commit: msg.data().payload.clone(),
+                        })?;
+                for msg in messages {
+                    let signed = sign_roast_message(
+                        &s.context().core.signer,
+                        s.context().core.pub_key,
+                        msg,
+                    )?;
+                    s.context_mut()
+                        .output(ConsensusEvent::BroadcastValidatorMessage(signed));
+                }
+            }
+            VerifiedValidatorMessage::SignNoncePackage(msg) => {
+                let messages =
+                    s.context_mut()
+                        .roast_engine
+                        .handle_event(RoastEngineEvent::NoncePackage {
+                            package: msg.data().payload.clone(),
+                        })?;
+                for msg in messages {
+                    let signed = sign_roast_message(
+                        &s.context().core.signer,
+                        s.context().core.pub_key,
+                        msg,
+                    )?;
+                    s.context_mut()
+                        .output(ConsensusEvent::BroadcastValidatorMessage(signed));
+                }
+            }
+            VerifiedValidatorMessage::SignShare(msg) => {
+                let messages =
+                    s.context_mut()
+                        .roast_engine
+                        .handle_event(RoastEngineEvent::SignShare {
+                            partial: msg.data().payload.clone(),
+                        })?;
+                for msg in messages {
+                    let signed = sign_roast_message(
+                        &s.context().core.signer,
+                        s.context().core.pub_key,
+                        msg,
+                    )?;
+                    s.context_mut()
+                        .output(ConsensusEvent::BroadcastValidatorMessage(signed));
+                }
+            }
+            VerifiedValidatorMessage::SignCulprits(msg) => {
+                s.context_mut()
+                    .roast_engine
+                    .handle_event(RoastEngineEvent::SignCulprits {
+                        culprits: msg.data().payload.clone(),
+                    })?;
+            }
+            VerifiedValidatorMessage::SignAggregate(msg) => {
+                let aggregate = msg.data().payload.clone();
+                tracing::info!(
+                    era = msg.data().era_index,
+                    msg_hash = %aggregate.msg_hash,
+                    "Received ROAST aggregate signature"
+                );
+
+                s.context_mut()
+                    .roast_engine
+                    .handle_event(RoastEngineEvent::SignAggregate {
+                        aggregate: aggregate.clone(),
+                    })?;
+
+                if let ValidatorState::Coordinator(coordinator) = s {
+                    if coordinator.signing_hash == aggregate.msg_hash {
+                        tracing::info!(
+                            block_hash = %coordinator.batch.block_hash,
+                            "✅ ROAST threshold signature completed for batch"
+                        );
+                        return coordinator.on_signature_complete();
+                    }
+                    return Ok(coordinator.into());
+                }
+            }
+            _ => {
+                tracing::warn!("Unexpected validator message type received");
+            }
+        }
+
+        Ok(s)
+    }
 }
 
 /// The context shared across all validator states.
@@ -537,6 +882,11 @@ struct ValidatorContext {
     /// Ongoing consensus tasks, if any.
     #[debug("{}", tasks.len())]
     tasks: FuturesUnordered<BoxFuture<'static, Result<ConsensusEvent>>>,
+
+    /// DKG engine for distributed key generation
+    dkg_engine: DkgEngineDb,
+    /// ROAST engine for threshold signing
+    roast_engine: RoastEngineDb,
 }
 
 impl ValidatorContext {

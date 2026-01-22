@@ -23,112 +23,135 @@
 
 use anyhow::{Result, anyhow};
 use ethexe_common::{
-    Address, Announce, Digest, HashOf, SimpleBlockData, ToDigest, ValidatorsVec,
-    consensus::BatchCommitmentValidationReply,
-    db::{AnnounceStorageRO, BlockMetaStorageRO, CodesStorageRO, OnChainStorageRO},
-    ecdsa::{ContractSignature, PublicKey},
+    Address, Announce, HashOf, SimpleBlockData, ValidatorsVec,
+    db::{AnnounceStorageRO, BlockMetaStorageRO, CodesStorageRO, DkgStorageRO, OnChainStorageRO},
+    ecdsa::PublicKey,
     gear::{
         AggregatedPublicKey, BatchCommitment, ChainCommitment, CodeCommitment, RewardsCommitment,
         StateTransition, ValidatorsCommitment,
     },
 };
 use gprimitives::{CodeId, H256, U256};
-use gsigner::secp256k1::{Secp256k1SignerExt, Signer};
-use parity_scale_codec::{Decode, Encode};
-use rand::SeedableRng;
-use roast_secp256k1_evm::frost::{
-    Identifier,
-    keys::{self, IdentifierList, VerifiableSecretSharingCommitment},
-};
-use std::collections::{BTreeMap, HashSet};
+use std::collections::HashSet;
 
 /// How often to log warning during chain commitment aggregation
 const LOG_WARNING_FREQUENCY: u32 = 10_000;
 
-/// A batch commitment, that has been signed by multiple validators.
-/// This structure manages the collection of signatures from different validators
-/// for a single batch commitment.
-#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
-pub struct MultisignedBatchCommitment {
-    batch: BatchCommitment,
-    batch_digest: Digest,
-    router_address: Address,
-    signatures: BTreeMap<Address, ContractSignature>,
+#[derive(Debug)]
+pub struct ValidatorsCommitmentCountMismatch {
+    pub package_participants: usize,
+    pub elected_validators: usize,
 }
 
-impl MultisignedBatchCommitment {
-    /// Creates a new multisigned batch commitment with an initial signature.
-    ///
-    /// # Arguments
-    /// * `batch` - The batch commitment to be signed
-    /// * `signer` - The contract signer used to create signatures
-    /// * `pub_key` - The public key of the initial signer
-    ///
-    /// # Returns
-    /// A new `MultisignedBatchCommitment` instance with the initial signature
-    pub fn new(
+impl std::fmt::Display for ValidatorsCommitmentCountMismatch {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "Elected validators count does not match DKG public key package: \
+             package={}, elected={}",
+            self.package_participants, self.elected_validators
+        )
+    }
+}
+
+impl std::error::Error for ValidatorsCommitmentCountMismatch {}
+
+#[cfg(test)]
+mod test_support {
+    use super::*;
+    use ethexe_common::{
+        Digest, ToDigest, consensus::BatchCommitmentValidationReply, ecdsa::ContractSignature,
+    };
+    use gsigner::secp256k1::{Secp256k1SignerExt, Signer};
+    use parity_scale_codec::{Decode, Encode};
+    use std::collections::BTreeMap;
+
+    /// A batch commitment, that has been signed by multiple validators.
+    /// This structure manages the collection of signatures from different validators
+    /// for a single batch commitment.
+    #[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
+    pub struct MultisignedBatchCommitment {
         batch: BatchCommitment,
-        signer: &Signer,
+        batch_digest: Digest,
         router_address: Address,
-        pub_key: PublicKey,
-    ) -> Result<Self> {
-        let batch_digest = batch.to_digest();
-        let signature =
-            signer.sign_for_contract_digest(router_address, pub_key, batch_digest, None)?;
-        let signatures: BTreeMap<_, _> = [(pub_key.to_address(), signature)].into_iter().collect();
-
-        Ok(Self {
-            batch,
-            batch_digest,
-            router_address,
-            signatures,
-        })
+        signatures: BTreeMap<Address, ContractSignature>,
     }
 
-    /// Accepts a validation reply from another validator and adds it's signature.
-    ///
-    /// # Arguments
-    /// * `reply` - The validation reply containing the signature
-    /// * `check_origin` - A closure to verify the origin of the signature
-    ///
-    /// # Returns
-    /// Result indicating success or failure of the operation
-    pub fn accept_batch_commitment_validation_reply(
-        &mut self,
-        reply: BatchCommitmentValidationReply,
-        check_origin: impl FnOnce(Address) -> Result<()>,
-    ) -> Result<()> {
-        let BatchCommitmentValidationReply { digest, signature } = reply;
+    impl MultisignedBatchCommitment {
+        /// Creates a new multisigned batch commitment with an initial signature.
+        ///
+        /// # Arguments
+        /// * `batch` - The batch commitment to be signed
+        /// * `signer` - The contract signer used to create signatures
+        /// * `pub_key` - The public key of the initial signer
+        ///
+        /// # Returns
+        /// A new `MultisignedBatchCommitment` instance with the initial signature
+        pub fn new(
+            batch: BatchCommitment,
+            signer: &Signer,
+            router_address: Address,
+            pub_key: PublicKey,
+        ) -> Result<Self> {
+            let batch_digest = batch.to_digest();
+            let signature =
+                signer.sign_for_contract_digest(router_address, pub_key, &batch_digest)?;
+            let signatures: BTreeMap<_, _> =
+                [(pub_key.to_address(), signature)].into_iter().collect();
 
-        anyhow::ensure!(digest == self.batch_digest, "Invalid reply digest");
+            Ok(Self {
+                batch,
+                batch_digest,
+                router_address,
+                signatures,
+            })
+        }
 
-        let origin = signature
-            .validate(self.router_address, digest)?
-            .to_address();
+        /// Accepts a validation reply from another validator and adds it's signature.
+        ///
+        /// # Arguments
+        /// * `reply` - The validation reply containing the signature
+        /// * `check_origin` - A closure to verify the origin of the signature
+        ///
+        /// # Returns
+        /// Result indicating success or failure of the operation
+        pub fn accept_batch_commitment_validation_reply(
+            &mut self,
+            reply: BatchCommitmentValidationReply,
+            check_origin: impl FnOnce(Address) -> Result<()>,
+        ) -> Result<()> {
+            let BatchCommitmentValidationReply { digest, signature } = reply;
 
-        check_origin(origin)?;
+            anyhow::ensure!(digest == self.batch_digest, "Invalid reply digest");
 
-        self.signatures.insert(origin, signature);
+            let origin_public_key = signature.validate(self.router_address, digest)?;
 
-        Ok(())
-    }
+            let origin = origin_public_key.to_address();
 
-    /// Returns a reference to the map of validator addresses to their signatures
-    pub fn signatures(&self) -> &BTreeMap<Address, ContractSignature> {
-        &self.signatures
-    }
+            check_origin(origin)?;
 
-    /// Returns a reference to the underlying batch commitment
-    pub fn batch(&self) -> &BatchCommitment {
-        &self.batch
-    }
+            self.signatures.insert(origin, signature);
 
-    /// Consumes the structure and returns its parts
-    ///
-    /// # Returns
-    /// A tuple containing the batch commitment and the map of signatures
-    pub fn into_parts(self) -> (BatchCommitment, Vec<ContractSignature>) {
-        (self.batch, self.signatures.into_values().collect())
+            Ok(())
+        }
+
+        /// Returns a reference to the map of validator addresses to their signatures
+        pub fn signatures(&self) -> &BTreeMap<Address, ContractSignature> {
+            &self.signatures
+        }
+
+        /// Returns a reference to the underlying batch commitment
+        pub fn batch(&self) -> &BatchCommitment {
+            &self.batch
+        }
+
+        /// Consumes the structure and returns its parts
+        ///
+        /// # Returns
+        /// A tuple containing the batch commitment and the map of signatures
+        pub fn into_parts(self) -> (BatchCommitment, Vec<ContractSignature>) {
+            (self.batch, self.signatures.into_values().collect())
+        }
     }
 }
 
@@ -218,6 +241,7 @@ pub fn try_aggregate_chain_commitment<DB: BlockMetaStorageRO + AnnounceStorageRO
     ))
 }
 
+<<<<<<< HEAD
 // TODO: #5019 this is a temporal solution. In future need to implement DKG algorithm.
 pub fn generate_roast_keys(
     validators: &ValidatorsVec,
@@ -242,12 +266,35 @@ pub fn generate_roast_keys(
         .pop_first()
         .map(|(_key, value)| value.commitment().clone())
         .ok_or_else(|| anyhow!("Expect at least one identifier"))?;
+=======
+pub fn validators_commitment<DB: DkgStorageRO>(
+    db: &DB,
+    era: u64,
+    validators: ValidatorsVec,
+) -> Result<Option<ValidatorsCommitment>> {
+    let public_key_package = match db.public_key_package(era) {
+        Some(package) => package,
+        None => return Ok(None),
+    };
+    let verifiable_secret_sharing_commitment = match db.dkg_vss_commitment(era) {
+        Some(commitment) => commitment,
+        None => return Ok(None),
+    };
+    let package_participants = public_key_package.verifying_shares().len();
+    if package_participants != validators.len() {
+        return Err(ValidatorsCommitmentCountMismatch {
+            package_participants,
+            elected_validators: validators.len(),
+        }
+        .into());
+    }
+>>>>>>> 2650990b5 (added initial dkg and roast/frost implementation)
 
     let public_key_compressed: [u8; 33] = public_key_package
         .verifying_key()
         .serialize()?
         .try_into()
-        .map_err(|_| anyhow!("Failed to convert public key to compressed format"))?;
+        .map_err(|_| anyhow!("Invalid aggregated public key length"))?;
     let public_key_uncompressed = PublicKey::from_bytes(public_key_compressed)
         .expect("valid aggregated public key")
         .to_uncompressed();
@@ -258,7 +305,12 @@ pub fn generate_roast_keys(
         y: U256::from_big_endian(public_key_y_bytes),
     };
 
-    Ok((aggregated_public_key, verifiable_secret_sharing_commitment))
+    Ok(Some(ValidatorsCommitment {
+        aggregated_public_key,
+        verifiable_secret_sharing_commitment,
+        validators,
+        era_index: era,
+    }))
 }
 
 pub fn create_batch_commitment<DB: BlockMetaStorageRO + OnChainStorageRO + AnnounceStorageRO>(
@@ -433,23 +485,25 @@ pub fn sort_transitions_by_value_to_receive(transitions: &mut [StateTransition])
 
 #[cfg(test)]
 mod tests {
-    use super::*;
+    use super::{test_support::MultisignedBatchCommitment, *};
     use crate::mock::*;
-    use ethexe_common::{db::*, mock::*};
+    use ethexe_common::{ToDigest, consensus::BatchCommitmentValidationReply, db::*, mock::*};
     use ethexe_db::Database;
+    use gsigner::secp256k1::Secp256k1SignerExt;
 
     const ADDRESS: Address = Address([42; 20]);
 
     #[test]
-    fn block_producer_index_calculates_correct_index() {
-        let validators_amount = 5;
-        let slot = 7;
-        let index = block_producer_index(validators_amount, slot);
-        assert_eq!(index, 2);
+    fn block_producer_index_matches_modulo_across_slots() {
+        let cases = [(1, 0, 0), (3, 2, 2), (3, 3, 0), (5, 7, 2), (5, 14, 4)];
+
+        for (validators_amount, slot, expected) in cases {
+            assert_eq!(block_producer_index(validators_amount, slot), expected);
+        }
     }
 
     #[test]
-    fn producer_for_calculates_correct_producer() {
+    fn block_producer_for_uses_slot_duration() {
         let validators = vec![
             Address::from([1; 20]),
             Address::from([2; 20]),
@@ -457,10 +511,14 @@ mod tests {
         ]
         .try_into()
         .unwrap();
-        let timestamp = 10;
+        let slot_duration = 5;
 
-        let producer = block_producer_for(&validators, timestamp, 1);
-        assert_eq!(producer, validators[timestamp as usize % validators.len()]);
+        let cases = [(0, 0), (4, 0), (5, 1), (9, 1), (10, 2), (15, 0)];
+
+        for (timestamp, expected_index) in cases {
+            let producer = block_producer_for(&validators, timestamp, slot_duration);
+            assert_eq!(producer, validators[expected_index]);
+        }
     }
 
     #[test]
@@ -474,8 +532,8 @@ mod tests {
             MultisignedBatchCommitment::new(batch.clone(), &signer, ADDRESS, pub_key)
                 .expect("Failed to create multisigned batch commitment");
 
-        assert_eq!(multisigned_batch.batch, batch);
-        assert_eq!(multisigned_batch.signatures.len(), 1);
+        assert_eq!(multisigned_batch.batch(), &batch);
+        assert_eq!(multisigned_batch.signatures().len(), 1);
     }
 
     #[test]
@@ -489,23 +547,17 @@ mod tests {
             MultisignedBatchCommitment::new(batch, &signer, ADDRESS, pub_key).unwrap();
 
         let other_pub_key = public_keys[1];
-        let reply = BatchCommitmentValidationReply {
-            digest: multisigned_batch.batch_digest,
-            signature: signer
-                .sign_for_contract_digest(
-                    ADDRESS,
-                    other_pub_key,
-                    multisigned_batch.batch_digest,
-                    None,
-                )
-                .unwrap(),
-        };
+        let digest = multisigned_batch.batch().to_digest();
+        let signature = signer
+            .sign_for_contract_digest(ADDRESS, other_pub_key, &digest)
+            .unwrap();
+        let reply = BatchCommitmentValidationReply { digest, signature };
 
         multisigned_batch
             .accept_batch_commitment_validation_reply(reply.clone(), |_| Ok(()))
             .expect("Failed to accept batch commitment validation reply");
 
-        assert_eq!(multisigned_batch.signatures.len(), 2);
+        assert_eq!(multisigned_batch.signatures().len(), 2);
 
         // Attempt to add the same reply again
         multisigned_batch
@@ -513,7 +565,11 @@ mod tests {
             .expect("Failed to accept batch commitment validation reply");
 
         // Ensure the number of signatures has not increased
-        assert_eq!(multisigned_batch.signatures.len(), 2);
+        assert_eq!(multisigned_batch.signatures().len(), 2);
+
+        let (batch, signatures) = multisigned_batch.into_parts();
+        assert_eq!(batch.to_digest(), digest);
+        assert_eq!(signatures.len(), 2);
     }
 
     #[test]
@@ -536,7 +592,7 @@ mod tests {
 
         let result = multisigned_batch.accept_batch_commitment_validation_reply(reply, |_| Ok(()));
         assert!(result.is_err());
-        assert_eq!(multisigned_batch.signatures.len(), 1);
+        assert_eq!(multisigned_batch.signatures().len(), 1);
     }
 
     #[test]
@@ -550,30 +606,24 @@ mod tests {
             MultisignedBatchCommitment::new(batch, &signer, ADDRESS, pub_key).unwrap();
 
         let other_pub_key = public_keys[1];
-        let reply = BatchCommitmentValidationReply {
-            digest: multisigned_batch.batch_digest,
-            signature: signer
-                .sign_for_contract_digest(
-                    ADDRESS,
-                    other_pub_key,
-                    multisigned_batch.batch_digest,
-                    None,
-                )
-                .unwrap(),
-        };
+        let digest = multisigned_batch.batch().to_digest();
+        let signature = signer
+            .sign_for_contract_digest(ADDRESS, other_pub_key, &digest)
+            .unwrap();
+        let reply = BatchCommitmentValidationReply { digest, signature };
 
         // Case 1: check_origin allows the origin
         let result =
             multisigned_batch.accept_batch_commitment_validation_reply(reply.clone(), |_| Ok(()));
         assert!(result.is_ok());
-        assert_eq!(multisigned_batch.signatures.len(), 2);
+        assert_eq!(multisigned_batch.signatures().len(), 2);
 
         // Case 2: check_origin rejects the origin
         let result = multisigned_batch.accept_batch_commitment_validation_reply(reply, |_| {
             anyhow::bail!("Origin not allowed")
         });
         assert!(result.is_err());
-        assert_eq!(multisigned_batch.signatures.len(), 2);
+        assert_eq!(multisigned_batch.signatures().len(), 2);
     }
 
     #[test]

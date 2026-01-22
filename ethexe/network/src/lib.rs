@@ -559,7 +559,10 @@ impl NetworkService {
     }
 
     pub fn publish_message(&mut self, data: impl Into<SignedValidatorMessage>) {
-        self.swarm.behaviour_mut().gossipsub.publish(data.into())
+        self.swarm
+            .behaviour_mut()
+            .gossipsub
+            .publish(Box::new(data.into()))
     }
 
     pub fn send_injected_transaction(

@@ -17,14 +17,22 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::{core::*, *};
+use crate::engine::prelude::{DkgEngine, RoastEngine};
 use anyhow::anyhow;
 use async_trait::async_trait;
 use ethexe_common::{
-    COMMITMENT_DELAY_LIMIT, DEFAULT_BLOCK_GAS_LIMIT, ProtocolTimelines, ValidatorsVec,
-    consensus::DEFAULT_CHAIN_DEEPNESS_THRESHOLD, db::OnChainStorageRW, ecdsa::ContractSignature,
-    gear::BatchCommitment, mock::*,
+    Address, COMMITMENT_DELAY_LIMIT, DEFAULT_BLOCK_GAS_LIMIT, ProtocolTimelines, ValidatorsVec,
+    consensus::DEFAULT_CHAIN_DEEPNESS_THRESHOLD,
+    crypto::{DkgIdentifier, DkgKeyPackage, DkgShare},
+    db::{DkgStorageRW, OnChainStorageRW},
+    ecdsa::ContractSignature,
+    gear::BatchCommitment,
+    mock::*,
 };
+use ethexe_db::Database;
 use hashbrown::HashMap;
+use rand::rngs::OsRng;
+use roast_secp256k1_evm::frost::keys::{IdentifierList, generate_with_dealer};
 use std::sync::Arc;
 use tokio::sync::RwLock;
 
@@ -51,6 +59,17 @@ impl BatchCommitter for MockEthereum {
             .write()
             .await
             .replace((batch, signatures));
+        Ok(H256::random())
+    }
+
+    async fn commit_frost(
+        self: Box<Self>,
+        batch: BatchCommitment,
+        _signature96: [u8; 96],
+    ) -> Result<H256> {
+        // For mock, we don't need to verify FROST signature
+        // Just store the batch with empty signatures vector
+        self.committed_batch.write().await.replace((batch, vec![]));
         Ok(H256::random())
     }
 }
@@ -149,15 +168,18 @@ pub fn mock_validator_context() -> (ValidatorContext, Vec<PublicKey>, MockEthere
     let db = Database::memory();
     let timelines = ProtocolTimelines::mock(());
 
+    let pub_key = keys.pop().unwrap();
+    let self_address = pub_key.to_address();
+
     let ctx = ValidatorContext {
         core: ValidatorCore {
             slot_duration: Duration::from_secs(1),
             signatures_threshold: 1,
             router_address: 12345.into(),
-            pub_key: keys.pop().unwrap(),
+            pub_key,
             timelines,
             block_gas_limit: DEFAULT_BLOCK_GAS_LIMIT,
-            signer,
+            signer: signer.clone(),
             db: db.clone(),
             committer: Box::new(ethereum.clone()),
             middleware: MiddlewareWrapper::from_inner(ethereum.clone()),
@@ -169,9 +191,65 @@ pub fn mock_validator_context() -> (ValidatorContext, Vec<PublicKey>, MockEthere
         pending_events: VecDeque::new(),
         output: VecDeque::new(),
         tasks: Default::default(),
+        dkg_engine: DkgEngine::new(db.clone(), self_address),
+        roast_engine: RoastEngine::new(db, self_address),
     };
 
     ctx.core.db.set_protocol_timelines(timelines);
 
     (ctx, keys, ethereum)
+}
+
+pub fn setup_test_dkg(
+    db: &Database,
+    validators: &[Address],
+    self_address: Address,
+    threshold: u16,
+    era: u64,
+) -> Result<()> {
+    let mut participants = validators.to_vec();
+    participants.sort();
+
+    let identifiers = participants
+        .iter()
+        .map(|addr| {
+            DkgIdentifier::derive(addr.as_ref()).map_err(|_| anyhow!("Failed to derive identifier"))
+        })
+        .collect::<Result<Vec<_>>>()?;
+
+    let rng = OsRng;
+    let (secret_shares, public_key_package) = generate_with_dealer(
+        participants.len() as u16,
+        threshold,
+        IdentifierList::Custom(&identifiers),
+        rng,
+    )
+    .map_err(|err| anyhow!("Failed to generate test DKG keys: {err}"))?;
+
+    db.set_public_key_package(era, public_key_package);
+
+    if let Some(self_idx) = participants.iter().position(|addr| *addr == self_address) {
+        let identifier = identifiers[self_idx];
+        let secret_share = secret_shares
+            .get(&identifier)
+            .ok_or_else(|| anyhow!("Missing secret share for self"))?;
+        let key_package = DkgKeyPackage::try_from(secret_share.clone())
+            .map_err(|err| anyhow!("Failed to build key package: {err}"))?;
+        let verifying_share = key_package
+            .verifying_share()
+            .serialize()
+            .map_err(|err| anyhow!("Failed to serialize verifying share: {err}"))?;
+        let share = DkgShare {
+            era,
+            identifier,
+            index: (self_idx + 1) as u16,
+            signing_share: key_package.signing_share().serialize(),
+            verifying_share,
+            threshold,
+        };
+        db.set_dkg_key_package(era, key_package);
+        db.set_dkg_share(share);
+    }
+
+    Ok(())
 }
