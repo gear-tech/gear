@@ -23,11 +23,11 @@ use crate::{
     },
     utils::HexBytes,
 };
-use anyhow::{Result, anyhow};
+use anyhow::{Context, Result, anyhow};
 use clap::Parser;
 use gring::{Keyring, Keystore};
 use gsdk::{Api, SignedApi, ext::sp_core};
-use std::{env, io, time::Duration};
+use std::{env, fs, io, path::PathBuf, time::Duration};
 use tracing_subscriber::EnvFilter;
 
 #[derive(Debug, Clone, Parser)]
@@ -111,11 +111,16 @@ impl App {
 
     /// Returns the keyring.
     pub fn keyring(&self) -> Result<Keyring> {
-        Keyring::load(if cfg!(test) {
-            env::temp_dir().join("gcli-test").join("keyring")
-        } else {
-            gring::cmd::Command::store()?
-        })
+        let path = env::var_os("GCLI_CONFIG_DIR")
+            .map_or_else(gring::cmd::Command::store, |dir| {
+                Ok(PathBuf::from(dir).join("keyring"))
+            })?;
+
+        if !path.exists() {
+            fs::create_dir_all(&path).context("failed to create keyring directory")?;
+        }
+
+        Keyring::load(path)
     }
 
     /// Returns the currently used keystore.

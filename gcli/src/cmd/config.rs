@@ -23,7 +23,7 @@ use clap::Parser;
 use colored::Colorize;
 use gsdk::Api;
 use serde::{Deserialize, Serialize};
-use std::{env, fs, path::PathBuf, str::FromStr};
+use std::{fs, path::PathBuf, str::FromStr};
 use url::Url;
 
 const CONFIG_PATH: &str = "gear-gcli/config.toml";
@@ -92,13 +92,12 @@ enum ConfigOption {
 
 impl ConfigSettings {
     fn config_path() -> Result<PathBuf> {
-        Ok(if cfg!(test) {
-            env::temp_dir().join("gcli-test").join("config")
-        } else {
-            dirs::config_dir()
-                .context("failed to get config directory")?
-                .join(CONFIG_PATH)
-        })
+        Ok(std::env::var_os("GCLI_CONFIG_DIR")
+            .map_or_else(
+                || dirs::config_dir().context("failed to get config directory"),
+                |dir| Ok(PathBuf::from(dir)),
+            )?
+            .join(CONFIG_PATH))
     }
 
     /// Reads the configuration from disk.
