@@ -56,6 +56,20 @@ runs:
         sudo update-alternatives --install /usr/bin/clang-cl clang-cl /usr/bin/clang-cl-20 100
       shell: bash
 
+    - name: "Install: Linux compilers"
+      if: runner.arch == 'X64' && runner.os == 'Linux'
+      run: |
+        set -euo pipefail
+        
+        echo "CC_x86_64_unknown_linux_gnu=gcc" >> $GITHUB_ENV
+        echo "CXX_x86_64_unknown_linux_gnu=g++" >> $GITHUB_ENV
+        
+        which cc gcc as
+        readlink -f "$(which cc)"
+        gcc -print-prog-name=as
+        "$(gcc -print-prog-name=as)" --version
+      shell: bash
+
     - name: "Install: Linux cross compilers and packages"
       if: runner.arch == 'ARM64' && runner.os == 'Linux' && inputs.target == 'x86_64-unknown-linux-gnu'
       run: |
