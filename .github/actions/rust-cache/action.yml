@@ -76,7 +76,7 @@ runs:
 
     - uses: gear-tech/rust-cache@wasm
       with:
-        prefix-key: 'rust-cache/date-${{ steps.date.outputs.value }}-workspace-hack'
+        prefix-key: 'rust-cache/date-${{ steps.date.outputs.value }}-openssl-updated'
         key: ${{ inputs.key }}
         workspaces: |
           . -> target
