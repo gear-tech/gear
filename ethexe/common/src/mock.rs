@@ -27,7 +27,10 @@ use crate::{
     injected::{AddressedInjectedTransaction, InjectedTransaction},
 };
 use alloc::{collections::BTreeMap, vec};
-use gear_core::code::{CodeMetadata, InstrumentedCode};
+use gear_core::{
+    code::{CodeMetadata, InstrumentedCode},
+    limited::LimitedVec,
+};
 use gprimitives::{CodeId, H256};
 use itertools::Itertools;
 use std::collections::{BTreeSet, VecDeque};
@@ -168,10 +171,10 @@ impl Mock<()> for InjectedTransaction {
     fn mock((): ()) -> Self {
         Self {
             destination: Default::default(),
-            payload: vec![].into(),
+            payload: LimitedVec::new(),
             value: 0,
             reference_block: Default::default(),
-            salt: H256::random().0.to_vec().into(),
+            salt: gprimitives::U256::from_big_endian(H256::random().as_bytes()),
         }
     }
 }
