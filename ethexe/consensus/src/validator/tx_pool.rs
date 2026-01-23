@@ -27,7 +27,12 @@ use ethexe_common::{
 use ethexe_db::Database;
 use ethexe_runtime_common::state::Storage;
 use gprimitives::H256;
+use parity_scale_codec::Encode;
 use std::collections::HashSet;
+
+/// Maximum total size of injected transactions per announce.
+/// Currently set to 2 MB.
+pub const MAX_INJECTED_TRANSACTIONS_SIZE_PER_ANNOUNCE: usize = 2 * 1024 * 1024;
 
 /// [`TransactionPool`] is a local pool of [`InjectedTransaction`]s, which validator can include in announces.
 #[derive(Clone)]
@@ -103,6 +108,7 @@ where
 
         let mut output = SelectionOutput::default();
         let mut remove_txs = vec![];
+        let mut size_counter = 0usize;
 
         for tx_hash in self.inner.iter() {
             let Some(tx) = self.db.injected_transaction(*tx_hash) else {
@@ -113,7 +119,19 @@ where
             match resolver.resolve(&tx)? {
                 TransactionStatus::Valid => {
                     tracing::trace!(tx_hash = ?tx_hash, tx = ?tx.data(), "tx is valid, including to announce");
+                    // NOTE: we calculate size with signature, because tx will be sent to network with it.
+                    let tx_size = tx.encoded_size();
+                    if size_counter + tx_size > MAX_INJECTED_TRANSACTIONS_SIZE_PER_ANNOUNCE {
+                        tracing::trace!(
+                            ?tx_hash,
+                            "transaction is valid, but exceeds max announce size limit, so skipping it for future announces"
+                        );
+                        continue;
+                    }
+
                     output.selected_txs.push(tx);
+                    size_counter += tx_size;
+
                     // TODO kuzmindev
                     // Note: remove tx from pool because of now we don't support transaction re-inclusion after reorgs.
                     remove_txs.push(*tx_hash);
