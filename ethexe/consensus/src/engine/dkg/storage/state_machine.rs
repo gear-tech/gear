@@ -19,7 +19,7 @@
 //! DKG State Machine
 
 use crate::engine::dkg::{
-    DkgCompleted, DkgResult, SessionConfig,
+    DkgCompleted, DkgErrorKind, DkgResult, SessionConfig,
     core::{DkgConfig, DkgProtocol, FinalizeResult},
 };
 use anyhow::{Result, anyhow};
@@ -36,7 +36,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-/// DKG state machine states
+/// DKG state machine states.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DkgState {
     /// Idle - no active DKG session
@@ -53,7 +53,7 @@ pub enum DkgState {
     Failed(String),
 }
 
-/// Events that can be processed by the state machine
+/// Events that can be processed by the state machine.
 #[derive(Debug, Clone)]
 pub enum DkgEvent {
     /// Start a new DKG session
@@ -87,7 +87,7 @@ pub enum DkgEvent {
     Timeout,
 }
 
-/// Actions to be performed after state transition
+/// Actions to be performed after state transition.
 #[derive(Debug, Clone)]
 pub enum DkgAction {
     /// Broadcast Round1 package
@@ -102,7 +102,7 @@ pub enum DkgAction {
     Complete(Box<DkgResult>),
 }
 
-/// DKG State Machine
+/// DKG State Machine.
 #[derive(Debug)]
 pub struct DkgStateMachine {
     state: DkgState,
@@ -123,7 +123,7 @@ impl Default for DkgStateMachine {
 }
 
 impl DkgStateMachine {
-    /// Create new DKG state machine
+    /// Create new DKG state machine.
     pub fn new() -> Self {
         Self {
             state: DkgState::Idle,
@@ -136,12 +136,12 @@ impl DkgStateMachine {
         }
     }
 
-    /// Get current state
+    /// Get current state.
     pub fn state(&self) -> &DkgState {
         &self.state
     }
 
-    /// Process an event and return actions to perform
+    /// Process an event and return actions to perform.
     pub fn process_event(&mut self, event: DkgEvent) -> Result<Vec<DkgAction>> {
         match event {
             DkgEvent::Start(config) => self.handle_start(config),
@@ -175,9 +175,10 @@ impl DkgStateMachine {
         }
     }
 
+    /// Initializes a new DKG session and emits the first round.
     fn handle_start(&mut self, config: SessionConfig) -> Result<Vec<DkgAction>> {
         if !matches!(self.state, DkgState::Idle) {
-            return Err(anyhow!("DKG already in progress"));
+            return Err(anyhow::Error::new(DkgErrorKind::AlreadyInProgress));
         }
 
         let protocol_config = DkgConfig {
@@ -189,12 +190,14 @@ impl DkgStateMachine {
             self_address: config.self_address,
         };
 
+        // Build the protocol instance and generate our round1 package.
         let mut protocol = DkgProtocol::new(protocol_config)?;
         let round1 = protocol.generate_round1()?;
 
         self.protocol = Some(protocol);
         self.config = Some(config);
         self.excluded.clear();
+        // Move into round1 collection phase.
         self.state = DkgState::Round1Pending {
             started_at: Instant::now(),
         };
@@ -202,20 +205,23 @@ impl DkgStateMachine {
         Ok(vec![DkgAction::BroadcastRound1(Box::new(round1))])
     }
 
+    /// Handles a round1 package and emits round2 when complete.
     fn handle_round1(&mut self, from: Address, message: DkgRound1) -> Result<Vec<DkgAction>> {
+        // Track round1 packages until all participants are collected.
         let is_complete = {
             let protocol = self
                 .protocol
                 .as_mut()
-                .ok_or_else(|| anyhow!("No active protocol"))?;
+                .ok_or_else(|| anyhow::Error::new(DkgErrorKind::NoActiveProtocol))?;
             protocol.receive_round1(from, message)?;
             protocol.is_round1_complete()
         };
         if is_complete {
+            // Generate round2 packages once round1 is complete.
             let round2 = self
                 .protocol
                 .as_mut()
-                .ok_or_else(|| anyhow!("No active protocol"))?
+                .ok_or_else(|| anyhow::Error::new(DkgErrorKind::NoActiveProtocol))?
                 .generate_round2()?;
             self.state = DkgState::Round2Pending {
                 started_at: Instant::now(),
@@ -226,12 +232,14 @@ impl DkgStateMachine {
         Ok(vec![])
     }
 
+    /// Handles a round2 package and attempts finalize when complete.
     fn handle_round2(&mut self, from: Address, message: DkgRound2) -> Result<Vec<DkgAction>> {
+        // Track round2 packages until all participants are collected.
         let is_complete = {
             let protocol = self
                 .protocol
                 .as_mut()
-                .ok_or_else(|| anyhow!("No active protocol"))?;
+                .ok_or_else(|| anyhow::Error::new(DkgErrorKind::NoActiveProtocol))?;
             protocol.receive_round2(from, message)?;
             protocol.is_round2_complete()
         };
@@ -242,6 +250,7 @@ impl DkgStateMachine {
         Ok(vec![])
     }
 
+    /// Handles a complaint message for the current session.
     fn handle_complaint(&mut self, from: Address, message: DkgComplaint) -> Result<Vec<DkgAction>> {
         if message.complainer != from {
             return Ok(vec![]);
@@ -249,11 +258,12 @@ impl DkgStateMachine {
         let protocol = self
             .protocol
             .as_mut()
-            .ok_or_else(|| anyhow!("No active protocol"))?;
+            .ok_or_else(|| anyhow::Error::new(DkgErrorKind::NoActiveProtocol))?;
         protocol.receive_complaint(message)?;
         Ok(vec![])
     }
 
+    /// Handles a justification message and updates complaint state.
     fn handle_justification(
         &mut self,
         from: Address,
@@ -266,7 +276,7 @@ impl DkgStateMachine {
         let protocol = self
             .protocol
             .as_mut()
-            .ok_or_else(|| anyhow!("No active protocol"))?;
+            .ok_or_else(|| anyhow::Error::new(DkgErrorKind::NoActiveProtocol))?;
         let is_valid = protocol.receive_justification(message)?;
         if is_valid {
             Ok(vec![])
@@ -275,6 +285,7 @@ impl DkgStateMachine {
         }
     }
 
+    /// Handles culprits report and triggers exclusion/restart when needed.
     fn handle_round2_culprits(
         &mut self,
         from: Address,
@@ -284,7 +295,7 @@ impl DkgStateMachine {
             let protocol = self
                 .protocol
                 .as_mut()
-                .ok_or_else(|| anyhow!("No active protocol"))?;
+                .ok_or_else(|| anyhow::Error::new(DkgErrorKind::NoActiveProtocol))?;
 
             protocol.receive_round2_culprits(from, message)?;
 
@@ -306,6 +317,7 @@ impl DkgStateMachine {
         }
     }
 
+    /// Applies timeout logic for the current phase.
     fn handle_timeout(&mut self) -> Result<Vec<DkgAction>> {
         match &self.state {
             DkgState::Round1Pending { started_at } => {
@@ -338,11 +350,12 @@ impl DkgStateMachine {
         Ok(vec![])
     }
 
+    /// Attempts to finalize DKG and emits completion or culprits.
     fn try_finalize(&mut self) -> Result<Vec<DkgAction>> {
         let protocol = self
             .protocol
             .as_mut()
-            .ok_or_else(|| anyhow!("No active protocol"))?;
+            .ok_or_else(|| anyhow::Error::new(DkgErrorKind::NoActiveProtocol))?;
 
         match protocol.finalize()? {
             FinalizeResult::Completed {
@@ -368,12 +381,15 @@ impl DkgStateMachine {
                 self.state = DkgState::CulpritsPending {
                     started_at: Instant::now(),
                 };
-                let mut actions = vec![DkgAction::BroadcastRound2Culprits(culprits.clone())];
                 let protocol = self
                     .protocol
                     .as_ref()
-                    .ok_or_else(|| anyhow!("No active protocol"))?;
-                let config = self.config.as_ref().ok_or_else(|| anyhow!("No config"))?;
+                    .ok_or_else(|| anyhow::Error::new(DkgErrorKind::NoActiveProtocol))?;
+                let config = self
+                    .config
+                    .as_ref()
+                    .ok_or_else(|| anyhow::Error::new(DkgErrorKind::MissingConfig))?;
+                let mut actions = Vec::new();
                 for culprit in culprits.culprits.iter().copied() {
                     if let Some(offender) = protocol.address_for_identifier(culprit) {
                         actions.push(DkgAction::BroadcastComplaint(DkgComplaint {
@@ -384,11 +400,13 @@ impl DkgStateMachine {
                         }));
                     }
                 }
+                actions.insert(0, DkgAction::BroadcastRound2Culprits(culprits));
                 Ok(actions)
             }
         }
     }
 
+    /// Excludes offenders and restarts the session if quorum remains.
     fn exclude_and_restart(&mut self, offenders: Vec<Address>) -> Result<Vec<DkgAction>> {
         let mut new_excluded = vec![];
         for address in offenders {
@@ -401,7 +419,10 @@ impl DkgStateMachine {
             return Ok(vec![]);
         }
 
-        let config = self.config.as_ref().ok_or_else(|| anyhow!("No config"))?;
+        let config = self
+            .config
+            .as_ref()
+            .ok_or_else(|| anyhow::Error::new(DkgErrorKind::MissingConfig))?;
         let mut participants = config.validators.clone();
         participants.retain(|addr| !self.excluded.contains(addr));
         if participants.len() < config.threshold as usize {
@@ -427,13 +448,18 @@ impl DkgStateMachine {
             started_at: Instant::now(),
         };
 
-        let mut config = config.clone();
-        config.validators = participants;
+        let config = SessionConfig {
+            era_index: config.era_index,
+            validators: participants,
+            threshold: config.threshold,
+            self_address: config.self_address,
+        };
         self.config = Some(config);
 
         Ok(vec![DkgAction::BroadcastRound1(Box::new(round1))])
     }
 
+    /// Builds a persisted DKG share from key package and session config.
     fn build_dkg_share(
         &self,
         config: &SessionConfig,
@@ -443,11 +469,11 @@ impl DkgStateMachine {
             .validators
             .iter()
             .position(|addr| *addr == config.self_address)
-            .ok_or_else(|| anyhow!("Self not in validators list"))?;
+            .ok_or_else(|| anyhow::Error::new(DkgErrorKind::SelfNotInValidatorsList))?;
         let index = index
             .checked_add(1)
             .and_then(|idx| u16::try_from(idx).ok())
-            .ok_or_else(|| anyhow!("Validator index out of range"))?;
+            .ok_or_else(|| anyhow::Error::new(DkgErrorKind::ValidatorIndexOutOfRange))?;
 
         let signing_share = key_package.signing_share().serialize();
         let verifying_share = key_package
@@ -465,6 +491,7 @@ impl DkgStateMachine {
         })
     }
 
+    /// Snapshots protocol state for persistence and recovery.
     pub fn snapshot_state(&self) -> DkgSessionState {
         let Some(protocol) = self.protocol.as_ref() else {
             return DkgSessionState::default();
@@ -478,6 +505,144 @@ impl DkgStateMachine {
             justifications: protocol.justifications(),
             round2_culprits: protocol.round2_culprit_messages(),
             completed: matches!(self.state, DkgState::Completed),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{DkgAction, DkgEvent, DkgState, DkgStateMachine};
+    use crate::engine::dkg::{DkgConfig, DkgProtocol, FinalizeResult, SessionConfig};
+    use ethexe_common::{
+        Address,
+        crypto::{DkgRound1, DkgRound2, DkgSessionId},
+    };
+
+    /// Builds a small deterministic validator set for tests.
+    fn test_addresses() -> Vec<Address> {
+        vec![
+            Address::from([1; 20]),
+            Address::from([2; 20]),
+            Address::from([3; 20]),
+        ]
+    }
+
+    #[test]
+    fn state_machine_completes_rounds() {
+        let participants = test_addresses();
+        let self_address = participants[0];
+        let session = DkgSessionId { era: 1 };
+        let threshold = 2;
+
+        let mut state_machine = DkgStateMachine::new();
+        let actions = state_machine
+            .process_event(DkgEvent::Start(SessionConfig {
+                era_index: session.era,
+                validators: participants.clone(),
+                threshold,
+                self_address,
+            }))
+            .expect("start");
+
+        assert!(matches!(
+            state_machine.state(),
+            DkgState::Round1Pending { .. }
+        ));
+
+        let self_round1 = match &actions[..] {
+            [DkgAction::BroadcastRound1(message)] => *message.clone(),
+            other => panic!("unexpected start actions: {other:?}"),
+        };
+
+        let mut round1_messages: Vec<(Address, DkgRound1)> = vec![(self_address, self_round1)];
+
+        let mut protocols: Vec<(Address, DkgProtocol)> = participants[1..]
+            .iter()
+            .map(|address| {
+                (
+                    *address,
+                    DkgProtocol::new(DkgConfig {
+                        session,
+                        threshold,
+                        participants: participants.clone(),
+                        self_address: *address,
+                    })
+                    .expect("protocol init"),
+                )
+            })
+            .collect();
+
+        for (address, protocol) in protocols.iter_mut() {
+            let round1 = protocol.generate_round1().expect("round1");
+            round1_messages.push((*address, round1));
+        }
+
+        for (_, protocol) in protocols.iter_mut() {
+            for (from, message) in &round1_messages {
+                protocol
+                    .receive_round1(*from, message.clone())
+                    .expect("receive round1");
+            }
+        }
+
+        let mut self_round2 = None;
+        for (from, message) in round1_messages.iter().skip(1) {
+            let actions = state_machine
+                .process_event(DkgEvent::Round1 {
+                    from: *from,
+                    message: Box::new(message.clone()),
+                })
+                .expect("round1 event");
+            for action in actions {
+                if let DkgAction::BroadcastRound2(round2) = action {
+                    self_round2 = Some(round2);
+                }
+            }
+        }
+
+        let self_round2 = self_round2.expect("self round2 action");
+        assert!(matches!(
+            state_machine.state(),
+            DkgState::Round2Pending { .. }
+        ));
+
+        let mut round2_messages: Vec<(Address, DkgRound2)> = vec![(self_address, self_round2)];
+        for (address, protocol) in protocols.iter_mut() {
+            let round2 = protocol.generate_round2().expect("round2");
+            round2_messages.push((*address, round2));
+        }
+
+        for (_, protocol) in protocols.iter_mut() {
+            for (from, message) in &round2_messages {
+                protocol
+                    .receive_round2(*from, message.clone())
+                    .expect("receive round2");
+            }
+        }
+
+        let mut completed = false;
+        for (from, message) in &round2_messages {
+            let actions = state_machine
+                .process_event(DkgEvent::Round2 {
+                    from: *from,
+                    message: Box::new(message.clone()),
+                })
+                .expect("round2 event");
+            for action in actions {
+                if let DkgAction::Complete(result) = action {
+                    completed = matches!(*result, super::DkgResult::Success(_));
+                }
+            }
+        }
+
+        assert!(completed, "DKG should complete successfully");
+        assert!(matches!(state_machine.state(), DkgState::Completed));
+
+        for (_, protocol) in protocols.iter_mut() {
+            match protocol.finalize().expect("finalize") {
+                FinalizeResult::Completed { .. } => {}
+                other => panic!("unexpected finalize result: {other:?}"),
+            }
         }
     }
 }

@@ -295,6 +295,7 @@ impl Router {
         Ok((receipt, actor_id))
     }
 
+    /// Submits a batch commitment with ECDSA signatures.
     pub async fn commit_batch(
         &self,
         commitment: BatchCommitment,
@@ -307,6 +308,7 @@ impl Router {
             .map(|receipt| H256(receipt.transaction_hash.0))
     }
 
+    /// Builds a pending ECDSA commit batch transaction.
     pub async fn commit_batch_pending(
         &self,
         commitment: BatchCommitment,
@@ -321,6 +323,7 @@ impl Router {
                 .collect(),
         );
 
+        // Override router.reserved to skip block predecessor checks in gas estimation.
         let mut state_diff = HashMap::default();
         state_diff.insert(
             // keccak256(abi.encode(uint256(keccak256(bytes("router.storage.RouterV1"))) - 1)) & ~bytes32(uint256(0xff))
@@ -345,6 +348,7 @@ impl Router {
         builder.gas(gas_limit).send().await.map_err(Into::into)
     }
 
+    /// Submits a batch commitment with a FROST signature (96 bytes).
     pub async fn commit_batch_frost(
         &self,
         commitment: BatchCommitment,
@@ -357,6 +361,7 @@ impl Router {
             .map(|receipt| H256(receipt.transaction_hash.0))
     }
 
+    /// Builds a pending FROST commit batch transaction.
     pub async fn commit_batch_frost_pending(
         &self,
         commitment: BatchCommitment,
@@ -368,6 +373,7 @@ impl Router {
             vec![Bytes::from(signature96.to_vec())],
         );
 
+        // Override router.reserved to skip block predecessor checks in gas estimation.
         let mut state_diff = HashMap::default();
         state_diff.insert(
             // keccak256(abi.encode(uint256(keccak256(bytes("router.storage.RouterV1"))) - 1)) & ~bytes32(uint256(0xff))

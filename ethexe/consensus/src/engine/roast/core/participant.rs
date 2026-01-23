@@ -37,6 +37,7 @@ use std::collections::BTreeMap;
 
 /// Participant configuration
 #[derive(Debug, Clone)]
+/// Participant configuration (timeouts, etc.).
 pub struct ParticipantConfig {
     /// This participant's address
     pub self_address: Address,
@@ -44,6 +45,7 @@ pub struct ParticipantConfig {
 
 /// Participant state
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Participant state machine phases.
 pub enum ParticipantState {
     /// Idle
     Idle,
@@ -55,6 +57,7 @@ pub enum ParticipantState {
 
 /// Events that participant can process
 #[derive(Debug, Clone)]
+/// Events handled by the participant state machine.
 pub enum ParticipantEvent {
     /// Received signing request from coordinator
     SignRequest {
@@ -69,6 +72,7 @@ pub enum ParticipantEvent {
 
 /// Actions participant should perform
 #[derive(Debug, Clone)]
+/// Actions emitted by the participant (outbound messages).
 pub enum ParticipantAction {
     /// Send nonce commitment to coordinator
     SendNonceCommit(SignNonceCommit),
@@ -78,6 +82,7 @@ pub enum ParticipantAction {
 
 /// ROAST Participant
 #[derive(Debug)]
+/// ROAST participant state machine (per signing session).
 pub struct RoastParticipant {
     state: ParticipantState,
     config: ParticipantConfig,
@@ -89,6 +94,7 @@ pub struct RoastParticipant {
 
 impl RoastParticipant {
     /// Create new participant
+    /// Creates a new participant with the given config.
     pub fn new(config: ParticipantConfig) -> Self {
         Self {
             state: ParticipantState::Idle,
@@ -101,11 +107,13 @@ impl RoastParticipant {
     }
 
     /// Get current state
+    /// Returns the current participant state.
     pub fn state(&self) -> &ParticipantState {
         &self.state
     }
 
     /// Process event and return actions
+    /// Drives the participant state machine with an event.
     pub fn process_event(&mut self, event: ParticipantEvent) -> Result<Vec<ParticipantAction>> {
         match event {
             ParticipantEvent::SignRequest {
@@ -118,6 +126,7 @@ impl RoastParticipant {
         }
     }
 
+    /// Handles a new sign request and emits the nonce commitment.
     fn handle_sign_request(
         &mut self,
         request: SignSessionRequest,
@@ -129,6 +138,7 @@ impl RoastParticipant {
             return Err(anyhow!("Participant already in session"));
         }
 
+        // Cache identifier map for this session.
         self.identifiers = identifiers;
 
         let expected_identifier = self
@@ -140,9 +150,11 @@ impl RoastParticipant {
             return Err(anyhow!("Key package identifier does not match DKG map"));
         }
 
+        // Apply per-message tweak to the key package.
         let tweak = hash_to_scalar(request.tweak_target);
         let tweaked_key_package = tweak_key_package(&key_package, tweak)?;
 
+        // Use pre-generated nonces if available; otherwise create fresh ones.
         let (signing_nonces, signing_commitments) = match pre_nonce {
             Some(pre_nonce) => {
                 let signing_nonces = SigningNonces::deserialize(&pre_nonce.nonces)
@@ -165,21 +177,25 @@ impl RoastParticipant {
             .serialize()
             .map_err(|err| anyhow!("Failed to serialize commitments: {err}"))?;
 
+        // Persist in-memory session state for the next phase.
+        let session = request.session;
+        let msg_hash = request.msg_hash;
         self.key_package = Some(tweaked_key_package);
         self.signing_nonces = Some(signing_nonces);
-        self.current_session = Some(request.clone());
+        self.current_session = Some(request);
         self.state = ParticipantState::NonceSent;
 
         let commit_msg = SignNonceCommit {
-            session: request.session,
+            session,
             from: self.config.self_address,
-            msg_hash: request.msg_hash,
+            msg_hash,
             nonce_commit: signing_commitments,
         };
 
         Ok(vec![ParticipantAction::SendNonceCommit(commit_msg)])
     }
 
+    /// Handles the signing package and emits the partial signature.
     fn handle_signing_package(
         &mut self,
         package: SignNoncePackage,
@@ -223,6 +239,7 @@ impl RoastParticipant {
             .copied()
             .ok_or_else(|| anyhow!("Self identifier not found"))?;
 
+        // Rebuild signing commitments map in identifier order.
         let mut commitments = BTreeMap::new();
         for (addr, bytes) in &package.commitments {
             let identifier = self
@@ -248,10 +265,12 @@ impl RoastParticipant {
             anyhow::Error::new(crate::engine::roast::RoastErrorKind::MissingKeyPackage)
         })?;
 
+        // Produce partial signature for the signing package.
         let signature_share: SignatureShare =
             round2::sign(&signing_package, &signing_nonces, key_package)
                 .map_err(|err| anyhow!("Failed to sign: {err}"))?;
 
+        // Generate next-round commitments for potential retries.
         let mut rng = OsRng;
         let (next_signing_nonces, next_commitments) =
             round1::commit(key_package.signing_share(), &mut rng);
@@ -275,6 +294,7 @@ impl RoastParticipant {
     }
 
     /// Reset to idle state
+    /// Resets internal state for a fresh session.
     pub fn reset(&mut self) {
         self.state = ParticipantState::Idle;
         self.current_session = None;

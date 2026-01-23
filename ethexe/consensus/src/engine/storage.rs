@@ -19,10 +19,12 @@
 use ethexe_common::db::{DkgStorageRO, DkgStorageRW, SignStorageRO, SignStorageRW};
 use ethexe_db::Database;
 
+/// Storage bound required by the DKG engine.
 pub trait DkgStore: DkgStorageRO + DkgStorageRW + Clone {}
 
 impl DkgStore for Database {}
 
+/// Storage bound required by the ROAST engine (DKG + sign session state).
 pub trait RoastStore: DkgStorageRO + SignStorageRO + SignStorageRW + Clone {
     fn prune_roast_caches_before(&self, min_era: u64) -> (usize, usize);
 }

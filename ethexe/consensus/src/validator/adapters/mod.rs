@@ -17,5 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 mod dkg;
+mod messages;
 
 pub(crate) use dkg::handle_dkg_error;
+pub(crate) use messages::{sign_dkg_action, sign_roast_message};

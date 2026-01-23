@@ -20,11 +20,13 @@ use super::types::RoastMessage;
 use crate::engine::prelude::{CoordinatorAction, ParticipantAction};
 use anyhow::Result;
 
+/// Converts coordinator actions into outbound ROAST messages.
 pub(super) fn coordinator_actions_to_outbound(
     actions: Vec<CoordinatorAction>,
 ) -> Result<Vec<RoastMessage>> {
     let mut messages = vec![];
 
+    // Convert coordinator actions into network messages.
     for action in actions {
         match action {
             CoordinatorAction::BroadcastRequest(request) => {
@@ -40,6 +42,7 @@ pub(super) fn coordinator_actions_to_outbound(
                 messages.push(RoastMessage::SignCulprits(culprits));
             }
             CoordinatorAction::Complete(_result) => {
+                // Completion is handled internally by state transitions.
                 tracing::info!("ROAST signing completed");
             }
         }
@@ -48,11 +51,13 @@ pub(super) fn coordinator_actions_to_outbound(
     Ok(messages)
 }
 
+/// Converts participant actions into outbound ROAST messages.
 pub(super) fn participant_actions_to_outbound(
     actions: Vec<ParticipantAction>,
 ) -> Result<Vec<RoastMessage>> {
     let mut messages = vec![];
 
+    // Convert participant actions into network messages.
     for action in actions {
         match action {
             ParticipantAction::SendNonceCommit(commit) => {

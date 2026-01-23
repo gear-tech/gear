@@ -18,7 +18,8 @@
 
 use thiserror::Error;
 
-#[derive(Debug, Error, Clone, PartialEq, Eq)]
+/// Canonical ROAST error categories used across the engine.
+#[derive(Debug, Error, Clone, Copy, PartialEq, Eq)]
 pub enum RoastErrorKind {
     #[error("Missing key package")]
     MissingKeyPackage,
@@ -32,12 +33,13 @@ pub enum RoastErrorKind {
     DkgShareIndexMismatch,
 }
 
+/// Extension for downcasting `anyhow::Error` into `RoastErrorKind`.
 pub trait RoastErrorExt {
     fn roast_error_kind(&self) -> Option<RoastErrorKind>;
 }
 
 impl RoastErrorExt for anyhow::Error {
     fn roast_error_kind(&self) -> Option<RoastErrorKind> {
-        self.downcast_ref::<RoastErrorKind>().cloned()
+        self.downcast_ref::<RoastErrorKind>().copied()
     }
 }

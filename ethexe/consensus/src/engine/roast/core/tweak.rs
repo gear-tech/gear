@@ -30,6 +30,7 @@ use roast_secp256k1_evm::frost::{
 };
 use std::collections::BTreeMap;
 
+/// Parses a 32-byte scalar from raw bytes.
 fn scalar_from_bytes(bytes: &[u8]) -> Result<Scalar> {
     let mut buf = [0u8; 32];
     if bytes.len() != buf.len() {
@@ -39,6 +40,7 @@ fn scalar_from_bytes(bytes: &[u8]) -> Result<Scalar> {
     Option::<Scalar>::from(Scalar::from_repr(buf.into())).ok_or_else(|| anyhow!("Malformed scalar"))
 }
 
+/// Applies a tweak to a signing share.
 fn tweaked_signing_share(share: &SigningShare, tweak: Scalar) -> Result<SigningShare> {
     let scalar = scalar_from_bytes(&share.serialize())?;
     let tweaked = tweak_share(scalar, tweak);
@@ -46,6 +48,7 @@ fn tweaked_signing_share(share: &SigningShare, tweak: Scalar) -> Result<SigningS
         .map_err(|err| anyhow!("Failed to deserialize tweaked signing share: {err}"))
 }
 
+/// Applies a tweak to a verifying share.
 fn tweaked_verifying_share(share: &VerifyingShare, tweak: Scalar) -> Result<VerifyingShare> {
     let bytes = share.serialize()?;
     let compressed: [u8; 33] = bytes
@@ -57,6 +60,7 @@ fn tweaked_verifying_share(share: &VerifyingShare, tweak: Scalar) -> Result<Veri
         .map_err(|err| anyhow!("Failed to deserialize tweaked verifying share: {err}"))
 }
 
+/// Applies a tweak to a verifying key.
 fn tweaked_verifying_key(key: &VerifyingKey, tweak: Scalar) -> Result<VerifyingKey> {
     let bytes = key.serialize()?;
     let compressed: [u8; 33] = bytes
@@ -68,6 +72,7 @@ fn tweaked_verifying_key(key: &VerifyingKey, tweak: Scalar) -> Result<VerifyingK
         .map_err(|err| anyhow!("Failed to deserialize tweaked verifying key: {err}"))
 }
 
+/// Applies a tweak to a key package (signing + verifying shares + key).
 pub(crate) fn tweak_key_package(
     key_package: &DkgKeyPackage,
     tweak: Scalar,
@@ -85,6 +90,7 @@ pub(crate) fn tweak_key_package(
     ))
 }
 
+/// Applies a tweak to the public key package (verifying shares + key).
 pub(crate) fn tweak_public_key_package(
     public_key_package: &DkgPublicKeyPackage,
     tweak: Scalar,

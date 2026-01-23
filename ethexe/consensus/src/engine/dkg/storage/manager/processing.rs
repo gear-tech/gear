@@ -20,38 +20,41 @@ use super::types::ManagerState;
 use crate::engine::dkg::{DkgAction, DkgEvent, DkgStateMachine};
 use anyhow::Result;
 
-pub(super) fn apply_local_rounds<DB>(
-    state: &ManagerState<DB>,
+/// Replays local round1/round2 broadcasts into the state machine to advance phases.
+pub(super) fn apply_local_rounds(
+    state: &ManagerState,
     state_machine: &mut DkgStateMachine,
     mut actions: Vec<DkgAction>,
 ) -> Result<Vec<DkgAction>> {
-    let mut pending = actions.clone();
-    while let Some(action) = pending.pop() {
-        let follow_up = match action {
+    let mut index = 0;
+    while index < actions.len() {
+        // Feed our own broadcasts back into the state machine.
+        let follow_up = match &actions[index] {
             DkgAction::BroadcastRound1(round1) => {
                 state_machine.process_event(DkgEvent::Round1 {
                     from: state.self_address,
-                    message: round1,
+                    message: round1.clone(),
                 })?
             }
             DkgAction::BroadcastRound2(round2) => {
                 state_machine.process_event(DkgEvent::Round2 {
                     from: state.self_address,
-                    message: Box::new(round2),
+                    message: Box::new(round2.clone()),
                 })?
             }
             _ => Vec::new(),
         };
         if !follow_up.is_empty() {
-            pending.extend(follow_up.clone());
             actions.extend(follow_up);
         }
+        index += 1;
     }
     Ok(actions)
 }
 
-pub(super) fn process_round_event<DB>(
-    state: &mut ManagerState<DB>,
+/// Applies a DKG event to an existing session (if present).
+pub(super) fn apply_event(
+    state: &mut ManagerState,
     era: u64,
     event: DkgEvent,
 ) -> Result<Vec<DkgAction>> {
@@ -63,7 +66,8 @@ pub(super) fn process_round_event<DB>(
     }
 }
 
-pub(super) fn process_timeouts<DB>(state: &mut ManagerState<DB>) -> Result<Vec<DkgAction>> {
+/// Collects timeout actions from all active sessions.
+pub(super) fn collect_timeout_actions(state: &mut ManagerState) -> Result<Vec<DkgAction>> {
     let mut all_actions = Vec::new();
 
     for (_era, sm) in state.sessions.iter_mut() {

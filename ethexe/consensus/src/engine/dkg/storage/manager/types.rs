@@ -20,9 +20,9 @@ use crate::engine::dkg::DkgStateMachine;
 use ethexe_common::Address;
 use std::collections::HashMap;
 
+/// In-memory manager state shared across DKG sessions.
 #[derive(Debug)]
-pub(super) struct ManagerState<DB> {
+pub(super) struct ManagerState {
     pub(super) sessions: HashMap<u64, DkgStateMachine>,
     pub(super) self_address: Address,
-    pub(super) db: DB,
 }

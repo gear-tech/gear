@@ -16,13 +16,21 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use super::super::{StateHandler, ValidatorState, sign_dkg_action};
-use crate::ConsensusEvent;
+use super::super::{StateHandler, ValidatorState};
+use crate::{
+    engine::EngineContext,
+    policy::{DkgPolicyDecision, dkg_error_policy},
+};
 use anyhow::Error;
 use ethexe_common::db::OnChainStorageRO;
 
+/// Applies DKG error policy and triggers restart when needed.
 pub(crate) fn handle_dkg_error(s: &mut ValidatorState, era: u64, err: Error) {
     s.warning(format!("DKG processing error for era {era}: {err}"));
+    if dkg_error_policy(&err) == DkgPolicyDecision::Ignore {
+        return;
+    }
+    // Reload validators from storage to rebuild the session config.
     let Some(validators) = s.context().core.db.validators(era) else {
         s.warning(format!(
             "Unable to restart DKG for era {era}: validators missing"
@@ -39,11 +47,10 @@ pub(crate) fn handle_dkg_error(s: &mut ValidatorState, era: u64, err: Error) {
         Ok(actions) => {
             s.warning(format!("Restarting DKG for era {era} after error"));
             for action in actions {
-                if let Ok(Some(msg)) =
-                    sign_dkg_action(&s.context().core.signer, s.context().core.pub_key, action)
-                {
-                    s.context_mut()
-                        .output(ConsensusEvent::BroadcastValidatorMessage(msg));
+                if let Err(err) = s.context_mut().publish_dkg_action(action) {
+                    s.warning(format!(
+                        "Failed to broadcast DKG action for era {era}: {err}"
+                    ));
                 }
             }
         }

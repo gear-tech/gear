@@ -16,8 +16,21 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+use crate::engine::{dkg::DkgAction, roast::RoastMessage};
+use anyhow::Result;
+use std::time::Instant;
+
 pub mod dkg;
-pub mod message_adapter;
 pub mod prelude;
 pub mod roast;
 pub mod storage;
+
+/// Abstraction for engine integrations (time + outbound publishing).
+pub trait EngineContext {
+    /// Returns the current time for timeout calculations.
+    fn now(&self) -> Instant;
+    /// Publishes a DKG action to the validator network.
+    fn publish_dkg_action(&mut self, action: DkgAction) -> Result<()>;
+    /// Publishes a ROAST message to the validator network.
+    fn publish_roast_message(&mut self, message: RoastMessage) -> Result<()>;
+}

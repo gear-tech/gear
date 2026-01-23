@@ -16,6 +16,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Core ROAST participant helpers.
+//!
+//! ```text
+//! SignRequest -> NonceCommit -> SigningPackage -> PartialSignature
+//! ```
+
 mod participant;
 mod tweak;
 
@@ -31,7 +37,7 @@ use ethexe_common::{
 };
 use gprimitives::H256;
 
-/// ROAST signing session configuration
+/// ROAST signing session configuration.
 #[derive(Debug, Clone)]
 pub struct SessionConfig {
     /// DKG session ID (era index)
@@ -50,7 +56,7 @@ pub struct SessionConfig {
     pub self_address: Address,
 }
 
-/// Result of ROAST signing session
+/// Result of ROAST signing session.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RoastResult {
     /// Signing completed successfully

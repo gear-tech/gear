@@ -23,5 +23,57 @@ mod participant;
 mod session;
 mod types;
 
-pub use coordinator::RoastManager;
+use crate::{
+    engine::{
+        roast::{
+            core::{ParticipantConfig, RoastParticipant},
+            storage::coordinator::CoordinatorConfig,
+        },
+        storage::RoastStore,
+    },
+    policy::RoastSessionId,
+};
+use ethexe_common::Address;
+use std::collections::{BTreeSet, HashMap};
+
 pub use types::RoastMessage;
+
+/// ROAST Manager handles threshold signing sessions.
+#[derive(Debug)]
+pub struct RoastManager<DB> {
+    /// Active coordinator sessions (when we are leader)
+    coordinators:
+        HashMap<RoastSessionId, crate::engine::roast::storage::coordinator::RoastCoordinator<DB>>,
+    /// Active participant sessions (when we are participant)
+    participants: HashMap<RoastSessionId, RoastParticipant>,
+    /// Observed session progress for timeouts/failover
+    session_progress: HashMap<RoastSessionId, types::SessionProgress>,
+    /// Excluded signers per session
+    excluded: HashMap<RoastSessionId, BTreeSet<Address>>,
+    /// Database
+    db: DB,
+    /// This validator's address
+    self_address: Address,
+    /// Configuration
+    coordinator_config: CoordinatorConfig,
+    participant_config: ParticipantConfig,
+}
+
+impl<DB> RoastManager<DB>
+where
+    DB: RoastStore,
+{
+    /// Create new ROAST manager.
+    pub fn new(db: DB, self_address: Address) -> Self {
+        Self {
+            coordinators: HashMap::new(),
+            participants: HashMap::new(),
+            session_progress: HashMap::new(),
+            excluded: HashMap::new(),
+            db,
+            self_address,
+            coordinator_config: CoordinatorConfig::default(),
+            participant_config: ParticipantConfig { self_address },
+        }
+    }
+}

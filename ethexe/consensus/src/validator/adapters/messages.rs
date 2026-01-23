@@ -24,11 +24,13 @@ use ethexe_common::{
 };
 use gsigner::secp256k1::{Secp256k1SignerExt, Signer};
 
+/// Signs outbound DKG actions into validator network messages.
 pub(crate) fn sign_dkg_action(
     signer: &Signer,
     pub_key: PublicKey,
     action: DkgAction,
 ) -> Result<Option<SignedValidatorMessage>> {
+    // Wrap action payload with era index and sign it.
     let signed = match action {
         DkgAction::BroadcastRound1(round1) => {
             let message = ValidatorMessage {
@@ -66,11 +68,13 @@ pub(crate) fn sign_dkg_action(
     Ok(Some(signed))
 }
 
+/// Signs outbound ROAST messages into validator network messages.
 pub(crate) fn sign_roast_message(
     signer: &Signer,
     pub_key: PublicKey,
     msg: RoastMessage,
 ) -> Result<SignedValidatorMessage> {
+    // Wrap message payload with era index and sign it.
     let signed = match msg {
         RoastMessage::SignSessionRequest(request) => {
             let message = ValidatorMessage {

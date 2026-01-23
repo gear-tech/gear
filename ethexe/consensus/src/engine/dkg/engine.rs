@@ -17,6 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::{DkgAction, DkgManager, DkgState};
+use crate::engine::dkg::storage::DkgManagerOutput;
 use anyhow::{Result, anyhow};
 use ethexe_common::{
     Address,
@@ -24,6 +25,7 @@ use ethexe_common::{
     db::OnChainStorageRO,
 };
 
+/// External inputs for the DKG engine (network + local triggers).
 #[derive(Debug, Clone)]
 pub enum DkgEngineEvent {
     Start {
@@ -53,9 +55,10 @@ pub enum DkgEngineEvent {
     },
 }
 
+/// DKG engine wraps the manager and persistence layer.
 #[derive(Debug)]
 pub struct DkgEngine<DB> {
-    manager: DkgManager<DB>,
+    manager: DkgManager,
     db: DB,
 }
 
@@ -63,14 +66,17 @@ impl<DB> DkgEngine<DB>
 where
     DB: super::super::storage::DkgStore + OnChainStorageRO,
 {
+    /// Creates a new DKG engine bound to a DB and local validator address.
     pub fn new(db: DB, self_address: Address) -> Self {
         Self {
-            manager: DkgManager::new(db.clone(), self_address),
+            manager: DkgManager::new(self_address),
             db,
         }
     }
 
+    /// Routes a DKG event through the manager and persists any outputs.
     pub fn handle_event(&mut self, event: DkgEngineEvent) -> Result<Vec<DkgAction>> {
+        // Resolve the era to load state and apply recovery on errors.
         let era = match &event {
             DkgEngineEvent::Start { era, .. } => *era,
             DkgEngineEvent::Round1 { message, .. } => message.session.era,
@@ -80,6 +86,7 @@ where
             DkgEngineEvent::Justification { message, .. } => message.session.era,
         };
 
+        // Dispatch into the manager, which drives the state machine.
         let result = match event {
             DkgEngineEvent::Start {
                 era,
@@ -99,8 +106,9 @@ where
             }
         };
 
+        // Persist outputs or attempt a restart when errors are recoverable.
         match result {
-            Ok(actions) => Ok(actions),
+            Ok(output) => self.finish_output(output),
             Err(err) => {
                 if let Ok(actions) = self.restart_from_storage(era) {
                     return Ok(actions);
@@ -110,10 +118,13 @@ where
         }
     }
 
+    /// Advances timeouts across active DKG sessions.
     pub fn tick_timeouts(&mut self) -> Result<Vec<DkgAction>> {
-        self.manager.process_timeouts()
+        let output = self.manager.process_timeouts()?;
+        self.finish_output(output)
     }
 
+    /// Restarts DKG for an era using validators from storage.
     pub fn restart_from_storage(&mut self, era: u64) -> Result<Vec<DkgAction>> {
         let Some(validators) = self.db.validators(era) else {
             return Err(anyhow!(
@@ -122,24 +133,31 @@ where
         };
         let validators: Vec<_> = validators.into_iter().collect();
         let threshold = ((validators.len() as u64 * 2) / 3).max(1) as u16;
-        self.manager.restart_dkg(era, validators, threshold)
+        self.reset_dkg_completion(era);
+        let output = self.manager.restart_dkg(era, validators, threshold)?;
+        self.finish_output(output)
     }
 
+    /// Restarts DKG for an era with an explicit validator set.
     pub fn restart_with(
         &mut self,
         era: u64,
         validators: Vec<Address>,
         threshold: u16,
     ) -> Result<Vec<DkgAction>> {
-        self.manager.restart_dkg(era, validators, threshold)
+        self.reset_dkg_completion(era);
+        let output = self.manager.restart_dkg(era, validators, threshold)?;
+        self.finish_output(output)
     }
 
+    /// Returns the in-memory state for the given era, if any.
     pub fn get_state(&self, era: u64) -> Option<&DkgState> {
         self.manager.get_state(era)
     }
 
+    /// Returns whether DKG completed for the given era.
     pub fn is_completed(&self, era: u64) -> bool {
-        self.manager.is_completed(era)
+        self.db.dkg_completed(era)
     }
 
     #[cfg(test)]
@@ -148,18 +166,50 @@ where
         &self,
         era: u64,
     ) -> Option<ethexe_common::crypto::DkgPublicKeyPackage> {
-        self.manager.get_public_key_package(era)
+        self.db.public_key_package(era)
     }
 
     #[cfg(test)]
     #[allow(dead_code)]
     pub fn get_vss_commitment(&self, era: u64) -> Option<ethexe_common::crypto::DkgVssCommitment> {
-        self.manager.get_vss_commitment(era)
+        self.db.dkg_vss_commitment(era)
     }
 
     #[cfg(test)]
     #[allow(dead_code)]
     pub fn get_dkg_share(&self, era: u64) -> Option<ethexe_common::crypto::DkgShare> {
-        self.manager.get_dkg_share(era)
+        self.db.dkg_share(era)
+    }
+
+    /// Persists session snapshots and completed outputs, then returns actions.
+    fn finish_output(&mut self, output: DkgManagerOutput) -> Result<Vec<DkgAction>> {
+        let DkgManagerOutput { actions, updates } = output;
+        for (session_id, state) in updates.session_states {
+            self.db.set_dkg_session_state(session_id, state);
+        }
+        for completed in updates.completions {
+            let era = completed.share.era;
+            self.db
+                .set_public_key_package(era, completed.public_key_package);
+            self.db.set_dkg_key_package(era, completed.key_package);
+            self.db
+                .set_dkg_vss_commitment(era, completed.vss_commitment);
+            self.db.set_dkg_share(completed.share);
+            self.db.mutate_dkg_session_state(
+                ethexe_common::crypto::DkgSessionId { era },
+                |state| {
+                    state.completed = true;
+                },
+            );
+        }
+        Ok(actions)
+    }
+
+    /// Clears the completion flag for a given era in storage.
+    fn reset_dkg_completion(&mut self, era: u64) {
+        self.db
+            .mutate_dkg_session_state(ethexe_common::crypto::DkgSessionId { era }, |state| {
+                state.completed = false;
+            });
     }
 }

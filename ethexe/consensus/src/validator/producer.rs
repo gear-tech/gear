@@ -81,6 +81,7 @@ impl StateHandler for Producer {
             State::WaitingAnnounceComputed(expected)
                 if *expected == computed_data.announce_hash =>
             {
+                // Producer collects promises from computed announce and signs them.
                 if !computed_data.promises.is_empty() {
                     let signed_promises = computed_data
                         .promises
@@ -95,6 +96,7 @@ impl StateHandler for Producer {
                     self.ctx.output(ConsensusEvent::Promises(signed_promises));
                 }
 
+                // Aggregate commitments for the block into a batch.
                 self.state = State::AggregateBatchCommitment {
                     future: self
                         .ctx
@@ -128,11 +130,13 @@ impl StateHandler for Producer {
             }
             State::AggregateBatchCommitment { future } => match future.poll_unpin(cx) {
                 Poll::Ready(Ok(Some(batch))) => {
+                    // A batch exists: transition to Coordinator to start ROAST signing.
                     tracing::debug!(batch.block_hash = %batch.block_hash, "Batch commitment aggregated, switch to Coordinator");
                     return Coordinator::create(self.ctx, self.validators, batch)
                         .map(|s| (Poll::Ready(()), s));
                 }
                 Poll::Ready(Ok(None)) => {
+                    // No commitments: return to Initial state without signing.
                     tracing::info!("No commitments - skip batch commitment");
                     return Initial::create(self.ctx).map(|s| (Poll::Ready(()), s));
                 }
@@ -169,9 +173,11 @@ impl Producer {
             "Producer is not in the list of validators"
         );
 
+        // Producer delay throttles announce creation to avoid races.
         let mut timer = Timer::new("producer delay", ctx.core.producer_delay);
         timer.start(());
 
+        // Producer ignores pending external events.
         ctx.pending_events.clear();
 
         Ok(Self {
@@ -190,6 +196,7 @@ impl Producer {
             ));
         }
 
+        // Select the best parent announce and include any injected transactions.
         let parent = announces::best_parent_announce(
             &self.ctx.core.db,
             self.block.hash,
@@ -223,6 +230,7 @@ impl Producer {
             return Initial::create(self.ctx);
         }
 
+        // Sign the announce for the validator network.
         let era_index = self
             .ctx
             .core
@@ -238,6 +246,7 @@ impl Producer {
             .signer
             .signed_data(self.ctx.core.pub_key, message)?;
 
+        // Publish announce and request computation.
         self.state = State::WaitingAnnounceComputed(announce_hash);
         self.ctx
             .output(ConsensusEvent::PublishMessage(message.into()));

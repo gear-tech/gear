@@ -32,7 +32,7 @@ use tokio::sync::RwLock;
 type Instance = IMiddleware::IMiddlewareInstance<AlloyProvider>;
 type QueryInstance = IMiddleware::IMiddlewareInstance<RootProvider>;
 
-/// Trait for executing elections in the blockchain
+/// Trait for executing elections in the blockchain.
 #[async_trait::async_trait]
 pub trait ElectionProvider: Send + Sync {
     fn clone_boxed(&self) -> Box<dyn ElectionProvider>;
@@ -80,6 +80,7 @@ impl ElectionProvider for MiddlewareQuery {
     }
 
     async fn make_election_at(&self, ts: u64, max_validators: u128) -> Result<ValidatorsVec> {
+        // Calls on-chain view to obtain ordered validator addresses for an era.
         let validators = self
             .0
             .makeElectionAt(
