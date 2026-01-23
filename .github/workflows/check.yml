@@ -144,7 +144,6 @@ jobs:
         uses: ./.github/actions/setup-compilation-env
         with:
           target: "${{ matrix.target }}"
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: "ACTIONS: Setup caching"
         uses: ./.github/actions/rust-cache
@@ -179,7 +178,6 @@ jobs:
         uses: ./.github/actions/setup-compilation-env
         with:
           target: x86_64-unknown-linux-gnu
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: "Check if workspace hack Cargo.toml is up-to-date"
         uses: ./.github/actions/cargo-hakari
@@ -264,7 +262,6 @@ jobs:
         uses: ./.github/actions/setup-compilation-env
         with:
           target: x86_64-unknown-linux-gnu
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: "ACTIONS: Setup caching"
         uses: ./.github/actions/rust-cache
@@ -346,7 +343,6 @@ jobs:
         uses: ./.github/actions/setup-compilation-env
         with:
           target: x86_64-unknown-linux-gnu
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: "ACTIONS: Setup caching"
         uses: ./.github/actions/rust-cache
