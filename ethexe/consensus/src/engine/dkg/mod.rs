@@ -44,13 +44,26 @@
 //!   |
 //!   └──> Failed (insufficient participants or protocol error)
 //! ```
+//!
+//! ## Message Flow (ASCII):
+//!
+//! ```text
+//! Participant A                Participant B
+//!   | Round1 (commit)  -------->|
+//!   |<-------- Round1 (commit)  |
+//!   | Round2 (shares) --------->|
+//!   |<-------- Round2 (shares)  |
+//!   | finalize -> key material  |
+//! ```
 
 pub mod core;
 pub mod engine;
+pub mod error;
 pub mod storage;
 
 pub use core::{DkgConfig, DkgProtocol, FinalizeResult};
 pub use engine::{DkgEngine, DkgEngineEvent};
+pub use error::{DkgErrorExt, DkgErrorKind};
 pub use storage::{DkgAction, DkgEvent, DkgManager, DkgState, DkgStateMachine};
 
 use ethexe_common::{
@@ -58,7 +71,7 @@ use ethexe_common::{
     crypto::{DkgKeyPackage, DkgPublicKeyPackage, DkgShare, DkgVssCommitment},
 };
 
-/// DKG session configuration
+/// DKG session configuration.
 #[derive(Debug, Clone)]
 pub struct SessionConfig {
     /// Era index for this DKG session
@@ -71,7 +84,7 @@ pub struct SessionConfig {
     pub self_address: Address,
 }
 
-/// Result of DKG session
+/// Result of DKG session.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum DkgResult {
     /// DKG completed successfully
@@ -80,7 +93,7 @@ pub enum DkgResult {
     Failed(String),
 }
 
-/// DKG completion payload (persisted by storage layer)
+/// DKG completion payload (persisted by storage layer).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct DkgCompleted {
     pub public_key_package: DkgPublicKeyPackage,

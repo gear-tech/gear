@@ -37,19 +37,30 @@ pub type ValidatorAnnounce = ValidatorMessage<Announce>;
 pub type ValidatorRequest = ValidatorMessage<BatchCommitmentValidationRequest>;
 pub type ValidatorReply = ValidatorMessage<BatchCommitmentValidationReply>;
 
-// DKG message types
+// DKG message types.
+/// Signed DKG round1 broadcast.
 pub type ValidatorDkgRound1 = ValidatorMessage<DkgRound1>;
+/// Signed DKG round2 broadcast.
 pub type ValidatorDkgRound2 = ValidatorMessage<DkgRound2>;
+/// Signed DKG round2 culprits report.
 pub type ValidatorDkgRound2Culprits = ValidatorMessage<DkgRound2Culprits>;
+/// Signed DKG complaint.
 pub type ValidatorDkgComplaint = ValidatorMessage<DkgComplaint>;
+/// Signed DKG justification.
 pub type ValidatorDkgJustification = ValidatorMessage<DkgJustification>;
 
-// ROAST/FROST message types
+// ROAST/FROST message types.
+/// Signed ROAST sign request.
 pub type ValidatorSignRequest = ValidatorMessage<SignSessionRequest>;
+/// Signed ROAST nonce commit.
 pub type ValidatorSignNonce = ValidatorMessage<SignNonceCommit>;
+/// Signed ROAST nonce package.
 pub type ValidatorSignNoncePackage = ValidatorMessage<SignNoncePackage>;
+/// Signed ROAST partial signature.
 pub type ValidatorSignPartial = ValidatorMessage<SignShare>;
+/// Signed ROAST culprits report.
 pub type ValidatorSignCulprits = ValidatorMessage<SignCulprits>;
+/// Signed ROAST aggregate signature.
 pub type ValidatorSignResult = ValidatorMessage<SignAggregate>;
 
 #[derive(Debug, Clone, Encode, Decode, Eq, PartialEq, Hash)]
@@ -66,6 +77,7 @@ impl<T: ToDigest> ToDigest for ValidatorMessage<T> {
     }
 }
 
+/// Signed validator messages (consensus + DKG/ROAST).
 #[derive(Debug, Clone, Encode, Decode, Eq, PartialEq, derive_more::Unwrap, derive_more::From)]
 pub enum SignedValidatorMessage {
     // Existing consensus messages
@@ -117,6 +129,7 @@ impl SignedValidatorMessage {
 }
 
 #[cfg_attr(feature = "serde", derive(Hash))]
+/// Verified validator messages (signature checked).
 #[derive(Debug, Clone, Eq, PartialEq, derive_more::Unwrap, derive_more::From)]
 pub enum VerifiedValidatorMessage {
     // Existing consensus messages

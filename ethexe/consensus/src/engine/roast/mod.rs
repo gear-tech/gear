@@ -49,6 +49,19 @@
 //!   |
 //!   └──> Failed (timeout or insufficient participants)
 //! ```
+//!
+//! ## Message Flow (ASCII):
+//!
+//! ```text
+//! Leader                    Participants
+//!   |  SignSessionRequest  ->  |
+//!   |  <- SignNonceCommit      |
+//!   |  SignNoncePackage   ->   |
+//!   |  <- SignShare            |
+//!   |  SignAggregate      ->   |
+//! ```
+//!
+//! Retries rotate the leader and exclude missing signers when timeouts occur.
 
 pub mod core;
 mod engine;

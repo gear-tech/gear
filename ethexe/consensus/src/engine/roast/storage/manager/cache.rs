@@ -21,7 +21,9 @@ use crate::engine::storage::RoastStore;
 use ethexe_common::crypto::{SignAggregate, SignSessionRequest};
 use gprimitives::{ActorId, H256};
 
+/// Prunes ROAST caches older than the configured era window.
 pub(super) fn prune_caches_if_needed<DB: RoastStore>(db: &DB, era: u64) {
+    // Retain a small window of recent eras to keep cache bounded.
     let min_era = era.saturating_sub(ROAST_CACHE_KEEP_ERAS);
     let (sig_removed, nonce_removed) = db.prune_roast_caches_before(min_era);
     if sig_removed > 0 || nonce_removed > 0 {
@@ -35,20 +37,24 @@ pub(super) fn prune_caches_if_needed<DB: RoastStore>(db: &DB, era: u64) {
     }
 }
 
+/// Loads cached aggregate signature and wraps it as a network message.
 pub(super) fn cached_signature_message<DB: RoastStore>(
     db: &DB,
     era: u64,
     tweak_target: ActorId,
     msg_hash: H256,
 ) -> Option<RoastMessage> {
+    // Fetch cached aggregate signature if present.
     db.signature_cache(era, tweak_target, msg_hash)
         .map(RoastMessage::SignAggregate)
 }
 
+/// Convenience wrapper to use request fields for cache lookup.
 pub(super) fn cached_signature_for_request<DB: RoastStore>(
     db: &DB,
     request: &SignSessionRequest,
 ) -> Option<RoastMessage> {
+    // Convenience wrapper to fetch cache using request fields.
     cached_signature_message(
         db,
         request.session.era,
@@ -57,6 +63,7 @@ pub(super) fn cached_signature_for_request<DB: RoastStore>(
     )
 }
 
+/// Stores aggregate signature in the cache for fast reuse.
 pub(super) fn store_aggregate<DB: RoastStore>(
     db: &DB,
     era: u64,
@@ -64,5 +71,6 @@ pub(super) fn store_aggregate<DB: RoastStore>(
     msg_hash: H256,
     aggregate: SignAggregate,
 ) {
+    // Persist aggregate for fast reuse in subsequent requests.
     db.set_signature_cache(era, tweak_target, msg_hash, aggregate);
 }

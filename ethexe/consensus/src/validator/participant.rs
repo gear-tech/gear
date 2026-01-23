@@ -72,6 +72,7 @@ impl StateHandler for Participant {
         request: VerifiedValidationRequest,
     ) -> Result<ValidatorState> {
         if request.address() == self.producer {
+            // Only accept validation requests from the current producer.
             self.process_validation_request(request.into_parts().0)
         } else {
             DefaultProcessing::validation_request(self, request)
@@ -87,6 +88,7 @@ impl StateHandler for Participant {
         {
             match res {
                 Ok(ValidationStatus::Accepted(digest)) => {
+                    // Sign the batch digest and send validation reply.
                     let signature = self.ctx.core.signer.sign_for_contract_digest(
                         self.ctx.core.router_address,
                         self.ctx.core.pub_key,
@@ -120,7 +122,7 @@ impl StateHandler for Participant {
                 Err(err) => return Err(err),
             }
 
-            // NOTE: In both cases it returns to the initial state,
+            // NOTE: Always return to initial state after processing a request.
             // means - even if producer publish incorrect validation request,
             // then participant does not wait for the next validation request from producer.
             Initial::create(self.ctx).map(|s| (Poll::Ready(()), s))
@@ -137,6 +139,7 @@ impl Participant {
         producer: Address,
     ) -> Result<ValidatorState> {
         let mut earlier_validation_request = None;
+        // Pull the newest validation request from pending events if present.
         ctx.pending_events.retain(|event| match event {
             PendingEvent::ValidationRequest(signed_data)
                 if earlier_validation_request.is_none() && signed_data.address() == producer =>
@@ -174,6 +177,7 @@ impl Participant {
             return Ok(self.into());
         };
 
+        // Spawn async validation; result drives reply in poll_next_state.
         self.state = State::ProcessingValidationRequest {
             future: self
                 .ctx

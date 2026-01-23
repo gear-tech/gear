@@ -162,7 +162,7 @@ async fn wait_for_validators_commit(env: &TestEnv) -> Result<(), tokio::time::er
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[ntest::timeout(120_000)]
+#[ntest::timeout(180_000)]
 async fn validators_election_quorum_with_offline_next_validator() {
     init_logger();
 

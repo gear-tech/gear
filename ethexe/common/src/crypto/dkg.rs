@@ -34,14 +34,22 @@ use roast_secp256k1_evm::frost::{
 };
 use sha3::{Digest, Keccak256};
 
+/// FROST identifier used to index participants in DKG/ROAST.
 pub type DkgIdentifier = Identifier;
+/// Local key package derived after DKG finalization.
 pub type DkgKeyPackage = KeyPackage;
+/// Aggregated public key package from DKG.
 pub type DkgPublicKeyPackage = PublicKeyPackage;
+/// Round1 commitment package produced by a participant.
 pub type DkgRound1Package = round1::Package;
+/// Round2 encrypted package produced for each recipient.
 pub type DkgRound2Package = round2::Package;
+/// Compressed verifying key (secp256k1 point).
 pub type DkgVerifyingKey = VerifyingKey;
+/// Verifiable secret sharing commitment (VSS).
 pub type DkgVssCommitment = VerifiableSecretSharingCommitment;
 
+/// Persisted local signing share produced by DKG.
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
 pub struct DkgShare {
     pub era: u64,
@@ -52,6 +60,7 @@ pub struct DkgShare {
     pub threshold: u16,
 }
 
+/// DKG session identifier (era-based).
 #[derive(Clone, Copy, Debug, Encode, Decode, PartialEq, Eq, Hash)]
 pub struct DkgSessionId {
     pub era: u64,
@@ -63,7 +72,7 @@ impl ToDigest for DkgSessionId {
     }
 }
 
-/// Round 1 broadcast message.
+/// Round 1 broadcast message (commitment package + temp key).
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
 pub struct DkgRound1 {
     pub session: DkgSessionId,

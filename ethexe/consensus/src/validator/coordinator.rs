@@ -84,6 +84,7 @@ impl Coordinator {
             "Threshold should be greater than 0"
         );
 
+        // Use the batch timestamp to pick the signing era.
         let era_index = ctx.core.timelines.era_from_ts(batch.timestamp);
         let batch_digest = batch.to_digest();
 
@@ -93,8 +94,8 @@ impl Coordinator {
             "🔐 Starting ROAST threshold signing for batch commitment"
         );
 
-        // Start ROAST signing session
-        // Convert Digest to H256 for ROAST
+        // Start ROAST signing session.
+        // Convert Digest to H256 (intended-validator hash) for ROAST.
         let contract_digest = keccak256_iter([
             &[0x19, 0x00],
             ctx.core.router_address.0.as_ref(),
@@ -102,6 +103,7 @@ impl Coordinator {
         ]);
         let msg_hash = H256(contract_digest);
 
+        // Batch commitments use a zero tweak target.
         let tweak_target = ActorId::zero();
         let threshold = ctx.core.signatures_threshold as u16;
         let participants: Vec<Address> = validators.clone().into();
@@ -116,7 +118,7 @@ impl Coordinator {
                 participants,
             })?;
 
-        // Broadcast ROAST session request
+        // Broadcast ROAST session request.
         for msg in messages {
             let signed = sign_roast_message(&ctx.core.signer, ctx.core.pub_key, msg)?;
             ctx.output(ConsensusEvent::BroadcastValidatorMessage(signed));
@@ -135,7 +137,7 @@ impl Coordinator {
 
     /// Called when ROAST threshold signature is complete
     pub fn on_signature_complete(self) -> Result<ValidatorState> {
-        // Get the threshold signature from RoastEngine
+        // Get the threshold signature from RoastEngine.
         let signature = self
             .ctx
             .roast_engine
@@ -151,8 +153,10 @@ impl Coordinator {
         frost_signature: ethexe_common::crypto::frost::SignAggregate,
     ) -> Result<ValidatorState> {
         let cloned_committer = ctx.core.committer.clone_boxed();
+        let validator_address = ctx.core.pub_key.to_address();
 
         tracing::info!(
+            validator = %validator_address,
             block_hash = %batch.block_hash,
             "📤 Submitting batch commitment with FROST threshold signature"
         );

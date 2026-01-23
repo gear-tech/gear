@@ -39,6 +39,7 @@ pub(super) struct SessionProgress {
 
 pub(super) const ROAST_CACHE_KEEP_ERAS: u64 = 3;
 
+/// Outbound ROAST messages produced by manager/coordinator.
 #[derive(Debug, Clone)]
 pub enum RoastMessage {
     SignSessionRequest(SignSessionRequest),

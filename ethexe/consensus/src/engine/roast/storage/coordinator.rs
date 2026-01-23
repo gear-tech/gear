@@ -44,6 +44,7 @@ use std::{
 
 /// Coordinator configuration
 #[derive(Debug, Clone)]
+/// Coordinator timeout configuration.
 pub struct CoordinatorConfig {
     /// Timeout for collecting nonce commitments
     pub nonce_timeout: Duration,
@@ -62,6 +63,7 @@ impl Default for CoordinatorConfig {
 
 /// Coordinator state
 #[derive(Debug, Clone, PartialEq, Eq)]
+/// Coordinator state machine phases.
 pub enum CoordinatorState {
     /// Idle - no active signing session
     Idle,
@@ -77,6 +79,7 @@ pub enum CoordinatorState {
 
 /// Events that coordinator can process
 #[derive(Debug, Clone)]
+/// Events handled by the coordinator state machine.
 pub enum CoordinatorEvent {
     /// Start new signing session
     Start(SessionConfig),
@@ -90,6 +93,7 @@ pub enum CoordinatorEvent {
 
 /// Actions to perform after processing event
 #[derive(Debug, Clone)]
+/// Actions emitted by the coordinator (broadcasts + completion).
 pub enum CoordinatorAction {
     /// Broadcast signing request to participants
     BroadcastRequest(SignSessionRequest),
@@ -105,6 +109,7 @@ pub enum CoordinatorAction {
 
 /// ROAST Coordinator (Leader)
 #[derive(Debug)]
+/// ROAST coordinator state machine (per signing session).
 pub struct RoastCoordinator<DB> {
     state: CoordinatorState,
     config: CoordinatorConfig,
@@ -120,7 +125,7 @@ impl<DB> RoastCoordinator<DB>
 where
     DB: DkgStorageRO + SignStorageRW + Clone,
 {
-    /// Create new coordinator
+    /// Creates a new coordinator with DB access and timeouts.
     pub fn new(db: DB, config: CoordinatorConfig) -> Self {
         Self {
             state: CoordinatorState::Idle,
@@ -134,12 +139,13 @@ where
         }
     }
 
-    /// Get current state
+    /// Returns the current coordinator state.
     pub fn state(&self) -> &CoordinatorState {
         &self.state
     }
 
     /// Process event and return actions
+    /// Drives the coordinator state machine with an event.
     pub fn process_event(&mut self, event: CoordinatorEvent) -> Result<Vec<CoordinatorAction>> {
         match event {
             CoordinatorEvent::Start(config) => self.handle_start(config),
@@ -149,11 +155,13 @@ where
         }
     }
 
+    /// Handles session start and emits the initial sign request.
     fn handle_start(&mut self, mut config: SessionConfig) -> Result<Vec<CoordinatorAction>> {
         if !matches!(self.state, CoordinatorState::Idle) {
             return Err(anyhow!("Coordinator already active"));
         }
 
+        // Ensure deterministic participant order and leader eligibility.
         config.participants.sort();
         let expected_leader = select_roast_leader(
             &config.participants,
@@ -164,6 +172,7 @@ where
         if expected_leader != config.self_address {
             return Err(anyhow!("Self is not elected leader for this attempt"));
         }
+        // Load identifier map from DKG state if available; derive otherwise.
         self.identifier_by_address = if let Some(state) = self
             .db
             .dkg_session_state(dkg_session_id(config.session.era))
@@ -202,6 +211,7 @@ where
             .map(|(addr, id)| (*id, *addr))
             .collect();
 
+        // Load base public key package and apply tweak.
         let Some(base_public_key_package) = self.db.public_key_package(config.session.era) else {
             return Err(anyhow!("Missing public key package for era"));
         };
@@ -218,6 +228,7 @@ where
             .map_err(|_| anyhow!("Invalid verifying key length"))?;
         self.tweaked_public_key = Some(tweaked_pk);
 
+        // Instantiate the FROST coordinator with tweaked key and message.
         let coordinator = Coordinator::new(
             config.participants.len() as u16,
             config.threshold,
@@ -227,11 +238,11 @@ where
         .map_err(|err| anyhow!("Failed to create coordinator: {err}"))?;
 
         self.coordinator = Some(coordinator);
-        self.session_config = Some(config.clone());
         self.state = CoordinatorState::WaitingForNonces {
             started_at: Instant::now(),
         };
 
+        // Broadcast the initial sign request as leader.
         let request = SignSessionRequest {
             session: config.session,
             leader: config.self_address,
@@ -244,25 +255,33 @@ where
         };
 
         self.persist_state()?;
+        self.session_config = Some(config);
 
         Ok(vec![CoordinatorAction::BroadcastRequest(request)])
     }
 
+    /// Handles incoming nonce commitments and emits signing package when ready.
     fn handle_nonce_commit(&mut self, commit: SignNonceCommit) -> Result<Vec<CoordinatorAction>> {
         let coordinator = self
             .coordinator
             .as_mut()
             .ok_or_else(|| anyhow!("No active coordinator"))?;
 
+        let commit_session = commit.session;
+        let commit_msg_hash = commit.msg_hash;
+        let commit_from = commit.from;
+
+        // Map sender address to its DKG identifier.
         let identifier = self
             .identifier_by_address
-            .get(&commit.from)
+            .get(&commit_from)
             .copied()
             .ok_or_else(|| anyhow!("Unknown participant"))?;
 
         let signing_commitments = SigningCommitments::deserialize(&commit.nonce_commit)
             .map_err(|err| anyhow!("Failed to deserialize commitments: {err}"))?;
 
+        // Feed commitment into the coordinator and detect malicious signers.
         let status = match coordinator.receive(identifier, None, signing_commitments) {
             Ok(status) => status,
             Err(RoastError::MaliciousSigner(_)) => {
@@ -276,13 +295,13 @@ where
         };
 
         self.db
-            .mutate_sign_session_state(commit.msg_hash, commit.session.era, |state| {
+            .mutate_sign_session_state(commit_msg_hash, commit_session.era, move |state| {
                 if !state
                     .nonce_commits
                     .iter()
-                    .any(|existing| existing.from == commit.from)
+                    .any(|existing| existing.from == commit_from)
                 {
-                    state.nonce_commits.push(commit.clone());
+                    state.nonce_commits.push(commit);
                 }
             });
 
@@ -291,6 +310,7 @@ where
             signing_package,
         } = status
         {
+            // Threshold reached: broadcast signing package.
             self.state = CoordinatorState::WaitingForPartials {
                 started_at: Instant::now(),
             };
@@ -314,8 +334,8 @@ where
             commitments.sort_by_key(|(addr, _)| *addr);
 
             let package = SignNoncePackage {
-                session: commit.session,
-                msg_hash: commit.msg_hash,
+                session: commit_session,
+                msg_hash: commit_msg_hash,
                 commitments,
             };
 
@@ -326,15 +346,21 @@ where
         Ok(vec![])
     }
 
+    /// Handles partial signatures and emits aggregate when completed.
     fn handle_partial_signature(&mut self, partial: SignShare) -> Result<Vec<CoordinatorAction>> {
         let coordinator = self
             .coordinator
             .as_mut()
             .ok_or_else(|| anyhow!("No active coordinator"))?;
 
+        let partial_session = partial.session;
+        let partial_msg_hash = partial.msg_hash;
+        let partial_from = partial.from;
+
+        // Map sender address to its DKG identifier.
         let identifier = self
             .identifier_by_address
-            .get(&partial.from)
+            .get(&partial_from)
             .copied()
             .ok_or_else(|| anyhow!("Unknown participant"))?;
 
@@ -343,6 +369,7 @@ where
         let signing_commitments = SigningCommitments::deserialize(&partial.next_commitments)
             .map_err(|err| anyhow!("Failed to deserialize commitments: {err}"))?;
 
+        // Feed partial into the coordinator and detect malicious signers.
         let status =
             match coordinator.receive(identifier, Some(signature_share), signing_commitments) {
                 Ok(status) => status,
@@ -357,30 +384,36 @@ where
             };
 
         self.db
-            .mutate_sign_session_state(partial.msg_hash, partial.session.era, |state| {
+            .mutate_sign_session_state(partial_msg_hash, partial_session.era, move |state| {
                 if !state
                     .sign_shares
                     .iter()
-                    .any(|existing| existing.from == partial.from)
+                    .any(|existing| existing.from == partial_from)
                 {
-                    state.sign_shares.push(partial.clone());
+                    state.sign_shares.push(partial);
                 }
             });
 
         if let roast_secp256k1_evm::SessionStatus::Finished { signature } = status {
-            let aggregate = self.build_aggregate(partial.session, partial.msg_hash, signature)?;
-            self.state = CoordinatorState::Completed(aggregate.clone());
+            // Aggregate signature is complete; persist and emit.
+            let aggregate = self.build_aggregate(partial_session, partial_msg_hash, signature)?;
+            self.state = CoordinatorState::Completed(aggregate);
 
+            let CoordinatorState::Completed(aggregate) = &self.state else {
+                return Err(anyhow!("Coordinator state missing aggregate"));
+            };
+            let aggregate_for_db = aggregate.clone();
             let config = self.session_config.as_ref().unwrap();
             self.db
                 .mutate_sign_session_state(config.msg_hash, config.session.era, |state| {
-                    state.aggregate = Some(aggregate.clone());
+                    state.aggregate = Some(aggregate_for_db);
                     state.completed = true;
                 });
 
+            let aggregate_for_action = aggregate.clone();
             return Ok(vec![
-                CoordinatorAction::BroadcastAggregate(aggregate.clone()),
-                CoordinatorAction::Complete(RoastResult::Success(aggregate)),
+                CoordinatorAction::BroadcastAggregate(aggregate_for_action.clone()),
+                CoordinatorAction::Complete(RoastResult::Success(aggregate_for_action)),
             ]);
         }
 
@@ -388,6 +421,7 @@ where
         Ok(vec![])
     }
 
+    /// Applies timeout logic to the current coordinator phase.
     fn handle_timeout(&mut self) -> Result<Vec<CoordinatorAction>> {
         match &self.state {
             CoordinatorState::WaitingForNonces { started_at } => {
@@ -412,12 +446,14 @@ where
         Ok(vec![])
     }
 
+    /// Builds the on-wire aggregate signature from the FROST output.
     fn build_aggregate(
         &self,
         session: ethexe_common::crypto::DkgSessionId,
         msg_hash: gprimitives::H256,
         signature: Signature,
     ) -> Result<SignAggregate> {
+        // Convert FROST signature into 96-byte (R_x || R_y || z).
         let tweaked_pk = self
             .tweaked_public_key
             .ok_or_else(|| anyhow!("Missing tweaked public key"))?;
@@ -454,6 +490,7 @@ where
         })
     }
 
+    /// Persists the current session state to the backing store.
     fn persist_state(&self) -> Result<()> {
         let Some(config) = self.session_config.as_ref() else {
             return Ok(());

@@ -16,26 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Core DKG protocol helpers.
-//!
-//! ```text
-//! Round1: generate/receive commitments
-//! Round2: generate/receive encrypted shares
-//! Finalize: validate shares -> key material
-//! ```
-
-mod complaints;
-mod finalize;
-mod identifiers;
-mod protocol;
-mod round1;
-mod round2;
-
-pub use protocol::{DkgConfig, DkgProtocol, FinalizeResult};
-
-#[cfg(test)]
-mod tests;
-
-type Ciphersuite = roast_secp256k1_evm::frost::Secp256K1Keccak256;
-type Group = <Ciphersuite as roast_secp256k1_evm::frost::Ciphersuite>::Group;
-type GroupSerialization = <Group as roast_secp256k1_evm::frost::Group>::Serialization;
+mod cache;
+mod ingest;
+mod start;
+mod timeouts;

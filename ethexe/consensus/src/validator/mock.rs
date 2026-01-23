@@ -171,6 +171,7 @@ pub fn mock_validator_context() -> (ValidatorContext, Vec<PublicKey>, MockEthere
     let pub_key = keys.pop().unwrap();
     let self_address = pub_key.to_address();
 
+    // Build a validator context with in-memory DB and DKG/ROAST engines.
     let ctx = ValidatorContext {
         core: ValidatorCore {
             slot_duration: Duration::from_secs(1),
@@ -195,6 +196,7 @@ pub fn mock_validator_context() -> (ValidatorContext, Vec<PublicKey>, MockEthere
         roast_engine: RoastEngine::new(db, self_address),
     };
 
+    // Persist timelines for era computations in tests.
     ctx.core.db.set_protocol_timelines(timelines);
 
     (ctx, keys, ethereum)
@@ -207,6 +209,7 @@ pub fn setup_test_dkg(
     threshold: u16,
     era: u64,
 ) -> Result<()> {
+    // Deterministic ordering for identifier derivation.
     let mut participants = validators.to_vec();
     participants.sort();
 
@@ -218,6 +221,7 @@ pub fn setup_test_dkg(
         .collect::<Result<Vec<_>>>()?;
 
     let rng = OsRng;
+    // Create a synthetic DKG output using the FROST dealer helper.
     let (secret_shares, public_key_package) = generate_with_dealer(
         participants.len() as u16,
         threshold,
@@ -226,6 +230,7 @@ pub fn setup_test_dkg(
     )
     .map_err(|err| anyhow!("Failed to generate test DKG keys: {err}"))?;
 
+    // Persist public key package for ROAST verification.
     db.set_public_key_package(era, public_key_package);
 
     if let Some(self_idx) = participants.iter().position(|addr| *addr == self_address) {
@@ -233,6 +238,7 @@ pub fn setup_test_dkg(
         let secret_share = secret_shares
             .get(&identifier)
             .ok_or_else(|| anyhow!("Missing secret share for self"))?;
+        // Build a local key package + share for the test validator.
         let key_package = DkgKeyPackage::try_from(secret_share.clone())
             .map_err(|err| anyhow!("Failed to build key package: {err}"))?;
         let verifying_share = key_package

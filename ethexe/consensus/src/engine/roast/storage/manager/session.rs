@@ -23,20 +23,22 @@ use ethexe_common::{
 };
 use std::collections::BTreeMap;
 
+/// Ensures participants are sorted for deterministic leader selection.
 pub(super) fn ensure_sorted_participants(request: &SignSessionRequest) -> anyhow::Result<()> {
-    let mut sorted_participants = request.participants.clone();
-    sorted_participants.sort();
-    if request.participants != sorted_participants {
+    // Deterministic ordering is required for leader selection and indices.
+    if !request.participants.is_sorted() {
         return Err(anyhow::anyhow!("Participants list must be sorted"));
     }
     Ok(())
 }
 
+/// Returns the address -> identifier map for a signing session.
 pub(super) fn identifiers_for_session<DB: RoastStore>(
     db: &DB,
     era: u64,
     participants: &[Address],
 ) -> anyhow::Result<BTreeMap<Address, DkgIdentifier>> {
+    // Prefer persisted identifier map from DKG session state when available.
     if let Some(state) = db.dkg_session_state(dkg_session_id(era))
         && !state.identifier_map.is_empty()
     {
@@ -47,6 +49,7 @@ pub(super) fn identifiers_for_session<DB: RoastStore>(
         return Err(anyhow::anyhow!("Missing identifiers for some participants"));
     }
 
+    // Fallback: derive identifiers from sorted participant addresses.
     let mut sorted = participants.to_vec();
     sorted.sort();
     sorted

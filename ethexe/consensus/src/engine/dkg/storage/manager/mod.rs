@@ -21,3 +21,4 @@ mod processing;
 mod types;
 
 pub use core::DkgManager;
+pub(crate) use core::DkgManagerOutput;

@@ -20,4 +20,5 @@ mod manager;
 mod state_machine;
 
 pub use manager::DkgManager;
+pub(crate) use manager::DkgManagerOutput;
 pub use state_machine::{DkgAction, DkgEvent, DkgState, DkgStateMachine};

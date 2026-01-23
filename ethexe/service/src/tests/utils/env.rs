@@ -1359,8 +1359,8 @@ impl WaitForReplyTo {
 
         let info = self
             .receiver
-            .filter_map_block_synced()
-            .find_map(|event| match event {
+            .filter_map_block_synced_with_header()
+            .find_map(|(event, block)| match event {
                 BlockEvent::Mirror {
                     actor_id,
                     event:
@@ -1370,14 +1370,34 @@ impl WaitForReplyTo {
                             reply_code,
                             value,
                         }),
-                } if reply_to == self.message_id => Some(ReplyInfo {
-                    message_id: reply_to,
-                    program_id: actor_id,
-                    payload,
-                    code: reply_code,
-                    value,
-                }),
-                _ => None,
+                } => {
+                    log::debug!(
+                        "📗 Observed reply in block {}, reply_to {}, waiting for {}",
+                        block.hash,
+                        reply_to,
+                        self.message_id
+                    );
+                    if reply_to == self.message_id {
+                        Some(ReplyInfo {
+                            message_id: reply_to,
+                            program_id: actor_id,
+                            payload,
+                            code: reply_code,
+                            value,
+                        })
+                    } else {
+                        None
+                    }
+                }
+                other => {
+                    log::trace!(
+                        "📗 Block {} event while waiting for reply {}: {:?}",
+                        block.hash,
+                        self.message_id,
+                        other
+                    );
+                    None
+                }
             })
             .await;
 

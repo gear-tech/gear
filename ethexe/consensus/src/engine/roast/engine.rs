@@ -28,6 +28,7 @@ use ethexe_common::{
 };
 use gprimitives::{ActorId, H256};
 
+/// External inputs for the ROAST engine (network + local triggers).
 #[derive(Debug, Clone)]
 pub enum RoastEngineEvent {
     StartSigning {
@@ -58,6 +59,7 @@ pub enum RoastEngineEvent {
     },
 }
 
+/// ROAST engine wraps the manager for signing sessions.
 #[derive(Debug)]
 pub struct RoastEngine<DB> {
     manager: RoastManager<DB>,
@@ -67,12 +69,14 @@ impl<DB> RoastEngine<DB>
 where
     DB: crate::engine::storage::RoastStore,
 {
+    /// Creates a new ROAST engine bound to a DB and local validator address.
     pub fn new(db: DB, self_address: Address) -> Self {
         Self {
             manager: RoastManager::new(db, self_address),
         }
     }
 
+    /// Routes a ROAST event through the manager.
     pub fn handle_event(&mut self, event: RoastEngineEvent) -> Result<Vec<RoastMessage>> {
         match event {
             RoastEngineEvent::StartSigning {
@@ -105,10 +109,12 @@ where
         }
     }
 
+    /// Advances timeout-driven retries for active sessions.
     pub fn tick_timeouts(&mut self) -> Result<Vec<RoastMessage>> {
         self.manager.process_timeouts()
     }
 
+    /// Returns the stored aggregate signature, if available.
     pub fn get_signature(&self, msg_hash: H256, era: u64) -> Option<SignAggregate> {
         self.manager.get_signature(msg_hash, era)
     }

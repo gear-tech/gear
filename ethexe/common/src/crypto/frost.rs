@@ -285,7 +285,7 @@ impl ToDigest for SignAggregate {
 }
 
 impl SignAggregate {
-    /// Extract signature components
+    /// Extracts (R_x, R_y, z) from the 96-byte signature.
     pub fn signature_components(&self) -> ([u8; 32], [u8; 32], [u8; 32]) {
         let mut r_x = [0u8; 32];
         let mut r_y = [0u8; 32];
@@ -298,7 +298,7 @@ impl SignAggregate {
         (r_x, r_y, z)
     }
 
-    /// Create from components
+    /// Creates a `SignAggregate` from signature components.
     pub fn from_components(
         session: DkgSessionId,
         msg_hash: H256,
@@ -326,6 +326,7 @@ impl SignAggregate {
 /// Deterministically selects a leader from the validator set based on
 /// the message hash and era. This ensures all participants agree on
 /// the same leader without coordination.
+/// Deterministically selects the ROAST leader for a session.
 pub fn elect_leader(validators: &[Address], msg_hash: &H256, era: u64) -> Address {
     let mut sorted_validators = validators.to_vec();
     sorted_validators.sort();
@@ -346,6 +347,7 @@ pub fn elect_leader(validators: &[Address], msg_hash: &H256, era: u64) -> Addres
 ///
 /// If the current leader fails to respond, elect the next leader
 /// in deterministic round-robin order.
+/// Picks the next leader in sorted validator order (round-robin).
 pub fn next_leader(current: Address, validators: &[Address]) -> Address {
     let mut sorted = validators.to_vec();
     sorted.sort();

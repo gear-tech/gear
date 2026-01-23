@@ -18,21 +18,12 @@
 
 use std::collections::VecDeque;
 
-use super::{
-    DefaultProcessing, StateHandler, ValidatorContext, ValidatorState, producer::Producer,
-    sign_dkg_action, subordinate::Subordinate,
-};
-use crate::{
-    ConsensusEvent,
-    announces::{self, DBAnnouncesExt},
-    engine::prelude::DkgEngineEvent,
-    utils,
-};
-use anyhow::{Result, anyhow};
+use super::{DefaultProcessing, StateHandler, ValidatorContext, ValidatorState};
+use crate::announces::{self, DBAnnouncesExt};
+use anyhow::Result;
 use derive_more::{Debug, Display};
 use ethexe_common::{
     SimpleBlockData,
-    db::OnChainStorageRO,
     network::{AnnouncesRequest, AnnouncesResponse},
 };
 use gprimitives::H256;
@@ -104,6 +95,7 @@ impl StateHandler for Initial {
     fn process_new_head(mut self, block: SimpleBlockData) -> Result<ValidatorState> {
         // TODO #4555: block producer could be calculated right here, using propagation from previous blocks.
 
+        // Start sync pipeline for the new head.
         self.state = WaitingFor::SyncedBlock(block);
 
         Ok(self.into())
@@ -113,6 +105,7 @@ impl StateHandler for Initial {
         if let WaitingFor::SyncedBlock(block) = &self.state
             && block.hash == block_hash
         {
+            // Once synced, wait for computation/preparation.
             self.state = WaitingFor::PreparedBlock(*block);
 
             Ok(self.into())
@@ -125,6 +118,7 @@ impl StateHandler for Initial {
         if let WaitingFor::PreparedBlock(block) = &self.state
             && block.hash == block_hash
         {
+            // Ensure announces chain is complete before switching roles.
             let chain = self
                 .ctx
                 .core
@@ -141,6 +135,7 @@ impl StateHandler for Initial {
                     self.ctx.core.commitment_delay_limit,
                 )?
             {
+                // Request missing announces before entering producer/subordinate flow.
                 tracing::debug!(
                     "Missing announces detected for block {block_hash}, send request: {request:?}"
                 );
@@ -159,6 +154,7 @@ impl StateHandler for Initial {
             } else {
                 tracing::debug!(block = %block.hash, "No missing announces");
 
+                // Propagate announces and enter producer/subordinate role.
                 announces::propagate_announces(
                     &self.ctx.core.db,
                     chain,
@@ -220,75 +216,6 @@ impl Initial {
         block: SimpleBlockData,
     ) -> Result<ValidatorState> {
         Self::create(ctx)?.process_new_head(block)
-    }
-}
-
-impl ValidatorContext {
-    fn switch_to_producer_or_subordinate(
-        mut self,
-        block: SimpleBlockData,
-    ) -> Result<ValidatorState> {
-        let current_era = self.core.timelines.era_from_ts(block.header.timestamp);
-
-        let validators = self
-            .core
-            .db
-            .validators(current_era)
-            .ok_or(anyhow!("validators not found for block({})", block.hash))?;
-
-        // Check if we need to start DKG for this era
-        if !self.dkg_engine.is_completed(current_era) {
-            // Check if DKG session already exists
-            if self.dkg_engine.get_state(current_era).is_none() {
-                tracing::info!(era = current_era, "🔑 Starting DKG for new era");
-
-                // Start DKG with threshold = (2/3 * validators.len())
-                let threshold = ((validators.len() as u64 * 2) / 3).max(1) as u16;
-
-                match self.dkg_engine.handle_event(DkgEngineEvent::Start {
-                    era: current_era,
-                    validators: validators.clone().into(),
-                    threshold,
-                }) {
-                    Ok(actions) => {
-                        for action in actions {
-                            if let Ok(Some(msg)) =
-                                sign_dkg_action(&self.core.signer, self.core.pub_key, action)
-                            {
-                                self.output(ConsensusEvent::BroadcastValidatorMessage(msg));
-                            }
-                        }
-                    }
-                    Err(e) => {
-                        tracing::warn!(era = current_era, "Failed to start DKG: {}", e);
-                    }
-                }
-            }
-        }
-
-        let producer = utils::block_producer_for(
-            &validators,
-            block.header.timestamp,
-            self.core.slot_duration.as_secs(),
-        );
-        let my_address = self.core.pub_key.to_address();
-
-        if my_address == producer {
-            tracing::info!(block = %block.hash, "👷 Start to work as a producer");
-
-            Producer::create(self, block, validators.clone())
-        } else {
-            // TODO #4636: add test (in ethexe-service) for case where is not validator for current block
-            let is_validator_for_current_block = validators.contains(&my_address);
-
-            tracing::info!(
-                block = %block.hash,
-                "👷 Start to work as subordinate, producer is {producer}, \
-                I'm validator for current block: {is_validator_for_current_block}",
-            );
-
-            Subordinate::create(self, block, producer, is_validator_for_current_block)
-        }
     }
 }
 
