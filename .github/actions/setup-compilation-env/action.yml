@@ -4,9 +4,6 @@ inputs:
   target:
     description: "Rust build target"
     required: true
-  token:
-    description: "GitHub token"
-    required: true
 
 runs:
   using: composite
@@ -14,8 +11,6 @@ runs:
     - name: "Install: cargo-xwin"
       if: inputs.target == 'x86_64-pc-windows-msvc'
       uses: ./.github/actions/install-cargo-xwin
-      with:
-        token: ${{ inputs.token }}
 
     - name: "Install: Rust target"
       run: |
