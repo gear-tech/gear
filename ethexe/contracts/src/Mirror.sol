@@ -123,7 +123,7 @@ contract Mirror is IMirror {
     /* Primary Gear logic */
 
     function sendMessage(bytes calldata _payload, bool _callReply) external payable returns (bytes32) {
-        return sendMessage(_payload, _callReply);
+        return _sendMessage(_payload, _callReply);
     }
 
     function sendReply(bytes32 _repliedTo, bytes calldata _payload) external payable onlyIfActive onlyAfterInitMessage {
@@ -213,7 +213,7 @@ contract Mirror is IMirror {
         );
     }
 
-    function sendMessage(bytes calldata _payload, bool _callReply)
+    function _sendMessage(bytes calldata _payload, bool _callReply)
         internal
         onlyIfActive
         onlyAfterInitMessageOrInitializer
@@ -483,7 +483,7 @@ contract Mirror is IMirror {
             callReply := calldataload(0x04)
         }
 
-        bytes32 messageId = sendMessage(msg.data, callReply != 0);
+        bytes32 messageId = _sendMessage(msg.data, callReply != 0);
 
         assembly ("memory-safe") {
             mstore(0x00, messageId)

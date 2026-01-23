@@ -532,8 +532,8 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
         returns (bytes32)
     {
         uint256 transitionsLen = _transitions.length;
-        uint256 transitionsHashesMemPtr = Memory.allocate(transitionsLen * 32);
-
+        uint256 transitionsHashSize = transitionsLen * 32;
+        uint256 transitionsHashesMemPtr = Memory.allocate(transitionsHashSize);
         uint256 offset = 0;
 
         for (uint256 i = 0; i < transitionsLen; i++) {
@@ -550,14 +550,11 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
             }
 
             bytes32 transitionHash = IMirror(transition.actorId).performStateTransition{value: value}(transition);
-
-            transitionsHashes = bytes.concat(transitionsHashes, transitionHash);
-
+            Memory.writeWord(transitionsHashesMemPtr, offset, uint256(transitionHash));
             offset += 32;
-
         }
 
-        return keccak256(transitionsHashes);
+        return bytes32(Hashes.efficientKeccak256(transitionsHashesMemPtr, 0, transitionsHashSize));
     }
 
     function _resetValidators(
