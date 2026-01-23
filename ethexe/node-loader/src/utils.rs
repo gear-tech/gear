@@ -60,6 +60,9 @@ pub async fn capture_mailbox_messages(
     let to: Address = api.provider().default_signer_address();
     let mailbox_messages = event_source.iter().filter_map(|event| match event.kind {
         EventKind::Message(ref msg) if msg.destination == to => Some(MessageId::new(msg.id.0)),
+        EventKind::MessageQueueingRequested(ref msg) if msg.source == to => {
+            Some(MessageId::new(msg.id.0))
+        }
         _ => None,
     });
 
@@ -114,6 +117,11 @@ pub async fn err_waited_or_succeed_batch(
                 if message_ids.contains(&MessageId::new(msg.id.0)) =>
             {
                 Some(vec![(MessageId::new(msg.id.0), None)])
+            }
+            EventKind::ReplyQueueingRequested(msg)
+                if message_ids.contains(&MessageId::new(msg.repliedTo.0)) =>
+            {
+                Some(vec![(MessageId::new(msg.repliedTo.0), None)])
             }
             _ => None,
         })

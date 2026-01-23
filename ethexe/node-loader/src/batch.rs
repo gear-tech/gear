@@ -343,7 +343,13 @@ async fn run_batch_impl(
                 api.router().wait_code_validation(code_id).await?;
             }
             let mut program_ids = BTreeSet::new();
-            for (arg, code_id) in args.iter().zip(code_ids.iter().copied()) {
+            let mut messages = BTreeMap::new();
+            let block = api
+                .provider()
+                .get_block(BlockId::latest())
+                .await?
+                .expect("no block?");
+            for (call_id, (arg, code_id)) in args.iter().zip(code_ids.iter().copied()).enumerate() {
                 let salt = &arg.0.1;
                 let salt_vec = if salt.len() != 32 {
                     let mut vec = Vec::with_capacity(32);
@@ -368,13 +374,19 @@ async fn run_batch_impl(
                 mirror
                     .executable_balance_top_up(500_000_000_000_000)
                     .await?;
-
+                match mirror.send_message(&arg.0.2, arg.0.4).await {
+                    Ok((_, message_id)) => {
+                        messages.insert(message_id, (program.1, call_id));
+                    }
+                    Err(err) => {
+                        tracing::error!("Failed to send message: {err:?}");
+                        return Err(err);
+                    }
+                }
                 program_ids.insert(program.1);
             }
-            Ok(Report {
-                program_ids,
-                ..Default::default()
-            })
+
+            process_events(api, messages, rx, block.hash()).await
         }
 
         Batch::UploadCode(args) => {
@@ -419,7 +431,8 @@ async fn run_batch_impl(
             process_events(api, messages, rx, block).await
         }
 
-        Batch::ClaimValue(_args) => {
+        Batch::ClaimValue(args) => {
+            // TODO: Need to get address of mirror somehow here. gear-call-gen DOES NOT give us that.
             tracing::warn!("ClaimValue batch is not implemented yet");
             Ok(Report {
                 ..Default::default()
@@ -427,6 +440,7 @@ async fn run_batch_impl(
         }
 
         Batch::SendReply(_args) => {
+            // TODO: Need to get address of mirror somehow here. gear-call-gen DOES NOT give us that.
             tracing::warn!("SendReply batch is not implemented yet");
             /*let removed_from_mailbox = args.clone().into_iter().map(|SendReplyArgs((mid, ..))| mid);
 
@@ -452,7 +466,12 @@ async fn run_batch_impl(
             tracing::info!("Creating programs");
             let mut programs = BTreeSet::new();
             let mut messages = BTreeMap::new();
-            for arg in args.iter() {
+            let block_hash = api
+                .provider()
+                .get_block(BlockId::latest())
+                .await?
+                .expect("no block?");
+            for (call_id, arg) in args.iter().enumerate() {
                 let code_id = arg.0.0;
                 let salt = &arg.0.1;
                 let salt_vec = if salt.len() != 32 {
@@ -477,14 +496,22 @@ async fn run_batch_impl(
                 mirror
                     .executable_balance_top_up(500_000_000_000_000)
                     .await?;
-                programs.insert(program.1);
-                messages.insert(program.1, (program.1, 0));
+                // send init message to program with payload and value.
+                match mirror.send_message(&arg.0.2, arg.0.4).await {
+                    Ok((_, message)) => {
+                        programs.insert(program.1);
+                        messages.insert(message, (program.1, call_id));
+                        tracing::debug!("[Call with id: {call_id}]: Successfully executed");
+                    }
+                    Err(e) => {
+                        tracing::error!(
+                            "[Call with id: {call_id}]: Failed to send message to program: {e}",
+                        );
+                    }
+                }
             }
 
-            Ok(Report {
-                program_ids: programs,
-                ..Default::default()
-            })
+            process_events(api, messages, rx, block_hash.hash()).await
         }
     }
 }
@@ -496,7 +523,7 @@ async fn process_events(
     mut rx: Receiver<<alloy::network::Ethereum as Network>::HeaderResponse>,
     block_hash: FixedBytes<32>,
 ) -> Result<Report> {
-    let wait_for_event_blocks = 10;
+    let wait_for_event_blocks = 30;
     let wait_for_events_millisec = 12 * 1000 * wait_for_event_blocks * 5;
     let mut mailbox_added = BTreeSet::new();
     let results = {
