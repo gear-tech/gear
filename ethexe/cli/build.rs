@@ -10,7 +10,12 @@ fn main() {
         _ => "unknown".to_string(),
     };
 
-    println!("cargo:rustc-env=GIT_SHA={}", git_hash);
+    println!("cargo:rustc-env=GIT_SHA={git_hash}");
     println!("cargo:rerun-if-changed=../../.git/HEAD");
-    println!("cargo:rerun-if-changed=../../.git/refs");
+
+    if let Ok(head) = std::fs::read_to_string("../../.git/HEAD") {
+        if let Some(ref_path) = head.strip_prefix("ref: ") {
+            println!("cargo:rerun-if-changed=../../.git/{}", ref_path.trim());
+        }
+    }
 }
