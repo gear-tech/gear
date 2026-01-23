@@ -14,6 +14,8 @@ runs:
     - name: "Install: cargo-xwin"
       run: cargo +stable binstall --no-confirm cargo-xwin@0.21.2
       shell: bash
+      env:
+        GITHUB_TOKEN: ${{ inputs.token }}
 
     - run: |
         echo "XWIN_ARCH=x86_64" >> $GITHUB_ENV
