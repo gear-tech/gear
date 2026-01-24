@@ -43,7 +43,6 @@ self-update = []
 snapbox.workspace = true
 gear-node-wrapper.workspace = true
 indoc.workspace = true
-regex.workspace = true
 
 [package.metadata.docs.rs]
 all-features = true

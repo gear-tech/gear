@@ -6283,8 +6283,6 @@ dependencies = [
  "anyhow",
  "clap 4.5.54",
  "colored",
- "demo-messenger",
- "demo-vec",
  "derive_more 2.1.1",
  "dirs",
  "etc",

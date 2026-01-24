@@ -16,14 +16,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use anyhow::{Context, Result};
+use anyhow::Result;
 use gear_node_wrapper::{Node, NodeInstance};
-use regex::Regex;
-use snapbox::cmd::{self, Command, OutputAssert};
+use snapbox::cmd::{self, Command};
 use std::{
     env,
     path::{Path, PathBuf},
-    sync::{Arc, LazyLock, Once, OnceLock},
 };
 
 pub fn init_node() -> Result<(NodeInstance, impl Fn() -> Command)> {
