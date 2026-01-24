@@ -6281,12 +6281,11 @@ name = "gcli"
 version = "1.10.0"
 dependencies = [
  "anyhow",
- "async-trait",
  "clap 4.5.54",
  "colored",
  "demo-messenger",
  "demo-vec",
- "derive_more 2.0.1",
+ "derive_more 2.1.1",
  "dirs",
  "etc",
  "gear-core",
