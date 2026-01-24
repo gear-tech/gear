@@ -24,7 +24,7 @@ use crate::{
 use ethexe_common::{
     ecdsa::PrivateKey,
     gear::MAX_BLOCK_GAS_LIMIT,
-    injected::{Promise, RpcOrNetworkInjectedTx, SignedPromise},
+    injected::{AddressedInjectedTransaction, Promise, SignedPromise},
     mock::Mock,
 };
 use ethexe_db::Database;
@@ -68,10 +68,8 @@ impl MockService {
             loop {
                 tokio::select! {
                     _ = tx_batch_interval.tick() => {
-                        for tx in tx_batch.drain(..) {
-                            let promise = Self::create_promise_for(tx);
-                            self.rpc.provide_promise(promise);
-                        }
+                        let promises = tx_batch.drain(..).map(Self::create_promise_for).collect();
+                        self.rpc.provide_promises(promises);
                     },
                     _ = self.handle.clone().stopped() => {
                         unreachable!("RPC server should not be stopped during the test")
@@ -87,7 +85,7 @@ impl MockService {
         })
     }
 
-    fn create_promise_for(tx: RpcOrNetworkInjectedTx) -> SignedPromise {
+    fn create_promise_for(tx: AddressedInjectedTransaction) -> SignedPromise {
         let promise = Promise {
             tx_hash: tx.tx.data().to_hash(),
             reply: ReplyInfo {
@@ -123,6 +121,8 @@ async fn wait_for_closed_subscriptions(injected_api: InjectedApi) {
 #[tokio::test]
 #[ntest::timeout(20_000)]
 async fn test_cleanup_promise_subscribers() {
+    let _ = tracing_subscriber::fmt::try_init();
+
     let listen_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8002);
     let service = MockService::new(listen_addr).await;
     let injected_api = service.injected_api();
@@ -140,7 +140,7 @@ async fn test_cleanup_promise_subscribers() {
         let mut subscribers = JoinSet::new();
         for _ in 0..20 {
             let mut sub = ws_client
-                .send_transaction_and_watch(RpcOrNetworkInjectedTx::mock(()))
+                .send_transaction_and_watch(AddressedInjectedTransaction::mock(()))
                 .await
                 .expect("Subscription will be created");
 
@@ -168,7 +168,7 @@ async fn test_cleanup_promise_subscribers() {
         let mut subscribers = JoinSet::new();
         for _ in 0..20 {
             let mut subscription = ws_client
-                .send_transaction_and_watch(RpcOrNetworkInjectedTx::mock(()))
+                .send_transaction_and_watch(AddressedInjectedTransaction::mock(()))
                 .await
                 .expect("Subscription will be created");
 
@@ -195,7 +195,7 @@ async fn test_cleanup_promise_subscribers() {
         let mut subscriptions = vec![];
         for _ in 0..20 {
             let subscription = ws_client
-                .send_transaction_and_watch(RpcOrNetworkInjectedTx::mock(()))
+                .send_transaction_and_watch(AddressedInjectedTransaction::mock(()))
                 .await
                 .expect("Subscription will be created");
             subscriptions.push(subscription);
@@ -211,6 +211,8 @@ async fn test_cleanup_promise_subscribers() {
 #[tokio::test]
 #[ntest::timeout(120_000)]
 async fn test_concurrent_multiple_clients() {
+    let _ = tracing_subscriber::fmt::try_init();
+
     let listen_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8010);
     let service = MockService::new(listen_addr).await;
     let injected_api = service.injected_api();
@@ -230,7 +232,7 @@ async fn test_concurrent_multiple_clients() {
             let mut subscriptions = vec![];
             for _ in 0..50 {
                 let mut subscription = client
-                    .send_transaction_and_watch(RpcOrNetworkInjectedTx::mock(()))
+                    .send_transaction_and_watch(AddressedInjectedTransaction::mock(()))
                     .await
                     .expect("Subscription will be created");
 

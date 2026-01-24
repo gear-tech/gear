@@ -217,20 +217,20 @@ features = ["test-helpers"]
 [dependencies]
 aes = { version = "0.8", default-features = false, features = ["zeroize"] }
 ahash = { version = "0.8" }
-alloy = { git = "https://github.com/gear-tech/alloy", features = ["k256", "kzg", "node-bindings", "provider-anvil-api", "provider-ws", "rpc-types-beacon", "rpc-types-eth"] }
+alloy = { version = "1", features = ["k256", "kzg", "node-bindings", "provider-anvil-api", "provider-ws", "rpc-types-beacon", "rpc-types-eth"] }
 alloy-chains = { version = "0.2" }
-alloy-consensus = { git = "https://github.com/gear-tech/alloy", default-features = false, features = ["k256", "kzg", "serde"] }
-alloy-contract = { git = "https://github.com/gear-tech/alloy", default-features = false, features = ["pubsub"] }
-alloy-core = { version = "1", features = ["dyn-abi", "json-abi", "k256"] }
+alloy-consensus = { version = "1", default-features = false, features = ["k256", "kzg", "serde"] }
+alloy-contract = { version = "1", default-features = false, features = ["pubsub"] }
+alloy-core = { version = "1", features = ["dyn-abi", "json-abi", "k256", "rlp"] }
 alloy-eip7702 = { version = "0.6", default-features = false, features = ["k256", "serde", "std"] }
-alloy-eips = { git = "https://github.com/gear-tech/alloy", default-features = false, features = ["k256", "kzg", "serde", "std"] }
+alloy-eips = { version = "1", default-features = false, features = ["k256", "kzg", "serde", "std"] }
 alloy-json-abi = { version = "1", features = ["serde_json"] }
-alloy-network = { git = "https://github.com/gear-tech/alloy", default-features = false, features = ["k256"] }
+alloy-network = { version = "1", default-features = false, features = ["k256"] }
 alloy-primitives = { version = "1", features = ["k256", "rlp", "serde"] }
-alloy-provider = { git = "https://github.com/gear-tech/alloy", default-features = false, features = ["anvil-node", "ws"] }
-alloy-rpc-client = { git = "https://github.com/gear-tech/alloy", default-features = false, features = ["reqwest", "ws"] }
-alloy-rpc-types = { git = "https://github.com/gear-tech/alloy", default-features = false, features = ["anvil", "beacon", "eth", "k256", "kzg"] }
-alloy-rpc-types-eth = { git = "https://github.com/gear-tech/alloy", default-features = false, features = ["k256", "serde", "std"] }
+alloy-provider = { version = "1", default-features = false, features = ["anvil-node", "ws"] }
+alloy-rpc-client = { version = "1", default-features = false, features = ["reqwest", "ws"] }
+alloy-rpc-types = { version = "1", default-features = false, features = ["anvil", "beacon", "eth", "k256", "kzg"] }
+alloy-rpc-types-eth = { version = "1", default-features = false, features = ["k256", "serde", "std"] }
 alloy-sol-type-parser = { version = "1", default-features = false, features = ["serde", "std"] }
 alloy-sol-types = { version = "1", features = ["json"] }
 anyhow = { version = "1" }
@@ -243,8 +243,7 @@ ark-scale = { version = "0.0.12", default-features = false, features = ["hazmat"
 ark-serialize = { version = "0.4", default-features = false, features = ["derive", "std"] }
 ark-std = { version = "0.4", default-features = false, features = ["parallel"] }
 arrayvec = { version = "0.7", features = ["serde"] }
-base64-3c51e837cfc5589a = { package = "base64", version = "0.22" }
-base64-594e8ee84c453af0 = { package = "base64", version = "0.13" }
+base64 = { version = "0.22" }
 binary-merkle-tree = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std"] }
 bitflags = { version = "2", default-features = false, features = ["std"] }
 blake2 = { version = "0.10" }
@@ -263,7 +262,7 @@ clap = { version = "4", features = ["derive", "string", "wrap_help"] }
 clap_builder = { version = "4", default-features = false, features = ["color", "std", "string", "suggestions", "usage", "wrap_help"] }
 concurrent-queue = { version = "2" }
 const-hex = { version = "1", default-features = false, features = ["core-error", "serde", "std"] }
-core2 = { version = "0.4", default-features = false, features = ["alloc"] }
+constant_time_eq = { version = "0.4", default-features = false, features = ["std"] }
 crc32fast = { version = "1" }
 crossbeam-utils = { version = "0.8" }
 crunchy = { version = "0.2", features = ["std"] }
@@ -287,6 +286,7 @@ event-listener = { version = "5" }
 event-listener-strategy = { version = "0.5" }
 finality-grandpa = { version = "0.16", features = ["derive-codec"] }
 fixed-hash = { version = "0.8", default-features = false, features = ["std"] }
+foldhash = { version = "0.2", default-features = false, features = ["std"] }
 form_urlencoded = { version = "1" }
 frame-metadata-8ee676a8f9a6c413 = { package = "frame-metadata", version = "16", default-features = false, features = ["current", "std"] }
 frame-metadata-e761569b921b4a02 = { package = "frame-metadata", version = "23", default-features = false, features = ["current", "std"] }
@@ -302,13 +302,14 @@ futures-timer = { version = "3", default-features = false, features = ["wasm-bin
 futures-util = { version = "0.3", features = ["bilock", "channel", "io", "sink", "unstable"] }
 gear-dlmalloc = { version = "0.2", features = ["debug"] }
 generic-array = { version = "0.14", default-features = false, features = ["more_lengths", "zeroize"] }
+getrandom-468e82937335b1c9 = { package = "getrandom", version = "0.3", default-features = false, features = ["std"] }
 getrandom-6f8ce4dd05d13bba = { package = "getrandom", version = "0.2", default-features = false, features = ["js", "std"] }
 getrandom_or_panic = { version = "0.0.3", default-features = false, features = ["std"] }
 hash-db = { version = "0.16" }
 hash256-std-hasher = { version = "0.15", default-features = false, features = ["std"] }
-hashbrown-3575ec1268b04181 = { package = "hashbrown", version = "0.15" }
 hashbrown-582f2526e08bb6a0 = { package = "hashbrown", version = "0.14", features = ["raw"] }
 hashbrown-594e8ee84c453af0 = { package = "hashbrown", version = "0.13", features = ["raw"] }
+hashbrown-986da7b5efc2b80e = { package = "hashbrown", version = "0.16", features = ["serde"] }
 hex = { version = "0.4" }
 hkdf = { version = "0.12", default-features = false, features = ["std"] }
 hmac = { version = "0.12", default-features = false, features = ["reset", "std"] }
@@ -339,7 +340,7 @@ names = { version = "0.14" }
 nonempty = { version = "0.12", default-features = false, features = ["std"] }
 num-bigint = { version = "0.4" }
 num-integer = { version = "0.1", default-features = false, features = ["i128", "std"] }
-num-rational = { version = "0.4" }
+num-rational = { version = "0.4", features = ["num-bigint-std"] }
 num-traits = { version = "0.2", features = ["i128", "libm"] }
 object-51543b5218fc235c = { package = "object", version = "0.32", features = ["write"] }
 object-fa1f6196edfd7249 = { package = "object", version = "0.30", default-features = false, features = ["read_core", "write"] }
@@ -361,16 +362,20 @@ primitive-types-5ef9efb8ec2df382 = { package = "primitive-types", version = "0.1
 proc-macro2 = { version = "1", features = ["span-locations"] }
 prost = { version = "0.12", features = ["prost-derive"] }
 quote = { version = "1" }
-rand = { version = "0.8", features = ["small_rng"] }
+rand-274715c4dabd11b0 = { package = "rand", version = "0.9" }
+rand-c38e5c1d305a1b54 = { package = "rand", version = "0.8", features = ["small_rng"] }
+rand_chacha-274715c4dabd11b0 = { package = "rand_chacha", version = "0.9" }
 rand_chacha-468e82937335b1c9 = { package = "rand_chacha", version = "0.3" }
+rand_core-274715c4dabd11b0 = { package = "rand_core", version = "0.9", default-features = false, features = ["os_rng", "std"] }
 rand_core-3b31131e45eafb45 = { package = "rand_core", version = "0.6", default-features = false, features = ["std"] }
 regex = { version = "1" }
-regex-automata = { version = "0.4", default-features = false, features = ["dfa-onepass", "hybrid", "meta", "nfa-backtrack", "perf-inline", "perf-literal", "unicode"] }
+regex-automata = { version = "0.4", default-features = false, features = ["dfa-build", "dfa-onepass", "hybrid", "meta", "nfa-backtrack", "perf-inline", "perf-literal", "std", "unicode"] }
 regex-syntax = { version = "0.8" }
 reqwest = { version = "0.12", default-features = false, features = ["default-tls", "json", "rustls-tls"] }
-ring = { version = "0.17" }
+ring = { version = "0.17", features = ["std"] }
 ruint = { version = "1", default-features = false, features = ["alloy-rlp", "serde", "std"] }
-rustc-hash = { version = "1" }
+rustc-hash-dff4ba8e3ae991db = { package = "rustc-hash", version = "1" }
+rustc-hash-f595c2ba2a3f28df = { package = "rustc-hash", version = "2" }
 rustc-hex = { version = "2", default-features = false, features = ["std"] }
 sc-cli = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
 scale-bits = { version = "0.7" }
@@ -385,7 +390,7 @@ secp256k1 = { version = "0.28", features = ["global-context", "recovery"] }
 semver = { version = "1", features = ["serde"] }
 serde = { version = "1", features = ["alloc", "derive", "rc"] }
 serde-json-wasm = { version = "1", default-features = false, features = ["std"] }
-serde_core = { version = "1", default-features = false, features = ["alloc", "rc", "result", "std"] }
+serde_core = { version = "1", features = ["alloc", "rc"] }
 serde_json = { version = "1", features = ["alloc", "arbitrary_precision", "raw_value", "unbounded_depth"] }
 serdect = { version = "0.2" }
 sha1 = { version = "0.10" }
@@ -394,6 +399,7 @@ sha3 = { version = "0.10", default-features = false, features = ["std"] }
 signature = { version = "2", default-features = false, features = ["digest", "rand_core", "std"] }
 slice-group-by = { version = "0.3" }
 smallvec = { version = "1", default-features = false, features = ["const_new", "serde", "union"] }
+socket2 = { version = "0.4", default-features = false, features = ["all"] }
 soketto = { version = "0.8", features = ["http"] }
 sp-allocator = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
 sp-api = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", features = ["frame-metadata"] }
@@ -447,8 +453,9 @@ tiny-keccak = { version = "2", features = ["keccak", "shake"] }
 tokio = { version = "1", features = ["full", "test-util"] }
 tokio-stream = { version = "0.1", features = ["sync"] }
 tokio-util = { version = "0.7", features = ["codec", "compat", "io"] }
-toml_datetime = { version = "0.6", default-features = false, features = ["serde"] }
+toml_datetime = { version = "0.7", features = ["serde"] }
 toml_edit = { version = "0.22", features = ["serde"] }
+toml_parser = { version = "1" }
 tracing = { version = "0.1", features = ["log"] }
 tracing-core = { version = "0.1" }
 tracing-log = { version = "0.2" }
@@ -473,26 +480,26 @@ wasmtime = { version = "8" }
 wasmtime-jit = { version = "8", default-features = false, features = ["jitdump", "vtune"] }
 wasmtime-jit-debug = { version = "8", default-features = false, features = ["gdb_jit_int", "perf_jitdump"] }
 wasmtime-runtime = { version = "8", default-features = false, features = ["async", "pooling-allocator"] }
-winnow = { version = "0.7", default-features = false, features = ["std"] }
+winnow = { version = "0.7" }
 zeroize = { version = "1", features = ["derive", "std"] }
 
 [build-dependencies]
 aes = { version = "0.8", default-features = false, features = ["zeroize"] }
 ahash = { version = "0.8" }
-alloy = { git = "https://github.com/gear-tech/alloy", features = ["k256", "kzg", "node-bindings", "provider-anvil-api", "provider-ws", "rpc-types-beacon", "rpc-types-eth"] }
+alloy = { version = "1", features = ["k256", "kzg", "node-bindings", "provider-anvil-api", "provider-ws", "rpc-types-beacon", "rpc-types-eth"] }
 alloy-chains = { version = "0.2" }
-alloy-consensus = { git = "https://github.com/gear-tech/alloy", default-features = false, features = ["k256", "kzg", "serde"] }
-alloy-contract = { git = "https://github.com/gear-tech/alloy", default-features = false, features = ["pubsub"] }
-alloy-core = { version = "1", features = ["dyn-abi", "json-abi", "k256"] }
+alloy-consensus = { version = "1", default-features = false, features = ["k256", "kzg", "serde"] }
+alloy-contract = { version = "1", default-features = false, features = ["pubsub"] }
+alloy-core = { version = "1", features = ["dyn-abi", "json-abi", "k256", "rlp"] }
 alloy-eip7702 = { version = "0.6", default-features = false, features = ["k256", "serde", "std"] }
-alloy-eips = { git = "https://github.com/gear-tech/alloy", default-features = false, features = ["k256", "kzg", "serde", "std"] }
+alloy-eips = { version = "1", default-features = false, features = ["k256", "kzg", "serde", "std"] }
 alloy-json-abi = { version = "1", features = ["serde_json"] }
-alloy-network = { git = "https://github.com/gear-tech/alloy", default-features = false, features = ["k256"] }
+alloy-network = { version = "1", default-features = false, features = ["k256"] }
 alloy-primitives = { version = "1", features = ["k256", "rlp", "serde"] }
-alloy-provider = { git = "https://github.com/gear-tech/alloy", default-features = false, features = ["anvil-node", "ws"] }
-alloy-rpc-client = { git = "https://github.com/gear-tech/alloy", default-features = false, features = ["reqwest", "ws"] }
-alloy-rpc-types = { git = "https://github.com/gear-tech/alloy", default-features = false, features = ["anvil", "beacon", "eth", "k256", "kzg"] }
-alloy-rpc-types-eth = { git = "https://github.com/gear-tech/alloy", default-features = false, features = ["k256", "serde", "std"] }
+alloy-provider = { version = "1", default-features = false, features = ["anvil-node", "ws"] }
+alloy-rpc-client = { version = "1", default-features = false, features = ["reqwest", "ws"] }
+alloy-rpc-types = { version = "1", default-features = false, features = ["anvil", "beacon", "eth", "k256", "kzg"] }
+alloy-rpc-types-eth = { version = "1", default-features = false, features = ["k256", "serde", "std"] }
 alloy-sol-macro = { version = "1", default-features = false, features = ["json"] }
 alloy-sol-macro-expander = { version = "1", default-features = false, features = ["json"] }
 alloy-sol-macro-input = { version = "1", default-features = false, features = ["json"] }
@@ -508,8 +515,7 @@ ark-scale = { version = "0.0.12", default-features = false, features = ["hazmat"
 ark-serialize = { version = "0.4", default-features = false, features = ["derive", "std"] }
 ark-std = { version = "0.4", default-features = false, features = ["parallel"] }
 arrayvec = { version = "0.7", features = ["serde"] }
-base64-3c51e837cfc5589a = { package = "base64", version = "0.22" }
-base64-594e8ee84c453af0 = { package = "base64", version = "0.13" }
+base64 = { version = "0.22" }
 binary-merkle-tree = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", default-features = false, features = ["std"] }
 bitflags = { version = "2", default-features = false, features = ["std"] }
 blake2 = { version = "0.10" }
@@ -529,20 +535,20 @@ clap = { version = "4", features = ["derive", "string", "wrap_help"] }
 clap_builder = { version = "4", default-features = false, features = ["color", "std", "string", "suggestions", "usage", "wrap_help"] }
 concurrent-queue = { version = "2" }
 const-hex = { version = "1", default-features = false, features = ["core-error", "serde", "std"] }
-core2 = { version = "0.4", default-features = false, features = ["alloc"] }
+constant_time_eq = { version = "0.4", default-features = false, features = ["std"] }
 crc32fast = { version = "1" }
 crossbeam-utils = { version = "0.8" }
 crunchy = { version = "0.2", features = ["std"] }
 crypto-common = { version = "0.1", default-features = false, features = ["getrandom", "std"] }
 ctr = { version = "0.9", default-features = false, features = ["zeroize"] }
 curve25519-dalek = { version = "4", features = ["digest", "legacy_compatibility"] }
-darling = { version = "0.20" }
-darling_core = { version = "0.20", default-features = false, features = ["suggestions"] }
+darling = { version = "0.21", features = ["serde"] }
+darling_core = { version = "0.21", default-features = false, features = ["serde", "suggestions"] }
 data-encoding = { version = "2" }
 der = { version = "0.7", default-features = false, features = ["oid", "std", "zeroize"] }
 derive_more-2247a326473123a6 = { package = "derive_more", version = "0.99" }
 derive_more-f595c2ba2a3f28df = { package = "derive_more", version = "2", features = ["full"] }
-derive_more-impl = { version = "2", features = ["add", "add_assign", "as_ref", "constructor", "debug", "deref", "deref_mut", "display", "error", "from", "from_str", "index", "index_mut", "into", "into_iterator", "is_variant", "mul", "mul_assign", "not", "sum", "try_from", "try_into", "try_unwrap", "unwrap"] }
+derive_more-impl = { version = "2", features = ["add", "add_assign", "as_ref", "constructor", "debug", "deref", "deref_mut", "display", "eq", "error", "from", "from_str", "index", "index_mut", "into", "into_iterator", "is_variant", "mul", "mul_assign", "not", "sum", "try_from", "try_into", "try_unwrap", "unwrap"] }
 digest-274715c4dabd11b0 = { package = "digest", version = "0.9", default-features = false, features = ["std"] }
 digest-93f6ce9d446188ac = { package = "digest", version = "0.10", features = ["mac", "oid", "std"] }
 displaydoc = { version = "0.2" }
@@ -558,6 +564,7 @@ event-listener = { version = "5" }
 event-listener-strategy = { version = "0.5" }
 finality-grandpa = { version = "0.16", features = ["derive-codec"] }
 fixed-hash = { version = "0.8", default-features = false, features = ["std"] }
+foldhash = { version = "0.2", default-features = false, features = ["std"] }
 form_urlencoded = { version = "1" }
 frame-metadata-8ee676a8f9a6c413 = { package = "frame-metadata", version = "16", default-features = false, features = ["current", "std"] }
 frame-metadata-e761569b921b4a02 = { package = "frame-metadata", version = "23", default-features = false, features = ["current", "std"] }
@@ -574,13 +581,14 @@ futures-timer = { version = "3", default-features = false, features = ["wasm-bin
 futures-util = { version = "0.3", features = ["bilock", "channel", "io", "sink", "unstable"] }
 gear-dlmalloc = { version = "0.2", features = ["debug"] }
 generic-array = { version = "0.14", default-features = false, features = ["more_lengths", "zeroize"] }
+getrandom-468e82937335b1c9 = { package = "getrandom", version = "0.3", default-features = false, features = ["std"] }
 getrandom-6f8ce4dd05d13bba = { package = "getrandom", version = "0.2", default-features = false, features = ["js", "std"] }
 getrandom_or_panic = { version = "0.0.3", default-features = false, features = ["std"] }
 hash-db = { version = "0.16" }
 hash256-std-hasher = { version = "0.15", default-features = false, features = ["std"] }
-hashbrown-3575ec1268b04181 = { package = "hashbrown", version = "0.15" }
 hashbrown-582f2526e08bb6a0 = { package = "hashbrown", version = "0.14", features = ["raw"] }
 hashbrown-594e8ee84c453af0 = { package = "hashbrown", version = "0.13", features = ["raw"] }
+hashbrown-986da7b5efc2b80e = { package = "hashbrown", version = "0.16", features = ["serde"] }
 hex = { version = "0.4" }
 hkdf = { version = "0.12", default-features = false, features = ["std"] }
 hmac = { version = "0.12", default-features = false, features = ["reset", "std"] }
@@ -611,7 +619,7 @@ names = { version = "0.14" }
 nonempty = { version = "0.12", default-features = false, features = ["std"] }
 num-bigint = { version = "0.4" }
 num-integer = { version = "0.1", default-features = false, features = ["i128", "std"] }
-num-rational = { version = "0.4" }
+num-rational = { version = "0.4", features = ["num-bigint-std"] }
 num-traits = { version = "0.2", features = ["i128", "libm"] }
 object-51543b5218fc235c = { package = "object", version = "0.32", features = ["write"] }
 object-fa1f6196edfd7249 = { package = "object", version = "0.30", default-features = false, features = ["read_core", "write"] }
@@ -634,16 +642,20 @@ primitive-types-5ef9efb8ec2df382 = { package = "primitive-types", version = "0.1
 proc-macro2 = { version = "1", features = ["span-locations"] }
 prost = { version = "0.12", features = ["prost-derive"] }
 quote = { version = "1" }
-rand = { version = "0.8", features = ["small_rng"] }
+rand-274715c4dabd11b0 = { package = "rand", version = "0.9" }
+rand-c38e5c1d305a1b54 = { package = "rand", version = "0.8", features = ["small_rng"] }
+rand_chacha-274715c4dabd11b0 = { package = "rand_chacha", version = "0.9" }
 rand_chacha-468e82937335b1c9 = { package = "rand_chacha", version = "0.3" }
+rand_core-274715c4dabd11b0 = { package = "rand_core", version = "0.9", default-features = false, features = ["os_rng", "std"] }
 rand_core-3b31131e45eafb45 = { package = "rand_core", version = "0.6", default-features = false, features = ["std"] }
 regex = { version = "1" }
-regex-automata = { version = "0.4", default-features = false, features = ["dfa-onepass", "hybrid", "meta", "nfa-backtrack", "perf-inline", "perf-literal", "unicode"] }
+regex-automata = { version = "0.4", default-features = false, features = ["dfa-build", "dfa-onepass", "hybrid", "meta", "nfa-backtrack", "perf-inline", "perf-literal", "std", "unicode"] }
 regex-syntax = { version = "0.8" }
 reqwest = { version = "0.12", default-features = false, features = ["default-tls", "json", "rustls-tls"] }
-ring = { version = "0.17" }
+ring = { version = "0.17", features = ["std"] }
 ruint = { version = "1", default-features = false, features = ["alloy-rlp", "serde", "std"] }
-rustc-hash = { version = "1" }
+rustc-hash-dff4ba8e3ae991db = { package = "rustc-hash", version = "1" }
+rustc-hash-f595c2ba2a3f28df = { package = "rustc-hash", version = "2" }
 rustc-hex = { version = "2", default-features = false, features = ["std"] }
 sc-cli = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
 scale-bits = { version = "0.7" }
@@ -659,7 +671,7 @@ secp256k1 = { version = "0.28", features = ["global-context", "recovery"] }
 semver = { version = "1", features = ["serde"] }
 serde = { version = "1", features = ["alloc", "derive", "rc"] }
 serde-json-wasm = { version = "1", default-features = false, features = ["std"] }
-serde_core = { version = "1", default-features = false, features = ["alloc", "rc", "result", "std"] }
+serde_core = { version = "1", features = ["alloc", "rc"] }
 serde_json = { version = "1", features = ["alloc", "arbitrary_precision", "raw_value", "unbounded_depth"] }
 serdect = { version = "0.2" }
 sha1 = { version = "0.10" }
@@ -668,6 +680,7 @@ sha3 = { version = "0.10", default-features = false, features = ["std"] }
 signature = { version = "2", default-features = false, features = ["digest", "rand_core", "std"] }
 slice-group-by = { version = "0.3" }
 smallvec = { version = "1", default-features = false, features = ["const_new", "serde", "union"] }
+socket2 = { version = "0.4", default-features = false, features = ["all"] }
 soketto = { version = "0.8", features = ["http"] }
 sp-allocator = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none" }
 sp-api = { git = "https://github.com/gear-tech/polkadot-sdk.git", branch = "gear-polkadot-stable2409-wasm32v1-none", features = ["frame-metadata"] }
@@ -724,8 +737,9 @@ tiny-keccak = { version = "2", features = ["keccak", "shake"] }
 tokio = { version = "1", features = ["full", "test-util"] }
 tokio-stream = { version = "0.1", features = ["sync"] }
 tokio-util = { version = "0.7", features = ["codec", "compat", "io"] }
-toml_datetime = { version = "0.6", default-features = false, features = ["serde"] }
+toml_datetime = { version = "0.7", features = ["serde"] }
 toml_edit = { version = "0.22", features = ["serde"] }
+toml_parser = { version = "1" }
 tracing = { version = "0.1", features = ["log"] }
 tracing-core = { version = "0.1" }
 tracing-log = { version = "0.2" }
@@ -750,18 +764,17 @@ wasmtime = { version = "8" }
 wasmtime-jit = { version = "8", default-features = false, features = ["jitdump", "vtune"] }
 wasmtime-jit-debug = { version = "8", default-features = false, features = ["gdb_jit_int", "perf_jitdump"] }
 wasmtime-runtime = { version = "8", default-features = false, features = ["async", "pooling-allocator"] }
-winnow = { version = "0.7", default-features = false, features = ["std"] }
+winnow = { version = "0.7" }
 zeroize = { version = "1", features = ["derive", "std"] }
 
 [target.x86_64-unknown-linux-gnu.dependencies]
 errno = { version = "0.3" }
-getrandom-468e82937335b1c9 = { package = "getrandom", version = "0.3", default-features = false, features = ["std"] }
 gimli = { version = "0.28" }
 hyper-rustls = { version = "0.27", default-features = false, features = ["http1", "http2", "logging", "ring", "tls12", "webpki-tokio"] }
-itertools-594e8ee84c453af0 = { package = "itertools", version = "0.13", default-features = false, features = ["use_std"] }
+hyper-util = { version = "0.1", default-features = false, features = ["client-proxy"] }
+itertools-a6292c17cd707f01 = { package = "itertools", version = "0.11" }
 libc = { version = "0.2", default-features = false, features = ["extra_traits"] }
-linux-raw-sys = { version = "0.4", default-features = false, features = ["elf", "errno", "general", "ioctl", "no_std", "std"] }
-miniz_oxide = { version = "0.7", default-features = false, features = ["with-alloc"] }
+miniz_oxide = { version = "0.8", default-features = false, features = ["simd", "with-alloc"] }
 mio = { version = "1", features = ["net", "os-ext"] }
 nix = { version = "0.26" }
 nom = { version = "7" }
@@ -769,27 +782,24 @@ once_cell = { version = "1", default-features = false, features = ["critical-sec
 openssl = { version = "0.10", features = ["vendored"] }
 openssl-sys = { version = "0.9", default-features = false, features = ["vendored"] }
 portable-atomic = { version = "1", features = ["require-cas"] }
-rand_chacha-274715c4dabd11b0 = { package = "rand_chacha", version = "0.9" }
-rand_core-274715c4dabd11b0 = { package = "rand_core", version = "0.9", default-features = false, features = ["os_rng", "std"] }
 rustix-4e55305914c60c55 = { package = "rustix", version = "0.36", features = ["mm", "param", "process", "time", "use-libc"] }
-rustix-d585fab2519d2d1 = { package = "rustix", version = "0.38", features = ["fs", "termios"] }
+rustix-d585fab2519d2d1 = { package = "rustix", version = "0.38", features = ["fs"] }
+rustix-dff4ba8e3ae991db = { package = "rustix", version = "1", features = ["fs", "termios"] }
 rustls = { version = "0.23", default-features = false, features = ["logging", "ring", "std", "tls12"] }
-rustls-pki-types = { version = "1", features = ["std"] }
+rustls-webpki = { version = "0.103", features = ["ring"] }
 sha-1 = { version = "0.10", features = ["asm"] }
 spin = { version = "0.9", features = ["std"] }
 tokio-rustls = { version = "0.26", default-features = false, features = ["logging", "ring", "tls12"] }
-tower = { version = "0.4", features = ["make", "util"] }
 unicode-normalization = { version = "0.1" }
 
 [target.x86_64-unknown-linux-gnu.build-dependencies]
 errno = { version = "0.3" }
-getrandom-468e82937335b1c9 = { package = "getrandom", version = "0.3", default-features = false, features = ["std"] }
 gimli = { version = "0.28" }
 hyper-rustls = { version = "0.27", default-features = false, features = ["http1", "http2", "logging", "ring", "tls12", "webpki-tokio"] }
-itertools-594e8ee84c453af0 = { package = "itertools", version = "0.13", default-features = false, features = ["use_std"] }
+hyper-util = { version = "0.1", default-features = false, features = ["client-proxy"] }
+itertools-a6292c17cd707f01 = { package = "itertools", version = "0.11" }
 libc = { version = "0.2", default-features = false, features = ["extra_traits"] }
-linux-raw-sys = { version = "0.4", default-features = false, features = ["elf", "errno", "general", "ioctl", "no_std", "std"] }
-miniz_oxide = { version = "0.7", default-features = false, features = ["with-alloc"] }
+miniz_oxide = { version = "0.8", default-features = false, features = ["simd", "with-alloc"] }
 mio = { version = "1", features = ["net", "os-ext"] }
 nix = { version = "0.26" }
 nom = { version = "7" }
@@ -798,27 +808,24 @@ openssl = { version = "0.10", features = ["vendored"] }
 openssl-sys = { version = "0.9", default-features = false, features = ["vendored"] }
 portable-atomic = { version = "1", features = ["require-cas"] }
 prettyplease = { version = "0.2", default-features = false, features = ["verbatim"] }
-rand_chacha-274715c4dabd11b0 = { package = "rand_chacha", version = "0.9" }
-rand_core-274715c4dabd11b0 = { package = "rand_core", version = "0.9", default-features = false, features = ["os_rng", "std"] }
 rustix-4e55305914c60c55 = { package = "rustix", version = "0.36", features = ["mm", "param", "process", "time", "use-libc"] }
-rustix-d585fab2519d2d1 = { package = "rustix", version = "0.38", features = ["fs", "termios"] }
+rustix-d585fab2519d2d1 = { package = "rustix", version = "0.38", features = ["fs"] }
+rustix-dff4ba8e3ae991db = { package = "rustix", version = "1", features = ["fs", "termios"] }
 rustls = { version = "0.23", default-features = false, features = ["logging", "ring", "std", "tls12"] }
-rustls-pki-types = { version = "1", features = ["std"] }
+rustls-webpki = { version = "0.103", features = ["ring"] }
 sha-1 = { version = "0.10", features = ["asm"] }
 spin = { version = "0.9", features = ["std"] }
 tokio-rustls = { version = "0.26", default-features = false, features = ["logging", "ring", "tls12"] }
-tower = { version = "0.4", features = ["make", "util"] }
 unicode-normalization = { version = "0.1" }
 
 [target.aarch64-unknown-linux-gnu.dependencies]
 errno = { version = "0.3" }
-getrandom-468e82937335b1c9 = { package = "getrandom", version = "0.3", default-features = false, features = ["std"] }
 gimli = { version = "0.28" }
 hyper-rustls = { version = "0.27", default-features = false, features = ["http1", "http2", "logging", "ring", "tls12", "webpki-tokio"] }
-itertools-594e8ee84c453af0 = { package = "itertools", version = "0.13", default-features = false, features = ["use_std"] }
+hyper-util = { version = "0.1", default-features = false, features = ["client-proxy"] }
+itertools-a6292c17cd707f01 = { package = "itertools", version = "0.11" }
 libc = { version = "0.2", default-features = false, features = ["extra_traits"] }
-linux-raw-sys = { version = "0.4", default-features = false, features = ["elf", "errno", "general", "ioctl", "no_std", "std"] }
-miniz_oxide = { version = "0.7", default-features = false, features = ["with-alloc"] }
+miniz_oxide = { version = "0.8", default-features = false, features = ["simd", "with-alloc"] }
 mio = { version = "1", features = ["net", "os-ext"] }
 nix = { version = "0.26" }
 nom = { version = "7" }
@@ -826,26 +833,23 @@ once_cell = { version = "1", default-features = false, features = ["critical-sec
 openssl = { version = "0.10", features = ["vendored"] }
 openssl-sys = { version = "0.9", default-features = false, features = ["vendored"] }
 portable-atomic = { version = "1", features = ["require-cas"] }
-rand_chacha-274715c4dabd11b0 = { package = "rand_chacha", version = "0.9" }
-rand_core-274715c4dabd11b0 = { package = "rand_core", version = "0.9", default-features = false, features = ["os_rng", "std"] }
 rustix-4e55305914c60c55 = { package = "rustix", version = "0.36", features = ["mm", "param", "process", "time", "use-libc"] }
-rustix-d585fab2519d2d1 = { package = "rustix", version = "0.38", features = ["fs", "termios"] }
+rustix-d585fab2519d2d1 = { package = "rustix", version = "0.38", features = ["fs"] }
+rustix-dff4ba8e3ae991db = { package = "rustix", version = "1", features = ["fs", "termios"] }
 rustls = { version = "0.23", default-features = false, features = ["logging", "ring", "std", "tls12"] }
-rustls-pki-types = { version = "1", features = ["std"] }
+rustls-webpki = { version = "0.103", features = ["ring"] }
 sha-1 = { version = "0.10", features = ["asm"] }
 tokio-rustls = { version = "0.26", default-features = false, features = ["logging", "ring", "tls12"] }
-tower = { version = "0.4", features = ["make", "util"] }
 unicode-normalization = { version = "0.1" }
 
 [target.aarch64-unknown-linux-gnu.build-dependencies]
 errno = { version = "0.3" }
-getrandom-468e82937335b1c9 = { package = "getrandom", version = "0.3", default-features = false, features = ["std"] }
 gimli = { version = "0.28" }
 hyper-rustls = { version = "0.27", default-features = false, features = ["http1", "http2", "logging", "ring", "tls12", "webpki-tokio"] }
-itertools-594e8ee84c453af0 = { package = "itertools", version = "0.13", default-features = false, features = ["use_std"] }
+hyper-util = { version = "0.1", default-features = false, features = ["client-proxy"] }
+itertools-a6292c17cd707f01 = { package = "itertools", version = "0.11" }
 libc = { version = "0.2", default-features = false, features = ["extra_traits"] }
-linux-raw-sys = { version = "0.4", default-features = false, features = ["elf", "errno", "general", "ioctl", "no_std", "std"] }
-miniz_oxide = { version = "0.7", default-features = false, features = ["with-alloc"] }
+miniz_oxide = { version = "0.8", default-features = false, features = ["simd", "with-alloc"] }
 mio = { version = "1", features = ["net", "os-ext"] }
 nix = { version = "0.26" }
 nom = { version = "7" }
@@ -854,66 +858,58 @@ openssl = { version = "0.10", features = ["vendored"] }
 openssl-sys = { version = "0.9", default-features = false, features = ["vendored"] }
 portable-atomic = { version = "1", features = ["require-cas"] }
 prettyplease = { version = "0.2", default-features = false, features = ["verbatim"] }
-rand_chacha-274715c4dabd11b0 = { package = "rand_chacha", version = "0.9" }
-rand_core-274715c4dabd11b0 = { package = "rand_core", version = "0.9", default-features = false, features = ["os_rng", "std"] }
 rustix-4e55305914c60c55 = { package = "rustix", version = "0.36", features = ["mm", "param", "process", "time", "use-libc"] }
-rustix-d585fab2519d2d1 = { package = "rustix", version = "0.38", features = ["fs", "termios"] }
+rustix-d585fab2519d2d1 = { package = "rustix", version = "0.38", features = ["fs"] }
+rustix-dff4ba8e3ae991db = { package = "rustix", version = "1", features = ["fs", "termios"] }
 rustls = { version = "0.23", default-features = false, features = ["logging", "ring", "std", "tls12"] }
-rustls-pki-types = { version = "1", features = ["std"] }
+rustls-webpki = { version = "0.103", features = ["ring"] }
 sha-1 = { version = "0.10", features = ["asm"] }
 tokio-rustls = { version = "0.26", default-features = false, features = ["logging", "ring", "tls12"] }
-tower = { version = "0.4", features = ["make", "util"] }
 unicode-normalization = { version = "0.1" }
 
 [target.aarch64-apple-darwin.dependencies]
 errno = { version = "0.3" }
-getrandom-468e82937335b1c9 = { package = "getrandom", version = "0.3", default-features = false, features = ["std"] }
 gimli = { version = "0.28" }
 hyper-rustls = { version = "0.27", default-features = false, features = ["http1", "http2", "logging", "ring", "tls12", "webpki-tokio"] }
-itertools-594e8ee84c453af0 = { package = "itertools", version = "0.13", default-features = false, features = ["use_std"] }
+hyper-util = { version = "0.1", default-features = false, features = ["client-proxy"] }
+itertools-a6292c17cd707f01 = { package = "itertools", version = "0.11" }
 libc = { version = "0.2", default-features = false, features = ["extra_traits"] }
-miniz_oxide = { version = "0.7", default-features = false, features = ["with-alloc"] }
+miniz_oxide = { version = "0.8", default-features = false, features = ["simd", "with-alloc"] }
 nom = { version = "7" }
 once_cell = { version = "1", default-features = false, features = ["critical-section"] }
 openssl-sys = { version = "0.9", default-features = false, features = ["vendored"] }
 portable-atomic = { version = "1", features = ["require-cas"] }
-rand_chacha-274715c4dabd11b0 = { package = "rand_chacha", version = "0.9" }
-rand_core-274715c4dabd11b0 = { package = "rand_core", version = "0.9", default-features = false, features = ["os_rng", "std"] }
 rustix-4e55305914c60c55 = { package = "rustix", version = "0.36", features = ["mm", "param", "process", "use-libc"] }
-rustix-d585fab2519d2d1 = { package = "rustix", version = "0.38", features = ["fs", "termios"] }
+rustix-d585fab2519d2d1 = { package = "rustix", version = "0.38", features = ["fs"] }
+rustix-dff4ba8e3ae991db = { package = "rustix", version = "1", features = ["fs", "termios"] }
 rustls = { version = "0.23", default-features = false, features = ["logging", "ring", "std", "tls12"] }
-rustls-pki-types = { version = "1", features = ["std"] }
-security-framework = { version = "2", features = ["OSX_10_14"] }
+rustls-webpki = { version = "0.103", features = ["ring"] }
 security-framework-sys = { version = "2", features = ["OSX_10_14"] }
 sha-1 = { version = "0.10", features = ["asm"] }
 tokio-rustls = { version = "0.26", default-features = false, features = ["logging", "ring", "tls12"] }
-tower = { version = "0.4", features = ["make", "util"] }
 unicode-normalization = { version = "0.1" }
 
 [target.aarch64-apple-darwin.build-dependencies]
 errno = { version = "0.3" }
-getrandom-468e82937335b1c9 = { package = "getrandom", version = "0.3", default-features = false, features = ["std"] }
 gimli = { version = "0.28" }
 hyper-rustls = { version = "0.27", default-features = false, features = ["http1", "http2", "logging", "ring", "tls12", "webpki-tokio"] }
-itertools-594e8ee84c453af0 = { package = "itertools", version = "0.13", default-features = false, features = ["use_std"] }
+hyper-util = { version = "0.1", default-features = false, features = ["client-proxy"] }
+itertools-a6292c17cd707f01 = { package = "itertools", version = "0.11" }
 libc = { version = "0.2", default-features = false, features = ["extra_traits"] }
-miniz_oxide = { version = "0.7", default-features = false, features = ["with-alloc"] }
+miniz_oxide = { version = "0.8", default-features = false, features = ["simd", "with-alloc"] }
 nom = { version = "7" }
 once_cell = { version = "1", default-features = false, features = ["critical-section"] }
 openssl-sys = { version = "0.9", default-features = false, features = ["vendored"] }
 portable-atomic = { version = "1", features = ["require-cas"] }
 prettyplease = { version = "0.2", default-features = false, features = ["verbatim"] }
-rand_chacha-274715c4dabd11b0 = { package = "rand_chacha", version = "0.9" }
-rand_core-274715c4dabd11b0 = { package = "rand_core", version = "0.9", default-features = false, features = ["os_rng", "std"] }
 rustix-4e55305914c60c55 = { package = "rustix", version = "0.36", features = ["mm", "param", "process", "use-libc"] }
-rustix-d585fab2519d2d1 = { package = "rustix", version = "0.38", features = ["fs", "termios"] }
+rustix-d585fab2519d2d1 = { package = "rustix", version = "0.38", features = ["fs"] }
+rustix-dff4ba8e3ae991db = { package = "rustix", version = "1", features = ["fs", "termios"] }
 rustls = { version = "0.23", default-features = false, features = ["logging", "ring", "std", "tls12"] }
-rustls-pki-types = { version = "1", features = ["std"] }
-security-framework = { version = "2", features = ["OSX_10_14"] }
+rustls-webpki = { version = "0.103", features = ["ring"] }
 security-framework-sys = { version = "2", features = ["OSX_10_14"] }
 sha-1 = { version = "0.10", features = ["asm"] }
 tokio-rustls = { version = "0.26", default-features = false, features = ["logging", "ring", "tls12"] }
-tower = { version = "0.4", features = ["make", "util"] }
 unicode-normalization = { version = "0.1" }
 
 ### END HAKARI SECTION

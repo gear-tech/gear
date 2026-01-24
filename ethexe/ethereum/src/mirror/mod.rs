@@ -22,12 +22,13 @@ use crate::{
 };
 use alloy::{
     contract::CallBuilder,
+    eips::BlockId,
     hex, network,
     primitives::{Address, Bytes, U256 as AlloyU256},
-    providers::{PendingTransactionBuilder, Provider, RootProvider},
+    providers::{PendingTransactionBuilder, Provider, RootProvider, WalletProvider},
     rpc::types::{Filter, Topic, TransactionReceipt},
 };
-use anyhow::{Result, anyhow};
+use anyhow::{Context, Result, anyhow};
 use ethexe_common::{Address as LocalAddress, events::MirrorEvent};
 pub use events::signatures;
 use futures::StreamExt;
@@ -44,6 +45,13 @@ pub struct ReplyInfo {
     #[serde(with = "hex::serde")]
     pub payload: Vec<u8>,
     pub code: ReplyCode,
+    pub value: u128,
+}
+
+#[derive(Debug, Clone, Serialize)]
+pub struct ClaimInfo {
+    pub message_id: MessageId,
+    pub actor_id: ActorId,
     pub value: u128,
 }
 
@@ -86,6 +94,19 @@ impl Mirror {
         }
 
         Err(anyhow!("Failed to define if state changed"))
+    }
+
+    pub async fn get_reference_block(&self) -> Result<(u64, H256)> {
+        let block_resp = self
+            .0
+            .provider()
+            .get_block(BlockId::latest())
+            .await
+            .with_context(|| "failed to get latest block")?
+            .ok_or_else(|| anyhow!("latest block not found"))?;
+        let block_number = block_resp.number();
+        let block_hash = block_resp.hash().0.into();
+        Ok((block_number, block_hash))
     }
 
     pub async fn get_balance(&self) -> Result<u128> {
@@ -223,12 +244,53 @@ impl Mirror {
         Err(anyhow!("Failed to wait for reply"))
     }
 
+    pub async fn wait_for_value_claimed(&self, message_id: MessageId) -> Result<ClaimInfo> {
+        let filter = Filter::new()
+            .address(*self.0.address())
+            .event_signature(Topic::from_iter([signatures::VALUE_CLAIMED]));
+        let mut mirror_events = self
+            .0
+            .provider()
+            .subscribe_logs(&filter)
+            .await?
+            .into_stream();
+
+        while let Some(log) = mirror_events.next().await {
+            if let Some(signatures::VALUE_CLAIMED) = log.topic0().cloned()
+                && let MirrorEvent::ValueClaimed { claimed_id, value } =
+                    MirrorEvent::from(crate::decode_log::<IMirror::ValueClaimed>(&log)?)
+                && claimed_id == message_id
+            {
+                let actor_id = self.0.provider().default_signer_address().into();
+                return Ok(ClaimInfo {
+                    message_id: claimed_id,
+                    actor_id,
+                    value,
+                });
+            }
+        }
+
+        Err(anyhow!("Failed to wait for value claimed"))
+    }
+
     pub async fn send_reply(
         &self,
         replied_to: MessageId,
         payload: impl AsRef<[u8]>,
         value: u128,
     ) -> Result<H256> {
+        let (receipt, _) = self
+            .send_reply_with_receipt(replied_to, payload, value)
+            .await?;
+        Ok((*receipt.transaction_hash).into())
+    }
+
+    pub async fn send_reply_with_receipt(
+        &self,
+        replied_to: MessageId,
+        payload: impl AsRef<[u8]>,
+        value: u128,
+    ) -> Result<(TransactionReceipt, MessageId)> {
         let builder = self
             .0
             .sendReply(
@@ -242,10 +304,18 @@ impl Mirror {
             .try_get_receipt_check_reverted()
             .await?;
 
-        Ok((*receipt.transaction_hash).into())
+        Ok((receipt, replied_to))
     }
 
     pub async fn claim_value(&self, claimed_id: MessageId) -> Result<H256> {
+        let (receipt, _) = self.claim_value_with_receipt(claimed_id).await?;
+        Ok((*receipt.transaction_hash).into())
+    }
+
+    pub async fn claim_value_with_receipt(
+        &self,
+        claimed_id: MessageId,
+    ) -> Result<(TransactionReceipt, MessageId)> {
         let builder = self.0.claimValue(claimed_id.into_bytes().into());
         let receipt = builder
             .send()
@@ -253,7 +323,20 @@ impl Mirror {
             .try_get_receipt_check_reverted()
             .await?;
 
-        Ok((*receipt.transaction_hash).into())
+        Ok((receipt, claimed_id))
+    }
+
+    pub async fn transfer_locked_value_to_inheritor_with_receipt(
+        &self,
+    ) -> Result<TransactionReceipt> {
+        let builder = self.0.transferLockedValueToInheritor();
+        let receipt = builder
+            .send()
+            .await?
+            .try_get_receipt_check_reverted()
+            .await?;
+
+        Ok(receipt)
     }
 }
 

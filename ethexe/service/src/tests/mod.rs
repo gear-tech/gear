@@ -26,7 +26,8 @@ use crate::{
     config::{self, Config},
     tests::utils::{
         AnnounceId, EnvNetworkConfig, InfiniteStreamExt, Node, NodeConfig, TestEnv, TestEnvConfig,
-        TestingEvent, TestingRpcEvent, ValidatorsConfig, WaitForReplyTo, Wallets, init_logger,
+        TestingEvent, TestingNetworkEvent, TestingRpcEvent, ValidatorsConfig, WaitForReplyTo,
+        Wallets, init_logger,
     },
 };
 use alloy::{
@@ -40,7 +41,7 @@ use ethexe_common::{
     ecdsa::ContractSignature,
     events::{BlockEvent, MirrorEvent, RouterEvent},
     gear::{BatchCommitment, CANONICAL_QUARANTINE, MessageType},
-    injected::{InjectedTransaction, RpcOrNetworkInjectedTx},
+    injected::{AddressedInjectedTransaction, InjectedTransaction, InjectedTransactionAcceptance},
     mock::*,
     network::ValidatorMessage,
 };
@@ -51,7 +52,7 @@ use ethexe_ethereum::{TryGetReceipt, deploy::ContractsDeploymentParams, router::
 use ethexe_observer::{EthereumConfig, ObserverEvent};
 use ethexe_processor::{DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, RunnerConfig};
 use ethexe_prometheus::PrometheusConfig;
-use ethexe_rpc::{InjectedClient, InjectedTransactionAcceptance, RpcConfig};
+use ethexe_rpc::{InjectedClient, RpcConfig};
 use ethexe_runtime_common::state::{Expiring, MailboxMessage, PayloadLookup, Storage};
 use ethexe_signer::Signer;
 use gear_core::{
@@ -60,7 +61,7 @@ use gear_core::{
 };
 use gear_core_errors::{ErrorReplyReason, SimpleExecutionError, SimpleUnavailableActorError};
 use gprimitives::{ActorId, H160, H256, MessageId};
-use parity_scale_codec::Encode;
+use parity_scale_codec::{Decode, Encode};
 use std::{
     collections::{BTreeMap, BTreeSet, HashSet},
     net::{Ipv4Addr, SocketAddr},
@@ -1461,13 +1462,13 @@ async fn send_injected_tx() {
     // Prepare tx data
     let tx = InjectedTransaction {
         destination: ActorId::from(H160::random()),
-        payload: H256::random().0.to_vec().into(),
+        payload: H256::random().0.to_vec().try_into().unwrap(),
         value: 0,
         reference_block,
-        salt: H256::random().0.to_vec().into(),
+        salt: gprimitives::U256::from(1),
     };
 
-    let tx_for_node1 = RpcOrNetworkInjectedTx {
+    let tx_for_node1 = AddressedInjectedTransaction {
         recipient: validator1_pubkey.to_address(),
         tx: env
             .signer
@@ -2384,19 +2385,19 @@ async fn injected_tx_fungible_token() {
 
     tracing::info!("✅ Fungible token successfully initialized");
 
-    // 4. Try ming some tokens
+    // 4. Try minting some tokens
     let amount: u128 = 5_000_000_000;
     let mint_action = demo_fungible_token::FTAction::Mint(amount);
 
     let mint_tx = InjectedTransaction {
         destination: usdt_actor_id,
-        payload: mint_action.encode().into(),
+        payload: mint_action.encode().try_into().unwrap(),
         value: 0,
         reference_block: node.db.latest_data().unwrap().prepared_block_hash,
-        salt: vec![1u8].into(),
+        salt: gprimitives::U256::from(1),
     };
 
-    let rpc_tx = RpcOrNetworkInjectedTx {
+    let rpc_tx = AddressedInjectedTransaction {
         recipient: pubkey.to_address(),
         tx: env.signer.signed_message(pubkey, mint_tx.clone()).unwrap(),
     };
@@ -2416,8 +2417,10 @@ async fn injected_tx_fungible_token() {
     // Listen for inclusion and check the expected payload.
     node.events()
         .find(|event| {
-            if let TestingEvent::Consensus(ConsensusEvent::Promise(promise)) = event {
-                let promise = promise.data();
+            if let TestingEvent::Consensus(ConsensusEvent::Promises(promises)) = event
+                && !promises.is_empty()
+            {
+                let promise = promises.first().unwrap().data();
                 assert_eq!(promise.reply.payload, expected_event.encode());
                 assert_eq!(
                     promise.reply.code,
@@ -2472,13 +2475,13 @@ async fn injected_tx_fungible_token() {
     };
     let transfer_tx = InjectedTransaction {
         destination: usdt_actor_id,
-        payload: transfer_action.encode().into(),
+        payload: transfer_action.encode().try_into().unwrap(),
         value: 0,
         reference_block: node.db.latest_data().unwrap().prepared_block_hash,
-        salt: vec![1u8, 2u8, 3u8].into(),
+        salt: gprimitives::U256::from(1),
     };
 
-    let rpc_tx = RpcOrNetworkInjectedTx {
+    let rpc_tx = AddressedInjectedTransaction {
         recipient: pubkey.to_address(),
         tx: env
             .signer
@@ -2519,6 +2522,155 @@ async fn injected_tx_fungible_token() {
         .expect("successfully unsubscribe for promise");
 
     tracing::info!("✅ Promise successfully received from RPC subscription");
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ntest::timeout(60_000)]
+async fn injected_tx_fungible_token_over_network() {
+    init_logger();
+
+    let env_config = TestEnvConfig {
+        network: EnvNetworkConfig::Enabled,
+        compute_config: ComputeConfig::without_quarantine(),
+        ..Default::default()
+    };
+
+    let mut env = TestEnv::new(env_config).await.unwrap();
+
+    let user_pubkey = env.signer.generate_key().unwrap();
+
+    let mut alice_node = env.new_node(NodeConfig::named("Alice").service_rpc(8091));
+    alice_node.start_service().await;
+    let alice_rpc_client = alice_node
+        .rpc_ws_client()
+        .await
+        .expect("RPC client provide by node");
+
+    let bob_pubkey = env.validators[0].public_key;
+    let mut bob_node = env.new_node(NodeConfig::named("Bob").validator(env.validators[0]));
+    bob_node.start_service().await;
+
+    // 1. Create Fungible token config
+    let token_config = demo_fungible_token::InitConfig {
+        name: "USD Tether".to_string(),
+        symbol: "USDT".to_string(),
+        decimals: 10,
+        initial_capacity: None,
+    };
+
+    // 2. Uploading code and creating program
+    let res = env
+        .upload_code(demo_fungible_token::WASM_BINARY)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    let code_id = res.code_id;
+    let res = env
+        .create_program(code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    let usdt_actor_id = res.program_id;
+
+    // 3. Initialize program
+    let init_reply = env
+        .send_message(usdt_actor_id, &token_config.encode())
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    assert_eq!(init_reply.program_id, usdt_actor_id);
+    assert_eq!(init_reply.value, 0);
+    assert_eq!(
+        init_reply.code,
+        ReplyCode::Success(SuccessReplyReason::Auto)
+    );
+    assert!(
+        init_reply.payload.is_empty(),
+        "Expect empty payload, because of initializing Fungible Token returns nothing"
+    );
+
+    tracing::info!("✅ Fungible token successfully initialized");
+
+    // 4. Try minting some tokens
+    let amount: u128 = 5_000_000_000;
+    let mint_action = demo_fungible_token::FTAction::Mint(amount);
+
+    let mint_tx = InjectedTransaction {
+        destination: usdt_actor_id,
+        payload: mint_action.encode().try_into().unwrap(),
+        value: 0,
+        reference_block: bob_node.db.latest_data().unwrap().prepared_block_hash,
+        salt: gprimitives::U256::from(1),
+    };
+
+    let rpc_tx = AddressedInjectedTransaction {
+        recipient: bob_pubkey.to_address(),
+        tx: env
+            .signer
+            .signed_message(user_pubkey, mint_tx.clone())
+            .unwrap(),
+    };
+
+    alice_node
+        .events()
+        .find(|event| {
+            matches!(
+                event,
+                TestingEvent::Network(TestingNetworkEvent::ValidatorIdentityUpdated(_))
+            )
+        })
+        .await;
+
+    let mut subscription = alice_rpc_client
+        .send_transaction_and_watch(rpc_tx)
+        .await
+        .expect("successfully subscribe for transaction promise");
+
+    // wait for the injected transaction received before forcing a block
+    bob_node
+        .events()
+        .find(|event| {
+            matches!(
+                event,
+                TestingEvent::Network(TestingNetworkEvent::InjectedTransaction(_))
+            )
+        })
+        .await;
+
+    // force new block so consensus can produce promise
+    env.force_new_block().await;
+
+    let promise = subscription
+        .next()
+        .await
+        .expect("promise from subscription")
+        .expect("transaction promise")
+        .into_data();
+
+    let expected_event = demo_fungible_token::FTEvent::Transfer {
+        from: ActorId::new([0u8; 32]),
+        to: user_pubkey.to_address().into(),
+        amount,
+    };
+
+    let action = demo_fungible_token::FTEvent::decode(&mut &promise.reply.payload[..]).unwrap();
+    assert_eq!(action, expected_event);
+    assert_eq!(
+        promise.reply.code,
+        ReplyCode::Success(SuccessReplyReason::Manual)
+    );
+    assert_eq!(promise.reply.value, 0);
+
+    tracing::info!("✅ Tokens mint successfully");
 }
 
 #[tokio::test(flavor = "multi_thread")]
