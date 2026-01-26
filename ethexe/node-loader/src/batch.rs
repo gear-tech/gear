@@ -431,7 +431,7 @@ async fn run_batch_impl(
             process_events(api, messages, rx, block).await
         }
 
-        Batch::ClaimValue(args) => {
+        Batch::ClaimValue(_args) => {
             // TODO: Need to get address of mirror somehow here. gear-call-gen DOES NOT give us that.
             tracing::warn!("ClaimValue batch is not implemented yet");
             Ok(Report {
