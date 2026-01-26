@@ -18,7 +18,7 @@
 
 #![allow(dead_code, clippy::new_without_default)]
 
-use abi::{IMirror, IRouter};
+use abi::{IMirror, IRouter, IWrappedVara};
 use alloy::{
     consensus::SignableTransaction,
     eips::BlockId,
@@ -40,7 +40,7 @@ use alloy::{
     sol_types::SolEvent,
     transports::RpcError,
 };
-use anyhow::{Result, anyhow};
+use anyhow::{Context, Result, anyhow};
 use async_trait::async_trait;
 use ethexe_common::{Address as LocalAddress, Digest, ecdsa::PublicKey};
 use ethexe_signer::Signer as LocalSigner;
@@ -49,8 +49,6 @@ use middleware::Middleware;
 use mirror::Mirror;
 use router::{Router, RouterQuery};
 use std::time::Duration;
-
-mod eip1167;
 
 pub mod abi;
 pub mod deploy;
@@ -63,7 +61,7 @@ pub mod primitives {
     pub use alloy::primitives::*;
 }
 
-type AlloyProvider = FillProvider<
+pub type AlloyProvider = FillProvider<
     JoinFill<
         JoinFill<
             JoinFill<
@@ -84,32 +82,50 @@ pub struct Ethereum {
     /// for [`deploy::EthereumDeployer`].
     middleware: Address,
     provider: AlloyProvider,
+    signer: Option<LocalSigner>,
+    sender_address: Option<LocalAddress>,
 }
 
 impl Ethereum {
     pub async fn new(
-        rpc: &str,
-        router_address: Address,
+        ethereum_rpc_url: &str,
+        router_address: LocalAddress,
         signer: LocalSigner,
         sender_address: LocalAddress,
     ) -> Result<Ethereum> {
-        let provider = create_provider(rpc, signer, sender_address).await?;
-        let router_query = RouterQuery::from_provider(router_address, provider.root().clone());
+        let provider = create_provider(ethereum_rpc_url, signer.clone(), sender_address).await?;
+        let router_query =
+            RouterQuery::from_provider(router_address.into(), provider.root().clone());
+        let router = router_address.into();
+        let wvara = router_query.wvara_address().await?.into();
+        let middleware = router_query.middleware_address().await?.into();
         Ok(Self {
-            router: router_address,
-            wvara: router_query.wvara_address().await?,
-            middleware: router_query.middleware_address().await?,
+            router,
+            wvara,
+            middleware,
             provider,
+            signer: Some(signer),
+            sender_address: Some(sender_address),
         })
+    }
+
+    pub fn signer(&self) -> Option<&LocalSigner> {
+        self.signer.as_ref()
+    }
+
+    pub fn sender_address(&self) -> Option<LocalAddress> {
+        self.sender_address
     }
 
     pub async fn from_provider(provider: AlloyProvider, router: Address) -> Result<Self> {
         let router_query = RouterQuery::from_provider(router, provider.root().clone());
         Ok(Self {
             router,
-            wvara: router_query.wvara_address().await?,
-            middleware: router_query.middleware_address().await?,
+            wvara: router_query.wvara_address().await?.into(),
+            middleware: router_query.middleware_address().await?.into(),
             provider,
+            signer: None,
+            sender_address: None,
         })
     }
 }
@@ -117,6 +133,22 @@ impl Ethereum {
 impl Ethereum {
     pub fn provider(&self) -> AlloyProvider {
         self.provider.clone()
+    }
+
+    pub async fn chain_id(&self) -> Result<u64> {
+        self.provider.get_chain_id().await.map_err(Into::into)
+    }
+
+    pub async fn get_latest_block(&self) -> Result<(u64, H256)> {
+        let block_resp = self
+            .provider()
+            .get_block(BlockId::latest())
+            .await
+            .with_context(|| "failed to get latest block")?
+            .ok_or_else(|| anyhow!("latest block not found"))?;
+        let block_number = block_resp.number();
+        let block_hash = block_resp.hash().0.into();
+        Ok((block_number, block_hash))
     }
 
     pub fn mirror(&self, address: LocalAddress) -> Mirror {
@@ -364,6 +396,12 @@ impl IntoBlockId for H256 {
 impl IntoBlockId for u32 {
     fn into_block_id(self) -> BlockId {
         BlockId::number(self.into())
+    }
+}
+
+impl IntoBlockId for u64 {
+    fn into_block_id(self) -> BlockId {
+        BlockId::number(self)
     }
 }
 

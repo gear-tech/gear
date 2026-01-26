@@ -278,7 +278,7 @@ impl TxCommand {
 
         let sender = self.sender.ok_or_else(|| anyhow!("missing `sender`"))?;
 
-        let ethereum = Ethereum::new(&rpc, router_addr.into(), signer.clone(), sender)
+        let ethereum = Ethereum::new(&rpc, router_addr, signer.clone(), sender)
             .await
             .with_context(|| "failed to create Ethereum client")?;
 
@@ -294,7 +294,7 @@ impl TxCommand {
         }
         let router = ethereum.router();
         let router_query = router.query();
-        let chain_id = router
+        let chain_id = ethereum
             .chain_id()
             .await
             .with_context(|| "failed to fetch chain id")?;
@@ -332,19 +332,14 @@ impl TxCommand {
                     eprintln!("  Code id:   {code_id} (blake2b256)");
                     eprintln!("  Code size: {code_size_bytes} bytes ({code_size_kib:.2} KiB)",);
 
-                    let pending_builder = router
-                        .request_code_validation_with_sidecar(&code)
+                    let (receipt, code_id) = router
+                        .request_code_validation_with_receipt(&code)
                         .await
                         .with_context(|| {
                             format!("failed to create code validation request (code_id {code_id})")
                         })?;
-                    let tx_hash = pending_builder.tx_hash();
+                    let tx_hash = (*receipt.transaction_hash).into();
                     eprintln!();
-
-                    let (receipt, code_id) = pending_builder
-                        .send_with_receipt()
-                        .await
-                        .with_context(|| "failed to request code validation")?;
 
                     let fee = TxCostSummary::new(
                         receipt.gas_used,
@@ -392,7 +387,7 @@ impl TxCommand {
                         eprintln!();
 
                         let code_validation_result = router
-                            .wait_code_validation(code_id)
+                            .wait_for_code_validation(code_id)
                             .await
                             .with_context(|| "failed to wait for code validation")?;
 
@@ -468,7 +463,7 @@ impl TxCommand {
                             )
                         })?;
 
-                    let tx_hash: H256 = (*receipt.transaction_hash).into();
+                    let tx_hash = (*receipt.transaction_hash).into();
                     let fee = TxCostSummary::new(
                         receipt.gas_used,
                         receipt.effective_gas_price,
@@ -560,7 +555,7 @@ impl TxCommand {
                             )
                         })?;
 
-                    let tx_hash: H256 = (*receipt.transaction_hash).into();
+                    let tx_hash = (*receipt.transaction_hash).into();
                     let fee = TxCostSummary::new(
                         receipt.gas_used,
                         receipt.effective_gas_price,
@@ -743,7 +738,7 @@ impl TxCommand {
                         .await
                         .with_context(|| "failed to top up owned balance of mirror")?;
 
-                    let tx_hash: H256 = (*receipt.transaction_hash).into();
+                    let tx_hash = (*receipt.transaction_hash).into();
                     let fee = TxCostSummary::new(
                         receipt.gas_used,
                         receipt.effective_gas_price,
@@ -772,7 +767,7 @@ impl TxCommand {
                         eprintln!("Waiting for state change...");
 
                         mirror
-                            .wait_for_state_changed()
+                            .wait_for_state_change()
                             .await
                             .with_context(|| "failed to wait for state change")?;
 
@@ -841,7 +836,7 @@ impl TxCommand {
                         ethereum
                             .router()
                             .wvara()
-                            .approve(mirror.address().into(), raw_value)
+                            .approve(mirror.address(), raw_value)
                             .await?;
                     }
 
@@ -850,7 +845,7 @@ impl TxCommand {
                         .await
                         .with_context(|| "failed to top up executable balance of mirror")?;
 
-                    let tx_hash: H256 = (*receipt.transaction_hash).into();
+                    let tx_hash = (*receipt.transaction_hash).into();
                     let fee = TxCostSummary::new(
                         receipt.gas_used,
                         receipt.effective_gas_price,
@@ -879,7 +874,7 @@ impl TxCommand {
                         eprintln!("Waiting for state change...");
 
                         mirror
-                            .wait_for_state_changed()
+                            .wait_for_state_change()
                             .await
                             .with_context(|| "failed to wait for state change")?;
 
@@ -975,7 +970,7 @@ impl TxCommand {
                             .ok_or_else(|| anyhow!("no key found for {sender}"))?;
 
                         let (reference_block_number, reference_block_hash) =
-                            mirror.get_reference_block().await?;
+                            ethereum.get_latest_block().await?;
                         let salt = H256::random();
 
                         let injected_transaction = InjectedTransaction {
@@ -1088,7 +1083,7 @@ impl TxCommand {
                                 format!("failed to send message to mirror {actor_id}")
                             })?;
 
-                        let tx_hash: H256 = (*receipt.transaction_hash).into();
+                        let tx_hash = (*receipt.transaction_hash).into();
                         let fee = TxCostSummary::new(
                             receipt.gas_used,
                             receipt.effective_gas_price,
@@ -1224,12 +1219,12 @@ impl TxCommand {
                     let raw_actor_id: ActorId = mirror.address().into();
                     let actor_id = raw_actor_id.to_address_lossy();
 
-                    let (receipt, _) = mirror
+                    let receipt = mirror
                         .send_reply_with_receipt(replied_to, payload.0.clone(), raw_value)
                         .await
                         .with_context(|| format!("failed to send reply to mirror {actor_id:?}"))?;
 
-                    let tx_hash: H256 = (*receipt.transaction_hash).into();
+                    let tx_hash = (*receipt.transaction_hash).into();
                     let fee = TxCostSummary::new(
                         receipt.gas_used,
                         receipt.effective_gas_price,
@@ -1259,7 +1254,7 @@ impl TxCommand {
                     let claim_info = if watch {
                         eprintln!("Waiting for value to be claimed...");
 
-                        let claim_info = mirror.wait_for_value_claimed(replied_to).await?;
+                        let claim_info = mirror.wait_for_value_claim(replied_to).await?;
                         let ClaimInfo {
                             message_id,
                             actor_id,
@@ -1340,14 +1335,14 @@ impl TxCommand {
                     let raw_actor_id: ActorId = mirror.address().into();
                     let actor_id = raw_actor_id.to_address_lossy();
 
-                    let (receipt, _) = mirror
+                    let receipt = mirror
                         .claim_value_with_receipt(claimed_id)
                         .await
                         .with_context(|| {
                             format!("failed to claim value from mirror {actor_id:?}")
                         })?;
 
-                    let tx_hash: H256 = (*receipt.transaction_hash).into();
+                    let tx_hash = (*receipt.transaction_hash).into();
                     let fee = TxCostSummary::new(
                         receipt.gas_used,
                         receipt.effective_gas_price,
@@ -1378,7 +1373,7 @@ impl TxCommand {
                     let claim_info = if watch {
                         eprintln!("Waiting for value to be claimed...");
 
-                        let claim_info = mirror.wait_for_value_claimed(claimed_id).await?;
+                        let claim_info = mirror.wait_for_value_claim(claimed_id).await?;
                         let ClaimInfo {
                             message_id,
                             actor_id,
@@ -1444,10 +1439,10 @@ impl TxCommand {
                     let mirror = ethereum.mirror(mirror);
                     let raw_actor_id: ActorId = mirror.address().into();
                     let actor_id = raw_actor_id.to_address_lossy();
-                    let value = mirror
-                        .get_balance()
-                        .await
-                        .with_context(|| format!("failed to get balance of mirror {actor_id:?}"))?;
+                    let value =
+                        mirror.query().balance().await.with_context(|| {
+                            format!("failed to get balance of mirror {actor_id:?}")
+                        })?;
                     let formatted_value = FormattedValue::<EthereumCurrency>::new(value);
 
                     ensure!(
@@ -1467,7 +1462,7 @@ impl TxCommand {
                             format!("failed to transfer locked value from mirror {actor_id:?}")
                         })?;
 
-                    let tx_hash: H256 = (*receipt.transaction_hash).into();
+                    let tx_hash = (*receipt.transaction_hash).into();
                     let fee = TxCostSummary::new(
                         receipt.gas_used,
                         receipt.effective_gas_price,

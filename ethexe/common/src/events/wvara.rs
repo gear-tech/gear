@@ -16,16 +16,25 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use alloy::primitives::{Address, FixedBytes, hex};
+use gprimitives::{ActorId, U256};
+use parity_scale_codec::{Decode, Encode};
 
-const INITIALIZATION_CODE: FixedBytes<10> = FixedBytes::new(hex!("3d602d80600a3d3981f3"));
-const RUNTIME_CODE_1: FixedBytes<10> = FixedBytes::new(hex!("363d3d373d3d3d363d73"));
-const RUNTIME_CODE_2: FixedBytes<15> = FixedBytes::new(hex!("5af43d82803e903d91602b57fd5bf3"));
+#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, Hash)]
+pub struct TransferEvent {
+    pub from: ActorId,
+    pub to: ActorId,
+    pub value: u128,
+}
 
-pub const fn minimal_proxy_bytecode(address: [u8; 20]) -> [u8; 55] {
-    let address = Address::new(address);
-    let part1: FixedBytes<20> = INITIALIZATION_CODE.concat_const(RUNTIME_CODE_1);
-    let part2: FixedBytes<40> = part1.concat_const(address.0);
-    let part3: FixedBytes<55> = part2.concat_const(RUNTIME_CODE_2);
-    part3.0
+#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, Hash)]
+pub struct ApprovalEvent {
+    pub owner: ActorId,
+    pub spender: ActorId,
+    pub value: U256,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, Hash)]
+pub enum Event {
+    Transfer(TransferEvent),
+    Approval(ApprovalEvent),
 }

@@ -21,107 +21,134 @@ use gear_core::message::ReplyCode;
 use gprimitives::{ActorId, H256, MessageId};
 use parity_scale_codec::{Decode, Encode};
 
+// TODO: consider to sort events in same way as in IMirror.sol
+
+#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, Hash)]
+pub struct OwnedBalanceTopUpRequestedEvent {
+    pub value: u128,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, Hash)]
+pub struct ExecutableBalanceTopUpRequestedEvent {
+    pub value: u128,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, Hash)]
+pub struct MessageEvent {
+    pub id: MessageId,
+    pub destination: ActorId,
+    pub payload: Vec<u8>,
+    pub value: u128,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, Hash)]
+pub struct MessageCallFailedEvent {
+    pub id: MessageId,
+    pub destination: ActorId,
+    pub value: u128,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, Hash)]
+pub struct MessageQueueingRequestedEvent {
+    pub id: MessageId,
+    pub source: ActorId,
+    pub payload: Vec<u8>,
+    pub value: u128,
+    pub call_reply: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, Hash)]
+pub struct ReplyEvent {
+    pub payload: Vec<u8>,
+    pub value: u128,
+    pub reply_to: MessageId,
+    pub reply_code: ReplyCode,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, Hash)]
+pub struct ReplyCallFailedEvent {
+    pub value: u128,
+    pub reply_to: MessageId,
+    pub reply_code: ReplyCode,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, Hash)]
+pub struct ReplyQueueingRequestedEvent {
+    pub replied_to: MessageId,
+    pub source: ActorId,
+    pub payload: Vec<u8>,
+    pub value: u128,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, Hash)]
+pub struct StateChangedEvent {
+    pub state_hash: H256,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, Hash)]
+pub struct ValueClaimedEvent {
+    pub claimed_id: MessageId,
+    pub value: u128,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, Hash)]
+pub struct ValueClaimingRequestedEvent {
+    pub claimed_id: MessageId,
+    pub source: ActorId,
+}
+
 #[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, Hash)]
 pub enum Event {
-    OwnedBalanceTopUpRequested {
-        value: u128,
-    },
-    ExecutableBalanceTopUpRequested {
-        value: u128,
-    },
-    Message {
-        id: MessageId,
-        destination: ActorId,
-        payload: Vec<u8>,
-        value: u128,
-    },
-    MessageCallFailed {
-        id: MessageId,
-        destination: ActorId,
-        value: u128,
-    },
-    MessageQueueingRequested {
-        id: MessageId,
-        source: ActorId,
-        payload: Vec<u8>,
-        value: u128,
-        call_reply: bool,
-    },
-    Reply {
-        payload: Vec<u8>,
-        value: u128,
-        reply_to: MessageId,
-        reply_code: ReplyCode,
-    },
-    ReplyCallFailed {
-        value: u128,
-        reply_to: MessageId,
-        reply_code: ReplyCode,
-    },
-    ReplyQueueingRequested {
-        replied_to: MessageId,
-        source: ActorId,
-        payload: Vec<u8>,
-        value: u128,
-    },
-    StateChanged {
-        state_hash: H256,
-    },
-    ValueClaimed {
-        claimed_id: MessageId,
-        value: u128,
-    },
-    ValueClaimingRequested {
-        claimed_id: MessageId,
-        source: ActorId,
-    },
+    OwnedBalanceTopUpRequested(OwnedBalanceTopUpRequestedEvent),
+    ExecutableBalanceTopUpRequested(ExecutableBalanceTopUpRequestedEvent),
+    Message(MessageEvent),
+    MessageCallFailed(MessageCallFailedEvent),
+    MessageQueueingRequested(MessageQueueingRequestedEvent),
+    Reply(ReplyEvent),
+    ReplyCallFailed(ReplyCallFailedEvent),
+    ReplyQueueingRequested(ReplyQueueingRequestedEvent),
+    StateChanged(StateChangedEvent),
+    ValueClaimed(ValueClaimedEvent),
+    ValueClaimingRequested(ValueClaimingRequestedEvent),
 }
 
 impl Event {
     pub fn to_request(self) -> Option<RequestEvent> {
         Some(match self {
-            Self::OwnedBalanceTopUpRequested { value } => {
-                RequestEvent::OwnedBalanceTopUpRequested { value }
+            Self::OwnedBalanceTopUpRequested(event) => {
+                RequestEvent::OwnedBalanceTopUpRequested { value: event.value }
             }
-            Self::ExecutableBalanceTopUpRequested { value } => {
-                RequestEvent::ExecutableBalanceTopUpRequested { value }
+            Self::ExecutableBalanceTopUpRequested(event) => {
+                RequestEvent::ExecutableBalanceTopUpRequested { value: event.value }
             }
-            Self::MessageQueueingRequested {
-                id,
-                source,
-                payload,
-                value,
-                call_reply,
-            } => RequestEvent::MessageQueueingRequested {
-                id,
-                source,
-                payload,
-                value,
-                call_reply,
+            Self::MessageQueueingRequested(event) => RequestEvent::MessageQueueingRequested {
+                id: event.id,
+                source: event.source,
+                payload: event.payload,
+                value: event.value,
+                call_reply: event.call_reply,
             },
-            Self::ReplyQueueingRequested {
-                replied_to,
-                source,
-                payload,
-                value,
-            } => RequestEvent::ReplyQueueingRequested {
-                replied_to,
-                source,
-                payload,
-                value,
+            Self::ReplyQueueingRequested(event) => RequestEvent::ReplyQueueingRequested {
+                replied_to: event.replied_to,
+                source: event.source,
+                payload: event.payload,
+                value: event.value,
             },
-            Self::ValueClaimingRequested { claimed_id, source } => {
-                RequestEvent::ValueClaimingRequested { claimed_id, source }
-            }
-            Self::StateChanged { .. }
-            | Self::ValueClaimed { .. }
-            | Self::Message { .. }
-            | Self::MessageCallFailed { .. }
-            | Self::Reply { .. }
-            | Self::ReplyCallFailed { .. } => return None,
+            Self::ValueClaimingRequested(event) => RequestEvent::ValueClaimingRequested {
+                claimed_id: event.claimed_id,
+                source: event.source,
+            },
+            Self::StateChanged(_)
+            | Self::ValueClaimed(_)
+            | Self::Message(_)
+            | Self::MessageCallFailed(_)
+            | Self::Reply(_)
+            | Self::ReplyCallFailed(_) => return None,
         })
     }
 }
+
+// TODO: consider to refactor in the same way
 
 #[derive(Clone, Debug, PartialEq, Eq, Decode, Encode)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]

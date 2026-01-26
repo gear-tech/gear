@@ -28,9 +28,16 @@ use alloy::{
     providers::{PendingTransactionBuilder, Provider, RootProvider, WalletProvider},
     rpc::types::{Filter, Topic, TransactionReceipt},
 };
-use anyhow::{Context, Result, anyhow};
-use ethexe_common::{Address as LocalAddress, events::MirrorEvent};
+use anyhow::{Result, anyhow};
+use ethexe_common::{
+    Address as LocalAddress,
+    events::mirror::{ReplyEvent, StateChangedEvent, ValueClaimedEvent},
+};
 pub use events::signatures;
+use events::{
+    MessageCallFailedEventBuilder, MessageEventBuilder, ReplyCallFailedEventBuilder,
+    ReplyEventBuilder, StateChangedEventBuilder, ValueClaimedEventBuilder,
+};
 use futures::StreamExt;
 use gear_core::message::ReplyCode;
 use gprimitives::{ActorId, H256, MessageId, U256};
@@ -76,86 +83,16 @@ impl Mirror {
         ))
     }
 
-    pub async fn wait_for_state_changed(&self) -> Result<()> {
-        let filter = Filter::new()
-            .address(*self.0.address())
-            .event_signature(Topic::from_iter([signatures::STATE_CHANGED]));
-        let mut mirror_events = self
-            .0
-            .provider()
-            .subscribe_logs(&filter)
-            .await?
-            .into_stream();
+    pub async fn wait_for_state_change(&self) -> Result<H256> {
+        let mut stream = self.query().events().state_changed().subscribe().await?;
 
-        while let Some(log) = mirror_events.next().await {
-            if let Some(signatures::STATE_CHANGED) = log.topic0().cloned() {
-                return Ok(());
+        while let Some(result) = stream.next().await {
+            if let Ok((StateChangedEvent { state_hash }, _)) = result {
+                return Ok(state_hash);
             }
         }
 
         Err(anyhow!("Failed to define if state changed"))
-    }
-
-    pub async fn get_reference_block(&self) -> Result<(u64, H256)> {
-        let block_resp = self
-            .0
-            .provider()
-            .get_block(BlockId::latest())
-            .await
-            .with_context(|| "failed to get latest block")?
-            .ok_or_else(|| anyhow!("latest block not found"))?;
-        let block_number = block_resp.number();
-        let block_hash = block_resp.hash().0.into();
-        Ok((block_number, block_hash))
-    }
-
-    pub async fn get_balance(&self) -> Result<u128> {
-        self.0
-            .provider()
-            .get_balance(*self.0.address())
-            .await
-            .map(abi::utils::uint256_to_u128_lossy)
-            .map_err(Into::into)
-    }
-
-    pub async fn owned_balance_top_up_with_receipt(
-        &self,
-        value: u128,
-    ) -> Result<TransactionReceipt> {
-        let builder = CallBuilder::new_raw(self.0.provider(), Bytes::new())
-            .to(*self.0.address())
-            .value(AlloyU256::from(value));
-        let receipt = builder
-            .send()
-            .await?
-            .try_get_receipt_check_reverted()
-            .await?;
-
-        Ok(receipt)
-    }
-
-    pub async fn owned_balance_top_up(&self, value: u128) -> Result<H256> {
-        let receipt = self.owned_balance_top_up_with_receipt(value).await?;
-        Ok((*receipt.transaction_hash).into())
-    }
-
-    pub async fn executable_balance_top_up_with_receipt(
-        &self,
-        value: u128,
-    ) -> Result<TransactionReceipt> {
-        let builder = self.0.executableBalanceTopUp(value);
-        let receipt = builder
-            .send()
-            .await?
-            .try_get_receipt_check_reverted()
-            .await?;
-
-        Ok(receipt)
-    }
-
-    pub async fn executable_balance_top_up(&self, value: u128) -> Result<H256> {
-        let receipt = self.executable_balance_top_up_with_receipt(value).await?;
-        Ok((*receipt.transaction_hash).into())
     }
 
     pub async fn send_message(
@@ -195,6 +132,7 @@ impl Mirror {
         Ok((receipt, message_id))
     }
 
+    // TODO: remove gsobol's code that exposes alloy internals
     pub async fn send_message_pending(
         &self,
         payload: impl AsRef<[u8]>,
@@ -210,6 +148,7 @@ impl Mirror {
     }
 
     pub async fn wait_for_reply(&self, message_id: MessageId) -> Result<ReplyInfo> {
+        // TODO: refactor to use event polling instead of subscription
         let filter = Filter::new()
             .address(*self.0.address())
             .event_signature(Topic::from_iter([signatures::REPLY]));
@@ -222,12 +161,12 @@ impl Mirror {
 
         while let Some(log) = mirror_events.next().await {
             if let Some(signatures::REPLY) = log.topic0().cloned()
-                && let MirrorEvent::Reply {
+                && let ReplyEvent {
                     payload,
                     value,
                     reply_to,
                     reply_code,
-                } = MirrorEvent::from(crate::decode_log::<IMirror::Reply>(&log)?)
+                } = ReplyEvent::from(crate::decode_log::<IMirror::Reply>(&log)?)
                 && reply_to == message_id
             {
                 let actor_id = ActorId::from(*self.0.address());
@@ -244,21 +183,62 @@ impl Mirror {
         Err(anyhow!("Failed to wait for reply"))
     }
 
-    pub async fn wait_for_value_claimed(&self, message_id: MessageId) -> Result<ClaimInfo> {
-        let filter = Filter::new()
-            .address(*self.0.address())
-            .event_signature(Topic::from_iter([signatures::VALUE_CLAIMED]));
-        let mut mirror_events = self
-            .0
-            .provider()
-            .subscribe_logs(&filter)
-            .await?
-            .into_stream();
+    pub async fn send_reply(
+        &self,
+        replied_to: MessageId,
+        payload: impl AsRef<[u8]>,
+        value: u128,
+    ) -> Result<H256> {
+        self.send_reply_with_receipt(replied_to, payload, value)
+            .await
+            .map(|receipt| (*receipt.transaction_hash).into())
+    }
 
-        while let Some(log) = mirror_events.next().await {
-            if let Some(signatures::VALUE_CLAIMED) = log.topic0().cloned()
-                && let MirrorEvent::ValueClaimed { claimed_id, value } =
-                    MirrorEvent::from(crate::decode_log::<IMirror::ValueClaimed>(&log)?)
+    pub async fn send_reply_with_receipt(
+        &self,
+        replied_to: MessageId,
+        payload: impl AsRef<[u8]>,
+        value: u128,
+    ) -> Result<TransactionReceipt> {
+        let builder = self
+            .0
+            .sendReply(
+                replied_to.into_bytes().into(),
+                payload.as_ref().to_vec().into(),
+            )
+            .value(AlloyU256::from(value));
+        let receipt = builder
+            .send()
+            .await?
+            .try_get_receipt_check_reverted()
+            .await?;
+        Ok(receipt)
+    }
+
+    pub async fn claim_value(&self, claimed_id: MessageId) -> Result<H256> {
+        self.claim_value_with_receipt(claimed_id)
+            .await
+            .map(|receipt| (*receipt.transaction_hash).into())
+    }
+
+    pub async fn claim_value_with_receipt(
+        &self,
+        claimed_id: MessageId,
+    ) -> Result<TransactionReceipt> {
+        let builder = self.0.claimValue(claimed_id.into_bytes().into());
+        let receipt = builder
+            .send()
+            .await?
+            .try_get_receipt_check_reverted()
+            .await?;
+        Ok(receipt)
+    }
+
+    pub async fn wait_for_value_claim(&self, message_id: MessageId) -> Result<ClaimInfo> {
+        let mut stream = self.query().events().value_claimed().subscribe().await?;
+
+        while let Some(result) = stream.next().await {
+            if let Ok((ValueClaimedEvent { claimed_id, value }, _)) = result
                 && claimed_id == message_id
             {
                 let actor_id = self.0.provider().default_signer_address().into();
@@ -273,57 +253,29 @@ impl Mirror {
         Err(anyhow!("Failed to wait for value claimed"))
     }
 
-    pub async fn send_reply(
-        &self,
-        replied_to: MessageId,
-        payload: impl AsRef<[u8]>,
-        value: u128,
-    ) -> Result<H256> {
-        let (receipt, _) = self
-            .send_reply_with_receipt(replied_to, payload, value)
-            .await?;
-        Ok((*receipt.transaction_hash).into())
+    pub async fn executable_balance_top_up(&self, value: u128) -> Result<H256> {
+        self.executable_balance_top_up_with_receipt(value)
+            .await
+            .map(|receipt| (*receipt.transaction_hash).into())
     }
 
-    pub async fn send_reply_with_receipt(
+    pub async fn executable_balance_top_up_with_receipt(
         &self,
-        replied_to: MessageId,
-        payload: impl AsRef<[u8]>,
         value: u128,
-    ) -> Result<(TransactionReceipt, MessageId)> {
-        let builder = self
-            .0
-            .sendReply(
-                replied_to.into_bytes().into(),
-                payload.as_ref().to_vec().into(),
-            )
-            .value(AlloyU256::from(value));
+    ) -> Result<TransactionReceipt> {
+        let builder = self.0.executableBalanceTopUp(value);
         let receipt = builder
             .send()
             .await?
             .try_get_receipt_check_reverted()
             .await?;
-
-        Ok((receipt, replied_to))
+        Ok(receipt)
     }
 
-    pub async fn claim_value(&self, claimed_id: MessageId) -> Result<H256> {
-        let (receipt, _) = self.claim_value_with_receipt(claimed_id).await?;
-        Ok((*receipt.transaction_hash).into())
-    }
-
-    pub async fn claim_value_with_receipt(
-        &self,
-        claimed_id: MessageId,
-    ) -> Result<(TransactionReceipt, MessageId)> {
-        let builder = self.0.claimValue(claimed_id.into_bytes().into());
-        let receipt = builder
-            .send()
-            .await?
-            .try_get_receipt_check_reverted()
-            .await?;
-
-        Ok((receipt, claimed_id))
+    pub async fn transfer_locked_value_to_inheritor(&self) -> Result<H256> {
+        self.transfer_locked_value_to_inheritor_with_receipt()
+            .await
+            .map(|receipt| (*receipt.transaction_hash).into())
     }
 
     pub async fn transfer_locked_value_to_inheritor_with_receipt(
@@ -335,7 +287,27 @@ impl Mirror {
             .await?
             .try_get_receipt_check_reverted()
             .await?;
+        Ok(receipt)
+    }
 
+    pub async fn owned_balance_top_up(&self, value: u128) -> Result<H256> {
+        self.owned_balance_top_up_with_receipt(value)
+            .await
+            .map(|receipt| (*receipt.transaction_hash).into())
+    }
+
+    pub async fn owned_balance_top_up_with_receipt(
+        &self,
+        value: u128,
+    ) -> Result<TransactionReceipt> {
+        let builder = CallBuilder::new_raw(self.0.provider(), Bytes::new())
+            .to(*self.0.address())
+            .value(AlloyU256::from(value));
+        let receipt = builder
+            .send()
+            .await?
+            .try_get_receipt_check_reverted()
+            .await?;
         Ok(receipt)
     }
 }
@@ -345,6 +317,19 @@ pub struct MirrorQuery(QueryInstance);
 impl MirrorQuery {
     pub fn new(provider: RootProvider, mirror_address: LocalAddress) -> Self {
         Self(QueryInstance::new(Address::new(mirror_address.0), provider))
+    }
+
+    pub fn events(&self) -> MirrorEvents<'_> {
+        MirrorEvents { query: self }
+    }
+
+    pub async fn balance(&self) -> Result<u128> {
+        self.0
+            .provider()
+            .get_balance(*self.0.address())
+            .await
+            .map(abi::utils::uint256_to_u128_lossy)
+            .map_err(Into::into)
     }
 
     pub async fn router(&self) -> Result<LocalAddress> {
@@ -357,12 +342,7 @@ impl MirrorQuery {
     }
 
     pub async fn state_hash(&self) -> Result<H256> {
-        self.0
-            .stateHash()
-            .call()
-            .await
-            .map(|res| H256(*res))
-            .map_err(Into::into)
+        self.state_hash_at(BlockId::latest()).await
     }
 
     pub async fn state_hash_at(&self, id: impl IntoBlockId) -> Result<H256> {
@@ -404,5 +384,37 @@ impl MirrorQuery {
             .await
             .map(|res| LocalAddress(res.into()))
             .map_err(Into::into)
+    }
+}
+
+pub struct MirrorEvents<'a> {
+    query: &'a MirrorQuery,
+}
+
+impl<'a> MirrorEvents<'a> {
+    pub fn state_changed(&self) -> StateChangedEventBuilder<'a> {
+        StateChangedEventBuilder::new(self.query)
+    }
+
+    // TODO: consider to add "*Requested" events here as well
+
+    pub fn message(&self) -> MessageEventBuilder<'a> {
+        MessageEventBuilder::new(self.query)
+    }
+
+    pub fn message_call_failed(&self) -> MessageCallFailedEventBuilder<'a> {
+        MessageCallFailedEventBuilder::new(self.query)
+    }
+
+    pub fn reply(&self) -> ReplyEventBuilder<'a> {
+        ReplyEventBuilder::new(self.query)
+    }
+
+    pub fn reply_call_failed(&self) -> ReplyCallFailedEventBuilder<'a> {
+        ReplyCallFailedEventBuilder::new(self.query)
+    }
+
+    pub fn value_claimed(&self) -> ValueClaimedEventBuilder<'a> {
+        ValueClaimedEventBuilder::new(self.query)
     }
 }

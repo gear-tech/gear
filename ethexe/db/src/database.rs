@@ -706,7 +706,11 @@ impl LatestDataStorageRW for Database {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ethexe_common::{SimpleBlockData, ecdsa::PrivateKey, events::RouterEvent};
+    use ethexe_common::{
+        SimpleBlockData,
+        ecdsa::PrivateKey,
+        events::{RouterEvent, router::StorageSlotChangedEvent},
+    };
     use gear_core::{
         code::{InstantiatedSectionSizes, InstrumentationStatus},
         limited::LimitedVec,
@@ -786,7 +790,11 @@ mod tests {
         let db = Database::memory();
 
         let block_hash = H256::random();
-        let events = vec![BlockEvent::Router(RouterEvent::StorageSlotChanged)];
+        let events = vec![BlockEvent::Router(RouterEvent::StorageSlotChanged(
+            StorageSlotChangedEvent {
+                slot: H256::random(),
+            },
+        ))];
         db.set_block_events(block_hash, &events);
         assert_eq!(db.block_events(block_hash), Some(events));
     }
