@@ -7350,7 +7350,6 @@ dependencies = [
  "serde-json-wasm",
  "serde_core",
  "serde_json",
- "serde_with",
  "serdect",
  "sha-1",
  "sha1",

@@ -392,7 +392,6 @@ serde = { version = "1", features = ["alloc", "derive", "rc"] }
 serde-json-wasm = { version = "1", default-features = false, features = ["std"] }
 serde_core = { version = "1", features = ["alloc", "rc"] }
 serde_json = { version = "1", features = ["alloc", "arbitrary_precision", "raw_value", "unbounded_depth"] }
-serde_with = { version = "3", default-features = false, features = ["base64", "macros", "std"] }
 serdect = { version = "0.2" }
 sha1 = { version = "0.10" }
 sha2 = { version = "0.10" }
@@ -674,7 +673,6 @@ serde = { version = "1", features = ["alloc", "derive", "rc"] }
 serde-json-wasm = { version = "1", default-features = false, features = ["std"] }
 serde_core = { version = "1", features = ["alloc", "rc"] }
 serde_json = { version = "1", features = ["alloc", "arbitrary_precision", "raw_value", "unbounded_depth"] }
-serde_with = { version = "3", default-features = false, features = ["base64", "macros", "std"] }
 serdect = { version = "0.2" }
 sha1 = { version = "0.10" }
 sha2 = { version = "0.10" }
