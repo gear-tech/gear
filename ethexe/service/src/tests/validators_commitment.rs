@@ -224,7 +224,7 @@ async fn validators_commitment_rejected_with_wrong_validators() {
             .find(|event| {
                 matches!(
                     event,
-                    BlockEvent::Router(RouterEvent::ValidatorsCommittedForEra { era_index: _ })
+                    BlockEvent::Router(RouterEvent::ValidatorsCommittedForEra(_))
                 )
             }),
     )
@@ -300,7 +300,7 @@ async fn validators_commitment_rejected_with_bad_vss() {
             .find(|event| {
                 matches!(
                     event,
-                    BlockEvent::Router(RouterEvent::ValidatorsCommittedForEra { era_index: _ })
+                    BlockEvent::Router(RouterEvent::ValidatorsCommittedForEra(_))
                 )
             }),
     )
@@ -366,7 +366,7 @@ async fn validators_commitment_rejected_with_wrong_era() {
             .find(|event| {
                 matches!(
                     event,
-                    BlockEvent::Router(RouterEvent::ValidatorsCommittedForEra { era_index: _ })
+                    BlockEvent::Router(RouterEvent::ValidatorsCommittedForEra(_))
                 )
             }),
     )
@@ -436,7 +436,7 @@ async fn validators_commitment_rejected_with_bad_public_key() {
             .find(|event| {
                 matches!(
                     event,
-                    BlockEvent::Router(RouterEvent::ValidatorsCommittedForEra { era_index: _ })
+                    BlockEvent::Router(RouterEvent::ValidatorsCommittedForEra(_))
                 )
             }),
     )
@@ -513,7 +513,7 @@ async fn validators_commitment_rejected_with_pk_mismatch() {
             .find(|event| {
                 matches!(
                     event,
-                    BlockEvent::Router(RouterEvent::ValidatorsCommittedForEra { era_index: _ })
+                    BlockEvent::Router(RouterEvent::ValidatorsCommittedForEra(_))
                 )
             }),
     )
@@ -578,7 +578,7 @@ async fn validators_commitment_rejected_with_wrong_block_hash() {
             .find(|event| {
                 matches!(
                     event,
-                    BlockEvent::Router(RouterEvent::ValidatorsCommittedForEra { era_index: _ })
+                    BlockEvent::Router(RouterEvent::ValidatorsCommittedForEra(_))
                 )
             }),
     )

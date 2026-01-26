@@ -96,7 +96,7 @@ impl StateHandler for Subordinate {
                 let (announce, _pub_key) = verified_announce.into_parts();
                 self.send_announce_for_computation(announce)
             }
-            _ => DefaultProcessing::announce_from_producer(self, verified_announce),
+            _ => DefaultProcessing::block_from_producer(self, verified_announce),
         }
     }
 

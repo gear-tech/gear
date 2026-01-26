@@ -37,28 +37,28 @@ pub(crate) fn sign_dkg_action(
                 era_index: round1.session.era,
                 payload: *round1,
             };
-            SignedValidatorMessage::DkgRound1(signer.signed_data(pub_key, message)?)
+            SignedValidatorMessage::DkgRound1(signer.signed_data(pub_key, message, None)?)
         }
         DkgAction::BroadcastRound2(round2) => {
             let message = ValidatorMessage {
                 era_index: round2.session.era,
                 payload: round2,
             };
-            SignedValidatorMessage::DkgRound2(signer.signed_data(pub_key, message)?)
+            SignedValidatorMessage::DkgRound2(signer.signed_data(pub_key, message, None)?)
         }
         DkgAction::BroadcastComplaint(complaint) => {
             let message = ValidatorMessage {
                 era_index: complaint.session.era,
                 payload: complaint,
             };
-            SignedValidatorMessage::DkgComplaint(signer.signed_data(pub_key, message)?)
+            SignedValidatorMessage::DkgComplaint(signer.signed_data(pub_key, message, None)?)
         }
         DkgAction::BroadcastRound2Culprits(culprits) => {
             let message = ValidatorMessage {
                 era_index: culprits.session.era,
                 payload: culprits,
             };
-            SignedValidatorMessage::DkgRound2Culprits(signer.signed_data(pub_key, message)?)
+            SignedValidatorMessage::DkgRound2Culprits(signer.signed_data(pub_key, message, None)?)
         }
         DkgAction::Complete(_result) => {
             return Ok(None);
@@ -81,42 +81,42 @@ pub(crate) fn sign_roast_message(
                 era_index: request.session.era,
                 payload: request,
             };
-            SignedValidatorMessage::SignSessionRequest(signer.signed_data(pub_key, message)?)
+            SignedValidatorMessage::SignSessionRequest(signer.signed_data(pub_key, message, None)?)
         }
         RoastMessage::SignNonceCommit(commit) => {
             let message = ValidatorMessage {
                 era_index: commit.session.era,
                 payload: commit,
             };
-            SignedValidatorMessage::SignNonceCommit(signer.signed_data(pub_key, message)?)
+            SignedValidatorMessage::SignNonceCommit(signer.signed_data(pub_key, message, None)?)
         }
         RoastMessage::SignNoncePackage(package) => {
             let message = ValidatorMessage {
                 era_index: package.session.era,
                 payload: package,
             };
-            SignedValidatorMessage::SignNoncePackage(signer.signed_data(pub_key, message)?)
+            SignedValidatorMessage::SignNoncePackage(signer.signed_data(pub_key, message, None)?)
         }
         RoastMessage::SignShare(share) => {
             let message = ValidatorMessage {
                 era_index: share.session.era,
                 payload: share,
             };
-            SignedValidatorMessage::SignShare(signer.signed_data(pub_key, message)?)
+            SignedValidatorMessage::SignShare(signer.signed_data(pub_key, message, None)?)
         }
         RoastMessage::SignAggregate(aggregate) => {
             let message = ValidatorMessage {
                 era_index: aggregate.session.era,
                 payload: aggregate,
             };
-            SignedValidatorMessage::SignAggregate(signer.signed_data(pub_key, message)?)
+            SignedValidatorMessage::SignAggregate(signer.signed_data(pub_key, message, None)?)
         }
         RoastMessage::SignCulprits(culprits) => {
             let message = ValidatorMessage {
                 era_index: culprits.session.era,
                 payload: culprits,
             };
-            SignedValidatorMessage::SignCulprits(signer.signed_data(pub_key, message)?)
+            SignedValidatorMessage::SignCulprits(signer.signed_data(pub_key, message, None)?)
         }
     };
 

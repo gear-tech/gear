@@ -7,4 +7,3 @@ license.workspace = true
 
 [dependencies]
 serde = { version = "1", features = ["derive"] }
-gear-workspace-hack.workspace = true

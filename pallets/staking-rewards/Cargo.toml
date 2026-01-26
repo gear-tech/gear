@@ -28,7 +28,6 @@ pallet-balances.workspace = true
 pallet-staking.workspace = true
 pallet-staking-reward-fn.workspace = true
 frame-election-provider-support.workspace = true
-gear-workspace-hack.workspace = true
 
 [dev-dependencies]
 sp-core = { workspace = true, features = ["std"] }

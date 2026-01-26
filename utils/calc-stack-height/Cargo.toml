@@ -16,4 +16,3 @@ log.workspace = true
 tracing-subscriber.workspace = true
 anyhow = { workspace = true, features = ["std"] }
 wat.workspace = true
-gear-workspace-hack.workspace = true

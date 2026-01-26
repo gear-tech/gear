@@ -38,8 +38,7 @@ use ethexe_common::{
     consensus::{BatchCommitmentValidationReply, VerifiedAnnounce, VerifiedValidationRequest},
     injected::{SignedInjectedTransaction, SignedPromise},
     network::{
-        AnnouncesRequest, AnnouncesResponse, SignedValidatorMessage,
-        VerifiedValidatorMessage,
+        AnnouncesRequest, AnnouncesResponse, SignedValidatorMessage, VerifiedValidatorMessage,
     },
 };
 use futures::{Stream, stream::FusedStream};

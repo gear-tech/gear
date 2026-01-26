@@ -241,32 +241,6 @@ pub fn try_aggregate_chain_commitment<DB: BlockMetaStorageRO + AnnounceStorageRO
     ))
 }
 
-<<<<<<< HEAD
-// TODO: #5019 this is a temporal solution. In future need to implement DKG algorithm.
-pub fn generate_roast_keys(
-    validators: &ValidatorsVec,
-) -> Result<(AggregatedPublicKey, VerifiableSecretSharingCommitment)> {
-    let validators_identifiers = validators
-        .iter()
-        .map(|validator| {
-            let mut bytes = [0u8; 32];
-            bytes[12..32].copy_from_slice(&validator.0);
-            Identifier::deserialize(&bytes).unwrap()
-        })
-        .collect::<Vec<_>>();
-
-    let identifiers = IdentifierList::Custom(&validators_identifiers);
-
-    let rng = rand_chacha::ChaCha8Rng::from_seed([1u8; 32]);
-
-    let (mut secret_shares, public_key_package) =
-        keys::generate_with_dealer(validators.len() as u16, 1, identifiers, rng)?;
-
-    let verifiable_secret_sharing_commitment = secret_shares
-        .pop_first()
-        .map(|(_key, value)| value.commitment().clone())
-        .ok_or_else(|| anyhow!("Expect at least one identifier"))?;
-=======
 pub fn validators_commitment<DB: DkgStorageRO>(
     db: &DB,
     era: u64,
@@ -288,7 +262,6 @@ pub fn validators_commitment<DB: DkgStorageRO>(
         }
         .into());
     }
->>>>>>> 2650990b5 (added initial dkg and roast/frost implementation)
 
     let public_key_compressed: [u8; 33] = public_key_package
         .verifying_key()

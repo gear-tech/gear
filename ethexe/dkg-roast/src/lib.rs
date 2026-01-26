@@ -23,4 +23,3 @@ pub mod policy;
 
 // Re-export for compatibility with previous `ethexe-consensus` layout.
 pub use engine::{dkg, roast};
-

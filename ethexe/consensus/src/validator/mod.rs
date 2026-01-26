@@ -61,7 +61,7 @@ use ethexe_common::{
     db::OnChainStorageRO,
     ecdsa::{PublicKey, SignedMessage},
     injected::SignedInjectedTransaction,
-    network::{AnnouncesResponse, SignedValidatorMessage, VerifiedValidatorMessage},
+    network::{AnnouncesResponse, SignedValidatorMessage},
 };
 use ethexe_db::Database;
 use ethexe_ethereum::middleware::ElectionProvider;

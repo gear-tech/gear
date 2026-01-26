@@ -11,7 +11,6 @@ repository.workspace = true
 sp-api.workspace = true
 sp-core.workspace = true
 pallet-gear-eth-bridge.workspace = true
-gear-workspace-hack.workspace = true
 
 [features]
 default = ["std"]

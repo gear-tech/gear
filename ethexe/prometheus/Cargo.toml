@@ -20,4 +20,3 @@ hyper = { version = "0.14.16", default-features = false, features = [
 log.workspace = true
 prometheus.workspace = true
 tokio.workspace = true
-gear-workspace-hack.workspace = true

@@ -27,7 +27,7 @@ use ethexe_common::{
     ComputedAnnounce, SimpleBlockData,
     consensus::{VerifiedAnnounce, VerifiedValidationRequest},
     injected::SignedInjectedTransaction,
-    network::{CheckedAnnouncesResponse, SignedValidatorMessage, VerifiedValidatorMessage},
+    network::{AnnouncesResponse, SignedValidatorMessage, VerifiedValidatorMessage},
 };
 use gprimitives::H256;
 use std::{
@@ -104,10 +104,7 @@ where
         DefaultProcessing::verified_validator_message(self.into(), message)
     }
 
-    fn process_announces_response(
-        self,
-        _response: CheckedAnnouncesResponse,
-    ) -> Result<ValidatorState> {
+    fn process_announces_response(self, _response: AnnouncesResponse) -> Result<ValidatorState> {
         DefaultProcessing::announces_response(self, _response)
     }
 
@@ -199,10 +196,7 @@ impl StateHandler for ValidatorState {
         delegate_call!(self => process_validation_reply(reply))
     }
 
-    fn process_announces_response(
-        self,
-        response: CheckedAnnouncesResponse,
-    ) -> Result<ValidatorState> {
+    fn process_announces_response(self, response: AnnouncesResponse) -> Result<ValidatorState> {
         delegate_call!(self => process_announces_response(response))
     }
 
@@ -303,7 +297,7 @@ impl DefaultProcessing {
 
     pub(crate) fn announces_response(
         s: impl Into<ValidatorState>,
-        response: CheckedAnnouncesResponse,
+        response: AnnouncesResponse,
     ) -> Result<ValidatorState> {
         let mut s = s.into();
         s.warning(format!(

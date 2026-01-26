@@ -18,4 +18,3 @@ sp-runtime.workspace = true
 
 # Local packages
 pallet-gear-builtin-rpc-runtime-api = { workspace = true, features = ["std"] }
-gear-workspace-hack.workspace = true

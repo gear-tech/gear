@@ -31,7 +31,6 @@ sp-runtime.workspace = true
 # Temporary dependencies required for migration to v8. To be removed upon migration.
 pallet-balances.workspace = true
 pallet-treasury.workspace = true
-gear-workspace-hack.workspace = true
 
 [dev-dependencies]
 common = { workspace = true, features = ["std"] }

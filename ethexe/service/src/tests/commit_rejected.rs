@@ -3,12 +3,12 @@
 // Copyright (C) 2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
-use ethexe_common::{ecdsa::ContractSignature, gear::BatchCommitment};
-use ethexe_consensus::BatchCommitter;
-use ethexe_ethereum::{TryGetReceipt, router::Router};
 use crate::tests::utils::{
     EnvNetworkConfig, NodeConfig, TestEnv, TestEnvConfig, ValidatorsConfig, init_logger,
 };
+use ethexe_common::{ecdsa::ContractSignature, gear::BatchCommitment};
+use ethexe_consensus::BatchCommitter;
+use ethexe_ethereum::{TryGetReceipt, router::Router};
 use gprimitives::H256;
 use tokio::time::timeout;
 

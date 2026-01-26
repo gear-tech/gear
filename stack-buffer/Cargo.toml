@@ -18,4 +18,3 @@ compile-alloca = ["cc"]
 stack-clash-protection = []
 
 [dependencies]
-gear-workspace-hack.workspace = true

@@ -31,7 +31,6 @@ use alloy::{
     providers::{PendingTransactionBuilder, Provider, ProviderBuilder, RootProvider},
     rpc::types::{TransactionReceipt, state::AccountOverride},
 };
-use std::collections::HashMap;
 use anyhow::{Result, anyhow};
 use ethexe_common::{
     Address as LocalAddress, Digest, ValidatorsVec,
@@ -52,6 +51,7 @@ use futures::StreamExt;
 use gear_core::ids::prelude::CodeIdExt as _;
 use gprimitives::{ActorId, CodeId, H256};
 use serde::Serialize;
+use std::collections::HashMap;
 
 pub mod events;
 
@@ -530,15 +530,6 @@ impl RouterQuery {
             .call()
             .await
             .map(|res| res.into())
-            .map_err(Into::into)
-    }
-
-    pub async fn validators_vss_commitment_hash(&self) -> Result<H256> {
-        self.instance
-            .validatorsVssCommitmentHash()
-            .call()
-            .await
-            .map(|res| H256(*res))
             .map_err(Into::into)
     }
 

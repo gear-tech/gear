@@ -164,7 +164,7 @@ async fn wait_for_validators_commit(env: &TestEnv) -> Result<(), tokio::time::er
             .find(|event| {
                 matches!(
                     event,
-                    BlockEvent::Router(RouterEvent::ValidatorsCommittedForEra { era_index: _ })
+                    BlockEvent::Router(RouterEvent::ValidatorsCommittedForEra(_))
                 )
             }),
     )
@@ -546,7 +546,7 @@ async fn validators_election() {
         .find(|event| {
             matches!(
                 event,
-                BlockEvent::Router(RouterEvent::ValidatorsCommittedForEra { era_index: _ })
+                BlockEvent::Router(RouterEvent::ValidatorsCommittedForEra(_))
             )
         })
         .await;

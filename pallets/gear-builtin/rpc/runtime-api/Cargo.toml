@@ -10,7 +10,6 @@ repository = "https://github.com/gear-tech/gear"
 [dependencies]
 sp-api.workspace = true
 sp-core.workspace = true
-gear-workspace-hack.workspace = true
 
 [features]
 default = ["std"]
