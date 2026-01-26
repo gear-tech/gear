@@ -29,7 +29,7 @@ use alloy_chains::NamedChain;
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use clap::{Parser, Subcommand};
 use ethexe_common::{
-    Address,
+    Address, BlockHeader, SimpleBlockData,
     gear_core::ids::prelude::CodeIdExt,
     injected::{AddressedInjectedTransaction, InjectedTransaction},
 };
@@ -969,8 +969,16 @@ impl TxCommand {
                             .with_context(|| format!("failed to get key for sender {sender}"))?
                             .ok_or_else(|| anyhow!("no key found for {sender}"))?;
 
-                        let (reference_block_number, reference_block_hash) =
-                            ethereum.get_latest_block().await?;
+                        //let (reference_block_number, reference_block_hash) =
+                        let SimpleBlockData {
+                            hash: reference_block_hash,
+                            header:
+                                BlockHeader {
+                                    height: reference_block_number,
+                                    ..
+                                },
+                        } = ethereum.get_latest_block().await?;
+                        let reference_block_number = reference_block_number as u64;
                         let salt = H256::random();
 
                         let injected_transaction = InjectedTransaction {

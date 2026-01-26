@@ -24,6 +24,3 @@ futures.workspace = true
 gear-core.workspace = true
 gprimitives.workspace = true
 jsonrpsee = { workspace = true, features = ["client"] }
-
-# TODO: remove
-tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }

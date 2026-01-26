@@ -5250,7 +5250,6 @@ dependencies = [
  "gear-core",
  "gprimitives",
  "jsonrpsee",
- "tokio",
 ]
 
 [[package]]

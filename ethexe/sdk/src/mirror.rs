@@ -20,7 +20,7 @@ use crate::VaraEthApi;
 use alloy::rpc::types::TransactionReceipt;
 use anyhow::{Context, Result, anyhow, ensure};
 use ethexe_common::{
-    Address,
+    Address, SimpleBlockData,
     injected::{
         AddressedInjectedTransaction, InjectedTransaction, InjectedTransactionAcceptance, Promise,
     },
@@ -138,7 +138,11 @@ impl<'a> Mirror<'a> {
         payload: impl AsRef<[u8]>,
         value: u128,
     ) -> Result<AddressedInjectedTransaction> {
-        ensure!(value == 0, "injected transactions must have zero value"); // FIXME
+        // TODO: check existence of deposit in Router contract
+        ensure!(
+            value == 0,
+            "injected transactions with non zero value are not supported for now"
+        );
 
         let signer = self
             .api
@@ -161,7 +165,10 @@ impl<'a> Mirror<'a> {
             .as_ref()
             .try_into()
             .with_context(|| "payload too large")?;
-        let (_, reference_block) = self.api.ethereum_client.get_latest_block().await?;
+        let SimpleBlockData {
+            hash: reference_block,
+            ..
+        } = self.api.ethereum_client.get_latest_block().await?;
         let salt = U256::from(H256::random().0);
 
         let injected_transaction = InjectedTransaction {

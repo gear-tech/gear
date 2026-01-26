@@ -25,8 +25,8 @@ use crate::{
     wvara::WVara,
 };
 use alloy::{
-    eips::BlockId,
     consensus::{SidecarBuilder, SimpleCoder},
+    eips::BlockId,
     primitives::{Address, Bytes},
     providers::{PendingTransactionBuilder, Provider, ProviderBuilder, RootProvider},
     rpc::types::TransactionReceipt,

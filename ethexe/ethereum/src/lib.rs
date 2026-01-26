@@ -42,7 +42,9 @@ use alloy::{
 };
 use anyhow::{Context, Result, anyhow};
 use async_trait::async_trait;
-use ethexe_common::{Address as LocalAddress, Digest, ecdsa::PublicKey};
+use ethexe_common::{
+    Address as LocalAddress, BlockHeader, Digest, SimpleBlockData, ecdsa::PublicKey,
+};
 use ethexe_signer::Signer as LocalSigner;
 use gprimitives::{H256, MessageId};
 use middleware::Middleware;
@@ -139,16 +141,31 @@ impl Ethereum {
         self.provider.get_chain_id().await.map_err(Into::into)
     }
 
-    pub async fn get_latest_block(&self) -> Result<(u64, H256)> {
+    pub async fn get_latest_block(&self) -> Result<SimpleBlockData> {
+        self.get_block(BlockId::latest()).await
+    }
+
+    pub async fn get_block(&self, block_id: impl IntoBlockId) -> Result<SimpleBlockData> {
         let block_resp = self
             .provider()
-            .get_block(BlockId::latest())
+            .get_block(block_id.into_block_id())
             .await
             .with_context(|| "failed to get latest block")?
             .ok_or_else(|| anyhow!("latest block not found"))?;
-        let block_number = block_resp.number();
-        let block_hash = block_resp.hash().0.into();
-        Ok((block_number, block_hash))
+        let height = block_resp
+            .number()
+            .try_into()
+            .with_context(|| "block number overflow")?;
+        let hash = block_resp.hash().0.into();
+        let header = block_resp.into_header();
+        let parent_hash = header.parent_hash.0.into();
+        let timestamp = header.timestamp;
+        let header = BlockHeader {
+            height,
+            timestamp,
+            parent_hash,
+        };
+        Ok(SimpleBlockData { hash, header })
     }
 
     pub fn mirror(&self, address: LocalAddress) -> Mirror {

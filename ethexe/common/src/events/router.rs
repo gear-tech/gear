@@ -113,7 +113,7 @@ impl Event {
     }
 }
 
-// TODO: consider to refactor in the same way
+// TODO: consider to refactor in the same way (https://github.com/gear-tech/gear/pull/5107#discussion_r2727448994)
 
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
