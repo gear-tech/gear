@@ -60,6 +60,15 @@ pub enum AddTransactionError {
     NonZeroValue(HashOf<InjectedTransaction>),
 }
 
+/// The result of adding a transaction to the [`TransactionPool`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TransactionAdditionResult {
+    /// Transaction was successfully added to the [`TransactionPool`]
+    Added,
+    /// Transaction was not added to the [`TransactionPool`] due to the error.
+    NotAdded(AddTransactionError),
+}
+
 impl<DB> TransactionPool<DB>
 where
     DB: OnChainStorageRO + InjectedStorageRW + AnnounceStorageRO + CodesStorageRO + Storage + Clone,
@@ -72,24 +81,21 @@ where
     }
     /// Adds a new injected transaction to the pool.
     /// Returns an error if transaction is already present in the pool.
-    pub fn add_transaction(
-        &mut self,
-        tx: SignedInjectedTransaction,
-    ) -> Result<(), AddTransactionError> {
+    pub fn add_transaction(&mut self, tx: SignedInjectedTransaction) -> TransactionAdditionResult {
         let tx_hash = tx.data().to_hash();
         tracing::trace!(?tx_hash, reference_block = ?tx.data().reference_block, "tx pool received new injected transaction");
 
         if tx.data().value != 0 {
-            return Err(AddTransactionError::NonZeroValue(tx_hash));
+            return TransactionAdditionResult::NotAdded(AddTransactionError::NonZeroValue(tx_hash));
         }
 
         if self.inner.insert(tx_hash) {
             // Write tx in database only if its not already contains in pool.
             self.db.set_injected_transaction(tx);
-            return Ok(());
+            return TransactionAdditionResult::Added;
         }
 
-        Err(AddTransactionError::Duplicate(tx_hash))
+        TransactionAdditionResult::NotAdded(AddTransactionError::Duplicate(tx_hash))
     }
 
     /// Returns the injected transactions that are valid and can be included to announce.

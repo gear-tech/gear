@@ -87,7 +87,10 @@ pub trait ConsensusService:
     fn receive_announces_response(&mut self, response: CheckedAnnouncesResponse) -> Result<()>;
 
     /// Process a received injected transaction from network
-    fn receive_injected_transaction(&mut self, tx: SignedInjectedTransaction) -> Result<()>;
+    fn receive_injected_transaction(
+        &mut self,
+        tx: SignedInjectedTransaction,
+    ) -> Result<TransactionAdditionResult>;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, derive_more::Display)]

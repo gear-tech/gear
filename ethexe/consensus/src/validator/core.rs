@@ -21,7 +21,7 @@
 use crate::{
     announces,
     utils::{self, CodeNotValidatedError},
-    validator::tx_pool::TransactionPool,
+    validator::tx_pool::{TransactionAdditionResult, TransactionPool},
 };
 use anyhow::{Result, anyhow};
 use async_trait::async_trait;
@@ -355,9 +355,12 @@ impl ValidatorCore {
         Ok(ValidationStatus::Accepted(digest))
     }
 
-    pub fn process_injected_transaction(&mut self, tx: SignedInjectedTransaction) -> Result<()> {
+    pub fn process_injected_transaction(
+        &mut self,
+        tx: SignedInjectedTransaction,
+    ) -> Result<TransactionAdditionResult> {
         tracing::trace!(tx = ?tx, "Receive new injected transaction");
-        self.injected_pool.add_transaction(tx).map_err(Into::into)
+        Ok(self.injected_pool.add_transaction(tx))
     }
 }
 
