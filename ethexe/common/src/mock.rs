@@ -19,23 +19,26 @@
 pub use tap::Tap;
 
 use crate::{
-    Announce, BlockData, BlockHeader, CodeBlobInfo, Digest, HashOf, ProgramStates,
-    ProtocolTimelines, Schedule, SimpleBlockData, ValidatorsVec,
+    Announce, BlockData, BlockHeader, CodeBlobInfo, ComputedAnnounce, Digest, HashOf,
+    ProgramStates, ProtocolTimelines, Schedule, SimpleBlockData, ValidatorsVec,
     consensus::BatchCommitmentValidationRequest,
     db::*,
     ecdsa::{PrivateKey, SignedMessage},
     events::BlockEvent,
     gear::{BatchCommitment, ChainCommitment, CodeCommitment, Message, StateTransition},
-    injected::{InjectedTransaction, RpcOrNetworkInjectedTx},
+    injected::{AddressedInjectedTransaction, InjectedTransaction},
 };
 use alloc::{collections::BTreeMap, vec};
-use gear_core::code::{CodeMetadata, InstrumentedCode};
+use gear_core::{
+    code::{CodeMetadata, InstrumentedCode},
+    limited::LimitedVec,
+};
 use gprimitives::{CodeId, H256};
 use itertools::Itertools;
 use std::collections::{BTreeSet, VecDeque};
 
 // TODO #4881: use `proptest::Arbitrary` instead
-pub trait Mock<Args> {
+pub trait Mock<Args = ()> {
     fn mock(args: Args) -> Self;
 }
 
@@ -168,17 +171,17 @@ impl Mock<()> for InjectedTransaction {
     fn mock((): ()) -> Self {
         Self {
             destination: Default::default(),
-            payload: vec![].into(),
+            payload: LimitedVec::new(),
             value: 0,
             reference_block: Default::default(),
-            salt: H256::random().0.to_vec().into(),
+            salt: gprimitives::U256::from_big_endian(H256::random().as_bytes()),
         }
     }
 }
 
-impl Mock<PrivateKey> for RpcOrNetworkInjectedTx {
+impl Mock<PrivateKey> for AddressedInjectedTransaction {
     fn mock(pk: PrivateKey) -> Self {
-        RpcOrNetworkInjectedTx {
+        AddressedInjectedTransaction {
             recipient: Default::default(),
             tx: SignedMessage::create(pk, InjectedTransaction::mock(()))
                 .expect("Signing injected transaction will succeed"),
@@ -186,9 +189,9 @@ impl Mock<PrivateKey> for RpcOrNetworkInjectedTx {
     }
 }
 
-impl Mock<()> for RpcOrNetworkInjectedTx {
+impl Mock<()> for AddressedInjectedTransaction {
     fn mock(_args: ()) -> Self {
-        RpcOrNetworkInjectedTx::mock(PrivateKey::random())
+        AddressedInjectedTransaction::mock(PrivateKey::random())
     }
 }
 
@@ -239,7 +242,7 @@ impl BlockFullData {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct ComputedAnnounceData {
+pub struct MockComputedAnnounceData {
     pub outcome: Vec<StateTransition>,
     pub program_states: ProgramStates,
     pub schedule: Schedule,
@@ -248,15 +251,15 @@ pub struct ComputedAnnounceData {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AnnounceData {
     pub announce: Announce,
-    pub computed: Option<ComputedAnnounceData>,
+    pub computed: Option<MockComputedAnnounceData>,
 }
 
 impl AnnounceData {
-    pub fn as_computed(&self) -> &ComputedAnnounceData {
+    pub fn as_computed(&self) -> &MockComputedAnnounceData {
         self.computed.as_ref().expect("announce not computed")
     }
 
-    pub fn as_computed_mut(&mut self) -> &mut ComputedAnnounceData {
+    pub fn as_computed_mut(&mut self) -> &mut MockComputedAnnounceData {
         self.computed.as_mut().expect("announce not computed")
     }
 
@@ -513,7 +516,7 @@ impl Mock<(u32, ValidatorsVec)> for BlockChain {
                     announce_hash,
                     AnnounceData {
                         announce,
-                        computed: Some(ComputedAnnounceData {
+                        computed: Some(MockComputedAnnounceData {
                             outcome: Default::default(),
                             program_states: Default::default(),
                             schedule: Default::default(),
@@ -597,5 +600,23 @@ impl BlockData {
         db.set_block_events(self.hash, &self.events);
         db.set_block_synced(self.hash);
         self
+    }
+}
+
+impl Mock for ComputedAnnounce {
+    fn mock(_: ()) -> Self {
+        Self {
+            announce_hash: HashOf::random(),
+            promises: Default::default(),
+        }
+    }
+}
+
+impl Mock<HashOf<Announce>> for ComputedAnnounce {
+    fn mock(announce_hash: HashOf<Announce>) -> Self {
+        Self {
+            announce_hash,
+            promises: Default::default(),
+        }
     }
 }

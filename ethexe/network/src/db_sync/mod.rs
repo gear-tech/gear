@@ -333,7 +333,7 @@ pub(crate) enum InnerRequest {
     Announces(AnnouncesRequest),
 }
 
-#[derive(Debug, Default, Eq, PartialEq, Encode, Decode)]
+#[derive(Debug, Clone, Default, Eq, PartialEq, Encode, Decode)]
 pub(crate) struct InnerHashesResponse(BTreeMap<H256, Vec<u8>>);
 
 #[derive(Debug, Default, Eq, PartialEq, Encode, Decode)]
