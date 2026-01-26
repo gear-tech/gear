@@ -32,7 +32,7 @@ where
             .and_then(|state| state.aggregate)
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-utils"))]
     #[allow(dead_code)]
     /// Returns cached aggregate signature (test helper).
     pub fn get_cached_signature(

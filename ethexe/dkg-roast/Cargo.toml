@@ -1,0 +1,26 @@
+[package]
+name = "ethexe-dkg-roast"
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+
+[dependencies]
+ethexe-common.workspace = true
+ethexe-db.workspace = true
+gprimitives = { workspace = true, features = ["codec", "std", "ethexe"] }
+
+anyhow = { workspace = true, features = ["std"] }
+thiserror.workspace = true
+tracing.workspace = true
+rand = "0.8"
+roast-secp256k1-evm.workspace = true
+
+[dev-dependencies]
+anyhow = { workspace = true, features = ["std"] }
+ethexe-common = { workspace = true, features = ["mock"] }
+
+[features]
+test-utils = []

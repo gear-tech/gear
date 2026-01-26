@@ -19,6 +19,7 @@
 //! Integration tests.
 
 use futures::StreamExt;
+mod commit_rejected;
 mod dkg_roast;
 mod storage_cache;
 pub(crate) mod utils;
@@ -31,7 +32,7 @@ use crate::{
     tests::utils::{
         AnnounceId, EnvNetworkConfig, InfiniteStreamExt, Node, NodeConfig, TestEnv, TestEnvConfig,
         TestingEvent, TestingNetworkEvent, TestingRpcEvent, ValidatorsConfig, WaitForReplyTo,
-        Wallets, init_logger,
+        init_logger,
     },
 };
 use alloy::{
@@ -41,7 +42,6 @@ use alloy::{
 use ethexe_common::{
     Announce, HashOf, ScheduledTask, ToDigest,
     consensus::{DEFAULT_CHAIN_DEEPNESS_THRESHOLD, DEFAULT_VALIDATE_CHAIN_DEEPNESS_LIMIT},
-    crypto::{DkgSessionId, DkgVssCommitment},
     db::*,
     ecdsa::ContractSignature,
     events::{BlockEvent, MirrorEvent, RouterEvent},
@@ -53,7 +53,7 @@ use ethexe_common::{
 use ethexe_compute::ComputeConfig;
 use ethexe_consensus::{BatchCommitter, ConsensusEvent};
 use ethexe_db::{Database, verifier::IntegrityVerifier};
-use ethexe_ethereum::{TryGetReceipt, deploy::ContractsDeploymentParams, router::Router};
+use ethexe_ethereum::{TryGetReceipt, router::Router};
 use ethexe_observer::{EthereumConfig, ObserverEvent};
 use ethexe_processor::{DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, RunnerConfig};
 use ethexe_prometheus::PrometheusConfig;
@@ -65,7 +65,7 @@ use gear_core::{
 };
 use gear_core_errors::{ErrorReplyReason, SimpleExecutionError, SimpleUnavailableActorError};
 use gprimitives::{ActorId, H160, H256, MessageId};
-use gsigner::secp256k1::{Secp256k1SignerExt, Signer};
+use gsigner::secp256k1::Secp256k1SignerExt;
 use parity_scale_codec::{Decode, Encode};
 use std::{
     collections::{BTreeMap, BTreeSet, HashSet},
@@ -1422,96 +1422,6 @@ async fn multiple_validators() {
 
 #[tokio::test(flavor = "multi_thread")]
 #[ntest::timeout(60_000)]
-async fn commit_rejected_with_bad_frost_signature() {
-    init_logger();
-
-    #[derive(Clone)]
-    struct BadSignatureCommitter {
-        router: Router,
-    }
-
-    #[async_trait::async_trait]
-    impl BatchCommitter for BadSignatureCommitter {
-        fn clone_boxed(&self) -> Box<dyn BatchCommitter> {
-            Box::new(self.clone())
-        }
-
-        async fn commit(
-            self: Box<Self>,
-            batch: BatchCommitment,
-            signatures: Vec<ContractSignature>,
-        ) -> anyhow::Result<H256> {
-            let pending = self.router.commit_batch_pending(batch, signatures).await?;
-            pending
-                .try_get_receipt_check_reverted()
-                .await
-                .map(|r| r.transaction_hash.0.into())
-        }
-
-        async fn commit_frost(
-            self: Box<Self>,
-            batch: BatchCommitment,
-            mut signature96: [u8; 96],
-        ) -> anyhow::Result<H256> {
-            signature96[0] ^= 0x01;
-            let pending = self
-                .router
-                .commit_batch_frost_pending(batch, signature96)
-                .await?;
-            pending
-                .try_get_receipt_check_reverted()
-                .await
-                .map(|r| r.transaction_hash.0.into())
-        }
-    }
-
-    let config = TestEnvConfig {
-        validators: ValidatorsConfig::PreDefined(1),
-        network: EnvNetworkConfig::Enabled,
-        ..Default::default()
-    };
-    let mut env = TestEnv::new(config).await.unwrap();
-
-    log::info!("📗 Starting validator with normal committer");
-    let mut validator =
-        env.new_node(NodeConfig::named("validator").validator(env.validators[0].clone()));
-    validator.start_service().await;
-
-    let uploaded_code = env
-        .upload_code(demo_ping::WASM_BINARY)
-        .await
-        .unwrap()
-        .wait_for()
-        .await
-        .unwrap();
-    assert!(uploaded_code.valid);
-
-    let ping_actor = env
-        .create_program(uploaded_code.code_id, 500_000_000_000_000)
-        .await
-        .unwrap()
-        .wait_for()
-        .await
-        .unwrap();
-
-    validator.stop_service().await;
-    validator.custom_committer = Some(Box::new(BadSignatureCommitter {
-        router: env.ethereum.router(),
-    }));
-    validator.start_service().await;
-
-    let pending = env
-        .send_message(ping_actor.program_id, b"PING")
-        .await
-        .unwrap();
-
-    tokio::time::timeout(env.block_time * 5, pending.wait_for())
-        .await
-        .expect_err("Timeout expected due to bad signature");
-}
-
-#[tokio::test(flavor = "multi_thread")]
-#[ntest::timeout(60_000)]
 async fn send_injected_tx() {
     init_logger();
 
@@ -1825,169 +1735,6 @@ async fn fast_sync() {
         &alice,
         &bob,
     );
-}
-
-#[tokio::test(flavor = "multi_thread")]
-#[ntest::timeout(60_000)]
-async fn validators_election() {
-    init_logger();
-
-    // Setup test environment
-
-    let election_ts = 20 * 60 * 60;
-    let era_duration = 24 * 60 * 60;
-    let deploy_params = ContractsDeploymentParams {
-        with_middleware: true,
-        era_duration,
-        election_duration: era_duration - election_ts,
-    };
-
-    let signer = Signer::memory();
-    // 10 wallets - hardcoded in anvil
-    let mut wallets = Wallets::anvil(&signer);
-
-    let current_validators: Vec<_> = (0..5).map(|_| wallets.next()).collect();
-    let next_validators: Vec<_> = (0..5).map(|_| wallets.next()).collect();
-
-    let env_config = TestEnvConfig {
-        validators: ValidatorsConfig::ProvidedValidators(current_validators),
-        deploy_params,
-        network: EnvNetworkConfig::Enabled,
-        signer: signer.clone(),
-        ..Default::default()
-    };
-    let mut env = TestEnv::new(env_config).await.unwrap();
-
-    let genesis_block_hash = env
-        .ethereum
-        .router()
-        .query()
-        .genesis_block_hash()
-        .await
-        .unwrap();
-    let genesis_ts = env
-        .provider
-        .get_block_by_hash(genesis_block_hash.0.into())
-        .await
-        .unwrap()
-        .unwrap()
-        .header
-        .timestamp;
-
-    // Start initial validators
-    let mut validators = vec![];
-    for (i, v) in env.validators.clone().into_iter().enumerate() {
-        log::info!("📗 Starting validator-{i}");
-        let mut validator = env.new_node(NodeConfig::named(format!("validator-{i}")).validator(v));
-        validator.start_service().await;
-        validators.push(validator);
-    }
-
-    // Setup next validators to be elected for previous era
-    let (next_validators_configs, _commitment) =
-        TestEnv::define_session_keys_for_era(&signer, next_validators, 1);
-    let next_public_key_package = next_validators_configs[0].dkg_public_key_package.clone();
-    let next_vss_commitment = next_validators_configs[0].dkg_vss_commitment.clone();
-    let next_dkg_session = DkgSessionId { era: 1 };
-
-    let next_validators: Vec<_> = next_validators_configs
-        .iter()
-        .map(|cfg| cfg.public_key.to_address())
-        .collect();
-
-    env.election_provider
-        .set_predefined_election_at(
-            election_ts + genesis_ts,
-            next_validators.try_into().unwrap(),
-        )
-        .await;
-
-    // Force creation new block in election period
-    env.provider
-        .anvil_set_next_block_timestamp(election_ts + genesis_ts)
-        .await
-        .unwrap();
-
-    for validator in validators.iter_mut() {
-        validator
-            .db
-            .set_public_key_package(next_dkg_session.era, next_public_key_package.clone());
-        validator
-            .db
-            .set_dkg_vss_commitment(next_dkg_session.era, next_vss_commitment.clone());
-        validator.db.set_dkg_session_state(
-            next_dkg_session,
-            DkgSessionState {
-                completed: true,
-                ..Default::default()
-            },
-        );
-    }
-    env.force_new_block().await;
-
-    env.new_observer_events()
-        .filter_map_block_synced()
-        .find(|event| {
-            matches!(
-                event,
-                BlockEvent::Router(RouterEvent::ValidatorsCommittedForEra { era_index: _ })
-            )
-        })
-        .await;
-
-    tracing::info!("📗 Next validators successfully committed");
-
-    // Upload code when next validators committed and next are not active.
-    // Checks, that another validators commitment not happen.
-    let uploaded_code = env
-        .upload_code(demo_ping::WASM_BINARY)
-        .await
-        .unwrap()
-        .wait_for()
-        .await
-        .unwrap();
-    assert!(uploaded_code.valid);
-
-    let ping_actor = env
-        .create_program(uploaded_code.code_id, 500_000_000_000_000)
-        .await
-        .unwrap()
-        .wait_for()
-        .await
-        .unwrap();
-    assert_eq!(ping_actor.code_id, uploaded_code.code_id);
-
-    // Stop previous validators
-    for mut node in validators.into_iter() {
-        node.stop_service().await;
-    }
-
-    // Check that next validators can submit transactions
-    env.validators = next_validators_configs;
-    let mut new_validators = vec![];
-    for (i, v) in env.validators.clone().into_iter().enumerate() {
-        log::info!("📗 Starting validator-{i}");
-        let mut validator = env.new_node(NodeConfig::named(format!("validator-{i}")).validator(v));
-        validator.start_service().await;
-        new_validators.push(validator);
-    }
-
-    env.provider
-        .anvil_set_next_block_timestamp(era_duration + genesis_ts)
-        .await
-        .unwrap();
-    env.force_new_block().await;
-
-    let reply = env
-        .send_message(ping_actor.program_id, b"PING")
-        .await
-        .expect("pong reply")
-        .wait_for()
-        .await
-        .expect("reply info");
-
-    assert_eq!(reply.payload, b"PONG");
-    assert_eq!(reply.program_id, ping_actor.program_id);
 }
 
 #[tokio::test(flavor = "multi_thread")]

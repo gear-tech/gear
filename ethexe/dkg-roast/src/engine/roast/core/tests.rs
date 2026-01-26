@@ -17,13 +17,14 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use super::{ParticipantAction, ParticipantConfig, ParticipantEvent, RoastParticipant};
-use crate::{
-    engine::{
-        dkg::{DkgConfig, DkgProtocol, FinalizeResult},
-        roast::core::{participant::ParticipantState, tweak_public_key_package},
+use crate::engine::{
+    dkg::{DkgAction, DkgConfig, DkgEngine, DkgEngineEvent, DkgProtocol, FinalizeResult},
+    roast::{
+        RoastEngine, RoastEngineEvent, RoastMessage,
+        core::{participant::ParticipantState, tweak_public_key_package},
     },
-    test_utils::ValidatorNetwork,
 };
+use anyhow::{Result, anyhow};
 use ethexe_common::{
     Address,
     crypto::{
@@ -32,9 +33,251 @@ use ethexe_common::{
     },
     k256::{EncodedPoint, FieldBytes},
 };
+use ethexe_db::Database;
 use gprimitives::{ActorId, H256};
 use roast_secp256k1_evm::frost::{Signature, VerifyingKey};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, VecDeque};
+
+struct EngineNode {
+    address: Address,
+    dkg: DkgEngine<Database>,
+    roast: RoastEngine<Database>,
+}
+
+struct SimpleNetwork {
+    nodes: BTreeMap<Address, EngineNode>,
+}
+
+impl SimpleNetwork {
+    fn new(num_validators: usize) -> Self {
+        let mut nodes = BTreeMap::new();
+        for idx in 0..num_validators {
+            let address = Address::from([(idx as u8).saturating_add(1); 20]);
+            let db = Database::memory();
+            nodes.insert(
+                address,
+                EngineNode {
+                    address,
+                    dkg: DkgEngine::new(db.clone(), address),
+                    roast: RoastEngine::new(db, address),
+                },
+            );
+        }
+        Self { nodes }
+    }
+
+    fn validator_addresses(&self) -> Vec<Address> {
+        self.nodes.keys().copied().collect()
+    }
+
+    fn coordinator_address(&self) -> Address {
+        self.validator_addresses()
+            .first()
+            .copied()
+            .expect("non-empty validator set")
+    }
+
+    fn run_dkg(&mut self, era: u64, threshold: u16, max_steps: usize) -> Result<Vec<Address>> {
+        let participants = self.validator_addresses();
+        let mut queue = VecDeque::new();
+
+        for node in self.nodes.values_mut() {
+            let actions = node.dkg.handle_event(DkgEngineEvent::Start {
+                era,
+                validators: participants.clone(),
+                threshold,
+            })?;
+            for action in actions {
+                queue.push_back((node.address, action));
+            }
+        }
+
+        self.process_dkg_queue(queue, max_steps)?;
+        Ok(participants)
+    }
+
+    fn process_dkg_queue(
+        &mut self,
+        mut queue: VecDeque<(Address, DkgAction)>,
+        max_steps: usize,
+    ) -> Result<()> {
+        let mut steps = 0;
+        while let Some((sender, action)) = queue.pop_front() {
+            steps += 1;
+            if steps > max_steps {
+                return Err(anyhow!("Exceeded max DKG steps"));
+            }
+            match action {
+                DkgAction::BroadcastRound1(message) => {
+                    for node in self.nodes.values_mut() {
+                        let actions = node.dkg.handle_event(DkgEngineEvent::Round1 {
+                            from: sender,
+                            message: message.clone(),
+                        })?;
+                        for action in actions {
+                            queue.push_back((node.address, action));
+                        }
+                    }
+                }
+                DkgAction::BroadcastRound2(message) => {
+                    for node in self.nodes.values_mut() {
+                        let actions = node.dkg.handle_event(DkgEngineEvent::Round2 {
+                            from: sender,
+                            message: message.clone(),
+                        })?;
+                        for action in actions {
+                            queue.push_back((node.address, action));
+                        }
+                    }
+                }
+                DkgAction::BroadcastComplaint(message) => {
+                    for node in self.nodes.values_mut() {
+                        let actions = node.dkg.handle_event(DkgEngineEvent::Complaint {
+                            from: sender,
+                            message: message.clone(),
+                        })?;
+                        for action in actions {
+                            queue.push_back((node.address, action));
+                        }
+                    }
+                }
+                DkgAction::BroadcastRound2Culprits(message) => {
+                    for node in self.nodes.values_mut() {
+                        let actions = node.dkg.handle_event(DkgEngineEvent::Round2Culprits {
+                            from: sender,
+                            message: message.clone(),
+                        })?;
+                        for action in actions {
+                            queue.push_back((node.address, action));
+                        }
+                    }
+                }
+                DkgAction::Complete(_) => {}
+            }
+        }
+
+        Ok(())
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    fn run_roast_signing(
+        &mut self,
+        coordinator_addr: Address,
+        msg_hash: H256,
+        era: u64,
+        tweak_target: ActorId,
+        threshold: u16,
+        participants: Vec<Address>,
+        max_steps: usize,
+    ) -> Result<ethexe_common::crypto::SignAggregate> {
+        let messages = {
+            let coordinator = self
+                .nodes
+                .get_mut(&coordinator_addr)
+                .ok_or_else(|| anyhow!("Missing coordinator node"))?;
+            coordinator
+                .roast
+                .handle_event(RoastEngineEvent::StartSigning {
+                    msg_hash,
+                    era,
+                    tweak_target,
+                    threshold,
+                    participants,
+                })?
+        };
+
+        let mut queue = VecDeque::new();
+        for message in messages {
+            queue.push_back((coordinator_addr, message));
+        }
+
+        self.process_roast_queue(queue, max_steps)?;
+
+        self.nodes
+            .get(&coordinator_addr)
+            .and_then(|node| node.roast.get_signature(msg_hash, era))
+            .ok_or_else(|| anyhow!("Missing aggregate signature"))
+    }
+
+    fn process_roast_queue(
+        &mut self,
+        mut queue: VecDeque<(Address, RoastMessage)>,
+        max_steps: usize,
+    ) -> Result<()> {
+        let mut steps = 0;
+        while let Some((sender, message)) = queue.pop_front() {
+            steps += 1;
+            if steps > max_steps {
+                return Err(anyhow!("Exceeded max ROAST steps"));
+            }
+
+            for node in self.nodes.values_mut() {
+                let events = match &message {
+                    RoastMessage::SignSessionRequest(request) => {
+                        node.roast
+                            .handle_event(RoastEngineEvent::SignSessionRequest {
+                                from: sender,
+                                request: request.clone(),
+                            })?
+                    }
+                    RoastMessage::SignNonceCommit(commit) => {
+                        node.roast.handle_event(RoastEngineEvent::NonceCommit {
+                            commit: commit.clone(),
+                        })?
+                    }
+                    RoastMessage::SignNoncePackage(package) => {
+                        node.roast.handle_event(RoastEngineEvent::NoncePackage {
+                            package: package.clone(),
+                        })?
+                    }
+                    RoastMessage::SignShare(partial) => {
+                        node.roast.handle_event(RoastEngineEvent::SignShare {
+                            partial: partial.clone(),
+                        })?
+                    }
+                    RoastMessage::SignCulprits(culprits) => {
+                        node.roast.handle_event(RoastEngineEvent::SignCulprits {
+                            culprits: culprits.clone(),
+                        })?
+                    }
+                    RoastMessage::SignAggregate(aggregate) => {
+                        node.roast.handle_event(RoastEngineEvent::SignAggregate {
+                            aggregate: aggregate.clone(),
+                        })?
+                    }
+                };
+
+                for event in events {
+                    queue.push_back((node.address, event));
+                }
+            }
+        }
+
+        Ok(())
+    }
+
+    fn assert_dkg_completed(&self, era: u64) {
+        for (address, node) in &self.nodes {
+            assert!(
+                node.dkg.is_completed(era),
+                "Validator {:?} did not complete DKG",
+                address
+            );
+            assert!(
+                node.dkg.get_public_key_package(era).is_some(),
+                "Validator {:?} missing public key package",
+                address
+            );
+        }
+    }
+
+    fn public_key_packages(&self, era: u64) -> Vec<ethexe_common::crypto::DkgPublicKeyPackage> {
+        self.nodes
+            .values()
+            .filter_map(|node| node.dkg.get_public_key_package(era))
+            .collect()
+    }
+}
 
 #[test]
 fn signing_package_ignored_when_idle() {
@@ -196,10 +439,10 @@ fn participant_signs_after_request_and_package() {
 
 #[test]
 fn roast_signature_verifies_with_tweak() {
-    let mut network = ValidatorNetwork::new(4);
+    let mut network = SimpleNetwork::new(4);
     let era = 1;
     let threshold = 3;
-    let participants = network.run_dkg(era, threshold, 64).expect("run dkg");
+    let participants = network.run_dkg(era, threshold, 256).expect("run dkg");
     network.assert_dkg_completed(era);
 
     let coordinator = network.coordinator_address();
@@ -214,7 +457,7 @@ fn roast_signature_verifies_with_tweak() {
             tweak_target,
             threshold,
             participants,
-            128,
+            512,
         )
         .expect("run roast signing");
 

@@ -160,7 +160,7 @@ where
         self.db.dkg_completed(era)
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-utils"))]
     #[allow(dead_code)]
     pub fn get_public_key_package(
         &self,
@@ -169,13 +169,13 @@ where
         self.db.public_key_package(era)
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-utils"))]
     #[allow(dead_code)]
     pub fn get_vss_commitment(&self, era: u64) -> Option<ethexe_common::crypto::DkgVssCommitment> {
         self.db.dkg_vss_commitment(era)
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-utils"))]
     #[allow(dead_code)]
     pub fn get_dkg_share(&self, era: u64) -> Option<ethexe_common::crypto::DkgShare> {
         self.db.dkg_share(era)

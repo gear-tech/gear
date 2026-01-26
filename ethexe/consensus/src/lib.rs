@@ -51,13 +51,17 @@ pub use validator::{BatchCommitter, ValidatorConfig, ValidatorService};
 
 mod announces;
 mod connect;
-pub mod engine;
-mod policy;
 mod tx_validation;
 mod utils;
 mod validator;
 
-pub use engine::{dkg, roast};
+pub(crate) mod engine {
+    pub use ethexe_dkg_roast::engine::*;
+}
+
+pub(crate) mod policy {
+    pub use ethexe_dkg_roast::policy::*;
+}
 
 #[cfg(test)]
 mod mock;

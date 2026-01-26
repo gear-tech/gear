@@ -187,7 +187,8 @@ pub(crate) fn roast_timeout_elapsed(
 }
 
 /// Returns true if a ROAST request error should trigger DKG restart.
-pub(crate) fn is_recoverable_roast_request_error(err: &anyhow::Error) -> bool {
+/// Returns true when a ROAST error warrants a retry/restart path.
+pub fn is_recoverable_roast_request_error(err: &anyhow::Error) -> bool {
     use crate::engine::roast::{RoastErrorExt, RoastErrorKind};
 
     // Recoverable errors trigger a DKG restart to refresh key material.
@@ -205,13 +206,15 @@ pub(crate) fn is_recoverable_roast_request_error(err: &anyhow::Error) -> bool {
 
 /// Policy decision for DKG errors.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum DkgPolicyDecision {
+/// High-level decision for DKG error handling.
+pub enum DkgPolicyDecision {
     Restart,
     Ignore,
 }
 
 /// Determines whether to restart DKG after an error.
-pub(crate) fn dkg_error_policy(err: &anyhow::Error) -> DkgPolicyDecision {
+/// Maps a DKG error into a policy decision.
+pub fn dkg_error_policy(err: &anyhow::Error) -> DkgPolicyDecision {
     use crate::engine::dkg::{DkgErrorExt, DkgErrorKind};
 
     match err.dkg_error_kind() {

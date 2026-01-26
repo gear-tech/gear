@@ -119,7 +119,7 @@ where
         self.manager.get_signature(msg_hash, era)
     }
 
-    #[cfg(test)]
+    #[cfg(any(test, feature = "test-utils"))]
     #[allow(dead_code)]
     pub fn get_cached_signature(
         &self,

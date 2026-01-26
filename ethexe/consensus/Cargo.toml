@@ -19,6 +19,7 @@ gsigner = { workspace = true, features = [
 ] }
 ethexe-ethereum.workspace = true
 ethexe-common.workspace = true
+ethexe-dkg-roast = { workspace = true, features = ["test-utils"] }
 ethexe-runtime-common.workspace = true
 gprimitives = { workspace = true, features = ["codec", "std", "ethexe"] }
 
