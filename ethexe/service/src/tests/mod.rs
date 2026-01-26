@@ -19,6 +19,7 @@
 //! Integration tests.
 
 use futures::StreamExt;
+mod commit_rejected;
 mod dkg_roast;
 mod storage_cache;
 pub(crate) mod utils;
@@ -31,7 +32,7 @@ use crate::{
     tests::utils::{
         AnnounceId, EnvNetworkConfig, InfiniteStreamExt, Node, NodeConfig, TestEnv, TestEnvConfig,
         TestingEvent, TestingNetworkEvent, TestingRpcEvent, ValidatorsConfig, WaitForReplyTo,
-        Wallets, init_logger,
+        init_logger,
     },
 };
 use alloy::{
@@ -40,7 +41,7 @@ use alloy::{
 };
 use ethexe_common::{
     Announce, HashOf, ScheduledTask, ToDigest,
-    consensus::DEFAULT_CHAIN_DEEPNESS_THRESHOLD,
+    consensus::{DEFAULT_CHAIN_DEEPNESS_THRESHOLD, DEFAULT_VALIDATE_CHAIN_DEEPNESS_LIMIT},
     crypto::{DkgSessionId, DkgVssCommitment},
     db::*,
     ecdsa::ContractSignature,
@@ -57,7 +58,7 @@ use ethexe_common::{
 use ethexe_compute::ComputeConfig;
 use ethexe_consensus::{BatchCommitter, ConsensusEvent};
 use ethexe_db::{Database, verifier::IntegrityVerifier};
-use ethexe_ethereum::{TryGetReceipt, deploy::ContractsDeploymentParams, router::Router};
+use ethexe_ethereum::{TryGetReceipt, router::Router};
 use ethexe_observer::{EthereumConfig, ObserverEvent};
 use ethexe_processor::{DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, RunnerConfig};
 use ethexe_prometheus::PrometheusConfig;
@@ -69,7 +70,7 @@ use gear_core::{
 };
 use gear_core_errors::{ErrorReplyReason, SimpleExecutionError, SimpleUnavailableActorError};
 use gprimitives::{ActorId, H160, H256, MessageId};
-use gsigner::secp256k1::{Secp256k1SignerExt, Signer};
+use gsigner::secp256k1::Secp256k1SignerExt;
 use parity_scale_codec::{Decode, Encode};
 use std::{
     collections::{BTreeMap, BTreeSet, HashSet},
@@ -1428,96 +1429,6 @@ async fn multiple_validators() {
 
 #[tokio::test(flavor = "multi_thread")]
 #[ntest::timeout(60_000)]
-async fn commit_rejected_with_bad_frost_signature() {
-    init_logger();
-
-    #[derive(Clone)]
-    struct BadSignatureCommitter {
-        router: Router,
-    }
-
-    #[async_trait::async_trait]
-    impl BatchCommitter for BadSignatureCommitter {
-        fn clone_boxed(&self) -> Box<dyn BatchCommitter> {
-            Box::new(self.clone())
-        }
-
-        async fn commit(
-            self: Box<Self>,
-            batch: BatchCommitment,
-            signatures: Vec<ContractSignature>,
-        ) -> anyhow::Result<H256> {
-            let pending = self.router.commit_batch_pending(batch, signatures).await?;
-            pending
-                .try_get_receipt_check_reverted()
-                .await
-                .map(|r| r.transaction_hash.0.into())
-        }
-
-        async fn commit_frost(
-            self: Box<Self>,
-            batch: BatchCommitment,
-            mut signature96: [u8; 96],
-        ) -> anyhow::Result<H256> {
-            signature96[0] ^= 0x01;
-            let pending = self
-                .router
-                .commit_batch_frost_pending(batch, signature96)
-                .await?;
-            pending
-                .try_get_receipt_check_reverted()
-                .await
-                .map(|r| r.transaction_hash.0.into())
-        }
-    }
-
-    let config = TestEnvConfig {
-        validators: ValidatorsConfig::PreDefined(1),
-        network: EnvNetworkConfig::Enabled,
-        ..Default::default()
-    };
-    let mut env = TestEnv::new(config).await.unwrap();
-
-    log::info!("📗 Starting validator with normal committer");
-    let mut validator =
-        env.new_node(NodeConfig::named("validator").validator(env.validators[0].clone()));
-    validator.start_service().await;
-
-    let uploaded_code = env
-        .upload_code(demo_ping::WASM_BINARY)
-        .await
-        .unwrap()
-        .wait_for()
-        .await
-        .unwrap();
-    assert!(uploaded_code.valid);
-
-    let ping_actor = env
-        .create_program(uploaded_code.code_id, 500_000_000_000_000)
-        .await
-        .unwrap()
-        .wait_for()
-        .await
-        .unwrap();
-
-    validator.stop_service().await;
-    validator.custom_committer = Some(Box::new(BadSignatureCommitter {
-        router: env.ethereum.router(),
-    }));
-    validator.start_service().await;
-
-    let pending = env
-        .send_message(ping_actor.program_id, b"PING")
-        .await
-        .unwrap();
-
-    tokio::time::timeout(env.block_time * 5, pending.wait_for())
-        .await
-        .expect_err("Timeout expected due to bad signature");
-}
-
-#[tokio::test(flavor = "multi_thread")]
-#[ntest::timeout(60_000)]
 async fn send_injected_tx() {
     init_logger();
 
@@ -1835,6 +1746,7 @@ async fn fast_sync() {
 
 #[tokio::test(flavor = "multi_thread")]
 #[ntest::timeout(60_000)]
+<<<<<<< HEAD
 async fn validators_election() {
     init_logger();
 
@@ -2000,6 +1912,8 @@ async fn validators_election() {
 
 #[tokio::test(flavor = "multi_thread")]
 #[ntest::timeout(60_000)]
+=======
+>>>>>>> 902e0fa7d (separate crate for dkg-roast)
 async fn execution_with_canonical_events_quarantine() {
     init_logger();
 

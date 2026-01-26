@@ -4,11 +4,9 @@
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 
 use super::helpers::{networked_config, start_validators, start_validators_with_events};
-use crate::tests::utils::{
-    InfiniteStreamExt, TestEnv, TestingEvent, TestingNetworkEvent, init_logger,
-};
+use crate::tests::utils::{InfiniteStreamExt, TestEnv, TestingEvent, TestingNetworkEvent, init_logger};
 use ethexe_common::network::VerifiedValidatorMessage;
-use ethexe_consensus::roast::select_leader;
+use ethexe_dkg_roast::roast::select_leader;
 use std::time::Duration;
 
 #[tokio::test(flavor = "multi_thread")]

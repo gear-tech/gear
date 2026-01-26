@@ -315,6 +315,7 @@ ethexe-sdk = { path = "ethexe/sdk", default-features = false }
 ethexe-service = { path = "ethexe/service", default-features = false }
 ethexe-service-utils = { path = "ethexe/service/utils", default-features = false }
 ethexe-consensus = { path = "ethexe/consensus", default-features = false }
+ethexe-dkg-roast = { path = "ethexe/dkg-roast", default-features = false }
 ethexe-ethereum = { path = "ethexe/ethereum", default-features = false }
 ethexe-runtime-common = { path = "ethexe/runtime/common", default-features = false }
 ethexe-prometheus = { path = "ethexe/prometheus", default-features = false }

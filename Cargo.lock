@@ -5031,6 +5031,7 @@ dependencies = [
  "derive_more 2.1.1",
  "ethexe-common",
  "ethexe-db",
+ "ethexe-dkg-roast",
  "ethexe-ethereum",
  "ethexe-runtime-common",
  "ethexe-service-utils",
@@ -5072,6 +5073,20 @@ dependencies = [
  "rocksdb",
  "scopeguard",
  "tempfile",
+ "tracing",
+]
+
+[[package]]
+name = "ethexe-dkg-roast"
+version = "1.10.0"
+dependencies = [
+ "anyhow",
+ "ethexe-common",
+ "ethexe-db",
+ "gprimitives",
+ "rand 0.8.5",
+ "roast-secp256k1-evm",
+ "thiserror 2.0.17",
  "tracing",
 ]
 
@@ -5298,6 +5313,7 @@ dependencies = [
  "ethexe-compute",
  "ethexe-consensus",
  "ethexe-db",
+ "ethexe-dkg-roast",
  "ethexe-ethereum",
  "ethexe-network",
  "ethexe-observer",

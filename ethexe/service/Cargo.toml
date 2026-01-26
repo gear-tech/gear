@@ -58,6 +58,7 @@ alloy = { workspace = true, features = [
     "signer-local",
 ] }
 ntest.workspace = true
+ethexe-dkg-roast.workspace = true
 gear-core-errors.workspace = true
 ethexe-network.workspace = true
 roast-secp256k1-evm.workspace = true
@@ -79,3 +80,6 @@ demo-delayed-sender-ethexe = { workspace = true, features = [
     "debug",
     "ethexe",
 ] }
+
+[features]
+test-utils = []

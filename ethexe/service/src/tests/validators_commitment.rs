@@ -18,10 +18,23 @@
 
 //! Validators commitment integration tests.
 
-use super::*;
-use crate::tests::utils::ObserverEventReceiver;
-use ethexe_common::{crypto::DkgPublicKeyPackage, ecdsa::PublicKey, gear::AggregatedPublicKey};
+use crate::tests::utils::{
+    EnvNetworkConfig, InfiniteStreamExt, NodeConfig, ObserverEventReceiver, TestEnv, TestEnvConfig,
+    ValidatorsConfig, Wallets, init_logger,
+};
+use alloy::providers::{Provider as _, ext::AnvilApi};
+use ethexe_common::{
+    ContractSignature,
+    crypto::{DkgPublicKeyPackage, DkgSessionId, DkgVssCommitment},
+    db::{DkgSessionState, DkgStorageRW},
+    ecdsa::PublicKey,
+    events::{BlockEvent, RouterEvent},
+    gear::{AggregatedPublicKey, BatchCommitment},
+};
+use ethexe_consensus::BatchCommitter;
+use ethexe_ethereum::{TryGetReceipt, deploy::ContractsDeploymentParams, router::Router};
 use gprimitives::{H256, U256};
+use gsigner::secp256k1::Signer;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 

@@ -16,13 +16,11 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{
-    RouterDataProvider, Service,
-    tests::utils::{
-        InfiniteStreamExt, TestingEvent, TestingNetworkEvent, events,
-        events::{ObserverEventReceiver, ObserverEventSender, TestingEventReceiver},
-    },
+use super::{
+    InfiniteStreamExt, TestingEvent, TestingNetworkEvent, events,
+    events::{ObserverEventReceiver, ObserverEventSender, TestingEventReceiver},
 };
+use crate::{RouterDataProvider, Service};
 use alloy::{
     node_bindings::{Anvil, AnvilInstance},
     providers::{ProviderBuilder, RootProvider, ext::AnvilApi},

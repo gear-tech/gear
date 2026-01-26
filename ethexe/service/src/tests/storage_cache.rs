@@ -18,14 +18,20 @@
 
 //! Validator storage and cache integration tests.
 
-use super::*;
-use crate::tests::utils::{InfiniteStreamExt, init_logger};
+use crate::tests::utils::{
+    EnvNetworkConfig, InfiniteStreamExt, NodeConfig, TestEnv, TestEnvConfig, TestingEvent,
+    ValidatorsConfig, init_logger,
+};
+use alloy::providers::ext::AnvilApi;
 use ethexe_common::{
     crypto::{DkgSessionId, PreNonceCommitment, SignAggregate, SignKind, SignSessionRequest},
-    db::{DkgStorageRO, DkgStorageRW, SignStorageRO, SignStorageRW},
+    db::{
+        DkgSessionState, DkgStorageRO, DkgStorageRW, OnChainStorageRO, SignStorageRO, SignStorageRW,
+    },
     network::ValidatorMessage,
 };
-use ethexe_consensus::roast::select_leader;
+use ethexe_consensus::ConsensusEvent;
+use ethexe_dkg_roast::roast::select_leader;
 use gprimitives::{ActorId, H256};
 
 #[tokio::test(flavor = "multi_thread")]

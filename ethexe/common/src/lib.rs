@@ -23,6 +23,7 @@
 extern crate alloc;
 
 pub mod consensus;
+#[path = "../../dkg-roast/src/crypto/mod.rs"]
 pub mod crypto;
 pub mod db;
 pub mod events;
