@@ -43,7 +43,7 @@ use std::{
 #[derive(Debug, derive_more::From)]
 pub enum Message {
     // TODO: rename to `Validators`
-    Commitments(SignedValidatorMessage),
+    Commitments(Box<SignedValidatorMessage>),
     Promise(SignedPromise),
 }
 
@@ -175,7 +175,8 @@ impl Behaviour {
                     source.expect("ValidationMode::Strict implies `source` is always present");
 
                 let res = if topic == self.commitments_topic.hash() {
-                    SignedValidatorMessage::decode(&mut &data[..]).map(Message::Commitments)
+                    SignedValidatorMessage::decode(&mut &data[..])
+                        .map(|m| Message::Commitments(Box::new(m)))
                 } else if topic == self.promises_topic.hash() {
                     SignedPromise::decode(&mut &data[..]).map(Message::Promise)
                 } else {

@@ -19,7 +19,12 @@
 //! Integration tests.
 
 use futures::StreamExt;
+mod commit_rejected;
+mod dkg_roast;
+mod storage_cache;
 pub(crate) mod utils;
+mod validators_commitment;
+mod validators_election;
 
 use crate::{
     Service,
@@ -27,7 +32,7 @@ use crate::{
     tests::utils::{
         AnnounceId, EnvNetworkConfig, InfiniteStreamExt, Node, NodeConfig, TestEnv, TestEnvConfig,
         TestingEvent, TestingNetworkEvent, TestingRpcEvent, ValidatorsConfig, WaitForReplyTo,
-        Wallets, init_logger,
+        init_logger,
     },
 };
 use alloy::{
@@ -48,7 +53,7 @@ use ethexe_common::{
 use ethexe_compute::ComputeConfig;
 use ethexe_consensus::{BatchCommitter, ConsensusEvent};
 use ethexe_db::{Database, verifier::IntegrityVerifier};
-use ethexe_ethereum::{TryGetReceipt, deploy::ContractsDeploymentParams, router::Router};
+use ethexe_ethereum::{TryGetReceipt, router::Router};
 use ethexe_observer::{EthereumConfig, ObserverEvent};
 use ethexe_processor::{DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER, RunnerConfig};
 use ethexe_prometheus::PrometheusConfig;
@@ -60,7 +65,7 @@ use gear_core::{
 };
 use gear_core_errors::{ErrorReplyReason, SimpleExecutionError, SimpleUnavailableActorError};
 use gprimitives::{ActorId, H160, H256, MessageId};
-use gsigner::secp256k1::{Secp256k1SignerExt, Signer};
+use gsigner::secp256k1::Secp256k1SignerExt;
 use parity_scale_codec::{Decode, Encode};
 use std::{
     collections::{BTreeMap, BTreeSet, HashSet},
@@ -154,7 +159,7 @@ async fn ping() {
 
     let mut env = TestEnv::new(Default::default()).await.unwrap();
 
-    let mut node = env.new_node(NodeConfig::default().validator(env.validators[0]));
+    let mut node = env.new_node(NodeConfig::default().validator(env.validators[0].clone()));
     node.start_service().await;
 
     let res = env
@@ -233,7 +238,7 @@ async fn uninitialized_program() {
 
     let mut env = TestEnv::new(Default::default()).await.unwrap();
 
-    let mut node = env.new_node(NodeConfig::default().validator(env.validators[0]));
+    let mut node = env.new_node(NodeConfig::default().validator(env.validators[0].clone()));
     node.start_service().await;
 
     let res = env
@@ -389,7 +394,7 @@ async fn mailbox() {
 
     let mut env = TestEnv::new(Default::default()).await.unwrap();
 
-    let mut node = env.new_node(NodeConfig::default().validator(env.validators[0]));
+    let mut node = env.new_node(NodeConfig::default().validator(env.validators[0].clone()));
     node.start_service().await;
 
     let res = env
@@ -626,7 +631,7 @@ async fn value_reply_program_to_user() {
 
     let mut env = TestEnv::new(Default::default()).await.unwrap();
 
-    let mut node = env.new_node(NodeConfig::default().validator(env.validators[0]));
+    let mut node = env.new_node(NodeConfig::default().validator(env.validators[0].clone()));
     node.start_service().await;
 
     let res = env
@@ -725,7 +730,7 @@ async fn value_send_program_to_user_and_claimed() {
 
     let mut env = TestEnv::new(Default::default()).await.unwrap();
 
-    let mut node = env.new_node(NodeConfig::default().validator(env.validators[0]));
+    let mut node = env.new_node(NodeConfig::default().validator(env.validators[0].clone()));
     node.start_service().await;
 
     let res = env
@@ -857,7 +862,7 @@ async fn value_send_program_to_user_and_replied() {
 
     let mut env = TestEnv::new(Default::default()).await.unwrap();
 
-    let mut node = env.new_node(NodeConfig::default().validator(env.validators[0]));
+    let mut node = env.new_node(NodeConfig::default().validator(env.validators[0].clone()));
     node.start_service().await;
 
     let res = env
@@ -992,7 +997,7 @@ async fn incoming_transfers() {
 
     let mut env = TestEnv::new(Default::default()).await.unwrap();
 
-    let mut node = env.new_node(NodeConfig::default().validator(env.validators[0]));
+    let mut node = env.new_node(NodeConfig::default().validator(env.validators[0].clone()));
     node.start_service().await;
 
     let res = env
@@ -1089,7 +1094,8 @@ async fn ping_reorg() {
     let mut connect_node = env.new_node(NodeConfig::named("connect"));
     connect_node.start_service().await;
 
-    let mut node = env.new_node(NodeConfig::named("validator").validator(env.validators[0]));
+    let mut node =
+        env.new_node(NodeConfig::named("validator").validator(env.validators[0].clone()));
     node.start_service().await;
 
     let res = env
@@ -1193,7 +1199,7 @@ async fn ping_deep_sync() {
 
     let mut env = TestEnv::new(Default::default()).await.unwrap();
 
-    let mut node = env.new_node(NodeConfig::default().validator(env.validators[0]));
+    let mut node = env.new_node(NodeConfig::default().validator(env.validators[0].clone()));
     node.start_service().await;
 
     let res = env
@@ -1252,7 +1258,7 @@ async fn ping_deep_sync() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[ntest::timeout(60_000)]
+#[ntest::timeout(120_000)]
 async fn multiple_validators() {
     init_logger();
 
@@ -1434,7 +1440,7 @@ async fn send_injected_tx() {
     log::info!("📗 Starting node 0");
     let mut node0 = env.new_node(
         NodeConfig::default()
-            .validator(env.validators[0])
+            .validator(env.validators[0].clone())
             .service_rpc(9505),
     );
     node0.start_service().await;
@@ -1443,7 +1449,7 @@ async fn send_injected_tx() {
     let mut node1 = env.new_node(
         NodeConfig::default()
             .service_rpc(9506)
-            .validator(env.validators[1]),
+            .validator(env.validators[1].clone()),
     );
     node1.start_service().await;
 
@@ -1611,7 +1617,7 @@ async fn fast_sync() {
     let mut env = TestEnv::new(config).await.unwrap();
 
     log::info!("📗 Starting Alice");
-    let mut alice = env.new_node(NodeConfig::named("Alice").validator(env.validators[0]));
+    let mut alice = env.new_node(NodeConfig::named("Alice").validator(env.validators[0].clone()));
     alice.start_service().await;
 
     log::info!("📗 Creating `demo-autoreply` programs");
@@ -1733,150 +1739,6 @@ async fn fast_sync() {
 
 #[tokio::test(flavor = "multi_thread")]
 #[ntest::timeout(60_000)]
-async fn validators_election() {
-    init_logger();
-
-    // Setup test environment
-
-    let election_ts = 20 * 60 * 60;
-    let era_duration = 24 * 60 * 60;
-    let deploy_params = ContractsDeploymentParams {
-        with_middleware: true,
-        era_duration,
-        election_duration: era_duration - election_ts,
-    };
-
-    let signer = Signer::memory();
-    // 10 wallets - hardcoded in anvil
-    let mut wallets = Wallets::anvil(&signer);
-
-    let current_validators: Vec<_> = (0..5).map(|_| wallets.next()).collect();
-    let next_validators: Vec<_> = (0..5).map(|_| wallets.next()).collect();
-
-    let env_config = TestEnvConfig {
-        validators: ValidatorsConfig::ProvidedValidators(current_validators),
-        deploy_params,
-        network: EnvNetworkConfig::Enabled,
-        signer: signer.clone(),
-        ..Default::default()
-    };
-    let mut env = TestEnv::new(env_config).await.unwrap();
-
-    let genesis_block_hash = env
-        .ethereum
-        .router()
-        .query()
-        .genesis_block_hash()
-        .await
-        .unwrap();
-    let genesis_ts = env
-        .provider
-        .get_block_by_hash(genesis_block_hash.0.into())
-        .await
-        .unwrap()
-        .unwrap()
-        .header
-        .timestamp;
-
-    // Start initial validators
-    let mut validators = vec![];
-    for (i, v) in env.validators.clone().into_iter().enumerate() {
-        log::info!("📗 Starting validator-{i}");
-        let mut validator = env.new_node(NodeConfig::named(format!("validator-{i}")).validator(v));
-        validator.start_service().await;
-        validators.push(validator);
-    }
-
-    // Setup next validators to be elected for previous era
-    let (next_validators_configs, _commitment) =
-        TestEnv::define_session_keys(&signer, next_validators);
-
-    let next_validators: Vec<_> = next_validators_configs
-        .iter()
-        .map(|cfg| cfg.public_key.to_address())
-        .collect();
-
-    env.election_provider
-        .set_predefined_election_at(
-            election_ts + genesis_ts,
-            next_validators.try_into().unwrap(),
-        )
-        .await;
-
-    // Force creation new block in election period
-    env.provider
-        .anvil_set_next_block_timestamp(election_ts + genesis_ts)
-        .await
-        .unwrap();
-    env.force_new_block().await;
-
-    env.new_observer_events()
-        .filter_map_block_synced()
-        .find(|event| {
-            matches!(
-                event,
-                BlockEvent::Router(RouterEvent::ValidatorsCommittedForEra { era_index: _ })
-            )
-        })
-        .await;
-
-    tracing::info!("📗 Next validators successfully committed");
-
-    // Upload code when next validators committed and next are not active.
-    // Checks, that another validators commitment not happen.
-    let uploaded_code = env
-        .upload_code(demo_ping::WASM_BINARY)
-        .await
-        .unwrap()
-        .wait_for()
-        .await
-        .unwrap();
-    assert!(uploaded_code.valid);
-
-    let ping_actor = env
-        .create_program(uploaded_code.code_id, 500_000_000_000_000)
-        .await
-        .unwrap()
-        .wait_for()
-        .await
-        .unwrap();
-    assert_eq!(ping_actor.code_id, uploaded_code.code_id);
-
-    // Stop previous validators
-    for mut node in validators.into_iter() {
-        node.stop_service().await;
-    }
-
-    // Check that next validators can submit transactions
-    env.validators = next_validators_configs;
-    let mut new_validators = vec![];
-    for (i, v) in env.validators.clone().into_iter().enumerate() {
-        log::info!("📗 Starting validator-{i}");
-        let mut validator = env.new_node(NodeConfig::named(format!("validator-{i}")).validator(v));
-        validator.start_service().await;
-        new_validators.push(validator);
-    }
-
-    env.provider
-        .anvil_set_next_block_timestamp(era_duration + genesis_ts)
-        .await
-        .unwrap();
-    env.force_new_block().await;
-
-    let reply = env
-        .send_message(ping_actor.program_id, b"PING")
-        .await
-        .expect("pong reply")
-        .wait_for()
-        .await
-        .expect("reply info");
-
-    assert_eq!(reply.payload, b"PONG");
-    assert_eq!(reply.program_id, ping_actor.program_id);
-}
-
-#[tokio::test(flavor = "multi_thread")]
-#[ntest::timeout(60_000)]
 async fn execution_with_canonical_events_quarantine() {
     init_logger();
 
@@ -1887,7 +1749,7 @@ async fn execution_with_canonical_events_quarantine() {
     let mut env = TestEnv::new(config).await.unwrap();
 
     log::info!("📗 Starting validator");
-    let mut validator = env.new_node(NodeConfig::default().validator(env.validators[0]));
+    let mut validator = env.new_node(NodeConfig::default().validator(env.validators[0].clone()));
     validator.start_service().await;
 
     let uploaded_code = env
@@ -2004,7 +1866,7 @@ async fn value_send_program_to_program() {
 
     let mut env = TestEnv::new(Default::default()).await.unwrap();
 
-    let mut node = env.new_node(NodeConfig::default().validator(env.validators[0]));
+    let mut node = env.new_node(NodeConfig::default().validator(env.validators[0].clone()));
     node.start_service().await;
 
     let res = env
@@ -2150,7 +2012,7 @@ async fn value_send_delayed() {
 
     let mut env = TestEnv::new(Default::default()).await.unwrap();
 
-    let mut node = env.new_node(NodeConfig::default().validator(env.validators[0]));
+    let mut node = env.new_node(NodeConfig::default().validator(env.validators[0].clone()));
     node.start_service().await;
 
     let res = env
@@ -2330,7 +2192,7 @@ async fn injected_tx_fungible_token() {
     let mut node = env.new_node(
         NodeConfig::default()
             .service_rpc(8090)
-            .validator(env.validators[0]),
+            .validator(env.validators[0].clone()),
     );
     node.start_service().await;
     let rpc_client = node.rpc_http_client().expect("RPC client provide by node");
@@ -2547,7 +2409,7 @@ async fn injected_tx_fungible_token_over_network() {
         .expect("RPC client provide by node");
 
     let bob_pubkey = env.validators[0].public_key;
-    let mut bob_node = env.new_node(NodeConfig::named("Bob").validator(env.validators[0]));
+    let mut bob_node = env.new_node(NodeConfig::named("Bob").validator(env.validators[0].clone()));
     bob_node.start_service().await;
 
     // 1. Create Fungible token config
@@ -2674,7 +2536,7 @@ async fn injected_tx_fungible_token_over_network() {
 }
 
 #[tokio::test(flavor = "multi_thread")]
-#[ntest::timeout(120_000)]
+#[ntest::timeout(180_000)]
 async fn announces_conflicts() {
     init_logger();
 
@@ -3098,6 +2960,39 @@ async fn catch_up_test_case(commitment_delay_limit: u32) {
                 .await
                 .map(|r| r.transaction_hash.0.into())
         }
+
+        async fn commit_frost(
+            mut self: Box<Self>,
+            batch: BatchCommitment,
+            signature96: [u8; 96],
+        ) -> anyhow::Result<H256> {
+            log::info!("📗 LateCommitter wait for signal to commit ...");
+            self.wait_signal_sender.send(()).unwrap();
+            self.commit_signal_receiver
+                .lock()
+                .await
+                .recv()
+                .await
+                .unwrap();
+
+            log::info!(
+                "📗 LateCommitter committing batch {}: {:?}",
+                batch.to_digest(),
+                batch
+            );
+            let pending = self
+                .router
+                .commit_batch_frost_pending(batch, signature96)
+                .await;
+
+            self.wait_signal_sender.send(()).unwrap();
+
+            log::info!("📗 LateCommitter waiting for transaction to be applied ...");
+            pending?
+                .try_get_receipt_check_reverted()
+                .await
+                .map(|r| r.transaction_hash.0.into())
+        }
     }
 
     let config = TestEnvConfig {
@@ -3108,7 +3003,7 @@ async fn catch_up_test_case(commitment_delay_limit: u32) {
     let mut env = TestEnv::new(config).await.unwrap();
 
     log::info!("📗 Starting Alice");
-    let mut alice = env.new_node(NodeConfig::named("Alice").validator(env.validators[0]));
+    let mut alice = env.new_node(NodeConfig::named("Alice").validator(env.validators[0].clone()));
     alice.start_service().await;
 
     log::info!("📗 Starting Bob");

@@ -255,6 +255,7 @@ library Gear {
             abi.encodePacked(
                 commitment.aggregatedPublicKey.x,
                 commitment.aggregatedPublicKey.y,
+                keccak256(commitment.verifiableSecretSharingCommitment),
                 commitment.validators,
                 commitment.eraIndex
             )

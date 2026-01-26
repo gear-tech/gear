@@ -204,7 +204,9 @@ pub struct EventSender<T> {
 
 impl<T: Clone> EventSender<T> {
     pub async fn send(&self, event: T) {
-        self.inner.broadcast_direct(event).await.unwrap();
+        if let Err(err) = self.inner.broadcast_direct(event).await {
+            tracing::trace!("dropping event send: {err}");
+        }
     }
 }
 
