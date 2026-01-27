@@ -9,10 +9,7 @@ use alloy::{
 use anyhow::Result;
 use ethexe_ethereum::{
     Ethereum,
-    abi::{
-        IMirror::*,
-        //IRouter::*,
-    },
+    abi::IMirror::*,
     mirror::signatures::{
         EXECUTABLE_BALANCE_TOP_UP_REQUESTED, MESSAGE, MESSAGE_CALL_FAILED,
         MESSAGE_QUEUEING_REQUESTED, OWNED_BALANCE_TOP_UP_REQUESTED, REPLY, REPLY_CALL_FAILED,
@@ -20,15 +17,16 @@ use ethexe_ethereum::{
     },
 };
 use futures::{StreamExt, stream::FuturesUnordered};
-use gear_call_gen::CallGenRng;
-use gear_core::message::ReplyCode;
+use gear_call_gen::{CallGenRng, ClaimValueArgs, SendReplyArgs};
+use gear_core::{ids::prelude::MessageIdExt, message::ReplyCode};
 use gprimitives::{ActorId, H256, MessageId};
 use std::{
     collections::{BTreeMap, BTreeSet},
     marker::PhantomData,
+    sync::Arc,
     time::Duration,
 };
-use tokio::sync::broadcast::Receiver;
+use tokio::sync::{RwLock, broadcast::Receiver};
 use tracing::instrument;
 
 use crate::{
@@ -36,7 +34,7 @@ use crate::{
     batch::{
         context::Context,
         generator::{Batch, BatchGenerator, BatchWithSeed, RuntimeSettings},
-        report::{BatchRunReport, Report},
+        report::{BatchRunReport, MailboxReport, Report},
     },
     utils,
 };
@@ -53,6 +51,8 @@ pub struct BatchPool<Rng: CallGenRng> {
     rx: Receiver<<alloy::network::Ethereum as Network>::HeaderResponse>,
     _marker: PhantomData<Rng>,
 }
+
+type MidMap = Arc<RwLock<BTreeMap<MessageId, ActorId>>>;
 
 /// Events emitted by mirror contract. Used to build mailbox and other context state for
 /// batch report.
@@ -72,11 +72,11 @@ pub enum EventKind {
     ValueClaimingRequested(ValueClaimingRequested),
     OwnedBalanceTopUpRequested(OwnedBalanceTopUpRequested),
     ExecutableBalanceTopUpRequested(ExecutableBalanceTopUpRequested),
-    Message(ethexe_ethereum::abi::IMirror::Message),
-    MessageCallFailed(ethexe_ethereum::abi::IMirror::MessageCallFailed),
-    Reply(ethexe_ethereum::abi::IMirror::Reply),
-    ReplyCallFailed(ethexe_ethereum::abi::IMirror::ReplyCallFailed),
-    ValueClaimed(ethexe_ethereum::abi::IMirror::ValueClaimed),
+    Message(Message),
+    MessageCallFailed(MessageCallFailed),
+    Reply(Reply),
+    ReplyCallFailed(ReplyCallFailed),
+    ValueClaimed(ValueClaimed),
 }
 
 impl std::fmt::Debug for EventKind {
@@ -260,7 +260,7 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
         code_seed_type: Option<SeedVariant>,
     ) -> Result<()> {
         let mut batches = FuturesUnordered::new();
-
+        let mid_map = MidMap::default();
         let seed = loader_seed.unwrap_or_else(gear_utils::now_millis);
         tracing::info!(
             message = "Running task pool with params",
@@ -280,7 +280,12 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
                 self.api.router().address().into(),
             )
             .await?;
-            batches.push(run_batch(api, batch_with_seed, self.rx.resubscribe()));
+            batches.push(run_batch(
+                api,
+                batch_with_seed,
+                self.rx.resubscribe(),
+                mid_map.clone(),
+            ));
         }
 
         while let Some(report) = batches.next().await {
@@ -292,7 +297,12 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
             )
             .await?;
             let batch_with_seed = batch_gen.generate(self.task_context.clone());
-            batches.push(run_batch(api, batch_with_seed, self.rx.resubscribe()));
+            batches.push(run_batch(
+                api,
+                batch_with_seed,
+                self.rx.resubscribe(),
+                mid_map.clone(),
+            ));
         }
 
         unreachable!()
@@ -307,10 +317,11 @@ async fn run_batch(
     api: Ethereum,
     batch: BatchWithSeed,
     rx: Receiver<<alloy::network::Ethereum as Network>::HeaderResponse>,
+    mid_map: MidMap,
 ) -> Result<BatchRunReport> {
     let (seed, batch) = batch.into();
 
-    match run_batch_impl(api, batch, rx).await {
+    match run_batch_impl(api, batch, rx, mid_map).await {
         Ok(report) => Ok(BatchRunReport::new(seed, report)),
         Err(err) => {
             tracing::info!("Batch failed: {err:?}");
@@ -324,6 +335,7 @@ async fn run_batch_impl(
     api: Ethereum,
     batch: Batch,
     rx: Receiver<<alloy::network::Ethereum as Network>::HeaderResponse>,
+    mid_map: MidMap,
 ) -> Result<Report> {
     match batch {
         Batch::UploadProgram(args) => {
@@ -374,9 +386,12 @@ async fn run_batch_impl(
                 mirror
                     .executable_balance_top_up(500_000_000_000_000)
                     .await?;
+                tracing::debug!("[Call with id {call_id}]: Program created {}", program.1);
                 match mirror.send_message(&arg.0.2, arg.0.4).await {
                     Ok((_, message_id)) => {
+                        mid_map.write().await.insert(message_id, program.1);
                         messages.insert(message_id, (program.1, call_id));
+                        tracing::debug!("[Call with id {call_id}]: Init message sent {message_id}",);
                     }
                     Err(err) => {
                         tracing::error!("Failed to send message: {err:?}");
@@ -420,6 +435,8 @@ async fn run_batch_impl(
                 let mirror = api.mirror(ethexe_common::Address::try_from(to).unwrap());
                 let (_, message_id) = mirror.send_message(&arg.0.1, arg.0.3).await?;
                 messages.insert(message_id, (to, i));
+                mid_map.write().await.insert(message_id, to);
+                tracing::debug!("[Call with id {i}]: Message sent #{message_id} to {to}");
             }
             let block = api
                 .provider()
@@ -431,35 +448,67 @@ async fn run_batch_impl(
             process_events(api, messages, rx, block).await
         }
 
-        Batch::ClaimValue(_args) => {
-            // TODO: Need to get address of mirror somehow here. gear-call-gen DOES NOT give us that.
-            tracing::warn!("ClaimValue batch is not implemented yet");
+        Batch::ClaimValue(args) => {
+            let removed_from_mailbox = args.clone().into_iter().map(|ClaimValueArgs(mid)| mid);
+
+            for (call_id, arg) in args.iter().enumerate() {
+                let mid = arg.0;
+                let actor_id = *mid_map
+                    .read()
+                    .await
+                    .get(&mid)
+                    .ok_or_else(|| anyhow::anyhow!("Actor not found for message id {mid}"))?;
+                let mirror = api.mirror(ethexe_common::Address::try_from(actor_id).unwrap());
+                mirror.claim_value(mid).await?;
+                tracing::debug!("[Call with id: {call_id}]: Successfully claimed");
+            }
+
             Ok(Report {
+                mailbox_data: MailboxReport {
+                    removed: BTreeSet::from_iter(removed_from_mailbox),
+                    ..Default::default()
+                },
                 ..Default::default()
             })
         }
 
-        Batch::SendReply(_args) => {
-            // TODO: Need to get address of mirror somehow here. gear-call-gen DOES NOT give us that.
-            tracing::warn!("SendReply batch is not implemented yet");
-            /*let removed_from_mailbox = args.clone().into_iter().map(|SendReplyArgs((mid, ..))| mid);
+        Batch::SendReply(args) => {
+            let removed_from_mailbox = args.clone().into_iter().map(|SendReplyArgs((mid, ..))| mid);
 
             let mut messages = BTreeMap::new();
 
-            for (i, arg) in args.iter().enumerate() {
-                let arg = arg.0;
-                let mid = arg.0;
-                let payload = arg.1;
-                let _gas_limit = arg.2;
-                let value = arg.3;
+            let block = api
+                .provider()
+                .get_block(BlockId::latest())
+                .await?
+                .unwrap()
+                .hash();
 
-                let mirror = api.mirror(address)
-            }*/
+            for (call_id, arg) in args.iter().enumerate() {
+                let mid = arg.0.0;
+                let payload = &arg.0.1;
+                let value = arg.0.3;
+                let actor_id = *mid_map
+                    .read()
+                    .await
+                    .get(&mid)
+                    .ok_or_else(|| anyhow::anyhow!("Actor not found for message id {mid}"))?;
+                let mirror = api.mirror(ethexe_common::Address::try_from(actor_id).unwrap());
+                let _ = mirror.send_reply(mid, payload, value).await?;
+                let reply_mid = MessageId::generate_reply(mid);
+                mid_map.write().await.insert(reply_mid, actor_id);
+                messages.insert(reply_mid, (actor_id, call_id));
 
-            Ok(Report {
-                //    removed_from_mailbox,
-                ..Default::default()
-            })
+                tracing::debug!(
+                    "[Call with id: {call_id}]: Successfully replied to {mid} with value={value}"
+                );
+            }
+            process_events(api, messages, rx, block)
+                .await
+                .map(|mut report| {
+                    report.mailbox_data.append_removed(removed_from_mailbox);
+                    report
+                })
         }
 
         Batch::CreateProgram(args) => {
@@ -496,12 +545,15 @@ async fn run_batch_impl(
                 mirror
                     .executable_balance_top_up(500_000_000_000_000)
                     .await?;
+                tracing::debug!("[Call with id: {call_id}]: Program created {}", program.1);
                 // send init message to program with payload and value.
                 match mirror.send_message(&arg.0.2, arg.0.4).await {
                     Ok((_, message)) => {
                         programs.insert(program.1);
                         messages.insert(message, (program.1, call_id));
-                        tracing::debug!("[Call with id: {call_id}]: Successfully executed");
+                        tracing::debug!(
+                            "[Call with id: {call_id}]: Successfully sent init message {message}"
+                        );
                     }
                     Err(e) => {
                         tracing::error!(
@@ -555,11 +607,11 @@ async fn process_events(
 
             for log in logs {
                 if let Some(event) = Event::decode_rpc_log(log)? {
+                    tracing::debug!("Relevant log discovered: {event:?}");
                     v.push(event);
                 }
             }
 
-            println!("Logs for #{current_bn}: {v:#?}");
             tokio::time::sleep(Duration::new(0, 100)).await;
 
             block =

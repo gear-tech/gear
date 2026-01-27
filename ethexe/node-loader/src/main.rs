@@ -77,51 +77,6 @@ async fn listen_blocks(
     let mut sub = provider.subscribe_blocks().await?;
 
     while let Ok(block) = sub.recv().await {
-        /*let logs = provider
-            .get_logs(&Filter::new().at_block_hash(block.hash()))
-            .await?;
-        for log in logs.iter() {
-            let kind = match log.topic0().copied() {
-                Some(STATE_CHANGED) => {
-                    EventKind::StateChanged(StateChanged::decode_log_data(log.data())?)
-                }
-                Some(MESSAGE_QUEUEING_REQUESTED) => EventKind::MessageQueueingRequested(
-                    MessageQueueingRequested::decode_log_data(log.data())?,
-                ),
-                Some(REPLY_QUEUEING_REQUESTED) => EventKind::ReplyQueueingRequested(
-                    ReplyQueueingRequested::decode_log_data(log.data())?,
-                ),
-                Some(VALUE_CLAIMING_REQUESTED) => EventKind::ValueClaimingRequested(
-                    ValueClaimingRequested::decode_log_data(log.data())?,
-                ),
-                Some(OWNED_BALANCE_TOP_UP_REQUESTED) => EventKind::OwnedBalanceTopUpRequested(
-                    OwnedBalanceTopUpRequested::decode_log_data(log.data())?,
-                ),
-                Some(EXECUTABLE_BALANCE_TOP_UP_REQUESTED) => {
-                    EventKind::ExecutableBalanceTopUpRequested(
-                        ExecutableBalanceTopUpRequested::decode_log_data(log.data())?,
-                    )
-                }
-                Some(MESSAGE) => EventKind::Message(Message::decode_log_data(log.data())?),
-                Some(MESSAGE_CALL_FAILED) => {
-                    EventKind::MessageCallFailed(MessageCallFailed::decode_log_data(log.data())?)
-                }
-                Some(REPLY) => EventKind::Reply(Reply::decode_log_data(log.data())?),
-                Some(REPLY_CALL_FAILED) => {
-                    EventKind::ReplyCallFailed(ReplyCallFailed::decode_log_data(log.data())?)
-                }
-                Some(VALUE_CLAIMED) => {
-                    EventKind::ValueClaimed(ValueClaimed::decode_log_data(log.data())?)
-                }
-                _ => continue,
-            };
-            tracing::info!("Event from {}: {:?}", log.address(), kind);
-            tx.send(Event {
-                kind,
-                address: log.address(),
-            })
-            .map_err(|_| anyhow::anyhow!("Failed to send event"))?;
-        }*/
         tx.send(block)
             .map_err(|_| anyhow::anyhow!("Failed to send block"))?;
     }

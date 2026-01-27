@@ -123,6 +123,7 @@ pub async fn err_waited_or_succeed_batch(
             {
                 Some(vec![(MessageId::new(msg.repliedTo.0), None)])
             }
+
             _ => None,
         })
         .flatten()
