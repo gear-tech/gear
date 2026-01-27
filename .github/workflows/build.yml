@@ -387,25 +387,25 @@ jobs:
       - name: "Test: Benchmarks in WASM"
         # check that perf benchmarks works. `--steps=5` need to test, that benchmarks works for different input number.
         run: >-
-          ./target/release/gear benchmark pallet
+          ./target/${CARGO_BUILD_TARGET}/release/gear benchmark pallet
           --chain=dev --steps=5 --repeat=0 --heap-pages=16384
           --pallet="*" --extrinsic="*"
 
       - name: "Test: Extra `read_big_state` benchmark"
         run: >-
-          ./target/release/gear benchmark pallet
+          ./target/${CARGO_BUILD_TARGET}/release/gear benchmark pallet
           --chain=dev --repeat=0 --heap-pages=16384
           --pallet=pallet_gear --extrinsic="read_big_state" --extra
 
       - name: "Test: Extra `signal_stack_limit_exceeded_works` benchmark"
         run: >-
-          ./target/release/gear benchmark pallet
+          ./target/${CARGO_BUILD_TARGET}/release/gear benchmark pallet
           --chain=dev --repeat=0 --heap-pages=16384
           --pallet=pallet_gear --extrinsic="signal_stack_limit_exceeded_works" --extra
 
       - name: "Test: Extra `check_all` benchmark"
         run: >-
-          ./target/release/gear benchmark pallet
+          ./target/${CARGO_BUILD_TARGET}/release/gear benchmark pallet
           --chain=dev --repeat=0 --heap-pages=16384
           --pallet=pallet_gear --extrinsic="check_all" --extra
 
