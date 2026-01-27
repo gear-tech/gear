@@ -12,12 +12,7 @@ resolver = "3"
 
 default-members = ["node/cli"]
 
-exclude = [
-    "ethexe/contracts",
-    "ethexe/docker",
-    "ethexe/scripts",
-    "utils/syscall-test-contracts",
-]
+exclude = ["ethexe/contracts", "ethexe/docker", "ethexe/scripts"]
 
 members = [
     "common",
@@ -112,12 +107,6 @@ members = [
     "utils/*",
     "utils/runtime-fuzzer/fuzz",
     "utils/lazy-pages-fuzzer/runner",
-    "utils/syscall-test-contracts/common",
-    "utils/syscall-test-contracts/orchestrator",
-    "utils/syscall-test-contracts/send-tester",
-    "utils/syscall-test-contracts/reply-tester",
-    "utils/syscall-test-contracts/reservation-tester",
-    "utils/syscall-test-contracts/program-factory",
     "ethexe/*",
     "ethexe/runtime/common",
     "ethexe/service/utils",
