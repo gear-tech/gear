@@ -52,7 +52,6 @@ jobs:
         uses: ./.github/actions/setup-compilation-env
         with:
           target: "${{ matrix.targets.target }}"
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: "ACTIONS: Setup caching"
         uses: ./.github/actions/rust-cache

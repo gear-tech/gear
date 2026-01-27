@@ -21,7 +21,9 @@ use anyhow::{Context, Result, anyhow};
 use chrono::offset::Local as ChronoLocal;
 use gear_wasm_optimizer::{self as optimize, Optimizer};
 use std::{
-    env, fs,
+    env,
+    ffi::OsString,
+    fs,
     path::{Path, PathBuf},
 };
 use toml::value::Table;
@@ -83,6 +85,9 @@ impl WasmProject {
             .expect("`OUT_DIR` is always set in build scripts")
             .into();
 
+        let target: OsString =
+            env::var_os("TARGET").expect("`TARGET` is always set in build scripts");
+
         let profile = out_dir
             .components()
             .rev()
@@ -103,6 +108,10 @@ impl WasmProject {
             .and_then(|path| path.parent())
             .map(|p| p.to_owned())
             .expect("Could not find target directory");
+
+        if target_dir.ends_with(target) {
+            target_dir.pop();
+        }
 
         let mut wasm_target_dir = target_dir.clone();
         wasm_target_dir.push("wasm32-gear");

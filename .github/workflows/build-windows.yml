@@ -43,7 +43,6 @@ jobs:
         uses: ./.github/actions/setup-compilation-env
         with:
           target: x86_64-pc-windows-msvc
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: "ACTIONS: Setup caching"
         uses: ./.github/actions/rust-cache
