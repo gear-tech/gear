@@ -59,6 +59,36 @@ pub struct StorageLocationArgs {
     pub storage_password: Option<SecretString>,
 }
 
+/// Storage location options without a password.
+#[derive(Debug, Clone, Args)]
+pub struct StorageLocationPathArgs {
+    #[arg(
+        short = 's',
+        long = "path",
+        alias = "storage",
+        value_name = "PATH",
+        help = "Key storage path (defaults to the gsigner data directory)"
+    )]
+    pub path: Option<PathBuf>,
+    #[arg(
+        long,
+        help = "Use in-memory storage (do not persist keys)",
+        default_value_t = false,
+        conflicts_with = "path"
+    )]
+    pub memory: bool,
+}
+
+impl StorageLocationPathArgs {
+    pub fn into_storage_args(self) -> StorageLocationArgs {
+        StorageLocationArgs {
+            path: self.path,
+            memory: self.memory,
+            storage_password: None,
+        }
+    }
+}
+
 fn secret_string_parser(s: &str) -> Result<SecretString, String> {
     Ok(SecretString::new(s.to_owned()))
 }
@@ -210,7 +240,7 @@ pub enum SchemeKeyringCommands {
     #[command(about = "Clear all keys from storage")]
     Clear {
         #[command(flatten)]
-        storage: StorageLocationArgs,
+        storage: StorageLocationPathArgs,
     },
     #[command(about = "Generate and store a new keypair")]
     Generate {
@@ -310,6 +340,6 @@ pub enum SchemeKeyringCommands {
     #[command(name = "list", about = "List keys in keyring")]
     List {
         #[command(flatten)]
-        storage: StorageLocationArgs,
+        storage: StorageLocationPathArgs,
     },
 }

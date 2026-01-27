@@ -203,8 +203,8 @@ fn execute_secp256k1_keyring_command(
     formatter: &SchemeFormatter<crate::schemes::secp256k1::Secp256k1>,
 ) -> Result<SchemeResult> {
     use crate::{
-        Address,
         schemes::secp256k1::{PublicKey, Secp256k1, Secp256k1SignerExt},
+        Address,
     };
 
     match command {
@@ -216,6 +216,7 @@ fn execute_secp256k1_keyring_command(
             Ok(SchemeResult::Generate(result))
         }
         SchemeKeyringCommands::Clear { storage } => {
+            let storage = storage.into_storage_args();
             let result = clear_keys_command::<Secp256k1>(&storage)?;
             Ok(SchemeResult::Clear(result))
         }
@@ -323,9 +324,10 @@ fn execute_secp256k1_keyring_command(
                 },
             )
         }
-        SchemeKeyringCommands::List { storage } => {
-            keyring_list::<Secp256k1KeyringOps, crate::schemes::secp256k1::Secp256k1>(storage)
-        }
+        SchemeKeyringCommands::List { storage } => keyring_list::<
+            Secp256k1KeyringOps,
+            crate::schemes::secp256k1::Secp256k1,
+        >(storage.into_storage_args()),
     }
 }
 
@@ -396,6 +398,7 @@ fn ed25519_peer_id(public_key: String) -> Result<SchemeResult> {
 fn execute_ed25519_keyring_command(command: SchemeKeyringCommands) -> Result<SchemeResult> {
     match command {
         SchemeKeyringCommands::Clear { storage } => {
+            let storage = storage.into_storage_args();
             let res = execute_substrate_command(
                 &ed25519_descriptor(),
                 SubstrateCommand::Clear { storage },
@@ -531,9 +534,10 @@ fn execute_ed25519_keyring_command(command: SchemeKeyringCommands) -> Result<Sch
             name,
             show_secret,
         ),
-        SchemeKeyringCommands::List { storage } => {
-            keyring_list::<Ed25519KeyringOps, crate::schemes::ed25519::Ed25519>(storage)
-        }
+        SchemeKeyringCommands::List { storage } => keyring_list::<
+            Ed25519KeyringOps,
+            crate::schemes::ed25519::Ed25519,
+        >(storage.into_storage_args()),
     }
 }
 
@@ -593,6 +597,7 @@ fn sr25519_address(public_key: String, network: Option<String>) -> Result<Scheme
 fn execute_sr25519_keyring_command(command: SchemeKeyringCommands) -> Result<SchemeResult> {
     match command {
         SchemeKeyringCommands::Clear { storage } => {
+            let storage = storage.into_storage_args();
             let res = execute_substrate_command(
                 &sr25519_descriptor(),
                 SubstrateCommand::Clear { storage },
@@ -728,9 +733,10 @@ fn execute_sr25519_keyring_command(command: SchemeKeyringCommands) -> Result<Sch
             name,
             show_secret,
         ),
-        SchemeKeyringCommands::List { storage } => {
-            keyring_list::<Sr25519KeyringOps, crate::schemes::sr25519::Sr25519>(storage)
-        }
+        SchemeKeyringCommands::List { storage } => keyring_list::<
+            Sr25519KeyringOps,
+            crate::schemes::sr25519::Sr25519,
+        >(storage.into_storage_args()),
     }
 }
 

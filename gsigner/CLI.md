@@ -30,15 +30,15 @@ All commands accept `--format <human|plain|json>` (default: `human`). `plain` pr
 gsigner secp256k1 --format json address --public-key 0x03...
 ```
 
-To encrypt keys on disk, pass `--storage-password <PASSWORD>` to every command that touches that storage (init, create/import, list, show, sign, etc.). The same password must be supplied consistently for subsequent operations targeting the encrypted keyring.
+To encrypt keys on disk, pass `--storage-password <PASSWORD>` to commands that read or write encrypted key material (generate, create, import, sign, show, vanity). The same password must be supplied consistently for subsequent operations targeting the encrypted keyring.
 
 ### Storage locations
 
-Every keyring-aware command accepts the same `StorageLocationArgs`:
+Every keyring-aware command accepts the same storage location flags:
 
 - `--path <PATH>` (short form `-s` and alias `--storage`) stores keys on disk. When omitted the CLI falls back to the default `~/.local/share/gsigner/<scheme>` directory.
 - `--memory` keeps keys entirely in memory for the lifetime of the process. This is handy for tests or scripting when nothing should touch disk.
-- `--storage-password <PASSWORD>` enables encryption for the keystore. Supply the same password for _all_ operations that read or write that storage. If no password is provided the keyring remains plaintext.
+- `--storage-password <PASSWORD>` enables encryption for the keystore. Supply the same password for operations that read or write encrypted key material. If no password is provided the keyring remains plaintext.
 
 You can mix these flags as needed, e.g. `gsigner secp keyring generate --memory --storage-password test` to exercise the encryption path without creating files.
 
