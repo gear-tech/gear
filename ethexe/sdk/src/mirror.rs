@@ -250,7 +250,7 @@ impl<'a> Mirror<'a> {
         replied_to: MessageId,
         payload: impl AsRef<[u8]>,
         value: u128,
-    ) -> Result<H256> {
+    ) -> Result<(H256, MessageId)> {
         self.mirror_client
             .send_reply(replied_to, payload, value)
             .await
@@ -261,7 +261,7 @@ impl<'a> Mirror<'a> {
         replied_to: MessageId,
         payload: impl AsRef<[u8]>,
         value: u128,
-    ) -> Result<TransactionReceipt> {
+    ) -> Result<(TransactionReceipt, MessageId)> {
         self.mirror_client
             .send_reply_with_receipt(replied_to, payload, value)
             .await

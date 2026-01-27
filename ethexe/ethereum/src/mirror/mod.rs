@@ -26,7 +26,7 @@ use alloy::{
     hex, network,
     primitives::{Address, Bytes, U256 as AlloyU256},
     providers::{PendingTransactionBuilder, Provider, RootProvider, WalletProvider},
-    rpc::types::{Filter, Topic, TransactionReceipt},
+    rpc::types::TransactionReceipt,
 };
 use anyhow::{Result, anyhow};
 use ethexe_common::{
@@ -39,7 +39,7 @@ use events::{
     ReplyEventBuilder, StateChangedEventBuilder, ValueClaimedEventBuilder,
 };
 use futures::StreamExt;
-use gear_core::message::ReplyCode;
+use gear_core::{ids::prelude::MessageIdExt, message::ReplyCode};
 use gprimitives::{ActorId, H256, MessageId, U256};
 use serde::Serialize;
 
@@ -148,25 +148,18 @@ impl Mirror {
     }
 
     pub async fn wait_for_reply(&self, message_id: MessageId) -> Result<ReplyInfo> {
-        // TODO: refactor to use event polling instead of subscription
-        let filter = Filter::new()
-            .address(*self.0.address())
-            .event_signature(Topic::from_iter([signatures::REPLY]));
-        let mut mirror_events = self
-            .0
-            .provider()
-            .subscribe_logs(&filter)
-            .await?
-            .into_stream();
+        let mut stream = self.query().events().reply().subscribe().await?;
 
-        while let Some(log) = mirror_events.next().await {
-            if let Some(signatures::REPLY) = log.topic0().cloned()
-                && let ReplyEvent {
+        while let Some(result) = stream.next().await {
+            if let Ok((
+                ReplyEvent {
                     payload,
                     value,
                     reply_to,
                     reply_code,
-                } = ReplyEvent::from(crate::decode_log::<IMirror::Reply>(&log)?)
+                },
+                _,
+            )) = result
                 && reply_to == message_id
             {
                 let actor_id = ActorId::from(*self.0.address());
@@ -188,10 +181,10 @@ impl Mirror {
         replied_to: MessageId,
         payload: impl AsRef<[u8]>,
         value: u128,
-    ) -> Result<H256> {
+    ) -> Result<(H256, MessageId)> {
         self.send_reply_with_receipt(replied_to, payload, value)
             .await
-            .map(|receipt| (*receipt.transaction_hash).into())
+            .map(|(receipt, message_id)| ((*receipt.transaction_hash).into(), message_id))
     }
 
     pub async fn send_reply_with_receipt(
@@ -199,7 +192,7 @@ impl Mirror {
         replied_to: MessageId,
         payload: impl AsRef<[u8]>,
         value: u128,
-    ) -> Result<TransactionReceipt> {
+    ) -> Result<(TransactionReceipt, MessageId)> {
         let builder = self
             .0
             .sendReply(
@@ -212,7 +205,8 @@ impl Mirror {
             .await?
             .try_get_receipt_check_reverted()
             .await?;
-        Ok(receipt)
+        let message_id = MessageId::generate_reply(replied_to);
+        Ok((receipt, message_id))
     }
 
     pub async fn claim_value(&self, claimed_id: MessageId) -> Result<H256> {

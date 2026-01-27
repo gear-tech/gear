@@ -1227,7 +1227,7 @@ impl TxCommand {
                     let raw_actor_id: ActorId = mirror.address().into();
                     let actor_id = raw_actor_id.to_address_lossy();
 
-                    let receipt = mirror
+                    let (receipt, _) = mirror
                         .send_reply_with_receipt(replied_to, payload.0.clone(), raw_value)
                         .await
                         .with_context(|| format!("failed to send reply to mirror {actor_id:?}"))?;

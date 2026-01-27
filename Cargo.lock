@@ -5245,9 +5245,7 @@ dependencies = [
  "ethexe-ethereum",
  "ethexe-rpc",
  "ethexe-runtime-common",
- "ethexe-signer",
  "futures",
- "gear-core",
  "gprimitives",
  "jsonrpsee",
 ]
