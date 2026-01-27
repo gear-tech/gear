@@ -370,6 +370,11 @@ jobs:
       - name: "Install: Rust toolchain"
         uses: ./.github/actions/install-rust
 
+      - name: "Install: Compilation environment"
+        uses: ./.github/actions/setup-compilation-env
+        with:
+          target: ${{ matrix.targets.target }}
+
       - name: "ACTIONS: Setup caching"
         uses: ./.github/actions/rust-cache
         with:
