@@ -20,8 +20,7 @@ use crate::params::Params;
 use anyhow::Result;
 use clap::Parser;
 use gsigner::cli::{
-    SchemeCommands, SchemeKeyringCommands, SchemeSubcommand, commands::StorageLocationArgs,
-    display_result, execute_command,
+    SchemeCommands, SchemeKeyringCommands, SchemeSubcommand, display_result, execute_command,
 };
 use std::path::PathBuf;
 
@@ -80,22 +79,23 @@ fn apply_default_storage(command: SchemeSubcommand, default: PathBuf) -> SchemeS
 }
 
 fn apply_default_storage_keyring(command: &mut SchemeKeyringCommands, default: &std::path::Path) {
-    let update = |storage: &mut StorageLocationArgs| {
-        if storage.path.is_none() && !storage.memory {
-            storage.path = Some(default.to_path_buf());
-        }
-    };
-
     match command {
-        SchemeKeyringCommands::Clear { storage }
-        | SchemeKeyringCommands::Generate { storage, .. }
+        SchemeKeyringCommands::Clear { storage } | SchemeKeyringCommands::List { storage } => {
+            if storage.path.is_none() && !storage.memory {
+                storage.path = Some(default.to_path_buf());
+            }
+        }
+        SchemeKeyringCommands::Generate { storage, .. }
         | SchemeKeyringCommands::Import { storage, .. }
         | SchemeKeyringCommands::Sign { storage, .. }
         | SchemeKeyringCommands::Show { storage, .. }
         | SchemeKeyringCommands::Init { storage }
         | SchemeKeyringCommands::Create { storage, .. }
-        | SchemeKeyringCommands::Vanity { storage, .. }
-        | SchemeKeyringCommands::List { storage } => update(storage),
+        | SchemeKeyringCommands::Vanity { storage, .. } => {
+            if storage.path.is_none() && !storage.memory {
+                storage.path = Some(default.to_path_buf());
+            }
+        }
         _ => {}
     }
 }

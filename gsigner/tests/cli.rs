@@ -44,7 +44,7 @@ fn storage_args(path: &Path) -> StorageLocationArgs {
     StorageLocationArgs {
         path: Some(path.to_path_buf()),
         memory: false,
-        storage_password: None,
+        key_password: None,
     }
 }
 
@@ -216,7 +216,7 @@ fn secp256k1_keyring_generate_and_list() {
     gsigner_bin()
         .args(["secp256k1", "keyring", "init", "--path"])
         .arg(&path)
-        .arg("--storage-password")
+        .arg("--key-password")
         .arg(storage_password)
         .assert()
         .success();
@@ -230,7 +230,7 @@ fn secp256k1_keyring_generate_and_list() {
             path.to_str().unwrap(),
             "--name",
             "alice",
-            "--storage-password",
+            "--key-password",
             storage_password,
         ])
         .assert()
@@ -248,7 +248,7 @@ fn secp256k1_keyring_generate_and_list() {
             "list",
             "--path",
             path.to_str().unwrap(),
-            "--storage-password",
+            "--key-password",
             storage_password,
         ])
         .assert()
@@ -270,7 +270,7 @@ fn secp256k1_keyring_generate_and_list() {
             "--prefix",
             "",
             "--show-secret",
-            "--storage-password",
+            "--key-password",
             storage_password,
         ])
         .assert()
@@ -614,7 +614,7 @@ fn ed25519_keyring_generate_and_list() {
             "init",
             "--path",
             path.to_str().unwrap(),
-            "--storage-password",
+            "--key-password",
             storage_password,
         ])
         .assert()
@@ -629,7 +629,7 @@ fn ed25519_keyring_generate_and_list() {
             path.to_str().unwrap(),
             "--name",
             "bob",
-            "--storage-password",
+            "--key-password",
             storage_password,
         ])
         .assert()
@@ -647,7 +647,7 @@ fn ed25519_keyring_generate_and_list() {
             "list",
             "--path",
             path.to_str().unwrap(),
-            "--storage-password",
+            "--key-password",
             storage_password,
         ])
         .assert()
@@ -669,7 +669,7 @@ fn ed25519_keyring_generate_and_list() {
             "--prefix",
             "",
             "--show-secret",
-            "--storage-password",
+            "--key-password",
             storage_password,
         ])
         .assert()
@@ -849,7 +849,7 @@ fn sr25519_keyring_create_and_list() {
             "init",
             "--path",
             path.to_str().unwrap(),
-            "--storage-password",
+            "--key-password",
             storage_password,
         ])
         .assert()
@@ -866,7 +866,7 @@ fn sr25519_keyring_create_and_list() {
             "charlie",
             "--prefix",
             "",
-            "--storage-password",
+            "--key-password",
             storage_password,
         ])
         .assert()
@@ -879,7 +879,7 @@ fn sr25519_keyring_create_and_list() {
             "list",
             "--path",
             path.to_str().unwrap(),
-            "--storage-password",
+            "--key-password",
             storage_password,
         ])
         .assert()

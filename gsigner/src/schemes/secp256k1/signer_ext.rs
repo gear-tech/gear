@@ -31,16 +31,52 @@ pub trait Secp256k1SignerExt {
     /// Create a recoverable ECDSA signature.
     fn sign_recoverable(&self, public_key: PublicKey, data: &[u8]) -> Result<Signature>;
 
+    /// Create a recoverable ECDSA signature using the provided password.
+    fn sign_recoverable_with_password(
+        &self,
+        public_key: PublicKey,
+        data: &[u8],
+        password: Option<&str>,
+    ) -> Result<Signature>;
+
     /// Create a recoverable ECDSA signature from a precomputed digest.
     fn sign_digest(&self, public_key: PublicKey, digest: Digest) -> Result<Signature>;
+
+    /// Create a recoverable ECDSA signature from a precomputed digest using the provided password.
+    fn sign_digest_with_password(
+        &self,
+        public_key: PublicKey,
+        digest: Digest,
+        password: Option<&str>,
+    ) -> Result<Signature>;
 
     /// Create signed data (signature + data).
     fn signed_data<T>(&self, public_key: PublicKey, data: T) -> Result<SignedData<T>>
     where
         T: super::ToDigest;
 
+    /// Create signed data (signature + data) using the provided password.
+    fn signed_data_with_password<T>(
+        &self,
+        public_key: PublicKey,
+        data: T,
+        password: Option<&str>,
+    ) -> Result<SignedData<T>>
+    where
+        T: super::ToDigest;
+
     /// Create a signed EIP-191 message with recovered address.
     fn signed_message<T>(&self, public_key: PublicKey, data: T) -> Result<SignedMessage<T>>
+    where
+        for<'a> Digest: From<&'a T>;
+
+    /// Create a signed EIP-191 message with recovered address using the provided password.
+    fn signed_message_with_password<T>(
+        &self,
+        public_key: PublicKey,
+        data: T,
+        password: Option<&str>,
+    ) -> Result<SignedMessage<T>>
     where
         for<'a> Digest: From<&'a T>;
 
@@ -52,6 +88,15 @@ pub trait Secp256k1SignerExt {
         data: &[u8],
     ) -> Result<ContractSignature>;
 
+    /// Create a contract-specific signature (EIP-191) using the provided password.
+    fn sign_for_contract_with_password(
+        &self,
+        contract_address: Address,
+        public_key: PublicKey,
+        data: &[u8],
+        password: Option<&str>,
+    ) -> Result<ContractSignature>;
+
     /// Create a contract-specific signature from a precomputed digest.
     fn sign_for_contract_digest(
         &self,
@@ -59,17 +104,44 @@ pub trait Secp256k1SignerExt {
         public_key: PublicKey,
         digest: Digest,
     ) -> Result<ContractSignature>;
+
+    /// Create a contract-specific signature from a precomputed digest using the provided password.
+    fn sign_for_contract_digest_with_password(
+        &self,
+        contract_address: Address,
+        public_key: PublicKey,
+        digest: Digest,
+        password: Option<&str>,
+    ) -> Result<ContractSignature>;
 }
 
 impl Secp256k1SignerExt for Signer<Secp256k1> {
     fn sign_recoverable(&self, public_key: PublicKey, data: &[u8]) -> Result<Signature> {
-        let private_key = self.get_private_key(public_key)?;
+        self.sign_recoverable_with_password(public_key, data, None)
+    }
+
+    fn sign_recoverable_with_password(
+        &self,
+        public_key: PublicKey,
+        data: &[u8],
+        password: Option<&str>,
+    ) -> Result<Signature> {
+        let private_key = self.get_private_key_with_password(public_key, password)?;
         Signature::create(&private_key, data)
             .map_err(|e| SignerError::Crypto(format!("Signature creation failed: {e}")))
     }
 
     fn sign_digest(&self, public_key: PublicKey, digest: Digest) -> Result<Signature> {
-        let private_key = self.get_private_key(public_key)?;
+        self.sign_digest_with_password(public_key, digest, None)
+    }
+
+    fn sign_digest_with_password(
+        &self,
+        public_key: PublicKey,
+        digest: Digest,
+        password: Option<&str>,
+    ) -> Result<Signature> {
+        let private_key = self.get_private_key_with_password(public_key, password)?;
         Signature::create_from_digest(&private_key, digest)
             .map_err(|e| SignerError::Crypto(format!("Signature creation failed: {e}")))
     }
@@ -78,7 +150,19 @@ impl Secp256k1SignerExt for Signer<Secp256k1> {
     where
         T: super::ToDigest,
     {
-        let private_key = self.get_private_key(public_key)?;
+        self.signed_data_with_password(public_key, data, None)
+    }
+
+    fn signed_data_with_password<T>(
+        &self,
+        public_key: PublicKey,
+        data: T,
+        password: Option<&str>,
+    ) -> Result<SignedData<T>>
+    where
+        T: super::ToDigest,
+    {
+        let private_key = self.get_private_key_with_password(public_key, password)?;
         SignedData::create(&private_key, data)
             .map_err(|e| SignerError::Crypto(format!("SignedData creation failed: {e}")))
     }
@@ -87,7 +171,19 @@ impl Secp256k1SignerExt for Signer<Secp256k1> {
     where
         for<'a> Digest: From<&'a T>,
     {
-        let private_key = self.get_private_key(public_key)?;
+        self.signed_message_with_password(public_key, data, None)
+    }
+
+    fn signed_message_with_password<T>(
+        &self,
+        public_key: PublicKey,
+        data: T,
+        password: Option<&str>,
+    ) -> Result<SignedMessage<T>>
+    where
+        for<'a> Digest: From<&'a T>,
+    {
+        let private_key = self.get_private_key_with_password(public_key, password)?;
         SignedMessage::create(private_key, data)
             .map_err(|e| SignerError::Crypto(format!("SignedMessage creation failed: {e}")))
     }
@@ -98,7 +194,17 @@ impl Secp256k1SignerExt for Signer<Secp256k1> {
         public_key: PublicKey,
         data: &[u8],
     ) -> Result<ContractSignature> {
-        let private_key = self.get_private_key(public_key)?;
+        self.sign_for_contract_with_password(contract_address, public_key, data, None)
+    }
+
+    fn sign_for_contract_with_password(
+        &self,
+        contract_address: Address,
+        public_key: PublicKey,
+        data: &[u8],
+        password: Option<&str>,
+    ) -> Result<ContractSignature> {
+        let private_key = self.get_private_key_with_password(public_key, password)?;
         ContractSignature::create(contract_address, &private_key, data)
             .map_err(|e| SignerError::Crypto(format!("Contract signature creation failed: {e}")))
     }
@@ -109,7 +215,17 @@ impl Secp256k1SignerExt for Signer<Secp256k1> {
         public_key: PublicKey,
         digest: Digest,
     ) -> Result<ContractSignature> {
-        let private_key = self.get_private_key(public_key)?;
+        self.sign_for_contract_digest_with_password(contract_address, public_key, digest, None)
+    }
+
+    fn sign_for_contract_digest_with_password(
+        &self,
+        contract_address: Address,
+        public_key: PublicKey,
+        digest: Digest,
+        password: Option<&str>,
+    ) -> Result<ContractSignature> {
+        let private_key = self.get_private_key_with_password(public_key, password)?;
         ContractSignature::create_from_digest(contract_address, &private_key, digest)
             .map_err(|e| SignerError::Crypto(format!("Contract signature creation failed: {e}")))
     }

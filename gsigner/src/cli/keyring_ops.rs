@@ -114,7 +114,7 @@ where
     F: FnOnce(KeyringLocation, &mut K, Option<String>) -> Result<R>,
 {
     let password = storage
-        .storage_password
+        .key_password
         .as_ref()
         .map(|p: &secrecy::SecretString| p.expose_secret().to_owned());
     let location = resolve_keyring_location(&storage, namespace)?;

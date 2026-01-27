@@ -168,7 +168,7 @@ mod tests {
         let args = StorageLocationArgs {
             memory: true,
             path: None,
-            storage_password: None,
+            key_password: None,
         };
         assert!(resolve_storage_location(&args).is_none());
     }
@@ -178,7 +178,7 @@ mod tests {
         let args = StorageLocationArgs {
             memory: false,
             path: Some(PathBuf::from("custom")),
-            storage_password: None,
+            key_password: None,
         };
         assert_eq!(
             resolve_storage_location(&args),

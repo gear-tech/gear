@@ -32,6 +32,7 @@ use super::{
 #[cfg(feature = "secp256k1")]
 use alloy_primitives::utils::EIP191_PREFIX;
 use anyhow::Result;
+use secrecy::ExposeSecret;
 use std::{path::PathBuf, str::FromStr};
 
 #[cfg(any(feature = "secp256k1", feature = "ed25519", feature = "sr25519"))]
@@ -232,6 +233,10 @@ fn execute_secp256k1_keyring_command(
             let public_key: PublicKey = public_key.parse()?;
             let effective_prefix = prefix.or_else(|| Some(EIP191_PREFIX.to_string()));
             let message_bytes = prefixed_message(&data, &effective_prefix)?;
+            let password = storage
+                .key_password
+                .as_ref()
+                .map(|secret| secret.expose_secret().as_str());
 
             let signature = if let Some(contract_addr) = contract {
                 let contract_bytes = hex::decode(strip_0x(&contract_addr))?;
@@ -241,11 +246,15 @@ fn execute_secp256k1_keyring_command(
                 let mut contract_array = [0u8; 20];
                 contract_array.copy_from_slice(&contract_bytes);
                 let contract_address = Address(contract_array);
-                let signature =
-                    signer.sign_for_contract(contract_address, public_key, &message_bytes)?;
+                let signature = signer.sign_for_contract_with_password(
+                    contract_address,
+                    public_key,
+                    &message_bytes,
+                    password,
+                )?;
                 hex::encode(signature.into_pre_eip155_bytes())
             } else {
-                let signature = signer.sign(public_key, &message_bytes)?;
+                let signature = signer.sign_with_password(public_key, &message_bytes, password)?;
                 hex::encode(signature.into_pre_eip155_bytes())
             };
 
@@ -302,14 +311,9 @@ fn execute_secp256k1_keyring_command(
                 name.clone(),
                 show_secret,
                 false,
-                |keyring, storage_password| {
+                |keyring, key_password| {
                     if let Some(hex_key) = &private_key {
-                        return Secp256k1KeyringOps::add_hex(
-                            keyring,
-                            &name,
-                            hex_key,
-                            storage_password,
-                        );
+                        return Secp256k1KeyringOps::add_hex(keyring, &name, hex_key, key_password);
                     }
                     if let Some(suri) = &suri {
                         return Secp256k1KeyringOps::import_suri(
@@ -317,7 +321,7 @@ fn execute_secp256k1_keyring_command(
                             &name,
                             suri,
                             suri_password.as_deref(),
-                            storage_password,
+                            key_password,
                         );
                     }
                     anyhow::bail!("either --private-key or --suri must be provided");
@@ -439,13 +443,13 @@ fn execute_ed25519_keyring_command(command: SchemeKeyringCommands) -> Result<Sch
                     name.clone(),
                     show_secret,
                     true,
-                    |keyring, storage_password| {
+                    |keyring, key_password| {
                         if let Some(seed_hex) = &seed {
                             return Ed25519KeyringOps::add_hex(
                                 keyring,
                                 &name,
                                 seed_hex,
-                                storage_password,
+                                key_password,
                             );
                         }
                         if let Some(suri) = &suri {
@@ -454,7 +458,7 @@ fn execute_ed25519_keyring_command(command: SchemeKeyringCommands) -> Result<Sch
                                 &name,
                                 suri,
                                 suri_password.as_deref(),
-                                storage_password,
+                                key_password,
                             );
                         }
                         anyhow::bail!("either --seed or --suri must be provided");
@@ -505,11 +509,16 @@ fn execute_ed25519_keyring_command(command: SchemeKeyringCommands) -> Result<Sch
                 ed25519_key_type,
                 ed25519_public_display,
             );
+            let password = storage
+                .key_password
+                .as_ref()
+                .map(|secret| secret.expose_secret().as_str());
             let result = show_key_for_public::<crate::schemes::ed25519::Ed25519>(
                 &storage,
                 &formatter,
                 public,
                 show_secret,
+                password,
             )?;
             Ok(SchemeResult::List(result))
         }
@@ -638,13 +647,13 @@ fn execute_sr25519_keyring_command(command: SchemeKeyringCommands) -> Result<Sch
                     name.clone(),
                     show_secret,
                     true,
-                    |keyring, storage_password| {
+                    |keyring, key_password| {
                         if let Some(seed_hex) = &seed {
                             return Sr25519KeyringOps::add_hex(
                                 keyring,
                                 &name,
                                 seed_hex,
-                                storage_password,
+                                key_password,
                             );
                         }
                         if let Some(suri) = &suri {
@@ -653,7 +662,7 @@ fn execute_sr25519_keyring_command(command: SchemeKeyringCommands) -> Result<Sch
                                 &name,
                                 suri,
                                 suri_password.as_deref(),
-                                storage_password,
+                                key_password,
                             );
                         }
                         anyhow::bail!("either --seed or --suri must be provided");
@@ -704,11 +713,16 @@ fn execute_sr25519_keyring_command(command: SchemeKeyringCommands) -> Result<Sch
                 sr25519_key_type,
                 sr25519_public_display,
             );
+            let password = storage
+                .key_password
+                .as_ref()
+                .map(|secret| secret.expose_secret().as_str());
             let result = show_key_for_public::<crate::schemes::sr25519::Sr25519>(
                 &storage,
                 &formatter,
                 public,
                 show_secret,
+                password,
             )?;
             Ok(SchemeResult::List(result))
         }
@@ -750,6 +764,10 @@ fn secp256k1_show_key(
     use crate::schemes::secp256k1::{Address, PublicKey, Secp256k1};
 
     with_signer::<Secp256k1, _, _>(storage, |signer| {
+        let password = storage
+            .key_password
+            .as_ref()
+            .map(|secret| secret.expose_secret().as_str());
         let public_key = if let Ok(public_key) = PublicKey::from_str(key) {
             public_key
         } else {
@@ -760,7 +778,7 @@ fn secp256k1_show_key(
                 .ok_or_else(|| anyhow::anyhow!("No key found for address '{key}'"))?
         };
 
-        let info = key_info_from_public(&signer, formatter, public_key, show_secret)?;
+        let info = key_info_from_public(&signer, formatter, public_key, show_secret, password)?;
         Ok(ListKeysResult { keys: vec![info] })
     })
 }
@@ -776,7 +794,9 @@ fn ed25519_descriptor() -> SubstrateDescriptor<crate::schemes::ed25519::Ed25519>
         ed25519_key_type,
         crate::schemes::ed25519::PublicKey::from_bytes,
         crate::schemes::ed25519::Signature::from_bytes,
-        |signer, public, message, _context| Ok(signer.sign(public, message)?),
+        |signer, public, message, _context, password| {
+            Ok(signer.sign_with_password(public, message, password)?)
+        },
         |public, message, signature, _context| {
             Ok(
                 <crate::schemes::ed25519::Ed25519 as SignatureScheme>::verify(
@@ -807,9 +827,9 @@ fn sr25519_descriptor() -> SubstrateDescriptor<crate::schemes::sr25519::Sr25519>
         sr25519_key_type,
         crate::schemes::sr25519::PublicKey::from_bytes,
         crate::schemes::sr25519::Signature::from_bytes,
-        |signer, public, message, context| {
+        |signer, public, message, context, password| {
             let ctx = sr25519_context(&context)?;
-            signer.sign_with_context(public, ctx.as_bytes(), message)
+            signer.sign_with_context_with_password(public, ctx.as_bytes(), message, password)
         },
         |public, message, signature, context| {
             let ctx = sr25519_context(&context)?;

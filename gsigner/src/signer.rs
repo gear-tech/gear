@@ -38,7 +38,6 @@ use tempfile::TempDir;
 pub struct Signer<S: KeyringScheme> {
     keyring: Arc<RwLock<keyring::Keyring<S::Keystore>>>,
     _tmp_dir: Option<Arc<TempDir>>,
-    password: Option<String>,
     _phantom: PhantomData<S>,
 }
 
@@ -47,7 +46,6 @@ impl<S: KeyringScheme> fmt::Debug for Signer<S> {
         f.debug_struct("Signer")
             .field("scheme", &S::scheme_name())
             .field("keys", &self.list_keys().ok())
-            .field("password", &self.password.as_ref().map(|_| "<redacted>"))
             .finish()
     }
 }
@@ -55,41 +53,25 @@ impl<S: KeyringScheme> fmt::Debug for Signer<S> {
 impl<S: KeyringScheme> Signer<S> {
     /// Create a signer backed by the provided keyring.
     pub fn new(keyring: keyring::Keyring<S::Keystore>) -> Self {
-        Self::with_password(keyring, None)
-    }
-
-    /// Create a signer backed by the provided keyring with an optional password.
-    pub fn with_password(keyring: keyring::Keyring<S::Keystore>, password: Option<String>) -> Self {
         Self {
             keyring: Arc::new(RwLock::new(keyring)),
             _tmp_dir: None,
-            password,
             _phantom: PhantomData,
         }
     }
 
-    fn with_tempdir(
-        keyring: keyring::Keyring<S::Keystore>,
-        tmp_dir: Option<TempDir>,
-        password: Option<String>,
-    ) -> Self {
+    fn with_tempdir(keyring: keyring::Keyring<S::Keystore>, tmp_dir: Option<TempDir>) -> Self {
         Self {
             keyring: Arc::new(RwLock::new(keyring)),
             _tmp_dir: tmp_dir.map(Arc::new),
-            password,
             _phantom: PhantomData,
         }
     }
 
     /// Create a signer with an in-memory keyring.
     pub fn memory() -> Self {
-        Self::memory_with_password(None)
-    }
-
-    /// Create a signer with an in-memory keyring and optional password.
-    pub fn memory_with_password(password: Option<String>) -> Self {
         let keyring = keyring::Keyring::try_memory().expect("memory keyring should not fail");
-        Self::with_password(keyring, password)
+        Self::new(keyring)
     }
 
     fn namespaced_path(path: PathBuf) -> PathBuf {
@@ -99,15 +81,9 @@ impl<S: KeyringScheme> Signer<S> {
     /// Create a signer backed by a filesystem keyring at the specified path.
     /// Returns an error if the keyring cannot be loaded.
     pub fn fs(path: PathBuf) -> Result<Self> {
-        Self::fs_with_password(path, None)
-    }
-
-    /// Create a signer backed by a filesystem keyring with optional password.
-    /// Returns an error if the keyring cannot be loaded.
-    pub fn fs_with_password(path: PathBuf, password: Option<String>) -> Result<Self> {
         let namespaced = Self::namespaced_path(path);
         let keyring = keyring::Keyring::load(namespaced)?;
-        Ok(Self::with_password(keyring, password))
+        Ok(Self::new(keyring))
     }
 
     /// Create a signer backed by a temporary filesystem keyring.
@@ -115,7 +91,7 @@ impl<S: KeyringScheme> Signer<S> {
         let temp_dir = tempfile::tempdir()?;
         let namespaced = Self::namespaced_path(temp_dir.path().to_path_buf());
         let keyring = keyring::Keyring::load(namespaced)?;
-        Ok(Self::with_tempdir(keyring, Some(temp_dir), None))
+        Ok(Self::with_tempdir(keyring, Some(temp_dir)))
     }
 
     fn keyring(&self) -> Result<RwLockReadGuard<'_, keyring::Keyring<S::Keystore>>> {
@@ -137,10 +113,14 @@ impl<S: KeyringScheme> Signer<S> {
         )
     }
 
-    fn store_private_key(&self, private_key: S::PrivateKey) -> Result<S::PublicKey> {
+    fn store_private_key(
+        &self,
+        private_key: S::PrivateKey,
+        password: Option<&str>,
+    ) -> Result<S::PublicKey> {
         let public_key = S::public_key(&private_key);
         let name = Self::key_name(&public_key);
-        let keystore = S::keystore_from_private(&name, &private_key, self.password.as_deref())?;
+        let keystore = S::keystore_from_private(&name, &private_key, password)?;
         self.keyring_mut()?.store(&name, keystore)?;
         Ok(public_key)
     }
@@ -160,18 +140,42 @@ impl<S: KeyringScheme> Signer<S> {
 
     /// Generate a new keypair and store it.
     pub fn generate_key(&self) -> Result<S::PublicKey> {
+        self.generate_key_with_password(None)
+    }
+
+    /// Generate a new keypair and store it with the provided password.
+    pub fn generate_key_with_password(&self, password: Option<&str>) -> Result<S::PublicKey> {
         let (private_key, _) = S::generate_keypair();
-        self.store_private_key(private_key)
+        self.store_private_key(private_key, password)
     }
 
     /// Import an existing private key.
     pub fn import_key(&self, private_key: S::PrivateKey) -> Result<S::PublicKey> {
-        self.store_private_key(private_key)
+        self.import_key_with_password(private_key, None)
+    }
+
+    /// Import an existing private key with the provided password.
+    pub fn import_key_with_password(
+        &self,
+        private_key: S::PrivateKey,
+        password: Option<&str>,
+    ) -> Result<S::PublicKey> {
+        self.store_private_key(private_key, password)
     }
 
     /// Sign data with the specified public key.
     pub fn sign(&self, public_key: S::PublicKey, data: &[u8]) -> Result<S::Signature> {
-        let private_key = self.get_private_key(public_key)?;
+        self.sign_with_password(public_key, data, None)
+    }
+
+    /// Sign data with the specified public key using the provided password.
+    pub fn sign_with_password(
+        &self,
+        public_key: S::PublicKey,
+        data: &[u8],
+        password: Option<&str>,
+    ) -> Result<S::Signature> {
+        let private_key = self.get_private_key_with_password(public_key, password)?;
         S::sign(&private_key, data)
     }
 
@@ -223,10 +227,19 @@ impl<S: KeyringScheme> Signer<S> {
 
     /// Create a sub-signer with a subset of keys.
     pub fn sub_signer(&self, keys: Vec<S::PublicKey>) -> Result<Self> {
+        self.sub_signer_with_password(keys, None)
+    }
+
+    /// Create a sub-signer with a subset of keys using the provided password.
+    pub fn sub_signer_with_password(
+        &self,
+        keys: Vec<S::PublicKey>,
+        password: Option<&str>,
+    ) -> Result<Self> {
         let signer = Signer::memory();
         for key in keys {
-            let private_key = self.get_private_key(key.clone())?;
-            signer.import_key(private_key)?;
+            let private_key = self.get_private_key_with_password(key.clone(), password)?;
+            signer.import_key_with_password(private_key, password)?;
         }
         Ok(signer)
     }
@@ -238,8 +251,17 @@ impl<S: KeyringScheme> Signer<S> {
 
     /// Get a private key by public key.
     pub fn get_private_key(&self, public_key: S::PublicKey) -> Result<S::PrivateKey> {
+        self.get_private_key_with_password(public_key, None)
+    }
+
+    /// Get a private key by public key using the provided password.
+    pub fn get_private_key_with_password(
+        &self,
+        public_key: S::PublicKey,
+        password: Option<&str>,
+    ) -> Result<S::PrivateKey> {
         self.with_keystore(&public_key, |keystore| {
-            S::keystore_private(keystore, self.password.as_deref())
+            S::keystore_private(keystore, password)
         })
     }
 

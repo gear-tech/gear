@@ -51,12 +51,12 @@ pub struct StorageLocationArgs {
     )]
     pub memory: bool,
     #[arg(
-        long = "storage-password",
+        long = "key-password",
         value_name = "PASSWORD",
         help = "Password used to encrypt/decrypt the keyring (if set)",
         value_parser = secret_string_parser
     )]
-    pub storage_password: Option<SecretString>,
+    pub key_password: Option<SecretString>,
 }
 
 /// Storage location options without a password.
@@ -77,6 +77,13 @@ pub struct StorageLocationPathArgs {
         conflicts_with = "path"
     )]
     pub memory: bool,
+    #[arg(
+        long = "key-password",
+        value_name = "PASSWORD",
+        help = "Password used to encrypt/decrypt the keyring (if set)",
+        value_parser = secret_string_parser
+    )]
+    pub key_password: Option<SecretString>,
 }
 
 impl StorageLocationPathArgs {
@@ -84,7 +91,7 @@ impl StorageLocationPathArgs {
         StorageLocationArgs {
             path: self.path,
             memory: self.memory,
-            storage_password: None,
+            key_password: self.key_password,
         }
     }
 }
@@ -118,7 +125,7 @@ pub struct KeyringImportArgs {
     )]
     pub suri: Option<String>,
     #[arg(short = 'w', long, help = "Password for SURI derivation")]
-    pub password: Option<String>,
+    pub suri_password: Option<String>,
     #[arg(long, help = "Show the imported private key", default_value_t = false)]
     pub show_secret: bool,
 }

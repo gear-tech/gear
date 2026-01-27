@@ -29,6 +29,7 @@ use crate::{
 };
 use anyhow::Result;
 use hex;
+use secrecy::ExposeSecret;
 use std::str::FromStr;
 
 #[derive(Debug, Clone)]
@@ -82,6 +83,7 @@ pub type SubstrateSignFn<S> = fn(
     <S as SignatureScheme>::PublicKey,
     &[u8],
     Option<String>,
+    Option<&str>,
 ) -> Result<<S as SignatureScheme>::Signature>;
 
 pub type SubstrateVerifyFn<S> = fn(
@@ -188,6 +190,10 @@ where
             storage,
             show_secret,
         } => crate::cli::storage::with_signer::<S, _, _>(&storage, |signer| {
+            let password = storage
+                .key_password
+                .as_ref()
+                .map(|secret| secret.expose_secret().as_str());
             if suri_password.is_some() && suri.is_none() {
                 anyhow::bail!("--password can only be used together with --suri");
             }
@@ -199,7 +205,7 @@ where
                 let suri = suri.expect("clap ensures either --suri or --seed is provided");
                 (desc.import_private)(&suri, suri_password.as_deref())?
             };
-            let public_key = signer.import_key(private_key.clone())?;
+            let public_key = signer.import_key_with_password(private_key.clone(), password)?;
             let public_display = formatter.format_public(&public_key);
             let address = signer.address(public_key);
 
@@ -225,7 +231,9 @@ where
                 &prefix,
                 &storage,
                 desc.parse_public,
-                |signer, public, message| (desc.sign_fn)(signer, public, message, context.clone()),
+                |signer, public, message, password| {
+                    (desc.sign_fn)(signer, public, message, context.clone(), password)
+                },
                 |signature| (desc.signature_hex)(signature),
             )?;
             Ok(SubstrateResult::Sign(result))
@@ -301,13 +309,17 @@ where
     S: crate::cli::storage::StorageScheme,
     S::PrivateKey: SeedableKey,
     ParsePublic: Fn([u8; 32]) -> Public,
-    SignerFn: Fn(&crate::Signer<S>, Public, &[u8]) -> Result<Sig>,
+    SignerFn: Fn(&crate::Signer<S>, Public, &[u8], Option<&str>) -> Result<Sig>,
     SigHexFn: Fn(&Sig) -> String,
 {
     crate::cli::storage::with_signer::<S, _, _>(storage, |signer| {
+        let password = storage
+            .key_password
+            .as_ref()
+            .map(|secret| secret.expose_secret().as_str());
         let public_key = parse_public(decode_hex_array::<32>(public_key_hex, "public key")?);
         let message_bytes = crate::cli::util::prefixed_message(data_hex, prefix)?;
-        let signature = signer_fn(&signer, public_key, &message_bytes)?;
+        let signature = signer_fn(&signer, public_key, &message_bytes, password)?;
 
         Ok(crate::cli::scheme::SignResult {
             signature: sig_hex_fn(&signature),

@@ -33,6 +33,15 @@ pub trait Sr25519SignerExt {
         data: &[u8],
     ) -> Result<Signature>;
 
+    /// Sign with a custom signing context using the provided password.
+    fn sign_with_context_with_password(
+        &self,
+        public_key: PublicKey,
+        context: &[u8],
+        data: &[u8],
+        password: Option<&str>,
+    ) -> Result<Signature>;
+
     /// Verify with a custom signing context.
     fn verify_with_context(
         &self,
@@ -44,6 +53,13 @@ pub trait Sr25519SignerExt {
 
     /// Generate a vanity key with the specified SS58 prefix.
     fn generate_vanity_key(&self, prefix: &str) -> Result<PublicKey>;
+
+    /// Generate a vanity key with the specified SS58 prefix using the provided password.
+    fn generate_vanity_key_with_password(
+        &self,
+        prefix: &str,
+        password: Option<&str>,
+    ) -> Result<PublicKey>;
 }
 
 impl Sr25519SignerExt for Signer<Sr25519> {
@@ -53,7 +69,17 @@ impl Sr25519SignerExt for Signer<Sr25519> {
         context: &[u8],
         data: &[u8],
     ) -> Result<Signature> {
-        let private_key = self.get_private_key(public_key)?;
+        self.sign_with_context_with_password(public_key, context, data, None)
+    }
+
+    fn sign_with_context_with_password(
+        &self,
+        public_key: PublicKey,
+        context: &[u8],
+        data: &[u8],
+        password: Option<&str>,
+    ) -> Result<Signature> {
+        let private_key = self.get_private_key_with_password(public_key, password)?;
         let ctx = signing_context(context);
         let keypair = private_key.keypair();
         let signature = keypair.sign(ctx.bytes(data));
@@ -77,6 +103,14 @@ impl Sr25519SignerExt for Signer<Sr25519> {
     }
 
     fn generate_vanity_key(&self, prefix: &str) -> Result<PublicKey> {
+        self.generate_vanity_key_with_password(prefix, None)
+    }
+
+    fn generate_vanity_key_with_password(
+        &self,
+        prefix: &str,
+        password: Option<&str>,
+    ) -> Result<PublicKey> {
         use crate::{
             address::{SubstrateAddress, SubstrateCryptoScheme},
             schemes::sr25519::PrivateKey,
@@ -91,14 +125,12 @@ impl Sr25519SignerExt for Signer<Sr25519> {
                 SubstrateAddress::new(public_key.to_bytes(), SubstrateCryptoScheme::Sr25519)?;
 
             if address.as_ss58().starts_with(prefix) {
-                if attempts.is_multiple_of(1000) {
-                    tracing::info!(
-                        "Vanity key found after {} attempts for prefix '{}'",
-                        attempts,
-                        prefix
-                    );
-                }
-                return Ok(self.import_key(candidate)?);
+                tracing::info!(
+                    "Vanity key found after {} attempts for prefix '{}'",
+                    attempts,
+                    prefix
+                );
+                return Ok(self.import_key_with_password(candidate, password)?);
             }
 
             if attempts.is_multiple_of(1000) {

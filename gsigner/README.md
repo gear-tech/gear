@@ -16,7 +16,7 @@ This crate combines and extends the functionality from both `ethexe-signer` and 
 - **sp_core-backed key material across every scheme** – secp256k1, ed25519, and sr25519 now all wrap the upstream `sp_core` pairs/public/signature types, so SURIs, SS58 addresses, and SCALE codecs behave exactly like Substrate tooling.
 - **Production-parity Ethereum signing** – recoverable signatures are still generated with canonical low-S normalisation and exposed as `sp_core::ecdsa::Signature`, preserving compatibility with existing JSON keystores and RPC consumers.
 - **CLI parity for every scheme** – the keyring workflow that previously existed only for sr25519 is now available for secp256k1 and ed25519, including the short aliases `secp`, `ed`, and `sr`.
-- **Unified storage abstraction** – every keyring command (CLI and API) understands the same storage location flags. Choose a filesystem directory with `--path`, keep keys ephemeral with `--memory`, and optionally encrypt any scheme by passing `--storage-password`.
+- **Unified storage abstraction** – every keyring command (CLI and API) understands the same storage location flags. Choose a filesystem directory with `--path`, keep keys ephemeral with `--memory`, and optionally encrypt any scheme by passing `--key-password`.
 - **Consistent address handling** – SS58 encoding relies on the upstream codec (default Vara prefix 137) while Ethereum addresses remain the standard Keccak-256 derivation.
 
 ## Features
@@ -38,11 +38,11 @@ use gsigner::secp256k1;
 let signer = secp256k1::Signer::memory();
 
 // Generate a new key
-let public_key = signer.generate_key()?;
+let public_key = signer.generate_key_with_password(None)?;
 
 // Sign some data
 let message = b"hello world";
-let signature = signer.sign(public_key, message)?;
+let signature = signer.sign_with_password(public_key, message, None)?;
 
 // Verify signature
 signer.verify(public_key, message, &signature)?;
@@ -55,15 +55,15 @@ use gsigner::{ed25519, secp256k1, sr25519};
 
 // Ethereum signer
 let eth_signer = secp256k1::Signer::memory();
-let eth_key = eth_signer.generate_key()?;
+let eth_key = eth_signer.generate_key_with_password(None)?;
 
 // Ed25519 signer
 let ed_signer = ed25519::Signer::memory();
-let ed_key = ed_signer.generate_key()?;
+let ed_key = ed_signer.generate_key_with_password(None)?;
 
 // Sr25519 signer
 let sub_signer = sr25519::Signer::memory();
-let sub_key = sub_signer.generate_key()?;
+let sub_key = sub_signer.generate_key_with_password(None)?;
 ```
 
 ### Storage Options
@@ -79,21 +79,20 @@ let memory_signer = secp256k1::Signer::memory();
 let fs_signer = secp256k1::Signer::fs(PathBuf::from("./keys"))?;
 
 // Encrypted filesystem storage
-let encrypted = secp256k1::Signer::fs_with_password(
-    PathBuf::from("./keys"),
-    Some("hunter2".into()),
-)?;
+let encrypted = secp256k1::Signer::fs(PathBuf::from("./keys"))?;
+let public_key = encrypted.generate_key_with_password(Some("hunter2"))?;
 
 // Temporary filesystem storage
 let tmp_signer = secp256k1::Signer::fs_temporary()?;
 
-// Add a password to in-memory storage if you plan to export/import encrypted keystores later
-let memory_with_password = secp256k1::Signer::memory_with_password(Some("hunter2".into()));
+// Pass a password per key operation if you plan to export/import encrypted keystores later
+let memory_with_password = secp256k1::Signer::memory();
+let imported = memory_with_password.import_key_with_password(private_key, Some("hunter2"))?;
 ```
 
 ### CLI Highlights
 
-- All stateful commands now live under `<scheme> keyring ...` and accept the unified storage flags (disk path, in-memory mode, optional password).
+- All stateful commands now live under `<scheme> keyring ...` and accept the unified storage flags (disk path, in-memory mode); commands that read or write encrypted key material also accept `--key-password`.
 - Stateless helpers such as `verify`, `recover`, `address`, and `peer-id` remain at the scheme root.
 - The CLI automatically resolves default storage locations per scheme (`$XDG_DATA_HOME/gsigner/<scheme>`), so most commands work without explicitly passing `--path`.
 - `recover` is only available for secp256k1; ed25519 and sr25519 will report that recovery is unsupported.
@@ -111,16 +110,16 @@ use gsigner::secp256k1::{self, Secp256k1SignerExt};
 use gsigner::Address;
 
 let signer = secp256k1::Signer::memory();
-let key = signer.generate_key()?;
+let key = signer.generate_key_with_password(None)?;
 
 // Create signed data wrapper
-let signed_data = signer.signed_data(key, b"hello world")?;
+let signed_data = signer.signed_data_with_password(key, b"hello world", None)?;
 assert_eq!(signed_data.data(), &b"hello world");
 assert_eq!(signed_data.public_key(), key);
 
 // Create contract-specific signature (EIP-191)
 let contract_addr = Address([0x42; 20]);
-let contract_sig = signer.sign_for_contract(contract_addr, key, b"data")?;
+let contract_sig = signer.sign_for_contract_with_password(contract_addr, key, b"data", None)?;
 ```
 
 ### Sr25519 (Substrate) Extensions
@@ -130,14 +129,14 @@ use gsigner::sr25519::{self, Sr25519SignerExt, Keyring, PrivateKey};
 
 // Sign with custom context
 let signer = sr25519::Signer::memory();
-let key = signer.generate_key()?;
-let sig = signer.sign_with_context(key, b"my-app", b"message")?;
+let key = signer.generate_key_with_password(None)?;
+let sig = signer.sign_with_context_with_password(key, b"my-app", b"message", None)?;
 
 // Verify with context
 signer.verify_with_context(key, b"my-app", b"message", &sig)?;
 
 // Generate vanity key
-let vanity_key = signer.generate_vanity_key("5Ge")?; // SS58 address starting with "5Ge"
+let vanity_key = signer.generate_vanity_key_with_password("5Ge", None)?; // SS58 address starting with "5Ge"
 ```
 
 ### Ed25519 (Substrate) Basics
@@ -146,16 +145,16 @@ let vanity_key = signer.generate_vanity_key("5Ge")?; // SS58 address starting wi
 use gsigner::ed25519::{self, PrivateKey};
 
 let signer = ed25519::Signer::memory();
-let key = signer.generate_key()?;
+let key = signer.generate_key_with_password(None)?;
 
 // Sign and verify
 let message = b"hello";
-let signature = signer.sign(key, message)?;
+let signature = signer.sign_with_password(key, message, None)?;
 signer.verify(key, message, &signature)?;
 
 // Import from SURI
 let alice = PrivateKey::from_suri("//Alice", None)?;
-let imported = signer.import_key(alice)?;
+let imported = signer.import_key_with_password(alice, None)?;
 let address = signer.address(imported);
 println!("ed25519 SS58: {}", address.as_ss58());
 ```
@@ -199,9 +198,9 @@ let from_seed = SrPrivateKey::from_seed(seed)?;
 
 // Import into signers
 let sr_signer = sr25519::Signer::memory();
-let sr_public = sr_signer.import_key(alice)?;
+let sr_public = sr_signer.import_key_with_password(alice, None)?;
 let ed_signer = ed25519::Signer::memory();
-let ed_public = ed_signer.import_key(ed_alice)?;
+let ed_public = ed_signer.import_key_with_password(ed_alice, None)?;
 ```
 
 
@@ -311,8 +310,8 @@ methods:
 
 ```rust
 let signer = gsigner::secp256k1::Signer::fs("~/.local/share/gsigner".into());
-let public = signer.generate_key()?;
-let private = signer.get_private_key(public)?;
+let public = signer.generate_key_with_password(None)?;
+let private = signer.get_private_key_with_password(public, None)?;
 signer.clear_keys()?;
 ```
 

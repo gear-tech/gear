@@ -30,7 +30,7 @@ All commands accept `--format <human|plain|json>` (default: `human`). `plain` pr
 gsigner secp256k1 --format json address --public-key 0x03...
 ```
 
-To encrypt keys on disk, pass `--storage-password <PASSWORD>` to commands that read or write encrypted key material (generate, create, import, sign, show, vanity). The same password must be supplied consistently for subsequent operations targeting the encrypted keyring.
+To encrypt keys on disk, pass `--key-password <PASSWORD>` to commands that read or write encrypted key material (generate, create, import, sign, show, vanity). The same password must be supplied consistently for subsequent operations targeting the encrypted keyring.
 
 ### Storage locations
 
@@ -38,9 +38,9 @@ Every keyring-aware command accepts the same storage location flags:
 
 - `--path <PATH>` (short form `-s` and alias `--storage`) stores keys on disk. When omitted the CLI falls back to the default `~/.local/share/gsigner/<scheme>` directory.
 - `--memory` keeps keys entirely in memory for the lifetime of the process. This is handy for tests or scripting when nothing should touch disk.
-- `--storage-password <PASSWORD>` enables encryption for the keystore. Supply the same password for operations that read or write encrypted key material. If no password is provided the keyring remains plaintext.
+- `--key-password <PASSWORD>` enables encryption for the keystore. Supply the same password for operations that read or write encrypted key material. If no password is provided the keyring remains plaintext.
 
-You can mix these flags as needed, e.g. `gsigner secp keyring generate --memory --storage-password test` to exercise the encryption path without creating files.
+You can mix these flags as needed, e.g. `gsigner secp keyring generate --memory --key-password test` to exercise the encryption path without creating files.
 
 ### Stateless commands
 
@@ -392,7 +392,7 @@ gsigner secp256k1 keyring init --path ./eth-keyring
 gsigner secp256k1 keyring create \
   --path ./eth-keyring \
   --name validator
-  --storage-password hunter2
+  --key-password hunter2
 ```
 
 #### Import an existing key (hex or SURI/mnemonic)
@@ -493,7 +493,7 @@ gsigner sr25519 keyring list --path ./my-keyring
 
 ```bash
 # Generate a key
-gsigner secp256k1 keyring generate --path ./keys --storage-password hunter2
+gsigner secp256k1 keyring generate --path ./keys --key-password hunter2
 
 # Output:
 # ✓ Generated secp256k1 keypair
@@ -505,7 +505,7 @@ gsigner secp256k1 keyring sign \
   --public-key 0x03ff1bce2f0dfb62c173347c8fa6e1603c6e55d8f0d22091d1660bf2b70d6aa08d \
   --data 48656c6c6f \
   --path ./keys \
-  --storage-password hunter2
+  --key-password hunter2
 
 # Verify the signature
 gsigner secp256k1 verify \
@@ -524,7 +524,7 @@ gsigner sr25519 keyring init --path ./my-keyring
 gsigner sr25519 keyring create \
   --path ./my-keyring \
   --name alice \
-  --storage-password secret
+  --key-password secret
 
 # Output:
 # ✓ Added key 'alice'
@@ -540,7 +540,7 @@ gsigner sr25519 keyring vanity \
   --path ./my-keyring \
   --name vanity \
   --prefix "5GrwvaEF" \
-  --storage-password secret
+  --key-password secret
 ```
 
 ## Data Format
@@ -558,7 +558,7 @@ gsigner sr25519 keyring vanity \
 
 ## Security Notes
 
-1. **Key Storage**: Keys stored in filesystem use JSON keyring files. Supply `--storage-password` to encrypt any scheme; without it the keystore remains plaintext on disk.
+1. **Key Storage**: Keys stored in filesystem use JSON keyring files. Supply `--key-password` to encrypt any scheme; without it the keystore remains plaintext on disk.
 2. **Memory Storage**: Pass `--memory` to keep keys in RAM only. Omit both `--memory` and `--path` to default to the per-scheme data directory on disk.
 3. **Passwords**: When using password encryption, ensure strong passwords for production use.
 4. **Vanity Generation**: Be cautious with long prefixes as generation time increases exponentially.

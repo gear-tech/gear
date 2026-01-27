@@ -44,14 +44,10 @@ where
     S: StorageScheme,
     S::PrivateKey: SeedableKey,
 {
-    let password = storage
-        .storage_password
-        .as_ref()
-        .map(|p: &secrecy::SecretString| p.expose_secret().to_owned());
     if let Some(path) = resolve_storage_location(storage) {
-        Ok(crate::Signer::fs_with_password(path, password)?)
+        Ok(crate::Signer::fs(path)?)
     } else {
-        Ok(crate::Signer::memory_with_password(password))
+        Ok(crate::Signer::memory())
     }
 }
 
@@ -87,9 +83,13 @@ where
     S::PrivateKey: SeedableKey + Clone,
 {
     with_signer::<S, _, _>(storage, |signer| {
+        let password = storage
+            .key_password
+            .as_ref()
+            .map(|p: &secrecy::SecretString| p.expose_secret().as_str());
         let (private_key, public_key) = {
             let (pk, _) = S::generate_keypair();
-            let public = signer.import_key(pk.clone())?;
+            let public = signer.import_key_with_password(pk.clone(), password)?;
             (pk, public)
         };
 
@@ -113,6 +113,7 @@ pub fn key_info_from_public<S>(
     formatter: &SchemeFormatter<S>,
     public_key: S::PublicKey,
     show_secret: bool,
+    password: Option<&str>,
 ) -> Result<KeyInfo>
 where
     S: StorageScheme,
@@ -124,7 +125,7 @@ where
 
     let address = signer.address(public_key.clone());
     let secret = if show_secret {
-        let private_key = signer.get_private_key(public_key.clone())?;
+        let private_key = signer.get_private_key_with_password(public_key.clone(), password)?;
         Some(hex::encode(private_key.seed().as_ref()))
     } else {
         None
@@ -146,13 +147,14 @@ pub fn show_key_for_public<S>(
     formatter: &SchemeFormatter<S>,
     public_key: S::PublicKey,
     show_secret: bool,
+    password: Option<&str>,
 ) -> Result<crate::cli::scheme::ListKeysResult>
 where
     S: StorageScheme,
     S::PrivateKey: SeedableKey,
 {
     with_signer::<S, _, _>(storage, |signer| {
-        let info = key_info_from_public(&signer, formatter, public_key, show_secret)?;
+        let info = key_info_from_public(&signer, formatter, public_key, show_secret, password)?;
         Ok(crate::cli::scheme::ListKeysResult { keys: vec![info] })
     })
 }
