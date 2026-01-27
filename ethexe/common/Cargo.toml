@@ -10,7 +10,6 @@ repository.workspace = true
 [dependencies]
 alloy-primitives.workspace = true
 gear-core.workspace = true
-sp-core.workspace = true
 gprimitives.workspace = true
 parity-scale-codec.workspace = true
 hex.workspace = true
@@ -34,7 +33,6 @@ tap = { workspace = true, optional = true }
 gear-workspace-hack.workspace = true
 
 [dev-dependencies]
-serde_json.workspace = true
 gprimitives = { workspace = true, features = ["ethexe"] }
 
 [features]
@@ -47,7 +45,6 @@ std = [
     "sha3/std",
     "k256/std",
     "alloy-primitives/std",
-    "sp-core/std",
     "gsigner/std",
     "gsigner/keyring",
 ]

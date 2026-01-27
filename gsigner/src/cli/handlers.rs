@@ -203,8 +203,8 @@ fn execute_secp256k1_keyring_command(
     formatter: &SchemeFormatter<crate::schemes::secp256k1::Secp256k1>,
 ) -> Result<SchemeResult> {
     use crate::{
-        schemes::secp256k1::{PublicKey, Secp256k1, Secp256k1SignerExt},
         Address,
+        schemes::secp256k1::{PublicKey, Secp256k1, Secp256k1SignerExt},
     };
 
     match command {
