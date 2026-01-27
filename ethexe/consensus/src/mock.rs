@@ -128,11 +128,7 @@ impl SignerMockExt for Signer {
         pub_key: PublicKey,
         args: T,
     ) -> SignedData<M> {
-        let data = M::mock(args);
-        let digest = data.to_digest();
-        let signature = self.sign_digest(pub_key, &digest).expect("signing failed");
-
-        SignedData::try_from_parts(data, signature).expect("signed data conversion failed")
+        self.signed_data(pub_key, M::mock(args)).unwrap()
     }
 
     fn validation_reply(
@@ -141,10 +137,11 @@ impl SignerMockExt for Signer {
         contract_address: Address,
         digest: Digest,
     ) -> BatchCommitmentValidationReply {
-        let signature = self
-            .sign_for_contract_digest(contract_address, public_key, &digest)
-            .unwrap();
-
-        BatchCommitmentValidationReply { digest, signature }
+        BatchCommitmentValidationReply {
+            digest,
+            signature: self
+                .sign_for_contract_digest(contract_address, public_key, digest)
+                .unwrap(),
+        }
     }
 }

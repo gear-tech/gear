@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2021-2025 Gear Technologies Inc.
+// Copyright (C) 2021-2026 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -212,7 +212,7 @@ pub enum SchemeKeyringCommands {
         #[command(flatten)]
         storage: StorageLocationArgs,
     },
-    #[command(about = "Generate a new keypair")]
+    #[command(about = "Generate and store a new keypair")]
     Generate {
         #[command(flatten)]
         storage: StorageLocationArgs,
@@ -237,7 +237,7 @@ pub enum SchemeKeyringCommands {
         #[arg(short = 'p', long = "private-key", help = "Private key (0x... hex, 32 bytes)", value_parser = hex_bytes::<32>, conflicts_with_all = ["seed", "suri"])]
         private_key: Option<String>,
         #[arg(short = 'w', long, help = "Password for SURI derivation")]
-        password: Option<String>,
+        suri_password: Option<String>,
         #[cfg(feature = "keyring")]
         #[arg(short, long, help = "Key name for JSON keyring entry")]
         name: Option<String>,

@@ -146,8 +146,7 @@ impl Service {
             .keys()
             .iter()
             .map(|key| {
-                let mut seed = [0u8; 32];
-                seed.copy_from_slice(&key.to_bytes());
+                let seed = key.to_bytes().into();
                 PrivateKey::from_seed(seed).expect("anvil should provide valid secp256k1 key")
             })
             .zip(anvil.addresses().iter().map(|addr| Address::from(*addr)));

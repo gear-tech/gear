@@ -215,7 +215,7 @@ impl SignerSync for Sender {
         let digest = Digest(hash.0);
         let signature = self
             .signer
-            .sign_digest(self.sender, &digest)
+            .sign_digest(self.sender, digest)
             .map_err(|err| SignerError::Other(err.into()))?;
         Signature::from_raw(&signature.as_raw_bytes()).map_err(|err| SignerError::Other(err.into()))
     }

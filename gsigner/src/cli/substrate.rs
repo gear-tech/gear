@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2021-2025 Gear Technologies Inc.
+// Copyright (C) 2021-2026 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -43,7 +43,7 @@ pub enum SubstrateCommand {
     Import {
         suri: Option<String>,
         seed: Option<String>,
-        password: Option<String>,
+        suri_password: Option<String>,
         storage: StorageLocationArgs,
         show_secret: bool,
     },
@@ -184,11 +184,11 @@ where
         SubstrateCommand::Import {
             suri,
             seed,
-            password,
+            suri_password,
             storage,
             show_secret,
         } => crate::cli::storage::with_signer::<S, _, _>(&storage, |signer| {
-            if password.is_some() && suri.is_none() {
+            if suri_password.is_some() && suri.is_none() {
                 anyhow::bail!("--password can only be used together with --suri");
             }
 
@@ -197,7 +197,7 @@ where
                 S::PrivateKey::from_seed(seed_value)?
             } else {
                 let suri = suri.expect("clap ensures either --suri or --seed is provided");
-                (desc.import_private)(&suri, password.as_deref())?
+                (desc.import_private)(&suri, suri_password.as_deref())?
             };
             let public_key = signer.import_key(private_key.clone())?;
             let public_display = formatter.format_public(&public_key);

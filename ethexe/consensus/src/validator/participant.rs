@@ -87,11 +87,10 @@ impl StateHandler for Participant {
         {
             match res {
                 Ok(ValidationStatus::Accepted(digest)) => {
-                    let gsigner_pubkey = self.ctx.core.pub_key;
                     let signature = self.ctx.core.signer.sign_for_contract_digest(
                         self.ctx.core.router_address,
-                        gsigner_pubkey,
-                        &digest,
+                        self.ctx.core.pub_key,
+                        digest,
                     )?;
                     let reply = BatchCommitmentValidationReply { digest, signature };
 

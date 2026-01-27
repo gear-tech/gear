@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2024-2025 Gear Technologies Inc.
+// Copyright (C) 2021-2026 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -61,11 +61,11 @@ impl Signature {
         Digest: From<T>,
     {
         let digest = Digest::from(data);
-        Self::create_from_digest(private_key, &digest)
+        Self::create_from_digest(private_key, digest)
     }
 
     /// Create a recoverable signature from a precomputed digest.
-    pub fn create_from_digest(private_key: &PrivateKey, digest: &Digest) -> SignResult<Self> {
+    pub fn create_from_digest(private_key: &PrivateKey, digest: Digest) -> SignResult<Self> {
         Ok(Self::new(private_key.as_pair().sign_prehashed(&digest.0)))
     }
 
@@ -536,7 +536,7 @@ impl ContractSignature {
     {
         Signature::create_from_digest(
             private_key,
-            &contract_specific_digest(Digest::from(data), contract_address),
+            contract_specific_digest(Digest::from(data), contract_address),
         )
         .map(ContractSignature)
     }
@@ -544,11 +544,11 @@ impl ContractSignature {
     pub fn create_from_digest(
         contract_address: Address,
         private_key: &PrivateKey,
-        digest: &Digest,
+        digest: Digest,
     ) -> SignResult<Self> {
         Signature::create_from_digest(
             private_key,
-            &contract_specific_digest(*digest, contract_address),
+            contract_specific_digest(digest, contract_address),
         )
         .map(ContractSignature)
     }

@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2024-2025 Gear Technologies Inc.
+// Copyright (C) 2021-2026 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Ethereum address and validator helpers.
+//! Ethereum address
 
 use super::keys::PublicKey;
 use crate::{hash::keccak256, utils::decode_hex_to_array};
@@ -157,7 +157,6 @@ impl From<Address> for alloy_primitives::Address {
     }
 }
 
-/// [`ValidatorsVec`] now lives in `ethexe-common` and is re-exported there.
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -70,7 +70,7 @@ impl MultisignedBatchCommitment {
         pub_key: PublicKey,
     ) -> Result<Self> {
         let batch_digest = batch.to_digest();
-        let signature = signer.sign_for_contract_digest(router_address, pub_key, &batch_digest)?;
+        let signature = signer.sign_for_contract_digest(router_address, pub_key, batch_digest)?;
         let signatures: BTreeMap<_, _> = [(pub_key.to_address(), signature)].into_iter().collect();
 
         Ok(Self {
@@ -98,9 +98,9 @@ impl MultisignedBatchCommitment {
 
         anyhow::ensure!(digest == self.batch_digest, "Invalid reply digest");
 
-        let origin_public_key = signature.validate(self.router_address, digest)?;
-
-        let origin = origin_public_key.to_address();
+        let origin = signature
+            .validate(self.router_address, digest)?
+            .to_address();
 
         check_origin(origin)?;
 
@@ -522,11 +522,12 @@ mod tests {
             MultisignedBatchCommitment::new(batch, &signer, ADDRESS, pub_key).unwrap();
 
         let other_pub_key = public_keys[1];
-        let digest = multisigned_batch.batch_digest;
-        let signature = signer
-            .sign_for_contract_digest(ADDRESS, other_pub_key, &digest)
-            .unwrap();
-        let reply = BatchCommitmentValidationReply { digest, signature };
+        let reply = BatchCommitmentValidationReply {
+            digest: multisigned_batch.batch_digest,
+            signature: signer
+                .sign_for_contract_digest(ADDRESS, other_pub_key, multisigned_batch.batch_digest)
+                .unwrap(),
+        };
 
         multisigned_batch
             .accept_batch_commitment_validation_reply(reply.clone(), |_| Ok(()))
@@ -554,12 +555,11 @@ mod tests {
             MultisignedBatchCommitment::new(batch, &signer, ADDRESS, pub_key).unwrap();
 
         let incorrect_digest = [1, 2, 3].to_digest();
-        let signature = signer
-            .sign_for_contract_digest(ADDRESS, pub_key, &incorrect_digest)
-            .unwrap();
         let reply = BatchCommitmentValidationReply {
             digest: incorrect_digest,
-            signature,
+            signature: signer
+                .sign_for_contract_digest(ADDRESS, pub_key, incorrect_digest)
+                .unwrap(),
         };
 
         let result = multisigned_batch.accept_batch_commitment_validation_reply(reply, |_| Ok(()));
@@ -578,11 +578,12 @@ mod tests {
             MultisignedBatchCommitment::new(batch, &signer, ADDRESS, pub_key).unwrap();
 
         let other_pub_key = public_keys[1];
-        let digest = multisigned_batch.batch_digest;
-        let signature = signer
-            .sign_for_contract_digest(ADDRESS, other_pub_key, &digest)
-            .unwrap();
-        let reply = BatchCommitmentValidationReply { digest, signature };
+        let reply = BatchCommitmentValidationReply {
+            digest: multisigned_batch.batch_digest,
+            signature: signer
+                .sign_for_contract_digest(ADDRESS, other_pub_key, multisigned_batch.batch_digest)
+                .unwrap(),
+        };
 
         // Case 1: check_origin allows the origin
         let result =

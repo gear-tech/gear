@@ -154,9 +154,8 @@ impl Producer {
         block: SimpleBlockData,
         validators: ValidatorsVec,
     ) -> Result<ValidatorState> {
-        let my_address = ctx.core.pub_key.to_address();
         assert!(
-            validators.contains(&my_address),
+            validators.contains(&ctx.core.pub_key.to_address()),
             "Producer is not in the list of validators"
         );
 
@@ -254,7 +253,7 @@ mod tests {
     #[ntest::timeout(3000)]
     async fn create() {
         let (mut ctx, keys, _) = mock_validator_context();
-        let validators = nonempty![ctx.core.pub_key.to_address(), keys[0].to_address(),];
+        let validators = nonempty![ctx.core.pub_key.to_address(), keys[0].to_address()];
         let block = SimpleBlockData::mock(());
 
         ctx.pending(PendingEvent::ValidationRequest(

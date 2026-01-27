@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2024-2025 Gear Technologies Inc.
+// Copyright (C) 2021-2026 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -32,7 +32,7 @@ pub trait Secp256k1SignerExt {
     fn sign_recoverable(&self, public_key: PublicKey, data: &[u8]) -> Result<Signature>;
 
     /// Create a recoverable ECDSA signature from a precomputed digest.
-    fn sign_digest(&self, public_key: PublicKey, digest: &super::Digest) -> Result<Signature>;
+    fn sign_digest(&self, public_key: PublicKey, digest: Digest) -> Result<Signature>;
 
     /// Create signed data (signature + data).
     fn signed_data<T>(&self, public_key: PublicKey, data: T) -> Result<SignedData<T>>
@@ -57,7 +57,7 @@ pub trait Secp256k1SignerExt {
         &self,
         contract_address: Address,
         public_key: PublicKey,
-        digest: &super::Digest,
+        digest: Digest,
     ) -> Result<ContractSignature>;
 }
 
@@ -68,7 +68,7 @@ impl Secp256k1SignerExt for Signer<Secp256k1> {
             .map_err(|e| SignerError::Crypto(format!("Signature creation failed: {e}")))
     }
 
-    fn sign_digest(&self, public_key: PublicKey, digest: &super::Digest) -> Result<Signature> {
+    fn sign_digest(&self, public_key: PublicKey, digest: Digest) -> Result<Signature> {
         let private_key = self.get_private_key(public_key)?;
         Signature::create_from_digest(&private_key, digest)
             .map_err(|e| SignerError::Crypto(format!("Signature creation failed: {e}")))
@@ -107,7 +107,7 @@ impl Secp256k1SignerExt for Signer<Secp256k1> {
         &self,
         contract_address: Address,
         public_key: PublicKey,
-        digest: &super::Digest,
+        digest: Digest,
     ) -> Result<ContractSignature> {
         let private_key = self.get_private_key(public_key)?;
         ContractSignature::create_from_digest(contract_address, &private_key, digest)

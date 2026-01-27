@@ -276,9 +276,8 @@ impl NetworkService {
     }
 
     fn generate_keypair(signer: &Signer, key: PublicKey) -> anyhow::Result<identity::Keypair> {
-        let key = signer.get_private_key(key)?;
-        let mut seed = key.to_bytes();
-        let key = identity::secp256k1::SecretKey::try_from_bytes(&mut seed)
+        let mut key = signer.get_private_key(key)?.to_bytes();
+        let key = identity::secp256k1::SecretKey::try_from_bytes(&mut key)
             .expect("Signer provided invalid key; qed");
         let pair = identity::secp256k1::Keypair::from(key);
         Ok(identity::Keypair::from(pair))

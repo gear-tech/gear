@@ -325,7 +325,7 @@ impl ValidatorIdentity {
     ) -> anyhow::Result<SignedValidatorIdentity> {
         let digest = self.to_digest();
         let validator_signature = signer
-            .sign_digest(validator_key, &digest)
+            .sign_digest(validator_key, digest)
             .context("failed to sign validator identity with validator key")?;
 
         let network_private_key = keypair

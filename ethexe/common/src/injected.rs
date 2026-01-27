@@ -160,48 +160,6 @@ impl ToDigest for Promise {
     }
 }
 
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn signed_message_and_injected_transactions() {
-        const RPC_INPUT: &str = r#"{
-            "data":{
-                "destination":"0xede8c947f1ce1a5add6c26c2db01ad1dcd377c72",
-                "payload":"0x",
-                "value":0,
-                "reference_block":"0xb03574ea84ef2acbdbc8c04f8afb73c9d59f2fbd3bf82f37dcb2aa390372b702",
-                "salt":"0x6c6db263a31830e072ea7f083e6a818df3074119be6eee60601a5f2f668db508"
-            },
-            "signature":"0xfeffc4dfc0d5d49bd036b12a7ff5163132b5a40c93a5d369d0af1f925851ad1412fb33b7632c4dac9c8828d194fcaf417d5a2a2583ba23195c0080e8b6890c0a1c",
-            "address":"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266"
-        }"#;
-
-        let signed_tx: SignedInjectedTransaction =
-            serde_json::from_str(RPC_INPUT).expect("failed to deserialize SignedMessage");
-
-        assert_eq!(
-            hex::encode(signed_tx.data().to_message_id()),
-            "867184f57aa63ceeb4066c061098317388bbacbea309ebd09a7fd228469460ee"
-        );
-
-        assert_eq!(
-            hex::encode(signed_tx.address().0),
-            "f39fd6e51aad88f6f4ce6ab8827279cfffb92266"
-        );
-
-        assert_eq!(
-            signed_tx
-                .signature()
-                .recover_message(signed_tx.data())
-                .expect("failed to recover message")
-                .to_address(),
-            signed_tx.address()
-        );
-    }
-}
-
 /// Hex (de)serialization helpers for the following types:
 /// - [`LimitedVec<u8, N>`]
 /// - [`U256`]

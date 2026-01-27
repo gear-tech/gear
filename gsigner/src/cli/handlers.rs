@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2021-2025 Gear Technologies Inc.
+// Copyright (C) 2021-2026 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -283,7 +283,7 @@ fn execute_secp256k1_keyring_command(
             suri,
             seed,
             private_key,
-            password,
+            suri_password,
             name,
             storage,
             show_secret,
@@ -293,8 +293,8 @@ fn execute_secp256k1_keyring_command(
             }
             let name =
                 name.ok_or_else(|| anyhow::anyhow!("--name is required for secp256k1 import"))?;
-            if password.is_some() && suri.is_none() {
-                anyhow::bail!("--password can only be used together with --suri");
+            if suri_password.is_some() && suri.is_none() {
+                anyhow::bail!("--suri_password can only be used together with --suri");
             }
             keyring_import::<Secp256k1KeyringOps, crate::schemes::secp256k1::Secp256k1, _>(
                 storage,
@@ -315,7 +315,7 @@ fn execute_secp256k1_keyring_command(
                             keyring,
                             &name,
                             suri,
-                            password.as_deref(),
+                            suri_password.as_deref(),
                             storage_password,
                         );
                     }
@@ -419,7 +419,7 @@ fn execute_ed25519_keyring_command(command: SchemeKeyringCommands) -> Result<Sch
             suri,
             seed,
             private_key,
-            password,
+            suri_password,
             name,
             storage,
             show_secret,
@@ -428,7 +428,7 @@ fn execute_ed25519_keyring_command(command: SchemeKeyringCommands) -> Result<Sch
                 anyhow::bail!("--private-key is not supported for ed25519");
             }
             if let Some(name) = name {
-                if password.is_some() && suri.is_none() {
+                if suri_password.is_some() && suri.is_none() {
                     anyhow::bail!("--password can only be used together with --suri");
                 }
                 return keyring_import::<Ed25519KeyringOps, crate::schemes::ed25519::Ed25519, _>(
@@ -450,7 +450,7 @@ fn execute_ed25519_keyring_command(command: SchemeKeyringCommands) -> Result<Sch
                                 keyring,
                                 &name,
                                 suri,
-                                password.as_deref(),
+                                suri_password.as_deref(),
                                 storage_password,
                             );
                         }
@@ -463,7 +463,7 @@ fn execute_ed25519_keyring_command(command: SchemeKeyringCommands) -> Result<Sch
                 SubstrateCommand::Import {
                     suri,
                     seed,
-                    password,
+                    suri_password,
                     storage,
                     show_secret,
                 },
@@ -616,7 +616,7 @@ fn execute_sr25519_keyring_command(command: SchemeKeyringCommands) -> Result<Sch
             suri,
             seed,
             private_key,
-            password,
+            suri_password,
             name,
             storage,
             show_secret,
@@ -625,7 +625,7 @@ fn execute_sr25519_keyring_command(command: SchemeKeyringCommands) -> Result<Sch
                 anyhow::bail!("--private-key is not supported for sr25519");
             }
             if let Some(name) = name {
-                if password.is_some() && suri.is_none() {
+                if suri_password.is_some() && suri.is_none() {
                     anyhow::bail!("--password can only be used together with --suri");
                 }
                 return keyring_import::<Sr25519KeyringOps, crate::schemes::sr25519::Sr25519, _>(
@@ -647,7 +647,7 @@ fn execute_sr25519_keyring_command(command: SchemeKeyringCommands) -> Result<Sch
                                 keyring,
                                 &name,
                                 suri,
-                                password.as_deref(),
+                                suri_password.as_deref(),
                                 storage_password,
                             );
                         }
@@ -660,7 +660,7 @@ fn execute_sr25519_keyring_command(command: SchemeKeyringCommands) -> Result<Sch
                 SubstrateCommand::Import {
                     suri,
                     seed,
-                    password,
+                    suri_password,
                     storage,
                     show_secret,
                 },
