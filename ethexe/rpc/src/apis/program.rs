@@ -37,7 +37,7 @@ use parity_scale_codec::Encode;
 use serde::{Deserialize, Serialize};
 use sp_core::Bytes;
 
-#[derive(Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FullProgramState {
     pub program: Program,
     pub canonical_queue: Option<MessageQueue>,

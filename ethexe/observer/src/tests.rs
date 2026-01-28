@@ -74,13 +74,13 @@ async fn test_deployment() -> Result<()> {
     .expect("failed to create observer");
 
     let request_wasm_validation = async move |wasm: Vec<u8>| {
-        let pending_builder = ethereum
+        let (_tx_hash, code_id) = ethereum
             .router()
-            .request_code_validation_with_sidecar(&wasm)
+            .request_code_validation(&wasm)
             .await
             .expect("failed to request code validation");
 
-        pending_builder.code_id()
+        code_id
     };
 
     let wat = r#"

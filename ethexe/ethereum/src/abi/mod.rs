@@ -186,6 +186,11 @@ pub mod utils {
         Uint48::try_from(value).unwrap_or(Uint48::MAX)
     }
 
+    pub fn uint48_to_u64(value: Uint48) -> u64 {
+        let [limb] = value.into_limbs();
+        limb
+    }
+
     pub fn uint256_to_u128_lossy(value: Uint256) -> u128 {
         let [low, high, ..] = value.into_limbs();
 

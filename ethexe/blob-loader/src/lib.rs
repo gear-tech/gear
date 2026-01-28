@@ -419,10 +419,7 @@ mod tests {
         let code = &[];
         let (tx_hash, expected_code_id) = ethereum
             .router()
-            .request_code_validation_with_sidecar(code)
-            .await
-            .unwrap()
-            .send()
+            .request_code_validation(code)
             .await
             .unwrap();
 

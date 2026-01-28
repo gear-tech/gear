@@ -17,20 +17,20 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::abi::{IMirror, utils::*};
-use ethexe_common::events::MirrorEvent;
+use ethexe_common::events::mirror::*;
 use gear_core_errors::ReplyCode;
 
-impl From<IMirror::StateChanged> for MirrorEvent {
+impl From<IMirror::StateChanged> for StateChangedEvent {
     fn from(value: IMirror::StateChanged) -> Self {
-        Self::StateChanged {
+        Self {
             state_hash: bytes32_to_h256(value.stateHash),
         }
     }
 }
 
-impl From<IMirror::MessageQueueingRequested> for MirrorEvent {
+impl From<IMirror::MessageQueueingRequested> for MessageQueueingRequestedEvent {
     fn from(value: IMirror::MessageQueueingRequested) -> Self {
-        Self::MessageQueueingRequested {
+        Self {
             id: bytes32_to_message_id(value.id),
             source: address_to_actor_id(value.source),
             payload: value.payload.into(),
@@ -39,9 +39,9 @@ impl From<IMirror::MessageQueueingRequested> for MirrorEvent {
         }
     }
 }
-impl From<IMirror::ReplyQueueingRequested> for MirrorEvent {
+impl From<IMirror::ReplyQueueingRequested> for ReplyQueueingRequestedEvent {
     fn from(value: IMirror::ReplyQueueingRequested) -> Self {
-        Self::ReplyQueueingRequested {
+        Self {
             replied_to: bytes32_to_message_id(value.repliedTo),
             source: address_to_actor_id(value.source),
             payload: value.payload.into(),
@@ -49,30 +49,30 @@ impl From<IMirror::ReplyQueueingRequested> for MirrorEvent {
         }
     }
 }
-impl From<IMirror::ValueClaimingRequested> for MirrorEvent {
+impl From<IMirror::ValueClaimingRequested> for ValueClaimingRequestedEvent {
     fn from(value: IMirror::ValueClaimingRequested) -> Self {
-        Self::ValueClaimingRequested {
+        Self {
             claimed_id: bytes32_to_message_id(value.claimedId),
             source: address_to_actor_id(value.source),
         }
     }
 }
 
-impl From<IMirror::OwnedBalanceTopUpRequested> for MirrorEvent {
+impl From<IMirror::OwnedBalanceTopUpRequested> for OwnedBalanceTopUpRequestedEvent {
     fn from(value: IMirror::OwnedBalanceTopUpRequested) -> Self {
-        Self::OwnedBalanceTopUpRequested { value: value.value }
+        Self { value: value.value }
     }
 }
 
-impl From<IMirror::ExecutableBalanceTopUpRequested> for MirrorEvent {
+impl From<IMirror::ExecutableBalanceTopUpRequested> for ExecutableBalanceTopUpRequestedEvent {
     fn from(value: IMirror::ExecutableBalanceTopUpRequested) -> Self {
-        Self::ExecutableBalanceTopUpRequested { value: value.value }
+        Self { value: value.value }
     }
 }
 
-impl From<IMirror::Message> for MirrorEvent {
+impl From<IMirror::Message> for MessageEvent {
     fn from(value: IMirror::Message) -> Self {
-        Self::Message {
+        Self {
             id: bytes32_to_message_id(value.id),
             destination: address_to_actor_id(value.destination),
             payload: value.payload.into(),
@@ -81,9 +81,9 @@ impl From<IMirror::Message> for MirrorEvent {
     }
 }
 
-impl From<IMirror::MessageCallFailed> for MirrorEvent {
+impl From<IMirror::MessageCallFailed> for MessageCallFailedEvent {
     fn from(value: IMirror::MessageCallFailed) -> Self {
-        Self::MessageCallFailed {
+        Self {
             id: bytes32_to_message_id(value.id),
             destination: address_to_actor_id(value.destination),
             value: value.value,
@@ -91,9 +91,9 @@ impl From<IMirror::MessageCallFailed> for MirrorEvent {
     }
 }
 
-impl From<IMirror::Reply> for MirrorEvent {
+impl From<IMirror::Reply> for ReplyEvent {
     fn from(value: IMirror::Reply) -> Self {
-        Self::Reply {
+        Self {
             payload: value.payload.into(),
             value: value.value,
             reply_to: bytes32_to_message_id(value.replyTo),
@@ -102,9 +102,9 @@ impl From<IMirror::Reply> for MirrorEvent {
     }
 }
 
-impl From<IMirror::ReplyCallFailed> for MirrorEvent {
+impl From<IMirror::ReplyCallFailed> for ReplyCallFailedEvent {
     fn from(value: IMirror::ReplyCallFailed) -> Self {
-        Self::ReplyCallFailed {
+        Self {
             value: value.value,
             reply_to: bytes32_to_message_id(value.replyTo),
             reply_code: ReplyCode::from_bytes(*value.replyCode),
@@ -112,9 +112,9 @@ impl From<IMirror::ReplyCallFailed> for MirrorEvent {
     }
 }
 
-impl From<IMirror::ValueClaimed> for MirrorEvent {
+impl From<IMirror::ValueClaimed> for ValueClaimedEvent {
     fn from(value: IMirror::ValueClaimed) -> Self {
-        Self::ValueClaimed {
+        Self {
             claimed_id: bytes32_to_message_id(value.claimedId),
             value: value.value,
         }

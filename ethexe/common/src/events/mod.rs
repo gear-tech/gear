@@ -19,11 +19,13 @@
 use gprimitives::ActorId;
 use parity_scale_codec::{Decode, Encode};
 
-mod mirror;
-mod router;
+pub mod mirror;
+pub mod router;
+pub mod wvara;
 
 pub use mirror::{Event as MirrorEvent, RequestEvent as MirrorRequestEvent};
 pub use router::{Event as RouterEvent, RequestEvent as RouterRequestEvent};
+pub use wvara::Event as WVaraEvent;
 
 #[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, Hash)]
 pub enum BlockEvent {

@@ -20,59 +20,90 @@ use crate::{Announce, Digest, HashOf};
 use gprimitives::{ActorId, CodeId, H256};
 use parity_scale_codec::{Decode, Encode};
 
+// TODO: consider to sort events in same way as in IRouter.sol
+
+#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct BatchCommittedEvent {
+    pub digest: Digest,
+}
+
+#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct AnnouncesCommittedEvent(pub HashOf<Announce>);
+
+#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct CodeGotValidatedEvent {
+    pub code_id: CodeId,
+    pub valid: bool,
+}
+
+#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct CodeValidationRequestedEvent {
+    pub code_id: CodeId,
+    pub timestamp: u64,
+    pub tx_hash: H256,
+}
+
+#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ComputationSettingsChangedEvent {
+    pub threshold: u64,
+    pub wvara_per_second: u128,
+}
+
+#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ProgramCreatedEvent {
+    pub actor_id: ActorId,
+    pub code_id: CodeId,
+}
+
+#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct StorageSlotChangedEvent {
+    pub slot: H256,
+}
+
+#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ValidatorsCommittedForEraEvent {
+    pub era_index: u64,
+}
+
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Event {
-    BatchCommitted {
-        digest: Digest,
-    },
-    AnnouncesCommitted(HashOf<Announce>),
-    CodeGotValidated {
-        code_id: CodeId,
-        valid: bool,
-    },
-    CodeValidationRequested {
-        code_id: CodeId,
-        timestamp: u64,
-        tx_hash: H256,
-    },
-    ComputationSettingsChanged {
-        threshold: u64,
-        wvara_per_second: u128,
-    },
-    ProgramCreated {
-        actor_id: ActorId,
-        code_id: CodeId,
-    },
-    StorageSlotChanged,
-    ValidatorsCommittedForEra {
-        era_index: u64,
-    },
+    BatchCommitted(BatchCommittedEvent),
+    AnnouncesCommitted(AnnouncesCommittedEvent),
+    CodeGotValidated(CodeGotValidatedEvent),
+    CodeValidationRequested(CodeValidationRequestedEvent),
+    ComputationSettingsChanged(ComputationSettingsChangedEvent),
+    ProgramCreated(ProgramCreatedEvent),
+    // TODO: on review ask about backward compatibility
+    StorageSlotChanged(StorageSlotChangedEvent),
+    ValidatorsCommittedForEra(ValidatorsCommittedForEraEvent),
 }
 
 impl Event {
     pub fn to_request(self) -> Option<RequestEvent> {
         Some(match self {
-            Self::CodeValidationRequested {
+            Self::CodeValidationRequested(CodeValidationRequestedEvent {
                 code_id,
                 timestamp,
                 tx_hash,
-            } => RequestEvent::CodeValidationRequested {
+            }) => RequestEvent::CodeValidationRequested {
                 code_id,
                 timestamp,
                 tx_hash,
             },
-            Self::ComputationSettingsChanged {
+            Self::ComputationSettingsChanged(ComputationSettingsChangedEvent {
                 threshold,
                 wvara_per_second,
-            } => RequestEvent::ComputationSettingsChanged {
+            }) => RequestEvent::ComputationSettingsChanged {
                 threshold,
                 wvara_per_second,
             },
-            Self::ProgramCreated { actor_id, code_id } => {
+            Self::ProgramCreated(ProgramCreatedEvent { actor_id, code_id }) => {
                 RequestEvent::ProgramCreated { actor_id, code_id }
             }
-            Self::StorageSlotChanged => RequestEvent::StorageSlotChanged,
-            Self::ValidatorsCommittedForEra { era_index } => {
+            Self::StorageSlotChanged(StorageSlotChangedEvent { slot }) => {
+                RequestEvent::StorageSlotChanged { slot }
+            }
+            Self::ValidatorsCommittedForEra(ValidatorsCommittedForEraEvent { era_index }) => {
                 RequestEvent::ValidatorsCommittedForEra { era_index }
             }
             Self::CodeGotValidated { .. }
@@ -81,6 +112,8 @@ impl Event {
         })
     }
 }
+
+// TODO: consider to refactor in the same way (https://github.com/gear-tech/gear/pull/5107#discussion_r2727448994)
 
 #[derive(Clone, Debug, Encode, Decode, PartialEq, Eq)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
@@ -99,7 +132,9 @@ pub enum RequestEvent {
         actor_id: ActorId,
         code_id: CodeId,
     },
-    StorageSlotChanged,
+    StorageSlotChanged {
+        slot: H256,
+    },
     ValidatorsCommittedForEra {
         era_index: u64,
     },

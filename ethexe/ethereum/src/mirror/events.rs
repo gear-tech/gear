@@ -16,10 +16,27 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{IMirror, decode_log};
-use alloy::{primitives::B256, rpc::types::eth::Log, sol_types::SolEvent};
+use crate::{IMirror, decode_log, mirror::MirrorQuery};
+use alloy::{
+    contract::Event,
+    primitives::{Address as AlloyAddress, B256},
+    providers::RootProvider,
+    rpc::types::eth::Log,
+    sol_types::{Error, SolEvent},
+};
 use anyhow::Result;
-use ethexe_common::events::{MirrorEvent, MirrorRequestEvent};
+use ethexe_common::{
+    Address,
+    events::{
+        MirrorEvent, MirrorRequestEvent,
+        mirror::{
+            MessageCallFailedEvent, MessageEvent, ReplyCallFailedEvent, ReplyEvent,
+            StateChangedEvent, ValueClaimedEvent,
+        },
+    },
+};
+use futures::{Stream, StreamExt};
+use gear_core::message::ReplyCode;
 use signatures::*;
 
 pub mod signatures {
@@ -55,21 +72,35 @@ pub fn try_extract_event(log: &Log) -> Result<Option<MirrorEvent>> {
     };
 
     let event = match *topic0 {
-        OWNED_BALANCE_TOP_UP_REQUESTED => {
-            decode_log::<IMirror::OwnedBalanceTopUpRequested>(log)?.into()
+        OWNED_BALANCE_TOP_UP_REQUESTED => MirrorEvent::OwnedBalanceTopUpRequested(
+            decode_log::<IMirror::OwnedBalanceTopUpRequested>(log)?.into(),
+        ),
+        EXECUTABLE_BALANCE_TOP_UP_REQUESTED => MirrorEvent::ExecutableBalanceTopUpRequested(
+            decode_log::<IMirror::ExecutableBalanceTopUpRequested>(log)?.into(),
+        ),
+        MESSAGE_QUEUEING_REQUESTED => MirrorEvent::MessageQueueingRequested(
+            decode_log::<IMirror::MessageQueueingRequested>(log)?.into(),
+        ),
+        MESSAGE => MirrorEvent::Message(decode_log::<IMirror::Message>(log)?.into()),
+        MESSAGE_CALL_FAILED => {
+            MirrorEvent::MessageCallFailed(decode_log::<IMirror::MessageCallFailed>(log)?.into())
         }
-        EXECUTABLE_BALANCE_TOP_UP_REQUESTED => {
-            decode_log::<IMirror::ExecutableBalanceTopUpRequested>(log)?.into()
+        REPLY_QUEUEING_REQUESTED => MirrorEvent::ReplyQueueingRequested(
+            decode_log::<IMirror::ReplyQueueingRequested>(log)?.into(),
+        ),
+        REPLY => MirrorEvent::Reply(decode_log::<IMirror::Reply>(log)?.into()),
+        REPLY_CALL_FAILED => {
+            MirrorEvent::ReplyCallFailed(decode_log::<IMirror::ReplyCallFailed>(log)?.into())
         }
-        MESSAGE_QUEUEING_REQUESTED => decode_log::<IMirror::MessageQueueingRequested>(log)?.into(),
-        MESSAGE => decode_log::<IMirror::Message>(log)?.into(),
-        MESSAGE_CALL_FAILED => decode_log::<IMirror::MessageCallFailed>(log)?.into(),
-        REPLY_QUEUEING_REQUESTED => decode_log::<IMirror::ReplyQueueingRequested>(log)?.into(),
-        REPLY => decode_log::<IMirror::Reply>(log)?.into(),
-        REPLY_CALL_FAILED => decode_log::<IMirror::ReplyCallFailed>(log)?.into(),
-        STATE_CHANGED => decode_log::<IMirror::StateChanged>(log)?.into(),
-        VALUE_CLAIMED => decode_log::<IMirror::ValueClaimed>(log)?.into(),
-        VALUE_CLAIMING_REQUESTED => decode_log::<IMirror::ValueClaimingRequested>(log)?.into(),
+        STATE_CHANGED => {
+            MirrorEvent::StateChanged(decode_log::<IMirror::StateChanged>(log)?.into())
+        }
+        VALUE_CLAIMED => {
+            MirrorEvent::ValueClaimed(decode_log::<IMirror::ValueClaimed>(log)?.into())
+        }
+        VALUE_CLAIMING_REQUESTED => MirrorEvent::ValueClaimingRequested(
+            decode_log::<IMirror::ValueClaimingRequested>(log)?.into(),
+        ),
         _ => unreachable!("filtered above"),
     };
 
@@ -86,4 +117,185 @@ pub fn try_extract_request_event(log: &Log) -> Result<Option<MirrorRequestEvent>
         .expect("filtered above");
 
     Ok(Some(request_event))
+}
+
+pub struct StateChangedEventBuilder<'a> {
+    event: Event<&'a RootProvider, IMirror::StateChanged>,
+}
+
+impl<'a> StateChangedEventBuilder<'a> {
+    pub(crate) fn new(query: &'a MirrorQuery) -> Self {
+        Self {
+            event: query.0.StateChanged_filter(),
+        }
+    }
+
+    pub async fn subscribe(
+        self,
+    ) -> Result<impl Stream<Item = Result<(StateChangedEvent, Log), Error>> + Unpin + use<>> {
+        Ok(self
+            .event
+            .subscribe()
+            .await?
+            .into_stream()
+            .map(|result| result.map(|(event, log)| (event.into(), log))))
+    }
+}
+
+pub struct MessageEventBuilder<'a> {
+    event: Event<&'a RootProvider, IMirror::Message>,
+    destination: Option<Address>,
+}
+
+impl<'a> MessageEventBuilder<'a> {
+    pub(crate) fn new(query: &'a MirrorQuery) -> Self {
+        Self {
+            event: query.0.Message_filter(),
+            destination: None,
+        }
+    }
+
+    pub fn with_destination(mut self, destination: Address) -> Self {
+        self.destination = Some(destination);
+        self
+    }
+
+    pub async fn subscribe(
+        self,
+    ) -> Result<impl Stream<Item = Result<(MessageEvent, Log), Error>> + Unpin + use<>> {
+        let mut event = self.event;
+        if let Some(destination) = self.destination {
+            let destination: AlloyAddress = destination.into();
+            event = event.topic1(destination);
+        }
+        Ok(event
+            .subscribe()
+            .await?
+            .into_stream()
+            .map(|result| result.map(|(event, log)| (event.into(), log))))
+    }
+}
+
+pub struct MessageCallFailedEventBuilder<'a> {
+    event: Event<&'a RootProvider, IMirror::MessageCallFailed>,
+    destination: Option<Address>,
+}
+
+impl<'a> MessageCallFailedEventBuilder<'a> {
+    pub(crate) fn new(query: &'a MirrorQuery) -> Self {
+        Self {
+            event: query.0.MessageCallFailed_filter(),
+            destination: None,
+        }
+    }
+
+    pub async fn subscribe(
+        self,
+    ) -> Result<impl Stream<Item = Result<(MessageCallFailedEvent, Log), Error>> + Unpin + use<>>
+    {
+        let mut event = self.event;
+        if let Some(destination) = self.destination {
+            let destination: AlloyAddress = destination.into();
+            event = event.topic1(destination);
+        }
+        Ok(event
+            .subscribe()
+            .await?
+            .into_stream()
+            .map(|result| result.map(|(event, log)| (event.into(), log))))
+    }
+}
+
+pub struct ReplyEventBuilder<'a> {
+    event: Event<&'a RootProvider, IMirror::Reply>,
+    reply_code: Option<ReplyCode>,
+}
+
+impl<'a> ReplyEventBuilder<'a> {
+    pub(crate) fn new(query: &'a MirrorQuery) -> Self {
+        Self {
+            event: query.0.Reply_filter(),
+            reply_code: None,
+        }
+    }
+
+    pub fn reply_code(mut self, reply_code: ReplyCode) -> Self {
+        self.reply_code = Some(reply_code);
+        self
+    }
+
+    pub async fn subscribe(
+        self,
+    ) -> Result<impl Stream<Item = Result<(ReplyEvent, Log), Error>> + Unpin + use<>> {
+        let mut event = self.event;
+        if let Some(reply_code) = self.reply_code {
+            let mut bytes32 = [0u8; 32]; // TODO: check this
+            bytes32[..4].copy_from_slice(&reply_code.to_bytes());
+            event = event.topic1(bytes32);
+        }
+        Ok(event
+            .subscribe()
+            .await?
+            .into_stream()
+            .map(|result| result.map(|(event, log)| (event.into(), log))))
+    }
+}
+
+pub struct ReplyCallFailedEventBuilder<'a> {
+    event: Event<&'a RootProvider, IMirror::ReplyCallFailed>,
+    reply_code: Option<ReplyCode>,
+}
+
+impl<'a> ReplyCallFailedEventBuilder<'a> {
+    pub(crate) fn new(query: &'a MirrorQuery) -> Self {
+        Self {
+            event: query.0.ReplyCallFailed_filter(),
+            reply_code: None,
+        }
+    }
+
+    pub fn reply_code(mut self, reply_code: ReplyCode) -> Self {
+        self.reply_code = Some(reply_code);
+        self
+    }
+
+    pub async fn subscribe(
+        self,
+    ) -> Result<impl Stream<Item = Result<(ReplyCallFailedEvent, Log), Error>> + Unpin + use<>>
+    {
+        let mut event = self.event;
+        if let Some(reply_code) = self.reply_code {
+            let mut bytes32 = [0u8; 32]; // TODO: check this
+            bytes32[..4].copy_from_slice(&reply_code.to_bytes());
+            event = event.topic1(bytes32);
+        }
+        Ok(event
+            .subscribe()
+            .await?
+            .into_stream()
+            .map(|result| result.map(|(event, log)| (event.into(), log))))
+    }
+}
+
+pub struct ValueClaimedEventBuilder<'a> {
+    event: Event<&'a RootProvider, IMirror::ValueClaimed>,
+}
+
+impl<'a> ValueClaimedEventBuilder<'a> {
+    pub(crate) fn new(query: &'a MirrorQuery) -> Self {
+        Self {
+            event: query.0.ValueClaimed_filter(),
+        }
+    }
+
+    pub async fn subscribe(
+        self,
+    ) -> Result<impl Stream<Item = Result<(ValueClaimedEvent, Log), Error>> + Unpin + use<>> {
+        Ok(self
+            .event
+            .subscribe()
+            .await?
+            .into_stream()
+            .map(|result| result.map(|(event, log)| (event.into(), log))))
+    }
 }
