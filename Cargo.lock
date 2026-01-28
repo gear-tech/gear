@@ -5245,6 +5245,7 @@ dependencies = [
  "ethexe-rpc",
  "ethexe-runtime-common",
  "futures",
+ "gear-workspace-hack",
  "gprimitives",
  "jsonrpsee",
 ]

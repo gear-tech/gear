@@ -22,3 +22,4 @@ ethexe-runtime-common.workspace = true
 futures.workspace = true
 gprimitives.workspace = true
 jsonrpsee = { workspace = true, features = ["client"] }
+gear-workspace-hack.workspace = true
