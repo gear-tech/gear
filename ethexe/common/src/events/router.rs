@@ -19,8 +19,9 @@
 use crate::{Announce, Digest, HashOf};
 use gprimitives::{ActorId, CodeId, H256};
 use parity_scale_codec::{Decode, Encode};
+use scale_info::TypeInfo;
 
-#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Debug, Encode, Decode, TypeInfo, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Event {
     BatchCommitted {
         digest: Digest,

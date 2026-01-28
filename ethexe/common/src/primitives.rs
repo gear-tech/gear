@@ -28,11 +28,12 @@ use alloc::{
 use gear_core::{ids::prelude::CodeIdExt as _, utils};
 use gprimitives::{ActorId, CodeId, H256, MessageId};
 use parity_scale_codec::{Decode, Encode};
+use scale_info::TypeInfo;
 use sha3::Digest as _;
 
 pub type ProgramStates = BTreeMap<ActorId, StateHashWithQueueSize>;
 
-#[derive(Debug, Clone, Copy, Default, Encode, Decode, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, Copy, Default, Encode, Decode, TypeInfo, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "std", derive(serde::Serialize, serde::Deserialize))]
 pub struct BlockHeader {
     pub height: u32,
@@ -69,14 +70,14 @@ impl BlockData {
     }
 }
 
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Encode, Decode, Default)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Encode, Decode, TypeInfo, Default)]
 pub struct SimpleBlockData {
     pub hash: H256,
     pub header: BlockHeader,
 }
 
 #[cfg_attr(feature = "serde", derive(Hash))]
-#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, derive_more::Display)]
+#[derive(Clone, Debug, Encode, Decode, TypeInfo, PartialEq, Eq, derive_more::Display)]
 #[display(
     "Announce(block: {block_hash}, parent: {parent}, gas: {gas_allowance:?}, txs: {injected_transactions:?})"
 )]
@@ -145,7 +146,7 @@ impl ComputedAnnounce {
     }
 }
 
-#[derive(PartialEq, Eq, Hash, Debug, Clone, Copy, Default, Encode, Decode)]
+#[derive(PartialEq, Eq, Hash, Debug, Clone, Copy, Default, Encode, Decode, TypeInfo)]
 #[cfg_attr(feature = "std", derive(serde::Serialize))]
 pub struct StateHashWithQueueSize {
     pub hash: H256,
@@ -163,7 +164,7 @@ impl StateHashWithQueueSize {
     }
 }
 
-#[derive(Debug, Clone, Default, Encode, Decode, PartialEq, Eq)]
+#[derive(Debug, Clone, Default, Encode, Decode, TypeInfo, PartialEq, Eq)]
 pub struct CodeBlobInfo {
     pub timestamp: u64,
     pub tx_hash: H256,
@@ -224,7 +225,7 @@ impl CodeAndId {
 ///
 /// TODO(kuzmindev): `ProtocolTimelines` can store more protocol parameters,
 /// for example `max_validators` in election.
-#[derive(Debug, Clone, Default, Copy, PartialEq, Eq, Encode, Decode)]
+#[derive(Debug, Clone, Default, Copy, PartialEq, Eq, Encode, Decode, TypeInfo)]
 pub struct ProtocolTimelines {
     // The genesis timestamp of the GearExe network.
     pub genesis_ts: u64,

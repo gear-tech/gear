@@ -24,8 +24,9 @@ mod router;
 
 pub use mirror::{Event as MirrorEvent, RequestEvent as MirrorRequestEvent};
 pub use router::{Event as RouterEvent, RequestEvent as RouterRequestEvent};
+use scale_info::TypeInfo;
 
-#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, TypeInfo, Hash)]
 pub enum BlockEvent {
     Mirror {
         actor_id: ActorId,
