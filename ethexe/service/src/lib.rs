@@ -323,7 +323,6 @@ impl Service {
                         commitment_delay_limit: COMMITMENT_DELAY_LIMIT,
                         producer_delay: Duration::ZERO,
                         router_address: config.ethereum.router_address,
-                        validate_chain_deepness_limit: config.node.validate_chain_deepness_limit,
                         chain_deepness_threshold: config.node.chain_deepness_threshold,
                     },
                 )?)

@@ -210,16 +210,17 @@ pub trait LatestDataStorageRW: LatestDataStorageRO {
     }
 }
 
-pub struct FullBlockData {
+pub struct PreparedBlockData {
     pub header: BlockHeader,
     pub events: Vec<BlockEvent>,
+    pub latest_era_with_committed_validators: u64,
     pub codes_queue: VecDeque<CodeId>,
     pub announces: BTreeSet<HashOf<Announce>>,
     pub last_committed_batch: Digest,
     pub last_committed_announce: HashOf<Announce>,
 }
 
-pub struct FullAnnounceData {
+pub struct ComputedAnnounceData {
     pub announce: Announce,
     pub program_states: ProgramStates,
     pub outcome: Vec<StateTransition>,
