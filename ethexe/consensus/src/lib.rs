@@ -37,7 +37,7 @@ use ethexe_common::{
     Announce, ComputedAnnounce, Digest, HashOf, SimpleBlockData,
     consensus::{BatchCommitmentValidationReply, VerifiedAnnounce, VerifiedValidationRequest},
     injected::{SignedInjectedTransaction, SignedPromise},
-    network::{AnnouncesRequest, CheckedAnnouncesResponse, SignedValidatorMessage},
+    network::{AnnouncesRequest, AnnouncesResponse, SignedValidatorMessage},
 };
 use futures::{Stream, stream::FusedStream};
 use gprimitives::H256;
@@ -83,7 +83,7 @@ pub trait ConsensusService:
     fn receive_validation_reply(&mut self, reply: BatchCommitmentValidationReply) -> Result<()>;
 
     /// Process a received announces data response
-    fn receive_announces_response(&mut self, response: CheckedAnnouncesResponse) -> Result<()>;
+    fn receive_announces_response(&mut self, response: AnnouncesResponse) -> Result<()>;
 
     /// Process a received injected transaction from network
     fn receive_injected_transaction(&mut self, tx: SignedInjectedTransaction) -> Result<()>;
