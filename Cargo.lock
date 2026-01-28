@@ -5105,6 +5105,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "ethexe-node-loader"
+version = "1.10.0"
+dependencies = [
+ "alloy",
+ "anyhow",
+ "clap 4.5.54",
+ "ethexe-common",
+ "ethexe-ethereum",
+ "ethexe-signer",
+ "futures",
+ "gear-call-gen",
+ "gear-core",
+ "gear-core-errors",
+ "gear-utils",
+ "gear-wasm-gen",
+ "gear-workspace-hack",
+ "gprimitives",
+ "rand 0.8.5",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
 name = "ethexe-observer"
 version = "1.10.0"
 dependencies = [
