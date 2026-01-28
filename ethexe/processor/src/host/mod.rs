@@ -160,6 +160,7 @@ impl InstanceWrapper {
         queue_type: MessageType,
         maybe_instrumented_code: Option<InstrumentedCode>,
         maybe_code_metadata: Option<CodeMetadata>,
+        is_first_queue: bool,
         gas_allowance: u64,
     ) -> Result<(ProgramJournals, H256, u64)> {
         let chain_head = self.chain_head.expect("chain head must be set before run");
@@ -171,6 +172,7 @@ impl InstanceWrapper {
             queue_type,
             maybe_instrumented_code,
             maybe_code_metadata,
+            is_first_queue,
             gas_allowance,
         );
 
