@@ -129,7 +129,8 @@ where
                 reason,
             } => {
                 log::trace!(
-                    "Dispatch ({message_id:?}) init failure for program {program_id:?}: {reason}"
+                    "Dispatch ({message_id:?}) init failure for program {program_id:?}: {:?}",
+                    reason
                 );
 
                 Self::process_failed_init(program_id, origin);

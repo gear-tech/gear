@@ -20,8 +20,8 @@ use crate::{
     ContextCharged, ForCodeMetadata, ForInstrumentedCode, ForProgram,
     common::{
         ActorExecutionErrorReplyReason, DispatchOutcome, DispatchResult, DispatchResultKind,
-        ExecutionError, JournalNote, SuccessfulDispatchResultKind, SystemExecutionError,
-        WasmExecutionContext,
+        ExecutionError, InitFailureReason, JournalNote, SuccessfulDispatchResultKind,
+        SystemExecutionError, WasmExecutionContext,
     },
     configs::{BlockConfig, ExecutionSettings},
     context::*,
@@ -42,7 +42,9 @@ use gear_core_backend::{
     BackendExternalities,
     error::{BackendAllocSyscallError, BackendSyscallError, RunFallibleError, TrapExplanation},
 };
-use gear_core_errors::{ErrorReplyReason, SignalCode, SimpleUnavailableActorError};
+use gear_core_errors::{
+    ErrorReplyReason, SignalCode, SimpleExecutionError, SimpleUnavailableActorError,
+};
 
 /// Process program & dispatch for it and return journal for updates.
 pub fn process<Ext>(
@@ -386,6 +388,27 @@ fn process_error(
         });
     }
 
+    let outcome = match case {
+        ProcessErrorCase::ExecutionFailed { .. } | ProcessErrorCase::ReinstrumentationFailed => {
+            let err_msg = case.to_string();
+            match dispatch.kind() {
+                DispatchKind::Init => DispatchOutcome::InitFailure {
+                    program_id,
+                    origin,
+                    reason: init_failure_reason(&case),
+                },
+                _ => DispatchOutcome::MessageTrap {
+                    program_id,
+                    trap: err_msg,
+                },
+            }
+        }
+        ProcessErrorCase::ProgramExited { .. }
+        | ProcessErrorCase::FailedInit
+        | ProcessErrorCase::Uninitialized
+        | ProcessErrorCase::CodeNotExists => DispatchOutcome::NoExecution,
+    };
+
     journal.push(JournalNote::MessageDispatched {
         message_id,
         source: origin,
@@ -394,6 +417,20 @@ fn process_error(
     journal.push(JournalNote::MessageConsumed(message_id));
 
     journal
+}
+
+fn init_failure_reason(case: &ProcessErrorCase) -> InitFailureReason {
+    match case {
+        // Map init failures to semantic reasons so runtimes can decide retry vs terminate.
+        ProcessErrorCase::ExecutionFailed(reason) => match reason.as_simple() {
+            SimpleExecutionError::RanOutOfGas => InitFailureReason::RanOutOfGas,
+            SimpleExecutionError::UserspacePanic => InitFailureReason::UserspacePanic,
+            SimpleExecutionError::BackendError => InitFailureReason::BackendError,
+            _ => InitFailureReason::Other,
+        },
+        ProcessErrorCase::ReinstrumentationFailed => InitFailureReason::BackendError,
+        _ => InitFailureReason::Other,
+    }
 }
 
 /// Helper function for journal creation in trap/error case.
@@ -708,6 +745,31 @@ pub fn process_allowance_exceed(
     program_id: ActorId,
     gas_burned: u64,
 ) -> Vec<JournalNote> {
+    if dispatch.kind() == DispatchKind::Init {
+        let mut journal = Vec::with_capacity(3);
+        let message_id = dispatch.id();
+        let origin = dispatch.source();
+
+        // Report allowance failure for init to avoid queue stall.
+        journal.push(JournalNote::GasBurned {
+            message_id,
+            amount: gas_burned,
+            is_panic: false,
+        });
+        journal.push(JournalNote::MessageDispatched {
+            message_id,
+            source: origin,
+            outcome: DispatchOutcome::InitFailure {
+                program_id,
+                origin,
+                reason: InitFailureReason::RanOutOfAllowance,
+            },
+        });
+        journal.push(JournalNote::MessageConsumed(message_id));
+
+        return journal;
+    }
+
     let mut journal = Vec::with_capacity(1);
 
     let (kind, message, opt_context) = dispatch.into_parts();
