@@ -232,14 +232,13 @@ pub struct ComputedAnnounceData {
 mod tests {
     use super::*;
     use indoc::indoc;
-    use k256::sha2::Sha256;
     use scale_info::{PortableRegistry, Registry, meta_type};
-    use sha3::Digest;
+    use sha3::{Digest, Sha3_256};
 
     #[test]
     fn ensure_types_unchanged() {
         const EXPECTED_TYPE_INFO_HASH: &str =
-            "cf9f5dbc1cbde4ae88ed50303c8ba09274d25520d84ee45a147337777f63896c";
+            "f166621e42d95b7cc32174caad897b8371a581b0ecbdae8479302e5882664908";
 
         let types = [
             meta_type::<BlockMeta>(),
@@ -261,7 +260,7 @@ mod tests {
         registry.register_types(types);
 
         let encoded_registry = PortableRegistry::from(registry).encode();
-        let type_info_hash = hex::encode(Sha256::digest(encoded_registry));
+        let type_info_hash = hex::encode(Sha3_256::digest(encoded_registry));
 
         assert_eq!(
             type_info_hash, EXPECTED_TYPE_INFO_HASH,
