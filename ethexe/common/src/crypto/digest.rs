@@ -21,6 +21,7 @@
 use alloc::vec::Vec;
 use gear_core::rpc::ReplyInfo;
 use parity_scale_codec::{Decode, Encode};
+use scale_info::TypeInfo;
 use sha3::Digest as _;
 
 /// Common digest type for the ethexe.
@@ -37,6 +38,7 @@ use sha3::Digest as _;
     Hash,
     Encode,
     Decode,
+    TypeInfo,
     derive_more::Debug,
     derive_more::Display,
 )]

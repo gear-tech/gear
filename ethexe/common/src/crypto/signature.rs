@@ -19,6 +19,7 @@
 //! Secp256k1 signature types and utilities.
 
 pub use k256::ecdsa::signature::Result as SignResult;
+use scale_info::{Type, TypeInfo, build::Fields};
 use sha3::{Digest as _, Keccak256};
 
 use super::{
@@ -40,6 +41,16 @@ use parity_scale_codec::{
 pub struct Signature {
     inner: ecdsa::Signature,
     recovery_id: RecoveryId,
+}
+
+impl TypeInfo for Signature {
+    type Identity = Self;
+
+    fn type_info() -> scale_info::Type {
+        Type::builder()
+            .path(scale_info::Path::new("Signature", module_path!()))
+            .composite(Fields::unnamed().field(|f| f.ty::<SignatureBytes>()))
+    }
 }
 
 type SignatureBytes = [u8; 65];
@@ -381,7 +392,7 @@ impl<T> VerifiedData<T> {
 
 /// A signed according to EIP-191 message,that contains the data and its signature.
 /// Always valid after construction.
-#[derive(Clone, Encode, PartialEq, Eq, Debug, Display, Hash)]
+#[derive(Clone, Encode, TypeInfo, PartialEq, Eq, Debug, Display, Hash)]
 #[cfg_attr(feature = "std", derive(serde::Serialize))]
 #[display("SignedMessage({data}, {signature}, {address})")]
 pub struct SignedMessage<T: Sized> {

@@ -28,6 +28,7 @@ use gprimitives::{ActorId, H160};
 use hex::FromHexError;
 use nonempty::NonEmpty;
 use parity_scale_codec::{Decode, Encode};
+use scale_info::TypeInfo;
 use sha3::Digest as _;
 
 /// Ethereum address type.
@@ -37,6 +38,7 @@ use sha3::Digest as _;
 #[derive(
     Encode,
     Decode,
+    TypeInfo,
     Default,
     Clone,
     Copy,

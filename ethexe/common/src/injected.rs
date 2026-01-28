@@ -23,6 +23,7 @@ use core::hash::Hash;
 use gear_core::{limited::LimitedVec, rpc::ReplyInfo};
 use gprimitives::{ActorId, H256, MessageId, U256};
 use parity_scale_codec::{Decode, Encode};
+use scale_info::TypeInfo;
 use sha3::{Digest, Keccak256};
 
 /// Recent block hashes window size used to check transaction mortality.
@@ -64,7 +65,7 @@ pub struct AddressedInjectedTransaction {
 /// IMPORTANT: message id == tx hash == blake2b256 hash of the struct fields concat.
 #[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
 #[cfg_attr(feature = "serde", derive(Hash))]
-#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
+#[derive(Debug, Clone, Encode, Decode, TypeInfo, PartialEq, Eq)]
 pub struct InjectedTransaction {
     /// Destination program inside `Vara.eth`.
     pub destination: ActorId,
