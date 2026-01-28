@@ -231,7 +231,7 @@ pub struct ComputedAnnounceData {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use indoc::indoc;
+    use indoc::formatdoc;
     use scale_info::{PortableRegistry, Registry, meta_type};
     use sha3::{Digest, Sha3_256};
 
@@ -259,24 +259,30 @@ mod tests {
         let mut registry = Registry::new();
         registry.register_types(types);
 
-        let encoded_registry = PortableRegistry::from(registry).encode();
+        let portable_registry = PortableRegistry::from(registry);
+        let encoded_registry = portable_registry.encode();
         let type_info_hash = hex::encode(Sha3_256::digest(encoded_registry));
 
-        assert_eq!(
-            type_info_hash, EXPECTED_TYPE_INFO_HASH,
-            indoc!(
-                "
-                Some of database types has been changed.
+        if type_info_hash != EXPECTED_TYPE_INFO_HASH {
+            panic!(
+                "{}",
+                formatdoc!(
+                    "
+                    Some of database types has been changed.
 
-                It can break existing databases, so be very careful and think at least
-                twice before committing such changes. Ensure that SCALE representations
-                of all changed database types are still the same.
+                    It can break existing databases, so be very careful and think at least
+                    twice before committing such changes. Ensure that SCALE representations
+                    of all changed database types are still the same.
 
-                If you know what exactly has been changed and sure about it,
-                please update `EXPECTED_TYPE_INFO_HASH` constant in this test
-                to the new value to fix the assertion.
-                "
-            )
-        );
+                    If you know what exactly has been changed and sure about it,
+                    please update `EXPECTED_TYPE_INFO_HASH` constant in this test
+                    to the new value to fix the assertion.
+
+                    Expected hash: {EXPECTED_TYPE_INFO_HASH}
+                    Found hash:    {type_info_hash}
+                    "
+                )
+            );
+        }
     }
 }
