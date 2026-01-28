@@ -37,7 +37,7 @@ jobs:
         uses: cargo-bins/cargo-binstall@main
 
       - name: "Install: cargo-nextest"
-        run: cargo binstall --no-confirm cargo-nextest
+        run: cargo binstall --no-confirm --locked cargo-nextest
 
       - name: "ACTIONS: Download node"
         uses: actions/download-artifact@v4
