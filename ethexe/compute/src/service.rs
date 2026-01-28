@@ -22,7 +22,10 @@ use crate::{
     compute::{ComputeConfig, ComputeSubService},
     prepare::PrepareSubService,
 };
-use ethexe_common::{Announce, CodeAndIdUnchecked};
+use ethexe_common::{
+    Announce, CodeAndIdUnchecked, SimpleBlockData,
+    db::{AnnounceStorageRO, BlockMetaStorageRO, LatestDataStorageRO, OnChainStorageRO},
+};
 use ethexe_db::Database;
 use ethexe_processor::Processor;
 use futures::{Stream, stream::FusedStream};
@@ -37,9 +40,12 @@ pub struct ComputeMetrics {
     pub blocks_queue_len: usize,
     pub process_codes_count: usize,
     pub waiting_codes_count: usize,
+    pub latest_committed_block: Option<SimpleBlockData>,
+    pub time_since_latest_committed_secs: Option<u64>,
 }
 
 pub struct ComputeService<P: ProcessorExt = Processor> {
+    db: Database,
     codes_sub_service: CodesSubService<P>,
     prepare_sub_service: PrepareSubService,
     compute_sub_service: ComputeSubService<P>,
@@ -49,6 +55,7 @@ impl<P: ProcessorExt> ComputeService<P> {
     // TODO #4550: consider to create Processor inside ComputeService
     pub fn new(config: ComputeConfig, db: Database, processor: P) -> Self {
         Self {
+            db: db.clone(),
             prepare_sub_service: PrepareSubService::new(db.clone()),
             compute_sub_service: ComputeSubService::new(config, db.clone(), processor.clone()),
             codes_sub_service: CodesSubService::new(db, processor),
@@ -70,10 +77,38 @@ impl<P: ProcessorExt> ComputeService<P> {
 
     /// Get all metrics from the compute service
     pub fn get_metrics(&self) -> ComputeMetrics {
+        let mut latest_committed_block = None;
+        let mut time_since_latest_committed_secs = None;
+        if let Some(latest_data) = self.db.latest_data() {
+            latest_committed_block = self
+                .db
+                .block_meta(latest_data.prepared_block_hash)
+                .last_committed_announce
+                .and_then(|a| self.db.announce(a))
+                .and_then(|a| {
+                    self.db
+                        .block_header(a.block_hash)
+                        .map(|header| SimpleBlockData {
+                            hash: a.block_hash,
+                            header,
+                        })
+                });
+
+            time_since_latest_committed_secs = latest_committed_block.map(|block| {
+                latest_data
+                    .synced_block
+                    .header
+                    .timestamp
+                    .saturating_sub(block.header.timestamp)
+            });
+        }
+
         ComputeMetrics {
             blocks_queue_len: self.prepare_sub_service.blocks_queue_len(),
             process_codes_count: self.codes_sub_service.process_codes_count(),
             waiting_codes_count: self.prepare_sub_service.waiting_codes_count(),
+            latest_committed_block,
+            time_since_latest_committed_secs,
         }
     }
 }

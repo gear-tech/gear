@@ -161,15 +161,12 @@ impl<'a> Mirror<'a> {
             .ok_or_else(|| anyhow!("no key found for sender address"))?;
 
         let destination = self.mirror_client.address().into();
-        let payload = payload
-            .as_ref()
-            .try_into()
-            .with_context(|| "payload too large")?;
+        let payload = payload.as_ref().to_vec().into();
         let SimpleBlockData {
             hash: reference_block,
             ..
         } = self.api.ethereum_client.get_latest_block().await?;
-        let salt = U256::from(H256::random().0);
+        let salt = H256::random().0.to_vec().into();
 
         let injected_transaction = InjectedTransaction {
             destination,

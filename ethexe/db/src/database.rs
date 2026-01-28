@@ -711,10 +711,7 @@ mod tests {
         ecdsa::PrivateKey,
         events::{RouterEvent, router::StorageSlotChangedEvent},
     };
-    use gear_core::{
-        code::{InstantiatedSectionSizes, InstrumentationStatus},
-        limited::LimitedVec,
-    };
+    use gear_core::code::{InstantiatedSectionSizes, InstrumentationStatus};
 
     #[test]
     fn test_injected_transaction() {
@@ -725,10 +722,10 @@ mod tests {
             private_key,
             InjectedTransaction {
                 destination: ActorId::zero(),
-                payload: LimitedVec::new(),
+                payload: vec![].into(),
                 value: 0,
                 reference_block: H256::random(),
-                salt: gprimitives::U256::from(1),
+                salt: vec![].into(),
             },
         )
         .unwrap();
