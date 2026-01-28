@@ -29,6 +29,7 @@ use ethexe_common::{
     network::ValidatorMessage,
 };
 use futures::{FutureExt, future::BoxFuture};
+use gsigner::secp256k1::Secp256k1SignerExt;
 use std::task::Poll;
 
 /// [`Participant`] is a state of the validator that processes validation requests,
@@ -86,16 +87,12 @@ impl StateHandler for Participant {
         {
             match res {
                 Ok(ValidationStatus::Accepted(digest)) => {
-                    let reply = self
-                        .ctx
-                        .core
-                        .signer
-                        .sign_for_contract(
-                            self.ctx.core.router_address,
-                            self.ctx.core.pub_key,
-                            digest,
-                        )
-                        .map(|signature| BatchCommitmentValidationReply { digest, signature })?;
+                    let signature = self.ctx.core.signer.sign_for_contract_digest(
+                        self.ctx.core.router_address,
+                        self.ctx.core.pub_key,
+                        digest,
+                    )?;
+                    let reply = BatchCommitmentValidationReply { digest, signature };
 
                     let era_index = self
                         .ctx

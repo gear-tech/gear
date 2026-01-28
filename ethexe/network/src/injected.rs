@@ -381,7 +381,7 @@ mod tests {
         validator::discovery::{SignedValidatorIdentity, ValidatorAddresses, ValidatorIdentity},
     };
     use ethexe_common::{injected::InjectedTransaction, mock::Mock};
-    use ethexe_signer::Signer;
+    use gsigner::secp256k1::{Secp256k1SignerExt, Signer};
     use libp2p::{
         Swarm, Transport,
         core::{transport::MemoryTransport, upgrade::Version},

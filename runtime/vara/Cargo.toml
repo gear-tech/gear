@@ -291,3 +291,13 @@ try-runtime = [
 ]
 dev = ["pallet-sudo", "pallet-gear/dev"]
 metadata-hash = ["substrate-wasm-builder?/metadata-hash"]
+
+[package.metadata.cargo-shear]
+ignored = [
+    "sp-offchain",
+    "sp-storage",
+    "sp-block-builder",
+    "sp-transaction-pool",
+    "pallet-gear-rpc-runtime-api",
+    "sp-inherents",
+]

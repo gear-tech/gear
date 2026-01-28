@@ -42,9 +42,9 @@ use ethexe_common::{
     injected::{AddressedInjectedTransaction, SignedPromise},
     network::{SignedValidatorMessage, VerifiedValidatorMessage},
 };
-use ethexe_signer::Signer;
 use futures::{Stream, future::Either, ready, stream::FusedStream};
 use gprimitives::H256;
+use gsigner::secp256k1::Signer;
 use libp2p::{
     Multiaddr, PeerId, Swarm, Transport, connection_limits,
     core::{muxing::StreamMuxerBox, transport, transport::ListenerId, upgrade},
@@ -276,8 +276,8 @@ impl NetworkService {
     }
 
     fn generate_keypair(signer: &Signer, key: PublicKey) -> anyhow::Result<identity::Keypair> {
-        let key = signer.storage().get_private_key(key)?;
-        let key = identity::secp256k1::SecretKey::try_from_bytes(&mut <[u8; 32]>::from(key))
+        let mut key = signer.get_private_key(key)?.to_bytes();
+        let key = identity::secp256k1::SecretKey::try_from_bytes(&mut key)
             .expect("Signer provided invalid key; qed");
         let pair = identity::secp256k1::Keypair::from(key);
         Ok(identity::Keypair::from(pair))
@@ -738,8 +738,8 @@ mod tests {
     use async_trait::async_trait;
     use ethexe_common::{BlockHeader, ProtocolTimelines, db::OnChainStorageRW, gear::CodeState};
     use ethexe_db::Database;
-    use ethexe_signer::Signer;
     use gprimitives::{ActorId, CodeId, H256};
+    use gsigner::secp256k1::Signer;
     use nonempty::nonempty;
     use std::{
         collections::{BTreeSet, HashMap},

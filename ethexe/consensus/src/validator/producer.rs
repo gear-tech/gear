@@ -32,6 +32,7 @@ use ethexe_common::{
 };
 use ethexe_service_utils::Timer;
 use futures::{FutureExt, future::BoxFuture};
+use gsigner::secp256k1::Secp256k1SignerExt;
 use std::task::{Context, Poll};
 
 /// [`Producer`] is the state of the validator, which creates a new block
