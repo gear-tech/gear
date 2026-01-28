@@ -22,7 +22,7 @@ use core::hash::Hash;
 use gear_core::rpc::ReplyInfo;
 use gprimitives::{ActorId, H256, MessageId};
 use parity_scale_codec::{Decode, Encode};
-use scale_info::TypeInfo;
+use scale_info::{Type, TypeInfo, build::Fields};
 use sha3::{Digest, Keccak256};
 use sp_core::Bytes;
 
@@ -61,7 +61,7 @@ pub struct AddressedInjectedTransaction {
 /// IMPORTANT: message id == tx hash == blake2b256 hash of the struct fields concat.
 #[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
 #[cfg_attr(feature = "serde", derive(Hash))]
-#[derive(Debug, Clone, Encode, Decode, TypeInfo, PartialEq, Eq)]
+#[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
 pub struct InjectedTransaction {
     /// Destination program inside `Vara.eth`.
     pub destination: ActorId,
@@ -76,6 +76,29 @@ pub struct InjectedTransaction {
     /// transactions to be sent simultaneously.
     /// NOTE: this is also a salt for MessageId generation.
     pub salt: Bytes,
+}
+
+// TODO: replace manual impl with derive.
+//       Having a manual implementation
+//       nullifies the main purpose of
+//       `TypeInfo` here.
+//
+//       Blocked by usage of `Bytes: !TypeInfo`.
+impl TypeInfo for InjectedTransaction {
+    type Identity = Self;
+
+    fn type_info() -> Type {
+        Type::builder()
+            .path(scale_info::Path::new("InjectedTransaction", module_path!()))
+            .composite(
+                Fields::named()
+                    .field(|f| f.name("destination").ty::<ActorId>())
+                    .field(|f| f.name("payload").ty::<Vec<u8>>())
+                    .field(|f| f.name("value").ty::<u128>())
+                    .field(|f| f.name("reference_block").ty::<H256>())
+                    .field(|f| f.name("salt").ty::<Vec<u8>>()),
+            )
+    }
 }
 
 impl ToDigest for InjectedTransaction {
