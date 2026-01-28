@@ -627,6 +627,15 @@ impl Service {
                                 metrics.blocks_queue_len,
                                 metrics.waiting_codes_count,
                                 metrics.process_codes_count,
+                                metrics
+                                    .latest_committed_block
+                                    .as_ref()
+                                    .map(|b| b.header.height as u64),
+                                metrics
+                                    .latest_committed_block
+                                    .as_ref()
+                                    .map(|b| b.header.timestamp),
+                                metrics.time_since_latest_committed_secs,
                             );
 
                             // TODO #4643: support metrics for consensus service

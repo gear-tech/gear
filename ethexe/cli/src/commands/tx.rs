@@ -979,10 +979,10 @@ impl TxCommand {
 
                         let injected_transaction = InjectedTransaction {
                             destination: raw_actor_id,
-                            payload: payload.0.clone().try_into().unwrap(),
+                            payload: payload.0.clone().into(),
                             value: raw_value,
                             reference_block: reference_block_hash,
-                            salt: U256::from(salt.0),
+                            salt: salt.0.to_vec().into(),
                         };
                         let message_id = injected_transaction.to_message_id();
                         let tx_hash = injected_transaction.to_hash().into();
