@@ -155,6 +155,7 @@ impl Default for Scrypt {
         let mut salt = [0u8; 32];
         rand::thread_rng().fill_bytes(&mut salt);
 
+        // TODO: maybe lower n param, now it takes 3s to encrypt or decrypt keystore
         Self {
             salt,
             n: 15,
