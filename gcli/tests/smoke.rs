@@ -16,18 +16,36 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! environment paths and binaries
+//! Smoke test for `gcli`.
 
-use std::{env, path::PathBuf};
+use anyhow::Result;
+use indoc::{formatdoc, indoc};
 
-/// path of gear node binary
-pub fn node_bin() -> PathBuf {
-    PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap()).join("../target/release/gear")
-}
+mod util;
 
-/// path of binaries
-pub fn gcli_bin() -> PathBuf {
-    let path =
-        env::var_os("NEXTEST_BIN_EXE_gcli").unwrap_or_else(|| env!("CARGO_BIN_EXE_gcli").into());
-    PathBuf::from(path)
+#[tokio::test]
+async fn smoke_test() -> Result<()> {
+    let (node, gcli) = util::init_node()?;
+
+    let node_port = node.address.port();
+
+    gcli()
+        .args(["config", "set", "endpoint", &node.ws()])
+        .assert()
+        .success()
+        .stdout_eq(formatdoc!(
+            "
+            Successfully updated the configuration
+
+            RPC URL: ws://127.0.0.1:{node_port}/
+            "
+        ));
+    gcli().args(["wallet", "dev"]).assert().success();
+    gcli().args(["info", "balance"]).assert().stdout_eq(indoc!(
+        "
+        Free balance: 1000000000000000000000
+        "
+    ));
+
+    Ok(())
 }

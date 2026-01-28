@@ -28,7 +28,7 @@ use std::{fs, path::PathBuf};
 const CONFIG: &str = "keyring.json";
 
 /// Gear keyring.
-#[derive(Default, Serialize, Deserialize)]
+#[derive(Default, Debug, Serialize, Deserialize)]
 pub struct Keyring {
     /// Path to the store.
     #[serde(skip)]
