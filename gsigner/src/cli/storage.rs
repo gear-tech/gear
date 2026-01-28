@@ -45,6 +45,7 @@ where
     S::PrivateKey: SeedableKey,
 {
     if let Some(path) = resolve_storage_location(storage) {
+        let path = crate::keyring::resolve_namespaced_path(path, S::namespace());
         Ok(crate::Signer::fs(path)?)
     } else {
         Ok(crate::Signer::memory())
