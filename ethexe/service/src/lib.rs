@@ -683,6 +683,11 @@ impl Service {
                     ConsensusEvent::CommitmentSubmitted(info) => {
                         log::info!("{info}");
                     }
+                    ConsensusEvent::TransactionsRemoved(notifications) => {
+                        if let Some(ref mut rpc) = rpc {
+                            rpc.notify_transactions_removed_from_pool(notifications);
+                        }
+                    }
                     ConsensusEvent::Warning(msg) => {
                         log::warn!("Consensus service warning: {msg}");
                     }

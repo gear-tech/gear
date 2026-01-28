@@ -16,12 +16,13 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::tx_validation::{TxValidity, TxValidityChecker};
+use crate::tx_validation::TransactionStatusResolver;
 use anyhow::Result;
 use ethexe_common::{
     Announce, HashOf,
     db::{AnnounceStorageRO, CodesStorageRO, InjectedStorageRW, OnChainStorageRO},
     injected::{InjectedTransaction, SignedInjectedTransaction},
+    tx_pool::{RemovalNotification, TransactionStatus},
 };
 use ethexe_db::Database;
 use ethexe_runtime_common::state::Storage;
@@ -33,15 +34,42 @@ use std::collections::HashSet;
 /// Currently set to 2 MB.
 pub const MAX_INJECTED_TRANSACTIONS_SIZE_PER_ANNOUNCE: usize = 2 * 1024 * 1024;
 
-/// [`InjectedTxPool`] is a local pool of injected transactions, which validator can include in announces.
+/// [`TransactionPool`] is a local pool of [`InjectedTransaction`]s, which validator can include in announces.
 #[derive(Clone)]
-pub(crate) struct InjectedTxPool<DB = Database> {
-    /// HashSet of (reference_block, injected_tx_hash).
-    inner: HashSet<(H256, HashOf<InjectedTransaction>)>,
+pub(crate) struct TransactionPool<DB = Database> {
+    inner: HashSet<HashOf<InjectedTransaction>>,
     db: DB,
 }
 
-impl<DB> InjectedTxPool<DB>
+/// The output of [`TransactionPool::select_for_announce`].
+#[derive(Debug, Clone, Default)]
+pub struct SelectionOutput {
+    /// Selected transactions to be included in announce.
+    pub selected_txs: Vec<SignedInjectedTransaction>,
+    /// Removed transactions notifications.
+    pub removed_txs: Vec<RemovalNotification>,
+}
+
+/// Error returned when adding transaction to the pool.
+#[derive(Debug, Clone, thiserror::Error, PartialEq, Eq)]
+pub enum AddTransactionError {
+    #[error("Injected transaction with the same hash {0} is already present in the pool")]
+    Duplicate(HashOf<InjectedTransaction>),
+    // TODO: #5083 support non zero value transactions.
+    #[error("Injected transaction with hash {0} has non-zero value")]
+    NonZeroValue(HashOf<InjectedTransaction>),
+}
+
+/// The result of adding a transaction to the [`TransactionPool`].
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum TransactionAdditionResult {
+    /// Transaction was successfully added to the [`TransactionPool`]
+    Added,
+    /// Transaction was not added to the [`TransactionPool`] due to the error.
+    NotAdded(AddTransactionError),
+}
+
+impl<DB> TransactionPool<DB>
 where
     DB: OnChainStorageRO + InjectedStorageRW + AnnounceStorageRO + CodesStorageRO + Storage + Clone,
 {
@@ -51,16 +79,23 @@ where
             db,
         }
     }
-
-    pub fn handle_tx(&mut self, tx: SignedInjectedTransaction) {
+    /// Adds a new injected transaction to the pool.
+    /// Returns an error if transaction is already present in the pool.
+    pub fn add_transaction(&mut self, tx: SignedInjectedTransaction) -> TransactionAdditionResult {
         let tx_hash = tx.data().to_hash();
-        let reference_block = tx.data().reference_block;
-        tracing::trace!(tx_hash = ?tx_hash, reference_block = ?reference_block,  "handle new injected tx");
+        tracing::trace!(?tx_hash, reference_block = ?tx.data().reference_block, "tx pool received new injected transaction");
 
-        if self.inner.insert((reference_block, tx_hash)) {
+        if tx.data().value != 0 {
+            return TransactionAdditionResult::NotAdded(AddTransactionError::NonZeroValue(tx_hash));
+        }
+
+        if self.inner.insert(tx_hash) {
             // Write tx in database only if its not already contains in pool.
             self.db.set_injected_transaction(tx);
+            return TransactionAdditionResult::Added;
         }
+
+        TransactionAdditionResult::NotAdded(AddTransactionError::Duplicate(tx_hash))
     }
 
     /// Returns the injected transactions that are valid and can be included to announce.
@@ -68,24 +103,27 @@ where
         &mut self,
         block_hash: H256,
         parent_announce: HashOf<Announce>,
-    ) -> Result<Vec<SignedInjectedTransaction>> {
+    ) -> Result<SelectionOutput> {
         tracing::trace!(block = ?block_hash, "start collecting injected transactions");
 
-        let tx_checker =
-            TxValidityChecker::new_for_announce(self.db.clone(), block_hash, parent_announce)?;
+        let resolver = TransactionStatusResolver::new_for_announce(
+            self.db.clone(),
+            block_hash,
+            parent_announce,
+        )?;
 
-        let mut selected_txs = vec![];
+        let mut output = SelectionOutput::default();
         let mut remove_txs = vec![];
         let mut size_counter = 0usize;
 
-        for (reference_block, tx_hash) in self.inner.iter() {
+        for tx_hash in self.inner.iter() {
             let Some(tx) = self.db.injected_transaction(*tx_hash) else {
                 // This must not happen, as we store txs in db when adding to pool.
                 anyhow::bail!("injected tx not found in db: {tx_hash}");
             };
 
-            match tx_checker.check_tx_validity(&tx)? {
-                TxValidity::Valid => {
+            match resolver.resolve(&tx)? {
+                TransactionStatus::Valid => {
                     tracing::trace!(tx_hash = ?tx_hash, tx = ?tx.data(), "tx is valid, including to announce");
                     // NOTE: we calculate size with signature, because tx will be sent to network with it.
                     let tx_size = tx.encoded_size();
@@ -97,53 +135,32 @@ where
                         continue;
                     }
 
-                    selected_txs.push(tx);
+                    output.selected_txs.push(tx);
                     size_counter += tx_size;
+
+                    // TODO kuzmindev
+                    // Note: remove tx from pool because of now we don't support transaction re-inclusion after reorgs.
+                    remove_txs.push(*tx_hash);
                 }
-                TxValidity::Duplicate => {
-                    // Keep in pool, in case of reorg it can be valid again.
-                    tracing::trace!(tx_hash = ?tx_hash, tx = ?tx.data(), "tx is already included in chain, keeping in pool");
+                TransactionStatus::Pending(status) => {
+                    tracing::trace!(tx_hash = ?tx_hash, state = %status, "tx is in pending status, keeping in pool")
                 }
-                TxValidity::UnknownDestination => {
-                    // Keep in pool, in case reorg destination may become known.
-                    tracing::trace!(
-                        tx_hash = ?tx_hash,
-                        tx = ?tx.data(),
-                        "tx destination actor is unknown, keeping in pool"
-                    );
-                }
-                TxValidity::NotOnCurrentBranch => {
-                    // Keep in pool, in case of reorg it can be valid again.
-                    tracing::trace!(tx_hash = ?tx_hash, tx = ?tx.data(), "tx is on different branch, keeping in pool");
-                }
-                TxValidity::Outdated => {
-                    tracing::trace!(tx_hash = ?tx_hash, tx = ?tx.data(), "tx is outdated, removing from pool");
-                    remove_txs.push((*reference_block, *tx_hash))
-                }
-                TxValidity::UninitializedDestination => {
-                    // Keep in pool, in case destination actor gets initialized later.
-                    tracing::trace!(
-                        tx_hash = ?tx_hash,
-                        tx = ?tx.data(),
-                        "tx sent to uninitialized actor, keeping in pool"
-                    );
-                }
-                TxValidity::NonZeroValue => {
-                    tracing::trace!(
-                        tx_hash = ?tx_hash,
-                        tx = ?tx.data(),
-                        "tx has non-zero value, removing from pool"
-                    );
-                    remove_txs.push((*reference_block, *tx_hash))
+                TransactionStatus::Invalid(reason) => {
+                    tracing::trace!(tx_hash = ?tx_hash, invalidity_reason = %reason, "tx is invalid, removing from pool");
+                    output.removed_txs.push(RemovalNotification {
+                        tx_hash: *tx_hash,
+                        reason,
+                    });
+                    remove_txs.push(*tx_hash)
                 }
             }
         }
 
-        remove_txs.into_iter().for_each(|key| {
-            self.inner.remove(&key);
+        remove_txs.into_iter().for_each(|tx_hash| {
+            self.inner.remove(&tx_hash);
         });
 
-        Ok(selected_txs)
+        Ok(output)
     }
 }
 
@@ -187,7 +204,7 @@ mod tests {
             })
             .setup(&db);
 
-        let mut tx_pool = InjectedTxPool::new(db.clone());
+        let mut tx_pool = TransactionPool::new(db.clone());
 
         let signer = Signer::memory();
         let key = signer.generate_key().unwrap();
@@ -199,39 +216,38 @@ mod tests {
         let tx_hash = tx.to_hash();
         let signed_tx = signer.signed_message(key, tx).unwrap();
 
-        tx_pool.handle_tx(signed_tx.clone());
+        tx_pool
+            .add_transaction(signed_tx.clone())
+            .expect("transaction will be added");
         assert!(
             db.injected_transaction(tx_hash).is_some(),
             "tx should be stored in db"
         );
 
         // Append another tx with non-zero value, should be removed during selection.
-        tx_pool.handle_tx(
-            signer
-                .signed_message(
-                    key,
-                    InjectedTransaction {
-                        reference_block: chain.blocks[9].hash,
-                        value: 100,
-                        destination: program_id,
-                        ..InjectedTransaction::mock(())
-                    },
-                )
-                .unwrap(),
+        let tx2 = InjectedTransaction {
+            value: 100,
+            ..InjectedTransaction::mock(())
+        };
+        let tx2_hash = tx2.to_hash();
+        assert_eq!(
+            tx_pool.add_transaction(signer.signed_message(key, tx2).unwrap()),
+            Err(AddTransactionError::NonZeroValue(tx2_hash))
         );
 
-        let selected_txs = tx_pool
+        let output = tx_pool
             .select_for_announce(chain.blocks[10].hash, chain.block_top_announce_hash(9))
             .unwrap();
+        assert!(output.removed_txs.is_empty(), "no tx should be removed");
         assert_eq!(
-            selected_txs,
+            output.selected_txs,
             vec![signed_tx],
             "tx should be selected for announce"
         );
         assert_eq!(
             tx_pool.inner.len(),
-            1,
-            "only one valid tx should remain in pool"
+            0,
+            "no txs should remain in the pool after selection"
         );
     }
 }

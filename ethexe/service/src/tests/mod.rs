@@ -2501,8 +2501,9 @@ async fn injected_tx_fungible_token() {
     let promise = subscription
         .next()
         .await
-        .expect("promise from subscription")
-        .expect("transaction promise")
+        .expect("subscription item")
+        .expect("no errors in subscription item")
+        .unwrap_promise()
         .into_data();
 
     assert_eq!(promise.tx_hash, transfer_tx.to_hash());
@@ -2652,8 +2653,9 @@ async fn injected_tx_fungible_token_over_network() {
     let promise = subscription
         .next()
         .await
-        .expect("promise from subscription")
-        .expect("transaction promise")
+        .unwrap()
+        .unwrap()
+        .unwrap_promise()
         .into_data();
 
     let expected_event = demo_fungible_token::FTEvent::Transfer {

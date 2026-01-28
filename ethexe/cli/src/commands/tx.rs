@@ -38,7 +38,7 @@ use ethexe_ethereum::{
     mirror::{ClaimInfo, ReplyInfo},
     router::CodeValidationResult,
 };
-use ethexe_rpc::{InjectedClient, ProgramClient};
+use ethexe_rpc::{InjectedClient, ProgramClient, PromiseOrNotification};
 use ethexe_signer::Signer;
 use gprimitives::{ActorId, CodeId, H160, H256, MessageId, U256};
 use jsonrpsee::ws_client::WsClientBuilder;
@@ -1024,12 +1024,17 @@ impl TxCommand {
                                     || "failed to send injected transaction to Vara.eth RPC",
                                 )?;
 
-                            let promise = subscription
+                            let promise_or_notification = subscription
                                 .next()
                                 .await
                                 .ok_or_else(|| anyhow!("no promise received from subscription"))?
-                                .with_context(|| "failed to receive transaction promise")?
-                                .into_data();
+                                .with_context(|| "failed to receive transaction promise")?;
+                            let PromiseOrNotification::Promise(promise) = promise_or_notification
+                            else {
+                                bail!("transaction was removed from pool")
+                            };
+                            let promise = promise.into_data();
+
                             let ethexe_common::gear_core::rpc::ReplyInfo {
                                 payload,
                                 value,

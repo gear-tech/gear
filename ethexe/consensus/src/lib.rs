@@ -38,6 +38,7 @@ use ethexe_common::{
     consensus::{BatchCommitmentValidationReply, VerifiedAnnounce, VerifiedValidationRequest},
     injected::{SignedInjectedTransaction, SignedPromise},
     network::{AnnouncesRequest, CheckedAnnouncesResponse, SignedValidatorMessage},
+    tx_pool::RemovalNotification,
 };
 use futures::{Stream, stream::FusedStream};
 use gprimitives::H256;
@@ -86,7 +87,10 @@ pub trait ConsensusService:
     fn receive_announces_response(&mut self, response: CheckedAnnouncesResponse) -> Result<()>;
 
     /// Process a received injected transaction from network
-    fn receive_injected_transaction(&mut self, tx: SignedInjectedTransaction) -> Result<()>;
+    fn receive_injected_transaction(
+        &mut self,
+        tx: SignedInjectedTransaction,
+    ) -> Result<TransactionAdditionResult>;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, derive_more::Display)]
@@ -108,6 +112,9 @@ pub enum ConsensusEvent {
     AnnounceAccepted(HashOf<Announce>),
     /// Announce from producer was rejected
     AnnounceRejected(HashOf<Announce>),
+    /// The list of notifications about removed injected transactions from the pool
+    #[from]
+    TransactionsRemoved(Vec<RemovalNotification>),
     /// Outer service have to compute announce
     #[from]
     ComputeAnnounce(Announce),
