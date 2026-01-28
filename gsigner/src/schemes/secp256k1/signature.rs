@@ -403,7 +403,7 @@ impl<T> VerifiedData<T> {
 
 /// A signed according to EIP-191 message,that contains the data and its signature.
 /// Always valid after construction.
-#[derive(Clone, Encode, PartialEq, Eq, Debug, Display, Hash)]
+#[derive(Clone, Encode, TypeInfo, PartialEq, Eq, Debug, Display, Hash)]
 #[cfg_attr(feature = "std", derive(serde::Serialize))]
 #[display("SignedMessage({data}, {signature}, {address})")]
 pub struct SignedMessage<T: Sized> {

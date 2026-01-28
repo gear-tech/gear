@@ -19,6 +19,7 @@
 use crate::{Announce, Digest, HashOf};
 use gprimitives::{ActorId, CodeId, H256};
 use parity_scale_codec::{Decode, Encode};
+use scale_info::TypeInfo;
 
 // TODO: consider to sort events in same way as in IRouter.sol
 
@@ -70,7 +71,7 @@ pub struct ValidatorsCommittedForEraEvent {
     pub era_index: u64,
 }
 
-#[derive(Clone, Debug, Encode, Decode, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Debug, Encode, Decode, TypeInfo, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub enum Event {
     BatchCommitted(BatchCommittedEvent),
     AnnouncesCommitted(AnnouncesCommittedEvent),

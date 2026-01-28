@@ -20,6 +20,7 @@ use alloc::vec::Vec;
 use gear_core::message::ReplyCode;
 use gprimitives::{ActorId, H256, MessageId};
 use parity_scale_codec::{Decode, Encode};
+use scale_info::TypeInfo;
 
 // TODO: consider to sort events in same way as in IMirror.sol
 
@@ -102,7 +103,7 @@ pub struct ValueClaimingRequestedEvent {
     pub source: ActorId,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, TypeInfo, Hash)]
 pub enum Event {
     OwnedBalanceTopUpRequested(OwnedBalanceTopUpRequestedEvent),
     ExecutableBalanceTopUpRequested(ExecutableBalanceTopUpRequestedEvent),
