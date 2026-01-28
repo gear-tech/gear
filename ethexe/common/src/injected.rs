@@ -17,7 +17,10 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::{Address, HashOf, ToDigest, ecdsa::SignedMessage};
-use alloc::string::{String, ToString};
+use alloc::{
+    string::{String, ToString},
+    vec::Vec,
+};
 use core::hash::Hash;
 use gear_core::rpc::ReplyInfo;
 use gprimitives::{ActorId, H256, MessageId};
