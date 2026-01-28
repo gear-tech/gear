@@ -16,10 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-pub use tap::Tap;
-
 use crate::{
-    Announce, BlockData, BlockHeader, CodeBlobInfo, ComputedAnnounce, Digest, HashOf,
+    Address, Announce, BlockData, BlockHeader, CodeBlobInfo, ComputedAnnounce, Digest, HashOf,
     ProgramStates, ProtocolTimelines, Schedule, SimpleBlockData, ValidatorsVec,
     consensus::BatchCommitmentValidationRequest,
     db::*,
@@ -33,6 +31,7 @@ use gear_core::code::{CodeMetadata, InstrumentedCode};
 use gprimitives::{CodeId, H256};
 use itertools::Itertools;
 use std::collections::{BTreeSet, VecDeque};
+pub use tap::Tap;
 
 // TODO #4881: use `proptest::Arbitrary` instead
 pub trait Mock<Args = ()> {
@@ -64,6 +63,7 @@ impl Mock<()> for ProtocolTimelines {
             genesis_ts: 0,
             era: 1000,
             election: 200,
+            slot: 10,
         }
     }
 }
@@ -214,22 +214,27 @@ pub struct BlockFullData {
 }
 
 impl BlockFullData {
+    #[track_caller]
     pub fn as_synced(&self) -> &SyncedBlockData {
         self.synced.as_ref().expect("block not synced")
     }
 
+    #[track_caller]
     pub fn as_prepared(&self) -> &PreparedBlockData {
         self.prepared.as_ref().expect("block not prepared")
     }
 
+    #[track_caller]
     pub fn as_synced_mut(&mut self) -> &mut SyncedBlockData {
         self.synced.as_mut().expect("block not synced")
     }
 
+    #[track_caller]
     pub fn as_prepared_mut(&mut self) -> &mut PreparedBlockData {
         self.prepared.as_mut().expect("block not prepared")
     }
 
+    #[track_caller]
     pub fn to_simple(&self) -> SimpleBlockData {
         SimpleBlockData {
             hash: self.hash,
@@ -305,9 +310,12 @@ pub struct BlockChain {
     pub announces: BTreeMap<HashOf<Announce>, AnnounceData>,
     pub codes: BTreeMap<CodeId, CodeData>,
     pub validators: ValidatorsVec,
+    pub config: DBConfig,
+    pub globals: DBGlobals,
 }
 
 impl BlockChain {
+    #[track_caller]
     pub fn block_top_announce_hash(&self, block_index: usize) -> HashOf<Announce> {
         self.blocks
             .get(block_index)
@@ -321,55 +329,41 @@ impl BlockChain {
             .expect("no announces found for block")
     }
 
+    #[track_caller]
     pub fn block_top_announce(&self, block_index: usize) -> &AnnounceData {
         self.announces
             .get(&self.block_top_announce_hash(block_index))
             .expect("announce not found")
     }
 
+    #[track_caller]
     pub fn block_top_announce_mut(&mut self, block_index: usize) -> &mut AnnounceData {
         self.announces
             .get_mut(&self.block_top_announce_hash(block_index))
             .expect("announce not found")
     }
 
+    #[track_caller]
     pub fn setup<DB>(self, db: &DB) -> Self
     where
         DB: AnnounceStorageRW
             + BlockMetaStorageRW
             + OnChainStorageRW
             + CodesStorageRW
-            + LatestDataStorageRW,
+            + SetConfig
+            + SetGlobals,
     {
         let BlockChain {
             blocks,
             announces,
             codes,
             validators,
+            config,
+            globals,
         } = self.clone();
 
-        db.set_latest_data(LatestData::default());
-
-        let timelines = ProtocolTimelines::mock(());
-        db.set_protocol_timelines(timelines);
-
-        if let Some(genesis) = blocks.front() {
-            db.mutate_latest_data(|latest| {
-                latest.genesis_block_hash = genesis.hash;
-                latest.start_block_hash = genesis.hash;
-            })
-            .unwrap();
-
-            if let Some(prepared) = &genesis.prepared
-                && let Some(first_announce) = prepared.announces.iter().flatten().next()
-            {
-                db.mutate_latest_data(|latest| {
-                    latest.genesis_announce_hash = *first_announce;
-                    latest.start_announce_hash = *first_announce;
-                })
-                .unwrap();
-            }
-        }
+        db.set_config(config.clone());
+        db.set_globals(globals);
 
         for BlockFullData {
             hash,
@@ -378,16 +372,11 @@ impl BlockChain {
         } in blocks
         {
             if let Some(SyncedBlockData { header, events }) = synced {
-                db.mutate_latest_data(|latest| {
-                    latest.synced_block = SimpleBlockData { hash, header }
-                })
-                .unwrap();
-
                 db.set_block_header(hash, header);
                 db.set_block_events(hash, &events);
                 db.set_block_synced(hash);
 
-                let block_era = timelines.era_from_ts(header.timestamp);
+                let block_era = config.timelines.era_from_ts(header.timestamp);
                 db.set_validators(block_era, validators.clone());
                 db.set_block_validators_committed_for_era(hash, block_era);
             }
@@ -399,16 +388,6 @@ impl BlockChain {
                 last_committed_announce,
             }) = prepared
             {
-                db.mutate_latest_data(|latest| {
-                    latest.prepared_block_hash = hash;
-                });
-
-                if let Some(announce_hash) = announces.iter().flatten().last().copied() {
-                    db.mutate_latest_data(|latest| {
-                        latest.computed_announce_hash = announce_hash;
-                    });
-                }
-
                 db.mutate_block_meta(hash, |meta| {
                     *meta = BlockMeta {
                         prepared: true,
@@ -451,23 +430,26 @@ impl BlockChain {
 impl Mock<(u32, ValidatorsVec)> for BlockChain {
     /// `len` - length of chain not counting genesis block
     fn mock((len, validators): (u32, ValidatorsVec)) -> Self {
-        // i = 0 - genesis parent
-        // i = 1 - genesis
-        // i = 2 - first block
+        let slot = 10;
+        let genesis_height = 1_000_000;
+        let genesis_ts = 1_000_000;
+
+        // i = 0, h = None - genesis parent
+        // i = 1, h = 0 - genesis
+        // i = 2, h = 1 - first block
         // ...
-        // i = len + 1 - last block
+        // i = len + 1, h = len - last block
         let mut blocks: VecDeque<_> = (0..len + 2)
             .map(|i| {
-                // Human readable blocks, to avoid zero values append some readable numbers
-                i.checked_sub(1)
-                    .map(|h| {
-                        (
-                            H256::from_low_u64_be(0x1_000_000 + h as u64),
-                            1_000_000 + h,
-                            1_000_000 + h * 10,
-                        )
-                    })
-                    .unwrap_or((H256([u8::MAX; 32]), 0, 0))
+                if let Some(h) = i.checked_sub(1) {
+                    // Human readable blocks, to avoid zero values append some readable numbers
+                    let hash = H256::from_low_u64_be(h as u64).tap_mut(|hash| hash.0[0] = 0x10);
+                    let height = genesis_height + h;
+                    let timestamp = genesis_ts + h * slot as u32;
+                    (hash, height, timestamp)
+                } else {
+                    (H256([u8::MAX; 32]), 0, 0)
+                }
             })
             .tuple_windows()
             .map(
@@ -523,11 +505,35 @@ impl Mock<(u32, ValidatorsVec)> for BlockChain {
             })
             .collect();
 
+        let config = DBConfig {
+            version: 0,
+            chain_id: 0,
+            router_address: Address(<[u8; 20]>::try_from(&H256::random()[..20]).unwrap()),
+            timelines: ProtocolTimelines {
+                genesis_ts: genesis_ts as u64,
+                era: slot * 100,
+                election: slot * 20,
+                slot,
+            },
+            genesis_block_hash: blocks[0].hash,
+            genesis_announce_hash: genesis_announce_hash.unwrap(),
+        };
+
+        let globals = DBGlobals {
+            start_block: blocks[0].hash,
+            start_announce_hash: genesis_announce_hash.unwrap(),
+            latest_synced_block: blocks.back().unwrap().to_simple(),
+            latest_prepared_block_hash: blocks.back().unwrap().hash,
+            latest_computed_announce_hash: parent_announce_hash,
+        };
+
         BlockChain {
             blocks,
             announces,
             codes: Default::default(),
             validators,
+            config,
+            globals,
         }
     }
 }
@@ -600,6 +606,19 @@ impl BlockData {
     }
 }
 
+impl Mock<()> for DBConfig {
+    fn mock(_args: ()) -> Self {
+        DBConfig {
+            version: 0,
+            chain_id: 0,
+            router_address: Address::default(),
+            timelines: ProtocolTimelines::mock(()),
+            genesis_block_hash: H256::random(),
+            genesis_announce_hash: HashOf::random(),
+        }
+    }
+}
+
 impl Mock for ComputedAnnounce {
     fn mock(_: ()) -> Self {
         Self {
@@ -614,6 +633,18 @@ impl Mock<HashOf<Announce>> for ComputedAnnounce {
         Self {
             announce_hash,
             promises: Default::default(),
+        }
+    }
+}
+
+impl Mock<()> for DBGlobals {
+    fn mock(_args: ()) -> Self {
+        DBGlobals {
+            start_block: H256::random(),
+            start_announce_hash: HashOf::random(),
+            latest_synced_block: SimpleBlockData::mock(()),
+            latest_prepared_block_hash: H256::random(),
+            latest_computed_announce_hash: HashOf::random(),
         }
     }
 }

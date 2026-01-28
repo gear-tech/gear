@@ -57,7 +57,7 @@ impl KVDatabase for MemDb {
         self.inner.get(&key.to_vec()).map(|v| v.value().clone())
     }
 
-    fn take(&self, key: &[u8]) -> Option<Vec<u8>> {
+    unsafe fn take(&self, key: &[u8]) -> Option<Vec<u8>> {
         self.inner.remove(&key.to_vec()).map(|(_, value)| value)
     }
 
@@ -79,6 +79,10 @@ impl KVDatabase for MemDb {
                 .filter(move |refs| refs.key().starts_with(prefix))
                 .map(|refs| (refs.key().clone(), refs.value().clone())),
         )
+    }
+
+    fn is_empty(&self) -> bool {
+        self.inner.is_empty()
     }
 }
 

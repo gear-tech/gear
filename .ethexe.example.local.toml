@@ -89,10 +89,6 @@ canonical-quarantine = 0
 # (optional, default: false).
 # fast-sync = false
 
-# Maximum allowed deepness of the chain for validating commitments.
-# (optional, must be non-zero u32, default: 10_000).
-# validate-chain-deepness-limit = 10_000
-
 # Threshold for producer to submit commitment despite of no transitions.
 # (optional, must be non-zero u32, default: 500).
 # chain-deepness-threshold = 500

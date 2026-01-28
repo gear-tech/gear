@@ -21,11 +21,8 @@ use anyhow::anyhow;
 use async_trait::async_trait;
 use ethexe_common::{
     COMMITMENT_DELAY_LIMIT, DEFAULT_BLOCK_GAS_LIMIT, ProtocolTimelines, ValidatorsVec,
-    consensus::{DEFAULT_CHAIN_DEEPNESS_THRESHOLD, DEFAULT_VALIDATE_CHAIN_DEEPNESS_LIMIT},
-    db::OnChainStorageRW,
-    ecdsa::ContractSignature,
-    gear::BatchCommitment,
-    mock::*,
+    consensus::DEFAULT_CHAIN_DEEPNESS_THRESHOLD, db::*, ecdsa::ContractSignature,
+    gear::BatchCommitment, mock::*,
 };
 use hashbrown::HashMap;
 use std::sync::Arc;
@@ -146,6 +143,7 @@ impl WaitFor for ValidatorState {
     }
 }
 
+// +_+_+ restructure - pass db as parameter
 pub fn mock_validator_context() -> (ValidatorContext, Vec<PublicKey>, MockEthereum) {
     let (signer, _, mut keys) = crate::mock::init_signer_with_keys(10);
     let ethereum = MockEthereum::default();
@@ -165,7 +163,6 @@ pub fn mock_validator_context() -> (ValidatorContext, Vec<PublicKey>, MockEthere
             committer: Box::new(ethereum.clone()),
             middleware: MiddlewareWrapper::from_inner(ethereum.clone()),
             injected_pool: InjectedTxPool::new(db.clone()),
-            validate_chain_deepness_limit: DEFAULT_VALIDATE_CHAIN_DEEPNESS_LIMIT,
             chain_deepness_threshold: DEFAULT_CHAIN_DEEPNESS_THRESHOLD,
             commitment_delay_limit: COMMITMENT_DELAY_LIMIT,
             producer_delay: Duration::from_millis(1),
@@ -175,7 +172,10 @@ pub fn mock_validator_context() -> (ValidatorContext, Vec<PublicKey>, MockEthere
         tasks: Default::default(),
     };
 
-    ctx.core.db.set_protocol_timelines(timelines);
+    ctx.core.db.set_config(DBConfig {
+        timelines,
+        ..DBConfig::mock(())
+    });
 
     (ctx, keys, ethereum)
 }

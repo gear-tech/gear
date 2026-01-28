@@ -25,7 +25,7 @@ use crate::{
 };
 use ethexe_common::{
     Announce, HashOf,
-    db::{AnnounceStorageRO, BlockMetaStorageRO, LatestData, LatestDataStorageRO},
+    db::{AnnounceStorageRO, BlockMetaStorageRO, ConfigStorageRO, GlobalsStorageRO},
     network::{AnnouncesRequest, AnnouncesRequestUntil, AnnouncesResponse},
 };
 use libp2p::request_response;
@@ -106,7 +106,7 @@ impl OngoingResponses {
         }
     }
 
-    fn process_announce_request<DB: AnnounceStorageRO + LatestDataStorageRO>(
+    fn process_announce_request<DB: AnnounceStorageRO + GlobalsStorageRO + ConfigStorageRO>(
         db: &DB,
         request: AnnouncesRequest,
     ) -> Result<AnnouncesResponse, ProcessAnnounceError> {
@@ -120,14 +120,8 @@ impl OngoingResponses {
             return Err(ProcessAnnounceError::ChainLenExceedsMax { requested: len });
         }
 
-        let Some(LatestData {
-            genesis_announce_hash,
-            start_announce_hash,
-            ..
-        }) = db.latest_data()
-        else {
-            return Err(ProcessAnnounceError::LatestDataMissing);
-        };
+        let genesis_announce_hash = db.config().genesis_announce_hash();
+        let start_announce_hash = db.globals().start_announce_hash;
 
         let mut announces = VecDeque::new();
         let mut announce_hash = head;
@@ -226,8 +220,6 @@ enum ProcessAnnounceError {
         "requested chain length {requested} exceeds maximum allowed {MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE}"
     )]
     ChainLenExceedsMax { requested: NonZeroU32 },
-    #[error("latest data not found in database")]
-    LatestDataMissing,
     #[error("announce {hash} not found in database")]
     AnnounceMissing { hash: HashOf<Announce> },
     #[error("reached genesis announce {genesis}")]
@@ -242,8 +234,8 @@ enum ProcessAnnounceError {
 mod tests {
     use super::*;
     use ethexe_common::{
-        Announce, HashOf, SimpleBlockData,
-        db::{AnnounceStorageRW, LatestDataStorageRW},
+        Announce, HashOf, ProtocolTimelines, SimpleBlockData,
+        db::{AnnounceStorageRW, DBConfig, SetConfig, SetGlobals},
     };
     use ethexe_db::Database;
     use gprimitives::H256;
@@ -253,7 +245,14 @@ mod tests {
         Announce::base(H256::from_low_u64_be(block), parent)
     }
 
-    fn set_latest_data(db: &Database, genesis: HashOf<Announce>, start: HashOf<Announce>) {
+    fn set_db_data(db: &Database, genesis: HashOf<Announce>, start: HashOf<Announce>) {
+        db.set_config(DBConfig {
+            version: 0,
+            chain_id: 0,
+            router_address: Default::default(),
+            timelines: ProtocolTimelines::default(),
+            genesis_block_hash: todo!(),
+        });
         db.set_latest_data(LatestData {
             synced_block: SimpleBlockData {
                 hash: H256::zero(),
@@ -271,7 +270,7 @@ mod tests {
     #[test]
     fn fails_chain_len_exceeding_max() {
         let db = Database::memory();
-        set_latest_data(&db, HashOf::zero(), HashOf::zero());
+        set_db_data(&db, HashOf::zero(), HashOf::zero());
 
         let len = MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE.checked_add(1).unwrap();
         let request = AnnouncesRequest {
@@ -302,7 +301,7 @@ mod tests {
     fn fails_announce_missing() {
         let head = HashOf::random();
         let db = Database::memory();
-        set_latest_data(&db, HashOf::zero(), HashOf::zero());
+        set_db_data(&db, HashOf::zero(), HashOf::zero());
 
         let request = AnnouncesRequest {
             head,
@@ -324,7 +323,7 @@ mod tests {
         let head = make_announce(12, middle_hash);
         let head_hash = db.set_announce(head.clone());
 
-        set_latest_data(&db, genesis, genesis);
+        set_db_data(&db, genesis, genesis);
 
         let request = AnnouncesRequest {
             head: head_hash,
@@ -342,7 +341,7 @@ mod tests {
         let start = db.set_announce(start_announce);
         let genesis = HashOf::random();
 
-        set_latest_data(&db, genesis, start);
+        set_db_data(&db, genesis, start);
 
         let head = make_announce(11, start);
         let head_hash = db.set_announce(head);
@@ -380,7 +379,7 @@ mod tests {
         assert!(!chain_hashes.contains(&genesis));
         assert!(!chain_hashes.contains(&tail));
 
-        set_latest_data(&db, genesis, start);
+        set_db_data(&db, genesis, start);
 
         let request = AnnouncesRequest {
             head: head_hash,
@@ -404,7 +403,7 @@ mod tests {
 
         let genesis = HashOf::random();
         let start = HashOf::random();
-        set_latest_data(&db, genesis, start);
+        set_db_data(&db, genesis, start);
 
         let request = AnnouncesRequest {
             head: head_hash,
@@ -429,7 +428,7 @@ mod tests {
 
         let genesis = HashOf::random();
         let start = HashOf::random();
-        set_latest_data(&db, genesis, start);
+        set_db_data(&db, genesis, start);
 
         let length = NonZeroU32::new(2).unwrap();
         let request = AnnouncesRequest {

@@ -20,8 +20,8 @@ use crate::{ComputeError, ProcessorExt, Result, service::SubService};
 use ethexe_common::{
     Announce, ComputedAnnounce, HashOf, SimpleBlockData,
     db::{
-        AnnounceStorageRO, AnnounceStorageRW, BlockMetaStorageRO, CodesStorageRW,
-        LatestDataStorageRO, LatestDataStorageRW, OnChainStorageRO,
+        AnnounceStorageRO, AnnounceStorageRW, BlockMetaStorageRO, CodesStorageRW, ConfigStorageRO,
+        GlobalsStorageRW, OnChainStorageRO,
     },
     events::BlockEvent,
 };
@@ -196,10 +196,9 @@ impl<P: ProcessorExt> ComputeSubService<P> {
             meta.computed = true;
         });
 
-        db.mutate_latest_data(|data| {
-            data.computed_announce_hash = announce_hash;
-        })
-        .ok_or(ComputeError::LatestDataNotFound)?;
+        db.mutate_globals(|globals| {
+            globals.latest_computed_announce_hash = announce_hash;
+        });
 
         Ok(ComputedAnnounce {
             announce_hash,
@@ -213,10 +212,7 @@ impl<P: ProcessorExt> ComputeSubService<P> {
         mut block_hash: H256,
         canonical_quarantine: u8,
     ) -> Result<Vec<BlockEvent>> {
-        let genesis_block = db
-            .latest_data()
-            .ok_or_else(|| ComputeError::LatestDataNotFound)?
-            .genesis_block_hash;
+        let genesis_block = db.config().genesis_block_hash;
 
         let mut block_header = db
             .block_header(block_hash)
@@ -271,7 +267,7 @@ impl<P: ProcessorExt> SubService for ComputeSubService<P> {
 mod tests {
     use super::*;
     use crate::tests::{MockProcessor, PROCESSOR_RESULT};
-    use ethexe_common::{gear::StateTransition, mock::*};
+    use ethexe_common::{db::GlobalsStorageRO, gear::StateTransition, mock::*};
     use gprimitives::{ActorId, H256};
 
     #[tokio::test]
@@ -286,7 +282,7 @@ mod tests {
 
         let announce = Announce {
             block_hash,
-            parent: db.latest_data().unwrap().genesis_announce_hash,
+            parent: db.config().genesis_announce_hash,
             gas_allowance: Some(100),
             injected_transactions: vec![],
         };
@@ -319,9 +315,6 @@ mod tests {
         assert_eq!(stored_transitions[0].new_state_hash, H256::from([2; 32]));
 
         // Verify latest announce
-        assert_eq!(
-            db.latest_data().unwrap().computed_announce_hash,
-            announce_hash
-        );
+        assert_eq!(db.globals().latest_computed_announce_hash, announce_hash);
     }
 }

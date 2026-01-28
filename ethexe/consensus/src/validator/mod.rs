@@ -50,13 +50,13 @@ use crate::{
         tx_pool::InjectedTxPool,
     },
 };
-use anyhow::{Result, anyhow};
+use anyhow::Result;
 pub use core::BatchCommitter;
 use derive_more::{Debug, From};
 use ethexe_common::{
     Address, ComputedAnnounce, SimpleBlockData, ToDigest,
     consensus::{VerifiedAnnounce, VerifiedValidationRequest},
-    db::OnChainStorageRO,
+    db::ConfigStorageRO,
     ecdsa::{PublicKey, SignedMessage},
     injected::SignedInjectedTransaction,
     network::CheckedAnnouncesResponse,
@@ -113,8 +113,6 @@ pub struct ValidatorConfig {
     pub producer_delay: Duration,
     /// Address of the router contract
     pub router_address: Address,
-    /// Limit for chain deepness validation
-    pub validate_chain_deepness_limit: u32,
     /// Threshold for producer to submit commitment despite of no transitions
     pub chain_deepness_threshold: u32,
 }
@@ -136,9 +134,7 @@ impl ValidatorService {
         db: Database,
         config: ValidatorConfig,
     ) -> Result<Self> {
-        let timelines = db
-            .protocol_timelines()
-            .ok_or_else(|| anyhow!("Protocol timelines not found in database"))?;
+        let timelines = db.config().timelines;
         let ctx = ValidatorContext {
             core: ValidatorCore {
                 slot_duration: config.slot_duration,
@@ -151,7 +147,6 @@ impl ValidatorService {
                 committer: committer.into(),
                 middleware: MiddlewareWrapper::from_inner(election_provider),
                 injected_pool: InjectedTxPool::new(db),
-                validate_chain_deepness_limit: config.validate_chain_deepness_limit,
                 chain_deepness_threshold: config.chain_deepness_threshold,
                 block_gas_limit: config.block_gas_limit,
                 commitment_delay_limit: config.commitment_delay_limit,

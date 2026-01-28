@@ -226,14 +226,16 @@ impl CodeAndId {
 /// for example `max_validators` in election.
 #[derive(Debug, Clone, Default, Copy, PartialEq, Eq, Encode, Decode)]
 pub struct ProtocolTimelines {
-    // The genesis timestamp of the GearExe network.
+    // The genesis timestamp of the GearExe network in seconds.
     pub genesis_ts: u64,
     // The duration of an era in seconds.
     pub era: u64,
-    // The election duration in seconds before the end of an era when the next set of validators elected.
+    /// The election duration in seconds before the end of an era when the next set of validators elected.
     ///  (start of era)[ - - - - - - - - - - -  + - - - - ] (end of era)
     ///                                         ^ election
     pub election: u64,
+    /// The slot duration in seconds.
+    pub slot: u64,
 }
 
 impl ProtocolTimelines {
@@ -241,32 +243,22 @@ impl ProtocolTimelines {
     /// If given `ts` less than `genesis_ts` function returns `0`;
     #[inline(always)]
     pub fn era_from_ts(&self, ts: u64) -> u64 {
-        if ts < self.genesis_ts {
-            return 0;
-        }
-        (ts - self.genesis_ts) / self.era
+        ts.checked_sub(self.genesis_ts)
+            .expect("timestamp must be >= genesis_ts")
+            / self.era
     }
 
     /// Returns the timestamp since which the given era started.
     #[inline(always)]
-    pub fn era_start(&self, era_index: u64) -> u64 {
+    pub fn era_start_ts(&self, era_index: u64) -> u64 {
         self.genesis_ts + era_index * self.era
     }
 
+    /// Returns the timestamp when election starts in the given era.
+    /// NOTE: election starts for the next era validators.
     #[inline(always)]
-    pub fn era_start_ts(&self, ts: u64) -> u64 {
-        self.era_start(self.era_from_ts(ts))
-    }
-
-    /// Returns the timestamp of beginning the next era, or the timestamp when current era finished.
-    #[inline(always)]
-    pub fn era_end(&self, era_index: u64) -> u64 {
-        self.genesis_ts + (era_index + 1) * self.era
-    }
-
-    #[inline(always)]
-    pub fn era_end_ts(&self, ts: u64) -> u64 {
-        self.era_end(self.era_from_ts(ts))
+    pub fn era_election_start_ts(&self, era_index: u64) -> u64 {
+        self.era_start_ts(era_index + 1) - self.election
     }
 }
 
@@ -295,6 +287,7 @@ mod tests {
             genesis_ts: 10,
             era: 234,
             election: 200,
+            slot: 10,
         };
 
         // For 0 era
@@ -307,39 +300,34 @@ mod tests {
         assert_eq!(timelines.era_from_ts(333), 1);
     }
 
+    #[should_panic(expected = "timestamp must be >= genesis_ts")]
+    #[test]
+    fn panic_on_era_from_ts_before_genesis() {
+        ProtocolTimelines {
+            genesis_ts: 100,
+            era: 234,
+            election: 200,
+            slot: 10,
+        }
+        .era_from_ts(50);
+    }
+
     #[test]
     fn test_era_start_calculation() {
         let timelines = ProtocolTimelines {
             genesis_ts: 10,
             era: 234,
             election: 200,
+            slot: 10,
         };
 
         // For 0 era
-        assert_eq!(timelines.era_start(0), 10);
-        assert_eq!(timelines.era_start(0), 10);
-        assert_eq!(timelines.era_start(0), 10);
+        assert_eq!(timelines.era_start_ts(0), 10);
+        assert_eq!(timelines.era_start_ts(0), 10);
+        assert_eq!(timelines.era_start_ts(0), 10);
 
         // For 1 era
-        assert_eq!(timelines.era_start(1), 244);
-        assert_eq!(timelines.era_start(1), 244);
-    }
-
-    #[test]
-    fn test_era_end_calculation() {
-        let timelines = ProtocolTimelines {
-            genesis_ts: 10,
-            era: 234,
-            election: 200,
-        };
-
-        // For 0 era
-        assert_eq!(timelines.era_end(0), 244);
-        assert_eq!(timelines.era_end(0), 244);
-        assert_eq!(timelines.era_end(0), 244);
-
-        // For 1 era
-        assert_eq!(timelines.era_end(1), 478);
-        assert_eq!(timelines.era_end(1), 478);
+        assert_eq!(timelines.era_start_ts(1), 244);
+        assert_eq!(timelines.era_start_ts(1), 244);
     }
 }

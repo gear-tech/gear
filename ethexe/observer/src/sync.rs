@@ -26,9 +26,10 @@ use alloy::{providers::RootProvider, rpc::types::eth::Header};
 use anyhow::{Result, anyhow};
 use ethexe_common::{
     self, BlockData, BlockHeader, CodeBlobInfo, SimpleBlockData,
-    db::{LatestDataStorageRW, OnChainStorageRW},
+    db::{OnChainStorageRO, OnChainStorageRW},
     events::{BlockEvent, RouterEvent},
 };
+use ethexe_db::Database;
 use ethexe_ethereum::{
     middleware::{ElectionProvider, MiddlewareQuery},
     router::RouterQuery,
@@ -36,21 +37,18 @@ use ethexe_ethereum::{
 use gprimitives::H256;
 use std::{collections::HashMap, ops::Add};
 
-pub(crate) trait SyncDB: OnChainStorageRW + LatestDataStorageRW + Clone {}
-impl<T: OnChainStorageRW + LatestDataStorageRW + Clone> SyncDB for T {}
-
 // TODO #4552: make tests for ChainSync
 #[derive(Clone)]
-pub(crate) struct ChainSync<DB: SyncDB> {
-    pub db: DB,
+pub(crate) struct ChainSync {
+    pub db: Database,
     pub config: RuntimeConfig,
     pub router_query: RouterQuery,
     pub middleware_query: MiddlewareQuery,
     pub block_loader: EthereumBlockLoader,
 }
 
-impl<DB: SyncDB> ChainSync<DB> {
-    pub fn new(db: DB, config: RuntimeConfig, provider: RootProvider) -> Self {
+impl ChainSync {
+    pub fn new(db: Database, config: RuntimeConfig, provider: RootProvider) -> Self {
         let router_query =
             RouterQuery::from_provider(config.router_address.0.into(), provider.clone());
         let middleware_query =
@@ -142,11 +140,7 @@ impl<DB: SyncDB> ChainSync<DB> {
 
     /// Loads blocks if there is a gap between the `header`'s height and the latest synced block height.
     async fn pre_load_data(&self, header: &BlockHeader) -> Result<HashMap<H256, BlockData>> {
-        let Some(latest) = self.db.latest_data() else {
-            tracing::warn!("latest data is not set in the database");
-            return Ok(Default::default());
-        };
-        let latest_synced_block_height = latest.synced_block.header.height;
+        let latest_synced_block_height = self.db.globals().latest_synced_block.header.height;
 
         if header.height <= latest_synced_block_height {
             tracing::warn!(
@@ -159,9 +153,8 @@ impl<DB: SyncDB> ChainSync<DB> {
         }
 
         if (header.height - latest_synced_block_height) >= self.config.max_sync_depth {
-            // TODO (gsobol): return an event to notify about too deep chain.
             return Err(anyhow!(
-                "Too much to sync: current block number: {}, Latest valid block number: {}, Max depth: {}",
+                "Too much to sync: current block number: {}, Latest synced block number: {}, Max depth: {}",
                 header.height,
                 latest_synced_block_height,
                 self.config.max_sync_depth
@@ -184,11 +177,7 @@ impl<DB: SyncDB> ChainSync<DB> {
     ///
     /// See [`Self::election_timestamp_finalized`] for the our timestamp `finalization` rules.
     async fn ensure_validators(&self, data: SimpleBlockData) -> Result<()> {
-        let timelines = self
-            .db
-            .protocol_timelines()
-            .ok_or_else(|| anyhow!("protocol timelines not found in database"))?;
-        let chain_head_era = timelines.era_from_ts(data.header.timestamp);
+        let chain_head_era = self.config.timelines.era_from_ts(data.header.timestamp);
 
         // If we don't have validators for current era - set them.
         if self.db.validators(chain_head_era).is_none() {
@@ -222,26 +211,22 @@ impl<DB: SyncDB> ChainSync<DB> {
                 self.db.block_events(hash)
             );
 
-            let _ = self
-                .db
-                .mutate_latest_data(|data| data.synced_block = SimpleBlockData { hash, header })
-                .ok_or_else(|| {
-                    log::error!("Failed to update latest data for synced block {hash}");
-                });
+            self.db
+                .globals_mutate(|g| g.latest_synced_block = SimpleBlockData { hash, header });
         }
     }
 
-    /// Function checks the `election_ts` in current era is `finalized` and if it true returns it.
+    /// Function checks the `election_ts` in current era is `finalized` and if it's true then returns it.
     ///
     /// By `finalization` we mean the 64 blocks, because of it is closely to real finalization time and
     /// reorgs for 64 blocks can not happen.
     fn election_timestamp_finalized(&self, chain_head: BlockHeader) -> Option<u64> {
-        let timelines = self.db.protocol_timelines()?;
-
-        let election_ts = timelines.era_end_ts(chain_head.timestamp) - timelines.election;
-
+        let election_ts = self
+            .config
+            .timelines
+            .era_election_start_ts(self.config.timelines.era_from_ts(chain_head.timestamp));
         (chain_head.timestamp.saturating_sub(election_ts)
-            > alloy::eips::merge::SLOT_DURATION_SECS * 64)
+            > self.config.timelines.slot * self.config.finalization_period_blocks)
             .then_some(election_ts)
     }
 }

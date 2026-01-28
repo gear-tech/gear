@@ -19,13 +19,14 @@
 use crate::errors;
 use ethexe_common::{
     Announce, HashOf, SimpleBlockData,
-    db::{AnnounceStorageRO, BlockMetaStorageRO, LatestDataStorageRO, OnChainStorageRO},
+    db::{AnnounceStorageRO, BlockMetaStorageRO, OnChainStorageRO},
 };
+use ethexe_db::Database;
 use jsonrpsee::core::RpcResult;
 use sp_core::H256;
 
-pub fn block_at_or_latest_synced<DB: OnChainStorageRO + LatestDataStorageRO>(
-    db: &DB,
+pub fn block_at_or_latest_synced(
+    db: &Database,
     at: impl Into<Option<H256>>,
 ) -> RpcResult<SimpleBlockData> {
     let hash = if let Some(hash) = at.into() {
@@ -34,10 +35,7 @@ pub fn block_at_or_latest_synced<DB: OnChainStorageRO + LatestDataStorageRO>(
         }
         hash
     } else {
-        db.latest_data()
-            .ok_or_else(|| errors::db("Latest data wasn't found"))?
-            .synced_block
-            .hash
+        db.globals().latest_synced_block.hash
     };
 
     db.block_header(hash)
@@ -50,10 +48,8 @@ pub fn block_at_or_latest_synced<DB: OnChainStorageRO + LatestDataStorageRO>(
 // only one not expired announce. In current solution we can return expired announce in some cases.
 /// Try to return latest computed announce hash or computed announce at given block hash.
 /// If `at` contains many announces, then we prefer not-base one (if any), else take the first one.
-pub fn announce_at_or_latest_computed<
-    DB: BlockMetaStorageRO + LatestDataStorageRO + AnnounceStorageRO,
->(
-    db: &DB,
+pub fn announce_at_or_latest_computed(
+    db: &Database,
     at: impl Into<Option<H256>>,
 ) -> RpcResult<HashOf<Announce>> {
     if let Some(at) = at.into() {
@@ -83,8 +79,6 @@ pub fn announce_at_or_latest_computed<
             })
         }
     } else {
-        db.latest_data()
-            .ok_or_else(|| errors::db("Latest data wasn't found"))
-            .map(|data| data.computed_announce_hash)
+        Ok(db.globals().latest_computed_announce_hash)
     }
 }
