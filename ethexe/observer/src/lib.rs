@@ -174,7 +174,7 @@ impl ObserverService {
         } = eth_cfg;
 
         let router_query = RouterQuery::new(rpc, *router_address).await?;
-        let middleware_address = router_query.middleware_address().await?.into();
+        let middleware_address = router_query.middleware_address().await?;
 
         let provider = ProviderBuilder::default()
             .connect(rpc)

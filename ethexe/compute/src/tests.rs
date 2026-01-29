@@ -20,7 +20,10 @@ use super::*;
 use ethexe_common::{
     CodeBlobInfo,
     db::*,
-    events::{BlockEvent, RouterEvent},
+    events::{
+        BlockEvent, RouterEvent,
+        router::{CodeGotValidatedEvent, CodeValidationRequestedEvent},
+    },
     mock::*,
 };
 use ethexe_db::Database;
@@ -102,10 +105,10 @@ fn insert_code_events(chain: &mut BlockChain, events_in_block: u32) {
                     },
                 );
 
-                BlockEvent::Router(RouterEvent::CodeGotValidated {
+                BlockEvent::Router(RouterEvent::CodeGotValidated(CodeGotValidatedEvent {
                     code_id,
                     valid: true,
-                })
+                }))
             })
             .collect();
     }
@@ -290,11 +293,13 @@ async fn code_validation_request_does_not_block_preparation() -> Result<()> {
     let mut block_events = env.chain.blocks[1].as_synced().events.clone();
 
     // add invalid event which shouldn't stop block prepare
-    block_events.push(BlockEvent::Router(RouterEvent::CodeValidationRequested {
-        code_id: CodeId::zero(),
-        timestamp: 0u64,
-        tx_hash: H256::random(),
-    }));
+    block_events.push(BlockEvent::Router(RouterEvent::CodeValidationRequested(
+        CodeValidationRequestedEvent {
+            code_id: CodeId::zero(),
+            timestamp: 0u64,
+            tx_hash: H256::random(),
+        },
+    )));
     env.db
         .set_block_events(env.chain.blocks[1].hash, &block_events);
     env.prepare_and_assert_block(env.chain.blocks[1].hash).await;

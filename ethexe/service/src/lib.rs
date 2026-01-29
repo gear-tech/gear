@@ -197,14 +197,14 @@ impl Service {
             .anvil_set_balance(validator_address.into(), balance)
             .await?;
 
-        wvara.mint(validator_address.into(), amount).await?;
+        wvara.mint(validator_address, amount).await?;
 
         for (_, sender_address) in it {
             provider
                 .anvil_set_balance(sender_address.into(), balance)
                 .await?;
 
-            wvara.mint(sender_address.into(), amount).await?;
+            wvara.mint(sender_address, amount).await?;
         }
 
         provider
@@ -270,7 +270,7 @@ impl Service {
         log::info!("👥 Current validators set: {validators:?}");
 
         let threshold = router_query
-            .threshold()
+            .validators_threshold()
             .await
             .with_context(|| "failed to query validators threshold")?;
         log::info!("🔒 Multisig threshold: {threshold} / {}", validators.len());
@@ -303,7 +303,7 @@ impl Service {
             if let Some(pub_key) = validator_pub_key {
                 let ethereum = Ethereum::new(
                     &config.ethereum.rpc,
-                    config.ethereum.router_address.into(),
+                    config.ethereum.router_address,
                     signer.clone(),
                     pub_key.to_address(),
                 )

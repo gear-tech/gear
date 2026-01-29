@@ -75,7 +75,7 @@ impl ProcessingHandler {
             RouterRequestEvent::ValidatorsCommittedForEra { .. }
             | RouterRequestEvent::CodeValidationRequested { .. }
             | RouterRequestEvent::ComputationSettingsChanged { .. }
-            | RouterRequestEvent::StorageSlotChanged => {
+            | RouterRequestEvent::StorageSlotChanged { .. } => {
                 log::debug!("Handler not yet implemented: {event:?}");
             }
         };
