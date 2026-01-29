@@ -318,8 +318,8 @@ where
         DefaultProcessing::computed_announce(self.into(), computed_data)
     }
 
-    fn process_announce(self, block: VerifiedAnnounce) -> Result<ValidatorState> {
-        DefaultProcessing::block_from_producer(self, block)
+    fn process_announce(self, announce: VerifiedAnnounce) -> Result<ValidatorState> {
+        DefaultProcessing::announce_from_producer(self, announce)
     }
 
     fn process_validation_request(
@@ -409,8 +409,8 @@ impl StateHandler for ValidatorState {
         delegate_call!(self => process_computed_announce(computed_data))
     }
 
-    fn process_announce(self, announce: VerifiedAnnounce) -> Result<ValidatorState> {
-        delegate_call!(self => process_announce(announce))
+    fn process_announce(self, verified_announce: VerifiedAnnounce) -> Result<ValidatorState> {
+        delegate_call!(self => process_announce(verified_announce))
     }
 
     fn process_validation_request(
@@ -474,13 +474,13 @@ impl DefaultProcessing {
         Ok(s)
     }
 
-    fn block_from_producer(
+    fn announce_from_producer(
         s: impl Into<ValidatorState>,
         announce: VerifiedAnnounce,
     ) -> Result<ValidatorState> {
         let mut s = s.into();
         s.warning(format!(
-            "unexpected block from producer: {announce:?}, saved for later."
+            "unexpected announce from producer: {announce:?}, saved for later."
         ));
         s.context_mut().pending(announce);
         Ok(s)
