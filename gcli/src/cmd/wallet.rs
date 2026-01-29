@@ -68,9 +68,14 @@ impl Wallet {
             .iter()
             .any(|keystore| keystore.name() == name)
         {
-            let suri = uri.unwrap_or_else(|| DEFAULT_DEV.to_string());
-            let private_key = PrivateKey::from_suri(&suri, None)
-                .map_err(|e| anyhow!("Failed to create keypair from the input uri: {e}"))?;
+            let private_key = uri
+                .as_deref()
+                .and_then(|suri| PrivateKey::from_suri(suri, None).ok())
+                .unwrap_or(
+                    PrivateKey::from_suri(DEFAULT_DEV.into(), None).map_err(|e| {
+                        anyhow!("Failed to create keypair from the default uri: {e}")
+                    })?,
+                );
             keyring.add(name, private_key, None)?;
         }
 
