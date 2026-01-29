@@ -6309,7 +6309,6 @@ dependencies = [
  "gsdk",
  "hex",
  "indoc",
- "regex",
  "reqwest",
  "scale-info",
  "serde",
