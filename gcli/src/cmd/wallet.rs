@@ -17,7 +17,7 @@
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
 use crate::app::App;
-use anyhow::{Result, anyhow};
+use anyhow::Result;
 use clap::Parser;
 use colored::Colorize;
 use gsdk::AccountKeyring;
@@ -71,11 +71,7 @@ impl Wallet {
             let private_key = uri
                 .as_deref()
                 .and_then(|suri| PrivateKey::from_suri(suri, None).ok())
-                .unwrap_or(
-                    PrivateKey::from_suri(DEFAULT_DEV.into(), None).map_err(|e| {
-                        anyhow!("Failed to create keypair from the default uri: {e}")
-                    })?,
-                );
+                .unwrap_or_else(|| PrivateKey::from_keypair(DEFAULT_DEV.pair().into()));
             keyring.add(name, private_key, None)?;
         }
 
