@@ -263,8 +263,6 @@ mod tests {
         let encoded_registry = portable_registry.encode();
         let type_info_hash = hex::encode(Sha3_256::digest(encoded_registry));
 
-        panic!("{:?}", portable_registry);
-
         if type_info_hash != EXPECTED_TYPE_INFO_HASH {
             panic!(
                 "{}",
