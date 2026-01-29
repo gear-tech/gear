@@ -38,6 +38,7 @@ gear-workspace-hack.workspace = true
 gprimitives = { workspace = true, features = ["ethexe"] }
 serde_json.workspace = true
 indoc.workspace = true
+scale-info = { workspace = true, features = ["docs"] }
 
 [features]
 default = ["std"]
