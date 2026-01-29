@@ -16,17 +16,26 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-mod block;
-mod code;
-mod injected;
-mod program;
+use crate::abi::{IWrappedVara, utils::*};
+use ethexe_common::events::wvara::*;
+use gprimitives::U256;
 
-pub use block::{BlockApi, BlockServer};
-pub use code::{CodeApi, CodeServer};
-pub use injected::{InjectedApi, InjectedServer};
-pub use program::{FullProgramState, ProgramApi, ProgramServer};
+impl From<IWrappedVara::Transfer> for TransferEvent {
+    fn from(value: IWrappedVara::Transfer) -> Self {
+        Self {
+            from: address_to_actor_id(value.from),
+            to: address_to_actor_id(value.to),
+            value: uint256_to_u128_lossy(value.value),
+        }
+    }
+}
 
-#[cfg(feature = "client")]
-pub use crate::apis::{
-    block::BlockClient, code::CodeClient, injected::InjectedClient, program::ProgramClient,
-};
+impl From<IWrappedVara::Approval> for ApprovalEvent {
+    fn from(value: IWrappedVara::Approval) -> Self {
+        Self {
+            owner: address_to_actor_id(value.owner),
+            spender: address_to_actor_id(value.spender),
+            value: U256(value.value.into_limbs()),
+        }
+    }
+}

@@ -18,8 +18,7 @@
 
 #![allow(dead_code, clippy::new_without_default)]
 
-use crate::wvara::WVara;
-use abi::{IMirror, IRouter};
+use abi::{IMirror, IRouter, IWrappedVara};
 use alloy::{
     consensus::SignableTransaction,
     eips::BlockId,
@@ -41,16 +40,15 @@ use alloy::{
     sol_types::SolEvent,
     transports::RpcError,
 };
-use anyhow::{Result, anyhow};
+use anyhow::{Context, Result, anyhow};
 use async_trait::async_trait;
+use ethexe_common::{BlockHeader, Digest, SimpleBlockData, ecdsa::PublicKey};
 use gprimitives::{H256, MessageId};
-use gsigner::secp256k1::{Address, Digest, PublicKey, Secp256k1SignerExt, Signer};
+use gsigner::secp256k1::{Address, Secp256k1SignerExt, Signer};
 use middleware::Middleware;
 use mirror::Mirror;
 use router::{Router, RouterQuery};
 use std::time::Duration;
-
-mod eip1167;
 
 pub mod abi;
 pub mod deploy;
@@ -63,7 +61,7 @@ pub mod primitives {
     pub use alloy::primitives::*;
 }
 
-type AlloyProvider = FillProvider<
+pub type AlloyProvider = FillProvider<
     JoinFill<
         JoinFill<
             JoinFill<
@@ -84,32 +82,50 @@ pub struct Ethereum {
     /// for [`deploy::EthereumDeployer`].
     middleware: AlloyAddress,
     provider: AlloyProvider,
+    signer: Option<Signer>,
+    sender_address: Option<Address>,
 }
 
 impl Ethereum {
     pub async fn new(
-        rpc: &str,
-        router_address: AlloyAddress,
+        ethereum_rpc_url: &str,
+        router_address: Address,
         signer: Signer,
         sender_address: Address,
     ) -> Result<Ethereum> {
-        let provider = create_provider(rpc, signer, sender_address).await?;
-        let router_query = RouterQuery::from_provider(router_address, provider.root().clone());
+        let provider = create_provider(ethereum_rpc_url, signer.clone(), sender_address).await?;
+        let router_query =
+            RouterQuery::from_provider(router_address.into(), provider.root().clone());
+        let router = router_address.into();
+        let wvara = router_query.wvara_address().await?.into();
+        let middleware = router_query.middleware_address().await?.into();
         Ok(Self {
-            router: router_address,
-            wvara: router_query.wvara_address().await?,
-            middleware: router_query.middleware_address().await?,
+            router,
+            wvara,
+            middleware,
             provider,
+            signer: Some(signer),
+            sender_address: Some(sender_address),
         })
+    }
+
+    pub fn signer(&self) -> Option<&Signer> {
+        self.signer.as_ref()
+    }
+
+    pub fn sender_address(&self) -> Option<Address> {
+        self.sender_address
     }
 
     pub async fn from_provider(provider: AlloyProvider, router: AlloyAddress) -> Result<Self> {
         let router_query = RouterQuery::from_provider(router, provider.root().clone());
         Ok(Self {
             router,
-            wvara: router_query.wvara_address().await?,
-            middleware: router_query.middleware_address().await?,
+            wvara: router_query.wvara_address().await?.into(),
+            middleware: router_query.middleware_address().await?.into(),
             provider,
+            signer: None,
+            sender_address: None,
         })
     }
 }
@@ -119,8 +135,39 @@ impl Ethereum {
         self.provider.clone()
     }
 
+    pub async fn chain_id(&self) -> Result<u64> {
+        self.provider.get_chain_id().await.map_err(Into::into)
+    }
+
+    pub async fn get_latest_block(&self) -> Result<SimpleBlockData> {
+        self.get_block(BlockId::latest()).await
+    }
+
+    pub async fn get_block(&self, block_id: impl IntoBlockId) -> Result<SimpleBlockData> {
+        let block_resp = self
+            .provider()
+            .get_block(block_id.into_block_id())
+            .await
+            .with_context(|| "failed to get latest block")?
+            .ok_or_else(|| anyhow!("latest block not found"))?;
+        let height = block_resp
+            .number()
+            .try_into()
+            .with_context(|| "block number overflow")?;
+        let hash = block_resp.hash().0.into();
+        let header = block_resp.into_header();
+        let parent_hash = header.parent_hash.0.into();
+        let timestamp = header.timestamp;
+        let header = BlockHeader {
+            height,
+            timestamp,
+            parent_hash,
+        };
+        Ok(SimpleBlockData { hash, header })
+    }
+
     pub fn mirror(&self, address: Address) -> Mirror {
-        Mirror::new(address.into(), self.provider())
+        Mirror::new(address.0.into(), self.provider())
     }
 
     pub fn router(&self) -> Router {
@@ -345,6 +392,8 @@ macro_rules! signatures_consts {
 
 pub(crate) use signatures_consts;
 
+use crate::wvara::WVara;
+
 /// A helping trait for converting various types into `alloy::eips::BlockId`.
 pub trait IntoBlockId {
     fn into_block_id(self) -> BlockId;
@@ -359,6 +408,12 @@ impl IntoBlockId for H256 {
 impl IntoBlockId for u32 {
     fn into_block_id(self) -> BlockId {
         BlockId::number(self.into())
+    }
+}
+
+impl IntoBlockId for u64 {
+    fn into_block_id(self) -> BlockId {
+        BlockId::number(self)
     }
 }
 

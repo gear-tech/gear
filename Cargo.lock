@@ -5259,6 +5259,23 @@ dependencies = [
 ]
 
 [[package]]
+name = "ethexe-sdk"
+version = "1.10.0"
+dependencies = [
+ "alloy",
+ "anyhow",
+ "ethexe-common",
+ "ethexe-ethereum",
+ "ethexe-rpc",
+ "ethexe-runtime-common",
+ "futures",
+ "gear-workspace-hack",
+ "gprimitives",
+ "gsigner",
+ "jsonrpsee",
+]
+
+[[package]]
 name = "ethexe-service"
 version = "1.10.0"
 dependencies = [

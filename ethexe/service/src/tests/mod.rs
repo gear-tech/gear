@@ -39,7 +39,11 @@ use ethexe_common::{
     consensus::{DEFAULT_CHAIN_DEEPNESS_THRESHOLD, DEFAULT_VALIDATE_CHAIN_DEEPNESS_LIMIT},
     db::*,
     ecdsa::ContractSignature,
-    events::{BlockEvent, MirrorEvent, RouterEvent},
+    events::{
+        BlockEvent, MirrorEvent, RouterEvent,
+        mirror::{MessageEvent, ReplyEvent, StateChangedEvent, ValueClaimedEvent},
+        router::{AnnouncesCommittedEvent, ValidatorsCommittedForEraEvent},
+    },
     gear::{BatchCommitment, CANONICAL_QUARANTINE, MessageType},
     injected::{AddressedInjectedTransaction, InjectedTransaction, InjectedTransactionAcceptance},
     mock::*,
@@ -315,9 +319,9 @@ async fn uninitialized_program() {
                     BlockEvent::Mirror {
                         actor_id,
                         event:
-                            MirrorEvent::Message {
+                            MirrorEvent::Message(MessageEvent {
                                 id, destination, ..
-                            },
+                            }),
                     } if actor_id == init_res.program_id && destination == env.sender_id => {
                         Some(id)
                     }
@@ -354,11 +358,11 @@ async fn uninitialized_program() {
                 BlockEvent::Mirror {
                     actor_id,
                     event:
-                        MirrorEvent::Reply {
+                        MirrorEvent::Reply(ReplyEvent {
                             reply_code,
                             reply_to,
                             ..
-                        },
+                        }),
                 } if actor_id == init_res.program_id && reply_to == init_reply.message_id => {
                     Some(reply_code)
                 }
@@ -443,12 +447,12 @@ async fn mailbox() {
             BlockEvent::Mirror {
                 actor_id,
                 event:
-                    MirrorEvent::Message {
+                    MirrorEvent::Message(MessageEvent {
                         id,
                         destination,
                         payload,
                         ..
-                    },
+                    }),
             } if *actor_id == async_pid => {
                 assert_eq!(*destination, env.sender_id);
 
@@ -464,7 +468,7 @@ async fn mailbox() {
                 false
             }
             BlockEvent::Router(RouterEvent::AnnouncesCommitted(ah)) if block.is_some() => {
-                announce_hash = Some(*ah);
+                announce_hash = Some(ah.clone());
                 true
             }
             _ => false,
@@ -472,7 +476,7 @@ async fn mailbox() {
         .await;
 
     let block = block.expect("must be set");
-    let announce_hash = announce_hash.expect("must be set");
+    let AnnouncesCommittedEvent(announce_hash) = announce_hash.expect("must be set");
 
     // -1 bcs execution took place in previous block, not the one that emits events.
     let wake_expiry = block.header.height - 1 + 100; // 100 is default wait for.
@@ -591,20 +595,23 @@ async fn mailbox() {
     mirror.claim_value(mid_expected_message_id).await.unwrap();
 
     let mut claimed = false;
-    let announce_hash = receiver
-        .filter_map_block_synced()
-        .find_map(|event| match event {
-            BlockEvent::Mirror {
-                actor_id,
-                event: MirrorEvent::ValueClaimed { claimed_id, .. },
-            } if actor_id == async_pid && claimed_id == mid_expected_message_id => {
-                claimed = true;
-                None
-            }
-            BlockEvent::Router(RouterEvent::AnnouncesCommitted(ah)) if claimed => Some(ah),
-            _ => None,
-        })
-        .await;
+    let announce_hash =
+        receiver
+            .filter_map_block_synced()
+            .find_map(|event| match event {
+                BlockEvent::Mirror {
+                    actor_id,
+                    event: MirrorEvent::ValueClaimed(ValueClaimedEvent { claimed_id, .. }),
+                } if actor_id == async_pid && claimed_id == mid_expected_message_id => {
+                    claimed = true;
+                    None
+                }
+                BlockEvent::Router(RouterEvent::AnnouncesCommitted(AnnouncesCommittedEvent(
+                    ah,
+                ))) if claimed => Some(ah),
+                _ => None,
+            })
+            .await;
     assert!(claimed, "Value must be claimed");
 
     let state_hash = mirror.query().state_hash().await.unwrap();
@@ -662,7 +669,7 @@ async fn value_reply_program_to_user() {
 
     let piggy_bank = env.ethereum.mirror(piggy_bank_id.to_address_lossy().into());
 
-    let on_eth_balance = piggy_bank.get_balance().await.unwrap();
+    let on_eth_balance = piggy_bank.query().balance().await.unwrap();
     assert_eq!(on_eth_balance, 0);
 
     let state_hash = piggy_bank.query().state_hash().await.unwrap();
@@ -681,7 +688,7 @@ async fn value_reply_program_to_user() {
         .find(|e| matches!(e, BlockEvent::Router(RouterEvent::BatchCommitted { .. })))
         .await;
 
-    let on_eth_balance = piggy_bank.get_balance().await.unwrap();
+    let on_eth_balance = piggy_bank.query().balance().await.unwrap();
     assert_eq!(on_eth_balance, VALUE_SENT);
 
     let state_hash = piggy_bank.query().state_hash().await.unwrap();
@@ -699,7 +706,7 @@ async fn value_reply_program_to_user() {
     assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Manual));
     assert_eq!(res.value, VALUE_SENT);
 
-    let on_eth_balance = piggy_bank.get_balance().await.unwrap();
+    let on_eth_balance = piggy_bank.query().balance().await.unwrap();
     assert_eq!(on_eth_balance, 0);
 
     let state_hash = piggy_bank.query().state_hash().await.unwrap();
@@ -761,7 +768,7 @@ async fn value_send_program_to_user_and_claimed() {
 
     let piggy_bank = env.ethereum.mirror(piggy_bank_id.to_address_lossy().into());
 
-    let on_eth_balance = piggy_bank.get_balance().await.unwrap();
+    let on_eth_balance = piggy_bank.query().balance().await.unwrap();
     assert_eq!(on_eth_balance, 0);
 
     let state_hash = piggy_bank.query().state_hash().await.unwrap();
@@ -781,7 +788,7 @@ async fn value_send_program_to_user_and_claimed() {
         .find(|e| matches!(e, BlockEvent::Router(RouterEvent::BatchCommitted { .. })))
         .await;
 
-    let on_eth_balance = piggy_bank.get_balance().await.unwrap();
+    let on_eth_balance = piggy_bank.query().balance().await.unwrap();
     assert_eq!(on_eth_balance, VALUE_SENT);
 
     let state_hash = piggy_bank.query().state_hash().await.unwrap();
@@ -799,7 +806,7 @@ async fn value_send_program_to_user_and_claimed() {
     assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Auto));
     assert_eq!(res.value, 0);
 
-    let on_eth_balance = piggy_bank.get_balance().await.unwrap();
+    let on_eth_balance = piggy_bank.query().balance().await.unwrap();
     assert_eq!(on_eth_balance, 0);
 
     let state_hash = piggy_bank.query().state_hash().await.unwrap();
@@ -834,7 +841,7 @@ async fn value_send_program_to_user_and_claimed() {
         .find(|e| {
             matches!(e, BlockEvent::Mirror {
                 actor_id,
-                event: MirrorEvent::ValueClaimed { claimed_id, .. },
+                event: MirrorEvent::ValueClaimed ( ValueClaimedEvent { claimed_id, .. } ),
             } if *actor_id == piggy_bank_id && *claimed_id == mailboxed_msg_id)
         })
         .await;
@@ -893,7 +900,7 @@ async fn value_send_program_to_user_and_replied() {
 
     let piggy_bank = env.ethereum.mirror(piggy_bank_id.to_address_lossy().into());
 
-    let on_eth_balance = piggy_bank.get_balance().await.unwrap();
+    let on_eth_balance = piggy_bank.query().balance().await.unwrap();
     assert_eq!(on_eth_balance, 0);
 
     let state_hash = piggy_bank.query().state_hash().await.unwrap();
@@ -913,7 +920,7 @@ async fn value_send_program_to_user_and_replied() {
         .find(|e| matches!(e, BlockEvent::Router(RouterEvent::BatchCommitted { .. })))
         .await;
 
-    let on_eth_balance = piggy_bank.get_balance().await.unwrap();
+    let on_eth_balance = piggy_bank.query().balance().await.unwrap();
     assert_eq!(on_eth_balance, VALUE_SENT);
 
     let state_hash = piggy_bank.query().state_hash().await.unwrap();
@@ -931,7 +938,7 @@ async fn value_send_program_to_user_and_replied() {
     assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Auto));
     assert_eq!(res.value, 0);
 
-    let on_eth_balance = piggy_bank.get_balance().await.unwrap();
+    let on_eth_balance = piggy_bank.query().balance().await.unwrap();
     assert_eq!(on_eth_balance, 0);
 
     let state_hash = piggy_bank.query().state_hash().await.unwrap();
@@ -969,7 +976,7 @@ async fn value_send_program_to_user_and_replied() {
         .find(|e| {
             matches!(e, BlockEvent::Mirror {
                 actor_id,
-                event: MirrorEvent::ValueClaimed { claimed_id, .. },
+                event: MirrorEvent::ValueClaimed ( ValueClaimedEvent { claimed_id, .. } ),
             } if *actor_id == piggy_bank_id && *claimed_id == mailboxed_msg_id)
         })
         .await;
@@ -1028,7 +1035,7 @@ async fn incoming_transfers() {
 
     let ping = env.ethereum.mirror(ping_id.to_address_lossy().into());
 
-    let on_eth_balance = ping.get_balance().await.unwrap();
+    let on_eth_balance = ping.query().balance().await.unwrap();
     assert_eq!(on_eth_balance, 0);
 
     let state_hash = ping.query().state_hash().await.unwrap();
@@ -1047,7 +1054,7 @@ async fn incoming_transfers() {
         .find(|e| matches!(e, BlockEvent::Router(RouterEvent::BatchCommitted { .. })))
         .await;
 
-    let on_eth_balance = ping.get_balance().await.unwrap();
+    let on_eth_balance = ping.query().balance().await.unwrap();
     assert_eq!(on_eth_balance, VALUE_SENT);
 
     let state_hash = ping.query().state_hash().await.unwrap();
@@ -1065,7 +1072,7 @@ async fn incoming_transfers() {
     assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Manual));
     assert_eq!(res.value, 0);
 
-    let on_eth_balance = ping.get_balance().await.unwrap();
+    let on_eth_balance = ping.query().balance().await.unwrap();
     assert_eq!(on_eth_balance, 2 * VALUE_SENT);
 
     let state_hash = ping.query().state_hash().await.unwrap();
@@ -1815,7 +1822,9 @@ async fn validators_election() {
         .find(|event| {
             matches!(
                 event,
-                BlockEvent::Router(RouterEvent::ValidatorsCommittedForEra { era_index: _ })
+                BlockEvent::Router(RouterEvent::ValidatorsCommittedForEra(
+                    ValidatorsCommittedForEraEvent { era_index: _ }
+                ))
             )
         })
         .await;
@@ -1953,12 +1962,12 @@ async fn execution_with_canonical_events_quarantine() {
             if let BlockEvent::Mirror {
                 actor_id: _,
                 event:
-                    MirrorEvent::Reply {
+                    MirrorEvent::Reply(ReplyEvent {
                         payload,
                         value: _,
                         reply_to,
                         reply_code: _,
-                    },
+                    }),
             } = block_event
                 && reply_to == message_id
                 && payload == b"PONG"
@@ -2038,7 +2047,7 @@ async fn value_send_program_to_program() {
         .ethereum
         .mirror(value_receiver_id.to_address_lossy().into());
 
-    let value_receiver_on_eth_balance = value_receiver.get_balance().await.unwrap();
+    let value_receiver_on_eth_balance = value_receiver.query().balance().await.unwrap();
     assert_eq!(value_receiver_on_eth_balance, 0);
 
     let value_receiver_state_hash = value_receiver.query().state_hash().await.unwrap();
@@ -2083,7 +2092,7 @@ async fn value_send_program_to_program() {
         .ethereum
         .mirror(value_sender_id.to_address_lossy().into());
 
-    let value_sender_on_eth_balance = value_sender.get_balance().await.unwrap();
+    let value_sender_on_eth_balance = value_sender.query().balance().await.unwrap();
     assert_eq!(value_sender_on_eth_balance, VALUE_SENT);
 
     let value_sender_state_hash = value_sender.query().state_hash().await.unwrap();
@@ -2105,7 +2114,7 @@ async fn value_send_program_to_program() {
     assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Auto));
     assert_eq!(res.value, 0);
 
-    let value_sender_on_eth_balance = value_sender.get_balance().await.unwrap();
+    let value_sender_on_eth_balance = value_sender.query().balance().await.unwrap();
     assert_eq!(value_sender_on_eth_balance, 0);
 
     let value_sender_state_hash = value_sender.query().state_hash().await.unwrap();
@@ -2116,7 +2125,7 @@ async fn value_send_program_to_program() {
         .balance;
     assert_eq!(value_sender_local_balance, 0);
 
-    let value_receiver_on_eth_balance = value_receiver.get_balance().await.unwrap();
+    let value_receiver_on_eth_balance = value_receiver.query().balance().await.unwrap();
     assert_eq!(value_receiver_on_eth_balance, VALUE_SENT);
 
     let value_receiver_state_hash = value_receiver.query().state_hash().await.unwrap();
@@ -2184,7 +2193,7 @@ async fn value_send_delayed() {
         .ethereum
         .mirror(value_receiver_id.to_address_lossy().into());
 
-    let value_receiver_on_eth_balance = value_receiver.get_balance().await.unwrap();
+    let value_receiver_on_eth_balance = value_receiver.query().balance().await.unwrap();
     assert_eq!(value_receiver_on_eth_balance, 0);
 
     let value_receiver_state_hash = value_receiver.query().state_hash().await.unwrap();
@@ -2230,7 +2239,7 @@ async fn value_send_delayed() {
         .mirror(value_sender_id.to_address_lossy().into());
 
     // Sender should not have the value, because it was just sent to receiver with delay
-    let value_sender_on_eth_balance = value_sender.get_balance().await.unwrap();
+    let value_sender_on_eth_balance = value_sender.query().balance().await.unwrap();
     assert_eq!(value_sender_on_eth_balance, 0);
 
     let value_sender_state_hash = value_sender.query().state_hash().await.unwrap();
@@ -2242,7 +2251,7 @@ async fn value_send_delayed() {
     assert_eq!(value_sender_local_balance, 0);
 
     // Check receiver don't have the value yet
-    let value_receiver_on_eth_balance = value_receiver.get_balance().await.unwrap();
+    let value_receiver_on_eth_balance = value_receiver.query().balance().await.unwrap();
     assert_eq!(value_receiver_on_eth_balance, 0);
 
     let value_receiver_state_hash = value_receiver.query().state_hash().await.unwrap();
@@ -2278,7 +2287,7 @@ async fn value_send_delayed() {
         .await;
 
     // Receiver should have the value now
-    let value_receiver_on_eth_balance = value_receiver.get_balance().await.unwrap();
+    let value_receiver_on_eth_balance = value_receiver.query().balance().await.unwrap();
     assert_eq!(value_receiver_on_eth_balance, VALUE_SENT);
 
     let value_receiver_state_hash = value_receiver.query().state_hash().await.unwrap();
@@ -2290,7 +2299,7 @@ async fn value_send_delayed() {
     assert_eq!(value_receiver_local_balance, VALUE_SENT);
 
     // Sender still don't have the value
-    let value_sender_on_eth_balance = value_sender.get_balance().await.unwrap();
+    let value_sender_on_eth_balance = value_sender.query().balance().await.unwrap();
     assert_eq!(value_sender_on_eth_balance, 0);
 
     let value_sender_state_hash = value_sender.query().state_hash().await.unwrap();
@@ -2447,7 +2456,7 @@ async fn injected_tx_fungible_token() {
                 for block_event in block_events {
                     if let BlockEvent::Mirror {
                         actor_id,
-                        event: MirrorEvent::StateChanged { state_hash },
+                        event: MirrorEvent::StateChanged(StateChangedEvent { state_hash }),
                     } = block_event
                         && actor_id == mint_tx.destination
                     {

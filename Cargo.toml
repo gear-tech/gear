@@ -311,7 +311,7 @@ ethexe-db = { path = "ethexe/db", default-features = false }
 ethexe-network = { path = "ethexe/network", default-features = false }
 ethexe-processor = { path = "ethexe/processor", default-features = false }
 ethexe-runtime = { path = "ethexe/runtime", default-features = false }
-
+ethexe-sdk = { path = "ethexe/sdk", default-features = false }
 ethexe-service = { path = "ethexe/service", default-features = false }
 ethexe-service-utils = { path = "ethexe/service/utils", default-features = false }
 ethexe-consensus = { path = "ethexe/consensus", default-features = false }
