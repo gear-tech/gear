@@ -6300,11 +6300,9 @@ name = "gcli"
 version = "1.10.0"
 dependencies = [
  "anyhow",
- "async-trait",
  "clap 4.5.54",
  "colored",
- "demo-fungible-token",
- "demo-messenger",
+ "derive_more 2.1.1",
  "dirs",
  "etc",
  "gear-core",
@@ -6314,11 +6312,12 @@ dependencies = [
  "gsdk",
  "gsigner",
  "hex",
- "log",
+ "indoc",
  "reqwest",
  "scale-info",
  "schnorrkel",
  "serde",
+ "snapbox",
  "tokio",
  "toml 0.8.23",
  "tracing",
@@ -8747,6 +8746,15 @@ dependencies = [
  "portable-atomic",
  "unicode-width 0.2.2",
  "web-time",
+]
+
+[[package]]
+name = "indoc"
+version = "2.0.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "79cf5c93f93228cf8efb3ba362535fb11199ac548a09ce117c9b1adc3030d706"
+dependencies = [
+ "rustversion",
 ]
 
 [[package]]
@@ -16634,6 +16642,12 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e3a9fe34e3e7a50316060351f37187a3f546bce95496156754b601a5fa71b76e"
 
 [[package]]
+name = "similar"
+version = "2.7.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bbbb5d9659141646ae647b42fe094daf6c6192d1620870b449d9557f748b2daa"
+
+[[package]]
 name = "simple-dns"
 version = "0.5.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -16793,6 +16807,28 @@ name = "snap"
 version = "1.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "1b6b67fb9a61334225b5b790716f609cd58395f895b3fe8b328786812a40bc3b"
+
+[[package]]
+name = "snapbox"
+version = "0.6.24"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6c1abc378119f77310836665f8523018532cf7e3faeb3b10b01da5a7321bf8e1"
+dependencies = [
+ "anstream",
+ "anstyle",
+ "normalize-line-endings",
+ "similar",
+ "snapbox-macros",
+]
+
+[[package]]
+name = "snapbox-macros"
+version = "0.4.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3b750c344002d7cc69afb9da00ebd9b5c0f8ac2eb7d115d9d45d5b5f47718d74"
+dependencies = [
+ "anstream",
+]
 
 [[package]]
 name = "snow"

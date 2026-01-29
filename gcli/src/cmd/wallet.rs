@@ -16,18 +16,18 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::keyring;
+use crate::app::App;
 use anyhow::{Result, anyhow};
 use clap::Parser;
 use colored::Colorize;
-use gsdk::ext::sp_core::{Pair, sr25519};
+use gsdk::AccountKeyring;
 use gsigner::{
     cli::{GSignerCommands, display_result, execute_command},
+    keyring::KeystoreEntry,
     sr25519::PrivateKey,
 };
-use schnorrkel::Keypair;
 
-const DEFAULT_DEV: &str = "//Alice";
+const DEFAULT_DEV: AccountKeyring = AccountKeyring::Alice;
 
 /// Gear wallet manager.
 #[derive(Clone, Debug, Parser)]
@@ -48,9 +48,9 @@ pub enum Wallet {
 
 impl Wallet {
     /// Run the wallet command.
-    pub fn run(&self) -> Result<()> {
+    pub fn exec(self, app: &mut App) -> Result<()> {
         match self {
-            Wallet::Dev { name, uri } => Self::dev(name, uri.clone()),
+            Wallet::Dev { name, uri } => Self::dev(&name, uri.clone(), app),
             Wallet::Signer(command) => {
                 let result = execute_command(command.clone())?;
                 display_result(&result);
@@ -60,19 +60,20 @@ impl Wallet {
     }
 
     /// Switch to development account.
-    pub fn dev(name: &str, uri: Option<String>) -> Result<()> {
-        let mut keyring = keyring::load_keyring()?;
-        if keyring.set_primary(name).is_ok() {
-            println!("Successfully switched to dev account {} !", name.cyan());
-            return Ok(());
+    pub fn dev(name: &str, uri: Option<String>, app: &mut App) -> Result<()> {
+        let mut keyring = app.keyring()?;
+
+        if !keyring
+            .list()
+            .iter()
+            .any(|keystore| keystore.name() == name)
+        {
+            let suri = uri.unwrap_or_else(|| DEFAULT_DEV.to_string());
+            let private_key = PrivateKey::from_suri(&suri, None)
+                .map_err(|e| anyhow!("Failed to create keypair from the input uri: {e}"))?;
+            keyring.add(name, private_key, None)?;
         }
 
-        let pair = sr25519::Pair::from_string(&uri.unwrap_or_else(|| DEFAULT_DEV.into()), None)
-            .map_err(|e| anyhow!("Failed to create keypair from the input uri: {e}"))?;
-        let keypair: Keypair = pair.into();
-        let private_key = PrivateKey::from_keypair(keypair);
-
-        keyring.add(name, private_key, None)?;
         keyring.set_primary(name)?;
         println!("Successfully switched to dev account {} !", name.cyan());
         Ok(())

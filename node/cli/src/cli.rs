@@ -141,5 +141,5 @@ pub enum Subcommand {
     /// and `gear-program/vara`.
     #[cfg(feature = "cli")]
     #[command(name = "gcli", about = "Run gear program cli.")]
-    Cli(gcli::cmd::Opt),
+    Cli(gcli::Cli),
 }

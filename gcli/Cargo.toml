@@ -14,9 +14,9 @@ rust-version.workspace = true
 
 [dependencies]
 gsdk.workspace = true
-async-trait.workspace = true
 colored.workspace = true
 anyhow.workspace = true
+derive_more.workspace = true
 dirs.workspace = true
 tracing-subscriber.workspace = true
 gear-core.workspace = true
@@ -31,7 +31,6 @@ gsigner = { workspace = true, features = [
     "serde",
 ] }
 hex.workspace = true
-log.workspace = true
 scale-info.workspace = true
 serde.workspace = true
 clap = { workspace = true, features = ["std", "derive"] }
@@ -48,12 +47,16 @@ schnorrkel.workspace = true
 tracing.workspace = true
 gear-workspace-hack.workspace = true
 
-[dev-dependencies]
-demo-messenger.workspace = true
-demo-fungible-token.workspace = true
-gear-node-wrapper.workspace = true
-
 [build-dependencies]
+
+[features]
+default = ["self-update"]
+self-update = []
+
+[dev-dependencies]
+snapbox.workspace = true
+gear-node-wrapper.workspace = true
+indoc.workspace = true
 
 [package.metadata.docs.rs]
 all-features = true
