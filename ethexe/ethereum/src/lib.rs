@@ -18,7 +18,7 @@
 
 #![allow(dead_code, clippy::new_without_default)]
 
-use abi::{IMirror, IRouter};
+use abi::{IMirror, IRouter, IWrappedVara};
 use alloy::{
     consensus::SignableTransaction,
     eips::BlockId,
@@ -28,8 +28,8 @@ use alloy::{
         Identity, PendingTransactionBuilder, PendingTransactionError, Provider, ProviderBuilder,
         RootProvider,
         fillers::{
-            BlobGasFiller, ChainIdFiller, FillProvider, GasFiller, JoinFill, NonceFiller,
-            SimpleNonceManager, WalletFiller,
+            BlobGasEstimator, BlobGasFiller, ChainIdFiller, FillProvider, GasFiller, JoinFill,
+            NonceFiller, SimpleNonceManager, WalletFiller,
         },
     },
     rpc::types::{TransactionReceipt, TransactionRequest, eth::Log},
@@ -40,17 +40,17 @@ use alloy::{
     sol_types::SolEvent,
     transports::RpcError,
 };
-use anyhow::{Result, anyhow};
+use anyhow::{Context, Result, anyhow};
 use async_trait::async_trait;
-use ethexe_common::{Address as LocalAddress, Digest, ecdsa::PublicKey};
+use ethexe_common::{
+    Address as LocalAddress, BlockHeader, Digest, SimpleBlockData, ecdsa::PublicKey,
+};
 use ethexe_signer::Signer as LocalSigner;
 use gprimitives::{H256, MessageId};
 use middleware::Middleware;
 use mirror::Mirror;
 use router::{Router, RouterQuery};
 use std::time::Duration;
-
-mod eip1167;
 
 pub mod abi;
 pub mod deploy;
@@ -63,14 +63,19 @@ pub mod primitives {
     pub use alloy::primitives::*;
 }
 
-type AlloyRecommendedFillers = JoinFill<
-    GasFiller,
-    JoinFill<BlobGasFiller, JoinFill<NonceFiller<SimpleNonceManager>, ChainIdFiller>>,
+pub type AlloyProvider = FillProvider<
+    JoinFill<
+        JoinFill<
+            JoinFill<
+                JoinFill<JoinFill<Identity, GasFiller>, BlobGasFiller>,
+                NonceFiller<SimpleNonceManager>,
+            >,
+            ChainIdFiller,
+        >,
+        WalletFiller<EthereumWallet>,
+    >,
+    RootProvider,
 >;
-type AlloyProvider = FillProvider<ExeFiller, RootProvider, AlloyEthereum>;
-
-pub(crate) type ExeFiller =
-    JoinFill<JoinFill<Identity, AlloyRecommendedFillers>, WalletFiller<EthereumWallet>>;
 
 pub struct Ethereum {
     router: Address,
@@ -79,32 +84,50 @@ pub struct Ethereum {
     /// for [`deploy::EthereumDeployer`].
     middleware: Address,
     provider: AlloyProvider,
+    signer: Option<LocalSigner>,
+    sender_address: Option<LocalAddress>,
 }
 
 impl Ethereum {
     pub async fn new(
-        rpc: &str,
-        router_address: Address,
+        ethereum_rpc_url: &str,
+        router_address: LocalAddress,
         signer: LocalSigner,
         sender_address: LocalAddress,
     ) -> Result<Ethereum> {
-        let provider = create_provider(rpc, signer, sender_address).await?;
-        let router_query = RouterQuery::from_provider(router_address, provider.root().clone());
+        let provider = create_provider(ethereum_rpc_url, signer.clone(), sender_address).await?;
+        let router_query =
+            RouterQuery::from_provider(router_address.into(), provider.root().clone());
+        let router = router_address.into();
+        let wvara = router_query.wvara_address().await?.into();
+        let middleware = router_query.middleware_address().await?.into();
         Ok(Self {
-            router: router_address,
-            wvara: router_query.wvara_address().await?,
-            middleware: router_query.middleware_address().await?,
+            router,
+            wvara,
+            middleware,
             provider,
+            signer: Some(signer),
+            sender_address: Some(sender_address),
         })
+    }
+
+    pub fn signer(&self) -> Option<&LocalSigner> {
+        self.signer.as_ref()
+    }
+
+    pub fn sender_address(&self) -> Option<LocalAddress> {
+        self.sender_address
     }
 
     pub async fn from_provider(provider: AlloyProvider, router: Address) -> Result<Self> {
         let router_query = RouterQuery::from_provider(router, provider.root().clone());
         Ok(Self {
             router,
-            wvara: router_query.wvara_address().await?,
-            middleware: router_query.middleware_address().await?,
+            wvara: router_query.wvara_address().await?.into(),
+            middleware: router_query.middleware_address().await?.into(),
             provider,
+            signer: None,
+            sender_address: None,
         })
     }
 }
@@ -112,6 +135,37 @@ impl Ethereum {
 impl Ethereum {
     pub fn provider(&self) -> AlloyProvider {
         self.provider.clone()
+    }
+
+    pub async fn chain_id(&self) -> Result<u64> {
+        self.provider.get_chain_id().await.map_err(Into::into)
+    }
+
+    pub async fn get_latest_block(&self) -> Result<SimpleBlockData> {
+        self.get_block(BlockId::latest()).await
+    }
+
+    pub async fn get_block(&self, block_id: impl IntoBlockId) -> Result<SimpleBlockData> {
+        let block_resp = self
+            .provider()
+            .get_block(block_id.into_block_id())
+            .await
+            .with_context(|| "failed to get latest block")?
+            .ok_or_else(|| anyhow!("latest block not found"))?;
+        let height = block_resp
+            .number()
+            .try_into()
+            .with_context(|| "block number overflow")?;
+        let hash = block_resp.hash().0.into();
+        let header = block_resp.into_header();
+        let parent_hash = header.parent_hash.0.into();
+        let timestamp = header.timestamp;
+        let header = BlockHeader {
+            height,
+            timestamp,
+            parent_hash,
+        };
+        Ok(SimpleBlockData { hash, header })
     }
 
     pub fn mirror(&self, address: LocalAddress) -> Mirror {
@@ -142,7 +196,10 @@ pub(crate) async fn create_provider(
     sender_address: LocalAddress,
 ) -> Result<AlloyProvider> {
     Ok(ProviderBuilder::default()
-        .filler(AlloyRecommendedFillers::default())
+        .with_gas_estimation()
+        .with_blob_gas_estimator(BlobGasEstimator::scaled(3))
+        .with_simple_nonce_management()
+        .fetch_chain_id()
         .wallet(EthereumWallet::new(Sender::new(signer, sender_address)?))
         .connect(rpc_url)
         .await?)
@@ -356,6 +413,12 @@ impl IntoBlockId for H256 {
 impl IntoBlockId for u32 {
     fn into_block_id(self) -> BlockId {
         BlockId::number(self.into())
+    }
+}
+
+impl IntoBlockId for u64 {
+    fn into_block_id(self) -> BlockId {
+        BlockId::number(self)
     }
 }
 

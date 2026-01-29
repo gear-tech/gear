@@ -230,7 +230,7 @@ pub struct ExponentialBackoffInterval {
 impl ExponentialBackoffInterval {
     pub const START: Duration = Duration::from_secs(2);
     pub const FACTOR: u32 = 2;
-    pub const MAX: Duration = Duration::from_mins(10);
+    pub const MAX: Duration = Duration::from_secs(600);
 
     pub fn new() -> Self {
         Self {

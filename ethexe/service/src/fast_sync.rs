@@ -25,7 +25,10 @@ use ethexe_common::{
         AnnounceStorageRO, BlockMetaStorageRO, CodesStorageRO, CodesStorageRW, FullAnnounceData,
         FullBlockData, OnChainStorageRW,
     },
-    events::{BlockEvent, RouterEvent},
+    events::{
+        BlockEvent, RouterEvent,
+        router::{AnnouncesCommittedEvent, BatchCommittedEvent},
+    },
     injected,
     network::{AnnouncesRequest, AnnouncesRequestUntil},
 };
@@ -84,12 +87,14 @@ impl EventData {
             // NOTE: logic relies on events in order as they are emitted on Ethereum
             for event in block_data.events.into_iter().rev() {
                 match event {
-                    BlockEvent::Router(RouterEvent::BatchCommitted { digest })
-                        if latest_committed.is_none() =>
-                    {
+                    BlockEvent::Router(RouterEvent::BatchCommitted(BatchCommittedEvent {
+                        digest,
+                    })) if latest_committed.is_none() => {
                         latest_committed = Some((digest, None));
                     }
-                    BlockEvent::Router(RouterEvent::AnnouncesCommitted(head)) => {
+                    BlockEvent::Router(RouterEvent::AnnouncesCommitted(
+                        AnnouncesCommittedEvent(head),
+                    )) => {
                         let Some((_, latest_committed_head)) = latest_committed.as_mut() else {
                             anyhow::bail!(
                                 "Inconsistent block events: head commitment before batch commitment"

@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2021-2025 Gear Technologies Inc.
+// Copyright (C) 2024-2025 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -16,18 +16,25 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! environment paths and binaries
+use gprimitives::{ActorId, U256};
+use parity_scale_codec::{Decode, Encode};
 
-use std::{env, path::PathBuf};
-
-/// path of gear node binary
-pub fn node_bin() -> PathBuf {
-    PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap()).join("../target/release/gear")
+#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, Hash)]
+pub struct TransferEvent {
+    pub from: ActorId,
+    pub to: ActorId,
+    pub value: u128,
 }
 
-/// path of binaries
-pub fn gcli_bin() -> PathBuf {
-    let path =
-        env::var_os("NEXTEST_BIN_EXE_gcli").unwrap_or_else(|| env!("CARGO_BIN_EXE_gcli").into());
-    PathBuf::from(path)
+#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, Hash)]
+pub struct ApprovalEvent {
+    pub owner: ActorId,
+    pub spender: ActorId,
+    pub value: U256,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Decode, Encode, Hash)]
+pub enum Event {
+    Transfer(TransferEvent),
+    Approval(ApprovalEvent),
 }
