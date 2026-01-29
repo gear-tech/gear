@@ -26,7 +26,6 @@ parity-scale-codec = { workspace = true, features = ["std", "derive"] }
 sp-allocator = { workspace = true, features = ["std"] }
 sp-wasm-interface = { workspace = true, features = ["std", "wasmtime"] }
 tokio = { workspace = true, features = ["full"] }
-rayon.workspace = true
 itertools = { workspace = true, features = ["use_std"] }
 gear-workspace-hack.workspace = true
 anyhow.workspace = true
