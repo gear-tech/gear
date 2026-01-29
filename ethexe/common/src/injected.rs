@@ -18,19 +18,15 @@
 
 use crate::{Address, HashOf, ToDigest, ecdsa::SignedMessage};
 use alloc::string::{String, ToString};
-use alloy_primitives::U256 as AlloyU256;
 use core::hash::Hash;
-use gear_core::{limited::LimitedVec, rpc::ReplyInfo};
-use gprimitives::{ActorId, H256, MessageId, U256};
+use gear_core::rpc::ReplyInfo;
+use gprimitives::{ActorId, H256, MessageId};
 use parity_scale_codec::{Decode, Encode};
 use sha3::{Digest, Keccak256};
+use sp_core::Bytes;
 
 /// Recent block hashes window size used to check transaction mortality.
 pub const VALIDITY_WINDOW: u8 = 32;
-
-/// Maximum size of single injected tx payload.
-/// Currently set to 1 MB.
-pub const MAX_INJECTED_TX_PAYLOAD_SIZE: usize = 1024 * 1024;
 
 #[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
 #[derive(Debug, Clone, Encode, Decode, Eq, PartialEq)]
@@ -69,8 +65,7 @@ pub struct InjectedTransaction {
     /// Destination program inside `Vara.eth`.
     pub destination: ActorId,
     /// Payload of the message.
-    #[cfg_attr(feature = "std", serde(with = "hex::limited_vec"))]
-    pub payload: LimitedVec<u8, MAX_INJECTED_TX_PAYLOAD_SIZE>,
+    pub payload: Bytes,
     /// Value attached to the message.
     /// NOTE: at this moment will be zero.
     pub value: u128,
@@ -79,8 +74,7 @@ pub struct InjectedTransaction {
     /// Arbitrary bytes to allow multiple synonymous
     /// transactions to be sent simultaneously.
     /// NOTE: this is also a salt for MessageId generation.
-    #[cfg_attr(feature = "std", serde(with = "hex::u256"))]
-    pub salt: U256,
+    pub salt: Bytes,
 }
 
 impl ToDigest for InjectedTransaction {
@@ -97,9 +91,7 @@ impl ToDigest for InjectedTransaction {
         payload.update_hasher(hasher);
         value.to_be_bytes().update_hasher(hasher);
         reference_block.0.update_hasher(hasher);
-        AlloyU256::from_limbs(salt.0)
-            .to_be_bytes::<32>()
-            .update_hasher(hasher);
+        salt.update_hasher(hasher);
     }
 }
 
@@ -112,9 +104,7 @@ impl InjectedTransaction {
             self.payload.as_ref(),
             &self.value.to_be_bytes(),
             &self.reference_block.0,
-            AlloyU256::from_limbs(self.salt.0)
-                .to_be_bytes::<32>()
-                .as_ref(),
+            self.salt.as_ref(),
         ]
         .concat();
         unsafe { HashOf::new(gear_core::utils::hash(&bytes).into()) }
@@ -149,61 +139,5 @@ impl ToDigest for Promise {
 
         hasher.update(tx_hash.inner());
         reply.update_hasher(hasher);
-    }
-}
-
-/// Hex (de)serialization helpers for the following types:
-/// - [`LimitedVec<u8, N>`]
-/// - [`U256`]
-#[cfg(feature = "std")]
-mod hex {
-    use super::*;
-    /// Encoding and decoding of `LimitedVec<u8, N>` as hex string.
-    #[cfg(feature = "std")]
-    pub mod limited_vec {
-        pub fn serialize<S, const N: usize>(
-            data: &super::LimitedVec<u8, N>,
-            serializer: S,
-        ) -> Result<S::Ok, S::Error>
-        where
-            S: serde::Serializer,
-        {
-            alloy_primitives::hex::serialize(data.to_vec(), serializer)
-        }
-
-        pub fn deserialize<'de, D, const N: usize>(
-            deserializer: D,
-        ) -> Result<super::LimitedVec<u8, N>, D::Error>
-        where
-            D: serde::Deserializer<'de>,
-        {
-            let vec: Vec<u8> = alloy_primitives::hex::deserialize(deserializer)?;
-            super::LimitedVec::<u8, N>::try_from(vec)
-                .map_err(|_| serde::de::Error::custom("LimitedVec deserialization overflow"))
-        }
-    }
-
-    /// Encoding and decoding of [`gprimitives::U256`] as hex string using
-    /// [`alloy_primitives::hex`] module.
-    #[cfg(feature = "std")]
-    pub mod u256 {
-        use gprimitives::U256;
-
-        pub fn serialize<S>(data: &U256, serializer: S) -> Result<S::Ok, S::Error>
-        where
-            S: serde::Serializer,
-        {
-            let mut buffer = [0u8; 32];
-            data.to_big_endian(&mut buffer);
-            alloy_primitives::hex::serialize(buffer, serializer)
-        }
-
-        pub fn deserialize<'de, D>(deserializer: D) -> Result<U256, D::Error>
-        where
-            D: serde::Deserializer<'de>,
-        {
-            let buffer: [u8; 32] = alloy_primitives::hex::deserialize(deserializer)?;
-            Ok(U256::from_big_endian(buffer.as_slice()))
-        }
     }
 }
