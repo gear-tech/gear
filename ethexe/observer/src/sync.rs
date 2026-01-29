@@ -27,7 +27,7 @@ use anyhow::{Result, anyhow};
 use ethexe_common::{
     self, BlockData, BlockHeader, CodeBlobInfo, SimpleBlockData,
     db::{LatestDataStorageRW, OnChainStorageRW},
-    events::{BlockEvent, RouterEvent},
+    events::{BlockEvent, RouterEvent, router::CodeValidationRequestedEvent},
 };
 use ethexe_ethereum::{
     middleware::{ElectionProvider, MiddlewareQuery},
@@ -113,11 +113,13 @@ impl<DB: SyncDB> ChainSync<DB> {
             }
 
             for event in block_data.events.iter() {
-                if let &BlockEvent::Router(RouterEvent::CodeValidationRequested {
-                    code_id,
-                    timestamp,
-                    tx_hash,
-                }) = event
+                if let &BlockEvent::Router(RouterEvent::CodeValidationRequested(
+                    CodeValidationRequestedEvent {
+                        code_id,
+                        timestamp,
+                        tx_hash,
+                    },
+                )) = event
                 {
                     self.db
                         .set_code_blob_info(code_id, CodeBlobInfo { timestamp, tx_hash });

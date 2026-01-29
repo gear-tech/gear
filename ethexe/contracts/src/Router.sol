@@ -22,25 +22,6 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
     // keccak256(abi.encode(uint256(keccak256("router.storage.Transient")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant TRANSIENT_STORAGE = 0xf02b465737fa6045c2ff53fb2df43c66916ac2166fa303264668fb2f6a1d8c00;
 
-    struct StorageView {
-        /// @notice Genesis block information for this router.
-        Gear.GenesisBlockInfo genesisBlock;
-        /// @notice Information about the latest committed batch.
-        Gear.CommittedBatchInfo latestCommittedBatch;
-        /// @notice Details of the related contracts' implementation.
-        Gear.AddressBook implAddresses;
-        /// @notice Parameters for validation and signature verification.
-        Gear.ValidationSettingsView validationSettings;
-        /// @notice Computation parameters for programs processing.
-        Gear.ComputationSettings computeSettings;
-        /// @notice Protocol timelines.
-        Gear.Timelines timelines;
-        /// @notice Count of created programs.
-        uint256 programsCount;
-        /// @notice Count of validated codes.
-        uint256 validatedCodesCount;
-    }
-
     /// @custom:oz-upgrades-unsafe-allow constructor
     constructor() {
         _disableInitializers();
@@ -597,6 +578,8 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
     function _setStorageSlot(string memory namespace) private onlyOwner {
         bytes32 slot = keccak256(abi.encode(uint256(keccak256(bytes(namespace))) - 1)) & ~bytes32(uint256(0xff));
         StorageSlot.getBytes32Slot(SLOT_STORAGE).value = slot;
+
+        emit StorageSlotChanged(slot);
     }
 
     receive() external payable {
