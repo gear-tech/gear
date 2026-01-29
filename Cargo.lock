@@ -6332,12 +6332,10 @@ dependencies = [
  "indoc",
  "reqwest",
  "scale-info",
- "schnorrkel",
  "serde",
  "snapbox",
  "tokio",
  "toml 0.8.23",
- "tracing",
  "tracing-subscriber",
  "url",
 ]
