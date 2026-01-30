@@ -46,11 +46,14 @@ pub use handler::handle_journal;
 pub use precharge::*;
 pub use processing::{
     process, process_allowance_exceed, process_code_not_exists, process_execution_error,
-    process_failed_init, process_instrumentation_failed, process_program_exited,
-    process_reinstrumentation_error, process_success, process_uninitialized,
+    process_execution_result, process_failed_init, process_instrumentation_failed,
+    process_program_exited, process_reinstrumentation_error, process_success,
+    process_uninitialized,
 };
 
 /// Informational functions for core-processor and executor.
 pub mod informational {
     pub use crate::executor::execute_for_reply;
 }
+
+pub use executor::{ExecutionSequenceError, ExecutionStep, SequenceState, execute_wasm_step};

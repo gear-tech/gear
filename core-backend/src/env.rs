@@ -78,6 +78,7 @@ fn store_host_state_mut<Ext: Send + 'static>(
         unreachable!("{err_msg}")
     })
 }
+
 pub type SetupMemoryResult<Ext> = Result<
     (
         Store<HostState<Ext, BackendMemory<ExecutorMemory>>>,
@@ -112,16 +113,26 @@ pub enum SystemEnvironmentError {
 pub struct ReadyToExecute;
 pub struct FailedExecution;
 pub struct SuccessExecution;
+pub struct PostExecution;
 
 pub enum ExecutedEnvironment<'a, Ext: BackendExternalities> {
     SuccessExecution(Environment<'a, Ext, SuccessExecution>),
     FailedExecution(Environment<'a, Ext, FailedExecution>),
 }
 
+pub struct ExecutionReport<Ext>
+where
+    Ext: Externalities + 'static,
+{
+    pub termination_reason: TerminationReason,
+    pub ext: Ext,
+}
+
 impl<'a, Ext> ExecutedEnvironment<'a, Ext>
 where
     Ext: BackendExternalities + Send + 'static,
 {
+    #[allow(clippy::too_many_arguments)]
     fn from_execution_result(
         execution_result: Result<ReturnValue, Error>,
         instance: Instance<HostState<Ext, BackendMemory<ExecutorMemory>>>,
@@ -174,6 +185,20 @@ where
         match self {
             ExecutedEnvironment::SuccessExecution(env) => env,
             ExecutedEnvironment::FailedExecution(_) => panic!("{}", msg),
+        }
+    }
+
+    pub fn into_report_and_env(
+        self,
+    ) -> Result<(ExecutionReport<Ext>, Environment<'a, Ext, PostExecution>), EnvironmentError>
+    where
+        Ext::UnrecoverableError: BackendSyscallError,
+        RunFallibleError: From<Ext::FallibleError>,
+        Ext::AllocError: BackendAllocSyscallError<ExtError = Ext::UnrecoverableError>,
+    {
+        match self {
+            ExecutedEnvironment::SuccessExecution(env) => env.report_and_reuse(),
+            ExecutedEnvironment::FailedExecution(env) => env.report_and_reuse(),
         }
     }
 }
@@ -327,7 +352,7 @@ impl<Ext: BackendExternalities> From<EnvBuilder<Ext>>
     }
 }
 
-impl<Ext, T> Environment<'_, Ext, T>
+impl<'a, Ext, T> Environment<'a, Ext, T>
 where
     Ext: BackendExternalities + Send + 'static,
     Ext::UnrecoverableError: BackendSyscallError,
@@ -436,6 +461,107 @@ where
             memory: self.memory,
             ext,
         })
+    }
+
+    fn report_and_reuse(
+        mut self,
+    ) -> Result<(ExecutionReport<Ext>, Environment<'a, Ext, PostExecution>), EnvironmentError> {
+        let state = self
+            .store
+            .data_mut()
+            .take()
+            .ok_or(EnvironmentError::System(
+                SystemEnvironmentError::MissingState,
+            ))?;
+
+        let gas = self
+            .instance
+            .get_global_val(&mut self.store, GLOBAL_NAME_GAS)
+            .and_then(i64::try_from_value)
+            .ok_or(EnvironmentError::System(
+                SystemEnvironmentError::WrongInjectedGas,
+            ))? as u64;
+
+        let execution_result = self
+            .execution_result
+            .take()
+            .ok_or(EnvironmentError::System(
+                SystemEnvironmentError::MissingExecutionResult,
+            ))?;
+
+        let (ext, termination_reason) = state.terminate(execution_result, gas);
+
+        let report = ExecutionReport {
+            termination_reason,
+            ext,
+        };
+
+        let env = Environment {
+            instance: self.instance,
+            entries: self.entries,
+            store: self.store,
+            memory: self.memory,
+            code: self.code,
+            execution_result: None,
+            #[cfg(feature = "std")]
+            globals_holder: self.globals_holder,
+            _phantom: PhantomData,
+        };
+
+        Ok((report, env))
+    }
+}
+
+impl<'a, Ext> Environment<'a, Ext, PostExecution>
+where
+    Ext: BackendExternalities + Send + 'static,
+    Ext::UnrecoverableError: BackendSyscallError,
+    RunFallibleError: From<Ext::FallibleError>,
+    Ext::AllocError: BackendAllocSyscallError<ExtError = Ext::UnrecoverableError>,
+{
+    pub fn set_ext(
+        mut self,
+        ext: Ext,
+    ) -> Result<Environment<'a, Ext, ReadyToExecute>, EnvironmentError> {
+        *self.store.data_mut() = Some(State {
+            ext,
+            memory: self.memory.clone(),
+            termination_reason: ActorTerminationReason::Success.into(),
+        });
+
+        Ok(Environment {
+            instance: self.instance,
+            entries: self.entries,
+            store: self.store,
+            memory: self.memory,
+            code: self.code,
+            execution_result: None,
+            #[cfg(feature = "std")]
+            globals_holder: self.globals_holder,
+            _phantom: PhantomData,
+        })
+    }
+
+    pub fn restore_snapshot<M: MemorySnapshot>(&mut self, snapshot: &M) -> Result<(), MemoryError> {
+        snapshot.restore(&mut self.store, &self.memory)
+    }
+
+    pub fn store_mut(&mut self) -> &mut Store<HostState<Ext, BackendMemory<ExecutorMemory>>> {
+        &mut self.store
+    }
+
+    pub fn memory_mut(&mut self) -> &mut BackendMemory<ExecutorMemory> {
+        &mut self.memory
+    }
+
+    pub fn with_store_and_memory_mut<T>(
+        &mut self,
+        f: impl FnOnce(
+            &mut Store<HostState<Ext, BackendMemory<ExecutorMemory>>>,
+            &mut BackendMemory<ExecutorMemory>,
+        ) -> T,
+    ) -> T {
+        f(&mut self.store, &mut self.memory)
     }
 }
 
@@ -548,32 +674,44 @@ where
         use SystemEnvironmentError::*;
 
         let Self {
-            mut instance,
+            instance,
             entries,
-            mut store,
+            store,
             memory,
             code,
             #[cfg(feature = "std")]
-            mut globals_holder,
+            globals_holder,
             ..
         } = self;
 
-        let gas = store_host_state_mut(&mut store)
+        let mut env = Environment {
+            instance,
+            entries,
+            store,
+            memory,
+            code,
+            execution_result: None,
+            #[cfg(feature = "std")]
+            globals_holder,
+            _phantom: PhantomData::<ReadyToExecute>,
+        };
+
+        let gas = store_host_state_mut(&mut env.store)
             .ext
             .define_current_counter();
 
-        instance
-            .set_global_val(&mut store, GLOBAL_NAME_GAS, Value::I64(gas as i64))
+        env.instance
+            .set_global_val(&mut env.store, GLOBAL_NAME_GAS, Value::I64(gas as i64))
             .map_err(|_| System(WrongInjectedGas))?;
 
         let needs_execution = entry_point
             .try_into_kind()
-            .map(|kind| entries.contains(&kind))
+            .map(|kind| env.entries.contains(&kind))
             .unwrap_or(true);
 
         let res = if needs_execution {
             #[cfg(feature = "std")]
-            let globals_provider_dyn_ref = globals_holder.accessor_ref();
+            let globals_provider_dyn_ref = env.globals_holder.accessor_ref();
 
             #[cfg(feature = "std")]
             let res = {
@@ -590,7 +728,7 @@ where
                     })
                     .store;
 
-                store_option.replace(store);
+                store_option.replace(env.store);
 
                 let store_ref = store_option
                     .as_mut()
@@ -602,15 +740,22 @@ where
                         unreachable!("{err_msg}")
                     });
 
-                let res = instance.invoke(store_ref, entry_point.as_entry(), &[]);
+                let res = env.instance.invoke(store_ref, entry_point.as_entry(), &[]);
 
-                store = globals_holder.access_provider_mut().store.take().unwrap();
+                env.store = env
+                    .globals_holder
+                    .access_provider_mut()
+                    .store
+                    .take()
+                    .unwrap();
 
                 res
             };
 
             #[cfg(not(feature = "std"))]
-            let res = instance.invoke(&mut store, entry_point.as_entry(), &[]);
+            let res = env
+                .instance
+                .invoke(&mut env.store, entry_point.as_entry(), &[]);
 
             res
         } else {
@@ -621,19 +766,19 @@ where
             && let Ok(_) = res
         {
             snapshot
-                .capture(&store, &memory)
+                .capture(&env.store, &env.memory)
                 .map_err(|e| System(DumpMemoryError(e)))?;
         }
 
         Ok(ExecutedEnvironment::from_execution_result(
             res,
-            instance,
-            entries,
-            store,
-            memory,
-            code,
+            env.instance,
+            env.entries,
+            env.store,
+            env.memory,
+            env.code,
             #[cfg(feature = "std")]
-            globals_holder,
+            env.globals_holder,
         ))
     }
 }

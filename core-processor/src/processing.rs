@@ -57,8 +57,6 @@ where
     RunFallibleError: From<Ext::FallibleError>,
     <Ext as Externalities>::UnrecoverableError: BackendSyscallError,
 {
-    use crate::common::SuccessfulDispatchResultKind::*;
-
     let BlockConfig {
         block_info,
         performance_multiplier,
@@ -72,20 +70,20 @@ where
         outgoing_limit,
         outgoing_bytes_limit,
         ..
-    } = block_config.clone();
+    } = block_config;
 
     let execution_settings = ExecutionSettings {
-        block_info,
-        performance_multiplier,
-        existential_deposit,
-        mailbox_threshold,
-        max_pages,
-        ext_costs: costs.ext,
-        lazy_pages_costs: costs.lazy_pages,
-        forbidden_funcs,
-        reserve_for,
+        block_info: *block_info,
+        performance_multiplier: *performance_multiplier,
+        existential_deposit: *existential_deposit,
+        mailbox_threshold: *mailbox_threshold,
+        max_pages: *max_pages,
+        ext_costs: costs.ext.clone(),
+        lazy_pages_costs: costs.lazy_pages.clone(),
+        forbidden_funcs: forbidden_funcs.clone(),
+        reserve_for: *reserve_for,
         random_data,
-        gas_multiplier,
+        gas_multiplier: *gas_multiplier,
     };
 
     let dispatch = execution_context.dispatch;
@@ -118,8 +116,8 @@ where
         waiting_fee: costs.db.write.cost_for(3.into()),
         waking_fee: costs.db.write.cost_for(2.into()),
         reservation_fee: costs.db.write.cost_for(2.into()),
-        outgoing_limit,
-        outgoing_bytes_limit,
+        outgoing_limit: *outgoing_limit,
+        outgoing_bytes_limit: *outgoing_bytes_limit,
     };
 
     // TODO: add tests that system reservation is successfully unreserved after
@@ -139,6 +137,25 @@ where
         log::debug!("Wasm execution error: {err}");
         err
     });
+
+    process_execution_result(
+        dispatch,
+        program_id,
+        initial_reservations_amount,
+        system_reservation_ctx,
+        exec_result,
+    )
+}
+
+/// Converts a dispatch execution result into journal notes.
+pub fn process_execution_result(
+    dispatch: IncomingDispatch,
+    program_id: ActorId,
+    initial_reservations_amount: usize,
+    system_reservation_ctx: SystemReservationContext,
+    exec_result: Result<DispatchResult, ExecutionError>,
+) -> Result<Vec<JournalNote>, SystemExecutionError> {
+    use crate::common::SuccessfulDispatchResultKind::*;
 
     match exec_result {
         Ok(res) => {

@@ -36,4 +36,5 @@ tracing-subscriber.workspace = true
 demo-ping = { workspace = true, features = ["debug", "ethexe"] }
 demo-async = { workspace = true, features = ["debug", "ethexe"] }
 demo-panic-payload = { workspace = true, features = ["debug", "ethexe"] }
+demo-fungible-token = { workspace = true, features = ["debug"] }
 wat.workspace = true

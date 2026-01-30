@@ -79,7 +79,7 @@ use gear_core::{
     code::{Code, CodeAndId},
     ids::{ActorId, CodeId, MessageId, prelude::*},
     memory::Memory,
-    message::{DispatchKind, Salt},
+    message::Salt,
     pages::{WasmPage, WasmPagesAmount},
     program::ActiveProgram,
     tasks::{ScheduledTask, TaskHandler},

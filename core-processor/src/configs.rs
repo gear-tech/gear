@@ -36,7 +36,7 @@ pub struct BlockInfo {
 }
 
 /// Execution settings for handling messages.
-pub(crate) struct ExecutionSettings {
+pub struct ExecutionSettings {
     /// Contextual block information.
     pub block_info: BlockInfo,
     /// Performance multiplier.

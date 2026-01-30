@@ -24,9 +24,11 @@ extern crate alloc;
 
 use alloc::vec::Vec;
 use core_processor::{
-    ContextCharged, Ext, ProcessExecutionContext,
+    ContextCharged, ExecutionStep, Ext, ProcessExecutionContext, ProcessorExternalities,
+    SequenceState,
     common::{ExecutableActorData, JournalNote},
     configs::{BlockConfig, SyscallName},
+    execute_wasm_step,
 };
 use ethexe_common::gear::{CHUNK_PROCESSING_GAS_LIMIT, MessageType};
 use gear_core::{
@@ -34,8 +36,10 @@ use gear_core::{
     gas::GasAllowanceCounter,
     gas_metering::Schedule,
     ids::ActorId,
-    message::{DispatchKind, IncomingDispatch, IncomingMessage},
+    message::{ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage},
+    pages::{WasmPage, numerated::tree::IntervalsTree},
 };
+use gear_core_backend::MemorySnapshot;
 use gear_lazy_pages_common::LazyPagesInterface;
 use gprimitives::H256;
 use gsys::{GasMultiplier, Percent};
@@ -53,6 +57,9 @@ pub mod state;
 mod journal;
 mod schedule;
 mod transitions;
+
+#[cfg(test)]
+mod tests;
 
 // TODO: consider format.
 /// Version of the runtime.
@@ -199,7 +206,42 @@ where
     let mut mega_journal = Vec::new();
     let mut queue_gas_allowance_counter = GasAllowanceCounter::new(gas_allowance);
 
+    // Create message context settings from block config
+    let msg_ctx_settings = ContextSettings {
+        sending_fee: block_config.costs.db.write.cost_for(2.into()),
+        scheduled_sending_fee: block_config.costs.db.write.cost_for(4.into()),
+        waiting_fee: block_config.costs.db.write.cost_for(3.into()),
+        waking_fee: block_config.costs.db.write.cost_for(2.into()),
+        reservation_fee: block_config.costs.db.write.cost_for(2.into()),
+        outgoing_limit: block_config.outgoing_limit,
+        outgoing_bytes_limit: block_config.outgoing_bytes_limit,
+    };
+    let program = match (
+        &program_state.program,
+        instrumented_code.as_ref(),
+        code_metadata.as_ref(),
+    ) {
+        (state::Program::Active(active_state), Some(code), Some(metadata)) => {
+            let allocations = active_state.allocations_hash.map_or_default(|hash| {
+                ri.storage()
+                    .allocations(hash)
+                    .expect("Cannot get allocations")
+            });
+            Some(core_processor::common::Program {
+                id: program_id,
+                memory_infix: active_state.memory_infix,
+                instrumented_code: code.clone(),
+                code_metadata: metadata.clone(),
+                allocations: allocations.into(),
+            })
+        }
+        _ => None,
+    };
+
     ri.init_lazy_pages();
+
+    let mut sequence_state = SequenceState::<'_, Ext<RI::LazyPages>>::new();
+    let mut memory_snapshot = Ext::<RI::LazyPages>::memory_snapshot();
 
     for dispatch in queue {
         let origin = dispatch.message_type;
@@ -209,12 +251,16 @@ where
         let journal = process_dispatch(
             dispatch,
             &block_config,
+            msg_ctx_settings,
             program_id,
             &program_state,
             &instrumented_code,
             &code_metadata,
             ri,
             queue_gas_allowance_counter.left(),
+            &mut sequence_state,
+            &mut memory_snapshot,
+            program.as_ref(),
         );
         let mut handler = RuntimeJournalHandler {
             storage: ri.storage(),
@@ -247,15 +293,19 @@ where
 }
 
 #[allow(clippy::too_many_arguments)]
-fn process_dispatch<S, RI>(
+fn process_dispatch<'a, S, RI>(
     dispatch: Dispatch,
     block_config: &BlockConfig,
+    msg_ctx_settings: ContextSettings,
     program_id: ActorId,
     program_state: &ProgramState,
     instrumented_code: &Option<InstrumentedCode>,
     code_metadata: &Option<CodeMetadata>,
     ri: &RI,
     gas_allowance: u64,
+    sequence_state: &mut SequenceState<'a, Ext<RI::LazyPages>>,
+    memory_snapshot: &mut impl MemorySnapshot,
+    program: Option<&'a core_processor::common::Program>,
 ) -> Vec<JournalNote>
 where
     S: Storage,
@@ -351,8 +401,10 @@ where
         Err(journal) => return journal,
     };
 
+    let allocations_tree: IntervalsTree<WasmPage> = allocations.into();
+
     let actor_data = ExecutableActorData {
-        allocations: allocations.into(),
+        allocations: allocations_tree.clone(),
         gas_reservation_map: Default::default(), // TODO (gear_v2): deprecate it.
         memory_infix: active_state.memory_infix,
     };
@@ -378,8 +430,80 @@ where
 
     let random_data = ri.random_data();
 
-    core_processor::process::<Ext<RI::LazyPages>>(block_config, execution_context, random_data)
-        .unwrap_or_else(|err| unreachable!("{err}"))
+    let BlockConfig {
+        block_info,
+        performance_multiplier,
+        forbidden_funcs,
+        reserve_for,
+        gas_multiplier,
+        costs,
+        existential_deposit,
+        mailbox_threshold,
+        max_pages,
+        ..
+    } = block_config;
+
+    let execution_settings = core_processor::configs::ExecutionSettings {
+        block_info: *block_info,
+        performance_multiplier: *performance_multiplier,
+        existential_deposit: *existential_deposit,
+        mailbox_threshold: *mailbox_threshold,
+        max_pages: *max_pages,
+        ext_costs: costs.ext.clone(),
+        lazy_pages_costs: costs.lazy_pages.clone(),
+        forbidden_funcs: forbidden_funcs.clone(),
+        reserve_for: *reserve_for,
+        random_data,
+        gas_multiplier: *gas_multiplier,
+    };
+
+    let (
+        _current_program,
+        dispatch,
+        gas_counter,
+        gas_allowance_counter,
+        gas_reserver,
+        balance,
+        memory_size,
+    ) = execution_context.into_parts();
+
+    let program = program.expect("program must be initialized for execution");
+
+    let initial_reservations_amount = gas_reserver.states().len();
+    let dispatch_for_journal = dispatch.clone();
+    let system_reservation_ctx =
+        core_processor::SystemReservationContext::from_dispatch(&dispatch_for_journal);
+
+    let execution_step = ExecutionStep {
+        balance,
+        dispatch,
+        allocations: allocations_tree,
+        gas_counter,
+        gas_allowance_counter,
+        gas_reserver,
+    };
+
+    let exec_result = execute_wasm_step::<Ext<RI::LazyPages>, _>(
+        execution_step,
+        program,
+        memory_size,
+        &execution_settings,
+        msg_ctx_settings,
+        sequence_state,
+        memory_snapshot,
+    )
+    .map_err(|err| match err {
+        core_processor::ExecutionSequenceError::Execution(err) => err,
+    });
+
+    core_processor::process_execution_result(
+        dispatch_for_journal,
+        program_id,
+        initial_reservations_amount,
+        system_reservation_ctx,
+        exec_result,
+    )
+    .unwrap_or_else(|err| unreachable!("{err}"))
 }
 
 pub const fn pack_u32_to_i64(low: u32, high: u32) -> i64 {

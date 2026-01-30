@@ -20,6 +20,7 @@
 
 use crate::{
     gas::ChargeError,
+    limited::LimitedVec,
     pages::{GearPage, WasmPage, WasmPagesAmount},
 };
 use alloc::{boxed::Box, format};
