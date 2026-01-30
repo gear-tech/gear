@@ -7,6 +7,7 @@ use alloy::{
     sol_types::SolEvent,
 };
 use anyhow::Result;
+use ethexe_common::Address as EthexeAddress;
 use ethexe_ethereum::{
     Ethereum,
     abi::IMirror::*,
@@ -28,7 +29,6 @@ use std::{
     collections::{BTreeMap, BTreeSet},
     marker::PhantomData,
     sync::Arc,
-    time::Duration,
 };
 use tokio::sync::{RwLock, broadcast::Receiver};
 use tracing::instrument;
@@ -424,7 +424,16 @@ async fn run_batch_impl(
                 program_ids.insert(program.1);
             }
 
-            process_events(api, messages, rx, block.hash()).await
+            let wait_for_event_blocks = blocks_window(args.len(), 3, 24);
+            process_events(
+                api,
+                messages,
+                rx,
+                block.hash(),
+                mid_map,
+                wait_for_event_blocks,
+            )
+            .await
         }
 
         Batch::UploadCode(args) => {
@@ -479,7 +488,8 @@ async fn run_batch_impl(
                 tracing::debug!("[Call with id {i}]: Message sent #{message_id} to {to}");
             }
 
-            process_events(api, messages, rx, block).await
+            let wait_for_event_blocks = blocks_window(args.len(), 2, 16);
+            process_events(api, messages, rx, block, mid_map, wait_for_event_blocks).await
         }
 
         Batch::ClaimValue(args) => {
@@ -531,13 +541,16 @@ async fn run_batch_impl(
                 let _ = mirror.send_reply(mid, payload, value).await?;
                 let reply_mid = MessageId::generate_reply(mid);
                 mid_map.write().await.insert(reply_mid, actor_id);
-                messages.insert(reply_mid, (actor_id, call_id));
+                // Mirror emits `Reply(..., replyTo=mid, ...)`, so track the original id.
+                messages.insert(mid, (actor_id, call_id));
 
                 tracing::debug!(
                     "[Call with id: {call_id}]: Successfully replied to {mid} with value={value}"
                 );
             }
-            process_events(api, messages, rx, block)
+
+            let wait_for_event_blocks = blocks_window(args.len(), 2, 16);
+            process_events(api, messages, rx, block, mid_map, wait_for_event_blocks)
                 .await
                 .map(|mut report| {
                     report.mailbox_data.append_removed(removed_from_mailbox);
@@ -597,9 +610,25 @@ async fn run_batch_impl(
                 }
             }
 
-            process_events(api, messages, rx, block_hash.hash()).await
+            let wait_for_event_blocks = blocks_window(args.len(), 3, 24);
+            process_events(
+                api,
+                messages,
+                rx,
+                block_hash.hash(),
+                mid_map,
+                wait_for_event_blocks,
+            )
+            .await
         }
     }
+}
+
+fn blocks_window(action_count: usize, blocks_per_action: usize, headroom_blocks: usize) -> usize {
+    action_count
+        .saturating_mul(blocks_per_action)
+        .saturating_add(headroom_blocks)
+        .max(10)
 }
 
 /// Wait for the new events since provided `block_hash`.
@@ -608,32 +637,28 @@ async fn process_events(
     mut messages: BTreeMap<MessageId, (ActorId, usize)>,
     mut rx: Receiver<<alloy::network::Ethereum as Network>::HeaderResponse>,
     block_hash: FixedBytes<32>,
+    mid_map: MidMap,
+    wait_for_event_blocks: usize,
 ) -> Result<Report> {
-    let wait_for_event_blocks = 30;
-    let wait_for_events_millisec = 14 * 1000;
     let mut mailbox_added = BTreeSet::new();
     let results = {
         let mut block = rx.recv().await?;
-        while block.hash() != block_hash {
-            tokio::time::sleep(Duration::new(0, 500)).await;
-            block =
-                tokio::time::timeout(Duration::from_millis(wait_for_events_millisec), rx.recv())
-                    .await
-                    .map_err(|_| {
-                        tracing::debug!("Timeout is reached while waiting for block events");
-                        anyhow::anyhow!("Event waiting timed out")
-                    })??;
+        let mut searched_blocks = 0usize;
+        let start_search_window_blocks = 5usize;
+        while block.hash() != block_hash && searched_blocks < start_search_window_blocks {
+            block = rx.recv().await?;
+            searched_blocks += 1;
+        }
+
+        if block.hash() != block_hash {
+            tracing::debug!(
+                "Start block hash wasn't observed within {start_search_window_blocks} blocks; starting from current block"
+            );
         }
 
         let mut v = Vec::new();
         let mut current_bn = block.hash();
-        let mut i = 0;
-        while i < wait_for_event_blocks {
-            if block.hash() != current_bn {
-                current_bn = block.hash();
-                i += 1;
-            }
-
+        for _ in 0..wait_for_event_blocks {
             let logs = api
                 .provider()
                 .get_logs(&Filter::new().at_block_hash(current_bn))
@@ -642,27 +667,66 @@ async fn process_events(
             for log in logs {
                 if let Some(event) = Event::decode_rpc_log(log)? {
                     tracing::debug!("Relevant log discovered: {event:?}");
+
+                    // Enrich message->program map from emitted logs.
+                    // The emitting contract address is the program mirror address.
+                    let actor_id: ActorId = EthexeAddress::from(event.address).into();
+                    {
+                        let mut lock = mid_map.write().await;
+                        match &event.kind {
+                            EventKind::MessageQueueingRequested(ev) => {
+                                lock.insert(MessageId::new(ev.id.0), actor_id);
+                            }
+                            EventKind::Reply(ev) => {
+                                let replied_to = MessageId::new(ev.replyTo.0);
+                                lock.insert(replied_to, actor_id);
+                                lock.insert(MessageId::generate_reply(replied_to), actor_id);
+                            }
+                            EventKind::ReplyCallFailed(ev) => {
+                                let replied_to = MessageId::new(ev.replyTo.0);
+                                lock.insert(replied_to, actor_id);
+                                lock.insert(MessageId::generate_reply(replied_to), actor_id);
+                            }
+                            EventKind::Message(ev) => {
+                                lock.insert(MessageId::new(ev.id.0), actor_id);
+                            }
+                            EventKind::MessageCallFailed(ev) => {
+                                lock.insert(MessageId::new(ev.id.0), actor_id);
+                            }
+                            EventKind::ValueClaimed(ev) => {
+                                lock.insert(MessageId::new(ev.claimedId.0), actor_id);
+                            }
+                            _ => {}
+                        }
+                    }
+
                     v.push(event);
                 }
             }
 
-            tokio::time::sleep(Duration::new(0, 100)).await;
-
-            block =
-                tokio::time::timeout(Duration::from_millis(wait_for_events_millisec), rx.recv())
-                    .await
-                    .map_err(|_| {
-                        tracing::debug!("Timeout is reached while waiting for block events");
-                        anyhow::anyhow!("Event waiting timed out")
-                    })??;
-
-            let mut mailbox_from_events = utils::capture_mailbox_messages(&api, &v)
-                .await
-                .expect("always valid");
+            let mut mailbox_from_events =
+                utils::capture_mailbox_messages(&api, &v, messages.keys().copied()).await?;
             mailbox_added.append(&mut mailbox_from_events);
+
+            block = rx.recv().await?;
+            current_bn = block.hash();
         }
 
-        utils::err_waited_or_succeed_batch(&mut v, messages.keys().copied()).await
+        let mut results =
+            utils::err_waited_or_succeed_batch(&mut v, messages.keys().copied()).await;
+
+        // Gear node-loader reports UNKNOWN when no terminal outcome is observed
+        // inside the event window; mirror that behavior here.
+        if !messages.is_empty() {
+            let resolved: BTreeSet<MessageId> = results.iter().map(|(id, _)| *id).collect();
+            for mid in messages.keys().copied() {
+                if !resolved.contains(&mid) {
+                    results.push((mid, Some("UNKNOWN".to_string())));
+                }
+            }
+        }
+
+        results
     };
 
     let mut program_ids = BTreeSet::new();
