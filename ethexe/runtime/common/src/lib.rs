@@ -25,9 +25,9 @@ extern crate alloc;
 use alloc::vec::Vec;
 use core_processor::{
     CachedExecutionData, ContextCharged, ExecutionStep, Ext, PrechargeContext,
-    ProcessExecutionContext, ProcessorExternalities, SequenceState,
-    common::{ExecutableActorData, JournalNote, ReservationsAndMemorySize},
-    configs::{BlockConfig, SyscallName},
+    ProcessorExternalities, SequenceState,
+    common::{ExecutableActorData, JournalNote, Program, ReservationsAndMemorySize},
+    configs::{BlockConfig, ExecutionSettings, SyscallName},
     execute_wasm_step,
 };
 use ethexe_common::gear::{CHUNK_PROCESSING_GAS_LIMIT, MessageType};
@@ -47,7 +47,7 @@ use journal::RuntimeJournalHandler;
 use state::{Dispatch, ProgramState, Storage};
 
 pub use core_processor::configs::BlockInfo;
-use gear_core::code::InstrumentedCodeAndMetadata;
+
 pub use journal::NativeJournalHandler as JournalHandler;
 pub use schedule::{Handler as ScheduleHandler, Restorer as ScheduleRestorer};
 pub use transitions::{FinalizedBlockTransitions, InBlockTransitions, NonFinalTransition};
@@ -240,6 +240,22 @@ where
 
     ri.init_lazy_pages();
 
+    // Cache execution settings once per queue
+    let random_data = ri.random_data();
+    let execution_settings = core_processor::configs::ExecutionSettings {
+        block_info: block_config.block_info,
+        performance_multiplier: block_config.performance_multiplier,
+        existential_deposit: block_config.existential_deposit,
+        mailbox_threshold: block_config.mailbox_threshold,
+        max_pages: block_config.max_pages,
+        ext_costs: block_config.costs.ext.clone(),
+        lazy_pages_costs: block_config.costs.lazy_pages.clone(),
+        forbidden_funcs: block_config.forbidden_funcs.clone(),
+        reserve_for: block_config.reserve_for,
+        random_data,
+        gas_multiplier: block_config.gas_multiplier,
+    };
+
     let mut sequence_state = SequenceState::<'_, Ext<RI::LazyPages>>::new();
     let mut memory_snapshot = Ext::<RI::LazyPages>::memory_snapshot();
 
@@ -261,6 +277,7 @@ where
             &mut sequence_state,
             &mut memory_snapshot,
             program.as_ref(),
+            &execution_settings,
         );
 
         // Check if allocations changed and update the cache
@@ -269,11 +286,10 @@ where
                 program_id: pid,
                 allocations,
             } = note
+                && *pid == program_id
             {
-                if *pid == program_id {
-                    sequence_state.update_cached_allocations(allocations.clone());
-                    break;
-                }
+                sequence_state.update_cached_allocations(allocations.clone());
+                break;
             }
         }
 
@@ -320,7 +336,8 @@ fn process_dispatch<'a, S, RI>(
     gas_allowance: u64,
     sequence_state: &mut SequenceState<'a, Ext<RI::LazyPages>>,
     memory_snapshot: &mut impl MemorySnapshot,
-    program: Option<&'a core_processor::common::Program>,
+    program: Option<&'a Program>,
+    execution_settings: &ExecutionSettings,
 ) -> Vec<JournalNote>
 where
     S: Storage,
@@ -389,12 +406,9 @@ where
         }
         PrechargeContext::PreCharged { context } => {
             // Pre-charged path - validate program state only
-            if let Err(journal) = validate_program_state_precharged(
-                program_state,
-                kind,
-                dispatch_id,
-                program_id,
-            ) {
+            if let Err(journal) =
+                validate_program_state_precharged(program_state, kind, dispatch_id, program_id)
+            {
                 return journal;
             }
 
@@ -406,55 +420,27 @@ where
         }
     };
 
-    let execution_context = ProcessExecutionContext::new(
-        context,
-        InstrumentedCodeAndMetadata {
-            instrumented_code: code.clone(),
-            metadata: code_metadata.clone(),
-        },
-        program_state.balance,
-    );
-
-    let random_data = ri.random_data();
-
-    let BlockConfig {
-        block_info,
-        performance_multiplier,
-        forbidden_funcs,
-        reserve_for,
-        gas_multiplier,
-        costs,
-        existential_deposit,
-        mailbox_threshold,
-        max_pages,
-        ..
-    } = block_config;
-
-    let execution_settings = core_processor::configs::ExecutionSettings {
-        block_info: *block_info,
-        performance_multiplier: *performance_multiplier,
-        existential_deposit: *existential_deposit,
-        mailbox_threshold: *mailbox_threshold,
-        max_pages: *max_pages,
-        ext_costs: costs.ext.clone(),
-        lazy_pages_costs: costs.lazy_pages.clone(),
-        forbidden_funcs: forbidden_funcs.clone(),
-        reserve_for: *reserve_for,
-        random_data,
-        gas_multiplier: *gas_multiplier,
-    };
-
+    // Call into_final_parts() directly and use the already-existing program reference
     let (
-        _current_program,
+        _destination_id,
         dispatch,
         gas_counter,
         gas_allowance_counter,
-        gas_reserver,
-        balance,
-        memory_size,
-    ) = execution_context.into_parts();
+        actor_data,
+        allocations_data,
+    ) = context.into_final_parts();
 
     let program = program.expect("program must be initialized for execution");
+
+    // Create gas reserver from dispatch and actor data
+    let gas_reserver = gear_core::reservation::GasReserver::new(
+        &dispatch,
+        actor_data.gas_reservation_map,
+        allocations_data.max_reservations,
+    );
+
+    let balance = program_state.balance;
+    let memory_size = allocations_data.memory_size;
 
     let initial_reservations_amount = gas_reserver.states().len();
     let dispatch_for_journal = dispatch.clone();
@@ -474,7 +460,7 @@ where
         execution_step,
         program,
         memory_size,
-        &execution_settings,
+        execution_settings,
         msg_ctx_settings,
         sequence_state,
         memory_snapshot,

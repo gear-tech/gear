@@ -246,7 +246,8 @@ fn process_error(
     system_reservation_ctx: SystemReservationContext,
     case: ProcessErrorCase,
 ) -> Vec<JournalNote> {
-    let mut journal = Vec::new();
+    // Pre-allocate with typical capacity for error cases
+    let mut journal = Vec::with_capacity(8);
 
     let message_id = dispatch.id();
     let origin = dispatch.source();
@@ -507,7 +508,8 @@ pub fn process_success(
         ..
     } = dispatch_result;
 
-    let mut journal = Vec::new();
+    // Pre-allocate with typical capacity for success cases
+    let mut journal = Vec::with_capacity(16);
 
     let message_id = dispatch.id();
     let origin = dispatch.source();
