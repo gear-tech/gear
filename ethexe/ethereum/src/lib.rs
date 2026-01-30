@@ -77,6 +77,7 @@ pub type AlloyProvider = FillProvider<
     RootProvider,
 >;
 
+#[derive(Clone)]
 pub struct Ethereum {
     router: Address,
     wvara: Address,
