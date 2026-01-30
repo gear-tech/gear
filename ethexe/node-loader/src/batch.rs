@@ -1,16 +1,17 @@
 use alloy::{
+    consensus::Transaction,
     eips::BlockId,
-    network::{Network, primitives::HeaderResponse},
+    network::{BlockResponse, Network, primitives::HeaderResponse},
     primitives::{Address, FixedBytes, LogData},
-    providers::Provider,
-    rpc::types::{Filter, Log},
-    sol_types::SolEvent,
+    providers::{Provider, WalletProvider},
+    rpc::types::{BlockTransactions, Filter, Log},
+    sol_types::{SolCall, SolEvent},
 };
 use anyhow::Result;
 use ethexe_common::Address as EthexeAddress;
 use ethexe_ethereum::{
     Ethereum,
-    abi::IMirror::*,
+    abi::{IMirror::*, IRouter::commitBatchCall},
     mirror::signatures::{
         EXECUTABLE_BALANCE_TOP_UP_REQUESTED, MESSAGE, MESSAGE_CALL_FAILED,
         MESSAGE_QUEUEING_REQUESTED, OWNED_BALANCE_TOP_UP_REQUESTED, REPLY, REPLY_CALL_FAILED,
@@ -58,6 +59,29 @@ pub struct BatchPool<Rng: CallGenRng> {
 }
 
 type MidMap = Arc<RwLock<BTreeMap<MessageId, ActorId>>>;
+
+#[derive(Debug, Default, Clone, Copy)]
+struct ProcessEventsStats {
+    start_block_found: bool,
+    start_search_window_blocks: usize,
+
+    router_txs_seen: usize,
+    commit_batch_calls_decoded: usize,
+    chain_commitments_seen: usize,
+    transitions_seen: usize,
+    transition_messages_seen: usize,
+    transition_value_claims_seen: usize,
+    transition_reply_details_seen: usize,
+    transition_replies_matched: usize,
+    transition_mailbox_added: usize,
+
+    mirror_logs_seen: usize,
+    mirror_events_decoded: usize,
+    mirror_message_events: usize,
+    mirror_reply_events: usize,
+    mirror_call_failed_events: usize,
+    mirror_value_claimed_events: usize,
+}
 
 const INJECTED_TX_RATIO_NUM: u8 = 7;
 const INJECTED_TX_RATIO_DEN: u8 = 10;
@@ -656,10 +680,16 @@ async fn process_events(
     wait_for_event_blocks: usize,
 ) -> Result<Report> {
     let mut mailbox_added = BTreeSet::new();
+    let initial_messages_len = messages.len();
+    let mut stats = ProcessEventsStats {
+        start_search_window_blocks: 5,
+        ..Default::default()
+    };
+
     let results = {
         let mut block = rx.recv().await?;
         let mut searched_blocks = 0usize;
-        let start_search_window_blocks = 5usize;
+        let start_search_window_blocks = stats.start_search_window_blocks;
         while block.hash() != block_hash && searched_blocks < start_search_window_blocks {
             block = rx.recv().await?;
             searched_blocks += 1;
@@ -669,19 +699,232 @@ async fn process_events(
             tracing::debug!(
                 "Start block hash wasn't observed within {start_search_window_blocks} blocks; starting from current block"
             );
+            stats.start_block_found = false;
+        } else {
+            stats.start_block_found = true;
         }
+
+        let to: Address = api.provider().default_signer_address();
+        let sent_message_ids: BTreeSet<MessageId> = messages.keys().copied().collect();
+        let mut transition_outcomes: BTreeMap<MessageId, Option<String>> = BTreeMap::new();
 
         let mut v = Vec::new();
         let mut current_bn = block.hash();
         for _ in 0..wait_for_event_blocks {
+            let mut router_txs_seen = 0usize;
+            let mut commit_batch_calls_decoded = 0usize;
+            let mut chain_commitments_seen = 0usize;
+            let mut transitions_seen = 0usize;
+            let mut transition_messages_seen = 0usize;
+            let mut transition_value_claims_seen = 0usize;
+            let mut transition_reply_details_seen = 0usize;
+            let mut transition_replies_matched = 0usize;
+            let mut transition_mailbox_added = 0usize;
+
+            // Parse Router commitBatch calldata for this block and merge with Mirror logs.
+            // This is particularly important for injected transactions where Mirror request logs
+            // might not be present, but transitions still contain the canonical reply.
+            let full_block = api
+                .provider()
+                .get_block(BlockId::Hash(current_bn.into()))
+                .full()
+                .await?
+                .expect("block not found?");
+            if let BlockTransactions::Full(txs) = full_block.transactions() {
+                for tx in txs {
+                    if let Some(tx_to) = tx.to()
+                        && tx_to.0.0 == api.router().address().0
+                    {
+                        router_txs_seen += 1;
+                        match commitBatchCall::abi_decode(tx.input()) {
+                            Ok(commit_batch) => {
+                                commit_batch_calls_decoded += 1;
+                                let batch = commit_batch._batch;
+                                tracing::debug!(
+                                    block_hash = ?current_bn,
+                                    chain_commitments = batch.chainCommitment.len(),
+                                    "Decoded Router.commitBatch calldata"
+                                );
+                                for commitment in batch.chainCommitment.iter() {
+                                    chain_commitments_seen += 1;
+                                    for tr in commitment.transitions.iter() {
+                                        transitions_seen += 1;
+                                        let actor_id: ActorId =
+                                            EthexeAddress::from(tr.actorId).into();
+
+                                        // Value claims help us keep `mid_map` warm for ClaimValue.
+                                        {
+                                            let mut lock = mid_map.write().await;
+                                            for vc in tr.valueClaims.iter() {
+                                                transition_value_claims_seen += 1;
+                                                lock.insert(
+                                                    MessageId::new(vc.messageId.0),
+                                                    actor_id,
+                                                );
+                                            }
+                                        }
+
+                                        for msg in tr.messages.iter() {
+                                            transition_messages_seen += 1;
+                                            let msg_id = MessageId::new(msg.id.0);
+
+                                            // Map message id to the emitting program.
+                                            mid_map.write().await.insert(msg_id, actor_id);
+
+                                            // Mailbox: messages delivered to our EOA.
+                                            if msg.destination == to {
+                                                mailbox_added.insert(msg_id);
+                                                transition_mailbox_added += 1;
+                                            }
+
+                                            // Reply detection: in transitions, a reply is encoded via replyDetails.
+                                            // If this is a reply to one of our sent messages, we can derive an outcome.
+                                            if msg.replyDetails.to.0 != [0u8; 32] {
+                                                transition_reply_details_seen += 1;
+                                                let replied_to =
+                                                    MessageId::new(msg.replyDetails.to.0);
+
+                                                // Keep additional mappings for later Reply/Claim flows.
+                                                {
+                                                    let mut lock = mid_map.write().await;
+                                                    lock.insert(replied_to, actor_id);
+                                                    lock.insert(
+                                                        MessageId::generate_reply(replied_to),
+                                                        actor_id,
+                                                    );
+                                                }
+
+                                                if sent_message_ids.contains(&replied_to) {
+                                                    transition_replies_matched += 1;
+                                                    let reply_code = ReplyCode::from_bytes(
+                                                        msg.replyDetails.code.0,
+                                                    );
+                                                    let err =
+                                                        (!reply_code.is_success()).then(|| {
+                                                            String::from_utf8(msg.payload.to_vec())
+                                                                .unwrap_or_else(|_| {
+                                                                    "<non-utf8 reply payload>"
+                                                                        .to_string()
+                                                                })
+                                                        });
+
+                                                    let entry = transition_outcomes
+                                                        .entry(replied_to)
+                                                        .or_insert(Some("UNKNOWN".to_string()));
+                                                    match (&entry, &err) {
+                                                        (Some(current), None)
+                                                            if current == "UNKNOWN" =>
+                                                        {
+                                                            *entry = None;
+                                                        }
+                                                        (_, Some(_)) => {
+                                                            *entry = err;
+                                                        }
+                                                        _ => {}
+                                                    }
+
+                                                    tracing::debug!(
+                                                        block_hash = ?current_bn,
+                                                        program = ?actor_id,
+                                                        replied_to = ?replied_to,
+                                                        reply_code = ?reply_code,
+                                                        "Matched reply outcome from Router transitions"
+                                                    );
+                                                } else {
+                                                    tracing::trace!(
+                                                        block_hash = ?current_bn,
+                                                        program = ?actor_id,
+                                                        msg_id = ?msg_id,
+                                                        replied_to = ?replied_to,
+                                                        "ReplyDetails present in transition, but replyTo isn't tracked by this batch"
+                                                    );
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                            Err(err) => {
+                                tracing::trace!("Not a commit batch call: {}", err);
+                            }
+                        }
+                    }
+                }
+            } else {
+                tracing::trace!(
+                    block_hash = ?current_bn,
+                    "Block transactions are not available in Full form; skipping commitBatch parsing"
+                );
+            }
+
+            tracing::debug!(
+                block_hash = ?current_bn,
+                router_txs_seen,
+                commit_batch_calls_decoded,
+                chain_commitments_seen,
+                transitions_seen,
+                transition_messages_seen,
+                transition_value_claims_seen,
+                transition_reply_details_seen,
+                transition_replies_matched,
+                transition_mailbox_added,
+                "Router transition parse summary"
+            );
+
+            stats.router_txs_seen = stats.router_txs_seen.saturating_add(router_txs_seen);
+            stats.commit_batch_calls_decoded = stats
+                .commit_batch_calls_decoded
+                .saturating_add(commit_batch_calls_decoded);
+            stats.chain_commitments_seen = stats
+                .chain_commitments_seen
+                .saturating_add(chain_commitments_seen);
+            stats.transitions_seen = stats.transitions_seen.saturating_add(transitions_seen);
+            stats.transition_messages_seen = stats
+                .transition_messages_seen
+                .saturating_add(transition_messages_seen);
+            stats.transition_value_claims_seen = stats
+                .transition_value_claims_seen
+                .saturating_add(transition_value_claims_seen);
+            stats.transition_reply_details_seen = stats
+                .transition_reply_details_seen
+                .saturating_add(transition_reply_details_seen);
+            stats.transition_replies_matched = stats
+                .transition_replies_matched
+                .saturating_add(transition_replies_matched);
+            stats.transition_mailbox_added = stats
+                .transition_mailbox_added
+                .saturating_add(transition_mailbox_added);
+
             let logs = api
                 .provider()
                 .get_logs(&Filter::new().at_block_hash(current_bn))
                 .await?;
 
+            stats.mirror_logs_seen = stats.mirror_logs_seen.saturating_add(logs.len());
+
             for log in logs {
                 if let Some(event) = Event::decode_rpc_log(log)? {
                     tracing::debug!("Relevant log discovered: {event:?}");
+
+                    stats.mirror_events_decoded = stats.mirror_events_decoded.saturating_add(1);
+                    match &event.kind {
+                        EventKind::Message(_) => {
+                            stats.mirror_message_events =
+                                stats.mirror_message_events.saturating_add(1);
+                        }
+                        EventKind::Reply(_) => {
+                            stats.mirror_reply_events = stats.mirror_reply_events.saturating_add(1);
+                        }
+                        EventKind::MessageCallFailed(_) | EventKind::ReplyCallFailed(_) => {
+                            stats.mirror_call_failed_events =
+                                stats.mirror_call_failed_events.saturating_add(1);
+                        }
+                        EventKind::ValueClaimed(_) => {
+                            stats.mirror_value_claimed_events =
+                                stats.mirror_value_claimed_events.saturating_add(1);
+                        }
+                        _ => {}
+                    }
 
                     // Enrich message->program map from emitted logs.
                     // The emitting contract address is the program mirror address.
@@ -727,31 +970,58 @@ async fn process_events(
             current_bn = block.hash();
         }
 
-        let mut results =
-            utils::err_waited_or_succeed_batch(&mut v, messages.keys().copied()).await;
+        let mut result_map: BTreeMap<MessageId, Option<String>> = BTreeMap::new();
+
+        for (mid, status) in
+            utils::err_waited_or_succeed_batch(&mut v, messages.keys().copied()).await
+        {
+            result_map.insert(mid, status);
+        }
+
+        // Merge transition-derived outcomes with log-derived outcomes.
+        for (mid, status) in transition_outcomes {
+            let entry = result_map.entry(mid).or_insert(Some("UNKNOWN".to_string()));
+            match (&entry, &status) {
+                (Some(current), None) if current == "UNKNOWN" => *entry = None,
+                (None, Some(_)) => *entry = status,
+                (Some(current), Some(_)) if current == "UNKNOWN" => *entry = status,
+                _ => {}
+            }
+        }
 
         // Gear node-loader reports UNKNOWN when no terminal outcome is observed
         // inside the event window; mirror that behavior here.
         if !messages.is_empty() {
-            let resolved: BTreeSet<MessageId> = results.iter().map(|(id, _)| *id).collect();
+            let resolved: BTreeSet<MessageId> = result_map.keys().copied().collect();
             for mid in messages.keys().copied() {
                 if !resolved.contains(&mid) {
-                    results.push((mid, Some("UNKNOWN".to_string())));
+                    result_map.insert(mid, Some("UNKNOWN".to_string()));
                 }
             }
         }
 
-        results
+        result_map.into_iter().collect::<Vec<_>>()
     };
+
+    let mut ok_count = 0usize;
+    let mut unknown_count = 0usize;
+    let mut err_count = 0usize;
+    for (_mid, status) in results.iter() {
+        match status {
+            None => ok_count += 1,
+            Some(s) if s == "UNKNOWN" => unknown_count += 1,
+            Some(_) => err_count += 1,
+        }
+    }
 
     let mut program_ids = BTreeSet::new();
 
-    for (mid, maybe_err) in results {
+    for (mid, maybe_err) in &results {
         if messages.is_empty() {
             break;
         }
 
-        if let Some((pid, call_id)) = messages.remove(&mid) {
+        if let Some((pid, call_id)) = messages.remove(mid) {
             if let Some(expl) = maybe_err {
                 tracing::debug!(
                     "[Call with id: {call_id}]: {mid:#.2} executing within program '{pid:#.2}' ended with a trap: '{expl}'"
@@ -768,6 +1038,40 @@ async fn process_events(
     if !messages.is_empty() {
         tracing::error!("Unresolved messages: {messages:?}");
     }
+
+    let unresolved_count = messages.len();
+    let unresolved_sample: Vec<MessageId> = messages.keys().copied().take(10).collect();
+    tracing::info!(
+        start_block_target = ?block_hash,
+        wait_for_event_blocks,
+        batch_messages_total = initial_messages_len,
+        results_total = results.len(),
+        results_ok = ok_count,
+        results_err = err_count,
+        results_unknown = unknown_count,
+        mailbox_added = mailbox_added.len(),
+        program_ids = program_ids.len(),
+        unresolved_count,
+        unresolved_sample = ?unresolved_sample,
+        start_block_found = stats.start_block_found,
+        start_search_window_blocks = stats.start_search_window_blocks,
+        router_txs_seen = stats.router_txs_seen,
+        commit_batch_calls_decoded = stats.commit_batch_calls_decoded,
+        chain_commitments_seen = stats.chain_commitments_seen,
+        transitions_seen = stats.transitions_seen,
+        transition_messages_seen = stats.transition_messages_seen,
+        transition_value_claims_seen = stats.transition_value_claims_seen,
+        transition_reply_details_seen = stats.transition_reply_details_seen,
+        transition_replies_matched = stats.transition_replies_matched,
+        transition_mailbox_added = stats.transition_mailbox_added,
+        mirror_logs_seen = stats.mirror_logs_seen,
+        mirror_events_decoded = stats.mirror_events_decoded,
+        mirror_message_events = stats.mirror_message_events,
+        mirror_reply_events = stats.mirror_reply_events,
+        mirror_call_failed_events = stats.mirror_call_failed_events,
+        mirror_value_claimed_events = stats.mirror_value_claimed_events,
+        "process_events summary"
+    );
 
     tracing::debug!("Mailbox {:?}", mailbox_added);
     Ok(Report {
