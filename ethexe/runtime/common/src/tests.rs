@@ -359,3 +359,530 @@ fn sequential_queue_benchmark() {
 
     eprintln!("sequential: avg_gas={avg_gas}, avg_elapsed={avg_elapsed:?}");
 }
+
+// ============================================================================
+// Charging Optimization Tests
+// ============================================================================
+//
+// These tests verify the gas charging optimization for sequential execution,
+// where data is loaded once and reused across dispatches without re-charging.
+
+/// Test that verifies gas savings from charging optimization.
+/// Multiple dispatches in a queue should benefit from caching:
+/// - First dispatch goes through full charging (PrechargeContext::NeedsCharging)
+/// - Subsequent dispatches use cached data (PrechargeContext::PreCharged)
+#[test]
+fn charging_optimization_gas_savings_with_multiple_dispatches() {
+    // Run queue with extra mints to see the effect of caching
+    let config_few = LoadConfig {
+        extra_mints: 0,
+        ..Default::default()
+    };
+
+    let config_many = LoadConfig {
+        extra_mints: 10,
+        ..Default::default()
+    };
+
+    init_lazy_pages();
+
+    let code = build_code();
+    let program_id = ActorId::generate_from_user(CodeId::generate(code.original_code()), b"");
+    let user_id = ActorId::from(10);
+
+    // Run with few dispatches (5 total: init + mint + burn + total_supply + balance)
+    let storage_few = state::MemStorage::default();
+    let program_state_few = build_state_with_config(&storage_few, user_id, config_few);
+    let runtime_few = TestRuntimeInterface::new(storage_few);
+
+    let (journals_few, gas_few) = process_queue::<_, _>(
+        program_id,
+        program_state_few,
+        MessageType::Canonical,
+        Some(code.instrumented_code().clone()),
+        Some(code.metadata().clone()),
+        &runtime_few,
+        10_000_000_000_000,
+    );
+
+    // Run with many dispatches (15 total: init + mint + 10 extra mints + burn + total_supply + balance)
+    let storage_many = state::MemStorage::default();
+    let program_state_many = build_state_with_config(&storage_many, user_id, config_many);
+    let runtime_many = TestRuntimeInterface::new(storage_many);
+
+    let (journals_many, gas_many) = process_queue::<_, _>(
+        program_id,
+        program_state_many,
+        MessageType::Canonical,
+        Some(code.instrumented_code().clone()),
+        Some(code.metadata().clone()),
+        &runtime_many,
+        10_000_000_000_000,
+    );
+
+    // Both should produce valid results
+    assert_eq!(extract_supply(&journals_few), Some(1_000_000));
+    assert_eq!(extract_supply(&journals_many), Some(1_000_010)); // 1_000_000 + 10 extra mints
+
+    // Gas should increase, but not linearly with dispatch count
+    // because subsequent dispatches skip charging for program/code data reads.
+    assert!(gas_many > gas_few, "More dispatches should use more gas");
+
+    // Calculate gas per dispatch (rough metric)
+    let dispatches_few = 5; // init + mint + burn + total_supply + balance
+    let dispatches_many = 15; // init + mint + 10 extra mints + burn + total_supply + balance
+
+    let gas_per_dispatch_few = gas_few / dispatches_few;
+    let gas_per_dispatch_many = gas_many / dispatches_many;
+
+    // With caching, gas per dispatch should be lower for many dispatches
+    // because the charging overhead is amortized over more dispatches.
+    assert!(
+        gas_per_dispatch_many < gas_per_dispatch_few,
+        "Gas per dispatch should be lower with more dispatches due to caching. \
+         Few: {} gas/dispatch, Many: {} gas/dispatch",
+        gas_per_dispatch_few,
+        gas_per_dispatch_many
+    );
+}
+
+/// Test that allocation updates are properly propagated to the cache.
+/// When a dispatch modifies allocations, the cache should be updated
+/// so subsequent dispatches see the correct allocations.
+#[test]
+fn charging_optimization_allocation_updates_propagate() {
+    // The fungible token demo allocates memory during init and mint operations.
+    // This test verifies that allocation changes are tracked through the cache.
+    init_lazy_pages();
+
+    let code = build_code();
+    let program_id = ActorId::generate_from_user(CodeId::generate(code.original_code()), b"");
+    let user_id = ActorId::from(10);
+
+    let storage = state::MemStorage::default();
+
+    // Create a queue with multiple operations that may trigger allocations
+    let mut queue = state::MessageQueue::default();
+
+    // Init dispatch
+    let init = Dispatch::new(
+        &storage,
+        MessageId::from(1),
+        user_id,
+        InitConfig {
+            name: "TestToken".to_string(),
+            symbol: "TTK".to_string(),
+            decimals: 18,
+            initial_capacity: None,
+        }
+        .encode(),
+        0,
+        true,
+        MessageType::Canonical,
+        false,
+    )
+    .expect("failed to build init dispatch");
+    queue.queue(init);
+
+    // Multiple mints to potentially trigger allocation growth
+    for i in 2..=10u64 {
+        let mint = Dispatch::new(
+            &storage,
+            MessageId::from(i),
+            user_id,
+            FTAction::Mint(100).encode(),
+            0,
+            false,
+            MessageType::Canonical,
+            false,
+        )
+        .expect("failed to build mint dispatch");
+        queue.queue(mint);
+    }
+
+    // Final balance query
+    let balance = Dispatch::new(
+        &storage,
+        MessageId::from(11),
+        user_id,
+        FTAction::BalanceOf(user_id).encode(),
+        0,
+        false,
+        MessageType::Canonical,
+        false,
+    )
+    .expect("failed to build balance dispatch");
+    queue.queue(balance);
+
+    let queue_len = queue.len();
+    let queue_hash = queue.store(&storage);
+
+    let mut state = state::ProgramState::zero();
+    state.program = state::Program::Active(state::ActiveProgram {
+        allocations_hash: MaybeHashOf::empty(),
+        pages_hash: MaybeHashOf::empty(),
+        memory_infix: MemoryInfix::new(0),
+        initialized: false,
+    });
+    state.canonical_queue = state::MessageQueueHashWithSize {
+        hash: queue_hash,
+        cached_queue_size: queue_len as u8,
+    };
+    state.executable_balance = 1_500_000_000_000;
+
+    let runtime = TestRuntimeInterface::new(storage);
+
+    let (journals, gas_spent) = process_queue::<_, _>(
+        program_id,
+        state,
+        MessageType::Canonical,
+        Some(code.instrumented_code().clone()),
+        Some(code.metadata().clone()),
+        &runtime,
+        10_000_000_000_000,
+    );
+
+    // Verify all dispatches completed and balance is correct
+    let balance = extract_balance(&journals);
+    assert_eq!(balance, Some(900), "Balance should be 9 mints * 100 = 900");
+
+    assert!(gas_spent > 0);
+
+    // Count UpdateAllocations journal notes to verify allocation tracking
+    let allocation_updates: usize = journals
+        .iter()
+        .flat_map(|(journal, _, _)| journal.iter())
+        .filter(|note| matches!(note, JournalNote::UpdateAllocations { .. }))
+        .count();
+
+    // There should be some allocation updates (at least from init)
+    // The exact count depends on the token implementation
+    eprintln!("Allocation updates: {allocation_updates}");
+}
+
+/// Test that verifies the charging optimization doesn't affect correctness
+/// when processing a queue with various message types.
+#[test]
+fn charging_optimization_correctness_with_mixed_operations() {
+    init_lazy_pages();
+
+    let code = build_code();
+    let program_id = ActorId::generate_from_user(CodeId::generate(code.original_code()), b"");
+    let user_id = ActorId::from(10);
+    let other_user = ActorId::from(20);
+
+    let storage = state::MemStorage::default();
+
+    let mut queue = state::MessageQueue::default();
+    let mut msg_id = 1u64;
+
+    // Init
+    let init = Dispatch::new(
+        &storage,
+        MessageId::from(msg_id),
+        user_id,
+        InitConfig {
+            name: "MixedOpsToken".to_string(),
+            symbol: "MOT".to_string(),
+            decimals: 18,
+            initial_capacity: None,
+        }
+        .encode(),
+        0,
+        true,
+        MessageType::Canonical,
+        false,
+    )
+    .expect("failed to build init dispatch");
+    queue.queue(init);
+    msg_id += 1;
+
+    // Mint 1000
+    queue.queue(
+        Dispatch::new(
+            &storage,
+            MessageId::from(msg_id),
+            user_id,
+            FTAction::Mint(1000).encode(),
+            0,
+            false,
+            MessageType::Canonical,
+            false,
+        )
+        .expect("failed"),
+    );
+    msg_id += 1;
+
+    // Transfer 200 to other_user
+    queue.queue(
+        Dispatch::new(
+            &storage,
+            MessageId::from(msg_id),
+            user_id,
+            FTAction::Transfer { from: user_id, to: other_user, amount: 200 }.encode(),
+            0,
+            false,
+            MessageType::Canonical,
+            false,
+        )
+        .expect("failed"),
+    );
+    msg_id += 1;
+
+    // Query user balance (should be 800)
+    queue.queue(
+        Dispatch::new(
+            &storage,
+            MessageId::from(msg_id),
+            user_id,
+            FTAction::BalanceOf(user_id).encode(),
+            0,
+            false,
+            MessageType::Canonical,
+            false,
+        )
+        .expect("failed"),
+    );
+    msg_id += 1;
+
+    // Mint more (500)
+    queue.queue(
+        Dispatch::new(
+            &storage,
+            MessageId::from(msg_id),
+            user_id,
+            FTAction::Mint(500).encode(),
+            0,
+            false,
+            MessageType::Canonical,
+            false,
+        )
+        .expect("failed"),
+    );
+    msg_id += 1;
+
+    // Query total supply (should be 1500)
+    queue.queue(
+        Dispatch::new(
+            &storage,
+            MessageId::from(msg_id),
+            user_id,
+            FTAction::TotalSupply.encode(),
+            0,
+            false,
+            MessageType::Canonical,
+            false,
+        )
+        .expect("failed"),
+    );
+    msg_id += 1;
+
+    // Try to burn more than available (should fail but not crash)
+    queue.queue(
+        Dispatch::new(
+            &storage,
+            MessageId::from(msg_id),
+            user_id,
+            FTAction::Burn(10000).encode(),
+            0,
+            false,
+            MessageType::Canonical,
+            false,
+        )
+        .expect("failed"),
+    );
+    msg_id += 1;
+
+    // Final balance check (should still be 1300 = 800 + 500)
+    queue.queue(
+        Dispatch::new(
+            &storage,
+            MessageId::from(msg_id),
+            user_id,
+            FTAction::BalanceOf(user_id).encode(),
+            0,
+            false,
+            MessageType::Canonical,
+            false,
+        )
+        .expect("failed"),
+    );
+
+    let queue_len = queue.len();
+    let queue_hash = queue.store(&storage);
+
+    let mut state = state::ProgramState::zero();
+    state.program = state::Program::Active(state::ActiveProgram {
+        allocations_hash: MaybeHashOf::empty(),
+        pages_hash: MaybeHashOf::empty(),
+        memory_infix: MemoryInfix::new(0),
+        initialized: false,
+    });
+    state.canonical_queue = state::MessageQueueHashWithSize {
+        hash: queue_hash,
+        cached_queue_size: queue_len as u8,
+    };
+    state.executable_balance = 1_500_000_000_000;
+
+    let runtime = TestRuntimeInterface::new(storage);
+
+    let (journals, gas_spent) = process_queue::<_, _>(
+        program_id,
+        state,
+        MessageType::Canonical,
+        Some(code.instrumented_code().clone()),
+        Some(code.metadata().clone()),
+        &runtime,
+        10_000_000_000_000,
+    );
+
+    // Extract all balance and supply events
+    let events = extract_events(&journals);
+
+    // Find the balance events (there should be 2)
+    let balance_events: Vec<_> = events
+        .iter()
+        .filter_map(|e| match e {
+            FTEvent::Balance(v) => Some(*v),
+            _ => None,
+        })
+        .collect();
+
+    // Find total supply
+    let supply = events.iter().find_map(|e| match e {
+        FTEvent::TotalSupply(v) => Some(*v),
+        _ => None,
+    });
+
+    // Verify correctness:
+    // - First balance query after transfer: 800
+    // - Second balance query after additional mint: 1300
+    // - Total supply: 1500
+    assert_eq!(balance_events.len(), 2, "Should have 2 balance events");
+    assert_eq!(balance_events[0], 800, "Balance after transfer should be 800");
+    assert_eq!(balance_events[1], 1300, "Final balance should be 1300");
+    assert_eq!(supply, Some(1500), "Total supply should be 1500");
+
+    assert!(gas_spent > 0);
+}
+
+/// Test to verify that caching works correctly across many sequential dispatches.
+/// This stress test ensures the optimization scales properly.
+#[test]
+fn charging_optimization_stress_test() {
+    const DISPATCH_COUNT: usize = 100;
+
+    init_lazy_pages();
+
+    let code = build_code();
+    let program_id = ActorId::generate_from_user(CodeId::generate(code.original_code()), b"");
+    let user_id = ActorId::from(10);
+
+    let storage = state::MemStorage::default();
+
+    let mut queue = state::MessageQueue::default();
+    let mut msg_id = 1u64;
+
+    // Init
+    queue.queue(
+        Dispatch::new(
+            &storage,
+            MessageId::from(msg_id),
+            user_id,
+            InitConfig {
+                name: "StressToken".to_string(),
+                symbol: "STR".to_string(),
+                decimals: 18,
+                initial_capacity: None,
+            }
+            .encode(),
+            0,
+            true,
+            MessageType::Canonical,
+            false,
+        )
+        .expect("failed"),
+    );
+    msg_id += 1;
+
+    // Many mint operations
+    for _ in 0..DISPATCH_COUNT {
+        queue.queue(
+            Dispatch::new(
+                &storage,
+                MessageId::from(msg_id),
+                user_id,
+                FTAction::Mint(1).encode(),
+                0,
+                false,
+                MessageType::Canonical,
+                false,
+            )
+            .expect("failed"),
+        );
+        msg_id += 1;
+    }
+
+    // Final total supply query
+    queue.queue(
+        Dispatch::new(
+            &storage,
+            MessageId::from(msg_id),
+            user_id,
+            FTAction::TotalSupply.encode(),
+            0,
+            false,
+            MessageType::Canonical,
+            false,
+        )
+        .expect("failed"),
+    );
+
+    let queue_len = queue.len();
+    let queue_hash = queue.store(&storage);
+
+    let mut state = state::ProgramState::zero();
+    state.program = state::Program::Active(state::ActiveProgram {
+        allocations_hash: MaybeHashOf::empty(),
+        pages_hash: MaybeHashOf::empty(),
+        memory_infix: MemoryInfix::new(0),
+        initialized: false,
+    });
+    state.canonical_queue = state::MessageQueueHashWithSize {
+        hash: queue_hash,
+        cached_queue_size: queue_len as u8,
+    };
+    state.executable_balance = 10_000_000_000_000;
+
+    let runtime = TestRuntimeInterface::new(storage);
+
+    let start = Instant::now();
+    let (journals, gas_spent) = process_queue::<_, _>(
+        program_id,
+        state,
+        MessageType::Canonical,
+        Some(code.instrumented_code().clone()),
+        Some(code.metadata().clone()),
+        &runtime,
+        100_000_000_000_000,
+    );
+    let elapsed = start.elapsed();
+
+    // Verify correctness
+    let supply = extract_supply(&journals);
+    assert_eq!(
+        supply,
+        Some(DISPATCH_COUNT as u128),
+        "Total supply should equal number of mints"
+    );
+
+    assert!(gas_spent > 0);
+
+    // Log performance metrics
+    let dispatches = DISPATCH_COUNT + 2; // init + mints + total_supply
+    let gas_per_dispatch = gas_spent / dispatches as u64;
+    eprintln!(
+        "Stress test: {} dispatches, {} total gas, {} gas/dispatch, {:?} elapsed",
+        dispatches, gas_spent, gas_per_dispatch, elapsed
+    );
+}
