@@ -886,3 +886,124 @@ fn charging_optimization_stress_test() {
         dispatches, gas_spent, gas_per_dispatch, elapsed
     );
 }
+
+/// Helper function to build a benchmark queue with exact dispatch count.
+/// dispatch_count=1 means just init, dispatch_count=2 means init + 1 mint, etc.
+fn build_benchmark_queue(
+    storage: &state::MemStorage,
+    user_id: ActorId,
+    dispatch_count: usize,
+) -> state::ProgramState {
+    assert!(dispatch_count >= 1, "Need at least 1 dispatch (init)");
+
+    let mut queue = state::MessageQueue::default();
+
+    // Init dispatch (always first)
+    queue.queue(
+        Dispatch::new(
+            storage,
+            MessageId::from(1),
+            user_id,
+            InitConfig {
+                name: "BenchToken".to_string(),
+                symbol: "BTK".to_string(),
+                decimals: 18,
+                initial_capacity: None,
+            }
+            .encode(),
+            0,
+            true,
+            MessageType::Canonical,
+            false,
+        )
+        .expect("failed"),
+    );
+
+    // Add mint dispatches for remaining count
+    for i in 2..=dispatch_count as u64 {
+        queue.queue(
+            Dispatch::new(
+                storage,
+                MessageId::from(i),
+                user_id,
+                FTAction::Mint(1).encode(),
+                0,
+                false,
+                MessageType::Canonical,
+                false,
+            )
+            .expect("failed"),
+        );
+    }
+
+    let queue_len = queue.len();
+    let queue_hash = queue.store(storage);
+
+    let mut state = state::ProgramState::zero();
+    state.program = state::Program::Active(state::ActiveProgram {
+        allocations_hash: MaybeHashOf::empty(),
+        pages_hash: MaybeHashOf::empty(),
+        memory_infix: MemoryInfix::new(0),
+        initialized: false,
+    });
+    state.canonical_queue = state::MessageQueueHashWithSize {
+        hash: queue_hash,
+        cached_queue_size: queue_len as u8,
+    };
+    state.executable_balance = 10_000_000_000_000;
+
+    state
+}
+
+/// Benchmark test for comparing gas and time consumption across different dispatch counts.
+/// Run with: cargo test -p ethexe-runtime-common comparison_benchmark --release -- --nocapture
+#[test]
+fn comparison_benchmark() {
+    const ITERATIONS: usize = 20;
+    const GAS_ALLOWANCE: u64 = 15_000_000_000;
+
+    init_lazy_pages();
+
+    let code = build_code();
+    let program_id = ActorId::generate_from_user(CodeId::generate(code.original_code()), b"");
+    let user_id = ActorId::from(10);
+
+    eprintln!("\n=== Charging Optimization Benchmark ===");
+    eprintln!("Iterations per test: {}", ITERATIONS);
+    eprintln!("Gas allowance: {}\n", GAS_ALLOWANCE);
+
+    for dispatch_count in [1, 2, 3, 5, 8, 12, 20, 30, 50, 100] {
+        let mut gas_total: u64 = 0;
+        let mut total_time = std::time::Duration::ZERO;
+
+        for _ in 0..ITERATIONS {
+            let storage = state::MemStorage::default();
+            let state = build_benchmark_queue(&storage, user_id, dispatch_count);
+            let runtime = TestRuntimeInterface::new(storage);
+
+            let start = Instant::now();
+            let (_journals, gas_spent) = process_queue::<_, _>(
+                program_id,
+                state,
+                MessageType::Canonical,
+                Some(code.instrumented_code().clone()),
+                Some(code.metadata().clone()),
+                &runtime,
+                GAS_ALLOWANCE,
+            );
+            let elapsed = start.elapsed();
+
+            gas_total += gas_spent;
+            total_time += elapsed;
+        }
+
+        let avg_gas = gas_total / ITERATIONS as u64;
+        let gas_per_dispatch = avg_gas / dispatch_count as u64;
+        let avg_elapsed = total_time / ITERATIONS as u32;
+
+        eprintln!(
+            "dispatches={:>3}, avg_gas={:>12}, gas/dispatch={:>10}, total_gas={:>14}, avg_time={:>10?}, total_time={:>10?}",
+            dispatch_count, avg_gas, gas_per_dispatch, gas_total, avg_elapsed, total_time
+        );
+    }
+}
