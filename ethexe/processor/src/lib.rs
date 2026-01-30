@@ -130,6 +130,11 @@ impl Processor {
         &self.config
     }
 
+    /// Change database used by the processor.
+    pub fn change_db(&mut self, db: Database) {
+        self.db = db;
+    }
+
     pub fn overlaid(mut self) -> OverlaidProcessor {
         self.db = unsafe { self.db.overlaid() };
 

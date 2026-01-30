@@ -16,13 +16,14 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-pub use compute::ComputeConfig;
 use ethexe_common::{Announce, CodeAndIdUnchecked, ComputedAnnounce, HashOf};
 use ethexe_processor::{ExecutableData, ProcessedCodeInfo, Processor, ProcessorError};
 use ethexe_runtime_common::FinalizedBlockTransitions;
 use gprimitives::{CodeId, H256};
-pub use service::ComputeService;
 use std::collections::HashSet;
+
+pub use compute::{ComputeConfig, ComputeSubService};
+pub use service::ComputeService;
 
 mod codes;
 mod compute;

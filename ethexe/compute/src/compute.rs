@@ -131,7 +131,7 @@ impl<P: ProcessorExt> ComputeSubService<P> {
         Ok(computed_announce)
     }
 
-    async fn compute_one(
+    pub async fn compute_one(
         db: &Database,
         processor: &mut P,
         announce_hash: HashOf<Announce>,
