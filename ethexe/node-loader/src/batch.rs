@@ -687,7 +687,7 @@ async fn process_events(
     }
 
     if !messages.is_empty() {
-        unreachable!("unresolved messages")
+        tracing::error!("Unresolved messages: {messages:?}");
     }
 
     tracing::debug!("Mailbox {:?}", mailbox_added);
