@@ -841,7 +841,7 @@ mod tests {
                 parent_hash: H256::zero(),
             };
             const TIMELINES: ProtocolTimelines = ProtocolTimelines {
-                genesis_ts: 1_000_000,
+                genesis_ts: GENESIS_BLOCK_HEADER.timestamp,
                 era: 1,
                 election: 1,
             };
