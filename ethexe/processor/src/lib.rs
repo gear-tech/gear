@@ -203,7 +203,6 @@ impl Processor {
             injected_messages,
         );
 
-        transitions = self.process_tasks(transitions);
         transitions =
             self.process_injected_and_events(transitions, injected_transactions, events)?;
         if let Some(gas_allowance) = gas_allowance {
@@ -211,6 +210,7 @@ impl Processor {
                 .process_queues(transitions, block, gas_allowance)
                 .await?;
         }
+        transitions = self.process_tasks(transitions);
 
         Ok(transitions.finalize())
     }
