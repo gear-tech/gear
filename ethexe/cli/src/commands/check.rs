@@ -23,11 +23,17 @@ use ethexe_common::{
     db::{AnnounceStorageRO, LatestData, LatestDataStorageRO, OnChainStorageRO},
     gear::StateTransition,
 };
-use ethexe_compute::ComputeConfig;
-use ethexe_db::{Database, RocksDatabase};
+use ethexe_compute::{ComputeConfig, ComputeSubService};
+use ethexe_db::{
+    Database, RocksDatabase,
+    iterator::{BlockNode, DatabaseIterator},
+    verifier::IntegrityVerifier,
+    visitor::{self},
+};
 use ethexe_processor::{Processor, ProcessorConfig};
 use indicatif::{ProgressBar, ProgressStyle};
-use std::path::PathBuf;
+use sp_core::H256;
+use std::{collections::HashSet, path::PathBuf};
 
 const PROGRESS_BAR_TEMPLATE: &str = "{spinner:.green} [{elapsed_precise}] [{wide_bar:.cyan/blue}] {pos}/{len} ({percent}%) ETA {eta_precise} {msg}";
 
@@ -38,11 +44,29 @@ pub struct CheckCommand {
     #[arg(long)]
     pub db: PathBuf,
 
-    #[arg(long)]
+    #[arg(long, default_value = "2")]
     pub chunk_size: usize,
 
-    #[arg(long)]
+    #[arg(long, default_value = "4")]
     pub canonical_quarantine: u8,
+
+    /// Perform computations of announces, by default from start announce to latest computed announce.
+    #[arg(long, alias = "compute")]
+    pub computation_check: bool,
+
+    /// Perform integrity check of the database, by default from start block to latest prepared block.
+    #[arg(long, alias = "integrity")]
+    pub integrity_check: bool,
+
+    /// Perform full check (computation + integrity).
+    #[arg(long, alias = "full")]
+    pub full_check: bool,
+
+    /// Show progress bar.
+    #[arg(long, alias = "pb", default_value = "true")]
+    pub progress_bar: bool,
+
+    pub verbose: bool,
 }
 
 impl CheckCommand {
@@ -54,78 +78,175 @@ impl CheckCommand {
             .block_on(self.exec_inner())
     }
 
-    pub async fn exec_inner(self) -> Result<()> {
+    async fn exec_inner(mut self) -> Result<()> {
+        if self.full_check {
+            self.computation_check = true;
+            self.integrity_check = true;
+        }
+
         let rocks_db = RocksDatabase::open(self.db).context("failed to open rocks database")?;
         let db = Database::from_one(&rocks_db);
 
         let LatestData {
             start_announce_hash,
             computed_announce_hash,
-            // start_block_hash,
-            // prepared_block_hash,
+            start_block_hash,
+            prepared_block_hash,
             ..
         } = db
             .latest_data()
             .ok_or_else(|| anyhow!("no latest data found in db"))?;
 
-        let total_blocks = announce_block(&db, computed_announce_hash)?
-            .header
-            .height
-            .saturating_sub(announce_block(&db, start_announce_hash)?.header.height);
+        if self.integrity_check {
+            println!(
+                "📋 Starting integrity check from block {start_block_hash} to {prepared_block_hash}"
+            );
+            integrity_check(&db, start_block_hash, prepared_block_hash)
+                .await
+                .context("integrity check failed")?;
+        }
 
-        let bar_style = ProgressStyle::with_template(PROGRESS_BAR_TEMPLATE)
-            .unwrap()
-            .progress_chars("=>-");
-
-        let pb = ProgressBar::new(total_blocks as u64);
-        pb.set_style(bar_style);
-
-        let mut processor = Processor::with_config(
-            ProcessorConfig {
-                chunk_size: self.chunk_size,
-            },
-            db.clone(),
-        )
-        .context("failed to create processor")?;
-
-        let compute_config = ComputeConfig::new(self.canonical_quarantine);
-
-        let mut announce_hash = computed_announce_hash;
-        while announce_hash != start_announce_hash {
-            let announce = db.announce(announce_hash).ok_or_else(|| {
-                anyhow!("announce {announce_hash} in computed chain not found in db")
-            })?;
-            let announce_parent_hash = announce.parent;
-
-            let overlaid_db = unsafe { db.clone().overlaid() };
-            processor.change_db(overlaid_db.clone());
-            let _result = ethexe_compute::ComputeSubService::compute_one(
-                &overlaid_db,
-                &mut processor,
-                announce_hash,
-                announce,
-                compute_config,
+        if self.computation_check {
+            println!(
+                "📋 Starting computation check from announce {start_announce_hash} to {computed_announce_hash}"
+            );
+            computation_check(
+                &db,
+                self.chunk_size,
+                self.canonical_quarantine,
+                start_announce_hash,
+                computed_announce_hash,
             )
             .await
-            .context("failed to re-compute announce")?;
-
-            let computed_result = announce_execution_result_from_db(&overlaid_db, announce_hash)
-                .context("failed to get announce execution result from overlaid db")?;
-
-            let db_result = announce_execution_result_from_db(&db, announce_hash)
-                .context("failed to get announce execution result from db")?;
-
-            if computed_result != db_result {
-                return Err(anyhow!("announce {announce_hash} execution mismatch",));
-            }
-
-            pb.inc(1);
-
-            announce_hash = announce_parent_hash;
+            .context("computation check failed")?;
         }
 
         Ok(())
     }
+}
+
+async fn integrity_check(db: &Database, from: H256, to: H256) -> Result<()> {
+    let from = db
+        .block_header(from)
+        .map(|header| SimpleBlockData { hash: from, header })
+        .ok_or_else(|| anyhow!("start block not found in db"))?;
+    let to = db
+        .block_header(to)
+        .map(|header| SimpleBlockData { hash: to, header })
+        .ok_or_else(|| anyhow!("end block not found in db"))?;
+
+    let total_blocks = to
+        .header
+        .height
+        .checked_sub(from.header.height)
+        .ok_or_else(|| anyhow!("Incorrect blocks range"))?;
+
+    let bar_style = ProgressStyle::with_template(PROGRESS_BAR_TEMPLATE)
+        .unwrap()
+        .progress_chars("=>-");
+
+    let pb = ProgressBar::new(total_blocks as u64);
+    pb.set_style(bar_style);
+
+    let mut verifier = IntegrityVerifier::new(db.clone());
+
+    // Iterate back: from `to` block to `from` block
+    let mut block = to;
+    let mut visited_nodes = HashSet::new();
+    while block.hash != from.hash {
+        DatabaseIterator::new_skip_nodes(
+            &db,
+            BlockNode { block: block.hash },
+            visited_nodes.clone(),
+        )
+        .for_each(|node| {
+            visited_nodes.insert(ethexe_db::iterator::node_hash(&node));
+            visitor::visit_node(&mut verifier, node);
+        });
+
+        let parent_hash = block.header.parent_hash;
+        block = db
+            .block_header(parent_hash)
+            .map(|header| SimpleBlockData {
+                hash: parent_hash,
+                header,
+            })
+            .ok_or_else(|| anyhow!("block header not found for block {parent_hash}"))?;
+
+        pb.inc(1);
+    }
+
+    if !verifier.errors().is_empty() {
+        return Err(anyhow!(
+            "Integrity check errors found: {:?}",
+            verifier.errors()
+        ));
+    }
+
+    Ok(())
+}
+
+async fn computation_check(
+    db: &Database,
+    chunk_size: usize,
+    canonical_quarantine: u8,
+    from: HashOf<Announce>,
+    to: HashOf<Announce>,
+) -> Result<()> {
+    let total_blocks = announce_block(&db, to)?
+        .header
+        .height
+        .checked_sub(announce_block(&db, from)?.header.height)
+        .ok_or_else(|| anyhow!("Incorrect announces range"))?;
+
+    let bar_style = ProgressStyle::with_template(PROGRESS_BAR_TEMPLATE)
+        .unwrap()
+        .progress_chars("=>-");
+
+    let pb = ProgressBar::new(total_blocks as u64);
+    pb.set_style(bar_style);
+
+    let mut processor = Processor::with_config(ProcessorConfig { chunk_size }, db.clone())
+        .context("failed to create processor")?;
+
+    let compute_config = ComputeConfig::new(canonical_quarantine);
+
+    // Iterate back: from `to` announce to `from` announce
+    let mut announce_hash = to;
+    while announce_hash != from {
+        let announce = db
+            .announce(announce_hash)
+            .ok_or_else(|| anyhow!("announce {announce_hash} in computed chain not found in db"))?;
+        let announce_parent_hash = announce.parent;
+
+        let overlaid_db = unsafe { db.clone().overlaid() };
+        processor.change_db(overlaid_db.clone());
+        let _result = ComputeSubService::compute_one(
+            &overlaid_db,
+            &mut processor,
+            announce_hash,
+            announce,
+            compute_config,
+        )
+        .await
+        .context("failed to re-compute announce")?;
+
+        let computed_result = announce_execution_result_from_db(&overlaid_db, announce_hash)
+            .context("failed to get announce execution result from overlaid db")?;
+
+        let db_result = announce_execution_result_from_db(&db, announce_hash)
+            .context("failed to get announce execution result from db")?;
+
+        if computed_result != db_result {
+            return Err(anyhow!("announce {announce_hash} execution mismatch",));
+        }
+
+        pb.inc(1);
+
+        announce_hash = announce_parent_hash;
+    }
+
+    Ok(())
 }
 
 fn announce_execution_result_from_db(

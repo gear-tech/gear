@@ -4959,6 +4959,7 @@ dependencies = [
  "ethexe-processor",
  "ethexe-prometheus",
  "ethexe-rpc",
+ "ethexe-runtime-common",
  "ethexe-service",
  "ethexe-signer",
  "gear-workspace-hack",

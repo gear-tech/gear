@@ -132,6 +132,10 @@ impl IntegrityVerifier {
             Err(self.errors)
         }
     }
+
+    pub fn errors(&self) -> &[IntegrityVerifierError] {
+        &self.errors
+    }
 }
 
 impl DatabaseVisitor for IntegrityVerifier {
