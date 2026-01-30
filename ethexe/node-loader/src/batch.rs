@@ -290,16 +290,8 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
 
         while batches.len() != self.pool_size {
             let batch_with_seed = batch_gen.generate(self.task_context.clone());
-            let api = Ethereum::from_provider(
-                self.api.provider().clone(),
-                self.api.router().address().into(),
-            )
-            .await?;
-            let api1 = Ethereum::from_provider(
-                self.api.provider().clone(),
-                self.api.router().address().into(),
-            )
-            .await?;
+            let api = self.api.clone();
+            let api1 = self.api.clone();
             let vapi = VaraEthApi::new(&self.eth_rpc_url, api).await?;
             batches.push(run_batch(
                 api1,
@@ -313,16 +305,8 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
         while let Some(report) = batches.next().await {
             self.process_run_report(report?);
 
-            let api = Ethereum::from_provider(
-                self.api.provider().clone(),
-                self.api.router().address().into(),
-            )
-            .await?;
-            let api1 = Ethereum::from_provider(
-                self.api.provider().clone(),
-                self.api.router().address().into(),
-            )
-            .await?;
+            let api = self.api.clone();
+            let api1 = self.api.clone();
             let vapi = VaraEthApi::new(&self.eth_rpc_url, api).await?;
             let batch_with_seed = batch_gen.generate(self.task_context.clone());
             batches.push(run_batch(
