@@ -62,13 +62,15 @@ async fn load_node(params: LoadParams) -> Result<()> {
 
     let provider = api.provider().clone();
 
-    let (tx, rx) = tokio::sync::broadcast::channel(16);
+    // proportionally increase the channel size to workers and batch size
+    // so that we can keep up with the load.
+    let (tx, rx) = tokio::sync::broadcast::channel(params.batch_size * params.workers * 48);
 
     let batch_pool = BatchPool::<SmallRng>::new(
         api,
         params.ethexe_node.clone(),
-        params.batch_size,
         params.workers,
+        params.batch_size,
         rx.resubscribe(),
     );
 
