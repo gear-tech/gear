@@ -59,6 +59,14 @@ pub struct BatchPool<Rng: CallGenRng> {
 
 type MidMap = Arc<RwLock<BTreeMap<MessageId, ActorId>>>;
 
+const INJECTED_TX_RATIO_NUM: u8 = 7;
+const INJECTED_TX_RATIO_DEN: u8 = 10;
+
+fn prefer_injected_tx() -> bool {
+    // Make injected txs common, but still keep some on-chain `send_message` calls.
+    rand::random::<u8>() % INJECTED_TX_RATIO_DEN < INJECTED_TX_RATIO_NUM
+}
+
 /// Events emitted by mirror contract. Used to build mailbox and other context state for
 /// batch report.
 #[derive(Debug, Clone)]
@@ -410,17 +418,30 @@ async fn run_batch_impl(
                     .executable_balance_top_up(500_000_000_000_000)
                     .await?;
                 tracing::debug!("[Call with id {call_id}]: Program created {}", program.1);
-                match mirror.send_message(&arg.0.2, arg.0.4).await {
-                    Ok((_, message_id)) => {
-                        mid_map.write().await.insert(message_id, program.1);
-                        messages.insert(message_id, (program.1, call_id));
-                        tracing::debug!("[Call with id {call_id}]: Init message sent {message_id}",);
-                    }
-                    Err(err) => {
-                        tracing::error!("Failed to send message: {err:?}");
-                        return Err(err);
-                    }
-                }
+
+                // Send init message: prefer injected transactions, but keep some
+                // regular on-chain calls to exercise both paths.
+                let message_id = if prefer_injected_tx() {
+                    tracing::debug!(
+                        "[Call with id {call_id}]: Sending injected init message to {}",
+                        program.1
+                    );
+                    vapi.mirror(program.1)
+                        .send_message_injected(&arg.0.2, arg.0.4)
+                        .await?
+                } else {
+                    tracing::debug!(
+                        "[Call with id {call_id}]: Sending init message to {} through Mirror contract",
+                        program.1
+                    );
+                    let mirror = api.mirror(program.1.to_address_lossy().0.into());
+                    let (_, mid) = mirror.send_message(&arg.0.2, arg.0.4).await?;
+                    mid
+                };
+
+                mid_map.write().await.insert(message_id, program.1);
+                messages.insert(message_id, (program.1, call_id));
+                tracing::debug!("[Call with id {call_id}]: Init message sent {message_id}");
                 program_ids.insert(program.1);
             }
 
@@ -471,7 +492,7 @@ async fn run_batch_impl(
 
             for (i, arg) in args.iter().enumerate() {
                 let to = arg.0.0;
-                let message_id = if rand::random::<bool>() {
+                let message_id = if prefer_injected_tx() {
                     tracing::debug!("[Call with id {i}]: Sending injected message to {to}");
                     let mirror = vapi.mirror(to);
                     mirror.send_message_injected(&arg.0.1, arg.0.3).await?
@@ -594,20 +615,30 @@ async fn run_batch_impl(
                     .await?;
                 tracing::debug!("[Call with id: {call_id}]: Program created {}", program.1);
                 // send init message to program with payload and value.
-                match mirror.send_message(&arg.0.2, arg.0.4).await {
-                    Ok((_, message)) => {
-                        programs.insert(program.1);
-                        messages.insert(message, (program.1, call_id));
-                        tracing::debug!(
-                            "[Call with id: {call_id}]: Successfully sent init message {message}"
-                        );
-                    }
-                    Err(e) => {
-                        tracing::error!(
-                            "[Call with id: {call_id}]: Failed to send message to program: {e}",
-                        );
-                    }
-                }
+
+                let message_id = if prefer_injected_tx() {
+                    tracing::debug!(
+                        "[Call with id: {call_id}]: Sending injected init message to {}",
+                        program.1
+                    );
+                    vapi.mirror(program.1)
+                        .send_message_injected(&arg.0.2, arg.0.4)
+                        .await?
+                } else {
+                    tracing::debug!(
+                        "[Call with id: {call_id}]: Sending init message to {} through Mirror contract",
+                        program.1
+                    );
+                    let (_, mid) = mirror.send_message(&arg.0.2, arg.0.4).await?;
+                    mid
+                };
+
+                programs.insert(program.1);
+                mid_map.write().await.insert(message_id, program.1);
+                messages.insert(message_id, (program.1, call_id));
+                tracing::debug!(
+                    "[Call with id: {call_id}]: Successfully sent init message {message_id}"
+                );
             }
 
             let wait_for_event_blocks = blocks_window(args.len(), 3, 24);
