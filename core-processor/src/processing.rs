@@ -35,7 +35,7 @@ use gear_core::{
     env::Externalities,
     ids::{ActorId, MessageId, prelude::*},
     limited::LimitedVecError,
-    message::{ContextSettings, DispatchKind, IncomingDispatch, ReplyMessage, StoredDispatch},
+    message::{DispatchKind, IncomingDispatch, ReplyMessage, StoredDispatch},
     reservation::GasReservationState,
 };
 use gear_core_backend::{
@@ -57,34 +57,7 @@ where
     RunFallibleError: From<Ext::FallibleError>,
     <Ext as Externalities>::UnrecoverableError: BackendSyscallError,
 {
-    let BlockConfig {
-        block_info,
-        performance_multiplier,
-        forbidden_funcs,
-        reserve_for,
-        gas_multiplier,
-        costs,
-        existential_deposit,
-        mailbox_threshold,
-        max_pages,
-        outgoing_limit,
-        outgoing_bytes_limit,
-        ..
-    } = block_config;
-
-    let execution_settings = ExecutionSettings {
-        block_info: *block_info,
-        performance_multiplier: *performance_multiplier,
-        existential_deposit: *existential_deposit,
-        mailbox_threshold: *mailbox_threshold,
-        max_pages: *max_pages,
-        ext_costs: costs.ext.clone(),
-        lazy_pages_costs: costs.lazy_pages.clone(),
-        forbidden_funcs: forbidden_funcs.clone(),
-        reserve_for: *reserve_for,
-        random_data,
-        gas_multiplier: *gas_multiplier,
-    };
+    let execution_settings = ExecutionSettings::from_block_config(block_config, random_data);
 
     let dispatch = execution_context.dispatch;
     let balance = execution_context.balance;
@@ -99,26 +72,7 @@ where
         memory_size: execution_context.memory_size,
     };
 
-    // Sending fee: double write cost for addition and removal some time soon
-    // from queue.
-    //
-    // Scheduled sending fee: double write cost for addition and removal some time soon
-    // from queue and double write cost (addition and removal) for dispatch stash.
-    //
-    // Waiting fee: triple write cost for addition and removal some time soon
-    // from waitlist and enqueuing / sending error reply afterward.
-    //
-    // Waking fee: double write cost for removal from waitlist
-    // and further enqueueing.
-    let msg_ctx_settings = ContextSettings {
-        sending_fee: costs.db.write.cost_for(2.into()),
-        scheduled_sending_fee: costs.db.write.cost_for(4.into()),
-        waiting_fee: costs.db.write.cost_for(3.into()),
-        waking_fee: costs.db.write.cost_for(2.into()),
-        reservation_fee: costs.db.write.cost_for(2.into()),
-        outgoing_limit: *outgoing_limit,
-        outgoing_bytes_limit: *outgoing_bytes_limit,
-    };
+    let msg_ctx_settings = block_config.context_settings();
 
     // TODO: add tests that system reservation is successfully unreserved after
     // actor execution error #3756.

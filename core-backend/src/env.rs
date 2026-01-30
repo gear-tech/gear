@@ -16,7 +16,71 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! sp-sandbox environment for running a module.
+//! WASM execution environment with typestate pattern.
+//!
+//! This module provides the [`Environment`] struct which manages the execution of WASM programs
+//! using a typestate pattern to enforce correct state transitions at compile time.
+//!
+//! # Typestate Pattern
+//!
+//! The environment uses phantom type parameters to track its state:
+//! - [`ReadyToExecute`] - Environment is prepared and ready to execute WASM code
+//! - [`SuccessExecution`] - WASM execution completed successfully
+//! - [`FailedExecution`] - WASM execution failed (trap, out of gas, etc.)
+//! - [`PostExecution`] - After extracting the execution report, environment can be reused
+//!
+//! # State Transitions
+//!
+//! ```text
+//! ┌──────────────────┐
+//! │  ReadyToExecute  │
+//! └────────┬─────────┘
+//!          │ execute()
+//!          ▼
+//! ┌──────────────────────────────┐
+//! │     ExecutedEnvironment      │
+//! │  ┌─────────┐  ┌───────────┐  │
+//! │  │ Success │  │  Failed   │  │
+//! │  └────┬────┘  └─────┬─────┘  │
+//! └───────┼─────────────┼────────┘
+//!         │             │
+//!         ├─────────────┤
+//!         │             │
+//!         │ report()    │ report()
+//!         ▼             ▼
+//!    BackendReport  BackendReport
+//!
+//!         │             │
+//!         ├─────────────┤
+//!         │ into_report_and_env()
+//!         ▼
+//! ┌──────────────────┐
+//! │  PostExecution   │──────────────┐
+//! └────────┬─────────┘              │
+//!          │ set_ext()              │ restore_snapshot()
+//!          ▼                        │ (on failure)
+//! ┌──────────────────┐              │
+//! │  ReadyToExecute  │◄─────────────┘
+//! └──────────────────┘
+//! ```
+//!
+//! # Environment Reuse
+//!
+//! The key feature of this design is environment reuse for sequential execution:
+//!
+//! 1. Create environment once with [`Environment::new`]
+//! 2. Execute WASM code with [`Environment::execute`]
+//! 3. Extract report with [`ExecutedEnvironment::into_report_and_env`] to get [`PostExecution`]
+//! 4. Set new externalities with [`Environment::set_ext`] to return to [`ReadyToExecute`]
+//! 5. Repeat steps 2-4 for sequential dispatches
+//!
+//! This avoids the overhead of recreating the WASM instance for each dispatch in a queue.
+//!
+//! # Memory Snapshots
+//!
+//! When executing sequences, memory snapshots can be taken before execution and restored
+//! if execution fails. This ensures subsequent dispatches see consistent memory state
+//! even after a failed dispatch.
 
 use crate::{
     BackendExternalities, MemorySnapshot, MemorySnapshotStrategy,
@@ -426,7 +490,11 @@ where
         add_function!(FreeRange, free_range);
     }
 
-    fn report_impl(mut self) -> Result<BackendReport<Ext>, EnvironmentError> {
+    /// Extracts execution components from the environment.
+    /// Returns the externalities and termination reason after processing execution result.
+    fn extract_execution_components(
+        &mut self,
+    ) -> Result<(Ext, TerminationReason), EnvironmentError> {
         // If the environment state was never initialised this indicates a programming error,
         // so surface it to the caller instead of crashing.
         let state = self
@@ -453,7 +521,11 @@ where
                 SystemEnvironmentError::MissingExecutionResult,
             ))?;
 
-        let (ext, termination_reason) = state.terminate(execution_result, gas);
+        Ok(state.terminate(execution_result, gas))
+    }
+
+    fn report_impl(mut self) -> Result<BackendReport<Ext>, EnvironmentError> {
+        let (ext, termination_reason) = self.extract_execution_components()?;
 
         Ok(BackendReport {
             termination_reason,
@@ -466,30 +538,7 @@ where
     fn report_and_reuse(
         mut self,
     ) -> Result<(ExecutionReport<Ext>, Environment<'a, Ext, PostExecution>), EnvironmentError> {
-        let state = self
-            .store
-            .data_mut()
-            .take()
-            .ok_or(EnvironmentError::System(
-                SystemEnvironmentError::MissingState,
-            ))?;
-
-        let gas = self
-            .instance
-            .get_global_val(&mut self.store, GLOBAL_NAME_GAS)
-            .and_then(i64::try_from_value)
-            .ok_or(EnvironmentError::System(
-                SystemEnvironmentError::WrongInjectedGas,
-            ))? as u64;
-
-        let execution_result = self
-            .execution_result
-            .take()
-            .ok_or(EnvironmentError::System(
-                SystemEnvironmentError::MissingExecutionResult,
-            ))?;
-
-        let (ext, termination_reason) = state.terminate(execution_result, gas);
+        let (ext, termination_reason) = self.extract_execution_components()?;
 
         let report = ExecutionReport {
             termination_reason,
@@ -510,6 +559,42 @@ where
 
         Ok((report, env))
     }
+
+    /// Helper method to transition the environment to ReadyToExecute state.
+    /// Used by both PostExecution and SuccessExecution set_ext implementations.
+    fn transition_to_ready(
+        self,
+        ext: Ext,
+    ) -> Result<Environment<'a, Ext, ReadyToExecute>, EnvironmentError> {
+        let Self {
+            instance,
+            entries,
+            mut store,
+            memory,
+            code,
+            #[cfg(feature = "std")]
+            globals_holder,
+            ..
+        } = self;
+
+        *store.data_mut() = Some(State {
+            ext,
+            memory: memory.clone(),
+            termination_reason: ActorTerminationReason::Success.into(),
+        });
+
+        Ok(Environment {
+            instance,
+            entries,
+            store,
+            memory,
+            code,
+            execution_result: None,
+            #[cfg(feature = "std")]
+            globals_holder,
+            _phantom: PhantomData,
+        })
+    }
 }
 
 impl<'a, Ext> Environment<'a, Ext, PostExecution>
@@ -520,26 +605,10 @@ where
     Ext::AllocError: BackendAllocSyscallError<ExtError = Ext::UnrecoverableError>,
 {
     pub fn set_ext(
-        mut self,
+        self,
         ext: Ext,
     ) -> Result<Environment<'a, Ext, ReadyToExecute>, EnvironmentError> {
-        *self.store.data_mut() = Some(State {
-            ext,
-            memory: self.memory.clone(),
-            termination_reason: ActorTerminationReason::Success.into(),
-        });
-
-        Ok(Environment {
-            instance: self.instance,
-            entries: self.entries,
-            store: self.store,
-            memory: self.memory,
-            code: self.code,
-            execution_result: None,
-            #[cfg(feature = "std")]
-            globals_holder: self.globals_holder,
-            _phantom: PhantomData,
-        })
+        self.transition_to_ready(ext)
     }
 
     pub fn restore_snapshot<M: MemorySnapshot>(&mut self, snapshot: &M) -> Result<(), MemoryError> {
@@ -798,34 +867,7 @@ where
         self,
         ext: EnvExt,
     ) -> Result<Environment<'a, EnvExt, ReadyToExecute>, EnvironmentError> {
-        let Self {
-            instance,
-            entries,
-            mut store,
-            memory,
-            code,
-            #[cfg(feature = "std")]
-            globals_holder,
-            ..
-        } = self;
-
-        *store.data_mut() = Some(State {
-            ext,
-            memory: memory.clone(),
-            termination_reason: ActorTerminationReason::Success.into(),
-        });
-
-        Ok(Environment {
-            instance,
-            entries,
-            store,
-            memory,
-            code,
-            execution_result: None,
-            #[cfg(feature = "std")]
-            globals_holder,
-            _phantom: PhantomData,
-        })
+        self.transition_to_ready(ext)
     }
 }
 

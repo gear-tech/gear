@@ -16,6 +16,47 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! WASM execution and dispatch result processing.
+//!
+//! This module provides the core execution functionality for running WASM programs:
+//!
+//! # Single Execution
+//!
+//! For executing a single dispatch, use [`execute_wasm`]:
+//! ```ignore
+//! let result = execute_wasm(
+//!     balance, dispatch, context, settings, msg_ctx_settings,
+//! )?;
+//! ```
+//!
+//! # Sequential Execution
+//!
+//! For executing multiple dispatches with environment reuse, use [`execute_wasm_step`]
+//! with [`SequenceState`]:
+//!
+//! ```ignore
+//! let mut state = SequenceState::new();
+//! let mut snapshot = Ext::memory_snapshot();
+//!
+//! for dispatch in queue {
+//!     let result = execute_wasm_step(
+//!         &mut state, &mut snapshot,
+//!         balance, dispatch, context, settings, msg_ctx_settings,
+//!     )?;
+//!     // process result...
+//! }
+//! ```
+//!
+//! Sequential execution reuses the WASM environment between dispatches, avoiding
+//! the overhead of instance creation. Memory snapshots are used to restore state
+//! after failed executions.
+//!
+//! # Key Types
+//!
+//! - [`SequenceState`] - Holds the reusable environment between sequential executions
+//! - [`ExecutionStep`] - Result of a single execution step with gas info
+//! - [`ExecutionSequenceError`] - Error type for sequential execution (alias for [`ExecutionError`])
+
 use crate::{
     common::{
         ActorExecutionError, ActorExecutionErrorReplyReason, DispatchResult, DispatchResultKind,
@@ -380,25 +421,7 @@ impl<'a, Ext: BackendExternalities> Default for SequenceState<'a, Ext> {
 }
 
 /// Sequence execution error.
-#[derive(Debug)]
-pub enum ExecutionSequenceError {
-    /// Execution error from the wasm runtime.
-    Execution(ExecutionError),
-}
-
-impl From<ExecutionError> for ExecutionSequenceError {
-    fn from(err: ExecutionError) -> Self {
-        Self::Execution(err)
-    }
-}
-
-impl core::fmt::Display for ExecutionSequenceError {
-    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
-        match self {
-            Self::Execution(err) => write!(f, "{err}"),
-        }
-    }
-}
+pub type ExecutionSequenceError = ExecutionError;
 
 fn dispatch_result_from_report<Ext>(
     report: ExecutionReport<Ext>,
@@ -542,8 +565,8 @@ where
             let grow_result =
                 post_env.with_store_and_memory_mut(|store, memory| memory.grow(store, delta));
             if let Err(err) = grow_result {
-                return Err(ExecutionSequenceError::Execution(ExecutionError::System(
-                    SystemExecutionError::Environment(SystemEnvironmentError::CreateEnvMemory(err)),
+                return Err(ExecutionError::System(SystemExecutionError::Environment(
+                    SystemEnvironmentError::CreateEnvMemory(err),
                 )));
             }
         }
@@ -569,11 +592,9 @@ where
     let result = dispatch_result_from_report(report, &mut post_env, program, initial_gas_reserver)?;
 
     if !wasm_succeeded && state.has_snapshot {
-        post_env.restore_snapshot(snapshot).map_err(|err| {
-            ExecutionSequenceError::Execution(ExecutionError::System(
-                SystemExecutionError::IntoExtInfo(err),
-            ))
-        })?;
+        post_env
+            .restore_snapshot(snapshot)
+            .map_err(|err| ExecutionError::System(SystemExecutionError::IntoExtInfo(err)))?;
     }
 
     state.post_env = Some(post_env);

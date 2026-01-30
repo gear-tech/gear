@@ -492,9 +492,7 @@ where
         sequence_state,
         memory_snapshot,
     )
-    .map_err(|err| match err {
-        core_processor::ExecutionSequenceError::Execution(err) => err,
-    });
+;
 
     core_processor::process_execution_result(
         dispatch_for_journal,
