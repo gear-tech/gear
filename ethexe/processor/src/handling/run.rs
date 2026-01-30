@@ -104,6 +104,8 @@
 //! In the future, we could introduce a weight multiplier to the queue size to improve partitioning efficiency.
 //! This weight multiplier could be calculated based on program execution time statistics.
 
+// TODO: +_+_+ split to several files and move to separate module
+
 use crate::{
     ProcessorError, Result, handling::run::chunks_splitting::ExecutionChunks, host::InstanceCreator,
 };
@@ -374,7 +376,10 @@ pub(super) mod chunks_splitting {
 
     // `prepare_execution_chunks` is not exactly sorting (sorting usually `n*log(n)` this one is `O(n)`),
     // but rather partitioning into subsets (chunks) of programs with approximately similar queue sizes.
-    pub fn prepare_execution_chunks(ctx: &mut impl RunContext, queue_type: MessageType) -> Chunks {
+    pub(super) fn prepare_execution_chunks(
+        ctx: &mut impl RunContext,
+        queue_type: MessageType,
+    ) -> Chunks {
         let states = ctx.states(queue_type);
         let mut execution_chunks = ExecutionChunks::new(ctx.chunk_size(), states.len());
 
@@ -477,13 +482,12 @@ pub(super) mod chunks_splitting {
 }
 
 mod chunk_execution_spawn {
-    use crate::host::InstanceWrapper;
-
     use super::*;
+    use crate::host::InstanceWrapper;
     use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
     /// An alias introduced for better readability of the chunks execution steps.
-    pub(super) type ChunkItemOutput = (ActorId, H256, ProgramJournals, u64);
+    pub type ChunkItemOutput = (ActorId, H256, ProgramJournals, u64);
 
     /// Spawns in the thread pool tasks for each program in the chunk remembering position of the program in the chunk.
     ///
@@ -491,7 +495,7 @@ mod chunk_execution_spawn {
     /// It means that in the same time unit (!) all programs simultaneously charge gas allowance. If programs were to be
     /// executed concurrently, then each of the program should have received a reference to the global gas allowance counter
     /// and charge gas from it concurrently.
-    pub(super) async fn spawn_chunk_execution(
+    pub async fn spawn_chunk_execution(
         ctx: &mut impl RunContext,
         chunk: Vec<(ActorId, H256)>,
         queue_type: MessageType,
@@ -583,7 +587,7 @@ mod chunk_execution_processing {
     /// Chunk journals processing is actually a loop, which can break early.
     /// The early break must also stop other steps of the caller chunk processing
     /// function. So to expose the logic in a clear way, the enum is introduced.
-    pub(super) enum ChunkJournalsProcessingOutput {
+    pub enum ChunkJournalsProcessingOutput {
         Processed,
         EarlyBreak,
     }
@@ -598,7 +602,7 @@ mod chunk_execution_processing {
     ///
     /// Due to the nature of the parallel program queues execution (see [`chunk_execution_spawn::spawn_chunk_execution`] gas allowance clarifications),
     /// the actual gas allowance spent is actually the maximum among all programs in the chunk, not the sum.
-    pub(super) fn collect_chunk_journals(
+    pub fn collect_chunk_journals(
         ctx: &mut impl RunContext,
         chunk_outputs: Vec<ChunkItemOutput>,
     ) -> (Vec<ProgramChunkJournals>, u64) {
@@ -635,7 +639,7 @@ mod chunk_execution_processing {
     /// The `early_break` closure is intended for overlaid execution mode. The closure is intended to
     /// nullify queues of receiver programs (if not nullified) until the expected reply is found.
     /// If it's found, no nullification is done and the processing breaks early.
-    pub(super) fn process_chunk_execution_journals(
+    pub fn process_chunk_execution_journals(
         ctx: &mut impl RunContext,
         chunk_journals: Vec<ProgramChunkJournals>,
         is_out_of_gas_for_block: &mut bool,
