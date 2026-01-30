@@ -26,6 +26,7 @@ alloy.workspace = true
 ethexe-signer.workspace = true
 ethexe-common = { workspace = true, features = ["std"] }
 ethexe-ethereum.workspace = true
+ethexe-sdk.workspace = true
 #ethexe-rpc.workspace = true TODO: Injectex txs
 gprimitives = { workspace = true, features = ["ethexe"] }
 gear-call-gen.workspace = true
@@ -34,6 +35,7 @@ gear-core.workspace = true
 gear-utils.workspace = true
 gear-core-errors.workspace = true
 rand = { workspace = true }
+
 
 [dev-dependencies]
 

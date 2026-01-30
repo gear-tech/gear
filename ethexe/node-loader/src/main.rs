@@ -10,6 +10,7 @@ use anyhow::Result;
 use args::{Params, parse_cli_params};
 use ethexe_common::k256::ecdsa::SigningKey;
 use ethexe_ethereum::Ethereum;
+
 use ethexe_signer::{KeyStorage, MemoryKeyStorage};
 use rand::rngs::SmallRng;
 use std::str::FromStr;
@@ -47,9 +48,13 @@ async fn load_node(params: LoadParams) -> Result<()> {
     let signer = ethexe_signer::Signer::new(keystore);
     let router_addr = Address::from_str(&params.router_address).unwrap();
 
-    let api = Ethereum::new(&params.node, router_addr, signer, pubkey.to_address()).await?;
-    let provider = api.provider().clone();
-
+    let api = Ethereum::new(
+        &params.node,
+        router_addr.into(),
+        signer,
+        pubkey.to_address(),
+    )
+    .await?;
     api.wrapped_vara()
         .mint(pubkey.to_address().into(), 500_000_000_000_000_000_000)
         .await?;
@@ -57,10 +62,17 @@ async fn load_node(params: LoadParams) -> Result<()> {
         .approve_all(pubkey.to_address().into())
         .await?;
 
+    let provider = api.provider().clone();
+
     let (tx, rx) = tokio::sync::broadcast::channel(16);
 
-    let batch_pool =
-        BatchPool::<SmallRng>::new(api, params.batch_size, params.workers, rx.resubscribe());
+    let batch_pool = BatchPool::<SmallRng>::new(
+        api,
+        params.ethexe_node.clone(),
+        params.batch_size,
+        params.workers,
+        rx.resubscribe(),
+    );
 
     let run_result = tokio::select! {
         r = listen_blocks(tx, provider.root().clone()) => r,

@@ -5113,6 +5113,7 @@ dependencies = [
  "clap 4.5.54",
  "ethexe-common",
  "ethexe-ethereum",
+ "ethexe-sdk",
  "ethexe-signer",
  "futures",
  "gear-call-gen",

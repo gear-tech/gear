@@ -113,17 +113,6 @@ pub async fn err_waited_or_succeed_batch(
                 )),
             )]),
 
-            EventKind::MessageQueueingRequested(msg)
-                if message_ids.contains(&MessageId::new(msg.id.0)) =>
-            {
-                Some(vec![(MessageId::new(msg.id.0), None)])
-            }
-            EventKind::ReplyQueueingRequested(msg)
-                if message_ids.contains(&MessageId::new(msg.repliedTo.0)) =>
-            {
-                Some(vec![(MessageId::new(msg.repliedTo.0), None)])
-            }
-
             _ => None,
         })
         .flatten()

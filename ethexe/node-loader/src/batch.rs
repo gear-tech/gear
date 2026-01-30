@@ -16,6 +16,7 @@ use ethexe_ethereum::{
         REPLY_QUEUEING_REQUESTED, STATE_CHANGED, VALUE_CLAIMED, VALUE_CLAIMING_REQUESTED,
     },
 };
+use ethexe_sdk::VaraEthApi;
 use futures::{StreamExt, stream::FuturesUnordered};
 use gear_call_gen::{CallGenRng, ClaimValueArgs, SendReplyArgs};
 use gear_core::{ids::prelude::MessageIdExt, message::ReplyCode};
@@ -45,6 +46,7 @@ pub mod report;
 
 pub struct BatchPool<Rng: CallGenRng> {
     api: Ethereum,
+    eth_rpc_url: String,
     pool_size: usize,
     batch_size: usize,
     task_context: Context,
@@ -226,12 +228,14 @@ impl Event {
 impl<Rng: CallGenRng> BatchPool<Rng> {
     pub fn new(
         api: Ethereum,
+        eth_rpc_url: String,
         pool_size: usize,
         batch_size: usize,
         rx: Receiver<<alloy::network::Ethereum as Network>::HeaderResponse>,
     ) -> Self {
         Self {
             api,
+            eth_rpc_url,
             pool_size,
             batch_size,
             task_context: Context::new(),
@@ -280,8 +284,15 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
                 self.api.router().address().into(),
             )
             .await?;
+            let api1 = Ethereum::from_provider(
+                self.api.provider().clone(),
+                self.api.router().address().into(),
+            )
+            .await?;
+            let vapi = VaraEthApi::new(&self.eth_rpc_url, api).await?;
             batches.push(run_batch(
-                api,
+                api1,
+                vapi,
                 batch_with_seed,
                 self.rx.resubscribe(),
                 mid_map.clone(),
@@ -296,9 +307,16 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
                 self.api.router().address().into(),
             )
             .await?;
+            let api1 = Ethereum::from_provider(
+                self.api.provider().clone(),
+                self.api.router().address().into(),
+            )
+            .await?;
+            let vapi = VaraEthApi::new(&self.eth_rpc_url, api).await?;
             let batch_with_seed = batch_gen.generate(self.task_context.clone());
             batches.push(run_batch(
-                api,
+                api1,
+                vapi,
                 batch_with_seed,
                 self.rx.resubscribe(),
                 mid_map.clone(),
@@ -315,13 +333,14 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
 
 async fn run_batch(
     api: Ethereum,
+    vapi: VaraEthApi,
     batch: BatchWithSeed,
     rx: Receiver<<alloy::network::Ethereum as Network>::HeaderResponse>,
     mid_map: MidMap,
 ) -> Result<BatchRunReport> {
     let (seed, batch) = batch.into();
 
-    match run_batch_impl(api, batch, rx, mid_map).await {
+    match run_batch_impl(api, vapi, batch, rx, mid_map).await {
         Ok(report) => Ok(BatchRunReport::new(seed, report)),
         Err(err) => {
             tracing::info!("Batch failed: {err:?}");
@@ -333,6 +352,7 @@ async fn run_batch(
 #[instrument(skip_all)]
 async fn run_batch_impl(
     api: Ethereum,
+    vapi: VaraEthApi,
     batch: Batch,
     rx: Receiver<<alloy::network::Ethereum as Network>::HeaderResponse>,
     mid_map: MidMap,
@@ -343,16 +363,12 @@ async fn run_batch_impl(
             let mut code_ids = Vec::with_capacity(args.len());
 
             for arg in args.iter() {
-                let code_id = api
-                    .router()
-                    .request_code_validation_with_sidecar(&arg.0.0)
-                    .await?
-                    .code_id();
+                let (_, code_id) = vapi.router().request_code_validation(&arg.0.0).await?;
                 code_ids.push(code_id);
             }
 
             for code_id in code_ids.iter().copied() {
-                api.router().wait_code_validation(code_id).await?;
+                vapi.router().wait_for_code_validation(code_id).await?;
             }
             let mut program_ids = BTreeSet::new();
             let mut messages = BTreeMap::new();
@@ -409,16 +425,12 @@ async fn run_batch_impl(
             let mut code_ids = Vec::with_capacity(args.len());
 
             for arg in args.iter() {
-                let code_id = api
-                    .router()
-                    .request_code_validation_with_sidecar(&arg.0)
-                    .await?
-                    .code_id();
+                let (_, code_id) = vapi.router().request_code_validation(&arg.0).await?;
                 code_ids.push(code_id);
             }
 
             for code_id in code_ids.iter().copied() {
-                api.router().wait_code_validation(code_id).await?;
+                vapi.router().wait_for_code_validation(code_id).await?;
             }
 
             Ok(Report {
@@ -432,8 +444,19 @@ async fn run_batch_impl(
             let mut messages = BTreeMap::new();
             for (i, arg) in args.iter().enumerate() {
                 let to = arg.0.0;
-                let mirror = api.mirror(ethexe_common::Address::try_from(to).unwrap());
-                let (_, message_id) = mirror.send_message(&arg.0.1, arg.0.3).await?;
+                let message_id = if rand::random::<bool>() {
+                    tracing::debug!("[Call with id {i}]: Sending injected message to {to}");
+                    let mirror = vapi.mirror(to);
+                    let mid = mirror.send_message_injected(&arg.0.1, arg.0.3).await?;
+                    mid
+                } else {
+                    tracing::debug!(
+                        "[Call with id {i}]: Sending message to {to} through Mirror contract"
+                    );
+                    let mirror = api.mirror(ethexe_common::Address::try_from(to).unwrap());
+                    let (_, mid) = mirror.send_message(&arg.0.1, arg.0.3).await?;
+                    mid
+                };
                 messages.insert(message_id, (to, i));
                 mid_map.write().await.insert(message_id, to);
                 tracing::debug!("[Call with id {i}]: Message sent #{message_id} to {to}");
@@ -575,7 +598,7 @@ async fn process_events(
     mut rx: Receiver<<alloy::network::Ethereum as Network>::HeaderResponse>,
     block_hash: FixedBytes<32>,
 ) -> Result<Report> {
-    let wait_for_event_blocks = 30;
+    let wait_for_event_blocks = 10;
     let wait_for_events_millisec = 12 * 1000 * wait_for_event_blocks * 5;
     let mut mailbox_added = BTreeSet::new();
     let results = {
