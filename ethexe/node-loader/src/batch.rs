@@ -453,7 +453,7 @@ async fn run_batch_impl(
                 program_ids.insert(program.1);
             }
 
-            let wait_for_event_blocks = blocks_window(args.len(), 3, 24);
+            let wait_for_event_blocks = blocks_window(args.len(), 6, 48);
             process_events(
                 api,
                 messages,
@@ -649,7 +649,7 @@ async fn run_batch_impl(
                 );
             }
 
-            let wait_for_event_blocks = blocks_window(args.len(), 3, 24);
+            let wait_for_event_blocks = blocks_window(args.len(), 6, 48);
             process_events(
                 api,
                 messages,
