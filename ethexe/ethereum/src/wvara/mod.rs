@@ -18,15 +18,19 @@
 
 use crate::{
     AlloyProvider, TryGetReceipt,
-    abi::{self, IWrappedVara},
+    abi::{self, IWrappedVara, utils},
 };
 use alloy::{
     primitives::{Address, U256 as AlloyU256},
     providers::{Provider, ProviderBuilder, RootProvider},
+    rpc::types::TransactionReceipt,
 };
 use anyhow::Result;
 use ethexe_common::Address as LocalAddress;
+use events::{ApprovalEventBuilder, TransferEventBuilder};
 use gprimitives::{H256, U256};
+
+pub mod events;
 
 type Instance = IWrappedVara::IWrappedVaraInstance<AlloyProvider>;
 type QueryInstance = IWrappedVara::IWrappedVaraInstance<RootProvider>;
@@ -49,53 +53,115 @@ impl WVara {
         ))
     }
 
-    // FIXME: methods should accept Address type, not AlloyAddress!
+    pub async fn transfer(&self, to: LocalAddress, value: u128) -> Result<H256> {
+        self.transfer_with_receipt(to, value)
+            .await
+            .map(|receipt| (*receipt.transaction_hash).into())
+    }
 
-    pub async fn transfer(&self, to: Address, value: u128) -> Result<H256> {
-        let builder = self.0.transfer(to, AlloyU256::from(value));
+    pub async fn transfer_with_receipt(
+        &self,
+        to: LocalAddress,
+        value: u128,
+    ) -> Result<TransactionReceipt> {
+        let builder = self.0.transfer(to.into(), AlloyU256::from(value));
         let receipt = builder
             .send()
             .await?
             .try_get_receipt_check_reverted()
             .await?;
-
-        let tx_hash = (*receipt.transaction_hash).into();
-
-        Ok(tx_hash)
+        Ok(receipt)
     }
 
-    pub async fn transfer_from(&self, from: Address, to: Address, value: u128) -> Result<H256> {
-        let builder = self.0.transferFrom(from, to, AlloyU256::from(value));
+    pub async fn transfer_from(
+        &self,
+        from: LocalAddress,
+        to: LocalAddress,
+        value: u128,
+    ) -> Result<H256> {
+        self.transfer_from_with_receipt(from, to, value)
+            .await
+            .map(|receipt| (*receipt.transaction_hash).into())
+    }
+
+    pub async fn transfer_from_with_receipt(
+        &self,
+        from: LocalAddress,
+        to: LocalAddress,
+        value: u128,
+    ) -> Result<TransactionReceipt> {
+        let builder = self
+            .0
+            .transferFrom(from.into(), to.into(), AlloyU256::from(value));
         let receipt = builder
             .send()
             .await?
             .try_get_receipt_check_reverted()
             .await?;
-
-        let tx_hash = (*receipt.transaction_hash).into();
-
-        Ok(tx_hash)
+        Ok(receipt)
     }
 
-    pub async fn approve(&self, address: Address, value: u128) -> Result<H256> {
-        self._approve(address, AlloyU256::from(value)).await
+    pub async fn approve(&self, spender: LocalAddress, value: u128) -> Result<H256> {
+        self.approve_with_receipt(spender, value)
+            .await
+            .map(|receipt| (*receipt.transaction_hash).into())
     }
 
-    pub async fn approve_all(&self, address: Address) -> Result<H256> {
-        self._approve(address, AlloyU256::MAX).await
+    pub async fn approve_with_receipt(
+        &self,
+        spender: LocalAddress,
+        value: u128,
+    ) -> Result<TransactionReceipt> {
+        self._approve_with_receipt(spender, U256::from(value)).await
     }
 
-    async fn _approve(&self, address: Address, value: AlloyU256) -> Result<H256> {
-        let builder = self.0.approve(address, value);
+    pub async fn approve_all(&self, spender: LocalAddress) -> Result<H256> {
+        self.approve_all_with_receipt(spender)
+            .await
+            .map(|receipt| (*receipt.transaction_hash).into())
+    }
+
+    pub async fn approve_all_with_receipt(
+        &self,
+        spender: LocalAddress,
+    ) -> Result<TransactionReceipt> {
+        self._approve_with_receipt(spender, U256::MAX).await
+    }
+
+    async fn _approve_with_receipt(
+        &self,
+        spender: LocalAddress,
+        value: U256,
+    ) -> Result<TransactionReceipt> {
+        let builder = self
+            .0
+            .approve(spender.into(), utils::u256_to_uint256(value));
         let receipt = builder
             .send()
             .await?
             .try_get_receipt_check_reverted()
             .await?;
+        Ok(receipt)
+    }
 
-        let tx_hash = (*receipt.transaction_hash).into();
+    pub async fn mint(&self, to: LocalAddress, amount: u128) -> Result<H256> {
+        self.mint_with_receipt(to, amount)
+            .await
+            .map(|receipt| (*receipt.transaction_hash).into())
+    }
 
-        Ok(tx_hash)
+    pub async fn mint_with_receipt(
+        &self,
+        to: LocalAddress,
+        amount: u128,
+    ) -> Result<TransactionReceipt> {
+        let builder = self.0.mint(to.into(), AlloyU256::from(amount));
+        let receipt = builder
+            .send()
+            .await?
+            .try_get_receipt_check_reverted()
+            .await?;
+        Ok(receipt)
     }
 }
 
@@ -111,35 +177,8 @@ impl WVaraQuery {
         )))
     }
 
-    pub async fn decimals(&self) -> Result<u8> {
-        self.0.decimals().call().await.map_err(Into::into)
-    }
-
-    pub async fn total_supply(&self) -> Result<u128> {
-        self.0
-            .totalSupply()
-            .call()
-            .await
-            .map(abi::utils::uint256_to_u128_lossy)
-            .map_err(Into::into)
-    }
-
-    pub async fn balance_of(&self, address: Address) -> Result<u128> {
-        self.0
-            .balanceOf(address)
-            .call()
-            .await
-            .map(abi::utils::uint256_to_u128_lossy)
-            .map_err(Into::into)
-    }
-
-    pub async fn allowance(&self, owner: Address, spender: Address) -> Result<U256> {
-        self.0
-            .allowance(owner, spender)
-            .call()
-            .await
-            .map(|res| U256(res.into_limbs()))
-            .map_err(Into::into)
+    pub fn events(&self) -> WVaraEvents<'_> {
+        WVaraEvents { query: self }
     }
 
     pub async fn name(&self) -> Result<String> {
@@ -158,5 +197,50 @@ impl WVaraQuery {
             .await
             .map(|res| res.to_string())
             .map_err(Into::into)
+    }
+
+    pub async fn decimals(&self) -> Result<u8> {
+        self.0.decimals().call().await.map_err(Into::into)
+    }
+
+    pub async fn total_supply(&self) -> Result<u128> {
+        self.0
+            .totalSupply()
+            .call()
+            .await
+            .map(abi::utils::uint256_to_u128_lossy)
+            .map_err(Into::into)
+    }
+
+    pub async fn balance_of(&self, address: LocalAddress) -> Result<u128> {
+        self.0
+            .balanceOf(address.into())
+            .call()
+            .await
+            .map(abi::utils::uint256_to_u128_lossy)
+            .map_err(Into::into)
+    }
+
+    pub async fn allowance(&self, owner: LocalAddress, spender: LocalAddress) -> Result<U256> {
+        self.0
+            .allowance(owner.into(), spender.into())
+            .call()
+            .await
+            .map(|res| U256(res.into_limbs()))
+            .map_err(Into::into)
+    }
+}
+
+pub struct WVaraEvents<'a> {
+    query: &'a WVaraQuery,
+}
+
+impl<'a> WVaraEvents<'a> {
+    pub fn transfer(&self) -> TransferEventBuilder<'a> {
+        TransferEventBuilder::new(self.query)
+    }
+
+    pub fn approval(&self) -> ApprovalEventBuilder<'a> {
+        ApprovalEventBuilder::new(self.query)
     }
 }

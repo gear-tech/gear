@@ -122,7 +122,6 @@ use ethexe_runtime_common::{
 use gear_core::gas::GasAllowanceCounter;
 use gprimitives::{ActorId, H256};
 use itertools::Itertools;
-use tokio::task::JoinSet;
 
 #[derive(Debug, Clone)]
 pub struct RunnerConfig {
@@ -156,7 +155,7 @@ impl RunnerConfig {
 
 // Run all program queues
 pub async fn run(
-    run_ctx: impl RunContext,
+    mut run_ctx: impl RunContext,
     db: Database,
     instance_creator: InstanceCreator,
     config: RunnerConfig,
@@ -165,8 +164,8 @@ pub async fn run(
     let chunk_size = config.chunk_processing_threads;
 
     // Start with injected queues processing.
-    let (is_out_of_gas_for_block, run_ctx) = run_inner(
-        run_ctx,
+    let is_out_of_gas_for_block = run_inner(
+        &mut run_ctx,
         db.clone(),
         instance_creator.clone(),
         &mut allowance_counter,
@@ -178,7 +177,7 @@ pub async fn run(
     // If gas is still left in block, process canonical (Ethereum) queues
     if !is_out_of_gas_for_block {
         let _ = run_inner(
-            run_ctx,
+            &mut run_ctx,
             db,
             instance_creator,
             &mut allowance_counter,
@@ -191,7 +190,7 @@ pub async fn run(
 
 // Convenience function to run overlaid execution
 pub async fn run_overlaid(
-    run_ctx: impl RunContext,
+    mut run_ctx: impl RunContext,
     db: Database,
     instance_creator: InstanceCreator,
     config: RunnerConfig,
@@ -201,7 +200,7 @@ pub async fn run_overlaid(
 
     // TODO: Use injected queues for overlaid execution
     let _ = run_inner(
-        run_ctx,
+        &mut run_ctx,
         db,
         instance_creator,
         &mut allowance_counter,
@@ -211,16 +210,17 @@ pub async fn run_overlaid(
     .await;
 }
 
-// Process chosen queue type in chunks
+/// Processes chosen queue type in chunks.
+///
+/// Returns whether the block is out of gas.
 async fn run_inner<C: RunContext>(
-    mut run_ctx: C,
+    run_ctx: &mut C,
     db: Database,
     instance_creator: InstanceCreator,
     allowance_counter: &mut GasAllowanceCounter,
     chunk_size: usize,
     processing_queue_type: MessageType,
-) -> (bool, C) {
-    let mut join_set = JoinSet::new();
+) -> bool {
     let mut is_out_of_gas_for_block = false;
 
     loop {
@@ -231,7 +231,7 @@ async fn run_inner<C: RunContext>(
         let chunks = chunks_splitting::prepare_execution_chunks(
             chunk_size,
             states,
-            &run_ctx,
+            run_ctx,
             processing_queue_type,
         );
 
@@ -242,20 +242,18 @@ async fn run_inner<C: RunContext>(
 
         for chunk in chunks {
             // Spawn on a separate thread an execution of each program (it's queue) in the chunk.
-            chunk_execution_spawn::spawn_chunk_execution(
+            let chunk_outputs = chunk_execution_spawn::spawn_chunk_execution(
                 chunk,
                 db.clone(),
-                &instance_creator,
-                allowance_counter,
-                &mut join_set,
-                &mut run_ctx,
+                instance_creator.clone(),
+                allowance_counter.left().min(CHUNK_PROCESSING_GAS_LIMIT),
                 processing_queue_type,
-            );
+            )
+            .await;
 
             // Collect journals from all executed programs in the chunk.
             let (chunk_journals, max_gas_spent_in_chunk) =
-                chunk_execution_processing::collect_chunk_journals(&mut join_set, &mut run_ctx)
-                    .await;
+                chunk_execution_processing::collect_chunk_journals(chunk_outputs, run_ctx).await;
 
             // Process journals of all executed programs in the chunk.
             let output = chunk_execution_processing::process_chunk_execution_journals(
@@ -263,7 +261,7 @@ async fn run_inner<C: RunContext>(
                 &db,
                 allowance_counter,
                 &mut is_out_of_gas_for_block,
-                &mut run_ctx,
+                run_ctx,
             );
             match output {
                 ChunkJournalsProcessingOutput::Processed => {}
@@ -280,7 +278,7 @@ async fn run_inner<C: RunContext>(
         }
     }
 
-    (is_out_of_gas_for_block, run_ctx)
+    is_out_of_gas_for_block
 }
 
 /// Context for running program queues in chunks.
@@ -473,7 +471,7 @@ mod chunks_splitting {
     pub(super) fn prepare_execution_chunks<R: RunContext>(
         chunk_size: usize,
         states: Vec<ActorStateHashWithQueueSize>,
-        run_ctx: &R,
+        run_ctx: &mut R,
         processing_queue_type: MessageType,
     ) -> Chunks {
         let mut execution_chunks = ExecutionChunks::new(chunk_size, states.len());
@@ -482,7 +480,7 @@ mod chunks_splitting {
             run_ctx.handle_chunk_data(&mut execution_chunks, state, processing_queue_type);
         }
 
-        execution_chunks.arrange_execution_chunks()
+        execution_chunks.arrange_execution_chunks(run_ctx)
     }
 
     /// A helper  struct to bundle actor id, state hash and queue size together
@@ -551,7 +549,7 @@ mod chunks_splitting {
 
         /// Arranges execution chunks by merging uneven chunks and reversing their order,
         /// so the heaviest chunks are processed first.
-        fn arrange_execution_chunks(self) -> Chunks {
+        fn arrange_execution_chunks<R: RunContext>(self, run_ctx: &mut R) -> Chunks {
             self.chunks
                 .into_iter()
                 // Merge uneven chunks
@@ -561,7 +559,16 @@ mod chunks_splitting {
                 .chunks(self.chunk_size)
                 // Convert into vector of vectors
                 .into_iter()
-                .map(|c| c.into_iter().collect())
+                .map(|c| {
+                    c.into_iter()
+                        // `check_task_no_run` function isn't used in a common execution, but it's used only for an overlaid one.
+                        // The function is intended to nullify program queues only once before execution. If the queue wasn't nullified
+                        // earlier the function will nullify it and skip spawning the job for the program queue as it's empty. If the queue
+                        // was already nullified, the function will return `false` and the job will be spawned as usual.
+                        // For more info, see impl of the [`OverlaidContext`].
+                        .filter(|&(program_id, _)| !run_ctx.check_task_no_run(program_id))
+                        .collect()
+                })
                 .collect()
         }
     }
@@ -569,54 +576,47 @@ mod chunks_splitting {
 
 mod chunk_execution_spawn {
     use super::*;
+    use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
-    // An alias introduced for better readability of the chunks execution steps.
-    pub(super) type ChunksJoinSet = JoinSet<(usize, ActorId, H256, ProgramJournals, u64)>;
+    /// An alias introduced for better readability of the chunks execution steps.
+    pub(super) type ChunkItemOutput = (ActorId, H256, ProgramJournals, u64);
 
-    /// Spawns in the `join_set` tasks for each program in the chunk remembering position of the program in the chunk.
+    /// Spawns in the thread pool tasks for each program in the chunk remembering position of the program in the chunk.
     ///
     /// Each program receives one (same copy) value of gas allowance, because all programs in the chunk are executed in parallel.
     /// It means that in the same time unit (!) all programs simultaneously charge gas allowance. If programs were to be
     /// executed concurrently, then each of the program should have received a reference to the global gas allowance counter
     /// and charge gas from it concurrently.
-    ///
-    /// `check_task_no_run` closure isn't used in a common execution, but it's used only for an overlaid one.
-    /// The closure is intended to nullify program queues only once before execution. If the queue wasn't nullified
-    /// earlier the closure will nullify it and skip spawning the job for the program queue as it's empty. If the queue
-    /// was already nullified, the closure will return `false` and the job will be spawned as usual.
-    /// For more info, see impl of the [`OverlaidContext`].
-    pub(super) fn spawn_chunk_execution<R: RunContext>(
+    pub(super) async fn spawn_chunk_execution(
         chunk: Vec<(ActorId, H256)>,
         db: Database,
-        instance_creator: &InstanceCreator,
-        allowance_counter: &mut GasAllowanceCounter,
-        join_set: &mut ChunksJoinSet,
-        run_ctx: &mut R,
+        instance_creator: InstanceCreator,
+        gas_allowance_for_chunk: u64,
         processing_queue_type: MessageType,
-    ) {
-        for (chunk_pos, (program_id, state_hash)) in chunk.into_iter().enumerate() {
-            if run_ctx.check_task_no_run(program_id) {
-                continue;
-            }
+    ) -> Vec<ChunkItemOutput> {
+        tokio::task::spawn_blocking(move || {
+            chunk
+                .into_par_iter()
+                .map(|(program_id, state_hash)| {
+                    let db = db.clone();
+                    let mut executor = instance_creator
+                        .instantiate()
+                        .expect("Failed to instantiate executor");
 
-            let db = db.clone();
-            let mut executor = instance_creator
-                .instantiate()
-                .expect("Failed to instantiate executor");
-            let gas_allowance_for_chunk = allowance_counter.left().min(CHUNK_PROCESSING_GAS_LIMIT);
-
-            join_set.spawn_blocking(move || {
-                let (jn, new_state_hash, gas_spent) = run_runtime(
-                    db,
-                    &mut executor,
-                    program_id,
-                    state_hash,
-                    processing_queue_type,
-                    gas_allowance_for_chunk,
-                );
-                (chunk_pos, program_id, new_state_hash, jn, gas_spent)
-            });
-        }
+                    let (jn, new_state_hash, gas_spent) = run_runtime(
+                        db,
+                        &mut executor,
+                        program_id,
+                        state_hash,
+                        processing_queue_type,
+                        gas_allowance_for_chunk,
+                    );
+                    (program_id, new_state_hash, jn, gas_spent)
+                })
+                .collect()
+        })
+        .await
+        .expect("Failed to join worker thread")
     }
 
     fn run_runtime(
@@ -648,9 +648,10 @@ mod chunk_execution_spawn {
 
 mod chunk_execution_processing {
     use super::*;
+    use crate::handling::run::chunk_execution_spawn::ChunkItemOutput;
 
     // Aliases introduced for better readability of the chunk journals processing steps.
-    type MaybeProgramChunkJournals = Option<(ActorId, ChunkJournals)>;
+    type ProgramChunkJournals = (ActorId, ChunkJournals);
     type ChunkJournals = Vec<ExtendedJournal>;
     type ExtendedJournal = (Vec<JournalNote>, MessageType, bool);
 
@@ -666,7 +667,7 @@ mod chunk_execution_processing {
 
     /// Collects journals from all executed programs in the chunk.
     ///
-    /// The [`chunk_execution_spawn::spawn_chunk_execution`] step adds to the `join_set` tasks for each program in the chunk.
+    /// The [`chunk_execution_spawn::spawn_chunk_execution`] step spawns tasks for each program in the chunk.
     /// The loop in the functions handles the output of each task:
     /// - modifies the state by setting a new state hash calculated by the [`ethexe_runtime_common::RuntimeJournalHandler`]
     /// - collects journals for later processing
@@ -675,30 +676,28 @@ mod chunk_execution_processing {
     /// Due to the nature of the parallel program queues execution (see [`chunk_execution_spawn::spawn_chunk_execution`] gas allowance clarifications),
     /// the actual gas allowance spent is actually the maximum among all programs in the chunk, not the sum.
     pub(super) async fn collect_chunk_journals<R: RunContext>(
-        join_set: &mut chunk_execution_spawn::ChunksJoinSet,
+        chunk_outputs: Vec<ChunkItemOutput>,
         run_ctx: &mut R,
-    ) -> (Vec<MaybeProgramChunkJournals>, u64) {
+    ) -> (Vec<ProgramChunkJournals>, u64) {
         let mut max_gas_spent_in_chunk = 0u64;
-        let mut chunk_journals = vec![None; join_set.len()];
 
         let in_block_transitions = run_ctx.transitions();
-        while let Some(result) = join_set
-            .join_next()
-            .await
-            .transpose()
-            .expect("Failed to join task")
-        {
-            let (chunk_pos, program_id, new_state_hash, program_journals, gas_spent) = result;
+        let chunk_journals = chunk_outputs
+            .into_iter()
+            .map(
+                |(program_id, new_state_hash, program_journals, gas_spent)| {
+                    // Handle state updates that occurred during journal processing within the runtime (allocations, pages).
+                    // This should happen before processing the journal notes because `send_dispatch` from another program can modify the state.
+                    in_block_transitions.modify(program_id, |state, _| {
+                        state.hash = new_state_hash;
+                    });
 
-            // Handle state updates that occurred during journal processing within the runtime (allocations, pages).
-            // This should happen before processing the journal notes because `send_dispatch` from another program can modify the state.
-            in_block_transitions.modify(program_id, |state, _| {
-                state.hash = new_state_hash;
-            });
+                    max_gas_spent_in_chunk = max_gas_spent_in_chunk.max(gas_spent);
 
-            chunk_journals[chunk_pos] = Some((program_id, program_journals));
-            max_gas_spent_in_chunk = max_gas_spent_in_chunk.max(gas_spent);
-        }
+                    (program_id, program_journals)
+                },
+            )
+            .collect();
 
         (chunk_journals, max_gas_spent_in_chunk)
     }
@@ -714,19 +713,13 @@ mod chunk_execution_processing {
     /// nullify queues of receiver programs (if not nullified) until the expected reply is found.
     /// If it's found, no nullification is done and the processing breaks early.
     pub(super) fn process_chunk_execution_journals<R: RunContext>(
-        chunk_journals: Vec<MaybeProgramChunkJournals>,
+        chunk_journals: Vec<ProgramChunkJournals>,
         db: &Database,
         allowance_counter: &GasAllowanceCounter,
         is_out_of_gas_for_block: &mut bool,
         run_ctx: &mut R,
     ) -> ChunkJournalsProcessingOutput {
-        for program_journals in chunk_journals {
-            let Some((program_id, program_journals)) = program_journals else {
-                unreachable!(
-                    "Program journal is `None`, this should never happen in a common execution"
-                );
-            };
-
+        for (program_id, program_journals) in chunk_journals {
             for (journal, message_type, call_reply) in program_journals {
                 let break_flag = run_ctx.break_early(&journal);
 
@@ -792,13 +785,13 @@ mod tests {
             .take(STATE_SIZE),
         );
 
-        let common_run_context = CommonRunContext {
+        let mut common_run_context = CommonRunContext {
             in_block_transitions: &mut InBlockTransitions::default(),
         };
         let chunks = chunks_splitting::prepare_execution_chunks(
             CHUNK_PROCESSING_THREADS,
             states,
-            &common_run_context,
+            &mut common_run_context,
             MessageType::Canonical,
         );
 
@@ -930,7 +923,7 @@ mod tests {
         };
 
         let mut in_block_transitions =
-            InBlockTransitions::new(block_header, states, Default::default(), Default::default());
+            InBlockTransitions::new(block_header, states, Default::default(), std::iter::empty());
 
         let base_program = pid2;
 

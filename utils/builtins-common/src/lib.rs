@@ -31,7 +31,7 @@ pub mod bls12_381;
 pub mod eth_bridge;
 
 use gear_core::{
-    gas::{ChargeResult, GasAllowanceCounter, GasAmount, GasCounter},
+    gas::{GasAllowanceCounter, GasAmount, GasCounter},
     limited::LimitedStr,
 };
 use parity_scale_codec::{Decode, Encode};
@@ -54,11 +54,15 @@ impl BuiltinContext {
 
     /// Tries to charge the gas amount from the gas counters.
     pub fn try_charge_gas(&mut self, amount: u64) -> Result<(), BuiltinActorError> {
-        if self.gas_counter.charge_if_enough(amount) == ChargeResult::NotEnough {
+        if self.gas_counter.charge_if_enough(amount).is_not_enough() {
             return Err(BuiltinActorError::InsufficientGas);
         }
 
-        if self.gas_allowance_counter.charge_if_enough(amount) == ChargeResult::NotEnough {
+        if self
+            .gas_allowance_counter
+            .charge_if_enough(amount)
+            .is_not_enough()
+        {
             return Err(BuiltinActorError::GasAllowanceExceeded);
         }
 

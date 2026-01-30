@@ -16,40 +16,37 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Command `read-state`.
+
+use crate::{app::App, utils::HexBytes};
 use anyhow::Result;
-use gcli::{App, Command, async_trait, clap::Parser};
+use clap::Parser;
+use gear_core::ids::ActorId;
+use gsdk::ext::subxt::utils::H256;
 
-/// My customized sub commands.
-#[derive(Debug, Parser)]
-pub enum SubCommand {
-    /// GCli preset commands.
-    #[clap(flatten)]
-    GCliCommands(Command),
-    /// My customized ping command.
-    Ping,
+/// Ask program for its state.
+#[derive(Clone, Debug, Parser)]
+pub struct ReadState {
+    /// Program ID.
+    pid: ActorId,
+
+    /// Payload for state request.
+    #[arg(short, long, default_value = "0x")]
+    payload: HexBytes,
+
+    /// Hash of the block to read state at.
+    #[arg(long)]
+    at: Option<H256>,
 }
 
-/// My customized gcli.
-#[derive(Debug, Parser)]
-pub struct MyGCli {
-    #[clap(subcommand)]
-    command: SubCommand,
-}
-
-#[async_trait]
-impl App for MyGCli {
-    async fn exec(&self) -> Result<()> {
-        match &self.command {
-            SubCommand::GCliCommands(command) => command.exec(self).await,
-            SubCommand::Ping => {
-                println!("pong");
-                Ok(())
-            }
-        }
+impl ReadState {
+    /// Run command program.
+    pub async fn exec(self, app: &mut App) -> Result<()> {
+        let api = app.signed_api().await?;
+        let state = api
+            .read_state_bytes_at(self.pid, self.payload, self.at)
+            .await?;
+        println!("0x{}", hex::encode(state));
+        Ok(())
     }
-}
-
-#[tokio::main]
-async fn main() -> Result<()> {
-    MyGCli::parse().run().await
 }

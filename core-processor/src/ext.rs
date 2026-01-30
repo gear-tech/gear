@@ -455,11 +455,15 @@ impl<'a, LP: LazyPagesInterface> ExtMutator<'a, LP> {
             .alloc::<Context, LazyGrowHandler<LP>>(ctx, mem, pages, |pages| {
                 let cost = gas_for_call.saturating_add(gas_for_pages.cost_for(pages));
                 // Inline charge_gas_if_enough because otherwise we have borrow error due to access to `allocations_context` mutable
-                if self.gas_counter.charge_if_enough(cost) == ChargeResult::NotEnough {
+                if self.gas_counter.charge_if_enough(cost).is_not_enough() {
                     return Err(ChargeError::GasLimitExceeded);
                 }
 
-                if self.gas_allowance_counter.charge_if_enough(cost) == ChargeResult::NotEnough {
+                if self
+                    .gas_allowance_counter
+                    .charge_if_enough(cost)
+                    .is_not_enough()
+                {
                     return Err(ChargeError::GasAllowanceExceeded);
                 }
                 Ok(())
@@ -467,7 +471,7 @@ impl<'a, LP: LazyPagesInterface> ExtMutator<'a, LP> {
     }
 
     fn reduce_gas(&mut self, limit: GasLimit) -> Result<(), FallibleExtError> {
-        if self.gas_counter.reduce(limit) == ChargeResult::NotEnough {
+        if self.gas_counter.reduce(limit).is_not_enough() {
             return Err(FallibleExecutionError::NotEnoughGas.into());
         }
 
@@ -475,7 +479,7 @@ impl<'a, LP: LazyPagesInterface> ExtMutator<'a, LP> {
     }
 
     fn charge_message_value(&mut self, value: u128) -> Result<(), FallibleExtError> {
-        if self.value_counter.reduce(value) == ChargeResult::NotEnough {
+        if self.value_counter.reduce(value).is_not_enough() {
             return Err(FallibleExecutionError::NotEnoughValue.into());
         }
 
@@ -496,11 +500,15 @@ impl<'a, LP: LazyPagesInterface> ExtMutator<'a, LP> {
     }
 
     fn charge_gas_if_enough(&mut self, gas: u64) -> Result<(), ChargeError> {
-        if self.gas_counter.charge_if_enough(gas) == ChargeResult::NotEnough {
+        if self.gas_counter.charge_if_enough(gas).is_not_enough() {
             return Err(ChargeError::GasLimitExceeded);
         }
 
-        if self.gas_allowance_counter.charge_if_enough(gas) == ChargeResult::NotEnough {
+        if self
+            .gas_allowance_counter
+            .charge_if_enough(gas)
+            .is_not_enough()
+        {
             return Err(ChargeError::GasAllowanceExceeded);
         }
         Ok(())
@@ -800,10 +808,13 @@ impl<LP: LazyPagesInterface> Ext<LP> {
         gas_allowance_counter: &mut GasAllowanceCounter,
         amount: u64,
     ) -> Result<(), ChargeError> {
-        if gas_counter.charge_if_enough(amount) != ChargeResult::Enough {
+        if gas_counter.charge_if_enough(amount).is_not_enough() {
             return Err(ChargeError::GasLimitExceeded);
         }
-        if gas_allowance_counter.charge_if_enough(amount) != ChargeResult::Enough {
+        if gas_allowance_counter
+            .charge_if_enough(amount)
+            .is_not_enough()
+        {
             // Here might be refunds for gas counter, but it's meaningless since
             // on gas allowance exceed we totally roll up the message and give
             // it another try in next block with the same initial resources.
@@ -888,7 +899,7 @@ impl<LP: LazyPagesInterface> CountersOwner for Ext<LP> {
             unreachable!("{err_msg}")
         });
 
-        if self.context.gas_counter.charge(diff) == ChargeResult::NotEnough {
+        if self.context.gas_counter.charge(diff).is_not_enough() {
             let err_msg = format!(
                 "CounterOwner::decrease_current_counter_to: Tried to set gas limit left bigger than before. \
                 Message id - {message_id}, program id - {program_id}, gas counter - {gas_counter:?}, diff - {diff}",
@@ -901,7 +912,12 @@ impl<LP: LazyPagesInterface> CountersOwner for Ext<LP> {
             unreachable!("{err_msg}")
         }
 
-        if self.context.gas_allowance_counter.charge(diff) == ChargeResult::NotEnough {
+        if self
+            .context
+            .gas_allowance_counter
+            .charge(diff)
+            .is_not_enough()
+        {
             let err_msg = format!(
                 "CounterOwner::decrease_current_counter_to: Tried to set gas allowance left bigger than before. \
                 Message id - {message_id}, program id - {program_id}, gas allowance counter - {gas_allowance_counter:?}, diff - {diff}",
@@ -1300,7 +1316,7 @@ impl<LP: LazyPagesInterface> Externalities for Ext<LP> {
             return Err(ReservationError::ZeroReservationAmount.into());
         }
 
-        if self.context.gas_counter.reduce(amount) == ChargeResult::NotEnough {
+        if self.context.gas_counter.reduce(amount).is_not_enough() {
             return Err(FallibleExecutionError::NotEnoughGas.into());
         }
 
@@ -1366,7 +1382,7 @@ impl<LP: LazyPagesInterface> Externalities for Ext<LP> {
                 .waitlist
                 .cost_for(mutator.context.reserve_for.saturating_add(duration).into());
 
-            if mutator.gas_counter.reduce(reserve) != ChargeResult::Enough {
+            if mutator.gas_counter.reduce(reserve).is_not_enough() {
                 return Err(UnrecoverableExecutionError::NotEnoughGas.into());
             }
 
@@ -1393,7 +1409,7 @@ impl<LP: LazyPagesInterface> Externalities for Ext<LP> {
                 .waitlist
                 .cost_for(mutator.context.reserve_for.saturating_add(1).into());
 
-            if mutator.gas_counter.reduce(reserve) != ChargeResult::Enough {
+            if mutator.gas_counter.reduce(reserve).is_not_enough() {
                 return Err(UnrecoverableExecutionError::NotEnoughGas.into());
             }
 
@@ -1406,7 +1422,7 @@ impl<LP: LazyPagesInterface> Externalities for Ext<LP> {
 
             let reserve_diff = reserve_full - reserve;
 
-            Ok(mutator.gas_counter.reduce(reserve_diff) == ChargeResult::Enough)
+            Ok(mutator.gas_counter.reduce(reserve_diff).is_enough())
         })
     }
 
