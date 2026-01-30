@@ -60,7 +60,8 @@
 use crate::{
     common::{
         ActorExecutionError, ActorExecutionErrorReplyReason, DispatchResult, DispatchResultKind,
-        ExecutionError, Program, SystemExecutionError, WasmExecutionContext,
+        ExecutableActorData, ExecutionError, Program, ReservationsAndMemorySize,
+        SystemExecutionError, WasmExecutionContext,
     },
     configs::{BlockInfo, ExecutionSettings},
     ext::{ProcessorContext, ProcessorExternalities},
@@ -398,10 +399,25 @@ pub struct ExecutionStep {
     pub gas_reserver: GasReserver,
 }
 
+/// Data cached after first successful dispatch execution.
+///
+/// This data is reused for subsequent dispatches in the same sequence,
+/// avoiding repeated DB reads and gas charges.
+#[derive(Clone, Debug)]
+pub struct CachedExecutionData {
+    /// Actor data (allocations, memory infix, gas reservations).
+    pub actor_data: ExecutableActorData,
+    /// Memory size configuration.
+    pub reservations_and_memory_size: ReservationsAndMemorySize,
+}
+
 /// Persistent state between sequence steps.
 pub struct SequenceState<'a, Ext: BackendExternalities> {
     post_env: Option<Environment<'a, Ext, PostExecution>>,
     has_snapshot: bool,
+    /// Cached execution data for subsequent dispatches.
+    /// `None` indicates this is the first dispatch in the sequence.
+    cached: Option<CachedExecutionData>,
 }
 
 impl<'a, Ext: BackendExternalities> SequenceState<'a, Ext> {
@@ -410,6 +426,33 @@ impl<'a, Ext: BackendExternalities> SequenceState<'a, Ext> {
         Self {
             post_env: None,
             has_snapshot: false,
+            cached: None,
+        }
+    }
+
+    /// Returns `true` if this is the first dispatch in the sequence.
+    #[inline]
+    pub fn is_first_dispatch(&self) -> bool {
+        self.cached.is_none()
+    }
+
+    /// Returns cached execution data if available.
+    pub fn cached_data(&self) -> Option<&CachedExecutionData> {
+        self.cached.as_ref()
+    }
+
+    /// Caches execution data after a successful first dispatch.
+    ///
+    /// This should be called after the first dispatch completes successfully,
+    /// so subsequent dispatches can reuse the data without charging.
+    pub fn cache_execution_data(&mut self, data: CachedExecutionData) {
+        self.cached = Some(data);
+    }
+
+    /// Updates cached allocations after a dispatch that modified them.
+    pub fn update_cached_allocations(&mut self, allocations: IntervalsTree<WasmPage>) {
+        if let Some(ref mut cached) = self.cached {
+            cached.actor_data.allocations = allocations;
         }
     }
 }

@@ -57,4 +57,6 @@ pub mod informational {
     pub use crate::executor::execute_for_reply;
 }
 
-pub use executor::{ExecutionSequenceError, ExecutionStep, SequenceState, execute_wasm_step};
+pub use executor::{
+    CachedExecutionData, ExecutionSequenceError, ExecutionStep, SequenceState, execute_wasm_step,
+};
