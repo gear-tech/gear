@@ -16,29 +16,36 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Command `program`.
-use crate::App;
+//! Smoke test for `gcli`.
+
 use anyhow::Result;
-use clap::Parser;
-use gear_core::ids::ActorId;
-use gsdk::ext::subxt::utils::H256;
+use indoc::{formatdoc, indoc};
 
-/// Read program state, etc.
-#[derive(Clone, Debug, Parser)]
-pub struct Program {
-    /// Program id.
-    pid: ActorId,
-    /// The block hash for reading state.
-    #[arg(long)]
-    at: Option<H256>,
-}
+mod util;
 
-impl Program {
-    /// Run command program.
-    pub async fn exec(&self, app: &impl App) -> Result<()> {
-        let api = app.signed().await?;
-        let state = api.read_state_bytes_at(self.pid, vec![], self.at).await?;
-        println!("0x{}", hex::encode(state));
-        Ok(())
-    }
+#[tokio::test]
+async fn smoke_test() -> Result<()> {
+    let (node, gcli) = util::init_node()?;
+
+    let node_port = node.address.port();
+
+    gcli()
+        .args(["config", "set", "endpoint", &node.ws()])
+        .assert()
+        .success()
+        .stdout_eq(formatdoc!(
+            "
+            Successfully updated the configuration
+
+            RPC URL: ws://127.0.0.1:{node_port}/
+            "
+        ));
+    gcli().args(["wallet", "dev"]).assert().success();
+    gcli().args(["info", "balance"]).assert().stdout_eq(indoc!(
+        "
+        Free balance: 1000000000000000000000
+        "
+    ));
+
+    Ok(())
 }
