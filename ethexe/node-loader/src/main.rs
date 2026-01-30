@@ -56,11 +56,9 @@ async fn load_node(params: LoadParams) -> Result<()> {
     )
     .await?;
     api.wrapped_vara()
-        .mint(pubkey.to_address().into(), 500_000_000_000_000_000_000)
+        .mint(pubkey.to_address(), 500_000_000_000_000_000_000)
         .await?;
-    api.wrapped_vara()
-        .approve_all(pubkey.to_address().into())
-        .await?;
+    api.wrapped_vara().approve_all(pubkey.to_address()).await?;
 
     let provider = api.provider().clone();
 

@@ -447,8 +447,7 @@ async fn run_batch_impl(
                 let message_id = if rand::random::<bool>() {
                     tracing::debug!("[Call with id {i}]: Sending injected message to {to}");
                     let mirror = vapi.mirror(to);
-                    let mid = mirror.send_message_injected(&arg.0.1, arg.0.3).await?;
-                    mid
+                    mirror.send_message_injected(&arg.0.1, arg.0.3).await?
                 } else {
                     tracing::debug!(
                         "[Call with id {i}]: Sending message to {to} through Mirror contract"
