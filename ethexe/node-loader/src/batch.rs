@@ -19,8 +19,11 @@ use ethexe_ethereum::{
 use ethexe_sdk::VaraEthApi;
 use futures::{StreamExt, stream::FuturesUnordered};
 use gear_call_gen::{CallGenRng, ClaimValueArgs, SendReplyArgs};
-use gear_core::{ids::prelude::MessageIdExt, message::ReplyCode};
-use gprimitives::{ActorId, H256, MessageId};
+use gear_core::{
+    ids::prelude::{CodeIdExt, MessageIdExt},
+    message::ReplyCode,
+};
+use gprimitives::{ActorId, CodeId, H256, MessageId};
 use std::{
     collections::{BTreeMap, BTreeSet},
     marker::PhantomData,
@@ -363,13 +366,17 @@ async fn run_batch_impl(
             let mut code_ids = Vec::with_capacity(args.len());
 
             for arg in args.iter() {
+                tracing::debug!(
+                    "Uploading code {} for program (len = {} bytes)",
+                    CodeId::generate(&arg.0.0),
+                    arg.0.0.len()
+                );
                 let (_, code_id) = vapi.router().request_code_validation(&arg.0.0).await?;
+                vapi.router().wait_for_code_validation(code_id).await?;
+                tracing::debug!("Code {code_id} uploaded and validated");
                 code_ids.push(code_id);
             }
 
-            for code_id in code_ids.iter().copied() {
-                vapi.router().wait_for_code_validation(code_id).await?;
-            }
             let mut program_ids = BTreeSet::new();
             let mut messages = BTreeMap::new();
             let block = api
@@ -425,12 +432,16 @@ async fn run_batch_impl(
             let mut code_ids = Vec::with_capacity(args.len());
 
             for arg in args.iter() {
+                let code_id = CodeId::generate(&arg.0);
+                tracing::debug!("Uploading code {code_id} (len = {})", arg.0.len());
+                let start = std::time::Instant::now();
                 let (_, code_id) = vapi.router().request_code_validation(&arg.0).await?;
-                code_ids.push(code_id);
-            }
-
-            for code_id in code_ids.iter().copied() {
                 vapi.router().wait_for_code_validation(code_id).await?;
+                tracing::debug!(
+                    "Code {code_id} uploaded and validated in {:?}s",
+                    start.elapsed().as_secs_f64()
+                );
+                code_ids.push(code_id);
             }
 
             Ok(Report {
@@ -442,6 +453,13 @@ async fn run_batch_impl(
         Batch::SendMessage(args) => {
             tracing::info!("Sending messages");
             let mut messages = BTreeMap::new();
+            let block = api
+                .provider()
+                .get_block(BlockId::latest())
+                .await?
+                .unwrap()
+                .hash();
+
             for (i, arg) in args.iter().enumerate() {
                 let to = arg.0.0;
                 let message_id = if rand::random::<bool>() {
@@ -460,12 +478,6 @@ async fn run_batch_impl(
                 mid_map.write().await.insert(message_id, to);
                 tracing::debug!("[Call with id {i}]: Message sent #{message_id} to {to}");
             }
-            let block = api
-                .provider()
-                .get_block(BlockId::latest())
-                .await?
-                .unwrap()
-                .hash();
 
             process_events(api, messages, rx, block).await
         }
@@ -597,8 +609,8 @@ async fn process_events(
     mut rx: Receiver<<alloy::network::Ethereum as Network>::HeaderResponse>,
     block_hash: FixedBytes<32>,
 ) -> Result<Report> {
-    let wait_for_event_blocks = 10;
-    let wait_for_events_millisec = 12 * 1000 * wait_for_event_blocks * 5;
+    let wait_for_event_blocks = 30;
+    let wait_for_events_millisec = 14 * 1000;
     let mut mailbox_added = BTreeSet::new();
     let results = {
         let mut block = rx.recv().await?;
