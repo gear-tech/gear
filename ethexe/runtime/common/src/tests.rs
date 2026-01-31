@@ -619,7 +619,12 @@ fn charging_optimization_correctness_with_mixed_operations() {
             &storage,
             MessageId::from(msg_id),
             user_id,
-            FTAction::Transfer { from: user_id, to: other_user, amount: 200 }.encode(),
+            FTAction::Transfer {
+                from: user_id,
+                to: other_user,
+                amount: 200,
+            }
+            .encode(),
             0,
             false,
             MessageType::Canonical,
@@ -759,7 +764,10 @@ fn charging_optimization_correctness_with_mixed_operations() {
     // - Second balance query after additional mint: 1300
     // - Total supply: 1500
     assert_eq!(balance_events.len(), 2, "Should have 2 balance events");
-    assert_eq!(balance_events[0], 800, "Balance after transfer should be 800");
+    assert_eq!(
+        balance_events[0], 800,
+        "Balance after transfer should be 800"
+    );
     assert_eq!(balance_events[1], 1300, "Final balance should be 1300");
     assert_eq!(supply, Some(1500), "Total supply should be 1500");
 
