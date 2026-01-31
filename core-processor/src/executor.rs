@@ -72,7 +72,7 @@ use gear_core::{
     env::{Externalities, WasmEntryPoint},
     gas::{GasAllowanceCounter, GasCounter, ValueCounter},
     ids::ActorId,
-    memory::{AllocationsContext, Memory},
+    memory::AllocationsContext,
     message::{ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext},
     pages::{WasmPage, WasmPagesAmount, numerated::tree::IntervalsTree},
     program::MemoryInfix,
@@ -82,7 +82,7 @@ use gear_core_backend::{
     BackendExternalities, MemorySnapshot, MemorySnapshotStrategy, NoopSnapshot,
     env::{
         BackendReport, Environment, EnvironmentError, ExecutedEnvironment, ExecutionReport,
-        PostExecution, ReadyToExecute, SystemEnvironmentError,
+        PostExecution, ReadyToExecute,
     },
     error::{
         ActorTerminationReason, BackendAllocSyscallError, BackendSyscallError, RunFallibleError,
@@ -592,27 +592,11 @@ where
         gas_reserver,
     )?;
 
-    let env = if let Some(mut post_env) = state.post_env.take() {
-        let current_size = post_env.with_store_and_memory_mut(|store, memory| memory.size(store));
-        if memory_size > current_size {
-            let current_raw: u32 = current_size.into();
-            let target_raw: u32 = memory_size.into();
-            let delta_raw = target_raw.saturating_sub(current_raw);
-            let delta = WasmPagesAmount::try_from(delta_raw).unwrap_or_else(|err| {
-                let err_msg =
-                    format!("execute_wasm_step: invalid memory size delta {delta_raw}: {err}");
-                log::error!("{err_msg}");
-                unreachable!("{err_msg}");
-            });
-
-            let grow_result =
-                post_env.with_store_and_memory_mut(|store, memory| memory.grow(store, delta));
-            if let Err(err) = grow_result {
-                return Err(ExecutionError::System(SystemExecutionError::Environment(
-                    SystemEnvironmentError::CreateEnvMemory(err),
-                )));
-            }
-        }
+    let env = if let Some(post_env) = state.post_env.take() {
+        // Set lazy pages protection for the new dispatch.
+        // This clears page tracking and re-protects pages without losing the
+        // in-memory data, avoiding unnecessary DB fetches.
+        Ext::lazy_pages_set_protection();
 
         let ext = Ext::new(context);
         post_env

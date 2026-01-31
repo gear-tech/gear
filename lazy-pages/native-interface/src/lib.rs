@@ -106,6 +106,18 @@ impl LazyPagesInterface for LazyPagesNative {
         });
     }
 
+    fn set_lazy_pages_protection() {
+        gear_lazy_pages::set_lazy_pages_protection().unwrap_or_else(|err| {
+            let err_msg = format!(
+                "LazyPagesNative::set_lazy_pages_protection: can't set lazy pages protection. \
+                    Got error - {err:?}"
+            );
+
+            log::error!("{err_msg}");
+            unreachable!("{err_msg}")
+        });
+    }
+
     fn update_lazy_pages_and_protect_again<Context>(
         ctx: &mut Context,
         mem: &mut impl Memory<Context>,

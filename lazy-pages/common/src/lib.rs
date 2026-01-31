@@ -153,6 +153,13 @@ pub trait LazyPagesInterface {
     /// Remove lazy-pages protection, returns wasm memory begin addr
     fn remove_lazy_pages_prot<Context>(ctx: &mut Context, mem: &mut impl Memory<Context>);
 
+    /// Set lazy pages protection.
+    ///
+    /// This clears page tracking, re-protects pages, and resets status
+    /// while keeping the WASM memory data intact.
+    /// Used when reusing WASM environment between sequential dispatches.
+    fn set_lazy_pages_protection();
+
     /// Protect lazy-pages and set new wasm mem addr and size,
     /// if they have been changed.
     fn update_lazy_pages_and_protect_again<Context>(
@@ -195,6 +202,10 @@ impl LazyPagesInterface for () {
     }
 
     fn remove_lazy_pages_prot<Context>(_ctx: &mut Context, _mem: &mut impl Memory<Context>) {
+        unimplemented!()
+    }
+
+    fn set_lazy_pages_protection() {
         unimplemented!()
     }
 

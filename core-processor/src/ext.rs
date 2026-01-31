@@ -200,6 +200,11 @@ pub trait ProcessorExternalities {
         mem: &mut impl Memory<Context>,
     );
 
+    /// Set lazy pages protection.
+    /// This clears page tracking and re-protects pages without losing in-memory data.
+    /// Used when reusing WASM environment between sequential dispatches.
+    fn lazy_pages_set_protection();
+
     /// Returns lazy pages status
     fn lazy_pages_status() -> Status;
 }
@@ -729,6 +734,10 @@ impl<LP: LazyPagesInterface> ProcessorExternalities for Ext<LP> {
         mem: &mut impl Memory<Context>,
     ) {
         LP::remove_lazy_pages_prot(ctx, mem);
+    }
+
+    fn lazy_pages_set_protection() {
+        LP::set_lazy_pages_protection();
     }
 
     fn lazy_pages_status() -> Status {

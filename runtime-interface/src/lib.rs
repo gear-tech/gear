@@ -182,6 +182,13 @@ pub trait GearRI {
         lazy_pages_detail::write_accessed_pages()
     }
 
+    /// Set lazy pages protection.
+    /// This clears page tracking and re-protects pages without losing in-memory data.
+    /// Used when reusing WASM environment between sequential dispatches.
+    fn set_lazy_pages_protection() {
+        lazy_pages_detail::set_lazy_pages_protection()
+    }
+
     /* Below goes deprecated runtime interface functions. */
     fn pre_process_memory_accesses(
         reads: &[MemoryInterval],
@@ -295,6 +302,11 @@ pub mod lazy_pages_detail {
     pub fn write_accessed_pages() -> Vec<u32> {
         gear_lazy_pages::write_accessed_pages()
             .unwrap_or_else(|err| unreachable!("Cannot get write accessed pages: {err}"))
+    }
+
+    pub fn set_lazy_pages_protection() {
+        gear_lazy_pages::set_lazy_pages_protection()
+            .unwrap_or_else(|err| unreachable!("Cannot set lazy pages protection: {err}"))
     }
 
     fn deserialize_mem_intervals(bytes: &[u8], intervals: &mut Vec<MemoryInterval>) {
