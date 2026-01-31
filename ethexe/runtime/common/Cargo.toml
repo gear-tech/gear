@@ -41,6 +41,7 @@ std = [
 ]
 
 [dev-dependencies]
-demo-fungible-token = { workspace = true }
+demo-alloc-test.workspace = true
+demo-fungible-token.workspace = true
 gear-lazy-pages.workspace = true
 gear-lazy-pages-native-interface.workspace = true

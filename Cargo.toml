@@ -33,6 +33,7 @@ members = [
     "examples/async-reply-hook",
     "examples/async-signal-entry",
     "examples/async-tester",
+    "examples/alloc-test",
     "examples/autoreply",
     "examples/big-data-section",
     "examples/bls381",
@@ -474,6 +475,7 @@ demo-futures-unordered = { path = "examples/futures-unordered", features = [
     "debug",
 ] }
 demo-gas-burned = { path = "examples/gas-burned" }
+demo-alloc-test = { path = "examples/alloc-test" }
 demo-fungible-token = { path = "examples/fungible-token" }
 demo-init-fail-sender = { path = "examples/init-fail-sender" }
 demo-init-wait = { path = "examples/init-wait", default-features = false }

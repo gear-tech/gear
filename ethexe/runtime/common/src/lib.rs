@@ -281,15 +281,18 @@ where
         );
 
         // Check if allocations changed and update the cache
-        for note in &journal {
-            if let JournalNote::UpdateAllocations {
-                program_id: pid,
-                allocations,
-            } = note
-                && *pid == program_id
-            {
-                sequence_state.update_cached_allocations(allocations.clone());
-                break;
+        if let Some(ref metadata) = code_metadata {
+            for note in &journal {
+                if let JournalNote::UpdateAllocations {
+                    program_id: pid,
+                    allocations,
+                } = note
+                    && *pid == program_id
+                {
+                    sequence_state
+                        .update_cached_allocations(allocations.clone(), metadata.static_pages());
+                    break;
+                }
             }
         }
 

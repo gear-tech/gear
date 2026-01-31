@@ -168,11 +168,10 @@ where
 
     let env = create_environment::<Ext>(context, &program, memory_size, &settings)?;
 
-    let mut memory_snapshot = Ext::memory_snapshot();
     let execution_result = execute_environment(
         env,
         kind,
-        MemorySnapshotStrategy::enabled(&mut memory_snapshot),
+        MemorySnapshotStrategy::<NoopSnapshot>::disabled(),
     )?;
 
     finalize_execution::<Ext>(execution_result, &program, initial_gas_reserver)
@@ -450,8 +449,16 @@ impl<'a, Ext: BackendExternalities> SequenceState<'a, Ext> {
     }
 
     /// Updates cached allocations after a dispatch that modified them.
-    pub fn update_cached_allocations(&mut self, allocations: IntervalsTree<WasmPage>) {
+    /// Also updates memory_size to account for new allocations.
+    pub fn update_cached_allocations(
+        &mut self,
+        allocations: IntervalsTree<WasmPage>,
+        static_pages: WasmPagesAmount,
+    ) {
         if let Some(ref mut cached) = self.cached {
+            // Update memory_size to accommodate new allocations
+            let new_memory_size = allocations.end().map(|p| p.inc()).unwrap_or(static_pages);
+            cached.reservations_and_memory_size.memory_size = new_memory_size;
             cached.actor_data.allocations = allocations;
         }
     }

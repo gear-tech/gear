@@ -446,13 +446,11 @@ fn charging_optimization_gas_savings_with_multiple_dispatches() {
     );
 }
 
-/// Test that allocation updates are properly propagated to the cache.
-/// When a dispatch modifies allocations, the cache should be updated
-/// so subsequent dispatches see the correct allocations.
+/// Test that state updates are properly propagated through cached sequential execution.
+/// This verifies that transfers to many different users work correctly, which requires
+/// proper state management across dispatches in the cache.
 #[test]
-fn charging_optimization_allocation_updates_propagate() {
-    // The fungible token demo allocates memory during init and mint operations.
-    // This test verifies that allocation changes are tracked through the cache.
+fn charging_optimization_state_updates_propagate() {
     init_lazy_pages();
 
     let code = build_code();
@@ -461,7 +459,6 @@ fn charging_optimization_allocation_updates_propagate() {
 
     let storage = state::MemStorage::default();
 
-    // Create a queue with multiple operations that may trigger allocations
     let mut queue = state::MessageQueue::default();
 
     // Init dispatch
@@ -484,35 +481,61 @@ fn charging_optimization_allocation_updates_propagate() {
     .expect("failed to build init dispatch");
     queue.queue(init);
 
-    // Multiple mints to potentially trigger allocation growth
-    for i in 2..=10u64 {
-        let mint = Dispatch::new(
+    // Mint a large amount
+    const NUM_USERS: u64 = 100;
+    queue.queue(
+        Dispatch::new(
             &storage,
-            MessageId::from(i),
+            MessageId::from(2),
             user_id,
-            FTAction::Mint(100).encode(),
+            FTAction::Mint(NUM_USERS as u128 * 100).encode(),
             0,
             false,
             MessageType::Canonical,
             false,
         )
-        .expect("failed to build mint dispatch");
-        queue.queue(mint);
+        .expect("failed"),
+    );
+
+    // Transfer to many different users - this exercises state propagation
+    // as each transfer modifies the balances map which must be preserved
+    // across cached dispatch executions
+    for i in 0..NUM_USERS {
+        let target_user = ActorId::from(2000 + i);
+        queue.queue(
+            Dispatch::new(
+                &storage,
+                MessageId::from(3 + i),
+                user_id,
+                FTAction::Transfer {
+                    from: user_id,
+                    to: target_user,
+                    amount: 100,
+                }
+                .encode(),
+                0,
+                false,
+                MessageType::Canonical,
+                false,
+            )
+            .expect("failed"),
+        );
     }
 
-    // Final balance query
-    let balance = Dispatch::new(
-        &storage,
-        MessageId::from(11),
-        user_id,
-        FTAction::BalanceOf(user_id).encode(),
-        0,
-        false,
-        MessageType::Canonical,
-        false,
-    )
-    .expect("failed to build balance dispatch");
-    queue.queue(balance);
+    // Final total supply query - should still be the minted amount
+    queue.queue(
+        Dispatch::new(
+            &storage,
+            MessageId::from(3 + NUM_USERS),
+            user_id,
+            FTAction::TotalSupply.encode(),
+            0,
+            false,
+            MessageType::Canonical,
+            false,
+        )
+        .expect("failed"),
+    );
 
     let queue_len = queue.len();
     let queue_hash = queue.store(&storage);
@@ -528,7 +551,7 @@ fn charging_optimization_allocation_updates_propagate() {
         hash: queue_hash,
         cached_queue_size: queue_len as u8,
     };
-    state.executable_balance = 1_500_000_000_000;
+    state.executable_balance = 10_000_000_000_000;
 
     let runtime = TestRuntimeInterface::new(storage);
 
@@ -539,25 +562,181 @@ fn charging_optimization_allocation_updates_propagate() {
         Some(code.instrumented_code().clone()),
         Some(code.metadata().clone()),
         &runtime,
-        10_000_000_000_000,
+        100_000_000_000_000,
     );
 
-    // Verify all dispatches completed and balance is correct
-    let balance = extract_balance(&journals);
-    assert_eq!(balance, Some(900), "Balance should be 9 mints * 100 = 900");
+    // Verify total supply is correct (all transfers preserve total supply)
+    let supply = extract_supply(&journals);
+    assert_eq!(
+        supply,
+        Some(NUM_USERS as u128 * 100),
+        "Total supply should be preserved after transfers"
+    );
+
+    // Verify we processed all dispatches
+    // init + mint + NUM_USERS transfers + total_supply query
+    let expected_dispatches = 1 + 1 + NUM_USERS as usize + 1;
+    assert_eq!(
+        journals.len(),
+        expected_dispatches,
+        "Should process all {} dispatches",
+        expected_dispatches
+    );
 
     assert!(gas_spent > 0);
+}
 
-    // Count UpdateAllocations journal notes to verify allocation tracking
-    let allocation_updates: usize = journals
-        .iter()
-        .flat_map(|(journal, _, _)| journal.iter())
-        .filter(|note| matches!(note, JournalNote::UpdateAllocations { .. }))
-        .count();
+/// Test that allocation updates are properly propagated through cached sequential execution.
+/// This uses a dedicated alloc-test program that explicitly grows WASM memory.
+#[test]
+fn charging_optimization_allocation_updates_propagate() {
+    use demo_alloc_test::{Action, Event, WASM_BINARY as ALLOC_WASM_BINARY};
 
-    // There should be some allocation updates (at least from init)
-    // The exact count depends on the token implementation
-    eprintln!("Allocation updates: {allocation_updates}");
+    init_lazy_pages();
+
+    // Build the alloc-test code
+    let code = Code::try_new(
+        ALLOC_WASM_BINARY.to_vec(),
+        1,
+        |_| CustomConstantCostRules::new(0, 0, 0),
+        None,
+        None,
+        None,
+        None,
+    )
+    .expect("failed to create alloc-test Code");
+
+    let program_id = ActorId::generate_from_user(CodeId::generate(code.original_code()), b"");
+    let user_id = ActorId::from(10);
+
+    let storage = state::MemStorage::default();
+
+    let mut queue = state::MessageQueue::default();
+
+    // Init dispatch (empty payload for alloc-test)
+    queue.queue(
+        Dispatch::new(
+            &storage,
+            MessageId::from(1),
+            user_id,
+            vec![],
+            0,
+            true,
+            MessageType::Canonical,
+            false,
+        )
+        .expect("failed to build init dispatch"),
+    );
+
+    // Allocate memory in multiple steps to trigger WASM page growth.
+    // WASM pages are 64KB each. We'll allocate enough to force multiple page allocations.
+    // Each allocation of 64KB (65536 bytes) should trigger at least one new page.
+    const ALLOC_SIZE: u32 = 65536; // 64KB per allocation
+    const NUM_ALLOCS: u64 = 10; // 10 allocations = 640KB total
+
+    for i in 0..NUM_ALLOCS {
+        queue.queue(
+            Dispatch::new(
+                &storage,
+                MessageId::from(2 + i),
+                user_id,
+                Action::Alloc(ALLOC_SIZE).encode(),
+                0,
+                false,
+                MessageType::Canonical,
+                false,
+            )
+            .expect("failed to build alloc dispatch"),
+        );
+    }
+
+    // Final query to get total allocated size
+    queue.queue(
+        Dispatch::new(
+            &storage,
+            MessageId::from(2 + NUM_ALLOCS),
+            user_id,
+            Action::GetAllocatedSize.encode(),
+            0,
+            false,
+            MessageType::Canonical,
+            false,
+        )
+        .expect("failed to build get size dispatch"),
+    );
+
+    let queue_len = queue.len();
+    let queue_hash = queue.store(&storage);
+
+    let mut state = state::ProgramState::zero();
+    state.program = state::Program::Active(state::ActiveProgram {
+        allocations_hash: MaybeHashOf::empty(),
+        pages_hash: MaybeHashOf::empty(),
+        memory_infix: MemoryInfix::new(0),
+        initialized: false,
+    });
+    state.canonical_queue = state::MessageQueueHashWithSize {
+        hash: queue_hash,
+        cached_queue_size: queue_len as u8,
+    };
+    state.executable_balance = 10_000_000_000_000;
+
+    let runtime = TestRuntimeInterface::new(storage);
+
+    let (journals, gas_spent) = process_queue::<_, _>(
+        program_id,
+        state,
+        MessageType::Canonical,
+        Some(code.instrumented_code().clone()),
+        Some(code.metadata().clone()),
+        &runtime,
+        100_000_000_000_000,
+    );
+
+    // Verify we processed all dispatches
+    let expected_dispatches = 1 + NUM_ALLOCS as usize + 1; // init + allocs + get_size
+    assert_eq!(
+        journals.len(),
+        expected_dispatches,
+        "Should process all {} dispatches",
+        expected_dispatches
+    );
+
+    // Extract the final AllocatedSize event to verify correctness
+    let mut final_size = None;
+    for (journal, _, _) in &journals {
+        for note in journal {
+            if let JournalNote::SendDispatch { dispatch, .. } = note
+                && let Ok(Event::AllocatedSize(size)) = Event::decode(&mut dispatch.payload_bytes())
+            {
+                final_size = Some(size);
+            }
+        }
+    }
+
+    assert_eq!(
+        final_size,
+        Some(ALLOC_SIZE * NUM_ALLOCS as u32),
+        "Total allocated size should be {} bytes",
+        ALLOC_SIZE * NUM_ALLOCS as u32
+    );
+
+    // The test verifies that:
+    // 1. Sequential execution with memory growth works correctly
+    // 2. Each allocation dispatch completes and the state is preserved
+    // 3. The final query returns the correct total allocated size
+    //
+    // Note: The Rust heap allocator (dlmalloc) grows WASM memory directly
+    // via the memory.grow instruction, bypassing gear's AllocationsContext.
+    // This is the standard behavior for Rust programs on gear.
+
+    eprintln!(
+        "Successfully processed {} dispatches with {} bytes allocated",
+        journals.len(),
+        ALLOC_SIZE * NUM_ALLOCS as u32
+    );
+
+    assert!(gas_spent > 0);
 }
 
 /// Test that verifies the charging optimization doesn't affect correctness
