@@ -968,7 +968,7 @@ fn build_benchmark_queue(
 #[test]
 fn comparison_benchmark() {
     const ITERATIONS: usize = 20;
-    const GAS_ALLOWANCE: u64 = 15_000_000_000;
+    const GAS_ALLOWANCE: u64 = 100_000_000_000;
 
     init_lazy_pages();
 
@@ -980,7 +980,7 @@ fn comparison_benchmark() {
     eprintln!("Iterations per test: {}", ITERATIONS);
     eprintln!("Gas allowance: {}\n", GAS_ALLOWANCE);
 
-    for dispatch_count in [1, 2, 3, 5, 8, 12, 20, 30, 50, 100] {
+    for dispatch_count in [1, 2, 3, 5, 10, 20, 50, 100, 200, 500] {
         let mut gas_total: u64 = 0;
         let mut total_time = std::time::Duration::ZERO;
 
