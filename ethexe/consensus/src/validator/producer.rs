@@ -95,6 +95,8 @@ impl StateHandler for Producer {
                     self.ctx.output(ConsensusEvent::Promises(signed_promises));
                 }
 
+                // Aggregate commitment for the block and use `announce_hash` as head for chain commitment.
+                // `announce_hash` is computed and included in the db already, so it's safe to use it.
                 self.state = State::AggregateBatchCommitment {
                     future: self
                         .ctx
@@ -245,7 +247,7 @@ mod tests {
         validator::{PendingEvent, mock::*},
     };
     use async_trait::async_trait;
-    use ethexe_common::{Digest, HashOf, db::*, gear::CodeCommitment, mock::*};
+    use ethexe_common::{HashOf, db::*, gear::CodeCommitment, mock::*};
     use futures::StreamExt;
     use nonempty::nonempty;
 
@@ -282,6 +284,13 @@ mod tests {
             .skip_timer()
             .await
             .unwrap();
+
+        // compute announce
+        AnnounceData {
+            announce: state.context().core.db.announce(announce_hash).unwrap(),
+            computed: Some(Default::default()),
+        }
+        .setup(&state.context().core.db);
 
         let state = state
             .process_computed_announce(ComputedAnnounce::mock(announce_hash))
@@ -326,7 +335,7 @@ mod tests {
         // compute announce
         AnnounceData {
             announce: state.context().core.db.announce(announce_hash).unwrap(),
-            computed: Some(MockComputedAnnounceData::default()),
+            computed: Some(Default::default()),
         }
         .setup(&state.context().core.db);
 
@@ -371,7 +380,7 @@ mod tests {
         // compute announce
         AnnounceData {
             announce: state.context().core.db.announce(announce_hash).unwrap(),
-            computed: Some(MockComputedAnnounceData::default()),
+            computed: Some(Default::default()),
         }
         .setup(&state.context().core.db);
 
@@ -392,6 +401,8 @@ mod tests {
     #[tokio::test]
     #[ntest::timeout(3000)]
     async fn code_commitments_only() {
+        gear_utils::init_default_logger();
+
         let (ctx, keys, eth) = mock_validator_context();
         let validators = nonempty![ctx.core.pub_key.to_address(), keys[0].to_address()].into();
         let block = BlockChain::mock(1).setup(&ctx.core.db).blocks[1].to_simple();
@@ -403,16 +414,19 @@ mod tests {
         ctx.core.db.mutate_block_meta(block.hash, |meta| {
             meta.codes_queue = Some([code1.id, code2.id].into_iter().collect())
         });
-        ctx.core.db.mutate_block_meta(block.hash, |meta| {
-            meta.last_committed_batch = Some(Digest::random());
-            meta.last_committed_announce = Some(HashOf::random());
-        });
 
         let (state, announce_hash) = Producer::create(ctx, block, validators)
             .unwrap()
             .skip_timer()
             .await
             .unwrap();
+
+        // compute announce
+        AnnounceData {
+            announce: state.context().core.db.announce(announce_hash).unwrap(),
+            computed: Some(Default::default()),
+        }
+        .setup(&state.context().core.db);
 
         let mut state = state
             .process_computed_announce(ComputedAnnounce::mock(announce_hash))
