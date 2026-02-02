@@ -28,7 +28,6 @@ use gear_core::{
     rpc::ReplyInfo,
 };
 use gear_wasm_instrument::syscalls::SyscallName;
-use sp_core::hexdisplay::HexDisplay;
 use sp_runtime::{DispatchErrorWithPostInfo, ModuleError};
 
 // Multiplier 6 was experimentally found as median value for performance,
@@ -372,10 +371,7 @@ where
                     {
                         let trap_msg = match trap {
                             DispatchErrorReason::Panic(buffer) => {
-                                format!(
-                                    "Panic occurred: 0x{:?}",
-                                    HexDisplay::from(&buffer.inner().as_slice())
-                                )
+                                format!("Panic occurred: {:.1024}", buffer.inner())
                             }
                             DispatchErrorReason::Message(msg) => msg,
                         };

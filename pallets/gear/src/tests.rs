@@ -9156,42 +9156,103 @@ fn call_forbidden_function() {
 
 #[test]
 fn userspace_panic_rpc_returns_full_hex() {
-    let wat = r#"
-    (module
-        (import "env" "memory" (memory 1))
-        (import "env" "gr_panic" (func $gr_panic (param i32 i32)))
-        (export "handle" (func $handle))
-        (func $handle
-            (call $gr_panic (i32.const 0) (i32.const 32))
-        )
-        (data (i32.const 0) "12345678901234561234567890123456")
-    )"#;
+    let check = |size: usize, byte_val: u8, hex_val: &str| {
+        let data = (byte_val as char).to_string().repeat(size);
+        let wat = format!(
+            r#"
+        (module
+            (import "env" "memory" (memory 1))
+            (import "env" "gr_panic" (func $gr_panic (param i32 i32)))
+            (export "handle" (func $handle))
+            (func $handle
+                (call $gr_panic (i32.const 0) (i32.const {size}))
+            )
+            (data (i32.const 0) "{data}")
+        )"#
+        );
+
+        new_test_ext().execute_with(|| {
+            let prog_id = upload_program_default(USER_1, ProgramCodeKind::Custom(&wat))
+                .expect("submit result was asserted");
+
+            run_to_block(2, None);
+
+            let err = Gear::calculate_gas_info(
+                USER_1.into_origin(),
+                HandleKind::Handle(prog_id),
+                EMPTY_PAYLOAD.to_vec(),
+                0,
+                true,
+                true,
+            )
+            .expect_err("Must return error");
+
+            let expected_msg = if size <= 2048 {
+                let expected_hex = hex_val.repeat(size);
+                format!("Program terminated with a trap: 'Panic occurred: 0x{expected_hex}'")
+            } else {
+                let hex_part = hex_val.repeat(1024);
+                format!(
+                    "Program terminated with a trap: 'Panic occurred: 0x{hex_part}..{hex_part}'"
+                )
+            };
+
+            assert_eq!(err, expected_msg);
+        });
+    };
 
     init_logger();
-    new_test_ext().execute_with(|| {
-        let prog_id = upload_program_default(USER_1, ProgramCodeKind::Custom(wat))
-            .expect("submit result was asserted");
+    check(1024, b'A', "41");
+    check(3000, b'B', "42");
+}
 
-        run_to_block(2, None);
+#[test]
+fn userspace_panic_init_rpc_returns_full_hex() {
+    let check = |size: usize, byte_val: u8, hex_val: &str| {
+        let data = (byte_val as char).to_string().repeat(size);
+        let wat = format!(
+            r#"
+        (module
+            (import "env" "memory" (memory 1))
+            (import "env" "gr_panic" (func $gr_panic (param i32 i32)))
+            (export "init" (func $init))
+            (func $init
+                (call $gr_panic (i32.const 0) (i32.const {size}))
+            )
+            (data (i32.const 0) "{data}")
+        )"#
+        );
 
-        let err = Gear::calculate_gas_info(
-            USER_1.into_origin(),
-            HandleKind::Handle(prog_id),
-            EMPTY_PAYLOAD.to_vec(),
-            0,
-            true,
-            true,
-        )
-        .expect_err("Must return error");
+        new_test_ext().execute_with(|| {
+            let code = parse_wat(&wat);
 
-        // RPC must return full hex payload without ".." truncation
-        let hex_payload = "3132333435363738393031323334353631323334353637383930313233343536";
-        let expected_msg =
-            format!("Program terminated with a trap: 'Panic occurred: 0x{hex_payload}'");
+            let err = Gear::calculate_gas_info(
+                USER_1.into_origin(),
+                HandleKind::Init(code),
+                EMPTY_PAYLOAD.to_vec(),
+                0,
+                true,
+                true,
+            )
+            .expect_err("Must return error");
 
-        assert_eq!(err, expected_msg);
-        assert!(!err.contains(".."));
-    });
+            let expected_msg = if size <= 2048 {
+                let expected_hex = hex_val.repeat(size);
+                format!("Program terminated with a trap: 'Panic occurred: 0x{expected_hex}'")
+            } else {
+                let hex_part = hex_val.repeat(1024);
+                format!(
+                    "Program terminated with a trap: 'Panic occurred: 0x{hex_part}..{hex_part}'"
+                )
+            };
+
+            assert_eq!(err, expected_msg);
+        });
+    };
+
+    init_logger();
+    check(1024, b'C', "43");
+    check(3000, b'D', "44");
 }
 
 #[test]
