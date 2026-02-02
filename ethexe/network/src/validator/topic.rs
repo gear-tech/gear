@@ -335,7 +335,7 @@ mod tests {
 
     fn new_validator_message(era_index: u64) -> VerifiedValidatorMessage {
         let signer = Signer::memory();
-        let pub_key = signer.generate_key().unwrap();
+        let pub_key = signer.generate().unwrap();
 
         signer
             .signed_data(
@@ -344,6 +344,7 @@ mod tests {
                     era_index,
                     payload: Announce::mock(()),
                 },
+                None,
             )
             .map(SignedValidatorMessage::from)
             .unwrap()
@@ -352,7 +353,7 @@ mod tests {
 
     fn signed_promise() -> SignedPromise {
         let signer = Signer::memory();
-        let pub_key = signer.generate_key().unwrap();
+        let pub_key = signer.generate().unwrap();
         let promise = Promise {
             tx_hash: Default::default(),
             reply: ReplyInfo {
@@ -362,7 +363,7 @@ mod tests {
             },
         };
 
-        signer.signed_message(pub_key, promise).unwrap()
+        signer.signed_message(pub_key, promise, None).unwrap()
     }
 
     #[test]

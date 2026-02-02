@@ -16,72 +16,103 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-//! Keyring manager for sr25519 keys with polkadot-js compatibility.
+//! Keyring manager for sr25519 keys.
 
-use super::{Keystore, PrivateKey};
-use crate::keyring::{Keyring as GenericKeyring, KeystoreEntry};
-use anyhow::Result;
-use std::path::PathBuf;
+use super::{PrivateKey, PublicKey};
+use crate::{
+    address::SubstrateAddress,
+    keyring::{KeyCodec, Keyring as GenericKeyring, SubstrateKeystore},
+};
+use anyhow::{Result, anyhow};
+use schnorrkel::KEYPAIR_LENGTH;
+use serde::{Deserialize, Serialize};
+
+#[derive(Clone, Copy, Debug, Default, Serialize, Deserialize)]
+pub struct Sr25519Codec;
+
+impl KeyCodec for Sr25519Codec {
+    type Pair = sp_core::sr25519::Pair;
+    type PrivateKey = PrivateKey;
+    type PublicKey = PublicKey;
+    type Address = SubstrateAddress;
+
+    const KEY_TYPE: &'static str = "sr25519";
+
+    fn derive_public(private_key: &Self::PrivateKey) -> Self::PublicKey {
+        crate::keyring::codec_defaults::derive_public(private_key)
+    }
+
+    fn derive_address(public_key: &Self::PublicKey) -> Result<Self::Address> {
+        public_key
+            .to_address()
+            .map_err(|err| anyhow!("Failed to derive address: {err}"))
+    }
+
+    fn encode_private(private_key: &Self::PrivateKey) -> Result<String> {
+        Ok(hex::encode(private_key.to_bytes()))
+    }
+
+    fn decode_private(encoded: &str) -> Result<Self::PrivateKey> {
+        let bytes = hex::decode(encoded)?;
+        if bytes.len() == 32 {
+            let mut seed = [0u8; 32];
+            seed.copy_from_slice(&bytes);
+            PrivateKey::from_seed(seed).map_err(|err| anyhow!("Invalid sr25519 seed: {err}"))
+        } else if bytes.len() == KEYPAIR_LENGTH {
+            let keypair = schnorrkel::Keypair::from_half_ed25519_bytes(&bytes)
+                .map_err(|e| anyhow!("Invalid sr25519 keypair: {:?}", e))?;
+            Ok(PrivateKey::from_keypair(keypair))
+        } else {
+            Err(anyhow!(
+                "Invalid sr25519 private key length: expected 32 or 96, got {}",
+                bytes.len()
+            ))
+        }
+    }
+
+    fn encode_public(public_key: &Self::PublicKey) -> Result<String> {
+        crate::keyring::codec_defaults::encode_public(public_key)
+    }
+
+    fn decode_public(encoded: &str) -> Result<Self::PublicKey> {
+        crate::keyring::codec_defaults::decode_public(encoded)
+    }
+
+    fn encode_address(address: &Self::Address) -> Result<String> {
+        crate::keyring::codec_defaults::encode_ss58_address(address)
+    }
+
+    fn decode_address(encoded: &str) -> Result<Self::Address> {
+        crate::keyring::codec_defaults::decode_ss58_address(encoded)
+    }
+
+    fn random_private() -> Result<Self::PrivateKey> {
+        crate::keyring::codec_defaults::random_private()
+    }
+
+    fn import_suri(suri: &str, password: Option<&str>) -> Result<Self::PrivateKey> {
+        PrivateKey::from_suri(suri, password).map_err(|err| anyhow!("Invalid SURI: {err}"))
+    }
+}
+
+/// JSON keystore representation for sr25519 keys.
+pub type Keystore = SubstrateKeystore<Sr25519Codec>;
 
 /// sr25519 keyring backed by the generic [`GenericKeyring`].
 pub type Keyring = GenericKeyring<Keystore>;
 
-impl Keyring {
-    /// Add a keypair to the keyring.
-    pub fn add(
-        &mut self,
-        name: &str,
-        private_key: PrivateKey,
-        passphrase: Option<&[u8]>,
-    ) -> Result<Keystore> {
-        let keypair = private_key.keypair();
-        let keystore = Keystore::encrypt(keypair, passphrase)?.with_name(name);
-        self.store(name, keystore)
-    }
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::keyring::KeystoreEntry;
 
-    /// Create a new key in the keyring.
-    pub fn create(
-        &mut self,
-        name: &str,
-        passphrase: Option<&[u8]>,
-    ) -> Result<(Keystore, PrivateKey)> {
-        let private_key = PrivateKey::random();
-        let keystore = self.add(name, private_key.clone(), passphrase)?;
-        Ok((keystore, private_key))
-    }
-
-    /// Create a vanity key with the specified SS58 prefix.
-    pub fn create_vanity(
-        &mut self,
-        name: &str,
-        prefix: &str,
-        passphrase: Option<&[u8]>,
-    ) -> Result<(Keystore, PrivateKey)> {
-        let private_key = loop {
-            let candidate = PrivateKey::random();
-            let address = candidate.public_key().to_address()?;
-
-            if address.as_ss58().starts_with(prefix) {
-                break candidate;
-            }
-        };
-
-        let keystore = self.add(name, private_key.clone(), passphrase)?;
-        Ok((keystore, private_key))
-    }
-
-    /// Import a polkadot-js compatible keystore file.
-    pub fn import_polkadot(&mut self, path: PathBuf) -> Result<Keystore> {
-        self.import(path)
-    }
-}
-
-impl KeystoreEntry for Keystore {
-    fn name(&self) -> &str {
-        &self.meta.name
-    }
-
-    fn set_name(&mut self, name: &str) {
-        self.meta.name = name.to_string();
+    #[test]
+    fn create_and_restore_private_key() {
+        let temp_dir = tempfile::tempdir().unwrap();
+        let mut keyring = Keyring::load(temp_dir.path().to_path_buf()).unwrap();
+        let (keystore, private_key) = keyring.create("alice", None).unwrap();
+        assert_eq!(keyring.list().len(), 1);
+        assert_eq!(keyring.list()[0].name(), "alice");
+        assert_eq!(keystore.private_key().unwrap(), private_key);
     }
 }

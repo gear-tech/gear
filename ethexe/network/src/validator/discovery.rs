@@ -325,7 +325,7 @@ impl ValidatorIdentity {
     ) -> anyhow::Result<SignedValidatorIdentity> {
         let digest = self.to_digest();
         let validator_signature = signer
-            .sign_digest(validator_key, digest)
+            .sign_digest(validator_key, digest, None)
             .context("failed to sign validator identity with validator key")?;
 
         let network_private_key = keypair
@@ -716,7 +716,7 @@ mod tests {
     #[test]
     fn encode_decode_identity() {
         let signer = Signer::memory();
-        let validator_key = signer.generate_key().unwrap();
+        let validator_key = signer.generate().unwrap();
         let keypair = Keypair::generate_secp256k1();
         let identity = ValidatorIdentity {
             addresses: ValidatorAddresses::new(keypair.public().to_peer_id(), test_addr()),
@@ -732,7 +732,7 @@ mod tests {
     #[test]
     fn different_peer_ids_in_identity() {
         let signer = Signer::memory();
-        let validator_key = signer.generate_key().unwrap();
+        let validator_key = signer.generate().unwrap();
         let keypair = Keypair::generate_secp256k1();
         let identity = ValidatorIdentity {
             addresses: ValidatorAddresses::new(PeerId::random(), test_addr()),
@@ -796,7 +796,7 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn behaviour_queries_and_puts() {
         let signer = Signer::memory();
-        let validator_key = signer.generate_key().unwrap();
+        let validator_key = signer.generate().unwrap();
         let behaviour = Behaviour::new(
             kad::Handle::new_test(),
             Keypair::generate_secp256k1(),
@@ -820,7 +820,7 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn behaviour_stores_identity_for_known_validator() {
         let signer = Signer::memory();
-        let validator_key = signer.generate_key().unwrap();
+        let validator_key = signer.generate().unwrap();
         let identity = new_signed_identity(&signer, validator_key, 10);
 
         let (kad_handle, mut kad_callback) = kad::test_utils::HandleCallback::new_pair();
@@ -864,7 +864,7 @@ mod tests {
     #[tokio::test]
     async fn verify_record_rejects_unknown_validator() {
         let signer = Signer::memory();
-        let validator_key = signer.generate_key().unwrap();
+        let validator_key = signer.generate().unwrap();
         let identity = new_signed_identity(&signer, validator_key, 10);
 
         let behaviour = Behaviour::new(
@@ -891,7 +891,7 @@ mod tests {
     #[tokio::test]
     async fn put_identity_prefers_newer_records() {
         let signer = Signer::memory();
-        let validator_key = signer.generate_key().unwrap();
+        let validator_key = signer.generate().unwrap();
         let mut behaviour = Behaviour::new(
             kad::Handle::new_test(),
             Keypair::generate_secp256k1(),
@@ -942,8 +942,8 @@ mod tests {
     #[tokio::test]
     async fn on_new_snapshot_drops_obsolete_identities() {
         let signer = Signer::memory();
-        let validator_a = signer.generate_key().unwrap();
-        let validator_b = signer.generate_key().unwrap();
+        let validator_a = signer.generate().unwrap();
+        let validator_b = signer.generate().unwrap();
         let mut behaviour = Behaviour::new(
             kad::Handle::new_test(),
             Keypair::generate_secp256k1(),
@@ -983,7 +983,7 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn duplicate_and_self_identity_handling() {
         let signer = Signer::memory();
-        let validator_key = signer.generate_key().unwrap();
+        let validator_key = signer.generate().unwrap();
         let network_keypair = Keypair::generate_secp256k1();
 
         let mut behaviour = Behaviour::new(
@@ -1034,7 +1034,7 @@ mod tests {
     #[tokio::test(start_paused = true)]
     async fn put_identity_ticks_at_max() {
         let signer = Signer::memory();
-        let validator_key = signer.generate_key().unwrap();
+        let validator_key = signer.generate().unwrap();
         let network_keypair = Keypair::generate_secp256k1();
 
         let (kad_handle, mut kad_callback) = kad::test_utils::HandleCallback::new_pair();

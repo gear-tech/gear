@@ -86,7 +86,7 @@ impl NetworkParams {
             match keys.as_slice() {
                 [] => {
                     log::trace!("generate a new network key");
-                    signer.generate_key()?
+                    signer.generate()?
                 }
                 [key] => {
                     log::trace!("use network key saved on disk");

@@ -91,6 +91,7 @@ impl StateHandler for Participant {
                         self.ctx.core.router_address,
                         self.ctx.core.pub_key,
                         digest,
+                        None,
                     )?;
                     let reply = BatchCommitmentValidationReply { digest, signature };
 
@@ -104,11 +105,11 @@ impl StateHandler for Participant {
                         payload: reply,
                     };
 
-                    let reply = self
-                        .ctx
-                        .core
-                        .signer
-                        .signed_data(self.ctx.core.pub_key, reply)?;
+                    let reply =
+                        self.ctx
+                            .core
+                            .signer
+                            .signed_data(self.ctx.core.pub_key, reply, None)?;
 
                     self.ctx
                         .output(ConsensusEvent::PublishMessage(reply.into()));
@@ -258,7 +259,11 @@ mod tests {
         let verified_request = ctx
             .core
             .signer
-            .signed_data(producer, BatchCommitmentValidationRequest::new(&batch))
+            .signed_data(
+                producer,
+                BatchCommitmentValidationRequest::new(&batch),
+                None,
+            )
             .unwrap()
             .into_verified();
 
@@ -318,7 +323,7 @@ mod tests {
         let verified_request = ctx
             .core
             .signer
-            .signed_data(producer, request)
+            .signed_data(producer, request, None)
             .unwrap()
             .into_verified();
 
@@ -353,7 +358,7 @@ mod tests {
         let verified_request = ctx
             .core
             .signer
-            .signed_data(producer, request)
+            .signed_data(producer, request, None)
             .unwrap()
             .into_verified();
 
@@ -387,7 +392,7 @@ mod tests {
         let verified_request = ctx
             .core
             .signer
-            .signed_data(producer, request)
+            .signed_data(producer, request, None)
             .unwrap()
             .into_verified();
 
@@ -418,7 +423,7 @@ mod tests {
         let verified_request = ctx
             .core
             .signer
-            .signed_data(producer, request)
+            .signed_data(producer, request, None)
             .unwrap()
             .into_verified();
 

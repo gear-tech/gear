@@ -13,9 +13,10 @@ This crate combines and extends the functionality from both `ethexe-signer` and 
 
 ### Key improvements in this refactor
 
+- **Unified `CryptoScheme` trait** – a single trait combines key generation, signing, verification, address derivation, and serialization. This replaces the previous split across `SignatureScheme`, `KeyringScheme`, and `KeyCodec`, reducing code duplication significantly.
 - **sp_core-backed key material across every scheme** – secp256k1, ed25519, and sr25519 now all wrap the upstream `sp_core` pairs/public/signature types, so SURIs, SS58 addresses, and SCALE codecs behave exactly like Substrate tooling.
 - **Production-parity Ethereum signing** – recoverable signatures are still generated with canonical low-S normalisation and exposed as `sp_core::ecdsa::Signature`, preserving compatibility with existing JSON keystores and RPC consumers.
-- **CLI parity for every scheme** – the keyring workflow that previously existed only for sr25519 is now available for secp256k1 and ed25519, including the short aliases `secp`, `ed`, and `sr`.
+- **CLI parity for every scheme** – the keyring workflow that previously existed only for sr25519 is now available for secp256k1 and ed25519, including the short aliases `secp`, `ed`, and `sr`. The `KeyringCommandHandler` trait provides default implementations for common operations, with scheme-specific overrides where needed.
 - **Unified storage abstraction** – every keyring command (CLI and API) understands the same storage location flags. Choose a filesystem directory with `--path`, keep keys ephemeral with `--memory`, and optionally encrypt any scheme by passing `--key-password`.
 - **Consistent address handling** – SS58 encoding relies on the upstream codec (default Vara prefix 137) while Ethereum addresses remain the standard Keccak-256 derivation.
 
@@ -226,17 +227,15 @@ use std::path::PathBuf;
 let mut keyring = Keyring::load(PathBuf::from("./sr-keyring"))?;
 
 // Create a new key with optional encryption
-let (keystore, private_key) = keyring.create("alice", Some(b"password"))?;
+let (keystore, private_key) = keyring.create("alice", Some("password"))?;
 let public_key = private_key.public_key();
 
-// Create vanity key
-let (vanity_keystore, vanity_private) = keyring.create_vanity("bob", "5Ge", Some(b"pass"))?;
+// Import from SURI or raw seed
+let (_, imported) = keyring.import_suri("bob", "//Bob", None, None)?;
+let _ = keyring.add_hex("charlie", "0x0123...", None)?; // 32-byte hex seed
 
 // Set primary key
 keyring.set_primary("alice")?;
-
-// Import polkadot-js keystore
-keyring.import(PathBuf::from("./alice.json"))?;
 ```
 
 #### ed25519 (Substrate)
@@ -282,22 +281,61 @@ let address = imported.address()?.to_hex();
 
 ## Architecture
 
-### Trait-Based Design
+### Unified CryptoScheme Trait
 
-The library uses trait-based abstraction to support multiple signature schemes:
+The library uses a single unified `CryptoScheme` trait that combines all cryptographic operations:
 
 ```rust
-pub trait SignatureScheme {
+pub trait CryptoScheme {
+    const NAME: &'static str;           // e.g., "secp256k1", "ed25519", "sr25519"
+    const NAMESPACE: &'static str;      // Storage directory namespace
+    const PUBLIC_KEY_SIZE: usize;
+    const SIGNATURE_SIZE: usize;
+
     type PrivateKey;
     type PublicKey;
     type Signature;
     type Address;
+    type Seed;
     
     fn generate_keypair() -> (Self::PrivateKey, Self::PublicKey);
     fn sign(key: &Self::PrivateKey, data: &[u8]) -> Result<Self::Signature>;
     fn verify(key: &Self::PublicKey, data: &[u8], sig: &Self::Signature) -> Result<()>;
+    fn to_address(public_key: &Self::PublicKey) -> Self::Address;
+    
+    // Key serialization
+    fn public_key_to_bytes(public_key: &Self::PublicKey) -> Vec<u8>;
+    fn public_key_from_bytes(bytes: &[u8]) -> Result<Self::PublicKey>;
+    fn public_key_to_hex(public_key: &Self::PublicKey) -> String;
+    fn public_key_from_hex(hex_str: &str) -> Result<Self::PublicKey>;
+    
+    // Seed-based key derivation
+    fn private_key_from_seed(seed: Self::Seed) -> Result<Self::PrivateKey>;
+    fn private_key_from_suri(suri: &str, password: Option<&str>) -> Result<Self::PrivateKey>;
 }
 ```
+
+This unified trait replaces the previous separate `SignatureScheme`, `KeyringScheme`, and `KeyCodec` traits, reducing complexity and code duplication.
+
+### Unified CLI Command Handling
+
+The CLI uses a `KeyringCommandHandler` trait that provides default implementations for common operations:
+
+```rust
+pub trait KeyringCommandHandler: KeyringOps {
+    type Scheme: CryptoScheme + KeyringScheme;
+
+    // Required: scheme-specific behavior
+    fn handle_sign(...) -> Result<SchemeResult>;
+    fn handle_import(...) -> Result<SchemeResult>;
+
+    // Default implementations provided
+    fn handle_show(...) -> Result<SchemeResult> { /* uses CryptoScheme::public_key_from_hex */ }
+    fn handle_clear(...) -> Result<SchemeResult> { /* generic clear implementation */ }
+}
+```
+
+This design allows ed25519 and sr25519 to share the default `handle_show` and `handle_clear` implementations, while secp256k1 can override them for Ethereum-specific behavior (e.g., accepting addresses in addition to public keys).
 
 ### Storage Abstraction
 
@@ -326,10 +364,9 @@ signer.clear_keys()?;
 
 ### Substrate (ed25519 & sr25519)
 
-- Polkadot-js keystore format compatible
+- Unified JSON keystore format across all schemes
 - SS58 address encoding (VARA network)
 - Scrypt + XSalsa20-Poly1305 encryption
-- PKCS8 key format
 
 ## License
 

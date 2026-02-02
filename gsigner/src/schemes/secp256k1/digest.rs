@@ -34,6 +34,7 @@ use sha3::Digest as _;
     PartialEq,
     Eq,
     Hash,
+    derive_more::AsRef,
     derive_more::Debug,
     derive_more::Display,
 )]
@@ -42,6 +43,7 @@ use sha3::Digest as _;
     derive(parity_scale_codec::Encode, parity_scale_codec::Decode)
 )]
 #[repr(transparent)]
+#[as_ref(forward)]
 #[debug("0x{}", hex::encode(self.0))]
 #[display("0x{}", hex::encode(self.0))]
 pub struct Digest(pub [u8; 32]);
@@ -141,11 +143,5 @@ impl ToDigest for Vec<u8> {
 impl<const N: usize> ToDigest for [u8; N] {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
         hasher.update(self);
-    }
-}
-
-impl AsRef<[u8]> for Digest {
-    fn as_ref(&self) -> &[u8] {
-        &self.0
     }
 }

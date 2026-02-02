@@ -44,15 +44,11 @@ const SIGNATURE_LAST_BYTE_IDX: usize = SIGNATURE_SIZE - 1;
 /// A recoverable ECDSA signature.
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Display)]
 #[display("0x{}", hex::encode(self.into_pre_eip155_bytes()))]
-pub struct Signature {
-    inner: SpSignature,
-}
+pub struct Signature(SpSignature);
 
 impl Signature {
     fn new(inner: SpSignature) -> Self {
-        Self {
-            inner: normalize_signature(inner),
-        }
+        Self(normalize_signature(inner))
     }
 
     /// Create a recoverable signature for the provided data using the private key.
@@ -93,7 +89,7 @@ impl Signature {
 
     /// Recovers the public key using a precomputed digest.
     pub fn recover_from_digest(&self, digest: &Digest) -> SignResult<PublicKey> {
-        self.inner
+        self.0
             .recover_prehashed(&digest.0)
             .map(PublicKey::from)
             .ok_or_else(|| SignerError::Crypto("Failed to recover public key".into()))
@@ -107,7 +103,7 @@ impl Signature {
     {
         let eip191_hash = Self::eip191_hash(Digest::from(data).0);
 
-        self.inner
+        self.0
             .recover_prehashed(&eip191_hash)
             .map(PublicKey::from)
             .ok_or_else(|| SignerError::Crypto("Failed to recover public key".into()))
@@ -124,7 +120,7 @@ impl Signature {
 
     /// Verifies the signature against a precomputed digest.
     pub fn verify_with_digest(&self, public_key: PublicKey, digest: &Digest) -> SignResult<()> {
-        if SpPair::verify_prehashed(&self.inner, &digest.0, &SpPublic::from(public_key)) {
+        if SpPair::verify_prehashed(&self.0, &digest.0, &SpPublic::from(public_key)) {
             Ok(())
         } else {
             Err(SignerError::Crypto("Verification failed".into()))
@@ -138,7 +134,7 @@ impl Signature {
     {
         let eip191_hash = Self::eip191_hash(Digest::from(data).0);
 
-        if SpPair::verify_prehashed(&self.inner, &eip191_hash, &SpPublic::from(public_key)) {
+        if SpPair::verify_prehashed(&self.0, &eip191_hash, &SpPublic::from(public_key)) {
             Ok(())
         } else {
             Err(SignerError::Crypto("Verification failed".into()))
@@ -192,19 +188,19 @@ impl Signature {
 
     /// Convert signature into the pre-EIP-155 encoded bytes (V in {27, 28}).
     pub fn into_pre_eip155_bytes(self) -> SignatureBytes {
-        let mut bytes: SignatureBytes = self.inner.into();
+        let mut bytes: SignatureBytes = self.0.into();
         bytes[SIGNATURE_LAST_BYTE_IDX] += 27;
         bytes
     }
 
     /// Returns internal signature bytes with raw recovery id.
     pub fn as_raw_bytes(&self) -> SignatureBytes {
-        self.inner.into()
+        self.0.into()
     }
 
     /// Return the inner signature and recovery id as `k256` primitives.
     pub fn into_parts(self) -> (ecdsa::Signature, RecoveryId) {
-        signature_and_recovery(self.inner)
+        signature_and_recovery(self.0)
     }
 }
 

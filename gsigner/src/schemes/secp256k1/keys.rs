@@ -19,16 +19,12 @@
 //! secp256k1 key types backed by `sp_core` primitives.
 
 use super::Address;
-use crate::{
-    error::SignerError,
-    substrate::{PairSeed, SpPairWrapper},
-    traits::SeedableKey,
-    utils::decode_hex_to_array,
-};
+use crate::{error::SignerError, ext::PairExt, utils::decode_hex_to_array};
 use alloc::string::{String, ToString};
 #[cfg(feature = "serde")]
 use alloc::{format, vec::Vec};
-use core::{convert::TryInto, fmt, str::FromStr};
+use core::{fmt, str::FromStr};
+use derive_more::{From, Into};
 use k256::ecdsa::VerifyingKey;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -41,92 +37,51 @@ use sp_core::{
 pub type Seed = <SpPair as PairTrait>::Seed;
 
 /// secp256k1 private key (ECDSA) backed by `sp_core::ecdsa::Pair`.
-#[derive(Clone)]
-pub struct PrivateKey(SpPairWrapper<SpPair>);
+#[derive(Clone, From, Into)]
+pub struct PrivateKey(SpPair);
 
 impl PrivateKey {
-    /// Generate a new random private key.
     #[cfg(feature = "std")]
     pub fn random() -> Self {
-        Self(SpPairWrapper::generate())
+        Self(SpPair::generate().0)
     }
 
-    /// Construct a private key from a Substrate SURI.
     pub fn from_suri(suri: &str, password: Option<&str>) -> Result<Self, SignerError> {
-        SpPairWrapper::from_suri(suri, password).map(Self)
+        SpPair::from_suri_ext(suri, password).map(Self)
     }
 
-    /// Construct a private key from a mnemonic phrase.
     pub fn from_phrase(phrase: &str, password: Option<&str>) -> Result<Self, SignerError> {
-        SpPairWrapper::from_phrase(phrase, password).map(Self)
+        SpPair::from_phrase_ext(phrase, password).map(Self)
     }
 
-    /// Construct from the underlying Substrate seed type.
     pub fn from_pair_seed(seed: Seed) -> Self {
-        Self(SpPairWrapper::from_pair_seed(seed))
+        Self(SpPair::from_seed(&seed))
     }
 
-    /// Construct from a raw 32-byte secret seed.
     pub fn from_seed(seed: [u8; 32]) -> Result<Self, SignerError> {
-        SpPairWrapper::from_seed_bytes(&seed).map(Self)
+        SpPair::from_seed_bytes(&seed).map(Self)
     }
 
-    /// Return the raw secret seed bytes.
     pub fn to_bytes(&self) -> [u8; 32] {
-        let seed = self.seed();
-        seed.as_ref()
-            .try_into()
-            .expect("ecdsa seed has fixed length")
+        self.0.seed()
     }
 
-    /// Get the associated public key.
     pub fn public_key(&self) -> PublicKey {
-        PublicKey(self.0.pair().public())
+        PublicKey(self.0.public())
     }
 
-    /// Access the underlying Substrate pair.
     pub fn as_pair(&self) -> &SpPair {
-        self.0.pair()
+        &self.0
     }
 
-    /// Return the underlying seed type.
     pub fn seed(&self) -> Seed {
-        PairSeed::pair_seed(self.as_pair())
-    }
-
-    /// Construct from an existing Substrate pair.
-    pub(crate) fn from_pair(pair: SpPair) -> Self {
-        Self(SpPairWrapper::new(pair))
-    }
-}
-
-impl From<SpPair> for PrivateKey {
-    fn from(pair: SpPair) -> Self {
-        Self(SpPairWrapper::new(pair))
-    }
-}
-
-impl From<PrivateKey> for SpPair {
-    fn from(key: PrivateKey) -> Self {
-        key.0.into_inner()
-    }
-}
-
-impl SeedableKey for PrivateKey {
-    type Seed = Seed;
-
-    fn from_seed(seed: Self::Seed) -> crate::error::Result<Self> {
-        Ok(PrivateKey::from_pair_seed(seed))
-    }
-
-    fn seed(&self) -> Self::Seed {
-        PrivateKey::seed(self)
+        self.0.seed()
     }
 }
 
 impl fmt::Debug for PrivateKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "0x{}", hex::encode(self.seed().as_ref()))
+        write!(f, "PrivateKey(0x{}...)", &hex::encode(&self.seed()[..4]))
     }
 }
 
@@ -156,21 +111,15 @@ impl FromStr for PrivateKey {
 
 #[cfg(feature = "serde")]
 impl Serialize for PrivateKey {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        serializer.serialize_bytes(self.seed().as_ref())
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        s.serialize_bytes(self.seed().as_ref())
     }
 }
 
 #[cfg(feature = "serde")]
 impl<'de> Deserialize<'de> for PrivateKey {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        let bytes = <Vec<u8>>::deserialize(deserializer)?;
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        let bytes = <Vec<u8>>::deserialize(d)?;
         if bytes.len() != 32 {
             return Err(serde::de::Error::custom("Invalid private key length"));
         }
@@ -181,41 +130,35 @@ impl<'de> Deserialize<'de> for PrivateKey {
 }
 
 /// secp256k1 public key backed by `sp_core::ecdsa::Public` (compressed form).
-#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, From, Into)]
 pub struct PublicKey(SpPublic);
 
 impl PublicKey {
-    /// Create public key from the private key.
     pub fn from_private(private_key: &PrivateKey) -> Self {
         private_key.public_key()
     }
 
-    /// Construct from compressed public key bytes.
     pub fn from_bytes(bytes: [u8; 33]) -> Result<Self, SignerError> {
         SpPublic::try_from(&bytes[..])
             .map(Self)
             .map_err(|_| SignerError::InvalidKey("Invalid compressed public key".into()))
     }
 
-    /// Public key as compressed bytes.
     pub fn to_bytes(self) -> [u8; 33] {
         self.0
             .as_slice()
             .try_into()
-            .expect("compressed key has fixed length")
+            .expect("compressed key is 33 bytes")
     }
 
-    /// Public key hex string (compressed form).
     pub fn to_hex(self) -> String {
         hex::encode(self.0.as_slice())
     }
 
-    /// Convert public key to Ethereum address.
     pub fn to_address(self) -> Address {
         Address::from(self)
     }
 
-    /// Convert public key to uncompressed bytes (without prefix).
     pub fn to_uncompressed(self) -> [u8; 64] {
         VerifyingKey::from_sec1_bytes(self.0.as_ref())
             .expect("compressed key is always valid")
@@ -228,7 +171,7 @@ impl PublicKey {
 
 impl fmt::Debug for PublicKey {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "0x{}", self.to_hex())
+        write!(f, "PublicKey(0x{})", self.to_hex())
     }
 }
 
@@ -250,18 +193,6 @@ impl From<&PrivateKey> for PublicKey {
     }
 }
 
-impl From<PublicKey> for SpPublic {
-    fn from(key: PublicKey) -> Self {
-        key.0
-    }
-}
-
-impl From<SpPublic> for PublicKey {
-    fn from(public: SpPublic) -> Self {
-        Self(public)
-    }
-}
-
 impl FromStr for PublicKey {
     type Err = SignerError;
 
@@ -274,35 +205,29 @@ impl FromStr for PublicKey {
 
 #[cfg(feature = "serde")]
 impl Serialize for PublicKey {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        if serializer.is_human_readable() {
-            serializer.serialize_str(&format!("0x{}", self.to_hex()))
+    fn serialize<S: serde::Serializer>(&self, s: S) -> Result<S::Ok, S::Error> {
+        if s.is_human_readable() {
+            s.serialize_str(&format!("0x{}", self.to_hex()))
         } else {
-            serializer.serialize_bytes(self.0.as_ref())
+            s.serialize_bytes(self.0.as_ref())
         }
     }
 }
 
 #[cfg(feature = "serde")]
 impl<'de> Deserialize<'de> for PublicKey {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        if deserializer.is_human_readable() {
-            let s = String::deserialize(deserializer)?;
-            PublicKey::from_str(&s).map_err(|err| serde::de::Error::custom(err.to_string()))
+    fn deserialize<D: serde::Deserializer<'de>>(d: D) -> Result<Self, D::Error> {
+        if d.is_human_readable() {
+            let s = String::deserialize(d)?;
+            PublicKey::from_str(&s).map_err(|e| serde::de::Error::custom(e.to_string()))
         } else {
-            let bytes = <Vec<u8>>::deserialize(deserializer)?;
+            let bytes = <Vec<u8>>::deserialize(d)?;
             if bytes.len() != 33 {
                 return Err(serde::de::Error::custom("Invalid public key length"));
             }
-            let mut array = [0u8; 33];
-            array.copy_from_slice(&bytes);
-            PublicKey::from_bytes(array).map_err(|err| serde::de::Error::custom(err.to_string()))
+            let mut arr = [0u8; 33];
+            arr.copy_from_slice(&bytes);
+            PublicKey::from_bytes(arr).map_err(|e| serde::de::Error::custom(e.to_string()))
         }
     }
 }

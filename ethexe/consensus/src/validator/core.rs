@@ -819,13 +819,11 @@ mod tests {
             .setup(&ctx.core.db);
         ctx.core.timelines = chain.protocol_timelines;
 
-        let validators1 = [Address([1; 20]), Address([2; 20]), Address([3; 20])]
-            .into_iter()
-            .collect::<Result<ValidatorsVec, _>>()
+        let validators1: ValidatorsVec = vec![Address([1; 20]), Address([2; 20]), Address([3; 20])]
+            .try_into()
             .unwrap();
-        let validators2 = [Address([4; 20]), Address([5; 20]), Address([6; 20])]
-            .into_iter()
-            .collect::<Result<ValidatorsVec, _>>()
+        let validators2: ValidatorsVec = vec![Address([4; 20]), Address([5; 20]), Address([6; 20])]
+            .try_into()
             .unwrap();
         eth.predefined_election_at.write().await.insert(
             chain.protocol_timelines.era_election_start_ts(0),

@@ -21,19 +21,9 @@
 use super::{PrivateKey, PublicKey};
 use crate::{
     address::SubstrateAddress,
-    keyring::{
-        Keyring as GenericKeyring,
-        key_codec::{
-            KeyCodec, KeyringCodecExt, SubstrateKeystore,
-            keyring_ops::{
-                add_hex as keyring_add_hex, add_private as keyring_add, create as keyring_create,
-                import_suri as keyring_import_suri,
-            },
-        },
-    },
+    keyring::{KeyCodec, Keyring as GenericKeyring, SubstrateKeystore},
 };
 use anyhow::{Result, anyhow};
-use hex;
 use serde::{Deserialize, Serialize};
 
 #[derive(Clone, Copy, Debug, Default, Serialize, Deserialize)]
@@ -45,8 +35,10 @@ impl KeyCodec for Ed25519Codec {
     type PublicKey = PublicKey;
     type Address = SubstrateAddress;
 
+    const KEY_TYPE: &'static str = "ed25519";
+
     fn derive_public(private_key: &Self::PrivateKey) -> Self::PublicKey {
-        private_key.public_key()
+        crate::keyring::codec_defaults::derive_public(private_key)
     }
 
     fn derive_address(public_key: &Self::PublicKey) -> Result<Self::Address> {
@@ -66,39 +58,31 @@ impl KeyCodec for Ed25519Codec {
         }
         let mut seed = [0u8; 32];
         seed.copy_from_slice(&bytes);
-        Ok(PrivateKey::from_seed(seed)?)
+        PrivateKey::from_seed(seed).map_err(|e| anyhow!("Invalid seed: {e}"))
     }
 
     fn encode_public(public_key: &Self::PublicKey) -> Result<String> {
-        Ok(hex::encode(public_key.to_bytes()))
+        crate::keyring::codec_defaults::encode_public(public_key)
     }
 
     fn decode_public(encoded: &str) -> Result<Self::PublicKey> {
-        let bytes = hex::decode(encoded)?;
-        if bytes.len() != 32 {
-            return Err(anyhow!("Invalid ed25519 public key length"));
-        }
-        let mut arr = [0u8; 32];
-        arr.copy_from_slice(&bytes);
-        Ok(PublicKey::from_bytes(arr))
+        crate::keyring::codec_defaults::decode_public(encoded)
     }
 
     fn encode_address(address: &Self::Address) -> Result<String> {
-        Ok(address.as_ss58().to_string())
+        crate::keyring::codec_defaults::encode_ss58_address(address)
     }
 
     fn decode_address(encoded: &str) -> Result<Self::Address> {
-        SubstrateAddress::from_ss58(encoded).map_err(|err| anyhow!("Invalid SS58 address: {err}"))
+        crate::keyring::codec_defaults::decode_ss58_address(encoded)
     }
-}
 
-impl KeyringCodecExt for Ed25519Codec {
     fn random_private() -> Result<Self::PrivateKey> {
-        Ok(PrivateKey::random())
+        crate::keyring::codec_defaults::random_private()
     }
 
     fn import_suri(suri: &str, password: Option<&str>) -> Result<Self::PrivateKey> {
-        Ok(PrivateKey::from_suri(suri, password)?)
+        PrivateKey::from_suri(suri, password).map_err(|e| anyhow!("Invalid SURI: {e}"))
     }
 }
 
@@ -107,44 +91,6 @@ pub type Keystore = SubstrateKeystore<Ed25519Codec>;
 
 /// ed25519 keyring backed by the generic [`GenericKeyring`].
 pub type Keyring = GenericKeyring<Keystore>;
-
-impl Keyring {
-    /// Add an existing private key to the keyring.
-    pub fn add(
-        &mut self,
-        name: &str,
-        private_key: PrivateKey,
-        password: Option<&str>,
-    ) -> Result<Keystore> {
-        keyring_add::<Ed25519Codec>(self, name, private_key, password)
-    }
-
-    /// Add a private key from its hex-encoded seed.
-    pub fn add_hex(
-        &mut self,
-        name: &str,
-        hex_seed: &str,
-        password: Option<&str>,
-    ) -> Result<Keystore> {
-        keyring_add_hex::<Ed25519Codec>(self, name, hex_seed, password)
-    }
-
-    /// Generate and store a new private key.
-    pub fn create(&mut self, name: &str, password: Option<&str>) -> Result<(Keystore, PrivateKey)> {
-        keyring_create::<Ed25519Codec>(self, name, password)
-    }
-
-    /// Import a private key from a Substrate SURI.
-    pub fn import_suri(
-        &mut self,
-        name: &str,
-        suri: &str,
-        suri_password: Option<&str>,
-        encryption_password: Option<&str>,
-    ) -> Result<(Keystore, PrivateKey)> {
-        keyring_import_suri::<Ed25519Codec>(self, name, suri, suri_password, encryption_password)
-    }
-}
 
 #[cfg(test)]
 mod tests {
@@ -155,9 +101,7 @@ mod tests {
     fn create_and_restore_private_key() {
         let temp_dir = tempfile::tempdir().unwrap();
         let mut keyring = Keyring::load(temp_dir.path().to_path_buf()).unwrap();
-
         let (keystore, private_key) = keyring.create("alice", None).unwrap();
-
         assert_eq!(keyring.list().len(), 1);
         assert_eq!(keyring.list()[0].name(), "alice");
         assert_eq!(keystore.private_key().unwrap(), private_key);

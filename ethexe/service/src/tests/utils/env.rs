@@ -197,7 +197,7 @@ impl TestEnv {
                 .iter()
                 .map(|k| {
                     let private_key = k.parse().unwrap();
-                    signer.import_key(private_key).unwrap()
+                    signer.import(private_key).unwrap()
                 })
                 .collect(),
         };
@@ -290,7 +290,7 @@ impl TestEnv {
             let nonce = NONCE.fetch_add(1, Ordering::SeqCst) * MAX_NETWORK_SERVICES_PER_TEST;
             let address = maybe_address.unwrap_or_else(|| format!("/memory/{nonce}"));
 
-            let network_key = signer.generate_key().unwrap();
+            let network_key = signer.generate().unwrap();
             let multiaddr: Multiaddr = address.parse().unwrap();
 
             let mut config = NetworkConfig::new_test(network_key, router_address);
@@ -670,7 +670,7 @@ impl TestEnv {
                         PrivateKey::from_seed(seed).expect("signing share must be valid seed");
                     ValidatorConfig {
                         public_key,
-                        session_public_key: signer.import_key(private_key).unwrap(),
+                        session_public_key: signer.import(private_key).unwrap(),
                     }
                 })
                 .collect(),
@@ -855,7 +855,7 @@ impl Wallets {
         Self {
             wallets: accounts
                 .into_iter()
-                .map(|s| signer.import_key(s.as_ref().parse().unwrap()).unwrap())
+                .map(|s| signer.import(s.as_ref().parse().unwrap()).unwrap())
                 .collect(),
             next_wallet: 0,
         }
@@ -1092,7 +1092,7 @@ impl Node {
 
         let addr = self.network_address.as_ref()?;
 
-        let network_key = self.signer.generate_key().unwrap();
+        let network_key = self.signer.generate().unwrap();
         let multiaddr: Multiaddr = addr.parse().unwrap();
 
         let mut config = NetworkConfig::new_test(network_key, self.eth_cfg.router_address);
@@ -1151,6 +1151,7 @@ impl Node {
                     .expect("validator config not set")
                     .public_key,
                 message,
+                None,
             )
             .unwrap();
 

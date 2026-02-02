@@ -276,7 +276,7 @@ impl NetworkService {
     }
 
     fn generate_keypair(signer: &Signer, key: PublicKey) -> anyhow::Result<identity::Keypair> {
-        let mut key = signer.get_private_key(key)?.to_bytes();
+        let mut key = signer.private_key(key)?.to_bytes();
         let key = identity::secp256k1::SecretKey::try_from_bytes(&mut key)
             .expect("Signer provided invalid key; qed");
         let pair = identity::secp256k1::Keypair::from(key);
@@ -856,7 +856,7 @@ mod tests {
 
             db.set_protocol_timelines(TIMELINES);
 
-            let key = signer.generate_key().unwrap();
+            let key = signer.generate().unwrap();
             let config = NetworkConfig::new_test(key, Address::default());
 
             let runtime_config = NetworkRuntimeConfig {
@@ -975,8 +975,8 @@ mod tests {
 
         let signer = Signer::memory();
 
-        let alice_key = signer.generate_key().unwrap();
-        let bob_key = signer.generate_key().unwrap();
+        let alice_key = signer.generate().unwrap();
+        let bob_key = signer.generate().unwrap();
 
         let latest_validators: ValidatorsVec =
             nonempty![alice_key.to_address(), bob_key.to_address()].into();

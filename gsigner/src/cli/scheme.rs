@@ -21,16 +21,12 @@
 use anyhow::Result;
 use serde::Serialize;
 
-#[cfg(feature = "secp256k1")]
-use crate::{schemes::secp256k1, substrate::pair_key_type_string, traits::SignatureScheme};
-
 /// Result of key generation.
 #[derive(Debug, Clone, Serialize)]
 pub struct KeyGenerationResult {
     pub public_key: String,
     pub address: String,
     pub scheme: String,
-    pub key_type: String,
     pub secret: Option<String>,
     pub name: Option<String>,
 }
@@ -41,7 +37,6 @@ pub struct KeyImportResult {
     pub public_key: String,
     pub address: String,
     pub scheme: String,
-    pub key_type: String,
     pub secret: Option<String>,
     pub name: Option<String>,
 }
@@ -95,7 +90,6 @@ pub struct KeyInfo {
     pub public_key: String,
     pub address: String,
     pub scheme: String,
-    pub key_type: String,
     pub secret: Option<String>,
     pub name: Option<String>,
 }
@@ -160,57 +154,6 @@ pub enum SchemeCommand<KeyringCommand> {
     PeerId { public_key: String },
 }
 
-#[derive(Clone, Copy)]
-pub struct SchemeFormatter<S: crate::traits::SignatureScheme> {
-    pub scheme_name: &'static str,
-    pub key_type_fn: fn() -> String,
-    pub public_fmt: fn(&S::PublicKey) -> String,
-    pub address_fmt: fn(&S::Address) -> String,
-}
-
-impl<S: crate::traits::SignatureScheme> SchemeFormatter<S> {
-    pub fn scheme_name(&self) -> &'static str {
-        self.scheme_name
-    }
-
-    pub fn key_type(&self) -> String {
-        (self.key_type_fn)()
-    }
-
-    pub fn format_public(&self, public: &S::PublicKey) -> String {
-        (self.public_fmt)(public)
-    }
-
-    pub fn format_address(&self, address: &S::Address) -> String {
-        (self.address_fmt)(address)
-    }
-}
-
-#[cfg(feature = "secp256k1")]
-pub fn secp256k1_formatter() -> SchemeFormatter<secp256k1::Secp256k1> {
-    SchemeFormatter {
-        scheme_name: secp256k1::Secp256k1::scheme_name(),
-        key_type_fn: secp256k1_key_type,
-        public_fmt: secp256k1_public_display,
-        address_fmt: secp256k1_address_display,
-    }
-}
-
-#[cfg(feature = "secp256k1")]
-fn secp256k1_key_type() -> String {
-    pair_key_type_string::<sp_core::ecdsa::Pair>()
-}
-
-#[cfg(feature = "secp256k1")]
-fn secp256k1_public_display(key: &secp256k1::PublicKey) -> String {
-    key.to_hex()
-}
-
-#[cfg(feature = "secp256k1")]
-fn secp256k1_address_display(address: &secp256k1::Address) -> String {
-    format!("0x{}", address.to_hex())
-}
-
 pub type SchemeVerifyFn =
     fn(String, String, Option<String>, String, Option<String>) -> Result<SchemeResult>;
 pub type SchemeAddressFn = fn(String, Option<String>) -> Result<SchemeResult>;
@@ -220,8 +163,6 @@ pub type SchemePeerIdFn = fn(String) -> Result<SchemeResult>;
 
 /// Generic descriptor for a signing scheme.
 pub struct SchemeDescriptor<KeyringCommand> {
-    #[allow(dead_code)]
-    pub name: &'static str,
     #[cfg(feature = "keyring")]
     pub handle_keyring: fn(KeyringCommand) -> Result<SchemeResult>,
     pub verify: SchemeVerifyFn,

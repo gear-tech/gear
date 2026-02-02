@@ -113,7 +113,10 @@ impl Coordinator {
         let payload = BatchCommitmentValidationRequest::new(multisigned_batch.batch());
         let message = ValidatorMessage { era_index, payload };
 
-        let validation_request = ctx.core.signer.signed_data(ctx.core.pub_key, message)?;
+        let validation_request = ctx
+            .core
+            .signer
+            .signed_data(ctx.core.pub_key, message, None)?;
 
         ctx.output(ConsensusEvent::PublishMessage(validation_request.into()));
 

@@ -43,7 +43,7 @@
 //! let signer = secp256k1::Signer::memory();
 //!
 //! // Generate a new key
-//! let public_key = signer.generate_key()?;
+//! let public_key = signer.generate()?;
 //!
 //! // Sign some data
 //! let signature = signer.sign(public_key, b"hello world")?;
@@ -54,16 +54,19 @@
 extern crate alloc;
 
 pub mod address;
-pub mod crypto;
+
 pub mod error;
+pub mod ext;
 #[cfg(feature = "secp256k1")]
 pub mod hash;
 #[cfg(feature = "peer-id")]
 pub mod peer_id;
+#[cfg(feature = "peer-id")]
+pub use peer_id::ToPeerId;
+pub mod scheme;
 pub mod schemes;
 #[cfg(all(feature = "std", feature = "keyring", feature = "serde"))]
 pub mod signer;
-pub mod traits;
 pub mod utils;
 
 #[cfg(feature = "cli")]
@@ -71,11 +74,11 @@ pub mod cli;
 
 #[cfg(feature = "keyring")]
 pub mod keyring;
+#[cfg(feature = "keyring")]
+pub use keyring::{KeyCodec, Keyring, KeyringScheme, KeystoreEntry, SubstrateKeystore};
 
-#[cfg(any(feature = "sr25519", feature = "ed25519", feature = "secp256k1"))]
-pub mod substrate;
-#[cfg(any(feature = "sr25519", feature = "ed25519", feature = "secp256k1"))]
-pub use substrate as substrate_utils;
+#[cfg(all(feature = "std", feature = "keyring"))]
+pub mod storage;
 
 #[cfg(feature = "secp256k1")]
 pub use address::Address;
@@ -84,15 +87,18 @@ pub use address::FromActorIdError;
 #[cfg(any(feature = "sr25519", feature = "ed25519"))]
 pub use address::{SubstrateAddress, SubstrateCryptoScheme};
 pub use error::{Result, SignerError};
+#[cfg(feature = "secp256k1")]
+pub use ext::Secp256k1Ext;
+#[cfg(any(feature = "sr25519", feature = "ed25519"))]
+pub use ext::SubstrateAddressExt;
+pub use ext::{PairExt, PublicExt};
+pub use scheme::CryptoScheme;
+#[cfg(feature = "keyring")]
+pub use scheme::KeystoreOps;
 #[cfg(all(feature = "std", feature = "keyring", feature = "serde"))]
 pub use signer::Signer;
-#[cfg(feature = "ed25519")]
-pub use substrate::Ed25519Pair;
-#[cfg(feature = "secp256k1")]
-pub use substrate::Secp256k1Pair;
-#[cfg(feature = "sr25519")]
-pub use substrate::{Sr25519Pair, SubstratePair};
-pub use traits::SignatureScheme;
+#[cfg(all(feature = "std", feature = "keyring"))]
+pub use storage::{FilesystemBackend, MemoryBackend, StorageBackend, StorageError, StorageResult};
 
 #[cfg(feature = "secp256k1")]
 pub use schemes::secp256k1::{
@@ -107,7 +113,7 @@ pub use schemes::ed25519::Ed25519;
 pub mod secp256k1 {
     //! Ergonomic re-exports for the secp256k1 scheme.
 
-    pub use crate::{schemes::secp256k1::*, substrate::Secp256k1Pair};
+    pub use crate::schemes::secp256k1::*;
     #[cfg(all(feature = "std", feature = "keyring", feature = "serde"))]
     pub type Signer = crate::Signer<Secp256k1>;
 }
@@ -116,10 +122,7 @@ pub mod secp256k1 {
 pub mod sr25519 {
     //! Ergonomic re-exports for the sr25519 scheme.
 
-    pub use crate::{
-        schemes::sr25519::*,
-        substrate::{Sr25519Pair, SubstratePair, sp_compat},
-    };
+    pub use crate::schemes::sr25519::*;
     #[cfg(all(feature = "std", feature = "keyring", feature = "serde"))]
     pub type Signer = crate::Signer<Sr25519>;
 }
@@ -128,14 +131,14 @@ pub mod sr25519 {
 pub mod ed25519 {
     //! Ergonomic re-exports for the ed25519 scheme.
 
-    pub use crate::{schemes::ed25519::*, substrate::Ed25519Pair};
+    pub use crate::schemes::ed25519::*;
     #[cfg(all(feature = "std", feature = "keyring", feature = "serde"))]
     pub type Signer = crate::Signer<Ed25519>;
 }
 
 /// Re-export commonly used types
 pub mod prelude {
-    pub use crate::{SignatureScheme, schemes};
+    pub use crate::{scheme::CryptoScheme, schemes};
 
     #[cfg(feature = "secp256k1")]
     pub use crate::Address;

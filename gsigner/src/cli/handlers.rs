@@ -21,11 +21,15 @@
 //! These handlers execute the commands and return structured results.
 //! They don't print directly, allowing integrators to customize output formatting.
 
+#[cfg(feature = "keyring")]
+use super::keyring_ops::{
+    GenericKeyringOps, HexImporter, KeyringCommandHandler, KeyringOpsExt, PrivateKeyDisplay,
+    PublicKeyExtractor, VanityMatcher, execute_keyring_command,
+};
 use super::{
     commands::*,
     keyring_ops::*,
     scheme::*,
-    secp::*,
     storage::*,
     util::{prefixed_message, strip_0x, validate_hex_len},
 };
@@ -33,15 +37,367 @@ use super::{
 use alloy_primitives::utils::EIP191_PREFIX;
 use anyhow::Result;
 use secrecy::ExposeSecret;
-use std::{path::PathBuf, str::FromStr};
+use std::str::FromStr;
 
 #[cfg(any(feature = "secp256k1", feature = "ed25519", feature = "sr25519"))]
-use crate::traits::SignatureScheme;
+use crate::scheme::CryptoScheme;
+
+#[cfg(all(feature = "ed25519", feature = "peer-id"))]
+use crate::cli::util::decode_hex_array;
+
+#[cfg(feature = "secp256k1")]
+mod secp_ops {
+    use crate::{
+        cli::{
+            scheme::{AddressResult, RecoverResult, SchemeResult, VerifyResult},
+            util::{prefixed_message, strip_0x, validate_hex_len},
+        },
+        scheme::CryptoScheme,
+        schemes::secp256k1::{PublicKey, Secp256k1, Signature},
+    };
+    use anyhow::Result;
+
+    pub fn verify(
+        public_key: String,
+        data: String,
+        prefix: Option<String>,
+        signature: String,
+    ) -> Result<SchemeResult> {
+        validate_hex_len(&public_key, 33, "public key")?;
+        let public_key: PublicKey = public_key.parse()?;
+        validate_hex_len(&signature, 65, "signature")?;
+        let message_bytes = prefixed_message(&data, &prefix)?;
+        let sig_bytes = hex::decode(strip_0x(&signature))?;
+        let mut sig_arr = [0u8; 65];
+        sig_arr.copy_from_slice(&sig_bytes);
+        let signature = Signature::from_pre_eip155_bytes(sig_arr)
+            .ok_or_else(|| anyhow::anyhow!("Invalid signature"))?;
+
+        Secp256k1::verify(&public_key, &message_bytes, &signature)?;
+
+        Ok(SchemeResult::Verify(VerifyResult { valid: true }))
+    }
+
+    pub fn recover(
+        data: String,
+        prefix: Option<String>,
+        signature: String,
+    ) -> Result<SchemeResult> {
+        validate_hex_len(&signature, 65, "signature")?;
+        let message_bytes = prefixed_message(&data, &prefix)?;
+        let sig_bytes = hex::decode(strip_0x(&signature))?;
+        let mut sig_arr = [0u8; 65];
+        sig_arr.copy_from_slice(&sig_bytes);
+        let signature = Signature::from_pre_eip155_bytes(sig_arr)
+            .ok_or_else(|| anyhow::anyhow!("Invalid signature"))?;
+        let public: PublicKey = signature.recover(&message_bytes)?;
+        let address = public.to_address();
+
+        Ok(SchemeResult::Recover(RecoverResult {
+            public_key: Secp256k1::public_key_to_hex(&public),
+            address: Secp256k1::address_to_string(&address),
+        }))
+    }
+
+    pub fn address(public_key: String) -> Result<SchemeResult> {
+        validate_hex_len(&public_key, 33, "public key")?;
+        let public_key: PublicKey = public_key.parse()?;
+        let address = public_key.to_address();
+
+        Ok(SchemeResult::Address(AddressResult {
+            address: Secp256k1::address_to_string(&address),
+        }))
+    }
+}
+
+#[cfg(feature = "secp256k1")]
+use secp_ops::*;
 
 #[cfg(any(feature = "ed25519", feature = "sr25519"))]
-use super::substrate::*;
+mod substrate_ops {
+    use crate::{
+        address::{SubstrateAddress, SubstrateCryptoScheme},
+        cli::{
+            commands::StorageLocationArgs,
+            scheme::{AddressResult, KeyImportResult, SchemeResult},
+            util::decode_hex_array,
+        },
+        scheme::CryptoScheme,
+    };
+    use anyhow::Result;
+    use secrecy::ExposeSecret;
+
+    #[derive(Debug, Clone)]
+    pub enum SubstrateCommand {
+        Import {
+            suri: Option<String>,
+            seed: Option<String>,
+            suri_password: Option<String>,
+            storage: StorageLocationArgs,
+            show_secret: bool,
+        },
+        Sign {
+            public_key: String,
+            data: String,
+            prefix: Option<String>,
+            storage: StorageLocationArgs,
+            context: Option<String>,
+        },
+        Verify {
+            public_key: String,
+            data: String,
+            prefix: Option<String>,
+            signature: String,
+            context: Option<String>,
+        },
+        Address {
+            public_key: String,
+            network: Option<String>,
+        },
+    }
+
+    #[derive(Debug, Clone)]
+    pub enum SubstrateResult {
+        Import(crate::cli::scheme::KeyImportResult),
+        Sign(crate::cli::scheme::SignResult),
+        Verify(crate::cli::scheme::VerifyResult),
+        Address(crate::cli::scheme::AddressResult),
+    }
+
+    pub type SubstrateSignFn<S> = fn(
+        &crate::Signer<S>,
+        <S as CryptoScheme>::PublicKey,
+        &[u8],
+        Option<String>,
+        Option<&str>,
+    ) -> Result<<S as CryptoScheme>::Signature>;
+
+    pub type SubstrateVerifyFn<S> = fn(
+        &<S as CryptoScheme>::PublicKey,
+        &[u8],
+        &<S as CryptoScheme>::Signature,
+        Option<String>,
+    ) -> Result<()>;
+
+    pub struct SubstrateDescriptor<S: crate::cli::storage::StorageScheme> {
+        pub parse_public: fn([u8; 32]) -> S::PublicKey,
+        pub parse_signature: fn([u8; 64]) -> S::Signature,
+        pub sign_fn: SubstrateSignFn<S>,
+        pub verify_fn: SubstrateVerifyFn<S>,
+        pub signature_hex: fn(&S::Signature) -> String,
+        pub import_private: fn(&str, Option<&str>) -> Result<S::PrivateKey>,
+        pub network_scheme: SubstrateCryptoScheme,
+    }
+
+    pub fn substrate_result_to_scheme(res: SubstrateResult) -> SchemeResult {
+        match res {
+            SubstrateResult::Import(r) => SchemeResult::Import(r),
+            SubstrateResult::Sign(r) => SchemeResult::Sign(r),
+            SubstrateResult::Verify(r) => SchemeResult::Verify(r),
+            SubstrateResult::Address(r) => SchemeResult::Address(r),
+        }
+    }
+
+    pub fn make_substrate_descriptor<S>(
+        parse_public: fn([u8; 32]) -> S::PublicKey,
+        parse_signature: fn([u8; 64]) -> S::Signature,
+        sign_fn: SubstrateSignFn<S>,
+        verify_fn: SubstrateVerifyFn<S>,
+        signature_hex: fn(&S::Signature) -> String,
+        import_private: fn(&str, Option<&str>) -> Result<S::PrivateKey>,
+        network_scheme: SubstrateCryptoScheme,
+    ) -> SubstrateDescriptor<S>
+    where
+        S: crate::cli::storage::StorageScheme,
+    {
+        SubstrateDescriptor {
+            parse_public,
+            parse_signature,
+            sign_fn,
+            verify_fn,
+            signature_hex,
+            import_private,
+            network_scheme,
+        }
+    }
+
+    pub fn execute_substrate_command<S>(
+        desc: &SubstrateDescriptor<S>,
+        command: SubstrateCommand,
+    ) -> Result<SubstrateResult>
+    where
+        S: crate::cli::storage::StorageScheme,
+        S: CryptoScheme<Address = SubstrateAddress>,
+    {
+        match command {
+            SubstrateCommand::Import {
+                suri,
+                seed,
+                suri_password,
+                storage,
+                show_secret,
+            } => crate::cli::storage::with_signer::<S, _, _>(&storage, |signer| {
+                let password = storage
+                    .key_password
+                    .as_ref()
+                    .map(|secret| secret.expose_secret().as_str());
+                if suri_password.is_some() && suri.is_none() {
+                    anyhow::bail!("--password can only be used together with --suri");
+                }
+
+                let private_key = if let Some(seed_hex) = seed {
+                    let seed_value = crate::cli::storage::seed_from_hex::<S>(&seed_hex)?;
+                    S::private_key_from_seed(seed_value)?
+                } else {
+                    let suri = suri.expect("clap ensures either --suri or --seed is provided");
+                    (desc.import_private)(&suri, suri_password.as_deref())?
+                };
+                let public_key = if let Some(pwd) = password {
+                    signer.import_encrypted(private_key.clone(), pwd)?
+                } else {
+                    signer.import(private_key.clone())?
+                };
+                let address = signer.address(public_key.clone());
+
+                Ok(SubstrateResult::Import(KeyImportResult {
+                    public_key: S::public_key_to_hex(&public_key),
+                    address: S::address_to_string(&address),
+                    scheme: S::NAME.to_string(),
+                    secret: show_secret
+                        .then(|| hex::encode(S::private_key_to_seed(&private_key).as_ref())),
+                    name: None,
+                }))
+            }),
+            SubstrateCommand::Sign {
+                public_key,
+                data,
+                prefix,
+                storage,
+                context,
+            } => {
+                let result = substrate_sign_command::<S, _, _, _, _, _>(
+                    &public_key,
+                    &data,
+                    &prefix,
+                    &storage,
+                    desc.parse_public,
+                    |signer, public, message, password| {
+                        (desc.sign_fn)(signer, public, message, context.clone(), password)
+                    },
+                    |signature| (desc.signature_hex)(signature),
+                )?;
+                Ok(SubstrateResult::Sign(result))
+            }
+            SubstrateCommand::Verify {
+                public_key,
+                data,
+                prefix,
+                signature,
+                context,
+            } => {
+                let result = substrate_verify_command(
+                    &public_key,
+                    &data,
+                    &prefix,
+                    &signature,
+                    desc.parse_public,
+                    desc.parse_signature,
+                    |public, message, sig| (desc.verify_fn)(public, message, sig, context.clone()),
+                )?;
+                Ok(SubstrateResult::Verify(result))
+            }
+            SubstrateCommand::Address {
+                public_key,
+                network,
+            } => {
+                let public_key_arr = decode_hex_array::<32>(&public_key, "public key")?;
+                let format = parse_ss58_format(&network)?;
+                let address =
+                    SubstrateAddress::new_with_format(public_key_arr, desc.network_scheme, format)?;
+
+                Ok(SubstrateResult::Address(AddressResult {
+                    address: S::address_to_string(&address),
+                }))
+            }
+        }
+    }
+
+    fn substrate_sign_command<S, Public, Sig, ParsePublic, SignerFn, SigHexFn>(
+        public_key_hex: &str,
+        data_hex: &str,
+        prefix: &Option<String>,
+        storage: &StorageLocationArgs,
+        parse_public: ParsePublic,
+        signer_fn: SignerFn,
+        sig_hex_fn: SigHexFn,
+    ) -> Result<crate::cli::scheme::SignResult>
+    where
+        S: crate::cli::storage::StorageScheme,
+        ParsePublic: Fn([u8; 32]) -> Public,
+        SignerFn: Fn(&crate::Signer<S>, Public, &[u8], Option<&str>) -> Result<Sig>,
+        SigHexFn: Fn(&Sig) -> String,
+    {
+        crate::cli::storage::with_signer::<S, _, _>(storage, |signer| {
+            let password = storage
+                .key_password
+                .as_ref()
+                .map(|secret| secret.expose_secret().as_str());
+            let public_key = parse_public(decode_hex_array::<32>(public_key_hex, "public key")?);
+            let message_bytes = crate::cli::util::prefixed_message(data_hex, prefix)?;
+            let signature = signer_fn(&signer, public_key, &message_bytes, password)?;
+
+            Ok(crate::cli::scheme::SignResult {
+                signature: sig_hex_fn(&signature),
+            })
+        })
+    }
+
+    fn substrate_verify_command<Public, Sig, ParsePublic, ParseSig, VerifyFn>(
+        public_key_hex: &str,
+        data_hex: &str,
+        prefix: &Option<String>,
+        signature_hex: &str,
+        parse_public: ParsePublic,
+        parse_signature: ParseSig,
+        verify_fn: VerifyFn,
+    ) -> Result<crate::cli::scheme::VerifyResult>
+    where
+        ParsePublic: Fn([u8; 32]) -> Public,
+        ParseSig: Fn([u8; 64]) -> Sig,
+        VerifyFn: Fn(&Public, &[u8], &Sig) -> Result<()>,
+    {
+        let public_key = parse_public(decode_hex_array::<32>(public_key_hex, "public key")?);
+        let signature = parse_signature(decode_hex_array::<64>(signature_hex, "signature")?);
+        let message_bytes = crate::cli::util::prefixed_message(data_hex, prefix)?;
+
+        verify_fn(&public_key, &message_bytes, &signature)?;
+
+        Ok(crate::cli::scheme::VerifyResult { valid: true })
+    }
+
+    pub fn parse_ss58_format(
+        network: &Option<String>,
+    ) -> Result<sp_core::crypto::Ss58AddressFormat> {
+        use std::str::FromStr;
+
+        if let Some(net) = network {
+            if let Ok(prefix) = net.parse::<u16>() {
+                return Ok(sp_core::crypto::Ss58AddressFormat::custom(prefix));
+            }
+
+            let reg = sp_core::crypto::Ss58AddressFormatRegistry::from_str(net)
+                .map_err(|_| anyhow::anyhow!("Unknown network prefix '{net}'"))?;
+            Ok(sp_core::crypto::Ss58AddressFormat::from(reg))
+        } else {
+            Ok(sp_core::crypto::Ss58AddressFormat::custom(
+                SubstrateAddress::DEFAULT_PREFIX,
+            ))
+        }
+    }
+}
+
 #[cfg(any(feature = "ed25519", feature = "sr25519"))]
-use crate::cli::util::decode_hex_array;
+use substrate_ops::*;
 
 /// Execute a gsigner command.
 pub fn execute_command(command: GSignerCommands) -> Result<CommandResult> {
@@ -162,7 +518,6 @@ fn scheme_handlers() -> Vec<SchemeHandlerEntry> {
 #[cfg(feature = "secp256k1")]
 fn secp256k1_scheme_descriptor() -> SchemeDescriptor<SchemeKeyringCommands> {
     SchemeDescriptor {
-        name: crate::schemes::secp256k1::Secp256k1::scheme_name(),
         #[cfg(feature = "keyring")]
         handle_keyring: secp256k1_handle_keyring,
         verify: |public_key, data, prefix, signature, _| {
@@ -181,8 +536,7 @@ fn secp256k1_scheme_descriptor() -> SchemeDescriptor<SchemeKeyringCommands> {
 
 #[cfg(all(feature = "secp256k1", feature = "keyring"))]
 fn secp256k1_handle_keyring(command: SchemeKeyringCommands) -> Result<SchemeResult> {
-    let formatter = secp256k1_formatter();
-    execute_secp256k1_keyring_command(command, &formatter)
+    execute_keyring_command::<Secp256k1KeyringOps>(command)
 }
 
 #[cfg(all(feature = "secp256k1", feature = "peer-id"))]
@@ -198,147 +552,9 @@ fn secp256k1_peer_id(public_key: String) -> Result<SchemeResult> {
     }))
 }
 
-#[cfg(all(feature = "secp256k1", feature = "keyring"))]
-fn execute_secp256k1_keyring_command(
-    command: SchemeKeyringCommands,
-    formatter: &SchemeFormatter<crate::schemes::secp256k1::Secp256k1>,
-) -> Result<SchemeResult> {
-    use crate::{
-        Address,
-        schemes::secp256k1::{PublicKey, Secp256k1, Secp256k1SignerExt},
-    };
-
-    match command {
-        SchemeKeyringCommands::Generate {
-            storage,
-            show_secret,
-        } => {
-            let result = generate_key_result::<Secp256k1>(&storage, formatter, show_secret)?;
-            Ok(SchemeResult::Generate(result))
-        }
-        SchemeKeyringCommands::Clear { storage } => {
-            let storage = storage.into_storage_args();
-            let result = clear_keys_command::<Secp256k1>(&storage)?;
-            Ok(SchemeResult::Clear(result))
-        }
-        SchemeKeyringCommands::Sign {
-            public_key,
-            data,
-            prefix,
-            storage,
-            context: _,
-            contract,
-        } => with_signer::<Secp256k1, _, _>(&storage, |signer| {
-            validate_hex_len(&public_key, 33, "public key")?;
-            let public_key: PublicKey = public_key.parse()?;
-            let effective_prefix = prefix.or_else(|| Some(EIP191_PREFIX.to_string()));
-            let message_bytes = prefixed_message(&data, &effective_prefix)?;
-            let password = storage
-                .key_password
-                .as_ref()
-                .map(|secret| secret.expose_secret().as_str());
-
-            let signature = if let Some(contract_addr) = contract {
-                let contract_bytes = hex::decode(strip_0x(&contract_addr))?;
-                if contract_bytes.len() != 20 {
-                    anyhow::bail!("Contract address must be 20 bytes (40 hex characters)");
-                }
-                let mut contract_array = [0u8; 20];
-                contract_array.copy_from_slice(&contract_bytes);
-                let contract_address = Address(contract_array);
-                let signature = signer.sign_for_contract_with_password(
-                    contract_address,
-                    public_key,
-                    &message_bytes,
-                    password,
-                )?;
-                hex::encode(signature.into_pre_eip155_bytes())
-            } else {
-                let signature = signer.sign_with_password(public_key, &message_bytes, password)?;
-                hex::encode(signature.into_pre_eip155_bytes())
-            };
-
-            Ok(SchemeResult::Sign(SignResult { signature }))
-        }),
-        SchemeKeyringCommands::Show {
-            storage,
-            key,
-            show_secret,
-        } => {
-            let result = secp256k1_show_key(&storage, &key, show_secret, formatter)?;
-            Ok(SchemeResult::List(result))
-        }
-        SchemeKeyringCommands::Vanity {
-            storage,
-            name,
-            prefix,
-            show_secret,
-        } => keyring_vanity::<Secp256k1KeyringOps, crate::schemes::secp256k1::Secp256k1>(
-            storage,
-            name,
-            prefix,
-            show_secret,
-        ),
-        SchemeKeyringCommands::Init { storage } => keyring_init::<Secp256k1KeyringOps>(storage),
-        SchemeKeyringCommands::Create {
-            storage,
-            name,
-            show_secret,
-        } => keyring_generate::<Secp256k1KeyringOps, crate::schemes::secp256k1::Secp256k1>(
-            storage,
-            name,
-            show_secret,
-        ),
-        SchemeKeyringCommands::Import {
-            suri,
-            seed,
-            private_key,
-            suri_password,
-            name,
-            storage,
-            show_secret,
-        } => {
-            if seed.is_some() {
-                anyhow::bail!("--seed is not supported for secp256k1 import");
-            }
-            let name =
-                name.ok_or_else(|| anyhow::anyhow!("--name is required for secp256k1 import"))?;
-            if suri_password.is_some() && suri.is_none() {
-                anyhow::bail!("--suri_password can only be used together with --suri");
-            }
-            keyring_import::<Secp256k1KeyringOps, crate::schemes::secp256k1::Secp256k1, _>(
-                storage,
-                name.clone(),
-                show_secret,
-                false,
-                |keyring, key_password| {
-                    if let Some(hex_key) = &private_key {
-                        return Secp256k1KeyringOps::add_hex(keyring, &name, hex_key, key_password);
-                    }
-                    if let Some(suri) = &suri {
-                        return Secp256k1KeyringOps::import_suri(
-                            keyring,
-                            &name,
-                            suri,
-                            suri_password.as_deref(),
-                            key_password,
-                        );
-                    }
-                    anyhow::bail!("either --private-key or --suri must be provided");
-                },
-            )
-        }
-        SchemeKeyringCommands::List { storage } => keyring_list::<
-            Secp256k1KeyringOps,
-            crate::schemes::secp256k1::Secp256k1,
-        >(storage.into_storage_args()),
-    }
-}
-
 #[cfg(feature = "ed25519")]
 fn ed25519_scheme_descriptor() -> SchemeDescriptor<SchemeKeyringCommands> {
     SchemeDescriptor {
-        name: crate::schemes::ed25519::Ed25519::scheme_name(),
         #[cfg(feature = "keyring")]
         handle_keyring: ed25519_handle_keyring,
         verify: ed25519_verify,
@@ -351,7 +567,7 @@ fn ed25519_scheme_descriptor() -> SchemeDescriptor<SchemeKeyringCommands> {
 
 #[cfg(all(feature = "ed25519", feature = "keyring"))]
 fn ed25519_handle_keyring(command: SchemeKeyringCommands) -> Result<SchemeResult> {
-    execute_ed25519_keyring_command(command)
+    execute_keyring_command::<Ed25519KeyringOps>(command)
 }
 
 #[cfg(feature = "ed25519")]
@@ -398,162 +614,9 @@ fn ed25519_peer_id(public_key: String) -> Result<SchemeResult> {
     }))
 }
 
-#[cfg(all(feature = "ed25519", feature = "keyring"))]
-fn execute_ed25519_keyring_command(command: SchemeKeyringCommands) -> Result<SchemeResult> {
-    match command {
-        SchemeKeyringCommands::Clear { storage } => {
-            let storage = storage.into_storage_args();
-            let res = execute_substrate_command(
-                &ed25519_descriptor(),
-                SubstrateCommand::Clear { storage },
-            )?;
-            Ok(substrate_result_to_scheme(res))
-        }
-        SchemeKeyringCommands::Generate {
-            storage,
-            show_secret,
-        } => {
-            let res = execute_substrate_command(
-                &ed25519_descriptor(),
-                SubstrateCommand::Generate {
-                    storage,
-                    show_secret,
-                },
-            )?;
-            Ok(substrate_result_to_scheme(res))
-        }
-        SchemeKeyringCommands::Import {
-            suri,
-            seed,
-            private_key,
-            suri_password,
-            name,
-            storage,
-            show_secret,
-        } => {
-            if private_key.is_some() {
-                anyhow::bail!("--private-key is not supported for ed25519");
-            }
-            if let Some(name) = name {
-                if suri_password.is_some() && suri.is_none() {
-                    anyhow::bail!("--password can only be used together with --suri");
-                }
-                return keyring_import::<Ed25519KeyringOps, crate::schemes::ed25519::Ed25519, _>(
-                    storage,
-                    name.clone(),
-                    show_secret,
-                    true,
-                    |keyring, key_password| {
-                        if let Some(seed_hex) = &seed {
-                            return Ed25519KeyringOps::add_hex(
-                                keyring,
-                                &name,
-                                seed_hex,
-                                key_password,
-                            );
-                        }
-                        if let Some(suri) = &suri {
-                            return Ed25519KeyringOps::import_suri(
-                                keyring,
-                                &name,
-                                suri,
-                                suri_password.as_deref(),
-                                key_password,
-                            );
-                        }
-                        anyhow::bail!("either --seed or --suri must be provided");
-                    },
-                );
-            }
-            let res = execute_substrate_command(
-                &ed25519_descriptor(),
-                SubstrateCommand::Import {
-                    suri,
-                    seed,
-                    suri_password,
-                    storage,
-                    show_secret,
-                },
-            )?;
-            Ok(substrate_result_to_scheme(res))
-        }
-        SchemeKeyringCommands::Sign {
-            public_key,
-            data,
-            prefix,
-            storage,
-            context: _,
-            contract: _,
-        } => {
-            let res = execute_substrate_command(
-                &ed25519_descriptor(),
-                SubstrateCommand::Sign {
-                    public_key,
-                    data,
-                    prefix,
-                    storage,
-                    context: None,
-                },
-            )?;
-            Ok(substrate_result_to_scheme(res))
-        }
-        SchemeKeyringCommands::Show {
-            storage,
-            key,
-            show_secret,
-        } => {
-            let bytes = decode_hex_array::<32>(&key, "public key")?;
-            let public = crate::schemes::ed25519::PublicKey::from_bytes(bytes);
-            let formatter = substrate_formatter(
-                crate::schemes::ed25519::Ed25519::scheme_name(),
-                ed25519_key_type,
-                ed25519_public_display,
-            );
-            let password = storage
-                .key_password
-                .as_ref()
-                .map(|secret| secret.expose_secret().as_str());
-            let result = show_key_for_public::<crate::schemes::ed25519::Ed25519>(
-                &storage,
-                &formatter,
-                public,
-                show_secret,
-                password,
-            )?;
-            Ok(SchemeResult::List(result))
-        }
-        SchemeKeyringCommands::Vanity {
-            storage,
-            name,
-            prefix,
-            show_secret,
-        } => keyring_vanity::<Ed25519KeyringOps, crate::schemes::ed25519::Ed25519>(
-            storage,
-            name,
-            prefix,
-            show_secret,
-        ),
-        SchemeKeyringCommands::Init { storage } => keyring_init::<Ed25519KeyringOps>(storage),
-        SchemeKeyringCommands::Create {
-            storage,
-            name,
-            show_secret,
-        } => keyring_generate::<Ed25519KeyringOps, crate::schemes::ed25519::Ed25519>(
-            storage,
-            name,
-            show_secret,
-        ),
-        SchemeKeyringCommands::List { storage } => keyring_list::<
-            Ed25519KeyringOps,
-            crate::schemes::ed25519::Ed25519,
-        >(storage.into_storage_args()),
-    }
-}
-
 #[cfg(feature = "sr25519")]
 fn sr25519_scheme_descriptor() -> SchemeDescriptor<SchemeKeyringCommands> {
     SchemeDescriptor {
-        name: crate::schemes::sr25519::Sr25519::scheme_name(),
         #[cfg(feature = "keyring")]
         handle_keyring: sr25519_handle_keyring,
         verify: sr25519_verify,
@@ -566,7 +629,7 @@ fn sr25519_scheme_descriptor() -> SchemeDescriptor<SchemeKeyringCommands> {
 
 #[cfg(all(feature = "sr25519", feature = "keyring"))]
 fn sr25519_handle_keyring(command: SchemeKeyringCommands) -> Result<SchemeResult> {
-    execute_sr25519_keyring_command(command)
+    execute_keyring_command::<Sr25519KeyringOps>(command)
 }
 
 #[cfg(feature = "sr25519")]
@@ -602,207 +665,22 @@ fn sr25519_address(public_key: String, network: Option<String>) -> Result<Scheme
     Ok(substrate_result_to_scheme(res))
 }
 
-#[cfg(all(feature = "sr25519", feature = "keyring"))]
-fn execute_sr25519_keyring_command(command: SchemeKeyringCommands) -> Result<SchemeResult> {
-    match command {
-        SchemeKeyringCommands::Clear { storage } => {
-            let storage = storage.into_storage_args();
-            let res = execute_substrate_command(
-                &sr25519_descriptor(),
-                SubstrateCommand::Clear { storage },
-            )?;
-            Ok(substrate_result_to_scheme(res))
-        }
-        SchemeKeyringCommands::Generate {
-            storage,
-            show_secret,
-        } => {
-            let res = execute_substrate_command(
-                &sr25519_descriptor(),
-                SubstrateCommand::Generate {
-                    storage,
-                    show_secret,
-                },
-            )?;
-            Ok(substrate_result_to_scheme(res))
-        }
-        SchemeKeyringCommands::Import {
-            suri,
-            seed,
-            private_key,
-            suri_password,
-            name,
-            storage,
-            show_secret,
-        } => {
-            if private_key.is_some() {
-                anyhow::bail!("--private-key is not supported for sr25519");
-            }
-            if let Some(name) = name {
-                if suri_password.is_some() && suri.is_none() {
-                    anyhow::bail!("--password can only be used together with --suri");
-                }
-                return keyring_import::<Sr25519KeyringOps, crate::schemes::sr25519::Sr25519, _>(
-                    storage,
-                    name.clone(),
-                    show_secret,
-                    true,
-                    |keyring, key_password| {
-                        if let Some(seed_hex) = &seed {
-                            return Sr25519KeyringOps::add_hex(
-                                keyring,
-                                &name,
-                                seed_hex,
-                                key_password,
-                            );
-                        }
-                        if let Some(suri) = &suri {
-                            return Sr25519KeyringOps::import_suri(
-                                keyring,
-                                &name,
-                                suri,
-                                suri_password.as_deref(),
-                                key_password,
-                            );
-                        }
-                        anyhow::bail!("either --seed or --suri must be provided");
-                    },
-                );
-            }
-            let res = execute_substrate_command(
-                &sr25519_descriptor(),
-                SubstrateCommand::Import {
-                    suri,
-                    seed,
-                    suri_password,
-                    storage,
-                    show_secret,
-                },
-            )?;
-            Ok(substrate_result_to_scheme(res))
-        }
-        SchemeKeyringCommands::Sign {
-            public_key,
-            data,
-            prefix,
-            storage,
-            context,
-            contract: _,
-        } => {
-            let res = execute_substrate_command(
-                &sr25519_descriptor(),
-                SubstrateCommand::Sign {
-                    public_key,
-                    data,
-                    prefix,
-                    storage,
-                    context,
-                },
-            )?;
-            Ok(substrate_result_to_scheme(res))
-        }
-        SchemeKeyringCommands::Show {
-            storage,
-            key,
-            show_secret,
-        } => {
-            let bytes = decode_hex_array::<32>(&key, "public key")?;
-            let public = crate::schemes::sr25519::PublicKey::from_bytes(bytes);
-            let formatter = substrate_formatter(
-                crate::schemes::sr25519::Sr25519::scheme_name(),
-                sr25519_key_type,
-                sr25519_public_display,
-            );
-            let password = storage
-                .key_password
-                .as_ref()
-                .map(|secret| secret.expose_secret().as_str());
-            let result = show_key_for_public::<crate::schemes::sr25519::Sr25519>(
-                &storage,
-                &formatter,
-                public,
-                show_secret,
-                password,
-            )?;
-            Ok(SchemeResult::List(result))
-        }
-        SchemeKeyringCommands::Init { storage } => keyring_init::<Sr25519KeyringOps>(storage),
-        SchemeKeyringCommands::Vanity {
-            storage,
-            name,
-            prefix,
-            show_secret,
-        } => keyring_vanity::<Sr25519KeyringOps, crate::schemes::sr25519::Sr25519>(
-            storage,
-            name,
-            prefix,
-            show_secret,
-        ),
-        SchemeKeyringCommands::Create {
-            storage,
-            name,
-            show_secret,
-        } => keyring_generate::<Sr25519KeyringOps, crate::schemes::sr25519::Sr25519>(
-            storage,
-            name,
-            show_secret,
-        ),
-        SchemeKeyringCommands::List { storage } => keyring_list::<
-            Sr25519KeyringOps,
-            crate::schemes::sr25519::Sr25519,
-        >(storage.into_storage_args()),
-    }
-}
-
-#[cfg(feature = "secp256k1")]
-fn secp256k1_show_key(
-    storage: &StorageLocationArgs,
-    key: &str,
-    show_secret: bool,
-    formatter: &SchemeFormatter<crate::schemes::secp256k1::Secp256k1>,
-) -> Result<ListKeysResult> {
-    use crate::schemes::secp256k1::{Address, PublicKey, Secp256k1};
-
-    with_signer::<Secp256k1, _, _>(storage, |signer| {
-        let password = storage
-            .key_password
-            .as_ref()
-            .map(|secret| secret.expose_secret().as_str());
-        let public_key = if let Ok(public_key) = PublicKey::from_str(key) {
-            public_key
-        } else {
-            let address = Address::from_str(key)
-                .map_err(|_| anyhow::anyhow!("Invalid public key or address '{key}'"))?;
-            signer
-                .get_key_by_address(address)?
-                .ok_or_else(|| anyhow::anyhow!("No key found for address '{key}'"))?
-        };
-
-        let info = key_info_from_public(&signer, formatter, public_key, show_secret, password)?;
-        Ok(ListKeysResult { keys: vec![info] })
-    })
-}
-
 #[cfg(feature = "ed25519")]
 fn ed25519_descriptor() -> SubstrateDescriptor<crate::schemes::ed25519::Ed25519> {
     make_substrate_descriptor(
-        substrate_formatter(
-            crate::schemes::ed25519::Ed25519::scheme_name(),
-            ed25519_key_type,
-            ed25519_public_display,
-        ),
-        ed25519_key_type,
         crate::schemes::ed25519::PublicKey::from_bytes,
         crate::schemes::ed25519::Signature::from_bytes,
         |signer, public, message, _context, password| {
-            Ok(signer.sign_with_password(public, message, password)?)
+            if let Some(pwd) = password {
+                Ok(signer.sign_encrypted(public, message, pwd)?)
+            } else {
+                Ok(signer.sign(public, message)?)
+            }
         },
         |public, message, signature, _context| {
-            Ok(
-                <crate::schemes::ed25519::Ed25519 as SignatureScheme>::verify(
-                    public, message, signature,
-                )?,
-            )
+            Ok(crate::schemes::ed25519::Ed25519::verify(
+                public, message, signature,
+            )?)
         },
         |signature| hex::encode(signature.to_bytes()),
         |suri, password| {
@@ -819,17 +697,11 @@ fn sr25519_descriptor() -> SubstrateDescriptor<crate::schemes::sr25519::Sr25519>
     use crate::schemes::sr25519::Sr25519SignerExt;
 
     make_substrate_descriptor(
-        substrate_formatter(
-            crate::schemes::sr25519::Sr25519::scheme_name(),
-            sr25519_key_type,
-            sr25519_public_display,
-        ),
-        sr25519_key_type,
         crate::schemes::sr25519::PublicKey::from_bytes,
         crate::schemes::sr25519::Signature::from_bytes,
         |signer, public, message, context, password| {
             let ctx = sr25519_context(&context)?;
-            signer.sign_with_context_with_password(public, ctx.as_bytes(), message, password)
+            signer.sign_with_context(public, ctx.as_bytes(), message, password)
         },
         |public, message, signature, context| {
             let ctx = sr25519_context(&context)?;
@@ -855,94 +727,23 @@ fn sr25519_context(context: &Option<String>) -> Result<&str> {
 }
 
 #[cfg(all(feature = "secp256k1", feature = "keyring"))]
-struct Secp256k1KeyringOps;
+struct Secp256k1Ext;
 
 #[cfg(all(feature = "secp256k1", feature = "keyring"))]
-impl KeyringOps for Secp256k1KeyringOps {
-    type Keyring = crate::schemes::secp256k1::keyring::Keyring;
+impl PrivateKeyDisplay for Secp256k1Ext {
+    type PrivateKey = crate::schemes::secp256k1::PrivateKey;
 
-    fn namespace() -> &'static str {
-        crate::keyring::NAMESPACE_SECP
+    fn display_secret(private_key: &Self::PrivateKey) -> String {
+        private_key.to_string()
     }
+}
 
-    fn load(path: PathBuf) -> Result<Self::Keyring> {
-        Self::Keyring::load(path)
-    }
+#[cfg(all(feature = "secp256k1", feature = "keyring"))]
+impl VanityMatcher for Secp256k1Ext {
+    type PrivateKey = crate::schemes::secp256k1::PrivateKey;
+    type Address = crate::schemes::secp256k1::Address;
 
-    fn memory() -> Self::Keyring {
-        Self::Keyring::memory()
-    }
-
-    fn create(
-        keyring: &mut Self::Keyring,
-        name: &str,
-        password: Option<&str>,
-    ) -> Result<KeyringEntry> {
-        let (keystore, private_key) = keyring.create(name, password)?;
-        Ok(KeyringEntry {
-            public_key: keystore.public_key.clone(),
-            address: keystore.address.clone(),
-            key_type: keystore.meta.key_type.clone(),
-            name: keystore.name.clone(),
-            secret: Some(private_key.to_string()),
-        })
-    }
-
-    fn add_hex(
-        keyring: &mut Self::Keyring,
-        name: &str,
-        hex: &str,
-        password: Option<&str>,
-    ) -> Result<KeyringEntry> {
-        let keystore = keyring.add_hex(name, hex, password)?;
-        let secret = keystore.private_key_with_password(password)?.to_string();
-        Ok(KeyringEntry {
-            public_key: keystore.public_key.clone(),
-            address: keystore.address.clone(),
-            key_type: keystore.meta.key_type.clone(),
-            name: keystore.name.clone(),
-            secret: Some(secret),
-        })
-    }
-
-    fn import_suri(
-        keyring: &mut Self::Keyring,
-        name: &str,
-        suri: &str,
-        suri_password: Option<&str>,
-        encryption_password: Option<&str>,
-    ) -> Result<KeyringEntry> {
-        let (keystore, private_key) =
-            keyring.import_suri(name, suri, suri_password, encryption_password)?;
-        Ok(KeyringEntry {
-            public_key: keystore.public_key.clone(),
-            address: keystore.address.clone(),
-            key_type: keystore.meta.key_type.clone(),
-            name: keystore.name.clone(),
-            secret: Some(private_key.to_string()),
-        })
-    }
-
-    fn list(keyring: &Self::Keyring) -> Result<Vec<KeyringEntry>> {
-        Ok(keyring
-            .list()
-            .iter()
-            .map(|ks| KeyringEntry {
-                public_key: ks.public_key.clone(),
-                address: ks.address.clone(),
-                key_type: ks.meta.key_type.clone(),
-                name: ks.name.clone(),
-                secret: None,
-            })
-            .collect())
-    }
-
-    fn vanity(
-        keyring: &mut Self::Keyring,
-        name: &str,
-        prefix: &str,
-        password: Option<&str>,
-    ) -> Result<KeyringEntry> {
+    fn normalize_prefix(prefix: &str) -> Result<String> {
         let normalized = prefix.trim();
         let normalized = normalized
             .strip_prefix("0x")
@@ -951,264 +752,442 @@ impl KeyringOps for Secp256k1KeyringOps {
         if !normalized.chars().all(|c| c.is_ascii_hexdigit()) {
             anyhow::bail!("Prefix must be hexadecimal");
         }
+        Ok(normalized)
+    }
 
-        let target = normalized.clone();
-        let mut attempts = 0usize;
-        let private_key = loop {
-            if attempts >= MAX_VANITY_ATTEMPTS {
-                anyhow::bail!("vanity search exceeded maximum attempts ({MAX_VANITY_ATTEMPTS})");
-            }
-            let candidate = crate::schemes::secp256k1::PrivateKey::random();
-            let address_hex = candidate.public_key().to_address().to_hex();
-            if target.is_empty() || address_hex.starts_with(&target) {
-                break candidate;
-            }
-            attempts += 1;
-        };
-        let keystore = keyring.add(name, private_key.clone(), password)?;
-        Ok(KeyringEntry {
-            public_key: keystore.public_key.clone(),
-            address: keystore.address.clone(),
-            key_type: keystore.meta.key_type.clone(),
-            name: keystore.name.clone(),
-            secret: Some(private_key.to_string()),
-        })
+    fn matches_vanity(private_key: &Self::PrivateKey, prefix: &str) -> Result<bool> {
+        let address_hex = private_key.public_key().to_address().to_hex();
+        Ok(address_hex.starts_with(prefix))
     }
 }
 
-#[cfg(all(feature = "ed25519", feature = "keyring"))]
-struct Ed25519KeyringOps;
+#[cfg(all(feature = "secp256k1", feature = "keyring"))]
+impl HexImporter for Secp256k1Ext {
+    type PrivateKey = crate::schemes::secp256k1::PrivateKey;
 
-#[cfg(all(feature = "ed25519", feature = "keyring"))]
-impl KeyringOps for Ed25519KeyringOps {
-    type Keyring = crate::schemes::ed25519::keyring::Keyring;
-
-    fn namespace() -> &'static str {
-        crate::keyring::NAMESPACE_ED
-    }
-
-    fn load(path: PathBuf) -> Result<Self::Keyring> {
-        Self::Keyring::load(path)
-    }
-
-    fn memory() -> Self::Keyring {
-        Self::Keyring::memory()
-    }
-
-    fn create(
-        keyring: &mut Self::Keyring,
-        name: &str,
-        password: Option<&str>,
-    ) -> Result<KeyringEntry> {
-        let (keystore, private_key) = keyring.create(name, password)?;
-        Ok(KeyringEntry {
-            public_key: keystore.public_key.clone(),
-            address: keystore.address.clone(),
-            key_type: keystore.meta.key_type.clone(),
-            name: keystore.name.clone(),
-            secret: Some(hex::encode(private_key.to_bytes())),
-        })
-    }
-
-    fn add_hex(
-        keyring: &mut Self::Keyring,
-        name: &str,
-        hex: &str,
-        password: Option<&str>,
-    ) -> Result<KeyringEntry> {
-        let keystore = keyring.add_hex(name, hex, password)?;
-        let secret = keystore.private_key_with_password(password)?.to_bytes();
-        Ok(KeyringEntry {
-            public_key: keystore.public_key.clone(),
-            address: keystore.address.clone(),
-            key_type: keystore.meta.key_type.clone(),
-            name: keystore.name.clone(),
-            secret: Some(hex::encode(secret)),
-        })
-    }
-
-    fn import_suri(
-        keyring: &mut Self::Keyring,
-        name: &str,
-        suri: &str,
-        suri_password: Option<&str>,
-        encryption_password: Option<&str>,
-    ) -> Result<KeyringEntry> {
-        let (keystore, private_key) =
-            keyring.import_suri(name, suri, suri_password, encryption_password)?;
-        Ok(KeyringEntry {
-            public_key: keystore.public_key.clone(),
-            address: keystore.address.clone(),
-            key_type: keystore.meta.key_type.clone(),
-            name: keystore.name.clone(),
-            secret: Some(hex::encode(private_key.to_bytes())),
-        })
-    }
-
-    fn list(keyring: &Self::Keyring) -> Result<Vec<KeyringEntry>> {
-        Ok(keyring
-            .list()
-            .iter()
-            .map(|ks| KeyringEntry {
-                public_key: ks.public_key.clone(),
-                address: ks.address.clone(),
-                key_type: ks.meta.key_type.clone(),
-                name: ks.name.clone(),
-                secret: None,
-            })
-            .collect())
-    }
-
-    fn vanity(
-        keyring: &mut Self::Keyring,
-        name: &str,
-        prefix: &str,
-        password: Option<&str>,
-    ) -> Result<KeyringEntry> {
-        let mut attempts = 0usize;
-        let private_key = loop {
-            if attempts >= MAX_VANITY_ATTEMPTS {
-                anyhow::bail!("vanity search exceeded maximum attempts ({MAX_VANITY_ATTEMPTS})");
-            }
-            let candidate = crate::schemes::ed25519::PrivateKey::random();
-            let address = candidate.public_key().to_address()?;
-            if prefix.is_empty() || address.as_ss58().starts_with(prefix) {
-                break candidate;
-            }
-            attempts += 1;
-        };
-        let keystore = keyring.add(name, private_key.clone(), password)?;
-        Ok(KeyringEntry {
-            public_key: keystore.public_key.clone(),
-            address: keystore.address.clone(),
-            key_type: keystore.meta.key_type.clone(),
-            name: keystore.name.clone(),
-            secret: Some(hex::encode(private_key.to_bytes())),
-        })
+    fn import_hex(hex: &str) -> Result<Self::PrivateKey> {
+        use crate::keyring::KeyCodec;
+        crate::schemes::secp256k1::keyring::Secp256k1Codec::decode_private(hex)
     }
 }
 
-#[cfg(all(feature = "sr25519", feature = "keyring"))]
-struct Sr25519KeyringOps;
-
-#[cfg(all(feature = "sr25519", feature = "keyring"))]
-impl KeyringOps for Sr25519KeyringOps {
-    type Keyring = crate::schemes::sr25519::keyring::Keyring;
-
-    fn namespace() -> &'static str {
-        crate::keyring::NAMESPACE_SR
+#[cfg(all(feature = "secp256k1", feature = "keyring"))]
+impl PublicKeyExtractor<crate::schemes::secp256k1::keyring::Secp256k1Codec> for Secp256k1Ext {
+    fn extract_public_key(
+        keystore: &crate::keyring::SubstrateKeystore<
+            crate::schemes::secp256k1::keyring::Secp256k1Codec,
+        >,
+    ) -> String {
+        // Use CryptoScheme format (no 0x prefix) for CLI output consistency
+        keystore
+            .public_key()
+            .map(|pk| crate::schemes::secp256k1::Secp256k1::public_key_to_hex(&pk))
+            .unwrap_or_else(|_| "<unknown>".to_string())
     }
+}
 
-    fn load(path: PathBuf) -> Result<Self::Keyring> {
-        Self::Keyring::load(path)
-    }
+#[cfg(all(feature = "secp256k1", feature = "keyring"))]
+impl KeyringOpsExt<crate::schemes::secp256k1::keyring::Secp256k1Codec> for Secp256k1Ext {
+    const NAMESPACE: &'static str = crate::keyring::NAMESPACE_SECP;
+}
 
-    fn memory() -> Self::Keyring {
-        Self::Keyring::memory()
-    }
+#[cfg(all(feature = "secp256k1", feature = "keyring"))]
+type Secp256k1KeyringOps =
+    GenericKeyringOps<crate::schemes::secp256k1::keyring::Secp256k1Codec, Secp256k1Ext>;
 
-    fn create(
-        keyring: &mut Self::Keyring,
-        name: &str,
-        password: Option<&str>,
-    ) -> Result<KeyringEntry> {
-        let (keystore, private_key) = keyring.create(name, password.map(|p| p.as_bytes()))?;
-        Ok(KeyringEntry {
-            public_key: hex::encode(private_key.public_key().to_bytes()),
-            address: keystore.address.clone(),
-            key_type: keystore.meta.key_type.clone(),
-            name: keystore.meta.name.clone(),
-            secret: Some(hex::encode(private_key.to_bytes())),
+#[cfg(all(feature = "secp256k1", feature = "keyring"))]
+impl KeyringCommandHandler for Secp256k1KeyringOps {
+    type Scheme = crate::schemes::secp256k1::Secp256k1;
+
+    fn handle_sign(
+        storage: &StorageLocationArgs,
+        public_key: &str,
+        data: &str,
+        prefix: &Option<String>,
+        _context: &Option<String>,
+        contract: &Option<String>,
+    ) -> Result<SchemeResult> {
+        use crate::schemes::secp256k1::{PublicKey, Secp256k1SignerExt};
+
+        with_signer::<Self::Scheme, _, _>(storage, |signer| {
+            validate_hex_len(public_key, 33, "public key")?;
+            let public_key: PublicKey = public_key.parse()?;
+            let effective_prefix = prefix.clone().or_else(|| Some(EIP191_PREFIX.to_string()));
+            let message_bytes = prefixed_message(data, &effective_prefix)?;
+            let password = storage
+                .key_password
+                .as_ref()
+                .map(|secret| secret.expose_secret().as_str());
+
+            let signature = if let Some(contract_addr) = contract {
+                let contract_bytes = hex::decode(strip_0x(contract_addr))?;
+                if contract_bytes.len() != 20 {
+                    anyhow::bail!("Contract address must be 20 bytes (40 hex characters)");
+                }
+                let mut contract_array = [0u8; 20];
+                contract_array.copy_from_slice(&contract_bytes);
+                let contract_address = crate::Address(contract_array);
+                let signature = signer.sign_for_contract(
+                    contract_address,
+                    public_key,
+                    &message_bytes,
+                    password,
+                )?;
+                hex::encode(signature.into_pre_eip155_bytes())
+            } else {
+                let signature = if let Some(pwd) = password {
+                    signer.sign_encrypted(public_key, &message_bytes, pwd)?
+                } else {
+                    signer.sign(public_key, &message_bytes)?
+                };
+                hex::encode(signature.into_pre_eip155_bytes())
+            };
+
+            Ok(SchemeResult::Sign(SignResult { signature }))
         })
     }
 
-    fn add_hex(
-        keyring: &mut Self::Keyring,
-        name: &str,
-        hex: &str,
-        password: Option<&str>,
-    ) -> Result<KeyringEntry> {
-        let bytes = hex::decode(strip_0x(hex))?;
-        if bytes.len() != 32 {
-            anyhow::bail!("Seed must be 32 bytes (64 hex characters)");
+    fn handle_show(
+        storage: &StorageLocationArgs,
+        key: &str,
+        show_secret: bool,
+    ) -> Result<SchemeResult> {
+        use crate::schemes::secp256k1::{Address, PublicKey};
+
+        with_signer::<Self::Scheme, _, _>(storage, |signer| {
+            let password = storage
+                .key_password
+                .as_ref()
+                .map(|secret| secret.expose_secret().as_str());
+            let public_key = if let Ok(pk) = PublicKey::from_str(key) {
+                pk
+            } else {
+                let address = Address::from_str(key)
+                    .map_err(|_| anyhow::anyhow!("Invalid public key or address '{key}'"))?;
+                signer
+                    .get_key_by_address(address)?
+                    .ok_or_else(|| anyhow::anyhow!("No key found for address '{key}'"))?
+            };
+
+            let info = key_info_from_public(&signer, public_key, show_secret, password)?;
+            Ok(SchemeResult::List(ListKeysResult { keys: vec![info] }))
+        })
+    }
+
+    fn handle_import(
+        storage: StorageLocationArgs,
+        suri: Option<String>,
+        seed: Option<String>,
+        private_key: Option<String>,
+        suri_password: Option<String>,
+        name: Option<String>,
+        show_secret: bool,
+    ) -> Result<SchemeResult> {
+        if seed.is_some() {
+            anyhow::bail!("--seed is not supported for secp256k1 import");
         }
-        let mut seed = [0u8; 32];
-        seed.copy_from_slice(&bytes);
-        let private_key = crate::schemes::sr25519::PrivateKey::from_seed(seed)?;
-        let keystore = keyring.add(name, private_key.clone(), password.map(|p| p.as_bytes()))?;
-        Ok(KeyringEntry {
-            public_key: hex::encode(private_key.public_key().to_bytes()),
-            address: keystore.address.clone(),
-            key_type: keystore.meta.key_type.clone(),
-            name: keystore.meta.name.clone(),
-            secret: Some(hex::encode(private_key.to_bytes())),
-        })
+        let name =
+            name.ok_or_else(|| anyhow::anyhow!("--name is required for secp256k1 import"))?;
+        if suri_password.is_some() && suri.is_none() {
+            anyhow::bail!("--suri_password can only be used together with --suri");
+        }
+        keyring_import::<Secp256k1KeyringOps, Self::Scheme, _>(
+            storage,
+            name.clone(),
+            show_secret,
+            false,
+            |keyring, key_password| {
+                if let Some(hex_key) = &private_key {
+                    return Secp256k1KeyringOps::add_hex(keyring, &name, hex_key, key_password);
+                }
+                if let Some(suri) = &suri {
+                    return Secp256k1KeyringOps::import_suri(
+                        keyring,
+                        &name,
+                        suri,
+                        suri_password.as_deref(),
+                        key_password,
+                    );
+                }
+                anyhow::bail!("either --private-key or --suri must be provided");
+            },
+        )
+    }
+}
+
+#[cfg(all(feature = "ed25519", feature = "keyring"))]
+struct Ed25519Ext;
+
+#[cfg(all(feature = "ed25519", feature = "keyring"))]
+impl PrivateKeyDisplay for Ed25519Ext {
+    type PrivateKey = crate::schemes::ed25519::PrivateKey;
+
+    fn display_secret(private_key: &Self::PrivateKey) -> String {
+        hex::encode(private_key.to_bytes())
+    }
+}
+
+#[cfg(all(feature = "ed25519", feature = "keyring"))]
+impl VanityMatcher for Ed25519Ext {
+    type PrivateKey = crate::schemes::ed25519::PrivateKey;
+    type Address = crate::address::SubstrateAddress;
+
+    fn normalize_prefix(prefix: &str) -> Result<String> {
+        Ok(prefix.to_string())
     }
 
-    fn import_suri(
-        keyring: &mut Self::Keyring,
-        name: &str,
-        suri: &str,
-        suri_password: Option<&str>,
-        encryption_password: Option<&str>,
-    ) -> Result<KeyringEntry> {
-        let private_key = crate::schemes::sr25519::PrivateKey::from_suri(suri, suri_password)?;
-        let keystore = keyring.add(
-            name,
-            private_key.clone(),
-            encryption_password.map(|p| p.as_bytes()),
+    fn matches_vanity(private_key: &Self::PrivateKey, prefix: &str) -> Result<bool> {
+        let address = private_key.public_key().to_address()?;
+        Ok(address.as_ss58().starts_with(prefix))
+    }
+}
+
+#[cfg(all(feature = "ed25519", feature = "keyring"))]
+impl HexImporter for Ed25519Ext {
+    type PrivateKey = crate::schemes::ed25519::PrivateKey;
+
+    fn import_hex(hex: &str) -> Result<Self::PrivateKey> {
+        use crate::keyring::KeyCodec;
+        crate::schemes::ed25519::keyring::Ed25519Codec::decode_private(hex)
+    }
+}
+
+#[cfg(all(feature = "ed25519", feature = "keyring"))]
+impl PublicKeyExtractor<crate::schemes::ed25519::keyring::Ed25519Codec> for Ed25519Ext {}
+
+#[cfg(all(feature = "ed25519", feature = "keyring"))]
+impl KeyringOpsExt<crate::schemes::ed25519::keyring::Ed25519Codec> for Ed25519Ext {
+    const NAMESPACE: &'static str = crate::keyring::NAMESPACE_ED;
+}
+
+#[cfg(all(feature = "ed25519", feature = "keyring"))]
+type Ed25519KeyringOps =
+    GenericKeyringOps<crate::schemes::ed25519::keyring::Ed25519Codec, Ed25519Ext>;
+
+#[cfg(all(feature = "ed25519", feature = "keyring"))]
+impl KeyringCommandHandler for Ed25519KeyringOps {
+    type Scheme = crate::schemes::ed25519::Ed25519;
+
+    fn handle_sign(
+        storage: &StorageLocationArgs,
+        public_key: &str,
+        data: &str,
+        prefix: &Option<String>,
+        _context: &Option<String>,
+        _contract: &Option<String>,
+    ) -> Result<SchemeResult> {
+        let res = execute_substrate_command(
+            &ed25519_descriptor(),
+            SubstrateCommand::Sign {
+                public_key: public_key.to_string(),
+                data: data.to_string(),
+                prefix: prefix.clone(),
+                storage: storage.clone(),
+                context: None,
+            },
         )?;
-        Ok(KeyringEntry {
-            public_key: hex::encode(private_key.public_key().to_bytes()),
-            address: keystore.address.clone(),
-            key_type: keystore.meta.key_type.clone(),
-            name: keystore.meta.name.clone(),
-            secret: Some(hex::encode(private_key.to_bytes())),
-        })
+        Ok(substrate_result_to_scheme(res))
     }
 
-    fn list(keyring: &Self::Keyring) -> Result<Vec<KeyringEntry>> {
-        Ok(keyring
-            .list()
-            .iter()
-            .map(|ks| KeyringEntry {
-                public_key: ks
-                    .public_key()
-                    .map(hex::encode)
-                    .unwrap_or_else(|_| "<unknown>".to_string()),
-                address: ks.address.clone(),
-                key_type: ks.meta.key_type.clone(),
-                name: ks.meta.name.clone(),
-                secret: None,
-            })
-            .collect())
+    fn handle_import(
+        storage: StorageLocationArgs,
+        suri: Option<String>,
+        seed: Option<String>,
+        private_key: Option<String>,
+        suri_password: Option<String>,
+        name: Option<String>,
+        show_secret: bool,
+    ) -> Result<SchemeResult> {
+        if private_key.is_some() {
+            anyhow::bail!("--private-key is not supported for ed25519");
+        }
+        if let Some(name) = name {
+            if suri_password.is_some() && suri.is_none() {
+                anyhow::bail!("--password can only be used together with --suri");
+            }
+            return keyring_import::<Ed25519KeyringOps, Self::Scheme, _>(
+                storage,
+                name.clone(),
+                show_secret,
+                true,
+                |keyring, key_password| {
+                    if let Some(seed_hex) = &seed {
+                        return Ed25519KeyringOps::add_hex(keyring, &name, seed_hex, key_password);
+                    }
+                    if let Some(suri) = &suri {
+                        return Ed25519KeyringOps::import_suri(
+                            keyring,
+                            &name,
+                            suri,
+                            suri_password.as_deref(),
+                            key_password,
+                        );
+                    }
+                    anyhow::bail!("either --seed or --suri must be provided");
+                },
+            );
+        }
+        // Fallback to substrate command for unnamed import
+        let res = execute_substrate_command(
+            &ed25519_descriptor(),
+            SubstrateCommand::Import {
+                suri,
+                seed,
+                suri_password,
+                storage,
+                show_secret,
+            },
+        )?;
+        Ok(substrate_result_to_scheme(res))
+    }
+}
+
+#[cfg(all(feature = "sr25519", feature = "keyring"))]
+struct Sr25519Ext;
+
+#[cfg(all(feature = "sr25519", feature = "keyring"))]
+impl PrivateKeyDisplay for Sr25519Ext {
+    type PrivateKey = crate::schemes::sr25519::PrivateKey;
+
+    fn display_secret(private_key: &Self::PrivateKey) -> String {
+        hex::encode(private_key.to_bytes())
+    }
+}
+
+#[cfg(all(feature = "sr25519", feature = "keyring"))]
+impl VanityMatcher for Sr25519Ext {
+    type PrivateKey = crate::schemes::sr25519::PrivateKey;
+    type Address = crate::address::SubstrateAddress;
+
+    fn normalize_prefix(prefix: &str) -> Result<String> {
+        Ok(prefix.to_string())
     }
 
-    fn vanity(
-        keyring: &mut Self::Keyring,
-        name: &str,
-        prefix: &str,
-        password: Option<&str>,
-    ) -> Result<KeyringEntry> {
-        let mut attempts = 0usize;
-        let private_key = loop {
-            if attempts >= MAX_VANITY_ATTEMPTS {
-                anyhow::bail!("vanity search exceeded maximum attempts ({MAX_VANITY_ATTEMPTS})");
+    fn matches_vanity(private_key: &Self::PrivateKey, prefix: &str) -> Result<bool> {
+        let address = private_key.public_key().to_address()?;
+        Ok(address.as_ss58().starts_with(prefix))
+    }
+}
+
+#[cfg(all(feature = "sr25519", feature = "keyring"))]
+impl HexImporter for Sr25519Ext {
+    type PrivateKey = crate::schemes::sr25519::PrivateKey;
+
+    fn import_hex(hex: &str) -> Result<Self::PrivateKey> {
+        use schnorrkel::KEYPAIR_LENGTH;
+        let bytes = hex::decode(strip_0x(hex))?;
+        if bytes.len() == 32 {
+            let mut seed = [0u8; 32];
+            seed.copy_from_slice(&bytes);
+            crate::schemes::sr25519::PrivateKey::from_seed(seed)
+                .map_err(|e| anyhow::anyhow!("{}", e))
+        } else if bytes.len() == KEYPAIR_LENGTH {
+            let keypair = schnorrkel::Keypair::from_half_ed25519_bytes(&bytes)
+                .map_err(|e| anyhow::anyhow!("Invalid keypair: {:?}", e))?;
+            Ok(crate::schemes::sr25519::PrivateKey::from_keypair(keypair))
+        } else {
+            anyhow::bail!("Seed must be 32 bytes (64 hex) or 96 bytes (192 hex)");
+        }
+    }
+}
+
+#[cfg(all(feature = "sr25519", feature = "keyring"))]
+impl PublicKeyExtractor<crate::schemes::sr25519::keyring::Sr25519Codec> for Sr25519Ext {
+    fn extract_public_key(
+        keystore: &crate::keyring::SubstrateKeystore<
+            crate::schemes::sr25519::keyring::Sr25519Codec,
+        >,
+    ) -> String {
+        keystore
+            .public_key()
+            .map(|pk| hex::encode(pk.to_bytes()))
+            .unwrap_or_else(|_| "<unknown>".to_string())
+    }
+}
+
+#[cfg(all(feature = "sr25519", feature = "keyring"))]
+impl KeyringOpsExt<crate::schemes::sr25519::keyring::Sr25519Codec> for Sr25519Ext {
+    const NAMESPACE: &'static str = crate::keyring::NAMESPACE_SR;
+}
+
+#[cfg(all(feature = "sr25519", feature = "keyring"))]
+type Sr25519KeyringOps =
+    GenericKeyringOps<crate::schemes::sr25519::keyring::Sr25519Codec, Sr25519Ext>;
+
+#[cfg(all(feature = "sr25519", feature = "keyring"))]
+impl KeyringCommandHandler for Sr25519KeyringOps {
+    type Scheme = crate::schemes::sr25519::Sr25519;
+
+    fn handle_sign(
+        storage: &StorageLocationArgs,
+        public_key: &str,
+        data: &str,
+        prefix: &Option<String>,
+        context: &Option<String>,
+        _contract: &Option<String>,
+    ) -> Result<SchemeResult> {
+        let res = execute_substrate_command(
+            &sr25519_descriptor(),
+            SubstrateCommand::Sign {
+                public_key: public_key.to_string(),
+                data: data.to_string(),
+                prefix: prefix.clone(),
+                storage: storage.clone(),
+                context: context.clone(),
+            },
+        )?;
+        Ok(substrate_result_to_scheme(res))
+    }
+
+    fn handle_import(
+        storage: StorageLocationArgs,
+        suri: Option<String>,
+        seed: Option<String>,
+        private_key: Option<String>,
+        suri_password: Option<String>,
+        name: Option<String>,
+        show_secret: bool,
+    ) -> Result<SchemeResult> {
+        if private_key.is_some() {
+            anyhow::bail!("--private-key is not supported for sr25519");
+        }
+        if let Some(name) = name {
+            if suri_password.is_some() && suri.is_none() {
+                anyhow::bail!("--password can only be used together with --suri");
             }
-            let candidate = crate::schemes::sr25519::PrivateKey::random();
-            let address = candidate.public_key().to_address()?;
-            if prefix.is_empty() || address.as_ss58().starts_with(prefix) {
-                break candidate;
-            }
-            attempts += 1;
-        };
-        let keystore = keyring.add(name, private_key.clone(), password.map(|p| p.as_bytes()))?;
-        Ok(KeyringEntry {
-            public_key: hex::encode(private_key.public_key().to_bytes()),
-            address: keystore.address.clone(),
-            key_type: keystore.meta.key_type.clone(),
-            name: keystore.meta.name.clone(),
-            secret: Some(hex::encode(private_key.to_bytes())),
-        })
+            return keyring_import::<Sr25519KeyringOps, Self::Scheme, _>(
+                storage,
+                name.clone(),
+                show_secret,
+                true,
+                |keyring, key_password| {
+                    if let Some(seed_hex) = &seed {
+                        return Sr25519KeyringOps::add_hex(keyring, &name, seed_hex, key_password);
+                    }
+                    if let Some(suri) = &suri {
+                        return Sr25519KeyringOps::import_suri(
+                            keyring,
+                            &name,
+                            suri,
+                            suri_password.as_deref(),
+                            key_password,
+                        );
+                    }
+                    anyhow::bail!("either --seed or --suri must be provided");
+                },
+            );
+        }
+        // Fallback to substrate command for unnamed import
+        let res = execute_substrate_command(
+            &sr25519_descriptor(),
+            SubstrateCommand::Import {
+                suri,
+                seed,
+                suri_password,
+                storage,
+                show_secret,
+            },
+        )?;
+        Ok(substrate_result_to_scheme(res))
     }
 }

@@ -2,6 +2,15 @@
 
 Command-line interface for the gsigner universal cryptographic signing library.
 
+## Architecture
+
+The CLI is built on a unified `KeyringCommandHandler` trait that provides:
+- **Default implementations** for `show` and `clear` commands across all schemes
+- **Scheme-specific overrides** where needed (e.g., secp256k1 `show` accepts both public keys and Ethereum addresses)
+- **Consistent command dispatch** via `execute_keyring_command<H>()` generic function
+
+This means ed25519 and sr25519 share the same `show` and `clear` logic automatically, while secp256k1 can provide Ethereum-specific behavior.
+
 ## Installation
 
 ```bash
@@ -141,10 +150,16 @@ Removes every stored secp256k1 key from the chosen location.
 #### Show key details
 
 ```bash
+# By public key
 gsigner secp256k1 keyring show 0x03... --path ./keys
+
+# By Ethereum address (secp256k1 only)
+gsigner secp256k1 keyring show 0x1234567890abcdef1234567890abcdef12345678 --path ./keys
 ```
 
 Pass either the compressed public key or the `0x...` Ethereum address. Add `--show-secret` to include the private key in the output.
+
+**Note:** The address lookup is a secp256k1-specific feature. Ed25519 and sr25519 only accept public keys for the `show` command.
 
 #### Generate vanity address
 
@@ -233,7 +248,7 @@ Deletes all ed25519 entries from the specified storage.
 gsigner ed25519 keyring show 0x... --path ./keys
 ```
 
-Use `--show-secret` to include the private key seed.
+Accepts a 32-byte hex-encoded public key. Use `--show-secret` to include the private key seed.
 
 #### Generate vanity address
 
@@ -362,7 +377,7 @@ Erases all sr25519 keys from the target storage.
 gsigner sr25519 keyring show 0x... --path ./keys
 ```
 
-Use `--show-secret` to print the private key seed.
+Accepts a 32-byte hex-encoded public key. Use `--show-secret` to print the private key seed.
 
 #### Generate vanity address
 

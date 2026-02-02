@@ -993,7 +993,7 @@ impl TxCommand {
                         let transaction = AddressedInjectedTransaction {
                             recipient: Address::default(),
                             tx: signer
-                                .signed_message(public_key, injected_transaction)
+                                .signed_message(public_key, injected_transaction, None)
                                 .with_context(|| "failed to create signed injected transaction")?,
                         };
 

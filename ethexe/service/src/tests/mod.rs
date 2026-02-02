@@ -125,7 +125,7 @@ async fn basics() {
     let service = Service::new(&config).await.unwrap();
 
     // Enable all optional services
-    let network_key = service.signer.generate_key().unwrap();
+    let network_key = service.signer.generate().unwrap();
     config.network = Some(ethexe_network::NetworkConfig::new_local(
         network_key,
         config.ethereum.router_address,
@@ -1478,7 +1478,7 @@ async fn send_injected_tx() {
         recipient: validator1_pubkey.to_address(),
         tx: env
             .signer
-            .signed_message(validator0_pubkey, tx.clone())
+            .signed_message(validator0_pubkey, tx.clone(), None)
             .unwrap(),
     };
 
@@ -2407,7 +2407,10 @@ async fn injected_tx_fungible_token() {
 
     let rpc_tx = AddressedInjectedTransaction {
         recipient: pubkey.to_address(),
-        tx: env.signer.signed_message(pubkey, mint_tx.clone()).unwrap(),
+        tx: env
+            .signer
+            .signed_message(pubkey, mint_tx.clone(), None)
+            .unwrap(),
     };
 
     let acceptance = rpc_client
@@ -2493,7 +2496,7 @@ async fn injected_tx_fungible_token() {
         recipient: pubkey.to_address(),
         tx: env
             .signer
-            .signed_message(pubkey, transfer_tx.clone())
+            .signed_message(pubkey, transfer_tx.clone(), None)
             .unwrap(),
     };
     let ws_client = node
@@ -2545,7 +2548,7 @@ async fn injected_tx_fungible_token_over_network() {
 
     let mut env = TestEnv::new(env_config).await.unwrap();
 
-    let user_pubkey = env.signer.generate_key().unwrap();
+    let user_pubkey = env.signer.generate().unwrap();
 
     let mut alice_node = env.new_node(NodeConfig::named("Alice").service_rpc(8091));
     alice_node.start_service().await;
@@ -2624,7 +2627,7 @@ async fn injected_tx_fungible_token_over_network() {
         recipient: bob_pubkey.to_address(),
         tx: env
             .signer
-            .signed_message(user_pubkey, mint_tx.clone())
+            .signed_message(user_pubkey, mint_tx.clone(), None)
             .unwrap(),
     };
 

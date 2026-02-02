@@ -555,6 +555,9 @@ impl ValidatorContext {
     }
 
     pub fn sign_message<T: Sized + ToDigest>(&self, data: T) -> Result<SignedMessage<T>> {
-        Ok(self.core.signer.signed_message(self.core.pub_key, data)?)
+        Ok(self
+            .core
+            .signer
+            .signed_message(self.core.pub_key, data, None)?)
     }
 }

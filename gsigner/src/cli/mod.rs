@@ -29,12 +29,8 @@ pub mod display;
 pub mod handlers;
 pub mod keyring_ops;
 pub mod scheme;
-pub mod secp;
 pub mod storage;
 pub mod util;
-
-#[cfg(any(feature = "ed25519", feature = "sr25519"))]
-pub mod substrate;
 
 pub use commands::*;
 pub use display::*;

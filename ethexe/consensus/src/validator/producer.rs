@@ -228,7 +228,7 @@ impl Producer {
             .ctx
             .core
             .signer
-            .signed_data(self.ctx.core.pub_key, message)?;
+            .signed_data(self.ctx.core.pub_key, message, None)?;
 
         self.state = State::WaitingAnnounceComputed(announce_hash);
         self.ctx

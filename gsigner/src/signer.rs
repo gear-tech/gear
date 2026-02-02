@@ -44,7 +44,7 @@ pub struct Signer<S: KeyringScheme> {
 impl<S: KeyringScheme> fmt::Debug for Signer<S> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Signer")
-            .field("scheme", &S::scheme_name())
+            .field("scheme", &S::NAME)
             .field("keys", &self.list_keys().ok())
             .finish()
     }
@@ -109,7 +109,7 @@ impl<S: KeyringScheme> Signer<S> {
     fn key_name(public_key: &S::PublicKey) -> String {
         format!(
             "key-{}",
-            S::public_key_bytes(public_key).encode_hex::<String>()
+            S::public_key_to_bytes(public_key).encode_hex::<String>()
         )
     }
 
@@ -139,43 +139,45 @@ impl<S: KeyringScheme> Signer<S> {
     }
 
     /// Generate a new keypair and store it.
-    pub fn generate_key(&self) -> Result<S::PublicKey> {
-        self.generate_key_with_password(None)
+    pub fn generate(&self) -> Result<S::PublicKey> {
+        let (private_key, _) = S::generate_keypair();
+        self.store_private_key(private_key, None)
     }
 
-    /// Generate a new keypair and store it with the provided password.
-    pub fn generate_key_with_password(&self, password: Option<&str>) -> Result<S::PublicKey> {
+    /// Generate a new keypair and store it encrypted with the provided password.
+    pub fn generate_encrypted(&self, password: &str) -> Result<S::PublicKey> {
         let (private_key, _) = S::generate_keypair();
-        self.store_private_key(private_key, password)
+        self.store_private_key(private_key, Some(password))
     }
 
     /// Import an existing private key.
-    pub fn import_key(&self, private_key: S::PrivateKey) -> Result<S::PublicKey> {
-        self.import_key_with_password(private_key, None)
+    pub fn import(&self, private_key: S::PrivateKey) -> Result<S::PublicKey> {
+        self.store_private_key(private_key, None)
     }
 
-    /// Import an existing private key with the provided password.
-    pub fn import_key_with_password(
+    /// Import an existing private key encrypted with the provided password.
+    pub fn import_encrypted(
         &self,
         private_key: S::PrivateKey,
-        password: Option<&str>,
+        password: &str,
     ) -> Result<S::PublicKey> {
-        self.store_private_key(private_key, password)
+        self.store_private_key(private_key, Some(password))
     }
 
     /// Sign data with the specified public key.
     pub fn sign(&self, public_key: S::PublicKey, data: &[u8]) -> Result<S::Signature> {
-        self.sign_with_password(public_key, data, None)
+        let private_key = self.private_key(public_key)?;
+        S::sign(&private_key, data)
     }
 
     /// Sign data with the specified public key using the provided password.
-    pub fn sign_with_password(
+    pub fn sign_encrypted(
         &self,
         public_key: S::PublicKey,
         data: &[u8],
-        password: Option<&str>,
+        password: &str,
     ) -> Result<S::Signature> {
-        let private_key = self.get_private_key_with_password(public_key, password)?;
+        let private_key = self.private_key_encrypted(public_key, password)?;
         S::sign(&private_key, data)
     }
 
@@ -191,7 +193,7 @@ impl<S: KeyringScheme> Signer<S> {
 
     /// Get the address for a public key.
     pub fn address(&self, public_key: S::PublicKey) -> S::Address {
-        S::address(&public_key)
+        S::to_address(&public_key)
     }
 
     /// Check if a key exists in storage.
@@ -227,41 +229,42 @@ impl<S: KeyringScheme> Signer<S> {
 
     /// Create a sub-signer with a subset of keys.
     pub fn sub_signer(&self, keys: Vec<S::PublicKey>) -> Result<Self> {
-        self.sub_signer_with_password(keys, None)
+        let signer = Signer::memory();
+        for key in keys {
+            let private_key = self.private_key(key.clone())?;
+            signer.import(private_key)?;
+        }
+        Ok(signer)
     }
 
     /// Create a sub-signer with a subset of keys using the provided password.
-    pub fn sub_signer_with_password(
-        &self,
-        keys: Vec<S::PublicKey>,
-        password: Option<&str>,
-    ) -> Result<Self> {
+    pub fn sub_signer_encrypted(&self, keys: Vec<S::PublicKey>, password: &str) -> Result<Self> {
         let signer = Signer::memory();
         for key in keys {
-            let private_key = self.get_private_key_with_password(key.clone(), password)?;
-            signer.import_key_with_password(private_key, password)?;
+            let private_key = self.private_key_encrypted(key.clone(), password)?;
+            signer.import_encrypted(private_key, password)?;
         }
         Ok(signer)
     }
 
     /// Get the scheme name.
     pub fn scheme_name(&self) -> &'static str {
-        S::scheme_name()
+        S::NAME
     }
 
     /// Get a private key by public key.
-    pub fn get_private_key(&self, public_key: S::PublicKey) -> Result<S::PrivateKey> {
-        self.get_private_key_with_password(public_key, None)
+    pub fn private_key(&self, public_key: S::PublicKey) -> Result<S::PrivateKey> {
+        self.with_keystore(&public_key, |keystore| S::keystore_private(keystore, None))
     }
 
     /// Get a private key by public key using the provided password.
-    pub fn get_private_key_with_password(
+    pub fn private_key_encrypted(
         &self,
         public_key: S::PublicKey,
-        password: Option<&str>,
+        password: &str,
     ) -> Result<S::PrivateKey> {
         self.with_keystore(&public_key, |keystore| {
-            S::keystore_private(keystore, password)
+            S::keystore_private(keystore, Some(password))
         })
     }
 
@@ -277,6 +280,39 @@ impl<S: KeyringScheme> Signer<S> {
     }
 }
 
+#[cfg(feature = "peer-id")]
+use crate::peer_id::ToPeerId;
+
+#[cfg(feature = "peer-id")]
+impl<S: KeyringScheme> Signer<S>
+where
+    S::PublicKey: ToPeerId,
+{
+    /// Generate a new keypair and return both the public key and its PeerId.
+    ///
+    /// This is a convenience method combining key generation with peer-id derivation.
+    pub fn generate_with_peer_id(&self) -> Result<(S::PublicKey, crate::peer_id::PeerId)> {
+        let public_key = self.generate()?;
+        let peer_id = public_key.to_peer_id()?;
+        Ok((public_key, peer_id))
+    }
+
+    /// Generate a new keypair encrypted with password and return both the public key and its PeerId.
+    pub fn generate_with_peer_id_encrypted(
+        &self,
+        password: &str,
+    ) -> Result<(S::PublicKey, crate::peer_id::PeerId)> {
+        let public_key = self.generate_encrypted(password)?;
+        let peer_id = public_key.to_peer_id()?;
+        Ok((public_key, peer_id))
+    }
+
+    /// Get the PeerId for an existing public key.
+    pub fn peer_id(&self, public_key: &S::PublicKey) -> Result<crate::peer_id::PeerId> {
+        public_key.to_peer_id()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -289,7 +325,7 @@ mod tests {
         let signer = Signer::<Secp256k1>::memory();
 
         // Generate key
-        let public_key = signer.generate_key().unwrap();
+        let public_key = signer.generate().unwrap();
         assert!(signer.has_key(public_key).unwrap());
 
         // Sign and verify
@@ -314,11 +350,45 @@ mod tests {
 
         let signer = Signer::<Sr25519>::memory();
 
-        let public_key = signer.generate_key().unwrap();
+        let public_key = signer.generate().unwrap();
         assert!(signer.has_key(public_key).unwrap());
 
         let message = b"hello world";
         let signature = signer.sign(public_key, message).unwrap();
         signer.verify(public_key, message, &signature).unwrap();
+    }
+
+    #[cfg(all(feature = "secp256k1", feature = "peer-id"))]
+    #[test]
+    fn test_signer_secp256k1_peer_id() {
+        use crate::schemes::secp256k1::Secp256k1;
+
+        let signer = Signer::<Secp256k1>::memory();
+
+        // Generate key with peer_id
+        let (public_key, peer_id) = signer.generate_with_peer_id().unwrap();
+        assert!(signer.has_key(public_key).unwrap());
+        assert!(!peer_id.to_string().is_empty());
+
+        // Get peer_id for existing key should match
+        let peer_id_again = signer.peer_id(&public_key).unwrap();
+        assert_eq!(peer_id, peer_id_again);
+    }
+
+    #[cfg(all(feature = "ed25519", feature = "peer-id"))]
+    #[test]
+    fn test_signer_ed25519_peer_id() {
+        use crate::schemes::ed25519::Ed25519;
+
+        let signer = Signer::<Ed25519>::memory();
+
+        // Generate key with peer_id
+        let (public_key, peer_id) = signer.generate_with_peer_id().unwrap();
+        assert!(signer.has_key(public_key).unwrap());
+        assert!(!peer_id.to_string().is_empty());
+
+        // Get peer_id for existing key should match
+        let peer_id_again = signer.peer_id(&public_key).unwrap();
+        assert_eq!(peer_id, peer_id_again);
     }
 }

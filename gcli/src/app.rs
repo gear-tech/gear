@@ -133,12 +133,19 @@ impl App {
 
     /// Returns a signed Gear node API wrapper.
     pub async fn signed_api(&self) -> Result<SignedApi> {
-        let pair = self
-            .keystore()?
-            .clone()
-            .decrypt(self.opts.passwd.as_deref())?;
+        let passwd_str = self
+            .opts
+            .passwd
+            .as_deref()
+            .map(|b| std::str::from_utf8(b))
+            .transpose()
+            .context("password must be valid UTF-8")?;
+        let private_key = self.keystore()?.private_key_with_password(passwd_str)?;
 
-        Ok(SignedApi::with_pair(self.api().await?, pair.into()))
+        Ok(SignedApi::with_pair(
+            self.api().await?,
+            private_key.keypair().into(),
+        ))
     }
 }
 

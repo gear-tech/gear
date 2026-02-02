@@ -704,7 +704,7 @@ mod tests {
     fn new_identity() -> SignedValidatorIdentity {
         let keypair = Keypair::generate_secp256k1();
         let signer = Signer::memory();
-        let validator_key = signer.generate_key().unwrap();
+        let validator_key = signer.generate().unwrap();
         let identity = ValidatorIdentity {
             addresses: ValidatorAddresses::new(
                 keypair.public().to_peer_id(),

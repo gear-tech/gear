@@ -18,7 +18,14 @@
 
 //! Small utility helpers used across the crate.
 
+use alloc::vec::Vec;
 use hex::FromHexError;
+
+/// Decode a hex string (with optional `0x` prefix) into bytes.
+pub fn decode_hex(s: &str) -> Result<Vec<u8>, FromHexError> {
+    let stripped = s.strip_prefix("0x").unwrap_or(s);
+    hex::decode(stripped)
+}
 
 /// Decode a hex string (with optional `0x` prefix) into a fixed-size array.
 pub fn decode_hex_to_array<const N: usize>(s: &str) -> Result<[u8; N], FromHexError> {

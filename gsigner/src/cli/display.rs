@@ -33,7 +33,7 @@ pub fn display_result_with_format(result: &CommandResult, format: OutputFormat) 
     }
 }
 
-/// Backward-compatible default human-friendly output.
+/// Default human-friendly output.
 pub fn display_result(result: &CommandResult) {
     display_scheme(result.scheme, &result.result);
 }
@@ -64,7 +64,6 @@ fn display_generate(r: &KeyGenerationResult, address_caption: &str) {
     println!("  {} {}", "Public key:".bright_blue(), r.public_key);
     println!("  {} {}", address_caption.bright_blue(), r.address);
     println!("  {} {}", "Scheme:".bright_blue(), r.scheme);
-    println!("  {} {}", "Key type:".bright_blue(), r.key_type);
     if let Some(secret) = &r.secret {
         println!("  {} {}", "Secret:".red().bold(), secret);
     }
@@ -81,7 +80,6 @@ fn display_import(r: &KeyImportResult, address_caption: &str, scheme_label: &str
     println!("  {} {}", "Public key:".bright_blue(), r.public_key);
     println!("  {} {}", address_caption.bright_blue(), r.address);
     println!("  {} {}", "Scheme:".bright_blue(), r.scheme);
-    println!("  {} {}", "Key type:".bright_blue(), r.key_type);
     if let Some(secret) = &r.secret {
         println!("  {} {}", "Secret:".red().bold(), secret);
     }
@@ -124,7 +122,6 @@ fn display_list(result: &ListKeysResult, address_caption: &str) {
             }
             println!("    {} {}", address_caption.bright_black(), key.address);
             println!("    {} {}", "Scheme:".bright_black(), key.scheme);
-            println!("    {} {}", "Key type:".bright_black(), key.key_type);
             if let Some(secret) = &key.secret {
                 println!("    {} {}", "Secret:".red().bold(), secret);
             }

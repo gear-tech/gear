@@ -262,7 +262,7 @@ impl SignerSync for Sender {
         let digest = Digest(hash.0);
         let signature = self
             .signer
-            .sign_digest(self.sender, digest)
+            .sign_digest(self.sender, digest, None)
             .map_err(|err| SignerError::Other(err.into()))?;
         Signature::from_raw(&signature.as_raw_bytes()).map_err(|err| SignerError::Other(err.into()))
     }
@@ -430,7 +430,7 @@ mod tests {
     #[test]
     fn sender_signs_prehashed_message() {
         let signer = Signer::memory();
-        let public_key = signer.generate_key().unwrap();
+        let public_key = signer.generate().unwrap();
         let address = signer.address(public_key);
 
         let sender = Sender::new(signer.clone(), address).expect("sender init");

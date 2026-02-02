@@ -154,8 +154,8 @@ impl Service {
         let (deployer_private_key, deployer_address) = it.next().expect("infallible");
         let (validator_private_key, validator_address) = it.next().expect("infallible");
 
-        signer.import_key(deployer_private_key.clone())?;
-        let validator_public_key = signer.import_key(validator_private_key.clone())?;
+        signer.import(deployer_private_key.clone())?;
+        let validator_public_key = signer.import(validator_private_key.clone())?;
 
         log::info!("🔐 Available Accounts:");
 
@@ -164,7 +164,7 @@ impl Service {
 
         for ((sender_private_key, sender_address), i) in it.clone().zip(1_usize..) {
             log::info!("     Sender:    {sender_address} {sender_private_key} (#{i})");
-            signer.import_key(sender_private_key)?;
+            signer.import(sender_private_key)?;
         }
 
         let ethereum =
@@ -404,7 +404,7 @@ impl Service {
     fn get_config_public_key(key: ConfigPublicKey, signer: &Signer) -> Result<Option<PublicKey>> {
         match key {
             ConfigPublicKey::Enabled(key) => Ok(Some(key)),
-            ConfigPublicKey::Random => Ok(Some(signer.generate_key()?)),
+            ConfigPublicKey::Random => Ok(Some(signer.generate()?)),
             ConfigPublicKey::Disabled => Ok(None),
         }
     }

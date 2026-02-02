@@ -173,14 +173,14 @@ mod tests {
         let mut tx_pool = InjectedTxPool::new(db.clone());
 
         let signer = Signer::memory();
-        let key = signer.generate_key().unwrap();
+        let key = signer.generate().unwrap();
         let tx = InjectedTransaction {
             reference_block: chain.blocks[9].hash,
             destination: program_id,
             ..InjectedTransaction::mock(())
         };
         let tx_hash = tx.to_hash();
-        let signed_tx = signer.signed_message(key, tx).unwrap();
+        let signed_tx = signer.signed_message(key, tx, None).unwrap();
 
         tx_pool.handle_tx(signed_tx.clone());
         assert!(
@@ -199,6 +199,7 @@ mod tests {
                         destination: program_id,
                         ..InjectedTransaction::mock(())
                     },
+                    None,
                 )
                 .unwrap(),
         );

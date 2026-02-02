@@ -18,23 +18,15 @@
 
 //! Sr25519-specific signer extensions.
 
-use super::{PublicKey, Signature, Sr25519};
-use crate::{Signer, traits::SignatureScheme};
+use super::{PrivateKey, PublicKey, Signature, Sr25519};
+use crate::{Signer, scheme::CryptoScheme};
 use anyhow::Result;
 use schnorrkel::signing_context;
 
 /// Extension trait for Sr25519 signers.
 pub trait Sr25519SignerExt {
-    /// Sign with a custom signing context.
+    /// Sign with a custom context. Pass `password: None` for unencrypted keys.
     fn sign_with_context(
-        &self,
-        public_key: PublicKey,
-        context: &[u8],
-        data: &[u8],
-    ) -> Result<Signature>;
-
-    /// Sign with a custom signing context using the provided password.
-    fn sign_with_context_with_password(
         &self,
         public_key: PublicKey,
         context: &[u8],
@@ -42,7 +34,7 @@ pub trait Sr25519SignerExt {
         password: Option<&str>,
     ) -> Result<Signature>;
 
-    /// Verify with a custom signing context.
+    /// Verify a signature with the given context.
     fn verify_with_context(
         &self,
         public_key: PublicKey,
@@ -51,15 +43,8 @@ pub trait Sr25519SignerExt {
         signature: &Signature,
     ) -> Result<()>;
 
-    /// Generate a vanity key with the specified SS58 prefix.
-    fn generate_vanity_key(&self, prefix: &str) -> Result<PublicKey>;
-
-    /// Generate a vanity key with the specified SS58 prefix using the provided password.
-    fn generate_vanity_key_with_password(
-        &self,
-        prefix: &str,
-        password: Option<&str>,
-    ) -> Result<PublicKey>;
+    /// Generate a vanity key. Pass `password: None` for unencrypted storage.
+    fn generate_vanity(&self, prefix: &str, password: Option<&str>) -> Result<PublicKey>;
 }
 
 impl Sr25519SignerExt for Signer<Sr25519> {
@@ -68,22 +53,15 @@ impl Sr25519SignerExt for Signer<Sr25519> {
         public_key: PublicKey,
         context: &[u8],
         data: &[u8],
-    ) -> Result<Signature> {
-        self.sign_with_context_with_password(public_key, context, data, None)
-    }
-
-    fn sign_with_context_with_password(
-        &self,
-        public_key: PublicKey,
-        context: &[u8],
-        data: &[u8],
         password: Option<&str>,
     ) -> Result<Signature> {
-        let private_key = self.get_private_key_with_password(public_key, password)?;
+        let private_key = match password {
+            Some(pwd) => self.private_key_encrypted(public_key, pwd)?,
+            None => self.private_key(public_key)?,
+        };
         let ctx = signing_context(context);
         let keypair = private_key.keypair();
-        let signature = keypair.sign(ctx.bytes(data));
-        Ok(Signature::from(signature))
+        Ok(Signature::from(keypair.sign(ctx.bytes(data))))
     }
 
     fn verify_with_context(
@@ -94,27 +72,15 @@ impl Sr25519SignerExt for Signer<Sr25519> {
         signature: &Signature,
     ) -> Result<()> {
         let ctx = signing_context(context);
-        let schnorrkel_pub = schnorrkel::PublicKey::try_from(public_key)?;
-        let schnorrkel_sig = schnorrkel::Signature::try_from(*signature)?;
-
-        schnorrkel_pub
-            .verify(ctx.bytes(data), &schnorrkel_sig)
+        let pub_key = public_key.to_schnorrkel()?;
+        let sig = signature.to_schnorrkel()?;
+        pub_key
+            .verify(ctx.bytes(data), &sig)
             .map_err(|e| anyhow::anyhow!("Verification failed: {:?}", e))
     }
 
-    fn generate_vanity_key(&self, prefix: &str) -> Result<PublicKey> {
-        self.generate_vanity_key_with_password(prefix, None)
-    }
-
-    fn generate_vanity_key_with_password(
-        &self,
-        prefix: &str,
-        password: Option<&str>,
-    ) -> Result<PublicKey> {
-        use crate::{
-            address::{SubstrateAddress, SubstrateCryptoScheme},
-            schemes::sr25519::PrivateKey,
-        };
+    fn generate_vanity(&self, prefix: &str, password: Option<&str>) -> Result<PublicKey> {
+        use crate::address::{SubstrateAddress, SubstrateCryptoScheme};
 
         let mut attempts: u64 = 0;
         loop {
@@ -130,7 +96,10 @@ impl Sr25519SignerExt for Signer<Sr25519> {
                     attempts,
                     prefix
                 );
-                return Ok(self.import_key_with_password(candidate, password)?);
+                return match password {
+                    Some(pwd) => Ok(self.import_encrypted(candidate, pwd)?),
+                    None => Ok(self.import(candidate)?),
+                };
             }
 
             if attempts.is_multiple_of(1000) {

@@ -21,28 +21,27 @@
 use crate::{
     cli::{
         commands::StorageLocationArgs,
-        scheme::{KeyGenerationResult, KeyInfo, SchemeFormatter},
+        scheme::{KeyGenerationResult, KeyInfo},
         util::resolve_storage_location,
     },
-    traits::{SeedableKey, SignatureScheme},
+    scheme::CryptoScheme,
 };
 use anyhow::Result;
 use secrecy::ExposeSecret;
 
 #[cfg(all(feature = "keyring", feature = "serde"))]
-pub trait StorageScheme: SignatureScheme + crate::keyring::KeyringScheme {}
+pub trait StorageScheme: CryptoScheme + crate::keyring::KeyringScheme {}
 #[cfg(all(feature = "keyring", feature = "serde"))]
-impl<T> StorageScheme for T where T: SignatureScheme + crate::keyring::KeyringScheme {}
+impl<T> StorageScheme for T where T: CryptoScheme + crate::keyring::KeyringScheme {}
 
 #[cfg(not(all(feature = "keyring", feature = "serde")))]
-pub trait StorageScheme: SignatureScheme {}
+pub trait StorageScheme: CryptoScheme {}
 #[cfg(not(all(feature = "keyring", feature = "serde")))]
-impl<T> StorageScheme for T where T: SignatureScheme {}
+impl<T> StorageScheme for T where T: CryptoScheme {}
 
 pub fn create_signer<S>(storage: &StorageLocationArgs) -> Result<crate::Signer<S>>
 where
     S: StorageScheme,
-    S::PrivateKey: SeedableKey,
 {
     if let Some(path) = resolve_storage_location(storage) {
         let path = crate::keyring::resolve_namespaced_path(path, S::namespace());
@@ -55,7 +54,6 @@ where
 pub fn with_signer<S, F, R>(storage: &StorageLocationArgs, f: F) -> Result<R>
 where
     S: StorageScheme,
-    S::PrivateKey: SeedableKey,
     F: FnOnce(crate::Signer<S>) -> Result<R>,
 {
     f(create_signer::<S>(storage)?)
@@ -66,7 +64,6 @@ pub fn clear_keys_command<S>(
 ) -> Result<crate::cli::scheme::ClearResult>
 where
     S: StorageScheme,
-    S::PrivateKey: SeedableKey,
 {
     let signer: crate::Signer<S> = create_signer(storage)?;
     let len = signer.list_keys()?.len();
@@ -76,12 +73,10 @@ where
 
 pub fn generate_key_result<S>(
     storage: &StorageLocationArgs,
-    formatter: &SchemeFormatter<S>,
     show_secret: bool,
 ) -> Result<KeyGenerationResult>
 where
     S: StorageScheme,
-    S::PrivateKey: SeedableKey + Clone,
 {
     with_signer::<S, _, _>(storage, |signer| {
         let password = storage
@@ -90,20 +85,21 @@ where
             .map(|p: &secrecy::SecretString| p.expose_secret().as_str());
         let (private_key, public_key) = {
             let (pk, _) = S::generate_keypair();
-            let public = signer.import_key_with_password(pk.clone(), password)?;
+            let public = if let Some(pwd) = password {
+                signer.import_encrypted(pk.clone(), pwd)?
+            } else {
+                signer.import(pk.clone())?
+            };
             (pk, public)
         };
 
-        let public_display = formatter.format_public(&public_key);
-        let address = signer.address(public_key);
-        let address_display = formatter.format_address(&address);
+        let address = signer.address(public_key.clone());
 
         Ok(KeyGenerationResult {
-            public_key: public_display,
-            address: address_display,
-            scheme: formatter.scheme_name().to_string(),
-            key_type: formatter.key_type(),
-            secret: show_secret.then(|| hex::encode(private_key.seed().as_ref())),
+            public_key: S::public_key_to_hex(&public_key),
+            address: S::address_to_string(&address),
+            scheme: S::NAME.to_string(),
+            secret: show_secret.then(|| hex::encode(S::private_key_to_seed(&private_key).as_ref())),
             name: None,
         })
     })
@@ -111,14 +107,12 @@ where
 
 pub fn key_info_from_public<S>(
     signer: &crate::Signer<S>,
-    formatter: &SchemeFormatter<S>,
     public_key: S::PublicKey,
     show_secret: bool,
     password: Option<&str>,
 ) -> Result<KeyInfo>
 where
     S: StorageScheme,
-    S::PrivateKey: SeedableKey,
 {
     if !signer.has_key(public_key.clone())? {
         anyhow::bail!("Key not found in storage");
@@ -126,17 +120,20 @@ where
 
     let address = signer.address(public_key.clone());
     let secret = if show_secret {
-        let private_key = signer.get_private_key_with_password(public_key.clone(), password)?;
-        Some(hex::encode(private_key.seed().as_ref()))
+        let private_key = if let Some(pwd) = password {
+            signer.private_key_encrypted(public_key.clone(), pwd)?
+        } else {
+            signer.private_key(public_key.clone())?
+        };
+        Some(hex::encode(S::private_key_to_seed(&private_key).as_ref()))
     } else {
         None
     };
 
     Ok(KeyInfo {
-        public_key: formatter.format_public(&public_key),
-        address: formatter.format_address(&address),
-        scheme: formatter.scheme_name().to_string(),
-        key_type: formatter.key_type(),
+        public_key: S::public_key_to_hex(&public_key),
+        address: S::address_to_string(&address),
+        scheme: S::NAME.to_string(),
         secret,
         name: None,
     })
@@ -145,28 +142,25 @@ where
 #[cfg(any(feature = "ed25519", feature = "sr25519"))]
 pub fn show_key_for_public<S>(
     storage: &StorageLocationArgs,
-    formatter: &SchemeFormatter<S>,
     public_key: S::PublicKey,
     show_secret: bool,
     password: Option<&str>,
 ) -> Result<crate::cli::scheme::ListKeysResult>
 where
     S: StorageScheme,
-    S::PrivateKey: SeedableKey,
 {
     with_signer::<S, _, _>(storage, |signer| {
-        let info = key_info_from_public(&signer, formatter, public_key, show_secret, password)?;
+        let info = key_info_from_public(&signer, public_key, show_secret, password)?;
         Ok(crate::cli::scheme::ListKeysResult { keys: vec![info] })
     })
 }
 
-pub fn seed_from_hex<S>(hex_str: &str) -> Result<<S::PrivateKey as SeedableKey>::Seed>
+pub fn seed_from_hex<S>(hex_str: &str) -> Result<S::Seed>
 where
     S: StorageScheme,
-    S::PrivateKey: SeedableKey,
 {
     let bytes = crate::cli::util::decode_hex_array::<32>(hex_str, "seed")?;
-    let mut seed = <S::PrivateKey as SeedableKey>::Seed::default();
+    let mut seed = S::Seed::default();
     let buffer = seed.as_mut();
     if buffer.len() != bytes.len() {
         anyhow::bail!(

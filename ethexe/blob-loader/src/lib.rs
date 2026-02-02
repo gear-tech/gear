@@ -383,7 +383,7 @@ mod tests {
             "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
                 .parse()
                 .unwrap();
-        let public_key = signer.import_key(private_key).unwrap();
+        let public_key = signer.import(private_key).unwrap();
         let alice_address = signer.address(public_key);
 
         let beacon_block_time = Duration::from_secs(1);

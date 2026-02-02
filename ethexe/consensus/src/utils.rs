@@ -73,7 +73,8 @@ impl MultisignedBatchCommitment {
         pub_key: PublicKey,
     ) -> Result<Self> {
         let batch_digest = batch.to_digest();
-        let signature = signer.sign_for_contract_digest(router_address, pub_key, batch_digest)?;
+        let signature =
+            signer.sign_for_contract_digest(router_address, pub_key, batch_digest, None)?;
         let signatures: BTreeMap<_, _> = [(pub_key.to_address(), signature)].into_iter().collect();
 
         Ok(Self {
@@ -491,7 +492,12 @@ mod tests {
         let reply = BatchCommitmentValidationReply {
             digest: multisigned_batch.batch_digest,
             signature: signer
-                .sign_for_contract_digest(ADDRESS, other_pub_key, multisigned_batch.batch_digest)
+                .sign_for_contract_digest(
+                    ADDRESS,
+                    other_pub_key,
+                    multisigned_batch.batch_digest,
+                    None,
+                )
                 .unwrap(),
         };
 
@@ -524,7 +530,7 @@ mod tests {
         let reply = BatchCommitmentValidationReply {
             digest: incorrect_digest,
             signature: signer
-                .sign_for_contract_digest(ADDRESS, pub_key, incorrect_digest)
+                .sign_for_contract_digest(ADDRESS, pub_key, incorrect_digest, None)
                 .unwrap(),
         };
 
@@ -547,7 +553,12 @@ mod tests {
         let reply = BatchCommitmentValidationReply {
             digest: multisigned_batch.batch_digest,
             signature: signer
-                .sign_for_contract_digest(ADDRESS, other_pub_key, multisigned_batch.batch_digest)
+                .sign_for_contract_digest(
+                    ADDRESS,
+                    other_pub_key,
+                    multisigned_batch.batch_digest,
+                    None,
+                )
                 .unwrap(),
         };
 
