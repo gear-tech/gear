@@ -19,9 +19,9 @@
 use crate::{
     ContextCharged, ForCodeMetadata, ForInstrumentedCode, ForProgram,
     common::{
-        ActorExecutionErrorReplyReason, DispatchOutcome, DispatchResult, DispatchResultKind,
-        ExecutionError, JournalNote, SuccessfulDispatchResultKind, SystemExecutionError,
-        WasmExecutionContext,
+        ActorExecutionErrorReplyReason, DispatchErrorReason, DispatchOutcome, DispatchResult,
+        DispatchResultKind, ExecutionError, JournalNote, SuccessfulDispatchResultKind,
+        SystemExecutionError, WasmExecutionContext,
     },
     configs::{BlockConfig, ExecutionSettings},
     context::*,
@@ -337,16 +337,21 @@ fn process_error(
 
     let outcome = match case {
         ProcessErrorCase::ExecutionFailed { .. } | ProcessErrorCase::ReinstrumentationFailed => {
-            let err_msg = case.to_string();
+            let reason = match &case {
+                ProcessErrorCase::ExecutionFailed(ActorExecutionErrorReplyReason::Trap(
+                    TrapExplanation::Panic(buffer),
+                )) => DispatchErrorReason::Panic(buffer.clone()),
+                _ => DispatchErrorReason::Message(case.to_string()),
+            };
             match dispatch.kind() {
                 DispatchKind::Init => DispatchOutcome::InitFailure {
                     program_id,
                     origin,
-                    reason: err_msg,
+                    reason,
                 },
                 _ => DispatchOutcome::MessageTrap {
                     program_id,
-                    trap: err_msg,
+                    trap: reason,
                 },
             }
         }

@@ -9155,6 +9155,46 @@ fn call_forbidden_function() {
 }
 
 #[test]
+fn userspace_panic_rpc_returns_full_hex() {
+    let wat = r#"
+    (module
+        (import "env" "memory" (memory 1))
+        (import "env" "gr_panic" (func $gr_panic (param i32 i32)))
+        (export "handle" (func $handle))
+        (func $handle
+            (call $gr_panic (i32.const 0) (i32.const 32))
+        )
+        (data (i32.const 0) "12345678901234561234567890123456")
+    )"#;
+
+    init_logger();
+    new_test_ext().execute_with(|| {
+        let prog_id = upload_program_default(USER_1, ProgramCodeKind::Custom(wat))
+            .expect("submit result was asserted");
+
+        run_to_block(2, None);
+
+        let err = Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Handle(prog_id),
+            EMPTY_PAYLOAD.to_vec(),
+            0,
+            true,
+            true,
+        )
+        .expect_err("Must return error");
+
+        // RPC must return full hex payload without ".." truncation
+        let hex_payload = "3132333435363738393031323334353631323334353637383930313233343536";
+        let expected_msg =
+            format!("Program terminated with a trap: 'Panic occurred: 0x{hex_payload}'");
+
+        assert_eq!(err, expected_msg);
+        assert!(!err.contains(".."));
+    });
+}
+
+#[test]
 fn waking_message_waiting_for_mx_lock_does_not_lead_to_deadlock() {
     use demo_waiter::{
         Command as WaiterCommand, LockContinuation, MxLockContinuation, WASM_BINARY as WAITER_WASM,

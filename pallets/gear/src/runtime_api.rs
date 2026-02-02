@@ -19,6 +19,7 @@
 use super::*;
 use crate::queue::QueueStep;
 use core::convert::TryFrom;
+use core_processor::common::DispatchErrorReason;
 use frame_support::{dispatch::RawOrigin, traits::PalletInfo};
 use gear_core::{
     code::{InstrumentedCodeAndMetadata, TryNewCodeConfig},
@@ -27,6 +28,7 @@ use gear_core::{
     rpc::ReplyInfo,
 };
 use gear_wasm_instrument::syscalls::SyscallName;
+use sp_core::hexdisplay::HexDisplay;
 use sp_runtime::{DispatchErrorWithPostInfo, ModuleError};
 
 // Multiplier 6 was experimentally found as median value for performance,
@@ -368,7 +370,16 @@ where
                     } if (message_id == main_message_id || !allow_other_panics)
                         && !(skip_if_allowed && allow_skip_zero_replies) =>
                     {
-                        return Err(format!("Program terminated with a trap: '{trap}'"));
+                        let trap_msg = match trap {
+                            DispatchErrorReason::Panic(buffer) => {
+                                format!(
+                                    "Panic occurred: 0x{:?}",
+                                    HexDisplay::from(&buffer.inner().as_slice())
+                                )
+                            }
+                            DispatchErrorReason::Message(msg) => msg,
+                        };
+                        return Err(format!("Program terminated with a trap: '{trap_msg}'"));
                     }
 
                     _ => (),

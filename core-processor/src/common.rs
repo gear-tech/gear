@@ -22,6 +22,7 @@ use crate::{context::SystemReservationContext, precharge::PreChargeGasOperation}
 use actor_system_error::actor_system_error;
 use alloc::{collections::BTreeMap, string::String, vec::Vec};
 use gear_core::{
+    buffer::PanicBuffer,
     code::{CodeMetadata, InstrumentedCode},
     env::MessageWaitedType,
     gas::{GasAllowanceCounter, GasAmount, GasCounter},
@@ -143,14 +144,14 @@ pub enum DispatchOutcome {
         /// Source of the init message. Funds inheritor.
         origin: ActorId,
         /// Reason of the fail.
-        reason: String,
+        reason: DispatchErrorReason,
     },
     /// Message was a trap.
     MessageTrap {
         /// Program that was failed.
         program_id: ActorId,
         /// Reason of the fail.
-        trap: String,
+        trap: DispatchErrorReason,
     },
     /// Message was a success.
     Success,
@@ -412,6 +413,17 @@ pub trait JournalHandler {
     fn send_signal(&mut self, message_id: MessageId, destination: ActorId, code: SignalCode);
     /// Create deposit for future reply.
     fn reply_deposit(&mut self, message_id: MessageId, future_reply_id: MessageId, amount: u64);
+}
+
+/// Dispatch error reason.
+#[derive(Clone, Debug, Encode, Decode, derive_more::Display)]
+pub enum DispatchErrorReason {
+    /// Error happened during execution (panic bytes).
+    #[display("Panic occurred: {_0}")]
+    Panic(PanicBuffer),
+    /// Error happened during other process (string message).
+    #[display("{_0}")]
+    Message(String),
 }
 
 actor_system_error! {
