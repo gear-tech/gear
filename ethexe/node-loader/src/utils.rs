@@ -31,6 +31,7 @@ pub fn get_wasm_gen_config(
             (SyscallName::Exit, 0..=1),
             (SyscallName::Alloc, 3..=6),
             (SyscallName::Free, 3..=6),
+            (SyscallName::Wake, 0..=0), // wake not supported yet
         ]
         .map(|(syscall, range)| (InvocableSyscall::Loose(syscall), range))
         .into_iter(),
