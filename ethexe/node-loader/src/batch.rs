@@ -49,7 +49,7 @@ pub mod generator;
 pub mod report;
 
 pub struct BatchPool<Rng: CallGenRng> {
-    api: Ethereum,
+    apis: Vec<Ethereum>,
     eth_rpc_url: String,
     pool_size: usize,
     batch_size: usize,
@@ -262,14 +262,14 @@ impl Event {
 
 impl<Rng: CallGenRng> BatchPool<Rng> {
     pub fn new(
-        api: Ethereum,
+        apis: Vec<Ethereum>,
         eth_rpc_url: String,
         pool_size: usize,
         batch_size: usize,
         rx: Receiver<<alloy::network::Ethereum as Network>::HeaderResponse>,
     ) -> Self {
         Self {
-            api,
+            apis,
             eth_rpc_url,
             pool_size,
             batch_size,
@@ -312,13 +312,13 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
         let mut batch_gen =
             BatchGenerator::<Rng>::new(seed, self.batch_size, code_seed_type, rt_settings);
 
-        while batches.len() != self.pool_size {
+        for worker_idx in 0..self.pool_size {
             let batch_with_seed = batch_gen.generate(self.task_context.clone());
-            let api = self.api.clone();
-            let api1 = self.api.clone();
-            let vapi = VaraEthApi::new(&self.eth_rpc_url, api).await?;
-            batches.push(run_batch(
-                api1,
+            let api = self.apis[worker_idx].clone();
+            let vapi = VaraEthApi::new(&self.eth_rpc_url, api.clone()).await?;
+            batches.push(run_batch_for_worker(
+                worker_idx,
+                api,
                 vapi,
                 batch_with_seed,
                 self.rx.resubscribe(),
@@ -326,15 +326,15 @@ impl<Rng: CallGenRng> BatchPool<Rng> {
             ));
         }
 
-        while let Some(report) = batches.next().await {
+        while let Some((worker_idx, report)) = batches.next().await {
             self.process_run_report(report?);
 
-            let api = self.api.clone();
-            let api1 = self.api.clone();
-            let vapi = VaraEthApi::new(&self.eth_rpc_url, api).await?;
             let batch_with_seed = batch_gen.generate(self.task_context.clone());
-            batches.push(run_batch(
-                api1,
+            let api = self.apis[worker_idx].clone();
+            let vapi = VaraEthApi::new(&self.eth_rpc_url, api.clone()).await?;
+            batches.push(run_batch_for_worker(
+                worker_idx,
+                api,
                 vapi,
                 batch_with_seed,
                 self.rx.resubscribe(),
@@ -366,6 +366,17 @@ async fn run_batch(
             Ok(BatchRunReport::empty(seed))
         }
     }
+}
+
+async fn run_batch_for_worker(
+    worker_idx: usize,
+    api: Ethereum,
+    vapi: VaraEthApi,
+    batch: BatchWithSeed,
+    rx: Receiver<<alloy::network::Ethereum as Network>::HeaderResponse>,
+    mid_map: MidMap,
+) -> (usize, Result<BatchRunReport>) {
+    (worker_idx, run_batch(api, vapi, batch, rx, mid_map).await)
 }
 
 #[instrument(skip_all)]
