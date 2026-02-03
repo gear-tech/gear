@@ -68,7 +68,6 @@ predicates = "3.1"
 proptest = "1.4"
 serde_json = { workspace = true, features = ["std"] }
 tempfile = { workspace = true }
-test-case = "3.3"
 
 [features]
 default = [
