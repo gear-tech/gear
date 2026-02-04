@@ -16,14 +16,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use anyhow::{Context, Result, anyhow};
+use anyhow::{Context, Result, anyhow, ensure};
 use clap::Parser;
 use ethexe_common::{
-    Announce, HashOf, ProgramStates, Schedule, SimpleBlockData,
+    Announce, HashOf, SimpleBlockData,
     db::{AnnounceStorageRO, LatestData, LatestDataStorageRO, OnChainStorageRO},
-    gear::StateTransition,
 };
-use ethexe_compute::{ComputeConfig, ComputeSubService};
 use ethexe_db::{
     Database, RocksDatabase,
     iterator::{BlockNode, DatabaseIterator},
@@ -240,10 +238,8 @@ impl Checker {
             None
         };
 
-        let mut processor = Processor::with_config(ProcessorConfig { chunk_size }, db.clone())
+        let processor = Processor::with_config(ProcessorConfig { chunk_size }, db.clone())
             .context("failed to create processor")?;
-
-        let compute_config = ComputeConfig::new(canonical_quarantine);
 
         // Iterate back: from `head` announce to `bottom` announce
         let mut announce_hash = head;
@@ -253,27 +249,42 @@ impl Checker {
             })?;
             let announce_parent_hash = announce.parent;
 
-            let overlaid_db = unsafe { db.clone().overlaid() };
-            processor.change_db(overlaid_db.clone());
-            let _result = ComputeSubService::compute_one(
-                &overlaid_db,
-                &mut processor,
-                announce_hash,
-                announce,
-                compute_config,
-            )
-            .await
-            .context("failed to re-compute announce")?;
+            let mut processor = processor.clone().overlaid();
+            let executable =
+                ethexe_compute::prepare_executable_for_announce(db, announce, canonical_quarantine)
+                    .context("Unable to preparing announce data for execution")?;
+            let res = processor
+                .as_mut()
+                .process_programs(executable)
+                .await
+                .context("failed to re-compute announce")?;
 
-            let computed_result = announce_execution_result_from_db(&overlaid_db, announce_hash)
-                .context("failed to get announce execution result from overlaid db")?;
+            let states = db.announce_program_states(announce_hash).ok_or_else(|| {
+                anyhow!("program states for announce {announce_hash:?} not found in db",)
+            })?;
 
-            let db_result = announce_execution_result_from_db(&db, announce_hash)
-                .context("failed to get announce execution result from original db")?;
+            let outcome = db
+                .announce_outcome(announce_hash)
+                .ok_or_else(|| anyhow!("announce outcome {announce_hash:?} not found in db",))?;
 
-            if computed_result != db_result {
-                return Err(anyhow!("announce {announce_hash} execution mismatch",));
-            }
+            let schedule = db.announce_schedule(announce_hash).ok_or_else(|| {
+                anyhow!("schedule for announce {announce_hash:?} not found in db",)
+            })?;
+
+            ensure!(
+                states == res.states,
+                "announce {announce_hash:?} final program states mismatch",
+            );
+
+            ensure!(
+                outcome == res.transitions,
+                "announce {announce_hash:?} state transitions mismatch",
+            );
+
+            ensure!(
+                schedule == res.schedule,
+                "announce {announce_hash:?} schedule mismatch",
+            );
 
             if let Some(ref pb) = pb {
                 pb.inc(1);
@@ -284,24 +295,6 @@ impl Checker {
 
         Ok(())
     }
-}
-
-fn announce_execution_result_from_db(
-    db: &Database,
-    announce_hash: HashOf<Announce>,
-) -> Result<(ProgramStates, Vec<StateTransition>, Schedule)> {
-    let states = db
-        .announce_program_states(announce_hash)
-        .ok_or_else(|| anyhow!("program states for announce {announce_hash:?} not found in db",))?;
-
-    let outcome = db
-        .announce_outcome(announce_hash)
-        .ok_or_else(|| anyhow!("announce outcome {announce_hash:?} not found in db",))?;
-
-    let schedule = db
-        .announce_schedule(announce_hash)
-        .ok_or_else(|| anyhow!("schedule for announce {announce_hash:?} not found in db",))?;
-    Ok((states, outcome, schedule))
 }
 
 fn announce_block(db: &Database, announce_hash: HashOf<Announce>) -> Result<SimpleBlockData> {

@@ -22,7 +22,7 @@ use ethexe_runtime_common::FinalizedBlockTransitions;
 use gprimitives::{CodeId, H256};
 use std::collections::HashSet;
 
-pub use compute::{ComputeConfig, ComputeSubService};
+pub use compute::{ComputeConfig, ComputeSubService, prepare_executable_for_announce};
 pub use service::ComputeService;
 
 mod codes;
