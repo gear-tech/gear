@@ -191,7 +191,7 @@ impl ValidatorService {
         })
     }
 
-    fn update_inner_with_param<T>(
+    fn update_inner_return_param<T>(
         &mut self,
         update: impl FnOnce(ValidatorState) -> Result<(T, ValidatorState)>,
     ) -> Result<T> {
@@ -248,7 +248,7 @@ impl ConsensusService for ValidatorService {
         &mut self,
         tx: SignedInjectedTransaction,
     ) -> Result<TransactionAdditionStatus> {
-        self.update_inner_with_param(|inner| inner.process_injected_transaction(tx))
+        self.update_inner_return_param(|inner| inner.process_injected_transaction(tx))
     }
 }
 
