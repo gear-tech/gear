@@ -15,4 +15,3 @@ rand_chacha = { workspace = true, default-features = true }
 hex.workspace = true
 log.workspace = true
 serde = { workspace = true, features = ["derive"] }
-gear-workspace-hack.workspace = true

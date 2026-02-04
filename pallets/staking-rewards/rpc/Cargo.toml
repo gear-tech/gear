@@ -17,4 +17,3 @@ sp-runtime.workspace = true
 
 # Local packages
 pallet-gear-staking-rewards-rpc-runtime-api.workspace = true
-gear-workspace-hack.workspace = true

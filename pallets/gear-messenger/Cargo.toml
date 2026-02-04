@@ -28,7 +28,6 @@ frame-benchmarking = { workspace = true, optional = true }
 sp-runtime = { workspace = true }
 sp-std = { workspace = true }
 sp-io.workspace = true
-gear-workspace-hack.workspace = true
 
 [dev-dependencies]
 pallet-gear-gas = { workspace = true, features = ["std"] }

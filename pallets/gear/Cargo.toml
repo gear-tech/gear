@@ -67,7 +67,6 @@ demo-constructor = { workspace = true, optional = true }
 demo-waiter = { workspace = true, optional = true }
 demo-init-wait = { workspace = true, optional = true }
 demo-signal-entry = { workspace = true, optional = true }
-gear-workspace-hack.workspace = true
 
 # Some of tests require `debug` feature enabled
 [dev-dependencies]

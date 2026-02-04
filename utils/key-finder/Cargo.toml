@@ -10,4 +10,3 @@ name = "gear-key-finder"
 [dependencies]
 hex = { workspace = true, features = ["alloc"] }
 directories.workspace = true
-gear-workspace-hack.workspace = true

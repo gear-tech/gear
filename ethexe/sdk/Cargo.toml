@@ -23,4 +23,3 @@ futures.workspace = true
 gsigner.workspace = true
 gprimitives.workspace = true
 jsonrpsee = { workspace = true, features = ["client"] }
-gear-workspace-hack.workspace = true

@@ -19,7 +19,7 @@
 //! Common db types and traits.
 
 use crate::{
-    Announce, BlockHeader, CodeBlobInfo, Digest, HashOf, ProgramStates, ProtocolTimelines,
+    Address, Announce, BlockHeader, CodeBlobInfo, Digest, HashOf, ProgramStates, ProtocolTimelines,
     Schedule, SimpleBlockData, ValidatorsVec,
     events::BlockEvent,
     gear::StateTransition,
@@ -225,4 +225,142 @@ pub struct ComputedAnnounceData {
     pub program_states: ProgramStates,
     pub outcome: Vec<StateTransition>,
     pub schedule: Schedule,
+}
+
+// DKG storage types
+
+use crate::crypto::{
+    DkgComplaint, DkgIdentifier, DkgJustification, DkgKeyPackage, DkgPublicKeyPackage, DkgRound1,
+    DkgRound2, DkgRound2Culprits, DkgSessionId, DkgShare, DkgVssCommitment, PreNonceCommitment,
+    SignAggregate, SignNonceCommit, SignSessionRequest, SignShare,
+};
+
+/// DKG session state - stores all messages for a DKG session
+#[derive(Debug, Clone, Default, Encode, Decode, PartialEq, Eq)]
+pub struct DkgSessionState {
+    /// Address to identifier mapping for this DKG session
+    pub identifier_map: Vec<(Address, DkgIdentifier)>,
+    /// Round 1 commitments from all participants
+    pub round1_packages: Vec<DkgRound1>,
+    /// Round 2 packages from all participants
+    pub round2_packages: Vec<DkgRound2>,
+    /// Complaints reported during DKG
+    pub complaints: Vec<DkgComplaint>,
+    /// Justifications for reported complaints
+    pub justifications: Vec<DkgJustification>,
+    /// Culprits reported during round 2 verification
+    pub round2_culprits: Vec<DkgRound2Culprits>,
+    /// Whether DKG is completed successfully
+    pub completed: bool,
+}
+
+/// ROAST signing session state
+#[derive(Debug, Clone, Default, Encode, Decode, PartialEq, Eq)]
+pub struct SignSessionState {
+    /// The initial signing request
+    pub request: Option<SignSessionRequest>,
+    /// Nonce commitments from participants
+    pub nonce_commits: Vec<SignNonceCommit>,
+    /// Partial signatures from participants
+    pub sign_shares: Vec<SignShare>,
+    /// Final aggregated signature (if completed)
+    pub aggregate: Option<SignAggregate>,
+    /// Whether signing is completed successfully
+    pub completed: bool,
+}
+
+/// Read-only DKG storage operations
+#[auto_impl::auto_impl(&, Box)]
+pub trait DkgStorageRO {
+    /// Get DKG session state for a specific session
+    fn dkg_session_state(&self, session_id: DkgSessionId) -> Option<DkgSessionState>;
+
+    /// Get the final PublicKeyPackage for a completed DKG session
+    fn public_key_package(&self, era_index: u64) -> Option<DkgPublicKeyPackage>;
+
+    /// Get the KeyPackage (secret share) for a completed DKG session
+    fn dkg_key_package(&self, era_index: u64) -> Option<DkgKeyPackage>;
+
+    /// Get the DKG share details for a completed DKG session
+    fn dkg_share(&self, era_index: u64) -> Option<DkgShare>;
+
+    /// Get the aggregated VSS commitment for a completed DKG session
+    fn dkg_vss_commitment(&self, era_index: u64) -> Option<DkgVssCommitment>;
+
+    /// Check if DKG is completed for an era
+    fn dkg_completed(&self, era_index: u64) -> bool;
+}
+
+/// Read-write DKG storage operations
+#[auto_impl::auto_impl(&)]
+pub trait DkgStorageRW: DkgStorageRO {
+    /// Set DKG session state
+    fn set_dkg_session_state(&self, session_id: DkgSessionId, state: DkgSessionState);
+
+    /// Mutate DKG session state
+    fn mutate_dkg_session_state(
+        &self,
+        session_id: DkgSessionId,
+        f: impl FnOnce(&mut DkgSessionState),
+    );
+
+    /// Set the final PublicKeyPackage for an era
+    fn set_public_key_package(&self, era_index: u64, package: DkgPublicKeyPackage);
+
+    /// Set the KeyPackage (secret share) for an era
+    fn set_dkg_key_package(&self, era_index: u64, package: DkgKeyPackage);
+
+    /// Set the DKG share details for an era
+    fn set_dkg_share(&self, share: DkgShare);
+
+    /// Set the aggregated VSS commitment for an era
+    fn set_dkg_vss_commitment(&self, era_index: u64, commitment: DkgVssCommitment);
+}
+
+/// Read-only ROAST signing storage operations
+#[auto_impl::auto_impl(&, Box)]
+pub trait SignStorageRO {
+    /// Get signing session state by message hash and era
+    fn sign_session_state(&self, msg_hash: H256, era_index: u64) -> Option<SignSessionState>;
+
+    /// Get cached aggregate signature for era/target/message
+    fn signature_cache(
+        &self,
+        era_index: u64,
+        target: ActorId,
+        msg_hash: H256,
+    ) -> Option<SignAggregate>;
+
+    /// Get cached pre-nonces for era/target.
+    fn pre_nonce_cache(&self, era_index: u64, target: ActorId) -> Option<Vec<PreNonceCommitment>>;
+
+    /// Check if signing is completed for a specific message
+    fn sign_completed(&self, msg_hash: H256, era_index: u64) -> bool;
+}
+
+/// Read-write ROAST signing storage operations
+#[auto_impl::auto_impl(&)]
+pub trait SignStorageRW: SignStorageRO {
+    /// Set signing session state
+    fn set_sign_session_state(&self, msg_hash: H256, era_index: u64, state: SignSessionState);
+
+    /// Cache aggregate signature for era/target/message
+    fn set_signature_cache(
+        &self,
+        era_index: u64,
+        target: ActorId,
+        msg_hash: H256,
+        aggregate: SignAggregate,
+    );
+
+    /// Store cached pre-nonces for era/target.
+    fn set_pre_nonce_cache(&self, era_index: u64, target: ActorId, cache: Vec<PreNonceCommitment>);
+
+    /// Mutate signing session state
+    fn mutate_sign_session_state(
+        &self,
+        msg_hash: H256,
+        era_index: u64,
+        f: impl FnOnce(&mut SignSessionState),
+    );
 }

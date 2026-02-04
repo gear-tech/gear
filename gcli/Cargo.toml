@@ -43,7 +43,6 @@ etc.workspace = true
 runtime-primitives.workspace = true
 url = { workspace = true, features = ["serde"] }
 toml.workspace = true
-gear-workspace-hack.workspace = true
 
 [build-dependencies]
 

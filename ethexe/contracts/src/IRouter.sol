@@ -96,31 +96,67 @@ interface IRouter {
 
     // # Views.
     function genesisBlockHash() external view returns (bytes32);
+
     function genesisTimestamp() external view returns (uint48);
+
     function latestCommittedBatchHash() external view returns (bytes32);
+
     function latestCommittedBatchTimestamp() external view returns (uint48);
 
     function mirrorImpl() external view returns (address);
+
     function wrappedVara() external view returns (address);
+
     function middleware() external view returns (address);
 
-    function validatorsAggregatedPublicKey() external view returns (Gear.AggregatedPublicKey memory);
-    function validatorsVerifiableSecretSharingCommitment() external view returns (bytes memory);
+    function validatorsAggregatedPublicKey()
+        external
+        view
+        returns (Gear.AggregatedPublicKey memory);
 
-    function areValidators(address[] calldata validators) external view returns (bool);
+    function validatorsVerifiableSecretSharingCommitment()
+        external
+        view
+        returns (bytes memory);
+
+    function validatorsVssCommitmentHash() external view returns (bytes32);
+
+    function areValidators(
+        address[] calldata validators
+    ) external view returns (bool);
+
     function isValidator(address validator) external view returns (bool);
-    function signingThresholdFraction() external view returns (uint128, uint128);
+
+    function signingThresholdFraction()
+        external
+        view
+        returns (uint128, uint128);
+
     function validators() external view returns (address[] memory);
+
     function validatorsCount() external view returns (uint256);
+
     function validatorsThreshold() external view returns (uint256);
 
-    function computeSettings() external view returns (Gear.ComputationSettings memory);
+    function computeSettings()
+        external
+        view
+        returns (Gear.ComputationSettings memory);
 
     function codeState(bytes32 codeId) external view returns (Gear.CodeState);
-    function codesStates(bytes32[] calldata codesIds) external view returns (Gear.CodeState[] memory);
+
+    function codesStates(
+        bytes32[] calldata codesIds
+    ) external view returns (Gear.CodeState[] memory);
+
     function programCodeId(address programId) external view returns (bytes32);
-    function programsCodeIds(address[] calldata programsIds) external view returns (bytes32[] memory);
+
+    function programsCodeIds(
+        address[] calldata programsIds
+    ) external view returns (bytes32[] memory);
+
     function programsCount() external view returns (uint256);
+
     function validatedCodesCount() external view returns (uint256);
 
     function timelines() external view returns (Gear.Timelines memory);
@@ -133,8 +169,14 @@ interface IRouter {
 
     /// @dev CodeValidationRequested Emitted on success.
     function requestCodeValidation(bytes32 codeId) external;
+
     /// @dev ProgramCreated Emitted on success.
-    function createProgram(bytes32 codeId, bytes32 salt, address overrideInitializer) external returns (address);
+    function createProgram(
+        bytes32 codeId,
+        bytes32 salt,
+        address overrideInitializer
+    ) external returns (address);
+
     /// @dev ProgramCreated Emitted on success.
     function createProgramWithAbiInterface(
         bytes32 codeId,

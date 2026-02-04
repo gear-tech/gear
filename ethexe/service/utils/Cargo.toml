@@ -11,4 +11,3 @@ repository.workspace = true
 log.workspace = true
 futures.workspace = true
 tokio = { workspace = true, features = ["time"] }
-gear-workspace-hack.workspace = true

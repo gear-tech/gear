@@ -18,19 +18,12 @@
 
 use std::collections::VecDeque;
 
-use super::{
-    DefaultProcessing, StateHandler, ValidatorContext, ValidatorState, producer::Producer,
-    subordinate::Subordinate,
-};
-use crate::{
-    announces::{self, DBAnnouncesExt},
-    utils,
-};
-use anyhow::{Result, anyhow};
+use super::{DefaultProcessing, StateHandler, ValidatorContext, ValidatorState};
+use crate::announces::{self, DBAnnouncesExt};
+use anyhow::Result;
 use derive_more::{Debug, Display};
 use ethexe_common::{
     SimpleBlockData,
-    db::OnChainStorageRO,
     network::{AnnouncesRequest, AnnouncesResponse},
 };
 use gprimitives::H256;
@@ -102,6 +95,7 @@ impl StateHandler for Initial {
     fn process_new_head(mut self, block: SimpleBlockData) -> Result<ValidatorState> {
         // TODO #4555: block producer could be calculated right here, using propagation from previous blocks.
 
+        // Start sync pipeline for the new head.
         self.state = WaitingFor::SyncedBlock(block);
 
         Ok(self.into())
@@ -111,6 +105,7 @@ impl StateHandler for Initial {
         if let WaitingFor::SyncedBlock(block) = &self.state
             && block.hash == block_hash
         {
+            // Once synced, wait for computation/preparation.
             self.state = WaitingFor::PreparedBlock(*block);
 
             Ok(self.into())
@@ -123,6 +118,7 @@ impl StateHandler for Initial {
         if let WaitingFor::PreparedBlock(block) = &self.state
             && block.hash == block_hash
         {
+            // Ensure announces chain is complete before switching roles.
             let chain = self
                 .ctx
                 .core
@@ -139,6 +135,7 @@ impl StateHandler for Initial {
                     self.ctx.core.commitment_delay_limit,
                 )?
             {
+                // Request missing announces before entering producer/subordinate flow.
                 tracing::debug!(
                     "Missing announces detected for block {block_hash}, send request: {request:?}"
                 );
@@ -157,6 +154,7 @@ impl StateHandler for Initial {
             } else {
                 tracing::debug!(block = %block.hash, "No missing announces");
 
+                // Propagate announces and enter producer/subordinate role.
                 announces::propagate_announces(
                     &self.ctx.core.db,
                     chain,
@@ -218,41 +216,6 @@ impl Initial {
         block: SimpleBlockData,
     ) -> Result<ValidatorState> {
         Self::create(ctx)?.process_new_head(block)
-    }
-}
-
-impl ValidatorContext {
-    fn switch_to_producer_or_subordinate(self, block: SimpleBlockData) -> Result<ValidatorState> {
-        let era_index = self.core.timelines.era_from_ts(block.header.timestamp);
-        let validators = self
-            .core
-            .db
-            .validators(era_index)
-            .ok_or(anyhow!("validators not found for era {era_index}"))?;
-
-        let producer = utils::block_producer_for(
-            &validators,
-            block.header.timestamp,
-            self.core.slot_duration.as_secs(),
-        );
-        let my_address = self.core.pub_key.to_address();
-
-        if my_address == producer {
-            tracing::info!(block = %block.hash, "👷 Start to work as a producer");
-
-            Producer::create(self, block, validators.clone())
-        } else {
-            // TODO #4636: add test (in ethexe-service) for case where is not validator for current block
-            let is_validator_for_current_block = validators.contains(&my_address);
-
-            tracing::info!(
-                block = %block.hash,
-                "👷 Start to work as subordinate, producer is {producer}, \
-                I'm validator for current block: {is_validator_for_current_block}",
-            );
-
-            Subordinate::create(self, block, producer, is_validator_for_current_block)
-        }
     }
 }
 

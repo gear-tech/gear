@@ -27,9 +27,9 @@ use crate::{
 use alloy::{
     consensus::{SidecarBuilder, SimpleCoder},
     eips::BlockId,
-    primitives::{Address, Bytes},
+    primitives::{Address, Bytes, fixed_bytes},
     providers::{PendingTransactionBuilder, Provider, ProviderBuilder, RootProvider},
-    rpc::types::TransactionReceipt,
+    rpc::types::{TransactionReceipt, state::AccountOverride},
 };
 use anyhow::{Result, anyhow};
 use ethexe_common::{
@@ -51,6 +51,7 @@ use futures::StreamExt;
 use gear_core::ids::prelude::CodeIdExt as _;
 use gprimitives::{ActorId, CodeId, H256};
 use serde::Serialize;
+use std::collections::HashMap;
 
 pub mod events;
 
@@ -297,6 +298,7 @@ impl Router {
         Ok((receipt, actor_id))
     }
 
+    /// Submits a batch commitment with ECDSA signatures.
     pub async fn commit_batch(
         &self,
         commitment: BatchCommitment,
@@ -309,6 +311,7 @@ impl Router {
             .map(|receipt| H256(receipt.transaction_hash.0))
     }
 
+    /// Builds a pending ECDSA commit batch transaction.
     pub async fn commit_batch_pending(
         &self,
         commitment: BatchCommitment,
@@ -323,7 +326,77 @@ impl Router {
                 .collect(),
         );
 
-        let gas_limit = Self::HUGE_GAS_LIMIT;
+        // Override router.reserved to skip block predecessor checks in gas estimation.
+        let mut state_diff = HashMap::default();
+        state_diff.insert(
+            // keccak256(abi.encode(uint256(keccak256(bytes("router.storage.RouterV1"))) - 1)) & ~bytes32(uint256(0xff))
+            fixed_bytes!("e3d827fd4fed52666d49a0df00f9cc2ac79f0f2378fc627e62463164801b6500"),
+            // router.reserved = 1
+            fixed_bytes!("0000000000000000000000000000000000000000000000000000000000000001"),
+        );
+
+        let mut state = HashMap::default();
+        state.insert(
+            *self.instance.address(),
+            AccountOverride {
+                state_diff: Some(state_diff),
+                ..Default::default()
+            },
+        );
+
+        let estimate_gas_builder = builder.clone().state(state);
+        let gas_limit = Self::HUGE_GAS_LIMIT
+            .max(estimate_gas_builder.estimate_gas().await? + Self::GEAR_BLOCK_IS_PREDECESSOR_GAS);
+
+        builder.gas(gas_limit).send().await.map_err(Into::into)
+    }
+
+    /// Submits a batch commitment with a FROST signature (96 bytes).
+    pub async fn commit_batch_frost(
+        &self,
+        commitment: BatchCommitment,
+        signature96: [u8; 96],
+    ) -> Result<H256> {
+        self.commit_batch_frost_pending(commitment, signature96)
+            .await?
+            .try_get_receipt_check_reverted()
+            .await
+            .map(|receipt| H256(receipt.transaction_hash.0))
+    }
+
+    /// Builds a pending FROST commit batch transaction.
+    pub async fn commit_batch_frost_pending(
+        &self,
+        commitment: BatchCommitment,
+        signature96: [u8; 96],
+    ) -> Result<PendingTransactionBuilder<AlloyEthereum>> {
+        let builder = self.instance.commitBatch(
+            commitment.into(),
+            SignatureType::FROST as u8,
+            vec![Bytes::from(signature96.to_vec())],
+        );
+
+        // Override router.reserved to skip block predecessor checks in gas estimation.
+        let mut state_diff = HashMap::default();
+        state_diff.insert(
+            // keccak256(abi.encode(uint256(keccak256(bytes("router.storage.RouterV1"))) - 1)) & ~bytes32(uint256(0xff))
+            fixed_bytes!("e3d827fd4fed52666d49a0df00f9cc2ac79f0f2378fc627e62463164801b6500"),
+            // router.reserved = 1
+            fixed_bytes!("0000000000000000000000000000000000000000000000000000000000000001"),
+        );
+
+        let mut state = HashMap::default();
+        state.insert(
+            *self.instance.address(),
+            AccountOverride {
+                state_diff: Some(state_diff),
+                ..Default::default()
+            },
+        );
+
+        let estimate_gas_builder = builder.clone().state(state);
+        let gas_limit = Self::HUGE_GAS_LIMIT
+            .max(estimate_gas_builder.estimate_gas().await? + Self::GEAR_BLOCK_IS_PREDECESSOR_GAS);
 
         builder.gas(gas_limit).send().await.map_err(Into::into)
     }
@@ -732,6 +805,7 @@ mod tests {
             EthereumDeployer::new(anvil.endpoint_url().as_str(), signer, alice.to_address())
                 .await
                 .unwrap()
+                .with_generated_verifiable_secret_sharing_commitment()
                 .deploy()
                 .await
                 .unwrap()
@@ -760,6 +834,7 @@ mod tests {
             EthereumDeployer::new(anvil.endpoint_url().as_str(), signer, alice.to_address())
                 .await
                 .unwrap()
+                .with_generated_verifiable_secret_sharing_commitment()
                 .deploy()
                 .await
                 .unwrap()

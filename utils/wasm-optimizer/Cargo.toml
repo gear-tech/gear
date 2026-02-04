@@ -20,7 +20,6 @@ log.workspace = true
 wasmparser.workspace = true
 which.workspace = true
 colored.workspace = true
-gear-workspace-hack.workspace = true
 
 [dev-dependencies]
 wasmer.workspace = true

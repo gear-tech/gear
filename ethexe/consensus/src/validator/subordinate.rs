@@ -75,6 +75,7 @@ impl StateHandler for Subordinate {
             State::WaitingAnnounceComputed { announce_hash }
                 if *announce_hash == computed_data.announce_hash =>
             {
+                // Once computed, either validate (participant) or return to initial.
                 if self.is_validator {
                     Participant::create(self.ctx, self.block, self.producer)
                 } else {
@@ -91,10 +92,11 @@ impl StateHandler for Subordinate {
                 if verified_announce.address() == self.producer
                     && verified_announce.data().block_hash == self.block.hash =>
             {
+                // Accept only the expected announce from the producer.
                 let (announce, _pub_key) = verified_announce.into_parts();
                 self.send_announce_for_computation(announce)
             }
-            _ => DefaultProcessing::announce_from_producer(self, verified_announce),
+            _ => DefaultProcessing::block_from_producer(self, verified_announce),
         }
     }
 
@@ -106,6 +108,7 @@ impl StateHandler for Subordinate {
             tracing::trace!(
                 "Receive validation request from producer: {request:?}, saved for later."
             );
+            // Stash request until we reach Participant state.
             self.ctx.pending(request);
 
             Ok(self.into())
@@ -166,6 +169,7 @@ impl Subordinate {
     }
 
     fn send_announce_for_computation(mut self, announce: Announce) -> Result<ValidatorState> {
+        // Persist announce and request computation if accepted.
         match announces::accept_announce(&self.ctx.core.db, announce.clone())? {
             AnnounceStatus::Accepted(announce_hash) => {
                 self.ctx

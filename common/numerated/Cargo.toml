@@ -18,7 +18,6 @@ derive_more.workspace = true
 scale-info = { workspace = true, features = ["derive"] }
 log = { workspace = true, optional = true }
 proptest = { workspace = true, optional = true }
-gear-workspace-hack.workspace = true
 
 [dev-dependencies]
 proptest.workspace = true

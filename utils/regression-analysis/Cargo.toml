@@ -17,4 +17,3 @@ thousands.workspace = true
 vara-runtime = { workspace = true, features = ["std"] }
 pallet-gear = { workspace = true, features = ["std"] }
 frame-support = { workspace = true, features = ["std"] }
-gear-workspace-hack.workspace = true

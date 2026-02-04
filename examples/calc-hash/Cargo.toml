@@ -10,6 +10,5 @@ repository.workspace = true
 [dependencies]
 parity-scale-codec.workspace = true
 sha2.workspace = true
-gear-workspace-hack.workspace = true
 
 [build-dependencies]

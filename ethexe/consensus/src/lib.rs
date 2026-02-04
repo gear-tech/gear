@@ -37,7 +37,9 @@ use ethexe_common::{
     Announce, ComputedAnnounce, Digest, HashOf, SimpleBlockData,
     consensus::{BatchCommitmentValidationReply, VerifiedAnnounce, VerifiedValidationRequest},
     injected::{SignedInjectedTransaction, SignedPromise},
-    network::{AnnouncesRequest, AnnouncesResponse, SignedValidatorMessage},
+    network::{
+        AnnouncesRequest, AnnouncesResponse, SignedValidatorMessage, VerifiedValidatorMessage,
+    },
 };
 use futures::{Stream, stream::FusedStream};
 use gprimitives::H256;
@@ -52,8 +54,19 @@ mod tx_validation;
 mod utils;
 mod validator;
 
+pub(crate) mod engine {
+    pub use ethexe_dkg_roast::engine::*;
+}
+
+pub(crate) mod policy {
+    pub use ethexe_dkg_roast::policy::*;
+}
+
 #[cfg(test)]
 mod mock;
+#[cfg(test)]
+#[allow(dead_code)]
+mod test_utils;
 
 pub trait ConsensusService:
     Stream<Item = Result<ConsensusEvent>> + FusedStream + Unpin + Send + 'static
@@ -87,6 +100,15 @@ pub trait ConsensusService:
 
     /// Process a received injected transaction from network
     fn receive_injected_transaction(&mut self, tx: SignedInjectedTransaction) -> Result<()>;
+
+    /// Process a received DKG/ROAST message
+    fn receive_validator_message(&mut self, message: SignedValidatorMessage) -> Result<()>;
+
+    /// Process a received already verified DKG/ROAST message
+    fn receive_verified_validator_message(
+        &mut self,
+        message: VerifiedValidatorMessage,
+    ) -> Result<()>;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, derive_more::Display)]
@@ -125,4 +147,6 @@ pub enum ConsensusEvent {
     /// Promises for [`ethexe_common::injected::InjectedTransaction`]s execution in some announce.
     #[from]
     Promises(Vec<SignedPromise>),
+    /// Broadcast DKG/ROAST message to all validators
+    BroadcastValidatorMessage(SignedValidatorMessage),
 }

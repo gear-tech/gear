@@ -58,6 +58,7 @@ use tokio::sync::oneshot;
 pub mod config;
 
 mod fast_sync;
+
 #[cfg(test)]
 mod tests;
 
@@ -172,6 +173,7 @@ impl Service {
                 .await
                 .unwrap()
                 .with_validators(vec![validator_address].try_into().unwrap())
+                .with_generated_verifiable_secret_sharing_commitment()
                 .deploy()
                 .await?;
 
@@ -575,6 +577,7 @@ impl Service {
                                     let (reply, _) = reply.into_parts();
                                     consensus.receive_validation_reply(reply)?
                                 }
+                                _ => consensus.receive_verified_validator_message(message)?,
                             };
                         }
                         NetworkEvent::InjectedTransaction(event) => match event {
@@ -685,6 +688,14 @@ impl Service {
                         };
 
                         network.publish_message(message);
+                    }
+                    ConsensusEvent::BroadcastValidatorMessage(message) => {
+                        if let Some(network) = network.as_mut() {
+                            network.publish_message(message.clone());
+                            consensus.receive_validator_message(message)?;
+                        } else {
+                            consensus.receive_validator_message(message)?;
+                        }
                     }
                     ConsensusEvent::CommitmentSubmitted(info) => {
                         log::info!("{info}");

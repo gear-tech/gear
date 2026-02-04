@@ -10,7 +10,6 @@ repository = "https://github.com/gear-tech/gear"
 [dependencies]
 sp-api.workspace = true
 pallet-gear-staking-rewards.workspace = true
-gear-workspace-hack.workspace = true
 
 [features]
 default = ["std"]

@@ -12,7 +12,6 @@ parity-scale-codec = { workspace = true, features = ["derive"] }
 gstd = { workspace = true, features = ["debug"] }
 gbuiltin-bls381.workspace = true
 hex-literal.workspace = true
-gear-workspace-hack.workspace = true
 
 [build-dependencies]
 gear-wasm-builder.workspace = true

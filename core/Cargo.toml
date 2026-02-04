@@ -39,7 +39,6 @@ numerated.workspace = true
 # Optional dependencies
 serde = { workspace = true, features = ["derive"], optional = true }
 impl-serde = { workspace = true, optional = true }
-gear-workspace-hack.workspace = true
 
 [package.metadata.cargo-shear]
 ignored = ["impl-serde"]

@@ -12,4 +12,3 @@ rust-version.workspace = true
 
 [dependencies]
 derive_more.workspace = true
-gear-workspace-hack.workspace = true

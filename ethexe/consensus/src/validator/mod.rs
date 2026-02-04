@@ -40,26 +40,28 @@
 //! * Each state can be interrupted by a new chain head -> switches to [`Initial`] immediately.
 
 use crate::{
-    BatchCommitmentValidationReply, ConsensusEvent, ConsensusService,
+    BatchCommitmentValidationReply, ComputedAnnounce, ConsensusEvent, ConsensusService,
+    VerifiedAnnounce, VerifiedValidationRequest,
+    engine::{
+        EngineContext,
+        prelude::{DkgEngine, RoastEngine},
+    },
+    utils,
     validator::{
-        coordinator::Coordinator,
         core::{MiddlewareWrapper, ValidatorCore},
-        participant::Participant,
-        producer::Producer,
-        subordinate::Subordinate,
         tx_pool::InjectedTxPool,
     },
 };
+pub(crate) use adapters::{sign_dkg_action, sign_roast_message};
 use anyhow::{Result, anyhow};
 pub use core::BatchCommitter;
-use derive_more::{Debug, From};
+use derive_more::Debug;
 use ethexe_common::{
-    Address, ComputedAnnounce, SimpleBlockData, ToDigest,
-    consensus::{VerifiedAnnounce, VerifiedValidationRequest},
+    Address, SimpleBlockData, ToDigest,
     db::OnChainStorageRO,
     ecdsa::{PublicKey, SignedMessage},
     injected::SignedInjectedTransaction,
-    network::AnnouncesResponse,
+    network::{AnnouncesResponse, SignedValidatorMessage},
 };
 use ethexe_db::Database;
 use ethexe_ethereum::middleware::ElectionProvider;
@@ -73,22 +75,30 @@ use gsigner::secp256k1::{Secp256k1SignerExt, Signer};
 use initial::Initial;
 use std::{
     collections::VecDeque,
-    fmt,
     pin::Pin,
     task::{Context, Poll},
     time::Duration,
 };
 
+mod adapters;
 mod coordinator;
 mod core;
+mod dispatcher;
 mod initial;
 mod participant;
 mod producer;
+mod state;
 mod subordinate;
 mod tx_pool;
 
+pub(crate) type DkgEngineDb = DkgEngine<Database>;
+pub(crate) type RoastEngineDb = RoastEngine<Database>;
+pub(crate) use state::{DefaultProcessing, PendingEvent, StateHandler, ValidatorState};
+
 #[cfg(test)]
 mod mock;
+#[allow(unused_imports)]
+pub(crate) use crate::engine::roast::RoastMessage;
 
 /// The main validator service that implements the `ConsensusService` trait.
 /// This service manages the validation workflow.
@@ -137,6 +147,9 @@ impl ValidatorService {
         let timelines = db
             .protocol_timelines()
             .ok_or_else(|| anyhow!("Protocol timelines not found in database"))?;
+
+        let self_address = config.pub_key.to_address();
+
         let ctx = ValidatorContext {
             core: ValidatorCore {
                 slot_duration: config.slot_duration,
@@ -144,11 +157,11 @@ impl ValidatorService {
                 router_address: config.router_address,
                 pub_key: config.pub_key,
                 timelines,
-                signer,
+                signer: signer.clone(),
                 db: db.clone(),
                 committer: committer.into(),
                 middleware: MiddlewareWrapper::from_inner(election_provider),
-                injected_pool: InjectedTxPool::new(db),
+                injected_pool: InjectedTxPool::new(db.clone()),
                 chain_deepness_threshold: config.chain_deepness_threshold,
                 block_gas_limit: config.block_gas_limit,
                 commitment_delay_limit: config.commitment_delay_limit,
@@ -157,6 +170,8 @@ impl ValidatorService {
             pending_events: VecDeque::new(),
             output: VecDeque::new(),
             tasks: Default::default(),
+            dkg_engine: DkgEngine::new(db.clone(), self_address),
+            roast_engine: RoastEngine::new(db, self_address),
         };
 
         Ok(Self {
@@ -233,6 +248,17 @@ impl ConsensusService for ValidatorService {
     fn receive_injected_transaction(&mut self, tx: SignedInjectedTransaction) -> Result<()> {
         self.update_inner(|inner| inner.process_injected_transaction(tx))
     }
+
+    fn receive_validator_message(&mut self, message: SignedValidatorMessage) -> Result<()> {
+        self.update_inner(|inner| inner.process_validator_message(message))
+    }
+
+    fn receive_verified_validator_message(
+        &mut self,
+        message: ethexe_common::network::VerifiedValidatorMessage,
+    ) -> Result<()> {
+        self.update_inner(|inner| inner.process_verified_validator_message(message))
+    }
 }
 
 impl Stream for ValidatorService {
@@ -258,6 +284,18 @@ impl Stream for ValidatorService {
                 ctx.output(res?);
             }
 
+            // Drive DKG timeouts and publish any resulting messages.
+            for action in ctx.dkg_engine.tick_timeouts()? {
+                if let Some(msg) = sign_dkg_action(&ctx.core.signer, ctx.core.pub_key, action)? {
+                    ctx.output(ConsensusEvent::BroadcastValidatorMessage(msg));
+                }
+            }
+            // Drive ROAST timeouts and publish any resulting messages.
+            for msg in ctx.roast_engine.tick_timeouts()? {
+                let signed = sign_roast_message(&ctx.core.signer, ctx.core.pub_key, msg)?;
+                ctx.output(ConsensusEvent::BroadcastValidatorMessage(signed));
+            }
+
             Ok(inner)
         })?;
 
@@ -275,255 +313,9 @@ impl FusedStream for ValidatorService {
     }
 }
 
-/// An event that can be saved for later processing.
-#[derive(Clone, Debug, From, PartialEq, Eq, derive_more::IsVariant)]
-enum PendingEvent {
-    /// A block from the producer
-    Announce(VerifiedAnnounce),
-    /// A validation request
-    ValidationRequest(VerifiedValidationRequest),
-}
-
-/// Trait defining the interface for validator inner state and events handler.
-trait StateHandler
-where
-    Self: Sized + Into<ValidatorState> + fmt::Display,
-{
-    fn context(&self) -> &ValidatorContext;
-
-    fn context_mut(&mut self) -> &mut ValidatorContext;
-
-    fn into_context(self) -> ValidatorContext;
-
-    fn warning(&mut self, warning: impl fmt::Display) {
-        let warning = format!("{self} - {warning}");
-        self.context_mut()
-            .output
-            .push_back(ConsensusEvent::Warning(warning));
-    }
-
-    fn process_new_head(self, block: SimpleBlockData) -> Result<ValidatorState> {
-        DefaultProcessing::new_head(self.into(), block)
-    }
-
-    fn process_synced_block(self, block: H256) -> Result<ValidatorState> {
-        DefaultProcessing::synced_block(self.into(), block)
-    }
-
-    fn process_prepared_block(self, block: H256) -> Result<ValidatorState> {
-        DefaultProcessing::prepared_block(self.into(), block)
-    }
-
-    fn process_computed_announce(self, computed_data: ComputedAnnounce) -> Result<ValidatorState> {
-        DefaultProcessing::computed_announce(self.into(), computed_data)
-    }
-
-    fn process_announce(self, announce: VerifiedAnnounce) -> Result<ValidatorState> {
-        DefaultProcessing::announce_from_producer(self, announce)
-    }
-
-    fn process_validation_request(
-        self,
-        request: VerifiedValidationRequest,
-    ) -> Result<ValidatorState> {
-        DefaultProcessing::validation_request(self, request)
-    }
-
-    fn process_validation_reply(
-        self,
-        reply: BatchCommitmentValidationReply,
-    ) -> Result<ValidatorState> {
-        DefaultProcessing::validation_reply(self, reply)
-    }
-
-    fn process_announces_response(self, _response: AnnouncesResponse) -> Result<ValidatorState> {
-        DefaultProcessing::announces_response(self, _response)
-    }
-
-    fn process_injected_transaction(self, tx: SignedInjectedTransaction) -> Result<ValidatorState> {
-        DefaultProcessing::injected_transaction(self, tx)
-    }
-
-    fn poll_next_state(self, _cx: &mut Context<'_>) -> Result<(Poll<()>, ValidatorState)> {
-        Ok((Poll::Pending, self.into()))
-    }
-}
-
-#[allow(clippy::large_enum_variant)]
-#[derive(
-    Debug, derive_more::Display, derive_more::From, derive_more::IsVariant, derive_more::Unwrap,
-)]
-enum ValidatorState {
-    Initial(Initial),
-    Producer(Producer),
-    Coordinator(Coordinator),
-    Subordinate(Subordinate),
-    Participant(Participant),
-}
-
-macro_rules! delegate_call {
-    ($this:ident => $func:ident( $( $arg:ident ),* )) => {
-        match $this {
-            ValidatorState::Initial(initial) => initial.$func($( $arg ),*),
-            ValidatorState::Producer(producer) => producer.$func($( $arg ),*),
-            ValidatorState::Coordinator(coordinator) => coordinator.$func($( $arg ),*),
-            ValidatorState::Subordinate(subordinate) => subordinate.$func($( $arg ),*),
-            ValidatorState::Participant(participant) => participant.$func($( $arg ),*),
-        }
-    };
-}
-
-impl StateHandler for ValidatorState {
-    fn context(&self) -> &ValidatorContext {
-        delegate_call!(self => context())
-    }
-
-    fn context_mut(&mut self) -> &mut ValidatorContext {
-        delegate_call!(self => context_mut())
-    }
-
-    fn into_context(self) -> ValidatorContext {
-        delegate_call!(self => into_context())
-    }
-
-    fn warning(&mut self, warning: impl fmt::Display) {
-        delegate_call!(self => warning(warning))
-    }
-
-    fn process_new_head(self, block: SimpleBlockData) -> Result<ValidatorState> {
-        delegate_call!(self => process_new_head(block))
-    }
-
-    fn process_synced_block(self, block: H256) -> Result<ValidatorState> {
-        delegate_call!(self => process_synced_block(block))
-    }
-
-    fn process_prepared_block(self, block: H256) -> Result<ValidatorState> {
-        delegate_call!(self => process_prepared_block(block))
-    }
-
-    fn process_computed_announce(self, computed_data: ComputedAnnounce) -> Result<ValidatorState> {
-        delegate_call!(self => process_computed_announce(computed_data))
-    }
-
-    fn process_announce(self, verified_announce: VerifiedAnnounce) -> Result<ValidatorState> {
-        delegate_call!(self => process_announce(verified_announce))
-    }
-
-    fn process_validation_request(
-        self,
-        request: VerifiedValidationRequest,
-    ) -> Result<ValidatorState> {
-        delegate_call!(self => process_validation_request(request))
-    }
-
-    fn process_validation_reply(
-        self,
-        reply: BatchCommitmentValidationReply,
-    ) -> Result<ValidatorState> {
-        delegate_call!(self => process_validation_reply(reply))
-    }
-
-    fn process_announces_response(self, response: AnnouncesResponse) -> Result<ValidatorState> {
-        delegate_call!(self => process_announces_response(response))
-    }
-
-    fn poll_next_state(self, cx: &mut Context<'_>) -> Result<(Poll<()>, ValidatorState)> {
-        delegate_call!(self => poll_next_state(cx))
-    }
-
-    fn process_injected_transaction(self, tx: SignedInjectedTransaction) -> Result<ValidatorState> {
-        delegate_call!(self => process_injected_transaction(tx))
-    }
-}
-
-struct DefaultProcessing;
-
-impl DefaultProcessing {
-    fn new_head(s: impl Into<ValidatorState>, block: SimpleBlockData) -> Result<ValidatorState> {
-        Initial::create_with_chain_head(s.into().into_context(), block)
-    }
-
-    fn synced_block(s: impl Into<ValidatorState>, block: H256) -> Result<ValidatorState> {
-        let mut s = s.into();
-        s.warning(format!("unexpected synced block: {block}"));
-        Ok(s)
-    }
-
-    fn prepared_block(s: impl Into<ValidatorState>, block: H256) -> Result<ValidatorState> {
-        let mut s = s.into();
-        s.warning(format!("unexpected processed block: {block}"));
-        Ok(s)
-    }
-
-    fn computed_announce(
-        s: impl Into<ValidatorState>,
-        computed_data: ComputedAnnounce,
-    ) -> Result<ValidatorState> {
-        let mut s = s.into();
-        s.warning(format!(
-            "unexpected computed announce: {}",
-            computed_data.announce_hash
-        ));
-        Ok(s)
-    }
-
-    fn announce_from_producer(
-        s: impl Into<ValidatorState>,
-        announce: VerifiedAnnounce,
-    ) -> Result<ValidatorState> {
-        let mut s = s.into();
-        s.warning(format!(
-            "unexpected announce from producer: {announce:?}, saved for later."
-        ));
-        s.context_mut().pending(announce);
-        Ok(s)
-    }
-
-    fn validation_request(
-        s: impl Into<ValidatorState>,
-        request: VerifiedValidationRequest,
-    ) -> Result<ValidatorState> {
-        let mut s = s.into();
-        s.warning(format!(
-            "unexpected validation request: {request:?}, saved for later."
-        ));
-        s.context_mut().pending(request);
-        Ok(s)
-    }
-
-    fn validation_reply(
-        s: impl Into<ValidatorState>,
-        reply: BatchCommitmentValidationReply,
-    ) -> Result<ValidatorState> {
-        tracing::trace!("Skip validation reply: {reply:?}");
-        Ok(s.into())
-    }
-
-    fn announces_response(
-        s: impl Into<ValidatorState>,
-        response: AnnouncesResponse,
-    ) -> Result<ValidatorState> {
-        let mut s = s.into();
-        s.warning(format!(
-            "unexpected announces response: {response:?}, ignored."
-        ));
-        Ok(s)
-    }
-
-    fn injected_transaction(
-        s: impl Into<ValidatorState>,
-        tx: SignedInjectedTransaction,
-    ) -> Result<ValidatorState> {
-        let mut s = s.into();
-        s.context_mut().core.process_injected_transaction(tx)?;
-        Ok(s)
-    }
-}
-
 /// The context shared across all validator states.
 #[derive(Debug)]
-struct ValidatorContext {
+pub(crate) struct ValidatorContext {
     /// Core validator parameters and utilities.
     core: ValidatorCore,
 
@@ -537,6 +329,11 @@ struct ValidatorContext {
     /// Ongoing consensus tasks, if any.
     #[debug("{}", tasks.len())]
     tasks: FuturesUnordered<BoxFuture<'static, Result<ConsensusEvent>>>,
+
+    /// DKG engine for distributed key generation
+    dkg_engine: DkgEngineDb,
+    /// ROAST engine for threshold signing
+    roast_engine: RoastEngineDb,
 }
 
 impl ValidatorContext {
@@ -553,5 +350,96 @@ impl ValidatorContext {
             .core
             .signer
             .signed_message(self.core.pub_key, data, None)?)
+    }
+
+    fn switch_to_producer_or_subordinate(
+        mut self,
+        block: SimpleBlockData,
+    ) -> Result<ValidatorState> {
+        let current_era = self.core.timelines.era_from_ts(block.header.timestamp);
+
+        let validators = self
+            .core
+            .db
+            .validators(current_era)
+            .ok_or(anyhow!("validators not found for block({})", block.hash))?;
+
+        // Check if we need to start DKG for this era.
+        if !self.dkg_engine.is_completed(current_era)
+            && self.dkg_engine.get_state(current_era).is_none()
+        {
+            tracing::info!(era = current_era, "🔑 Starting DKG for new era");
+
+            // Start DKG with threshold = (2/3 * validators.len()).
+            let threshold = ((validators.len() as u64 * 2) / 3).max(1) as u16;
+
+            // Start DKG and broadcast initial round messages.
+            match self
+                .dkg_engine
+                .handle_event(crate::engine::dkg::DkgEngineEvent::Start {
+                    era: current_era,
+                    validators: validators.clone().into(),
+                    threshold,
+                }) {
+                Ok(actions) => {
+                    for action in actions {
+                        if let Ok(Some(msg)) =
+                            sign_dkg_action(&self.core.signer, self.core.pub_key, action)
+                        {
+                            self.output(ConsensusEvent::BroadcastValidatorMessage(msg));
+                        }
+                    }
+                }
+                Err(e) => {
+                    tracing::warn!(era = current_era, "Failed to start DKG: {}", e);
+                }
+            }
+        }
+
+        // Determine the block producer for the current slot.
+        let producer = utils::block_producer_for(
+            &validators,
+            block.header.timestamp,
+            self.core.slot_duration.as_secs(),
+        );
+        let my_address = self.core.pub_key.to_address();
+
+        if my_address == producer {
+            tracing::info!(block = %block.hash, "👷 Start to work as a producer");
+
+            producer::Producer::create(self, block, validators.clone())
+        } else {
+            // TODO #4636: add test (in ethexe-service) for case where is not validator for current block
+            let is_validator_for_current_block = validators.contains(&my_address);
+
+            tracing::info!(
+                block = %block.hash,
+                "👷 Start to work as subordinate, producer is {producer}, \
+                I'm validator for current block: {is_validator_for_current_block}",
+            );
+
+            subordinate::Subordinate::create(self, block, producer, is_validator_for_current_block)
+        }
+    }
+}
+
+impl EngineContext for ValidatorContext {
+    fn now(&self) -> std::time::Instant {
+        std::time::Instant::now()
+    }
+
+    fn publish_dkg_action(&mut self, action: crate::engine::dkg::DkgAction) -> Result<()> {
+        // Wrap and sign DKG actions for the validator network.
+        if let Some(msg) = sign_dkg_action(&self.core.signer, self.core.pub_key, action)? {
+            self.output(ConsensusEvent::BroadcastValidatorMessage(msg));
+        }
+        Ok(())
+    }
+
+    fn publish_roast_message(&mut self, message: crate::engine::roast::RoastMessage) -> Result<()> {
+        // Wrap and sign ROAST messages for the validator network.
+        let signed = sign_roast_message(&self.core.signer, self.core.pub_key, message)?;
+        self.output(ConsensusEvent::BroadcastValidatorMessage(signed));
+        Ok(())
     }
 }

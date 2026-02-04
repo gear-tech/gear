@@ -17,7 +17,6 @@ name = "actor-system-error"
 version = "1.10.0"
 dependencies = [
  "derive_more 2.1.1",
- "gear-workspace-hack",
 ]
 
 [[package]]
@@ -2267,7 +2266,6 @@ dependencies = [
  "gbuiltin-bls381",
  "gbuiltin-eth-bridge",
  "gear-core",
- "gear-workspace-hack",
  "gprimitives",
  "log",
  "parity-scale-codec",
@@ -2422,7 +2420,6 @@ dependencies = [
  "anyhow",
  "gear-core",
  "gear-wasm-instrument",
- "gear-workspace-hack",
  "log",
  "tracing-subscriber",
  "wasmer",
@@ -2450,7 +2447,6 @@ dependencies = [
  "colored",
  "etc",
  "gear-wasm-optimizer",
- "gear-workspace-hack",
  "glob",
  "gtest",
  "serde",
@@ -3166,7 +3162,6 @@ dependencies = [
  "cargo-http-registry",
  "cargo_metadata",
  "clap 4.5.54",
- "gear-workspace-hack",
  "reqwest",
  "serde",
  "tempfile",
@@ -3535,7 +3530,6 @@ name = "demo-async"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
- "gear-workspace-hack",
  "gstd",
  "parity-scale-codec",
 ]
@@ -3545,7 +3539,6 @@ name = "demo-async-critical"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
- "gear-workspace-hack",
  "gstd",
  "parity-scale-codec",
 ]
@@ -3555,7 +3548,6 @@ name = "demo-async-custom-entry"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
- "gear-workspace-hack",
  "gstd",
 ]
 
@@ -3565,7 +3557,6 @@ version = "0.1.0"
 dependencies = [
  "futures",
  "gear-wasm-builder",
- "gear-workspace-hack",
  "gstd",
  "parity-scale-codec",
 ]
@@ -3576,7 +3567,6 @@ version = "0.1.0"
 dependencies = [
  "async-recursion",
  "gear-wasm-builder",
- "gear-workspace-hack",
  "gstd",
 ]
 
@@ -3585,7 +3575,6 @@ name = "demo-async-reply-hook"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
- "gear-workspace-hack",
  "gstd",
 ]
 
@@ -3594,7 +3583,6 @@ name = "demo-async-signal-entry"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
- "gear-workspace-hack",
  "gstd",
  "parity-scale-codec",
 ]
@@ -3604,7 +3592,6 @@ name = "demo-async-tester"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
- "gear-workspace-hack",
  "gstd",
  "parity-scale-codec",
 ]
@@ -3614,7 +3601,6 @@ name = "demo-autoreply"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
- "gear-workspace-hack",
  "gstd",
  "gtest",
 ]
@@ -3624,7 +3610,6 @@ name = "demo-big-data-section"
 version = "1.10.0"
 dependencies = [
  "gear-wasm-builder",
- "gear-workspace-hack",
  "gstd",
  "gtest",
  "parity-scale-codec",
@@ -3637,7 +3622,6 @@ version = "0.1.0"
 dependencies = [
  "gbuiltin-bls381",
  "gear-wasm-builder",
- "gear-workspace-hack",
  "gstd",
  "hex-literal",
  "parity-scale-codec",
@@ -3647,7 +3631,6 @@ dependencies = [
 name = "demo-calc-hash"
 version = "0.1.0"
 dependencies = [
- "gear-workspace-hack",
  "parity-scale-codec",
  "sha2 0.10.9",
 ]
@@ -3658,7 +3641,6 @@ version = "0.1.0"
 dependencies = [
  "demo-calc-hash",
  "gear-wasm-builder",
- "gear-workspace-hack",
  "gstd",
  "parity-scale-codec",
 ]
@@ -3669,7 +3651,6 @@ version = "0.1.0"
 dependencies = [
  "demo-calc-hash",
  "gear-wasm-builder",
- "gear-workspace-hack",
  "gstd",
  "parity-scale-codec",
 ]
@@ -3679,7 +3660,6 @@ name = "demo-compose"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
- "gear-workspace-hack",
  "gstd",
  "hex",
 ]
@@ -3690,7 +3670,6 @@ version = "0.1.0"
 dependencies = [
  "gcore",
  "gear-wasm-builder",
- "gear-workspace-hack",
  "gstd",
  "parity-scale-codec",
 ]
@@ -3700,7 +3679,6 @@ name = "demo-create-program-reentrance"
 version = "1.10.0"
 dependencies = [
  "gear-wasm-builder",
- "gear-workspace-hack",
  "gstd",
  "hex",
 ]
@@ -3710,7 +3688,6 @@ name = "demo-ctor"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
- "gear-workspace-hack",
  "gstd",
  "gtest",
 ]
@@ -3720,7 +3697,6 @@ name = "demo-custom"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
- "gear-workspace-hack",
  "gstd",
  "gsys",
  "gtest",
@@ -3732,7 +3708,6 @@ name = "demo-delayed-reservation-sender"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
- "gear-workspace-hack",
  "gstd",
 ]
 
@@ -3741,7 +3716,6 @@ name = "demo-delayed-sender"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
- "gear-workspace-hack",
  "gstd",
 ]
 
@@ -3750,7 +3724,6 @@ name = "demo-delayed-sender-ethexe"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
- "gear-workspace-hack",
  "gstd",
 ]
 
@@ -3759,7 +3732,6 @@ name = "demo-distributor"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
- "gear-workspace-hack",
  "gstd",
  "gtest",
  "parity-scale-codec",
@@ -3770,7 +3742,6 @@ name = "demo-fungible-token"
 version = "0.1.4"
 dependencies = [
  "gear-wasm-builder",
- "gear-workspace-hack",
  "gstd",
  "hashbrown 0.14.5",
  "parity-scale-codec",
@@ -3783,7 +3754,6 @@ version = "0.1.0"
 dependencies = [
  "futures",
  "gear-wasm-builder",
- "gear-workspace-hack",
  "gstd",
  "parity-scale-codec",
 ]
@@ -3793,7 +3763,6 @@ name = "demo-gas-burned"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
- "gear-workspace-hack",
  "gstd",
  "gtest",
  "log",
@@ -3804,7 +3773,6 @@ name = "demo-incomplete-async-payloads"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
- "gear-workspace-hack",
  "gstd",
  "parity-scale-codec",
 ]
@@ -3815,7 +3783,6 @@ version = "0.1.0"
 dependencies = [
  "gear-core",
  "gear-wasm-builder",
- "gear-workspace-hack",
  "gstd",
  "gtest",
  "parity-scale-codec",
@@ -3826,7 +3793,6 @@ name = "demo-init-fail-sender"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
- "gear-workspace-hack",
  "gstd",
 ]
 
@@ -3835,7 +3801,6 @@ name = "demo-init-wait"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
- "gear-workspace-hack",
  "gstd",
 ]
 
@@ -3844,7 +3809,6 @@ name = "demo-init-wait-reply-exit"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
- "gear-workspace-hack",
  "gstd",
 ]
 
@@ -3853,7 +3817,6 @@ name = "demo-messenger"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
- "gear-workspace-hack",
  "gstd",
 ]
 
@@ -3862,7 +3825,6 @@ name = "demo-mul-by-const"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
- "gear-workspace-hack",
  "gstd",
  "hex",
 ]
@@ -3872,7 +3834,6 @@ name = "demo-ncompose"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
- "gear-workspace-hack",
  "gstd",
  "hex",
 ]
@@ -3882,7 +3843,6 @@ name = "demo-node"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
- "gear-workspace-hack",
  "gstd",
  "gtest",
  "parity-scale-codec",
@@ -3893,7 +3853,6 @@ name = "demo-out-of-memory"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
- "gear-workspace-hack",
  "gstd",
 ]
 
@@ -3903,7 +3862,6 @@ version = "0.1.0"
 dependencies = [
  "gear-core",
  "gear-wasm-builder",
- "gear-workspace-hack",
  "gstd",
  "gtest",
 ]
@@ -3913,7 +3871,6 @@ name = "demo-piggy-bank"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
- "gear-workspace-hack",
  "gstd",
 ]
 
@@ -3922,7 +3879,6 @@ name = "demo-ping"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
- "gear-workspace-hack",
  "gstd",
 ]
 
@@ -3931,7 +3887,6 @@ name = "demo-program-factory"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
- "gear-workspace-hack",
  "gstd",
  "gtest",
  "hex-literal",
@@ -3943,7 +3898,6 @@ name = "demo-program-generator"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
- "gear-workspace-hack",
  "gstd",
  "hex-literal",
 ]
@@ -3953,7 +3907,6 @@ name = "demo-proxy"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
- "gear-workspace-hack",
  "gstd",
  "parity-scale-codec",
  "scale-info",
@@ -3965,7 +3918,6 @@ version = "0.1.0"
 dependencies = [
  "gbuiltin-proxy",
  "gear-wasm-builder",
- "gear-workspace-hack",
  "gstd",
 ]
 
@@ -3974,7 +3926,6 @@ name = "demo-proxy-relay"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
- "gear-workspace-hack",
  "gstd",
  "parity-scale-codec",
  "scale-info",
@@ -3985,7 +3936,6 @@ name = "demo-proxy-reservation-with-gas"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
- "gear-workspace-hack",
  "gstd",
  "parity-scale-codec",
  "scale-info",
@@ -3996,7 +3946,6 @@ name = "demo-read-big-state"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
- "gear-workspace-hack",
  "gstd",
  "parity-scale-codec",
 ]
@@ -4006,7 +3955,6 @@ name = "demo-reservation-manager"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
- "gear-workspace-hack",
  "gstd",
  "parity-scale-codec",
 ]
@@ -4016,7 +3964,6 @@ name = "demo-reserve-gas"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
- "gear-workspace-hack",
  "gstd",
  "gtest",
  "parity-scale-codec",
@@ -4027,7 +3974,6 @@ name = "demo-rwlock"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
- "gear-workspace-hack",
  "gstd",
  "parity-scale-codec",
 ]
@@ -4037,7 +3983,6 @@ name = "demo-send-from-reservation"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
- "gear-workspace-hack",
  "gstd",
  "parity-scale-codec",
 ]
@@ -4049,7 +3994,6 @@ dependencies = [
  "gcore",
  "gear-core",
  "gear-wasm-builder",
- "gear-workspace-hack",
  "gstd",
  "gtest",
  "parity-scale-codec",
@@ -4060,7 +4004,6 @@ name = "demo-stack-allocations"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
- "gear-workspace-hack",
  "gstd",
  "gtest",
  "parity-scale-codec",
@@ -4074,7 +4017,6 @@ version = "0.1.0"
 dependencies = [
  "gbuiltin-staking",
  "gear-wasm-builder",
- "gear-workspace-hack",
  "gstd",
  "hashbrown 0.14.5",
  "hex-literal",
@@ -4086,7 +4028,6 @@ name = "demo-state-rollback"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
- "gear-workspace-hack",
  "gstd",
 ]
 
@@ -4095,7 +4036,6 @@ name = "demo-sync-duplicate"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
- "gear-workspace-hack",
  "gstd",
 ]
 
@@ -4104,7 +4044,6 @@ name = "demo-syscall-error"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
- "gear-workspace-hack",
  "gstd",
  "gtest",
 ]
@@ -4114,7 +4053,6 @@ name = "demo-value-sender"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
- "gear-workspace-hack",
  "gstd",
 ]
 
@@ -4123,7 +4061,6 @@ name = "demo-value-sender-ethexe"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
- "gear-workspace-hack",
  "gstd",
 ]
 
@@ -4132,7 +4069,6 @@ name = "demo-vec"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
- "gear-workspace-hack",
  "gstd",
 ]
 
@@ -4141,7 +4077,6 @@ name = "demo-wait"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
- "gear-workspace-hack",
  "gstd",
 ]
 
@@ -4151,7 +4086,6 @@ version = "0.1.0"
 dependencies = [
  "futures",
  "gear-wasm-builder",
- "gear-workspace-hack",
  "gstd",
  "parity-scale-codec",
 ]
@@ -4161,7 +4095,6 @@ name = "demo-wait-wake"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
- "gear-workspace-hack",
  "gstd",
  "gtest",
  "parity-scale-codec",
@@ -4176,7 +4109,6 @@ dependencies = [
  "gcore",
  "gear-core",
  "gear-wasm-builder",
- "gear-workspace-hack",
  "gstd",
  "gtest",
  "parity-scale-codec",
@@ -4187,7 +4119,6 @@ name = "demo-waiting-proxy"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
- "gear-workspace-hack",
  "gstd",
 ]
 
@@ -4195,7 +4126,6 @@ dependencies = [
 name = "demo-wat"
 version = "0.1.0"
 dependencies = [
- "gear-workspace-hack",
  "hex",
  "wasmparser 0.230.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "wasmprinter",
@@ -4934,7 +4864,6 @@ dependencies = [
  "ethexe-common",
  "ethexe-ethereum",
  "futures",
- "gear-workspace-hack",
  "gprimitives",
  "gsigner",
  "log",
@@ -4959,7 +4888,6 @@ dependencies = [
  "ethexe-prometheus",
  "ethexe-rpc",
  "ethexe-service",
- "gear-workspace-hack",
  "gprimitives",
  "gsigner",
  "hex",
@@ -4985,7 +4913,6 @@ dependencies = [
  "auto_impl",
  "derive_more 2.1.1",
  "gear-core",
- "gear-workspace-hack",
  "gprimitives",
  "gsigner",
  "hex",
@@ -5012,7 +4939,6 @@ dependencies = [
  "futures",
  "gear-core",
  "gear-utils",
- "gear-workspace-hack",
  "gprimitives",
  "log",
  "ntest",
@@ -5031,13 +4957,13 @@ dependencies = [
  "derive_more 2.1.1",
  "ethexe-common",
  "ethexe-db",
+ "ethexe-dkg-roast",
  "ethexe-ethereum",
  "ethexe-runtime-common",
  "ethexe-service-utils",
  "futures",
  "gear-core",
  "gear-utils",
- "gear-workspace-hack",
  "gprimitives",
  "gsigner",
  "hashbrown 0.14.5",
@@ -5049,6 +4975,7 @@ dependencies = [
  "rand 0.8.5",
  "rand_chacha 0.3.1",
  "roast-secp256k1-evm",
+ "thiserror 2.0.17",
  "tokio",
  "tracing",
 ]
@@ -5064,13 +4991,26 @@ dependencies = [
  "ethexe-common",
  "ethexe-runtime-common",
  "gear-core",
- "gear-workspace-hack",
  "gprimitives",
  "parity-scale-codec",
  "paste",
  "rocksdb",
  "scopeguard",
  "tempfile",
+ "tracing",
+]
+
+[[package]]
+name = "ethexe-dkg-roast"
+version = "1.10.0"
+dependencies = [
+ "anyhow",
+ "ethexe-common",
+ "ethexe-db",
+ "gprimitives",
+ "rand 0.8.5",
+ "roast-secp256k1-evm",
+ "thiserror 2.0.17",
  "tracing",
 ]
 
@@ -5086,7 +5026,6 @@ dependencies = [
  "gear-core",
  "gear-core-errors",
  "gear-utils",
- "gear-workspace-hack",
  "gprimitives",
  "gsigner",
  "log",
@@ -5111,7 +5050,6 @@ dependencies = [
  "ethexe-db",
  "ethexe-service-utils",
  "futures",
- "gear-workspace-hack",
  "gprimitives",
  "gsigner",
  "indexmap 2.13.0",
@@ -5140,7 +5078,6 @@ dependencies = [
  "ethexe-ethereum",
  "futures",
  "gear-utils",
- "gear-workspace-hack",
  "gprimitives",
  "gsigner",
  "log",
@@ -5167,7 +5104,6 @@ dependencies = [
  "gear-lazy-pages",
  "gear-runtime-interface",
  "gear-wasm-instrument",
- "gear-workspace-hack",
  "gprimitives",
  "itertools 0.13.0",
  "log",
@@ -5189,7 +5125,6 @@ version = "1.10.0"
 dependencies = [
  "anyhow",
  "futures",
- "gear-workspace-hack",
  "hyper 0.14.32",
  "log",
  "prometheus",
@@ -5208,7 +5143,6 @@ dependencies = [
  "ethexe-runtime-common",
  "futures",
  "gear-core",
- "gear-workspace-hack",
  "gprimitives",
  "hyper 1.8.1",
  "jsonrpsee",
@@ -5231,7 +5165,6 @@ dependencies = [
  "gear-core",
  "gear-core-processor",
  "gear-lazy-pages-interface",
- "gear-workspace-hack",
  "gprimitives",
  "log",
  "parity-scale-codec",
@@ -5250,7 +5183,6 @@ dependencies = [
  "gear-core-errors",
  "gear-core-processor",
  "gear-lazy-pages-common",
- "gear-workspace-hack",
  "gprimitives",
  "gsys",
  "log",
@@ -5269,7 +5201,6 @@ dependencies = [
  "ethexe-rpc",
  "ethexe-runtime-common",
  "futures",
- "gear-workspace-hack",
  "gprimitives",
  "gsigner",
  "jsonrpsee",
@@ -5297,6 +5228,7 @@ dependencies = [
  "ethexe-compute",
  "ethexe-consensus",
  "ethexe-db",
+ "ethexe-dkg-roast",
  "ethexe-ethereum",
  "ethexe-network",
  "ethexe-observer",
@@ -5308,7 +5240,6 @@ dependencies = [
  "futures",
  "gear-core",
  "gear-core-errors",
- "gear-workspace-hack",
  "gprimitives",
  "gsigner",
  "jsonrpsee",
@@ -5329,7 +5260,6 @@ name = "ethexe-service-utils"
 version = "1.10.0"
 dependencies = [
  "futures",
- "gear-workspace-hack",
  "log",
  "tokio",
 ]
@@ -6266,7 +6196,6 @@ name = "galloc"
 version = "1.10.0"
 dependencies = [
  "gear-dlmalloc",
- "gear-workspace-hack",
 ]
 
 [[package]]
@@ -6278,7 +6207,6 @@ dependencies = [
  "ark-ff 0.4.2",
  "ark-scale",
  "ark-serialize 0.4.2",
- "gear-workspace-hack",
  "parity-scale-codec",
  "scale-info",
 ]
@@ -6287,7 +6215,6 @@ dependencies = [
 name = "gbuiltin-eth-bridge"
 version = "1.10.0"
 dependencies = [
- "gear-workspace-hack",
  "gprimitives",
  "parity-scale-codec",
  "scale-info",
@@ -6297,7 +6224,6 @@ dependencies = [
 name = "gbuiltin-proxy"
 version = "1.10.0"
 dependencies = [
- "gear-workspace-hack",
  "gprimitives",
  "parity-scale-codec",
  "scale-info",
@@ -6307,7 +6233,6 @@ dependencies = [
 name = "gbuiltin-staking"
 version = "1.10.0"
 dependencies = [
- "gear-workspace-hack",
  "gprimitives",
  "parity-scale-codec",
  "scale-info",
@@ -6326,7 +6251,6 @@ dependencies = [
  "gear-core",
  "gear-node-wrapper",
  "gear-runtime-primitives",
- "gear-workspace-hack",
  "gsdk",
  "gsigner",
  "hex",
@@ -6350,7 +6274,6 @@ dependencies = [
  "galloc",
  "gear-core-errors",
  "gear-stack-buffer",
- "gear-workspace-hack",
  "gprimitives",
  "gsys",
  "hex-literal",
@@ -6370,7 +6293,6 @@ dependencies = [
  "gear-core",
  "gear-node-testing",
  "gear-runtime-primitives",
- "gear-workspace-hack",
  "log",
  "pallet-gear",
  "pallet-gear-builtin",
@@ -6406,7 +6328,6 @@ name = "gear-bags-thresholds"
 version = "1.0.0"
 dependencies = [
  "clap 4.5.54",
- "gear-workspace-hack",
  "generate-bags",
  "vara-runtime",
 ]
@@ -6416,7 +6337,6 @@ name = "gear-baremetal-weights-patcher"
 version = "0.1.0"
 dependencies = [
  "clap 4.5.54",
- "gear-workspace-hack",
  "proc-macro2",
  "syn 2.0.114",
 ]
@@ -6430,7 +6350,6 @@ dependencies = [
  "gear-core",
  "gear-utils",
  "gear-wasm-gen",
- "gear-workspace-hack",
  "hex",
  "log",
  "rand 0.8.5",
@@ -6452,7 +6371,6 @@ dependencies = [
  "gear-runtime-interface",
  "gear-runtime-primitives",
  "gear-service",
- "gear-workspace-hack",
  "log",
  "mimalloc",
  "pallet-gear-payment",
@@ -6484,7 +6402,6 @@ dependencies = [
  "gear-core",
  "gear-utils",
  "gear-wasm-instrument",
- "gear-workspace-hack",
  "gsys",
  "log",
  "primitive-types 0.12.2",
@@ -6502,7 +6419,6 @@ dependencies = [
 name = "gear-common-codegen"
 version = "1.10.0"
 dependencies = [
- "gear-workspace-hack",
  "quote",
  "syn 2.0.114",
 ]
@@ -6518,7 +6434,6 @@ dependencies = [
  "enum-iterator 1.5.0",
  "gear-core-errors",
  "gear-wasm-instrument",
- "gear-workspace-hack",
  "gprimitives",
  "gsys",
  "hex",
@@ -6553,7 +6468,6 @@ dependencies = [
  "gear-sandbox",
  "gear-sandbox-env",
  "gear-wasm-instrument",
- "gear-workspace-hack",
  "gsys",
  "log",
  "parity-scale-codec",
@@ -6565,7 +6479,6 @@ name = "gear-core-errors"
 version = "1.10.0"
 dependencies = [
  "enum-iterator 1.5.0",
- "gear-workspace-hack",
  "parity-scale-codec",
  "scale-decode 0.16.2",
  "scale-encode",
@@ -6586,7 +6499,6 @@ dependencies = [
  "gear-core-errors",
  "gear-lazy-pages-common",
  "gear-wasm-instrument",
- "gear-workspace-hack",
  "gsys",
  "log",
  "parity-scale-codec",
@@ -6610,7 +6522,6 @@ name = "gear-key-finder"
 version = "1.10.0"
 dependencies = [
  "directories",
- "gear-workspace-hack",
  "hex",
 ]
 
@@ -6624,7 +6535,6 @@ dependencies = [
  "gear-core",
  "gear-lazy-pages-common",
  "gear-sandbox-host",
- "gear-workspace-hack",
  "libc",
  "log",
  "mach",
@@ -6643,7 +6553,6 @@ name = "gear-lazy-pages-common"
 version = "1.10.0"
 dependencies = [
  "gear-core",
- "gear-workspace-hack",
  "num_enum 0.6.1",
  "parity-scale-codec",
 ]
@@ -6656,7 +6565,6 @@ dependencies = [
  "gear-core",
  "gear-lazy-pages-common",
  "gear-runtime-interface",
- "gear-workspace-hack",
  "log",
  "sp-std",
 ]
@@ -6668,7 +6576,6 @@ dependencies = [
  "gear-core",
  "gear-lazy-pages",
  "gear-lazy-pages-common",
- "gear-workspace-hack",
  "log",
 ]
 
@@ -6684,7 +6591,6 @@ dependencies = [
  "gear-core",
  "gear-utils",
  "gear-wasm-gen",
- "gear-workspace-hack",
  "gsdk",
  "names",
  "parking_lot 0.12.5",
@@ -6706,7 +6612,6 @@ dependencies = [
  "gear-runtime-interface",
  "gear-runtime-primitives",
  "gear-service",
- "gear-workspace-hack",
  "parity-scale-codec",
  "sc-service",
  "sp-core",
@@ -6723,7 +6628,6 @@ name = "gear-node-wrapper"
 version = "1.10.0"
 dependencies = [
  "anyhow",
- "gear-workspace-hack",
  "rand 0.8.5",
  "smallvec",
  "which",
@@ -6738,7 +6642,6 @@ dependencies = [
  "gear-runtime-interface",
  "gear-runtime-primitives",
  "gear-service",
- "gear-workspace-hack",
  "hex",
  "log",
  "parity-scale-codec",
@@ -6766,7 +6669,6 @@ dependencies = [
  "frame-system",
  "frame-system-benchmarking",
  "gear-runtime-primitives",
- "gear-workspace-hack",
  "pallet-authorship",
  "pallet-balances",
  "pallet-gear",
@@ -6785,7 +6687,6 @@ dependencies = [
  "gear-lazy-pages",
  "gear-lazy-pages-common",
  "gear-sandbox-interface",
- "gear-workspace-hack",
  "log",
  "parity-scale-codec",
  "sp-io",
@@ -6797,7 +6698,6 @@ dependencies = [
 name = "gear-runtime-primitives"
 version = "1.10.0"
 dependencies = [
- "gear-workspace-hack",
  "sp-core",
  "sp-runtime",
 ]
@@ -6810,7 +6710,6 @@ dependencies = [
  "gear-sandbox-env",
  "gear-sandbox-interface",
  "gear-wasmer-cache",
- "gear-workspace-hack",
  "log",
  "parity-scale-codec",
  "pathdiff",
@@ -6828,7 +6727,6 @@ dependencies = [
 name = "gear-sandbox-env"
 version = "1.10.0"
 dependencies = [
- "gear-workspace-hack",
  "parity-scale-codec",
  "sp-debug-derive",
  "sp-std",
@@ -6844,7 +6742,6 @@ dependencies = [
  "environmental",
  "gear-sandbox-env",
  "gear-wasmer-cache",
- "gear-workspace-hack",
  "log",
  "parity-scale-codec",
  "region",
@@ -6862,7 +6759,6 @@ name = "gear-sandbox-interface"
 version = "1.10.0"
 dependencies = [
  "gear-sandbox-host",
- "gear-workspace-hack",
  "log",
  "parity-scale-codec",
  "sp-runtime-interface",
@@ -6884,7 +6780,6 @@ dependencies = [
  "gear-runtime-common",
  "gear-runtime-interface",
  "gear-runtime-primitives",
- "gear-workspace-hack",
  "jsonrpsee",
  "log",
  "pallet-gear",
@@ -6953,7 +6848,6 @@ version = "1.10.0"
 dependencies = [
  "blake2 0.10.6",
  "bs58 0.5.1",
- "gear-workspace-hack",
  "hex",
 ]
 
@@ -6962,7 +6856,6 @@ name = "gear-stack-buffer"
 version = "1.10.0"
 dependencies = [
  "cc",
- "gear-workspace-hack",
 ]
 
 [[package]]
@@ -6970,7 +6863,6 @@ name = "gear-utils"
 version = "1.10.0"
 dependencies = [
  "gear-core",
- "gear-workspace-hack",
  "hex",
  "nonempty 0.12.0",
  "parity-scale-codec",
@@ -6987,7 +6879,6 @@ dependencies = [
  "anyhow",
  "clap 4.5.54",
  "futures",
- "gear-workspace-hack",
  "gsdk",
  "log",
  "parity-scale-codec",
@@ -7009,7 +6900,6 @@ dependencies = [
  "gear-core",
  "gear-wasm-instrument",
  "gear-wasm-optimizer",
- "gear-workspace-hack",
  "itertools 0.13.0",
  "log",
  "pathdiff",
@@ -7031,7 +6921,6 @@ dependencies = [
  "gear-lazy-pages-native-interface",
  "gear-utils",
  "gear-wasm-instrument",
- "gear-workspace-hack",
  "gsys",
  "indexmap 2.13.0",
  "log",
@@ -7053,7 +6942,6 @@ dependencies = [
  "derive_more 2.1.1",
  "diff",
  "enum-iterator 1.5.0",
- "gear-workspace-hack",
  "log",
  "proptest",
  "wasm-encoder 0.230.0 (registry+https://github.com/rust-lang/crates.io-index)",
@@ -7070,7 +6958,6 @@ dependencies = [
  "anyhow",
  "colored",
  "gear-wasm-instrument",
- "gear-workspace-hack",
  "log",
  "regex",
  "rustc_version 0.4.1",
@@ -7088,7 +6975,6 @@ dependencies = [
  "demo-constructor",
  "derive_more 2.1.1",
  "fs4",
- "gear-workspace-hack",
  "log",
  "loom",
  "tempfile",
@@ -7105,7 +6991,6 @@ dependencies = [
  "clap 4.5.54",
  "frame-support",
  "gear-utils",
- "gear-workspace-hack",
  "heck 0.5.0",
  "indexmap 2.13.0",
  "pallet-gear",
@@ -7686,7 +7571,6 @@ dependencies = [
  "bytemuck",
  "derive_more 2.1.1",
  "gear-ss58",
- "gear-workspace-hack",
  "hex",
  "primitive-types 0.12.2",
  "scale-decode 0.16.2",
@@ -7734,7 +7618,6 @@ dependencies = [
  "gear-core-errors",
  "gear-node-wrapper",
  "gear-utils",
- "gear-workspace-hack",
  "gsdk-codegen",
  "hex",
  "indexmap 2.13.0",
@@ -7758,7 +7641,6 @@ dependencies = [
 name = "gsdk-codegen"
 version = "1.10.0"
 dependencies = [
- "gear-workspace-hack",
  "proc-macro2",
  "quote",
  "syn 2.0.114",
@@ -7776,7 +7658,6 @@ dependencies = [
  "colored",
  "derive_more 2.1.1",
  "dirs",
- "gear-workspace-hack",
  "gprimitives",
  "hex",
  "k256",
@@ -7810,7 +7691,6 @@ dependencies = [
  "galloc",
  "gcore",
  "gear-core-errors",
- "gear-workspace-hack",
  "gprimitives",
  "gstd-codegen",
  "hashbrown 0.14.5",
@@ -7825,7 +7705,6 @@ dependencies = [
 name = "gstd-codegen"
 version = "1.10.0"
 dependencies = [
- "gear-workspace-hack",
  "gprimitives",
  "gstd",
  "proc-macro2",
@@ -7839,7 +7718,6 @@ name = "gsys"
 version = "1.10.0"
 dependencies = [
  "bytemuck",
- "gear-workspace-hack",
 ]
 
 [[package]]
@@ -7865,7 +7743,6 @@ dependencies = [
  "gear-lazy-pages-common",
  "gear-lazy-pages-native-interface",
  "gear-utils",
- "gear-workspace-hack",
  "gprimitives",
  "gsys",
  "log",
@@ -9194,7 +9071,6 @@ dependencies = [
 name = "junit-common"
 version = "0.1.0"
 dependencies = [
- "gear-workspace-hack",
  "serde",
 ]
 
@@ -9292,7 +9168,6 @@ dependencies = [
  "gear-lazy-pages-common",
  "gear-wasm-gen",
  "gear-wasm-instrument",
- "gear-workspace-hack",
  "log",
  "region",
  "wasmer",
@@ -9309,7 +9184,6 @@ dependencies = [
  "clap 4.5.54",
  "core_affinity",
  "env_logger 0.11.8",
- "gear-workspace-hack",
  "hex",
  "ipc-channel",
  "lazy-pages-fuzzer",
@@ -11484,7 +11358,6 @@ name = "numerated"
 version = "1.10.0"
 dependencies = [
  "derive_more 2.1.1",
- "gear-workspace-hack",
  "log",
  "num-traits",
  "proptest",
@@ -11925,7 +11798,6 @@ dependencies = [
  "gear-runtime-interface",
  "gear-sandbox",
  "gear-wasm-instrument",
- "gear-workspace-hack",
  "gstd",
  "gsys",
  "hex",
@@ -11966,7 +11838,6 @@ dependencies = [
  "frame-support",
  "frame-system",
  "gear-common",
- "gear-workspace-hack",
  "log",
  "pallet-authorship",
  "pallet-balances",
@@ -11998,7 +11869,6 @@ dependencies = [
  "gear-core-errors",
  "gear-core-processor",
  "gear-runtime-interface",
- "gear-workspace-hack",
  "gprimitives",
  "hex-literal",
  "impl-trait-for-tuples",
@@ -12033,7 +11903,6 @@ dependencies = [
 name = "pallet-gear-builtin-rpc"
 version = "1.10.0"
 dependencies = [
- "gear-workspace-hack",
  "jsonrpsee",
  "pallet-gear-builtin-rpc-runtime-api",
  "sp-api",
@@ -12046,7 +11915,6 @@ dependencies = [
 name = "pallet-gear-builtin-rpc-runtime-api"
 version = "1.10.0"
 dependencies = [
- "gear-workspace-hack",
  "sp-api",
  "sp-core",
 ]
@@ -12065,7 +11933,6 @@ dependencies = [
  "gear-common",
  "gear-core",
  "gear-core-errors",
- "gear-workspace-hack",
  "gprimitives",
  "log",
  "pallet-authorship",
@@ -12098,7 +11965,6 @@ name = "pallet-gear-eth-bridge-primitives"
 version = "1.10.0"
 dependencies = [
  "binary-merkle-tree",
- "gear-workspace-hack",
  "gprimitives",
  "parity-scale-codec",
  "scale-info",
@@ -12109,7 +11975,6 @@ dependencies = [
 name = "pallet-gear-eth-bridge-rpc"
 version = "1.10.0"
 dependencies = [
- "gear-workspace-hack",
  "jsonrpsee",
  "pallet-gear-eth-bridge-rpc-runtime-api",
  "primitive-types 0.12.2",
@@ -12122,7 +11987,6 @@ dependencies = [
 name = "pallet-gear-eth-bridge-rpc-runtime-api"
 version = "1.10.0"
 dependencies = [
- "gear-workspace-hack",
  "pallet-gear-eth-bridge",
  "sp-api",
  "sp-core",
@@ -12137,7 +12001,6 @@ dependencies = [
  "frame-system",
  "gear-common",
  "gear-core",
- "gear-workspace-hack",
  "pallet-balances",
  "pallet-gear-messenger",
  "parity-scale-codec",
@@ -12158,7 +12021,6 @@ dependencies = [
  "frame-system",
  "gear-common",
  "gear-core",
- "gear-workspace-hack",
  "pallet-authorship",
  "pallet-balances",
  "pallet-gear-gas",
@@ -12181,7 +12043,6 @@ dependencies = [
  "frame-system",
  "gear-common",
  "gear-core",
- "gear-workspace-hack",
  "pallet-authorship",
  "pallet-balances",
  "pallet-gear",
@@ -12205,7 +12066,6 @@ dependencies = [
 name = "pallet-gear-proc-macro"
 version = "1.10.0"
 dependencies = [
- "gear-workspace-hack",
  "proc-macro2",
  "quote",
  "syn 2.0.114",
@@ -12219,7 +12079,6 @@ dependencies = [
  "frame-system",
  "gear-common",
  "gear-core",
- "gear-workspace-hack",
  "pallet-authorship",
  "pallet-balances",
  "pallet-gear-gas",
@@ -12242,7 +12101,6 @@ dependencies = [
  "gear-common",
  "gear-core",
  "gear-core-errors",
- "gear-workspace-hack",
  "jsonrpsee",
  "log",
  "pallet-gear-rpc-runtime-api",
@@ -12260,7 +12118,6 @@ dependencies = [
 name = "pallet-gear-rpc-runtime-api"
 version = "1.10.0"
 dependencies = [
- "gear-workspace-hack",
  "pallet-gear",
  "sp-api",
  "sp-core",
@@ -12279,7 +12136,6 @@ dependencies = [
  "gear-common",
  "gear-core",
  "gear-core-errors",
- "gear-workspace-hack",
  "log",
  "pallet-authorship",
  "pallet-balances",
@@ -12308,7 +12164,6 @@ dependencies = [
  "frame-support",
  "frame-system",
  "gear-common",
- "gear-workspace-hack",
  "log",
  "pallet-authorship",
  "pallet-balances",
@@ -12335,7 +12190,6 @@ dependencies = [
 name = "pallet-gear-staking-rewards-rpc"
 version = "1.10.0"
 dependencies = [
- "gear-workspace-hack",
  "jsonrpsee",
  "pallet-gear-staking-rewards-rpc-runtime-api",
  "sp-api",
@@ -12347,7 +12201,6 @@ dependencies = [
 name = "pallet-gear-staking-rewards-rpc-runtime-api"
 version = "1.10.0"
 dependencies = [
- "gear-workspace-hack",
  "pallet-gear-staking-rewards",
  "sp-api",
 ]
@@ -12362,7 +12215,6 @@ dependencies = [
  "frame-system",
  "gear-common",
  "gear-core",
- "gear-workspace-hack",
  "pallet-balances",
  "parity-scale-codec",
  "primitive-types 0.12.2",
@@ -12401,7 +12253,6 @@ version = "1.10.0"
 dependencies = [
  "frame-support",
  "frame-system",
- "gear-workspace-hack",
  "log",
  "parity-scale-codec",
  "scale-info",
@@ -14272,7 +14123,6 @@ version = "0.1.0"
 dependencies = [
  "clap 4.5.54",
  "frame-support",
- "gear-workspace-hack",
  "junit-common",
  "pallet-gear",
  "quick-xml",
@@ -14549,7 +14399,6 @@ dependencies = [
  "gear-runtime-primitives",
  "gear-utils",
  "gear-wasm-gen",
- "gear-workspace-hack",
  "hex",
  "hex-literal",
  "log",
@@ -14575,7 +14424,6 @@ name = "runtime-fuzzer-fuzz"
 version = "0.1.0"
 dependencies = [
  "gear-utils",
- "gear-workspace-hack",
  "libfuzzer-sys",
  "log",
  "runtime-fuzzer",
@@ -18393,7 +18241,6 @@ name = "test-syscalls"
 version = "0.1.0"
 dependencies = [
  "gear-wasm-builder",
- "gear-workspace-hack",
  "gstd",
  "parity-scale-codec",
 ]
@@ -19353,7 +19200,6 @@ dependencies = [
  "gear-runtime-interface",
  "gear-runtime-primitives",
  "gear-wasm-instrument",
- "gear-workspace-hack",
  "log",
  "pallet-authority-discovery",
  "pallet-authorship",
@@ -19710,7 +19556,6 @@ dependencies = [
  "clap 4.5.54",
  "gear-wasm-builder",
  "gear-wasm-instrument",
- "gear-workspace-hack",
  "log",
  "tracing-subscriber",
 ]
