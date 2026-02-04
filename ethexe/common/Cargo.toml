@@ -28,7 +28,6 @@ k256 = { version = "0.13.4", features = ["ecdsa"], default-features = false }
 itertools = { workspace = true, optional = true }
 tap = { workspace = true, optional = true }
 gear-workspace-hack.workspace = true
-thiserror.workspace = true
 
 [dev-dependencies]
 serde_json.workspace = true

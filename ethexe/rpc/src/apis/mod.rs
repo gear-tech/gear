@@ -28,5 +28,5 @@ pub use program::{FullProgramState, ProgramApi, ProgramServer};
 
 #[cfg(feature = "client")]
 pub use crate::apis::{
-    block::BlockClient, code::CodeClient, injected::InjectedClient, program::ProgramClient
+    block::BlockClient, code::CodeClient, injected::InjectedClient, program::ProgramClient,
 };

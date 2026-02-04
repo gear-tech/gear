@@ -25,4 +25,3 @@ pub mod tx_status;
 pub use tx_status::{
     InvalidityReason, PendingStatus, TransactionStatus, TransactionStatusResolver,
 };
-
