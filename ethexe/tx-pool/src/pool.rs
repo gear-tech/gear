@@ -1,6 +1,6 @@
 // This file is part of Gear.
 //
-// Copyright (C) 2025 Gear Technologies Inc.
+// Copyright (C) 2026 Gear Technologies Inc.
 // SPDX-License-Identifier: GPL-3.0-or-later WITH Classpath-exception-2.0
 //
 // This program is free software: you can redistribute it and/or modify
@@ -16,13 +16,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::tx_validation::TransactionStatusResolver;
+use crate::tx_status::{InvalidityReason, TransactionStatus, TransactionStatusResolver};
 use anyhow::Result;
 use ethexe_common::{
     Announce, HashOf,
     db::{AnnounceStorageRO, CodesStorageRO, InjectedStorageRW, OnChainStorageRO},
-    injected::{InjectedTransaction, SignedInjectedTransaction},
-    tx_pool::{RemovalNotification, TransactionStatus},
+    injected::{InjectedTransaction, InjectedTransactionAcceptance, SignedInjectedTransaction},
 };
 use ethexe_db::Database;
 use ethexe_runtime_common::state::Storage;
@@ -36,18 +35,9 @@ pub const MAX_INJECTED_TRANSACTIONS_SIZE_PER_ANNOUNCE: usize = 2 * 1024 * 1024;
 
 /// [`TransactionPool`] is a local pool of [`InjectedTransaction`]s, which validator can include in announces.
 #[derive(Clone)]
-pub(crate) struct TransactionPool<DB = Database> {
+pub struct TransactionPool<DB = Database> {
     inner: HashSet<HashOf<InjectedTransaction>>,
     db: DB,
-}
-
-/// The output of [`TransactionPool::select_for_announce`].
-#[derive(Debug, Clone, Default)]
-pub struct SelectionOutput {
-    /// Selected transactions to be included in announce.
-    pub selected_txs: Vec<SignedInjectedTransaction>,
-    /// Removed transactions notifications.
-    pub removed_txs: Vec<RemovalNotification>,
 }
 
 /// Error returned when adding transaction to the pool.
@@ -61,12 +51,46 @@ pub enum AddTransactionError {
 }
 
 /// The result of adding a transaction to the [`TransactionPool`].
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub enum TransactionAdditionResult {
+#[derive(Debug, Clone, PartialEq, Eq, derive_more::IsVariant)]
+pub enum TransactionAdditionStatus {
     /// Transaction was successfully added to the [`TransactionPool`]
     Added,
     /// Transaction was not added to the [`TransactionPool`] due to the error.
     NotAdded(AddTransactionError),
+    /// Transaction was received by not a validator.
+    NotValidator,
+}
+
+impl From<TransactionAdditionStatus> for InjectedTransactionAcceptance {
+    fn from(value: TransactionAdditionStatus) -> Self {
+        match value {
+            TransactionAdditionStatus::Added => Self::Accept,
+            TransactionAdditionStatus::NotAdded(error) => Self::Reject {
+                reason: error.to_string(),
+            },
+            TransactionAdditionStatus::NotValidator => Self::Reject {
+                reason: "Transaction rejected: recipient is not a validator.".to_string(),
+            },
+        }
+    }
+}
+
+/// Removal notification for the transaction sender from the pool.
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub struct RemovalNotification {
+    /// Removed transaction hash
+    pub tx_hash: HashOf<InjectedTransaction>,
+    /// The reason it has been removed
+    pub reason: InvalidityReason,
+}
+
+/// The output of [`TransactionPool::select_for_announce`].
+#[derive(Debug, Clone, Default)]
+pub struct SelectionOutput {
+    /// Selected transactions to be included in announce.
+    pub selected_txs: Vec<SignedInjectedTransaction>,
+    /// Removed transactions notifications.
+    pub removed_txs: Vec<RemovalNotification>,
 }
 
 impl<DB> TransactionPool<DB>
@@ -81,21 +105,21 @@ where
     }
     /// Adds a new injected transaction to the pool.
     /// Returns an error if transaction is already present in the pool.
-    pub fn add_transaction(&mut self, tx: SignedInjectedTransaction) -> TransactionAdditionResult {
+    pub fn add_transaction(&mut self, tx: SignedInjectedTransaction) -> TransactionAdditionStatus {
         let tx_hash = tx.data().to_hash();
         tracing::trace!(?tx_hash, reference_block = ?tx.data().reference_block, "tx pool received new injected transaction");
 
         if tx.data().value != 0 {
-            return TransactionAdditionResult::NotAdded(AddTransactionError::NonZeroValue(tx_hash));
+            return TransactionAdditionStatus::NotAdded(AddTransactionError::NonZeroValue(tx_hash));
         }
 
         if self.inner.insert(tx_hash) {
             // Write tx in database only if its not already contains in pool.
             self.db.set_injected_transaction(tx);
-            return TransactionAdditionResult::Added;
+            return TransactionAdditionStatus::Added;
         }
 
-        TransactionAdditionResult::NotAdded(AddTransactionError::Duplicate(tx_hash))
+        TransactionAdditionStatus::NotAdded(AddTransactionError::Duplicate(tx_hash))
     }
 
     /// Returns the injected transactions that are valid and can be included to announce.
@@ -138,7 +162,8 @@ where
                     output.selected_txs.push(tx);
                     size_counter += tx_size;
 
-                    // TODO kuzmindev
+                    // TODO kuzmindev: Revisit removal timing. If announce inclusion fails (e.g., duplicate),
+                    // selected txs are dropped without promises/removal notifications. Consider deferring removal.
                     // Note: remove tx from pool because of now we don't support transaction re-inclusion after reorgs.
                     remove_txs.push(*tx_hash);
                 }
@@ -216,9 +241,8 @@ mod tests {
         let tx_hash = tx.to_hash();
         let signed_tx = signer.signed_message(key, tx).unwrap();
 
-        tx_pool
-            .add_transaction(signed_tx.clone())
-            .expect("transaction will be added");
+        assert!(tx_pool.add_transaction(signed_tx.clone()).is_added());
+
         assert!(
             db.injected_transaction(tx_hash).is_some(),
             "tx should be stored in db"
@@ -229,10 +253,10 @@ mod tests {
             value: 100,
             ..InjectedTransaction::mock(())
         };
-        let tx2_hash = tx2.to_hash();
-        assert_eq!(
-            tx_pool.add_transaction(signer.signed_message(key, tx2).unwrap()),
-            Err(AddTransactionError::NonZeroValue(tx2_hash))
+        assert!(
+            tx_pool
+                .add_transaction(signer.signed_message(key, tx2).unwrap())
+                .is_not_added(),
         );
 
         let output = tx_pool

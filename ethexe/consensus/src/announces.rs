@@ -88,7 +88,6 @@
 //!    then `announce1` is strict predecessor of `announce` and is predecessor of each
 //!    announce from `lpb.announces`.
 
-use crate::tx_validation::TransactionStatusResolver;
 use anyhow::{Result, anyhow, ensure};
 use ethexe_common::{
     Announce, HashOf, SimpleBlockData,
@@ -97,10 +96,10 @@ use ethexe_common::{
         OnChainStorageRO,
     },
     network::{AnnouncesRequest, AnnouncesRequestUntil},
-    tx_pool::TransactionStatus,
 };
 use ethexe_ethereum::primitives::map::HashMap;
 use ethexe_runtime_common::state::Storage;
+use ethexe_tx_pool::{TransactionStatus, tx_status::TransactionStatusResolver};
 use gprimitives::H256;
 use std::collections::{BTreeSet, VecDeque};
 

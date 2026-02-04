@@ -38,8 +38,8 @@ use ethexe_common::{
     consensus::{BatchCommitmentValidationReply, VerifiedAnnounce, VerifiedValidationRequest},
     injected::{SignedInjectedTransaction, SignedPromise},
     network::{AnnouncesRequest, CheckedAnnouncesResponse, SignedValidatorMessage},
-    tx_pool::RemovalNotification,
 };
+use ethexe_tx_pool::{RemovalNotification, TransactionAdditionStatus};
 use futures::{Stream, stream::FusedStream};
 use gprimitives::H256;
 
@@ -49,7 +49,6 @@ pub use validator::{BatchCommitter, ValidatorConfig, ValidatorService};
 
 mod announces;
 mod connect;
-mod tx_validation;
 mod utils;
 mod validator;
 
@@ -90,7 +89,7 @@ pub trait ConsensusService:
     fn receive_injected_transaction(
         &mut self,
         tx: SignedInjectedTransaction,
-    ) -> Result<TransactionAdditionResult>;
+    ) -> Result<TransactionAdditionStatus>;
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, derive_more::Display)]

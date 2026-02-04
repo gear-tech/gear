@@ -22,7 +22,7 @@ use super::{
 use crate::{
     ConsensusEvent,
     announces::{self, DBAnnouncesExt},
-    validator::{DefaultProcessing, tx_pool::SelectionOutput},
+    validator::DefaultProcessing,
 };
 use anyhow::{Context as _, Result, anyhow};
 use derive_more::{Debug, Display};
@@ -31,6 +31,7 @@ use ethexe_common::{
     gear::BatchCommitment, network::ValidatorMessage,
 };
 use ethexe_service_utils::Timer;
+use ethexe_tx_pool::SelectionOutput;
 use futures::{FutureExt, future::BoxFuture};
 use std::task::{Context, Poll};
 

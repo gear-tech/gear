@@ -25,12 +25,12 @@ use apis::{
     BlockApi, BlockServer, CodeApi, CodeServer, InjectedApi, InjectedServer, ProgramApi,
     ProgramServer,
 };
-use ethexe_common::{
-    injected::{AddressedInjectedTransaction, InjectedTransactionAcceptance, SignedPromise},
-    tx_pool::RemovalNotification,
+use ethexe_common::injected::{
+    AddressedInjectedTransaction, InjectedTransactionAcceptance, SignedPromise,
 };
 use ethexe_db::Database;
 use ethexe_processor::RunnerConfig;
+use ethexe_tx_pool::RemovalNotification;
 use futures::{Stream, stream::FusedStream};
 use hyper::header::HeaderValue;
 use jsonrpsee::{

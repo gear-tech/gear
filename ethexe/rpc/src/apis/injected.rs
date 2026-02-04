@@ -24,8 +24,8 @@ use ethexe_common::{
         AddressedInjectedTransaction, InjectedTransaction, InjectedTransactionAcceptance,
         SignedPromise,
     },
-    tx_pool::RemovalNotification,
 };
+use ethexe_tx_pool::RemovalNotification;
 use jsonrpsee::{
     PendingSubscriptionSink, SubscriptionMessage, SubscriptionSink,
     core::{RpcResult, SubscriptionResult, async_trait},

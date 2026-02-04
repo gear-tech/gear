@@ -585,7 +585,7 @@ impl Service {
                                 transaction,
                                 channel,
                             } => {
-                                let res = consensus.receive_injected_transaction(transaction);
+                                let res = consensus.receive_injected_transaction(transaction)?;
                                 channel
                                     .send(res.into())
                                     .expect("channel must never be closed");
@@ -649,7 +649,7 @@ impl Service {
 
                             if is_zero_address || is_our_address {
                                 let acceptance = consensus
-                                    .receive_injected_transaction(transaction.tx)
+                                    .receive_injected_transaction(transaction.tx)?
                                     .into();
                                 let _res = response_sender.send(acceptance);
                             } else {

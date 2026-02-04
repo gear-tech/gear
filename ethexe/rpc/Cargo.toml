@@ -23,6 +23,7 @@ hyper = { workspace = true, features = ["server"] }
 parity-scale-codec.workspace = true
 ethexe-common = { workspace = true, features = ["std"] }
 ethexe-runtime-common = { workspace = true, features = ["std"] }
+ethexe-tx-pool.workspace = true
 sp-core = { workspace = true, features = ["serde"] }
 gear-core = { workspace = true, features = ["std"] }
 serde = { workspace = true, features = ["std"] }

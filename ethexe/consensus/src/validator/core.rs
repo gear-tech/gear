@@ -21,7 +21,6 @@
 use crate::{
     announces,
     utils::{self, CodeNotValidatedError},
-    validator::tx_pool::{TransactionAdditionResult, TransactionPool},
 };
 use anyhow::{Result, anyhow};
 use async_trait::async_trait;
@@ -38,6 +37,7 @@ use ethexe_common::{
 use ethexe_db::Database;
 use ethexe_ethereum::{middleware::ElectionProvider, router::Router};
 use ethexe_signer::Signer;
+use ethexe_tx_pool::{TransactionAdditionStatus, TransactionPool};
 use gprimitives::{CodeId, H256};
 use hashbrown::{HashMap, HashSet};
 use std::{hash::Hash, sync::Arc, time::Duration};
@@ -358,7 +358,7 @@ impl ValidatorCore {
     pub fn process_injected_transaction(
         &mut self,
         tx: SignedInjectedTransaction,
-    ) -> Result<TransactionAdditionResult> {
+    ) -> Result<TransactionAdditionStatus> {
         tracing::trace!(tx = ?tx, "Receive new injected transaction");
         Ok(self.injected_pool.add_transaction(tx))
     }
