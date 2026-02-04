@@ -85,7 +85,7 @@ impl<'a> ApiBuilder<'a> {
         self.uri(Api::DEV_ENDPOINT)
     }
 
-    /// Sets the dfault node URI of Vara testnet.
+    /// Sets the default node URI of Vara testnet.
     pub fn testnet(self) -> Self {
         self.uri(Api::VARA_TESTNET_ENDPOINT)
     }

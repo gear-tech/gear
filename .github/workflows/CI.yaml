@@ -30,15 +30,14 @@ jobs:
     if: github.event_name == 'push' && github.ref_name == 'master'
     runs-on: ubuntu-latest
     needs: build
+    permissions:
+      contents: write
     steps:
       - name: Download artifacts
         uses: actions/download-artifact@v4
 
       - name: Delete previous release
-        uses: dev-drprasad/delete-tag-and-release@v1.1
-        with:
-          delete_release: true
-          tag_name: build
+        run: gh release delete build --cleanup-tag
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
