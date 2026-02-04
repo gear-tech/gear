@@ -33,7 +33,7 @@ use ethexe_common::{
     },
     events::BlockEvent,
     gear::StateTransition,
-    injected::{InjectedTransaction, Promise, SignedInjectedTransaction},
+    injected::{InjectedTransaction, SignedInjectedTransaction},
 };
 
 use ethexe_runtime_common::state::{
@@ -70,8 +70,8 @@ enum Key {
     CodeValid(CodeId) = 11,
 
     InjectedTransaction(HashOf<InjectedTransaction>) = 12,
-    Promise(HashOf<InjectedTransaction>) = 13,
 
+    // TODO kuzmindev: make keys prefixes consistent. We don't change it to avoid corrupting existing key layout.
     LatestData = 14,
     Timelines = 15,
 
@@ -106,9 +106,7 @@ impl Key {
             | Self::AnnounceSchedule(hash)
             | Self::AnnounceMeta(hash) => [prefix.as_ref(), hash.inner().as_ref()].concat(),
 
-            Self::InjectedTransaction(hash) | Self::Promise(hash) => {
-                [prefix.as_ref(), hash.inner().as_ref()].concat()
-            }
+            Self::InjectedTransaction(hash) => [prefix.as_ref(), hash.inner().as_ref()].concat(),
 
             Self::ProgramToCodeId(program_id) => [prefix.as_ref(), program_id.as_ref()].concat(),
 
@@ -579,12 +577,6 @@ impl InjectedStorageRO for Database {
                     .expect("Failed to decode data into `SignedInjectedTransaction`")
             })
     }
-
-    fn promise(&self, hash: HashOf<InjectedTransaction>) -> Option<Promise> {
-        self.kv.get(&Key::Promise(hash).to_bytes()).map(|data| {
-            Promise::decode(&mut data.as_slice()).expect("Failed to decode data into `Promise`")
-        })
-    }
 }
 
 impl InjectedStorageRW for Database {
@@ -594,12 +586,6 @@ impl InjectedStorageRW for Database {
         tracing::trace!(injected_tx_hash = ?tx_hash, "Set injected transaction");
         self.kv
             .put(&Key::InjectedTransaction(tx_hash).to_bytes(), tx.encode());
-    }
-
-    fn set_promise(&self, promise: Promise) {
-        tracing::trace!(injected_tx_hash = ?promise.tx_hash, "Set injected tx promise");
-        self.kv
-            .put(&Key::Promise(promise.tx_hash).to_bytes(), promise.encode());
     }
 }
 
@@ -763,7 +749,11 @@ impl LatestDataStorageRW for Database {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ethexe_common::{SimpleBlockData, ecdsa::PrivateKey, events::RouterEvent};
+    use ethexe_common::{
+        SimpleBlockData,
+        ecdsa::PrivateKey,
+        events::{RouterEvent, router::StorageSlotChangedEvent},
+    };
     use gear_core::code::{InstantiatedSectionSizes, InstrumentationStatus};
 
     #[test]
@@ -840,7 +830,11 @@ mod tests {
         let db = Database::memory();
 
         let block_hash = H256::random();
-        let events = vec![BlockEvent::Router(RouterEvent::StorageSlotChanged)];
+        let events = vec![BlockEvent::Router(RouterEvent::StorageSlotChanged(
+            StorageSlotChangedEvent {
+                slot: H256::random(),
+            },
+        ))];
         db.set_block_events(block_hash, &events);
         assert_eq!(db.block_events(block_hash), Some(events));
     }

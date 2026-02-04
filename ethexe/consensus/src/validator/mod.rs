@@ -54,10 +54,10 @@ use anyhow::{Result, anyhow};
 pub use core::BatchCommitter;
 use derive_more::{Debug, From};
 use ethexe_common::{
-    Address, Announce, HashOf, SimpleBlockData,
+    Address, ComputedAnnounce, SimpleBlockData, ToDigest,
     consensus::{VerifiedAnnounce, VerifiedValidationRequest},
     db::OnChainStorageRO,
-    ecdsa::PublicKey,
+    ecdsa::{PublicKey, SignedMessage},
     injected::SignedInjectedTransaction,
     network::CheckedAnnouncesResponse,
 };
@@ -113,8 +113,6 @@ pub struct ValidatorConfig {
     pub producer_delay: Duration,
     /// Address of the router contract
     pub router_address: Address,
-    /// Limit for chain deepness validation
-    pub validate_chain_deepness_limit: u32,
     /// Threshold for producer to submit commitment despite of no transitions
     pub chain_deepness_threshold: u32,
 }
@@ -151,7 +149,6 @@ impl ValidatorService {
                 committer: committer.into(),
                 middleware: MiddlewareWrapper::from_inner(election_provider),
                 injected_pool: InjectedTxPool::new(db),
-                validate_chain_deepness_limit: config.validate_chain_deepness_limit,
                 chain_deepness_threshold: config.chain_deepness_threshold,
                 block_gas_limit: config.block_gas_limit,
                 commitment_delay_limit: config.commitment_delay_limit,
@@ -213,8 +210,8 @@ impl ConsensusService for ValidatorService {
         self.update_inner(|inner| inner.process_prepared_block(block))
     }
 
-    fn receive_computed_announce(&mut self, announce: HashOf<Announce>) -> Result<()> {
-        self.update_inner(|inner| inner.process_computed_announce(announce))
+    fn receive_computed_announce(&mut self, computed_data: ComputedAnnounce) -> Result<()> {
+        self.update_inner(|inner| inner.process_computed_announce(computed_data))
     }
 
     fn receive_announce(&mut self, announce: VerifiedAnnounce) -> Result<()> {
@@ -317,12 +314,12 @@ where
         DefaultProcessing::prepared_block(self.into(), block)
     }
 
-    fn process_computed_announce(self, announce: HashOf<Announce>) -> Result<ValidatorState> {
-        DefaultProcessing::computed_announce(self.into(), announce)
+    fn process_computed_announce(self, computed_data: ComputedAnnounce) -> Result<ValidatorState> {
+        DefaultProcessing::computed_announce(self.into(), computed_data)
     }
 
-    fn process_announce(self, block: VerifiedAnnounce) -> Result<ValidatorState> {
-        DefaultProcessing::block_from_producer(self, block)
+    fn process_announce(self, announce: VerifiedAnnounce) -> Result<ValidatorState> {
+        DefaultProcessing::announce_from_producer(self, announce)
     }
 
     fn process_validation_request(
@@ -408,12 +405,12 @@ impl StateHandler for ValidatorState {
         delegate_call!(self => process_prepared_block(block))
     }
 
-    fn process_computed_announce(self, announce: HashOf<Announce>) -> Result<ValidatorState> {
-        delegate_call!(self => process_computed_announce(announce))
+    fn process_computed_announce(self, computed_data: ComputedAnnounce) -> Result<ValidatorState> {
+        delegate_call!(self => process_computed_announce(computed_data))
     }
 
-    fn process_announce(self, announce: VerifiedAnnounce) -> Result<ValidatorState> {
-        delegate_call!(self => process_announce(announce))
+    fn process_announce(self, verified_announce: VerifiedAnnounce) -> Result<ValidatorState> {
+        delegate_call!(self => process_announce(verified_announce))
     }
 
     fn process_validation_request(
@@ -467,20 +464,23 @@ impl DefaultProcessing {
 
     fn computed_announce(
         s: impl Into<ValidatorState>,
-        announce_hash: HashOf<Announce>,
+        computed_data: ComputedAnnounce,
     ) -> Result<ValidatorState> {
         let mut s = s.into();
-        s.warning(format!("unexpected computed block: {announce_hash}"));
+        s.warning(format!(
+            "unexpected computed announce: {}",
+            computed_data.announce_hash
+        ));
         Ok(s)
     }
 
-    fn block_from_producer(
+    fn announce_from_producer(
         s: impl Into<ValidatorState>,
         announce: VerifiedAnnounce,
     ) -> Result<ValidatorState> {
         let mut s = s.into();
         s.warning(format!(
-            "unexpected block from producer: {announce:?}, saved for later."
+            "unexpected announce from producer: {announce:?}, saved for later."
         ));
         s.context_mut().pending(announce);
         Ok(s)
@@ -552,5 +552,9 @@ impl ValidatorContext {
 
     pub fn pending(&mut self, event: impl Into<PendingEvent>) {
         self.pending_events.push_front(event.into());
+    }
+
+    pub fn sign_message<T: Sized + ToDigest>(&self, data: T) -> Result<SignedMessage<T>> {
+        self.core.signer.signed_message(self.core.pub_key, data)
     }
 }

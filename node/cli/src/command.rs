@@ -337,7 +337,7 @@ pub fn run() -> sc_cli::Result<()> {
             // # NOTE
             //
             // unwrap here directly to show the error messages.
-            gp.exec_sync().unwrap();
+            gp.clone().run_blocking().unwrap();
             Ok(())
         }
         None => {

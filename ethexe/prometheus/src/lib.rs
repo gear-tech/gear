@@ -153,6 +153,9 @@ impl PrometheusService {
         blocks_queue_len: usize,
         waiting_codes_count: usize,
         process_codes_count: usize,
+        latest_committed_block_number: Option<u64>,
+        latest_committed_block_timestamp: Option<u64>,
+        time_since_latest_committed_secs: Option<u64>,
     ) {
         self.metrics
             .compute_blocks_queue
@@ -163,6 +166,15 @@ impl PrometheusService {
         self.metrics
             .compute_processing_codes
             .set(process_codes_count as u64);
+        self.metrics
+            .latest_committed_block_number
+            .set(latest_committed_block_number.unwrap_or(0));
+        self.metrics
+            .latest_committed_block_timestamp
+            .set(latest_committed_block_timestamp.unwrap_or(0));
+        self.metrics
+            .time_since_latest_committed_secs
+            .set(time_since_latest_committed_secs.unwrap_or(0));
     }
 }
 
@@ -172,6 +184,9 @@ struct PrometheusMetrics {
     compute_blocks_queue: Gauge<U64>,
     compute_waiting_codes: Gauge<U64>,
     compute_processing_codes: Gauge<U64>,
+    latest_committed_block_number: Gauge<U64>,
+    latest_committed_block_timestamp: Gauge<U64>,
+    time_since_latest_committed_secs: Gauge<U64>,
 }
 
 impl PrometheusMetrics {
@@ -241,6 +256,30 @@ impl PrometheusMetrics {
                 Gauge::<U64>::new(
                     "ethexe_compute_processing_codes",
                     "Number of processing codes",
+                )?,
+                registry,
+            )?,
+
+            latest_committed_block_number: register(
+                Gauge::<U64>::new(
+                    "ethexe_latest_committed_block_number",
+                    "Number of the block which is corresponding to the latest committed announce",
+                )?,
+                registry,
+            )?,
+
+            latest_committed_block_timestamp: register(
+                Gauge::<U64>::new(
+                    "ethexe_latest_committed_block_timestamp",
+                    "Timestamp of the block which is corresponding to the latest committed announce",
+                )?,
+                registry,
+            )?,
+
+            time_since_latest_committed_secs: register(
+                Gauge::<U64>::new(
+                    "ethexe_time_since_latest_committed_secs",
+                    "Time in seconds since the latest commitment was made",
                 )?,
                 registry,
             )?,
