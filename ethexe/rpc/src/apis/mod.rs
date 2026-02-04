@@ -24,9 +24,9 @@ mod program;
 pub use block::{BlockApi, BlockServer};
 pub use code::{CodeApi, CodeServer};
 pub use injected::{InjectedApi, InjectedServer, PromiseOrNotification};
-pub use program::{ProgramApi, ProgramServer};
+pub use program::{FullProgramState, ProgramApi, ProgramServer};
 
 #[cfg(feature = "client")]
 pub use crate::apis::{
-    block::BlockClient, code::CodeClient, injected::InjectedClient, program::ProgramClient,
+    block::BlockClient, code::CodeClient, injected::InjectedClient, program::ProgramClient
 };

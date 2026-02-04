@@ -197,14 +197,14 @@ impl Service {
             .anvil_set_balance(validator_address.into(), balance)
             .await?;
 
-        wvara.mint(validator_address.into(), amount).await?;
+        wvara.mint(validator_address, amount).await?;
 
         for (_, sender_address) in it {
             provider
                 .anvil_set_balance(sender_address.into(), balance)
                 .await?;
 
-            wvara.mint(sender_address.into(), amount).await?;
+            wvara.mint(sender_address, amount).await?;
         }
 
         provider
@@ -270,7 +270,7 @@ impl Service {
         log::info!("👥 Current validators set: {validators:?}");
 
         let threshold = router_query
-            .threshold()
+            .validators_threshold()
             .await
             .with_context(|| "failed to query validators threshold")?;
         log::info!("🔒 Multisig threshold: {threshold} / {}", validators.len());
@@ -303,7 +303,7 @@ impl Service {
             if let Some(pub_key) = validator_pub_key {
                 let ethereum = Ethereum::new(
                     &config.ethereum.rpc,
-                    config.ethereum.router_address.into(),
+                    config.ethereum.router_address,
                     signer.clone(),
                     pub_key.to_address(),
                 )
@@ -323,7 +323,6 @@ impl Service {
                         commitment_delay_limit: COMMITMENT_DELAY_LIMIT,
                         producer_delay: Duration::ZERO,
                         router_address: config.ethereum.router_address,
-                        validate_chain_deepness_limit: config.node.validate_chain_deepness_limit,
                         chain_deepness_threshold: config.node.chain_deepness_threshold,
                     },
                 )?)
@@ -629,6 +628,15 @@ impl Service {
                                 metrics.blocks_queue_len,
                                 metrics.waiting_codes_count,
                                 metrics.process_codes_count,
+                                metrics
+                                    .latest_committed_block
+                                    .as_ref()
+                                    .map(|b| b.header.height as u64),
+                                metrics
+                                    .latest_committed_block
+                                    .as_ref()
+                                    .map(|b| b.header.timestamp),
+                                metrics.time_since_latest_committed_secs,
                             );
 
                             // TODO #4643: support metrics for consensus service
