@@ -22,7 +22,7 @@ use alloc::{
     format,
     vec::Vec,
 };
-use core::marker::PhantomData;
+use core::{marker::PhantomData, mem};
 use gear_core::{
     buffer::PayloadSlice,
     costs::{CostToken, ExtCosts, LazyPagesCosts},
@@ -34,7 +34,8 @@ use gear_core::{
     },
     ids::{ActorId, CodeId, MessageId, ReservationId, prelude::*},
     memory::{
-        AllocError, AllocationsContext, GrowHandler, Memory, MemoryError, MemoryInterval, PageBuf,
+        AllocError, AllocationsContext, GrowHandler, Memory, MemoryDump, MemoryError,
+        MemoryInterval, PageBuf, PageDump,
     },
     message::{
         ContextOutcomeDrain, ContextStore, Dispatch, DispatchKind, GasLimit, HandlePacket,
@@ -48,7 +49,7 @@ use gear_core::{
     reservation::GasReserver,
 };
 use gear_core_backend::{
-    BackendExternalities,
+    BackendExternalities, MemorySnapshot,
     error::{
         ActorTerminationReason, BackendAllocSyscallError, BackendSyscallError, RunFallibleError,
         TrapExplanation, UndefinedTerminationReason, UnrecoverableExecutionError,
@@ -172,6 +173,9 @@ pub trait ProcessorExternalities {
     /// Create new
     fn new(context: ProcessorContext) -> Self;
 
+    /// Create memory snapshot collector.
+    fn memory_snapshot() -> impl MemorySnapshot;
+
     /// Convert externalities into info.
     fn into_ext_info<Context>(
         self,
@@ -195,6 +199,11 @@ pub trait ProcessorExternalities {
         ctx: &mut Context,
         mem: &mut impl Memory<Context>,
     );
+
+    /// Set lazy pages protection.
+    /// This clears page tracking and re-protects pages without losing in-memory data.
+    /// Used when reusing WASM environment between sequential dispatches.
+    fn lazy_pages_set_protection();
 
     /// Returns lazy pages status
     fn lazy_pages_status() -> Status;
@@ -298,6 +307,58 @@ impl BackendAllocSyscallError for AllocExtError {
             Self::Charge(err) => Ok(err.into()),
             err => Err(err),
         }
+    }
+}
+
+pub struct LazyPagesSnapshot<LP: LazyPagesInterface> {
+    dump: MemoryDump,
+    _phantom: PhantomData<LP>,
+}
+
+impl<LP: LazyPagesInterface> MemorySnapshot for LazyPagesSnapshot<LP> {
+    fn capture<Context>(
+        &mut self,
+        ctx: &Context,
+        memory: &impl Memory<Context>,
+    ) -> Result<(), MemoryError> {
+        let pages = LP::get_write_accessed_pages();
+        let required = pages.len();
+
+        if required == 0 {
+            self.dump.inner_mut().clear();
+            return Ok(());
+        }
+
+        let mut dump = if self.dump.inner().capacity() >= required {
+            let mut dump = mem::take(&mut self.dump);
+            dump.inner_mut().clear();
+            dump
+        } else {
+            MemoryDump::try_with_capacity(required).map_err(|_| MemoryError::AccessOutOfBounds)?
+        };
+
+        for page in pages {
+            let mut data = PageBuf::new_zeroed();
+            memory.read(ctx, page.offset(), &mut data)?;
+            dump.try_push(PageDump { page, data })
+                .map_err(|_| MemoryError::AccessOutOfBounds)?;
+        }
+
+        self.dump = dump;
+
+        Ok(())
+    }
+
+    fn restore<Context>(
+        &self,
+        ctx: &mut Context,
+        memory: &impl Memory<Context>,
+    ) -> Result<(), MemoryError> {
+        for page_dump in self.dump.inner() {
+            memory.write(ctx, page_dump.page.offset(), &page_dump.data)?;
+        }
+
+        Ok(())
     }
 }
 
@@ -574,6 +635,13 @@ impl<LP: LazyPagesInterface> ProcessorExternalities for Ext<LP> {
         }
     }
 
+    fn memory_snapshot() -> impl MemorySnapshot {
+        LazyPagesSnapshot {
+            dump: MemoryDump::new(),
+            _phantom: PhantomData::<LP>,
+        }
+    }
+
     fn into_ext_info<Context>(
         self,
         ctx: &mut Context,
@@ -666,6 +734,10 @@ impl<LP: LazyPagesInterface> ProcessorExternalities for Ext<LP> {
         mem: &mut impl Memory<Context>,
     ) {
         LP::remove_lazy_pages_prot(ctx, mem);
+    }
+
+    fn lazy_pages_set_protection() {
+        LP::set_lazy_pages_protection();
     }
 
     fn lazy_pages_status() -> Status {

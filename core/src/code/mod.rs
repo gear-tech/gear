@@ -179,7 +179,6 @@ impl Code {
         }
 
         module = instrumentation_builder.instrument(module)?;
-
         // Use instrumented module to get section sizes.
         let data_section_size = utils::get_data_section_size(&module)?;
         let global_section_size = utils::get_instantiated_global_section_size(&module)?;
@@ -207,7 +206,7 @@ impl Code {
 
         let metadata = CodeMetadata::new(
             original_code.len() as u32,
-            exports.clone(),
+            exports,
             static_pages,
             stack_end,
             InstrumentationStatus::Instrumented {

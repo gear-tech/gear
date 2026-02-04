@@ -79,7 +79,7 @@ use gear_core::{
     code::{Code, CodeAndId},
     ids::{ActorId, CodeId, MessageId, prelude::*},
     memory::Memory,
-    message::{DispatchKind, Salt},
+    message::Salt,
     pages::{WasmPage, WasmPagesAmount},
     program::ActiveProgram,
     tasks::{ScheduledTask, TaskHandler},
@@ -387,7 +387,7 @@ benchmarks! {
         let WasmModule { code, .. } = WasmModule::<T>::sized(c * 1024, Location::Init);
         let ext = Ext::new(ProcessorContext::new_mock());
     }: {
-        Environment::new(ext, &code, DispatchKind::Init, Default::default(), max_pages::<T>().into()).unwrap();
+        Environment::new(ext, &code, Default::default(), max_pages::<T>().into(), |_,_,_|{}).unwrap();
     }
 
     // `d`: Size of the data section in kilobytes.
@@ -397,7 +397,7 @@ benchmarks! {
         let WasmModule { code, .. } = WasmModule::<T>::sized_data_section(d * 1024, MAX_NUMBER_OF_DATA_SEGMENTS);
         let ext = Ext::new(ProcessorContext::new_mock());
     }: {
-        Environment::new(ext, &code, DispatchKind::Init, Default::default(), max_pages::<T>().into()).unwrap();
+        Environment::new(ext, &code, Default::default(), max_pages::<T>().into(),|_,_,_|{}).unwrap();
     }
 
     // `g`: Size of the global section in kilobytes.
@@ -407,7 +407,7 @@ benchmarks! {
         let WasmModule { code, .. } = WasmModule::<T>::sized_global_section(g * 1024);
         let ext = Ext::new(ProcessorContext::new_mock());
     }: {
-        Environment::new(ext, &code, DispatchKind::Init, Default::default(), max_pages::<T>().into()).unwrap();
+        Environment::new(ext, &code, Default::default(), max_pages::<T>().into(),|_,_,_|{}).unwrap();
     }
 
     // `t`: Size of the memory allocated for the table after instantiation, in kilobytes.
@@ -417,7 +417,7 @@ benchmarks! {
         let WasmModule { code, .. } = WasmModule::<T>::sized_table_section(t * 1024, None);
         let ext = Ext::new(ProcessorContext::new_mock());
     }: {
-        Environment::new(ext, &code, DispatchKind::Init, Default::default(), max_pages::<T>().into()).unwrap();
+        Environment::new(ext, &code, Default::default(), max_pages::<T>().into(),|_,_,_|{}).unwrap();
     }
 
     // `e`: Size of the element section in kilobytes.
@@ -428,7 +428,7 @@ benchmarks! {
         let WasmModule { code, .. } = WasmModule::<T>::sized_table_section(max_table_size, Some(e * 1024));
         let ext = Ext::new(ProcessorContext::new_mock());
     }: {
-        Environment::new(ext, &code, DispatchKind::Init, Default::default(), max_pages::<T>().into()).unwrap();
+        Environment::new(ext, &code, Default::default(), max_pages::<T>().into(), |_,_,_|{}).unwrap();
     }
 
     // `t`: Size of the type section in kilobytes.
@@ -438,7 +438,7 @@ benchmarks! {
         let WasmModule { code, .. } = WasmModule::<T>::sized_type_section(t * 1024);
         let ext = Ext::new(ProcessorContext::new_mock());
     }: {
-        Environment::new(ext, &code, DispatchKind::Init, Default::default(), max_pages::<T>().into()).unwrap();
+        Environment::new(ext, &code, Default::default(), max_pages::<T>().into(), |_,_,_|{}).unwrap();
     }
 
     claim_value {

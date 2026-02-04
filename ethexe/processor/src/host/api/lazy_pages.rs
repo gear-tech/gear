@@ -63,6 +63,11 @@ pub fn link(linker: &mut Linker<StoreData>) -> Result<()> {
         "ext_gear_ri_write_accessed_pages_version_1",
         write_accessed_pages,
     )?;
+    linker.func_wrap(
+        "env",
+        "ext_gear_ri_set_lazy_pages_protection_version_1",
+        set_lazy_pages_protection,
+    )?;
 
     Ok(())
 }
@@ -165,4 +170,10 @@ fn write_accessed_pages(caller: Caller<'_, StoreData>) -> i64 {
     log::trace!(target: "host_call", "write_accessed_pages(..) -> {res:?}");
 
     res
+}
+
+fn set_lazy_pages_protection(_caller: Caller<'_, StoreData>) {
+    log::trace!(target: "host_call", "set_lazy_pages_protection()");
+
+    lazy_pages_detail::set_lazy_pages_protection();
 }

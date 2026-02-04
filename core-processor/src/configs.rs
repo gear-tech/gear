@@ -21,6 +21,7 @@
 use alloc::{collections::BTreeSet, vec::Vec};
 use gear_core::{
     costs::{ExtCosts, LazyPagesCosts, ProcessCosts},
+    message::ContextSettings,
     pages::WasmPagesAmount,
 };
 
@@ -36,7 +37,7 @@ pub struct BlockInfo {
 }
 
 /// Execution settings for handling messages.
-pub(crate) struct ExecutionSettings {
+pub struct ExecutionSettings {
     /// Contextual block information.
     pub block_info: BlockInfo,
     /// Performance multiplier.
@@ -60,6 +61,25 @@ pub(crate) struct ExecutionSettings {
     pub random_data: (Vec<u8>, u32),
     /// Gas multiplier.
     pub gas_multiplier: gsys::GasMultiplier,
+}
+
+impl ExecutionSettings {
+    /// Creates execution settings from block configuration.
+    pub fn from_block_config(block_config: &BlockConfig, random_data: (Vec<u8>, u32)) -> Self {
+        Self {
+            block_info: block_config.block_info,
+            performance_multiplier: block_config.performance_multiplier,
+            existential_deposit: block_config.existential_deposit,
+            mailbox_threshold: block_config.mailbox_threshold,
+            max_pages: block_config.max_pages,
+            ext_costs: block_config.costs.ext.clone(),
+            lazy_pages_costs: block_config.costs.lazy_pages.clone(),
+            forbidden_funcs: block_config.forbidden_funcs.clone(),
+            reserve_for: block_config.reserve_for,
+            random_data,
+            gas_multiplier: block_config.gas_multiplier,
+        }
+    }
 }
 
 /// Stable parameters for the whole block across processing runs.
@@ -89,4 +109,26 @@ pub struct BlockConfig {
     pub outgoing_limit: u32,
     /// Outgoing bytes limit.
     pub outgoing_bytes_limit: u32,
+}
+
+impl BlockConfig {
+    /// Creates message context settings from block configuration.
+    ///
+    /// Fee calculations:
+    /// - Sending fee: double write cost for addition and removal from queue
+    /// - Scheduled sending fee: double write cost for queue + double write cost for dispatch stash
+    /// - Waiting fee: triple write cost for waitlist operations and reply handling
+    /// - Waking fee: double write cost for waitlist removal and enqueueing
+    /// - Reservation fee: double write cost for reservation operations
+    pub fn context_settings(&self) -> ContextSettings {
+        ContextSettings {
+            sending_fee: self.costs.db.write.cost_for(2.into()),
+            scheduled_sending_fee: self.costs.db.write.cost_for(4.into()),
+            waiting_fee: self.costs.db.write.cost_for(3.into()),
+            waking_fee: self.costs.db.write.cost_for(2.into()),
+            reservation_fee: self.costs.db.write.cost_for(2.into()),
+            outgoing_limit: self.outgoing_limit,
+            outgoing_bytes_limit: self.outgoing_bytes_limit,
+        }
+    }
 }

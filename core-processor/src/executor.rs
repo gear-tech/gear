@@ -16,10 +16,52 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! WASM execution and dispatch result processing.
+//!
+//! This module provides the core execution functionality for running WASM programs:
+//!
+//! # Single Execution
+//!
+//! For executing a single dispatch, use [`execute_wasm`]:
+//! ```ignore
+//! let result = execute_wasm(
+//!     balance, dispatch, context, settings, msg_ctx_settings,
+//! )?;
+//! ```
+//!
+//! # Sequential Execution
+//!
+//! For executing multiple dispatches with environment reuse, use [`execute_wasm_step`]
+//! with [`SequenceState`]:
+//!
+//! ```ignore
+//! let mut state = SequenceState::new();
+//! let mut snapshot = Ext::memory_snapshot();
+//!
+//! for dispatch in queue {
+//!     let result = execute_wasm_step(
+//!         &mut state, &mut snapshot,
+//!         balance, dispatch, context, settings, msg_ctx_settings,
+//!     )?;
+//!     // process result...
+//! }
+//! ```
+//!
+//! Sequential execution reuses the WASM environment between dispatches, avoiding
+//! the overhead of instance creation. Memory snapshots are used to restore state
+//! after failed executions.
+//!
+//! # Key Types
+//!
+//! - [`SequenceState`] - Holds the reusable environment between sequential executions
+//! - [`ExecutionStep`] - Result of a single execution step with gas info
+//! - [`ExecutionSequenceError`] - Error type for sequential execution (alias for [`ExecutionError`])
+
 use crate::{
     common::{
         ActorExecutionError, ActorExecutionErrorReplyReason, DispatchResult, DispatchResultKind,
-        ExecutionError, Program, SystemExecutionError, WasmExecutionContext,
+        ExecutableActorData, ExecutionError, Program, ReservationsAndMemorySize,
+        SystemExecutionError, WasmExecutionContext,
     },
     configs::{BlockInfo, ExecutionSettings},
     ext::{ProcessorContext, ProcessorExternalities},
@@ -32,18 +74,53 @@ use gear_core::{
     ids::ActorId,
     memory::AllocationsContext,
     message::{ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage, MessageContext},
-    pages::{WasmPage, numerated::tree::IntervalsTree},
+    pages::{WasmPage, WasmPagesAmount, numerated::tree::IntervalsTree},
     program::MemoryInfix,
     reservation::GasReserver,
 };
 use gear_core_backend::{
-    BackendExternalities,
-    env::{BackendReport, Environment, EnvironmentError},
+    BackendExternalities, MemorySnapshot, MemorySnapshotStrategy, NoopSnapshot,
+    env::{
+        BackendReport, Environment, EnvironmentError, ExecutedEnvironment, ExecutionReport,
+        PostExecution, ReadyToExecute,
+    },
     error::{
         ActorTerminationReason, BackendAllocSyscallError, BackendSyscallError, RunFallibleError,
         TerminationReason,
     },
 };
+
+// Keep the actor/system logging consistent across call sites to aid debugging.
+fn log_actor_environment_error(message: &str) {
+    log::trace!("ActorExecutionErrorReplyReason::Environment({message}) occurred");
+}
+
+// Convert backend-specific errors into execution errors with consistent logging semantics.
+fn execution_error_from_environment(err: EnvironmentError) -> ExecutionError {
+    match err {
+        EnvironmentError::System(system_err) => {
+            ExecutionError::System(SystemExecutionError::Environment(system_err))
+        }
+        EnvironmentError::Actor(gas_amount, err_msg) => {
+            log_actor_environment_error(&err_msg);
+            ExecutionError::Actor(ActorExecutionError {
+                gas_amount,
+                reason: ActorExecutionErrorReplyReason::Environment,
+            })
+        }
+    }
+}
+
+// Provide a human-readable error message when bubbling backend failures to callers.
+fn backend_error_message(err: EnvironmentError) -> String {
+    match err {
+        EnvironmentError::System(system_err) => format!("Backend error: {system_err}"),
+        EnvironmentError::Actor(gas_amount, err_msg) => {
+            log_actor_environment_error(&err_msg);
+            format!("Backend actor error (gas_amount={gas_amount:?}): {err_msg}")
+        }
+    }
+}
 
 /// Execute wasm with dispatch and return dispatch result.
 pub(crate) fn execute_wasm<Ext>(
@@ -76,10 +153,47 @@ where
     log::debug!("Executing program {}", program.id);
     log::debug!("Executing dispatch {dispatch:?}");
 
+    let context = build_processor_context(
+        balance,
+        dispatch,
+        &program,
+        memory_size,
+        program.allocations.clone(),
+        &settings,
+        msg_ctx_settings,
+        gas_counter,
+        gas_allowance_counter,
+        gas_reserver,
+    )?;
+
+    let env = create_environment::<Ext>(context, &program, memory_size, &settings)?;
+
+    let execution_result = execute_environment(
+        env,
+        kind,
+        MemorySnapshotStrategy::<NoopSnapshot>::disabled(),
+    )?;
+
+    finalize_execution::<Ext>(execution_result, &program, initial_gas_reserver)
+}
+
+#[allow(clippy::too_many_arguments)]
+pub(crate) fn build_processor_context(
+    balance: u128,
+    dispatch: IncomingDispatch,
+    program: &Program,
+    memory_size: WasmPagesAmount,
+    allocations: IntervalsTree<WasmPage>,
+    settings: &ExecutionSettings,
+    msg_ctx_settings: ContextSettings,
+    gas_counter: GasCounter,
+    gas_allowance_counter: GasAllowanceCounter,
+    gas_reserver: GasReserver,
+) -> Result<ProcessorContext, ExecutionError> {
     // Creating allocations context.
     let allocations_context = AllocationsContext::try_new(
         memory_size,
-        program.allocations,
+        allocations,
         program.code_metadata.static_pages(),
         program.code_metadata.stack_end(),
         settings.max_pages,
@@ -103,7 +217,7 @@ where
     // Creating message context.
     let message_context = MessageContext::new(dispatch, program.id, msg_ctx_settings);
 
-    let context = ProcessorContext {
+    Ok(ProcessorContext {
         gas_counter,
         gas_allowance_counter,
         gas_reserver,
@@ -115,28 +229,37 @@ where
         performance_multiplier: settings.performance_multiplier,
         program_id: program.id,
         program_candidates_data: Default::default(),
-        forbidden_funcs: settings.forbidden_funcs,
+        forbidden_funcs: settings.forbidden_funcs.clone(),
         reserve_for: settings.reserve_for,
-        random_data: settings.random_data,
+        random_data: settings.random_data.clone(),
         gas_multiplier: settings.gas_multiplier,
         existential_deposit: settings.existential_deposit,
         mailbox_threshold: settings.mailbox_threshold,
-        costs: settings.ext_costs,
-    };
+        costs: settings.ext_costs.clone(),
+    })
+}
 
-    // Creating externalities.
+pub(crate) fn create_environment<'a, Ext>(
+    context: ProcessorContext,
+    program: &'a Program,
+    memory_size: WasmPagesAmount,
+    settings: &ExecutionSettings,
+) -> Result<Environment<'a, Ext, ReadyToExecute>, ExecutionError>
+where
+    Ext: ProcessorExternalities + BackendExternalities + Send + 'static,
+    <Ext as Externalities>::AllocError:
+        BackendAllocSyscallError<ExtError = Ext::UnrecoverableError>,
+    RunFallibleError: From<Ext::FallibleError>,
+    <Ext as Externalities>::UnrecoverableError: BackendSyscallError,
+{
     let ext = Ext::new(context);
-
-    // Execute program in backend env.
-    let execute = || {
-        let env = Environment::new(
-            ext,
-            program.instrumented_code.bytes(),
-            kind,
-            program.code_metadata.exports().clone(),
-            memory_size,
-        )?;
-        env.execute(|ctx, memory, globals_config| {
+    let lazy_pages_costs = settings.lazy_pages_costs.clone();
+    Environment::new(
+        ext,
+        program.instrumented_code.bytes(),
+        program.code_metadata.exports().clone(),
+        memory_size,
+        |ctx, memory, globals_config| {
             Ext::lazy_pages_init_for_program(
                 ctx,
                 memory,
@@ -144,47 +267,64 @@ where
                 program.memory_infix,
                 program.code_metadata.stack_end(),
                 globals_config,
-                settings.lazy_pages_costs,
+                lazy_pages_costs,
             )
-        })
+        },
+    )
+    .map_err(execution_error_from_environment)
+}
+
+pub(crate) fn execute_environment<'a, Ext, M: MemorySnapshot>(
+    env: Environment<'a, Ext, ReadyToExecute>,
+    kind: DispatchKind,
+    memory_snapshot: MemorySnapshotStrategy<'_, M>,
+) -> Result<ExecutedEnvironment<'a, Ext>, ExecutionError>
+where
+    Ext: ProcessorExternalities + BackendExternalities + Send + 'static,
+    <Ext as Externalities>::AllocError:
+        BackendAllocSyscallError<ExtError = Ext::UnrecoverableError>,
+    RunFallibleError: From<Ext::FallibleError>,
+    <Ext as Externalities>::UnrecoverableError: BackendSyscallError,
+{
+    env.execute(kind, memory_snapshot)
+        .map_err(execution_error_from_environment)
+}
+
+pub(crate) fn finalize_execution<Ext>(
+    execution_result: ExecutedEnvironment<'_, Ext>,
+    program: &Program,
+    initial_gas_reserver: GasReserver,
+) -> Result<DispatchResult, ExecutionError>
+where
+    Ext: ProcessorExternalities + BackendExternalities + Send + 'static,
+    <Ext as Externalities>::AllocError:
+        BackendAllocSyscallError<ExtError = Ext::UnrecoverableError>,
+    RunFallibleError: From<Ext::FallibleError>,
+    <Ext as Externalities>::UnrecoverableError: BackendSyscallError,
+{
+    let BackendReport {
+        termination_reason,
+        mut store,
+        mut memory,
+        ext,
+    } = execution_result
+        .report()
+        // Propagate backend issues into the processor domain so the caller gets full context.
+        .map_err(execution_error_from_environment)?;
+
+    let mut termination = match termination_reason {
+        TerminationReason::Actor(reason) => reason,
+        TerminationReason::System(reason) => {
+            return Err(ExecutionError::System(reason.into()));
+        }
     };
 
-    let (termination, mut store, memory, ext) = match execute() {
-        Ok(report) => {
-            let BackendReport {
-                termination_reason,
-                mut store,
-                mut memory,
-                ext,
-            } = report;
+    // released pages initial data will be added to `pages_initial_data` after execution.
+    Ext::lazy_pages_post_execution_actions(&mut store, &mut memory);
 
-            let mut termination = match termination_reason {
-                TerminationReason::Actor(reason) => reason,
-                TerminationReason::System(reason) => {
-                    return Err(ExecutionError::System(reason.into()));
-                }
-            };
-
-            // released pages initial data will be added to `pages_initial_data` after execution.
-            Ext::lazy_pages_post_execution_actions(&mut store, &mut memory);
-
-            if !Ext::lazy_pages_status().is_normal() {
-                termination = ext.current_counter_type().into()
-            }
-
-            (termination, store, memory, ext)
-        }
-        Err(EnvironmentError::System(e)) => {
-            return Err(ExecutionError::System(SystemExecutionError::Environment(e)));
-        }
-        Err(EnvironmentError::Actor(gas_amount, err)) => {
-            log::trace!("ActorExecutionErrorReplyReason::Environment({err}) occurred");
-            return Err(ExecutionError::Actor(ActorExecutionError {
-                gas_amount,
-                reason: ActorExecutionErrorReplyReason::Environment,
-            }));
-        }
-    };
+    if !Ext::lazy_pages_status().is_normal() {
+        termination = ext.current_counter_type().into()
+    }
 
     log::debug!("Termination reason: {termination:?}");
 
@@ -239,6 +379,261 @@ where
         allocations: info.allocations,
         reply_sent: info.reply_sent,
     })
+}
+
+/// Execution step input for sequence processing.
+#[derive(Debug)]
+pub struct ExecutionStep {
+    /// Program balance before execution.
+    pub balance: u128,
+    /// Incoming dispatch to execute.
+    pub dispatch: IncomingDispatch,
+    /// Allocations snapshot for the dispatch.
+    pub allocations: IntervalsTree<WasmPage>,
+    /// Gas counter for the dispatch.
+    pub gas_counter: GasCounter,
+    /// Gas allowance counter for the dispatch.
+    pub gas_allowance_counter: GasAllowanceCounter,
+    /// Gas reserver for the dispatch.
+    pub gas_reserver: GasReserver,
+}
+
+/// Data cached after first successful dispatch execution.
+///
+/// This data is reused for subsequent dispatches in the same sequence,
+/// avoiding repeated DB reads and gas charges.
+#[derive(Clone, Debug)]
+pub struct CachedExecutionData {
+    /// Actor data (allocations, memory infix, gas reservations).
+    pub actor_data: ExecutableActorData,
+    /// Memory size configuration.
+    pub reservations_and_memory_size: ReservationsAndMemorySize,
+}
+
+/// Persistent state between sequence steps.
+pub struct SequenceState<'a, Ext: BackendExternalities> {
+    post_env: Option<Environment<'a, Ext, PostExecution>>,
+    has_snapshot: bool,
+    /// Cached execution data for subsequent dispatches.
+    /// `None` indicates this is the first dispatch in the sequence.
+    cached: Option<CachedExecutionData>,
+}
+
+impl<'a, Ext: BackendExternalities> SequenceState<'a, Ext> {
+    /// Creates a new sequence state.
+    pub fn new() -> Self {
+        Self {
+            post_env: None,
+            has_snapshot: false,
+            cached: None,
+        }
+    }
+
+    /// Returns `true` if this is the first dispatch in the sequence.
+    #[inline]
+    pub fn is_first_dispatch(&self) -> bool {
+        self.cached.is_none()
+    }
+
+    /// Returns cached execution data if available.
+    pub fn cached_data(&self) -> Option<&CachedExecutionData> {
+        self.cached.as_ref()
+    }
+
+    /// Caches execution data after a successful first dispatch.
+    ///
+    /// This should be called after the first dispatch completes successfully,
+    /// so subsequent dispatches can reuse the data without charging.
+    pub fn cache_execution_data(&mut self, data: CachedExecutionData) {
+        self.cached = Some(data);
+    }
+
+    /// Updates cached allocations after a dispatch that modified them.
+    /// Also updates memory_size to account for new allocations.
+    pub fn update_cached_allocations(
+        &mut self,
+        allocations: IntervalsTree<WasmPage>,
+        static_pages: WasmPagesAmount,
+    ) {
+        if let Some(ref mut cached) = self.cached {
+            // Update memory_size to accommodate new allocations
+            let new_memory_size = allocations.end().map(|p| p.inc()).unwrap_or(static_pages);
+            cached.reservations_and_memory_size.memory_size = new_memory_size;
+            cached.actor_data.allocations = allocations;
+        }
+    }
+}
+
+impl<'a, Ext: BackendExternalities> Default for SequenceState<'a, Ext> {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// Sequence execution error.
+pub type ExecutionSequenceError = ExecutionError;
+
+fn dispatch_result_from_report<Ext>(
+    report: ExecutionReport<Ext>,
+    env: &mut Environment<'_, Ext, PostExecution>,
+    program: &Program,
+    initial_gas_reserver: GasReserver,
+) -> Result<DispatchResult, ExecutionError>
+where
+    Ext: ProcessorExternalities + BackendExternalities + Send + 'static,
+    <Ext as Externalities>::AllocError:
+        BackendAllocSyscallError<ExtError = Ext::UnrecoverableError>,
+    RunFallibleError: From<Ext::FallibleError>,
+    <Ext as Externalities>::UnrecoverableError: BackendSyscallError,
+{
+    let ExecutionReport {
+        termination_reason,
+        ext,
+    } = report;
+
+    let mut termination = match termination_reason {
+        TerminationReason::Actor(reason) => reason,
+        TerminationReason::System(reason) => {
+            return Err(ExecutionError::System(reason.into()));
+        }
+    };
+
+    env.with_store_and_memory_mut(|store, memory| {
+        Ext::lazy_pages_post_execution_actions(store, memory);
+    });
+
+    if !Ext::lazy_pages_status().is_normal() {
+        termination = ext.current_counter_type().into()
+    }
+
+    log::debug!("Termination reason: {termination:?}");
+
+    let info = env.with_store_and_memory_mut(|store, memory| {
+        ext.into_ext_info(store, memory)
+            .map_err(SystemExecutionError::IntoExtInfo)
+    })?;
+
+    let kind = match termination {
+        ActorTerminationReason::Exit(value_dest) => DispatchResultKind::Exit(value_dest),
+        ActorTerminationReason::Leave | ActorTerminationReason::Success => {
+            DispatchResultKind::Success
+        }
+        ActorTerminationReason::Trap(explanation) => {
+            log::debug!(
+                "💥 Trap during execution of {}\n📔 Explanation: {explanation}",
+                program.id
+            );
+            DispatchResultKind::Trap(explanation)
+        }
+        ActorTerminationReason::Wait(duration, waited_type) => {
+            DispatchResultKind::Wait(duration, waited_type)
+        }
+        ActorTerminationReason::GasAllowanceExceeded => DispatchResultKind::GasAllowanceExceed,
+    };
+
+    let page_update = info.pages_data;
+    let program_candidates = info.program_candidates_data;
+
+    let gas_reserver = initial_gas_reserver
+        .ne(&info.gas_reserver)
+        .then_some(info.gas_reserver);
+
+    Ok(DispatchResult {
+        kind,
+        program_id: program.id,
+        context_store: info.context_store,
+        generated_dispatches: info.generated_dispatches,
+        awakening: info.awakening,
+        reply_deposits: info.reply_deposits,
+        program_candidates,
+        gas_amount: info.gas_amount,
+        gas_reserver,
+        system_reservation_context: info.system_reservation_context,
+        page_update,
+        allocations: info.allocations,
+        reply_sent: info.reply_sent,
+    })
+}
+
+/// Executes a single step, reusing environment state from previous steps.
+///
+/// Memory snapshots are always enabled to ensure correct state restoration
+/// after failed dispatches in sequential execution.
+#[allow(clippy::too_many_arguments)]
+pub fn execute_wasm_step<'a, Ext, M: MemorySnapshot>(
+    step: ExecutionStep,
+    program: &'a Program,
+    memory_size: WasmPagesAmount,
+    settings: &ExecutionSettings,
+    msg_ctx_settings: ContextSettings,
+    state: &mut SequenceState<'a, Ext>,
+    snapshot: &mut M,
+) -> Result<DispatchResult, ExecutionSequenceError>
+where
+    Ext: ProcessorExternalities + BackendExternalities + Send + 'static,
+    <Ext as Externalities>::AllocError:
+        BackendAllocSyscallError<ExtError = Ext::UnrecoverableError>,
+    RunFallibleError: From<Ext::FallibleError>,
+    <Ext as Externalities>::UnrecoverableError: BackendSyscallError,
+{
+    let ExecutionStep {
+        balance,
+        dispatch,
+        allocations,
+        gas_counter,
+        gas_allowance_counter,
+        gas_reserver,
+    } = step;
+    let kind = dispatch.kind();
+    let initial_gas_reserver = gas_reserver.clone();
+    let context = build_processor_context(
+        balance,
+        dispatch,
+        program,
+        memory_size,
+        allocations,
+        settings,
+        msg_ctx_settings,
+        gas_counter,
+        gas_allowance_counter,
+        gas_reserver,
+    )?;
+
+    let env = if let Some(post_env) = state.post_env.take() {
+        // Set lazy pages protection for the new dispatch.
+        // This clears page tracking and re-protects pages without losing the
+        // in-memory data, avoiding unnecessary DB fetches.
+        Ext::lazy_pages_set_protection();
+
+        let ext = Ext::new(context);
+        post_env
+            .set_ext(ext)
+            .map_err(execution_error_from_environment)?
+    } else {
+        create_environment::<Ext>(context, program, memory_size, settings)?
+    };
+
+    let execution = execute_environment(env, kind, MemorySnapshotStrategy::enabled(snapshot))?;
+
+    let wasm_succeeded = matches!(execution, ExecutedEnvironment::SuccessExecution(_));
+    if wasm_succeeded {
+        state.has_snapshot = true;
+    }
+
+    let (report, mut post_env) = execution
+        .into_report_and_env()
+        .map_err(execution_error_from_environment)?;
+    let result = dispatch_result_from_report(report, &mut post_env, program, initial_gas_reserver)?;
+
+    if !wasm_succeeded && state.has_snapshot {
+        post_env
+            .restore_snapshot(snapshot)
+            .map_err(|err| ExecutionError::System(SystemExecutionError::IntoExtInfo(err)))?;
+    }
+
+    state.post_env = Some(post_env);
+
+    Ok(result)
 }
 
 /// !!! FOR TESTING / INFORMATIONAL USAGE ONLY
@@ -326,16 +721,12 @@ where
     // Creating externalities.
     let ext = Ext::new(context);
 
-    // Execute program in backend env.
-    let execute = || {
-        let env = Environment::new(
-            ext,
-            program.instrumented_code.bytes(),
-            function,
-            program.code_metadata.exports().clone(),
-            memory_size,
-        )?;
-        env.execute(|ctx, memory, globals_config| {
+    let env = Environment::new(
+        ext,
+        program.instrumented_code.bytes(),
+        program.code_metadata.exports().clone(),
+        memory_size,
+        |ctx, memory, globals_config| {
             Ext::lazy_pages_init_for_program(
                 ctx,
                 memory,
@@ -345,28 +736,29 @@ where
                 globals_config,
                 Default::default(),
             )
-        })
-    };
+        },
+    )
+    .map_err(backend_error_message)?;
 
-    let (termination, mut store, memory, ext) = match execute() {
-        Ok(report) => {
-            let BackendReport {
-                termination_reason,
-                store,
-                memory,
-                ext,
-            } = report;
+    let execution_result = env
+        .execute(function, MemorySnapshotStrategy::<NoopSnapshot>::disabled())
+        .map_err(backend_error_message)?;
 
-            let termination_reason = match termination_reason {
-                TerminationReason::Actor(reason) => reason,
-                TerminationReason::System(reason) => {
-                    return Err(format!("Backend error: {reason}"));
-                }
-            };
+    let BackendReport {
+        termination_reason,
+        mut store,
+        memory,
+        ext,
+    } = execution_result
+        .report()
+        // Keep the error surface identical to the other executor path.
+        .map_err(backend_error_message)?;
 
-            (termination_reason, store, memory, ext)
+    let termination = match termination_reason {
+        TerminationReason::Actor(reason) => reason,
+        TerminationReason::System(reason) => {
+            return Err(format!("Backend error: {reason}"));
         }
-        Err(e) => return Err(format!("Backend error: {e}")),
     };
 
     match termination {

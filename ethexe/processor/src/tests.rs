@@ -31,7 +31,7 @@ use ethexe_runtime_common::{
 };
 use gear_core::ids::prelude::CodeIdExt;
 use gprimitives::{ActorId, MessageId};
-use parity_scale_codec::Encode;
+use parity_scale_codec::{Decode, Encode};
 use std::collections::BTreeSet;
 use utils::*;
 
@@ -510,6 +510,122 @@ async fn async_and_ping() {
     let message = &to_users[2].1;
     assert_eq!(message.destination, user_id);
     assert_eq!(message.payload, wait_for_reply_to.into_bytes());
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn sequential_run_recovers_after_failed_dispatch() {
+    init_logger();
+
+    let (mut processor, mut handler, [code_id]) =
+        setup_test_env_and_load_codes(&[demo_fungible_token::WASM_BINARY]);
+
+    let user_id = ActorId::from(10);
+    let actor_id = ActorId::from(0x10000);
+    let mut message_nonce: u64 = 0;
+    let mut next_message_id = || {
+        message_nonce += 1;
+        MessageId::from(message_nonce)
+    };
+
+    handler
+        .handle_router_event(RouterRequestEvent::ProgramCreated { actor_id, code_id })
+        .expect("failed to create new program");
+
+    handler
+        .handle_mirror_event(
+            actor_id,
+            MirrorRequestEvent::ExecutableBalanceTopUpRequested {
+                value: 1_500_000_000_000,
+            },
+        )
+        .expect("failed to top up balance");
+
+    handler
+        .handle_mirror_event(
+            actor_id,
+            MirrorRequestEvent::MessageQueueingRequested {
+                id: next_message_id(),
+                source: user_id,
+                payload: demo_fungible_token::InitConfig::test_sequence().encode(),
+                value: 0,
+                call_reply: false,
+            },
+        )
+        .expect("failed to send init message");
+
+    handler
+        .handle_mirror_event(
+            actor_id,
+            MirrorRequestEvent::MessageQueueingRequested {
+                id: next_message_id(),
+                source: user_id,
+                payload: demo_fungible_token::FTAction::Mint(1_000_000).encode(),
+                value: 0,
+                call_reply: false,
+            },
+        )
+        .expect("failed to send mint message");
+
+    handler
+        .handle_mirror_event(
+            actor_id,
+            MirrorRequestEvent::MessageQueueingRequested {
+                id: next_message_id(),
+                source: user_id,
+                payload: demo_fungible_token::FTAction::Burn(2_000_000).encode(),
+                value: 0,
+                call_reply: false,
+            },
+        )
+        .expect("failed to send burn message");
+
+    handler
+        .handle_mirror_event(
+            actor_id,
+            MirrorRequestEvent::MessageQueueingRequested {
+                id: next_message_id(),
+                source: user_id,
+                payload: demo_fungible_token::FTAction::TotalSupply.encode(),
+                value: 0,
+                call_reply: false,
+            },
+        )
+        .expect("failed to send total supply message");
+
+    handler
+        .handle_mirror_event(
+            actor_id,
+            MirrorRequestEvent::MessageQueueingRequested {
+                id: next_message_id(),
+                source: user_id,
+                payload: demo_fungible_token::FTAction::BalanceOf(user_id).encode(),
+                value: 0,
+                call_reply: false,
+            },
+        )
+        .expect("failed to send balance message");
+
+    processor.process_queue(&mut handler).await;
+
+    let mut total_supply = None;
+    let mut balance = None;
+
+    for (_, message) in handler.transitions.current_messages() {
+        if let Ok(event) = demo_fungible_token::FTEvent::decode(&mut message.payload.as_slice()) {
+            match event {
+                demo_fungible_token::FTEvent::TotalSupply(value) => {
+                    total_supply = Some(value);
+                }
+                demo_fungible_token::FTEvent::Balance(value) => {
+                    balance = Some(value);
+                }
+                _ => {}
+            }
+        }
+    }
+
+    assert_eq!(total_supply, Some(1_000_000));
+    assert_eq!(balance, Some(1_000_000));
 }
 
 #[tokio::test(flavor = "multi_thread")]

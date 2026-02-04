@@ -18,6 +18,7 @@ gear-core-errors = { workspace = true, features = ["codec"] }
 gear-core-backend.workspace = true
 gear-wasm-instrument.workspace = true
 gear-lazy-pages-common.workspace = true
+gear-lazy-pages-native-interface = { workspace = true, optional = true }
 gsys.workspace = true
 log.workspace = true
 derive_more.workspace = true
@@ -28,10 +29,12 @@ gear-workspace-hack.workspace = true
 [dev-dependencies]
 enum-iterator.workspace = true
 gear-core = { workspace = true, features = ["mock"] }
+demo-fungible-token.workspace = true
+gear-lazy-pages.workspace = true
 
 [features]
 default = ["std"]
-std = ["gear-core-backend/std", "gear-wasm-instrument/std"]
+std = ["gear-core-backend/std", "gear-wasm-instrument/std", "dep:gear-lazy-pages-native-interface"]
 strict = []
 mock = ["gear-core/mock"]
 gtest = []

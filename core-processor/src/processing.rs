@@ -35,7 +35,7 @@ use gear_core::{
     env::Externalities,
     ids::{ActorId, MessageId, prelude::*},
     limited::LimitedVecError,
-    message::{ContextSettings, DispatchKind, IncomingDispatch, ReplyMessage, StoredDispatch},
+    message::{DispatchKind, IncomingDispatch, ReplyMessage, StoredDispatch},
     reservation::GasReservationState,
 };
 use gear_core_backend::{
@@ -57,36 +57,7 @@ where
     RunFallibleError: From<Ext::FallibleError>,
     <Ext as Externalities>::UnrecoverableError: BackendSyscallError,
 {
-    use crate::common::SuccessfulDispatchResultKind::*;
-
-    let BlockConfig {
-        block_info,
-        performance_multiplier,
-        forbidden_funcs,
-        reserve_for,
-        gas_multiplier,
-        costs,
-        existential_deposit,
-        mailbox_threshold,
-        max_pages,
-        outgoing_limit,
-        outgoing_bytes_limit,
-        ..
-    } = block_config.clone();
-
-    let execution_settings = ExecutionSettings {
-        block_info,
-        performance_multiplier,
-        existential_deposit,
-        mailbox_threshold,
-        max_pages,
-        ext_costs: costs.ext,
-        lazy_pages_costs: costs.lazy_pages,
-        forbidden_funcs,
-        reserve_for,
-        random_data,
-        gas_multiplier,
-    };
+    let execution_settings = ExecutionSettings::from_block_config(block_config, random_data);
 
     let dispatch = execution_context.dispatch;
     let balance = execution_context.balance;
@@ -101,26 +72,7 @@ where
         memory_size: execution_context.memory_size,
     };
 
-    // Sending fee: double write cost for addition and removal some time soon
-    // from queue.
-    //
-    // Scheduled sending fee: double write cost for addition and removal some time soon
-    // from queue and double write cost (addition and removal) for dispatch stash.
-    //
-    // Waiting fee: triple write cost for addition and removal some time soon
-    // from waitlist and enqueuing / sending error reply afterward.
-    //
-    // Waking fee: double write cost for removal from waitlist
-    // and further enqueueing.
-    let msg_ctx_settings = ContextSettings {
-        sending_fee: costs.db.write.cost_for(2.into()),
-        scheduled_sending_fee: costs.db.write.cost_for(4.into()),
-        waiting_fee: costs.db.write.cost_for(3.into()),
-        waking_fee: costs.db.write.cost_for(2.into()),
-        reservation_fee: costs.db.write.cost_for(2.into()),
-        outgoing_limit,
-        outgoing_bytes_limit,
-    };
+    let msg_ctx_settings = block_config.context_settings();
 
     // TODO: add tests that system reservation is successfully unreserved after
     // actor execution error #3756.
@@ -139,6 +91,25 @@ where
         log::debug!("Wasm execution error: {err}");
         err
     });
+
+    process_execution_result(
+        dispatch,
+        program_id,
+        initial_reservations_amount,
+        system_reservation_ctx,
+        exec_result,
+    )
+}
+
+/// Converts a dispatch execution result into journal notes.
+pub fn process_execution_result(
+    dispatch: IncomingDispatch,
+    program_id: ActorId,
+    initial_reservations_amount: usize,
+    system_reservation_ctx: SystemReservationContext,
+    exec_result: Result<DispatchResult, ExecutionError>,
+) -> Result<Vec<JournalNote>, SystemExecutionError> {
+    use crate::common::SuccessfulDispatchResultKind::*;
 
     match exec_result {
         Ok(res) => {
@@ -275,7 +246,8 @@ fn process_error(
     system_reservation_ctx: SystemReservationContext,
     case: ProcessErrorCase,
 ) -> Vec<JournalNote> {
-    let mut journal = Vec::new();
+    // Pre-allocate with typical capacity for error cases
+    let mut journal = Vec::with_capacity(8);
 
     let message_id = dispatch.id();
     let origin = dispatch.source();
@@ -536,7 +508,8 @@ pub fn process_success(
         ..
     } = dispatch_result;
 
-    let mut journal = Vec::new();
+    // Pre-allocate with typical capacity for success cases
+    let mut journal = Vec::with_capacity(16);
 
     let message_id = dispatch.id();
     let origin = dispatch.source();

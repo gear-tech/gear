@@ -22,6 +22,7 @@ use crate::{
     },
     configs::BlockConfig,
     context::SystemReservationContext,
+    executor::CachedExecutionData,
     processing::{process_allowance_exceed, process_execution_error},
 };
 use alloc::vec::Vec;
@@ -86,6 +87,64 @@ pub struct ForAllocations;
 
 /// ZST for the context that charged for module instantiation.
 pub struct ForModuleInstantiation;
+
+/// Result of preparing a precharge context for dispatch execution.
+///
+/// This enum forces the caller to handle both cases at compile time:
+/// - First dispatch requires full charging sequence
+/// - Subsequent dispatches have data pre-loaded
+pub enum PrechargeContext {
+    /// First dispatch in sequence - full charging required.
+    ///
+    /// The caller must:
+    /// 1. Call `charge_for_program()`
+    /// 2. Validate program state (terminated/exited/uninitialized)
+    /// 3. Call `charge_for_code_metadata()`
+    /// 4. Call `charge_for_instrumented_code()`
+    /// 5. Call `charge_for_allocations()`
+    /// 6. Call `charge_for_module_instantiation()`
+    NeedsCharging {
+        /// Context at initial state, ready for full charging sequence.
+        context: ContextCharged<ForNothing>,
+    },
+
+    /// Subsequent dispatch - data already cached, no charging needed.
+    ///
+    /// The context is already at `ForModuleInstantiation` stage,
+    /// ready for `into_final_parts()`.
+    PreCharged {
+        /// Context with pre-loaded data, ready for execution.
+        context: ContextCharged<ForModuleInstantiation>,
+    },
+}
+
+impl PrechargeContext {
+    /// Creates a precharge context based on cached data availability.
+    ///
+    /// - If `cached` is `None`: returns `NeedsCharging`
+    /// - If `cached` is `Some`: returns `PreCharged`
+    pub fn new(
+        destination_id: ActorId,
+        dispatch: IncomingDispatch,
+        gas_allowance: u64,
+        cached: Option<&CachedExecutionData>,
+    ) -> Self {
+        match cached {
+            None => PrechargeContext::NeedsCharging {
+                context: ContextCharged::new(destination_id, dispatch, gas_allowance),
+            },
+            Some(data) => PrechargeContext::PreCharged {
+                context: ContextCharged::new_with_cached_data(
+                    destination_id,
+                    dispatch,
+                    gas_allowance,
+                    data.actor_data.clone(),
+                    data.reservations_and_memory_size.clone(),
+                ),
+            },
+        }
+    }
+}
 
 /// Context charged gas for the program execution.
 pub struct ContextCharged<For = ForNothing> {
@@ -389,6 +448,38 @@ impl ContextCharged<ForAllocations> {
 }
 
 impl ContextCharged<ForModuleInstantiation> {
+    /// Creates a context with pre-loaded data, skipping all charging.
+    ///
+    /// This is used for subsequent dispatches in sequential execution
+    /// where all data is already in memory.
+    ///
+    /// # Safety (logical, not memory)
+    ///
+    /// The caller must ensure:
+    /// - `actor_data` matches the current program state
+    /// - `reservations_and_memory_size` is correctly computed
+    /// - The program has been validated (not terminated/exited)
+    pub(crate) fn new_with_cached_data(
+        destination_id: ActorId,
+        dispatch: IncomingDispatch,
+        gas_allowance: u64,
+        actor_data: ExecutableActorData,
+        reservations_and_memory_size: ReservationsAndMemorySize,
+    ) -> Self {
+        let gas_counter = GasCounter::new(dispatch.gas_limit());
+        let gas_allowance_counter = GasAllowanceCounter::new(gas_allowance);
+
+        Self {
+            destination_id,
+            dispatch,
+            gas_counter,
+            gas_allowance_counter,
+            actor_data: Some(actor_data),
+            reservations_and_memory_size: Some(reservations_and_memory_size),
+            _phantom: PhantomData,
+        }
+    }
+
     /// Converts the context into the final parts.
     pub fn into_final_parts(
         self,

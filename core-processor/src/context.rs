@@ -94,6 +94,29 @@ impl ProcessExecutionContext {
     pub fn memory_infix(&self) -> MemoryInfix {
         self.program.memory_infix
     }
+
+    /// Returns execution context parts for multi-step execution.
+    pub fn into_parts(
+        self,
+    ) -> (
+        Program,
+        IncomingDispatch,
+        GasCounter,
+        GasAllowanceCounter,
+        GasReserver,
+        u128,
+        WasmPagesAmount,
+    ) {
+        (
+            self.program,
+            self.dispatch,
+            self.gas_counter,
+            self.gas_allowance_counter,
+            self.gas_reserver,
+            self.balance,
+            self.memory_size,
+        )
+    }
 }
 
 /// System reservation context.

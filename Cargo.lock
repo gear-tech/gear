@@ -3531,6 +3531,16 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "930c7171c8df9fb1782bdf9b918ed9ed2d33d1d22300abb754f9085bc48bf8e8"
 
 [[package]]
+name = "demo-alloc-test"
+version = "0.1.0"
+dependencies = [
+ "gear-wasm-builder",
+ "gear-workspace-hack",
+ "gstd",
+ "parity-scale-codec",
+]
+
+[[package]]
 name = "demo-async"
 version = "0.1.0"
 dependencies = [
@@ -5156,6 +5166,7 @@ version = "1.10.0"
 dependencies = [
  "anyhow",
  "demo-async",
+ "demo-fungible-token",
  "demo-panic-payload",
  "demo-ping",
  "ethexe-common",
@@ -5244,12 +5255,17 @@ version = "1.10.0"
 dependencies = [
  "anyhow",
  "auto_impl",
+ "demo-alloc-test",
+ "demo-fungible-token",
  "derive_more 2.1.1",
  "ethexe-common",
  "gear-core",
+ "gear-core-backend",
  "gear-core-errors",
  "gear-core-processor",
+ "gear-lazy-pages",
  "gear-lazy-pages-common",
+ "gear-lazy-pages-native-interface",
  "gear-workspace-hack",
  "gprimitives",
  "gsys",
@@ -6578,12 +6594,15 @@ name = "gear-core-processor"
 version = "1.10.0"
 dependencies = [
  "actor-system-error",
+ "demo-fungible-token",
  "derive_more 2.1.1",
  "enum-iterator 1.5.0",
  "gear-core",
  "gear-core-backend",
  "gear-core-errors",
+ "gear-lazy-pages",
  "gear-lazy-pages-common",
+ "gear-lazy-pages-native-interface",
  "gear-wasm-instrument",
  "gear-workspace-hack",
  "gsys",

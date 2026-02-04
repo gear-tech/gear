@@ -516,7 +516,7 @@ pub struct ReservationsAndMemorySize {
 
 /// Program.
 #[derive(Clone, Debug)]
-pub(crate) struct Program {
+pub struct Program {
     /// Program id.
     pub id: ActorId,
     /// Memory infix.

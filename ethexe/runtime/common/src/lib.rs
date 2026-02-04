@@ -24,9 +24,11 @@ extern crate alloc;
 
 use alloc::vec::Vec;
 use core_processor::{
-    ContextCharged, Ext, ProcessExecutionContext,
-    common::{ExecutableActorData, JournalNote},
-    configs::{BlockConfig, SyscallName},
+    CachedExecutionData, ContextCharged, ExecutionStep, Ext, PrechargeContext,
+    ProcessorExternalities, SequenceState,
+    common::{ExecutableActorData, JournalNote, Program, ReservationsAndMemorySize},
+    configs::{BlockConfig, ExecutionSettings, SyscallName},
+    execute_wasm_step,
 };
 use ethexe_common::gear::{CHUNK_PROCESSING_GAS_LIMIT, MessageType};
 use gear_core::{
@@ -34,8 +36,10 @@ use gear_core::{
     gas::GasAllowanceCounter,
     gas_metering::Schedule,
     ids::ActorId,
-    message::{DispatchKind, IncomingDispatch, IncomingMessage},
+    message::{ContextSettings, DispatchKind, IncomingDispatch, IncomingMessage},
+    pages::{WasmPage, numerated::tree::IntervalsTree},
 };
+use gear_core_backend::MemorySnapshot;
 use gear_lazy_pages_common::LazyPagesInterface;
 use gprimitives::H256;
 use gsys::{GasMultiplier, Percent};
@@ -43,7 +47,7 @@ use journal::RuntimeJournalHandler;
 use state::{Dispatch, ProgramState, Storage};
 
 pub use core_processor::configs::BlockInfo;
-use gear_core::code::InstrumentedCodeAndMetadata;
+
 pub use journal::NativeJournalHandler as JournalHandler;
 pub use schedule::{Handler as ScheduleHandler, Restorer as ScheduleRestorer};
 pub use transitions::{FinalizedBlockTransitions, InBlockTransitions, NonFinalTransition};
@@ -53,6 +57,9 @@ pub mod state;
 mod journal;
 mod schedule;
 mod transitions;
+
+#[cfg(test)]
+mod tests;
 
 // TODO: consider format.
 /// Version of the runtime.
@@ -199,7 +206,58 @@ where
     let mut mega_journal = Vec::new();
     let mut queue_gas_allowance_counter = GasAllowanceCounter::new(gas_allowance);
 
+    // Create message context settings from block config
+    let msg_ctx_settings = ContextSettings {
+        sending_fee: block_config.costs.db.write.cost_for(2.into()),
+        scheduled_sending_fee: block_config.costs.db.write.cost_for(4.into()),
+        waiting_fee: block_config.costs.db.write.cost_for(3.into()),
+        waking_fee: block_config.costs.db.write.cost_for(2.into()),
+        reservation_fee: block_config.costs.db.write.cost_for(2.into()),
+        outgoing_limit: block_config.outgoing_limit,
+        outgoing_bytes_limit: block_config.outgoing_bytes_limit,
+    };
+    let program = match (
+        &program_state.program,
+        instrumented_code.as_ref(),
+        code_metadata.as_ref(),
+    ) {
+        (state::Program::Active(active_state), Some(code), Some(metadata)) => {
+            let allocations = active_state.allocations_hash.map_or_default(|hash| {
+                ri.storage()
+                    .allocations(hash)
+                    .expect("Cannot get allocations")
+            });
+            Some(core_processor::common::Program {
+                id: program_id,
+                memory_infix: active_state.memory_infix,
+                instrumented_code: code.clone(),
+                code_metadata: metadata.clone(),
+                allocations: allocations.into(),
+            })
+        }
+        _ => None,
+    };
+
     ri.init_lazy_pages();
+
+    // Cache execution settings once per queue
+    let random_data = ri.random_data();
+    let execution_settings = core_processor::configs::ExecutionSettings {
+        block_info: block_config.block_info,
+        performance_multiplier: block_config.performance_multiplier,
+        existential_deposit: block_config.existential_deposit,
+        mailbox_threshold: block_config.mailbox_threshold,
+        max_pages: block_config.max_pages,
+        ext_costs: block_config.costs.ext.clone(),
+        lazy_pages_costs: block_config.costs.lazy_pages.clone(),
+        forbidden_funcs: block_config.forbidden_funcs.clone(),
+        reserve_for: block_config.reserve_for,
+        random_data,
+        gas_multiplier: block_config.gas_multiplier,
+    };
+
+    let mut sequence_state = SequenceState::<'_, Ext<RI::LazyPages>>::new();
+    let mut memory_snapshot = Ext::<RI::LazyPages>::memory_snapshot();
 
     for dispatch in queue {
         let origin = dispatch.message_type;
@@ -209,13 +267,35 @@ where
         let journal = process_dispatch(
             dispatch,
             &block_config,
+            msg_ctx_settings,
             program_id,
             &program_state,
             &instrumented_code,
             &code_metadata,
             ri,
             queue_gas_allowance_counter.left(),
+            &mut sequence_state,
+            &mut memory_snapshot,
+            program.as_ref(),
+            &execution_settings,
         );
+
+        // Check if allocations changed and update the cache
+        if let Some(ref metadata) = code_metadata {
+            for note in &journal {
+                if let JournalNote::UpdateAllocations {
+                    program_id: pid,
+                    allocations,
+                } = note
+                    && *pid == program_id
+                {
+                    sequence_state
+                        .update_cached_allocations(allocations.clone(), metadata.static_pages());
+                    break;
+                }
+            }
+        }
+
         let mut handler = RuntimeJournalHandler {
             storage: ri.storage(),
             program_state: &mut program_state,
@@ -247,15 +327,20 @@ where
 }
 
 #[allow(clippy::too_many_arguments)]
-fn process_dispatch<S, RI>(
+fn process_dispatch<'a, S, RI>(
     dispatch: Dispatch,
     block_config: &BlockConfig,
+    msg_ctx_settings: ContextSettings,
     program_id: ActorId,
     program_state: &ProgramState,
     instrumented_code: &Option<InstrumentedCode>,
     code_metadata: &Option<CodeMetadata>,
     ri: &RI,
     gas_allowance: u64,
+    sequence_state: &mut SequenceState<'a, Ext<RI::LazyPages>>,
+    memory_snapshot: &mut impl MemorySnapshot,
+    program: Option<&'a Program>,
+    execution_settings: &ExecutionSettings,
 ) -> Vec<JournalNote>
 where
     S: Storage,
@@ -285,47 +370,13 @@ where
 
     let dispatch = IncomingDispatch::new(kind, incoming_message, context);
 
-    let context = ContextCharged::new(program_id, dispatch, gas_allowance);
-
-    let context = match context.charge_for_program(block_config) {
-        Ok(context) => context,
-        Err(journal) => return journal,
-    };
-
-    let active_state = match &program_state.program {
-        state::Program::Active(state) => state,
-        state::Program::Terminated(program_id) => {
-            log::trace!("Program {program_id} has failed init");
-            return core_processor::process_failed_init(context);
-        }
-        state::Program::Exited(program_id) => {
-            log::trace!("Program {program_id} has exited");
-            return core_processor::process_program_exited(context, *program_id);
-        }
-    };
-
-    if active_state.initialized && kind == DispatchKind::Init {
-        // Panic is impossible, because gear protocol does not provide functionality
-        // to send second init message to any already existing program.
-        unreachable!(
-            "Init message {dispatch_id} is sent to already initialized program {program_id}",
-        );
-    }
-
-    // If the destination program is uninitialized, then we allow
-    // to process message, if it's a reply or init message.
-    // Otherwise, we return error reply.
-    if !active_state.initialized && !matches!(kind, DispatchKind::Init | DispatchKind::Reply) {
-        log::trace!(
-            "Program {program_id} is not yet finished initialization, so cannot process handle message"
-        );
-        return core_processor::process_uninitialized(context);
-    }
-
-    let context = match context.charge_for_code_metadata(block_config) {
-        Ok(context) => context,
-        Err(journal) => return journal,
-    };
+    // Use PrechargeContext to determine if we need full charging or can use cached data
+    let precharge_ctx = PrechargeContext::new(
+        program_id,
+        dispatch,
+        gas_allowance,
+        sequence_state.cached_data(),
+    );
 
     let code = instrumented_code
         .as_ref()
@@ -334,11 +385,155 @@ where
         .as_ref()
         .expect("Code metadata must be provided if program is active");
 
-    let context =
-        match context.charge_for_instrumented_code(block_config, code.bytes().len() as u32) {
-            Ok(context) => context,
-            Err(journal) => return journal,
-        };
+    let (context, allocations_tree) = match precharge_ctx {
+        PrechargeContext::NeedsCharging { context } => {
+            // Full charging path for first dispatch
+            match charge_full_sequence(
+                context,
+                block_config,
+                program_id,
+                program_state,
+                code,
+                code_metadata,
+                ri,
+                kind,
+                dispatch_id,
+            ) {
+                Ok((ctx, allocs, cache_data)) => {
+                    // Cache data for subsequent dispatches
+                    sequence_state.cache_execution_data(cache_data);
+                    (ctx, allocs)
+                }
+                Err(journal) => return journal,
+            }
+        }
+        PrechargeContext::PreCharged { context } => {
+            // Pre-charged path - validate program state only
+            if let Err(journal) =
+                validate_program_state_precharged(program_state, kind, dispatch_id, program_id)
+            {
+                return journal;
+            }
+
+            // Use cached allocations
+            let cached = sequence_state
+                .cached_data()
+                .expect("cached data must exist for PreCharged context");
+            (context, cached.actor_data.allocations.clone())
+        }
+    };
+
+    // Call into_final_parts() directly and use the already-existing program reference
+    let (
+        _destination_id,
+        dispatch,
+        gas_counter,
+        gas_allowance_counter,
+        actor_data,
+        allocations_data,
+    ) = context.into_final_parts();
+
+    let program = program.expect("program must be initialized for execution");
+
+    // Create gas reserver from dispatch and actor data
+    let gas_reserver = gear_core::reservation::GasReserver::new(
+        &dispatch,
+        actor_data.gas_reservation_map,
+        allocations_data.max_reservations,
+    );
+
+    let balance = program_state.balance;
+    let memory_size = allocations_data.memory_size;
+
+    let initial_reservations_amount = gas_reserver.states().len();
+    let dispatch_for_journal = dispatch.clone();
+    let system_reservation_ctx =
+        core_processor::SystemReservationContext::from_dispatch(&dispatch_for_journal);
+
+    let execution_step = ExecutionStep {
+        balance,
+        dispatch,
+        allocations: allocations_tree,
+        gas_counter,
+        gas_allowance_counter,
+        gas_reserver,
+    };
+
+    let exec_result = execute_wasm_step::<Ext<RI::LazyPages>, _>(
+        execution_step,
+        program,
+        memory_size,
+        execution_settings,
+        msg_ctx_settings,
+        sequence_state,
+        memory_snapshot,
+    );
+
+    core_processor::process_execution_result(
+        dispatch_for_journal,
+        program_id,
+        initial_reservations_amount,
+        system_reservation_ctx,
+        exec_result,
+    )
+    .unwrap_or_else(|err| unreachable!("{err}"))
+}
+
+/// Performs full charging sequence for first dispatch.
+/// Returns the charged context, allocations tree, and data to cache for subsequent dispatches.
+#[allow(clippy::too_many_arguments)]
+fn charge_full_sequence<S, RI>(
+    context: ContextCharged<core_processor::ForNothing>,
+    block_config: &BlockConfig,
+    program_id: ActorId,
+    program_state: &ProgramState,
+    code: &InstrumentedCode,
+    code_metadata: &CodeMetadata,
+    ri: &RI,
+    kind: DispatchKind,
+    dispatch_id: gprimitives::MessageId,
+) -> Result<
+    (
+        ContextCharged<core_processor::ForModuleInstantiation>,
+        IntervalsTree<WasmPage>,
+        CachedExecutionData,
+    ),
+    Vec<JournalNote>,
+>
+where
+    S: Storage,
+    RI: RuntimeInterface<S>,
+{
+    let context = context.charge_for_program(block_config)?;
+
+    let active_state = match &program_state.program {
+        state::Program::Active(state) => state,
+        state::Program::Terminated(pid) => {
+            log::trace!("Program {pid} has failed init");
+            return Err(core_processor::process_failed_init(context));
+        }
+        state::Program::Exited(pid) => {
+            log::trace!("Program {pid} has exited");
+            return Err(core_processor::process_program_exited(context, *pid));
+        }
+    };
+
+    if active_state.initialized && kind == DispatchKind::Init {
+        unreachable!(
+            "Init message {dispatch_id} is sent to already initialized program {program_id}",
+        );
+    }
+
+    if !active_state.initialized && !matches!(kind, DispatchKind::Init | DispatchKind::Reply) {
+        log::trace!(
+            "Program {program_id} is not yet finished initialization, so cannot process handle message"
+        );
+        return Err(core_processor::process_uninitialized(context));
+    }
+
+    let context = context.charge_for_code_metadata(block_config)?;
+
+    let context = context.charge_for_instrumented_code(block_config, code.bytes().len() as u32)?;
 
     let allocations = active_state.allocations_hash.map_or_default(|hash| {
         ri.storage()
@@ -346,40 +541,78 @@ where
             .expect("Cannot get allocations")
     });
 
-    let context = match context.charge_for_allocations(block_config, allocations.tree_len()) {
-        Ok(context) => context,
-        Err(journal) => return journal,
-    };
+    let context = context.charge_for_allocations(block_config, allocations.tree_len())?;
+
+    let allocations_tree: IntervalsTree<WasmPage> = allocations.into();
 
     let actor_data = ExecutableActorData {
-        allocations: allocations.into(),
-        gas_reservation_map: Default::default(), // TODO (gear_v2): deprecate it.
+        allocations: allocations_tree.clone(),
+        gas_reservation_map: Default::default(),
         memory_infix: active_state.memory_infix,
     };
 
-    let context = match context.charge_for_module_instantiation(
+    // Compute memory size for caching
+    let memory_size = allocations_tree
+        .end()
+        .map(|p| p.inc())
+        .unwrap_or_else(|| code_metadata.static_pages());
+
+    let cache_data = CachedExecutionData {
+        actor_data: actor_data.clone(),
+        reservations_and_memory_size: ReservationsAndMemorySize {
+            max_reservations: block_config.max_reservations,
+            memory_size,
+        },
+    };
+
+    let context = context.charge_for_module_instantiation(
         block_config,
         actor_data,
         code.instantiated_section_sizes(),
         code_metadata,
-    ) {
-        Ok(context) => context,
-        Err(journal) => return journal,
+    )?;
+
+    Ok((context, allocations_tree, cache_data))
+}
+
+/// Validates program state for pre-charged path (subsequent dispatches).
+/// Returns Err with empty journal if program is invalid (caller should handle terminated/exited).
+fn validate_program_state_precharged(
+    program_state: &ProgramState,
+    kind: DispatchKind,
+    dispatch_id: gprimitives::MessageId,
+    program_id: ActorId,
+) -> Result<(), Vec<JournalNote>> {
+    let active_state = match &program_state.program {
+        state::Program::Active(state) => state,
+        state::Program::Terminated(_) | state::Program::Exited(_) => {
+            // Program state changed between dispatches - this shouldn't happen
+            // in a well-formed queue, but we handle it gracefully.
+            // Return empty journal to skip this dispatch.
+            log::warn!(
+                "Program {program_id} state changed to terminated/exited during sequence processing"
+            );
+            return Err(Vec::new());
+        }
     };
 
-    let execution_context = ProcessExecutionContext::new(
-        context,
-        InstrumentedCodeAndMetadata {
-            instrumented_code: code.clone(),
-            metadata: code_metadata.clone(),
-        },
-        program_state.balance,
-    );
+    if active_state.initialized && kind == DispatchKind::Init {
+        unreachable!(
+            "Init message {dispatch_id} is sent to already initialized program {program_id}",
+        );
+    }
 
-    let random_data = ri.random_data();
+    if !active_state.initialized && !matches!(kind, DispatchKind::Init | DispatchKind::Reply) {
+        log::trace!(
+            "Program {program_id} is not yet finished initialization, so cannot process handle message"
+        );
+        // For precharged context, we can't call process_uninitialized because we don't have
+        // a ForProgram context. Return empty journal - the program state validation
+        // should have been done on first dispatch.
+        return Err(Vec::new());
+    }
 
-    core_processor::process::<Ext<RI::LazyPages>>(block_config, execution_context, random_data)
-        .unwrap_or_else(|err| unreachable!("{err}"))
+    Ok(())
 }
 
 pub const fn pack_u32_to_i64(low: u32, high: u32) -> i64 {

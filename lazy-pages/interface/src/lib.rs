@@ -90,6 +90,10 @@ impl LazyPagesInterface for LazyPagesRuntimeInterface {
         mprotect_lazy_pages(ctx, mem, false);
     }
 
+    fn set_lazy_pages_protection() {
+        gear_ri::set_lazy_pages_protection()
+    }
+
     fn update_lazy_pages_and_protect_again<Context>(
         ctx: &mut Context,
         mem: &mut impl Memory<Context>,

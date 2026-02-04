@@ -20,6 +20,7 @@
 
 use crate::{
     gas::ChargeError,
+    limited::LimitedVec,
     pages::{GearPage, WasmPage, WasmPagesAmount},
 };
 use alloc::{boxed::Box, format};
@@ -189,6 +190,27 @@ impl PageBuf {
     }
 }
 
+/// Page dump for the program.
+#[derive(Clone)]
+pub struct PageDump {
+    /// Offset in memory.
+    pub page: GearPage,
+    /// Memory dump data.
+    pub data: PageBuf,
+}
+
+impl Default for PageDump {
+    fn default() -> Self {
+        PageDump {
+            page: GearPage::default(),
+            data: PageBuf::new_zeroed(),
+        }
+    }
+}
+
+/// Memory dump for a program; number of stored pages is bounded by `u32::MAX`.
+pub type MemoryDump = LimitedVec<PageDump, { u32::MAX as usize }>;
+
 /// Host pointer type.
 /// Host pointer can be 64bit or less, to support both we use u64.
 pub type HostPointer = u64;
@@ -196,10 +218,11 @@ pub type HostPointer = u64;
 const _: () = assert!(size_of::<HostPointer>() >= size_of::<usize>());
 
 /// Core memory error.
-#[derive(Debug, Copy, Clone, Eq, PartialEq, derive_more::Display)]
+#[derive(Default, Debug, Copy, Clone, Eq, PartialEq, derive_more::Display)]
 pub enum MemoryError {
     /// The error occurs in attempt to access memory outside wasm program memory.
     #[display("Trying to access memory outside wasm program memory")]
+    #[default]
     AccessOutOfBounds,
 }
 
