@@ -152,6 +152,71 @@ async fn basics() {
 
 #[tokio::test(flavor = "multi_thread")]
 #[ntest::timeout(60_000)]
+async fn write_memory_to_last_byte() {
+    init_logger();
+
+    let mut env = TestEnv::new(Default::default()).await.unwrap();
+
+    let mut node = env.new_node(NodeConfig::default().validator(env.validators[0]));
+    node.start_service().await;
+
+    let wat = r#"
+(module
+    (import "env" "memory" (memory 32768))
+    (export "init" (func $init))
+    (func $init
+        (i32.store8
+            (i32.const 2147483647)
+            (i32.const 0xff)
+        )
+    )
+)"#;
+    let wasm_binary = wat::parse_str(wat).expect("failed to parse module");
+    let res = env
+        .upload_code(&wasm_binary)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert!(res.valid);
+
+    let code_id = res.code_id;
+
+    let code = node
+        .db
+        .original_code(code_id)
+        .expect("After approval, the code is guaranteed to be in the database");
+    assert_eq!(code, wasm_binary);
+
+    let _ = node
+        .db
+        .instrumented_code(1, code_id)
+        .expect("After approval, instrumented code is guaranteed to be in the database");
+    let res = env
+        .create_program(code_id, 500_000_000_000_000)
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+    assert_eq!(res.code_id, code_id);
+
+    let res = env
+        .send_message(res.program_id, &[])
+        .await
+        .unwrap()
+        .wait_for()
+        .await
+        .unwrap();
+
+    assert_eq!(res.code, ReplyCode::Success(SuccessReplyReason::Auto));
+    assert!(res.payload.is_empty());
+    assert_eq!(res.value, 0);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ntest::timeout(60_000)]
 async fn ping() {
     init_logger();
 
