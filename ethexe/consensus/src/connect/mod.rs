@@ -31,7 +31,7 @@ use ethexe_common::{
     consensus::{VerifiedAnnounce, VerifiedValidationRequest},
     db::OnChainStorageRO,
     injected::SignedInjectedTransaction,
-    network::{AnnouncesRequest, CheckedAnnouncesResponse},
+    network::{AnnouncesRequest, AnnouncesResponse},
 };
 use ethexe_db::Database;
 use futures::{Stream, stream::FusedStream};
@@ -286,7 +286,7 @@ impl ConsensusService for ConnectService {
         Ok(())
     }
 
-    fn receive_announces_response(&mut self, response: CheckedAnnouncesResponse) -> Result<()> {
+    fn receive_announces_response(&mut self, response: AnnouncesResponse) -> Result<()> {
         let State::WaitingForMissingAnnounces {
             block,
             producer,
