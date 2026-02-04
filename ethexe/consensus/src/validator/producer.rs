@@ -263,7 +263,7 @@ mod tests {
         validator::{PendingEvent, mock::*},
     };
     use async_trait::async_trait;
-    use ethexe_common::{Address, Digest, HashOf, db::*, gear::CodeCommitment, mock::*};
+    use ethexe_common::{Address, HashOf, db::*, gear::CodeCommitment, mock::*};
     use nonempty::nonempty;
 
     #[tokio::test]
@@ -351,6 +351,13 @@ mod tests {
 
         // Waiting for announce to be computed
         assert!(state.is_producer());
+
+        // Set up computed announce in database before processing
+        AnnounceData {
+            announce: state.context().core.db.announce(announce_hash).unwrap(),
+            computed: Some(Default::default()),
+        }
+        .setup(&state.context().core.db);
 
         let (state, event) = state
             .process_computed_announce(ComputedAnnounce::mock(announce_hash))
@@ -458,6 +465,13 @@ mod tests {
             .skip_timer()
             .await
             .unwrap();
+
+        // Set up computed announce in database before processing
+        AnnounceData {
+            announce: state.context().core.db.announce(announce_hash).unwrap(),
+            computed: Some(Default::default()),
+        }
+        .setup(&state.context().core.db);
 
         let (state, event) = state
             .process_computed_announce(ComputedAnnounce::mock(announce_hash))

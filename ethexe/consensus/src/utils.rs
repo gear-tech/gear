@@ -95,7 +95,7 @@ mod test_support {
         ) -> Result<Self> {
             let batch_digest = batch.to_digest();
             let signature =
-                signer.sign_for_contract_digest(router_address, pub_key, &batch_digest)?;
+                signer.sign_for_contract_digest(router_address, pub_key, batch_digest, None)?;
             let signatures: BTreeMap<_, _> =
                 [(pub_key.to_address(), signature)].into_iter().collect();
 
@@ -522,7 +522,7 @@ mod tests {
         let other_pub_key = public_keys[1];
         let digest = multisigned_batch.batch().to_digest();
         let signature = signer
-            .sign_for_contract_digest(ADDRESS, other_pub_key, &digest)
+            .sign_for_contract_digest(ADDRESS, other_pub_key, digest, None)
             .unwrap();
         let reply = BatchCommitmentValidationReply { digest, signature };
 
@@ -581,7 +581,7 @@ mod tests {
         let other_pub_key = public_keys[1];
         let digest = multisigned_batch.batch().to_digest();
         let signature = signer
-            .sign_for_contract_digest(ADDRESS, other_pub_key, &digest)
+            .sign_for_contract_digest(ADDRESS, other_pub_key, digest, None)
             .unwrap();
         let reply = BatchCommitmentValidationReply { digest, signature };
 

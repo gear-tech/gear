@@ -855,6 +855,12 @@ mod tests {
             validators2.clone(),
         );
 
+        // Setup DKG for eras 1 and 2 (era 0 election commits validators for era 1, etc.)
+        let v1: Vec<Address> = validators1.clone().into();
+        let v2: Vec<Address> = validators2.clone().into();
+        setup_test_dkg(&ctx.core.db, &v1, Address([1; 20]), 2, 1).unwrap();
+        setup_test_dkg(&ctx.core.db, &v2, Address([4; 20]), 2, 2).unwrap();
+
         // Before election
         let commitment = ctx
             .core

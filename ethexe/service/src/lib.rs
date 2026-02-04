@@ -58,9 +58,6 @@ use tokio::sync::oneshot;
 pub mod config;
 
 mod fast_sync;
-#[cfg(feature = "test-utils")]
-#[path = "tests/utils/mod.rs"]
-pub mod test_utils;
 
 #[cfg(test)]
 mod tests;

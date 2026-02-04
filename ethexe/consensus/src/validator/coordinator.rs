@@ -331,7 +331,7 @@ mod tests {
         let signature = ctx
             .core
             .signer
-            .sign_for_contract_digest(ctx.core.router_address, ctx.core.pub_key, &digest)
+            .sign_for_contract_digest(ctx.core.router_address, ctx.core.pub_key, digest, None)
             .unwrap();
 
         let state = Coordinator::submission(ctx, batch, signature).unwrap();

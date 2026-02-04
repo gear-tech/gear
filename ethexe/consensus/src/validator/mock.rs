@@ -233,6 +233,12 @@ pub fn setup_test_dkg(
     // Persist public key package for ROAST verification.
     db.set_public_key_package(era, public_key_package);
 
+    // Extract and persist VSS commitment from the first secret share.
+    if let Some((_, first_share)) = secret_shares.iter().next() {
+        let vss_commitment = first_share.commitment().clone();
+        db.set_dkg_vss_commitment(era, vss_commitment);
+    }
+
     if let Some(self_idx) = participants.iter().position(|addr| *addr == self_address) {
         let identifier = identifiers[self_idx];
         let secret_share = secret_shares

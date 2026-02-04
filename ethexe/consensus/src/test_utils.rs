@@ -39,9 +39,7 @@ fn create_test_signer(seed: u8) -> (Signer, Address) {
     let signer = Signer::memory();
     let private_key =
         PrivateKey::from_seed([seed; 32]).expect("seed should produce valid private key");
-    let pub_key = signer
-        .import_key(private_key)
-        .expect("imported private key");
+    let pub_key = signer.import(private_key).expect("imported private key");
     let address = pub_key.to_address();
     (signer, address)
 }
@@ -67,9 +65,7 @@ impl ValidatorNetwork {
             let db = Database::memory();
             let (signer, address) = create_test_signer(i as u8 + 1);
             let private_key = PrivateKey::from_seed([i as u8 + 1; 32]).expect("valid private key");
-            let pub_key = signer
-                .import_key(private_key)
-                .expect("imported private key");
+            let pub_key = signer.import(private_key).expect("imported private key");
 
             let node = ValidatorNode {
                 dkg_engine: DkgEngine::new(db.clone(), address),
