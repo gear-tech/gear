@@ -25,8 +25,8 @@ use crate::{
 };
 use anyhow::{Context, Result, anyhow};
 use clap::Parser;
-use gring::{Keyring, Keystore};
 use gsdk::{Api, SignedApi, ext::sp_core};
+use gsigner::schemes::sr25519::{Keyring, Keystore};
 use std::{env, fs, io, path::PathBuf, time::Duration};
 use tracing_subscriber::EnvFilter;
 
@@ -112,9 +112,7 @@ impl App {
     /// Returns the keyring.
     pub fn keyring(&self) -> Result<Keyring> {
         let path = env::var_os("GCLI_CONFIG_DIR")
-            .map_or_else(gring::cmd::Command::store, |dir| {
-                Ok(PathBuf::from(dir).join("keyring"))
-            })?;
+            .map_or_else(store_path, |dir| Ok(PathBuf::from(dir).join("keyring")))?;
 
         if !path.exists() {
             fs::create_dir_all(&path).context("failed to create keyring directory")?;
@@ -125,7 +123,8 @@ impl App {
 
     /// Returns the currently used keystore.
     pub fn keystore(&self) -> Result<Keystore> {
-        self.keyring()?.primary()
+        let mut keyring = self.keyring()?;
+        Ok(keyring.primary()?.clone())
     }
 
     pub fn ss58_address(&self) -> Result<String> {
@@ -134,11 +133,28 @@ impl App {
 
     /// Returns a signed Gear node API wrapper.
     pub async fn signed_api(&self) -> Result<SignedApi> {
-        let pair = self
-            .keystore()?
-            .clone()
-            .decrypt(self.opts.passwd.as_deref())?;
+        let passwd_str = self
+            .opts
+            .passwd
+            .as_deref()
+            .map(|b| std::str::from_utf8(b))
+            .transpose()
+            .context("password must be valid UTF-8")?;
+        let private_key = self.keystore()?.private_key_with_password(passwd_str)?;
 
-        Ok(SignedApi::with_pair(self.api().await?, pair.into()))
+        Ok(SignedApi::with_pair(
+            self.api().await?,
+            private_key.keypair().into(),
+        ))
     }
+}
+
+fn store_path() -> Result<PathBuf> {
+    let data_dir = dirs::data_dir().ok_or_else(|| anyhow!("Failed to locate app directory."))?;
+    let store = gsigner::keyring::resolve_namespaced_path(
+        data_dir.join("gsigner"),
+        gsigner::keyring::NAMESPACE_SR,
+    );
+    fs::create_dir_all(&store)?;
+    Ok(store)
 }
