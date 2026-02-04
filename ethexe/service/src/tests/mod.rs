@@ -203,7 +203,7 @@ async fn write_memory_to_last_byte() {
     assert_eq!(res.code_id, code_id);
 
     let res = env
-        .send_message(res.program_id, b"PING")
+        .send_message(res.program_id, &[])
         .await
         .unwrap()
         .wait_for()
