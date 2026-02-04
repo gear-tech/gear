@@ -427,7 +427,10 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
     }
 
     function _commitCodes(Storage storage router, Gear.BatchCommitment calldata _batch) private returns (bytes32) {
-        bytes memory _codeCommitmentHashes;
+        uint256 codeCommitmentsLen = _batch.codeCommitments.length;
+        uint256 codeCommitmentsHashSize = codeCommitmentsLen * 32;
+        uint256 codeCommitmentsPtr = Memory.allocate(codeCommitmentsHashSize);
+        uint256 offset = 0;
 
         for (uint256 i = 0; i < _batch.codeCommitments.length; i++) {
             Gear.CodeCommitment calldata _commitment = _batch.codeCommitments[i];
@@ -446,10 +449,12 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
 
             emit CodeGotValidated(_commitment.id, _commitment.valid);
 
-            _codeCommitmentHashes = bytes.concat(_codeCommitmentHashes, Gear.codeCommitmentHash(_commitment));
+            bytes32 codeCommitmentHash = Gear.codeCommitmentHash(_commitment);
+            Memory.writeWord(codeCommitmentsPtr, offset, uint256(codeCommitmentHash));
+            offset += 32;
         }
 
-        return keccak256(_codeCommitmentHashes);
+        return bytes32(Hashes.efficientKeccak256(codeCommitmentsPtr, 0, codeCommitmentsHashSize));
     }
 
     // TODO #4609
