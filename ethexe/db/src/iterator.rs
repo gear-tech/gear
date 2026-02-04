@@ -447,7 +447,7 @@ where
         this
     }
 
-    pub fn new_skip_nodes(storage: S, node: impl Into<Node>, skip_nodes: HashSet<u64>) -> Self {
+    pub fn with_skip_nodes(storage: S, node: impl Into<Node>, skip_nodes: HashSet<u64>) -> Self {
         let mut this = Self {
             storage,
             stack: Default::default(),
