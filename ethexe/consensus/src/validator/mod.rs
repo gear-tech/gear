@@ -539,8 +539,10 @@ impl DefaultProcessing {
         tx: SignedInjectedTransaction,
     ) -> Result<(TransactionAdditionStatus, ValidatorState)> {
         let mut s = s.into();
-        let r = s.context_mut().core.process_injected_transaction(tx)?;
-        Ok((r, s))
+        s.context_mut()
+            .core
+            .process_injected_transaction(tx)
+            .map(|status| (status, s))
     }
 }
 
