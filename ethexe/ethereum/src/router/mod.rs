@@ -713,7 +713,7 @@ mod tests {
     use super::*;
     use crate::deploy::EthereumDeployer;
     use alloy::{eips::BlockId, node_bindings::Anvil};
-    use ethexe_signer::Signer;
+    use gsigner::Signer;
 
     #[tokio::test]
     async fn inexistent_code_is_unknown() {
@@ -721,8 +721,7 @@ mod tests {
 
         let signer = Signer::memory();
         let alice = signer
-            .storage_mut()
-            .add_key(
+            .import(
                 "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
                     .parse()
                     .unwrap(),
@@ -750,8 +749,7 @@ mod tests {
 
         let signer = Signer::memory();
         let alice = signer
-            .storage_mut()
-            .add_key(
+            .import(
                 "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
                     .parse()
                     .unwrap(),

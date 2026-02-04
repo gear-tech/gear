@@ -21,12 +21,12 @@ use crate::{
     abi::{self, IWrappedVara, utils},
 };
 use alloy::{
-    primitives::{Address, U256 as AlloyU256},
+    primitives::{Address as AlloyAddress, U256 as AlloyU256},
     providers::{Provider, ProviderBuilder, RootProvider},
     rpc::types::TransactionReceipt,
 };
 use anyhow::Result;
-use ethexe_common::Address as LocalAddress;
+use ethexe_common::Address;
 use events::{ApprovalEventBuilder, TransferEventBuilder};
 use gprimitives::{H256, U256};
 
@@ -38,12 +38,12 @@ type QueryInstance = IWrappedVara::IWrappedVaraInstance<RootProvider>;
 pub struct WVara(Instance);
 
 impl WVara {
-    pub(crate) fn new(address: Address, provider: AlloyProvider) -> Self {
+    pub(crate) fn new(address: AlloyAddress, provider: AlloyProvider) -> Self {
         Self(Instance::new(address, provider))
     }
 
-    pub fn address(&self) -> LocalAddress {
-        LocalAddress(*self.0.address().0)
+    pub fn address(&self) -> Address {
+        Address(*self.0.address().0)
     }
 
     pub fn query(&self) -> WVaraQuery {
@@ -53,7 +53,7 @@ impl WVara {
         ))
     }
 
-    pub async fn transfer(&self, to: LocalAddress, value: u128) -> Result<H256> {
+    pub async fn transfer(&self, to: Address, value: u128) -> Result<H256> {
         self.transfer_with_receipt(to, value)
             .await
             .map(|receipt| (*receipt.transaction_hash).into())
@@ -61,7 +61,7 @@ impl WVara {
 
     pub async fn transfer_with_receipt(
         &self,
-        to: LocalAddress,
+        to: Address,
         value: u128,
     ) -> Result<TransactionReceipt> {
         let builder = self.0.transfer(to.into(), AlloyU256::from(value));
@@ -73,12 +73,7 @@ impl WVara {
         Ok(receipt)
     }
 
-    pub async fn transfer_from(
-        &self,
-        from: LocalAddress,
-        to: LocalAddress,
-        value: u128,
-    ) -> Result<H256> {
+    pub async fn transfer_from(&self, from: Address, to: Address, value: u128) -> Result<H256> {
         self.transfer_from_with_receipt(from, to, value)
             .await
             .map(|receipt| (*receipt.transaction_hash).into())
@@ -86,8 +81,8 @@ impl WVara {
 
     pub async fn transfer_from_with_receipt(
         &self,
-        from: LocalAddress,
-        to: LocalAddress,
+        from: Address,
+        to: Address,
         value: u128,
     ) -> Result<TransactionReceipt> {
         let builder = self
@@ -101,7 +96,7 @@ impl WVara {
         Ok(receipt)
     }
 
-    pub async fn approve(&self, spender: LocalAddress, value: u128) -> Result<H256> {
+    pub async fn approve(&self, spender: Address, value: u128) -> Result<H256> {
         self.approve_with_receipt(spender, value)
             .await
             .map(|receipt| (*receipt.transaction_hash).into())
@@ -109,28 +104,25 @@ impl WVara {
 
     pub async fn approve_with_receipt(
         &self,
-        spender: LocalAddress,
+        spender: Address,
         value: u128,
     ) -> Result<TransactionReceipt> {
         self._approve_with_receipt(spender, U256::from(value)).await
     }
 
-    pub async fn approve_all(&self, spender: LocalAddress) -> Result<H256> {
+    pub async fn approve_all(&self, spender: Address) -> Result<H256> {
         self.approve_all_with_receipt(spender)
             .await
             .map(|receipt| (*receipt.transaction_hash).into())
     }
 
-    pub async fn approve_all_with_receipt(
-        &self,
-        spender: LocalAddress,
-    ) -> Result<TransactionReceipt> {
+    pub async fn approve_all_with_receipt(&self, spender: Address) -> Result<TransactionReceipt> {
         self._approve_with_receipt(spender, U256::MAX).await
     }
 
     async fn _approve_with_receipt(
         &self,
-        spender: LocalAddress,
+        spender: Address,
         value: U256,
     ) -> Result<TransactionReceipt> {
         let builder = self
@@ -144,17 +136,13 @@ impl WVara {
         Ok(receipt)
     }
 
-    pub async fn mint(&self, to: LocalAddress, amount: u128) -> Result<H256> {
+    pub async fn mint(&self, to: Address, amount: u128) -> Result<H256> {
         self.mint_with_receipt(to, amount)
             .await
             .map(|receipt| (*receipt.transaction_hash).into())
     }
 
-    pub async fn mint_with_receipt(
-        &self,
-        to: LocalAddress,
-        amount: u128,
-    ) -> Result<TransactionReceipt> {
+    pub async fn mint_with_receipt(&self, to: Address, amount: u128) -> Result<TransactionReceipt> {
         let builder = self.0.mint(to.into(), AlloyU256::from(amount));
         let receipt = builder
             .send()
@@ -168,11 +156,11 @@ impl WVara {
 pub struct WVaraQuery(QueryInstance);
 
 impl WVaraQuery {
-    pub async fn new(rpc_url: &str, router_address: LocalAddress) -> Result<Self> {
+    pub async fn new(rpc_url: &str, router_address: Address) -> Result<Self> {
         let provider = ProviderBuilder::default().connect(rpc_url).await?;
 
         Ok(Self(QueryInstance::new(
-            Address::new(router_address.0),
+            AlloyAddress::new(router_address.0),
             provider,
         )))
     }
@@ -212,7 +200,7 @@ impl WVaraQuery {
             .map_err(Into::into)
     }
 
-    pub async fn balance_of(&self, address: LocalAddress) -> Result<u128> {
+    pub async fn balance_of(&self, address: Address) -> Result<u128> {
         self.0
             .balanceOf(address.into())
             .call()
@@ -221,7 +209,7 @@ impl WVaraQuery {
             .map_err(Into::into)
     }
 
-    pub async fn allowance(&self, owner: LocalAddress, spender: LocalAddress) -> Result<U256> {
+    pub async fn allowance(&self, owner: Address, spender: Address) -> Result<U256> {
         self.0
             .allowance(owner.into(), spender.into())
             .call()

@@ -51,6 +51,9 @@ pub enum Error {
     #[error("incomplete batch result: expected {expected} values, found {found} values")]
     IncompleteBatchResult { expected: usize, found: usize },
 
+    #[error("invalid secret phrase or key material")]
+    InvalidSecret,
+
     #[error("{0} was not found in the storage")]
     PageNotFound(FailedPage),
 

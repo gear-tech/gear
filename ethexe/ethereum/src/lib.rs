@@ -23,7 +23,7 @@ use alloy::{
     consensus::SignableTransaction,
     eips::BlockId,
     network::{self, Ethereum as AlloyEthereum, EthereumWallet, Network, TxSigner},
-    primitives::{Address, B256, ChainId, Signature, SignatureError},
+    primitives::{Address as AlloyAddress, B256, ChainId, Signature},
     providers::{
         Identity, PendingTransactionBuilder, PendingTransactionError, Provider, ProviderBuilder,
         RootProvider,
@@ -34,19 +34,17 @@ use alloy::{
     },
     rpc::types::{TransactionReceipt, TransactionRequest, eth::Log},
     signers::{
-        self as alloy_signer, Error as SignerError, Result as SignerResult, Signer, SignerSync,
-        sign_transaction_with_chain_id,
+        self as alloy_signer, Error as SignerError, Result as SignerResult, Signer as AlloySigner,
+        SignerSync, sign_transaction_with_chain_id,
     },
     sol_types::SolEvent,
     transports::RpcError,
 };
 use anyhow::{Context, Result, anyhow};
 use async_trait::async_trait;
-use ethexe_common::{
-    Address as LocalAddress, BlockHeader, Digest, SimpleBlockData, ecdsa::PublicKey,
-};
-use ethexe_signer::Signer as LocalSigner;
+use ethexe_common::{BlockHeader, Digest, SimpleBlockData, ecdsa::PublicKey};
 use gprimitives::{H256, MessageId};
+use gsigner::secp256k1::{Address, Secp256k1SignerExt, Signer};
 use middleware::Middleware;
 use mirror::Mirror;
 use router::{Router, RouterQuery};
@@ -78,22 +76,22 @@ pub type AlloyProvider = FillProvider<
 >;
 
 pub struct Ethereum {
-    router: Address,
-    wvara: Address,
+    router: AlloyAddress,
+    wvara: AlloyAddress,
     /// NOTE: Middleware address will be zero if `with_middleware` flag was not passed
     /// for [`deploy::EthereumDeployer`].
-    middleware: Address,
+    middleware: AlloyAddress,
     provider: AlloyProvider,
-    signer: Option<LocalSigner>,
-    sender_address: Option<LocalAddress>,
+    signer: Option<Signer>,
+    sender_address: Option<Address>,
 }
 
 impl Ethereum {
     pub async fn new(
         ethereum_rpc_url: &str,
-        router_address: LocalAddress,
-        signer: LocalSigner,
-        sender_address: LocalAddress,
+        router_address: Address,
+        signer: Signer,
+        sender_address: Address,
     ) -> Result<Ethereum> {
         let provider = create_provider(ethereum_rpc_url, signer.clone(), sender_address).await?;
         let router_query =
@@ -111,15 +109,15 @@ impl Ethereum {
         })
     }
 
-    pub fn signer(&self) -> Option<&LocalSigner> {
+    pub fn signer(&self) -> Option<&Signer> {
         self.signer.as_ref()
     }
 
-    pub fn sender_address(&self) -> Option<LocalAddress> {
+    pub fn sender_address(&self) -> Option<Address> {
         self.sender_address
     }
 
-    pub async fn from_provider(provider: AlloyProvider, router: Address) -> Result<Self> {
+    pub async fn from_provider(provider: AlloyProvider, router: AlloyAddress) -> Result<Self> {
         let router_query = RouterQuery::from_provider(router, provider.root().clone());
         Ok(Self {
             router,
@@ -168,7 +166,7 @@ impl Ethereum {
         Ok(SimpleBlockData { hash, header })
     }
 
-    pub fn mirror(&self, address: LocalAddress) -> Mirror {
+    pub fn mirror(&self, address: Address) -> Mirror {
         Mirror::new(address.0.into(), self.provider())
     }
 
@@ -183,7 +181,7 @@ impl Ethereum {
     pub fn middleware(&self) -> Middleware {
         assert_ne!(
             self.middleware,
-            Address::ZERO,
+            AlloyAddress::ZERO,
             "Middleware address is zero. Make sure to deploy the middleware contract and pass `with_middleware` flag to `EthereumDeployer`."
         );
         Middleware::new(self.middleware, self.provider())
@@ -192,8 +190,8 @@ impl Ethereum {
 
 pub(crate) async fn create_provider(
     rpc_url: &str,
-    signer: LocalSigner,
-    sender_address: LocalAddress,
+    signer: Signer,
+    sender_address: Address,
 ) -> Result<AlloyProvider> {
     Ok(ProviderBuilder::default()
         .with_gas_estimation()
@@ -207,16 +205,15 @@ pub(crate) async fn create_provider(
 
 #[derive(Debug, Clone)]
 struct Sender {
-    signer: LocalSigner,
+    signer: Signer,
     sender: PublicKey,
     chain_id: Option<ChainId>,
 }
 
 impl Sender {
-    pub fn new(signer: LocalSigner, sender_address: LocalAddress) -> Result<Self> {
+    pub fn new(signer: Signer, sender_address: Address) -> Result<Self> {
         let sender = signer
-            .storage()
-            .get_key_by_addr(sender_address)?
+            .get_key_by_address(sender_address)?
             .ok_or_else(|| anyhow!("no key found for {sender_address}"))?;
 
         Ok(Self {
@@ -228,13 +225,13 @@ impl Sender {
 }
 
 #[async_trait]
-impl Signer for Sender {
+impl AlloySigner for Sender {
     async fn sign_hash(&self, hash: &B256) -> SignerResult<Signature> {
         self.sign_hash_sync(hash)
     }
 
-    fn address(&self) -> Address {
-        self.sender.to_address().0.into()
+    fn address(&self) -> AlloyAddress {
+        self.sender.to_address().into()
     }
 
     fn chain_id(&self) -> Option<ChainId> {
@@ -248,8 +245,8 @@ impl Signer for Sender {
 
 #[async_trait]
 impl TxSigner<Signature> for Sender {
-    fn address(&self) -> Address {
-        self.sender.to_address().0.into()
+    fn address(&self) -> AlloyAddress {
+        self.sender.to_address().into()
     }
 
     async fn sign_transaction(
@@ -262,14 +259,12 @@ impl TxSigner<Signature> for Sender {
 
 impl SignerSync for Sender {
     fn sign_hash_sync(&self, hash: &B256) -> SignerResult<Signature> {
-        let (s, r) = self
+        let digest = Digest(hash.0);
+        let signature = self
             .signer
-            .sign(self.sender, Digest(hash.0))
-            .map_err(|err| SignerError::Other(err.into()))
-            .map(|s| s.into_parts())?;
-        let v = r.to_byte() as u64;
-        let v = primitives::normalize_v(v).ok_or(SignatureError::InvalidParity(v))?;
-        Ok(Signature::from_signature_and_parity(s, v))
+            .sign_digest(self.sender, digest, None)
+            .map_err(|err| SignerError::Other(err.into()))?;
+        Signature::from_raw(&signature.as_raw_bytes()).map_err(|err| SignerError::Other(err.into()))
     }
 
     fn chain_id_sync(&self) -> Option<ChainId> {
@@ -425,5 +420,34 @@ impl IntoBlockId for u64 {
 impl IntoBlockId for BlockId {
     fn into_block_id(self) -> BlockId {
         self
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn sender_signs_prehashed_message() {
+        let signer = Signer::memory();
+        let public_key = signer.generate().unwrap();
+        let address = signer.address(public_key);
+
+        let sender = Sender::new(signer.clone(), address).expect("sender init");
+
+        let hash = B256::from([0xAA; 32]);
+        let signature = sender.sign_hash_sync(&hash).expect("signature");
+
+        let recovered_vk = signature.recover_from_prehash(&hash).expect("recover");
+        let recovered_bytes: [u8; 33] = recovered_vk
+            .to_encoded_point(true)
+            .as_bytes()
+            .try_into()
+            .expect("compressed size");
+        let recovered_address = gsigner::secp256k1::PublicKey::from_bytes(recovered_bytes)
+            .expect("valid public key")
+            .to_address();
+
+        assert_eq!(recovered_address, address);
     }
 }

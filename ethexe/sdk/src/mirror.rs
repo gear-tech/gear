@@ -36,6 +36,7 @@ use ethexe_rpc::{FullProgramState, InjectedClient, ProgramClient};
 use ethexe_runtime_common::state::ProgramState;
 use futures::TryFutureExt;
 use gprimitives::{CodeId, H256, MessageId, U256};
+use gsigner::secp256k1::Secp256k1SignerExt;
 
 pub struct Mirror<'a> {
     pub(crate) api: &'a VaraEthApi,
@@ -155,8 +156,7 @@ impl<'a> Mirror<'a> {
             .sender_address()
             .with_context(|| "no sender address available for sending injected transaction")?;
         let public_key = signer
-            .storage()
-            .get_key_by_addr(sender_address)
+            .get_key_by_address(sender_address)
             .with_context(|| "failed to get key for sender address")?
             .ok_or_else(|| anyhow!("no key found for sender address"))?;
 
@@ -179,7 +179,7 @@ impl<'a> Mirror<'a> {
         let transaction = AddressedInjectedTransaction {
             recipient: Address::default(),
             tx: signer
-                .signed_message(public_key, injected_transaction)
+                .signed_message(public_key, injected_transaction, None)
                 .with_context(|| "failed to create signed injected transaction")?,
         };
 
