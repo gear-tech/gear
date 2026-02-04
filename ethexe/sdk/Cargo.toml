@@ -1,0 +1,25 @@
+[package]
+name = "ethexe-sdk"
+description = "Rust SDK of the Vara.Eth network"
+documentation = "https://docs.rs/ethexe-sdk"
+categories = ["wasm", "api-bindings"]
+keywords = ["gear", "actor-model", "api", "sdk"]
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+alloy.workspace = true
+anyhow.workspace = true
+ethexe-common.workspace = true
+ethexe-ethereum.workspace = true
+ethexe-rpc = { workspace = true, features = ["client"] }
+ethexe-runtime-common.workspace = true
+futures.workspace = true
+gprimitives.workspace = true
+jsonrpsee = { workspace = true, features = ["client"] }
+gear-workspace-hack.workspace = true

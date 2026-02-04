@@ -23,7 +23,13 @@ use ethexe_common::{
         BlockMetaStorageRO, BlockMetaStorageRW, CodesStorageRO, LatestDataStorageRW,
         OnChainStorageRO, OnChainStorageRW,
     },
-    events::{BlockEvent, RouterEvent},
+    events::{
+        BlockEvent, RouterEvent,
+        router::{
+            AnnouncesCommittedEvent, BatchCommittedEvent, CodeGotValidatedEvent,
+            CodeValidationRequestedEvent, ValidatorsCommittedForEraEvent,
+        },
+    },
 };
 use ethexe_db::Database;
 use gprimitives::{CodeId, H256};
@@ -241,14 +247,15 @@ fn missing_data(db: &Database, chain: &VecDeque<BlockData>, is_start: bool) -> R
     for block in chain {
         for event in &block.events {
             match event {
-                BlockEvent::Router(RouterEvent::CodeValidationRequested { code_id, .. })
-                    if db.code_valid(*code_id).is_none() =>
-                {
+                BlockEvent::Router(RouterEvent::CodeValidationRequested(
+                    CodeValidationRequestedEvent { code_id, .. },
+                )) if db.code_valid(*code_id).is_none() => {
                     missing_codes.insert(*code_id);
                 }
-                BlockEvent::Router(RouterEvent::CodeGotValidated { code_id, .. })
-                    if db.code_valid(*code_id).is_none() =>
-                {
+                BlockEvent::Router(RouterEvent::CodeGotValidated(CodeGotValidatedEvent {
+                    code_id,
+                    ..
+                })) if db.code_valid(*code_id).is_none() => {
                     missing_validated_codes.insert(*code_id);
                     missing_codes.insert(*code_id);
                 }
@@ -290,20 +297,27 @@ fn prepare_one_block<DB: BlockMetaStorageRW + LatestDataStorageRW + OnChainStora
 
     for event in block.events {
         match event {
-            BlockEvent::Router(RouterEvent::BatchCommitted { digest }) => {
+            BlockEvent::Router(RouterEvent::BatchCommitted(BatchCommittedEvent { digest })) => {
                 last_committed_batch = digest;
             }
-            BlockEvent::Router(RouterEvent::CodeValidationRequested { code_id, .. }) => {
+            BlockEvent::Router(RouterEvent::CodeValidationRequested(
+                CodeValidationRequestedEvent { code_id, .. },
+            )) => {
                 requested_codes.insert(code_id);
             }
-            BlockEvent::Router(RouterEvent::CodeGotValidated { code_id, .. }) => {
+            BlockEvent::Router(RouterEvent::CodeGotValidated(CodeGotValidatedEvent {
+                code_id,
+                ..
+            })) => {
                 validated_codes.insert(code_id);
             }
             BlockEvent::Router(RouterEvent::AnnouncesCommitted(head)) => {
                 last_committed_announce_hash = Some(head);
             }
 
-            BlockEvent::Router(RouterEvent::ValidatorsCommittedForEra { era_index }) => {
+            BlockEvent::Router(RouterEvent::ValidatorsCommittedForEra(
+                ValidatorsCommittedForEraEvent { era_index },
+            )) => {
                 // TODO !!! kuzmindev: here must be `if era_index != latest_validators_committed_era + 1`
                 if era_index < latest_validators_committed_era {
                     return Err(ComputeError::ValidatorsCommittedForEarlierEra {
@@ -321,13 +335,14 @@ fn prepare_one_block<DB: BlockMetaStorageRW + LatestDataStorageRW + OnChainStora
     codes_queue.retain(|code_id| !validated_codes.contains(code_id));
     codes_queue.extend(requested_codes);
 
-    let last_committed_announce_hash = if let Some(hash) = last_committed_announce_hash {
-        hash
-    } else {
-        parent_meta
-            .last_committed_announce
-            .ok_or(ComputeError::LastCommittedHeadNotFound(parent))?
-    };
+    let last_committed_announce_hash =
+        if let Some(AnnouncesCommittedEvent(hash)) = last_committed_announce_hash {
+            hash
+        } else {
+            parent_meta
+                .last_committed_announce
+                .ok_or(ComputeError::LastCommittedHeadNotFound(parent))?
+        };
 
     db.mutate_block_meta(block.hash, |meta| {
         meta.last_committed_batch = Some(last_committed_batch);
@@ -372,19 +387,23 @@ mod tests {
             hash: block.hash,
             header: block.header,
             events: vec![
-                BlockEvent::Router(RouterEvent::BatchCommitted {
+                BlockEvent::Router(RouterEvent::BatchCommitted(BatchCommittedEvent {
                     digest: batch_committed,
-                }),
-                BlockEvent::Router(RouterEvent::AnnouncesCommitted(block1_announce_hash)),
-                BlockEvent::Router(RouterEvent::CodeGotValidated {
+                })),
+                BlockEvent::Router(RouterEvent::AnnouncesCommitted(AnnouncesCommittedEvent(
+                    block1_announce_hash,
+                ))),
+                BlockEvent::Router(RouterEvent::CodeGotValidated(CodeGotValidatedEvent {
                     code_id: code1_id,
                     valid: true,
-                }),
-                BlockEvent::Router(RouterEvent::CodeValidationRequested {
-                    code_id: code2_id,
-                    timestamp: 1000,
-                    tx_hash: H256::random(),
-                }),
+                })),
+                BlockEvent::Router(RouterEvent::CodeValidationRequested(
+                    CodeValidationRequestedEvent {
+                        code_id: code2_id,
+                        timestamp: 1000,
+                        tx_hash: H256::random(),
+                    },
+                )),
             ],
         }
         .setup(&db);
@@ -433,15 +452,17 @@ mod tests {
             hash: block.hash,
             header: block.header,
             events: vec![
-                BlockEvent::Router(RouterEvent::CodeGotValidated {
+                BlockEvent::Router(RouterEvent::CodeGotValidated(CodeGotValidatedEvent {
                     code_id: code1_id,
                     valid: true,
-                }),
-                BlockEvent::Router(RouterEvent::CodeValidationRequested {
-                    code_id: code2_id,
-                    timestamp: 1000,
-                    tx_hash: H256::random(),
-                }),
+                })),
+                BlockEvent::Router(RouterEvent::CodeValidationRequested(
+                    CodeValidationRequestedEvent {
+                        code_id: code2_id,
+                        timestamp: 1000,
+                        tx_hash: H256::random(),
+                    },
+                )),
             ],
         }
         .setup(&db);
@@ -495,21 +516,25 @@ mod tests {
         BlockData {
             hash: block2.hash,
             header: block2.header,
-            events: vec![BlockEvent::Router(RouterEvent::CodeGotValidated {
-                code_id: validated_code_id,
-                valid: true,
-            })],
+            events: vec![BlockEvent::Router(RouterEvent::CodeGotValidated(
+                CodeGotValidatedEvent {
+                    code_id: validated_code_id,
+                    valid: true,
+                },
+            ))],
         }
         .setup(&db);
 
         BlockData {
             hash: block3.hash,
             header: block3.header,
-            events: vec![BlockEvent::Router(RouterEvent::CodeValidationRequested {
-                code_id: requested_code_id,
-                timestamp: 1000,
-                tx_hash: H256::random(),
-            })],
+            events: vec![BlockEvent::Router(RouterEvent::CodeValidationRequested(
+                CodeValidationRequestedEvent {
+                    code_id: requested_code_id,
+                    timestamp: 1000,
+                    tx_hash: H256::random(),
+                },
+            ))],
         }
         .setup(&db);
 

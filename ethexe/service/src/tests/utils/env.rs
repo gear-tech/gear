@@ -19,7 +19,7 @@
 use crate::{
     RouterDataProvider, Service,
     tests::utils::{
-        InfiniteStreamExt, TestingEvent, events,
+        InfiniteStreamExt, TestingEvent, TestingNetworkEvent, events,
         events::{ObserverEventReceiver, ObserverEventSender, TestingEventReceiver},
     },
 };
@@ -33,9 +33,13 @@ use ethexe_blob_loader::{BlobLoader, BlobLoaderService, ConsensusLayerConfig};
 use ethexe_common::{
     Address, COMMITMENT_DELAY_LIMIT, CodeAndId, DEFAULT_BLOCK_GAS_LIMIT, SimpleBlockData, ToDigest,
     ValidatorsVec,
-    consensus::{DEFAULT_CHAIN_DEEPNESS_THRESHOLD, DEFAULT_VALIDATE_CHAIN_DEEPNESS_LIMIT},
+    consensus::DEFAULT_CHAIN_DEEPNESS_THRESHOLD,
     ecdsa::{PrivateKey, PublicKey, SignedData},
-    events::{BlockEvent, MirrorEvent, RouterEvent},
+    events::{
+        BlockEvent, MirrorEvent, RouterEvent,
+        mirror::ReplyEvent,
+        router::{CodeGotValidatedEvent, ProgramCreatedEvent},
+    },
     network::{SignedValidatorMessage, ValidatorMessage},
 };
 use ethexe_compute::{ComputeConfig, ComputeService};
@@ -47,9 +51,7 @@ use ethexe_ethereum::{
     middleware::MockElectionProvider,
     router::RouterQuery,
 };
-use ethexe_network::{
-    NetworkConfig, NetworkEvent, NetworkRuntimeConfig, NetworkService, export::Multiaddr,
-};
+use ethexe_network::{NetworkConfig, NetworkRuntimeConfig, NetworkService, export::Multiaddr};
 use ethexe_observer::{
     EthereumConfig, ObserverService,
     utils::{BlockId, BlockLoader, EthereumBlockLoader},
@@ -273,7 +275,7 @@ impl TestEnv {
             (sender, receiver)
         };
 
-        let threshold = router_query.threshold().await?;
+        let threshold = router_query.validators_threshold().await?;
 
         let network_address = match network {
             EnvNetworkConfig::Disabled => None,
@@ -402,12 +404,8 @@ impl TestEnv {
         let code_and_id = CodeAndId::new(code.to_vec());
         let code_id = code_and_id.code_id();
 
-        let pending_builder = self
-            .ethereum
-            .router()
-            .request_code_validation_with_sidecar(code)
-            .await?;
-        assert_eq!(pending_builder.code_id(), code_id);
+        let (_tx_hash, new_code_id) = self.ethereum.router().request_code_validation(code).await?;
+        assert_eq!(new_code_id, code_id);
 
         Ok(WaitForUploadCode { receiver, code_id })
     }
@@ -444,7 +442,7 @@ impl TestEnv {
                 .approve(program_address, initial_executable_balance)
                 .await?;
 
-            let mirror = self.ethereum.mirror(program_address.into_array().into());
+            let mirror = self.ethereum.mirror(program_address);
 
             mirror
                 .executable_balance_top_up(initial_executable_balance)
@@ -482,7 +480,7 @@ impl TestEnv {
                 .approve(program_address, initial_executable_balance)
                 .await?;
 
-            let mirror = self.ethereum.mirror(program_address.into_array().into());
+            let mirror = self.ethereum.mirror(program_address);
 
             mirror
                 .executable_balance_top_up(initial_executable_balance)
@@ -930,7 +928,7 @@ impl Node {
                 } else {
                     Ethereum::new(
                         &self.eth_cfg.rpc,
-                        self.eth_cfg.router_address.into(),
+                        self.eth_cfg.router_address,
                         self.signer.clone(),
                         config.public_key.to_address(),
                     )
@@ -954,7 +952,6 @@ impl Node {
                             commitment_delay_limit: self.commitment_delay_limit,
                             producer_delay: self.block_time / 6,
                             router_address: self.eth_cfg.router_address,
-                            validate_chain_deepness_limit: DEFAULT_VALIDATE_CHAIN_DEEPNESS_LIMIT,
                             chain_deepness_threshold: DEFAULT_CHAIN_DEEPNESS_THRESHOLD,
                         },
                     )
@@ -1042,7 +1039,12 @@ impl Node {
         // fast sync implies network has connections
         if wait_for_network && !self.fast_sync {
             self.events()
-                .find(|e| matches!(e, TestingEvent::Network(NetworkEvent::PeerConnected(_))))
+                .find(|e| {
+                    matches!(
+                        e,
+                        TestingEvent::Network(TestingNetworkEvent::PeerConnected(_))
+                    )
+                })
                 .await;
         }
     }
@@ -1209,11 +1211,10 @@ impl WaitForUploadCode {
             .receiver
             .filter_map_block_synced()
             .find_map(|event| match event {
-                BlockEvent::Router(RouterEvent::CodeGotValidated { code_id, valid })
-                    if code_id == self.code_id =>
-                {
-                    Some(valid)
-                }
+                BlockEvent::Router(RouterEvent::CodeGotValidated(CodeGotValidatedEvent {
+                    code_id,
+                    valid,
+                })) if code_id == self.code_id => Some(valid),
                 _ => None,
             })
             .await;
@@ -1246,9 +1247,10 @@ impl WaitForProgramCreation {
             .filter_map_block_synced()
             .find_map(|event| {
                 match event {
-                    BlockEvent::Router(RouterEvent::ProgramCreated { actor_id, code_id })
-                        if actor_id == self.program_id =>
-                    {
+                    BlockEvent::Router(RouterEvent::ProgramCreated(ProgramCreatedEvent {
+                        actor_id,
+                        code_id,
+                    })) if actor_id == self.program_id => {
                         return Some(code_id);
                     }
 
@@ -1298,12 +1300,12 @@ impl WaitForReplyTo {
                 BlockEvent::Mirror {
                     actor_id,
                     event:
-                        MirrorEvent::Reply {
+                        MirrorEvent::Reply(ReplyEvent {
                             reply_to,
                             payload,
                             reply_code,
                             value,
-                        },
+                        }),
                 } if reply_to == self.message_id => Some(ReplyInfo {
                     message_id: reply_to,
                     program_id: actor_id,
