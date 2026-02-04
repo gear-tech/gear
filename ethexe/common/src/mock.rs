@@ -422,10 +422,16 @@ impl BlockChain {
                     });
                 }
 
+                if let Some(announces) = announces {
+                    db.set_block_announces(hash, announces);
+                } else {
+                    // take announces, might've been set-up by previous test.
+                    db.take_block_announces(hash);
+                }
+
                 db.mutate_block_meta(hash, |meta| {
                     *meta = BlockMeta {
                         prepared: true,
-                        announces,
                         codes_queue: Some(codes_queue),
                         last_committed_batch: Some(last_committed_batch),
                         last_committed_announce: Some(last_committed_announce),
@@ -577,7 +583,7 @@ pub trait DBMockExt {
     fn top_announce_hash(&self, block: H256) -> HashOf<Announce>;
 }
 
-impl<DB: OnChainStorageRO + BlockMetaStorageRO> DBMockExt for DB {
+impl<DB: OnChainStorageRO + BlockMetaStorageRO + AnnounceStorageRO> DBMockExt for DB {
     #[track_caller]
     fn simple_block_data(&self, block: H256) -> SimpleBlockData {
         let header = self.block_header(block).expect("block header not found");
@@ -589,8 +595,7 @@ impl<DB: OnChainStorageRO + BlockMetaStorageRO> DBMockExt for DB {
 
     #[track_caller]
     fn top_announce_hash(&self, block: H256) -> HashOf<Announce> {
-        self.block_meta(block)
-            .announces
+        self.block_announces(block)
             .expect("block announces not found")
             .into_iter()
             .next()

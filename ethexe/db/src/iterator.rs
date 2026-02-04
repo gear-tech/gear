@@ -526,14 +526,13 @@ where
     fn iter_block_meta(&mut self, BlockMetaNode { block, meta }: &BlockMetaNode) {
         let BlockMeta {
             prepared: _,
-            announces,
             codes_queue,
             last_committed_batch: _,
             last_committed_announce: _,
         } = meta;
 
-        if let Some(announces) = announces {
-            for &announce_hash in announces {
+        if let Some(announces) = self.storage.block_announces(*block) {
+            for announce_hash in announces.into_iter() {
                 try_push_node!(with_hash: self.announce(announce_hash));
             }
         } else {

@@ -77,6 +77,8 @@ enum Key {
 
     // TODO kuzmindev: temporal solution - must move into block meta or something else.
     LatestEraValidatorsCommitted(H256),
+
+    BlockAnnounces(H256) = 17,
 }
 
 impl Key {
@@ -93,6 +95,7 @@ impl Key {
         match self {
             Self::BlockSmallData(hash)
             | Self::BlockEvents(hash)
+            | Self::BlockAnnounces(hash)
             | Self::LatestEraValidatorsCommitted(hash) => [prefix.as_ref(), hash.as_ref()].concat(),
 
             Self::ValidatorSet(era_index) => {
@@ -629,6 +632,15 @@ impl AnnounceStorageRO for Database {
             })
             .unwrap_or_default()
     }
+
+    fn block_announces(&self, block_hash: H256) -> Option<BTreeSet<HashOf<Announce>>> {
+        self.kv
+            .get(&Key::BlockAnnounces(block_hash).to_bytes())
+            .map(|data| {
+                BTreeSet::<HashOf<Announce>>::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `BTreeSet<HashOf<Announce>>`")
+            })
+    }
 }
 
 impl AnnounceStorageRW for Database {
@@ -636,6 +648,14 @@ impl AnnounceStorageRW for Database {
         tracing::trace!("Set announce {}: {announce}", announce.to_hash());
         // Safe, because of inner method implementation.
         unsafe { HashOf::new(self.cas.write(&announce.encode())) }
+    }
+
+    fn set_block_announces(&self, block_hash: H256, announces: BTreeSet<HashOf<Announce>>) {
+        tracing::trace!("Set block {block_hash} announces: len {}", announces.len());
+        self.kv.put(
+            &Key::BlockAnnounces(block_hash).to_bytes(),
+            announces.encode(),
+        );
     }
 
     fn set_announce_program_states(
@@ -685,6 +705,29 @@ impl AnnounceStorageRW for Database {
         f(&mut meta);
         self.kv
             .put(&Key::AnnounceMeta(announce_hash).to_bytes(), meta.encode());
+    }
+
+    fn mutate_block_announces(
+        &self,
+        block_hash: H256,
+        f: impl FnOnce(&mut BTreeSet<HashOf<Announce>>),
+    ) {
+        tracing::trace!("For block {block_hash} mutate announces");
+        let mut announces = self.block_announces(block_hash).unwrap_or_default();
+        f(&mut announces);
+        self.kv.put(
+            &Key::BlockAnnounces(block_hash).to_bytes(),
+            announces.encode(),
+        );
+    }
+
+    fn take_block_announces(&self, block_hash: H256) -> Option<BTreeSet<HashOf<Announce>>> {
+        self.kv
+            .take(&Key::BlockAnnounces(block_hash).to_bytes())
+            .map(|data| {
+                BTreeSet::<HashOf<Announce>>::decode(&mut data.as_slice())
+                    .expect("Failed to decode data into `BTreeSet<HashOf<Announce>>`")
+            })
     }
 }
 

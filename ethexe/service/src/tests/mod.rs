@@ -1574,9 +1574,9 @@ async fn fast_sync() {
                 bob_meta.last_committed_batch
             );
 
-            let Some((alice_announces, bob_announces)) =
-                alice_meta.announces.zip(bob_meta.announces)
-            else {
+            let alice_announces = alice.db.block_announces(block);
+            let bob_announces = bob.db.block_announces(block);
+            let Some((alice_announces, bob_announces)) = alice_announces.zip(bob_announces) else {
                 panic!("alice or bob has no announces");
             };
 
@@ -2893,8 +2893,7 @@ async fn announces_conflicts() {
         let timelines = env.db.protocol_timelines().unwrap();
         let era_index = timelines.era_from_ts(block.header.timestamp);
         let parent = validator1_db
-            .block_meta(block.header.parent_hash)
-            .announces
+            .block_announces(block.header.parent_hash)
             .into_iter()
             .flatten()
             .find(|&announce_hash| validator1_db.announce(announce_hash).unwrap().is_base())

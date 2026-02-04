@@ -147,7 +147,7 @@ impl<
                 .block_header(current_block)
                 .ok_or_else(|| anyhow!("header not found for block({current_block})"))?;
 
-            if self.block_meta(current_block).announces.is_some() {
+            if self.block_announces(current_block).is_some() {
                 break;
             }
 
@@ -168,11 +168,10 @@ impl<
         let announce_hash = self.set_announce(announce);
 
         let mut newly_included = None;
-        self.mutate_block_meta(block_hash, |meta| {
-            if let Some(announces) = &mut meta.announces {
-                newly_included = Some(announces.insert(announce_hash));
-            }
-        });
+        if let Some(mut announces) = self.block_announces(block_hash) {
+            newly_included = Some(announces.insert(announce_hash));
+            self.set_block_announces(block_hash, announces);
+        }
 
         if let Some(newly_included) = newly_included {
             Ok((announce_hash, newly_included))
@@ -190,7 +189,7 @@ impl<
         }
 
         self.announce(announce_hash)
-            .and_then(|announce| self.block_meta(announce.block_hash).announces)
+            .and_then(|announce| self.block_announces(announce.block_hash))
             .map(|announces| announces.contains(&announce_hash))
             .unwrap_or(false)
     }
@@ -225,7 +224,7 @@ pub fn propagate_announces(
     // iterate over the collected blocks from oldest to newest and propagate announces
     for block in chain {
         debug_assert!(
-            db.block_meta(block.hash).announces.is_none(),
+            db.block_announces(block.hash).is_none(),
             "Block {} should not have announces propagated yet",
             block.hash
         );
@@ -249,15 +248,14 @@ pub fn propagate_announces(
         )?;
 
         let mut new_base_announces = BTreeSet::new();
-        for parent_announce_hash in db
-            .block_meta(block.header.parent_hash)
-            .announces
-            .ok_or_else(|| {
-                anyhow!(
-                    "Parent block({}) announces are missing",
-                    block.header.parent_hash
-                )
-            })?
+        for parent_announce_hash in
+            db.block_announces(block.header.parent_hash)
+                .ok_or_else(|| {
+                    anyhow!(
+                        "Parent block({}) announces are missing",
+                        block.header.parent_hash
+                    )
+                })?
         {
             if let Some(new_base_announce) = propagate_one_base_announce(
                 db,
@@ -278,14 +276,12 @@ pub fn propagate_announces(
             block.hash
         );
 
-        db.mutate_block_meta(block.hash, |meta| {
-            debug_assert!(
-                meta.announces.is_none(),
-                "block({}) announces must be None before propagation",
-                block.hash
-            );
-            meta.announces = Some(new_base_announces);
-        });
+        debug_assert!(
+            db.block_announces(block.hash).is_none(),
+            "block({}) announces must be None before propagation",
+            block.hash
+        );
+        db.set_block_announces(block.hash, new_base_announces);
     }
 
     Ok(())
@@ -446,8 +442,7 @@ fn propagate_one_base_announce(
 
         // Check neighbor announces to be last committed announce
         if db
-            .block_meta(current_announce.block_hash)
-            .announces
+            .block_announces(current_announce.block_hash)
             .ok_or_else(|| {
                 anyhow!(
                     "announces are missing for block({})",
@@ -568,8 +563,7 @@ fn find_announces_common_predecessor(
         .start_announce_hash;
 
     let mut announces = db
-        .block_meta(block_hash)
-        .announces
+        .block_announces(block_hash)
         .ok_or_else(|| anyhow!("announces not found for block {block_hash}"))?;
 
     for _ in 0..commitment_delay_limit {
@@ -612,7 +606,7 @@ pub fn best_parent_announce(
     // so we take parents of all announces from `block_hash`,
     // to be sure that we take only not expired parent announces.
     let parent_announces =
-        db.announces_parents(db.block_meta(block_hash).announces.into_iter().flatten())?;
+        db.announces_parents(db.block_announces(block_hash).into_iter().flatten())?;
 
     best_announce(db, parent_announces, commitment_delay_limit)
 }
@@ -800,8 +794,7 @@ mod tests {
     ) -> (H256, usize) {
         let block_hash = chain.blocks[idx].hash;
         let announces_amount = db
-            .block_meta(block_hash)
-            .announces
+            .block_announces(block_hash)
             .unwrap_or_else(|| panic!("announces not found for block {block_hash}"))
             .len();
         (block_hash, announces_amount)

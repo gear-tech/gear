@@ -207,9 +207,10 @@ impl TestEnv {
         let computed_data = event.unwrap_announce_computed();
         assert_eq!(computed_data.announce_hash, announce_hash);
 
-        self.db.mutate_block_meta(announce.block_hash, |meta| {
-            meta.announces.get_or_insert_default().insert(announce_hash);
-        });
+        self.db
+            .mutate_block_announces(announce.block_hash, |announces| {
+                announces.insert(announce_hash);
+            });
     }
 }
 
@@ -254,11 +255,10 @@ async fn multiple_preparation_and_one_processing() -> Result<()> {
     // append announces to prepared blocks, except the last one, so that it can be computed
     for i in 1..3 {
         let announce = new_announce(&env.db, env.chain.blocks[i].hash, Some(100));
-        env.db.mutate_block_meta(announce.block_hash, |meta| {
-            meta.announces
-                .get_or_insert_default()
-                .insert(announce.to_hash());
-        });
+        env.db
+            .mutate_block_announces(announce.block_hash, |announces| {
+                announces.insert(announce.to_hash());
+            });
         env.db.set_announce(announce);
     }
 

@@ -25,7 +25,7 @@ use crate::{
 };
 use ethexe_common::{
     Announce, HashOf,
-    db::{AnnounceStorageRO, BlockMetaStorageRO, HashStorageRO, LatestData, LatestDataStorageRO},
+    db::{AnnounceStorageRO, HashStorageRO, LatestData, LatestDataStorageRO},
     network::{AnnouncesRequest, AnnouncesRequestUntil, AnnouncesResponse},
 };
 use libp2p::request_response;
@@ -81,8 +81,7 @@ impl OngoingResponses {
             )
             .into(),
             InnerRequest::ProgramIds(request) => InnerProgramIdsResponse(
-                db.block_meta(request.at)
-                    .announces
+                db.block_announces(request.at)
                     .into_iter()
                     .flatten()
                     .find_map(|announce_hash| db.announce_program_states(announce_hash))

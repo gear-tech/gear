@@ -42,9 +42,6 @@ pub struct BlockMeta {
     /// Block has been prepared, meaning:
     /// all metadata is ready, all predecessors till start block are prepared too.
     pub prepared: bool,
-    // TODO: #4945 remove announces from here
-    /// Set of announces included in the block.
-    pub announces: Option<BTreeSet<HashOf<Announce>>>,
     /// Queue of code ids waiting for validation status commitment on-chain.
     pub codes_queue: Option<VecDeque<CodeId>>,
     /// Last committed on-chain batch hash.
@@ -57,7 +54,6 @@ impl BlockMeta {
     pub fn default_prepared() -> Self {
         Self {
             prepared: true,
-            announces: Some(Default::default()),
             codes_queue: Some(Default::default()),
             last_committed_batch: Some(Default::default()),
             last_committed_announce: Some(Default::default()),
@@ -153,11 +149,13 @@ pub trait AnnounceStorageRO {
     fn announce_outcome(&self, announce_hash: HashOf<Announce>) -> Option<Vec<StateTransition>>;
     fn announce_schedule(&self, announce_hash: HashOf<Announce>) -> Option<Schedule>;
     fn announce_meta(&self, announce_hash: HashOf<Announce>) -> AnnounceMeta;
+    fn block_announces(&self, block_hash: H256) -> Option<BTreeSet<HashOf<Announce>>>;
 }
 
 #[auto_impl::auto_impl(&)]
 pub trait AnnounceStorageRW: AnnounceStorageRO {
     fn set_announce(&self, announce: Announce) -> HashOf<Announce>;
+    fn set_block_announces(&self, block_hash: H256, announces: BTreeSet<HashOf<Announce>>);
     fn set_announce_program_states(
         &self,
         announce_hash: HashOf<Announce>,
@@ -171,6 +169,13 @@ pub trait AnnounceStorageRW: AnnounceStorageRO {
         announce_hash: HashOf<Announce>,
         f: impl FnOnce(&mut AnnounceMeta),
     );
+    fn mutate_block_announces(
+        &self,
+        block_hash: H256,
+        f: impl FnOnce(&mut BTreeSet<HashOf<Announce>>),
+    );
+
+    fn take_block_announces(&self, block_hash: H256) -> Option<BTreeSet<HashOf<Announce>>>;
 }
 
 #[derive(Debug, Clone, Default, Encode, Decode, PartialEq, Eq)]

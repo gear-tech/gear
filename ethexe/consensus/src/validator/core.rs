@@ -331,12 +331,8 @@ impl ValidatorCore {
             // TODO #4791: support commitment head from another block in chain,
             // have to check head block is predecessor of current block
 
-            let candidates = self
-                .db
-                .block_meta(block.hash)
-                .announces
-                .into_iter()
-                .flatten();
+            let candidates = self.db.block_announces(block.hash).into_iter().flatten();
+
             let best_announce_hash =
                 announces::best_announce(&self.db, candidates, self.commitment_delay_limit)?;
             if head != best_announce_hash {
