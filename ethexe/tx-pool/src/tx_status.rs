@@ -37,7 +37,7 @@ pub enum TransactionStatus {
     #[from]
     Pending(PendingStatus),
     /// Transaction is invalid.
-    /// [`RemovalNotification`] will be returned to the transaction sender.
+    /// [`crate::RemovalNotification`] will be returned to the transaction sender.
     #[from]
     Invalid(InvalidityReason),
 }

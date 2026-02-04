@@ -21,8 +21,8 @@ tracing.workspace = true
 hashbrown.workspace = true
 serde.workspace = true
 parity-scale-codec = { workspace = true, features = ["std", "derive"] }
-
 serde_repr = "0.1.20"
+gear-workspace-hack.workspace = true
 
 [lints]
 workspace = true

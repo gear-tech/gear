@@ -5335,6 +5335,7 @@ dependencies = [
  "ethexe-runtime-common",
  "ethexe-signer",
  "gear-core",
+ "gear-workspace-hack",
  "gprimitives",
  "hashbrown 0.14.5",
  "parity-scale-codec",
