@@ -762,7 +762,7 @@ mod tests {
     fn test_injected_transaction() {
         let db = Database::memory();
 
-        let private_key = PrivateKey::from([1; 32]);
+        let private_key = PrivateKey::from_seed([1; 32]).expect("valid seed");
         let tx = SignedInjectedTransaction::create(
             private_key,
             InjectedTransaction {

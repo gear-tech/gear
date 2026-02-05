@@ -273,7 +273,6 @@ dependencies = [
  "alloy-primitives",
  "alloy-rlp",
  "borsh",
- "k256",
  "serde",
  "thiserror 2.0.17",
 ]
@@ -1502,6 +1501,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "155a5a185e42c6b77ac7b88a15143d930a9e9727a5b7b77eed417404ab15c247"
 
 [[package]]
+name = "assert_cmd"
+version = "2.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bcbb6924530aa9e0432442af08bbcafdad182db80d2e560da42a6d442535bf85"
+dependencies = [
+ "anstyle",
+ "bstr",
+ "libc",
+ "predicates 3.1.3",
+ "predicates-core",
+ "predicates-tree",
+ "wait-timeout",
+]
+
+[[package]]
 name = "assert_matches"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1934,7 +1948,7 @@ dependencies = [
  "bitflags 2.10.0",
  "cexpr",
  "clang-sys",
- "itertools 0.11.0",
+ "itertools 0.13.0",
  "log",
  "prettyplease 0.2.37",
  "proc-macro2",
@@ -1951,7 +1965,7 @@ version = "2.2.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "90dbd31c98227229239363921e60fcf5e558e43ec69094d46fc4996f08d1d5bc"
 dependencies = [
- "bitcoin_hashes 0.13.0",
+ "bitcoin_hashes 0.14.1",
 ]
 
 [[package]]
@@ -2223,6 +2237,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bf88ba1141d185c399bee5288d850d63b8369520c1eafc32a0430b5b6c287bf4"
 dependencies = [
  "tinyvec",
+]
+
+[[package]]
+name = "bstr"
+version = "1.12.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "63044e1ae8e69f3b5a92c736ca6269b8d12fa7efe39bf34ddb06d102cf0e2cab"
+dependencies = [
+ "memchr",
+ "regex-automata",
+ "serde",
 ]
 
 [[package]]
@@ -2798,7 +2823,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "117725a109d387c937a1533ce01b450cbde6b88abceea8473c4d7a85853cda3c"
 dependencies = [
  "lazy_static",
- "windows-sys 0.48.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -4903,7 +4928,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -4919,10 +4944,10 @@ dependencies = [
  "alloy",
  "ethexe-common",
  "ethexe-ethereum",
- "ethexe-signer",
  "futures",
  "gear-workspace-hack",
  "gprimitives",
+ "gsigner",
  "log",
  "reqwest",
  "thiserror 2.0.17",
@@ -4945,12 +4970,11 @@ dependencies = [
  "ethexe-prometheus",
  "ethexe-rpc",
  "ethexe-service",
- "ethexe-signer",
  "gear-workspace-hack",
  "gprimitives",
+ "gsigner",
  "hex",
  "jsonrpsee",
- "libp2p-identity",
  "log",
  "serde",
  "serde_json",
@@ -4974,6 +4998,7 @@ dependencies = [
  "gear-core",
  "gear-workspace-hack",
  "gprimitives",
+ "gsigner",
  "hex",
  "itertools 0.13.0",
  "k256",
@@ -4981,7 +5006,6 @@ dependencies = [
  "parity-scale-codec",
  "roast-secp256k1-evm",
  "serde",
- "serde_json",
  "sha3",
  "sp-core",
  "tap",
@@ -5021,12 +5045,12 @@ dependencies = [
  "ethexe-ethereum",
  "ethexe-runtime-common",
  "ethexe-service-utils",
- "ethexe-signer",
  "futures",
  "gear-core",
  "gear-utils",
  "gear-workspace-hack",
  "gprimitives",
+ "gsigner",
  "hashbrown 0.14.5",
  "lru 0.16.3",
  "nonempty 0.12.0",
@@ -5070,13 +5094,13 @@ dependencies = [
  "anyhow",
  "async-trait",
  "ethexe-common",
- "ethexe-signer",
  "futures",
  "gear-core",
  "gear-core-errors",
  "gear-utils",
  "gear-workspace-hack",
  "gprimitives",
+ "gsigner",
  "log",
  "nonempty 0.12.0",
  "rand 0.8.5",
@@ -5098,10 +5122,10 @@ dependencies = [
  "ethexe-common",
  "ethexe-db",
  "ethexe-service-utils",
- "ethexe-signer",
  "futures",
  "gear-workspace-hack",
  "gprimitives",
+ "gsigner",
  "indexmap 2.13.0",
  "itertools 0.13.0",
  "libp2p 0.56.0",
@@ -5126,11 +5150,11 @@ dependencies = [
  "ethexe-common",
  "ethexe-db",
  "ethexe-ethereum",
- "ethexe-signer",
  "futures",
  "gear-utils",
  "gear-workspace-hack",
  "gprimitives",
+ "gsigner",
  "log",
  "tokio",
  "tracing",
@@ -5260,6 +5284,7 @@ dependencies = [
  "futures",
  "gear-workspace-hack",
  "gprimitives",
+ "gsigner",
  "jsonrpsee",
 ]
 
@@ -5293,12 +5318,12 @@ dependencies = [
  "ethexe-rpc",
  "ethexe-runtime-common",
  "ethexe-service-utils",
- "ethexe-signer",
  "futures",
  "gear-core",
  "gear-core-errors",
  "gear-workspace-hack",
  "gprimitives",
+ "gsigner",
  "jsonrpsee",
  "log",
  "ntest",
@@ -5309,6 +5334,7 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber",
+ "wat",
 ]
 
 [[package]]
@@ -5319,19 +5345,6 @@ dependencies = [
  "gear-workspace-hack",
  "log",
  "tokio",
-]
-
-[[package]]
-name = "ethexe-signer"
-version = "1.10.0"
-dependencies = [
- "alloy",
- "anyhow",
- "derive_more 2.1.1",
- "ethexe-common",
- "gear-workspace-hack",
- "parity-scale-codec",
- "tempfile",
 ]
 
 [[package]]
@@ -5555,6 +5568,15 @@ name = "float-cmp"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "98de4bbd547a563b716d8dfa9aad1cb19bfab00f4fa09a6a4ed21dbcf44ce9c4"
+dependencies = [
+ "num-traits",
+]
+
+[[package]]
+name = "float-cmp"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b09cf3155332e944990140d967ff5eceb70df778b34f77d8075db46e4704e6d8"
 dependencies = [
  "num-traits",
 ]
@@ -6318,8 +6340,8 @@ dependencies = [
  "gear-node-wrapper",
  "gear-runtime-primitives",
  "gear-workspace-hack",
- "gring",
  "gsdk",
+ "gsigner",
  "hex",
  "indoc",
  "reqwest",
@@ -7119,16 +7141,12 @@ dependencies = [
  "alloy-chains",
  "alloy-consensus",
  "alloy-contract",
- "alloy-core",
- "alloy-eip7702",
  "alloy-eips",
  "alloy-json-abi",
- "alloy-network",
  "alloy-primitives",
  "alloy-provider",
  "alloy-rpc-client",
  "alloy-rpc-types",
- "alloy-rpc-types-eth",
  "alloy-sol-macro",
  "alloy-sol-macro-expander",
  "alloy-sol-macro-input",
@@ -7235,7 +7253,7 @@ dependencies = [
  "indexmap 1.9.3",
  "indexmap 2.13.0",
  "itertools 0.10.5",
- "itertools 0.11.0",
+ "itertools 0.13.0",
  "js-sys",
  "jsonrpsee",
  "jsonrpsee-client-transport",
@@ -7256,7 +7274,6 @@ dependencies = [
  "names",
  "nix",
  "nom 7.1.3",
- "nonempty 0.12.0",
  "num-bigint",
  "num-integer",
  "num-rational",
@@ -7308,6 +7325,7 @@ dependencies = [
  "polkavm-common",
  "portable-atomic",
  "ppv-lite86",
+ "predicates 3.1.3",
  "prettyplease 0.2.37",
  "primitive-types 0.12.2",
  "primitive-types 0.13.1",
@@ -7347,6 +7365,7 @@ dependencies = [
  "scopeguard",
  "sec1",
  "secp256k1 0.28.2",
+ "secrecy",
  "security-framework-sys",
  "semver 1.0.27",
  "serde",
@@ -7361,7 +7380,6 @@ dependencies = [
  "signature",
  "slice-group-by",
  "smallvec",
- "socket2 0.4.10",
  "soketto",
  "sp-allocator",
  "sp-api",
@@ -7692,27 +7710,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "gring"
-version = "1.10.0"
-dependencies = [
- "anyhow",
- "base64 0.21.7",
- "clap 4.5.54",
- "colored",
- "dirs",
- "gear-ss58",
- "gear-workspace-hack",
- "hex",
- "nacl",
- "rand 0.8.5",
- "schnorrkel",
- "serde",
- "serde_json",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
 name = "group"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7778,6 +7775,41 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.114",
+]
+
+[[package]]
+name = "gsigner"
+version = "1.10.0"
+dependencies = [
+ "alloy-primitives",
+ "anyhow",
+ "assert_cmd",
+ "base64 0.21.7",
+ "clap 4.5.54",
+ "colored",
+ "derive_more 2.1.1",
+ "dirs",
+ "gear-workspace-hack",
+ "gprimitives",
+ "hex",
+ "k256",
+ "libp2p-identity",
+ "nacl",
+ "parity-scale-codec",
+ "predicates 3.1.3",
+ "proptest",
+ "rand 0.8.5",
+ "schnorrkel",
+ "secrecy",
+ "serde",
+ "serde_json",
+ "sha3",
+ "sp-application-crypto",
+ "sp-core",
+ "tempfile",
+ "thiserror 2.0.17",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -8302,7 +8334,7 @@ dependencies = [
  "httpdate",
  "itoa",
  "pin-project-lite",
- "socket2 0.4.10",
+ "socket2 0.5.10",
  "tokio",
  "tower-service",
  "tracing",
@@ -8854,7 +8886,7 @@ checksum = "3640c1c38b8e4e43584d8df18be5fc6b0aa314ce6ebf51b53313d4306cca8e46"
 dependencies = [
  "hermit-abi 0.5.2",
  "libc",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -9680,6 +9712,7 @@ dependencies = [
  "multihash 0.19.3",
  "quick-protobuf",
  "rand 0.8.5",
+ "serde",
  "sha2 0.10.9",
  "thiserror 2.0.17",
  "tracing",
@@ -11322,7 +11355,7 @@ version = "0.9.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9224be3459a0c1d6e9b0f42ab0e76e98b29aef5aba33c0487dfcf47ea08b5150"
 dependencies = [
- "proc-macro-crate 1.1.3",
+ "proc-macro-crate 3.4.0",
  "proc-macro2",
  "quote",
  "syn 1.0.109",
@@ -11334,7 +11367,7 @@ version = "0.50.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7957b9740744892f114936ab4a57b3f487491bbeafaf8083688b16841a4240e5"
 dependencies = [
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -12383,7 +12416,6 @@ dependencies = [
  "frame-system",
  "gear-workspace-hack",
  "log",
- "pallet-grandpa",
  "parity-scale-codec",
  "scale-info",
  "sp-application-crypto",
@@ -13290,7 +13322,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "59230a63c37f3e18569bdb90e4a89cbf5bf8b06fea0b84e65ea10cc4df47addd"
 dependencies = [
  "difflib",
- "float-cmp",
+ "float-cmp 0.9.0",
  "itertools 0.10.5",
  "normalize-line-endings",
  "predicates-core",
@@ -13304,7 +13336,11 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a5d19ee57562043d37e82899fade9a22ebab7be9cef5026b07fda9cdd4293573"
 dependencies = [
  "anstyle",
+ "difflib",
+ "float-cmp 0.10.0",
+ "normalize-line-endings",
  "predicates-core",
+ "regex",
 ]
 
 [[package]]
@@ -13592,7 +13628,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "22505a5c94da8e3b7c2996394d1c933236c4d743e81a410bcca4e6989fc066a4"
 dependencies = [
  "bytes",
- "heck 0.4.1",
+ "heck 0.5.0",
  "itertools 0.12.1",
  "log",
  "multimap 0.10.1",
@@ -13927,7 +13963,7 @@ dependencies = [
  "once_cell",
  "socket2 0.6.1",
  "tracing",
- "windows-sys 0.52.0",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -14633,7 +14669,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys 0.4.15",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -14646,7 +14682,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys 0.11.0",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -14748,7 +14784,7 @@ dependencies = [
  "security-framework 3.5.1",
  "security-framework-sys",
  "webpki-root-certs 0.26.11",
- "windows-sys 0.52.0",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -18337,7 +18373,7 @@ dependencies = [
  "getrandom 0.3.4",
  "once_cell",
  "rustix 1.1.3",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -20475,7 +20511,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.48.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

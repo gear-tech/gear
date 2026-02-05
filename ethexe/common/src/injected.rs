@@ -138,6 +138,14 @@ impl ToDigest for Promise {
         let Self { tx_hash, reply } = self;
 
         hasher.update(tx_hash.inner());
-        reply.update_hasher(hasher);
+        let ReplyInfo {
+            payload,
+            code,
+            value,
+        } = reply;
+
+        hasher.update(payload);
+        hasher.update(code.to_bytes());
+        hasher.update(value.to_be_bytes());
     }
 }

@@ -62,6 +62,7 @@ use ethexe_signer::Signer;
 use futures::StreamExt;
 use gear_core_errors::ReplyCode;
 use gprimitives::{ActorId, CodeId, H160, H256, MessageId};
+use gsigner::secp256k1::{Secp256k1SignerExt, Signer};
 use jsonrpsee::{
     http_client::HttpClient,
     ws_client::{WsClient, WsClientBuilder},
@@ -195,7 +196,7 @@ impl TestEnv {
                 .iter()
                 .map(|k| {
                     let private_key = k.parse().unwrap();
-                    signer.storage_mut().add_key(private_key).unwrap()
+                    signer.import(private_key).unwrap()
                 })
                 .collect(),
         };
@@ -288,7 +289,7 @@ impl TestEnv {
             let nonce = NONCE.fetch_add(1, Ordering::SeqCst) * MAX_NETWORK_SERVICES_PER_TEST;
             let address = maybe_address.unwrap_or_else(|| format!("/memory/{nonce}"));
 
-            let network_key = signer.generate_key().unwrap();
+            let network_key = signer.generate().unwrap();
             let multiaddr: Multiaddr = address.parse().unwrap();
 
             let mut config = NetworkConfig::new_test(network_key, router_address);
@@ -663,11 +664,12 @@ impl TestEnv {
                 .zip(validator_identifiers.iter())
                 .map(|(public_key, id)| {
                     let signing_share = *secret_shares[id].signing_share();
+                    let seed: [u8; 32] = <[u8; 32]>::try_from(signing_share.serialize()).unwrap();
                     let private_key =
-                        PrivateKey::from(<[u8; 32]>::try_from(signing_share.serialize()).unwrap());
+                        PrivateKey::from_seed(seed).expect("signing share must be valid seed");
                     ValidatorConfig {
                         public_key,
-                        session_public_key: signer.storage_mut().add_key(private_key).unwrap(),
+                        session_public_key: signer.import(private_key).unwrap(),
                     }
                 })
                 .collect(),
@@ -848,12 +850,7 @@ impl Wallets {
         Self {
             wallets: accounts
                 .into_iter()
-                .map(|s| {
-                    signer
-                        .storage_mut()
-                        .add_key(s.as_ref().parse().unwrap())
-                        .unwrap()
-                })
+                .map(|s| signer.import(s.as_ref().parse().unwrap()).unwrap())
                 .collect(),
             next_wallet: 0,
         }
@@ -1090,7 +1087,7 @@ impl Node {
 
         let addr = self.network_address.as_ref()?;
 
-        let network_key = self.signer.generate_key().unwrap();
+        let network_key = self.signer.generate().unwrap();
         let multiaddr: Multiaddr = addr.parse().unwrap();
 
         let mut config = NetworkConfig::new_test(network_key, self.eth_cfg.router_address);
@@ -1149,6 +1146,7 @@ impl Node {
                     .expect("validator config not set")
                     .public_key,
                 message,
+                None,
             )
             .unwrap();
 
