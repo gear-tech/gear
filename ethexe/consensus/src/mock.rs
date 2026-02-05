@@ -25,16 +25,18 @@ use ethexe_common::{
     mock::*,
 };
 use ethexe_db::Database;
-use ethexe_signer::Signer;
+use gsigner::secp256k1::{Secp256k1SignerExt, Signer};
 use std::vec;
 
 pub fn init_signer_with_keys(amount: u8) -> (Signer, Vec<PrivateKey>, Vec<PublicKey>) {
     let signer = Signer::memory();
 
-    let private_keys: Vec<_> = (0..amount).map(|i| PrivateKey::from([i + 1; 32])).collect();
+    let private_keys: Vec<_> = (0..amount)
+        .map(|i| PrivateKey::from_seed([i + 1; 32]).expect("valid seed"))
+        .collect();
     let public_keys = private_keys
         .iter()
-        .map(|&key| signer.storage_mut().add_key(key).unwrap())
+        .map(|key| signer.import(key.clone()).unwrap())
         .collect();
     (signer, private_keys, public_keys)
 }
@@ -126,7 +128,7 @@ impl SignerMockExt for Signer {
         pub_key: PublicKey,
         args: T,
     ) -> SignedData<M> {
-        self.signed_data(pub_key, M::mock(args)).unwrap()
+        self.signed_data(pub_key, M::mock(args), None).unwrap()
     }
 
     fn validation_reply(
@@ -138,7 +140,7 @@ impl SignerMockExt for Signer {
         BatchCommitmentValidationReply {
             digest,
             signature: self
-                .sign_for_contract(contract_address, public_key, digest)
+                .sign_for_contract_digest(contract_address, public_key, digest, None)
                 .unwrap(),
         }
     }

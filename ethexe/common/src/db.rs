@@ -23,7 +23,7 @@ use crate::{
     Schedule, SimpleBlockData, ValidatorsVec,
     events::BlockEvent,
     gear::StateTransition,
-    injected::{InjectedTransaction, Promise, SignedInjectedTransaction},
+    injected::{InjectedTransaction, SignedInjectedTransaction},
 };
 use alloc::{
     collections::{BTreeSet, VecDeque},
@@ -134,15 +134,11 @@ pub trait InjectedStorageRO {
         &self,
         hash: HashOf<InjectedTransaction>,
     ) -> Option<SignedInjectedTransaction>;
-
-    /// Returns the promise by transaction hash.
-    fn promise(&self, hash: HashOf<InjectedTransaction>) -> Option<Promise>;
 }
 
 #[auto_impl::auto_impl(&)]
 pub trait InjectedStorageRW: InjectedStorageRO {
     fn set_injected_transaction(&self, tx: SignedInjectedTransaction);
-    fn set_promise(&self, promise: Promise);
 }
 
 #[derive(Debug, Clone, Default, Encode, Decode, PartialEq, Eq, Hash)]
@@ -214,16 +210,17 @@ pub trait LatestDataStorageRW: LatestDataStorageRO {
     }
 }
 
-pub struct FullBlockData {
+pub struct PreparedBlockData {
     pub header: BlockHeader,
     pub events: Vec<BlockEvent>,
+    pub latest_era_with_committed_validators: u64,
     pub codes_queue: VecDeque<CodeId>,
     pub announces: BTreeSet<HashOf<Announce>>,
     pub last_committed_batch: Digest,
     pub last_committed_announce: HashOf<Announce>,
 }
 
-pub struct FullAnnounceData {
+pub struct ComputedAnnounceData {
     pub announce: Announce,
     pub program_states: ProgramStates,
     pub outcome: Vec<StateTransition>,

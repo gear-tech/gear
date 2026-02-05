@@ -4,9 +4,6 @@ inputs:
   target:
     description: "Rust build target"
     required: true
-  token:
-    description: "GitHub token"
-    required: true
 
 runs:
   using: composite
@@ -14,8 +11,6 @@ runs:
     - name: "Install: cargo-xwin"
       if: inputs.target == 'x86_64-pc-windows-msvc'
       uses: ./.github/actions/install-cargo-xwin
-      with:
-        token: ${{ inputs.token }}
 
     - name: "Install: Rust target"
       run: |
@@ -41,6 +36,28 @@ runs:
       run: |
         sudo apt-fast update
         sudo apt-fast install -y protobuf-compiler binaryen
+      shell: bash
+
+    - name: "Install: LLVM on Linux"
+      if: ${{ runner.os == 'Linux' }}
+      run: |
+        wget https://apt.llvm.org/llvm.sh
+        chmod +x llvm.sh
+        sudo ./llvm.sh 20
+        
+        sudo apt-fast update
+        sudo apt-fast install -y libclang-20-dev clang-tools-20
+        
+        sudo update-alternatives --install /usr/bin/clang-cl clang-cl /usr/bin/clang-cl-20 100
+        sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-20 100
+        sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-20 100
+      shell: bash
+
+    - name: "Install: Linux compilers"
+      if: runner.arch == 'X64' && runner.os == 'Linux'
+      run: |
+        echo "CC_x86_64_unknown_linux_gnu=clang" >> $GITHUB_ENV
+        echo "CXX_x86_64_unknown_linux_gnu=clang++" >> $GITHUB_ENV
       shell: bash
 
     - name: "Install: Linux cross compilers and packages"

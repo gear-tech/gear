@@ -1,10 +1,5 @@
 name: install-cargo-xwin
 
-inputs:
-  token:
-    description: 'GitHub token'
-    required: true
-
 runs:
   using: composite
   steps:
@@ -12,7 +7,7 @@ runs:
       uses: cargo-bins/cargo-binstall@main
 
     - name: "Install: cargo-xwin"
-      run: cargo +stable binstall --no-confirm cargo-xwin@0.20.2
+      run: cargo +stable binstall --no-confirm cargo-xwin@0.21.2
       shell: bash
 
     - run: |

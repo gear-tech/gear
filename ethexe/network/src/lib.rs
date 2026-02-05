@@ -29,6 +29,8 @@ pub mod export {
     pub use libp2p::{Multiaddr, PeerId, multiaddr::Protocol};
 }
 
+pub use injected::Event as NetworkInjectedEvent;
+
 use crate::{
     db_sync::DbSyncDatabase,
     validator::{ValidatorDatabase, list::ValidatorListSnapshot},
@@ -37,12 +39,12 @@ use anyhow::{Context, anyhow};
 use ethexe_common::{
     Address, BlockHeader, ValidatorsVec,
     ecdsa::PublicKey,
-    injected::{RpcOrNetworkInjectedTx, SignedInjectedTransaction},
+    injected::{AddressedInjectedTransaction, SignedPromise},
     network::{SignedValidatorMessage, VerifiedValidatorMessage},
 };
-use ethexe_signer::Signer;
 use futures::{Stream, future::Either, ready, stream::FusedStream};
 use gprimitives::H256;
+use gsigner::secp256k1::Signer;
 use libp2p::{
     Multiaddr, PeerId, Swarm, Transport, connection_limits,
     core::{muxing::StreamMuxerBox, transport, transport::ListenerId, upgrade},
@@ -74,10 +76,16 @@ const MAX_ESTABLISHED_INCOMING_CONNECTIONS: u32 = 100;
 pub trait NetworkServiceDatabase: DbSyncDatabase + ValidatorDatabase {}
 impl<T> NetworkServiceDatabase for T where T: DbSyncDatabase + ValidatorDatabase {}
 
-#[derive(derive_more::Debug, Eq, PartialEq, Clone)]
+#[derive(derive_more::Debug)]
 pub enum NetworkEvent {
+    // gossipsub
     ValidatorMessage(VerifiedValidatorMessage),
-    InjectedTransaction(SignedInjectedTransaction),
+    PromiseMessage(SignedPromise),
+    // validator-identity
+    ValidatorIdentityUpdated(Address),
+    // injected-tx
+    InjectedTransaction(NetworkInjectedEvent),
+    // peer-score
     PeerBlocked(PeerId),
     PeerConnected(PeerId),
 }
@@ -268,8 +276,8 @@ impl NetworkService {
     }
 
     fn generate_keypair(signer: &Signer, key: PublicKey) -> anyhow::Result<identity::Keypair> {
-        let key = signer.storage().get_private_key(key)?;
-        let key = identity::secp256k1::SecretKey::try_from_bytes(&mut <[u8; 32]>::from(key))
+        let mut key = signer.private_key(key)?.to_bytes();
+        let key = identity::secp256k1::SecretKey::try_from_bytes(&mut key)
             .expect("Signer provided invalid key; qed");
         let pair = identity::secp256k1::Keypair::from(key);
         Ok(identity::Keypair::from(pair))
@@ -352,7 +360,7 @@ impl NetworkService {
             BehaviourEvent::DbSync(_event) => {}
             BehaviourEvent::Injected(event) => return self.handle_injected_event(event),
             BehaviourEvent::ValidatorDiscovery(event) => {
-                self.handle_validator_discovery_event(event)
+                return self.handle_validator_discovery_event(event);
             }
         }
 
@@ -395,6 +403,7 @@ impl NetworkService {
                         info.agent_version
                     );
                     behaviour.peer_score.handle().unsupported_protocol(peer_id);
+                    return;
                 }
 
                 // add listen addresses of new peers to KadDHT
@@ -473,14 +482,22 @@ impl NetworkService {
     fn handle_gossipsub_event(&mut self, event: gossipsub::Event) -> Option<NetworkEvent> {
         match event {
             gossipsub::Event::Message { source, validator } => {
-                let gossipsub = &mut self.swarm.behaviour_mut().gossipsub;
+                let behaviour = self.swarm.behaviour_mut();
+                let gossipsub = &mut behaviour.gossipsub;
 
                 validator.validate(gossipsub, |message| match message {
                     gossipsub::Message::Commitments(message) => {
                         let message = message.into_verified();
-                        let (acceptance, message) =
-                            self.validator_topic.verify_message(source, message);
+                        let (acceptance, message) = self
+                            .validator_topic
+                            .verify_validator_message(source, message);
                         (acceptance, message.map(NetworkEvent::ValidatorMessage))
+                    }
+                    gossipsub::Message::Promise(promise) => {
+                        // FIXME: previous era validators are ignored
+                        let (acceptance, promise) =
+                            self.validator_topic.verify_promise(source, promise);
+                        (acceptance, promise.map(NetworkEvent::PromiseMessage))
                     }
                 })
             }
@@ -498,20 +515,23 @@ impl NetworkService {
     }
 
     fn handle_injected_event(&mut self, event: injected::Event) -> Option<NetworkEvent> {
-        match event {
-            injected::Event::NewInjectedTransaction(transaction) => {
-                Some(NetworkEvent::InjectedTransaction(transaction))
-            }
-        }
+        Some(NetworkEvent::InjectedTransaction(event))
     }
 
-    fn handle_validator_discovery_event(&mut self, event: validator::discovery::Event) {
+    fn handle_validator_discovery_event(
+        &mut self,
+        event: validator::discovery::Event,
+    ) -> Option<NetworkEvent> {
         match event {
             validator::discovery::Event::GetIdentitiesStarted => {}
-            validator::discovery::Event::IdentityUpdated { .. } => {}
+            validator::discovery::Event::IdentityUpdated { address } => {
+                return Some(NetworkEvent::ValidatorIdentityUpdated(address));
+            }
             validator::discovery::Event::PutIdentityStarted => {}
             validator::discovery::Event::PutIdentityTicksAtMax => {}
         }
+
+        None
     }
 
     pub fn local_peer_id(&self) -> PeerId {
@@ -542,9 +562,18 @@ impl NetworkService {
         self.swarm.behaviour_mut().gossipsub.publish(data.into())
     }
 
-    pub fn send_injected_transaction(&mut self, data: RpcOrNetworkInjectedTx) {
+    pub fn send_injected_transaction(
+        &mut self,
+        data: AddressedInjectedTransaction,
+    ) -> Result<(), injected::SendTransactionError> {
         let behaviour = self.swarm.behaviour_mut();
-        behaviour.injected.send_transaction(data);
+        behaviour
+            .injected
+            .send_transaction(behaviour.validator_discovery.identities(), data)
+    }
+
+    pub fn publish_promise(&mut self, promise: SignedPromise) {
+        self.swarm.behaviour_mut().gossipsub.publish(promise)
     }
 }
 
@@ -705,11 +734,12 @@ mod tests {
         db_sync::{ExternalDataProvider, tests::fill_data_provider},
         utils::tests::init_logger,
     };
+    use assert_matches::assert_matches;
     use async_trait::async_trait;
     use ethexe_common::{BlockHeader, ProtocolTimelines, db::OnChainStorageRW, gear::CodeState};
     use ethexe_db::Database;
-    use ethexe_signer::Signer;
     use gprimitives::{ActorId, CodeId, H256};
+    use gsigner::secp256k1::Signer;
     use nonempty::nonempty;
     use std::{
         collections::{BTreeSet, HashMap},
@@ -811,7 +841,7 @@ mod tests {
                 parent_hash: H256::zero(),
             };
             const TIMELINES: ProtocolTimelines = ProtocolTimelines {
-                genesis_ts: 1_000_000,
+                genesis_ts: GENESIS_BLOCK_HEADER.timestamp,
                 era: 1,
                 election: 1,
             };
@@ -826,7 +856,7 @@ mod tests {
 
             db.set_protocol_timelines(TIMELINES);
 
-            let key = signer.generate_key().unwrap();
+            let key = signer.generate().unwrap();
             let config = NetworkConfig::new_test(key, Address::default());
 
             let runtime_config = NetworkRuntimeConfig {
@@ -909,7 +939,7 @@ mod tests {
             .await
             .expect("time has elapsed")
             .unwrap();
-        assert_eq!(event, NetworkEvent::PeerBlocked(service2_peer_id));
+        assert_matches!(event, NetworkEvent::PeerBlocked(peer_id) if peer_id == service2_peer_id);
     }
 
     #[tokio::test]
@@ -945,8 +975,8 @@ mod tests {
 
         let signer = Signer::memory();
 
-        let alice_key = signer.generate_key().unwrap();
-        let bob_key = signer.generate_key().unwrap();
+        let alice_key = signer.generate().unwrap();
+        let bob_key = signer.generate().unwrap();
 
         let latest_validators: ValidatorsVec =
             nonempty![alice_key.to_address(), bob_key.to_address()].into();
