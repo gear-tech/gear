@@ -5006,6 +5006,7 @@ dependencies = [
  "parity-scale-codec",
  "roast-secp256k1-evm",
  "serde",
+ "serde_json",
  "sha3",
  "sp-core",
  "tap",
