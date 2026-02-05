@@ -413,7 +413,7 @@ contract Router is IRouter, OwnableUpgradeable, ReentrancyGuardTransientUpgradea
         uint256 codeCommitmentsPtr = Memory.allocate(codeCommitmentsHashSize);
         uint256 offset = 0;
 
-        for (uint256 i = 0; i < _batch.codeCommitments.length; i++) {
+        for (uint256 i = 0; i < codeCommitmentsLen; i++) {
             Gear.CodeCommitment calldata _commitment = _batch.codeCommitments[i];
 
             require(
