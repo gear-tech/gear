@@ -1,33 +1,31 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.28;
 
-import {EnumerableMap} from "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
-import {Time} from "@openzeppelin/contracts/utils/types/Time.sol";
-import {Gear} from "./libraries/Gear.sol";
-
 import {IMiddleware} from "./IMiddleware.sol";
-import {Subnetwork} from "symbiotic-core/src/contracts/libraries/Subnetwork.sol";
-import {IVault} from "symbiotic-core/src/interfaces/vault/IVault.sol";
-import {IRegistry} from "symbiotic-core/src/interfaces/common/IRegistry.sol";
-import {IEntity} from "symbiotic-core/src/interfaces/common/IEntity.sol";
-import {IBaseDelegator} from "symbiotic-core/src/interfaces/delegator/IBaseDelegator.sol";
-import {INetworkRegistry} from "symbiotic-core/src/interfaces/INetworkRegistry.sol";
-import {IOptInService} from "symbiotic-core/src/interfaces/service/IOptInService.sol";
-import {INetworkMiddlewareService} from "symbiotic-core/src/interfaces/service/INetworkMiddlewareService.sol";
-import {IVetoSlasher} from "symbiotic-core/src/interfaces/slasher/IVetoSlasher.sol";
-import {IMigratableEntity} from "symbiotic-core/src/interfaces/common/IMigratableEntity.sol";
-import {
-    IDefaultOperatorRewards
-} from "symbiotic-rewards/src/interfaces/defaultOperatorRewards/IDefaultOperatorRewards.sol";
-import {IDefaultStakerRewards} from "symbiotic-rewards/src/interfaces/defaultStakerRewards/IDefaultStakerRewards.sol";
-
+import {Gear} from "./libraries/Gear.sol";
 import {MapWithTimeData} from "./libraries/MapWithTimeData.sol";
-import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {
     ReentrancyGuardTransientUpgradeable
 } from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardTransientUpgradeable.sol";
+import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
 import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
+import {EnumerableMap} from "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
+import {Time} from "@openzeppelin/contracts/utils/types/Time.sol";
+import {Subnetwork} from "symbiotic-core/src/contracts/libraries/Subnetwork.sol";
+import {INetworkRegistry} from "symbiotic-core/src/interfaces/INetworkRegistry.sol";
+import {IEntity} from "symbiotic-core/src/interfaces/common/IEntity.sol";
+import {IMigratableEntity} from "symbiotic-core/src/interfaces/common/IMigratableEntity.sol";
+import {IRegistry} from "symbiotic-core/src/interfaces/common/IRegistry.sol";
+import {IBaseDelegator} from "symbiotic-core/src/interfaces/delegator/IBaseDelegator.sol";
+import {INetworkMiddlewareService} from "symbiotic-core/src/interfaces/service/INetworkMiddlewareService.sol";
+import {IOptInService} from "symbiotic-core/src/interfaces/service/IOptInService.sol";
+import {IVetoSlasher} from "symbiotic-core/src/interfaces/slasher/IVetoSlasher.sol";
+import {IVault} from "symbiotic-core/src/interfaces/vault/IVault.sol";
+import {
+    IDefaultOperatorRewards
+} from "symbiotic-rewards/src/interfaces/defaultOperatorRewards/IDefaultOperatorRewards.sol";
+import {IDefaultStakerRewards} from "symbiotic-rewards/src/interfaces/defaultStakerRewards/IDefaultStakerRewards.sol";
 
 // TODO (asap): document all functions and variables
 // TODO (asap): add validators commission

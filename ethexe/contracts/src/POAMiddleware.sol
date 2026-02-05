@@ -1,18 +1,16 @@
 // SPDX-License-Identifier: UNLICENSED
 pragma solidity ^0.8.28;
 
-import {EnumerableMap} from "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
-import {Gear} from "./libraries/Gear.sol";
-
 import {IMiddleware} from "./IMiddleware.sol";
-import {Subnetwork} from "symbiotic-core/src/contracts/libraries/Subnetwork.sol";
-
+import {Gear} from "./libraries/Gear.sol";
 import {MapWithTimeData} from "./libraries/MapWithTimeData.sol";
 import {OwnableUpgradeable} from "@openzeppelin/contracts-upgradeable/access/OwnableUpgradeable.sol";
 import {
     ReentrancyGuardTransientUpgradeable
 } from "@openzeppelin/contracts-upgradeable/utils/ReentrancyGuardTransientUpgradeable.sol";
 import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
+import {EnumerableMap} from "@openzeppelin/contracts/utils/structs/EnumerableMap.sol";
+import {Subnetwork} from "symbiotic-core/src/contracts/libraries/Subnetwork.sol";
 
 contract POAMiddleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransientUpgradeable {
     using EnumerableMap for EnumerableMap.AddressToUintMap;
