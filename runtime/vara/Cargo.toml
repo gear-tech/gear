@@ -112,6 +112,7 @@ pallet-gear-eth-bridge-rpc-runtime-api.workspace = true
 pallet-grandpa-signer.workspace = true
 runtime-primitives.workspace = true
 gbuiltin-proxy.workspace = true
+gear-workspace-hack.workspace = true
 
 [dev-dependencies]
 sp-io.workspace = true
@@ -290,3 +291,13 @@ try-runtime = [
 ]
 dev = ["pallet-sudo", "pallet-gear/dev"]
 metadata-hash = ["substrate-wasm-builder?/metadata-hash"]
+
+[package.metadata.cargo-shear]
+ignored = [
+    "sp-offchain",
+    "sp-storage",
+    "sp-block-builder",
+    "sp-transaction-pool",
+    "pallet-gear-rpc-runtime-api",
+    "sp-inherents",
+]

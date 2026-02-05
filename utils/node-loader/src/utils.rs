@@ -1,14 +1,16 @@
 use anyhow::{Result, anyhow};
 use futures::Future;
 use futures_timer::Delay;
-use gclient::{Event, GearApi, GearEvent, WSAddress};
 use gear_call_gen::Seed;
 use gear_core::ids::{ActorId, MessageId};
 use gear_wasm_gen::{
     EntryPointsSet, InvocableSyscall, RegularParamType, StandardGearWasmConfigsBundle, SyscallName,
     SyscallsInjectionTypes, SyscallsParamsConfig,
 };
-use gsdk::gear::runtime_types::gear_common::event::DispatchStatus as GenDispatchStatus;
+use gsdk::{
+    Event, SignedApi,
+    gear::{gear, runtime_types::gear_common::event::DispatchStatus as GenDispatchStatus},
+};
 use rand::rngs::SmallRng;
 use reqwest::Client;
 use std::{
@@ -39,21 +41,6 @@ pub fn dump_with_seed(seed: u64) -> Result<()> {
     file.write_all(&code)?;
 
     Ok(())
-}
-
-pub fn str_to_wsaddr(endpoint: String) -> WSAddress {
-    let endpoint = endpoint.replace("://", ":");
-
-    let mut addr_parts = endpoint.split(':');
-
-    let domain = format!(
-        "{}://{}",
-        addr_parts.next().unwrap_or("ws"),
-        addr_parts.next().unwrap_or("127.0.0.1")
-    );
-    let port = addr_parts.next().and_then(|v| v.parse().ok());
-
-    WSAddress::new(domain, port)
 }
 
 pub fn convert_iter<V, T: Into<V> + Clone>(args: Vec<T>) -> impl IntoIterator<Item = V> + Clone {
@@ -107,16 +94,16 @@ pub async fn stop_node(monitor_url: String) -> Result<()> {
 }
 
 pub async fn capture_mailbox_messages(
-    api: &GearApi,
+    api: &SignedApi,
     event_source: &[gsdk::Event],
 ) -> Result<BTreeSet<MessageId>> {
     let to = ActorId::new(api.account_id().clone().into());
     // Mailbox message expiration threshold block number: current(last) block number + 20.
-    let bn_threshold = api.last_block_number().await? + 20;
+    let bn_threshold = api.blocks().at_latest().await?.number() + 20;
     let mailbox_messages: Vec<_> = event_source
         .iter()
         .filter_map(|event| match event {
-            Event::Gear(GearEvent::UserMessageSent {
+            Event::Gear(gear::Event::UserMessageSent {
                 message,
                 expiration: Some(exp_bn),
             }) if exp_bn >= &bn_threshold && message.destination() == to => Some(message.id()),
@@ -133,7 +120,7 @@ pub async fn capture_mailbox_messages(
     //
     // Better solution after #1876
     for mid in mailbox_messages {
-        if api.get_mailbox_message(mid).await?.is_some() {
+        if api.mailbox_message(mid).await?.is_some() {
             ret.insert(mid);
         }
     }
@@ -156,7 +143,7 @@ pub fn err_waited_or_succeed_batch(
     event_source
         .iter_mut()
         .filter_map(|e| match e {
-            Event::Gear(GearEvent::UserMessageSent { message, .. }) => {
+            Event::Gear(gear::Event::UserMessageSent { message, .. }) => {
                 if let Some(details) = message.details()
                     && message_ids.contains(&details.to_message_id())
                 {
@@ -171,10 +158,10 @@ pub fn err_waited_or_succeed_batch(
                     None
                 }
             }
-            Event::Gear(GearEvent::MessageWaited { id, .. }) if message_ids.contains(id) => {
+            Event::Gear(gear::Event::MessageWaited { id, .. }) if message_ids.contains(id) => {
                 Some(vec![(*id, None)])
             }
-            Event::Gear(GearEvent::MessagesDispatched { statuses, .. }) => {
+            Event::Gear(gear::Event::MessagesDispatched { statuses, .. }) => {
                 let requested: Vec<_> = statuses
                     .iter_mut()
                     .filter_map(|(mid, status)| {

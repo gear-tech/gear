@@ -21,7 +21,9 @@ use anyhow::{Context, Result, anyhow};
 use chrono::offset::Local as ChronoLocal;
 use gear_wasm_optimizer::{self as optimize, Optimizer};
 use std::{
-    env, fs,
+    env,
+    ffi::OsString,
+    fs,
     path::{Path, PathBuf},
 };
 use toml::value::Table;
@@ -83,6 +85,9 @@ impl WasmProject {
             .expect("`OUT_DIR` is always set in build scripts")
             .into();
 
+        let target: OsString =
+            env::var_os("TARGET").expect("`TARGET` is always set in build scripts");
+
         let profile = out_dir
             .components()
             .rev()
@@ -103,6 +108,10 @@ impl WasmProject {
             .and_then(|path| path.parent())
             .map(|p| p.to_owned())
             .expect("Could not find target directory");
+
+        if target_dir.ends_with(target) {
+            target_dir.pop();
+        }
 
         let mut wasm_target_dir = target_dir.clone();
         wasm_target_dir.push("wasm32-gear");
@@ -204,6 +213,11 @@ impl WasmProject {
         }
         self.features = Some(features.keys().cloned().collect());
 
+        let mut patch = crate_info.patch;
+        if let Some(crates_io) = patch.get_mut("crates-io").and_then(|v| v.as_table_mut()) {
+            crates_io.remove("gear-workspace-hack");
+        }
+
         let mut cargo_toml = Table::new();
         cargo_toml.insert("package".into(), package.into());
         cargo_toml.insert("lib".into(), lib.into());
@@ -211,7 +225,7 @@ impl WasmProject {
         cargo_toml.insert("profile".into(), profile.into());
         cargo_toml.insert("features".into(), features.into());
         cargo_toml.insert("workspace".into(), Table::new().into());
-        cargo_toml.insert("patch".into(), crate_info.patch.into());
+        cargo_toml.insert("patch".into(), patch.into());
 
         smart_fs::write(self.manifest_path(), toml::to_string_pretty(&cargo_toml)?)
             .context("Failed to write generated manifest path")?;

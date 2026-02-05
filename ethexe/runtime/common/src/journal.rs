@@ -26,7 +26,7 @@ use gprimitives::{ActorId, CodeId, H256, MessageId, ReservationId};
 use gsys::GasMultiplier;
 
 // Handles unprocessed journal notes during chunk processing.
-pub struct NativeJournalHandler<'a, S: Storage> {
+pub struct NativeJournalHandler<'a, S: Storage + ?Sized> {
     pub program_id: ActorId,
     pub message_type: MessageType,
     pub call_reply: bool,
@@ -36,7 +36,7 @@ pub struct NativeJournalHandler<'a, S: Storage> {
     pub out_of_gas_for_block: &'a mut bool,
 }
 
-impl<S: Storage> NativeJournalHandler<'_, S> {
+impl<S: Storage + ?Sized> NativeJournalHandler<'_, S> {
     fn send_dispatch_to_program(
         &mut self,
         _message_id: MessageId,
@@ -180,7 +180,7 @@ impl<S: Storage> NativeJournalHandler<'_, S> {
     }
 }
 
-impl<S: Storage> JournalHandler for NativeJournalHandler<'_, S> {
+impl<S: Storage + ?Sized> JournalHandler for NativeJournalHandler<'_, S> {
     fn message_dispatched(
         &mut self,
         _message_id: MessageId,
@@ -263,7 +263,7 @@ impl<S: Storage> JournalHandler for NativeJournalHandler<'_, S> {
 
             self.controller
                 .transitions
-                .maybe_store_injected_reply(&message_id, reply_info);
+                .maybe_store_injected_reply(message_id, reply_info);
         }
 
         if self.controller.transitions.is_program(&destination) {

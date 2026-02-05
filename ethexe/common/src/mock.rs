@@ -19,13 +19,14 @@
 pub use tap::Tap;
 
 use crate::{
-    Announce, BlockData, BlockHeader, CodeBlobInfo, Digest, HashOf, ProgramStates,
-    ProtocolTimelines, Schedule, SimpleBlockData, ValidatorsVec,
+    Announce, BlockData, BlockHeader, CodeBlobInfo, ComputedAnnounce, Digest, HashOf,
+    ProgramStates, ProtocolTimelines, Schedule, SimpleBlockData, ValidatorsVec,
     consensus::BatchCommitmentValidationRequest,
     db::*,
+    ecdsa::{PrivateKey, SignedMessage},
     events::BlockEvent,
     gear::{BatchCommitment, ChainCommitment, CodeCommitment, Message, StateTransition},
-    injected::InjectedTransaction,
+    injected::{AddressedInjectedTransaction, InjectedTransaction},
 };
 use alloc::{collections::BTreeMap, vec};
 use gear_core::code::{CodeMetadata, InstrumentedCode};
@@ -34,7 +35,7 @@ use itertools::Itertools;
 use std::collections::{BTreeSet, VecDeque};
 
 // TODO #4881: use `proptest::Arbitrary` instead
-pub trait Mock<Args> {
+pub trait Mock<Args = ()> {
     fn mock(args: Args) -> Self;
 }
 
@@ -170,8 +171,24 @@ impl Mock<()> for InjectedTransaction {
             payload: vec![].into(),
             value: 0,
             reference_block: Default::default(),
-            salt: vec![].into(),
+            salt: H256::random().0.to_vec().into(),
         }
+    }
+}
+
+impl Mock<PrivateKey> for AddressedInjectedTransaction {
+    fn mock(pk: PrivateKey) -> Self {
+        AddressedInjectedTransaction {
+            recipient: Default::default(),
+            tx: SignedMessage::create(pk, InjectedTransaction::mock(()))
+                .expect("Signing injected transaction will succeed"),
+        }
+    }
+}
+
+impl Mock<()> for AddressedInjectedTransaction {
+    fn mock(_args: ()) -> Self {
+        AddressedInjectedTransaction::mock(PrivateKey::random())
     }
 }
 
@@ -197,22 +214,27 @@ pub struct BlockFullData {
 }
 
 impl BlockFullData {
+    #[track_caller]
     pub fn as_synced(&self) -> &SyncedBlockData {
         self.synced.as_ref().expect("block not synced")
     }
 
+    #[track_caller]
     pub fn as_prepared(&self) -> &PreparedBlockData {
         self.prepared.as_ref().expect("block not prepared")
     }
 
+    #[track_caller]
     pub fn as_synced_mut(&mut self) -> &mut SyncedBlockData {
         self.synced.as_mut().expect("block not synced")
     }
 
+    #[track_caller]
     pub fn as_prepared_mut(&mut self) -> &mut PreparedBlockData {
         self.prepared.as_mut().expect("block not prepared")
     }
 
+    #[track_caller]
     pub fn to_simple(&self) -> SimpleBlockData {
         SimpleBlockData {
             hash: self.hash,
@@ -222,7 +244,7 @@ impl BlockFullData {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
-pub struct ComputedAnnounceData {
+pub struct MockComputedAnnounceData {
     pub outcome: Vec<StateTransition>,
     pub program_states: ProgramStates,
     pub schedule: Schedule,
@@ -231,15 +253,15 @@ pub struct ComputedAnnounceData {
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AnnounceData {
     pub announce: Announce,
-    pub computed: Option<ComputedAnnounceData>,
+    pub computed: Option<MockComputedAnnounceData>,
 }
 
 impl AnnounceData {
-    pub fn as_computed(&self) -> &ComputedAnnounceData {
+    pub fn as_computed(&self) -> &MockComputedAnnounceData {
         self.computed.as_ref().expect("announce not computed")
     }
 
-    pub fn as_computed_mut(&mut self) -> &mut ComputedAnnounceData {
+    pub fn as_computed_mut(&mut self) -> &mut MockComputedAnnounceData {
         self.computed.as_mut().expect("announce not computed")
     }
 
@@ -288,9 +310,13 @@ pub struct BlockChain {
     pub announces: BTreeMap<HashOf<Announce>, AnnounceData>,
     pub codes: BTreeMap<CodeId, CodeData>,
     pub validators: ValidatorsVec,
+    pub protocol_timelines: ProtocolTimelines,
+    pub latest_data: LatestData,
+    pub slot_duration: u32,
 }
 
 impl BlockChain {
+    #[track_caller]
     pub fn block_top_announce_hash(&self, block_index: usize) -> HashOf<Announce> {
         self.blocks
             .get(block_index)
@@ -304,18 +330,21 @@ impl BlockChain {
             .expect("no announces found for block")
     }
 
+    #[track_caller]
     pub fn block_top_announce(&self, block_index: usize) -> &AnnounceData {
         self.announces
             .get(&self.block_top_announce_hash(block_index))
             .expect("announce not found")
     }
 
+    #[track_caller]
     pub fn block_top_announce_mut(&mut self, block_index: usize) -> &mut AnnounceData {
         self.announces
             .get_mut(&self.block_top_announce_hash(block_index))
             .expect("announce not found")
     }
 
+    #[track_caller]
     pub fn setup<DB>(self, db: &DB) -> Self
     where
         DB: AnnounceStorageRW
@@ -329,11 +358,12 @@ impl BlockChain {
             announces,
             codes,
             validators,
+            protocol_timelines: timelines,
+            latest_data,
+            slot_duration: _,
         } = self.clone();
 
-        db.set_latest_data(LatestData::default());
-
-        let timelines = ProtocolTimelines::mock(());
+        db.set_latest_data(latest_data);
         db.set_protocol_timelines(timelines);
 
         if let Some(genesis) = blocks.front() {
@@ -434,23 +464,26 @@ impl BlockChain {
 impl Mock<(u32, ValidatorsVec)> for BlockChain {
     /// `len` - length of chain not counting genesis block
     fn mock((len, validators): (u32, ValidatorsVec)) -> Self {
-        // i = 0 - genesis parent
-        // i = 1 - genesis
-        // i = 2 - first block
+        let slot_duration = 10;
+        let genesis_height = 1_000_000;
+        let genesis_ts = 1_000_000;
+
+        // i = 0, h = None - genesis parent
+        // i = 1, h = 0 - genesis
+        // i = 2, h = 1 - first block
         // ...
-        // i = len + 1 - last block
+        // i = len + 1, h = len - last block
         let mut blocks: VecDeque<_> = (0..len + 2)
             .map(|i| {
-                // Human readable blocks, to avoid zero values append some readable numbers
-                i.checked_sub(1)
-                    .map(|h| {
-                        (
-                            H256::from_low_u64_be(0x1_000_000 + h as u64),
-                            1_000_000 + h,
-                            1_000_000 + h * 10,
-                        )
-                    })
-                    .unwrap_or((H256([u8::MAX; 32]), 0, 0))
+                if let Some(h) = i.checked_sub(1) {
+                    // Human readable blocks, to avoid zero values append some readable numbers
+                    let hash = H256::from_low_u64_be(h as u64).tap_mut(|hash| hash.0[0] = 0x10);
+                    let height = genesis_height + h;
+                    let timestamp = genesis_ts + h * slot_duration;
+                    (hash, height, timestamp)
+                } else {
+                    (H256([u8::MAX; 32]), 0, 0)
+                }
             })
             .tuple_windows()
             .map(
@@ -496,7 +529,7 @@ impl Mock<(u32, ValidatorsVec)> for BlockChain {
                     announce_hash,
                     AnnounceData {
                         announce,
-                        computed: Some(ComputedAnnounceData {
+                        computed: Some(MockComputedAnnounceData {
                             outcome: Default::default(),
                             program_states: Default::default(),
                             schedule: Default::default(),
@@ -506,11 +539,28 @@ impl Mock<(u32, ValidatorsVec)> for BlockChain {
             })
             .collect();
 
+        let latest_data = LatestData {
+            genesis_block_hash: blocks[1].hash,
+            start_block_hash: blocks[1].hash,
+            genesis_announce_hash: genesis_announce_hash.unwrap(),
+            start_announce_hash: genesis_announce_hash.unwrap(),
+            synced_block: blocks.back().unwrap().to_simple(),
+            prepared_block_hash: blocks.back().unwrap().hash,
+            computed_announce_hash: parent_announce_hash,
+        };
+
         BlockChain {
             blocks,
             announces,
             codes: Default::default(),
             validators,
+            protocol_timelines: ProtocolTimelines {
+                genesis_ts: genesis_ts as u64,
+                era: slot_duration as u64 * 100,
+                election: slot_duration as u64 * 20,
+            },
+            latest_data,
+            slot_duration,
         }
     }
 }
@@ -580,5 +630,23 @@ impl BlockData {
         db.set_block_events(self.hash, &self.events);
         db.set_block_synced(self.hash);
         self
+    }
+}
+
+impl Mock for ComputedAnnounce {
+    fn mock(_: ()) -> Self {
+        Self {
+            announce_hash: HashOf::random(),
+            promises: Default::default(),
+        }
+    }
+}
+
+impl Mock<HashOf<Announce>> for ComputedAnnounce {
+    fn mock(announce_hash: HashOf<Announce>) -> Self {
+        Self {
+            announce_hash,
+            promises: Default::default(),
+        }
     }
 }

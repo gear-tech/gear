@@ -16,6 +16,9 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
+//! Validator-specific networking logic that verifies signed messages
+//! against on-chain state.
+
 use crate::validator::ValidatorDatabase;
 use anyhow::Context;
 use ethexe_common::{Address, BlockHeader, ProtocolTimelines, ValidatorsVec, db::OnChainStorageRO};
@@ -41,6 +44,19 @@ impl ValidatorListSnapshot {
         self.next_validators
             .as_ref()
             .is_some_and(|v| v.contains(&address))
+    }
+
+    pub(crate) fn contains(&self, address: Address) -> bool {
+        self.is_current(address) || self.is_next(address)
+    }
+
+    pub(crate) fn iter(&self) -> impl Iterator<Item = Address> {
+        self.current_validators.iter().copied().chain(
+            self.next_validators
+                .iter()
+                .flat_map(|vec| vec.iter())
+                .copied(),
+        )
     }
 }
 

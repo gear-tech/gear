@@ -20,6 +20,7 @@ members = [
     "common/numerated",
     "core",
     "core-backend",
+    "gsigner",
     "core-processor",
     "core-errors",
     "lazy-pages",
@@ -89,7 +90,6 @@ members = [
     "galloc",
     "gbuiltins/*",
     "gcli",
-    "gclient",
     "gcore",
     "gprimitives",
     "gsdk",
@@ -114,9 +114,12 @@ members = [
 ]
 
 [workspace.dependencies]
-alloy = "1.1"
-alloy-primitives = { version = "1.4", default-features = false }
-alloy-sol-types = { version = "1.4", default-features = false }
+gear-workspace-hack = "0.1.0"
+
+alloy = "1.4"
+alloy-chains = "0.2"
+alloy-primitives = { version = "1.5", default-features = false }
+alloy-sol-types = { version = "1.5", default-features = false }
 anyhow = { version = "1.0.86", default-features = false }
 arbitrary = "1.3.2"
 async-recursion = "1.1.1"
@@ -129,7 +132,6 @@ bs58 = { version = "0.5.1", default-features = false }
 cargo_toml = "0.21.0"
 cargo_metadata = "0.20.0"
 clap = "4.5.8"
-color-eyre = "0.6.3"
 colored = "2.1.0"
 const-str = "0.5"
 defer = "0.2.1"
@@ -148,6 +150,7 @@ hex = { version = "0.4.3", default-features = false }
 hex-literal = "0.4.1"
 impl-trait-for-tuples = "0.2.2"
 impl-serde = "0.4.0"
+indoc = "2.0.7"
 jsonrpsee = { version = "^0.24" }
 libc = { version = "0.2", default-features = false }
 log = { version = "0.4.22", default-features = false }
@@ -162,6 +165,7 @@ proptest = "1.5.0"
 quick-xml = "0.28"
 quote = { version = "1.0.36", default-features = false }
 rand = { version = "0.8", default-features = false }
+rayon = { version = "1.11.0" }
 regex = "^1.9"
 region = "3.0.2"
 reqwest = { version = "0.12.8", default-features = false }
@@ -175,6 +179,7 @@ serde_json = { version = "1.0.135", default-features = false, features = [
 ] }
 serde-json-wasm = { version = "1.0.1", default-features = false }
 sha-1 = "0.10.1"
+snapbox = "0.6.24"
 static_init = "1.0.3"
 subxt = "0.44.0"
 syn = "2.0.71"
@@ -235,13 +240,12 @@ gbuiltin-staking = { path = "gbuiltins/staking" }
 gbuiltin-proxy = { path = "gbuiltins/proxy" }
 gcore = { path = "gcore" }
 gcli = { path = "gcli" }
-gclient = { path = "gclient" }
 gear-node-wrapper = { path = "utils/node-wrapper" }
 gsdk = { path = "gsdk" }
 gsdk-codegen = { path = "gsdk/codegen" }
 gstd = { path = "gstd", features = ["nightly"] }
 gstd-codegen = { path = "gstd/codegen" }
-gring = { path = "utils/gring" }
+gsigner = { path = "gsigner", default-features = false }
 gsys = { path = "gsys" }
 gtest = { path = "gtest" }
 gprimitives = { path = "gprimitives", default-features = false }
@@ -307,7 +311,7 @@ ethexe-db = { path = "ethexe/db", default-features = false }
 ethexe-network = { path = "ethexe/network", default-features = false }
 ethexe-processor = { path = "ethexe/processor", default-features = false }
 ethexe-runtime = { path = "ethexe/runtime", default-features = false }
-ethexe-signer = { path = "ethexe/signer", default-features = false }
+ethexe-sdk = { path = "ethexe/sdk", default-features = false }
 ethexe-service = { path = "ethexe/service", default-features = false }
 ethexe-service-utils = { path = "ethexe/service/utils", default-features = false }
 ethexe-consensus = { path = "ethexe/consensus", default-features = false }
@@ -520,7 +524,6 @@ errno = "0.3"                                                # gear-lazy-pages
 nix = "0.26.4"                                               # gear-lazy-pages
 ipc-channel = "0.19.0"                                       # lazy-pages-fuzzer
 itertools = { version = "0.13", default-features = false }   # utils/wasm-builder
-keyring = "1.2.1"                                            # gcli
 libp2p = "=0.51.4"                                           # gcli (same version as sc-consensus)
 mimalloc = { version = "0.1.46", default-features = false }  # node/cli
 nacl = "0.5.3"                                               # gcli
@@ -553,6 +556,7 @@ bytes = "1.8.0"                                              # utils/gear-wasmer
 loom = "0.7.2"                                               # utils/gear-wasmer-cache
 wasm-smith = { version = "0.230", features = ["wasmparser"] } # utils/wasm-gen
 wasm-encoder = { version = "0.230", default-features = false, features = ["wasmparser"] } # utils/wasm-instrument
+async-broadcast = "0.7.2" # ethexe/service
 
 [workspace.lints.rust]
 unexpected_cfgs = { level = "warn", check-cfg = [
@@ -563,6 +567,7 @@ unexpected_cfgs = { level = "warn", check-cfg = [
 
 [workspace.metadata.cargo-shear]
 ignored = [
+    "gear-workspace-hack",
     "frame-benchmarking",
     "frame-system-benchmarking",
     "frame-system-rpc-runtime-api",
@@ -572,6 +577,7 @@ ignored = [
     "parity-scale-codec",
     "pallet-authorship",
     "pallet-timestamp",
+    "sp-application-crypto",
 ]
 
 [profile.dev.package.corosensei]
@@ -608,7 +614,8 @@ inherits = "release"
 debug = true
 
 [patch.crates-io]
-alloy = { version = "1.1", git = "https://github.com/gear-tech/alloy" }
+gear-workspace-hack = { path = "utils/gear-workspace-hack" }
+
 # these patched dependecies force their `sign_ext` feature to be used by Substrate dependencies
 parity-wasm = { version = "0.45.0", git = "https://github.com/gear-tech/parity-wasm", branch = "v0.45.0-sign-ext" }
 wasmi-validation = { version = "0.5.0", git = "https://github.com/gear-tech/wasmi", branch = "v0.13.2-sign-ext" }

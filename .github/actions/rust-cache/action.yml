@@ -1,12 +1,6 @@
 name: rust-cache
 
 inputs:
-  us-access-key-id:
-    required: true
-    description: US S3 access key ID
-  us-secret-access-key:
-    required: true
-    description: US secret access key
   eu-access-key-id:
     required: true
     description: EU S3 access key ID
@@ -19,23 +13,44 @@ inputs:
   cache-all-crates:
     required: false
     description: Whether to cache every crate
+  keep-workspace-hack:
+    required: false
+    description: Whether to keep workspace hack enabled
+    default: 'false'
 
 runs:
   using: composite
   steps:
-    - run: |
+    # disable workspace hack because we cache only specific build commands and don't want the cache to blow up
+    - uses: ./.github/actions/cargo-hakari
+      if: ${{ inputs.keep-workspace-hack == 'false' }}
+      with:
+        args: disable
+
+    # we have manually written deps in our hack so we also should remove the hack as dependency
+    - uses: ./.github/actions/cargo-hakari
+      if: ${{ inputs.keep-workspace-hack == 'false' }}
+      with:
+        args: remove-deps --yes
+
+    - id: env
+      run: |
         if [[ "${{ runner.environment }}" == "github-hosted" ]]; then
-          echo "AWS_ACCESS_KEY_ID=${{ inputs.us-access-key-id }}" >> $GITHUB_ENV
-          echo "AWS_SECRET_ACCESS_KEY=${{ inputs.us-secret-access-key }}" >> $GITHUB_ENV
-          echo "AWS_REGION=us-west-2" >> $GITHUB_ENV
-          echo "SCCACHE_REGION=us-west-2" >> $GITHUB_ENV
+          echo "cache-provider=github" >> $GITHUB_OUTPUT
+        
+          echo "SCCACHE_GHA_ENABLED=true" >> $GITHUB_ENV
         else
+          echo "cache-provider=s3" >> $GITHUB_OUTPUT
+        
           echo "AWS_ACCESS_KEY_ID=${{ inputs.eu-access-key-id }}" >> $GITHUB_ENV
           echo "AWS_SECRET_ACCESS_KEY=${{ inputs.eu-secret-access-key }}" >> $GITHUB_ENV
           echo "AWS_REGION=fsn1" >> $GITHUB_ENV
+        
           echo "SCCACHE_REGION=fsn1" >> $GITHUB_ENV
-
           echo "SCCACHE_ENDPOINT=https://fsn1.your-objectstorage.com" >> $GITHUB_ENV
+          echo "SCCACHE_BUCKET=gear-ci" >> $GITHUB_ENV
+          echo "SCCACHE_S3_KEY_PREFIX=sccache/" >> $GITHUB_ENV
+        
           echo "RUNS_ON_S3_BUCKET_ENDPOINT=https://fsn1.your-objectstorage.com" >> $GITHUB_ENV
         fi
       shell: bash
@@ -45,13 +60,15 @@ runs:
         disable_annotations: true
 
     - run: |
-        echo "SCCACHE_BUCKET=gear-ci" >> $GITHUB_ENV
-        echo "SCCACHE_S3_KEY_PREFIX=sccache/" >> $GITHUB_ENV
-        echo "SCCACHE_STARTUP_TIMEOUT=300" >> $GITHUB_ENV
-
         echo "CARGO_INCREMENTAL=0" >> $GITHUB_ENV
         echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
       shell: bash
+
+    # GitHub hosted runners have no enough space for big Rust caches
+    - if: ${{ runner.os == 'Linux' && runner.environment == 'github-hosted' }}
+      uses: jlumbroso/free-disk-space@main
+      with:
+        large-packages: false
 
     - id: date
       run: echo "value=$(date +%Y)-$(( $(date +%W) - $(date +%W) % 2 ))" >> $GITHUB_OUTPUT
@@ -59,13 +76,13 @@ runs:
 
     - uses: gear-tech/rust-cache@wasm
       with:
-        prefix-key: 'rust-cache/date-${{ steps.date.outputs.value }}'
+        prefix-key: 'rust-cache/date-${{ steps.date.outputs.value }}-workspace-hack'
         key: ${{ inputs.key }}
         workspaces: |
           . -> target
           utils/wasm-builder/test-program -> target
           utils/cargo-gbuild/test-program -> target
-        cache-provider: 's3'
+        cache-provider: ${{ steps.env.outputs.cache-provider }}
         cache-all-crates: ${{ inputs.cache-all-crates }}
       env:
         RUNS_ON_S3_BUCKET_CACHE: gear-ci

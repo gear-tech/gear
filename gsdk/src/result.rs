@@ -22,7 +22,7 @@ use std::borrow::Borrow;
 
 pub use crate::tx_status::{TxError, TxStatusExt, TxSuccess};
 
-use gear_core::ids::ActorId;
+use gear_core::{ids::ActorId, pages::GearPage};
 use subxt::{
     error::DispatchError,
     ext::{scale_encode, subxt_rpcs},
@@ -31,7 +31,7 @@ use subxt::{
 /// Custom Result
 pub type Result<T, E = Error> = std::result::Result<T, E>;
 
-#[derive(Debug, thiserror::Error, derive_more::Unwrap)]
+#[derive(Debug, thiserror::Error)]
 pub enum Error {
     #[error("the queried event not found")]
     EventNotFound,
@@ -45,11 +45,35 @@ pub enum Error {
     #[error("program has been terminated")]
     ProgramTerminated,
 
-    #[error("{0} is invalid")]
-    InvalidPage(FailedPage),
+    #[error("funds overcame `u128::MAX`")]
+    BalanceOverflow,
+
+    #[error("incomplete batch result: expected {expected} values, found {found} values")]
+    IncompleteBatchResult { expected: usize, found: usize },
+
+    #[error("invalid secret phrase or key material")]
+    InvalidSecret,
 
     #[error("{0} was not found in the storage")]
     PageNotFound(FailedPage),
+
+    #[error("failed to migrate program `{}`: it already exists at the destination", .0)]
+    ProgramAlreadyExists(ActorId),
+
+    #[error(transparent)]
+    FromUtf8(#[from] std::string::FromUtf8Error),
+
+    #[error(transparent)]
+    FromHex(#[from] hex::FromHexError),
+
+    #[error(transparent)]
+    PageError(#[from] gear_core::pages::PageError),
+
+    #[error(transparent)]
+    Io(#[from] std::io::Error),
+
+    #[error(transparent)]
+    SerdeJson(#[from] serde_json::Error),
 
     #[error(transparent)]
     Tx(#[from] TxError),
@@ -86,19 +110,15 @@ pub enum Error {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash, derive_more::Display)]
-#[display("Page {index} of Program {program}")]
+#[display("Page {} of Program {}", page, program)]
 pub struct FailedPage {
-    pub index: u32,
+    pub page: GearPage,
     pub program: ActorId,
 }
 
 impl FailedPage {
-    pub fn new(index: u32, program: ActorId) -> Self {
-        Self { index, program }
-    }
-
-    pub fn invalid(self) -> Error {
-        Error::InvalidPage(self)
+    pub fn new(page: GearPage, program: ActorId) -> Self {
+        Self { page, program }
     }
 
     pub fn not_found(self) -> Error {

@@ -18,55 +18,44 @@
 
 use crate::{
     AlloyEthereum, AlloyProvider, IntoBlockId, TryGetReceipt,
-    abi::{IRouter, Router::StorageView, utils::uint256_to_u256},
+    abi::{
+        IRouter,
+        utils::{uint48_to_u64, uint256_to_u256},
+    },
     wvara::WVara,
 };
 use alloy::{
     consensus::{SidecarBuilder, SimpleCoder},
-    eips::eip7594::BlobTransactionSidecarVariant,
-    primitives::{Address, Bytes, fixed_bytes},
+    eips::BlockId,
+    primitives::{Address, Bytes},
     providers::{PendingTransactionBuilder, Provider, ProviderBuilder, RootProvider},
-    rpc::types::{Filter, eth::state::AccountOverride},
+    rpc::types::TransactionReceipt,
 };
 use anyhow::{Result, anyhow};
 use ethexe_common::{
     Address as LocalAddress, Digest, ValidatorsVec,
     ecdsa::ContractSignature,
-    gear::{AggregatedPublicKey, BatchCommitment, CodeState, SignatureType, Timelines},
+    events::router::CodeGotValidatedEvent,
+    gear::{
+        AggregatedPublicKey, BatchCommitment, CodeState, ComputationSettings, SignatureType,
+        Timelines,
+    },
 };
-use events::signatures;
+use events::{
+    AnnouncesCommittedEventBuilder, BatchCommittedEventBuilder, CodeGotValidatedEventBuilder,
+    CodeValidationRequestedEventBuilder, ComputationSettingsChangedEventBuilder,
+    ProgramCreatedEventBuilder, StorageSlotChangedEventBuilder,
+    ValidatorsCommittedForEraEventBuilder, signatures,
+};
 use futures::StreamExt;
 use gear_core::ids::prelude::CodeIdExt as _;
 use gprimitives::{ActorId, CodeId, H256};
-use std::collections::HashMap;
+use serde::Serialize;
 
 pub mod events;
 
 type Instance = IRouter::IRouterInstance<AlloyProvider>;
 type QueryInstance = IRouter::IRouterInstance<RootProvider>;
-
-pub struct PendingCodeRequestBuilder {
-    code_id: CodeId,
-    pending_builder: PendingTransactionBuilder<AlloyEthereum>,
-}
-
-impl PendingCodeRequestBuilder {
-    pub fn code_id(&self) -> CodeId {
-        self.code_id
-    }
-
-    pub fn tx_hash(&self) -> H256 {
-        H256(self.pending_builder.tx_hash().0)
-    }
-
-    pub async fn send(self) -> Result<(H256, CodeId)> {
-        let receipt = self
-            .pending_builder
-            .try_get_receipt_check_reverted()
-            .await?;
-        Ok(((*receipt.transaction_hash).into(), self.code_id))
-    }
-}
 
 #[derive(Clone)]
 pub struct Router {
@@ -104,64 +93,98 @@ impl Router {
         WVara::new(self.wvara_address, self.instance.provider().clone())
     }
 
-    pub async fn request_code_validation_with_sidecar(
-        &self,
-        code: &[u8],
-    ) -> Result<PendingCodeRequestBuilder> {
-        let code_id = CodeId::generate(code);
-
-        let builder = self
-            .instance
-            .requestCodeValidation(code_id.into_bytes().into())
-            .sidecar(BlobTransactionSidecarVariant::Eip7594(
-                SidecarBuilder::<SimpleCoder>::from_slice(code).build_7594()?,
-            ));
-        let pending_builder = builder.send().await?;
-
-        Ok(PendingCodeRequestBuilder {
-            code_id,
-            pending_builder,
-        })
+    pub async fn set_mirror(&self, new_mirror: LocalAddress) -> Result<H256> {
+        self.set_mirror_with_receipt(new_mirror)
+            .await
+            .map(|receipt| (*receipt.transaction_hash).into())
     }
 
-    pub async fn request_code_validation_with_sidecar_old(
+    pub async fn set_mirror_with_receipt(
         &self,
-        code: &[u8],
-    ) -> Result<PendingCodeRequestBuilder> {
-        let code_id = CodeId::generate(code);
-
-        let builder = self
-            .instance
-            .requestCodeValidation(code_id.into_bytes().into())
-            .sidecar(BlobTransactionSidecarVariant::Eip4844(
-                SidecarBuilder::<SimpleCoder>::from_slice(code).build()?,
-            ));
-        let pending_builder = builder.send().await?;
-
-        Ok(PendingCodeRequestBuilder {
-            code_id,
-            pending_builder,
-        })
-    }
-
-    pub async fn wait_code_validation(&self, code_id: CodeId) -> Result<bool> {
-        let filter = Filter::new().address(*self.instance.address());
-        let mut router_events = self
-            .instance
-            .provider()
-            .subscribe_logs(&filter)
+        new_mirror: LocalAddress,
+    ) -> Result<TransactionReceipt> {
+        let new_mirror = Address::new(new_mirror.0);
+        let builder = self.instance.setMirror(new_mirror);
+        let receipt = builder
+            .send()
             .await?
-            .into_stream();
+            .try_get_receipt_check_reverted()
+            .await?;
+        Ok(receipt)
+    }
 
-        let code_id = code_id.into_bytes();
+    pub async fn lookup_genesis_hash(&self) -> Result<H256> {
+        self.lookup_genesis_hash_with_receipt()
+            .await
+            .map(|receipt| (*receipt.transaction_hash).into())
+    }
 
-        while let Some(log) = router_events.next().await {
-            if let Some(signatures::CODE_GOT_VALIDATED) = log.topic0().cloned() {
-                let event = crate::decode_log::<IRouter::CodeGotValidated>(&log)?;
+    pub async fn lookup_genesis_hash_with_receipt(&self) -> Result<TransactionReceipt> {
+        let builder = self.instance.lookupGenesisHash();
+        let receipt = builder
+            .send()
+            .await?
+            .try_get_receipt_check_reverted()
+            .await?;
+        Ok(receipt)
+    }
 
-                if event.codeId == code_id {
-                    return Ok(event.valid);
-                }
+    pub async fn request_code_validation(&self, code: &[u8]) -> Result<(H256, CodeId)> {
+        self.request_code_validation_with_receipt(code)
+            .await
+            .map(|(receipt, code_id)| ((*receipt.transaction_hash).into(), code_id))
+    }
+
+    pub async fn request_code_validation_with_receipt(
+        &self,
+        code: &[u8],
+    ) -> Result<(TransactionReceipt, CodeId)> {
+        let code_id = CodeId::generate(code);
+
+        let chain_id = self.instance.provider().get_chain_id().await?;
+        let builder = self
+            .instance
+            .requestCodeValidation(code_id.into_bytes().into());
+        let builder = if chain_id == 31337 {
+            // TODO: remove when https://github.com/foundry-rs/foundry/pull/12404 is merged
+            builder.sidecar(SidecarBuilder::<SimpleCoder>::from_slice(code).build()?)
+        } else {
+            builder.sidecar_7594(SidecarBuilder::<SimpleCoder>::from_slice(code).build_7594()?)
+        };
+
+        let receipt = builder
+            .send()
+            .await?
+            .try_get_receipt_check_reverted()
+            .await?;
+
+        Ok((receipt, code_id))
+    }
+
+    pub async fn wait_for_code_validation(&self, code_id: CodeId) -> Result<CodeValidationResult> {
+        let router_query = self.query();
+        let mut stream = router_query
+            .events()
+            .code_got_validated()
+            .subscribe()
+            .await?;
+
+        while let Some(result) = stream.next().await {
+            if let Ok((
+                CodeGotValidatedEvent {
+                    code_id: event_code_id,
+                    valid,
+                },
+                log,
+            )) = result
+                && event_code_id == code_id
+            {
+                return Ok(CodeValidationResult {
+                    valid,
+                    tx_hash: log.transaction_hash.map(|tx_hash| (*tx_hash).into()),
+                    block_hash: log.block_hash.map(|block_hash| (*block_hash).into()),
+                    block_number: log.block_number,
+                });
             }
         }
 
@@ -174,6 +197,17 @@ impl Router {
         salt: H256,
         override_initializer: Option<ActorId>,
     ) -> Result<(H256, ActorId)> {
+        self.create_program_with_receipt(code_id, salt, override_initializer)
+            .await
+            .map(|(receipt, actor_id)| ((*receipt.transaction_hash).into(), actor_id))
+    }
+
+    pub async fn create_program_with_receipt(
+        &self,
+        code_id: CodeId,
+        salt: H256,
+        override_initializer: Option<ActorId>,
+    ) -> Result<(TransactionReceipt, ActorId)> {
         let builder = self.instance.createProgram(
             code_id.into_bytes().into(),
             salt.to_fixed_bytes().into(),
@@ -184,24 +218,25 @@ impl Router {
                 })
                 .unwrap_or_default(),
         );
-        let receipt = builder.send().await?.try_get_receipt().await?;
+        let receipt = builder
+            .send()
+            .await?
+            .try_get_receipt_check_reverted()
+            .await?;
 
-        let tx_hash = (*receipt.transaction_hash).into();
         let mut actor_id = None;
 
         for log in receipt.inner.logs() {
             if log.topic0().cloned() == Some(signatures::PROGRAM_CREATED) {
                 let event = crate::decode_log::<IRouter::ProgramCreated>(log)?;
-
                 actor_id = Some((*event.actorId.into_word()).into());
-
                 break;
             }
         }
 
         let actor_id = actor_id.ok_or_else(|| anyhow!("Couldn't find `ProgramCreated` log"))?;
 
-        Ok((tx_hash, actor_id))
+        Ok((receipt, actor_id))
     }
 
     pub async fn create_program_with_abi_interface(
@@ -211,6 +246,23 @@ impl Router {
         override_initializer: Option<ActorId>,
         abi_interface: ActorId,
     ) -> Result<(H256, ActorId)> {
+        self.create_program_with_abi_interface_with_receipt(
+            code_id,
+            salt,
+            override_initializer,
+            abi_interface,
+        )
+        .await
+        .map(|(receipt, actor_id)| ((*receipt.transaction_hash).into(), actor_id))
+    }
+
+    pub async fn create_program_with_abi_interface_with_receipt(
+        &self,
+        code_id: CodeId,
+        salt: H256,
+        override_initializer: Option<ActorId>,
+        abi_interface: ActorId,
+    ) -> Result<(TransactionReceipt, ActorId)> {
         let abi_interface = LocalAddress::try_from(abi_interface).expect("infallible");
         let abi_interface = Address::new(abi_interface.0);
 
@@ -230,23 +282,19 @@ impl Router {
             .await?
             .try_get_receipt_check_reverted()
             .await?;
-
-        let tx_hash = (*receipt.transaction_hash).into();
         let mut actor_id = None;
 
         for log in receipt.inner.logs() {
             if log.topic0().cloned() == Some(signatures::PROGRAM_CREATED) {
                 let event = crate::decode_log::<IRouter::ProgramCreated>(log)?;
-
                 actor_id = Some((*event.actorId.into_word()).into());
-
                 break;
             }
         }
 
         let actor_id = actor_id.ok_or_else(|| anyhow!("Couldn't find `ProgramCreated` log"))?;
 
-        Ok((tx_hash, actor_id))
+        Ok((receipt, actor_id))
     }
 
     pub async fn commit_batch(
@@ -275,29 +323,18 @@ impl Router {
                 .collect(),
         );
 
-        let mut state_diff = HashMap::default();
-        state_diff.insert(
-            // keccak256(abi.encode(uint256(keccak256(bytes("router.storage.RouterV1"))) - 1)) & ~bytes32(uint256(0xff))
-            fixed_bytes!("e3d827fd4fed52666d49a0df00f9cc2ac79f0f2378fc627e62463164801b6500"),
-            // router.reserved = 1
-            fixed_bytes!("0000000000000000000000000000000000000000000000000000000000000001"),
-        );
-
-        let mut state = HashMap::default();
-        state.insert(
-            *self.instance.address(),
-            AccountOverride {
-                state_diff: Some(state_diff),
-                ..Default::default()
-            },
-        );
-
-        let estimate_gas_builder = builder.clone().state(state);
-        let gas_limit = Self::HUGE_GAS_LIMIT
-            .max(estimate_gas_builder.estimate_gas().await? + Self::GEAR_BLOCK_IS_PREDECESSOR_GAS);
+        let gas_limit = Self::HUGE_GAS_LIMIT;
 
         builder.gas(gas_limit).send().await.map_err(Into::into)
     }
+}
+
+#[derive(Clone, Debug, Serialize)]
+pub struct CodeValidationResult {
+    pub valid: bool,
+    pub tx_hash: Option<H256>,
+    pub block_hash: Option<H256>,
+    pub block_number: Option<u64>,
 }
 
 #[derive(Clone)]
@@ -320,12 +357,40 @@ impl RouterQuery {
         }
     }
 
+    pub fn events(&self) -> RouterEvents<'_> {
+        RouterEvents { query: self }
+    }
+
+    // TODO: move StorageView into ethexe-common and export
+
+    pub async fn storage_view(&self) -> Result<IRouter::StorageView> {
+        self.storage_view_at(BlockId::latest()).await
+    }
+
+    pub async fn storage_view_at(&self, id: impl IntoBlockId) -> Result<IRouter::StorageView> {
+        self.instance
+            .storageView()
+            .call()
+            .block(id.into_block_id())
+            .await
+            .map_err(Into::into)
+    }
+
     pub async fn genesis_block_hash(&self) -> Result<H256> {
         self.instance
             .genesisBlockHash()
             .call()
             .await
             .map(|res| H256(*res))
+            .map_err(Into::into)
+    }
+
+    pub async fn genesis_timestamp(&self) -> Result<u64> {
+        self.instance
+            .genesisTimestamp()
+            .call()
+            .await
+            .map(uint48_to_u64)
             .map_err(Into::into)
     }
 
@@ -338,42 +403,40 @@ impl RouterQuery {
             .map_err(Into::into)
     }
 
+    pub async fn latest_committed_batch_timestamp(&self) -> Result<u64> {
+        self.instance
+            .latestCommittedBatchTimestamp()
+            .call()
+            .await
+            .map(uint48_to_u64)
+            .map_err(Into::into)
+    }
+
     pub async fn mirror_impl(&self) -> Result<LocalAddress> {
         self.instance
             .mirrorImpl()
             .call()
             .await
-            .map(|res| LocalAddress(res.into()))
+            .map(|res| res.into())
             .map_err(Into::into)
     }
 
-    pub async fn middleware(&self) -> Result<LocalAddress> {
+    pub async fn wvara_address(&self) -> Result<LocalAddress> {
+        self.instance
+            .wrappedVara()
+            .call()
+            .await
+            .map(|res| res.into())
+            .map_err(Into::into)
+    }
+
+    pub async fn middleware_address(&self) -> Result<LocalAddress> {
         self.instance
             .middleware()
             .call()
             .await
-            .map(|res| LocalAddress(res.into()))
+            .map(|res| res.into())
             .map_err(Into::into)
-    }
-
-    pub async fn wvara_address(&self) -> Result<Address> {
-        self.instance.wrappedVara().call().await.map_err(Into::into)
-    }
-
-    pub async fn middleware_address(&self) -> Result<Address> {
-        self.instance.middleware().call().await.map_err(Into::into)
-    }
-
-    pub async fn validators_at(&self, id: impl IntoBlockId) -> Result<ValidatorsVec> {
-        let validators: Vec<_> = self
-            .instance
-            .validators()
-            .call()
-            .block(id.into_block_id())
-            .await
-            .map(|res| res.into_iter().map(|v| LocalAddress(v.into())).collect())
-            .map_err(Into::<anyhow::Error>::into)?;
-        validators.try_into().map_err(Into::into)
     }
 
     pub async fn validators_aggregated_public_key(&self) -> Result<AggregatedPublicKey> {
@@ -397,7 +460,62 @@ impl RouterQuery {
             .map_err(Into::into)
     }
 
-    pub async fn threshold(&self) -> Result<u64> {
+    pub async fn are_validators(
+        &self,
+        validators: impl IntoIterator<Item = LocalAddress>,
+    ) -> Result<bool> {
+        let addresses: Vec<Address> = validators.into_iter().map(|addr| addr.into()).collect();
+        self.instance
+            .areValidators(addresses)
+            .call()
+            .await
+            .map_err(Into::into)
+    }
+
+    pub async fn is_validator(&self, validator: LocalAddress) -> Result<bool> {
+        let address: Address = validator.into();
+        self.instance
+            .isValidator(address)
+            .call()
+            .await
+            .map_err(Into::into)
+    }
+
+    pub async fn signing_threshold_fraction(&self) -> Result<(u128, u128)> {
+        self.instance
+            .signingThresholdFraction()
+            .call()
+            .await
+            .map(|res| (res._0, res._1))
+            .map_err(Into::into)
+    }
+
+    pub async fn validators(&self) -> Result<ValidatorsVec> {
+        self.validators_at(BlockId::latest()).await
+    }
+
+    pub async fn validators_at(&self, id: impl IntoBlockId) -> Result<ValidatorsVec> {
+        let validators: Vec<_> = self
+            .instance
+            .validators()
+            .call()
+            .block(id.into_block_id())
+            .await
+            .map(|res| res.into_iter().map(|v| LocalAddress(v.into())).collect())
+            .map_err(Into::<anyhow::Error>::into)?;
+        validators.try_into().map_err(Into::into)
+    }
+
+    pub async fn validators_count(&self) -> Result<u64> {
+        self.instance
+            .validatorsCount()
+            .call()
+            .await
+            .map(|res| res.to())
+            .map_err(Into::into)
+    }
+
+    pub async fn validators_threshold(&self) -> Result<u64> {
         self.instance
             .validatorsThreshold()
             .call()
@@ -406,11 +524,38 @@ impl RouterQuery {
             .map_err(Into::into)
     }
 
-    pub async fn signing_threshold_percentage(&self) -> Result<u16> {
+    pub async fn compute_settings(&self) -> Result<ComputationSettings> {
         self.instance
-            .signingThresholdPercentage()
+            .computeSettings()
             .call()
             .await
+            .map(|res| res.into())
+            .map_err(Into::into)
+    }
+
+    pub async fn code_state(&self, code_id: CodeId) -> Result<CodeState> {
+        self.instance
+            .codeState(code_id.into_bytes().into())
+            .call()
+            .await
+            .map(CodeState::from)
+            .map_err(Into::into)
+    }
+
+    pub async fn codes_states(
+        &self,
+        code_ids: impl IntoIterator<Item = CodeId>,
+    ) -> Result<Vec<CodeState>> {
+        self.instance
+            .codesStates(
+                code_ids
+                    .into_iter()
+                    .map(|c| c.into_bytes().into())
+                    .collect(),
+            )
+            .call()
+            .await
+            .map(|res| res.into_iter().map(CodeState::from).collect())
             .map_err(Into::into)
     }
 
@@ -441,6 +586,26 @@ impl RouterQuery {
         Ok(code_id)
     }
 
+    pub async fn programs_code_ids(
+        &self,
+        program_ids: impl IntoIterator<Item = ActorId>,
+    ) -> Result<Vec<CodeId>> {
+        self.instance
+            .programsCodeIds(
+                program_ids
+                    .into_iter()
+                    .map(|p| {
+                        let program_id = LocalAddress::try_from(p).expect("infallible");
+                        Address::new(program_id.0)
+                    })
+                    .collect(),
+            )
+            .call()
+            .await
+            .map(|res| res.into_iter().map(|c| CodeId::new(c.0)).collect())
+            .map_err(Into::into)
+    }
+
     pub async fn programs_code_ids_at(
         &self,
         program_ids: impl IntoIterator<Item = ActorId>,
@@ -463,13 +628,8 @@ impl RouterQuery {
             .map_err(Into::into)
     }
 
-    pub async fn timelines(&self) -> Result<Timelines> {
-        self.instance
-            .timelines()
-            .call()
-            .await
-            .map(|res| res.into())
-            .map_err(Into::into)
+    pub async fn programs_count(&self) -> Result<u64> {
+        self.programs_count_at(BlockId::latest()).await
     }
 
     pub async fn programs_count_at(&self, id: impl IntoBlockId) -> Result<u64> {
@@ -484,6 +644,10 @@ impl RouterQuery {
         Ok(count)
     }
 
+    pub async fn validated_codes_count(&self) -> Result<u64> {
+        self.validated_codes_count_at(BlockId::latest()).await
+    }
+
     pub async fn validated_codes_count_at(&self, id: impl IntoBlockId) -> Result<u64> {
         let count = self
             .instance
@@ -496,13 +660,51 @@ impl RouterQuery {
         Ok(count)
     }
 
-    pub async fn storage_view_at(&self, id: impl IntoBlockId) -> Result<StorageView> {
+    pub async fn timelines(&self) -> Result<Timelines> {
         self.instance
-            .storageView()
+            .timelines()
             .call()
-            .block(id.into_block_id())
             .await
+            .map(|res| res.into())
             .map_err(Into::into)
+    }
+}
+
+pub struct RouterEvents<'a> {
+    query: &'a RouterQuery,
+}
+
+impl<'a> RouterEvents<'a> {
+    pub fn batch_committed(&self) -> BatchCommittedEventBuilder<'a> {
+        BatchCommittedEventBuilder::new(self.query)
+    }
+
+    pub fn announces_committed(&self) -> AnnouncesCommittedEventBuilder<'a> {
+        AnnouncesCommittedEventBuilder::new(self.query)
+    }
+
+    pub fn code_got_validated(&self) -> CodeGotValidatedEventBuilder<'a> {
+        CodeGotValidatedEventBuilder::new(self.query)
+    }
+
+    pub fn code_validation_requested(&self) -> CodeValidationRequestedEventBuilder<'a> {
+        CodeValidationRequestedEventBuilder::new(self.query)
+    }
+
+    pub fn validators_committed_for_era(&self) -> ValidatorsCommittedForEraEventBuilder<'a> {
+        ValidatorsCommittedForEraEventBuilder::new(self.query)
+    }
+
+    pub fn computation_settings_changed(&self) -> ComputationSettingsChangedEventBuilder<'a> {
+        ComputationSettingsChangedEventBuilder::new(self.query)
+    }
+
+    pub fn program_created(&self) -> ProgramCreatedEventBuilder<'a> {
+        ProgramCreatedEventBuilder::new(self.query)
+    }
+
+    pub fn storage_slot_changed(&self) -> StorageSlotChangedEventBuilder<'a> {
+        StorageSlotChangedEventBuilder::new(self.query)
     }
 }
 
@@ -511,7 +713,7 @@ mod tests {
     use super::*;
     use crate::deploy::EthereumDeployer;
     use alloy::{eips::BlockId, node_bindings::Anvil};
-    use ethexe_signer::Signer;
+    use gsigner::Signer;
 
     #[tokio::test]
     async fn inexistent_code_is_unknown() {
@@ -519,8 +721,7 @@ mod tests {
 
         let signer = Signer::memory();
         let alice = signer
-            .storage_mut()
-            .add_key(
+            .import(
                 "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
                     .parse()
                     .unwrap(),
@@ -548,8 +749,7 @@ mod tests {
 
         let signer = Signer::memory();
         let alice = signer
-            .storage_mut()
-            .add_key(
+            .import(
                 "0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80"
                     .parse()
                     .unwrap(),

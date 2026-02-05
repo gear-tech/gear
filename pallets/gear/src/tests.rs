@@ -74,7 +74,7 @@ use pallet_gear_voucher::PrepaidCall;
 use rand::{Rng, SeedableRng, prelude::StdRng};
 use sp_core::H256;
 use sp_runtime::{
-    SaturatedConversion,
+    SaturatedConversion, TokenError,
     codec::{Decode, Encode},
     traits::{Dispatchable, One, UniqueSaturatedInto},
 };
@@ -6932,6 +6932,146 @@ fn test_create_program_works() {
 }
 
 #[test]
+fn test_upload_program_respects_keep_alive() {
+    init_logger();
+
+    new_test_ext().execute_with(|| {
+        let code = demo_ping::WASM_BINARY;
+
+        let ed = get_ed();
+
+        let gas_info = Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::Init(code.to_vec()),
+            EMPTY_PAYLOAD.to_vec(),
+            0,
+            true,
+            true,
+        )
+        .expect("failed to calculate gas info");
+
+        let init_message_cost = gas_price(gas_info.burned);
+
+        assert_ok!(Balances::force_set_balance(
+            RuntimeOrigin::root(),
+            USER_1,
+            // message cost + ED will pass keep alive check in `Gear::init_packet()`
+            // but will trigger the check in `Gear::do_create_program()`
+            init_message_cost + ed
+        ));
+
+        run_to_next_block(None);
+
+        assert_noop!(
+            Gear::upload_program(
+                RuntimeOrigin::signed(USER_1),
+                code.to_vec(),
+                DEFAULT_SALT.to_vec(),
+                EMPTY_PAYLOAD.to_vec(),
+                gas_info.min_limit,
+                0,
+                true
+            ),
+            TokenError::NotExpendable
+        );
+
+        assert_ok!(Balances::force_set_balance(
+            RuntimeOrigin::root(),
+            USER_1,
+            // message cost without ED will trigger keep alive check in `Gear::init_packet()`
+            init_message_cost,
+        ));
+
+        run_to_next_block(None);
+
+        assert_noop!(
+            Gear::upload_program(
+                RuntimeOrigin::signed(USER_1),
+                code.to_vec(),
+                DEFAULT_SALT.to_vec(),
+                EMPTY_PAYLOAD.to_vec(),
+                gas_info.min_limit,
+                0,
+                true
+            ),
+            pallet_gear_bank::Error::<Test>::InsufficientBalance
+        );
+    })
+}
+
+#[test]
+fn test_create_program_respects_keep_alive() {
+    init_logger();
+
+    new_test_ext().execute_with(|| {
+        let code = demo_ping::WASM_BINARY;
+
+        let ed = get_ed();
+
+        assert_ok!(Gear::upload_code(
+            RuntimeOrigin::signed(USER_1),
+            code.to_vec()
+        ));
+
+        let code_id = get_last_code_id();
+
+        let gas_info = Gear::calculate_gas_info(
+            USER_1.into_origin(),
+            HandleKind::InitByHash(code_id),
+            EMPTY_PAYLOAD.to_vec(),
+            0,
+            true,
+            true,
+        )
+        .expect("failed to calculate gas info");
+
+        let create_cost = gas_price(gas_info.burned) + ed;
+
+        assert_ok!(Balances::force_set_balance(
+            RuntimeOrigin::root(),
+            USER_1,
+            create_cost + ed / 2
+        ));
+
+        run_to_next_block(None);
+
+        assert_noop!(
+            Gear::create_program(
+                RuntimeOrigin::signed(USER_1),
+                code_id,
+                DEFAULT_SALT.to_vec(),
+                EMPTY_PAYLOAD.to_vec(),
+                gas_info.min_limit,
+                0,
+                true
+            ),
+            TokenError::NotExpendable
+        );
+
+        assert_ok!(Balances::force_set_balance(
+            RuntimeOrigin::root(),
+            USER_1,
+            create_cost - ed
+        ));
+
+        run_to_next_block(None);
+
+        assert_noop!(
+            Gear::create_program(
+                RuntimeOrigin::signed(USER_1),
+                code_id,
+                DEFAULT_SALT.to_vec(),
+                EMPTY_PAYLOAD.to_vec(),
+                gas_info.min_limit,
+                0,
+                true
+            ),
+            pallet_gear_bank::Error::<Test>::InsufficientBalance
+        );
+    })
+}
+
+#[test]
 fn test_create_program_no_code_hash() {
     use demo_program_factory::{CreateProgram, WASM_BINARY as PROGRAM_FACTORY_WASM_BINARY};
 
@@ -8109,7 +8249,7 @@ fn test_two_programs_composition_works() {
 
 // Passing value less than the ED to newly-created programs is now legal since the account for a
 // program-in-creation is guaranteed to exists before the program gets stored in `ProgramStorage`.
-// Both `uploade_program` (`create_program`) extrinsic and the `create_program` syscall should
+// Both `upload_program` (`create_program`) extrinsic and the `create_program` syscall should
 // successfully handle such cases.
 #[test]
 fn test_create_program_with_value_lt_ed() {

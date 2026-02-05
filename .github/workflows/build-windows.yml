@@ -43,13 +43,10 @@ jobs:
         uses: ./.github/actions/setup-compilation-env
         with:
           target: x86_64-pc-windows-msvc
-          token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: "ACTIONS: Setup caching"
         uses: ./.github/actions/rust-cache
         with:
-          us-access-key-id: "${{ secrets.GEAR_CI_S3_US_ACCESS_KEY_ID }}"
-          us-secret-access-key: "${{ secrets.GEAR_CI_S3_US_SECRET_ACCESS_KEY }}"
           eu-access-key-id: "${{ secrets.GEAR_CI_S3_EU_ACCESS_KEY_ID }}"
           eu-secret-access-key: "${{ secrets.GEAR_CI_S3_EU_SECRET_ACCESS_KEY }}"
           key: "${{ matrix.profiles.name }}"
@@ -58,7 +55,6 @@ jobs:
         run: >-
           cargo nextest archive --archive-file=workspace.tar.zst 
           -p gsdk
-          -p gclient
           -p "pallet-*" -p gear-lazy-pages -p gear-runtime-interface
           --zstd-level=6
           --target=x86_64-pc-windows-msvc
@@ -117,10 +113,4 @@ jobs:
         run: >-
           cargo nextest run --archive-file=workspace.tar.zst
           -E 'platform(target) and package(gsdk)'
-          --workspace-remap=${{ github.workspace }}
-
-      - name: "Test: Client tests"
-        run: >-
-          cargo nextest run --archive-file=workspace.tar.zst
-          -E 'platform(target) and package(gclient)'
           --workspace-remap=${{ github.workspace }}

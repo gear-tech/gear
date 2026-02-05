@@ -16,12 +16,12 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use super::utils;
 use crate::params::Params;
-use anyhow::{Context, Result, anyhow, bail};
-use clap::{Parser, Subcommand};
-use ethexe_common::{ToDigest as _, ecdsa::Signature};
-use ethexe_signer::Signer;
+use anyhow::Result;
+use clap::Parser;
+use gsigner::cli::{
+    SchemeCommands, SchemeKeyringCommands, SchemeSubcommand, display_result, execute_command,
+};
 use std::path::PathBuf;
 
 /// Keystore manipulations.
@@ -37,7 +37,7 @@ pub struct KeyCommand {
 
     /// Subcommand to run.
     #[command(subcommand)]
-    pub command: KeySubcommand,
+    pub command: SchemeSubcommand,
 }
 
 impl KeyCommand {
@@ -60,175 +60,42 @@ impl KeyCommand {
     pub fn exec(self) -> Result<()> {
         let key_store = self.key_store.expect("must never be empty after merging");
 
-        let signer = Signer::fs(key_store);
-
-        match self.command {
-            KeySubcommand::Clear => {
-                let len = signer.storage().list_keys()?.len();
-
-                signer
-                    .storage_mut()
-                    .clear_keys()
-                    .with_context(|| "failed to clear keys")?;
-
-                println!("Removed {len} keys");
-            }
-            KeySubcommand::Generate => {
-                // TODO: remove println from there.
-                let public = signer
-                    .generate_key()
-                    .with_context(|| "failed to generate new keypair")?;
-
-                println!("Public key: {public}");
-
-                if self.network {
-                    let libp2p_public = libp2p_identity::PublicKey::from(
-                        libp2p_identity::secp256k1::PublicKey::try_from_bytes(&public.0)
-                            .with_context(|| "invalid sec1 format")?,
-                    );
-                    println!("Peer ID: {}", libp2p_public.to_peer_id());
-                } else {
-                    println!("Ethereum address: {}", public.to_address());
-                }
-            }
-            KeySubcommand::Insert { private_key } => {
-                let private = private_key
-                    .parse()
-                    .with_context(|| "invalid `private-key`")?;
-
-                let public = signer
-                    .storage_mut()
-                    .add_key(private)
-                    .with_context(|| "failed to add key")?;
-
-                println!("Public key: {public}");
-
-                if self.network {
-                    let libp2p_public = libp2p_identity::PublicKey::from(
-                        libp2p_identity::secp256k1::PublicKey::try_from_bytes(&public.0)
-                            .with_context(|| "invalid sec1 format")?,
-                    );
-                    println!("Peer ID: {}", libp2p_public.to_peer_id());
-                } else {
-                    println!("Ethereum address: {}", public.to_address());
-                }
-            }
-            KeySubcommand::List => {
-                let publics = signer
-                    .storage()
-                    .list_keys()
-                    .with_context(|| "failed to list keys")?;
-
-                println!("[ No | {:^66} | {:^42} ]", "Public key", "Ethereum address");
-
-                for (i, public) in publics.into_iter().enumerate() {
-                    println!("[ {:<2} | {public} | {} ]", i + 1, public.to_address());
-                }
-            }
-            KeySubcommand::Recover { message, signature } => {
-                let message =
-                    utils::hex_str_to_vec(message).with_context(|| "invalid `message`")?;
-                let signature =
-                    utils::hex_str_to_vec(signature).with_context(|| "invalid `signature`")?;
-
-                let signature_bytes: [u8; 65] = signature
-                    .try_into()
-                    .map_err(|_| anyhow!("signature isn't 65 bytes len"))
-                    .with_context(|| "invalid `signature`")?;
-
-                let signature = Signature::from_pre_eip155_bytes(signature_bytes)
-                    .ok_or_else(|| anyhow!("invalid signature"))?;
-
-                let public = signature
-                    .recover(message.to_digest())
-                    .with_context(|| "failed to recover signature from digest")?;
-
-                println!("Signed by: {public}");
-                println!("Ethereum address: {}", public.to_address());
-            }
-            KeySubcommand::Show { key } => {
-                let key = key.strip_prefix("0x").unwrap_or(&key);
-
-                let public = if key.len() == 66 {
-                    key.parse().with_context(|| "invalid `key`")?
-                } else if key.len() == 40 {
-                    let mut address_bytes = [0u8; 20];
-                    hex::decode_to_slice(key, &mut address_bytes)
-                        .map_err(|e| anyhow!("Failed to parse eth address hex: {e}"))
-                        .with_context(|| "invalid `key`")?;
-
-                    signer
-                        .storage()
-                        .get_key_by_addr(address_bytes.into())?
-                        .ok_or_else(|| anyhow!("Unrecognized eth address"))
-                        .with_context(|| "invalid `key`")?
-                } else {
-                    bail!(
-                        "Invalid key length: should be 33 bytes public key or 20 bytes eth address "
-                    );
-                };
-
-                let private = signer
-                    .storage()
-                    .get_private_key(public)
-                    .with_context(|| "failed to get private key")?;
-
-                println!("Secret key: {private}");
-                println!("Public key: {public}");
-                println!("Ethereum address: {}", public.to_address());
-            }
-            KeySubcommand::Sign { key, message } => {
-                let public = key.parse().with_context(|| "invalid `key`")?;
-
-                let message =
-                    utils::hex_str_to_vec(message).with_context(|| "invalid `message`")?;
-
-                let signature = signer
-                    .sign(public, message)
-                    .with_context(|| "failed to sign message")?;
-
-                println!("Signature: {signature}");
-            }
-        }
+        let command = apply_default_storage(self.command, key_store);
+        let result = execute_command(SchemeCommands::Secp256k1 { command })?;
+        display_result(&result);
 
         Ok(())
     }
 }
 
-/// Keystore commands.
-#[derive(Debug, Subcommand)]
-pub enum KeySubcommand {
-    /// Clear all keys.
-    Clear,
-    /// Generate new keypair.
-    Generate,
-    /// Insert a new private key.
-    Insert {
-        /// Private key to be inserted.
-        #[arg()]
-        private_key: String,
-    },
-    /// Print all keys.
-    List,
-    /// Recover public key from message and signature.
-    Recover {
-        #[arg(short, long)]
-        message: String,
-        #[arg(short, long)]
-        signature: String,
-    },
-    /// Show private key for public key or address.
-    Show {
-        #[arg()]
-        key: String,
-    },
-    /// Sign a message with a key.
-    Sign {
-        /// Public key or address.
-        #[arg(short, long)]
-        key: String,
-        /// Message to sign.
-        #[arg(short, long)]
-        message: String,
-    },
+fn apply_default_storage(command: SchemeSubcommand, default: PathBuf) -> SchemeSubcommand {
+    match command {
+        SchemeSubcommand::Keyring { mut command } => {
+            apply_default_storage_keyring(&mut command, &default);
+            SchemeSubcommand::Keyring { command }
+        }
+        other => other,
+    }
+}
+
+fn apply_default_storage_keyring(command: &mut SchemeKeyringCommands, default: &std::path::Path) {
+    match command {
+        SchemeKeyringCommands::Clear { storage } | SchemeKeyringCommands::List { storage } => {
+            if storage.path.is_none() && !storage.memory {
+                storage.path = Some(default.to_path_buf());
+            }
+        }
+        SchemeKeyringCommands::Generate { storage, .. }
+        | SchemeKeyringCommands::Import { storage, .. }
+        | SchemeKeyringCommands::Sign { storage, .. }
+        | SchemeKeyringCommands::Show { storage, .. }
+        | SchemeKeyringCommands::Init { storage }
+        | SchemeKeyringCommands::Create { storage, .. }
+        | SchemeKeyringCommands::Vanity { storage, .. } => {
+            if storage.path.is_none() && !storage.memory {
+                storage.path = Some(default.to_path_buf());
+            }
+        }
+        _ => {}
+    }
 }

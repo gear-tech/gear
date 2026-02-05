@@ -27,11 +27,11 @@ use crate::{
 };
 use anyhow::{Result, anyhow};
 use ethexe_common::{
-    Address, Announce, HashOf, SimpleBlockData,
+    Address, Announce, ComputedAnnounce, SimpleBlockData,
     consensus::{VerifiedAnnounce, VerifiedValidationRequest},
     db::OnChainStorageRO,
     injected::SignedInjectedTransaction,
-    network::{AnnouncesRequest, CheckedAnnouncesResponse},
+    network::{AnnouncesRequest, AnnouncesResponse},
 };
 use ethexe_db::Database;
 use futures::{Stream, stream::FusedStream};
@@ -230,7 +230,7 @@ impl ConsensusService for ConnectService {
         Ok(())
     }
 
-    fn receive_computed_announce(&mut self, _announce: HashOf<Announce>) -> Result<()> {
+    fn receive_computed_announce(&mut self, _computed_data: ComputedAnnounce) -> Result<()> {
         Ok(())
     }
 
@@ -286,7 +286,7 @@ impl ConsensusService for ConnectService {
         Ok(())
     }
 
-    fn receive_announces_response(&mut self, response: CheckedAnnouncesResponse) -> Result<()> {
+    fn receive_announces_response(&mut self, response: AnnouncesResponse) -> Result<()> {
         let State::WaitingForMissingAnnounces {
             block,
             producer,

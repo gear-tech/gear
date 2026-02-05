@@ -16,21 +16,14 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use std::time::Duration;
-
 use gsdk::Api;
+use std::time::Duration;
 
 #[tokio::test]
 async fn timeout() {
-    let error = Api::builder().timeout(Duration::ZERO).build().await.err();
-    // NOTE:
-    //
-    // There are two kinds of timeout error provided by subxt:
-    //
-    // - client request timeout
-    // - transport timeout
-    assert!(
-        format!("{error:?}").to_lowercase().contains("timeout"),
-        "Unexpected error occurred: {error:?}"
-    );
+    Api::builder()
+        .timeout(Duration::ZERO)
+        .build()
+        .await
+        .expect_err("connection to RPC node with zero timeout must fail");
 }

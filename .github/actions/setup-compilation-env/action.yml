@@ -4,9 +4,6 @@ inputs:
   target:
     description: "Rust build target"
     required: true
-  token:
-    description: "GitHub token"
-    required: true
 
 runs:
   using: composite
@@ -14,8 +11,6 @@ runs:
     - name: "Install: cargo-xwin"
       if: inputs.target == 'x86_64-pc-windows-msvc'
       uses: ./.github/actions/install-cargo-xwin
-      with:
-        token: ${{ inputs.token }}
 
     - name: "Install: Rust target"
       run: |
@@ -41,6 +36,28 @@ runs:
       run: |
         sudo apt-fast update
         sudo apt-fast install -y protobuf-compiler binaryen
+      shell: bash
+
+    - name: "Install: LLVM on Linux"
+      if: ${{ runner.os == 'Linux' }}
+      run: |
+        wget https://apt.llvm.org/llvm.sh
+        chmod +x llvm.sh
+        sudo ./llvm.sh 20
+        
+        sudo apt-fast update
+        sudo apt-fast install -y libclang-20-dev clang-tools-20
+        
+        sudo update-alternatives --install /usr/bin/clang-cl clang-cl /usr/bin/clang-cl-20 100
+        sudo update-alternatives --install /usr/bin/clang clang /usr/bin/clang-20 100
+        sudo update-alternatives --install /usr/bin/clang++ clang++ /usr/bin/clang++-20 100
+      shell: bash
+
+    - name: "Install: Linux compilers"
+      if: runner.arch == 'X64' && runner.os == 'Linux'
+      run: |
+        echo "CC_x86_64_unknown_linux_gnu=clang" >> $GITHUB_ENV
+        echo "CXX_x86_64_unknown_linux_gnu=clang++" >> $GITHUB_ENV
       shell: bash
 
     - name: "Install: Linux cross compilers and packages"
@@ -84,11 +101,11 @@ runs:
 
         wget -qO - https://raw.githubusercontent.com/ScoopInstaller/Main/refs/heads/master/bucket/openssl.json | jq -r '.architecture."64bit".url' | xargs wget -qO openssl_installer.exe
         innoextract -d ${{ runner.temp }}/openssl_extracted -I app/include -I app/lib/VC/x64/MT openssl_installer.exe
-
-        echo "OPENSSL_NO_VENDOR=1" >> $GITHUB_ENV
-        echo "OPENSSL_INCLUDE_DIR=${{ runner.temp }}/openssl_extracted/app/include" >> $GITHUB_ENV
-        echo "OPENSSL_LIB_DIR=${{ runner.temp }}/openssl_extracted/app/lib/VC/x64/MT" >> $GITHUB_ENV
-
+        rm openssl_installer.exe
+        
+        echo "X86_64_PC_WINDOWS_MSVC_OPENSSL_NO_VENDOR=1" >> $GITHUB_ENV
+        echo "X86_64_PC_WINDOWS_MSVC_OPENSSL_INCLUDE_DIR=${{ runner.temp }}/openssl_extracted/app/include" >> $GITHUB_ENV
+        echo "X86_64_PC_WINDOWS_MSVC_OPENSSL_LIB_DIR=${{ runner.temp }}/openssl_extracted/app/lib/VC/x64/MT" >> $GITHUB_ENV
         cargo xwin env | sed -e 's/^export //' -e 's/;$//' -e 's/="\(.*\)"$/=\1/' >> $GITHUB_ENV
       shell: bash
 

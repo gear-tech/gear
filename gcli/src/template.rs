@@ -18,15 +18,14 @@
 
 //! Gear program template
 
-use crate::result::Result;
-use anyhow::anyhow;
+use anyhow::{Context, Result};
 use etc::{Etc, FileSystem, Read, Write};
 use reqwest::Client;
-use std::{env, process::Command};
+use std::{env, path::Path, process::Command};
 
 const GITHUB_TOKEN: &str = "GITHUB_TOKEN";
 
-/// see https://docs.github.com/en/rest/repos/repos
+/// See <https://docs.github.com/en/rest/repos/repos>.
 const GEAR_DAPPS_GH_API: &str = "https://api.github.com/orgs/gear-foundation/repos";
 const GEAR_DAPP_ORG: &str = "https://github.com/gear-foundation/";
 
@@ -41,22 +40,19 @@ pub async fn list() -> Result<Vec<String>> {
     let mut rb = Client::builder()
         .user_agent("gcli")
         .build()
-        .map_err(|e| anyhow!("Failed to build http client: {}", e))?
+        .context("failed to build http client")?
         .get(GEAR_DAPPS_GH_API);
 
     if let Ok(tk) = env::var(GITHUB_TOKEN) {
         rb = rb.bearer_auth(tk);
     }
 
-    let resp = rb
-        .send()
-        .await
-        .map_err(|e| anyhow!("Failed to get examples: {}", e))?;
+    let resp = rb.send().await.context("failed to get examples")?;
 
     let repos = resp
         .json::<Vec<Repo>>()
         .await
-        .map_err(|e| anyhow!("Failed to deserialize example list: {}", e))?
+        .context("failed to deserialize example list")?
         .into_iter()
         .map(|repo| repo.name)
         .collect();
@@ -65,21 +61,23 @@ pub async fn list() -> Result<Vec<String>> {
 }
 
 /// Download example
-pub async fn download(example: &str, path: &str) -> Result<()> {
+pub async fn download(example: &str, path: &Path) -> Result<()> {
     let url = format!("{GEAR_DAPP_ORG}{example}.git");
     Command::new("git")
-        .args(["clone", &url, path, "--depth=1"])
+        .args(["clone", "--depth=1", &url])
+        .arg(path)
         .status()
-        .map_err(|e| anyhow!("Failed to download example: {e}"))?;
+        .context("failed to download example")?;
 
     let repo = Etc::new(path)?;
     repo.rm(".git")?;
 
     // Init new git repo.
     Command::new("git")
-        .args(["init", path])
+        .arg("init")
+        .arg(path)
         .status()
-        .map_err(|e| anyhow!("Failed to init git: {e}"))?;
+        .context("failed to init git")?;
 
     // Find all manifests
     let mut manifests = Vec::new();
@@ -88,12 +86,9 @@ pub async fn download(example: &str, path: &str) -> Result<()> {
     // Update each manifest
     for manifest in manifests {
         let manifest = Etc::new(manifest)?;
-        let mut toml = String::from_utf8_lossy(
-            &manifest
-                .read()
-                .map_err(|_| anyhow!("Failed to read Cargo.toml"))?,
-        )
-        .to_string();
+        let mut toml =
+            String::from_utf8_lossy(&manifest.read().context("failed to read Cargo.toml")?)
+                .to_string();
 
         process_manifest(&mut toml)?;
         manifest.write(toml.as_bytes())?;

@@ -16,7 +16,8 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{Address, HashOf, ToDigest, ecdsa::SignedData};
+use crate::{Address, HashOf, ToDigest, ecdsa::SignedMessage};
+use alloc::string::{String, ToString};
 use core::hash::Hash;
 use gear_core::rpc::ReplyInfo;
 use gprimitives::{ActorId, H256, MessageId};
@@ -27,17 +28,36 @@ use sp_core::Bytes;
 /// Recent block hashes window size used to check transaction mortality.
 pub const VALIDITY_WINDOW: u8 = 32;
 
-pub type SignedInjectedTransaction = SignedData<InjectedTransaction>;
+#[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
+#[derive(Debug, Clone, Encode, Decode, Eq, PartialEq)]
+pub enum InjectedTransactionAcceptance {
+    Accept,
+    Reject { reason: String },
+}
+
+impl<E: ToString> From<Result<(), E>> for InjectedTransactionAcceptance {
+    fn from(value: Result<(), E>) -> Self {
+        match value {
+            Ok(()) => Self::Accept,
+            Err(err) => Self::Reject {
+                reason: err.to_string(),
+            },
+        }
+    }
+}
+
+pub type SignedInjectedTransaction = SignedMessage<InjectedTransaction>;
 
 #[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
 #[cfg_attr(feature = "serde", derive(Hash))]
 #[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
-pub struct RpcOrNetworkInjectedTx {
+pub struct AddressedInjectedTransaction {
     /// Address of validator the transaction intended for
     pub recipient: Address,
     pub tx: SignedInjectedTransaction,
 }
 
+/// IMPORTANT: message id == tx hash == blake2b256 hash of the struct fields concat.
 #[cfg_attr(feature = "std", derive(serde::Deserialize, serde::Serialize))]
 #[cfg_attr(feature = "serde", derive(Hash))]
 #[derive(Debug, Clone, Encode, Decode, PartialEq, Eq)]
@@ -111,13 +131,21 @@ pub struct Promise {
 
 /// Signed wrapper on top of [`Promise`].
 /// It will be shared among other validators as a proof of promise.
-pub type SignedPromise = SignedData<Promise>;
+pub type SignedPromise = SignedMessage<Promise>;
 
 impl ToDigest for Promise {
     fn update_hasher(&self, hasher: &mut sha3::Keccak256) {
         let Self { tx_hash, reply } = self;
 
         hasher.update(tx_hash.inner());
-        reply.update_hasher(hasher);
+        let ReplyInfo {
+            payload,
+            code,
+            value,
+        } = reply;
+
+        hasher.update(payload);
+        hasher.update(code.to_bytes());
+        hasher.update(value.to_be_bytes());
     }
 }

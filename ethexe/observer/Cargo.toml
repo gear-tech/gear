@@ -9,7 +9,7 @@ repository.workspace = true
 
 [dependencies]
 ethexe-common = { workspace = true, features = ["std"] }
-ethexe-signer.workspace = true
+gsigner = { workspace = true, features = ["std", "secp256k1", "codec", "keyring", "serde"] }
 ethexe-ethereum = { workspace = true }
 ethexe-db.workspace = true
 gprimitives = { workspace = true, features = ["std"] }
@@ -33,6 +33,7 @@ futures.workspace = true
 log.workspace = true
 tracing.workspace = true
 derive_more.workspace = true
+gear-workspace-hack.workspace = true
 
 [dev-dependencies]
 gear-utils.workspace = true

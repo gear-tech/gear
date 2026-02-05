@@ -24,16 +24,15 @@ use crate::{
     announces::{self, DBAnnouncesExt},
     validator::DefaultProcessing,
 };
-use anyhow::{Result, anyhow};
+use anyhow::{Context as _, Result, anyhow};
 use derive_more::{Debug, Display};
 use ethexe_common::{
-    Announce, HashOf, SimpleBlockData, ValidatorsVec,
-    db::{AnnounceStorageRO, BlockMetaStorageRO, InjectedStorageRO},
-    gear::BatchCommitment,
-    network::ValidatorMessage,
+    Announce, ComputedAnnounce, HashOf, SimpleBlockData, ValidatorsVec, db::BlockMetaStorageRO,
+    gear::BatchCommitment, network::ValidatorMessage,
 };
 use ethexe_service_utils::Timer;
 use futures::{FutureExt, future::BoxFuture};
+use gsigner::secp256k1::Secp256k1SignerExt;
 use std::task::{Context, Poll};
 
 /// [`Producer`] is the state of the validator, which creates a new block
@@ -76,40 +75,34 @@ impl StateHandler for Producer {
 
     fn process_computed_announce(
         mut self,
-        announce_hash: HashOf<Announce>,
+        computed_data: ComputedAnnounce,
     ) -> Result<ValidatorState> {
         match &self.state {
-            State::WaitingAnnounceComputed(expected) if *expected == announce_hash => {
-                let announce = self
-                    .ctx
-                    .core
-                    .db
-                    .announce(announce_hash)
-                    .ok_or_else(|| anyhow!("computed announce must exists in database"))?;
+            State::WaitingAnnounceComputed(expected)
+                if *expected == computed_data.announce_hash =>
+            {
+                if !computed_data.promises.is_empty() {
+                    let signed_promises = computed_data
+                        .promises
+                        .into_iter()
+                        .map(|promise| {
+                            self.ctx
+                                .sign_message(promise)
+                                .context("producer: failed to sign promise")
+                        })
+                        .collect::<Result<_, _>>()?;
 
-                for tx in announce.injected_transactions.iter() {
-                    let tx_hash = tx.data().to_hash();
-
-                    let Some(promise) = self.ctx.core.db.promise(tx_hash) else {
-                        tracing::warn!(tx_hash = ?tx_hash, "Not found promise for injected transaction");
-                        continue;
-                    };
-
-                    let signed_promise = self
-                        .ctx
-                        .core
-                        .signer
-                        .signed_data(self.ctx.core.pub_key, promise)?;
-
-                    self.ctx.output(ConsensusEvent::Promise(signed_promise));
+                    self.ctx.output(ConsensusEvent::Promises(signed_promises));
                 }
 
+                // Aggregate commitment for the block and use `announce_hash` as head for chain commitment.
+                // `announce_hash` is computed and included in the db already, so it's safe to use it.
                 self.state = State::AggregateBatchCommitment {
                     future: self
                         .ctx
                         .core
                         .clone()
-                        .aggregate_batch_commitment(self.block, announce_hash)
+                        .aggregate_batch_commitment(self.block, computed_data.announce_hash)
                         .boxed(),
                 };
 
@@ -117,12 +110,13 @@ impl StateHandler for Producer {
             }
             State::WaitingAnnounceComputed(expected) => {
                 self.warning(format!(
-                    "Computed announce {announce_hash} is not expected, expected {expected}"
+                    "Computed announce {} is not expected, expected {expected}",
+                    computed_data.announce_hash
                 ));
 
                 Ok(self.into())
             }
-            _ => DefaultProcessing::computed_announce(self, announce_hash),
+            _ => DefaultProcessing::computed_announce(self, computed_data),
         }
     }
 
@@ -234,7 +228,7 @@ impl Producer {
             .ctx
             .core
             .signer
-            .signed_data(self.ctx.core.pub_key, message)?;
+            .signed_data(self.ctx.core.pub_key, message, None)?;
 
         self.state = State::WaitingAnnounceComputed(announce_hash);
         self.ctx
@@ -253,7 +247,7 @@ mod tests {
         validator::{PendingEvent, mock::*},
     };
     use async_trait::async_trait;
-    use ethexe_common::{Digest, HashOf, db::*, gear::CodeCommitment, mock::*};
+    use ethexe_common::{HashOf, db::*, gear::CodeCommitment, mock::*};
     use futures::StreamExt;
     use nonempty::nonempty;
 
@@ -291,8 +285,15 @@ mod tests {
             .await
             .unwrap();
 
+        // compute announce
+        AnnounceData {
+            announce: state.context().core.db.announce(announce_hash).unwrap(),
+            computed: Some(Default::default()),
+        }
+        .setup(&state.context().core.db);
+
         let state = state
-            .process_computed_announce(announce_hash)
+            .process_computed_announce(ComputedAnnounce::mock(announce_hash))
             .unwrap()
             .wait_for_state(|state| state.is_initial())
             .await
@@ -334,12 +335,12 @@ mod tests {
         // compute announce
         AnnounceData {
             announce: state.context().core.db.announce(announce_hash).unwrap(),
-            computed: Some(ComputedAnnounceData::default()),
+            computed: Some(Default::default()),
         }
         .setup(&state.context().core.db);
 
         let mut state = state
-            .process_computed_announce(announce_hash)
+            .process_computed_announce(ComputedAnnounce::mock(announce_hash))
             .unwrap()
             .wait_for_state(|state| matches!(state, ValidatorState::Initial(_)))
             .await
@@ -379,12 +380,12 @@ mod tests {
         // compute announce
         AnnounceData {
             announce: state.context().core.db.announce(announce_hash).unwrap(),
-            computed: Some(ComputedAnnounceData::default()),
+            computed: Some(Default::default()),
         }
         .setup(&state.context().core.db);
 
         let (state, event) = state
-            .process_computed_announce(announce_hash)
+            .process_computed_announce(ComputedAnnounce::mock(announce_hash))
             .unwrap()
             .wait_for_event()
             .await
@@ -400,6 +401,8 @@ mod tests {
     #[tokio::test]
     #[ntest::timeout(3000)]
     async fn code_commitments_only() {
+        gear_utils::init_default_logger();
+
         let (ctx, keys, eth) = mock_validator_context();
         let validators = nonempty![ctx.core.pub_key.to_address(), keys[0].to_address()].into();
         let block = BlockChain::mock(1).setup(&ctx.core.db).blocks[1].to_simple();
@@ -411,10 +414,6 @@ mod tests {
         ctx.core.db.mutate_block_meta(block.hash, |meta| {
             meta.codes_queue = Some([code1.id, code2.id].into_iter().collect())
         });
-        ctx.core.db.mutate_block_meta(block.hash, |meta| {
-            meta.last_committed_batch = Some(Digest::random());
-            meta.last_committed_announce = Some(HashOf::random());
-        });
 
         let (state, announce_hash) = Producer::create(ctx, block, validators)
             .unwrap()
@@ -422,8 +421,15 @@ mod tests {
             .await
             .unwrap();
 
+        // compute announce
+        AnnounceData {
+            announce: state.context().core.db.announce(announce_hash).unwrap(),
+            computed: Some(Default::default()),
+        }
+        .setup(&state.context().core.db);
+
         let mut state = state
-            .process_computed_announce(announce_hash)
+            .process_computed_announce(ComputedAnnounce::mock(announce_hash))
             .unwrap()
             .wait_for_state(|state| matches!(state, ValidatorState::Initial(_)))
             .await

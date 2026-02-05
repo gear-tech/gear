@@ -16,7 +16,7 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use anyhow::{Context, Ok, Result};
+use anyhow::{Context, Result};
 use clap::Parser;
 use commands::Command;
 use params::Params;
@@ -24,8 +24,14 @@ use std::path::PathBuf;
 
 mod commands;
 mod params;
+mod utils;
+
+fn version() -> &'static str {
+    concat!(env!("CARGO_PKG_VERSION"), "-", env!("GIT_SHA"))
+}
 
 #[derive(Debug, Parser)]
+#[command(name = "ethexe", version = version())]
 pub struct Cli {
     /// Path to the TOML config file. If not provided, the default path "./.ethexe.toml" is used. To disable parsing of the config file, use "none".
     #[arg(long)]
@@ -56,7 +62,7 @@ impl Cli {
             Some(path) => {
                 let path = PathBuf::from(path);
 
-                println!("📄 Using custom params file: {}", path.display());
+                eprintln!("📄 Using custom params file: {}", path.display());
 
                 Some(Params::from_file(path)?)
             }
@@ -64,7 +70,7 @@ impl Cli {
                 let default_cfg_path = PathBuf::from(Self::DEFAULT_PARAMS_PATH);
 
                 if default_cfg_path.exists() {
-                    println!(
+                    eprintln!(
                         "📄 Using default params file: {}",
                         default_cfg_path.display()
                     );

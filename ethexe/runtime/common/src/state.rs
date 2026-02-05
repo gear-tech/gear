@@ -134,7 +134,7 @@ impl PayloadLookup {
     }
 }
 
-impl<S: Storage> QueriableStorage<Allocations> for S {
+impl<S: Storage> QueryableStorage<Allocations> for S {
     fn query(&self, hash: &MaybeHashOf<Allocations>) -> Result<Allocations> {
         hash.try_map_or_default(|hash| {
             self.allocations(hash).ok_or(anyhow!(
@@ -160,7 +160,7 @@ impl<S: Storage> ModifiableStorage<Allocations> for S {
     }
 }
 
-impl<S: Storage> QueriableStorage<DispatchStash> for S {
+impl<S: Storage> QueryableStorage<DispatchStash> for S {
     fn query(&self, hash: &MaybeHashOf<DispatchStash>) -> Result<DispatchStash> {
         hash.try_map_or_default(|hash| {
             self.dispatch_stash(hash).ok_or(anyhow!(
@@ -186,7 +186,7 @@ impl<S: Storage> ModifiableStorage<DispatchStash> for S {
     }
 }
 
-impl<S: Storage> QueriableStorage<Mailbox> for S {
+impl<S: Storage> QueryableStorage<Mailbox> for S {
     fn query(&self, hash: &MaybeHashOf<Mailbox>) -> Result<Mailbox> {
         hash.try_map_or_default(|hash| {
             self.mailbox(hash)
@@ -207,7 +207,7 @@ impl<S: Storage> ModifiableStorage<Mailbox> for S {
     }
 }
 
-impl<S: Storage> QueriableStorage<UserMailbox> for S {
+impl<S: Storage> QueryableStorage<UserMailbox> for S {
     fn query(&self, hash: &MaybeHashOf<UserMailbox>) -> Result<UserMailbox> {
         hash.try_map_or_default(|hash| {
             self.user_mailbox(hash).ok_or(anyhow!(
@@ -217,7 +217,7 @@ impl<S: Storage> QueriableStorage<UserMailbox> for S {
     }
 }
 
-impl<S: Storage> QueriableStorage<MemoryPages> for S {
+impl<S: Storage> QueryableStorage<MemoryPages> for S {
     fn query(&self, hash: &MaybeHashOf<MemoryPages>) -> Result<MemoryPages> {
         hash.try_map_or_default(|hash| {
             self.memory_pages(hash).ok_or(anyhow!(
@@ -253,7 +253,7 @@ pub struct MessageQueueHashWithSize {
 }
 
 impl MessageQueueHashWithSize {
-    pub fn query<S: Storage>(&self, storage: &S) -> Result<MessageQueue> {
+    pub fn query<S: Storage + ?Sized>(&self, storage: &S) -> Result<MessageQueue> {
         self.hash.try_map_or_default(|hash| {
             storage.message_queue(hash).ok_or(anyhow!(
                 "failed to read ['MessageQueue'] from storage by hash"
@@ -261,7 +261,7 @@ impl MessageQueueHashWithSize {
         })
     }
 
-    pub fn modify_queue<S: Storage, T>(
+    pub fn modify_queue<S: Storage + ?Sized, T>(
         &mut self,
         storage: &S,
         f: impl FnOnce(&mut MessageQueue) -> T,
@@ -282,7 +282,7 @@ impl MessageQueueHashWithSize {
     }
 }
 
-impl<S: Storage> QueriableStorage<Payload> for S {
+impl<S: Storage> QueryableStorage<Payload> for S {
     fn query(&self, hash: &MaybeHashOf<Payload>) -> Result<Payload> {
         hash.try_map_or_default(|hash| {
             self.payload(hash)
@@ -293,7 +293,7 @@ impl<S: Storage> QueriableStorage<Payload> for S {
     }
 }
 
-impl<S: Storage> QueriableStorage<Waitlist> for S {
+impl<S: Storage> QueryableStorage<Waitlist> for S {
     fn query(&self, hash: &MaybeHashOf<Waitlist>) -> Result<Waitlist> {
         hash.try_map_or_default(|hash| {
             self.waitlist(hash)
@@ -455,7 +455,7 @@ pub struct Dispatch {
 
 impl Dispatch {
     #[allow(clippy::too_many_arguments)]
-    pub fn new<S: Storage>(
+    pub fn new<S: Storage + ?Sized>(
         storage: &S,
         id: MessageId,
         source: ActorId,
@@ -486,7 +486,7 @@ impl Dispatch {
         })
     }
 
-    pub fn new_reply<S: Storage>(
+    pub fn new_reply<S: Storage + ?Sized>(
         storage: &S,
         replied_to: MessageId,
         source: ActorId,
@@ -530,7 +530,7 @@ impl Dispatch {
         }
     }
 
-    pub fn from_core_stored<S: Storage>(
+    pub fn from_core_stored<S: Storage + ?Sized>(
         storage: &S,
         value: StoredDispatch,
         message_type: MessageType,
@@ -629,7 +629,7 @@ impl MessageQueue {
         self.0.front()
     }
 
-    pub fn store<S: Storage>(self, storage: &S) -> MaybeHashOf<Self> {
+    pub fn store<S: Storage + ?Sized>(self, storage: &S) -> MaybeHashOf<Self> {
         MaybeHashOf::from_inner((!self.0.is_empty()).then(|| storage.write_message_queue(self)))
     }
 }
@@ -818,7 +818,7 @@ impl UserMailbox {
         self.0.is_empty()
     }
 
-    fn store<S: Storage>(self, storage: &S) -> MaybeHashOf<Self> {
+    fn store<S: Storage + ?Sized>(self, storage: &S) -> MaybeHashOf<Self> {
         MaybeHashOf::from_inner((!self.0.is_empty()).then(|| storage.write_user_mailbox(self)))
     }
 }
@@ -851,7 +851,7 @@ pub struct Mailbox {
 }
 
 impl Mailbox {
-    pub fn add_and_store_user_mailbox<S: Storage>(
+    pub fn add_and_store_user_mailbox<S: Storage + ?Sized>(
         &mut self,
         storage: &S,
         user_id: ActorId,
@@ -874,7 +874,7 @@ impl Mailbox {
         let _ = self.inner.insert(user_id, hash);
     }
 
-    pub fn remove_and_store_user_mailbox<S: Storage>(
+    pub fn remove_and_store_user_mailbox<S: Storage + ?Sized>(
         &mut self,
         storage: &S,
         user_id: ActorId,
@@ -963,7 +963,7 @@ pub type MemoryPagesInner = [MaybeHashOf<MemoryPagesRegion>; MemoryPages::REGION
 
 impl MemoryPages {
     /// Copy of the gear_core constant defining max pages amount per program.
-    pub const MAX_PAGES: usize = gear_core::code::MAX_WASM_PAGES_AMOUNT as usize;
+    pub const MAX_PAGES: usize = 4 * gear_core::code::MAX_WASM_PAGES_AMOUNT as usize;
 
     /// Granularity parameter of how memory pages hashes are stored.
     ///
@@ -1237,15 +1237,15 @@ pub trait Storage {
     }
 }
 
-/// [`QueriableStorage`] is a extenstion over [`Storage`] which provides methods to query
+/// [`QueryableStorage`] is a extension over [`Storage`] which provides methods to query
 /// runtime primitives from it.
-pub trait QueriableStorage<T>: Storage {
+pub trait QueryableStorage<T>: Storage {
     fn query(&self, hash: &MaybeHashOf<T>) -> Result<T>;
 }
 
 /// [`ModifiableStorage`] is a extension over [`Storage`] which provides method to modify
 /// runtime primitives by its hash.
-pub trait ModifiableStorage<T>: QueriableStorage<T> {
+pub trait ModifiableStorage<T>: QueryableStorage<T> {
     fn modify<U>(&self, hash: &mut MaybeHashOf<T>, f: impl FnOnce(&mut T) -> U) -> U;
 }
 

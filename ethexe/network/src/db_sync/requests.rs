@@ -19,15 +19,19 @@
 use crate::{
     db_sync::{
         AnnouncesRequest, Config, Event, ExternalDataProvider, HandleResult, HashesRequest,
-        InnerBehaviour, InnerHashesResponse, InnerProgramIdsRequest, InnerProgramIdsResponse,
-        InnerRequest, InnerResponse, NewRequestRoundReason, PeerId, ProgramIdsRequest, Request,
-        RequestFailure, RequestId, Response, ValidCodesRequest,
+        InnerAnnouncesResponse, InnerBehaviour, InnerHashesResponse, InnerProgramIdsRequest,
+        InnerProgramIdsResponse, InnerRequest, InnerResponse, NewRequestRoundReason, PeerId,
+        ProgramIdsRequest, Request, RequestFailure, RequestId, Response, ValidCodesRequest,
     },
     peer_score::Handle,
     utils::ConnectionMap,
 };
 use anyhow::Context as _;
-use ethexe_common::{gear::CodeState, network::AnnouncesResponseError};
+use ethexe_common::{
+    Announce, HashOf,
+    gear::CodeState,
+    network::{AnnouncesRequestUntil, AnnouncesResponse},
+};
 use futures::{FutureExt, future::BoxFuture};
 use gprimitives::{ActorId, CodeId, H256};
 use itertools::EitherOrBoth;
@@ -291,7 +295,7 @@ enum HashesResponseHandled {
         response: BTreeMap<H256, Vec<u8>>,
         stripped: bool,
     },
-    NewRequest {
+    IncompleteData {
         acc: InnerHashesResponse,
         new_request: HashesRequest,
         stripped: bool,
@@ -307,10 +311,17 @@ impl HashesResponseHandled {
     fn stripped(&self) -> bool {
         match self {
             Self::Done { stripped, .. } => *stripped,
-            Self::NewRequest { stripped, .. } => *stripped,
+            Self::IncompleteData { stripped, .. } => *stripped,
             Self::Err { stripped, .. } => *stripped,
         }
     }
+}
+
+#[derive(Debug, derive_more::Unwrap)]
+pub(crate) enum AnnouncesResponseHandled {
+    Done(AnnouncesResponse),
+    NewRound,
+    Err(AnnouncesResponseError),
 }
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, derive_more::Display)]
@@ -335,8 +346,26 @@ pub enum ValidCodesResponseError {
     RouterQuery(anyhow::Error),
 }
 
+#[derive(Debug, PartialEq, Eq, derive_more::Display)]
+pub enum AnnouncesResponseError {
+    #[display("announces head mismatch, expected hash {expected}, received {received}")]
+    HeadMismatch {
+        expected: HashOf<Announce>,
+        received: HashOf<Announce>,
+    },
+    #[display("announces tail mismatch, expected hash {expected}, received {received}")]
+    TailMismatch {
+        expected: HashOf<Announce>,
+        received: HashOf<Announce>,
+    },
+    #[display("announces len expected {expected}, received {received}")]
+    LenMismatch { expected: usize, received: usize },
+    #[display("announces chain is not linked")]
+    ChainIsNotLinked,
+}
+
 #[derive(Debug, derive_more::Display, derive_more::From)]
-enum ResponseError {
+pub(crate) enum ResponseError {
     #[display("{_0}")]
     Hashes(HashesResponseError),
     #[display("{_0}")]
@@ -347,12 +376,26 @@ enum ResponseError {
     Announces(AnnouncesResponseError),
     #[display("request and response types mismatch")]
     TypeMismatch,
-    #[display("new round required")]
-    NewRound,
 }
 
-#[derive(Debug)]
-enum ResponseHandler {
+#[derive(Debug, derive_more::Unwrap)]
+pub(crate) enum ResponseHandlerResult {
+    Ok(Response),
+    NewRound(ResponseHandler),
+    Err(ResponseHandler, ResponseError),
+}
+
+impl From<Result<Response, (ResponseHandler, ResponseError)>> for ResponseHandlerResult {
+    fn from(value: Result<Response, (ResponseHandler, ResponseError)>) -> Self {
+        match value {
+            Ok(response) => Self::Ok(response),
+            Err((handler, error)) => Self::Err(handler, error),
+        }
+    }
+}
+
+#[derive(Debug, Eq, PartialEq)]
+pub(crate) enum ResponseHandler {
     Hashes {
         acc: InnerHashesResponse,
         request: HashesRequest,
@@ -450,7 +493,7 @@ impl ResponseHandler {
                 stripped,
             }
         } else {
-            HashesResponseHandled::NewRequest {
+            HashesResponseHandled::IncompleteData {
                 acc,
                 new_request: HashesRequest(new_request),
                 stripped,
@@ -516,13 +559,61 @@ impl ResponseHandler {
         Ok(code_ids)
     }
 
+    pub(crate) fn handle_announces(
+        response: InnerAnnouncesResponse,
+        request: AnnouncesRequest,
+    ) -> AnnouncesResponseHandled {
+        let InnerAnnouncesResponse(announces) = response;
+
+        let Some((first, last)) = announces.first().zip(announces.last()) else {
+            return AnnouncesResponseHandled::NewRound;
+        };
+
+        if request.head != last.to_hash() {
+            return AnnouncesResponseHandled::Err(AnnouncesResponseError::HeadMismatch {
+                expected: request.head,
+                received: last.to_hash(),
+            });
+        }
+
+        match request.until {
+            AnnouncesRequestUntil::Tail(request_tail_hash) => {
+                if request_tail_hash != first.parent {
+                    return AnnouncesResponseHandled::Err(AnnouncesResponseError::TailMismatch {
+                        expected: request_tail_hash,
+                        received: first.parent,
+                    });
+                }
+            }
+            AnnouncesRequestUntil::ChainLen(len) => {
+                if announces.len() != len.get() as usize {
+                    return AnnouncesResponseHandled::Err(AnnouncesResponseError::LenMismatch {
+                        expected: len.get() as usize,
+                        received: announces.len(),
+                    });
+                }
+            }
+        }
+
+        // Check chain linking
+        let mut expected_parent_hash = first.parent;
+        for announce in announces.iter() {
+            if announce.parent != expected_parent_hash {
+                return AnnouncesResponseHandled::Err(AnnouncesResponseError::ChainIsNotLinked);
+            }
+            expected_parent_hash = announce.to_hash();
+        }
+
+        unsafe { AnnouncesResponseHandled::Done(AnnouncesResponse::from_parts(request, announces)) }
+    }
+
     async fn handle(
         self,
         peer: PeerId,
         response: InnerResponse,
         peer_score_handle: &Handle,
         external_data_provider: Box<dyn ExternalDataProvider>,
-    ) -> Result<Response, (Self, ResponseError)> {
+    ) -> ResponseHandlerResult {
         match (self, response) {
             (
                 Self::Hashes {
@@ -531,40 +622,37 @@ impl ResponseHandler {
                 },
                 InnerResponse::Hashes(response),
             ) => {
-                let processed = Self::handle_hashes(acc, &reduced_request, response);
+                let handled = Self::handle_hashes(acc, &reduced_request, response);
 
-                if processed.stripped() {
+                if handled.stripped() {
                     log::debug!("data stripped in response from {peer}");
                     peer_score_handle.excessive_data(peer);
                 }
 
-                match processed {
+                match handled {
                     HashesResponseHandled::Done {
                         response,
                         stripped: _,
-                    } => Ok(Response::Hashes(response)),
-                    HashesResponseHandled::NewRequest {
+                    } => ResponseHandlerResult::Ok(Response::Hashes(response)),
+                    HashesResponseHandled::IncompleteData {
                         acc,
                         new_request,
                         stripped: _,
-                    } => Err((
-                        Self::Hashes {
-                            acc,
-                            request: new_request,
-                        },
-                        ResponseError::NewRound,
-                    )),
+                    } => ResponseHandlerResult::NewRound(Self::Hashes {
+                        acc,
+                        request: new_request,
+                    }),
                     HashesResponseHandled::Err {
                         acc,
                         err,
                         stripped: _,
-                    } => Err((
+                    } => ResponseHandlerResult::Err(
                         Self::Hashes {
                             acc,
                             request: reduced_request,
                         },
                         err.into(),
-                    )),
+                    ),
                 }
             }
             (Self::ProgramIds { request }, InnerResponse::ProgramIds(response)) => {
@@ -572,18 +660,31 @@ impl ResponseHandler {
                     .await
                     .map(Into::into)
                     .map_err(|err| (Self::ProgramIds { request }, err.into()))
+                    .into()
             }
             (Self::ValidCodes { request }, InnerResponse::ValidCodes(response)) => {
                 Self::handle_valid_codes(response, &request, external_data_provider)
                     .await
                     .map(Into::into)
                     .map_err(|err| (Self::ValidCodes { request }, err.into()))
+                    .into()
             }
-            (Self::Announces { request }, InnerResponse::Announces(response)) => response
-                .try_into_checked(request)
-                .map_err(|err| (Self::Announces { request }, err.into()))
-                .map(Response::Announces),
-            (this, _) => Err((this, ResponseError::TypeMismatch)),
+            (Self::Announces { request }, InnerResponse::Announces(response)) => {
+                let handled = Self::handle_announces(response, request);
+
+                match handled {
+                    AnnouncesResponseHandled::Done(response) => {
+                        ResponseHandlerResult::Ok(Response::Announces(response))
+                    }
+                    AnnouncesResponseHandled::NewRound => {
+                        ResponseHandlerResult::NewRound(Self::Announces { request })
+                    }
+                    AnnouncesResponseHandled::Err(err) => {
+                        ResponseHandlerResult::Err(Self::Announces { request }, err.into())
+                    }
+                }
+            }
+            (this, _) => ResponseHandlerResult::Err(this, ResponseError::TypeMismatch),
         }
     }
 }
@@ -682,11 +783,18 @@ impl OngoingRequest {
             .handle(peer, response, peer_score_handle, external_data_provider)
             .await
         {
-            Ok(response) => Ok(response),
-            Err((processor, err)) => {
+            ResponseHandlerResult::Ok(response) => Ok(response),
+            ResponseHandlerResult::NewRound(handler) => {
+                log::trace!(
+                    "response is incomplete from peer {peer}: we are going for a new round"
+                );
+                self.response_handler = Some(handler);
+                Err(NewRequestRoundReason::PartialData)
+            }
+            ResponseHandlerResult::Err(handler, err) => {
                 log::warn!("response processing failed for request from {peer}: {err:?}");
                 peer_score_handle.invalid_data(peer);
-                self.response_handler = Some(processor);
+                self.response_handler = Some(handler);
                 Err(NewRequestRoundReason::PartialData)
             }
         }
@@ -781,6 +889,46 @@ impl RetriableRequest {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use async_trait::async_trait;
+
+    struct UnreachableExternalDataProvider;
+
+    #[async_trait]
+    impl ExternalDataProvider for UnreachableExternalDataProvider {
+        fn clone_boxed(&self) -> Box<dyn ExternalDataProvider> {
+            unreachable!()
+        }
+
+        async fn programs_code_ids_at(
+            self: Box<Self>,
+            _program_ids: BTreeSet<ActorId>,
+            _block: H256,
+        ) -> anyhow::Result<Vec<CodeId>> {
+            unreachable!()
+        }
+
+        async fn codes_states_at(
+            self: Box<Self>,
+            _code_ids: BTreeSet<CodeId>,
+            _block: H256,
+        ) -> anyhow::Result<Vec<CodeState>> {
+            unreachable!()
+        }
+    }
+
+    fn make_chain(len: usize) -> Vec<Announce> {
+        assert!(len > 0);
+        let mut chain = Vec::with_capacity(len);
+        let mut parent = HashOf::zero();
+
+        for idx in 0..len {
+            let announce = Announce::base(H256([idx as u8 + 1; 32]), parent);
+            parent = announce.to_hash();
+            chain.push(announce);
+        }
+
+        chain
+    }
 
     #[test]
     fn validate_data_stripped() {
@@ -821,5 +969,179 @@ mod tests {
         assert_eq!(acc, Default::default());
         assert_eq!(err, HashesResponseError::HashMismatch);
         assert!(!stripped);
+    }
+
+    #[tokio::test]
+    async fn validate_data_hash_incomplete() {
+        let hash1 = ethexe_db::hash(b"1");
+        let hash2 = ethexe_db::hash(b"2");
+
+        let request = HashesRequest([hash1, hash2].into());
+        let response = InnerHashesResponse([(hash1, b"1".to_vec())].into());
+        let processed =
+            ResponseHandler::handle_hashes(Default::default(), &request, response.clone());
+        let HashesResponseHandled::IncompleteData {
+            acc,
+            new_request,
+            stripped,
+        } = processed
+        else {
+            unreachable!("{processed:?}")
+        };
+        assert_eq!(acc, response);
+        assert_eq!(new_request, HashesRequest([hash2].into()));
+        assert!(!stripped);
+
+        let handler = ResponseHandler::new(request.into());
+        handler
+            .handle(
+                PeerId::random(),
+                response.into(),
+                &Handle::new_test(),
+                Box::new(UnreachableExternalDataProvider),
+            )
+            .await
+            .unwrap_new_round();
+    }
+
+    #[test]
+    fn try_into_checked_accepts_valid_tail_range() {
+        let announces = make_chain(3);
+        let head_hash = announces.last().unwrap().to_hash();
+        let tail_hash = announces.first().unwrap().parent;
+
+        let request = AnnouncesRequest {
+            head: head_hash,
+            until: AnnouncesRequestUntil::Tail(tail_hash),
+        };
+        let response = InnerAnnouncesResponse(announces.clone());
+
+        let response = ResponseHandler::handle_announces(response, request).unwrap_done();
+        assert_eq!(response.request(), &request);
+        assert_eq!(response.announces(), announces.as_slice());
+    }
+
+    #[test]
+    fn try_into_checked_accepts_valid_chain_len() {
+        let announces = make_chain(4);
+        let head_hash = announces.last().unwrap().to_hash();
+
+        let request = AnnouncesRequest {
+            head: head_hash,
+            until: AnnouncesRequestUntil::ChainLen((announces.len() as u32).try_into().unwrap()),
+        };
+
+        let response = InnerAnnouncesResponse(announces.clone());
+
+        let response = ResponseHandler::handle_announces(response, request).unwrap_done();
+        assert_eq!(response.request(), &request);
+        assert_eq!(response.announces(), announces.as_slice());
+    }
+
+    #[tokio::test]
+    async fn try_into_checked_rejects_empty_response() {
+        let request = AnnouncesRequest {
+            head: HashOf::zero(),
+            until: AnnouncesRequestUntil::ChainLen(1.try_into().unwrap()),
+        };
+
+        let response = InnerAnnouncesResponse(Vec::new());
+
+        ResponseHandler::handle_announces(response.clone(), request).unwrap_new_round();
+
+        let handler = ResponseHandler::new(request.into());
+        handler
+            .handle(
+                PeerId::random(),
+                response.into(),
+                &Handle::new_test(),
+                Box::new(UnreachableExternalDataProvider),
+            )
+            .await
+            .unwrap_new_round();
+    }
+
+    #[test]
+    fn try_into_checked_rejects_head_mismatch() {
+        let announces = make_chain(2);
+        let actual_head = announces.last().unwrap().to_hash();
+        let wrong_head = HashOf::random();
+        let tail_hash = announces.first().unwrap().parent;
+
+        let request = AnnouncesRequest {
+            head: wrong_head,
+            until: AnnouncesRequestUntil::Tail(tail_hash),
+        };
+        let response = InnerAnnouncesResponse(announces);
+
+        let err = ResponseHandler::handle_announces(response, request).unwrap_err();
+        assert_eq!(
+            err,
+            AnnouncesResponseError::HeadMismatch {
+                expected: wrong_head,
+                received: actual_head,
+            }
+        );
+    }
+
+    #[test]
+    fn try_into_checked_rejects_tail_mismatch() {
+        let announces = make_chain(3);
+        let actual_tail = announces.first().unwrap().parent;
+        let head_hash = announces.last().unwrap().to_hash();
+        let wrong_tail = HashOf::random();
+
+        let request = AnnouncesRequest {
+            head: head_hash,
+            until: AnnouncesRequestUntil::Tail(wrong_tail),
+        };
+        let response = InnerAnnouncesResponse(announces);
+
+        let err = ResponseHandler::handle_announces(response, request).unwrap_err();
+        assert_eq!(
+            err,
+            AnnouncesResponseError::TailMismatch {
+                expected: wrong_tail,
+                received: actual_tail,
+            }
+        );
+    }
+
+    #[test]
+    fn try_into_checked_rejects_len_mismatch() {
+        let announces = make_chain(2);
+        let head_hash = announces.last().unwrap().to_hash();
+
+        let request = AnnouncesRequest {
+            head: head_hash,
+            until: AnnouncesRequestUntil::ChainLen(3.try_into().unwrap()),
+        };
+        let response = InnerAnnouncesResponse(announces);
+
+        let err = ResponseHandler::handle_announces(response, request).unwrap_err();
+        assert_eq!(
+            err,
+            AnnouncesResponseError::LenMismatch {
+                expected: 3,
+                received: 2,
+            }
+        );
+    }
+
+    #[test]
+    fn try_into_checked_rejects_non_linked_chain() {
+        let mut announces = make_chain(3);
+        announces[1].parent = HashOf::zero();
+        let head_hash = announces.last().unwrap().to_hash();
+        let tail_hash = announces.first().unwrap().parent;
+
+        let request = AnnouncesRequest {
+            head: head_hash,
+            until: AnnouncesRequestUntil::Tail(tail_hash),
+        };
+        let response = InnerAnnouncesResponse(announces);
+
+        let err = ResponseHandler::handle_announces(response, request).unwrap_err();
+        assert_eq!(err, AnnouncesResponseError::ChainIsNotLinked);
     }
 }

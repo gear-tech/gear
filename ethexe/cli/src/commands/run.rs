@@ -16,11 +16,15 @@
 // You should have received a copy of the GNU General Public License
 // along with this program. If not, see <https://www.gnu.org/licenses/>.
 
-use crate::{Params, params::MergeParams};
+use crate::{
+    Params,
+    params::{MergeParams, NodeParams},
+};
 use anyhow::{Context as _, Result, anyhow};
 use clap::Args;
 use ethexe_service::Service;
 use std::time::Duration;
+use tokio::runtime::Builder;
 use tracing_subscriber::EnvFilter;
 
 /// Run the node.
@@ -36,6 +40,9 @@ pub struct RunCommand {
 }
 
 impl RunCommand {
+    /// Default block time (dev mode) in seconds.
+    const DEFAULT_DEV_BLOCK_TIME: u64 = 1;
+
     /// Merge the command with the provided params.
     pub fn with_params(mut self, params: Params) -> Self {
         self.params = self.params.merge(params);
@@ -44,7 +51,7 @@ impl RunCommand {
     }
 
     /// Run the ethexe service (node).
-    pub fn run(self) -> Result<()> {
+    pub fn run(mut self) -> Result<()> {
         let default = if self.verbose { "debug" } else { "info" };
 
         tracing_subscriber::fmt()
@@ -58,6 +65,51 @@ impl RunCommand {
             .try_init()
             .map_err(|e| anyhow!("failed to initialize logger: {e}"))?;
 
+        let mut anvil_instance = None;
+
+        if let Some(node) = self.params.node.as_mut()
+            && node.dev
+        {
+            // set block time to 1 second if not set explicitly
+            let block_time = Duration::from_secs(
+                self.params
+                    .ethereum
+                    .as_ref()
+                    .and_then(|ethereum| ethereum.block_time)
+                    .unwrap_or(Self::DEFAULT_DEV_BLOCK_TIME),
+            );
+            let pre_funded_accounts = node
+                .pre_funded_accounts
+                .unwrap_or(NodeParams::DEFAULT_PRE_FUNDED_ACCOUNTS)
+                .get();
+            let (anvil, validator_public_key, router_address) = Builder::new_multi_thread()
+                .enable_all()
+                .build()?
+                .block_on(Service::configure_dev_environment(
+                    node.keys_dir(),
+                    block_time,
+                    pre_funded_accounts,
+                ))?;
+
+            node.validator = Some(validator_public_key.to_string());
+            node.validator_session = Some(validator_public_key.to_string());
+            if node.canonical_quarantine.is_none() {
+                // disable quarantine in dev mode if not set explicitly
+                node.canonical_quarantine = Some(0);
+            }
+
+            let ethereum = self.params.ethereum.get_or_insert_with(Default::default);
+            ethereum.ethereum_rpc = Some(anvil.ws_endpoint());
+            ethereum.ethereum_beacon_rpc = Some(anvil.endpoint());
+            ethereum.ethereum_router = Some(router_address);
+            ethereum.block_time = Some(block_time.as_secs());
+
+            // make sure RPC is enabled as RPC is disabled by default
+            self.params.rpc.get_or_insert_with(Default::default);
+
+            anvil_instance = Some(anvil);
+        }
+
         let config = self
             .params
             .into_config()
@@ -65,7 +117,7 @@ impl RunCommand {
 
         config.log_info();
 
-        let mut builder = tokio::runtime::Builder::new_multi_thread();
+        let mut builder = Builder::new_multi_thread();
 
         if let Some(worker_threads) = config.node.worker_threads {
             builder.worker_threads(worker_threads);
