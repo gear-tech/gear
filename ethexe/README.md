@@ -10,7 +10,7 @@
     };
     use ethexe_common::{
         Address,
-        injected::{InjectedTransaction, RpcOrNetworkInjectedTx},
+        injected::{InjectedTransaction, AddressedInjectedTransaction},
     };
     use ethexe_rpc::InjectedClient as _;
     use ethexe_signer::Signer;
@@ -53,7 +53,7 @@
             salt: H256::random().0.to_vec().into(),
         };
 
-        let transaction = RpcOrNetworkInjectedTx {
+        let transaction = AddressedInjectedTransaction {
             recipient: Address::default(),
             tx: signer.signed_data(key, tx).unwrap(),
         };

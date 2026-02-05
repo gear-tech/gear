@@ -31,7 +31,7 @@ use derive_more::{Debug, Display};
 use ethexe_common::{
     SimpleBlockData,
     db::OnChainStorageRO,
-    network::{AnnouncesRequest, CheckedAnnouncesResponse},
+    network::{AnnouncesRequest, AnnouncesResponse},
 };
 use gprimitives::H256;
 
@@ -171,10 +171,7 @@ impl StateHandler for Initial {
         }
     }
 
-    fn process_announces_response(
-        mut self,
-        response: CheckedAnnouncesResponse,
-    ) -> Result<ValidatorState> {
+    fn process_announces_response(mut self, response: AnnouncesResponse) -> Result<ValidatorState> {
         match self.state {
             WaitingFor::MissingAnnounces {
                 block,
@@ -226,11 +223,12 @@ impl Initial {
 
 impl ValidatorContext {
     fn switch_to_producer_or_subordinate(self, block: SimpleBlockData) -> Result<ValidatorState> {
+        let era_index = self.core.timelines.era_from_ts(block.header.timestamp);
         let validators = self
             .core
             .db
-            .validators(self.core.timelines.era_from_ts(block.header.timestamp))
-            .ok_or(anyhow!("validators not found for block({})", block.hash))?;
+            .validators(era_index)
+            .ok_or(anyhow!("validators not found for era {era_index}"))?;
 
         let producer = utils::block_producer_for(
             &validators,
@@ -289,7 +287,7 @@ mod tests {
     async fn switch_to_producer() {
         gear_utils::init_default_logger();
 
-        let (ctx, keys, _) = mock_validator_context();
+        let (mut ctx, keys, _) = mock_validator_context();
         let validators: ValidatorsVec = nonempty![
             ctx.core.pub_key.to_address(),
             keys[0].to_address(),
@@ -297,7 +295,9 @@ mod tests {
         ]
         .into();
 
-        let block = BlockChain::mock((2, validators)).setup(&ctx.core.db).blocks[2].to_simple();
+        let chain = BlockChain::mock((2, validators)).setup(&ctx.core.db);
+        ctx.core.timelines = chain.protocol_timelines;
+        let block = chain.blocks[2].to_simple();
 
         let state = Initial::create_with_chain_head(ctx, block).unwrap();
         assert!(state.is_initial(), "got {:?}", state);
@@ -313,7 +313,7 @@ mod tests {
     fn switch_to_subordinate() {
         gear_utils::init_default_logger();
 
-        let (ctx, keys, _) = mock_validator_context();
+        let (mut ctx, keys, _) = mock_validator_context();
         let validators: ValidatorsVec = nonempty![
             ctx.core.pub_key.to_address(),
             keys[1].to_address(),
@@ -321,8 +321,9 @@ mod tests {
         ]
         .into();
 
-        let block = BlockChain::mock((1, validators)).setup(&ctx.core.db).blocks[1].to_simple();
-
+        let chain = BlockChain::mock((1, validators)).setup(&ctx.core.db);
+        ctx.core.timelines = chain.protocol_timelines;
+        let block = chain.blocks[1].to_simple();
         let state = Initial::create_with_chain_head(ctx, block).unwrap();
         assert!(state.is_initial(), "got {:?}", state);
 
@@ -341,7 +342,7 @@ mod tests {
     fn missing_announces_request_response() {
         gear_utils::init_default_logger();
 
-        let (ctx, _, _) = mock_validator_context();
+        let (mut ctx, _, _) = mock_validator_context();
         let last = 9;
 
         let mut chain = BlockChain::mock(last as u32);
@@ -357,6 +358,7 @@ mod tests {
 
         chain.blocks[last].as_prepared_mut().last_committed_announce = announce1.to_hash();
         let chain = chain.setup(&ctx.core.db);
+        ctx.core.timelines = chain.protocol_timelines;
         let block = chain.blocks[last].to_simple();
 
         let state = Initial::create_with_chain_head(ctx, block)
@@ -374,20 +376,21 @@ mod tests {
         };
         assert_eq!(state.context().output, vec![expected_request.into()]);
 
-        let response = AnnouncesResponse {
-            announces: vec![
-                chain
-                    .announces
-                    .get(&chain.block_top_announce_hash(last - 3))
-                    .unwrap()
-                    .announce
-                    .clone(),
-                announce2.clone(),
-                announce1.clone(),
-            ],
-        }
-        .try_into_checked(expected_request)
-        .unwrap();
+        let response = unsafe {
+            AnnouncesResponse::from_parts(
+                expected_request,
+                vec![
+                    chain
+                        .announces
+                        .get(&chain.block_top_announce_hash(last - 3))
+                        .unwrap()
+                        .announce
+                        .clone(),
+                    announce2.clone(),
+                    announce1.clone(),
+                ],
+            )
+        };
 
         // In successful case no new events are produced
         let state = state.process_announces_response(response).unwrap();
@@ -398,7 +401,7 @@ mod tests {
     fn announce_propagation_done() {
         gear_utils::init_default_logger();
 
-        let (ctx, _, _) = mock_validator_context();
+        let (mut ctx, _, _) = mock_validator_context();
         let last = 9;
         let chain = BlockChain::mock(last as u32)
             .tap_mut(|chain| {
@@ -427,6 +430,7 @@ mod tests {
                 );
             })
             .setup(&ctx.core.db);
+        ctx.core.timelines = chain.protocol_timelines;
         let block = chain.blocks[last].to_simple();
 
         let state = Initial::create_with_chain_head(ctx, block)
@@ -452,7 +456,7 @@ mod tests {
     fn announce_propagation_many_missing_blocks() {
         gear_utils::init_default_logger();
 
-        let (ctx, _, _) = mock_validator_context();
+        let (mut ctx, _, _) = mock_validator_context();
         let last = 12;
         let chain = BlockChain::mock(last as u32)
             .tap_mut(|chain| {
@@ -462,6 +466,7 @@ mod tests {
                 });
             })
             .setup(&ctx.core.db);
+        ctx.core.timelines = chain.protocol_timelines;
         let head = chain.blocks[last].to_simple();
 
         let state = Initial::create_with_chain_head(ctx, head)
@@ -556,22 +561,23 @@ mod tests {
         let invalid_announce = Announce::base(H256::random(), HashOf::random());
         let invalid_announce_hash = invalid_announce.to_hash();
 
+        let response = unsafe {
+            AnnouncesResponse::from_parts(
+                AnnouncesRequest {
+                    head: invalid_announce_hash,
+                    until: NonZeroU32::new(1).unwrap().into(),
+                },
+                vec![invalid_announce],
+            )
+        };
+
         let state = Initial::create_with_chain_head(ctx, block)
             .unwrap()
             .process_synced_block(block.hash)
             .unwrap()
             .process_prepared_block(block.hash)
             .unwrap()
-            .process_announces_response(
-                AnnouncesResponse {
-                    announces: vec![invalid_announce],
-                }
-                .try_into_checked(AnnouncesRequest {
-                    head: invalid_announce_hash,
-                    until: NonZeroU32::new(1).unwrap().into(),
-                })
-                .unwrap(),
-            )
+            .process_announces_response(response)
             .unwrap();
         assert!(state.is_initial(), "got {:?}", state);
         assert_eq!(state.context().output.len(), 2);
@@ -585,7 +591,7 @@ mod tests {
     fn commitment_with_delay() {
         gear_utils::init_default_logger();
 
-        let (ctx, _, _) = mock_validator_context();
+        let (mut ctx, _, _) = mock_validator_context();
         let last = 10;
         let mut chain = BlockChain::mock(last as u32);
 
@@ -613,6 +619,7 @@ mod tests {
         }
 
         let chain = chain.setup(&ctx.core.db);
+        ctx.core.timelines = chain.protocol_timelines;
         let block = chain.blocks[last].to_simple();
 
         let state = Initial::create_with_chain_head(ctx, block)
@@ -630,19 +637,20 @@ mod tests {
         };
         assert_eq!(state.context().output, vec![expected_request.into()]);
 
-        let response = AnnouncesResponse {
-            announces: vec![
-                chain
-                    .announces
-                    .get(&chain.block_top_announce_hash(last - 7))
-                    .unwrap()
-                    .announce
-                    .clone(),
-                unknown_announce,
-            ],
-        }
-        .try_into_checked(expected_request)
-        .unwrap();
+        let response = unsafe {
+            AnnouncesResponse::from_parts(
+                expected_request,
+                vec![
+                    chain
+                        .announces
+                        .get(&chain.block_top_announce_hash(last - 7))
+                        .unwrap()
+                        .announce
+                        .clone(),
+                    unknown_announce,
+                ],
+            )
+        };
 
         let state = state.process_announces_response(response).unwrap();
         assert!(state.is_subordinate(), "got {:?}", state);

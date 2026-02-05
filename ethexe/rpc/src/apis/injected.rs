@@ -20,7 +20,10 @@ use crate::{RpcEvent, errors};
 use dashmap::{DashMap, DashSet};
 use ethexe_common::{
     HashOf,
-    injected::{InjectedTransaction, RpcOrNetworkInjectedTx, SignedPromise, VALIDITY_WINDOW},
+    injected::{
+        AddressedInjectedTransaction, InjectedTransaction, InjectedTransactionAcceptance,
+        SignedPromise, VALIDITY_WINDOW,
+    },
 };
 use futures::StreamExt;
 use jsonrpsee::{
@@ -29,7 +32,6 @@ use jsonrpsee::{
     proc_macros::rpc,
     types::{ErrorObject, ErrorObjectOwned},
 };
-use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use tokio::{
     sync::{broadcast, mpsc, oneshot},
@@ -47,12 +49,6 @@ const PROMISE_BROADCASTER_CAPACITY: usize = 1024;
 const PROMISE_RECEIVING_TIMEOUT: Duration =
     Duration::from_secs(alloy::eips::merge::SLOT_DURATION_SECS * VALIDITY_WINDOW as u64);
 
-/// Determines whether the injected transaction was accepted by the main service.
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub enum InjectedTransactionAcceptance {
-    Accept,
-}
-
 #[cfg_attr(not(feature = "client"), rpc(server, namespace = "injected"))]
 #[cfg_attr(feature = "client", rpc(server, client, namespace = "injected"))]
 pub trait Injected {
@@ -60,18 +56,18 @@ pub trait Injected {
     #[method(name = "sendTransaction")]
     async fn send_transaction(
         &self,
-        transaction: RpcOrNetworkInjectedTx,
+        transaction: AddressedInjectedTransaction,
     ) -> RpcResult<InjectedTransactionAcceptance>;
 
-    /// Sends an injected transaction and subscribes to its promise.  
+    /// Sends an injected transaction and subscribes to its promise.
     #[subscription(
         name = "sendTransactionAndWatch",
-        unsubscribe = "sendTransactionAndWatchUnsubscribe", 
+        unsubscribe = "sendTransactionAndWatchUnsubscribe",
         item = SignedPromise
     )]
     async fn send_transaction_and_watch(
         &self,
-        transaction: RpcOrNetworkInjectedTx,
+        transaction: AddressedInjectedTransaction,
     ) -> SubscriptionResult;
 
     #[subscription(
@@ -95,7 +91,7 @@ pub struct InjectedApi {
 impl InjectedServer for InjectedApi {
     async fn send_transaction(
         &self,
-        transaction: RpcOrNetworkInjectedTx,
+        transaction: AddressedInjectedTransaction,
     ) -> RpcResult<InjectedTransactionAcceptance> {
         tracing::trace!(
             tx_hash = %transaction.tx.data().to_hash(),
@@ -108,7 +104,7 @@ impl InjectedServer for InjectedApi {
     async fn send_transaction_and_watch(
         &self,
         pending: PendingSubscriptionSink,
-        transaction: RpcOrNetworkInjectedTx,
+        transaction: AddressedInjectedTransaction,
     ) -> SubscriptionResult {
         let tx_hash = transaction.tx.data().to_hash();
         tracing::trace!(%tx_hash, ?transaction, "Called injected_sendTransactionAndWatch");
@@ -127,9 +123,17 @@ impl InjectedServer for InjectedApi {
             return Ok(());
         }
 
-        // TODO kuzmindev: handle the InjectedTransactionAcceptance::Reject case.
-        match self.forward_transaction(transaction).await {
+        let result = self.forward_transaction(transaction).await;
+        tracing::error!("promise result: {result:?}");
+        match result {
             Ok(InjectedTransactionAcceptance::Accept) => (), // nothing to do
+            Ok(InjectedTransactionAcceptance::Reject { reason }) => {
+                tracing::trace!(
+                    "Injected transaction was rejected by the node, because of {reason}"
+                );
+                self.promise_manager.remove_pending_subscription(&tx_hash);
+                return Err(reason.into());
+            }
             Err(err) => {
                 tracing::warn!("failed to forward injected transaction: {err}");
                 // Clean up the pending subscription on failure.
@@ -201,6 +205,7 @@ impl InjectedApi {
     }
 
     pub(crate) fn send_promise(&self, promise: SignedPromise) {
+        tracing::error!("receive promise: {promise:?}");
         self.promise_manager.handle_promise(promise);
     }
 
@@ -210,10 +215,10 @@ impl InjectedApi {
         self.promise_manager.promise_waiters.len()
     }
 
-    /// This function forwards [`RpcOrNetworkInjectedTx`] to main service and waits for its acceptance.
+    /// This function forwards [`AddressedInjectedTransaction`] to main service and waits for its acceptance.
     async fn forward_transaction(
         &self,
-        transaction: RpcOrNetworkInjectedTx,
+        transaction: AddressedInjectedTransaction,
     ) -> Result<InjectedTransactionAcceptance, ErrorObjectOwned> {
         let tx_hash = transaction.tx.data().to_hash();
         let (response_sender, response_receiver) = oneshot::channel();
@@ -308,6 +313,8 @@ impl InjectedApi {
     }
 }
 
+type PromiseWaiters = Arc<DashMap<HashOf<InjectedTransaction>, oneshot::Sender<SignedPromise>>>;
+
 /// [`PromiseManager`] is responsible for delivering signed promises
 /// to waiters for exact injected tx promise and broadcasting all
 /// incoming promises to subscribers.
@@ -320,7 +327,7 @@ pub(crate) struct PromiseManager {
     pending_subscriptions: Arc<DashSet<HashOf<InjectedTransaction>>>,
 
     /// The waiters for exact injected tx promises.
-    promise_waiters: Arc<DashMap<HashOf<InjectedTransaction>, oneshot::Sender<SignedPromise>>>,
+    promise_waiters: PromiseWaiters,
 
     /// The broadcaster for promise subscribers ([`InjectedServer::subscribe_promises`]).
     promise_broadcaster: broadcast::Sender<SignedPromise>,
@@ -426,7 +433,7 @@ impl PromiseManager {
 /// Helper function to create a subscription message from serializable data.
 pub(crate) fn subscription_message<T>(data: &T) -> Result<SubscriptionMessage, ErrorObjectOwned>
 where
-    T: Serialize + std::fmt::Debug,
+    T: serde::Serialize + std::fmt::Debug,
 {
     SubscriptionMessage::from_json(data).map_err(|err| {
         tracing::trace!(

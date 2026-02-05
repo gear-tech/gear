@@ -1,10 +1,5 @@
 name: install-cargo-xwin
 
-inputs:
-  token:
-    description: 'GitHub token'
-    required: true
-
 runs:
   using: composite
   steps:
