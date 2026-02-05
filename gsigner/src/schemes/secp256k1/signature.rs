@@ -623,13 +623,52 @@ mod tests {
     const CONTRACT_ADDRESS: Address = Address([44; 20]);
 
     #[test]
-    fn signature_create_for_digest() {
+    fn signature_recover_from_digest() {
         let private_key = mock_private_key();
 
         let signature = Signature::create(&private_key, MOCK_DIGEST).unwrap();
-        signature.validate(MOCK_DIGEST).unwrap();
-        let (sig, _) = signature.into_parts();
-        assert!(!bool::from(sig.s().is_high()));
+        let public_key = signature.recover(MOCK_DIGEST).unwrap();
+
+        assert_eq!(PublicKey::from(private_key), public_key);
+    }
+
+    #[test]
+    fn signed_data() {
+        let private_key = mock_private_key();
+        let public_key = private_key.public_key();
+        let data = vec![1, 2, 3, 4];
+
+        let signed_data = SignedData::create(&private_key, data.as_slice()).unwrap();
+        assert_eq!(signed_data.public_key(), public_key);
+        assert_eq!(signed_data.address(), public_key.to_address());
+        assert_eq!(signed_data.data(), &data);
+        assert_eq!(signed_data.signature().recover(&data).unwrap(), public_key);
+        assert_eq!(signed_data.signature().validate(&data).unwrap(), public_key);
+        signed_data.signature().verify(public_key, &data).unwrap();
+    }
+
+    #[test]
+    fn contract_signature() {
+        let private_key = mock_private_key();
+        let address = private_key.public_key().to_address();
+
+        let contract_signature =
+            ContractSignature::create(CONTRACT_ADDRESS, &private_key, MOCK_DIGEST).unwrap();
+        let public_key = contract_signature
+            .validate(CONTRACT_ADDRESS, MOCK_DIGEST)
+            .unwrap();
+        assert_eq!(public_key.to_address(), address);
+    }
+
+    #[test]
+    fn signature_encode_decode() {
+        let private_key = mock_private_key();
+
+        let signature = Signature::create(&private_key, MOCK_DIGEST).unwrap();
+        let encoded = signature.encode();
+        let decoded = Signature::decode(&mut &encoded[..]).unwrap();
+
+        assert_eq!(signature, decoded);
     }
 
     #[test]
@@ -646,16 +685,6 @@ mod tests {
     }
 
     #[test]
-    fn signature_validate() {
-        let private_key = mock_private_key();
-
-        Signature::create(&private_key, MOCK_DIGEST)
-            .unwrap()
-            .validate(MOCK_DIGEST)
-            .unwrap();
-    }
-
-    #[test]
     fn signature_recovery_matches_signing_key() {
         let private_key = mock_private_key();
         let expected_public = private_key.public_key();
@@ -664,16 +693,10 @@ mod tests {
         let recovered = signature.validate(MOCK_DIGEST).unwrap();
 
         assert_eq!(expected_public, recovered);
-    }
 
-    #[test]
-    fn contract_signature_roundtrip() {
-        let private_key = mock_private_key();
-
-        let signature =
-            ContractSignature::create(CONTRACT_ADDRESS, &private_key, MOCK_DIGEST).unwrap();
-
-        signature.validate(CONTRACT_ADDRESS, MOCK_DIGEST).unwrap();
+        // Verify S is normalized (low)
+        let (sig, _) = signature.into_parts();
+        assert!(!bool::from(sig.s().is_high()));
     }
 
     #[cfg(feature = "std")]
