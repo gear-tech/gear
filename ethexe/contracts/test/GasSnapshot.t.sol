@@ -22,7 +22,7 @@ contract GasShapshotTest is Test {
         vm.startPrank(routerAddress);
         Gear.StateTransition memory mockTransition = Gear.StateTransition({
             actorId: address(mirror),
-            newStateHash: bytes32("0x"),
+            newStateHash: bytes32(0),
             exited: false,
             inheritor: address(0),
             valueToReceive: uint128(0),
@@ -50,7 +50,6 @@ contract GasShapshotTest is Test {
     ////////////////////////////////////////////////
     function testRouterCommitMockBatch() public {
         Gear.BatchCommitment memory mockBatch = mockBatchCommitment();
-
     }
 
     function mockBatchCommitment() public view returns (Gear.BatchCommitment memory mockBatch) {
