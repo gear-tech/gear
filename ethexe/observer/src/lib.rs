@@ -103,7 +103,10 @@ impl Stream for ObserverService {
         // a new stream from it is created and used further to poll the next header.
         if let Some(future) = self.subscription_future.as_mut() {
             match ready!(future.as_mut().poll(cx)) {
-                Ok(subscription) => self.headers_stream = subscription.into_stream(),
+                Ok(subscription) => {
+                    self.headers_stream = subscription.into_stream();
+                    self.subscription_future = None;
+                }
                 Err(e) => {
                     return Poll::Ready(Some(Err(anyhow::anyhow!(
                         "failed to create new headers stream: {e}"
