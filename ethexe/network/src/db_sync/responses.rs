@@ -25,7 +25,7 @@ use crate::{
 };
 use ethexe_common::{
     Announce, HashOf,
-    db::{AnnounceStorageRO, BlockMetaStorageRO, HashStorageRO, LatestData, LatestDataStorageRO},
+    db::{AnnounceStorageRO, BlockMetaStorageRO, LatestData, LatestDataStorageRO},
     network::{AnnouncesRequest, AnnouncesRequestUntil},
 };
 use libp2p::request_response;

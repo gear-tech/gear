@@ -3531,6 +3531,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "930c7171c8df9fb1782bdf9b918ed9ed2d33d1d22300abb754f9085bc48bf8e8"
 
 [[package]]
+name = "delegate"
+version = "0.13.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "780eb241654bf097afb00fc5f054a09b687dad862e485fdcf8399bb056565370"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn 2.0.114",
+]
+
+[[package]]
 name = "demo-async"
 version = "0.1.0"
 dependencies = [
@@ -5060,6 +5071,7 @@ dependencies = [
  "anyhow",
  "auto_impl",
  "dashmap 5.5.3",
+ "delegate",
  "derive_more 2.1.1",
  "ethexe-common",
  "ethexe-runtime-common",
@@ -5158,6 +5170,7 @@ dependencies = [
  "demo-async",
  "demo-panic-payload",
  "demo-ping",
+ "derive_more 2.1.1",
  "ethexe-common",
  "ethexe-db",
  "ethexe-runtime",
