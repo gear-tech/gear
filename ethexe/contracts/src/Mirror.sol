@@ -183,7 +183,7 @@ contract Mirror is IMirror {
         }
 
         /// @dev Send all outgoing messages.
-        bytes32 messagesHashesHash = sendMessages(_transition.messages);
+        bytes32 messagesHashesHash = _sendMessages(_transition.messages);
 
         /// @dev Send value for each claim.
         bytes32 valueClaimsHash = _claimValues(_transition.valueClaims);
@@ -233,7 +233,7 @@ contract Mirror is IMirror {
     // TODO (breathx): consider when to emit event: on success in decoder, on failure etc.
     // TODO (breathx): make decoder gas configurable.
     // TODO (breathx): handle if goes to mailbox or not.
-    function sendMessages(Gear.Message[] calldata _messages) internal returns (bytes32) {
+    function _sendMessages(Gear.Message[] calldata _messages) private returns (bytes32) {
         uint256 len = _messages.length;
 
         // we know every Gear.messageHash(...) is 32 bytes, so allocate once
