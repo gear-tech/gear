@@ -30,7 +30,13 @@ use std::{
     task::{Context, Poll},
     time::Duration,
 };
-use tokio::{sync::mpsc, time, time::Interval};
+use tokio::{
+    sync::mpsc,
+    time,
+    time::{Instant, Interval},
+};
+
+const PEER_FORGET_TIME: Duration = Duration::from_hours(1);
 
 #[derive(Debug, Copy, Clone, Eq, PartialEq, derive_more::From)]
 pub(crate) enum ScoreChangeReason {
@@ -91,6 +97,11 @@ pub(crate) enum Event {
         /// The last reason changed peer score
         last_reason: ScoreDecreaseReason,
     },
+    /// Peer has been unblocked because of healing
+    PeerUnblocked {
+        /// Peer we blocked
+        peer_id: PeerId,
+    },
     /// Peer score has been changed
     ScoreChanged {
         /// Peer whose score has been changed
@@ -111,7 +122,7 @@ pub(crate) struct Config {
     excessive_data: u8,
     invalid_data: u8,
     healing_increment: u8,
-    healing_timer: Duration,
+    driver_time: Duration,
 }
 
 impl Default for Config {
@@ -121,7 +132,7 @@ impl Default for Config {
             excessive_data: u8::MAX / 5,
             invalid_data: u8::MAX / 3,
             healing_increment: u8::MAX / 17,
-            healing_timer: Duration::from_secs(1),
+            driver_time: Duration::from_secs(1),
         }
     }
 }
@@ -140,6 +151,11 @@ impl Config {
     }
 }
 
+enum ScoreEntry {
+    Normal { score: u8 },
+    Banned { at: Instant },
+}
+
 type BlockListBehaviour = allow_block_list::Behaviour<allow_block_list::BlockedPeers>;
 
 pub(crate) struct Behaviour {
@@ -148,8 +164,8 @@ pub(crate) struct Behaviour {
     block_list: BlockListBehaviour,
     handle: Handle,
     rx: mpsc::UnboundedReceiver<(PeerId, ScoreDecreaseReason)>,
-    score: HashMap<PeerId, u8>,
-    healing_timer: Interval,
+    peers: HashMap<PeerId, ScoreEntry>,
+    driver: Interval,
 }
 
 impl Behaviour {
@@ -158,12 +174,12 @@ impl Behaviour {
         let handle = Handle(tx);
         Self {
             pending_events: VecDeque::new(),
-            healing_timer: time::interval(config.healing_timer),
+            driver: time::interval(config.driver_time),
             config,
             block_list: BlockListBehaviour::default(),
             handle,
             rx,
-            score: HashMap::new(),
+            peers: HashMap::new(),
         }
     }
 
@@ -171,37 +187,72 @@ impl Behaviour {
         self.handle.clone()
     }
 
-    fn heal_peers(&mut self) {
-        for (&peer_id, score) in &mut self.score {
+    fn on_driver_tick(&mut self) {
+        let now = Instant::now();
+
+        self.peers.retain(|&peer_id, entry| {
+            let score = match entry {
+                ScoreEntry::Normal { score } => score,
+                ScoreEntry::Banned { at } => {
+                    if *at + PEER_FORGET_TIME <= now {
+                        return false;
+                    }
+
+                    *entry = ScoreEntry::Normal { score: u8::MIN };
+                    let ScoreEntry::Normal { score } = entry else {
+                        unreachable!()
+                    };
+
+                    self.block_list.unblock_peer(peer_id);
+                    self.pending_events
+                        .push_back(Event::PeerUnblocked { peer_id });
+
+                    score
+                }
+            };
+
             if let Some(new_score) = score.checked_add(self.config.healing_increment) {
                 *score = new_score;
 
-                let event = Event::ScoreChanged {
+                self.pending_events.push_back(Event::ScoreChanged {
                     peer_id,
                     reason: ScoreChangeReason::Increase,
                     score: *score,
-                };
-                self.pending_events.push_back(event);
+                });
             }
-        }
+
+            true
+        })
     }
 
-    fn on_score_decrease(&mut self, peer_id: PeerId, reason: ScoreDecreaseReason) -> Event {
-        let peer_score = self.score.entry(peer_id).or_insert(u8::MAX);
-        *peer_score = peer_score.saturating_sub(reason.to_u8(&self.config));
+    fn on_score_decrease(&mut self, peer_id: PeerId, reason: ScoreDecreaseReason) {
+        let entry = self
+            .peers
+            .entry(peer_id)
+            .or_insert(ScoreEntry::Normal { score: u8::MAX });
 
-        if *peer_score == u8::MIN {
-            self.block_list.block_peer(peer_id);
+        match entry {
+            ScoreEntry::Normal { score: peer_score } => {
+                *peer_score = peer_score.saturating_sub(reason.to_u8(&self.config));
 
-            Event::PeerBlocked {
-                peer_id,
-                last_reason: reason,
+                self.pending_events.push_back(Event::ScoreChanged {
+                    peer_id,
+                    reason: reason.into(),
+                    score: *peer_score,
+                });
+
+                if *peer_score == u8::MIN {
+                    *entry = ScoreEntry::Banned { at: Instant::now() };
+
+                    self.block_list.block_peer(peer_id);
+                    self.pending_events.push_back(Event::PeerBlocked {
+                        peer_id,
+                        last_reason: reason,
+                    });
+                }
             }
-        } else {
-            Event::ScoreChanged {
-                peer_id,
-                reason: reason.into(),
-                score: *peer_score,
+            ScoreEntry::Banned { at: _ } => {
+                // nothing to decrease, peer is already banned
             }
         }
     }
@@ -290,10 +341,10 @@ impl NetworkBehaviour for Behaviour {
             return Poll::Ready(ToSwarm::GenerateEvent(event));
         }
 
-        if let Poll::Ready(_instant) = self.healing_timer.poll_tick(cx) {
-            self.heal_peers();
+        if let Poll::Ready(_instant) = self.driver.poll_tick(cx) {
+            self.on_driver_tick();
 
-            // return event produced by `heal_peers` immediately instead of waking
+            // return event produced by `on_driver_tick` immediately instead of waking
             if let Some(event) = self.pending_events.pop_front() {
                 return Poll::Ready(ToSwarm::GenerateEvent(event));
             }
@@ -304,9 +355,12 @@ impl NetworkBehaviour for Behaviour {
         }
 
         if let Poll::Ready(Some((peer_id, reason))) = self.rx.poll_recv(cx) {
-            return Poll::Ready(ToSwarm::GenerateEvent(
-                self.on_score_decrease(peer_id, reason),
-            ));
+            self.on_score_decrease(peer_id, reason);
+
+            // return event produced by `on_score_decrease` immediately instead of waking
+            if let Some(event) = self.pending_events.pop_front() {
+                return Poll::Ready(ToSwarm::GenerateEvent(event));
+            }
         }
 
         Poll::Pending
@@ -371,6 +425,16 @@ mod tests {
         let event = alice.next_behaviour_event().await;
         assert_eq!(
             event,
+            Event::ScoreChanged {
+                peer_id: chad_peer_id,
+                reason: ScoreDecreaseReason::ExcessiveData.into(),
+                score: 0,
+            }
+        );
+
+        let event = alice.next_behaviour_event().await;
+        assert_eq!(
+            event,
             Event::PeerBlocked {
                 peer_id: chad_peer_id,
                 last_reason: ScoreDecreaseReason::ExcessiveData
@@ -390,16 +454,28 @@ mod tests {
             "{event:?}"
         );
 
-        time::advance(alice_config.healing_timer).await;
+        time::advance(alice_config.driver_time).await;
 
         let event = alice.next_behaviour_event().await;
         assert_eq!(
             event,
-            Event::ScoreChanged {
+            Event::PeerUnblocked {
                 peer_id: chad_peer_id,
-                reason: ScoreChangeReason::Increase,
-                score: alice_config.healing_increment
             }
         );
+
+        for i in 0..u8::MAX / alice_config.healing_increment {
+            let event = alice.next_behaviour_event().await;
+            assert_eq!(
+                event,
+                Event::ScoreChanged {
+                    peer_id: chad_peer_id,
+                    reason: ScoreChangeReason::Increase,
+                    score: alice_config.healing_increment * (i + 1)
+                }
+            );
+
+            time::advance(alice_config.driver_time).await;
+        }
     }
 }
