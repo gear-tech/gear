@@ -29,8 +29,8 @@ pub fn get_wasm_gen_config(
             (SyscallName::EnvVars, 0..=0),
             (SyscallName::Send, 10..=15),
             (SyscallName::Exit, 0..=1),
-            (SyscallName::Alloc, 3..=6),
-            (SyscallName::Free, 3..=6),
+            (SyscallName::Alloc, 3..=10),
+            (SyscallName::Free, 3..=10),
             (SyscallName::Wake, 0..=0), // wake not supported yet
         ]
         .map(|(syscall, range)| (InvocableSyscall::Loose(syscall), range))
@@ -39,10 +39,10 @@ pub fn get_wasm_gen_config(
 
     let params_config = SyscallsParamsConfig::new()
         .with_default_regular_config()
-        .with_rule(RegularParamType::Alloc, (1..=10).into())
+        .with_rule(RegularParamType::Alloc, (1..=40).into())
         .with_rule(
             RegularParamType::Free,
-            (initial_pages..=initial_pages + 50).into(),
+            (initial_pages..=initial_pages + 90).into(),
         );
 
     StandardGearWasmConfigsBundle {
