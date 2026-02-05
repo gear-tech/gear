@@ -59,17 +59,17 @@ use ethexe_common::{
     db::ConfigStorageRO,
     ecdsa::{PublicKey, SignedMessage},
     injected::SignedInjectedTransaction,
-    network::CheckedAnnouncesResponse,
+    network::AnnouncesResponse,
 };
 use ethexe_db::Database;
 use ethexe_ethereum::middleware::ElectionProvider;
-use ethexe_signer::Signer;
 use futures::{
     Stream, StreamExt,
     future::BoxFuture,
     stream::{FusedStream, FuturesUnordered},
 };
 use gprimitives::H256;
+use gsigner::secp256k1::{Secp256k1SignerExt, Signer};
 use initial::Initial;
 use std::{
     collections::VecDeque,
@@ -224,7 +224,7 @@ impl ConsensusService for ValidatorService {
         self.update_inner(|inner| inner.process_validation_reply(reply))
     }
 
-    fn receive_announces_response(&mut self, response: CheckedAnnouncesResponse) -> Result<()> {
+    fn receive_announces_response(&mut self, response: AnnouncesResponse) -> Result<()> {
         self.update_inner(|inner| inner.process_announces_response(response))
     }
 
@@ -316,8 +316,8 @@ where
         DefaultProcessing::computed_announce(self.into(), computed_data)
     }
 
-    fn process_announce(self, block: VerifiedAnnounce) -> Result<ValidatorState> {
-        DefaultProcessing::block_from_producer(self, block)
+    fn process_announce(self, announce: VerifiedAnnounce) -> Result<ValidatorState> {
+        DefaultProcessing::announce_from_producer(self, announce)
     }
 
     fn process_validation_request(
@@ -334,10 +334,7 @@ where
         DefaultProcessing::validation_reply(self, reply)
     }
 
-    fn process_announces_response(
-        self,
-        _response: CheckedAnnouncesResponse,
-    ) -> Result<ValidatorState> {
+    fn process_announces_response(self, _response: AnnouncesResponse) -> Result<ValidatorState> {
         DefaultProcessing::announces_response(self, _response)
     }
 
@@ -407,8 +404,8 @@ impl StateHandler for ValidatorState {
         delegate_call!(self => process_computed_announce(computed_data))
     }
 
-    fn process_announce(self, announce: VerifiedAnnounce) -> Result<ValidatorState> {
-        delegate_call!(self => process_announce(announce))
+    fn process_announce(self, verified_announce: VerifiedAnnounce) -> Result<ValidatorState> {
+        delegate_call!(self => process_announce(verified_announce))
     }
 
     fn process_validation_request(
@@ -425,10 +422,7 @@ impl StateHandler for ValidatorState {
         delegate_call!(self => process_validation_reply(reply))
     }
 
-    fn process_announces_response(
-        self,
-        response: CheckedAnnouncesResponse,
-    ) -> Result<ValidatorState> {
+    fn process_announces_response(self, response: AnnouncesResponse) -> Result<ValidatorState> {
         delegate_call!(self => process_announces_response(response))
     }
 
@@ -472,13 +466,13 @@ impl DefaultProcessing {
         Ok(s)
     }
 
-    fn block_from_producer(
+    fn announce_from_producer(
         s: impl Into<ValidatorState>,
         announce: VerifiedAnnounce,
     ) -> Result<ValidatorState> {
         let mut s = s.into();
         s.warning(format!(
-            "unexpected block from producer: {announce:?}, saved for later."
+            "unexpected announce from producer: {announce:?}, saved for later."
         ));
         s.context_mut().pending(announce);
         Ok(s)
@@ -506,7 +500,7 @@ impl DefaultProcessing {
 
     fn announces_response(
         s: impl Into<ValidatorState>,
-        response: CheckedAnnouncesResponse,
+        response: AnnouncesResponse,
     ) -> Result<ValidatorState> {
         let mut s = s.into();
         s.warning(format!(
@@ -553,6 +547,9 @@ impl ValidatorContext {
     }
 
     pub fn sign_message<T: Sized + ToDigest>(&self, data: T) -> Result<SignedMessage<T>> {
-        self.core.signer.signed_message(self.core.pub_key, data)
+        Ok(self
+            .core
+            .signer
+            .signed_message(self.core.pub_key, data, None)?)
     }
 }

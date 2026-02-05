@@ -66,7 +66,7 @@ pub enum InstanceError {
     SpAllocator(#[from] sp_allocator::Error),
 }
 
-pub(super) type Result<T> = std::result::Result<T, InstanceError>;
+pub(super) type Result<T, E = InstanceError> = std::result::Result<T, E>;
 
 /// Returns wasm runtime bytes.
 ///

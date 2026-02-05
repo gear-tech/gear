@@ -1019,7 +1019,7 @@ impl GlobalsStorageRO for Database {
 }
 
 impl GlobalsStorageRW for Database {
-    fn mutate_globals<R>(&self, mut f: impl FnMut(&mut DBGlobals) -> R) -> R {
+    fn globals_mutate<R>(&self, mut f: impl FnMut(&mut DBGlobals) -> R) -> R {
         let mut globals = self
             .globals
             .write()
@@ -1067,14 +1067,17 @@ mod mock {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use ethexe_common::{ecdsa::PrivateKey, events::RouterEvent};
+    use ethexe_common::{
+        ecdsa::PrivateKey,
+        events::{RouterEvent, router::StorageSlotChangedEvent},
+    };
     use gear_core::code::{InstantiatedSectionSizes, InstrumentationStatus};
 
     #[test]
     fn test_injected_transaction() {
         let db = Database::memory();
 
-        let private_key = PrivateKey::from([1; 32]);
+        let private_key = PrivateKey::from_seed([1; 32]).expect("valid seed");
         let tx = SignedInjectedTransaction::create(
             private_key,
             InjectedTransaction {
@@ -1144,7 +1147,11 @@ mod tests {
         let db = Database::memory();
 
         let block_hash = H256::random();
-        let events = vec![BlockEvent::Router(RouterEvent::StorageSlotChanged)];
+        let events = vec![BlockEvent::Router(RouterEvent::StorageSlotChanged(
+            StorageSlotChangedEvent {
+                slot: H256::random(),
+            },
+        ))];
         db.set_block_events(block_hash, &events);
         assert_eq!(db.block_events(block_hash), Some(events));
     }

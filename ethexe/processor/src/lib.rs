@@ -47,8 +47,8 @@ mod host;
 #[cfg(test)]
 mod tests;
 
-// Default amount of virtual threads to use for programs processing.
-pub const DEFAULT_CHUNK_PROCESSING_THREADS: NonZero<usize> = NonZero::new(16).unwrap();
+// Default amount of programs in one chunk to be processed in parallel.
+pub const DEFAULT_CHUNK_SIZE: NonZero<usize> = NonZero::new(16).unwrap();
 
 #[derive(thiserror::Error, Debug)]
 pub enum ProcessorError {
@@ -90,13 +90,14 @@ type Result<T, E = ProcessorError> = std::result::Result<T, E>;
 
 #[derive(Clone, Debug)]
 pub struct ProcessorConfig {
+    /// Number of programs to be processed in one chunk (in parallel).
     pub chunk_size: usize,
 }
 
 impl Default for ProcessorConfig {
     fn default() -> Self {
         Self {
-            chunk_size: DEFAULT_CHUNK_PROCESSING_THREADS.get(),
+            chunk_size: DEFAULT_CHUNK_SIZE.get(),
         }
     }
 }
@@ -197,7 +198,6 @@ impl Processor {
             injected_messages,
         );
 
-        transitions = self.process_tasks(transitions);
         transitions =
             self.process_injected_and_events(transitions, injected_transactions, events)?;
         if let Some(gas_allowance) = gas_allowance {
@@ -205,6 +205,7 @@ impl Processor {
                 .process_queues(transitions, block, gas_allowance)
                 .await?;
         }
+        transitions = self.process_tasks(transitions);
 
         Ok(transitions.finalize())
     }

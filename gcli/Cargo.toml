@@ -14,32 +14,47 @@ rust-version.workspace = true
 
 [dependencies]
 gsdk.workspace = true
-async-trait.workspace = true
 colored.workspace = true
 anyhow.workspace = true
+derive_more.workspace = true
 dirs.workspace = true
 tracing-subscriber.workspace = true
 gear-core.workspace = true
-gring = { workspace = true, features = ["cli"] }
+gsigner = { workspace = true, features = [
+    "std",
+    "cli",
+    "keyring",
+    "secp256k1",
+    "sr25519",
+    "ed25519",
+    "codec",
+    "serde",
+] }
 hex.workspace = true
-log.workspace = true
 scale-info.workspace = true
 serde.workspace = true
 clap = { workspace = true, features = ["std", "derive"] }
 tokio = { workspace = true, features = ["full"] }
-reqwest = { workspace = true, default-features = false, features = ["json", "rustls-tls"] }
+reqwest = { workspace = true, default-features = false, features = [
+    "json",
+    "rustls-tls",
+] }
 etc.workspace = true
 runtime-primitives.workspace = true
 url = { workspace = true, features = ["serde"] }
 toml.workspace = true
 gear-workspace-hack.workspace = true
 
-[dev-dependencies]
-demo-messenger.workspace = true
-demo-fungible-token.workspace = true
-gear-node-wrapper.workspace = true
-
 [build-dependencies]
+
+[features]
+default = ["self-update"]
+self-update = []
+
+[dev-dependencies]
+snapbox.workspace = true
+gear-node-wrapper.workspace = true
+indoc.workspace = true
 
 [package.metadata.docs.rs]
 all-features = true

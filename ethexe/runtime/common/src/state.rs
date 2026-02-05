@@ -963,7 +963,7 @@ pub type MemoryPagesInner = [MaybeHashOf<MemoryPagesRegion>; MemoryPages::REGION
 
 impl MemoryPages {
     /// Copy of the gear_core constant defining max pages amount per program.
-    pub const MAX_PAGES: usize = gear_core::code::MAX_WASM_PAGES_AMOUNT as usize;
+    pub const MAX_PAGES: usize = 4 * gear_core::code::MAX_WASM_PAGES_AMOUNT as usize;
 
     /// Granularity parameter of how memory pages hashes are stored.
     ///

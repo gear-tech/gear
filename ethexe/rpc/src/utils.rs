@@ -19,7 +19,7 @@
 use crate::errors;
 use ethexe_common::{
     Announce, HashOf, SimpleBlockData,
-    db::{AnnounceStorageRO, BlockMetaStorageRO, OnChainStorageRO},
+    db::{AnnounceStorageRO, BlockMetaStorageRO, GlobalsStorageRO, OnChainStorageRO},
 };
 use ethexe_db::Database;
 use jsonrpsee::core::RpcResult;

@@ -219,7 +219,7 @@ mod std_interfaces {
 
     #[auto_impl::auto_impl(&, Box)]
     pub trait GlobalsStorageRW: GlobalsStorageRO {
-        fn mutate_globals<R>(&self, f: impl FnMut(&mut DBGlobals) -> R) -> R;
+        fn globals_mutate<R>(&self, f: impl FnMut(&mut DBGlobals) -> R) -> R;
     }
 
     #[auto_impl::auto_impl(&, Box)]

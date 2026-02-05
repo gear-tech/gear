@@ -44,37 +44,6 @@ pub const fn u64_into_uint48_be_bytes_lossy(val: u64) -> [u8; 6] {
     [b1, b2, b3, b4, b5, b6]
 }
 
-// pub fn setup_start_block_in_db<DB: OnChainStorageRW + BlockMetaStorageRW + AnnounceStorageRW>(
-//     db: &DB,
-//     start_block_hash: H256,
-//     start_block_data: PreparedBlockData,
-//     start_announce_data: ComputedAnnounceData,
-// ) {
-//     let announce_hash = start_announce_data.announce.to_hash();
-//     let latest_synced_block = SimpleBlockData {
-//         hash: start_block_hash,
-//         header: start_block_data.header,
-//     };
-
-//     assert_eq!(
-//         start_block_data.announces,
-//         [announce_hash].into(),
-//         "start block and announce data incompatible"
-//     );
-
-//     setup_block_in_db(db, start_block_hash, start_block_data);
-//     setup_announce_in_db(db, start_announce_data);
-
-//     db.mutate_latest_data(|latest| {
-//         latest.synced_block = latest_synced_block;
-//         latest.prepared_block_hash = start_block_hash;
-//         latest.computed_announce_hash = announce_hash;
-//         latest.start_block_hash = start_block_hash;
-//         latest.start_announce_hash = announce_hash;
-//     })
-//     .expect("Latest data must be set before `setup_genesis_in_db` calling");
-// }
-
 pub fn setup_block_in_db<DB: OnChainStorageRW + BlockMetaStorageRW>(
     db: &DB,
     block_hash: H256,

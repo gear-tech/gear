@@ -174,7 +174,7 @@ impl ObserverService {
         } = eth_cfg;
 
         let router_query = RouterQuery::new(rpc, *router_address).await?;
-        let middleware_address = router_query.middleware_address().await?.into();
+        let middleware_address = router_query.middleware_address().await?;
 
         let provider = ProviderBuilder::default()
             .connect(rpc)
@@ -211,55 +211,6 @@ impl ObserverService {
             headers_stream,
         })
     }
-
-    // +_+_+ remove
-    // TODO #4563: this is a temporary solution
-    /// Setup genesis block in the database if it's not prepared yet.
-    // async fn pre_process_genesis_for_db(
-    //     db: &Database,
-    //     provider: &RootProvider,
-    //     router_query: &RouterQuery,
-    // ) -> Result<H256> {
-    //     let genesis_block_hash = router_query.genesis_block_hash().await?;
-
-    //     if db.block_meta(genesis_block_hash).prepared {
-    //         return Ok(genesis_block_hash);
-    //     }
-
-    //     let genesis_block = provider
-    //         .get_block_by_hash(genesis_block_hash.0.into())
-    //         .await?
-    //         .ok_or_else(|| {
-    //             anyhow!("Genesis block with hash {genesis_block_hash:?} not found by rpc")
-    //         })?;
-
-    //     let genesis_header = BlockHeader {
-    //         height: genesis_block.header.number as u32,
-    //         timestamp: genesis_block.header.timestamp,
-    //         parent_hash: H256(genesis_block.header.parent_hash.0),
-    //     };
-
-    //     let router_timelines = router_query.timelines().await?;
-    //     let timelines = ProtocolTimelines {
-    //         genesis_ts: genesis_header.timestamp,
-    //         era: router_timelines.era,
-    //         election: router_timelines.election,
-    //         slot: 12,
-    //     };
-    //     let genesis_validators = router_query.validators_at(genesis_block_hash).await?;
-
-    //     ethexe_common::setup_genesis_in_db(
-    //         db,
-    //         SimpleBlockData {
-    //             hash: genesis_block_hash,
-    //             header: genesis_header,
-    //         },
-    //         genesis_validators,
-    //         timelines,
-    //     );
-
-    //     Ok(genesis_block_hash)
-    // }
 
     pub fn provider(&self) -> &RootProvider {
         &self.provider

@@ -210,3 +210,12 @@ impl From<Gear::GenesisBlockInfo> for (H256, u32, u64) {
         )
     }
 }
+
+impl From<Gear::ComputationSettings> for ComputationSettings {
+    fn from(value: Gear::ComputationSettings) -> Self {
+        Self {
+            threshold: value.threshold,
+            wvara_per_second: value.wvaraPerSecond,
+        }
+    }
+}

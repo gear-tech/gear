@@ -196,7 +196,7 @@ impl<P: ProcessorExt> ComputeSubService<P> {
             meta.computed = true;
         });
 
-        db.mutate_globals(|globals| {
+        db.globals_mutate(|globals| {
             globals.latest_computed_announce_hash = announce_hash;
         });
 

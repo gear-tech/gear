@@ -142,7 +142,7 @@ pub mod symbiotic_abi {
     }
 }
 
-impl Router::StorageView {
+impl IRouter::StorageView {
     pub fn protocol_timelines(&self) -> ProtocolTimelines {
         ProtocolTimelines {
             genesis_ts: self.genesisBlock.timestamp.to::<u64>(),
@@ -206,6 +206,11 @@ pub mod utils {
 
     pub fn u64_to_uint48_lossy(value: u64) -> Uint48 {
         Uint48::try_from(value).unwrap_or(Uint48::MAX)
+    }
+
+    pub fn uint48_to_u64(value: Uint48) -> u64 {
+        let [limb] = value.into_limbs();
+        limb
     }
 
     pub fn uint256_to_u128_lossy(value: Uint256) -> u128 {

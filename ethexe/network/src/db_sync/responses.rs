@@ -18,15 +18,15 @@
 
 use crate::{
     db_sync::{
-        Config, DbSyncDatabase, InnerBehaviour, InnerHashesResponse, InnerProgramIdsResponse,
-        InnerRequest, InnerResponse, ResponseId,
+        Config, DbSyncDatabase, InnerAnnouncesResponse, InnerBehaviour, InnerHashesResponse,
+        InnerProgramIdsResponse, InnerRequest, InnerResponse, ResponseId,
     },
     export::PeerId,
 };
 use ethexe_common::{
     Announce, HashOf,
     db::{AnnounceStorageRO, BlockMetaStorageRO, ConfigStorageRO, GlobalsStorageRO},
-    network::{AnnouncesRequest, AnnouncesRequestUntil, AnnouncesResponse},
+    network::{AnnouncesRequest, AnnouncesRequestUntil},
 };
 use libp2p::request_response;
 use std::{
@@ -98,7 +98,7 @@ impl OngoingResponses {
                 match Self::process_announce_request(&db, request) {
                     Ok(response) => response.into(),
                     Err(e) => {
-                        log::warn!("cannot complete request: {e}");
+                        log::trace!("cannot complete announces request {request:?}: {e}");
                         InnerResponse::Announces(Default::default())
                     }
                 }
@@ -109,7 +109,7 @@ impl OngoingResponses {
     fn process_announce_request<DB: AnnounceStorageRO + GlobalsStorageRO + ConfigStorageRO>(
         db: &DB,
         request: AnnouncesRequest,
-    ) -> Result<AnnouncesResponse, ProcessAnnounceError> {
+    ) -> Result<InnerAnnouncesResponse, ProcessAnnounceError> {
         let AnnouncesRequest { head, until } = request;
 
         // Check the requested chain length first to prevent abuse
@@ -120,7 +120,7 @@ impl OngoingResponses {
             return Err(ProcessAnnounceError::ChainLenExceedsMax { requested: len });
         }
 
-        let genesis_announce_hash = db.config().genesis_announce_hash();
+        let genesis_announce_hash = db.config().genesis_announce_hash;
         let start_announce_hash = db.globals().start_announce_hash;
 
         let mut announces = VecDeque::new();
@@ -128,14 +128,10 @@ impl OngoingResponses {
         for _ in 0..MAX_CHAIN_LEN_FOR_ANNOUNCES_RESPONSE.get() {
             match until {
                 AnnouncesRequestUntil::Tail(tail) if announce_hash == tail => {
-                    return Ok(AnnouncesResponse {
-                        announces: announces.into(),
-                    });
+                    return Ok(InnerAnnouncesResponse(announces.into()));
                 }
                 AnnouncesRequestUntil::ChainLen(len) if announces.len() == len.get() as usize => {
-                    return Ok(AnnouncesResponse {
-                        announces: announces.into(),
-                    });
+                    return Ok(InnerAnnouncesResponse(announces.into()));
                 }
                 _ => {}
             }
@@ -233,9 +229,10 @@ enum ProcessAnnounceError {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::db_sync::requests::ResponseHandler;
     use ethexe_common::{
-        Announce, HashOf, ProtocolTimelines, SimpleBlockData,
-        db::{AnnounceStorageRW, DBConfig, SetConfig, SetGlobals},
+        Announce, HashOf, ProtocolTimelines,
+        db::{AnnounceStorageRW, DBConfig, GlobalsStorageRW, SetConfig},
     };
     use ethexe_db::Database;
     use gprimitives::H256;
@@ -251,20 +248,11 @@ mod tests {
             chain_id: 0,
             router_address: Default::default(),
             timelines: ProtocolTimelines::default(),
-            genesis_block_hash: todo!(),
-        });
-        db.set_latest_data(LatestData {
-            synced_block: SimpleBlockData {
-                hash: H256::zero(),
-                header: Default::default(),
-            },
-            prepared_block_hash: H256::zero(),
-            computed_announce_hash: HashOf::zero(),
             genesis_block_hash: H256::zero(),
             genesis_announce_hash: genesis,
-            start_block_hash: H256::zero(),
-            start_announce_hash: start,
         });
+
+        db.globals_mutate(|globals| globals.start_announce_hash = start);
     }
 
     #[test]
@@ -283,18 +271,6 @@ mod tests {
             err,
             ProcessAnnounceError::ChainLenExceedsMax { requested: len }
         );
-    }
-
-    #[test]
-    fn fails_latest_data_missing() {
-        let db = Database::memory();
-        let request = AnnouncesRequest {
-            head: HashOf::zero(),
-            until: AnnouncesRequestUntil::Tail(HashOf::zero()),
-        };
-
-        let err = OngoingResponses::process_announce_request(&db, request).unwrap_err();
-        assert_eq!(err, ProcessAnnounceError::LatestDataMissing);
     }
 
     #[test]
@@ -411,8 +387,8 @@ mod tests {
         };
 
         let response = OngoingResponses::process_announce_request(&db, request).unwrap();
-        assert_eq!(response.announces, vec![middle, head]);
-        response.try_into_checked(request).unwrap();
+        assert_eq!(response.0, vec![middle, head]);
+        ResponseHandler::handle_announces(response, request).unwrap_done();
     }
 
     #[test]
@@ -437,7 +413,7 @@ mod tests {
         };
 
         let response = OngoingResponses::process_announce_request(&db, request).unwrap();
-        assert_eq!(response.announces, vec![middle, head]);
-        response.try_into_checked(request).unwrap();
+        assert_eq!(response.0, vec![middle, head]);
+        ResponseHandler::handle_announces(response, request).unwrap_done();
     }
 }

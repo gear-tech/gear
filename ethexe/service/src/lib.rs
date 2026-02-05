@@ -24,12 +24,7 @@ use alloy::{
 use anyhow::{Context, Result, bail};
 use async_trait::async_trait;
 use ethexe_blob_loader::{BlobLoader, BlobLoaderEvent, BlobLoaderService, ConsensusLayerConfig};
-use ethexe_common::{
-    Address, COMMITMENT_DELAY_LIMIT,
-    ecdsa::{PrivateKey, PublicKey},
-    gear::CodeState,
-    network::VerifiedValidatorMessage,
-};
+use ethexe_common::{COMMITMENT_DELAY_LIMIT, gear::CodeState, network::VerifiedValidatorMessage};
 use ethexe_compute::{ComputeConfig, ComputeEvent, ComputeService};
 use ethexe_consensus::{
     ConnectService, ConsensusEvent, ConsensusService, ValidatorConfig, ValidatorService,
@@ -46,12 +41,19 @@ use ethexe_observer::{
 };
 use ethexe_processor::{Processor, ProcessorConfig};
 use ethexe_prometheus::{PrometheusEvent, PrometheusService};
-use ethexe_rpc::{InjectedTransactionAcceptance, RpcEvent, RpcServer};
+use ethexe_rpc::{RpcEvent, RpcServer};
 use ethexe_service_utils::{OptionFuture as _, OptionStreamNext as _};
-use ethexe_signer::Signer;
 use futures::{StreamExt, stream::FuturesUnordered};
 use gprimitives::{ActorId, CodeId, H256};
-use std::{collections::BTreeSet, num::NonZero, path::PathBuf, pin::Pin, time::Duration};
+use gsigner::secp256k1::{Address, PrivateKey, PublicKey, Signer};
+use std::{
+    collections::{BTreeSet, HashMap},
+    num::NonZero,
+    path::PathBuf,
+    pin::Pin,
+    time::Duration,
+};
+use tokio::sync::oneshot;
 
 pub mod config;
 
@@ -128,7 +130,7 @@ impl Service {
         block_time: Duration,
         pre_funded_accounts: u32,
     ) -> Result<(AnvilInstance, PublicKey, Address)> {
-        let signer = Signer::fs(key_path);
+        let signer = Signer::fs(key_path).with_context(|| "failed to open dev keystore")?;
 
         let pre_funded_accounts = pre_funded_accounts
             .checked_add(Self::RESERVED_DEV_ACCOUNTS)
@@ -144,14 +146,17 @@ impl Service {
         let mut it = anvil
             .keys()
             .iter()
-            .map(|key| PrivateKey::from(key.clone()))
+            .map(|key| {
+                let seed = key.to_bytes().into();
+                PrivateKey::from_seed(seed).expect("anvil should provide valid secp256k1 key")
+            })
             .zip(anvil.addresses().iter().map(|addr| Address::from(*addr)));
 
         let (deployer_private_key, deployer_address) = it.next().expect("infallible");
         let (validator_private_key, validator_address) = it.next().expect("infallible");
 
-        signer.storage_mut().add_key(deployer_private_key)?;
-        let validator_public_key = signer.storage_mut().add_key(validator_private_key)?;
+        signer.import(deployer_private_key.clone())?;
+        let validator_public_key = signer.import(validator_private_key.clone())?;
 
         log::info!("🔐 Available Accounts:");
 
@@ -160,7 +165,7 @@ impl Service {
 
         for ((sender_private_key, sender_address), i) in it.clone().zip(1_usize..) {
             log::info!("     Sender:    {sender_address} {sender_private_key} (#{i})");
-            signer.storage_mut().add_key(sender_private_key)?;
+            signer.import(sender_private_key)?;
         }
 
         let ethereum =
@@ -191,14 +196,14 @@ impl Service {
             .anvil_set_balance(validator_address.into(), balance)
             .await?;
 
-        wvara.mint(validator_address.into(), amount).await?;
+        wvara.mint(validator_address, amount).await?;
 
         for (_, sender_address) in it {
             provider
                 .anvil_set_balance(sender_address.into(), balance)
                 .await?;
 
-            wvara.mint(sender_address.into(), amount).await?;
+            wvara.mint(sender_address, amount).await?;
         }
 
         provider
@@ -274,7 +279,7 @@ impl Service {
         log::info!("👥 Current validators set: {validators:?}");
 
         let threshold = router_query
-            .threshold()
+            .validators_threshold()
             .await
             .with_context(|| "failed to query validators threshold")?;
         log::info!("🔒 Multisig threshold: {threshold} / {}", validators.len());
@@ -292,7 +297,7 @@ impl Service {
             processor.config().chunk_size
         );
 
-        let signer = Signer::fs(config.node.key_path.clone());
+        let signer = Signer::fs(config.node.key_path.clone())?;
 
         let validator_pub_key = Self::get_config_public_key(config.node.validator, &signer)
             .with_context(|| "failed to get validator private key")?;
@@ -354,7 +359,7 @@ impl Service {
                     .parent()
                     .context("key_path has no parent directory")?
                     .join("net"),
-            );
+            )?;
 
             let latest_block_data = observer
                 .block_loader()
@@ -410,7 +415,7 @@ impl Service {
     fn get_config_public_key(key: ConfigPublicKey, signer: &Signer) -> Result<Option<PublicKey>> {
         match key {
             ConfigPublicKey::Enabled(key) => Ok(Some(key)),
-            ConfigPublicKey::Random => Ok(Some(signer.generate_key()?)),
+            ConfigPublicKey::Random => Ok(Some(signer.generate()?)),
             ConfigPublicKey::Disabled => Ok(None),
         }
     }
@@ -493,6 +498,7 @@ impl Service {
             .await;
 
         let mut network_fetcher = FuturesUnordered::new();
+        let mut network_injected_txs: HashMap<_, oneshot::Sender<_>> = HashMap::new();
 
         loop {
             let event: Event = tokio::select! {
@@ -582,10 +588,34 @@ impl Service {
                                 }
                             };
                         }
-                        NetworkEvent::InjectedTransaction(transaction) => {
-                            consensus.receive_injected_transaction(transaction)?;
+                        NetworkEvent::InjectedTransaction(event) => match event {
+                            ethexe_network::NetworkInjectedEvent::InboundTransaction {
+                                transaction,
+                                channel,
+                            } => {
+                                let res = consensus.receive_injected_transaction(transaction);
+                                channel
+                                    .send(res.into())
+                                    .expect("channel must never be closed");
+                            }
+                            ethexe_network::NetworkInjectedEvent::OutboundAcceptance {
+                                transaction_hash,
+                                acceptance,
+                            } => {
+                                let response_sender = network_injected_txs
+                                    .remove(&transaction_hash)
+                                    .expect("unknown transaction");
+                                let _res = response_sender.send(acceptance);
+                            }
+                        },
+                        NetworkEvent::PromiseMessage(promise) => {
+                            if let Some(rpc) = &rpc {
+                                rpc.provide_promise(promise);
+                            }
                         }
-                        NetworkEvent::PeerBlocked(_) | NetworkEvent::PeerConnected(_) => {}
+                        NetworkEvent::ValidatorIdentityUpdated(_)
+                        | NetworkEvent::PeerBlocked(_)
+                        | NetworkEvent::PeerConnected(_) => {}
                     }
                 }
                 Event::Prometheus(event) => {
@@ -607,6 +637,15 @@ impl Service {
                                 metrics.blocks_queue_len,
                                 metrics.waiting_codes_count,
                                 metrics.process_codes_count,
+                                metrics
+                                    .latest_committed_block
+                                    .as_ref()
+                                    .map(|b| b.header.height as u64),
+                                metrics
+                                    .latest_committed_block
+                                    .as_ref()
+                                    .map(|b| b.header.timestamp),
+                                metrics.time_since_latest_committed_secs,
                             );
 
                             // TODO #4643: support metrics for consensus service
@@ -621,20 +660,31 @@ impl Service {
                             transaction,
                             response_sender,
                         } => {
-                            // Note: zero address means that no matter what validator will insert this tx.
-                            if transaction.recipient == Address::default()
-                                || validator_address == Some(transaction.recipient)
-                            {
-                                consensus.receive_injected_transaction(transaction.tx)?;
+                            // zero address means that no matter what validator will insert this tx.
+                            let is_zero_address = transaction.recipient == Address::default();
+                            let is_our_address = Some(transaction.recipient) == validator_address;
+
+                            if is_zero_address || is_our_address {
+                                let acceptance = consensus
+                                    .receive_injected_transaction(transaction.tx)
+                                    .into();
+                                let _res = response_sender.send(acceptance);
                             } else {
                                 let Some(network) = network.as_mut() else {
                                     continue;
                                 };
 
-                                network.send_injected_transaction(transaction);
-                            }
+                                let tx_hash = transaction.tx.data().to_hash();
 
-                            let _res = response_sender.send(InjectedTransactionAcceptance::Accept);
+                                match network.send_injected_transaction(transaction) {
+                                    Ok(()) => {
+                                        network_injected_txs.insert(tx_hash, response_sender);
+                                    }
+                                    Err(err) => {
+                                        let _res = response_sender.send(Err(err).into());
+                                    }
+                                }
+                            }
                         }
                     }
                 }
@@ -664,11 +714,19 @@ impl Service {
                         // TODO #4940: consider to publish network message
                     }
                     ConsensusEvent::Promises(promises) => {
-                        if let Some(ref mut rpc) = rpc {
-                            rpc.provide_promises(promises);
+                        if rpc.is_none() && network.is_none() {
+                            panic!("Promise without network or rpc");
                         }
 
-                        // TODO kuzmindev: also should be sent to network peer, that waits for transaction promise
+                        if let Some(rpc) = &rpc {
+                            rpc.provide_promises(promises.clone());
+                        }
+
+                        if let Some(network) = &mut network {
+                            for promise in promises {
+                                network.publish_promise(promise);
+                            }
+                        }
                     }
                 },
                 Event::Fetching(result) => {
