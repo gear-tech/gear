@@ -30,7 +30,7 @@ use jsonrpsee::{
     PendingSubscriptionSink, SubscriptionMessage, SubscriptionSink,
     core::{RpcResult, SubscriptionResult, async_trait},
     proc_macros::rpc,
-    types::error::ErrorObjectOwned,
+    types::{ErrorCode, error::ErrorObjectOwned},
 };
 use std::sync::Arc;
 use tokio::sync::{mpsc, oneshot};
@@ -111,17 +111,27 @@ impl InjectedServer for InjectedApi {
             );
         }
 
-        let subscription_sink = match self.forward_transaction(transaction).await? {
-            InjectedTransactionAcceptance::Accept => pending.accept().await.inspect_err(|err| {
-                tracing::warn!(
-                    "failed to accept subscription for injected transaction promise: {err}"
-                );
-            })?,
-            InjectedTransactionAcceptance::Reject { reason } => {
+        let subscription_sink = match self.forward_transaction(transaction).await {
+            Ok(InjectedTransactionAcceptance::Accept) => {
+                pending.accept().await.inspect_err(|err| {
+                    tracing::warn!(
+                        "failed to accept subscription for injected transaction promise: {err}"
+                    );
+                })?
+            }
+            Ok(InjectedTransactionAcceptance::Reject { reason }) => {
                 tracing::trace!(
                     "subscription for injected transaction promise was rejected because of: {reason}"
                 );
-                pending.reject(errors::bad_request(reason)).await;
+                let e = ErrorObjectOwned::from(ErrorCode::InvalidParams);
+                // pending.reject(errors::bad_request(reason)).await;
+                tracing::error!("rejecting transaction here");
+                pending.reject(e).await;
+                return Ok(());
+            }
+            Err(err) => {
+                tracing::trace!("subscription for promise was rejected because of error: {err}");
+                pending.reject(err).await;
                 return Ok(());
             }
         };
@@ -186,9 +196,7 @@ impl InjectedApi {
                 value = transaction.tx.data().value,
                 "Injected transaction with non-zero value is not supported"
             );
-            return Err(errors::bad_request(
-                "Injected transactions with non-zero value are not supported",
-            ));
+            return Err(ErrorObjectOwned::from(ErrorCode::InvalidParams));
         }
 
         let event = RpcEvent::InjectedTransaction {

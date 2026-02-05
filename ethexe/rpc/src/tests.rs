@@ -20,7 +20,7 @@ use crate::{
     InjectedApi, InjectedClient, InjectedTransactionAcceptance, RpcConfig, RpcEvent, RpcServer,
     RpcService,
 };
-
+use anyhow::Result;
 use ethexe_common::{
     ecdsa::PrivateKey,
     gear::MAX_BLOCK_GAS_LIMIT,
@@ -34,7 +34,12 @@ use gear_core::{
     message::{ReplyCode, SuccessReplyReason},
     rpc::ReplyInfo,
 };
-use jsonrpsee::{server::ServerHandle, ws_client::WsClientBuilder};
+use jsonrpsee::{
+    core::client::Error as JsonRpcError,
+    server::ServerHandle,
+    types::{ErrorCode},
+    ws_client::{WsClient, WsClientBuilder},
+};
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
 use tokio::task::{JoinHandle, JoinSet};
 
@@ -111,11 +116,19 @@ async fn start_new_server(listen_addr: SocketAddr) -> (ServerHandle, RpcService)
         .expect("RPC Server will start successfully")
 }
 
+async fn new_ws_client(url: impl AsRef<str>) -> Result<WsClient> {
+    WsClientBuilder::new().build(url).await.map_err(Into::into)
+}
+
 /// This helper function waits until all promise subscriptions being closed and cleaned up.
 async fn wait_for_closed_subscriptions(injected_api: InjectedApi) {
     while injected_api.promise_subscribers_count() > 0 {
         tokio::time::sleep(std::time::Duration::from_millis(10)).await;
     }
+}
+
+fn try_init_logger() {
+    let _ = tracing_subscriber::fmt::try_init();
 }
 
 #[tokio::test]
@@ -253,4 +266,46 @@ async fn test_concurrent_multiple_clients() {
 
     let _ = tasks.join_all().await;
     wait_for_closed_subscriptions(injected_api).await;
+}
+
+#[tokio::test]
+async fn test_rpc_server_errors() {
+    try_init_logger();
+
+    const INVALID_TRANSACTION: &str = "
+      {
+        \"recipient\": \"0x0000000000000000000000000000000000000000\",
+        \"tx\": {
+          \"data\": {
+            \"destination\": \"0x1566de93e5a0e3baf567239e95030110feabd8df\",
+            \"payload\": \"0x\",
+            \"value\": 10,
+            \"reference_block\": \"0x457e2af4d7be721fc74da0034d6e5cc23dd8c41971302230e7e1f6d3234d14e3\",
+            \"salt\": \"0x5fb82ec819dc15fe6ec1ed7d5d6ad59eb8b7db4ca584896fc8b83db1c5f515c9\"
+          },
+          \"signature\": \"0x22f7b3223625cfea5a5c05d0dcbed5492ebf2c16f87266c92c68e83cb67e2be80e9dbe25cee00c7c17425e21c753e081c827e2c69546ba676afe9e72c7786ae41c\",
+          \"address\": \"0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266\"
+        }
+      }
+    ";
+
+    let listen_addr = SocketAddr::new(IpAddr::V4(Ipv4Addr::LOCALHOST), 8033);
+    let (_handle, _service) = start_new_server(listen_addr).await;
+
+    let ws_addr = format!("ws://{listen_addr}");
+    let client = new_ws_client(ws_addr).await.expect("connection to server");
+
+    let transaction =
+        serde_json::from_str(INVALID_TRANSACTION).expect("successfully deserialize from string");
+    let error = client
+        .send_transaction_and_watch(transaction)
+        .await
+        .unwrap_err();
+    println!("error from rpc: {error:?}");
+
+    let JsonRpcError::Call(error) = error else {
+        panic!("error")
+    };
+    println!("code: {}", error.code());
+    assert_eq!(error.code(), ErrorCode::InvalidParams.code());
 }
