@@ -133,7 +133,9 @@ async fn basics() {
     config.rpc = Some(RpcConfig {
         listen_addr: SocketAddr::new(Ipv4Addr::LOCALHOST.into(), 9944),
         cors: None,
-        gas_allowance: DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER * config.node.block_gas_limit,
+        gas_allowance: DEFAULT_BLOCK_GAS_LIMIT_MULTIPLIER
+            .checked_mul(config.node.block_gas_limit)
+            .unwrap(),
         chunk_size: config.node.chunk_processing_threads,
     });
 
