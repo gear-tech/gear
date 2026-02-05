@@ -25,12 +25,14 @@ use alloy::{
     sol_types::{Error, SolEvent},
 };
 use anyhow::Result;
-use ethexe_common::events::{
-    WVaraEvent,
-    wvara::{ApprovalEvent, TransferEvent},
+use ethexe_common::{
+    Address,
+    events::{
+        WVaraEvent,
+        wvara::{ApprovalEvent, TransferEvent},
+    },
 };
 use futures::{Stream, StreamExt};
-use gprimitives::ActorId;
 use signatures::*;
 
 pub mod signatures {
@@ -61,8 +63,8 @@ pub fn try_extract_event(log: &Log) -> Result<Option<WVaraEvent>> {
 
 pub struct TransferEventBuilder<'a> {
     event: Event<&'a RootProvider, IWrappedVara::Transfer>,
-    from: Option<ActorId>,
-    to: Option<ActorId>,
+    from: Option<Address>,
+    to: Option<Address>,
 }
 
 impl<'a> TransferEventBuilder<'a> {
@@ -74,12 +76,12 @@ impl<'a> TransferEventBuilder<'a> {
         }
     }
 
-    pub fn from(mut self, from: ActorId) -> Self {
+    pub fn from(mut self, from: Address) -> Self {
         self.from = Some(from);
         self
     }
 
-    pub fn to(mut self, to: ActorId) -> Self {
+    pub fn to(mut self, to: Address) -> Self {
         self.to = Some(to);
         self
     }
@@ -106,8 +108,8 @@ impl<'a> TransferEventBuilder<'a> {
 
 pub struct ApprovalEventBuilder<'a> {
     event: Event<&'a RootProvider, IWrappedVara::Approval>,
-    owner: Option<ActorId>,
-    spender: Option<ActorId>,
+    owner: Option<Address>,
+    spender: Option<Address>,
 }
 
 impl<'a> ApprovalEventBuilder<'a> {
@@ -119,12 +121,12 @@ impl<'a> ApprovalEventBuilder<'a> {
         }
     }
 
-    pub fn owner(mut self, owner: ActorId) -> Self {
+    pub fn owner(mut self, owner: Address) -> Self {
         self.owner = Some(owner);
         self
     }
 
-    pub fn spender(mut self, spender: ActorId) -> Self {
+    pub fn spender(mut self, spender: Address) -> Self {
         self.spender = Some(spender);
         self
     }

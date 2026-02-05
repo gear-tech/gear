@@ -176,8 +176,8 @@ mod tests {
     use super::*;
     use ethexe_common::{StateHashWithQueueSize, db::*, mock::*};
     use ethexe_runtime_common::state::{Program, ProgramState, Storage};
-    use ethexe_signer::Signer;
     use gprimitives::ActorId;
+    use gsigner::secp256k1::{Secp256k1SignerExt, Signer};
 
     #[test]
     fn test_select_for_announce() {
@@ -214,14 +214,14 @@ mod tests {
         let mut tx_pool = TransactionPool::new(db.clone());
 
         let signer = Signer::memory();
-        let key = signer.generate_key().unwrap();
+        let key = signer.generate().unwrap();
         let tx = InjectedTransaction {
             reference_block: chain.blocks[9].hash,
             destination: program_id,
             ..InjectedTransaction::mock(())
         };
         let tx_hash = tx.to_hash();
-        let signed_tx = signer.signed_message(key, tx).unwrap();
+        let signed_tx = signer.signed_message(key, tx, None).unwrap();
 
         assert!(tx_pool.add_transaction(signed_tx.clone()).is_added());
 
@@ -237,7 +237,7 @@ mod tests {
         };
         assert!(
             tx_pool
-                .add_transaction(signer.signed_message(key, tx2).unwrap())
+                .add_transaction(signer.signed_message(key, tx2, None).unwrap())
                 .is_not_added(),
         );
 

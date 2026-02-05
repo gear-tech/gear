@@ -56,7 +56,7 @@ demo-vec.workspace = true
 demo-reserve-gas = { workspace = true, features = ["std"] }
 demo-waiter = { workspace = true, features = ["std"] }
 demo-wat.workspace = true
-serde_json = { workspace = true, features = [ "std" ] }
+serde_json = { workspace = true, features = ["std"] }
 wat.workspace = true
 
 [features]

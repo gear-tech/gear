@@ -39,8 +39,8 @@ use ethexe_ethereum::{
     router::CodeValidationResult,
 };
 use ethexe_rpc::{InjectedClient, ProgramClient, PromiseOrNotification};
-use ethexe_signer::Signer;
 use gprimitives::{ActorId, CodeId, H160, H256, MessageId, U256};
+use gsigner::secp256k1::{Secp256k1SignerExt, Signer};
 use jsonrpsee::ws_client::WsClientBuilder;
 use serde::Serialize;
 use serde_json::json;
@@ -266,7 +266,7 @@ impl TxCommand {
             .with_context(|| "must never be empty after merging")?;
         let _verbose = self.verbose;
 
-        let signer = Signer::fs(key_store);
+        let signer = Signer::fs(key_store)?;
 
         let rpc = self
             .ethereum_rpc
@@ -964,8 +964,7 @@ impl TxCommand {
                             .with_context(|| "failed to create ws client for Vara.eth RPC")?;
 
                         let public_key = signer
-                            .storage()
-                            .get_key_by_addr(sender)
+                            .get_key_by_address(sender)
                             .with_context(|| format!("failed to get key for sender {sender}"))?
                             .ok_or_else(|| anyhow!("no key found for {sender}"))?;
 
@@ -994,7 +993,7 @@ impl TxCommand {
                         let transaction = AddressedInjectedTransaction {
                             recipient: Address::default(),
                             tx: signer
-                                .signed_message(public_key, injected_transaction)
+                                .signed_message(public_key, injected_transaction, None)
                                 .with_context(|| "failed to create signed injected transaction")?,
                         };
 

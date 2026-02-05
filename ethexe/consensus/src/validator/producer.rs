@@ -33,6 +33,7 @@ use ethexe_common::{
 use ethexe_service_utils::Timer;
 use ethexe_tx_pool::SelectionOutput;
 use futures::{FutureExt, future::BoxFuture};
+use gsigner::secp256k1::Secp256k1SignerExt;
 use std::task::{Context, Poll};
 
 /// [`Producer`] is the state of the validator, which creates a new block
@@ -236,7 +237,7 @@ impl Producer {
             .ctx
             .core
             .signer
-            .signed_data(self.ctx.core.pub_key, message)?;
+            .signed_data(self.ctx.core.pub_key, message, None)?;
 
         self.state = State::WaitingAnnounceComputed(announce_hash);
         self.ctx

@@ -28,7 +28,7 @@ gear-workspace-hack.workspace = true
 workspace = true
 
 [dev-dependencies]
-ethexe-signer.workspace = true
+gsigner.workspace = true
 gear-core.workspace = true
 ethexe-common = {workspace = true, features = ["mock"]}
 

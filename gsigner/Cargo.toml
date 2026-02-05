@@ -1,0 +1,111 @@
+[package]
+name = "gsigner"
+description = "Universal cryptographic signer supporting secp256k1 (Ethereum), ed25519, and sr25519 (Substrate)"
+documentation = "https://docs.rs/gsigner"
+keywords = ["cryptography", "ethereum", "substrate", "signing", "keystore"]
+version.workspace = true
+authors.workspace = true
+edition.workspace = true
+license.workspace = true
+homepage.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[[bin]]
+name = "gsigner"
+path = "src/bin/gsigner.rs"
+required-features = ["cli"]
+
+[dependencies]
+alloy-primitives = { workspace = true, optional = true }
+anyhow = { workspace = true, default-features = false, features = [
+    "std",
+], optional = true }
+base64 = { workspace = true, optional = true }
+clap = { workspace = true, features = ["derive"], optional = true }
+colored = { workspace = true, optional = true }
+derive_more = { workspace = true }
+gprimitives = { workspace = true, optional = true }
+hex = { workspace = true, default-features = false, features = ["alloc"] }
+k256 = { version = "0.13.4", default-features = false, features = [
+    "ecdsa",
+], optional = true }
+nacl = { workspace = true, optional = true }
+dirs = { workspace = true, optional = true }
+parity-scale-codec = { workspace = true, default-features = false, features = [
+    "derive",
+], optional = true }
+rand = { workspace = true, default-features = false, features = [
+    "std",
+    "std_rng",
+], optional = true }
+schnorrkel = { workspace = true, optional = true }
+serde = { workspace = true, features = ["derive", "alloc"], optional = true }
+serde_json = { workspace = true, features = ["std"], optional = true }
+sha3 = { version = "0.10", default-features = false, optional = true }
+sp-core = { workspace = true, default-features = false, features = [
+    "full_crypto",
+    "serde",
+], optional = true }
+sp-application-crypto = { workspace = true, default-features = false, features = [
+    "full_crypto",
+] }
+tempfile = { workspace = true, optional = true }
+thiserror = { workspace = true }
+tracing = { workspace = true, default-features = false, features = [
+    "std",
+], optional = true }
+tracing-subscriber = { workspace = true, optional = true }
+libp2p-identity = { version = "0.2", default-features = false, features = [
+    "serde",
+], optional = true }
+secrecy = "0.8"
+gear-workspace-hack.workspace = true
+
+[dev-dependencies]
+assert_cmd = "2.1"
+predicates = "3.1"
+proptest = "1.4"
+serde_json = { workspace = true, features = ["std"] }
+tempfile = { workspace = true }
+
+[features]
+default = [
+    "std",
+    "secp256k1",
+    "sr25519",
+    "ed25519",
+    "codec",
+    "keyring",
+]
+std = [
+    "dep:anyhow",
+    "dep:rand",
+    "dep:serde_json",
+    "dep:tempfile",
+    "dep:tracing",
+    "dep:tracing-subscriber",
+    "dep:base64",
+    "dep:dirs",
+    "serde/std",
+    "sp-application-crypto/std",
+    "sp-core/std",
+]
+secp256k1 = [
+    "dep:sp-core",
+    "dep:k256",
+    "dep:sha3",
+    "dep:gprimitives",
+    "dep:alloy-primitives",
+]
+sr25519 = ["dep:sp-core", "dep:schnorrkel", "dep:nacl", "serde"]
+ed25519 = ["dep:sp-core", "serde"]
+cli = ["std", "clap", "colored", "dep:tracing-subscriber", "keyring"]
+codec = ["dep:parity-scale-codec"]
+keyring = ["std", "serde", "dep:nacl"]
+serde = ["dep:serde"]
+peer-id = ["dep:libp2p-identity"]
+
+[package.metadata.cargo-shear]
+# we need it for applying full_crypto feature
+ignored = ["sp-application-crypto"]

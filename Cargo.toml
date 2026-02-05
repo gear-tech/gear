@@ -20,6 +20,7 @@ members = [
     "common/numerated",
     "core",
     "core-backend",
+    "gsigner",
     "core-processor",
     "core-errors",
     "lazy-pages",
@@ -244,7 +245,7 @@ gsdk = { path = "gsdk" }
 gsdk-codegen = { path = "gsdk/codegen" }
 gstd = { path = "gstd", features = ["nightly"] }
 gstd-codegen = { path = "gstd/codegen" }
-gring = { path = "utils/gring" }
+gsigner = { path = "gsigner", default-features = false }
 gsys = { path = "gsys" }
 gtest = { path = "gtest" }
 gprimitives = { path = "gprimitives", default-features = false }
@@ -311,7 +312,6 @@ ethexe-network = { path = "ethexe/network", default-features = false }
 ethexe-processor = { path = "ethexe/processor", default-features = false }
 ethexe-runtime = { path = "ethexe/runtime", default-features = false }
 ethexe-sdk = { path = "ethexe/sdk", default-features = false }
-ethexe-signer = { path = "ethexe/signer", default-features = false }
 ethexe-service = { path = "ethexe/service", default-features = false }
 ethexe-service-utils = { path = "ethexe/service/utils", default-features = false }
 ethexe-consensus = { path = "ethexe/consensus", default-features = false }
@@ -578,6 +578,7 @@ ignored = [
     "parity-scale-codec",
     "pallet-authorship",
     "pallet-timestamp",
+    "sp-application-crypto",
 ]
 
 [profile.dev.package.corosensei]

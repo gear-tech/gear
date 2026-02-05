@@ -16,7 +16,6 @@ workspace = true
 [dependencies]
 frame-support.workspace = true
 frame-system.workspace = true
-pallet-grandpa.workspace = true
 parity-scale-codec.workspace = true
 scale-info = { workspace = true, features = ["derive"] }
 sp-consensus-grandpa.workspace = true
@@ -33,7 +32,6 @@ default = ["std"]
 std = [
     "frame-support/std",
     "frame-system/std",
-    "pallet-grandpa/std",
     "parity-scale-codec/std",
     "scale-info/std",
     "sp-consensus-grandpa/std",

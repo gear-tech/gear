@@ -162,7 +162,7 @@ impl Mirror {
             )) = result
                 && reply_to == message_id
             {
-                let actor_id = ActorId::from(*self.0.address());
+                let actor_id = gsigner::Address::from(*self.0.address()).into();
                 return Ok(ReplyInfo {
                     message_id: reply_to,
                     actor_id,
@@ -235,7 +235,8 @@ impl Mirror {
             if let Ok((ValueClaimedEvent { claimed_id, value }, _)) = result
                 && claimed_id == message_id
             {
-                let actor_id = self.0.provider().default_signer_address().into();
+                let actor_id =
+                    ethexe_common::Address::from(self.0.provider().default_signer_address()).into();
                 return Ok(ClaimInfo {
                     message_id: claimed_id,
                     actor_id,

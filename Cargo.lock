@@ -1502,6 +1502,21 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "155a5a185e42c6b77ac7b88a15143d930a9e9727a5b7b77eed417404ab15c247"
 
 [[package]]
+name = "assert_cmd"
+version = "2.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "bcbb6924530aa9e0432442af08bbcafdad182db80d2e560da42a6d442535bf85"
+dependencies = [
+ "anstyle",
+ "bstr",
+ "libc",
+ "predicates 3.1.3",
+ "predicates-core",
+ "predicates-tree",
+ "wait-timeout",
+]
+
+[[package]]
 name = "assert_matches"
 version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -2223,6 +2238,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bf88ba1141d185c399bee5288d850d63b8369520c1eafc32a0430b5b6c287bf4"
 dependencies = [
  "tinyvec",
+]
+
+[[package]]
+name = "bstr"
+version = "1.12.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "63044e1ae8e69f3b5a92c736ca6269b8d12fa7efe39bf34ddb06d102cf0e2cab"
+dependencies = [
+ "memchr",
+ "regex-automata",
+ "serde",
 ]
 
 [[package]]
@@ -4908,10 +4934,10 @@ dependencies = [
  "alloy",
  "ethexe-common",
  "ethexe-ethereum",
- "ethexe-signer",
  "futures",
  "gear-workspace-hack",
  "gprimitives",
+ "gsigner",
  "log",
  "reqwest",
  "thiserror 2.0.17",
@@ -4934,12 +4960,11 @@ dependencies = [
  "ethexe-prometheus",
  "ethexe-rpc",
  "ethexe-service",
- "ethexe-signer",
  "gear-workspace-hack",
  "gprimitives",
+ "gsigner",
  "hex",
  "jsonrpsee",
- "libp2p-identity",
  "log",
  "serde",
  "serde_json",
@@ -4963,6 +4988,7 @@ dependencies = [
  "gear-core",
  "gear-workspace-hack",
  "gprimitives",
+ "gsigner",
  "hex",
  "itertools 0.13.0",
  "k256",
@@ -4970,7 +4996,6 @@ dependencies = [
  "parity-scale-codec",
  "roast-secp256k1-evm",
  "serde",
- "serde_json",
  "sha3",
  "sp-core",
  "tap",
@@ -5010,13 +5035,13 @@ dependencies = [
  "ethexe-ethereum",
  "ethexe-runtime-common",
  "ethexe-service-utils",
- "ethexe-signer",
  "ethexe-tx-pool",
  "futures",
  "gear-core",
  "gear-utils",
  "gear-workspace-hack",
  "gprimitives",
+ "gsigner",
  "hashbrown 0.14.5",
  "lru 0.16.3",
  "nonempty 0.12.0",
@@ -5059,13 +5084,13 @@ dependencies = [
  "anyhow",
  "async-trait",
  "ethexe-common",
- "ethexe-signer",
  "futures",
  "gear-core",
  "gear-core-errors",
  "gear-utils",
  "gear-workspace-hack",
  "gprimitives",
+ "gsigner",
  "log",
  "nonempty 0.12.0",
  "rand 0.8.5",
@@ -5087,10 +5112,10 @@ dependencies = [
  "ethexe-common",
  "ethexe-db",
  "ethexe-service-utils",
- "ethexe-signer",
  "futures",
  "gear-workspace-hack",
  "gprimitives",
+ "gsigner",
  "indexmap 2.13.0",
  "itertools 0.13.0",
  "libp2p 0.56.0",
@@ -5115,11 +5140,11 @@ dependencies = [
  "ethexe-common",
  "ethexe-db",
  "ethexe-ethereum",
- "ethexe-signer",
  "futures",
  "gear-utils",
  "gear-workspace-hack",
  "gprimitives",
+ "gsigner",
  "log",
  "tokio",
  "tracing",
@@ -5250,6 +5275,7 @@ dependencies = [
  "futures",
  "gear-workspace-hack",
  "gprimitives",
+ "gsigner",
  "jsonrpsee",
 ]
 
@@ -5283,12 +5309,12 @@ dependencies = [
  "ethexe-rpc",
  "ethexe-runtime-common",
  "ethexe-service-utils",
- "ethexe-signer",
  "futures",
  "gear-core",
  "gear-core-errors",
  "gear-workspace-hack",
  "gprimitives",
+ "gsigner",
  "jsonrpsee",
  "log",
  "ntest",
@@ -5299,6 +5325,7 @@ dependencies = [
  "tokio",
  "tracing",
  "tracing-subscriber",
+ "wat",
 ]
 
 [[package]]
@@ -5312,19 +5339,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "ethexe-signer"
-version = "1.10.0"
-dependencies = [
- "alloy",
- "anyhow",
- "derive_more 2.1.1",
- "ethexe-common",
- "gear-workspace-hack",
- "parity-scale-codec",
- "tempfile",
-]
-
-[[package]]
 name = "ethexe-tx-pool"
 version = "1.10.0"
 dependencies = [
@@ -5333,10 +5347,10 @@ dependencies = [
  "ethexe-common",
  "ethexe-db",
  "ethexe-runtime-common",
- "ethexe-signer",
  "gear-core",
  "gear-workspace-hack",
  "gprimitives",
+ "gsigner",
  "hashbrown 0.14.5",
  "parity-scale-codec",
  "serde",
@@ -5566,6 +5580,15 @@ name = "float-cmp"
 version = "0.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "98de4bbd547a563b716d8dfa9aad1cb19bfab00f4fa09a6a4ed21dbcf44ce9c4"
+dependencies = [
+ "num-traits",
+]
+
+[[package]]
+name = "float-cmp"
+version = "0.10.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b09cf3155332e944990140d967ff5eceb70df778b34f77d8075db46e4704e6d8"
 dependencies = [
  "num-traits",
 ]
@@ -6329,8 +6352,8 @@ dependencies = [
  "gear-node-wrapper",
  "gear-runtime-primitives",
  "gear-workspace-hack",
- "gring",
  "gsdk",
+ "gsigner",
  "hex",
  "indoc",
  "reqwest",
@@ -7702,27 +7725,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "gring"
-version = "1.10.0"
-dependencies = [
- "anyhow",
- "base64 0.21.7",
- "clap 4.5.54",
- "colored",
- "dirs",
- "gear-ss58",
- "gear-workspace-hack",
- "hex",
- "nacl",
- "rand 0.8.5",
- "schnorrkel",
- "serde",
- "serde_json",
- "tracing",
- "tracing-subscriber",
-]
-
-[[package]]
 name = "group"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7788,6 +7790,41 @@ dependencies = [
  "proc-macro2",
  "quote",
  "syn 2.0.114",
+]
+
+[[package]]
+name = "gsigner"
+version = "1.10.0"
+dependencies = [
+ "alloy-primitives",
+ "anyhow",
+ "assert_cmd",
+ "base64 0.21.7",
+ "clap 4.5.54",
+ "colored",
+ "derive_more 2.1.1",
+ "dirs",
+ "gear-workspace-hack",
+ "gprimitives",
+ "hex",
+ "k256",
+ "libp2p-identity",
+ "nacl",
+ "parity-scale-codec",
+ "predicates 3.1.3",
+ "proptest",
+ "rand 0.8.5",
+ "schnorrkel",
+ "secrecy",
+ "serde",
+ "serde_json",
+ "sha3",
+ "sp-application-crypto",
+ "sp-core",
+ "tempfile",
+ "thiserror 2.0.17",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -9690,6 +9727,7 @@ dependencies = [
  "multihash 0.19.3",
  "quick-protobuf",
  "rand 0.8.5",
+ "serde",
  "sha2 0.10.9",
  "thiserror 2.0.17",
  "tracing",
@@ -12393,7 +12431,6 @@ dependencies = [
  "frame-system",
  "gear-workspace-hack",
  "log",
- "pallet-grandpa",
  "parity-scale-codec",
  "scale-info",
  "sp-application-crypto",
@@ -13300,7 +13337,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "59230a63c37f3e18569bdb90e4a89cbf5bf8b06fea0b84e65ea10cc4df47addd"
 dependencies = [
  "difflib",
- "float-cmp",
+ "float-cmp 0.9.0",
  "itertools 0.10.5",
  "normalize-line-endings",
  "predicates-core",
@@ -13314,7 +13351,11 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "a5d19ee57562043d37e82899fade9a22ebab7be9cef5026b07fda9cdd4293573"
 dependencies = [
  "anstyle",
+ "difflib",
+ "float-cmp 0.10.0",
+ "normalize-line-endings",
  "predicates-core",
+ "regex",
 ]
 
 [[package]]
