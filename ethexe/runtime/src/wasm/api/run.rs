@@ -32,6 +32,7 @@ pub fn run(
     queue_type: MessageType,
     maybe_instrumented_code: Option<InstrumentedCode>,
     code_metadata: Option<CodeMetadata>,
+    is_first_queue: bool,
     gas_allowance: u64,
 ) -> (ProgramJournals, u64) {
     log::debug!("You're calling 'run(..)'");
@@ -55,6 +56,7 @@ pub fn run(
         maybe_instrumented_code,
         code_metadata,
         &ri,
+        is_first_queue,
         gas_allowance,
     );
 

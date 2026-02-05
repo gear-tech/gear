@@ -122,6 +122,7 @@ use ethexe_runtime_common::{
 use gear_core::gas::GasAllowanceCounter;
 use gprimitives::{ActorId, H256};
 use itertools::Itertools;
+use std::collections::HashSet;
 
 #[derive(Debug, Clone)]
 pub struct RunnerConfig {
@@ -163,11 +164,16 @@ pub async fn run(
     let mut allowance_counter = GasAllowanceCounter::new(config.block_gas_limit);
     let chunk_size = config.chunk_processing_threads;
 
+    // Set of programs which has already processed
+    // their queue. Used to charge first message fee.
+    let mut processed_first_queue = HashSet::new();
+
     // Start with injected queues processing.
     let is_out_of_gas_for_block = run_inner(
         &mut run_ctx,
         db.clone(),
         instance_creator.clone(),
+        &mut processed_first_queue,
         &mut allowance_counter,
         chunk_size,
         MessageType::Injected,
@@ -180,6 +186,7 @@ pub async fn run(
             &mut run_ctx,
             db,
             instance_creator,
+            &mut processed_first_queue,
             &mut allowance_counter,
             chunk_size,
             MessageType::Canonical,
@@ -203,6 +210,7 @@ pub async fn run_overlaid(
         &mut run_ctx,
         db,
         instance_creator,
+        &mut HashSet::new(),
         &mut allowance_counter,
         chunk_size,
         MessageType::Canonical,
@@ -217,6 +225,7 @@ async fn run_inner<C: RunContext>(
     run_ctx: &mut C,
     db: Database,
     instance_creator: InstanceCreator,
+    processed_first_queue: &mut HashSet<ActorId>,
     allowance_counter: &mut GasAllowanceCounter,
     chunk_size: usize,
     processing_queue_type: MessageType,
@@ -232,6 +241,7 @@ async fn run_inner<C: RunContext>(
             chunk_size,
             states,
             run_ctx,
+            processed_first_queue,
             processing_queue_type,
         );
 
@@ -246,6 +256,7 @@ async fn run_inner<C: RunContext>(
                 chunk,
                 db.clone(),
                 instance_creator.clone(),
+                processed_first_queue,
                 allowance_counter.left().min(CHUNK_PROCESSING_GAS_LIMIT),
                 processing_queue_type,
             )
@@ -304,6 +315,7 @@ pub(crate) trait RunContext {
         &self,
         execution_chunks: &mut chunks_splitting::ExecutionChunks,
         actor_state: chunks_splitting::ActorStateHashWithQueueSize,
+        is_first_queue: bool,
         queue_type: MessageType,
     ) {
         let chunks_splitting::ActorStateHashWithQueueSize {
@@ -319,7 +331,14 @@ pub(crate) trait RunContext {
         };
 
         let chunk_idx = execution_chunks.chunk_idx(queue_size);
-        execution_chunks.insert_into(chunk_idx, actor_id, hash);
+        execution_chunks.insert_into(
+            chunk_idx,
+            chunks_splitting::ChunkItem {
+                actor_id,
+                hash,
+                is_first_queue,
+            },
+        );
     }
 
     /// Checks whether queues for specified program must not be executed in the current run.
@@ -401,6 +420,7 @@ impl<'a> RunContext for OverlaidRunContext<'a> {
         &self,
         execution_chunks: &mut chunks_splitting::ExecutionChunks,
         actor_state: chunks_splitting::ActorStateHashWithQueueSize,
+        is_first_queue: bool,
         queue_type: MessageType,
     ) {
         let chunks_splitting::ActorStateHashWithQueueSize {
@@ -415,14 +435,20 @@ impl<'a> RunContext for OverlaidRunContext<'a> {
             MessageType::Injected => injected_queue_size,
         };
 
+        let chunk_item = chunks_splitting::ChunkItem {
+            actor_id,
+            hash,
+            is_first_queue,
+        };
+
         if self.overlaid_ctx.base_program() == actor_id {
             // Insert base program into heaviest chunk, which is going to be executed first.
             // This is done to get faster reply from the target dispatch for which overlaid
             // executor was created.
-            execution_chunks.insert_into_heaviest(actor_id, hash);
+            execution_chunks.insert_into_heaviest(chunk_item);
         } else {
             let chunk_idx = execution_chunks.chunk_idx(queue_size);
-            execution_chunks.insert_into(chunk_idx, actor_id, hash);
+            execution_chunks.insert_into(chunk_idx, chunk_item);
         }
     }
 
@@ -463,8 +489,15 @@ fn states(
 mod chunks_splitting {
     use super::*;
 
+    #[derive(Debug, Clone, Copy)]
+    pub(super) struct ChunkItem {
+        pub actor_id: ActorId,
+        pub hash: H256,
+        pub is_first_queue: bool,
+    }
+
     // An alias introduced for better readability of the chunks splitting steps.
-    type Chunks = Vec<Vec<(ActorId, H256)>>;
+    pub(super) type Chunk = Vec<ChunkItem>;
 
     // `prepare_execution_chunks` is not exactly sorting (sorting usually `n*log(n)` this one is `O(n)`),
     // but rather partitioning into subsets (chunks) of programs with approximately similar queue sizes.
@@ -472,12 +505,20 @@ mod chunks_splitting {
         chunk_size: usize,
         states: Vec<ActorStateHashWithQueueSize>,
         run_ctx: &mut R,
+        processed_first_queue: &HashSet<ActorId>,
         processing_queue_type: MessageType,
-    ) -> Chunks {
+    ) -> Vec<Chunk> {
         let mut execution_chunks = ExecutionChunks::new(chunk_size, states.len());
 
         for state in states {
-            run_ctx.handle_chunk_data(&mut execution_chunks, state, processing_queue_type);
+            let is_first_queue = !processed_first_queue.contains(&state.actor_id);
+
+            run_ctx.handle_chunk_data(
+                &mut execution_chunks,
+                state,
+                is_first_queue,
+                processing_queue_type,
+            );
         }
 
         execution_chunks.arrange_execution_chunks(run_ctx)
@@ -506,7 +547,7 @@ mod chunks_splitting {
     /// A helper struct to manage execution chunks during their preparation.
     pub(crate) struct ExecutionChunks {
         chunk_size: usize,
-        chunks: Chunks,
+        chunks: Vec<Chunk>,
     }
 
     impl ExecutionChunks {
@@ -527,29 +568,29 @@ mod chunks_splitting {
         }
 
         /// Inserts chunk execution data into the specified chunk index.
-        pub(super) fn insert_into(&mut self, idx: usize, actor_id: ActorId, hash: H256) {
-            if let Some(chunk) = self.chunks.get_mut(idx) {
-                chunk.push((actor_id, hash));
-            } else {
+        pub(super) fn insert_into(&mut self, idx: usize, item: ChunkItem) {
+            let Some(chunk) = self.chunks.get_mut(idx) else {
                 panic!(
                     "Chunk index {idx} out of bounds: chunks number - {}",
                     self.chunks.len()
-                );
-            }
+                )
+            };
+
+            chunk.push(item);
         }
 
         /// Insert chunk execution data into the heaviest chunk (most prior, the last one).
-        pub(super) fn insert_into_heaviest(&mut self, actor_id: ActorId, hash: H256) {
-            if let Some(chunk) = self.chunks.last_mut() {
-                chunk.push((actor_id, hash));
-            } else {
+        pub(super) fn insert_into_heaviest(&mut self, item: ChunkItem) {
+            let Some(chunk) = self.chunks.last_mut() else {
                 panic!("Chunks are empty, cannot insert into heaviest chunk");
-            }
+            };
+
+            chunk.push(item);
         }
 
         /// Arranges execution chunks by merging uneven chunks and reversing their order,
         /// so the heaviest chunks are processed first.
-        fn arrange_execution_chunks<R: RunContext>(self, run_ctx: &mut R) -> Chunks {
+        fn arrange_execution_chunks<R: RunContext>(self, run_ctx: &mut R) -> Vec<Chunk> {
             self.chunks
                 .into_iter()
                 // Merge uneven chunks
@@ -566,7 +607,7 @@ mod chunks_splitting {
                         // earlier the function will nullify it and skip spawning the job for the program queue as it's empty. If the queue
                         // was already nullified, the function will return `false` and the job will be spawned as usual.
                         // For more info, see impl of the [`OverlaidContext`].
-                        .filter(|&(program_id, _)| !run_ctx.check_task_no_run(program_id))
+                        .filter(|&chunk_item| !run_ctx.check_task_no_run(chunk_item.actor_id))
                         .collect()
                 })
                 .collect()
@@ -576,6 +617,7 @@ mod chunks_splitting {
 
 mod chunk_execution_spawn {
     use super::*;
+    use chunks_splitting::ChunkItem;
     use rayon::iter::{IntoParallelIterator, ParallelIterator};
 
     /// An alias introduced for better readability of the chunks execution steps.
@@ -588,31 +630,43 @@ mod chunk_execution_spawn {
     /// executed concurrently, then each of the program should have received a reference to the global gas allowance counter
     /// and charge gas from it concurrently.
     pub(super) async fn spawn_chunk_execution(
-        chunk: Vec<(ActorId, H256)>,
+        chunk: Vec<ChunkItem>,
         db: Database,
         instance_creator: InstanceCreator,
+        processed_first_queue: &mut HashSet<ActorId>,
         gas_allowance_for_chunk: u64,
         processing_queue_type: MessageType,
     ) -> Vec<ChunkItemOutput> {
+        for chunk_item in &chunk {
+            processed_first_queue.insert(chunk_item.actor_id);
+        }
+
         tokio::task::spawn_blocking(move || {
             chunk
                 .into_par_iter()
-                .map(|(program_id, state_hash)| {
-                    let db = db.clone();
-                    let mut executor = instance_creator
-                        .instantiate()
-                        .expect("Failed to instantiate executor");
+                .map(
+                    |ChunkItem {
+                         actor_id: program_id,
+                         hash: state_hash,
+                         is_first_queue,
+                     }| {
+                        let db = db.clone();
+                        let mut executor = instance_creator
+                            .instantiate()
+                            .expect("Failed to instantiate executor");
 
-                    let (jn, new_state_hash, gas_spent) = run_runtime(
-                        db,
-                        &mut executor,
-                        program_id,
-                        state_hash,
-                        processing_queue_type,
-                        gas_allowance_for_chunk,
-                    );
-                    (program_id, new_state_hash, jn, gas_spent)
-                })
+                        let (jn, new_state_hash, gas_spent) = run_runtime(
+                            db,
+                            &mut executor,
+                            program_id,
+                            state_hash,
+                            processing_queue_type,
+                            is_first_queue,
+                            gas_allowance_for_chunk,
+                        );
+                        (program_id, new_state_hash, jn, gas_spent)
+                    },
+                )
                 .collect()
         })
         .await
@@ -625,6 +679,7 @@ mod chunk_execution_spawn {
         program_id: ActorId,
         state_hash: H256,
         queue_type: MessageType,
+        is_first_queue: bool,
         gas_allowance: u64,
     ) -> (ProgramJournals, H256, u64) {
         let code_id = db.program_code_id(program_id).expect("Code ID must be set");
@@ -640,6 +695,7 @@ mod chunk_execution_spawn {
                 queue_type,
                 instrumented_code,
                 code_metadata,
+                is_first_queue,
                 gas_allowance,
             )
             .expect("Some error occurs while running program in instance")
@@ -788,10 +844,13 @@ mod tests {
         let mut common_run_context = CommonRunContext {
             in_block_transitions: &mut InBlockTransitions::default(),
         };
+
+        let processed_first_queue = HashSet::from([2, 3, 5].map(ActorId::from));
         let chunks = chunks_splitting::prepare_execution_chunks(
             CHUNK_PROCESSING_THREADS,
             states,
             &mut common_run_context,
+            &processed_first_queue,
             MessageType::Canonical,
         );
 
@@ -801,9 +860,9 @@ mod tests {
             .map(|chunk| {
                 chunk
                     .into_iter()
-                    .map(|(_, hash)| {
+                    .map(|chunk_item| {
                         states_to_queue_size
-                            .get(&hash)
+                            .get(&chunk_item.hash)
                             .expect("State hash must be in the map")
                     })
                     .sum::<usize>()
