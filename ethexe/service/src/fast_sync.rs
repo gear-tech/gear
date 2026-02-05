@@ -23,7 +23,7 @@ use ethexe_common::{
     ProtocolTimelines, StateHashWithQueueSize,
     db::{
         AnnounceStorageRO, BlockMetaStorageRO, CodesStorageRO, CodesStorageRW,
-        ComputedAnnounceData, HashStorageRO, OnChainStorageRW, PreparedBlockData,
+        ComputedAnnounceData, OnChainStorageRW, PreparedBlockData,
     },
     events::{
         BlockEvent, RouterEvent,
@@ -349,7 +349,7 @@ impl RequestManager {
                 continue;
             }
 
-            if let Some(data) = self.db.read_by_hash(hash) {
+            if let Some(data) = self.db.cas().read(hash) {
                 self.responses.push((metadata, data));
                 continue;
             }
