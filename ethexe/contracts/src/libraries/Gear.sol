@@ -25,6 +25,20 @@ library Gear {
     // 10 WVara tokens per compute second.
     uint128 public constant WVARA_PER_SECOND = 10_000_000_000_000;
 
+    error ValidationBeforeGenesis();
+
+    error TimestampOlderThanPreviousEra();
+
+    error TimestampInFuture();
+
+    error InvalidFrostSignatureCount();
+
+    error InvalidFrostSignatureLength();
+
+    error ErasTimestampMustNotBeEqual();
+
+    error ValidatorsNotFoundForTimestamp();
+
     struct AggregatedPublicKey {
         uint256 x;
         uint256 y;
@@ -355,13 +369,13 @@ library Gear {
     ) internal returns (bool) {
         uint256 eraStarted = eraStartedAt(router, block.timestamp);
         if (ts < eraStarted && block.timestamp < eraStarted + router.timelines.validationDelay) {
-            require(ts >= router.genesisBlock.timestamp, "cannot validate before genesis");
-            require(ts + router.timelines.era >= eraStarted, "timestamp is older than previous era");
+            require(ts >= router.genesisBlock.timestamp, ValidationBeforeGenesis());
+            require(ts + router.timelines.era >= eraStarted, TimestampOlderThanPreviousEra());
 
             // Validation must be done using validators from previous era,
             // because `ts` is in the past and we are in the validation delay period.
         } else {
-            require(ts <= block.timestamp, "timestamp cannot be in the future");
+            require(ts <= block.timestamp, TimestampInFuture());
 
             if (ts < eraStarted) {
                 ts = eraStarted;
@@ -374,10 +388,10 @@ library Gear {
         bytes32 _messageHash = address(this).toDataWithIntendedValidatorHash(_dataHash);
 
         if (_signatureType == SignatureType.FROST) {
-            require(_signatures.length == 1, "FROST signature must be single");
+            require(_signatures.length == 1, InvalidFrostSignatureCount());
 
             bytes memory _signature = _signatures[0];
-            require(_signature.length == 96, "FROST signature length must be 96 bytes");
+            require(_signature.length == 96, InvalidFrostSignatureLength());
 
             uint256 _signatureCommitmentX;
             uint256 _signatureCommitmentY;
@@ -468,14 +482,14 @@ library Gear {
         uint256 ts1 = router.validationSettings.validators1.useFromTimestamp;
 
         // Impossible case, because of implementation.
-        require(ts0 != ts1, "eras timestamp must not be equal");
+        require(ts0 != ts1, ErasTimestampMustNotBeEqual());
 
         bool ts1Greater = ts0 < ts1;
         bool tsGe0 = ts0 <= ts;
         bool tsGe1 = ts1 <= ts;
 
         // Both eras are in the future - not supported by this function.
-        require(tsGe0 || tsGe1, "could not identify validators for the given timestamp");
+        require(tsGe0 || tsGe1, ValidatorsNotFoundForTimestamp());
 
         // Two impossible cases, because of math rules:
         // 1)  ts1Greater && !tsGe0 &&  tsGe1

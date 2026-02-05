@@ -53,7 +53,7 @@ contract Mirror is IMirror {
     }
 
     function _onlyAfterInitMessage() internal view {
-        require(nonce > 0, "initializer hasn't created init message yet");
+        require(nonce > 0, InitMessageNotCreated());
     }
 
     /// @dev Functions marked with this modifier can only be called if the init message has been created before or the caller is the initializer.
@@ -63,10 +63,7 @@ contract Mirror is IMirror {
     }
 
     function _onlyAfterInitMessageOrInitializer() internal view {
-        require(
-            nonce > 0 || msg.sender == initializer,
-            "initializer hasn't created init message yet; and caller is not the initializer"
-        );
+        require(nonce > 0 || msg.sender == initializer, InitMessageNotCreatedAndCallerNotInitializer());
     }
 
     /// @dev Functions marked with this modifier can only be called if program is active.
@@ -76,7 +73,7 @@ contract Mirror is IMirror {
     }
 
     function _onlyIfActive() internal view {
-        require(!exited, "program is exited");
+        require(!exited, ProgramExited());
     }
 
     /// @dev Functions marked with this modifier can only be called if program is exited.
@@ -86,7 +83,7 @@ contract Mirror is IMirror {
     }
 
     function _onlyIfExited() internal view {
-        require(exited, "program is not exited");
+        require(exited, ProgramNotExited());
     }
 
     /// @dev Functions marked with this modifier can only be called by the router.
@@ -96,7 +93,7 @@ contract Mirror is IMirror {
     }
 
     function _onlyRouter() internal view {
-        require(msg.sender == router, "caller is not the router");
+        require(msg.sender == router, CallerNotRouter());
     }
 
     /// @dev Non-zero Vara value must be transferred from source to router in functions marked with this modifier.
@@ -108,7 +105,7 @@ contract Mirror is IMirror {
     function _retrievingVara(uint128 value) internal {
         if (value != 0) {
             bool success = _wvara(router).transferFrom(msg.sender, router, value);
-            require(success, "failed to transfer non-zero amount of WVara from source to router");
+            require(success, WVaraTransferFailed());
         }
     }
 
@@ -116,7 +113,7 @@ contract Mirror is IMirror {
     function _retrievingEther(uint128 value) internal {
         if (value != 0) {
             (bool success,) = router.call{value: value}("");
-            require(success, "failed to transfer non-zero amount of Ether from source to router");
+            require(success, EtherTransferToRouterFailed());
         }
     }
 
@@ -153,14 +150,14 @@ contract Mirror is IMirror {
     /* Router-driven state and funds management */
 
     function initialize(address _initializer, address _abiInterface, bool _isSmall) public onlyRouter {
-        require(initializer == address(0), "initializer could only be set once");
+        require(initializer == address(0), InitializerAlreadySet());
 
-        require(!isSmall, "isSmall could only be set once");
+        require(!isSmall, IsSmallAlreadySet());
 
         StorageSlot.AddressSlot storage implementationSlot =
             StorageSlot.getAddressSlot(ERC1967Utils.IMPLEMENTATION_SLOT);
 
-        require(implementationSlot.value == address(0), "abi interface could only be set once");
+        require(implementationSlot.value == address(0), AbiInterfaceAlreadySet());
 
         initializer = _initializer;
         isSmall = _isSmall;
@@ -174,12 +171,11 @@ contract Mirror is IMirror {
         returns (bytes32)
     {
         /// @dev Verify that the transition belongs to this contract.
-        require(_transition.actorId == address(this), "actorId must be this contract");
+        require(_transition.actorId == address(this), InvalidActorId());
 
         /// @dev Transfer value to router if valueToReceive is non-zero and has negative sign.
-        if (_transition.valueToReceive != 0 && _transition.valueToReceiveNegativeSign) {
-            (bool success,) = router.call{value: _transition.valueToReceive}("");
-            require(success, "failed to transfer value to router during state transition");
+        if (_transition.valueToReceiveNegativeSign) {
+            _retrievingEther(_transition.valueToReceive);
         }
 
         /// @dev Send all outgoing messages.
@@ -192,7 +188,7 @@ contract Mirror is IMirror {
         if (_transition.exited) {
             _setInheritor(_transition.inheritor);
         } else {
-            require(_transition.inheritor == address(0), "inheritor must be zero if not exited");
+            require(_transition.inheritor == address(0), InheritorMustBeZero());
         }
 
         /// @dev Update the state hash if changed.
@@ -455,7 +451,7 @@ contract Mirror is IMirror {
     function _transferEther(address destination, uint128 value) private {
         if (value != 0) {
             (bool success,) = destination.call{value: value}("");
-            require(success, "failed to transfer Ether");
+            require(success, EtherTransferToDestinationFailed());
         }
     }
 
@@ -464,30 +460,28 @@ contract Mirror is IMirror {
             uint128 value = uint128(msg.value);
 
             emit OwnedBalanceTopUpRequested(value);
+        } else if (!isSmall && msg.data.length >= 0x24) {
+            // We only allow arbitrary calls to full mirror contracts, which are
+            // more likely to come from their ERC1967 implementor.
 
-            return;
-        }
+            // The minimum call data length is 0x24 (36 bytes) because:
+            // - 0x04 (4 bytes) for the function selector   [0x00..0x04)
+            // - 0x20 (32 bytes) for the bool `callReply`   [0x04..0x24)
 
-        // We only allow arbitrary calls to full mirror contracts, which are
-        // more likely to come from their ERC1967 implementor.
-        require(!isSmall);
+            uint256 callReply;
 
-        // The minimum call data length is 0x24 (36 bytes) because:
-        // - 0x04 (4 bytes) for the function selector   [0x00..0x04)
-        // - 0x20 (32 bytes) for the bool `callReply`   [0x04..0x24)
-        require(msg.data.length >= 0x24);
+            assembly ("memory-safe") {
+                callReply := calldataload(0x04)
+            }
 
-        uint256 callReply;
+            bytes32 messageId = _sendMessage(msg.data, callReply != 0);
 
-        assembly ("memory-safe") {
-            callReply := calldataload(0x04)
-        }
-
-        bytes32 messageId = _sendMessage(msg.data, callReply != 0);
-
-        assembly ("memory-safe") {
-            mstore(0x00, messageId)
-            return(0x00, 0x20)
+            assembly ("memory-safe") {
+                mstore(0x00, messageId)
+                return(0x00, 0x20)
+            }
+        } else {
+            revert InvalidFallbackCall();
         }
     }
 }

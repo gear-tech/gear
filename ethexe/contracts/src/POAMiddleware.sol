@@ -171,7 +171,7 @@ contract POAMiddleware is IMiddleware, OwnableUpgradeable, ReentrancyGuardTransi
     }
 
     function makeElectionAt(uint48, uint256 maxValidators) external view returns (address[] memory) {
-        require(maxValidators > 0, "Max validators must be greater than zero");
+        require(maxValidators > 0, MaxValidatorsMustBeGreaterThanZero());
 
         Storage storage $ = _storage();
         address[] memory operators = new address[]($.operators.length());

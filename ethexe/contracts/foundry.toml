@@ -27,8 +27,8 @@ ignored_warnings_from = [
 # Required for Middleware tests
 fs_permissions = [ { access = "read-write", path = "out" }, { access = "read", path = "lib" } ]
 
-# [fmt]
-# sort_imports = true
+[fmt]
+sort_imports = true
 
 # Temporary disabled lint rules
 [lint]
