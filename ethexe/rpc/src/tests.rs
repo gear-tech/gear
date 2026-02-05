@@ -36,7 +36,7 @@ use gear_core::{
 use jsonrpsee::{
     core::client::Error as JsonRpcError,
     server::ServerHandle,
-    types::{ErrorCode},
+    types::ErrorCode,
     ws_client::{WsClient, WsClientBuilder},
 };
 use std::net::{IpAddr, Ipv4Addr, SocketAddr};
