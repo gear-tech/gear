@@ -186,7 +186,7 @@ contract Mirror is IMirror {
         bytes32 messagesHashesHash = sendMessages(_transition.messages);
 
         /// @dev Send value for each claim.
-        bytes32 valueClaimsHash = claimValues(_transition.valueClaims);
+        bytes32 valueClaimsHash = _claimValues(_transition.valueClaims);
 
         /// @dev Set inheritor if exited.
         if (_transition.exited) {
@@ -214,7 +214,7 @@ contract Mirror is IMirror {
     }
 
     function _sendMessage(bytes calldata _payload, bool _callReply)
-        internal
+        private
         onlyIfActive
         onlyAfterInitMessageOrInitializer
         returns (bytes32)
@@ -253,9 +253,9 @@ contract Mirror is IMirror {
 
             // send the message
             if (message.replyDetails.to == 0) {
-                sendMailboxedMessage(message);
+                _sendMailboxedMessage(message);
             } else {
-                sendReplyMessage(message);
+                _sendReplyMessage(message);
             }
         }
 
@@ -263,7 +263,7 @@ contract Mirror is IMirror {
     }
 
     /// @dev Value never sent since goes to mailbox.
-    function sendMailboxedMessage(Gear.Message calldata _message) internal {
+    function _sendMailboxedMessage(Gear.Message calldata _message) private {
         if (!_tryParseAndEmitSailsEvent(_message)) {
             if (_message.call) {
                 (bool success,) = _message.destination.call{gas: 500_000}(_message.payload);
@@ -379,7 +379,7 @@ contract Mirror is IMirror {
     }
 
     /// @dev Non-zero value always sent since never goes to mailbox.
-    function sendReplyMessage(Gear.Message calldata _message) internal {
+    function _sendReplyMessage(Gear.Message calldata _message) private {
         if (_message.call) {
             bool isSuccessReply = _message.replyDetails.code[0] == 0;
 
@@ -411,7 +411,7 @@ contract Mirror is IMirror {
     }
 
     // TODO (breathx): claimValues will fail if the program is exited: keep the funds on router.
-    function claimValues(Gear.ValueClaim[] calldata _claims) internal returns (bytes32) {
+    function _claimValues(Gear.ValueClaim[] calldata _claims) private returns (bytes32) {
         bytes memory valueClaimsBytes;
 
         for (uint256 i = 0; i < _claims.length; i++) {

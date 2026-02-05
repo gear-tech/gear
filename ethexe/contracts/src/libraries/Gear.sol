@@ -500,7 +500,6 @@ library Gear {
         }
     }
 
-    // TODO kuzmindev: i don't understand why there is no no `keccak256` here
     function valueClaimBytes(ValueClaim memory claim) internal pure returns (bytes memory) {
         return abi.encodePacked(claim.messageId, claim.destination, claim.value);
     }
